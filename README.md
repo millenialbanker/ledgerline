@@ -58,7 +58,7 @@ These hold even if application code has a bug:
 - `db/tests/run.sh` on PostgreSQL 16: nine schema guarantee tests, then every store SQL statement (including the document store) prepared and executed in order against the live schema.
 - The API server, run and exercised with curl.
 
-**Not run in this build:** the Go-to-PostgreSQL path through the `pgx` driver. The build environment could not download Go modules, so `internal/pgstore/integration_test.go` (full sample day against PostgreSQL) runs in CI, and on your machine after `go get github.com/jackc/pgx/v5`. All of its SQL was already verified directly on PostgreSQL as described above.
+**PostgreSQL end to end (CI):** every push runs the full generated sample day through every operations module twice, on in-memory stores and on PostgreSQL through the `pgx` driver, and requires all 357 compared figures to match (`internal/pgstore/ops_integration_test.go`). CI fails if the integration tests are skipped.
 
 ## Run it
 
