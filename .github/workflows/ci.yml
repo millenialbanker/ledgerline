@@ -28,8 +28,9 @@ jobs:
       - name: Integration test against PostgreSQL
         env:
           LEDGERLINE_TEST_TENANT: ci
+          LEDGERLINE_TEST_OPS_TENANT: ci_ops
         run: |
-          psql -d ledgerline_test -c "CREATE ROLE ll_it LOGIN PASSWORD 'll_it' IN ROLE ledgerline_app; INSERT INTO ll.tenant (id, name) VALUES ('ci', 'CI tenant');"
+          psql -d ledgerline_test -c "CREATE ROLE ll_it LOGIN PASSWORD 'll_it' IN ROLE ledgerline_app; INSERT INTO ll.tenant (id, name) VALUES ('ci', 'CI tenant'), ('ci_ops', 'CI operations tenant');"
           go get github.com/jackc/pgx/v5@v5.7.2
           go mod tidy
-          LEDGERLINE_TEST_DB="postgres://ll_it:ll_it@localhost:5432/ledgerline_test?sslmode=disable" make integration
+          LEDGERLINE_TEST_DB="postgres://ll_it:ll_it@localhost:5432/ledgerline_test?sslmode=disable" go test -tags 'integration pgx' -count=1 -v -run Integration ./internal/pgstore
