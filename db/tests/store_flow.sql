@@ -39,5 +39,25 @@ EXECUTE q_resolve_break('alpha','BRK-x','Fixed OMS fill','ops',now());
 EXECUTE q_list_breaks('alpha','','','BRK-x');
 EXECUTE q_insert_audit('alpha', now(), 'ops', 'recon.break.resolved', 'BRK-x', '{"resolution":"Fixed OMS fill"}');
 EXECUTE q_list_audit('alpha', 5);
+-- documents: insert once, stale update refused, version advances, history kept, prefix list escapes LIKE
+EXECUTE q_doc_insert('alpha','client','BH1001','{"name":"A"}','ops');
+EXECUTE q_doc_insert('alpha','client','BH1001','{"name":"dup"}','ops');
+EXECUTE q_doc_insert('alpha','client','BH_1','{"name":"underscore"}','ops');
+EXECUTE q_doc_update('alpha','client','BH1001','{"name":"B"}','ops',1);
+EXECUTE q_doc_update('alpha','client','BH1001','{"name":"stale"}','ops',1);
+SELECT (SELECT version FROM ll.doc WHERE coll='client' AND id='BH1001') = 2
+   AND (SELECT body->>'name' FROM ll.doc WHERE coll='client' AND id='BH1001') = 'B'
+   AND (SELECT count(*) FROM ll.doc_history WHERE coll='client' AND id='BH1001') = 2 AS docs_ok \gset
+\if :docs_ok
+\else
+  \echo 'FAIL: document versioning' \\ \quit
+\endif
+SELECT count(*) = 1 AS like_ok FROM ll.doc WHERE tenant_id='alpha' AND coll='client' AND id LIKE replace(replace(replace('BH_', '\', '\\'), '%', '\%'), '_', '\_') || '%' \gset
+\if :like_ok
+\else
+  \echo 'FAIL: doc prefix must treat _ literally' \\ \quit
+\endif
+EXECUTE q_doc_list('alpha','client','BH');
+EXECUTE q_doc_get('alpha','client','BH1001');
 COMMIT;
 \echo 'store flow passed'

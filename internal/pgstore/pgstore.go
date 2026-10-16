@@ -53,7 +53,7 @@ func Open(ctx context.Context, driver, dsn string) (*Store, error) {
 
 // Stores returns the bundle for app.New.
 func (s *Store) Stores() app.Stores {
-	return app.Stores{Ledger: s, Raw: s.RawStore(), Trades: s.TradeStore(), Breaks: s.BreakStore(), Audit: s.AuditStore()}
+	return app.Stores{Ledger: s, Raw: s.RawStore(), Trades: s.TradeStore(), Breaks: s.BreakStore(), Audit: s.AuditStore(), Docs: s.DocStore()}
 }
 
 func (s *Store) tx(ctx context.Context, tenant string, fn func(*sql.Tx) error) error {

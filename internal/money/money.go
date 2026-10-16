@@ -231,3 +231,47 @@ func (a *Amount) UnmarshalJSON(b []byte) error {
 	*a = v
 	return nil
 }
+
+// Float64 returns an approximation for ratios and display. Never use it for
+// amounts that are stored or posted.
+func (d Dec) Float64() float64 {
+	f, _ := d.rat().Float64()
+	return f
+}
+
+// Max returns the larger of a and b.
+func Max(a, b Dec) Dec {
+	if a.Cmp(b) >= 0 {
+		return a
+	}
+	return b
+}
+
+// Min returns the smaller of a and b.
+func Min(a, b Dec) Dec {
+	if a.Cmp(b) <= 0 {
+		return a
+	}
+	return b
+}
+
+// Fixed renders d rounded half away from zero to n decimal places.
+func (d Dec) Fixed(n int) string {
+	x := new(big.Rat).Set(d.rat())
+	p := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(n)), nil)
+	x.Mul(x, new(big.Rat).SetInt(p))
+	q := roundHalfAway(x)
+	r := new(big.Rat).SetFrac(q, p)
+	return r.FloatString(n)
+}
+
+// CeilRupee rounds d up (towards +infinity) to a whole rupee. Used where an
+// amount must be retained in full, such as a running-account retention.
+func (d Dec) CeilRupee() Dec {
+	r := d.rat()
+	q, m := new(big.Int).QuoRem(r.Num(), r.Denom(), new(big.Int))
+	if m.Sign() > 0 {
+		q.Add(q, big.NewInt(1))
+	}
+	return Dec{new(big.Rat).SetInt(q)}
+}

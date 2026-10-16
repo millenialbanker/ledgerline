@@ -25,6 +25,7 @@ import (
 	"ledgerline/internal/app"
 	"ledgerline/internal/charges"
 	"ledgerline/internal/ingest"
+	"ledgerline/internal/ops"
 	"ledgerline/internal/pgstore"
 	"ledgerline/internal/web"
 )
@@ -114,8 +115,17 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	}
 
 	a := app.New(stores, reg, sched)
-	apiSrv := api.New(a, keys, log)
-	cfg := web.Config{Dev: dev, Version: "step1"}
+	o := ops.New(a)
+	if dev {
+		o.SimulateOMS = true
+		for _, t := range keys {
+			if err := o.SeedDev(ctx, t); err != nil {
+				return fmt.Errorf("seeding development tenant %s: %w", t, err)
+			}
+		}
+	}
+	apiSrv := api.New(a, o, keys, log, dev)
+	cfg := web.Config{Dev: dev, Version: "2.0"}
 	if dev {
 		for k, t := range keys {
 			if k == devKey {

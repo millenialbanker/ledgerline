@@ -1,8 +1,16 @@
-# Ledgerline back office: core services (build step 1)
+# Ledgerline back office
 
 The production core of a multi-tenant back office for Indian stockbrokers: file ingestion, trade reconciliation, charges, EOD billing and an append-only double-entry ledger, on PostgreSQL. It covers equity cash, F&O, currency and commodity segments.
 
-This is step 1 of the build plan in the product spec. Settlement obligations, RMS, contract notes and regulatory reports build on it in the next steps (see [Next steps](#next-steps)).
+On top of that core sit the daily operations modules: client onboarding, RMS and limits, peak-margin reporting, collateral and pledge, settlement obligations and unpaid securities, contract notes, bank reconciliation, running account settlement, regulatory reports, surveillance, IPO and mutual fund orders, and EOD close. A browser console served by the same binary drives all of it.
+
+## Try it in two minutes
+
+```bash
+./bin/ledgerline -dev        # then open http://localhost:8080
+```
+
+On the dashboard, click **Load sample trading day**. It generates about 60 clients and 355 trades across NSE, BSE and MCX (cash, F&O, currency, commodity), holdings, carried positions, pledge requests, a bank statement, exchange alerts and IPO/MF orders, and pushes each one through the normal file loaders. Then work the day: run reconciliation, resolve breaks, bill, settle, send contract notes, square off breaches, and close the day. Switch the **Signed in as** user at top right to see maker-checker and role rules in action.
 
 ## What it does
 
@@ -25,7 +33,10 @@ exchange / CC / OMS files ──► ingest ──► trade events ──► reco
 | `internal/app` | Daily operations (ingest, recon, resolve, bill, journal, reverse) with an audit event for every action. |
 | `internal/pgstore` | PostgreSQL implementation of every store via `database/sql`, with tenant set per transaction for row-level security. |
 | `internal/api` | HTTP/JSON API: bearer key per tenant, `X-Actor` on every change, consistent error bodies. |
-| `web/`, `internal/web` | Browser console served by the API server at `/`: day overview, file upload, trades, reconciliation with break resolution, billing, ledger and statements, charges calculator, audit trail. |
+| `internal/docs` | Versioned document store for master and workflow data (clients, holdings, settings, workflow status), with optimistic concurrency and full change history. Money never lives here. |
+| `internal/ops` | Daily operations: onboarding with validation and maker-checker activation, market data and holdings, RMS (VaR+ELM, SPAN-style F&O margin, 50:50 collateral rule, overrides, kill switch, square-off), peak margin and penalties, settlement and CUSPA, contract notes, bank matching and third-party funds, running account settlement, reports, surveillance rules, EOD checks. |
+| `internal/sample` | Deterministic generator for a realistic sample trading day, with injected reconciliation breaks and exceptions. |
+| `web/`, `internal/web` | Browser console served at `/`: 19 screens, every number from the API. |
 | `cmd/ledgerline` | API server. `cmd/ledgerctl`: demo, file check and charge quote CLI. |
 | `db/migrations` | Schema with guarantees enforced by the database itself (below). |
 
@@ -40,10 +51,11 @@ These hold even if application code has a bug:
 
 ## Verified in this build
 
-- `go test -race ./...`: 9 packages, including a full sample day end to end (4 files, recon, break workflow, billing, idempotent re-billing, trial balance, statement, audit trail, reversal) through the app layer and through the HTTP API.
+- `go test ./...`: 12 packages, including a full generated sample day through every operations module (`internal/ops`), and the original 4-file day through the app layer and HTTP API.
+- The console driven end to end in headless Chromium: every screen, plus onboarding, overrides with a second user, square-off, penalties, rebill, settlement, bank returns, RAS, reports, alerts and EOD.
 - Charges checked against hand-worked figures. For example, 10 RELIANCE @ ₹1,412 delivery buy costs ₹16.75: STT 14.12, exchange 0.42, SEBI 0.01, stamp 2.12, GST 0.08.
 - Client BH1001's closing balance on the sample day is ₹17,863.72 Dr, computed by hand and asserted in tests.
-- `db/tests/run.sh` on PostgreSQL 16: nine schema guarantee tests, then every store SQL statement prepared and executed in order against the live schema.
+- `db/tests/run.sh` on PostgreSQL 16: nine schema guarantee tests, then every store SQL statement (including the document store) prepared and executed in order against the live schema.
 - The API server, run and exercised with curl.
 
 **Not run in this build:** the Go-to-PostgreSQL path through the `pgx` driver. The build environment could not download Go modules, so `internal/pgstore/integration_test.go` (full sample day against PostgreSQL) runs in CI, and on your machine after `go get github.com/jackc/pgx/v5`. All of its SQL was already verified directly on PostgreSQL as described above.
@@ -93,6 +105,8 @@ All endpoints need `Authorization: Bearer <key>`. Changes also need `X-Actor: <u
 | `GET /v1/ledger/statement?ucc=&from=&to=` | Account statement with opening balance |
 | `GET /v1/audit?limit=` | Audit trail, newest first |
 
+Operations endpoints (`internal/api/ops.go`): `/v1/me`, `/v1/users`, `/v1/settings`, `/v1/dashboard`, `/v1/clients`, `/v1/market`, `/v1/collateral`, `/v1/pledges`, `/v1/rms`, `/v1/margin`, `/v1/settlement`, `/v1/cuspa`, `/v1/notes`, `/v1/bank`, `/v1/funds`, `/v1/ras`, `/v1/reports`, `/v1/alerts`, `/v1/surveillance/run`, `/v1/ipo`, `/v1/mf`, `/v1/ccm`, `/v1/eod`. Mutating calls check the `X-Actor` user's role: Ops maker, Ops checker, Risk manager, Compliance officer or Admin.
+
 Try it with the dev server running:
 
 ```bash
@@ -118,11 +132,10 @@ curl -H "$K" -X POST -d '{"bucket":"FO-OPT","exchange":"NSE","side":"S","qty":13
 
 ## Next steps
 
-Step 2 builds on this core:
+Before a pilot:
 
-1. **Settlement:** clearing obligation files, client obligations, pay-in/pay-out, short delivery and auction, client unpaid securities.
-2. **Carry-forward positions:** daily MTM on open futures, option exercise and assignment, automated rebill after client code modification.
-3. **RMS:** SPAN/VaR file adapters, collateral and haircuts, the 50:50 cash rule, limits pushed to the OMS, peak-margin reporting.
-4. **Contract notes:** PDF generation, digital signing and delivery tracking.
-5. **Running account settlement and bank reconciliation** on the ledger.
-6. **Regulatory report factory** and the ops console UI, connecting the existing prototype to this API.
+1. **Real file layouts and rates** from the pilot broker (see placeholders above), including the clearing corporations' SPAN and obligation files.
+2. **Connectors:** exchange extranet and depository APIs for BOD/EOD file pulls, OMS limit push and square-off, bank statement feed, mail relay with digital signing for contract notes.
+3. **Sign-in:** single sign-on with per-user credentials, replacing the shared tenant key plus `X-Actor`.
+4. **Exact regulatory formats** for each report, and auction handling for short deliveries.
+5. **Option exercise and assignment** at expiry.

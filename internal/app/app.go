@@ -15,6 +15,7 @@ import (
 
 	"ledgerline/internal/billing"
 	"ledgerline/internal/charges"
+	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/ledger"
 	"ledgerline/internal/money"
@@ -76,10 +77,14 @@ type App struct {
 	Trades   ingest.TradeStore
 	Breaks   BreakStore
 	Audit    AuditStore
+	Docs     docs.Store
 	Schedule charges.Schedule
 	Now      func() time.Time
-	runSeq   int64
-	mu       sync.Mutex
+	// Adjust, when set, rewrites exchange trades before recon and billing,
+	// for example to apply client code modifications.
+	Adjust func(ctx context.Context, tenant string, evs []ingest.TradeEvent) ([]ingest.TradeEvent, error)
+	runSeq int64
+	mu     sync.Mutex
 }
 
 // Stores bundles the persistence an App needs.
@@ -89,11 +94,12 @@ type Stores struct {
 	Trades ingest.TradeStore
 	Breaks BreakStore
 	Audit  AuditStore
+	Docs   docs.Store
 }
 
 // MemoryStores returns in-memory implementations of every store.
 func MemoryStores() Stores {
-	return Stores{Ledger: ledger.NewMemStore(), Raw: ingest.NewMemRawStore(), Trades: ingest.NewMemTradeStore(), Breaks: NewMemBreakStore(), Audit: NewMemAuditStore()}
+	return Stores{Ledger: ledger.NewMemStore(), Raw: ingest.NewMemRawStore(), Trades: ingest.NewMemTradeStore(), Breaks: NewMemBreakStore(), Audit: NewMemAuditStore(), Docs: docs.NewMem()}
 }
 
 // New builds an App.
@@ -101,8 +107,13 @@ func New(s Stores, reg *ingest.Registry, sched charges.Schedule) *App {
 	return &App{
 		Ledger: ledger.New(s.Ledger),
 		Ingest: &ingest.Service{Raw: s.Raw, Trades: s.Trades, Registry: reg},
-		Trades: s.Trades, Breaks: s.Breaks, Audit: s.Audit, Schedule: sched, Now: time.Now,
+		Trades: s.Trades, Breaks: s.Breaks, Audit: s.Audit, Docs: s.Docs, Schedule: sched, Now: time.Now,
 	}
+}
+
+// Log records an audit event.
+func (a *App) Log(ctx context.Context, tenant, actor, action, object string, detail map[string]any) {
+	a.log(ctx, tenant, actor, action, object, detail)
 }
 
 func (a *App) log(ctx context.Context, tenant, actor, action, object string, detail map[string]any) {
@@ -147,7 +158,7 @@ func (a *App) RunRecon(ctx context.Context, tenant, actor, date string) (ReconSu
 	if !ledger.ValidDate(date) {
 		return ReconSummary{}, fmt.Errorf("invalid date %q", date)
 	}
-	ex, err := a.Trades.List(ctx, tenant, ingest.FromExchange, date)
+	ex, err := a.ExchangeTrades(ctx, tenant, date)
 	if err != nil {
 		return ReconSummary{}, err
 	}
@@ -193,19 +204,36 @@ type BillingResult struct {
 	Posted    []string        `json:"posted"`   // entry IDs created now
 	Existing  []string        `json:"existing"` // already billed with identical content
 	Conflicts []string        `json:"conflicts"`
+	Reversed  []string        `json:"reversed"` // old bills reversed by a rebill
 	Warnings  []string        `json:"warnings"`
 	Groups    []billing.Group `json:"groups"`
 }
 
-// RunBilling bills a trade date from exchange trades. It is safe to re-run:
-// groups already billed identically are reported as existing; a group whose
-// trades changed since it was billed is reported as a conflict (reverse the
-// old bill, then re-bill).
+// ExchangeTrades returns a date's exchange trades with Adjust applied.
+func (a *App) ExchangeTrades(ctx context.Context, tenant, date string) ([]ingest.TradeEvent, error) {
+	ex, err := a.Trades.List(ctx, tenant, ingest.FromExchange, date)
+	if err != nil || a.Adjust == nil {
+		return ex, err
+	}
+	return a.Adjust(ctx, tenant, ex)
+}
+
+// RunBilling bills a trade date without rebilling; see RunBillingOpts.
 func (a *App) RunBilling(ctx context.Context, tenant, actor, date string, prices map[string]money.Dec) (BillingResult, error) {
+	return a.RunBillingOpts(ctx, tenant, actor, date, prices, false)
+}
+
+// RunBillingOpts bills a trade date from exchange trades. Re-running is safe:
+// groups billed with identical content are left alone. A group whose trades
+// changed since billing (for example after a client code modification) is a
+// conflict; with rebill=true the old bill is reversed and a revised bill is
+// posted under a new revision key, and bills for groups that no longer have
+// trades are reversed.
+func (a *App) RunBillingOpts(ctx context.Context, tenant, actor, date string, prices map[string]money.Dec, rebill bool) (BillingResult, error) {
 	if err := need(actor); err != nil {
 		return BillingResult{}, err
 	}
-	trades, err := a.Trades.List(ctx, tenant, ingest.FromExchange, date)
+	trades, err := a.ExchangeTrades(ctx, tenant, date)
 	if err != nil {
 		return BillingResult{}, err
 	}
@@ -216,7 +244,7 @@ func (a *App) RunBilling(ctx context.Context, tenant, actor, date string, prices
 	if err != nil {
 		return BillingResult{}, err
 	}
-	res := BillingResult{Date: date, Posted: []string{}, Existing: []string{}, Conflicts: []string{}, Warnings: []string{}, Groups: out.Groups}
+	res := BillingResult{Date: date, Posted: []string{}, Existing: []string{}, Conflicts: []string{}, Reversed: []string{}, Warnings: []string{}, Groups: out.Groups}
 	if a.Schedule.Sample {
 		res.Warnings = append(res.Warnings, "Billed with the SAMPLE charge schedule "+a.Schedule.Version+"; load real rates before go-live.")
 	}
@@ -230,20 +258,84 @@ func (a *App) RunBilling(ctx context.Context, tenant, actor, date string, prices
 	if ucc > 0 {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%d open UCC or missing-in-OMS break(s) for %s; a later client code modification will need a rebill.", ucc, date))
 	}
+
+	// Current bills for the date: latest unreversed entry per bill source.
+	existing, err := a.Ledger.Store.List(ctx, tenant, ledger.Filter{From: date, To: date})
+	if err != nil {
+		return res, err
+	}
+	reversed := map[string]bool{}
+	for _, e := range existing {
+		if e.ReversalOf != "" {
+			reversed[e.ReversalOf] = true
+		}
+	}
+	latest := map[string]ledger.Entry{}
+	revisions := map[string]int{}
+	for _, e := range existing {
+		if e.Source.Kind != "BILL" {
+			continue
+		}
+		revisions[e.Source.ID]++
+		if !reversed[e.ID] {
+			if cur, ok := latest[e.Source.ID]; !ok || e.Seq > cur.Seq {
+				latest[e.Source.ID] = e
+			}
+		}
+	}
+	reverse := func(old ledger.Entry, why string) error {
+		r, _, err := a.Ledger.Reverse(ctx, tenant, old.ID, actor, why, "")
+		if err != nil {
+			return err
+		}
+		res.Reversed = append(res.Reversed, r.ID)
+		return nil
+	}
+	built := map[string]bool{}
 	for _, e := range out.Entries {
+		built[e.Source.ID] = true
+		if cur, ok := latest[e.Source.ID]; ok {
+			same := e
+			same.Key = cur.Key
+			if same.Fingerprint() == cur.Fingerprint() {
+				res.Existing = append(res.Existing, cur.ID)
+				continue
+			}
+			if !rebill {
+				res.Conflicts = append(res.Conflicts, cur.Key)
+				continue
+			}
+			if err := reverse(cur, "rebill: trades changed after billing"); err != nil {
+				return res, err
+			}
+		}
+		if n := revisions[e.Source.ID]; n > 0 {
+			e.Key = fmt.Sprintf("%s#r%d", e.Key, n+1)
+		}
 		stored, created, err := a.Ledger.Post(ctx, e)
-		switch {
-		case errors.Is(err, ledger.ErrConflict):
-			res.Conflicts = append(res.Conflicts, e.Key)
-		case err != nil:
+		if err != nil {
 			return res, fmt.Errorf("posting %s: %w", e.Key, err)
-		case created:
+		}
+		if created {
 			res.Posted = append(res.Posted, stored.ID)
-		default:
+		} else {
 			res.Existing = append(res.Existing, stored.ID)
 		}
 	}
-	a.log(ctx, tenant, actor, "billing.run", date, map[string]any{"posted": len(res.Posted), "existing": len(res.Existing), "conflicts": len(res.Conflicts), "schedule": a.Schedule.Version})
+	for src, cur := range latest {
+		if built[src] {
+			continue
+		}
+		if !rebill {
+			res.Conflicts = append(res.Conflicts, cur.Key)
+			continue
+		}
+		if err := reverse(cur, "rebill: no trades remain for this client segment"); err != nil {
+			return res, err
+		}
+	}
+	sort.Strings(res.Conflicts)
+	a.log(ctx, tenant, actor, "billing.run", date, map[string]any{"posted": len(res.Posted), "existing": len(res.Existing), "conflicts": len(res.Conflicts), "reversed": len(res.Reversed), "rebill": rebill, "schedule": a.Schedule.Version})
 	return res, nil
 }
 

@@ -89,3 +89,11 @@ func TestDecJSON(t *testing.T) {
 		t.Fatal("exponent should be rejected")
 	}
 }
+
+func TestCeilRupee(t *testing.T) {
+	for in, want := range map[string]string{"276403.323": "276404", "100": "100", "0.01": "1", "-1.5": "-1", "0": "0"} {
+		if got := MustDec(in).CeilRupee(); got.Cmp(MustDec(want)) != 0 {
+			t.Errorf("CeilRupee(%s) = %s, want %s", in, got, want)
+		}
+	}
+}

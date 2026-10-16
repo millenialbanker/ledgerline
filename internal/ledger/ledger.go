@@ -45,6 +45,10 @@ const (
 	PayableStamp    = "PAYABLE:STAMP"
 	PayableSEBIFee  = "PAYABLE:SEBI_FEE"
 	PayableGST      = "PAYABLE:GST"
+	SuspenseBank    = "SUSPENSE:BANK"
+	OpeningEquity   = "EQUITY:OPENING"
+	CCCollateral    = "CC:COLLATERAL"
+	PayablePenalty  = "PAYABLE:CC_PENALTY"
 )
 
 // ClientAccount is a client's trading ledger. A credit balance means the
@@ -59,7 +63,7 @@ func ClearingAccount(exchange, segment string) string { return "CC:" + exchange 
 func ExchangeTxnPayable(exchange string) string { return "PAYABLE:EXCH_TXN:" + exchange }
 
 var prefixTypes = map[string]AccountType{
-	"CLIENT": Liability, "PAYABLE": Liability, "AP": Liability,
+	"CLIENT": Liability, "PAYABLE": Liability, "AP": Liability, "SUSPENSE": Liability,
 	"BANK": Asset, "CC": Asset, "RECEIVABLE": Asset,
 	"INCOME": Income, "EXPENSE": Expense, "EQUITY": Equity,
 }

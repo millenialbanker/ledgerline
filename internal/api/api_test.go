@@ -31,7 +31,7 @@ func server(t *testing.T) *httptest.Server {
 		t.Fatal(err)
 	}
 	a := app.New(app.MemoryStores(), reg, sched)
-	srv := httptest.NewServer(New(a, map[string]string{key: "bhairav", "other-tenant-key-0000": "beta"}, slog.New(slog.NewTextHandler(io.Discard, nil))))
+	srv := httptest.NewServer(New(a, nil, map[string]string{key: "bhairav", "other-tenant-key-0000": "beta"}, slog.New(slog.NewTextHandler(io.Discard, nil)), false))
 	t.Cleanup(srv.Close)
 	return srv
 }

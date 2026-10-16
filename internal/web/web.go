@@ -33,7 +33,7 @@ func Handler(cfg Config) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")
-		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'")
+		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'")
 	}
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		secure(w)
@@ -41,6 +41,19 @@ func Handler(cfg Config) http.Handler {
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Write(page)
 	})
+	for name, ct := range map[string]string{"app.js": "text/javascript; charset=utf-8", "app.css": "text/css; charset=utf-8"} {
+		b, err := fs.ReadFile(ledgerline.FS, "web/"+name)
+		if err != nil {
+			panic("web: " + name + " missing from build: " + err.Error())
+		}
+		ct := ct
+		mux.HandleFunc("GET /"+name, func(w http.ResponseWriter, r *http.Request) {
+			secure(w)
+			w.Header().Set("Content-Type", ct)
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Write(b)
+		})
+	}
 	mux.HandleFunc("GET /ui/config", func(w http.ResponseWriter, r *http.Request) {
 		secure(w)
 		w.Header().Set("Content-Type", "application/json")

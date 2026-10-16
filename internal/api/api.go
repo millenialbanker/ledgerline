@@ -21,9 +21,11 @@ import (
 
 	"ledgerline/internal/app"
 	"ledgerline/internal/charges"
+	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/ledger"
 	"ledgerline/internal/money"
+	"ledgerline/internal/ops"
 )
 
 const (
@@ -42,6 +44,8 @@ const (
 // Server routes requests to the App.
 type Server struct {
 	app  *app.App
+	ops  *ops.Ops
+	dev  bool
 	keys map[string]string // API key -> tenant
 	log  *slog.Logger
 	mux  *http.ServeMux
@@ -49,8 +53,8 @@ type Server struct {
 }
 
 // New builds a server. keys maps API keys to tenant IDs.
-func New(a *app.App, keys map[string]string, log *slog.Logger) *Server {
-	s := &Server{app: a, keys: keys, log: log, mux: http.NewServeMux()}
+func New(a *app.App, o *ops.Ops, keys map[string]string, log *slog.Logger, dev bool) *Server {
+	s := &Server{app: a, ops: o, dev: dev, keys: keys, log: log, mux: http.NewServeMux()}
 	s.mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
 	s.route("GET /v1/adapters", s.adapters, false)
 	s.route("POST /v1/files", s.uploadFile, true)
@@ -66,6 +70,7 @@ func New(a *app.App, keys map[string]string, log *slog.Logger) *Server {
 	s.route("GET /v1/ledger/trial-balance", s.trialBalance, false)
 	s.route("GET /v1/ledger/statement", s.statement, false)
 	s.route("GET /v1/audit", s.audit, false)
+	s.opsRoutes()
 	return s
 }
 
@@ -109,6 +114,12 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 		}
 		ctx := context.WithValue(r.Context(), keyTenant, tenant)
 		ctx = context.WithValue(ctx, keyActor, actor)
+		if mutating && s.ops != nil {
+			if _, err := s.ops.RoleOf(ctx, tenant, actor); err != nil {
+				fail(w, err, nil)
+				return
+			}
+		}
 		h(w, r.WithContext(ctx))
 	})
 }
@@ -160,6 +171,21 @@ func fail(w http.ResponseWriter, err error, details any) {
 		writeErr(w, 409, "invalid_state", err.Error(), details)
 	case errors.Is(err, ingest.ErrRejected):
 		writeErr(w, 422, "file_rejected", err.Error(), details)
+	case errors.Is(err, ops.ErrForbidden):
+		writeErr(w, 403, "forbidden", err.Error(), details)
+	case errors.Is(err, docs.ErrStale):
+		writeErr(w, 409, "stale", err.Error(), details)
+	case errors.Is(err, docs.ErrNotFound):
+		writeErr(w, 404, "not_found", err.Error(), details)
+	case errors.Is(err, ops.ErrNoMarketData):
+		writeErr(w, 409, "no_market_data", err.Error(), details)
+	case errors.Is(err, ops.ErrInvalid):
+		var ve *ops.ValidationError
+		if errors.As(err, &ve) {
+			writeErr(w, 422, "invalid", "Some fields need attention.", map[string]any{"fields": ve.Fields})
+			return
+		}
+		writeErr(w, 422, "invalid", strings.TrimPrefix(err.Error(), "invalid: "), details)
 	default:
 		writeErr(w, 400, "bad_request", err.Error(), details)
 	}
@@ -219,7 +245,18 @@ func (s *Server) uploadFile(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "empty_file", "The request body is empty; send the file bytes as the body.", nil)
 		return
 	}
-	res, err := s.app.IngestFile(r.Context(), tenant(r), actor(r), source, q.Get("version"), name, data)
+	var res ingest.Result
+	if s.ops != nil && ops.IsMasterSource(source) {
+		res, err = s.ops.LoadFile(r.Context(), tenant(r), actor(r), source, q.Get("date"), name, data)
+	} else {
+		if s.ops != nil {
+			if err := s.ops.Require(r.Context(), tenant(r), actor(r), "Loading files", ops.RoleMaker, ops.RoleChecker, ops.RoleRisk, ops.RoleCompliance); err != nil {
+				fail(w, err, nil)
+				return
+			}
+		}
+		res, err = s.app.IngestFile(r.Context(), tenant(r), actor(r), source, q.Get("version"), name, data)
+	}
 	if err != nil {
 		fail(w, err, res)
 		return
@@ -256,6 +293,9 @@ func (s *Server) reconRun(w http.ResponseWriter, r *http.Request) {
 	if _, ok := dateParam(w, body.Date, "date", true); !ok {
 		return
 	}
+	if !s.allowed(w, r, "Reconciliation", ops.RoleMaker, ops.RoleChecker) {
+		return
+	}
 	sum, err := s.app.RunRecon(r.Context(), tenant(r), actor(r), body.Date)
 	if err != nil {
 		fail(w, err, nil)
@@ -290,6 +330,9 @@ func (s *Server) resolveBreak(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
+	if !s.allowed(w, r, "Resolving breaks", ops.RoleMaker, ops.RoleChecker) {
+		return
+	}
 	b, err := s.app.ResolveBreak(r.Context(), tenant(r), actor(r), r.PathValue("id"), body.Resolution)
 	if err != nil {
 		fail(w, err, nil)
@@ -302,6 +345,7 @@ func (s *Server) billingRun(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Date             string               `json:"date"`
 		SettlementPrices map[string]money.Dec `json:"settlement_prices"`
+		Rebill           bool                 `json:"rebill"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -309,7 +353,22 @@ func (s *Server) billingRun(w http.ResponseWriter, r *http.Request) {
 	if _, ok := dateParam(w, body.Date, "date", true); !ok {
 		return
 	}
-	res, err := s.app.RunBilling(r.Context(), tenant(r), actor(r), body.Date, body.SettlementPrices)
+	if s.ops != nil {
+		roles := []string{ops.RoleMaker, ops.RoleChecker}
+		if body.Rebill {
+			roles = []string{ops.RoleChecker}
+		}
+		if err := s.ops.Require(r.Context(), tenant(r), actor(r), "Billing", roles...); err != nil {
+			fail(w, err, nil)
+			return
+		}
+		if len(body.SettlementPrices) == 0 {
+			if m, _, err := s.ops.Market(r.Context(), tenant(r), body.Date); err == nil {
+				body.SettlementPrices = m.SettlementPrices()
+			}
+		}
+	}
+	res, err := s.app.RunBillingOpts(r.Context(), tenant(r), actor(r), body.Date, body.SettlementPrices, body.Rebill)
 	if err != nil {
 		fail(w, err, res)
 		return
@@ -347,6 +406,9 @@ func (s *Server) postJournal(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
+	if !s.allowed(w, r, "Manual journal entries", ops.RoleMaker, ops.RoleChecker) {
+		return
+	}
 	e, created, err := s.app.PostManual(r.Context(), ledger.Entry{Tenant: tenant(r), Key: body.Key, ValueDate: body.ValueDate, Narration: body.Narration, Postings: body.Postings, CreatedBy: actor(r)})
 	if err != nil {
 		fail(w, err, nil)
@@ -364,6 +426,9 @@ func (s *Server) reverse(w http.ResponseWriter, r *http.Request) {
 		Reason string `json:"reason"`
 	}
 	if !decode(w, r, &body) {
+		return
+	}
+	if !s.allowed(w, r, "Reversing entries", ops.RoleChecker) {
 		return
 	}
 	e, created, err := s.app.Reverse(r.Context(), tenant(r), actor(r), r.PathValue("id"), body.Reason)
