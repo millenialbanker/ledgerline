@@ -10,7 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -320,30 +322,50 @@ func (r *Registry) Add(s Spec) error {
 	return nil
 }
 
-// LoadDir registers every *.json spec in dir.
+// LoadDir registers every *.json spec in a directory on disk.
 func LoadDir(dir string) (*Registry, error) {
-	r := NewRegistry()
-	paths, err := filepath.Glob(filepath.Join(dir, "*.json"))
+	r, err := LoadFS(os.DirFS(dir), ".")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w (directory %s)", err, dir)
 	}
-	if len(paths) == 0 {
-		return nil, fmt.Errorf("ingest: no adapter specs in %s", dir)
+	return r, nil
+}
+
+// LoadFS registers every *.json spec in dir within fsys. Unlike a glob, it
+// reports why a directory cannot be read (missing, or access denied).
+func LoadFS(fsys fs.FS, dir string) (*Registry, error) {
+	entries, err := fs.ReadDir(fsys, dir)
+	switch {
+	case errors.Is(err, fs.ErrPermission):
+		return nil, fmt.Errorf("ingest: permission denied reading adapter specs; on macOS, allow your terminal to access this folder (System Settings > Privacy & Security > Files & Folders) or move the folder out of Downloads/Desktop/Documents: %w", err)
+	case errors.Is(err, fs.ErrNotExist):
+		return nil, fmt.Errorf("ingest: adapter spec folder not found; run from the repository root or pass its location: %w", err)
+	case err != nil:
+		return nil, fmt.Errorf("ingest: reading adapter specs: %w", err)
 	}
-	for _, p := range paths {
-		b, err := os.ReadFile(p)
+	r := NewRegistry()
+	n := 0
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+			continue
+		}
+		b, err := fs.ReadFile(fsys, path.Join(dir, e.Name()))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("ingest: %s: %w", e.Name(), err)
 		}
 		var s Spec
 		dec := json.NewDecoder(bytes.NewReader(b))
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(&s); err != nil {
-			return nil, fmt.Errorf("ingest: %s: %w", filepath.Base(p), err)
+			return nil, fmt.Errorf("ingest: %s: %w", e.Name(), err)
 		}
 		if err := r.Add(s); err != nil {
-			return nil, fmt.Errorf("ingest: %s: %w", filepath.Base(p), err)
+			return nil, fmt.Errorf("ingest: %s: %w", e.Name(), err)
 		}
+		n++
+	}
+	if n == 0 {
+		return nil, errors.New("ingest: no adapter specs (*.json) found")
 	}
 	return r, nil
 }

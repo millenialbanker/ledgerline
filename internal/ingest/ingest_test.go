@@ -141,3 +141,18 @@ func TestVersionSelection(t *testing.T) {
 		t.Fatal("pinned version not returned")
 	}
 }
+
+func TestLoadDirReportsWhy(t *testing.T) {
+	if _, err := LoadDir("does/not/exist"); err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("missing folder: %v", err)
+	}
+	if os.Getuid() == 0 {
+		t.Skip("root ignores permissions")
+	}
+	d := t.TempDir()
+	os.Chmod(d, 0)
+	defer os.Chmod(d, 0o755)
+	if _, err := LoadDir(d); err == nil || !strings.Contains(err.Error(), "permission denied") {
+		t.Fatalf("unreadable folder: %v", err)
+	}
+}

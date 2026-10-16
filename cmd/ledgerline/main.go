@@ -11,6 +11,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"ledgerline"
 	"ledgerline/internal/api"
 	"ledgerline/internal/app"
 	"ledgerline/internal/charges"
@@ -30,8 +32,8 @@ var sqlDriver string
 
 func main() {
 	addr := flag.String("addr", envOr("LEDGERLINE_ADDR", ":8080"), "listen address")
-	adapters := flag.String("adapters", envOr("LEDGERLINE_ADAPTERS", "config/adapters"), "directory of file layout specs")
-	schedule := flag.String("charges", envOr("LEDGERLINE_CHARGES", "config/charges/sample-schedule.json"), "charge schedule JSON")
+	adapters := flag.String("adapters", os.Getenv("LEDGERLINE_ADAPTERS"), "directory of file layout specs (default: built into this binary)")
+	schedule := flag.String("charges", os.Getenv("LEDGERLINE_CHARGES"), "charge schedule JSON (default: built-in sample schedule)")
 	dev := flag.Bool("dev", false, "development mode: in-memory stores and a demo API key")
 	flag.Parse()
 
@@ -46,13 +48,24 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	reg, err := ingest.LoadDir(adapterDir)
+	var reg *ingest.Registry
+	var err error
+	if adapterDir == "" {
+		reg, err = ingest.LoadFS(ledgerline.FS, "config/adapters")
+	} else {
+		reg, err = ingest.LoadDir(adapterDir)
+	}
 	if err != nil {
 		return err
 	}
-	f, err := os.Open(schedulePath)
+	var f fs.File
+	if schedulePath == "" {
+		f, err = ledgerline.FS.Open("config/charges/sample-schedule.json")
+	} else {
+		f, err = os.Open(schedulePath)
+	}
 	if err != nil {
-		return err
+		return fmt.Errorf("charge schedule: %w", err)
 	}
 	sched, err := charges.LoadSchedule(f)
 	f.Close()

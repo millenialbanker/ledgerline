@@ -11,12 +11,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
-	"path/filepath"
 	"strings"
 	"text/tabwriter"
 	"time"
 
+	"ledgerline"
 	"ledgerline/internal/app"
 	"ledgerline/internal/charges"
 	"ledgerline/internal/ingest"
@@ -50,14 +51,24 @@ func usage() {
 	os.Exit(2)
 }
 
+// source returns where config and sample data come from: the files built
+// into this binary by default, or a repository folder given with -root.
+func source(root string) fs.FS {
+	if root == "" {
+		return ledgerline.FS
+	}
+	return os.DirFS(root)
+}
+
 func loadConfig(root string) (*ingest.Registry, charges.Schedule, error) {
-	reg, err := ingest.LoadDir(filepath.Join(root, "config/adapters"))
+	src := source(root)
+	reg, err := ingest.LoadFS(src, "config/adapters")
 	if err != nil {
 		return nil, charges.Schedule{}, err
 	}
-	f, err := os.Open(filepath.Join(root, "config/charges/sample-schedule.json"))
+	f, err := src.Open("config/charges/sample-schedule.json")
 	if err != nil {
-		return nil, charges.Schedule{}, err
+		return nil, charges.Schedule{}, fmt.Errorf("charge schedule: %w", err)
 	}
 	defer f.Close()
 	s, err := charges.LoadSchedule(f)
@@ -65,9 +76,9 @@ func loadConfig(root string) (*ingest.Registry, charges.Schedule, error) {
 }
 
 func demo(args []string) error {
-	fs := flag.NewFlagSet("demo", flag.ExitOnError)
-	root := fs.String("root", ".", "repository root")
-	fs.Parse(args)
+	fl := flag.NewFlagSet("demo", flag.ExitOnError)
+	root := fl.String("root", "", "repository folder to read config and sample data from (default: built into this binary)")
+	fl.Parse(args)
 	reg, sched, err := loadConfig(*root)
 	if err != nil {
 		return err
@@ -79,7 +90,7 @@ func demo(args []string) error {
 
 	fmt.Println("== 1. Ingest")
 	for _, f := range [][2]string{{"NSE-CM-TRADE", "nse_cm_trades.csv"}, {"NSE-FO-TRADE", "nse_fo_trades.csv"}, {"MCX-TRADE", "mcx_trades.txt"}, {"OMS-TRADE", "oms_trades.csv"}} {
-		b, err := os.ReadFile(filepath.Join(*root, "testdata/sample", f[1]))
+		b, err := fs.ReadFile(source(*root), "testdata/sample/"+f[1])
 		if err != nil {
 			return err
 		}
@@ -107,7 +118,7 @@ func demo(args []string) error {
 	w.Flush()
 
 	fmt.Println("\n== 3. Bill")
-	pb, err := os.ReadFile(filepath.Join(*root, "testdata/sample/settlement_prices.json"))
+	pb, err := fs.ReadFile(source(*root), "testdata/sample/settlement_prices.json")
 	if err != nil {
 		return err
 	}
@@ -164,12 +175,12 @@ func drcr(a money.Amount) string {
 }
 
 func check(args []string) error {
-	fs := flag.NewFlagSet("check", flag.ExitOnError)
-	root := fs.String("root", ".", "repository root")
-	source := fs.String("source", "", "layout name, e.g. NSE-CM-TRADE")
-	version := fs.String("version", "", "layout version (default latest)")
-	fs.Parse(args)
-	if *source == "" || fs.NArg() != 1 {
+	fl := flag.NewFlagSet("check", flag.ExitOnError)
+	root := fl.String("root", "", "repository folder to read config and sample data from (default: built into this binary)")
+	source := fl.String("source", "", "layout name, e.g. NSE-CM-TRADE")
+	version := fl.String("version", "", "layout version (default latest)")
+	fl.Parse(args)
+	if *source == "" || fl.NArg() != 1 {
 		return fmt.Errorf("usage: ledgerctl check -source NAME FILE")
 	}
 	reg, _, err := loadConfig(*root)
@@ -180,7 +191,7 @@ func check(args []string) error {
 	if err != nil {
 		return err
 	}
-	b, err := os.ReadFile(fs.Arg(0))
+	b, err := os.ReadFile(fl.Arg(0))
 	if err != nil {
 		return err
 	}
@@ -193,15 +204,15 @@ func check(args []string) error {
 }
 
 func quote(args []string) error {
-	fs := flag.NewFlagSet("quote", flag.ExitOnError)
-	root := fs.String("root", ".", "repository root")
-	bucket := fs.String("bucket", "CM-DEL", "CM-DEL, CM-INTRA, FO-FUT, FO-OPT, CD-FUT, CD-OPT, COM-FUT, COM-OPT")
-	exch := fs.String("exchange", "NSE", "exchange")
-	side := fs.String("side", "B", "B or S")
-	qty := fs.Int64("qty", 1, "quantity")
-	price := fs.String("price", "0", "price")
-	date := fs.String("date", time.Now().In(time.FixedZone("IST", 19800)).Format("2006-01-02"), "trade date")
-	fs.Parse(args)
+	fl := flag.NewFlagSet("quote", flag.ExitOnError)
+	root := fl.String("root", "", "repository folder to read config and sample data from (default: built into this binary)")
+	bucket := fl.String("bucket", "CM-DEL", "CM-DEL, CM-INTRA, FO-FUT, FO-OPT, CD-FUT, CD-OPT, COM-FUT, COM-OPT")
+	exch := fl.String("exchange", "NSE", "exchange")
+	side := fl.String("side", "B", "B or S")
+	qty := fl.Int64("qty", 1, "quantity")
+	price := fl.String("price", "0", "price")
+	date := fl.String("date", time.Now().In(time.FixedZone("IST", 19800)).Format("2006-01-02"), "trade date")
+	fl.Parse(args)
 	_, sched, err := loadConfig(*root)
 	if err != nil {
 		return err
