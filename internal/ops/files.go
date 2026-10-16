@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -34,6 +35,7 @@ func MasterSources() []MasterSource {
 		{"OPENING-BALANCES", "Opening trial balance (migration); must balance", []string{"Account", "Debit", "Credit"}, true, "Once at go-live"},
 		{"MARKET-DATA", "Contract master, prices and risk parameters (SPAN, VaR, haircuts)", []string{"Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "ISIN", "Company", "Lot", "LTP", "Close", "VaRPct", "ELMPct", "HaircutPct", "SPANPct", "ExposurePct", "Delta", "Underlying", "Index"}, true, "BOD and EOD"},
 		{"DP-HOLDINGS", "Client demat holdings and pledges from the depository", []string{"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost"}, false, "BOD"},
+		{"HOLDING-LOTS", "Purchase lots behind client holdings (quantity, buy date, buy price) for P&L and capital gains; from the previous back office", []string{"UCC", "ISIN", "Symbol", "Qty", "BuyDate", "BuyPrice"}, true, "Once at go-live (as at the day before)"},
 		{"POSITIONS", "Derivatives positions carried forward from the previous day", []string{"UCC", "Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "Qty", "AvgPrice"}, true, "BOD"},
 		{"PLEDGE-REQUESTS", "Margin pledge requests initiated by clients at the depository", []string{"RequestID", "UCC", "ISIN", "Symbol", "Qty", "Time"}, false, "Intraday"},
 		{"BANK-STMT", "Client bank account statement", []string{"Date", "Time", "Mode", "Reference", "Remitter", "Account", "Amount", "DrCr"}, false, "Intraday and EOD"},
@@ -338,6 +340,44 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 				}
 			}
 			return len(hs), 0, nil
+		}, errs
+	case "HOLDING-LOTS":
+		books := map[string]*LotBook{}
+		var order []string
+		for _, r := range rows {
+			u := strings.ToUpper(r.get("UCC"))
+			l := Lot{ISIN: strings.ToUpper(r.get("ISIN")), Symbol: strings.ToUpper(r.get("Symbol")), Qty: pint(r, "Qty", false), Date: pdate(r, "BuyDate", false), Price: pdec(r, "BuyPrice", false)}
+			if u == "" {
+				bad(r.line, "UCC", "is required")
+			}
+			if l.ISIN == "" {
+				bad(r.line, "ISIN", "is required")
+			}
+			if l.Price.Sign() <= 0 {
+				bad(r.line, "BuyPrice", "must be above zero")
+			}
+			if l.Date > date {
+				bad(r.line, "BuyDate", "%s is after the as-at date %s", l.Date, date)
+			}
+			b := books[u]
+			if b == nil {
+				b = &LotBook{UCC: u, AsOf: date}
+				books[u] = b
+				order = append(order, u)
+			}
+			b.Lots = append(b.Lots, l)
+		}
+		return func() (int, int, error) {
+			n := 0
+			for _, u := range order {
+				b := books[u]
+				sort.SliceStable(b.Lots, func(i, j int) bool { return b.Lots[i].Date < b.Lots[j].Date })
+				if err := docs.Upsert(ctx, o.Docs, tenant, cLot, u, *b, actor); err != nil {
+					return n, 0, err
+				}
+				n += len(b.Lots)
+			}
+			return n, 0, nil
 		}, errs
 	case "POSITIONS":
 		var ps []Position

@@ -75,6 +75,8 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/reports", s.reports, false)
 	R("POST /v1/reports/{code}/{step}", s.reportStep, true)
 	R("GET /v1/reports/{code}/download", s.reportDownload, false)
+	R("GET /v1/client-reports", s.clientReportDefs, false)
+	R("GET /v1/client-reports/{kind}", s.clientReport, false)
 	R("GET /v1/alerts", s.alerts, false)
 	R("POST /v1/alerts/{id}/{action}", s.alertAction, true)
 	R("POST /v1/surveillance/run", s.runRules, true)
@@ -554,6 +556,42 @@ func (s *Server) reportDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	s.app.Log(r.Context(), tenant(r), actor(r), "report.downloaded", r.PathValue("code"), map[string]any{"date": d, "rows": len(rows) - 1})
 	csvOut(w, r.PathValue("code")+"_"+d+".csv", rows)
+}
+
+// ---- client statements and reports ----
+
+func (s *Server) clientReportDefs(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, ops.ClientReportDefs)
+}
+
+// clientReport returns a client report as JSON (default), CSV or printable
+// HTML: ?ucc=&from=&to=&format=json|csv|html.
+func (s *Server) clientReport(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	rep, err := s.ops.ClientReportFor(r.Context(), tenant(r), r.PathValue("kind"), q.Get("ucc"), q.Get("from"), q.Get("to"))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	switch q.Get("format") {
+	case "csv":
+		s.app.Log(r.Context(), tenant(r), actor(r), "client_report.downloaded", rep.UCC, map[string]any{"kind": rep.Kind, "period": rep.Period, "format": "csv"})
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition", `attachment; filename="`+rep.FileName("csv")+`"`)
+		w.Write(rep.CSV())
+	case "html":
+		b, err := s.ops.RenderClientReport(r.Context(), tenant(r), rep)
+		if err != nil {
+			fail(w, err, nil)
+			return
+		}
+		s.app.Log(r.Context(), tenant(r), actor(r), "client_report.printed", rep.UCC, map[string]any{"kind": rep.Kind, "period": rep.Period})
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
+		w.Write(b)
+	default:
+		writeJSON(w, 200, rep)
+	}
 }
 
 // ---- surveillance, IPO, CCM ----

@@ -48,6 +48,7 @@ const (
 	cEOD        = "eod"
 	cSeq        = "seq"
 	cSnapshotPx = "snapshot"
+	cLot        = "lot"
 )
 
 // Roles.

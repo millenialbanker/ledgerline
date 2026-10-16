@@ -360,6 +360,7 @@ func Generate(date string) Day {
 		}
 	}
 	day.Files = append(day.Files, File{"DP-HOLDINGS", "dp_holdings_" + date + ".csv", "", csvBytes(hd), false})
+	day.Files = append(day.Files, File{"HOLDING-LOTS", "holding_lots_" + prevDate + ".csv", prevDate, csvBytes(holdingLots(hd[1:], prevDate)), false})
 
 	// ---- carried positions ----
 	ps := [][]string{{"UCC", "Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "Qty", "AvgPrice"}}
@@ -811,4 +812,53 @@ func csvBytes(rows [][]string) []byte {
 		b.WriteByte('\n')
 	}
 	return []byte(b.String())
+}
+
+// holdingLots splits each holding into one to three purchase lots whose
+// weighted cost matches the depository file's average cost, bought between
+// April 2022 and the day before. It has its own random stream so the rest
+// of the sample day is unchanged.
+func holdingLots(rows [][]string, prevDate string) [][]string {
+	r := &rng{s: 7319}
+	start, _ := time.Parse("2006-01-02", "2022-04-01")
+	end, _ := time.Parse("2006-01-02", prevDate)
+	span := int(end.Sub(start).Hours()/24) - 1
+	out := [][]string{{"UCC", "ISIN", "Symbol", "Qty", "BuyDate", "BuyPrice"}}
+	for _, h := range rows {
+		var q int64
+		var avg float64
+		fmt.Sscan(h[3], &q)
+		fmt.Sscan(h[5], &avg)
+		k := int64(r.in(1, 3))
+		if k > q {
+			k = q
+		}
+		qs, ps := []int64{}, []float64{}
+		left, cost := q, avg*float64(q)
+		for i := int64(0); i < k-1; i++ {
+			lq := int64(math.Max(1, math.Round(float64(left)*r.fl(.2, .6))))
+			lp := tick(avg * r.fl(.75, 1.25))
+			qs, ps = append(qs, lq), append(ps, lp)
+			left -= lq
+			cost -= lp * float64(lq)
+		}
+		last := cost / float64(left)
+		if left <= 0 || last < avg*.4 || last > avg*1.8 {
+			qs, ps, left, last = nil, nil, q, avg
+		}
+		qs, ps = append(qs, left), append(ps, math.Round(last*100)/100)
+		var days []int
+		for range qs {
+			days = append(days, r.in(0, span))
+		}
+		sort.Ints(days)
+		for i := range qs {
+			d := start.AddDate(0, 0, days[i])
+			for d.Weekday() == time.Saturday || d.Weekday() == time.Sunday {
+				d = d.AddDate(0, 0, -1)
+			}
+			out = append(out, []string{h[0], h[1], h[2], fmt.Sprint(qs[i]), d.Format("2006-01-02"), f2(ps[i])})
+		}
+	}
+	return out
 }

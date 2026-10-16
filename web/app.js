@@ -7,7 +7,7 @@ const LS = 'ledgerline-console-v2';
 const S = { key: '', actor: '', date: '2026-10-16', view: 'dashboard', me: null, counts: {} };
 try { Object.assign(S, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e) {}
 const persist = () => { try { localStorage.setItem(LS, JSON.stringify({ key: S.key, actor: S.actor, date: S.date, view: S.view })); } catch (e) {} };
-const UI = { reconF: 'OPEN', reconX: 'All', reconQ: '', clientStage: 'All', clientQ: '', rmsF: 'All', rmsQ: '', settleTab: 'cm', noteF: 'All',
+const UI = { cr: { kind: 'ledger', ucc: '', preset: 'fy', from: '', to: '' }, crRes: null, crErr: null, crBusy: false, reconF: 'OPEN', reconX: 'All', reconQ: '', clientStage: 'All', clientQ: '', rmsF: 'All', rmsQ: '', settleTab: 'cm', noteF: 'All',
   bankF: 'All', rasF: 'due', auditQ: '', ledgerU: '', ledgerTab: 'statement', calc: { bucket: 'CM-DEL', exchange: 'NSE', side: 'B', qty: 100, price: '1412' },
   fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
 const C = {}; // per-view data from the server
@@ -84,7 +84,7 @@ async function openDoc(path) {
 /* ============================== shell ============================== */
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard']]],
-  ['Operations', [['files', 'Files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding']]],
+  ['Operations', [['files', 'Files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['statements', 'Client reports']]],
   ['Risk', [['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge']]],
   ['Accounts', [['ledger', 'Ledger'], ['bank', 'Bank reconciliation'], ['ras', 'Running account'], ['charges', 'Charges calculator']]],
   ['Compliance', [['reports', 'Regulatory reports'], ['surv', 'Surveillance & AML'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
@@ -374,7 +374,7 @@ async function clientDrawer(ucc) {
     ${d.trades.length ? `<div>${h3(`Trades on ${fmtDate(S.date)} · ${d.trades.length}`)}${tbl([['Time'], ['Contract'], ['Side'], ['Qty', 'r'], ['Price', 'r'], ['Product']], d.trades.slice(0, 40).map(t => `<tr><td class="n">${t.trade_time}</td><td>${esc(instName(`${t.symbol}|${t.instrument_type}|${t.expiry}|${t.strike}`))}</td><td>${t.side === 'B' ? 'Buy' : 'Sell'}</td><td class="r">${nf(t.qty)}</td><td class="r">${nf(t.price, 2)}</td><td><span class="tag">${esc(t.product)}</span></td></tr>`))}</div>` : ''}
     <div>${h3('Ledger (latest entries)')}${tbl([['Date'], ['Particulars'], ['Debit', 'r'], ['Credit', 'r'], ['Balance', 'r']], lines.map(l => `<tr><td class="n dim">${fmtDate(l.value_date)}</td><td class="wrap">${esc(l.memo || l.narration)}</td><td class="r">${num(l.debit) ? nf(l.debit, 2) : ''}</td><td class="r">${num(l.credit) ? nf(l.credit, 2) : ''}</td><td class="r">${drcr(l.balance)}</td></tr>`), { empty: 'No entries' })}</div>
     ${d.alerts.length ? `<div>${h3('Surveillance alerts')}${d.alerts.map(a => `<div class="note ${a.severity === 'High' ? 'bad' : 'warn'}" style="margin-bottom:6px"><b>${esc(a.type)}</b> · ${esc(a.status)}<br>${esc(a.detail)}</div>`).join('')}</div>` : ''}
-  </div><div class="ft"><button class="btn" data-act="openLedger" data-id="${c.ucc}">Full ledger</button>${c.status === 'Active' && has('Risk manager') ? `<button class="btn ${c.blocked ? '' : 'bad'}" data-act="kill" data-id="${c.ucc}" data-b="${c.blocked ? 0 : 1}">${c.blocked ? 'Unblock' : 'Kill switch'}</button>` : ''}<button class="btn pri" data-act="close">Done</button></div>`, true);
+  </div><div class="ft"><button class="btn" data-act="crFor" data-id="${c.ucc}">Statements &amp; reports</button><button class="btn" data-act="openLedger" data-id="${c.ucc}">Full ledger</button>${c.status === 'Active' && has('Risk manager') ? `<button class="btn ${c.blocked ? '' : 'bad'}" data-act="kill" data-id="${c.ucc}" data-b="${c.blocked ? 0 : 1}">${c.blocked ? 'Unblock' : 'Kill switch'}</button>` : ''}<button class="btn pri" data-act="close">Done</button></div>`, true);
 }
 const drcr = a => { const n = num(a); return n === 0 ? '0.00' : nf(Math.abs(n), 2) + (n < 0 ? ' Cr' : ' Dr'); };
 
@@ -556,6 +556,85 @@ V.ipo = {
     <div class="panel"><div class="hd"><h3>Mutual fund orders</h3></div>${tbl([['Order'], ['UCC'], ['Client'], ['Scheme'], ['Type'], ['Amount (₹)', 'r'], ['Platform'], ['Status']], d.mf.map(x => `<tr><td class="n">${esc(x.id)}</td><td class="n">${x.ucc}</td><td>${esc(x.name)}</td><td>${esc(x.scheme)}</td><td>${esc(x.type)}</td><td class="r">${inr(x.amount)}</td><td>${esc(x.platform)}</td><td>${pill(x.status, x.status === 'Allotted' ? 'good' : x.status === 'Payment pending' ? 'warn' : 'acc')}</td></tr>`), { empty: 'No MF orders. Upload MF-ORDERS.' })}</div>`
 };
 
+/* ---------- client reports ---------- */
+const fyStart = d => { const [y, m] = d.split('-').map(Number); return `${m >= 4 ? y : y - 1}-04-01`; };
+function crRange(preset, date) {
+  const fy = fyStart(date), y = +fy.slice(0, 4);
+  switch (preset) {
+    case 'day': return [date, date];
+    case 'month': return [date.slice(0, 8) + '01', date];
+    case 'fy': return [fy, date];
+    case 'lastfy': return [`${y - 1}-04-01`, `${y}-03-31`];
+    case 'q': { const m = +date.slice(5, 7), qs = m >= 4 ? Math.floor((m - 4) / 3) * 3 + 4 : 1; return [`${date.slice(0, 4)}-${String(qs).padStart(2, '0')}-01`, date]; }
+  }
+  return [UI.cr.from || fy, UI.cr.to || date];
+}
+V.statements = {
+  load: async () => {
+    const [defs, clients] = await Promise.all([get('/v1/client-reports'), get(`/v1/clients?date=${S.date}`)]);
+    const act = clients.filter(c => c.status === 'Active');
+    if (!UI.cr.ucc || (UI.cr.ucc !== 'ALL' && !act.some(c => c.ucc === UI.cr.ucc))) UI.cr.ucc = act[0]?.ucc || '';
+    return { defs, clients: act };
+  },
+  html: d => {
+    const cr = UI.cr, def = d.defs.find(x => x.kind === cr.kind) || d.defs[0];
+    if (cr.ucc === 'ALL' && !def.all_ucc) cr.ucc = d.clients[0]?.ucc || '';
+    const [from, to] = def.range ? crRange(cr.preset, S.date) : ['', cr.preset === 'custom' && cr.to ? cr.to : S.date];
+    cr.from = from; cr.to = to;
+    const presets = [['day', 'Today'], ['month', 'This month'], ['q', 'This quarter'], ['fy', 'This FY'], ['lastfy', 'Last FY'], ['custom', 'Custom']];
+    return ph('Client reports', 'Statements and reports for any client and period: on screen, as a printable page (save as PDF), or as CSV. Every number comes from the ledger, trade records and holdings; every print and download is in the audit trail.') +
+    `<div class="rtypes">${d.defs.map(x => `<button class="${x.kind === def.kind ? 'on' : ''}" data-act="crKind" data-id="${x.kind}"><b>${esc(x.name)}</b><span>${esc(x.about)}</span></button>`).join('')}</div>
+    <div class="panel"><div class="bd"><div class="crform">
+      <div class="fld"><label for="cr-ucc">Client</label><select class="in" id="cr-ucc">${def.all_ucc ? `<option value="ALL" ${cr.ucc === 'ALL' ? 'selected' : ''}>All clients</option>` : ''}${d.clients.map(c => `<option value="${c.ucc}" ${cr.ucc === c.ucc ? 'selected' : ''}>${c.ucc} · ${esc(c.name)}</option>`).join('')}</select></div>
+      ${def.range ? `<div class="fld"><label>Period</label><div class="seg">${presets.map(([k, l]) => `<button class="${cr.preset === k ? 'on' : ''}" data-act="crPreset" data-id="${k}">${l}</button>`).join('')}</div></div>
+      <div class="fld"><label for="cr-from">From</label><input class="in" type="date" id="cr-from" value="${from}"></div><div class="fld"><label for="cr-to">To</label><input class="in" type="date" id="cr-to" value="${to}"></div>`
+      : `<div class="fld"><label for="cr-to">As on</label><input class="in" type="date" id="cr-to" value="${to}"></div>`}
+      <div class="acts"><button class="btn pri" data-act="crRun">View report</button><button class="btn" data-act="crPrint">Print / PDF</button><button class="btn" data-act="crCSV">Download CSV</button></div>
+    </div></div></div>
+    <div id="cr-out">${crOut()}</div>`;
+  }
+};
+function crURL(fmt) { const c = UI.cr; return `/v1/client-reports/${c.kind}?ucc=${encodeURIComponent(c.ucc)}&to=${c.to}${c.from ? '&from=' + c.from : ''}${fmt ? '&format=' + fmt : ''}`; }
+function crCell(t, v) {
+  if (v === '' || v == null) return '';
+  switch (t) {
+    case 'money': return `<span class="${num(v) < 0 ? 'neg' : ''}">${nf(v, 2)}</span>`;
+    case 'drcr': return drcr(v);
+    case 'qty': return nf(v);
+    case 'pct': return `<span class="${num(v) < 0 ? 'neg' : ''}">${esc(v)}%</span>`;
+    case 'date': return fmtDate(v);
+  }
+  return esc(v);
+}
+const crR = t => ['money', 'drcr', 'qty', 'pct'].includes(t) ? 'r' : '';
+function crOut() {
+  if (UI.crBusy) return '<p class="loading">Preparing report…</p>';
+  if (UI.crErr) return errHTML(UI.crErr);
+  const r = UI.crRes; if (r) r.sections = r.sections || []; if (!r) return '<div class="panel"><div class="empty">Choose a report, client and period, then View report.</div></div>';
+  const sv = s => { if (s.type === 'money') return inr(s.value, 2); if (s.type === 'drcr') return '₹' + drcr(s.value); return nf(s.value); };
+  return `<div class="panel"><div class="hd"><div><h3>${esc(r.title)} · ${esc(r.name)}${r.ucc !== 'ALL' ? ` <span class="mono dim">${esc(r.ucc)}</span>` : ''}</h3></div><small>${esc(r.period)} · generated ${esc(r.generated)}</small></div>
+    <div class="bd"><div class="kpis" style="margin:0">${(r.summary || []).map(s => kpi(esc(s.label), sv(s), '', s.tone === 'good' ? 'good' : s.tone === 'bad' ? 'bad' : '')).join('')}</div></div></div>` +
+    r.sections.map(sec => ({ ...sec, rows: sec.rows || [], columns: sec.columns || [] })).map(sec => `<div class="panel"><div class="hd"><h3>${esc(sec.title)}</h3><small>${sec.rows.length} row${sec.rows.length === 1 ? '' : 's'}</small></div>
+      ${tbl(sec.columns.map(c => [esc(c.label), crR(c.type)]), sec.rows.map(row => `<tr>${row.map((v, i) => `<td class="${crR(sec.columns[i]?.type)}${sec.columns[i]?.type === 'text' && v.length > 40 ? ' wrap' : ''}">${crCell(sec.columns[i]?.type, v)}</td>`).join('')}</tr>`),
+        { tall: sec.rows.length > 14, empty: esc(sec.empty || 'Nothing to show'), foot: sec.totals ? `<tfoot><tr>${sec.totals.map((v, i) => `<td class="${crR(sec.columns[i]?.type)}">${i === 0 ? esc(v) : crCell(sec.columns[i]?.type, v)}</td>`).join('')}</tr></tfoot>` : '' })}
+      ${sec.note ? `<div class="bd" style="padding-top:8px"><span class="dim" style="font-size:12px">${esc(sec.note)}</span></div>` : ''}</div>`).join('') +
+    (r.notes?.length ? `<div class="note">${r.notes.map(esc).join('<br>')}</div>` : '');
+}
+let crSeq = 0;
+async function crRun() {
+  const seq = ++crSeq, url = crURL();
+  UI.crBusy = true; UI.crErr = null; const o0 = $('cr-out'); if (o0) o0.innerHTML = crOut();
+  let res = null, err = null;
+  try { res = await get(url); } catch (e) { err = e; }
+  if (seq !== crSeq) return;
+  UI.crRes = res; UI.crErr = err; UI.crBusy = false;
+  const o = $('cr-out'); if (o) o.innerHTML = crOut();
+}
+function crSync() {
+  const f = $('cr-from'), t = $('cr-to'), u = $('cr-ucc');
+  if (u) UI.cr.ucc = u.value; if (f) UI.cr.from = f.value; if (t) UI.cr.to = t.value;
+}
+
 /* ---------- audit ---------- */
 V.audit = {
   load: () => get('/v1/audit?limit=1000'),
@@ -603,6 +682,12 @@ async function act(fn, okMsg, reload = true) {
   catch (e) { toast(e.message); throw e; }
 }
 const A = {
+  crKind: id => { crSync(); UI.cr.kind = id; UI.crRes = null; UI.crErr = null; $('page').innerHTML = V.statements.html(C.statements); bindPage(); },
+  crPreset: id => { crSync(); UI.cr.preset = id; $('page').innerHTML = V.statements.html(C.statements); bindPage(); },
+  crRun: () => { crSync(); crRun(); },
+  crPrint: () => { crSync(); openDoc(crURL('html')); },
+  crCSV: () => { crSync(); const r = UI.cr; download(crURL('csv'), `${r.kind}_${r.ucc}_${r.from ? r.from + '_' : ''}${r.to}.csv`); },
+  crFor: id => { UI.cr.ucc = id; UI.crRes = null; A.go('statements'); },
   go: id => { S.view = id; closeModal(); render(); window.scrollTo(0, 0); },
   close: () => closeModal(),
   ovclose: (id, el, e) => { if (e.target === el) closeModal(); },
@@ -702,6 +787,7 @@ function bindPage() {
     drop.addEventListener('drop', e => e.dataTransfer.files[0] && upload(e.dataTransfer.files[0]));
   }
   if (S.view === 'charges') calc();
+  if (S.view === 'statements' && !UI.crRes && !UI.crBusy && !UI.crErr && UI.cr.ucc) crRun();
 }
 document.addEventListener('click', e => {
   const a = e.target.closest('[data-act]');
@@ -722,6 +808,8 @@ document.addEventListener('change', e => {
   if (el.id === 'date' && el.value) { S.date = el.value; C.billResult = null; render(); return; }
   if (el.id === 'actor') { S.actor = el.value; loadMe().then(() => render({ keep: true })); return; }
   if (el.id === 'ftype') { UI.fileType = el.value; $('page').innerHTML = V.files.html(C.files); bindPage(); return; }
+  if (el.id === 'cr-from' || el.id === 'cr-to') { UI.cr.preset = 'custom'; crSync(); document.querySelectorAll('[data-act=crPreset]').forEach(b => b.classList.toggle('on', b.dataset.id === 'custom')); return; }
+  if (el.id === 'cr-ucc') { crSync(); return; }
   if (el.id === 'ledgerU') { UI.ledgerU = el.value; render({ keep: true }); return; }
   if (el.dataset.calc) { UI.calc[el.dataset.calc] = el.value; calc(); return; }
   if (el.dataset.ob && el.tagName === 'SELECT') { UI.ob.data[el.dataset.ob] = el.value; if (el.dataset.ob === 'nominee') obModal(); return; }

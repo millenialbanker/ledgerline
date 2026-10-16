@@ -35,6 +35,7 @@ exchange / CC / OMS files ──► ingest ──► trade events ──► reco
 | `internal/api` | HTTP/JSON API: bearer key per tenant, `X-Actor` on every change, consistent error bodies. |
 | `internal/docs` | Versioned document store for master and workflow data (clients, holdings, settings, workflow status), with optimistic concurrency and full change history. Money never lives here. |
 | `internal/ops` | Daily operations: onboarding with validation and maker-checker activation, market data and holdings, RMS (VaR+ELM, SPAN-style F&O margin, 50:50 collateral rule, overrides, kill switch, square-off), peak margin and penalties, settlement and CUSPA, contract notes, bank matching and third-party funds, running account settlement, reports, surveillance rules, EOD checks. |
+| `internal/ops/clientreports.go` | Client statements and reports for any period: ledger statement, holding statement, portfolio and net worth, P&L and capital gains (first-in first-out over purchase lots, speculative / short-term / long-term, derivatives, charges), trade book, open positions. Purchase history comes from the HOLDING-LOTS file at go-live plus every trade since. |
 | `internal/sample` | Deterministic generator for a realistic sample trading day, with injected reconciliation breaks and exceptions. |
 | `web/`, `internal/web` | Browser console served at `/`: 19 screens, every number from the API. |
 | `cmd/ledgerline` | API server. `cmd/ledgerctl`: demo, file check and charge quote CLI. |
@@ -105,7 +106,7 @@ All endpoints need `Authorization: Bearer <key>`. Changes also need `X-Actor: <u
 | `GET /v1/ledger/statement?ucc=&from=&to=` | Account statement with opening balance |
 | `GET /v1/audit?limit=` | Audit trail, newest first |
 
-Operations endpoints (`internal/api/ops.go`): `/v1/me`, `/v1/users`, `/v1/settings`, `/v1/dashboard`, `/v1/clients`, `/v1/market`, `/v1/collateral`, `/v1/pledges`, `/v1/rms`, `/v1/margin`, `/v1/settlement`, `/v1/cuspa`, `/v1/notes`, `/v1/bank`, `/v1/funds`, `/v1/ras`, `/v1/reports`, `/v1/alerts`, `/v1/surveillance/run`, `/v1/ipo`, `/v1/mf`, `/v1/ccm`, `/v1/eod`. Mutating calls check the `X-Actor` user's role: Ops maker, Ops checker, Risk manager, Compliance officer or Admin.
+Operations endpoints (`internal/api/ops.go`): `/v1/me`, `/v1/users`, `/v1/settings`, `/v1/dashboard`, `/v1/clients`, `/v1/market`, `/v1/collateral`, `/v1/pledges`, `/v1/rms`, `/v1/margin`, `/v1/settlement`, `/v1/cuspa`, `/v1/notes`, `/v1/bank`, `/v1/funds`, `/v1/ras`, `/v1/reports`, `/v1/alerts`, `/v1/surveillance/run`, `/v1/ipo`, `/v1/mf`, `/v1/ccm`, `/v1/eod`, and client reports at `/v1/client-reports/{ledger|holdings|portfolio|pnl|tradebook|positions}?ucc=&from=&to=&format=json|csv|html`. Mutating calls check the `X-Actor` user's role: Ops maker, Ops checker, Risk manager, Compliance officer or Admin.
 
 Try it with the dev server running:
 
