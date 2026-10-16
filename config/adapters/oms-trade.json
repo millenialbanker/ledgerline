@@ -1,0 +1,20 @@
+{
+  "name": "OMS-TRADE",
+  "version": "0.1.0",
+  "origin": "OMS",
+  "delimiter": ",",
+  "header": true,
+  "strict": true,
+  "columns": {
+    "exchange": "Exchange", "segment": "Segment", "trade_no": "TradeNo", "order_no": "OrderNo",
+    "ucc": "ClientCode", "symbol": "Symbol", "instrument_type": "InstrumentType", "expiry": "Expiry",
+    "strike": "Strike", "option_type": "OptionType", "side": "Side", "qty": "Qty", "price": "Price",
+    "trade_date": "TradeDate", "trade_time": "TradeTime", "product": "Product", "algo_id": "AlgoId",
+    "terminal": "Terminal"
+  },
+  "side_map": {"B": "B", "S": "S", "BUY": "B", "SELL": "S"},
+  "instrument_map": {"OPT": "OPT"},
+  "date_layout": "2006-01-02",
+  "time_layout": "15:04:05",
+  "note": "Generic OMS trade-book export. Each OMS vendor gets its own spec once its export format is known."
+}

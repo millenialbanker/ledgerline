@@ -1,0 +1,19 @@
+{
+  "version": "SAMPLE-2026-10",
+  "sample": true,
+  "note": "Sample rates for development and tests only. Replace with the current exchange, clearing corporation and statutory rate circulars (and the broker's own brokerage plans) before billing any client.",
+  "sebi_fee_pct": "0.0001",
+  "gst_pct": "18",
+  "rules": [
+    {"bucket": "CM-DEL",   "exchange": "*",   "effective_from": "2026-04-01", "brokerage_mode": "none",         "brokerage_flat": "0",  "brokerage_pct": "0",    "stt_buy_pct": "0.1", "stt_sell_pct": "0.1",   "txn_pct": "0.00297", "stamp_buy_pct": "0.015"},
+    {"bucket": "CM-DEL",   "exchange": "BSE", "effective_from": "2026-04-01", "brokerage_mode": "none",         "brokerage_flat": "0",  "brokerage_pct": "0",    "stt_buy_pct": "0.1", "stt_sell_pct": "0.1",   "txn_pct": "0.00375", "stamp_buy_pct": "0.015"},
+    {"bucket": "CM-INTRA", "exchange": "*",   "effective_from": "2026-04-01", "brokerage_mode": "min_flat_pct", "brokerage_flat": "20", "brokerage_pct": "0.03", "stt_buy_pct": "0",   "stt_sell_pct": "0.025", "txn_pct": "0.00297", "stamp_buy_pct": "0.003"},
+    {"bucket": "CM-INTRA", "exchange": "BSE", "effective_from": "2026-04-01", "brokerage_mode": "min_flat_pct", "brokerage_flat": "20", "brokerage_pct": "0.03", "stt_buy_pct": "0",   "stt_sell_pct": "0.025", "txn_pct": "0.00375", "stamp_buy_pct": "0.003"},
+    {"bucket": "FO-FUT",   "exchange": "*",   "effective_from": "2026-04-01", "brokerage_mode": "min_flat_pct", "brokerage_flat": "20", "brokerage_pct": "0.03", "stt_buy_pct": "0",   "stt_sell_pct": "0.02",  "txn_pct": "0.00173", "stamp_buy_pct": "0.002"},
+    {"bucket": "FO-OPT",   "exchange": "*",   "effective_from": "2026-04-01", "brokerage_mode": "flat",         "brokerage_flat": "20", "brokerage_pct": "0",    "stt_buy_pct": "0",   "stt_sell_pct": "0.1",   "txn_pct": "0.03503", "stamp_buy_pct": "0.003"},
+    {"bucket": "CD-FUT",   "exchange": "*",   "effective_from": "2026-04-01", "brokerage_mode": "min_flat_pct", "brokerage_flat": "20", "brokerage_pct": "0.03", "stt_buy_pct": "0",   "stt_sell_pct": "0",     "txn_pct": "0.00035", "stamp_buy_pct": "0.0001"},
+    {"bucket": "CD-OPT",   "exchange": "*",   "effective_from": "2026-04-01", "brokerage_mode": "flat",         "brokerage_flat": "20", "brokerage_pct": "0",    "stt_buy_pct": "0",   "stt_sell_pct": "0",     "txn_pct": "0.0311",  "stamp_buy_pct": "0.0001"},
+    {"bucket": "COM-FUT",  "exchange": "MCX", "effective_from": "2026-04-01", "brokerage_mode": "min_flat_pct", "brokerage_flat": "20", "brokerage_pct": "0.03", "stt_buy_pct": "0",   "stt_sell_pct": "0.01",  "txn_pct": "0.0021",  "stamp_buy_pct": "0.002"},
+    {"bucket": "COM-OPT",  "exchange": "MCX", "effective_from": "2026-04-01", "brokerage_mode": "flat",         "brokerage_flat": "20", "brokerage_pct": "0",    "stt_buy_pct": "0",   "stt_sell_pct": "0.05",  "txn_pct": "0.0418",  "stamp_buy_pct": "0.003"}
+  ]
+}

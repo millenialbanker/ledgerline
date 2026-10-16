@@ -1,0 +1,34 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-retries 30
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.24" }
+      - name: Format and vet
+        run: make vet
+      - name: Unit and end-to-end tests
+        run: make test
+      - name: SQL schema and store tests
+        run: make sqltest
+      - name: Integration test against PostgreSQL
+        env:
+          LEDGERLINE_TEST_TENANT: ci
+        run: |
+          psql -d ledgerline_test -c "CREATE ROLE ll_it LOGIN PASSWORD 'll_it' IN ROLE ledgerline_app; INSERT INTO ll.tenant (id, name) VALUES ('ci', 'CI tenant');"
+          go get github.com/jackc/pgx/v5@v5.7.2
+          LEDGERLINE_TEST_DB="postgres://ll_it:ll_it@localhost:5432/ledgerline_test?sslmode=disable" make integration

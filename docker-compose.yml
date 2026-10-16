@@ -1,0 +1,26 @@
+# Local stack: PostgreSQL with the schema applied, and the API server.
+#   docker compose up --build
+#   curl -H "Authorization: Bearer local-dev-key-0123456789" localhost:8080/v1/adapters
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ledgerline
+    ports: ["5432:5432"]
+    volumes:
+      - ./db/migrations:/docker-entrypoint-initdb.d/migrations:ro
+      - ./db/docker-init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ledgerline"]
+      interval: 2s
+      retries: 30
+
+  api:
+    build: .
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      LEDGERLINE_DB: postgres://ledgerline_svc:ledgerline_svc@db:5432/ledgerline?sslmode=disable
+      LEDGERLINE_API_KEYS: local-dev-key-0123456789:demo
+    ports: ["8080:8080"]

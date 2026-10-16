@@ -1,0 +1,21 @@
+{
+  "name": "MCX-TRADE",
+  "version": "0.1.0-sample",
+  "origin": "EXCHANGE",
+  "exchange": "MCX",
+  "segment": "COM",
+  "delimiter": "|",
+  "header": false,
+  "strict": true,
+  "columns": {
+    "trade_no": "#1", "order_no": "#2", "ucc": "#3", "symbol": "#4", "instrument_type": "#5",
+    "expiry": "#6", "side": "#7", "qty": "#8", "price": "#9", "trade_date": "#10",
+    "trade_time": "#11", "product": "#12", "terminal": "#13"
+  },
+  "side_map": {"B": "B", "S": "S"},
+  "instrument_map": {"FUTCOM": "FUT", "OPTFUT": "OPT"},
+  "date_layout": "20060102",
+  "expiry_layout": "02Jan2006",
+  "time_layout": "15:04:05",
+  "note": "PLACEHOLDER LAYOUT for development, showing a headerless pipe-delimited file mapped by column position. Replace with the exchange's current specification during pilot discovery."
+}

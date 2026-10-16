@@ -1,0 +1,22 @@
+{
+  "name": "NSE-CM-TRADE",
+  "version": "0.1.0-sample",
+  "origin": "EXCHANGE",
+  "exchange": "NSE",
+  "segment": "CM",
+  "delimiter": ",",
+  "header": true,
+  "strict": true,
+  "columns": {
+    "trade_no": "TradeNo", "order_no": "OrderNo", "ucc": "ClientCode", "symbol": "Symbol",
+    "instrument_type": "Series", "side": "BuySell", "qty": "Qty", "price": "Price",
+    "trade_date": "TradeDate", "trade_time": "TradeTime", "product": "Product",
+    "algo_id": "AlgoId", "terminal": "TerminalId"
+  },
+  "side_map": {"1": "B", "2": "S", "B": "B", "S": "S"},
+  "instrument_map": {"BE": "EQ", "BZ": "EQ", "SM": "EQ"},
+  "product_map": {"D": "CNC", "I": "MIS", "DELIVERY": "CNC", "INTRADAY": "MIS"},
+  "date_layout": "02-Jan-2006",
+  "time_layout": "15:04:05",
+  "note": "PLACEHOLDER LAYOUT for development. Replace the column list with the exact fields of the exchange's current member trade file specification, collected from the pilot broker during discovery, and bump the version."
+}

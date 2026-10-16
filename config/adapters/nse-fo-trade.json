@@ -1,0 +1,21 @@
+{
+  "name": "NSE-FO-TRADE",
+  "version": "0.1.0-sample",
+  "origin": "EXCHANGE",
+  "exchange": "NSE",
+  "segment": "FO",
+  "delimiter": ",",
+  "header": true,
+  "strict": true,
+  "columns": {
+    "trade_no": "TradeNo", "order_no": "OrderNo", "ucc": "ClientCode", "symbol": "Symbol",
+    "instrument_type": "InstrumentType", "expiry": "Expiry", "strike": "Strike", "option_type": "OptionType",
+    "side": "BuySell", "qty": "Qty", "price": "Price", "trade_date": "TradeDate", "trade_time": "TradeTime",
+    "product": "Product", "algo_id": "AlgoId", "terminal": "TerminalId"
+  },
+  "side_map": {"1": "B", "2": "S", "B": "B", "S": "S"},
+  "instrument_map": {"FUTIDX": "FUT", "FUTSTK": "FUT", "OPTIDX": "OPT", "OPTSTK": "OPT"},
+  "date_layout": "02-Jan-2006",
+  "time_layout": "15:04:05",
+  "note": "PLACEHOLDER LAYOUT for development. Replace with the exchange's current derivatives trade file specification during pilot discovery."
+}
