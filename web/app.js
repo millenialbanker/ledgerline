@@ -4,9 +4,9 @@
 
 /* ============================== state ============================== */
 const LS = 'ledgerline-console-v2';
-const S = { key: '', actor: '', date: '2026-10-16', view: 'dashboard', me: null, counts: {} };
+const S = { tenant: '', date: '2026-10-16', view: 'dashboard', me: null, counts: {} };
 try { Object.assign(S, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e) {}
-const persist = () => { try { localStorage.setItem(LS, JSON.stringify({ key: S.key, actor: S.actor, date: S.date, view: S.view })); } catch (e) {} };
+const persist = () => { try { localStorage.setItem(LS, JSON.stringify({ tenant: S.tenant, date: S.date, view: S.view })); } catch (e) {} };
 const UI = { cr: { kind: 'ledger', ucc: '', preset: 'fy', from: '', to: '' }, crRes: null, crErr: null, crBusy: false, reconF: 'OPEN', reconX: 'All', reconQ: '', clientStage: 'All', clientQ: '', rmsF: 'All', rmsQ: '', settleTab: 'cm', noteF: 'All',
   bankF: 'All', rasF: 'due', auditQ: '', ledgerU: '', ledgerTab: 'statement', calc: { bucket: 'CM-DEL', exchange: 'NSE', side: 'B', qty: 100, price: '1412' },
   fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
@@ -41,14 +41,15 @@ const has = (...roles) => role() === 'Admin' || roles.includes(role());
 /* ============================== API ============================== */
 class ApiError extends Error { constructor(status, body) { super(body?.error?.message || ('HTTP ' + status)); this.status = status; this.code = body?.error?.code; this.details = body?.error?.details; } }
 async function api(method, path, body, raw) {
-  const h = { 'Authorization': 'Bearer ' + S.key };
-  if (S.actor) h['X-Actor'] = S.actor;
+  const h = { 'X-Requested-With': 'ledgerline' };
   let b;
   if (raw) b = body; else if (body !== undefined) { b = JSON.stringify(body); h['Content-Type'] = 'application/json'; }
   const res = await fetch(path, { method, headers: h, body: b });
   const ct = res.headers.get('Content-Type') || '';
   let data = null;
   if (ct.includes('json')) { try { data = await res.json(); } catch (e) {} } else data = await res.text();
+  if (res.status === 401 && !path.startsWith('/v1/auth/login')) { showLogin(S.me ? 'Your session has ended. Sign in again.' : ''); throw new ApiError(401, data); }
+  if (res.status === 403 && data?.error?.code === 'setup_required') { finishSetup(data.error.details || {}); throw new ApiError(403, data); }
   if (!res.ok && res.status !== 207) throw new ApiError(res.status, data);
   return data;
 }
@@ -63,7 +64,7 @@ function errHTML(e) {
 }
 async function download(path, name) {
   try {
-    const res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + S.key, 'X-Actor': S.actor } });
+    const res = await fetch(path, { headers: { 'X-Requested-With': 'ledgerline' } });
     if (!res.ok) { let m = 'Download failed'; try { m = (await res.json()).error.message; } catch (e) {} toast(m); return; }
     const blob = await res.blob(); const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
@@ -73,7 +74,7 @@ async function download(path, name) {
 async function openDoc(path) {
   const w = window.open('', '_blank');
   try {
-    const res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + S.key, 'X-Actor': S.actor } });
+    const res = await fetch(path, { headers: { 'X-Requested-With': 'ledgerline' } });
     const html = await res.text();
     if (!res.ok) throw new Error('Could not open the document');
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
@@ -102,10 +103,14 @@ function renderSide() {
 function renderTop() {
   const d = C.dashboard;
   const users = S.me?.users || [];
-  $('top').innerHTML = `<div class="tdate"><small>Trade date</small><input class="in mono" type="date" id="date" value="${esc(S.date)}" aria-label="Trade date" style="height:30px"></div>
+  $('top').innerHTML = `<div class="tdate"><small>Trade date</small><div class="dnav"><button class="btn sm" data-act="prevDay" aria-label="Previous trading day">‹</button><input class="in mono" type="date" id="date" value="${esc(S.date)}" aria-label="Trade date" style="height:30px"><button class="btn sm" data-act="nextDay" aria-label="Next trading day">›</button></div></div>
   <div class="chips">${d?.extra?.pay_in ? `<span class="chip">Pay-in <b>${fmtDate(d.extra.pay_in)}</b></span>` : ''}${S.me ? `<span class="chip">EOD <b>${d?.eod?.closed ? 'closed ' + esc(d.eod.closed_at) : 'open'}</b></span>` : ''}</div>
   <div class="srch"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="gsearch" placeholder="Find client by name, UCC or PAN  ( / )" autocomplete="off" value="${esc(UI.search)}"><div class="res" id="gres" hidden></div></div>
-  <label class="who"><span class="dim" style="font-size:12px">Signed in as</span><select id="actor">${users.map(u => `<option value="${esc(u.id)}" ${u.id === S.actor ? 'selected' : ''}>${esc(u.name)} · ${esc(u.role)}</option>`).join('')}</select></label>`;
+  ${S.me ? `<div class="umenu"><button class="ubtn" data-act="umenu" aria-haspopup="menu"><span class="av">${esc(initials(meUser()?.name || S.me.actor))}</span><span><b>${esc(meUser()?.name || S.me.actor)}</b><small>${esc(S.me.role)}</small></span><span class="dim">▾</span></button><div class="umenu-pop" id="umenu" hidden role="menu">
+    <button data-act="pwChange" role="menuitem">Change password</button>
+    <button data-act="totp" role="menuitem">Two-factor sign-in${S.me.auth?.totp_enabled ? ' · <span class="pos">On</span>' : ' · Off'}</button>
+    ${S.me.dev ? `<div class="sep">Switch user (development)</div>${users.filter(u => u.id !== S.me.actor && u.active).map(u => `<button data-act="switchUser" data-id="${esc(u.id)}" role="menuitem">${esc(u.name)} <span class="dim">· ${esc(u.role)}</span></button>`).join('')}` : ''}
+    <div class="sep"></div><button data-act="signOut" role="menuitem">Sign out</button></div></div>` : ''}`;
 }
 async function refreshCounts() {
   try {
@@ -130,7 +135,7 @@ async function render(opts = {}) {
     bindPage();
   } catch (e) {
     if (seq !== renderSeq) return;
-    if (e.status === 401) { signIn('Your API key was not accepted. Enter it again.'); return; }
+    if (e.status === 401 || e.code === 'setup_required') return;
     p.innerHTML = ph('Something went wrong', '') + errHTML(e);
   }
   refreshCounts();
@@ -138,12 +143,86 @@ async function render(opts = {}) {
 function rerenderPart(part) { const el = $(part); if (el && P[part]) el.innerHTML = P[part](C[S.view]); bindPage(); }
 
 /* ============================== sign-in ============================== */
-function signIn(msg) {
-  modal(`<div class="hd"><div><h2>Connect to Ledgerline</h2><p>${esc(msg || 'Enter your firm’s API key.')}</p></div></div>
-  <form class="bd" id="signin"><div class="fld"><label for="si-key">API key</label><input class="in" id="si-key" required autocomplete="off" value="${esc(S.key || CFG.dev_key || '')}"></div>
-  ${CFG.dev ? '<p class="dim" style="margin:0;font-size:12.5px">Development server: the demo key is filled in for you.</p>' : ''}
-  <div class="ft" style="padding:0;border:0"><button class="btn pri" type="submit">Connect</button></div></form>`);
-  $('signin').onsubmit = async e => { e.preventDefault(); S.key = $('si-key').value.trim(); closeModal(); await boot(); };
+const initials = n => String(n || '?').split(/[\s.]+/).filter(Boolean).slice(0, 2).map(x => x[0].toUpperCase()).join('');
+const meUser = () => (S.me?.users || []).find(u => u.id === S.me?.actor);
+let loginState = { otp: false, user: '', msg: '' };
+function showLogin(msg) {
+  document.body.classList.add('signed-out');
+  S.me = null; setupOpen = false; closeModal();
+  loginState = { otp: false, user: loginState.user || '', msg: msg || '' };
+  $('side').innerHTML = ''; $('top').innerHTML = '';
+  $('page').innerHTML = loginHTML();
+  setTimeout(() => ($('li-user')?.value ? $('li-pw') : $('li-user'))?.focus(), 20);
+}
+function loginHTML(err) {
+  const L = loginState, dev = CFG.dev && CFG.dev_users?.length;
+  return `<div class="login"><div class="login-card"><div class="brand big"><div class="mark"><i></i><i></i><i></i></div><div><b>Ledgerline</b><small>Back office</small></div></div>
+    <h1>Sign in</h1>${L.msg ? `<p class="dim">${esc(L.msg)}</p>` : ''}
+    <form id="loginf" autocomplete="on">
+      ${CFG.tenant ? '' : `<div class="fld"><label for="li-firm">Firm code</label><input class="in" id="li-firm" autocomplete="organization" required value="${esc(S.tenant)}"></div>`}
+      <div class="fld"><label for="li-user">User ID</label><input class="in" id="li-user" autocomplete="username" autocapitalize="none" spellcheck="false" required value="${esc(L.user)}" ${L.otp ? 'readonly' : ''}></div>
+      <div class="fld" ${L.otp ? 'hidden' : ''}><label for="li-pw">Password</label><input class="in" id="li-pw" type="password" autocomplete="current-password" ${L.otp ? '' : 'required'}></div>
+      ${L.otp ? `<div class="fld"><label for="li-otp">Code from your authenticator app</label><input class="in mono otp" id="li-otp" inputmode="numeric" autocomplete="one-time-code" maxlength="7" pattern="[0-9 ]{6,7}" required></div>` : ''}
+      ${err ? `<div class="errbox"><b>${esc(err)}</b></div>` : ''}
+      <button class="btn pri wide" type="submit">${L.otp ? 'Verify' : 'Sign in'}</button>
+      ${L.otp ? '<button class="btn wide" type="button" data-act="loginBack">Use a different user</button>' : ''}
+    </form>
+    ${dev ? `<div class="devlogin"><div class="dim">Development server · every user's password is <span class="mono">${esc(CFG.dev_password)}</span></div><div class="devusers">${CFG.dev_users.map(u => `<button class="btn sm" data-act="devLogin" data-id="${esc(u.id)}">${esc(u.name)}<span class="dim"> · ${esc(u.role)}</span></button>`).join('')}</div></div>` : ''}
+    <p class="dim small">Five wrong attempts lock the user for 15 minutes. Sessions end after ${'30'} minutes without activity.</p>
+  </div></div>`;
+}
+let loginPw = '';
+async function doLogin(user, pw, otp) {
+  const tenant = CFG.tenant || ($('li-firm')?.value || '').trim().toLowerCase();
+  try {
+    const r = await api('POST', '/v1/auth/login', { tenant, user, password: pw, otp: otp || '' });
+    S.tenant = r.tenant; loginState = { otp: false, user, msg: '' }; loginPw = ''; persist();
+    await afterLogin(r.auth);
+  } catch (e) {
+    if (e.code === 'otp_required') { loginState = { otp: true, user, msg: 'Enter the 6-digit code from your authenticator app.' }; loginPw = pw; $('page').innerHTML = loginHTML(); setTimeout(() => $('li-otp')?.focus(), 20); return; }
+    $('page').innerHTML = loginHTML(e.message); setTimeout(() => $(loginState.otp ? 'li-otp' : 'li-pw')?.focus(), 20);
+  }
+}
+async function afterLogin(auth) {
+  if (auth?.must_change_password) { setupOpen = true; pwModal(true); return; }
+  if (auth?.totp_setup_required) { setupOpen = true; totpModal(true); return; }
+  await loadMe(); render();
+}
+let setupOpen = false;
+function finishSetup(st) { if (setupOpen) return; setupOpen = true; if (st.must_change_password) pwModal(true); else if (st.totp_setup_required) totpModal(true); }
+function pwModal(forced) {
+  setTimeout(() => { modalLocked = !!forced; });
+  modal(mhd(forced ? 'Choose a new password' : 'Change password', forced ? 'You signed in with a temporary password. Choose your own before continuing.' : 'At least 12 characters. A short sentence works well.').replace(forced ? /<button class="x"[^>]*>×<\/button>/ : /$^/, '') + `<form class="bd" id="pwf">
+    <div class="fld"><label for="pw-cur">${forced ? 'Temporary password' : 'Current password'}</label><input class="in" id="pw-cur" type="password" autocomplete="current-password" required></div>
+    <div class="fld"><label for="pw-new">New password</label><input class="in" id="pw-new" type="password" autocomplete="new-password" minlength="12" required></div>
+    <div class="fld"><label for="pw-new2">Repeat new password</label><input class="in" id="pw-new2" type="password" autocomplete="new-password" minlength="12" required></div>
+    <div id="pw-err"></div><div class="ft" style="padding:0;border:0">${forced ? '<button class="btn" type="button" data-act="signOut">Sign out</button>' : '<button class="btn" type="button" data-act="close">Cancel</button>'}<button class="btn pri" type="submit">Save password</button></div></form>`);
+  $('pwf').onsubmit = async e => {
+    e.preventDefault();
+    if ($('pw-new').value !== $('pw-new2').value) { $('pw-err').innerHTML = errHTML({ message: 'The two new passwords differ.' }); return; }
+    try { await post('/v1/auth/password', { current: $('pw-cur').value, new: $('pw-new').value }); setupOpen = false; closeModal(); toast('Password changed');
+      const me = await get('/v1/me'); if (me.auth?.totp_setup_required) { setupOpen = true; totpModal(true); return; } await loadMe(); render(); }
+    catch (err) { if (err.status !== 401) $('pw-err').innerHTML = errHTML(err); }
+  };
+}
+async function totpModal(forced) {
+  if (!forced && S.me?.auth?.totp_enabled) {
+    modal(mhd('Two-factor sign-in', 'On for your user') + `<div class="bd"><div class="note">Signing in needs your password and a code from your authenticator app. If you lose your phone, ask an administrator to reset two-factor sign-in for you.</div></div><div class="ft"><button class="btn pri" data-act="close">Done</button></div>`);
+    return;
+  }
+  let d; try { d = await post('/v1/auth/2fa/setup'); } catch (e) { toast(e.message); return; }
+  setTimeout(() => { modalLocked = !!forced; });
+  modal(mhd('Set up two-factor sign-in', forced ? 'Your firm requires a code from an authenticator app at every sign-in.' : 'Adds a code from your phone to every sign-in.').replace(forced ? /<button class="x"[^>]*>×<\/button>/ : /$^/, '') + `<form class="bd" id="totpf">
+    <ol class="steps-list"><li>Open an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Authy).</li>
+    <li>Add an account by entering this setup key${matchMedia('(pointer:coarse)').matches ? `, or <a href="${esc(d.uri)}">open it in your app</a>` : ''}:<div class="secret mono">${esc(d.secret)}</div><span class="dim small">Account: ${esc(S.me?.actor || loginState.user)} · type: time-based</span></li>
+    <li>Enter the 6-digit code the app shows.</li></ol>
+    <div class="fld"><label for="totp-code">Code</label><input class="in mono otp" id="totp-code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></div>
+    <div id="totp-err"></div><div class="ft" style="padding:0;border:0">${forced ? '<button class="btn" type="button" data-act="signOut">Sign out</button>' : '<button class="btn" type="button" data-act="close">Cancel</button>'}<button class="btn pri" type="submit">Turn on</button></div></form>`);
+  $('totpf').onsubmit = async e => {
+    e.preventDefault();
+    try { await post('/v1/auth/2fa/enable', { code: $('totp-code').value }); setupOpen = false; closeModal(); toast('Two-factor sign-in is on'); await loadMe(); render(); }
+    catch (err) { if (err.status !== 401) $('totp-err').innerHTML = errHTML(err); }
+  };
 }
 
 /* ============================== views ============================== */
@@ -151,7 +230,7 @@ const V = {}, P = {};
 
 /* ---------- dashboard ---------- */
 V.dashboard = {
-  load: () => get(`/v1/dashboard?date=${S.date}`),
+  load: async () => { const [d, sm] = await Promise.all([get(`/v1/dashboard?date=${S.date}`), S.me?.dev ? get('/v1/dev/sample').catch(() => null) : null]); S.sample = sm || {}; return d; },
   html: d => {
     if (!d.trades && !d.oms_fills) return ph('Operations dashboard', `${esc(S.me.firm)} · ${fmtDate(S.date)}`) + emptyDay();
     const segc = ['var(--accent)', 'var(--good)', 'var(--warn)', 'var(--ink3)', 'var(--bad)'];
@@ -176,6 +255,8 @@ V.dashboard = {
     const stepCls = (done, alert) => done ? (alert ? 'alert' : 'done') : 'pend';
     const notesSent = d.notes.Sent || 0;
     return ph('Operations dashboard', `${esc(S.me.firm)} · ${fmtDate(S.date)}`, `<button class="btn" data-act="go" data-id="recon">Open break queue</button><button class="btn pri" data-act="eod">Run EOD close</button>`) +
+    (d.eod.previous_open ? `<div class="note warn"><b>Previous day still open.</b> ${esc(d.eod.previous_open)}. <button class="linkish" data-act="gotoDate" data-id="${prevBD(S.date)}">Go to ${fmtDate(prevBD(S.date))}</button></div>` : '') +
+    (d.eod.closed && S.me?.dev && S.sample?.next && S.sample.next > S.date ? `<div class="note"><b>Day closed${d.eod.rolled_positions ? `; ${d.eod.rolled_positions} open positions carried to ${fmtDate(d.eod.next_day)}` : ''}.</b> <button class="linkish" data-act="gotoDate" data-id="${S.sample.next}">Continue the sample on ${fmtDate(S.sample.next)}</button></div>` : '') +
     (d.warnings.length ? `<div class="note warn">${d.warnings.map(esc).join('<br>')}</div>` : '') +
     `<div class="proc">
       <div class="done"><small>Files</small><b>${d.trades} trades loaded</b><span>${d.oms_fills} OMS fills</span></div>
@@ -208,8 +289,21 @@ V.dashboard = {
   }
 };
 function emptyDay() {
-  return `<div class="panel"><div class="bd"><div class="samplebar"><div><b>No trades loaded for ${fmtDate(S.date)}.</b><div class="dim">Upload the day’s files on the Files page${S.me?.dev ? ', or load the sample trading day: about 60 clients, 350 trades across NSE, BSE and MCX, holdings, positions, a bank statement and exchange alerts, all as real files through the normal loaders.' : '.'}</div></div>
-  <div class="acts"><button class="btn" data-act="go" data-id="files">Upload files</button>${S.me?.dev ? '<button class="btn pri" data-act="sample">Load sample trading day</button>' : ''}</div></div></div></div>`;
+  const sm = S.sample || {}, first = !(sm.loaded || []).length, isNext = sm.next === S.date;
+  const dev = S.me?.dev;
+  let devText = '', devBtns = '';
+  if (dev && first) {
+    devText = ' Or start the sample: about 60 clients and 350 trades a day across NSE, BSE and MCX, with holdings, carried positions, bank statements and exchange alerts, all as real files through the normal loaders. You can load one day and work it yourself, or run a whole week end to end.';
+    devBtns = '<button class="btn" data-act="sample">Load sample day</button><button class="btn pri" data-act="sampleRun" data-id="5">Run a sample week</button>';
+  } else if (dev && isNext) {
+    devText = ` The sample continues from ${fmtDate((sm.loaded || []).slice(-1)[0])}: load this day's market data, trades and bank statement, or let the system work it end to end.`;
+    devBtns = '<button class="btn" data-act="sample">Load sample day</button><button class="btn pri" data-act="sampleRun" data-id="1">Run this day end to end</button>';
+  } else if (dev && sm.next) {
+    devText = ` The next sample day is ${fmtDate(sm.next)}.`;
+    devBtns = `<button class="btn pri" data-act="gotoDate" data-id="${sm.next}">Go to ${fmtDate(sm.next)}</button>`;
+  }
+  return `<div class="panel"><div class="bd"><div class="samplebar"><div><b>No trades loaded for ${fmtDate(S.date)}.</b><div class="dim">Upload the day’s files on the Files page.${devText}</div></div>
+  <div class="acts"><button class="btn" data-act="go" data-id="files">Upload files</button>${devBtns}</div></div></div></div>`;
 }
 
 /* ---------- files ---------- */
@@ -303,7 +397,8 @@ V.billing = {
 };
 function billNote(r) {
   if (r.error) return errHTML(r.error);
-  return `<div class="note ${r.conflicts.length ? 'warn' : ''}"><b>${r.posted.length} bill${r.posted.length === 1 ? '' : 's'} posted, ${r.existing.length} unchanged${r.reversed.length ? `, ${r.reversed.length} reversed` : ''}${r.conflicts.length ? `, ${r.conflicts.length} changed since billing (use Rebill)` : ''}.</b>${r.warnings.length ? `<ul style="margin:6px 0 0;padding-left:18px">${r.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}</div>`;
+  const dv = r.derivatives;
+  return `<div class="note ${r.conflicts.length ? 'warn' : ''}"><b>${r.posted.length} bill${r.posted.length === 1 ? '' : 's'} posted, ${r.existing.length} unchanged${r.reversed.length ? `, ${r.reversed.length} reversed` : ''}${r.conflicts.length ? `, ${r.conflicts.length} changed since billing (use Rebill)` : ''}.</b>${dv ? ` Carried futures marked to market: ${dv.mtm.length} new${dv.existing ? `, ${dv.existing} already posted` : ''}${dv.expiry.length ? `; option exercise and assignment: ${dv.expiry.length}` : ''}.` : ''}${r.warnings.length ? `<ul style="margin:6px 0 0;padding-left:18px">${r.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}</div>`;
 }
 
 /* ---------- settlement ---------- */
@@ -409,7 +504,7 @@ V.rms = {
       `${canRisk ? `<button class="btn pri" data-act="sqAll" ${breach.some(r => r.positions) ? '' : 'disabled'}>Square off all breaches</button>` : ''}`) +
     (d.warning ? `<div class="note warn">${esc(d.warning)}</div>` : '') +
     `<div class="kpis">${kpi('Margin required', cmp(sum(rows, r => num(r.required))), rows.filter(r => num(r.required) > 0).length + ' clients with positions')}${kpi('Usable collateral', cmp(sum(rows, r => num(r.cash) + num(r.collateral_usable))), 'cash + eligible non-cash')}${kpi('Breaches', breach.length, cmp(-sum(breach, r => num(r.free))) + ' uncovered', breach.length ? 'bad' : 'good')}${kpi('Watch list', rows.filter(r => r.status === 'Watch').length, 'above ' + d.warn_pct + '%', 'warn')}${kpi('Debit balances', rows.filter(r => num(r.funds) < 0).length, cmp(sum(rows.filter(r => num(r.funds) < 0), r => num(r.funds))) + ' receivable', 'warn')}${kpi('Blocked', rows.filter(r => r.blocked).length, 'kill switch on')}</div>
-    ${d.overrides.length ? `<div class="panel"><div class="hd"><h3>Limit overrides</h3><small>Maker requests, a different checker or risk manager approves. Valid for ${fmtDate(S.date)}.</small></div>${tbl([['ID'], ['UCC'], ['Amount (₹)', 'r'], ['Reason'], ['Maker'], ['Checker'], ['Status'], ['']], d.overrides.map(o => `<tr><td class="n">${o.id}</td><td class="n">${o.ucc}</td><td class="r">${inr(o.amount)}</td><td class="wrap">${esc(o.reason)}</td><td>${esc(o.maker)}</td><td>${esc(o.checker || '—')}</td><td>${pill(o.status, o.status === 'Approved' ? 'good' : o.status === 'Rejected' ? 'bad' : 'warn')}</td><td>${o.status === 'Pending' && has('Ops checker', 'Risk manager') && o.maker !== S.actor ? `<button class="btn sm" data-act="ovDecide" data-id="${o.id}" data-a="1">Approve</button><button class="btn sm bad" data-act="ovDecide" data-id="${o.id}" data-a="0">Reject</button>` : ''}</td></tr>`))}</div>` : ''}
+    ${d.overrides.length ? `<div class="panel"><div class="hd"><h3>Limit overrides</h3><small>Maker requests, a different checker or risk manager approves. Valid for ${fmtDate(S.date)}.</small></div>${tbl([['ID'], ['UCC'], ['Amount (₹)', 'r'], ['Reason'], ['Maker'], ['Checker'], ['Status'], ['']], d.overrides.map(o => `<tr><td class="n">${o.id}</td><td class="n">${o.ucc}</td><td class="r">${inr(o.amount)}</td><td class="wrap">${esc(o.reason)}</td><td>${esc(o.maker)}</td><td>${esc(o.checker || '—')}</td><td>${pill(o.status, o.status === 'Approved' ? 'good' : o.status === 'Rejected' ? 'bad' : 'warn')}</td><td>${o.status === 'Pending' && has('Ops checker', 'Risk manager') && o.maker !== S.me.actor ? `<button class="btn sm" data-act="ovDecide" data-id="${o.id}" data-a="1">Approve</button><button class="btn sm bad" data-act="ovDecide" data-id="${o.id}" data-a="0">Reject</button>` : ''}</td></tr>`))}</div>` : ''}
     <div class="panel"><div class="hd"><div class="tools">${segBtns('rmsF', ['All', 'Breach', 'Watch', 'Debit', 'OK'], 'rms-t')}<input class="in" data-ui="rmsQ" data-part="rms-t" placeholder="Filter UCC or name" value="${esc(UI.rmsQ)}"></div><small>Sorted by utilisation</small></div><div id="rms-t">${P['rms-t'](d)}</div></div>`;
   }
 };
@@ -557,6 +652,8 @@ V.ipo = {
 };
 
 /* ---------- client reports ---------- */
+function shiftBD(d, n) { const t = new Date(d + 'T00:00:00Z'); const hol = new Set(S.me?.holidays || []); do { t.setUTCDate(t.getUTCDate() + n); } while ([0, 6].includes(t.getUTCDay()) || hol.has(t.toISOString().slice(0, 10))); return t.toISOString().slice(0, 10); }
+const prevBD = d => shiftBD(d, -1), nextBD = d => shiftBD(d, 1);
 const fyStart = d => { const [y, m] = d.split('-').map(Number); return `${m >= 4 ? y : y - 1}-04-01`; };
 function crRange(preset, date) {
   const fy = fyStart(date), y = +fy.slice(0, 4);
@@ -662,18 +759,32 @@ V.settings = {
       <div class="fld full"><label for="st-hol">Exchange holidays (YYYY-MM-DD, comma separated)</label><input class="in mono" id="st-hol" value="${esc((s.holidays || []).join(', '))}" ${admin ? '' : 'disabled'}></div>
       <label class="check full"><input type="checkbox" id="st-pen" ${s.penalty_pass_through ? 'checked' : ''} ${admin ? '' : 'disabled'}> Pass short-collection penalties through to client ledgers</label>
     </div></div></div></div>
-    <div class="panel"><div class="hd"><h3>Users and roles</h3><small>Maker-checker: the person who creates an override, application or entry cannot approve it</small></div>${tbl([['User'], ['Name'], ['Role'], ['Can do'], ['Status']], d.users.map(u => `<tr><td class="n">${esc(u.id)}</td><td>${esc(u.name)}</td><td>${esc(u.role)}</td><td class="wrap dim">${{ 'Ops maker': 'Upload files, reconcile, bill, create clients and overrides, settlement steps, notes, post journals', 'Ops checker': 'Everything a maker does, plus approvals, activation, rebill, reversals, RAS, identify receipts, close the day', 'Risk manager': 'Square-off, kill switch, approve overrides, post penalties', 'Compliance officer': 'Close alerts, file STRs, mark reports uploaded', Admin: 'Everything, including settings and users' }[u.role] || ''}</td><td>${u.active ? pill('Active', 'good') : pill('Inactive', 'nt')}</td></tr>`))}</div>
+    <div class="panel"><div class="hd"><h3>Sign-in security</h3></div><div class="bd"><div class="form">
+      <div class="fld"><label for="st-2fa">Two-factor sign-in</label><select class="in" id="st-2fa" ${admin ? '' : 'disabled'}><option value="required" ${s.two_factor !== 'optional' ? 'selected' : ''}>Required for every user</option><option value="optional" ${s.two_factor === 'optional' ? 'selected' : ''}>Optional</option></select></div>
+      <div class="fld"><label for="st-idle">Sign out after inactivity (minutes)</label><input class="in" id="st-idle" type="number" min="5" max="240" value="${s.session_idle_minutes || 30}" ${admin ? '' : 'disabled'}></div>
+      <p class="dim full" style="margin:0;font-size:12.5px">Passwords: at least 12 characters, stored as PBKDF2-SHA256 hashes. Five wrong attempts lock a user for 15 minutes. Sessions also end after 12 hours, at sign-out, and when an administrator resets the user.</p>
+    </div></div></div>
+    <div class="panel"><div class="hd"><h3>Users and roles</h3>${admin ? '<button class="btn sm pri" data-act="addUser">Add user</button>' : '<small>Maker-checker: the person who creates an override, application or entry cannot approve it</small>'}</div>${tbl([['User'], ['Role'], ['Sign-in'], ['Last sign-in'], ['Status'], ['']], d.users.map(u => `<tr><td><b style="font-weight:600">${esc(u.name)}</b><div class="mono dim" style="font-size:11.5px">${esc(u.id)}</div></td><td>${admin && u.id !== S.me.actor ? `<select class="in sm" data-urole="${esc(u.id)}">${(S.me.roles || []).map(r => `<option ${r === u.role ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select>` : esc(u.role)}</td>
+      <td>${u.has_password ? '' : pill('No password', 'warn') + ' '}${u.totp_enabled ? pill('2FA on', 'good') : pill('2FA off', 'nt')}${u.must_change_password ? ' ' + pill('Temp password', 'warn') : ''}${u.locked ? ' ' + pill('Locked', 'bad') : ''}</td><td class="n dim">${u.last_login ? new Date(u.last_login).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}</td>
+      <td>${u.active ? pill('Active', 'good') : pill('Inactive', 'nt')}</td><td>${admin && u.id !== S.me.actor ? `<div class="split"><button class="btn sm" data-act="resetPw" data-id="${esc(u.id)}">Reset password</button>${u.totp_enabled ? `<button class="btn sm" data-act="reset2fa" data-id="${esc(u.id)}">Reset 2FA</button>` : ''}<button class="btn sm ${u.active ? 'bad' : ''}" data-act="toggleUser" data-id="${esc(u.id)}">${u.active ? 'Deactivate' : 'Activate'}</button></div>` : ''}</td></tr>`))}</div>
     <div class="panel"><div class="hd"><h3>Charge rate schedule</h3><small>${esc(sc.version)}${sc.sample ? ' · ' + pill('Sample rates', 'warn') : ''}</small></div>${sc.sample ? `<div class="bd" style="padding-bottom:0"><div class="note warn">${esc(sc.note)}</div></div>` : ''}${tbl([['Product'], ['Exchange'], ['From'], ['Brokerage'], ['STT buy %', 'r'], ['STT sell %', 'r'], ['Txn %', 'r'], ['Stamp buy %', 'r']], sc.rules.map(r => `<tr><td class="n">${r.bucket}</td><td>${r.exchange}</td><td class="n">${r.effective_from}</td><td>${r.brokerage_mode === 'none' ? 'Nil' : r.brokerage_mode === 'flat' ? '₹' + r.brokerage_flat + ' per order' : r.brokerage_mode === 'pct' ? r.brokerage_pct + '%' : `lower of ₹${r.brokerage_flat} or ${r.brokerage_pct}%`}</td><td class="r">${r.stt_buy_pct}</td><td class="r">${r.stt_sell_pct}</td><td class="r">${r.txn_pct}</td><td class="r">${r.stamp_buy_pct}</td></tr>`))}<div class="bd"><span class="dim" style="font-size:12px">GST ${sc.gst_pct}% · SEBI fee ${sc.sebi_fee_pct}% · The schedule is a versioned file on the server (config/charges); a new circular means a new version with an effective date.</span></div></div>`;
   }
 };
 
 /* ============================== modals ============================== */
 function modal(html, drawer) { $('mroot').innerHTML = `<div class="ov ${drawer ? 'drawer' : ''}" data-act="ovclose"><div class="md" role="dialog" aria-modal="true">${html}</div></div>`; const f = document.querySelector('.md textarea,.md input:not([type=checkbox]),.md select'); if (f) setTimeout(() => f.focus(), 10); }
-function closeModal() { $('mroot').innerHTML = ''; }
+let modalLocked = false;
+function closeModal() { modalLocked = false; $('mroot').innerHTML = ''; }
 function mhd(t, s) { return `<div class="hd"><div><h2>${t}</h2>${s ? `<p>${s}</p>` : ''}</div><button class="x" data-act="close" aria-label="Close">×</button></div>`; }
 function confirmModal(title, sub, body, okLabel, onOk, danger) {
   modal(mhd(title, sub) + `<div class="bd">${body || ''}<div id="cm-err"></div></div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn ${danger ? 'bad' : 'pri'}" id="cm-ok">${okLabel}</button></div>`);
   $('cm-ok').onclick = async () => { $('cm-ok').disabled = true; try { await onOk(); } catch (e) { $('cm-err').innerHTML = errHTML(e); $('cm-ok').disabled = false; } };
+}
+
+function showTempPw(user, pw, what) {
+  modal(mhd(`User ${what}`, `Give ${user} this one-time password through a separate channel. It is shown only once; they must change it at first sign-in.`) +
+    `<div class="bd"><div class="secret mono">${esc(pw)}</div></div><div class="ft"><button class="btn pri" data-act="tempDone">I have noted it</button></div>`);
+  setTimeout(() => { modalLocked = true; });
 }
 
 /* ============================== actions ============================== */
@@ -682,6 +793,19 @@ async function act(fn, okMsg, reload = true) {
   catch (e) { toast(e.message); throw e; }
 }
 const A = {
+  umenu: (id, el, e) => { const m = $('umenu'); m.hidden = !m.hidden; },
+  signOut: async () => { try { await api('POST', '/v1/auth/logout', {}); } catch (e) {} showLogin('You have signed out.'); },
+  switchUser: async id => { try { await api('POST', '/v1/auth/logout', {}); } catch (e) {} await doLogin(id, CFG.dev_password, ''); },
+  devLogin: id => doLogin(id, CFG.dev_password, ''),
+  loginBack: () => { loginState = { otp: false, user: '', msg: '' }; loginPw = ''; $('page').innerHTML = loginHTML(); },
+  pwChange: () => pwModal(false),
+  tempDone: () => { closeModal(); render({ keep: true }); },
+  totp: () => totpModal(false),
+  addUser: () => confirmModal('Add user', 'They get a one-time password to change at first sign-in.', `<div class="form"><div class="fld"><label for="nu-id">User ID</label><input class="in" id="nu-id" placeholder="e.g. meena.r" autocapitalize="none"></div><div class="fld"><label for="nu-name">Full name</label><input class="in" id="nu-name"></div><div class="fld"><label for="nu-role">Role</label><select class="in" id="nu-role">${(S.me.roles || []).map(r => `<option>${esc(r)}</option>`).join('')}</select></div></div>`,
+    'Add user', async () => { const r = await post('/v1/users', { id: $('nu-id').value.trim(), name: $('nu-name').value.trim(), role: $('nu-role').value }); showTempPw(r.user, r.temp_password, 'created'); }),
+  resetPw: id => confirmModal('Reset password · ' + id, 'Gives a new one-time password and signs them out everywhere.', '', 'Reset password', async () => { const r = await post(`/v1/users/${encodeURIComponent(id)}/reset-password`); showTempPw(id, r.temp_password, 'reset'); }, true),
+  reset2fa: id => confirmModal('Reset two-factor · ' + id, 'For a lost phone. Signs them out; they set it up again at next sign-in.', '', 'Reset 2FA', () => act(() => post(`/v1/users/${encodeURIComponent(id)}/reset-2fa`), 'Two-factor sign-in reset'), true),
+  toggleUser: id => { const u = C.settings.users.find(x => x.id === id); act(() => api('PUT', `/v1/users/${encodeURIComponent(id)}`, { id, name: u.name, role: u.role, active: !u.active }), u.active ? id + ' deactivated' : id + ' activated'); },
   crKind: id => { crSync(); UI.cr.kind = id; UI.crRes = null; UI.crErr = null; $('page').innerHTML = V.statements.html(C.statements); bindPage(); },
   crPreset: id => { crSync(); UI.cr.preset = id; $('page').innerHTML = V.statements.html(C.statements); bindPage(); },
   crRun: () => { crSync(); crRun(); },
@@ -690,12 +814,28 @@ const A = {
   crFor: id => { UI.cr.ucc = id; UI.crRes = null; A.go('statements'); },
   go: id => { S.view = id; closeModal(); render(); window.scrollTo(0, 0); },
   close: () => closeModal(),
-  ovclose: (id, el, e) => { if (e.target === el) closeModal(); },
+  ovclose: (id, el, e) => { if (e.target === el && !modalLocked) closeModal(); },
   ui: (id, el) => { UI[el.dataset.k] = el.dataset.v; const part = el.dataset.part; if (part && $(part)) { rerenderPart(part); el.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === el)); } else { $('page').innerHTML = V[S.view].html(C[S.view]); bindPage(); } },
   dl: (path, el) => download(path, el.dataset.name),
   client: id => clientDrawer(id),
   openLedger: id => { UI.ledgerU = id; A.go('ledger'); },
   sample: async (id, el) => { if (el) el.disabled = true; toast('Loading the sample trading day…'); try { const r = await post('/v1/dev/sample', { date: S.date }); toast(`Loaded ${r.files} sample files for ${fmtDate(S.date)}`); } catch (e) { toast(e.message); } render({ keep: true }); },
+  sampleRun: async (id, el) => {
+    if (el) el.disabled = true; const n = +id || 1;
+    toast(n > 1 ? `Working ${n} trading days end to end…` : 'Working the day end to end…');
+    try {
+      const r = await post('/v1/dev/sample', { date: S.date, run: true, days: n });
+      const last = r.days[r.days.length - 1];
+      S.date = last.date; persist();
+      modal(mhd(`${r.days.length} sample day${r.days.length > 1 ? 's' : ''} worked end to end`, 'Loaded, reconciled, breaks resolved, billed, derivatives settled, obligations settled, contract notes sent, day closed and positions rolled forward.') +
+        `<div class="bd">${tbl([['Date'], ['Trades', 'r'], ['Breaks', 'r'], ['Bills', 'r'], ['Carried MTM', 'r'], ['Expiry', 'r'], ['Settled', 'r'], ['Notes', 'r'], ['Positions rolled', 'r']], r.days.map(x => `<tr><td class="n">${fmtDate(x.date)}</td><td class="r">${x.trades}</td><td class="r">${x.breaks}</td><td class="r">${x.bills}</td><td class="r">${x.carried_mtm}</td><td class="r">${x.expiry}</td><td class="r">${x.settled}</td><td class="r">${x.notes}</td><td class="r">${x.rolled_positions}</td></tr>`))}
+        <p class="dim small" style="margin-top:10px">Now showing ${fmtDate(last.date)}. Client reports cover the whole period; the next sample day is ${fmtDate(last.next_day)}.</p></div><div class="ft"><button class="btn" data-act="crFor" data-id="BH1042">Open client reports</button><button class="btn pri" data-act="close">Done</button></div>`);
+    } catch (e) { toast(e.message); }
+    render({ keep: true });
+  },
+  gotoDate: id => { S.date = id; C.billResult = null; closeModal(); render(); },
+  prevDay: () => A.gotoDate(prevBD(S.date)),
+  nextDay: () => A.gotoDate(nextBD(S.date)),
   allotSample: () => act(() => post('/v1/dev/sample', { date: S.date, later: true }), 'Allotment file applied'),
   runRecon: () => act(() => post('/v1/recon/runs', { date: S.date }), r => `Reconciled: ${r.result.matched} matched, ${r.open} open breaks`),
   brk: id => breakModal(id),
@@ -765,15 +905,15 @@ const A = {
   rules: () => act(() => post('/v1/surveillance/run', { date: S.date }), r => `${r.raised} new alert${r.raised === 1 ? '' : 's'}`),
   saveSettings: () => {
     const s = { ...C.settings.settings, firm: $('st-firm').value, sebi_reg: $('st-sebi').value, compliance_email: $('st-comp').value, warn_util_pct: parseInt($('st-warn').value, 10), ras_buffer_pct: parseInt($('st-buf').value, 10), ras_monthly: $('st-rasm').value, ras_quarterly: $('st-rasq').value,
-      snapshot_times: $('st-snap').value.split(',').map(x => x.trim()).filter(Boolean), holidays: $('st-hol').value.split(',').map(x => x.trim()).filter(Boolean), penalty_pass_through: $('st-pen').checked };
+      two_factor: $('st-2fa').value, session_idle_minutes: parseInt($('st-idle').value, 10) || 30, snapshot_times: $('st-snap').value.split(',').map(x => x.trim()).filter(Boolean), holidays: $('st-hol').value.split(',').map(x => x.trim()).filter(Boolean), penalty_pass_through: $('st-pen').checked };
     act(() => api('PUT', '/v1/settings', s), 'Settings saved').then(loadMe);
   },
   eod: async () => {
     let st; try { st = await get(`/v1/eod?date=${S.date}`); } catch (e) { toast(e.message); return; }
     const okAll = st.checks.every(c => c.ok);
-    if (st.closed) { modal(mhd('EOD · ' + fmtDate(S.date), `Closed at ${esc(st.closed_at)} by ${esc(st.closed_by)}`) + `<div class="bd">${(st.exceptions || []).length ? `<div class="note warn"><b>Closed with exceptions</b><ul style="margin:6px 0 0;padding-left:18px">${st.exceptions.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '<div class="note">Closed clean.</div>'}</div><div class="ft"><button class="btn" data-act="close">Close</button></div>`); return; }
-    confirmModal('EOD close · ' + fmtDate(S.date), okAll ? 'All checks passed' : 'Resolve what you can; closing with exceptions needs a note', `<div class="checks">${st.checks.map(c => `<div><span>${esc(c.name)}<br><span class="dim" style="font-size:12px">${esc(c.detail)}</span></span>${c.ok ? pill('Done', 'good') : `<button class="btn sm" data-act="go" data-id="${c.view}">Open</button>`}</div>`).join('')}</div>${okAll ? '' : '<div class="fld"><label for="eod-n">Note for closing with exceptions</label><textarea class="in" id="eod-n"></textarea></div>'}${has('Ops checker') ? '' : '<div class="note">Closing the day needs an Ops checker.</div>'}`,
-      okAll ? 'Close the day' : 'Close with exceptions', () => act(() => post('/v1/eod/close', { date: S.date, note: $('eod-n')?.value || '' }), 'Day closed'), !okAll);
+    if (st.closed) { modal(mhd('EOD · ' + fmtDate(S.date), `Closed at ${esc(st.closed_at)} by ${esc(st.closed_by)}`) + `<div class="bd">${st.next_day ? `<div class="note"><b>${st.rolled_positions} open position${st.rolled_positions === 1 ? '' : 's'} carried to ${fmtDate(st.next_day)}.</b> Futures at today's settlement price; options at their average premium; expired contracts dropped.</div>` : ''}${(st.exceptions || []).length ? `<div class="note warn"><b>Closed with exceptions</b><ul style="margin:6px 0 0;padding-left:18px">${st.exceptions.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '<div class="note">Closed clean.</div>'}</div><div class="ft"><button class="btn" data-act="close">Close</button></div>`); return; }
+    confirmModal('EOD close · ' + fmtDate(S.date), okAll ? 'All checks passed' : 'Resolve what you can; closing with exceptions needs a note', `${st.previous_open ? `<div class="note warn">${esc(st.previous_open)}</div>` : ''}<div class="checks">${st.checks.map(c => `<div><span>${esc(c.name)}<br><span class="dim" style="font-size:12px">${esc(c.detail)}</span></span>${c.ok ? pill('Done', 'good') : `<button class="btn sm" data-act="go" data-id="${c.view}">Open</button>`}</div>`).join('')}</div>${okAll ? '' : '<div class="fld"><label for="eod-n">Note for closing with exceptions</label><textarea class="in" id="eod-n"></textarea></div>'}${has('Ops checker') ? '' : '<div class="note">Closing the day needs an Ops checker.</div>'}`,
+      okAll ? 'Close the day' : 'Close with exceptions', () => act(() => post('/v1/eod/close', { date: S.date, note: $('eod-n')?.value || '' }), r => `Day closed; ${r.rolled_positions} positions carried to ${fmtDate(r.next_day)}`), !okAll);
   },
 };
 
@@ -789,7 +929,13 @@ function bindPage() {
   if (S.view === 'charges') calc();
   if (S.view === 'statements' && !UI.crRes && !UI.crBusy && !UI.crErr && UI.cr.ucc) crRun();
 }
+document.addEventListener('submit', e => {
+  if (e.target.id !== 'loginf') return;
+  e.preventDefault();
+  if (loginState.otp) doLogin(loginState.user, loginPw, $('li-otp').value); else doLogin($('li-user').value.trim(), $('li-pw').value, '');
+});
 document.addEventListener('click', e => {
+  const um = $('umenu'); if (um && !um.hidden && !e.target.closest('.umenu')) um.hidden = true;
   const a = e.target.closest('[data-act]');
   if (!a) { const r = $('gres'); if (r && !e.target.closest('.srch')) r.hidden = true; return; }
   const fn = A[a.dataset.act]; if (!fn) return;
@@ -806,7 +952,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.id === 'date' && el.value) { S.date = el.value; C.billResult = null; render(); return; }
-  if (el.id === 'actor') { S.actor = el.value; loadMe().then(() => render({ keep: true })); return; }
+  if (el.dataset.urole) { const id = el.dataset.urole, u = C.settings.users.find(x => x.id === id); act(() => api('PUT', `/v1/users/${encodeURIComponent(id)}`, { id, name: u.name, role: el.value, active: u.active }), `${id} is now ${el.value}`); return; }
   if (el.id === 'ftype') { UI.fileType = el.value; $('page').innerHTML = V.files.html(C.files); bindPage(); return; }
   if (el.id === 'cr-from' || el.id === 'cr-to') { UI.cr.preset = 'custom'; crSync(); document.querySelectorAll('[data-act=crPreset]').forEach(b => b.classList.toggle('on', b.dataset.id === 'custom')); return; }
   if (el.id === 'cr-ucc') { crSync(); return; }
@@ -817,7 +963,7 @@ document.addEventListener('change', e => {
   if (el.dataset.obchk) { UI.ob.data[el.dataset.obchk] = el.checked; }
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeModal(); const r = $('gres'); if (r) r.hidden = true; }
+  if (e.key === 'Escape') { if (!modalLocked) closeModal(); const r = $('gres'); if (r) r.hidden = true; }
   if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); $('gsearch')?.focus(); }
 });
 let searchCache = { date: '', rows: [] };
@@ -830,17 +976,10 @@ async function searchClients(q) {
 }
 
 /* ============================== start ============================== */
-async function loadMe() {
-  S.me = await get('/v1/me');
-  const users = S.me.users || [];
-  if (users.length && !users.some(u => u.id === S.actor)) { S.actor = users[0].id; S.me = await get('/v1/me'); }
-  persist();
-}
+async function loadMe() { S.me = await get('/v1/me'); document.body.classList.remove('signed-out'); persist(); }
 async function boot() {
   try { CFG = await (await fetch('/ui/config')).json(); } catch (e) { CFG = {}; }
-  if (!S.key && CFG.dev) S.key = CFG.dev_key;
-  if (!S.key) { renderSide(); signIn(); return; }
-  try { await loadMe(); } catch (e) { renderSide(); signIn(e.status === 401 ? 'That API key was not accepted.' : e.message); return; }
+  try { await loadMe(); } catch (e) { if (e.status !== 401 && e.code !== 'setup_required') showLogin(e.message); return; }
   render();
 }
 boot();

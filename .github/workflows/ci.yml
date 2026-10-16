@@ -29,12 +29,13 @@ jobs:
         env:
           LEDGERLINE_TEST_TENANT: ci
           LEDGERLINE_TEST_OPS_TENANT: ci_ops
+          LEDGERLINE_TEST_WEEK_TENANT: ci_week
           LEDGERLINE_TEST_DB: postgres://ll_it:ll_it@localhost:5432/ledgerline_test?sslmode=disable
         run: |
-          psql -d ledgerline_test -c "CREATE ROLE ll_it LOGIN PASSWORD 'll_it' IN ROLE ledgerline_app; INSERT INTO ll.tenant (id, name) VALUES ('ci', 'CI tenant'), ('ci_ops', 'CI operations tenant');"
+          psql -d ledgerline_test -c "CREATE ROLE ll_it LOGIN PASSWORD 'll_it' IN ROLE ledgerline_app; INSERT INTO ll.tenant (id, name) VALUES ('ci', 'CI tenant'), ('ci_ops', 'CI operations tenant'), ('ci_week', 'CI week tenant');"
           go get github.com/jackc/pgx/v5@v5.7.2
           go mod tidy
           set -o pipefail
           go test -tags 'integration pgx' -count=1 -v -run Integration ./internal/pgstore | tee it.txt
-          grep -E -- '--- (PASS|SKIP|FAIL)|facts compared' it.txt | sed 's/^ */::notice::/'
+          grep -E -- '--- (PASS|SKIP|FAIL)|facts compared|three days' it.txt | sed 's/^ */::notice::/'
           if grep -q -- '--- SKIP' it.txt; then echo '::error::integration tests were skipped'; exit 1; fi

@@ -90,6 +90,7 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/sample/files", s.sampleFiles, false)
 	if s.dev {
 		R("POST /v1/dev/sample", s.loadSample, true)
+		R("GET /v1/dev/sample", s.sampleStatus, false)
 	}
 }
 
@@ -114,11 +115,17 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 	if a := actor(r); a != "" {
 		role, _ = s.ops.RoleOf(r.Context(), tenant(r), a)
 	}
-	writeJSON(w, 200, map[string]any{"tenant": tenant(r), "actor": actor(r), "role": role, "users": us, "roles": ops.Roles, "firm": set.Firm, "dev": s.dev, "member_codes": set.MemberCodes, "sample_rates": s.app.Schedule.Sample, "schedule": s.app.Schedule.Version})
+	var auth any
+	if r.Header.Get("Authorization") == "" {
+		if _, st, _, err := s.sessionAuth(r); err == nil {
+			auth = st
+		}
+	}
+	writeJSON(w, 200, map[string]any{"auth": auth, "tenant": tenant(r), "actor": actor(r), "role": role, "users": us, "roles": ops.Roles, "firm": set.Firm, "dev": s.dev, "member_codes": set.MemberCodes, "holidays": set.Holidays, "sample_rates": s.app.Schedule.Sample, "schedule": s.app.Schedule.Version})
 }
 
 func (s *Server) users(w http.ResponseWriter, r *http.Request) {
-	us, err := s.ops.Users(r.Context(), tenant(r))
+	us, err := s.ops.UserViews(r.Context(), tenant(r))
 	ok(w, us, err)
 }
 
@@ -692,24 +699,82 @@ func (s *Server) sampleFiles(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, out)
 }
 
-func (s *Server) loadSample(w http.ResponseWriter, r *http.Request) {
-	var b struct {
-		Date  string `json:"date"`
-		Later bool   `json:"later"`
-	}
-	if !decode(w, r, &b) {
-		return
-	}
-	if b.Date == "" {
-		b.Date = "2026-10-16"
-	}
-	day := sample.Generate(b.Date)
-	n, err := s.ops.LoadSampleDay(r.Context(), tenant(r), actor(r), day, b.Later, func(ctx context.Context, t, a, source, name string, data []byte) error {
+func (s *Server) ingester() ops.TradeIngester {
+	return func(ctx context.Context, t, a, source, name string, data []byte) error {
 		res, err := s.app.IngestFile(ctx, t, a, source, "", name, data)
 		if err != nil && len(res.Errors) > 0 {
 			return fmt.Errorf("%w (first: line %d %s)", err, res.Errors[0].Line, res.Errors[0].Msg)
 		}
 		return err
-	})
-	ok(w, map[string]any{"files": n, "date": b.Date}, err)
+	}
+}
+
+func (s *Server) sampleStatus(w http.ResponseWriter, r *http.Request) {
+	st, err := s.ops.SampleStatus(r.Context(), tenant(r))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	next, err := s.ops.NextSampleDay(r.Context(), tenant(r))
+	ok(w, map[string]any{"start": st.Start, "loaded": st.Loaded, "next": next}, err)
+}
+
+// loadSample loads generated files (development only). With run, it also
+// works the day end to end and closes it; days > 1 repeats that for the
+// following trading days. later loads the IPO allotment results.
+func (s *Server) loadSample(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date  string `json:"date"`
+		Later bool   `json:"later"`
+		Run   bool   `json:"run"`
+		Days  int    `json:"days"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	ctx, t, a := r.Context(), tenant(r), actor(r)
+	if b.Later {
+		st, err := s.ops.SampleStatus(ctx, t)
+		if err != nil || st.Start == "" {
+			fail(w, fmt.Errorf("%w: load a sample day first", ops.ErrState), nil)
+			return
+		}
+		n, err := s.ops.LoadSampleDay(ctx, t, a, sample.Generate(st.Start), true, s.ingester())
+		ok(w, map[string]any{"files": n, "date": st.Start}, err)
+		return
+	}
+	if b.Date == "" {
+		next, err := s.ops.NextSampleDay(ctx, t)
+		if err != nil {
+			fail(w, err, nil)
+			return
+		}
+		b.Date = next
+		if b.Date == "" {
+			b.Date = "2026-10-16"
+		}
+	}
+	if !b.Run {
+		n, err := s.ops.LoadSampleFor(ctx, t, a, b.Date, s.ingester())
+		ok(w, map[string]any{"files": n, "date": b.Date}, err)
+		return
+	}
+	if b.Days < 1 {
+		b.Days = 1
+	}
+	if b.Days > 10 {
+		b.Days = 10
+	}
+	var runs []ops.SampleRun
+	d := b.Date
+	for i := 0; i < b.Days; i++ {
+		run, err := s.ops.RunSampleDay(ctx, t, a, d, s.ingester())
+		if err != nil {
+			fail(w, fmt.Errorf("%s: %w", d, err), runs)
+			return
+		}
+		runs = append(runs, run)
+		d = run.NextDay
+	}
+	writeJSON(w, 200, map[string]any{"days": runs, "next": d})
 }

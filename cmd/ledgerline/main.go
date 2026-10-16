@@ -124,13 +124,31 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 			}
 		}
 	}
+	// LEDGERLINE_BOOTSTRAP_ADMIN=tenant:user-id:password creates the first
+	// administrator of a firm that has no one able to sign in. The password
+	// must be changed at first sign-in. Remove the variable afterwards.
+	if b := os.Getenv("LEDGERLINE_BOOTSTRAP_ADMIN"); b != "" {
+		p := strings.SplitN(b, ":", 3)
+		if len(p) != 3 {
+			return errors.New("LEDGERLINE_BOOTSTRAP_ADMIN must be tenant:user-id:password")
+		}
+		created, err := o.BootstrapAdmin(ctx, p[0], p[1], "Administrator", p[2])
+		if err != nil {
+			return fmt.Errorf("bootstrap admin: %w", err)
+		}
+		if created {
+			log.Warn("created the first administrator; sign in, change the password, then unset LEDGERLINE_BOOTSTRAP_ADMIN", "tenant", p[0], "user", p[1])
+		}
+	}
 	apiSrv := api.New(a, o, keys, log, dev)
-	cfg := web.Config{Dev: dev, Version: "2.0"}
+	cfg := web.Config{Dev: dev, Version: "2.1"}
+	if ts := apiSrv.Tenants(); len(ts) == 1 {
+		cfg.Tenant = ts[0]
+	}
 	if dev {
-		for k, t := range keys {
-			if k == devKey {
-				cfg.DevKey, cfg.Tenant = k, t
-			}
+		cfg.DevPassword = ops.DevPassword
+		for _, u := range ops.DevUsers {
+			cfg.DevUsers = append(cfg.DevUsers, web.DevUser{ID: u.ID, Name: u.Name, Role: u.Role})
 		}
 	}
 	root := http.NewServeMux()

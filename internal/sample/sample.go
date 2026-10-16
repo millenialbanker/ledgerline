@@ -141,6 +141,11 @@ func fmtExp(d, layout string) string {
 
 // Generate builds the sample day for a trade date (YYYY-MM-DD).
 func Generate(date string) Day {
+	d, _ := generate(date)
+	return d
+}
+
+func generate(date string) (Day, *world) {
 	r := &rng{s: 20261016}
 	td, _ := time.Parse("2006-01-02", date)
 	prev := td.AddDate(0, 0, -1)
@@ -440,271 +445,7 @@ func Generate(date string) Day {
 			traders = append(traders, &cs[i])
 		}
 	}
-	tm := func() string {
-		m := r.in(555, 929)
-		return fmt.Sprintf("%02d:%02d:%02d", m/60, m%60, r.in(0, 59))
-	}
-	var raw []trade
-	for n := 0; n < 260; n++ {
-		c := pick(r, traders)
-		x := r.f()
-		seg := "CM"
-		switch {
-		case x < .56:
-		case x < .86:
-			seg = "FO"
-		case x < .94:
-			seg = "COM"
-		default:
-			seg = "CD"
-		}
-		ok := false
-		for _, s := range c.segs {
-			ok = ok || s == seg
-		}
-		if !ok {
-			seg = "CM"
-		}
-		side := "B"
-		if r.f() >= .52 {
-			side = "S"
-		}
-		algo, term := "", fmt.Sprintf("CTCL-%d", r.in(11, 19))
-		if c.api {
-			term = "API-GW-01"
-			if r.f() < .85 {
-				algo = fmt.Sprintf("ALG%d", r.in(10000, 99999))
-			}
-		}
-		var t trade
-		if seg == "CM" {
-			e := pick(r, equities)
-			exch := "NSE"
-			idx := -1
-			for i, q := range equities {
-				if q.sym == e.sym {
-					idx = i
-				}
-			}
-			if idx < 9 && r.f() < .22 {
-				exch = "BSE"
-			}
-			product := "CNC"
-			if r.f() >= .55 {
-				product = "MIS"
-			}
-			p := ltp[e.sym]
-			qty := int64(math.Max(1, math.Round(float64(r.in(8000, 180000))/p)))
-			if product == "CNC" && side == "S" {
-				if h := hold[c.ucc][e.sym]; h > 0 {
-					if r.f() < .93 {
-						qty = int64(math.Max(1, math.Min(float64(qty), math.Round(float64(h)*r.fl(.2, .9)))))
-					} else {
-						qty = h + int64(r.in(5, 40))
-					}
-				} else if r.f() < .92 {
-					side = "B"
-				}
-			}
-			t = trade{exch: exch, seg: "CM", ucc: c.ucc, sym: e.sym, typ: "EQ", side: side, qty: qty, price: tick(p * (1 + (r.f()-.5)*.012)), tm: tm(), product: product, algo: algo, term: term}
-		} else {
-			var pool []int
-			for i, d := range derivs {
-				if d.seg == seg {
-					pool = append(pool, i)
-				}
-			}
-			i := pick(r, pool)
-			d := derivs[i]
-			lots := r.in(1, 3)
-			if d.index {
-				lots = r.in(1, 5)
-			}
-			product := "NRML"
-			if r.f() >= .7 {
-				product = "MIS"
-			}
-			p := dltp[i]
-			var px float64
-			switch {
-			case d.seg == "CD":
-				px = math.Round(p*(1+(r.f()-.5)*.004)*10000) / 10000
-			case d.typ == "FUT":
-				px = tick(p * (1 + (r.f()-.5)*.012))
-			default:
-				px = math.Max(.05, tick(p*(1+(r.f()-.5)*.18)))
-			}
-			t = trade{exch: d.exch, seg: d.seg, ucc: c.ucc, sym: d.sym, typ: d.typ, exp: d.exp, strike: d.strike, side: side, qty: int64(lots * d.lot), price: px, tm: tm(), product: product, algo: algo, term: term}
-		}
-		raw = append(raw, t)
-		if t.product == "MIS" {
-			h, m := 0, 0
-			fmt.Sscanf(t.tm, "%d:%d", &h, &m)
-			later := int(math.Min(929, float64(h*60+m+r.in(5, 120))))
-			u := t
-			if t.side == "B" {
-				u.side = "S"
-			} else {
-				u.side = "B"
-			}
-			switch {
-			case t.seg == "CD":
-				u.price = math.Round(t.price*(1+(r.f()-.48)*.004)*10000) / 10000
-			case t.typ == "FUT" || t.typ == "EQ":
-				u.price = tick(t.price * (1 + (r.f()-.48)*.014))
-			default:
-				u.price = math.Max(.05, tick(t.price*(1+(r.f()-.48)*.25)))
-			}
-			u.tm = fmt.Sprintf("%02d:%02d:%02d", later/60, later%60, r.in(0, 59))
-			raw = append(raw, u)
-		}
-	}
-	sort.SliceStable(raw, func(i, j int) bool { return raw[i].tm < raw[j].tm })
-	tn := map[string]int64{"NSE-CM": 1000452301, "BSE-CM": 5100088201, "NSE-FO": 2000311401, "NSE-CD": 4000120301, "MCX-COM": 3000877101}
-	on := int64(12600000)
-	for i := range raw {
-		k := raw[i].exch + "-" + raw[i].seg
-		raw[i].no = fmt.Sprint(tn[k])
-		tn[k]++
-		on += int64(r.in(1, 40))
-		raw[i].order = fmt.Sprintf("1300%012d", on)
-	}
-
-	// OMS copy with injected breaks.
-	oms := make([]trade, len(raw))
-	copy(oms, raw)
-	drop := map[int]bool{}
-	taken := map[int]bool{}
-	take := func(filter func(trade) bool) int {
-		for tries := 0; tries < 2000; tries++ {
-			k := r.in(0, len(raw)-1)
-			if !taken[k] && filter(raw[k]) {
-				taken[k] = true
-				return k
-			}
-		}
-		return -1
-	}
-	any := func(trade) bool { return true }
-	for k := 0; k < 4; k++ {
-		drop[take(any)] = true
-	}
-	for k := 0; k < 3; k++ {
-		i := take(any)
-		lot := int64(1)
-		for _, d := range derivs {
-			if d.sym == raw[i].sym && d.seg == raw[i].seg {
-				lot = int64(d.lot)
-			}
-		}
-		if lot == 1 {
-			lot = int64(r.in(1, 10))
-		}
-		oms[i].qty += lot
-	}
-	for k := 0; k < 3; k++ {
-		i := take(func(t trade) bool { return t.seg != "CD" })
-		sgn := 1.0
-		if r.f() < .5 {
-			sgn = -1
-		}
-		oms[i].price = math.Round(raw[i].price*(1+sgn*r.fl(.001, .006))*100) / 100
-	}
-	for k := 0; k < 2; k++ {
-		i := take(any)
-		for {
-			o := pick(r, traders)
-			if o.ucc != raw[i].ucc {
-				oms[i].ucc = o.ucc
-				break
-			}
-		}
-	}
-	for k := 0; k < 2; k++ {
-		if i := take(func(t trade) bool { return t.algo != "" }); i >= 0 {
-			oms[i].algo = ""
-		}
-	}
-	if i := take(func(t trade) bool { return t.seg == "FO" }); i >= 0 {
-		n := 0
-		fmt.Sscan(raw[i].no, &n)
-		oms[i].no = fmt.Sprint(n + 900000)
-	}
-	var omsRows []trade
-	for i, t := range oms {
-		if !drop[i] {
-			omsRows = append(omsRows, t)
-		}
-	}
-	for k := 0; k < 3; k++ {
-		b := omsRows[r.in(0, len(omsRows)-1)]
-		k2 := b.exch + "-" + b.seg
-		b.no = fmt.Sprint(tn[k2] + int64(500+k))
-		omsRows = append(omsRows, b)
-	}
-
-	// ---- write trade files ----
-	dmy := td.Format("02-Jan-2006")
-	side12 := map[string]string{"B": "1", "S": "2"}
-	cmHead := []string{"TradeNo", "OrderNo", "ClientCode", "Symbol", "Series", "BuySell", "Qty", "Price", "TradeDate", "TradeTime", "Product", "AlgoId", "TerminalId"}
-	foHead := []string{"TradeNo", "OrderNo", "ClientCode", "Symbol", "InstrumentType", "Expiry", "Strike", "OptionType", "BuySell", "Qty", "Price", "TradeDate", "TradeTime", "Product", "AlgoId", "TerminalId"}
-	nse, bse, fo, cd := [][]string{cmHead}, [][]string{cmHead}, [][]string{foHead}, [][]string{foHead}
-	var mcx []string
-	idxSyms := map[string]bool{"NIFTY": true, "BANKNIFTY": true}
-	for _, t := range raw {
-		switch t.seg {
-		case "CM":
-			row := []string{t.no, t.order, t.ucc, t.sym, "EQ", side12[t.side], fmt.Sprint(t.qty), f2(t.price), dmy, t.tm, t.product, t.algo, t.term}
-			if t.exch == "BSE" {
-				bse = append(bse, row)
-			} else {
-				nse = append(nse, row)
-			}
-		case "FO", "CD":
-			it, strike, ot := "", "", ""
-			switch {
-			case t.seg == "CD" && t.typ == "FUT":
-				it = "FUTCUR"
-			case t.seg == "CD":
-				it = "OPTCUR"
-			case t.typ == "FUT" && idxSyms[t.sym]:
-				it = "FUTIDX"
-			case t.typ == "FUT":
-				it = "FUTSTK"
-			case idxSyms[t.sym]:
-				it = "OPTIDX"
-			default:
-				it = "OPTSTK"
-			}
-			if t.typ == "CE" || t.typ == "PE" {
-				strike, ot = fmt.Sprint(t.strike), t.typ
-			}
-			row := []string{t.no, t.order, t.ucc, t.sym, it, fmtExpTitle(t.exp), strike, ot, side12[t.side], fmt.Sprint(t.qty), fpx(t.price), dmy, t.tm, t.product, t.algo, t.term}
-			if t.seg == "CD" {
-				cd = append(cd, row)
-			} else {
-				fo = append(fo, row)
-			}
-		case "COM":
-			mcx = append(mcx, strings.Join([]string{t.no, t.order, t.ucc, t.sym, "FUTCOM", fmtExp(t.exp, "02Jan2006"), t.side, fmt.Sprint(t.qty), f2(t.price), td.Format("20060102"), t.tm, t.product, t.term}, "|"))
-		}
-	}
-	day.Files = append(day.Files,
-		File{"NSE-CM-TRADE", "nse_cm_trades_" + date + ".csv", "", csvBytes(nse), false},
-		File{"BSE-CM-TRADE", "bse_cm_trades_" + date + ".csv", "", csvBytes(bse), false},
-		File{"NSE-FO-TRADE", "nse_fo_trades_" + date + ".csv", "", csvBytes(fo), false},
-		File{"NSE-CD-TRADE", "nse_cd_trades_" + date + ".csv", "", csvBytes(cd), false},
-		File{"MCX-TRADE", "mcx_trades_" + date + ".txt", "", []byte(strings.Join(mcx, "\n") + "\n"), false})
-	om := [][]string{{"Exchange", "Segment", "TradeNo", "OrderNo", "ClientCode", "Symbol", "InstrumentType", "Expiry", "Strike", "OptionType", "Side", "Qty", "Price", "TradeDate", "TradeTime", "Product", "AlgoId", "Terminal"}}
-	sort.SliceStable(omsRows, func(i, j int) bool { return omsRows[i].tm < omsRows[j].tm })
-	for _, t := range omsRows {
-		it, ot, strike := t.typ, "", ""
-		if t.typ == "CE" || t.typ == "PE" {
-			it, ot, strike = "OPT", t.typ, fmt.Sprint(t.strike)
-		}
-		om = append(om, []string{t.exch, t.seg, t.no, t.order, t.ucc, t.sym, it, t.exp, strike, ot, t.side, fmt.Sprint(t.qty), fpx(t.price), date, t.tm, t.product, t.algo, t.term})
-	}
-	day.Files = append(day.Files, File{"OMS-TRADE", "oms_tradebook_" + date + ".csv", "", csvBytes(om), false})
+	tradeFiles(r, &day, date, td, traders, hold, ltp, dltp, firstDayKnobs)
 
 	// ---- bank statement ----
 	bs := [][]string{{"Date", "Time", "Mode", "Reference", "Remitter", "Account", "Amount", "DrCr"}}
@@ -779,7 +520,7 @@ func Generate(date string) Day {
 	}
 	day.Files = append(day.Files, File{"MF-ORDERS", "mf_orders_" + date + ".csv", "", csvBytes(mf), false})
 	day.Files = append(day.Files, File{"IPO-ALLOTMENT", "ipo_allotment_results.csv", "", csvBytes(allot), true})
-	return day
+	return day, &world{traders: traders, actives: actives, ltp: ltp, dltp: dltp, hold: hold}
 }
 
 func fmtExpTitle(d string) string {
@@ -861,4 +602,431 @@ func holdingLots(rows [][]string, prevDate string) [][]string {
 		}
 	}
 	return out
+}
+
+// tradeKnobs sets the size of a generated day and the breaks injected into
+// the OMS copy.
+type tradeKnobs struct {
+	trades                                        int
+	offset                                        int64
+	drop, qty, price, ucc, algo, tradeNo, phantom int
+}
+
+var firstDayKnobs = tradeKnobs{trades: 260, drop: 4, qty: 3, price: 3, ucc: 2, algo: 2, tradeNo: 1, phantom: 3}
+
+// tradeFiles generates a day's trades for the trading clients, writes the
+// exchange trade files and the OMS trade book with injected breaks, and
+// moves delivery trades into the holdings used for the next day.
+func tradeFiles(r *rng, day *Day, date string, td time.Time, traders []*client, hold map[string]map[string]int64, ltp map[string]float64, dltp map[int]float64, k tradeKnobs) {
+	tm := func() string {
+		m := r.in(555, 929)
+		return fmt.Sprintf("%02d:%02d:%02d", m/60, m%60, r.in(0, 59))
+	}
+	var raw []trade
+	for n := 0; n < k.trades; n++ {
+		c := pick(r, traders)
+		x := r.f()
+		seg := "CM"
+		switch {
+		case x < .56:
+		case x < .86:
+			seg = "FO"
+		case x < .94:
+			seg = "COM"
+		default:
+			seg = "CD"
+		}
+		ok := false
+		for _, s := range c.segs {
+			ok = ok || s == seg
+		}
+		if !ok {
+			seg = "CM"
+		}
+		side := "B"
+		if r.f() >= .52 {
+			side = "S"
+		}
+		algo, term := "", fmt.Sprintf("CTCL-%d", r.in(11, 19))
+		if c.api {
+			term = "API-GW-01"
+			if r.f() < .85 {
+				algo = fmt.Sprintf("ALG%d", r.in(10000, 99999))
+			}
+		}
+		var t trade
+		if seg == "CM" {
+			e := pick(r, equities)
+			exch := "NSE"
+			idx := -1
+			for i, q := range equities {
+				if q.sym == e.sym {
+					idx = i
+				}
+			}
+			if idx < 9 && r.f() < .22 {
+				exch = "BSE"
+			}
+			product := "CNC"
+			if r.f() >= .55 {
+				product = "MIS"
+			}
+			p := ltp[e.sym]
+			qty := int64(math.Max(1, math.Round(float64(r.in(8000, 180000))/p)))
+			if product == "CNC" && side == "S" {
+				if h := hold[c.ucc][e.sym]; h > 0 {
+					if r.f() < .93 {
+						qty = int64(math.Max(1, math.Min(float64(qty), math.Round(float64(h)*r.fl(.2, .9)))))
+					} else {
+						qty = h + int64(r.in(5, 40))
+					}
+				} else if r.f() < .92 {
+					side = "B"
+				}
+			}
+			t = trade{exch: exch, seg: "CM", ucc: c.ucc, sym: e.sym, typ: "EQ", side: side, qty: qty, price: tick(p * (1 + (r.f()-.5)*.012)), tm: tm(), product: product, algo: algo, term: term}
+		} else {
+			var pool []int
+			for i, d := range derivs {
+				if d.seg == seg && d.exp >= date {
+					pool = append(pool, i)
+				}
+			}
+			if len(pool) == 0 {
+				continue
+			}
+			i := pick(r, pool)
+			d := derivs[i]
+			lots := r.in(1, 3)
+			if d.index {
+				lots = r.in(1, 5)
+			}
+			product := "NRML"
+			if r.f() >= .7 {
+				product = "MIS"
+			}
+			p := dltp[i]
+			var px float64
+			switch {
+			case d.seg == "CD":
+				px = math.Round(p*(1+(r.f()-.5)*.004)*10000) / 10000
+			case d.typ == "FUT":
+				px = tick(p * (1 + (r.f()-.5)*.012))
+			default:
+				px = math.Max(.05, tick(p*(1+(r.f()-.5)*.18)))
+			}
+			t = trade{exch: d.exch, seg: d.seg, ucc: c.ucc, sym: d.sym, typ: d.typ, exp: d.exp, strike: d.strike, side: side, qty: int64(lots * d.lot), price: px, tm: tm(), product: product, algo: algo, term: term}
+		}
+		raw = append(raw, t)
+		if t.product == "MIS" {
+			h, m := 0, 0
+			fmt.Sscanf(t.tm, "%d:%d", &h, &m)
+			later := int(math.Min(929, float64(h*60+m+r.in(5, 120))))
+			u := t
+			if t.side == "B" {
+				u.side = "S"
+			} else {
+				u.side = "B"
+			}
+			switch {
+			case t.seg == "CD":
+				u.price = math.Round(t.price*(1+(r.f()-.48)*.004)*10000) / 10000
+			case t.typ == "FUT" || t.typ == "EQ":
+				u.price = tick(t.price * (1 + (r.f()-.48)*.014))
+			default:
+				u.price = math.Max(.05, tick(t.price*(1+(r.f()-.48)*.25)))
+			}
+			u.tm = fmt.Sprintf("%02d:%02d:%02d", later/60, later%60, r.in(0, 59))
+			raw = append(raw, u)
+		}
+	}
+	sort.SliceStable(raw, func(i, j int) bool { return raw[i].tm < raw[j].tm })
+	tn := map[string]int64{"NSE-CM": 1000452301 + k.offset, "BSE-CM": 5100088201 + k.offset, "NSE-FO": 2000311401 + k.offset, "NSE-CD": 4000120301 + k.offset, "MCX-COM": 3000877101 + k.offset}
+	on := int64(12600000) + k.offset*10
+	for i := range raw {
+		k := raw[i].exch + "-" + raw[i].seg
+		raw[i].no = fmt.Sprint(tn[k])
+		tn[k]++
+		on += int64(r.in(1, 40))
+		raw[i].order = fmt.Sprintf("1300%012d", on)
+	}
+
+	// OMS copy with injected breaks.
+	oms := make([]trade, len(raw))
+	copy(oms, raw)
+	drop := map[int]bool{}
+	taken := map[int]bool{}
+	take := func(filter func(trade) bool) int {
+		for tries := 0; tries < 2000; tries++ {
+			k := r.in(0, len(raw)-1)
+			if !taken[k] && filter(raw[k]) {
+				taken[k] = true
+				return k
+			}
+		}
+		return -1
+	}
+	any := func(trade) bool { return true }
+	for j := 0; j < k.drop; j++ {
+		drop[take(any)] = true
+	}
+	for j := 0; j < k.qty; j++ {
+		i := take(any)
+		lot := int64(1)
+		for _, d := range derivs {
+			if d.sym == raw[i].sym && d.seg == raw[i].seg {
+				lot = int64(d.lot)
+			}
+		}
+		if lot == 1 {
+			lot = int64(r.in(1, 10))
+		}
+		oms[i].qty += lot
+	}
+	for j := 0; j < k.price; j++ {
+		i := take(func(t trade) bool { return t.seg != "CD" })
+		sgn := 1.0
+		if r.f() < .5 {
+			sgn = -1
+		}
+		oms[i].price = math.Round(raw[i].price*(1+sgn*r.fl(.001, .006))*100) / 100
+	}
+	for j := 0; j < k.ucc; j++ {
+		i := take(any)
+		for {
+			o := pick(r, traders)
+			if o.ucc != raw[i].ucc {
+				oms[i].ucc = o.ucc
+				break
+			}
+		}
+	}
+	for j := 0; j < k.algo; j++ {
+		if i := take(func(t trade) bool { return t.algo != "" }); i >= 0 {
+			oms[i].algo = ""
+		}
+	}
+	for j := 0; j < k.tradeNo; j++ {
+		i := take(func(t trade) bool { return t.seg == "FO" })
+		if i < 0 {
+			break
+		}
+		n := 0
+		fmt.Sscan(raw[i].no, &n)
+		oms[i].no = fmt.Sprint(n + 900000)
+	}
+	var omsRows []trade
+	for i, t := range oms {
+		if !drop[i] {
+			omsRows = append(omsRows, t)
+		}
+	}
+	for j := 0; j < k.phantom; j++ {
+		b := omsRows[r.in(0, len(omsRows)-1)]
+		k2 := b.exch + "-" + b.seg
+		b.no = fmt.Sprint(tn[k2] + int64(500+j))
+		omsRows = append(omsRows, b)
+	}
+
+	// ---- write trade files ----
+	dmy := td.Format("02-Jan-2006")
+	side12 := map[string]string{"B": "1", "S": "2"}
+	cmHead := []string{"TradeNo", "OrderNo", "ClientCode", "Symbol", "Series", "BuySell", "Qty", "Price", "TradeDate", "TradeTime", "Product", "AlgoId", "TerminalId"}
+	foHead := []string{"TradeNo", "OrderNo", "ClientCode", "Symbol", "InstrumentType", "Expiry", "Strike", "OptionType", "BuySell", "Qty", "Price", "TradeDate", "TradeTime", "Product", "AlgoId", "TerminalId"}
+	nse, bse, fo, cd := [][]string{cmHead}, [][]string{cmHead}, [][]string{foHead}, [][]string{foHead}
+	var mcx []string
+	idxSyms := map[string]bool{"NIFTY": true, "BANKNIFTY": true}
+	for _, t := range raw {
+		switch t.seg {
+		case "CM":
+			row := []string{t.no, t.order, t.ucc, t.sym, "EQ", side12[t.side], fmt.Sprint(t.qty), f2(t.price), dmy, t.tm, t.product, t.algo, t.term}
+			if t.exch == "BSE" {
+				bse = append(bse, row)
+			} else {
+				nse = append(nse, row)
+			}
+		case "FO", "CD":
+			it, strike, ot := "", "", ""
+			switch {
+			case t.seg == "CD" && t.typ == "FUT":
+				it = "FUTCUR"
+			case t.seg == "CD":
+				it = "OPTCUR"
+			case t.typ == "FUT" && idxSyms[t.sym]:
+				it = "FUTIDX"
+			case t.typ == "FUT":
+				it = "FUTSTK"
+			case idxSyms[t.sym]:
+				it = "OPTIDX"
+			default:
+				it = "OPTSTK"
+			}
+			if t.typ == "CE" || t.typ == "PE" {
+				strike, ot = fmt.Sprint(t.strike), t.typ
+			}
+			row := []string{t.no, t.order, t.ucc, t.sym, it, fmtExpTitle(t.exp), strike, ot, side12[t.side], fmt.Sprint(t.qty), fpx(t.price), dmy, t.tm, t.product, t.algo, t.term}
+			if t.seg == "CD" {
+				cd = append(cd, row)
+			} else {
+				fo = append(fo, row)
+			}
+		case "COM":
+			mcx = append(mcx, strings.Join([]string{t.no, t.order, t.ucc, t.sym, "FUTCOM", fmtExp(t.exp, "02Jan2006"), t.side, fmt.Sprint(t.qty), f2(t.price), td.Format("20060102"), t.tm, t.product, t.term}, "|"))
+		}
+	}
+	day.Files = append(day.Files,
+		File{"NSE-CM-TRADE", "nse_cm_trades_" + date + ".csv", "", csvBytes(nse), false},
+		File{"BSE-CM-TRADE", "bse_cm_trades_" + date + ".csv", "", csvBytes(bse), false},
+		File{"NSE-FO-TRADE", "nse_fo_trades_" + date + ".csv", "", csvBytes(fo), false},
+		File{"NSE-CD-TRADE", "nse_cd_trades_" + date + ".csv", "", csvBytes(cd), false},
+		File{"MCX-TRADE", "mcx_trades_" + date + ".txt", "", []byte(strings.Join(mcx, "\n") + "\n"), false})
+	om := [][]string{{"Exchange", "Segment", "TradeNo", "OrderNo", "ClientCode", "Symbol", "InstrumentType", "Expiry", "Strike", "OptionType", "Side", "Qty", "Price", "TradeDate", "TradeTime", "Product", "AlgoId", "Terminal"}}
+	sort.SliceStable(omsRows, func(i, j int) bool { return omsRows[i].tm < omsRows[j].tm })
+	for _, t := range omsRows {
+		it, ot, strike := t.typ, "", ""
+		if t.typ == "CE" || t.typ == "PE" {
+			it, ot, strike = "OPT", t.typ, fmt.Sprint(t.strike)
+		}
+		om = append(om, []string{t.exch, t.seg, t.no, t.order, t.ucc, t.sym, it, t.exp, strike, ot, t.side, fmt.Sprint(t.qty), fpx(t.price), date, t.tm, t.product, t.algo, t.term})
+	}
+	day.Files = append(day.Files, File{"OMS-TRADE", "oms_tradebook_" + date + ".csv", "", csvBytes(om), false})
+
+	for _, t := range raw {
+		if t.seg != "CM" || t.product != "CNC" {
+			continue
+		}
+		if hold[t.ucc] == nil {
+			hold[t.ucc] = map[string]int64{}
+		}
+		if t.side == "B" {
+			hold[t.ucc][t.sym] += t.qty
+		} else if hold[t.ucc][t.sym] -= t.qty; hold[t.ucc][t.sym] < 0 {
+			hold[t.ucc][t.sym] = 0
+		}
+	}
+}
+
+// world is what carries from one generated day to the next.
+type world struct {
+	traders, actives []*client
+	ltp              map[string]float64
+	dltp             map[int]float64
+	hold             map[string]map[string]int64
+}
+
+// NextBusinessDay skips weekends and the given holidays.
+func NextBusinessDay(date string, holidays []string) string {
+	t, _ := time.Parse("2006-01-02", date)
+	hol := map[string]bool{}
+	for _, h := range holidays {
+		hol[h] = true
+	}
+	for {
+		t = t.AddDate(0, 0, 1)
+		d := t.Format("2006-01-02")
+		if t.Weekday() != time.Saturday && t.Weekday() != time.Sunday && !hol[d] {
+			return d
+		}
+	}
+}
+
+// Days generates n consecutive trading days from start. The first day is
+// the full set (Generate); each later day has only what arrives daily:
+// market data, exchange and OMS trade files with a few breaks, and the bank
+// statement. Positions and holdings carry forward inside the back office.
+func Days(start string, n int, holidays []string) []Day {
+	d0, w := generate(start)
+	out := []Day{d0}
+	date := start
+	for k := 1; k < n; k++ {
+		date = NextBusinessDay(date, holidays)
+		out = append(out, w.next(date, k))
+	}
+	return out
+}
+
+func (w *world) next(date string, k int) Day {
+	r := &rng{s: uint32(20261016 + 7919*k)}
+	td, _ := time.Parse("2006-01-02", date)
+	day := Day{Date: date}
+	mkt := [][]string{{"Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "ISIN", "Company", "Lot", "LTP", "Close", "VaRPct", "ELMPct", "HaircutPct", "SPANPct", "ExposurePct", "Delta", "Underlying", "Index"}}
+	for i, e := range equities {
+		p := tick(w.ltp[e.sym] * (1 + (r.f()-.48)*.024))
+		w.ltp[e.sym] = p
+		mkt = append(mkt, []string{"NSE", "CM", e.sym, "EQ", "", "", e.isin, e.co, "1", f2(p), f2(p), f1(e.varp - 3.5), "3.5", f1(e.haircut), "", "", "", "", "N"})
+		if i < 9 {
+			mkt = append(mkt, []string{"BSE", "CM", e.sym, "EQ", "", "", e.isin, e.co, "1", f2(p), f2(p), f1(e.varp - 3.5), "3.5", f1(e.haircut), "", "", "", "", "N"})
+		}
+	}
+	// Futures first, so options can follow their underlying.
+	futMove := map[string]float64{}
+	under := map[string]float64{}
+	for i, d := range derivs {
+		if d.typ != "FUT" {
+			continue
+		}
+		m := 1 + (r.f()-.48)*.016
+		p := w.dltp[i] * m
+		if d.px < 200 {
+			p = math.Round(p*10000) / 10000
+		} else {
+			p = tick(p)
+		}
+		w.dltp[i] = p
+		futMove[d.sym] = m
+		under[d.sym] = p
+	}
+	for i, d := range derivs {
+		if d.exp < date {
+			continue
+		}
+		u := under[d.sym]
+		if u == 0 {
+			u = w.ltp[d.sym]
+		}
+		if u == 0 {
+			u = d.under
+		}
+		if d.typ != "FUT" {
+			intrinsic := u - d.strike
+			if d.typ == "PE" {
+				intrinsic = -intrinsic
+			}
+			var p float64
+			if d.exp == date {
+				p = math.Max(.05, math.Round(intrinsic*20)/20)
+			} else {
+				m := futMove[d.sym]
+				if m == 0 {
+					m = 1
+				}
+				if d.typ == "PE" {
+					m = 2 - m
+				}
+				p = math.Max(.5, tick(w.dltp[i]*(1+(m-1)*12+(r.f()-.5)*.12)))
+				p = math.Max(p, math.Max(0, intrinsic))
+			}
+			w.dltp[i] = p
+		}
+		strike, idx := "", "N"
+		if d.strike > 0 {
+			strike = fmt.Sprint(d.strike)
+		}
+		if d.index {
+			idx = "Y"
+		}
+		p := w.dltp[i]
+		mkt = append(mkt, []string{d.exch, d.seg, d.sym, d.typ, d.exp, strike, "", "", fmt.Sprint(d.lot), fpx(p), fpx(p), "", "", "", f1(d.span), f1(d.expo), fmt.Sprint(d.delta), fpx(u), idx})
+	}
+	day.Files = append(day.Files, File{"MARKET-DATA", "market_data_" + date + ".csv", date, csvBytes(mkt), false})
+	tradeFiles(r, &day, date, td, w.traders, w.hold, w.ltp, w.dltp, tradeKnobs{trades: 200, offset: int64(k) * 20000, drop: 1, qty: 1, price: 1, ucc: 1, algo: 1, phantom: 1})
+	bs := [][]string{{"Date", "Time", "Mode", "Reference", "Remitter", "Account", "Amount", "DrCr"}}
+	for j := 0; j < 8; j++ {
+		c := w.actives[r.in(0, len(w.actives)-1)]
+		bs = append(bs, []string{date, fmt.Sprintf("%02d:%02d", 10+j/2, r.in(0, 59)), pick(r, []string{"NEFT", "IMPS", "UPI"}), fmt.Sprintf("N%d%02d", r.in(100000000, 999999999), k), strings.ToUpper(c.name), c.acct, fmt.Sprint(r.in(2, 40) * 5000), "CR"})
+	}
+	c := w.actives[r.in(0, len(w.actives)-1)]
+	bs = append(bs, []string{date, "15:20", "IMPS", fmt.Sprintf("N%d", r.in(100000000, 999999999)), strings.ToUpper("R " + strings.Fields(c.name)[len(strings.Fields(c.name))-1]), fmt.Sprintf("%d%08d", r.in(3010, 3999), r.in(10000000, 99999999)), fmt.Sprint(r.in(4, 30) * 5000), "CR"})
+	day.Files = append(day.Files, File{"BANK-STMT", "bank_statement_" + date + ".csv", "", csvBytes(bs), false})
+	return day
 }

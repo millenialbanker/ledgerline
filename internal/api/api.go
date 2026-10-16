@@ -50,11 +50,13 @@ type Server struct {
 	log  *slog.Logger
 	mux  *http.ServeMux
 	seq  atomic.Int64
+
+	loginLimit limiter
 }
 
 // New builds a server. keys maps API keys to tenant IDs.
 func New(a *app.App, o *ops.Ops, keys map[string]string, log *slog.Logger, dev bool) *Server {
-	s := &Server{app: a, ops: o, dev: dev, keys: keys, log: log, mux: http.NewServeMux()}
+	s := &Server{app: a, ops: o, dev: dev, keys: keys, log: log, mux: http.NewServeMux(), loginLimit: limiter{max: 30, per: 15 * time.Minute}}
 	s.mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
 	s.route("GET /v1/adapters", s.adapters, false)
 	s.route("POST /v1/files", s.uploadFile, true)
@@ -71,6 +73,7 @@ func New(a *app.App, o *ops.Ops, keys map[string]string, log *slog.Logger, dev b
 	s.route("GET /v1/ledger/statement", s.statement, false)
 	s.route("GET /v1/audit", s.audit, false)
 	s.opsRoutes()
+	s.authRoutes()
 	return s
 }
 
@@ -101,13 +104,31 @@ func (w *statusWriter) WriteHeader(c int) { w.status = c; w.ResponseWriter.Write
 
 func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-		tenant, ok := s.auth(r)
-		if !ok {
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			writeErr(w, http.StatusUnauthorized, "unauthorized", "Send a valid API key as 'Authorization: Bearer <key>'.", nil)
-			return
+		var tenant, actor string
+		if r.Header.Get("Authorization") != "" {
+			t, ok := s.auth(r)
+			if !ok {
+				w.Header().Set("WWW-Authenticate", "Bearer")
+				writeErr(w, http.StatusUnauthorized, "unauthorized", "Send a valid API key as 'Authorization: Bearer <key>'.", nil)
+				return
+			}
+			tenant, actor = t, strings.TrimSpace(r.Header.Get("X-Actor"))
+		} else {
+			t, st, _, err := s.sessionAuth(r)
+			if err != nil {
+				writeErr(w, http.StatusUnauthorized, "signed_out", "Sign in to continue.", nil)
+				return
+			}
+			if st.Restricted() && !setupPath(r.URL.Path) {
+				writeErr(w, http.StatusForbidden, "setup_required", "Finish setting up your sign-in (new password or two-factor authentication) first.", st)
+				return
+			}
+			if mutating && r.Header.Get(csrfHeader) != csrfValue {
+				writeErr(w, http.StatusForbidden, "csrf", "Missing the "+csrfHeader+" header.", nil)
+				return
+			}
+			tenant, actor = t, st.User
 		}
-		actor := strings.TrimSpace(r.Header.Get("X-Actor"))
 		if mutating && actor == "" {
 			writeErr(w, http.StatusBadRequest, "actor_required", "Set the X-Actor header to the user making this change; it is recorded in the audit log.", nil)
 			return
@@ -362,6 +383,10 @@ func (s *Server) billingRun(w http.ResponseWriter, r *http.Request) {
 			fail(w, err, nil)
 			return
 		}
+		if err := s.ops.DayOpenError(r.Context(), tenant(r), body.Date); err != nil {
+			fail(w, err, nil)
+			return
+		}
 		if len(body.SettlementPrices) == 0 {
 			if m, _, err := s.ops.Market(r.Context(), tenant(r), body.Date); err == nil {
 				body.SettlementPrices = m.SettlementPrices()
@@ -377,7 +402,19 @@ func (s *Server) billingRun(w http.ResponseWriter, r *http.Request) {
 	if len(res.Conflicts) > 0 {
 		status = 207
 	}
-	writeJSON(w, status, res)
+	out := struct {
+		app.BillingResult
+		Derivatives *ops.DerivResult `json:"derivatives,omitempty"`
+	}{BillingResult: res}
+	if s.ops != nil {
+		d, err := s.ops.SettleDerivatives(r.Context(), tenant(r), actor(r), body.Date)
+		if err != nil {
+			fail(w, err, out)
+			return
+		}
+		out.Derivatives = &d
+	}
+	writeJSON(w, status, out)
 }
 
 func (s *Server) quote(w http.ResponseWriter, r *http.Request) {

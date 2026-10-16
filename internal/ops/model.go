@@ -98,7 +98,13 @@ type Settings struct {
 	IndexNetLimitCr    int64             `json:"index_net_limit_cr"`
 	InactiveDays       int64             `json:"inactive_days"`
 	Calendar           []CalendarItem    `json:"calendar"`
+	// TwoFactor is "required" (the default when empty) or "optional".
+	TwoFactor          string `json:"two_factor"`
+	SessionIdleMinutes int64  `json:"session_idle_minutes"`
 }
+
+// Require2FA reports whether every user must use two-factor sign-in.
+func (s Settings) Require2FA() bool { return s.TwoFactor != "optional" }
 
 // CalendarItem is one compliance obligation.
 type CalendarItem struct {

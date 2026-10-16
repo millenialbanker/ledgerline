@@ -177,3 +177,70 @@ func opsDay(t *testing.T, ctx context.Context, stores app.Stores, tenant string)
 	t.Logf("%s: %s", fmt.Sprintf("%T", stores.Ledger), strings.Join(facts[:3], "; "))
 	return facts
 }
+
+// TestIntegrationWeekParity works three consecutive sample days end to end
+// (positions rolled at each close, carried futures marked to market, sign-in
+// credentials seeded) on memory and on PostgreSQL and requires the same
+// outcome. Tenant LEDGERLINE_TEST_WEEK_TENANT must exist and be empty.
+func TestIntegrationWeekParity(t *testing.T) {
+	dsn := os.Getenv("LEDGERLINE_TEST_DB")
+	tenant := os.Getenv("LEDGERLINE_TEST_WEEK_TENANT")
+	if dsn == "" || tenant == "" {
+		t.Skip("set LEDGERLINE_TEST_DB and LEDGERLINE_TEST_WEEK_TENANT")
+	}
+	ctx := context.Background()
+	st, err := Open(ctx, "pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.DB.Close()
+	ops.PasswordIterations = 1000
+	run := func(stores app.Stores) []string {
+		reg, _ := ingest.LoadFS(ledgerline.FS, "config/adapters")
+		f, _ := ledgerline.FS.Open("config/charges/sample-schedule.json")
+		sched, _ := charges.LoadSchedule(f)
+		f.Close()
+		a := app.New(stores, reg, sched)
+		o := ops.New(a)
+		o.SimulateOMS = true
+		if err := o.SeedDev(ctx, tenant); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := o.Login(ctx, tenant, "admin", ops.DevPassword, "", "", ""); err != nil {
+			t.Fatalf("login: %v", err)
+		}
+		var out []string
+		date := "2026-10-16"
+		for i := 0; i < 3; i++ {
+			r, err := o.RunSampleDay(ctx, tenant, "admin", date, func(ctx context.Context, tn, actor, source, name string, data []byte) error {
+				_, err := a.IngestFile(ctx, tn, actor, source, "", name, data)
+				return err
+			})
+			if err != nil {
+				t.Fatalf("%T %s: %v", stores.Ledger, date, err)
+			}
+			b, _ := json.Marshal(r)
+			out = append(out, string(b))
+			tb, _ := a.Ledger.TrialBalance(ctx, tenant, date)
+			for _, row := range tb.Rows {
+				out = append(out, date+" "+row.Account+" "+row.Debit.String()+" "+row.Credit.String())
+			}
+			date = r.NextDay
+		}
+		return out
+	}
+	mem, pg := run(app.MemoryStores()), run(st.Stores())
+	if len(mem) != len(pg) {
+		t.Fatalf("memory %d lines, PostgreSQL %d", len(mem), len(pg))
+	}
+	diffs := 0
+	for i := range mem {
+		if mem[i] != pg[i] {
+			diffs++
+			if diffs < 10 {
+				t.Errorf("memory %s\npostgres %s", mem[i], pg[i])
+			}
+		}
+	}
+	t.Logf("three days: %d facts compared, %d differ", len(mem), diffs)
+}

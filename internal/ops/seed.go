@@ -29,6 +29,9 @@ func (o *Ops) SeedDev(ctx context.Context, tenant string) error {
 			if err := docs.Upsert(ctx, o.Docs, tenant, cUser, u.ID, u, "system"); err != nil {
 				return err
 			}
+			if err := o.SetPassword(ctx, tenant, "system", u.ID, DevPassword, false); err != nil {
+				return err
+			}
 		}
 	}
 	if _, _, err := docs.Get[Settings](ctx, o.Docs, tenant, cSettings, "main"); errors.Is(err, docs.ErrNotFound) {
@@ -39,6 +42,7 @@ func (o *Ops) SeedDev(ctx context.Context, tenant string) error {
 		s.ComplianceEmail = "compliance@bhairav.example"
 		s.RASMonthly, s.RASQuarterly = "2026-11-06", "2027-01-01"
 		s.Holidays = []string{"2026-12-25"}
+		s.TwoFactor = "optional" // development: sign in with password only
 		s.Calendar = []CalendarItem{
 			{"2026-10-16", "Client funds and securities balance upload", "Accounts"},
 			{"2026-10-16", "Weekly holding statements to clients", "Operations"},
@@ -55,6 +59,9 @@ func (o *Ops) SeedDev(ctx context.Context, tenant string) error {
 	}
 	return nil
 }
+
+// DevPassword is every development user's password.
+const DevPassword = "ledgerline-demo"
 
 // TradeIngester is the core file ingestion used for trade files.
 type TradeIngester func(ctx context.Context, tenant, actor, source, name string, data []byte) error
@@ -78,4 +85,147 @@ func (o *Ops) LoadSampleDay(ctx context.Context, tenant, actor string, day sampl
 		n++
 	}
 	return n, nil
+}
+
+// ---- consecutive sample days (development) ----
+
+const cDevSample = "devsample"
+
+// SampleState records which generated days have been loaded.
+type SampleState struct {
+	Start  string   `json:"start"`
+	Loaded []string `json:"loaded"`
+}
+
+// SampleState returns the loaded sample days.
+func (o *Ops) SampleStatus(ctx context.Context, tenant string) (SampleState, error) {
+	st, _, err := docs.GetOr(ctx, o.Docs, tenant, cDevSample, "state", SampleState{Loaded: []string{}})
+	return st, err
+}
+
+// NextSampleDay is the date the next generated day would load for.
+func (o *Ops) NextSampleDay(ctx context.Context, tenant string) (string, error) {
+	st, err := o.SampleStatus(ctx, tenant)
+	if err != nil || len(st.Loaded) == 0 {
+		return "", err
+	}
+	set, err := o.Settings(ctx, tenant)
+	if err != nil {
+		return "", err
+	}
+	return sample.NextBusinessDay(st.Loaded[len(st.Loaded)-1], set.Holidays), nil
+}
+
+// LoadSampleFor loads the generated files for date. The first call starts
+// the sample on that date with the full set (clients, balances, holdings,
+// positions); each later call must be the next trading day, after the
+// previous one is closed, and loads that day's market data, trade files and
+// bank statement.
+func (o *Ops) LoadSampleFor(ctx context.Context, tenant, actor, date string, trades TradeIngester) (int, error) {
+	st, err := o.SampleStatus(ctx, tenant)
+	if err != nil {
+		return 0, err
+	}
+	set, err := o.Settings(ctx, tenant)
+	if err != nil {
+		return 0, err
+	}
+	k := 0
+	if st.Start == "" {
+		st.Start = date
+	} else {
+		for _, d := range st.Loaded {
+			if d == date {
+				return 0, fmt.Errorf("%w: the sample day %s is already loaded", ErrState, date)
+			}
+		}
+		want := sample.NextBusinessDay(st.Loaded[len(st.Loaded)-1], set.Holidays)
+		if date != want {
+			return 0, invalid("sample days load in order; the next one is %s", want)
+		}
+		if err := o.DayOpenError(ctx, tenant, date); err != nil {
+			return 0, err
+		}
+		k = len(st.Loaded)
+		if k >= 20 {
+			return 0, invalid("the sample runs for at most 20 trading days")
+		}
+	}
+	day := sample.Days(st.Start, k+1, set.Holidays)[k]
+	n, err := o.LoadSampleDay(ctx, tenant, actor, day, false, trades)
+	if err != nil {
+		return n, err
+	}
+	st.Loaded = append(st.Loaded, date)
+	return n, docs.Upsert(ctx, o.Docs, tenant, cDevSample, "state", st, actor)
+}
+
+// SampleRun is what an automatic sample day did.
+type SampleRun struct {
+	Date    string `json:"date"`
+	Files   int    `json:"files"`
+	Trades  int    `json:"trades"`
+	Breaks  int    `json:"breaks"`
+	Bills   int    `json:"bills"`
+	MTM     int    `json:"carried_mtm"`
+	Expiry  int    `json:"expiry"`
+	Settled int    `json:"settled"`
+	Notes   int    `json:"notes"`
+	Rolled  int    `json:"rolled_positions"`
+	NextDay string `json:"next_day"`
+}
+
+// RunSampleDay loads the next generated day and works it end to end the way
+// operations would: reconcile, resolve the breaks, bill, settle derivatives
+// and cash-market obligations, send contract notes and close the day, which
+// rolls positions into the next day. The actor needs the Admin role.
+func (o *Ops) RunSampleDay(ctx context.Context, tenant, actor, date string, trades TradeIngester) (SampleRun, error) {
+	run := SampleRun{Date: date}
+	if err := o.require(ctx, tenant, actor, "Running a sample day", RoleAdmin); err != nil {
+		return run, err
+	}
+	var err error
+	if run.Files, err = o.LoadSampleFor(ctx, tenant, actor, date, trades); err != nil {
+		return run, err
+	}
+	rec, err := o.App.RunRecon(ctx, tenant, actor, date)
+	if err != nil {
+		return run, err
+	}
+	run.Trades, run.Breaks = rec.Result.ExchangeCount, len(rec.Result.Breaks)
+	open, _ := o.App.Breaks.List(ctx, tenant, date, "OPEN")
+	for _, b := range open {
+		if _, err := o.App.ResolveBreak(ctx, tenant, actor, b.ID, "Checked against the exchange record; OMS corrected (sample run)"); err != nil {
+			return run, err
+		}
+	}
+	m, _, err := o.Market(ctx, tenant, date)
+	if err != nil {
+		return run, err
+	}
+	bill, err := o.App.RunBillingOpts(ctx, tenant, actor, date, m.SettlementPrices(), false)
+	if err != nil {
+		return run, err
+	}
+	run.Bills = len(bill.Posted)
+	dv, err := o.SettleDerivatives(ctx, tenant, actor, date)
+	if err != nil {
+		return run, err
+	}
+	run.MTM, run.Expiry = len(dv.MTM), len(dv.Expiry)
+	if run.Settled, err = o.SettleAllReady(ctx, tenant, actor, date); err != nil {
+		return run, err
+	}
+	if run.Notes, err = o.GenerateNotes(ctx, tenant, actor, date); err != nil {
+		return run, err
+	}
+	if _, _, err = o.SendNotes(ctx, tenant, actor, date, ""); err != nil {
+		return run, err
+	}
+	st, err := o.CloseDay(ctx, tenant, actor, date, "Sample run: closed automatically")
+	if err != nil {
+		return run, err
+	}
+	run.Rolled, run.NextDay = st.Rolled, st.NextDay
+	return run, nil
 }

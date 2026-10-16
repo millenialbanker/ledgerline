@@ -271,6 +271,9 @@ type EODState struct {
 	ClosedAt   string     `json:"closed_at,omitempty"`
 	ClosedBy   string     `json:"closed_by,omitempty"`
 	Exceptions []string   `json:"exceptions,omitempty"`
+	NextDay    string     `json:"next_day,omitempty"`
+	Rolled     int        `json:"rolled_positions"`
+	Previous   string     `json:"previous_open,omitempty"` // earlier day still open
 }
 
 // EOD runs the end-of-day checks.
@@ -290,13 +293,25 @@ func (o *Ops) EOD(ctx context.Context, tenant, date string) (EODState, error) {
 	all, _ := o.App.Breaks.List(ctx, tenant, date, "")
 	cs = append(cs, EODCheck{"Every reconciliation break resolved", len(ex) > 0 && len(all) > 0 && len(open) == 0, fmt.Sprintf("%d open of %d break(s)", len(open), len(all)), "recon"})
 	es, _ := o.App.Ledger.Store.List(ctx, tenant, ledgerFilterDate(date))
-	bills := 0
+	bills, mtm := 0, 0
 	for _, e := range es {
-		if e.Source.Kind == "BILL" {
+		switch e.Source.Kind {
+		case "BILL":
 			bills++
+		case "MTM":
+			mtm++
 		}
 	}
 	cs = append(cs, EODCheck{"Bills posted", bills > 0, fmt.Sprintf("%d bill entries", bills), "billing"})
+	if cf, _ := o.carried(ctx, tenant, date); len(cf) > 0 {
+		fut := map[string]bool{}
+		for _, c := range cf {
+			if strings.Contains(c.Instrument, "|FUT|") {
+				fut[c.UCC+"|"+c.Exchange+"-"+c.Segment] = true
+			}
+		}
+		cs = append(cs, EODCheck{"Carried futures marked to market", len(fut) == 0 || mtm > 0, fmt.Sprintf("%d MTM entries for %d client-segments with carried futures", mtm, len(fut)), "billing"})
+	}
 	notes, _ := o.Notes(ctx, tenant, date)
 	unsent := 0
 	for _, n := range notes {
@@ -322,6 +337,9 @@ func (o *Ops) EOD(ctx context.Context, tenant, date string) (EODState, error) {
 	cs = append(cs, EODCheck{"Client funds segregation", f.OK, fmt.Sprintf("cover %.2f×", f.Cover), "ledger"})
 	st.Checks = cs
 	st.Date = date
+	if err := o.DayOpenError(ctx, tenant, date); err != nil {
+		st.Previous = strings.TrimPrefix(err.Error(), ErrState.Error()+": ")
+	}
 	return st, nil
 }
 
@@ -350,7 +368,14 @@ func (o *Ops) CloseDay(ctx context.Context, tenant, actor, date, note string) (E
 	if note != "" {
 		ex = append(ex, "Note: "+note)
 	}
-	st.Closed, st.ClosedAt, st.ClosedBy, st.Exceptions = true, o.now().Format("15:04"), actor, ex
+	if err := o.DayOpenError(ctx, tenant, date); err != nil {
+		return st, err
+	}
+	next, n, err := o.RollPositions(ctx, tenant, actor, date)
+	if err != nil {
+		return st, fmt.Errorf("rolling positions forward: %w", err)
+	}
+	st.Closed, st.ClosedAt, st.ClosedBy, st.Exceptions, st.NextDay, st.Rolled = true, o.now().Format("15:04"), actor, ex, next, n
 	if _, err := docs.Put(ctx, o.Docs, tenant, cEOD, date, st, 0, actor); err != nil {
 		return st, err
 	}

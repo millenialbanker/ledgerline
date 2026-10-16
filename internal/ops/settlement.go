@@ -183,7 +183,7 @@ func (o *Ops) Obligations(ctx context.Context, tenant, date string) (Settlement,
 	}
 	mtm := map[string]money.Amount{}
 	for _, e := range es {
-		if e.Source.Kind != "BILL" || reversed[e.ID] {
+		if !derivKinds[e.Source.Kind] || reversed[e.ID] {
 			continue
 		}
 		parts := strings.Split(e.Source.ID, "/")

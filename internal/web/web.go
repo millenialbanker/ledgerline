@@ -14,10 +14,18 @@ import (
 
 // Config is what the console learns about the server before sign-in.
 type Config struct {
-	Dev     bool   `json:"dev"`
-	DevKey  string `json:"dev_key,omitempty"` // only in development mode
-	Tenant  string `json:"tenant,omitempty"`  // only in development mode
-	Version string `json:"version"`
+	Dev         bool      `json:"dev"`
+	Tenant      string    `json:"tenant,omitempty"` // set when the server serves one firm
+	Version     string    `json:"version"`
+	DevUsers    []DevUser `json:"dev_users,omitempty"`    // development only: one-click sign-in
+	DevPassword string    `json:"dev_password,omitempty"` // development only
+}
+
+// DevUser is a development user offered on the sign-in page.
+type DevUser struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Role string `json:"role"`
 }
 
 // Handler serves the console at "/", its config at "/ui/config" and, in
@@ -60,7 +68,7 @@ func Handler(cfg Config) http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		c := cfg
 		if !c.Dev {
-			c.DevKey, c.Tenant = "", ""
+			c.DevUsers, c.DevPassword = nil, ""
 		}
 		json.NewEncoder(w).Encode(c)
 	})

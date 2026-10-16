@@ -610,12 +610,12 @@ func (o *Ops) bills(ctx context.Context, tenant, ucc, from, to string) (billTota
 		if e.ReversalOf != "" {
 			src = byID[e.ReversalOf]
 		}
-		if src.Source.Kind != "BILL" {
+		if !derivKinds[src.Source.Kind] {
 			continue
 		}
 		parts := strings.Split(src.Source.ID, "/")
 		seg := parts[len(parts)-1]
-		if e.ReversalOf == "" {
+		if e.ReversalOf == "" && src.Source.Kind == "BILL" {
 			bt.turnover[seg]++
 		}
 		for _, p := range e.Postings {

@@ -10,7 +10,24 @@ On top of that core sit the daily operations modules: client onboarding, RMS and
 ./bin/ledgerline -dev        # then open http://localhost:8080
 ```
 
-On the dashboard, click **Load sample trading day**. It generates about 60 clients and 355 trades across NSE, BSE and MCX (cash, F&O, currency, commodity), holdings, carried positions, pledge requests, a bank statement, exchange alerts and IPO/MF orders, and pushes each one through the normal file loaders. Then work the day: run reconciliation, resolve breaks, bill, settle, send contract notes, square off breaches, and close the day. Switch the **Signed in as** user at top right to see maker-checker and role rules in action.
+Sign in with one of the development users shown on the sign-in page (password `ledgerline-demo`). On the dashboard, either **Load sample day** and work it yourself, or **Run a sample week**: five consecutive trading days (16 to 22 October 2026, including the 20-Oct weekly options expiry) loaded, reconciled, billed, settled, closed and rolled forward. Each generated day is real files through the normal loaders: about 60 clients, 300+ trades across NSE, BSE and MCX, market data, OMS trade book with breaks, and the bank statement. Switch user from the menu at top right to see maker-checker and role rules.
+
+## Consecutive trading days
+
+A day starts from what the previous one left behind:
+
+| Step | What happens |
+| --- | --- |
+| Start of day | Open futures and options carried in from the previous close (the clearing corporation's POSITIONS file on the first day). |
+| Billing | Trade bills; carried futures marked to market at the day's settlement price; options expiring that day exercised or assigned at intrinsic value. |
+| End of day | Closing rolls end-of-day positions to the next trading day: futures at the settlement price, options at average premium, expired contracts dropped. |
+| Guard | A day cannot be billed, closed or loaded while the previous trading day with activity is still open. |
+
+## Sign-in
+
+Each person has a user ID, a password (12+ characters, PBKDF2-SHA256, 600,000 iterations) and, when the firm requires it (the default), a time-based two-factor code from an authenticator app. Sessions are HttpOnly, SameSite=Strict cookies that end after 30 minutes idle (configurable), 12 hours, sign-out, or an admin reset. Five wrong attempts lock a user for 15 minutes; sign-in attempts are also limited per address. New users get a one-time password to change at first sign-in. Every sign-in, failure and change is in the audit trail. API keys remain for integrations, with `X-Actor`.
+
+First run against PostgreSQL: start once with `LEDGERLINE_BOOTSTRAP_ADMIN=<tenant>:<user-id>:<password>` to create the first administrator, sign in, change the password, then remove the variable.
 
 ## What it does
 
