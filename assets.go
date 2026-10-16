@@ -5,7 +5,7 @@ package ledgerline
 
 import "embed"
 
-// FS holds config/ and testdata/sample/ as shipped with this build.
+// FS holds config/, testdata/sample/ and the web console as shipped with this build.
 //
-//go:embed config testdata/sample
+//go:embed config testdata/sample web
 var FS embed.FS

@@ -25,6 +25,7 @@ exchange / CC / OMS files ──► ingest ──► trade events ──► reco
 | `internal/app` | Daily operations (ingest, recon, resolve, bill, journal, reverse) with an audit event for every action. |
 | `internal/pgstore` | PostgreSQL implementation of every store via `database/sql`, with tenant set per transaction for row-level security. |
 | `internal/api` | HTTP/JSON API: bearer key per tenant, `X-Actor` on every change, consistent error bodies. |
+| `web/`, `internal/web` | Browser console served by the API server at `/`: day overview, file upload, trades, reconciliation with break resolution, billing, ledger and statements, charges calculator, audit trail. |
 | `cmd/ledgerline` | API server. `cmd/ledgerctl`: demo, file check and charge quote CLI. |
 | `db/migrations` | Schema with guarantees enforced by the database itself (below). |
 
@@ -52,6 +53,7 @@ These hold even if application code has a bug:
 Requires Go 1.24. PostgreSQL 16 is optional for local runs.
 
 ```bash
+./bin/ledgerline -dev   # then open http://localhost:8080 for the web console
 make test        # unit + end-to-end tests, no database needed
 make demo        # sample trading day printed step by step
 make run         # API on :8080 with in-memory stores; prints a dev API key

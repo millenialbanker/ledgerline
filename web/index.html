@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ledgerline Console</title>
+<style>
+/* Layout: dark sidebar of the day's workflow · sticky bar with trade date and session · working canvas of tables and state chips */
+:root{
+  --bg:#F2F3EF; --panel:#FFFFFF; --sunk:#EAECE6; --line:#DADDD5; --line2:#C9CDC3;
+  --ink:#16201B; --ink2:#525D57; --ink3:#848E88;
+  --accent:#2C47A3; --accent-ink:#FFFFFF; --accent-soft:#E5E9F6;
+  --good:#1D7448; --good-soft:#E1F0E6; --warn:#9A6200; --warn-soft:#FAEFD6; --bad:#B0281F; --bad-soft:#F8E2DF;
+  --side-bg:#141B17; --side-fg:#D9E0DB; --side-dim:#7F8B84; --side-hi:#222C27;
+  --shadow:0 1px 2px rgba(22,32,27,.06),0 8px 24px rgba(22,32,27,.08);
+  --f-sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --f-mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0F1412; --panel:#161D19; --sunk:#1B231F; --line:#28322D; --line2:#35403A;
+  --ink:#E5EBE7; --ink2:#A3AEA8; --ink3:#74807A;
+  --accent:#8FA4F2; --accent-ink:#0F1412; --accent-soft:#1D2646;
+  --good:#5DC08C; --good-soft:#15291E; --warn:#E3A944; --warn-soft:#2D2311; --bad:#F0796E; --bad-soft:#33181A;
+  --side-bg:#0A0E0C; --side-hi:#18201C; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.45); color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--f-sans)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100%}
+.side{background:var(--side-bg);color:var(--side-fg);position:sticky;top:0;height:100vh;overflow-y:auto;padding:18px 12px;display:flex;flex-direction:column;gap:18px}
+.brand{display:flex;gap:10px;align-items:center;padding:2px 8px}
+.mark{width:30px;height:30px;border-radius:7px;background:var(--accent);display:grid;grid-template-rows:repeat(3,1fr);padding:7px 6px;gap:3px;flex:none}
+.mark i{display:block;background:var(--accent-ink);border-radius:1px}
+.mark i:nth-child(2){width:70%}.mark i:nth-child(3){width:45%}
+.brand b{font-weight:700;font-size:16px;display:block;line-height:1.1}
+.brand small{color:var(--side-dim);font-size:11.5px}
+.navg{display:flex;flex-direction:column;gap:2px}
+.navg h6{margin:0 0 4px;padding:0 10px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--side-dim);font-weight:600}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:7px;color:var(--side-fg);cursor:pointer;border:0;background:none;text-align:left;width:100%;font-size:13.5px}
+.nav:hover{background:var(--side-hi)}
+.nav.on{background:var(--side-hi);box-shadow:inset 2px 0 0 var(--accent)}
+.nav .ct{font-family:var(--f-mono);font-size:11px;padding:1px 6px;border-radius:9px;background:#B0281F;color:#fff}
+.side-foot{margin-top:auto;padding:10px;border-top:1px solid #26302B;font-size:11.5px;color:var(--side-dim);line-height:1.5;overflow-wrap:anywhere}
+.main{min-width:0;display:flex;flex-direction:column}
+.top{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 20px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.top label{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2)}
+.top .grow{flex:1}
+.conn{font-size:12px;color:var(--ink2);display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ink3)}
+.dot.ok{background:var(--good)}.dot.bad{background:var(--bad)}
+.page{padding:22px 20px 48px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.ph{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.ph h1{font-size:24px;font-weight:700;margin:0;letter-spacing:-.01em}
+.ph p{margin:3px 0 0;color:var(--ink2);max-width:80ch}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--line2);background:var(--panel);border-radius:7px;cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--ink3)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.sm{padding:4px 8px;font-size:12px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-width:0}
+.panel>.hd{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.panel>.hd h3{margin:0;font-size:15px;font-weight:600}
+.panel>.hd small{color:var(--ink3)}
+.panel>.bd{padding:14px;display:flex;flex-direction:column;gap:12px}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:3px}
+.kpi small{color:var(--ink2);font-size:12px}
+.kpi b{font-family:var(--f-mono);font-size:20px;font-weight:600}
+.kpi span{font-size:12px;color:var(--ink3)}
+.kpi.bad b{color:var(--bad)}.kpi.good b{color:var(--good)}.kpi.warn b{color:var(--warn)}
+.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+.step{padding:14px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:6px;min-width:0}
+.step:last-child{border-right:0}
+.step small{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
+.step b{font-size:14px}
+.step span{font-size:12.5px;color:var(--ink2)}
+.step.done{box-shadow:inset 0 3px 0 var(--good)}.step.todo{box-shadow:inset 0 3px 0 var(--line2)}.step.alert{box-shadow:inset 0 3px 0 var(--bad)}
+.step .btn{align-self:flex-start;margin-top:auto}
+.tw{overflow-x:auto;max-width:100%}
+.tw.tall{max-height:560px;overflow-y:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{position:sticky;top:0;background:var(--sunk);text-align:left;font-weight:600;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink2);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:top}
+.tbl tr:last-child td{border-bottom:0}
+.tbl th.r,.tbl td.r{text-align:right}
+.tbl td.n,.tbl td.r{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.tbl td.wrap{white-space:normal;min-width:200px}
+.tbl tfoot td{font-weight:600;background:var(--sunk);border-top:1px solid var(--line2)}
+.empty{text-align:center;color:var(--ink3);padding:26px!important;white-space:normal!important}
+.neg{color:var(--bad)}.pos{color:var(--good)}.dim{color:var(--ink3)}
+.diff{background:var(--bad-soft);color:var(--bad);border-radius:3px;padding:0 4px;font-family:var(--f-mono);font-size:12px}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.good{background:var(--good-soft);color:var(--good)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.acc{background:var(--accent-soft);color:var(--accent)}
+.pill.nt{background:var(--sunk);color:var(--ink2)}
+.tag{font-family:var(--f-mono);font-size:11px;padding:1px 6px;border-radius:4px;background:var(--sunk);border:1px solid var(--line);color:var(--ink2)}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:none;padding:6px 11px;font-size:12.5px;cursor:pointer;color:var(--ink2);border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--ink);color:var(--bg)}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.in{padding:6px 10px;border:1px solid var(--line2);border-radius:7px;background:var(--panel);min-width:0}
+input.in,select.in{height:32px}
+textarea.in{width:100%;min-height:64px;resize:vertical}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.fld label{font-size:12px;color:var(--ink2);font-weight:500}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.drop{border:2px dashed var(--line2);border-radius:10px;padding:26px;text-align:center;color:var(--ink2);cursor:pointer;background:var(--bg)}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop b{color:var(--ink)}
+.note{padding:10px 12px;border-radius:8px;background:var(--accent-soft);font-size:13px;border:1px solid color-mix(in srgb,var(--accent) 25%,transparent)}
+.note.warn{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 30%,transparent)}
+.note.bad{background:var(--bad-soft);border-color:color-mix(in srgb,var(--bad) 30%,transparent)}
+.note.good{background:var(--good-soft);border-color:color-mix(in srgb,var(--good) 30%,transparent)}
+.note ul{margin:6px 0 0;padding-left:18px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:13px;z-index:70;box-shadow:var(--shadow);max-width:calc(100% - 32px)}
+.ov{position:fixed;inset:0;background:rgba(10,14,12,.5);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
+.md{background:var(--panel);border:1px solid var(--line2);border-radius:12px;box-shadow:var(--shadow);width:100%;max-width:440px;padding:20px;display:flex;flex-direction:column;gap:14px}
+.md h2{margin:0;font-size:19px}
+.md p{margin:0;color:var(--ink2)}
+.resolve{display:flex;gap:8px;align-items:flex-start;flex:1 1 320px;min-width:0}
+.resolve textarea{min-height:38px}
+.tbl tr.brk td{border-bottom:0;padding-bottom:4px}
+.tbl tr.sub td{white-space:normal;padding-top:0;background:transparent}
+.subrow{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;padding:8px 10px;border-radius:8px;background:var(--bg)}
+.subrow .why{flex:1 1 360px;min-width:0;color:var(--ink2);font-size:13px}
+.subrow .why b{color:var(--ink)}
+.done-note{margin-top:4px;color:var(--good)}
+.tbl tbody tr.sub:hover td{background:transparent}
+.busy{opacity:.6;pointer-events:none}
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{position:static;height:auto;flex-direction:row;overflow-x:auto;padding:10px 16px;align-items:center}
+  .side .navg{flex-direction:row}.side .navg h6,.side-foot,.brand small{display:none}
+  .nav{white-space:nowrap}
+  .g2,.steps{grid-template-columns:minmax(0,1fr)}
+  .step{border-right:0;border-bottom:1px solid var(--line)}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side"></aside>
+  <div class="main">
+    <header class="top" id="top"></header>
+    <main class="page" id="page"><p class="dim">Loading…</p></main>
+  </div>
+</div>
+<div id="modal"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+'use strict';
+const SAMPLE_FILES = [
+  ['NSE-CM-TRADE','nse_cm_trades.csv'],['NSE-FO-TRADE','nse_fo_trades.csv'],
+  ['MCX-TRADE','mcx_trades.txt'],['OMS-TRADE','oms_trades.csv']];
+const VIEWS = [
+  ['Today',[['overview','Day overview']]],
+  ['Operations',[['files','Files'],['trades','Trades'],['recon','Reconciliation'],['billing','Billing']]],
+  ['Accounts',[['ledger','Ledger'],['charges','Charges calculator']]],
+  ['Control',[['audit','Audit trail']]]];
+
+const S = {key:'', actor:'', date:'2026-10-16', view:'overview', cfg:{}, ok:false,
+  lastRecon:null, lastBill:null, lastUpload:null, breakFilter:'OPEN', tradeOrigin:'EXCHANGE', stmtUCC:'', counts:{}};
+try{Object.assign(S, JSON.parse(localStorage.getItem('ll-console')||'{}'), {lastRecon:null,lastBill:null,lastUpload:null,counts:{}})}catch(e){}
+try{const h=location.hash.slice(1);if(VIEWS.flatMap(g=>g[1]).some(v=>v[0]===h))S.view=h}catch(e){}
+function persist(){try{localStorage.setItem('ll-console',JSON.stringify({key:S.key,actor:S.actor,date:S.date,view:S.view}))}catch(e){}}
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = s => { const n = parseFloat(s); return isNaN(n) ? 0 : n; };
+const inr = (s, d=2) => { const n = num(s); return (n<0?'−':'')+'₹'+Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:d,maximumFractionDigits:d}); };
+const plain = (s, d=2) => num(s).toLocaleString('en-IN',{minimumFractionDigits:d,maximumFractionDigits:d});
+const pill = (t,k='nt') => `<span class="pill ${k}">${esc(t)}</span>`;
+const kpi = (l,v,sub,k='') => `<div class="kpi ${k}"><small>${esc(l)}</small><b>${v}</b>${sub?`<span>${esc(sub)}</span>`:''}</div>`;
+const label = t => esc(String(t).replace(/_/g,' ').toLowerCase().replace(/^\w/,c=>c.toUpperCase()));
+function tbl(head, rows, o={}){
+  return `<div class="tw ${o.tall?'tall':''}"><table class="tbl"><thead><tr>${head.map(h=>`<th class="${h[1]||''}">${esc(h[0])}</th>`).join('')}</tr></thead><tbody>${
+    rows.length?rows.join(''):`<tr><td colspan="${head.length}" class="empty">${o.empty||'Nothing to show'}</td></tr>`}</tbody>${o.foot||''}</table></div>`;
+}
+function ph(t,sub,acts){return `<div class="ph"><div><h1>${t}</h1>${sub?`<p>${sub}</p>`:''}</div>${acts?`<div class="acts">${acts}</div>`:''}</div>`}
+function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,3500)}
+
+class ApiError extends Error{constructor(status,body){super(body?.error?.message||('HTTP '+status));this.status=status;this.code=body?.error?.code;this.details=body?.error?.details}}
+async function api(method, path, body, raw){
+  const h = {'Authorization':'Bearer '+S.key};
+  if (S.actor) h['X-Actor'] = S.actor;
+  let b;
+  if (raw) b = body; else if (body !== undefined) { b = JSON.stringify(body); h['Content-Type']='application/json'; }
+  const res = await fetch(path, {method, headers:h, body:b});
+  let data = null; try { data = await res.json(); } catch(e) {}
+  if (!res.ok && res.status !== 207) throw new ApiError(res.status, data);
+  return data;
+}
+function errBox(e){
+  let extra='';
+  const errs = e.details?.errors;
+  if (Array.isArray(errs) && errs.length) extra = `<ul>${errs.slice(0,30).map(x=>`<li>Line ${x.line}${x.field?' · '+esc(x.field):''}: ${esc(x.message)}</li>`).join('')}${errs.length>30?`<li>…and ${errs.length-30} more</li>`:''}</ul>`;
+  return `<div class="note bad"><b>${esc(e.message)}</b>${extra}</div>`;
+}
+
+/* ---------- shell ---------- */
+function renderSide(){
+  const ct = S.counts;
+  $('side').innerHTML = `<div class="brand"><div class="mark"><i></i><i></i><i></i></div><div><b>Ledgerline</b><small>${esc(S.cfg.tenant||'Back office')}</small></div></div>`+
+    VIEWS.map(([g,items])=>`<nav class="navg" aria-label="${g}"><h6>${g}</h6>${items.map(([k,l])=>`<button class="nav ${S.view===k?'on':''}" data-go="${k}"><span>${l}</span>${ct[k]?`<span class="ct">${ct[k]}</span>`:''}</button>`).join('')}</nav>`).join('')+
+    `<div class="side-foot">${S.cfg.dev?'Development server: data is held in memory and lost when the server stops.':'Connected to '+esc(location.host)}</div>`;
+}
+function renderTop(){
+  $('top').innerHTML = `<label>Trade date <input class="in" type="date" id="date" value="${esc(S.date)}"></label>
+    <span class="grow"></span>
+    <span class="conn"><span class="dot ${S.ok?'ok':'bad'}"></span>${S.ok?'Signed in as <b>'+esc(S.actor)+'</b> · tenant '+esc(S.cfg.tenant||'')+'':'Not connected'}</span>
+    <button class="btn sm" id="signout">Change user</button>`;
+}
+async function refreshCounts(){
+  try{
+    const open = await api('GET', `/v1/recon/breaks?date=${S.date}&status=OPEN`);
+    S.counts.recon = open.length;
+  }catch(e){}
+}
+async function render(){
+  persist(); renderSide(); renderTop();
+  try{history.replaceState(null,'','#'+S.view)}catch(e){}
+  const p = $('page');
+  p.classList.add('busy');
+  try { p.innerHTML = await V[S.view](); }
+  catch(e){ p.innerHTML = ph('Something went wrong','') + errBox(e); }
+  p.classList.remove('busy');
+  bindPage();
+  refreshCounts().then(renderSide);
+}
+function go(v){S.view=v;render();window.scrollTo(0,0)}
+
+/* ---------- sign-in ---------- */
+function signIn(msg){
+  $('modal').innerHTML = `<div class="ov"><form class="md" id="signin">
+    <h2>Connect to Ledgerline</h2>
+    <p>${msg?esc(msg):'Enter the API key for your firm and your name. Your name is written to the audit trail with every change you make.'}</p>
+    <div class="fld"><label for="si-key">API key</label><input class="in" id="si-key" required autocomplete="off" value="${esc(S.key||S.cfg.dev_key||'')}"></div>
+    <div class="fld"><label for="si-actor">Your name</label><input class="in" id="si-actor" required placeholder="e.g. priya.nair" value="${esc(S.actor||'')}"></div>
+    ${S.cfg.dev?'<p class="dim" style="font-size:12px">Development server: the demo key is filled in for you.</p>':''}
+    <button class="btn pri" type="submit">Connect</button></form></div>`;
+  $('si-actor').focus();
+  $('signin').onsubmit = async ev => {
+    ev.preventDefault();
+    S.key = $('si-key').value.trim(); S.actor = $('si-actor').value.trim();
+    try { await api('GET','/v1/adapters'); S.ok = true; $('modal').innerHTML=''; render(); }
+    catch(e){ S.ok=false; signIn(e.status===401?'That API key was not accepted. Check it and try again.':e.message); }
+  };
+}
+
+/* ---------- views ---------- */
+const V = {};
+
+V.overview = async () => {
+  const [ex, oms, open, all, tb] = await Promise.all([
+    api('GET',`/v1/trades?date=${S.date}&origin=EXCHANGE`), api('GET',`/v1/trades?date=${S.date}&origin=OMS`),
+    api('GET',`/v1/recon/breaks?date=${S.date}&status=OPEN`), api('GET',`/v1/recon/breaks?date=${S.date}`),
+    api('GET',`/v1/ledger/trial-balance?as_of=${S.date}`)]);
+  const billed = tb.rows.some(r=>r.account.startsWith('INCOME:'));
+  const st = (done, alert) => done ? (alert?'alert':'done') : 'todo';
+  const turnover = ex.reduce((s,t)=>s+num(t.price)*t.qty,0);
+  return ph('Day overview', `What has happened for trade date ${esc(S.date)}, and what to do next.`,
+      S.cfg.dev?`<button class="btn" id="load-sample">Load sample trading day</button>`:'') +
+    `<div class="steps">
+      <div class="step ${st(ex.length&&oms.length)}"><small>Step 1</small><b>Load files</b><span>${ex.length} exchange trades · ${oms.length} OMS fills</span><button class="btn sm" data-go="files">Upload files</button></div>
+      <div class="step ${st(all.length||(ex.length&&S.lastRecon), open.length>0)}"><small>Step 2</small><b>Reconcile</b><span>${all.length||S.lastRecon?`${open.length} open break${open.length===1?'':'s'}`:'Not run yet'}</span><button class="btn sm" data-go="recon">Open reconciliation</button></div>
+      <div class="step ${st(billed)}"><small>Step 3</small><b>Bill</b><span>${billed?'Bills posted to the ledger':'Not billed yet'}</span><button class="btn sm" data-go="billing">Open billing</button></div>
+      <div class="step ${st(billed, !tb.balanced)}"><small>Step 4</small><b>Check the ledger</b><span>${tb.rows.length?(tb.balanced?'Trial balance agrees':'Trial balance does NOT agree'):'No entries yet'}</span><button class="btn sm" data-go="ledger">Open ledger</button></div>
+    </div>
+    <div class="kpis">
+      ${kpi('Exchange trades', ex.length, 'turnover '+inr(turnover,0))}
+      ${kpi('OMS fills', oms.length, '')}
+      ${kpi('Open breaks', open.length, all.length?`${all.length-open.length} resolved or cleared`:'', open.length?'bad':(all.length?'good':''))}
+      ${kpi('Trial balance', tb.rows.length?(tb.balanced?'Balanced':'Off'):'—', tb.rows.length?inr(tb.total_debit)+' each side':'', tb.rows.length?(tb.balanced?'good':'bad'):'')}
+    </div>
+    ${!ex.length&&!oms.length?`<div class="note">No trades loaded for ${esc(S.date)}. ${S.cfg.dev?'Use <b>Load sample trading day</b> above to try the full flow with sample files, or upload your own on the Files page.':'Upload the day’s exchange and OMS files on the Files page.'}</div>`:''}`;
+};
+
+V.files = async () => {
+  const [adapters, audit] = await Promise.all([api('GET','/v1/adapters'), api('GET','/v1/audit?limit=200')]);
+  const files = audit.filter(a=>a.action.startsWith('file.'));
+  const r = S.lastUpload;
+  return ph('Files','Upload exchange, clearing and OMS files. Each file is kept exactly as received and checked line by line before any trade is stored.') +
+  `<div class="grid g2"><div class="panel"><div class="hd"><h3>Upload a file</h3></div><div class="bd">
+    <div class="fld"><label for="src">File type</label><select class="in" id="src">${adapters.map(a=>`<option value="${esc(a.Name)}" ${a.Name===(S.lastSource||'NSE-CM-TRADE')?'selected':''}>${esc(a.Name)} · ${esc(a.Origin==='OMS'?'OMS export':(a.Exchange+' '+a.Segment))} (v${esc(a.Version)})</option>`).join('')}</select></div>
+    <label class="drop" id="drop" for="file"><b>Drop a file here</b> or click to choose<br><span class="dim" style="font-size:12px">CSV or text, up to 64 MB</span></label>
+    <input type="file" id="file" hidden>
+    ${r?(r.error?errBox(r.error):`<div class="note good"><b>${esc(r.name)}</b> loaded with ${esc(r.res.adapter)}: ${r.res.added} new trade${r.res.added===1?'':'s'}${r.res.duplicate_rows?`, ${r.res.duplicate_rows} already loaded`:''}.${r.res.file.prior_id?` Identical to earlier upload ${esc(r.res.file.prior_id)}.`:''}</div>`):''}
+    ${S.cfg.dev?`<p class="dim" style="font-size:12.5px;margin:0">Development server: <button class="btn sm" id="load-sample">Load sample trading day</button> uploads all four sample files.</p>`:''}
+  </div></div>
+  <div class="panel"><div class="hd"><h3>File layouts</h3><small>${adapters.length} available</small></div>${tbl([['Layout'],['Version'],['Source']],adapters.map(a=>`<tr><td>${esc(a.Name)}</td><td class="n">${esc(a.Version)}</td><td>${esc(a.Origin==='OMS'?'OMS':a.Exchange+' '+a.Segment)}${/PLACEHOLDER/.test(a.Note)?' '+pill('Sample layout','warn'):''}</td></tr>`))}</div></div>
+  <div class="panel"><div class="hd"><h3>Upload history</h3><small>From the audit trail</small></div>${tbl([['Time'],['File'],['Type'],['Result'],['Trades','r'],['By']],files.map(f=>{const d=f.detail||{};return `<tr><td class="n dim">${new Date(f.at).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}</td><td>${esc(d.name)} <span class="tag">${esc(f.object)}</span></td><td>${esc(d.source)}</td><td>${f.action==='file.ingested'?pill('Loaded','good'):pill('Rejected','bad')+' <span class="dim">'+esc(d.error||'')+'</span>'}</td><td class="r">${d.added??0}${d.duplicates?` <span class="dim">+${d.duplicates} dup</span>`:''}</td><td>${esc(f.actor)}</td></tr>`}),{empty:'No files uploaded yet'})}</div>`;
+};
+
+V.trades = async () => {
+  const rows = await api('GET',`/v1/trades?date=${S.date}&origin=${S.tradeOrigin}`);
+  return ph('Trades',`Parsed trades for ${esc(S.date)}. Each row links back to its file and line.`) +
+  `<div class="panel"><div class="hd"><div class="seg">${['EXCHANGE','OMS'].map(o=>`<button class="${S.tradeOrigin===o?'on':''}" data-origin="${o}">${o==='EXCHANGE'?'Exchange':'OMS'}</button>`).join('')}</div><small>${rows.length} trades</small></div>
+  ${tbl([['Exch'],['Seg'],['Trade no.'],['Time'],['UCC'],['Instrument'],['Side'],['Qty','r'],['Price','r'],['Product'],['Algo ID'],['Source']],
+    rows.map(t=>`<tr><td>${esc(t.exchange)}</td><td>${esc(t.segment)}</td><td class="n">${esc(t.trade_no)}</td><td class="n dim">${esc(t.trade_time)}</td><td class="n">${esc(t.ucc)}</td><td>${esc(t.symbol)} ${t.instrument_type!=='EQ'?`<span class="dim">${esc(t.instrument_type)} ${esc(t.expiry)} ${esc(t.strike)}</span>`:''}</td><td>${t.side==='B'?'Buy':'Sell'}</td><td class="r">${t.qty.toLocaleString('en-IN')}</td><td class="r">${plain(t.price, t.price.split('.')[1]?.length>2?4:2)}</td><td>${esc(t.product)}</td><td class="n">${esc(t.algo_id)}</td><td class="n dim">${esc(t.file_id)}:${t.line}</td></tr>`),
+    {tall:true, empty:`No ${S.tradeOrigin==='OMS'?'OMS':'exchange'} trades for ${esc(S.date)}`})}</div>`;
+};
+
+V.recon = async () => {
+  const all = await api('GET',`/v1/recon/breaks?date=${S.date}`);
+  const shown = S.breakFilter ? all.filter(b=>b.status===S.breakFilter) : all;
+  const cnt = s => all.filter(b=>b.status===s).length;
+  const r = S.lastRecon;
+  return ph('Reconciliation','Exchange trades matched against the OMS trade book. The exchange record is the source of truth.',`<button class="btn pri" id="run-recon">Run reconciliation for ${esc(S.date)}</button>`) +
+  (r?`<div class="kpis">${kpi('Exchange trades',r.result.exchange_count,'')}${kpi('OMS fills',r.result.oms_count,'')}${kpi('Matched',r.result.matched,'','good')}${kpi('Breaks found',r.result.breaks.length,'this run',r.result.breaks.length?'bad':'good')}</div>`:'')+
+  `<div class="panel"><div class="hd"><div class="seg">${[['OPEN','Open'],['RESOLVED','Resolved'],['CLEARED','Cleared'],['','All']].map(([v,l])=>`<button class="${S.breakFilter===v?'on':''}" data-bf="${v}">${l} · ${v?cnt(v):all.length}</button>`).join('')}</div><small>Cleared = gone on a later run, e.g. after the OMS was corrected</small></div>
+  ${tbl([['Break'],['Trade'],['UCC'],['Instrument'],['Value','r'],['Difference']], shown.map(b=>`<tr class="brk">
+    <td>${pill(label(b.type), b.status==='OPEN'?'bad':b.status==='RESOLVED'?'good':'nt')}${b.status!=='OPEN'?`<div class="dim" style="font-size:11.5px;margin-top:3px">${label(b.status)}</div>`:''}</td>
+    <td class="n">${esc(b.exchange)}-${esc(b.segment)} ${esc(b.trade_no)}${b.oms_trade_no?` <span class="dim">OMS ${esc(b.oms_trade_no)}</span>`:''}</td>
+    <td class="n">${esc(b.ucc)}</td><td>${esc(b.instrument.split('|').filter(Boolean).join(' '))}</td><td class="r">${inr(b.value)}</td>
+    <td class="wrap">${(b.diffs||[]).map(d=>`${esc(d.field)}: exchange <span class="diff">${esc(d.exchange||'—')}</span> OMS <span class="diff">${esc(d.oms||'—')}</span>`).join('<br>')||'<span class="dim">—</span>'}</td></tr>
+    <tr class="sub"><td colspan="6"><div class="subrow"><div class="why"><b>What to do.</b> ${esc(b.suggestion)}${b.status==='RESOLVED'?`<div class="done-note">Resolved by ${esc(b.resolved_by)}: ${esc(b.resolution)}</div>`:''}</div>${b.status==='OPEN'?`<div class="resolve"><textarea class="in" id="res-${esc(b.id)}" placeholder="What you checked and fixed"></textarea><button class="btn sm pri" data-resolve="${esc(b.id)}">Resolve</button></div>`:''}</div></td></tr>`),
+    {tall:true, empty: all.length?'No breaks with this status':`Reconciliation has not been run for ${esc(S.date)}. Load the exchange and OMS files, then press Run.`})}</div>`;
+};
+
+V.billing = async () => {
+  const ex = await api('GET',`/v1/trades?date=${S.date}&origin=EXCHANGE`);
+  const futs = [...new Set(ex.filter(t=>t.instrument_type==='FUT').map(t=>`${t.symbol}|FUT|${t.expiry}|`))].sort();
+  S.prices = S.prices || {};
+  const b = S.lastBill;
+  return ph('Billing',`Post one bill per client per segment for ${esc(S.date)} from exchange trades. Running it again is safe: bills already posted are not duplicated.`,
+    `<button class="btn pri" id="run-bill" ${ex.length?'':'disabled'}>Run billing for ${esc(S.date)}</button>`) +
+  `<div class="panel"><div class="hd"><h3>Settlement prices</h3><small>Needed to mark futures to market</small></div><div class="bd">
+    ${futs.length?`<div class="form">${futs.map(k=>`<div class="fld"><label for="sp-${esc(k)}">${esc(k.split('|').slice(0,3).join(' '))}</label><input class="in" id="sp-${esc(k)}" data-price="${esc(k)}" inputmode="decimal" value="${esc(S.prices[k]||'')}" placeholder="0.00"></div>`).join('')}</div>
+      ${S.cfg.dev?`<div><button class="btn sm" id="sample-prices">Fill sample settlement prices</button></div>`:''}`:`<p class="dim" style="margin:0">${ex.length?'No futures traded today, so no settlement prices are needed.':'No exchange trades loaded for this date.'}</p>`}
+  </div></div>
+  ${b?(b.error?errBox(b.error):`
+    <div class="kpis">${kpi('Bills posted now',b.posted.length,'','good')}${kpi('Already posted',b.existing.length,'left unchanged')}${kpi('Conflicts',b.conflicts.length,b.conflicts.length?'reverse the old bill, then re-run':'',b.conflicts.length?'bad':'')}</div>
+    ${b.warnings.length?`<div class="note warn"><b>Check before relying on these bills</b><ul>${b.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul></div>`:''}
+    <div class="panel"><div class="hd"><h3>Bills</h3><small>${b.groups.length} client segments</small></div>
+    ${tbl([['UCC'],['Segment'],['Trades','r'],['Trade value / MTM','r'],['Brokerage','r'],['STT','r'],['Exch txn','r'],['Stamp','r'],['GST','r'],['Total charges','r'],['Net to client','r']],
+      b.groups.map(g=>`<tr><td class="n">${esc(g.ucc)}</td><td>${esc(g.exchange)}-${esc(g.segment)}</td><td class="r">${g.trades}</td><td class="r ${num(g.trade_net)<0?'neg':'pos'}">${plain(g.trade_net)}</td><td class="r">${plain(g.charges.brokerage)}</td><td class="r">${plain(g.charges.stt)}</td><td class="r">${plain(g.charges.exchange_txn)}</td><td class="r">${plain(g.charges.stamp_duty)}</td><td class="r">${plain(g.charges.gst)}</td><td class="r">${plain(g.charges.total)}</td><td class="r ${num(g.net)<0?'neg':'pos'}">${plain(g.net)}</td></tr>`),
+      {foot:`<tfoot><tr><td colspan="9">Total</td><td class="r">${plain(b.groups.reduce((s,g)=>s+num(g.charges.total),0))}</td><td class="r">${plain(b.groups.reduce((s,g)=>s+num(g.net),0))}</td></tr></tfoot>`})}
+    <div class="bd"><span class="dim" style="font-size:12px">Negative = client owes the broker. Positive = broker owes the client.</span></div></div>`):''}`;
+};
+
+V.ledger = async () => {
+  const tb = await api('GET',`/v1/ledger/trial-balance?as_of=${S.date}`);
+  const clients = tb.rows.filter(r=>r.account.startsWith('CLIENT:')).map(r=>r.account.slice(7));
+  if (!S.stmtUCC || !clients.includes(S.stmtUCC)) S.stmtUCC = clients[0] || '';
+  let stmt = null;
+  if (S.stmtUCC) stmt = await api('GET',`/v1/ledger/statement?ucc=${encodeURIComponent(S.stmtUCC)}&to=${S.date}`);
+  const dc = a => { const n=num(a); return n===0?'0.00':plain(Math.abs(n))+(n<0?' Cr':' Dr'); };
+  return ph('Ledger',`Trial balance and client statements as of ${esc(S.date)}. Every amount comes from posted journal entries.`) +
+  `<div class="grid g2">
+   <div class="panel"><div class="hd"><h3>Trial balance</h3>${tb.rows.length?(tb.balanced?pill('Debits equal credits','good'):pill('Does not balance','bad')):''}</div>
+    ${tbl([['Account'],['Debit','r'],['Credit','r']], tb.rows.map(r=>`<tr><td class="n">${esc(r.account)}</td><td class="r">${num(r.debit)?plain(r.debit):''}</td><td class="r">${num(r.credit)?plain(r.credit):''}</td></tr>`),
+      {tall:true, empty:'No entries yet. Run billing first.', foot: tb.rows.length?`<tfoot><tr><td>Total</td><td class="r">${plain(tb.total_debit)}</td><td class="r">${plain(tb.total_credit)}</td></tr></tfoot>`:''})}</div>
+   <div class="panel"><div class="hd"><h3>Client statement</h3>${clients.length?`<select class="in" id="stmt-ucc">${clients.map(c=>`<option ${c===S.stmtUCC?'selected':''}>${esc(c)}</option>`).join('')}</select>`:''}</div>
+    ${stmt?`<div class="bd" style="padding-bottom:0"><div class="kpis">${kpi('Opening',dc(stmt.opening),'')}${kpi('Closing',dc(stmt.closing),num(stmt.closing)>0?'client owes the broker':num(stmt.closing)<0?'broker owes the client':'',num(stmt.closing)>0?'warn':'')}</div></div>`:''}
+    ${tbl([['Date'],['Particulars'],['Debit','r'],['Credit','r'],['Balance','r']], (stmt?.lines||[]).map(l=>`<tr><td class="n dim">${esc(l.value_date.slice(5))}</td><td class="wrap" style="min-width:150px">${esc(l.memo||l.narration)}<div class="dim" style="font-size:11.5px">${esc(l.narration)} · ${esc(l.entry_id)}</div></td><td class="r">${num(l.debit)?plain(l.debit):''}</td><td class="r">${num(l.credit)?plain(l.credit):''}</td><td class="r">${dc(l.balance)}</td></tr>`),
+      {tall:true, empty: clients.length?'No movements':'No client accounts yet'})}</div>
+  </div>`;
+};
+
+V.charges = async () => {
+  const q = S.quote || {bucket:'CM-DEL',exchange:'NSE',side:'B',qty:10,price:'1412',date:S.date};
+  S.quote = q;
+  const opts = [['CM-DEL','Equity delivery'],['CM-INTRA','Equity intraday'],['FO-FUT','Equity futures'],['FO-OPT','Equity options (premium)'],['CD-FUT','Currency futures'],['CD-OPT','Currency options'],['COM-FUT','Commodity futures'],['COM-OPT','Commodity options']];
+  return ph('Charges calculator','Charge breakdown for one order using the server’s active rate schedule.') +
+  `<div class="grid g2"><div class="panel"><div class="hd"><h3>Order</h3></div><div class="bd"><form class="form" id="quote-form">
+    <div class="fld"><label for="q-bucket">Product</label><select class="in" id="q-bucket">${opts.map(o=>`<option value="${o[0]}" ${q.bucket===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select></div>
+    <div class="fld"><label for="q-exch">Exchange</label><select class="in" id="q-exch">${['NSE','BSE','MCX'].map(x=>`<option ${q.exchange===x?'selected':''}>${x}</option>`).join('')}</select></div>
+    <div class="fld"><label for="q-side">Side</label><select class="in" id="q-side"><option value="B" ${q.side==='B'?'selected':''}>Buy</option><option value="S" ${q.side==='S'?'selected':''}>Sell</option></select></div>
+    <div class="fld"><label for="q-qty">Quantity</label><input class="in" id="q-qty" type="number" min="1" value="${esc(q.qty)}"></div>
+    <div class="fld"><label for="q-price">Price (₹)</label><input class="in" id="q-price" inputmode="decimal" value="${esc(q.price)}"></div>
+    <div class="fld"><label>&nbsp;</label><button class="btn pri" type="submit">Calculate</button></div>
+  </form></div></div><div class="panel"><div class="hd"><h3>Breakdown</h3></div><div id="quote-out" class="bd"><p class="dim" style="margin:0">Press Calculate.</p></div></div></div>`;
+};
+
+V.audit = async () => {
+  const ev = await api('GET','/v1/audit?limit=500');
+  return ph('Audit trail','Every action, who did it and when. Entries cannot be edited or deleted.') +
+  `<div class="panel">${tbl([['Time'],['User'],['Action'],['Object'],['Details']], ev.map(a=>`<tr><td class="n dim">${new Date(a.at).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'medium'})}</td><td>${esc(a.actor)}</td><td>${pill(a.action, /rejected/.test(a.action)?'bad':'acc')}</td><td class="n">${esc(a.object)}</td><td class="wrap dim">${esc(Object.entries(a.detail||{}).map(([k,v])=>k+': '+v).join(' · '))}</td></tr>`), {tall:true, empty:'No actions yet'})}</div>`;
+};
+
+/* ---------- actions ---------- */
+async function upload(file, source){
+  const data = await file.arrayBuffer();
+  try { const res = await api('POST', `/v1/files?source=${encodeURIComponent(source)}&name=${encodeURIComponent(file.name)}`, data, true);
+        S.lastUpload = {name:file.name, res}; toast(`${file.name}: ${res.added} trades loaded`); }
+  catch(e){ S.lastUpload = {name:file.name, error:e}; toast(`${file.name} was rejected`); }
+  render();
+}
+async function loadSample(btn){
+  if (btn) btn.disabled = true;
+  let added = 0;
+  try {
+    for (const [src, name] of SAMPLE_FILES) {
+      const res = await fetch('/sample/'+name); if (!res.ok) throw new Error('Sample file '+name+' is not available on this server');
+      const r = await api('POST', `/v1/files?source=${src}&name=${name}`, await res.arrayBuffer(), true);
+      added += r.added;
+    }
+    S.date = '2026-10-16';
+    toast(added ? `Sample day loaded: ${added} trades` : 'Sample day was already loaded');
+  } catch(e){ toast(e.message); }
+  render();
+}
+async function samplePrices(){
+  try { const p = await (await fetch('/sample/settlement_prices.json')).json(); Object.assign(S.prices, p); render(); }
+  catch(e){ toast('Sample prices are not available'); }
+}
+
+function bindPage(){
+  const p = $('page');
+  const sample = $('load-sample'); if (sample) sample.onclick = () => loadSample(sample);
+  const drop = $('drop'), file = $('file');
+  if (drop) {
+    $('src').onchange = e => { S.lastSource = e.target.value; };
+    file.onchange = () => file.files[0] && upload(file.files[0], $('src').value);
+    ['dragenter','dragover'].forEach(t=>drop.addEventListener(t, e=>{e.preventDefault();drop.classList.add('over')}));
+    ['dragleave','drop'].forEach(t=>drop.addEventListener(t, e=>{e.preventDefault();drop.classList.remove('over')}));
+    drop.addEventListener('drop', e => e.dataTransfer.files[0] && upload(e.dataTransfer.files[0], $('src').value));
+  }
+  const rr = $('run-recon'); if (rr) rr.onclick = async () => {
+    rr.disabled = true;
+    try { S.lastRecon = await api('POST','/v1/recon/runs',{date:S.date}); toast(`Reconciled: ${S.lastRecon.result.matched} matched, ${S.lastRecon.open} open breaks`); S.breakFilter='OPEN'; }
+    catch(e){ toast(e.message); }
+    render();
+  };
+  p.querySelectorAll('[data-resolve]').forEach(b => b.onclick = async () => {
+    const id = b.dataset.resolve, note = $('res-'+id).value.trim();
+    if (!note) { toast('Write what you checked and fixed before resolving'); $('res-'+id).focus(); return; }
+    try { await api('POST',`/v1/recon/breaks/${encodeURIComponent(id)}/resolve`,{resolution:note}); toast('Break resolved'); }
+    catch(e){ toast(e.message); }
+    render();
+  });
+  p.querySelectorAll('[data-bf]').forEach(b => b.onclick = () => { S.breakFilter = b.dataset.bf; render(); });
+  p.querySelectorAll('[data-origin]').forEach(b => b.onclick = () => { S.tradeOrigin = b.dataset.origin; render(); });
+  p.querySelectorAll('[data-price]').forEach(i => i.oninput = () => { S.prices[i.dataset.price] = i.value.trim(); });
+  const sp = $('sample-prices'); if (sp) sp.onclick = samplePrices;
+  const rb = $('run-bill'); if (rb) rb.onclick = async () => {
+    rb.disabled = true;
+    const prices = {}; for (const [k,v] of Object.entries(S.prices||{})) if (v) prices[k]=v;
+    try { const r = await api('POST','/v1/billing/runs',{date:S.date, settlement_prices:prices}); S.lastBill = r; toast(`${r.posted.length} bills posted, ${r.existing.length} already posted`); }
+    catch(e){ S.lastBill = {error:e}; toast('Billing did not run'); }
+    render();
+  };
+  const su = $('stmt-ucc'); if (su) su.onchange = () => { S.stmtUCC = su.value; render(); };
+  const qf = $('quote-form'); if (qf) qf.onsubmit = async ev => {
+    ev.preventDefault();
+    const q = S.quote = {bucket:$('q-bucket').value, exchange:$('q-exch').value, side:$('q-side').value, qty:parseInt($('q-qty').value,10)||0, price:$('q-price').value.trim(), date:S.date};
+    const out = $('quote-out');
+    try {
+      const r = await api('POST','/v1/charges/quote', q); const b = r.breakdown;
+      out.innerHTML = tbl([['Component'],['₹','r']], [['Turnover',b.turnover],['Brokerage',b.brokerage],['STT / CTT',b.stt],['Exchange transaction charge',b.exchange_txn],['SEBI turnover fee',b.sebi_fee],['Stamp duty',b.stamp_duty],['GST',b.gst]].map(x=>`<tr><td>${x[0]}</td><td class="r">${plain(x[1])}</td></tr>`),
+        {foot:`<tfoot><tr><td>Total charges</td><td class="r">${plain(b.total)}</td></tr></tfoot>`}) + (r.sample_rates?`<div class="note warn">Calculated with the sample rate schedule ${esc(r.schedule)}. Load real rates before billing clients.</div>`:'');
+    } catch(e){ out.innerHTML = errBox(e); }
+  };
+}
+
+document.addEventListener('click', e => {
+  const g = e.target.closest('[data-go]'); if (g) { e.preventDefault(); go(g.dataset.go); return; }
+  if (e.target.id === 'signout') { S.ok=false; signIn(); }
+});
+document.addEventListener('change', e => {
+  if (e.target.id === 'date' && e.target.value) { S.date = e.target.value; S.lastRecon = S.lastBill = null; render(); }
+});
+
+/* ---------- start ---------- */
+(async () => {
+  try { S.cfg = await (await fetch('/ui/config')).json(); } catch(e) { S.cfg = {}; }
+  if (S.cfg.dev && !S.key) S.key = S.cfg.dev_key;
+  if (!S.key || !S.actor) { renderSide(); renderTop(); $('page').innerHTML=''; signIn(); return; }
+  try { await api('GET','/v1/adapters'); S.ok = true; render(); }
+  catch(e){ renderSide(); renderTop(); signIn(e.status===401?'Your saved API key is no longer accepted. Enter it again.':e.message); }
+})();
+</script>
+</body>
+</html>

@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -25,7 +26,11 @@ import (
 	"ledgerline/internal/charges"
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/pgstore"
+	"ledgerline/internal/web"
 )
+
+// devKey is the API key used by -dev when no keys are configured.
+const devKey = "dev-key-not-for-production"
 
 // sqlDriver is set by driver_pgx.go when built with -tags pgx.
 var sqlDriver string
@@ -101,21 +106,35 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 		return errors.New("set LEDGERLINE_DB for PostgreSQL, or pass -dev for in-memory stores")
 	}
 	if dev && len(keys) == 0 {
-		keys = map[string]string{"dev-key-not-for-production": "demo"}
-		log.Warn("development API key enabled", "key", "dev-key-not-for-production", "tenant", "demo")
+		keys = map[string]string{devKey: "demo"}
+		log.Warn("development API key enabled", "key", devKey, "tenant", "demo")
 	}
 	if len(keys) == 0 {
 		return errors.New("no API keys configured; set LEDGERLINE_API_KEYS=key:tenant[,key:tenant]")
 	}
 
 	a := app.New(stores, reg, sched)
+	apiSrv := api.New(a, keys, log)
+	cfg := web.Config{Dev: dev, Version: "step1"}
+	if dev {
+		for k, t := range keys {
+			if k == devKey {
+				cfg.DevKey, cfg.Tenant = k, t
+			}
+		}
+	}
+	root := http.NewServeMux()
+	root.Handle("/v1/", apiSrv)
+	root.Handle("/healthz", apiSrv)
+	root.Handle("/", web.Handler(cfg))
 	srv := &http.Server{
-		Addr: addr, Handler: api.New(a, keys, log),
+		Addr: addr, Handler: root,
 		ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute,
 	}
 	errc := make(chan error, 1)
 	go func() {
 		log.Info("listening", "addr", addr, "adapters", len(reg.List()), "schedule", sched.Version)
+		fmt.Fprintf(os.Stderr, "\nLedgerline console: http://localhost%s\nPress Ctrl+C to stop.\n\n", portOf(addr))
 		errc <- srv.ListenAndServe()
 	}()
 	select {
@@ -139,4 +158,11 @@ func envOr(k, d string) string {
 		return v
 	}
 	return d
+}
+
+func portOf(addr string) string {
+	if i := strings.LastIndex(addr, ":"); i >= 0 {
+		return addr[i:]
+	}
+	return ":" + addr
 }
