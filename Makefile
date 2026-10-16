@@ -19,7 +19,7 @@ build:
 	go build -o bin/ledgerline ./cmd/ledgerline && go build -o bin/ledgerctl ./cmd/ledgerctl
 
 build-pgx:       ## server with the PostgreSQL driver
-	go get github.com/jackc/pgx/v5@v5.7.2 && go build -tags pgx -o bin/ledgerline ./cmd/ledgerline
+	go get github.com/jackc/pgx/v5@v5.7.2 && go mod tidy && go build -tags pgx -o bin/ledgerline ./cmd/ledgerline
 
 integration:     ## full day against PostgreSQL (LEDGERLINE_TEST_DB, LEDGERLINE_TEST_TENANT)
 	go test -tags 'integration pgx' -count=1 ./internal/pgstore

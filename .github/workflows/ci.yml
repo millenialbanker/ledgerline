@@ -16,9 +16,9 @@ jobs:
       PGUSER: postgres
       PGPASSWORD: postgres
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: "1.24" }
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with: { go-version: "1.24", cache: false }
       - name: Format and vet
         run: make vet
       - name: Unit and end-to-end tests
@@ -31,4 +31,5 @@ jobs:
         run: |
           psql -d ledgerline_test -c "CREATE ROLE ll_it LOGIN PASSWORD 'll_it' IN ROLE ledgerline_app; INSERT INTO ll.tenant (id, name) VALUES ('ci', 'CI tenant');"
           go get github.com/jackc/pgx/v5@v5.7.2
+          go mod tidy
           LEDGERLINE_TEST_DB="postgres://ll_it:ll_it@localhost:5432/ledgerline_test?sslmode=disable" make integration
