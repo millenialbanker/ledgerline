@@ -151,6 +151,18 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/whatsapp/simulate", s.waSimulate, true)
 	s.mux.HandleFunc("POST /hooks/{tenant}/whatsapp", s.waHook)
 	R("POST /v1/portal/whatsapp", s.portalWhatsApp, true)
+	R("GET /v1/dp", s.dpDesk, false)
+	R("POST /v1/dp/tariff", s.dpTariff, true)
+	R("POST /v1/dp/accounts/{ucc}/bsda", s.dpBSDA, true)
+	R("POST /v1/dp/books", s.dpBook, true)
+	R("POST /v1/dp/dis", s.dpEnterDIS, true)
+	R("POST /v1/dp/dis/batch", s.dpBatch, true)
+	R("POST /v1/dp/dis/{id}/verify", s.dpVerify, true)
+	R("POST /v1/dp/dis/{id}/execute", s.dpExecute, true)
+	R("GET /v1/dp/transactions", s.dpTxns, false)
+	R("POST /v1/dp/billing", s.dpBilling, true)
+	R("POST /v1/dp/requests", s.dpRequest, true)
+	R("POST /v1/dp/requests/{id}", s.dpActRequest, true)
 	R("GET /v1/jobs", s.jobs, false)
 	R("POST /v1/jobs", s.saveJob, true)
 	R("POST /v1/jobs/{id}/run", s.runJob, true)
@@ -2251,5 +2263,142 @@ func (s *Server) runJob(w http.ResponseWriter, r *http.Request) {
 		ok(w, v, nil) // the failure is recorded in the run
 		return
 	}
+	ok(w, v, err)
+}
+
+// ---- DP ----
+
+func (s *Server) dpDesk(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.DP(r.Context(), tenant(r), d)
+	ok(w, v, err)
+}
+
+func (s *Server) dpTariff(w http.ResponseWriter, r *http.Request) {
+	var b ops.DPTariff
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveDPTariff(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) dpBSDA(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		On   bool   `json:"on"`
+		Date string `json:"date"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SetBSDA(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), b.On, b.Date)
+	ok(w, v, err)
+}
+
+func (s *Server) dpBook(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		UCC   string `json:"ucc"`
+		Slips int64  `json:"slips"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.IssueDISBook(r.Context(), tenant(r), actor(r), b.UCC, b.Slips)
+	ok(w, v, err)
+}
+
+func (s *Server) dpEnterDIS(w http.ResponseWriter, r *http.Request) {
+	var b ops.DIS
+	if !decode(w, r, &b) {
+		return
+	}
+	if !s.canSee(w, r, b.UCC) {
+		return
+	}
+	v, err := s.ops.EnterDIS(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) dpVerify(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Approve      bool   `json:"approve"`
+		Note         string `json:"note"`
+		Confirmation string `json:"confirmation"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.VerifyDIS(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Approve, b.Note, b.Confirmation)
+	ok(w, v, err)
+}
+
+func (s *Server) dpBatch(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string `json:"date"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	f, n, err := s.ops.DISBatch(r.Context(), tenant(r), actor(r), b.Date)
+	ok(w, map[string]any{"file": string(f), "instructions": n}, err)
+}
+
+func (s *Server) dpExecute(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		OK     bool   `json:"ok"`
+		Reason string `json:"reason"`
+		Date   string `json:"date"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.ExecuteDIS(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.OK, b.Reason, b.Date)
+	ok(w, v, err)
+}
+
+func (s *Server) dpTxns(w http.ResponseWriter, r *http.Request) {
+	u := r.URL.Query().Get("ucc")
+	if !s.canSee(w, r, u) {
+		return
+	}
+	v, err := s.ops.DPTransactions(r.Context(), tenant(r), u)
+	ok(w, v, err)
+}
+
+func (s *Server) dpBilling(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Month string `json:"month"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.RunDPBilling(r.Context(), tenant(r), actor(r), b.Month)
+	ok(w, map[string]any{"bills": v}, err)
+}
+
+func (s *Server) dpRequest(w http.ResponseWriter, r *http.Request) {
+	var b ops.DPRequest
+	if !decode(w, r, &b) {
+		return
+	}
+	if !s.canSee(w, r, b.UCC) {
+		return
+	}
+	v, err := s.ops.RaiseDPRequest(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) dpActRequest(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Action string `json:"action"`
+		Note   string `json:"note"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.ActOnDPRequest(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Action, b.Note)
 	ok(w, v, err)
 }
