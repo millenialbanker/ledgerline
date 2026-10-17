@@ -330,11 +330,14 @@ func (o *Ops) ClientReportFor(ctx context.Context, tenant, kind, ucc, from, to s
 	} else {
 		r.Period = "As on " + fmtDay(to)
 	}
-	if r.UCC == "ALL" {
+	if r.multi() {
 		if !def.AllUCC {
 			return r, invalid("%s is produced one client at a time", def.Name)
 		}
 		r.Name = "All clients"
+		if t, ok := strings.CutPrefix(r.UCC, "TAG:"); ok {
+			r.Name = "Group " + t
+		}
 	} else {
 		c, err := o.Client(ctx, tenant, r.UCC)
 		if err != nil {
@@ -395,7 +398,7 @@ func tone(d money.Dec) string {
 // ---- ledger ----
 
 func (o *Ops) repLedger(ctx context.Context, tenant string, r *ClientReport) error {
-	if r.UCC == "ALL" {
+	if r.multi() {
 		cs, err := o.Clients(ctx, tenant)
 		if err != nil {
 			return err
@@ -403,7 +406,7 @@ func (o *Ops) repLedger(ctx context.Context, tenant string, r *ClientReport) err
 		sec := Section{Title: "Client balances", Columns: []Column{{"ucc", "UCC", ColText}, {"name", "Client", ColText}, {"opening", "Opening", ColDrCr}, {"debit", "Debits", ColMoney}, {"credit", "Credits", ColMoney}, {"closing", "Closing", ColDrCr}}}
 		var to, td, tc, tcl money.Amount
 		for _, c := range cs {
-			if c.Status != "Active" {
+			if c.Status != "Active" || !r.has(c) {
 				continue
 			}
 			st, err := o.App.Ledger.Statement(ctx, tenant, ledger.ClientAccount(c.UCC), r.From, r.To)
@@ -506,7 +509,7 @@ func (o *Ops) holdLines(ctx context.Context, tenant, ucc, asOn string) ([]holdLi
 }
 
 func (o *Ops) repHoldings(ctx context.Context, tenant string, r *ClientReport) error {
-	if r.UCC == "ALL" {
+	if r.multi() {
 		cs, err := o.Clients(ctx, tenant)
 		if err != nil {
 			return err
@@ -515,7 +518,7 @@ func (o *Ops) repHoldings(ctx context.Context, tenant string, r *ClientReport) e
 		var tv money.Dec
 		n := 0
 		for _, c := range cs {
-			if c.Status != "Active" {
+			if c.Status != "Active" || !r.has(c) {
 				continue
 			}
 			hs, _, err := o.holdLines(ctx, tenant, c.UCC, r.To)
@@ -848,10 +851,22 @@ func contains(xs []string, s string) bool {
 
 func (o *Ops) repTradebook(ctx context.Context, tenant string, r *ClientReport) error {
 	cols := []Column{{"date", "Date", ColDate}, {"time", "Time", ColText}, {"exch", "Exchange", ColText}, {"contract", "Contract", ColText}, {"side", "B/S", ColText}, {"qty", "Qty", ColQty}, {"price", "Price", ColMoney}, {"value", "Value", ColMoney}, {"product", "Product", ColText}, {"order", "Order no.", ColText}, {"trade", "Trade no.", ColText}}
-	if r.UCC == "ALL" {
+	if r.multi() {
 		cols = append([]Column{{"ucc", "UCC", ColText}}, cols...)
 	}
 	sec := Section{Title: "Trades", Columns: cols, Empty: "No trades in this period."}
+	scope := map[string]bool{}
+	if r.multi() {
+		cs, err := o.Clients(ctx, tenant)
+		if err != nil {
+			return err
+		}
+		for _, c := range cs {
+			if r.has(c) {
+				scope[c.UCC] = true
+			}
+		}
+	}
 	var buy, sell money.Dec
 	n := 0
 	for d := r.From; d <= r.To; d = addDays(d, 1) {
@@ -866,7 +881,7 @@ func (o *Ops) repTradebook(ctx context.Context, tenant string, r *ClientReport) 
 			return ts[i].TradeTime < ts[j].TradeTime
 		})
 		for _, t := range ts {
-			if r.UCC != "ALL" && t.UCC != r.UCC {
+			if r.multi() && !scope[t.UCC] || !r.multi() && t.UCC != r.UCC {
 				continue
 			}
 			v := tradeValue(t)
@@ -877,7 +892,7 @@ func (o *Ops) repTradebook(ctx context.Context, tenant string, r *ClientReport) 
 				side, sell = "Sell", sell.Add(v)
 			}
 			row := []string{t.TradeDate, t.TradeTime, t.Exchange + "-" + t.Segment, InstrumentName(t.Symbol, t.InstrumentType, t.Expiry, t.Strike), side, qty(t.Qty), t.Price.String(), d2s(v), t.Product, t.OrderNo, t.TradeNo}
-			if r.UCC == "ALL" {
+			if r.multi() {
 				row = append([]string{t.UCC}, row...)
 			}
 			sec.Rows = append(sec.Rows, row)
@@ -964,7 +979,7 @@ func (r ClientReport) FileName(ext string) string {
 	if r.From != "" {
 		p = r.From + "_" + r.To
 	}
-	return r.Kind + "_" + r.UCC + "_" + p + "." + ext
+	return r.Kind + "_" + strings.ReplaceAll(r.UCC, ":", "-") + "_" + p + "." + ext
 }
 
 func cellFmt(typ, v string) string {
@@ -1059,4 +1074,21 @@ func (o *Ops) RenderClientReport(ctx context.Context, tenant string, r ClientRep
 	err = clientReportTmpl.Execute(&b, map[string]any{"R": r, "Firm": set.Firm, "SEBIReg": set.SEBIReg, "Members": "Member codes " + strings.Join(members, " · "),
 		"PAN": r.PAN, "Sample": o.App.Schedule.Sample})
 	return b.Bytes(), err
+}
+
+// multi reports whether the report covers many clients: all, or a group.
+func (r ClientReport) multi() bool { return r.UCC == "ALL" || strings.HasPrefix(r.UCC, "TAG:") }
+
+// has reports whether a client is in the report's scope.
+func (r ClientReport) has(c Client) bool {
+	t, ok := strings.CutPrefix(r.UCC, "TAG:")
+	if !ok {
+		return r.UCC == "ALL" || c.UCC == r.UCC
+	}
+	for _, x := range c.Tags {
+		if x == t {
+			return true
+		}
+	}
+	return false
 }

@@ -83,6 +83,9 @@ type App struct {
 	// Adjust, when set, rewrites exchange trades before recon and billing,
 	// for example to apply client code modifications.
 	Adjust func(ctx context.Context, tenant string, evs []ingest.TradeEvent) ([]ingest.TradeEvent, error)
+	// BillingHooks, when set, supplies per-client brokerage plans and lot
+	// sizes for a billing run.
+	BillingHooks func(ctx context.Context, tenant, date string) (BrokerageFunc, func(ingest.TradeEvent) int64, error)
 	runSeq int64
 	mu     sync.Mutex
 }
@@ -240,7 +243,7 @@ func (a *App) RunBillingOpts(ctx context.Context, tenant, actor, date string, pr
 	if len(trades) == 0 {
 		return BillingResult{}, fmt.Errorf("%w: no exchange trades loaded for %s", ErrState, date)
 	}
-	out, err := billing.Build(billing.Input{Tenant: tenant, Date: date, Actor: actor, Trades: trades, SettlementPrices: prices, Schedule: a.Schedule})
+	out, err := a.BuildBills(ctx, billing.Input{Tenant: tenant, Date: date, Actor: actor, Trades: trades, SettlementPrices: prices, Schedule: a.Schedule})
 	if err != nil {
 		return BillingResult{}, err
 	}
@@ -458,4 +461,20 @@ func (s *MemAuditStore) List(_ context.Context, tenant string, limit int) ([]Aud
 		}
 	}
 	return out, nil
+}
+
+// BrokerageFunc resolves a client's brokerage rule for a product.
+type BrokerageFunc = func(ucc string, b charges.Bucket, exchange, date string) (charges.BrokerageRule, string, bool)
+
+// BuildBills runs billing.Build with the brokerage plans and lot sizes from
+// BillingHooks, so bills and contract notes price brokerage the same way.
+func (a *App) BuildBills(ctx context.Context, in billing.Input) (billing.Output, error) {
+	if a.BillingHooks != nil {
+		b, lot, err := a.BillingHooks(ctx, in.Tenant, in.Date)
+		if err != nil {
+			return billing.Output{}, err
+		}
+		in.Brokerage, in.LotSize = b, lot
+	}
+	return billing.Build(in)
 }

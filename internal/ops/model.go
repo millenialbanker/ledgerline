@@ -136,6 +136,7 @@ type Ops struct {
 func New(a *app.App) *Ops {
 	o := &Ops{App: a, Docs: a.Docs, Now: time.Now}
 	a.Adjust = o.applyCCM
+	a.BillingHooks = o.billingHooks
 	return o
 }
 

@@ -237,6 +237,10 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		return func() (int, int, error) {
 			n := 0
 			for _, c := range cs {
+				// Groups are maintained in the back office; a re-import keeps them.
+				if old, _, err := docs.Get[Client](ctx, o.Docs, tenant, cClient, c.UCC); err == nil && len(c.Tags) == 0 {
+					c.Tags = old.Tags
+				}
 				if err := docs.Upsert(ctx, o.Docs, tenant, cClient, c.UCC, c, actor); err != nil {
 					return n, 0, err
 				}

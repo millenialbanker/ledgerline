@@ -7,7 +7,7 @@ const LS = 'ledgerline-console-v2';
 const S = { tenant: '', date: '2026-10-16', view: 'dashboard', me: null, counts: {} };
 try { Object.assign(S, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e) {}
 const persist = () => { try { localStorage.setItem(LS, JSON.stringify({ tenant: S.tenant, date: S.date, view: S.view })); } catch (e) {} };
-const UI = { cr: { kind: 'ledger', ucc: '', preset: 'fy', from: '', to: '' }, crRes: null, crErr: null, crBusy: false, reconF: 'OPEN', reconX: 'All', reconQ: '', clientStage: 'All', clientQ: '', rmsF: 'All', rmsQ: '', settleTab: 'cm', noteF: 'All',
+const UI = { clientTag: '', clientSel: new Set(), bkQ: '', bkPlan: '', cr: { kind: 'ledger', ucc: '', preset: 'fy', from: '', to: '' }, crRes: null, crErr: null, crBusy: false, reconF: 'OPEN', reconX: 'All', reconQ: '', clientStage: 'All', clientQ: '', rmsF: 'All', rmsQ: '', settleTab: 'cm', noteF: 'All',
   bankF: 'All', rasF: 'due', auditQ: '', ledgerU: '', ledgerTab: 'statement', calc: { bucket: 'CM-DEL', exchange: 'NSE', side: 'B', qty: 100, price: '1412' },
   fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
 const C = {}; // per-view data from the server
@@ -87,7 +87,7 @@ const NAV = [
   ['Overview', [['dashboard', 'Dashboard']]],
   ['Operations', [['files', 'Files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['statements', 'Client reports']]],
   ['Risk', [['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge']]],
-  ['Accounts', [['ledger', 'Ledger'], ['bank', 'Bank reconciliation'], ['ras', 'Running account'], ['charges', 'Charges calculator']]],
+  ['Accounts', [['ledger', 'Ledger'], ['bank', 'Bank reconciliation'], ['ras', 'Running account'], ['charges', 'Charges calculator'], ['brokerage', 'Brokerage plans']]],
   ['Compliance', [['reports', 'Regulatory reports'], ['surv', 'Surveillance & AML'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
   ['Admin', [['settings', 'Settings']]]];
 const VIEWS = NAV.flatMap(g => g[1].map(v => v[0]));
@@ -438,30 +438,80 @@ P['notes-t'] = d => tbl([['Contract note'], ['UCC'], ['Client'], ['Email'], ['Tr
 
 /* ---------- clients ---------- */
 const STAGES = ['Application', 'KYC verification', 'In-person verification', 'UCC upload', 'Active'];
+/* ---------- client picker (search by name, UCC, PAN or group) ---------- */
+const CL = { date: '', rows: [], tags: [] };
+async function clientCache(force) {
+  if (force || CL.date !== S.date || !CL.rows.length) {
+    const [rows, tags] = await Promise.all([get(`/v1/clients?date=${S.date}`), get('/v1/tags').catch(() => [])]);
+    Object.assign(CL, { date: S.date, rows, tags });
+  }
+  return CL;
+}
+const CP = {};
+function cpLabel(v) {
+  if (!v) return '';
+  if (v === 'ALL') return 'All clients';
+  if (v.startsWith('TAG:')) return 'Group ' + v.slice(4);
+  const c = CL.rows.find(x => x.ucc === v);
+  return c ? `${c.ucc} · ${c.name}` : v;
+}
+function cpick(id, val, opt = {}) {
+  CP[id] = opt;
+  return `<div class="cpick"><input class="in cp-q" data-cp="${id}" id="${id}-q" placeholder="${esc(opt.placeholder || 'Search name, UCC or PAN')}" autocomplete="off" spellcheck="false" value="${esc(cpLabel(val))}" role="combobox" aria-expanded="false"><input type="hidden" id="${id}" value="${esc(val || '')}"><div class="res cp-res" id="${id}-res" hidden role="listbox"></div></div>`;
+}
+function cpMatches(id, q) {
+  const opt = CP[id] || {}; q = q.trim().toLowerCase();
+  const fixed = [];
+  if (opt.none) fixed.push({ v: '', l: opt.none, s: '' });
+  if (opt.all) fixed.push({ v: 'ALL', l: 'All clients', s: CL.rows.filter(c => c.status === 'Active').length + ' clients' });
+  if (opt.groups) CL.tags.forEach(t => fixed.push({ v: 'TAG:' + t.tag, l: 'Group ' + t.tag, s: t.clients + ' client' + (t.clients === 1 ? '' : 's') }));
+  const fx = fixed.filter(o => !q || o.l.toLowerCase().includes(q));
+  const cs = CL.rows.filter(c => (opt.inactive || c.status === 'Active') && (!q || (c.ucc + ' ' + c.name + ' ' + c.pan + ' ' + (c.tags || []).join(' ')).toLowerCase().includes(q)));
+  return fx.concat(cs.slice(0, 40).map(c => ({ v: c.ucc, l: c.name, s: c.ucc + ((c.tags || []).length ? ' · ' + c.tags.join(', ') : '') })));
+}
+function cpOpen(id) {
+  const q = $(id + '-q'), r = $(id + '-res'); if (!q || !r) return;
+  const m = cpMatches(id, q.value === cpLabel($(id).value) ? '' : q.value);
+  r.innerHTML = m.length ? m.map((o, i) => `<button type="button" role="option" class="${i === 0 ? 'hl' : ''}" data-act="cpPick" data-id="${id}" data-v="${esc(o.v)}"><span>${esc(o.l)}</span><span class="mono dim">${esc(o.s)}</span></button>`).join('') : '<div class="empty">No client matches</div>';
+  r.hidden = false; q.setAttribute('aria-expanded', 'true');
+}
+function cpClose(id) { const r = $(id + '-res'), q = $(id + '-q'); if (r) r.hidden = true; if (q) { q.setAttribute('aria-expanded', 'false'); q.value = cpLabel($(id).value); } }
+function cpSet(id, v) { $(id).value = v; cpClose(id); const o = CP[id]; if (o?.on) o.on(v); }
+
+/* ---------- clients ---------- */
 V.clients = {
-  load: () => get(`/v1/clients?date=${S.date}`),
+  load: async () => { const [rows] = await Promise.all([get(`/v1/clients?date=${S.date}`), clientCache(true)]); return { rows, tags: CL.tags }; },
   html: d => {
-    const cnt = s => d.filter(c => c.status === s).length;
-    return ph('Clients & onboarding', 'Applications move through KYC, in-person verification and UCC upload. Activation needs an Ops checker who did not create the application.',
+    const cnt = s => d.rows.filter(c => c.status === s).length;
+    return ph('Clients & onboarding', 'Applications move through KYC, in-person verification and UCC upload. Activation needs an Ops checker who did not create the application. Groups (tags) such as HNI or STAFF drive brokerage plans and group reports.',
       `<button class="btn" data-act="dl" data-id="/v1/reports/ucc/download?date=${S.date}" data-name="ucc_${S.date}.csv">UCC upload file</button>${has('Ops maker', 'Ops checker') ? '<button class="btn pri" data-act="newClient">New client</button>' : ''}`) +
     `<div class="pipe">${STAGES.map(s => `<button class="${UI.clientStage === s ? 'on' : ''}" data-act="ui" data-k="clientStage" data-v="${s}"><small>${s}</small><b>${cnt(s)}</b></button>`).join('')}</div>
-    <div class="panel"><div class="hd"><div class="tools"><button class="btn sm ${UI.clientStage === 'All' ? 'pri' : ''}" data-act="ui" data-k="clientStage" data-v="All">All clients</button><input class="in" data-ui="clientQ" data-part="clients-t" placeholder="Search name, UCC, city" value="${esc(UI.clientQ)}"></div><small>${d.length} records</small></div><div id="clients-t">${P['clients-t'](d)}</div></div>`;
+    <div class="panel"><div class="hd"><div class="tools"><button class="btn sm ${UI.clientStage === 'All' ? 'pri' : ''}" data-act="ui" data-k="clientStage" data-v="All">All clients</button><input class="in" data-ui="clientQ" data-part="clients-t" placeholder="Search name, UCC, PAN, city" value="${esc(UI.clientQ)}">
+      <select class="in" id="clientTag" aria-label="Group"><option value="">All groups</option><option value="-" ${UI.clientTag === '-' ? 'selected' : ''}>No group</option>${d.tags.map(t => `<option value="${esc(t.tag)}" ${UI.clientTag === t.tag ? 'selected' : ''}>${esc(t.tag)} · ${t.clients}</option>`).join('')}</select></div><small>${d.rows.length} records</small></div>
+      <div id="clients-t">${P['clients-t'](d)}</div></div>`;
   }
 };
 P['clients-t'] = d => {
-  let rows = d; if (UI.clientStage !== 'All') rows = rows.filter(c => c.status === UI.clientStage);
-  const q = UI.clientQ.trim().toLowerCase(); if (q) rows = rows.filter(c => (c.name + ' ' + c.ucc + ' ' + c.city).toLowerCase().includes(q));
+  let rows = d.rows; if (UI.clientStage !== 'All') rows = rows.filter(c => c.status === UI.clientStage);
+  const q = UI.clientQ.trim().toLowerCase(); if (q) rows = rows.filter(c => (c.name + ' ' + c.ucc + ' ' + c.city + ' ' + c.pan + ' ' + (c.tags || []).join(' ')).toLowerCase().includes(q));
+  if (UI.clientTag === '-') rows = rows.filter(c => !(c.tags || []).length); else if (UI.clientTag) rows = rows.filter(c => (c.tags || []).includes(UI.clientTag));
   const st = { OK: 'good', Watch: 'warn', Breach: 'bad', Debit: 'warn' };
-  return tbl([['UCC'], ['Name'], ['Type'], ['PAN'], ['Segments'], ['Risk'], ['Ledger (₹)', 'r'], ['RMS'], ['RAS'], ['Stage'], ['']], rows.map(c => `<tr><td class="n"><button class="linkish" data-act="client" data-id="${c.ucc}">${c.ucc}</button></td><td>${esc(c.name)}</td><td>${esc(c.type)}</td><td class="n">${esc(c.pan)}</td><td>${(c.segments || []).map(s => `<span class="tag">${s}</span>`).join(' ')}</td><td>${pill(c.risk, c.risk === 'High' ? 'bad' : c.risk === 'Medium' ? 'warn' : 'nt')}</td><td class="r ${sgn(c.funds)}">${c.status === 'Active' ? inr(c.funds) : '—'}</td><td>${c.risk_status ? pill(c.risk_status, st[c.risk_status]) : ''}${c.blocked ? ' ' + pill('Blocked', 'bad') : ''}</td><td>${esc(c.ras)}</td><td>${pill(c.status, c.status === 'Active' ? 'good' : 'acc')}</td><td>${c.status !== 'Active' && (c.status === 'UCC upload' ? has('Ops checker') : has('Ops maker', 'Ops checker')) ? `<button class="btn sm" data-act="advance" data-id="${c.ucc}">${c.status === 'UCC upload' ? 'Activate' : 'Advance'}</button>` : ''}</td></tr>`), { tall: true });
+  const canTag = has('Ops maker', 'Ops checker');
+  for (const u of [...UI.clientSel]) if (!d.rows.some(c => c.ucc === u)) UI.clientSel.delete(u);
+  const sel = UI.clientSel, allOn = rows.length && rows.every(c => sel.has(c.ucc));
+  const bulk = canTag && sel.size ? `<div class="bulkbar"><b>${sel.size} selected</b><input class="in" id="bulk-tag" list="tag-list" placeholder="Group, e.g. HNI"><datalist id="tag-list">${d.tags.map(t => `<option value="${esc(t.tag)}">`).join('')}</datalist><button class="btn sm pri" data-act="bulkTag" data-id="add">Add to group</button><button class="btn sm" data-act="bulkTag" data-id="remove">Remove from group</button><button class="btn sm" data-act="bulkClear">Clear selection</button></div>` : '';
+  return bulk + tbl([...(canTag ? [[`<input type="checkbox" data-act="selAll" aria-label="Select all shown" ${allOn ? 'checked' : ''}>`]] : []), ['UCC'], ['Name'], ['Groups'], ['Type'], ['PAN'], ['Segments'], ['Ledger (₹)', 'r'], ['RMS'], ['Stage'], ['']], rows.map(c => `<tr class="${sel.has(c.ucc) ? 'sel' : ''}">${canTag ? `<td><input type="checkbox" data-act="selOne" data-id="${c.ucc}" aria-label="Select ${c.ucc}" ${sel.has(c.ucc) ? 'checked' : ''}></td>` : ''}<td class="n"><button class="linkish" data-act="client" data-id="${c.ucc}">${c.ucc}</button></td><td>${esc(c.name)}</td><td>${(c.tags || []).map(t => `<button class="gtag" data-act="filterTag" data-id="${esc(t)}">${esc(t)}</button>`).join(' ') || '<span class="dim">—</span>'}</td><td>${esc(c.type)}</td><td class="n">${esc(c.pan)}</td><td>${(c.segments || []).map(s => `<span class="tag">${s}</span>`).join(' ')}</td><td class="r ${sgn(c.funds)}">${c.status === 'Active' ? inr(c.funds) : '—'}</td><td>${c.risk_status ? pill(c.risk_status, st[c.risk_status]) : ''}${c.blocked ? ' ' + pill('Blocked', 'bad') : ''}</td><td>${pill(c.status, c.status === 'Active' ? 'good' : 'acc')}</td><td>${c.status !== 'Active' && (c.status === 'UCC upload' ? has('Ops checker') : has('Ops maker', 'Ops checker')) ? `<button class="btn sm" data-act="advance" data-id="${c.ucc}">${c.status === 'UCC upload' ? 'Activate' : 'Advance'}</button>` : ''}</td></tr>`), { tall: true, empty: 'No clients match' });
 };
 async function clientDrawer(ucc) {
   modal(`<div class="bd"><p class="loading">Loading ${esc(ucc)}…</p></div>`, true);
-  let d; try { d = await get(`/v1/clients/${encodeURIComponent(ucc)}?date=${S.date}`); } catch (e) { modal(mhd('Client', '') + `<div class="bd">${errHTML(e)}</div>`, true); return; }
+  let d, bp; try { [d, bp] = await Promise.all([get(`/v1/clients/${encodeURIComponent(ucc)}?date=${S.date}`), get(`/v1/brokerage/client/${encodeURIComponent(ucc)}?date=${S.date}`).catch(() => null)]); } catch (e) { modal(mhd('Client', '') + `<div class="bd">${errHTML(e)}</div>`, true); return; }
   const c = d.client, r = d.risk, st = { OK: 'good', Watch: 'warn', Breach: 'bad', Debit: 'warn' };
   const lines = d.statement.lines.slice(-12);
   const h3 = t => `<h3 style="margin:0 0 8px;font-family:var(--f-cond);font-size:15px">${t}</h3>`;
   modal(mhd(esc(c.name), `${c.ucc} · ${esc(c.type)} · ${esc(c.city)}`) + `<div class="bd">
     <div class="tools">${pill(c.status, c.status === 'Active' ? 'good' : 'acc')}${r ? pill('RMS: ' + r.status, st[r.status]) : ''}${c.blocked ? pill('Blocked: ' + (c.blocked_reason || ''), 'bad') : ''}${(c.segments || []).map(s => `<span class="tag">${esc(d.segment_names[s] || s)}</span>`).join('')}</div>
+    <div class="grouprow"><div><small class="dim">Groups</small><div class="tools">${(c.tags || []).map(t => `<span class="gtag">${esc(t)}</span>`).join('') || '<span class="dim">None</span>'}${has('Ops maker', 'Ops checker') ? `<button class="btn sm" data-act="editTags" data-id="${c.ucc}">Edit groups</button>` : ''}</div></div>
+    ${bp ? `<div><small class="dim">Brokerage plan</small><div><b>${esc(bp.plan.plan_name)}</b> <span class="dim">· ${esc(bp.plan.source)}${bp.plan.from ? ' since ' + fmtDate(bp.plan.from) : ''}</span> <button class="linkish" data-act="go" data-id="brokerage">Plans</button></div><div class="dim small">${['CM-DEL', 'CM-INTRA', 'FO-FUT', 'FO-OPT'].map(k => `${{ 'CM-DEL': 'Delivery', 'CM-INTRA': 'Intraday', 'FO-FUT': 'Futures', 'FO-OPT': 'Options' }[k]}: ${esc(bp.rates[k] || '—')}`).join(' · ')}</div></div>` : ''}</div>
     ${r ? `<div class="kv"><div><small>Ledger</small><b class="mono ${sgn(r.funds)}">${inr(r.funds, 2)}</b></div><div><small>UPI blocked</small><b class="mono">${inr(r.upi)}</b></div><div><small>Collateral (usable)</small><b class="mono">${inr(r.collateral_usable)}</b></div><div><small>Margin required</small><b class="mono">${inr(r.required)}</b></div><div><small>Free</small><b class="mono ${sgn(r.free)}">${inr(r.free)}</b></div><div><small>OMS limit</small><b class="mono">${inr(r.limit)}</b></div></div>` : '<div class="note">Not active yet. Limits and the ledger start at activation.</div>'}
     <div class="kv"><div><small>PAN</small><b class="mono">${esc(c.pan)}</b></div><div><small>Bank</small><b>${esc(c.bank.bank)} · ${esc(c.bank.account)}</b></div><div><small>IFSC</small><b class="mono">${esc(c.bank.ifsc)}</b></div><div><small>Demat</small><b class="mono">${esc(c.demat.depository)} ${esc(c.demat.id)}</b></div><div><small>Income</small><b>${esc(c.income)}</b></div><div><small>RAS</small><b>${esc(c.ras)}</b></div><div><small>Nominee</small><b>${esc(c.nominee)}${c.nominee_name ? ' · ' + esc(c.nominee_name) : ''}</b></div><div><small>KYC date</small><b>${fmtDate(c.kyc_date)}</b></div><div><small>Email</small><b>${esc(c.email)}</b></div><div><small>Last trade</small><b>${fmtDate(c.last_trade) || '—'}</b></div></div>
     ${d.positions.length ? `<div>${h3('Open positions')}${tbl([['Contract'], ['Net qty', 'r'], ['Avg', 'r'], ['LTP', 'r'], ['MTM', 'r'], ['Margin', 'r']], d.positions.map(p => `<tr><td>${esc(p.name)}</td><td class="r ${sgn(p.qty)}">${nf(p.qty)}</td><td class="r">${nf(p.avg_price, 2)}</td><td class="r">${nf(p.ltp, 2)}</td><td class="r ${sgn(p.mtm)}">${nf(p.mtm, 0)}</td><td class="r">${inr(p.margin)}</td></tr>`))}</div>` : ''}
@@ -545,8 +595,8 @@ V.collateral = {
 /* ---------- ledger ---------- */
 V.ledger = {
   load: async () => {
-    const [tb, funds, clients] = await Promise.all([get(`/v1/ledger/trial-balance?as_of=${S.date}`), get(`/v1/funds?date=${S.date}`), get(`/v1/clients?date=${S.date}`)]);
-    const act = clients.filter(c => c.status === 'Active');
+    const [tb, funds] = await Promise.all([get(`/v1/ledger/trial-balance?as_of=${S.date}`), get(`/v1/funds?date=${S.date}`), clientCache()]);
+    const act = CL.rows.filter(c => c.status === 'Active');
     if (!UI.ledgerU || !act.some(c => c.ucc === UI.ledgerU)) UI.ledgerU = act[0]?.ucc || '';
     const stmt = UI.ledgerU ? await get(`/v1/ledger/statement?ucc=${encodeURIComponent(UI.ledgerU)}&to=${S.date}`) : null;
     return { tb, funds, clients: act, stmt };
@@ -558,7 +608,7 @@ V.ledger = {
     return ph('Ledger', 'Double-entry, append-only journal. Every bill, receipt, payout and charge is an entry; corrections are reversing entries. The database rejects unbalanced entries and edits to history.',
       `<button class="btn" data-act="dl" data-id="/v1/reports/bills/download?date=${S.date}" data-name="bills_${S.date}.csv">Bills register</button>${canPost ? '<button class="btn pri" data-act="journal">Post journal entry</button>' : ''}`) +
     `<div class="kpis">${kpi('Client credit balances', cmp(cr), 'owed to clients')}${kpi('Client debit balances', cmp(dr), 'receivable', 'warn')}${kpi('Client bank', cmp(f.client_bank), 'client account')}${kpi('With clearing corporations', cmp(f.with_cc), 'upstreamed collateral')}${kpi('Suspense', cmp(f.suspense), 'unmatched receipts', num(f.suspense) ? 'warn' : '')}${kpi('Segregation cover', num(f.cover).toFixed(2) + '×', f.ok ? 'client money fully covered' : 'SHORTFALL: escalate', f.ok ? 'good' : 'bad')}</div>
-    <div class="grid g21"><div class="panel"><div class="hd"><div class="tools"><label class="dim" for="ledgerU" style="font-size:12px">Client</label><select class="in" id="ledgerU">${d.clients.map(c => `<option value="${c.ucc}" ${UI.ledgerU === c.ucc ? 'selected' : ''}>${c.ucc} · ${esc(c.name)}</option>`).join('')}</select></div>${d.stmt ? `<small>Closing ${drcr(d.stmt.closing)}</small>` : ''}</div>
+    <div class="grid g21"><div class="panel"><div class="hd"><div class="tools"><label class="dim" for="ledgerU-q" style="font-size:12px">Client</label>${cpick('ledgerU', UI.ledgerU, { on: v => { if (v) { UI.ledgerU = v; render({ keep: true }); } } })}</div>${d.stmt ? `<small>Closing ${drcr(d.stmt.closing)}</small>` : ''}</div>
       ${tbl([['Date'], ['Particulars'], ['Debit', 'r'], ['Credit', 'r'], ['Balance', 'r']], (d.stmt?.lines || []).map(l => `<tr><td class="n dim">${fmtDate(l.value_date)}</td><td class="wrap">${esc(l.memo || '')}<div class="dim" style="font-size:11.5px">${esc(l.narration)} · <span class="mono">${esc(l.entry_id)}</span>${canRev && !/^Reversal/.test(l.narration) ? ` · <button class="linkish" data-act="reverse" data-id="${esc(l.entry_id)}">Reverse</button>` : ''}</div></td><td class="r">${num(l.debit) ? nf(l.debit, 2) : ''}</td><td class="r">${num(l.credit) ? nf(l.credit, 2) : ''}</td><td class="r ${num(l.balance) > 0 ? 'neg' : ''}">${drcr(l.balance)}</td></tr>`), { tall: true, empty: 'No entries' })}</div>
     <div class="panel"><div class="hd"><h3>Trial balance</h3>${tb.rows.length ? (tb.balanced ? pill('Debits equal credits', 'good') : pill('Does not balance', 'bad')) : ''}</div>
       ${tbl([['Head'], ['Debit (₹)', 'r'], ['Credit (₹)', 'r']], [['Clients · debit balances', g('CLIENT:'), 1], ['Clients · credit balances', g('CLIENT:'), -1], ['Bank · client account', g('BANK:CLIENT')], ['Clearing corporations', g('CC:')], ['Brokerage income', g('INCOME:')], ['Exchange charges payable', g('PAYABLE:EXCH_TXN')], ['STT / CTT payable', g('PAYABLE:STT')], ['Stamp duty payable', g('PAYABLE:STAMP')], ['SEBI fee payable', g('PAYABLE:SEBI_FEE')], ['GST payable', g('PAYABLE:GST')], ['Margin penalties payable', g('PAYABLE:CC_PENALTY')], ['Suspense · bank', g('SUSPENSE:')], ['Opening equity', g('EQUITY:')]].map(([n, rs, side]) => { const D = sum(rs, r => side === -1 ? 0 : num(r.debit)), Cc = sum(rs, r => side === 1 ? 0 : num(r.credit)); return (D || Cc) ? `<tr><td>${n}</td><td class="r">${D ? nf(D, 2) : '—'}</td><td class="r">${Cc ? nf(Cc, 2) : '—'}</td></tr>` : ''; }).filter(Boolean), { empty: 'No entries yet', foot: tb.rows.length ? `<tfoot><tr><td>Total</td><td class="r">${nf(tb.total_debit, 2)}</td><td class="r">${nf(tb.total_credit, 2)}</td></tr></tfoot>` : '' })}
@@ -597,25 +647,99 @@ P['ras-t'] = d => {
 
 /* ---------- charges ---------- */
 V.charges = {
-  load: async () => ({}),
-  html: () => { const c = UI.calc; return ph('Charges calculator', 'Charge breakdown for one order from the server’s active rate schedule, the same calculation billing uses.') + `<div class="grid g2"><div class="panel"><div class="hd"><h3>Order</h3></div><div class="bd"><div class="form">
+  load: async () => { await clientCache(); return {}; },
+  html: () => { const c = UI.calc; return ph('Charges calculator', 'Charge breakdown for one order, the same calculation billing uses: statutory charges from the rate schedule, brokerage from the client’s plan (or the schedule when no client is chosen).') + `<div class="grid g2"><div class="panel"><div class="hd"><h3>Order</h3></div><div class="bd"><div class="form">
+    <div class="fld full"><label for="calc-ucc-q">Client (optional)</label>${cpick('calc-ucc', c.ucc || '', { none: 'No client: firm charge schedule', on: v => { UI.calc.ucc = v; calc(); } })}</div>
     <div class="fld full"><label for="cb">Product</label><select class="in" id="cb" data-calc="bucket">${[['CM-DEL', 'Equity delivery'], ['CM-INTRA', 'Equity intraday'], ['FO-FUT', 'Equity futures'], ['FO-OPT', 'Equity options (premium)'], ['CD-FUT', 'Currency futures'], ['CD-OPT', 'Currency options'], ['COM-FUT', 'Commodity futures'], ['COM-OPT', 'Commodity options']].map(([k, l]) => `<option value="${k}" ${c.bucket === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
     <div class="fld"><label for="cx">Exchange</label><select class="in" id="cx" data-calc="exchange">${['NSE', 'BSE', 'MCX'].map(x => `<option ${c.exchange === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
     <div class="fld"><label for="cs">Side</label><select class="in" id="cs" data-calc="side"><option value="B" ${c.side === 'B' ? 'selected' : ''}>Buy</option><option value="S" ${c.side === 'S' ? 'selected' : ''}>Sell</option></select></div>
     <div class="fld"><label for="cq">Quantity</label><input class="in" id="cq" type="number" min="1" data-calc="qty" value="${esc(c.qty)}"></div>
     <div class="fld"><label for="cp">Price (₹)</label><input class="in" id="cp" inputmode="decimal" data-calc="price" value="${esc(c.price)}"></div>
+    ${/OPT|FUT/.test(c.bucket) ? `<div class="fld"><label for="cl">Lot size</label><input class="in" id="cl" type="number" min="1" data-calc="lot" value="${esc(c.lot || 1)}"></div>` : ''}
   </div></div></div><div class="panel"><div class="hd"><h3>Breakdown</h3><small>${S.me?.sample_rates ? 'Sample rates' : esc(S.me?.schedule || '')}</small></div><div id="calc-out"><p class="loading" style="padding:14px">Calculating…</p></div></div></div>`; }
 };
 let calcT;
 async function calc() {
   const c = UI.calc, out = $('calc-out'); if (!out) return;
   try {
-    const r = await post('/v1/charges/quote', { bucket: c.bucket, exchange: c.exchange, side: c.side, qty: parseInt(c.qty, 10) || 0, price: String(c.price || '0'), date: S.date });
+    const r = await post('/v1/charges/quote', { bucket: c.bucket, exchange: c.exchange, side: c.side, qty: parseInt(c.qty, 10) || 0, price: String(c.price || '0'), date: S.date, ucc: c.ucc || '', lot: parseInt(c.lot, 10) || 1 });
     const b = r.breakdown, total = num(b.total), v = num(b.turnover);
     out.innerHTML = tbl([['Component'], ['₹', 'r']], [['Turnover', b.turnover], ['Brokerage', b.brokerage], ['STT / CTT', b.stt], ['Exchange transaction charge', b.exchange_txn], ['SEBI turnover fee', b.sebi_fee], ['Stamp duty', b.stamp_duty], ['GST (18%)', b.gst]].map(x => `<tr><td>${x[0]}</td><td class="r">${nf(x[1], 2)}</td></tr>`),
       { foot: `<tfoot><tr><td>Total charges</td><td class="r">${nf(total, 2)}</td></tr><tr><td>${c.side === 'B' ? 'Net payable' : 'Net receivable'}</td><td class="r">${nf(c.side === 'B' ? v + total : v - total, 2)}</td></tr><tr><td>Breakeven move per unit</td><td class="r">${nf(total * 2 / Math.max(1, +c.qty), 4)}</td></tr></tfoot>` }) +
-      `<div class="bd"><span class="dim" style="font-size:12px">Rule ${esc(b.rule)}</span></div>`;
+      `<div class="bd">${r.plan ? `<div><b>Plan: ${esc(r.plan)}</b></div>` : (c.ucc ? '<div class="dim small">No plan sets this product for the client; the schedule applies.</div>' : '')}<span class="dim" style="font-size:12px">Rule ${esc(b.rule)}</span></div>`;
   } catch (e) { out.innerHTML = `<div class="bd">${errHTML(e)}</div>`; }
+}
+
+/* ---------- brokerage plans ---------- */
+const MODES = [['inherit', 'Use the charge schedule'], ['pct', '% of turnover'], ['flat', '₹ per order'], ['lower_of', 'Lower of ₹ per order or %'], ['per_lot', '₹ per lot'], ['zero', 'Free']];
+V.brokerage = {
+  load: async () => { const [d] = await Promise.all([get(`/v1/brokerage?date=${S.date}`), clientCache()]); return d; },
+  html: d => {
+    const can = has('Ops checker'), plan = id => d.plans.find(p => p.id === id);
+    const def = d.current.default, groups = d.tags.map(t => ({ ...t, cur: d.current['tag:' + t.tag] }));
+    const overrides = Object.entries(d.current).filter(([k, v]) => k.startsWith('ucc:') && v.plan).map(([k, v]) => ({ ucc: k.slice(4), ...v }));
+    const onSched = d.effective.filter(e => !e.plan).length;
+    const sched = b => { const r = d.schedule.filter(x => x.bucket === b); return r.length ? r.map(x => (x.exchange === '*' ? '' : x.exchange + ': ') + x.describe).join('; ') : '—'; };
+    return ph('Brokerage plans', 'Each client pays brokerage from their own plan if one is set, else from their group’s plan (the most recently assigned, if they are in several groups), else the firm default, else the charge schedule. Brokerage is charged per executed order, from the effective date; days already billed change only if rebilled. Statutory charges always come from the schedule.',
+      can ? '<button class="btn" data-act="planNew">New plan</button><button class="btn pri" data-act="assign">Assign a plan</button>' : '') +
+    `<div class="kpis">${kpi('Plans', d.plans.length, 'with dated versions')}${kpi('Firm default', def?.plan ? esc(plan(def.plan)?.name || def.plan) : 'Schedule', def?.from ? 'since ' + fmtDate(def.from) : 'no default plan')}${kpi('Groups on a plan', groups.filter(g => g.cur?.plan).length, d.tags.length + ' groups in use')}${kpi('Client overrides', overrides.length, 'set per client')}${kpi('On the schedule', onSched, 'no plan applies', onSched ? 'warn' : '')}</div>
+    <div class="plans">${d.plans.map(p => `<div class="panel plan"><div class="hd"><div><h3>${esc(p.name)}</h3><small>${esc(p.note || '')}</small></div><div class="split"><span class="pill acc">${p.clients} client${p.clients === 1 ? '' : 's'}</span>${can ? `<button class="btn sm" data-act="planEdit" data-id="${esc(p.id)}">Edit rates</button>` : ''}</div></div>
+      ${tbl([['Product'], ['Brokerage']], d.products.map(x => `<tr><td>${esc(x.name)}</td><td>${p.describe[x.bucket] ? esc(p.describe[x.bucket]) : `<span class="dim">Schedule: ${esc(sched(x.bucket))}</span>`}</td></tr>`))}
+      <div class="bd small dim">${p.current ? `In force since ${fmtDate(p.current.from)} · set by ${esc(p.current.by)}` : 'Not yet in force'}${p.upcoming ? ` · <b>new rates from ${fmtDate(p.upcoming.from)}</b>` : ''} · ${p.versions.length} version${p.versions.length === 1 ? '' : 's'}</div></div>`).join('') || '<div class="panel"><div class="empty">No plans yet. Create one, then assign it to the firm, a group or a client.</div></div>'}</div>
+    <div class="grid g2">
+      <div class="panel"><div class="hd"><h3>Firm default and groups</h3><small>Plan in force on ${fmtDate(S.date)}</small></div>${tbl([['Applies to'], ['Clients', 'r'], ['Plan'], ['Since'], ['']],
+        [`<tr><td><b>Firm default</b></td><td class="r">${d.effective.length}</td><td>${def?.plan ? esc(plan(def.plan)?.name || def.plan) : '<span class="dim">Charge schedule</span>'}</td><td class="n dim">${def ? fmtDate(def.from) : ''}</td><td>${can ? `<button class="btn sm" data-act="assign" data-id="default">Change</button>` : ''}</td></tr>`].concat(groups.map(g => `<tr><td><button class="gtag" data-act="filterTag" data-id="${esc(g.tag)}">${esc(g.tag)}</button></td><td class="r">${g.clients}</td><td>${g.cur?.plan ? esc(plan(g.cur.plan)?.name || g.cur.plan) : '<span class="dim">Firm default</span>'}</td><td class="n dim">${g.cur?.plan ? fmtDate(g.cur.from) : ''}</td><td><div class="split">${can ? `<button class="btn sm" data-act="assign" data-id="tag:${esc(g.tag)}">${g.cur?.plan ? 'Change' : 'Set plan'}</button>${g.cur?.plan ? `<button class="btn sm" data-act="unassign" data-id="tag:${esc(g.tag)}">Remove</button>` : ''}` : ''}</div></td></tr>`)), { empty: 'No groups' })}</div>
+      <div class="panel"><div class="hd"><h3>Client overrides</h3>${can ? '<button class="btn sm" data-act="assign" data-id="ucc:">Set for a client</button>' : ''}</div>${tbl([['Client'], ['Plan'], ['Since'], ['']], overrides.map(o => `<tr><td><button class="linkish mono" data-act="client" data-id="${o.ucc}">${o.ucc}</button> <span class="dim">${esc(CL.rows.find(c => c.ucc === o.ucc)?.name || '')}</span></td><td>${esc(plan(o.plan)?.name || o.plan)}</td><td class="n dim">${fmtDate(o.from)}</td><td>${can ? `<div class="split"><button class="btn sm" data-act="assign" data-id="ucc:${o.ucc}">Change</button><button class="btn sm" data-act="unassign" data-id="ucc:${o.ucc}">Remove</button></div>` : ''}</td></tr>`), { empty: 'No client-specific plans. Clients follow their group or the firm default.' })}</div>
+    </div>
+    <div class="panel"><div class="hd"><div class="tools"><h3 style="margin-right:8px">Who pays what</h3><input class="in" data-ui="bkQ" data-part="bk-t" placeholder="Filter by name, UCC or group" value="${esc(UI.bkQ)}"><select class="in" id="bkPlan"><option value="">All plans</option>${d.plans.map(p => `<option value="${esc(p.id)}" ${UI.bkPlan === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}<option value="-" ${UI.bkPlan === '-' ? 'selected' : ''}>Charge schedule</option></select></div><small>${d.effective.length} active clients on ${fmtDate(S.date)}</small></div><div id="bk-t">${P['bk-t'](d)}</div></div>
+    <div class="panel"><div class="hd"><h3>Change history</h3><small>Every assignment is kept; the latest one on or before a date applies</small></div>${tbl([['ID'], ['Applies to'], ['Plan'], ['From'], ['By'], ['At']], d.assignments.slice().reverse().map(a => `<tr><td class="n dim">${a.id}</td><td>${a.target === 'default' ? 'Firm default' : a.target.startsWith('tag:') ? 'Group ' + esc(a.target.slice(4)) : 'Client ' + esc(a.target.slice(4))}</td><td>${a.plan ? esc(plan(a.plan)?.name || a.plan) : '<span class="dim">Removed</span>'}</td><td class="n">${fmtDate(a.from)}</td><td>${esc(a.by)}</td><td class="n dim">${esc(a.at)}</td></tr>`), { tall: true, empty: 'No assignments yet' })}</div>`;
+  }
+};
+P['bk-t'] = d => {
+  const q = UI.bkQ.trim().toLowerCase();
+  const rows = d.effective.filter(e => (!q || (e.ucc + ' ' + e.name + ' ' + e.tags.join(' ')).toLowerCase().includes(q)) && (!UI.bkPlan || (UI.bkPlan === '-' ? !e.plan : e.plan === UI.bkPlan)));
+  return tbl([['Client'], ['Groups'], ['Plan'], ['Because'], ['Since']], rows.map(e => `<tr><td><button class="linkish mono" data-act="client" data-id="${e.ucc}">${e.ucc}</button> ${esc(e.name)}</td><td>${e.tags.map(t => `<span class="gtag">${esc(t)}</span>`).join(' ') || '<span class="dim">—</span>'}</td><td><b style="font-weight:600">${esc(e.plan_name)}</b></td><td>${esc(e.source)}</td><td class="n dim">${e.from ? fmtDate(e.from) : ''}</td></tr>`), { tall: true, empty: 'No clients match' });
+};
+function planModal(id) {
+  const d = C.brokerage, p = d.plans.find(x => x.id === id);
+  const cur = p ? (p.upcoming && !p.current ? p.upcoming : p.current) : null, rules = cur?.rules || {};
+  const row = x => { const r = rules[x.bucket] || { mode: 'inherit' }, deriv = !x.bucket.startsWith('CM');
+    return `<tr data-b="${x.bucket}"><td>${esc(x.name)}</td><td><select class="in sm pm-mode">${MODES.filter(m => deriv || m[0] !== 'per_lot').map(([k, l]) => `<option value="${k}" ${r.mode === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td>${['pct', 'flat', 'per_lot', 'min', 'max'].map(f => `<td><input class="in sm pm-${f}" inputmode="decimal" value="${esc(r[f] && r[f] !== '0' ? r[f] : '')}" aria-label="${f}"></td>`).join('')}</tr>`; };
+  modal(mhd(p ? 'Edit plan · ' + esc(p.name) : 'New brokerage plan', 'Rates apply to orders from the effective date. Earlier versions stay on record; a version on the same date is replaced.') + `<form class="bd" id="planf">
+    <div class="form"><div class="fld"><label for="pm-name">Name</label><input class="in" id="pm-name" value="${esc(p?.name || '')}" required placeholder="e.g. Active trader"></div><div class="fld"><label for="pm-from">Effective from</label><input class="in" type="date" id="pm-from" value="${esc(p ? S.date : '2026-04-01')}" required></div>
+    <div class="fld full"><label for="pm-note">Note</label><input class="in" id="pm-note" value="${esc(p?.note || '')}" placeholder="Who this plan is for"></div></div>
+    <div class="tw"><table class="tbl pmt"><thead><tr><th>Product</th><th>Charge</th><th class="r">%</th><th class="r">₹ / order</th><th class="r">₹ / lot</th><th class="r">Min ₹</th><th class="r">Max ₹</th></tr></thead><tbody>${d.products.map(row).join('')}</tbody></table></div>
+    <p class="dim small">Fill only what the charge uses: % for “% of turnover”; ₹/order for flat; both for “lower of”; ₹/lot for per lot. Min and max bound each order. Cash-market brokerage never exceeds 2.5% of the order value.</p>
+    <div id="pm-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Save plan</button></div></form>`);
+  $('planf').onsubmit = async e => {
+    e.preventDefault();
+    const rules = {};
+    document.querySelectorAll('.pmt tbody tr').forEach(tr => { const m = tr.querySelector('.pm-mode').value; if (m === 'inherit') return; const r = { mode: m };
+      ['pct', 'flat', 'per_lot', 'min', 'max'].forEach(f => { const v = tr.querySelector('.pm-' + f).value.trim(); if (v) r[f] = v; }); rules[tr.dataset.b] = r; });
+    try { await post('/v1/brokerage/plans', { id: id || '', name: $('pm-name').value, note: $('pm-note').value, from: $('pm-from').value, rules }); closeModal(); toast('Plan saved'); render({ keep: true }); }
+    catch (err) { $('pm-err').innerHTML = errHTML(err); }
+  };
+}
+function assignModal(target) {
+  const d = C.brokerage; let kind = target === 'default' ? 'default' : target.startsWith('tag:') ? 'tag' : target.startsWith('ucc:') ? 'ucc' : 'tag';
+  const tagV = target.startsWith('tag:') ? target.slice(4) : '', uccV = target.startsWith('ucc:') ? target.slice(4) : '';
+  const cur = d.current[target]?.plan || '';
+  modal(mhd('Assign a brokerage plan', 'Applies from the effective date. Earlier bills keep their brokerage unless the day is rebilled.') + `<form class="bd" id="asf">
+    <div class="fld"><label>Apply to</label><div class="seg" id="as-kind">${[['default', 'Firm default'], ['tag', 'A group'], ['ucc', 'A client']].map(([k, l]) => `<button type="button" class="${kind === k ? 'on' : ''}" data-k="${k}">${l}</button>`).join('')}</div></div>
+    <div class="fld as-tag" ${kind === 'tag' ? '' : 'hidden'}><label for="as-tag">Group</label><input class="in" id="as-tag" list="as-tags" value="${esc(tagV)}" placeholder="e.g. HNI"><datalist id="as-tags">${d.tags.map(t => `<option value="${esc(t.tag)}">${t.clients} clients</option>`).join('')}</datalist></div>
+    <div class="fld as-ucc" ${kind === 'ucc' ? '' : 'hidden'}><label for="as-ucc-q">Client</label>${cpick('as-ucc', uccV)}</div>
+    <div class="form"><div class="fld"><label for="as-plan">Plan</label><select class="in" id="as-plan">${d.plans.map(p => `<option value="${esc(p.id)}" ${cur === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>
+    <div class="fld"><label for="as-from">Effective from</label><input class="in" type="date" id="as-from" value="${esc(S.date)}"></div></div>
+    <div id="as-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Assign</button></div></form>`);
+  $('as-kind').onclick = e => { const b = e.target.closest('button'); if (!b) return; kind = b.dataset.k; $('as-kind').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    document.querySelector('.as-tag').hidden = kind !== 'tag'; document.querySelector('.as-ucc').hidden = kind !== 'ucc'; };
+  $('asf').onsubmit = async e => {
+    e.preventDefault();
+    const t = kind === 'default' ? 'default' : kind === 'tag' ? 'tag:' + $('as-tag').value.trim() : 'ucc:' + $('as-ucc').value;
+    if (t === 'tag:' || t === 'ucc:') { $('as-err').innerHTML = errHTML({ message: kind === 'tag' ? 'Choose the group' : 'Choose the client' }); return; }
+    try { await post('/v1/brokerage/assignments', { target: t, plan: $('as-plan').value, from: $('as-from').value }); closeModal(); toast('Plan assigned'); render({ keep: true }); }
+    catch (err) { $('as-err').innerHTML = errHTML(err); }
+  };
 }
 
 /* ---------- reports ---------- */
@@ -668,21 +792,21 @@ function crRange(preset, date) {
 }
 V.statements = {
   load: async () => {
-    const [defs, clients] = await Promise.all([get('/v1/client-reports'), get(`/v1/clients?date=${S.date}`)]);
-    const act = clients.filter(c => c.status === 'Active');
-    if (!UI.cr.ucc || (UI.cr.ucc !== 'ALL' && !act.some(c => c.ucc === UI.cr.ucc))) UI.cr.ucc = act[0]?.ucc || '';
+    const [defs] = await Promise.all([get('/v1/client-reports'), clientCache()]);
+    const act = CL.rows.filter(c => c.status === 'Active');
+    if (!UI.cr.ucc || (UI.cr.ucc !== 'ALL' && !UI.cr.ucc.startsWith('TAG:') && !act.some(c => c.ucc === UI.cr.ucc))) UI.cr.ucc = act[0]?.ucc || '';
     return { defs, clients: act };
   },
   html: d => {
     const cr = UI.cr, def = d.defs.find(x => x.kind === cr.kind) || d.defs[0];
-    if (cr.ucc === 'ALL' && !def.all_ucc) cr.ucc = d.clients[0]?.ucc || '';
+    if ((cr.ucc === 'ALL' || cr.ucc.startsWith('TAG:')) && !def.all_ucc) cr.ucc = d.clients[0]?.ucc || '';
     const [from, to] = def.range ? crRange(cr.preset, S.date) : ['', cr.preset === 'custom' && cr.to ? cr.to : S.date];
     cr.from = from; cr.to = to;
     const presets = [['day', 'Today'], ['month', 'This month'], ['q', 'This quarter'], ['fy', 'This FY'], ['lastfy', 'Last FY'], ['custom', 'Custom']];
     return ph('Client reports', 'Statements and reports for any client and period: on screen, as a printable page (save as PDF), or as CSV. Every number comes from the ledger, trade records and holdings; every print and download is in the audit trail.') +
     `<div class="rtypes">${d.defs.map(x => `<button class="${x.kind === def.kind ? 'on' : ''}" data-act="crKind" data-id="${x.kind}"><b>${esc(x.name)}</b><span>${esc(x.about)}</span></button>`).join('')}</div>
     <div class="panel"><div class="bd"><div class="crform">
-      <div class="fld"><label for="cr-ucc">Client</label><select class="in" id="cr-ucc">${def.all_ucc ? `<option value="ALL" ${cr.ucc === 'ALL' ? 'selected' : ''}>All clients</option>` : ''}${d.clients.map(c => `<option value="${c.ucc}" ${cr.ucc === c.ucc ? 'selected' : ''}>${c.ucc} · ${esc(c.name)}</option>`).join('')}</select></div>
+      <div class="fld cr-client"><label for="cr-ucc-q">Client${def.all_ucc ? ' or group' : ''}</label>${cpick('cr-ucc', cr.ucc, { all: def.all_ucc, groups: def.all_ucc, placeholder: def.all_ucc ? 'Search name, UCC, PAN or group' : undefined, on: v => { UI.cr.ucc = v; } })}</div>
       ${def.range ? `<div class="fld"><label>Period</label><div class="seg">${presets.map(([k, l]) => `<button class="${cr.preset === k ? 'on' : ''}" data-act="crPreset" data-id="${k}">${l}</button>`).join('')}</div></div>
       <div class="fld"><label for="cr-from">From</label><input class="in" type="date" id="cr-from" value="${from}"></div><div class="fld"><label for="cr-to">To</label><input class="in" type="date" id="cr-to" value="${to}"></div>`
       : `<div class="fld"><label for="cr-to">As on</label><input class="in" type="date" id="cr-to" value="${to}"></div>`}
@@ -709,7 +833,7 @@ function crOut() {
   if (UI.crErr) return errHTML(UI.crErr);
   const r = UI.crRes; if (r) r.sections = r.sections || []; if (!r) return '<div class="panel"><div class="empty">Choose a report, client and period, then View report.</div></div>';
   const sv = s => { if (s.type === 'money') return inr(s.value, 2); if (s.type === 'drcr') return '₹' + drcr(s.value); return nf(s.value); };
-  return `<div class="panel"><div class="hd"><div><h3>${esc(r.title)} · ${esc(r.name)}${r.ucc !== 'ALL' ? ` <span class="mono dim">${esc(r.ucc)}</span>` : ''}</h3></div><small>${esc(r.period)} · generated ${esc(r.generated)}</small></div>
+  return `<div class="panel"><div class="hd"><div><h3>${esc(r.title)} · ${esc(r.name)}${r.ucc !== 'ALL' && !r.ucc.startsWith('TAG:') ? ` <span class="mono dim">${esc(r.ucc)}</span>` : ''}</h3></div><small>${esc(r.period)} · generated ${esc(r.generated)}</small></div>
     <div class="bd"><div class="kpis" style="margin:0">${(r.summary || []).map(s => kpi(esc(s.label), sv(s), '', s.tone === 'good' ? 'good' : s.tone === 'bad' ? 'bad' : '')).join('')}</div></div></div>` +
     r.sections.map(sec => ({ ...sec, rows: sec.rows || [], columns: sec.columns || [] })).map(sec => `<div class="panel"><div class="hd"><h3>${esc(sec.title)}</h3><small>${sec.rows.length} row${sec.rows.length === 1 ? '' : 's'}</small></div>
       ${tbl(sec.columns.map(c => [esc(c.label), crR(c.type)]), sec.rows.map(row => `<tr>${row.map((v, i) => `<td class="${crR(sec.columns[i]?.type)}${sec.columns[i]?.type === 'text' && v.length > 40 ? ' wrap' : ''}">${crCell(sec.columns[i]?.type, v)}</td>`).join('')}</tr>`),
@@ -793,6 +917,34 @@ async function act(fn, okMsg, reload = true) {
   catch (e) { toast(e.message); throw e; }
 }
 const A = {
+  cpPick: (id, el) => cpSet(id, el.dataset.v),
+  selOne: (u, el) => { el.checked ? UI.clientSel.add(u) : UI.clientSel.delete(u); rerenderPart('clients-t'); },
+  selAll: (id, el) => { const on = el.checked; document.querySelectorAll('[data-act=selOne]').forEach(x => on ? UI.clientSel.add(x.dataset.id) : UI.clientSel.delete(x.dataset.id)); rerenderPart('clients-t'); },
+  bulkClear: () => { UI.clientSel.clear(); rerenderPart('clients-t'); },
+  filterTag: t => { UI.clientTag = t; if (S.view !== 'clients') { A.go('clients'); return; } closeModal(); render({ keep: true }); },
+  bulkTag: async op => {
+    const t = ($('bulk-tag')?.value || '').trim(); if (!t) { toast('Type a group name'); $('bulk-tag')?.focus(); return; }
+    const uccs = [...UI.clientSel];
+    try { const r = await post('/v1/clients/tags', { uccs, add: op === 'add' ? [t] : [], remove: op === 'remove' ? [t] : [] }); toast(`${r.changed} client${r.changed === 1 ? '' : 's'} ${op === 'add' ? 'added to' : 'removed from'} ${t.toUpperCase()}`); UI.clientSel.clear(); render({ keep: true }); }
+    catch (e) { toast(e.message); }
+  },
+  editTags: async ucc => {
+    const [c] = await Promise.all([get(`/v1/clients/${encodeURIComponent(ucc)}?date=${S.date}`), clientCache(true)]);
+    const cur = c.client.tags || [];
+    confirmModal('Groups · ' + ucc, esc(c.client.name), `<div class="fld"><label for="tg-in">Groups, separated by commas</label><input class="in" id="tg-in" list="tag-list2" value="${esc(cur.join(', '))}" placeholder="e.g. HNI, NRI"><datalist id="tag-list2">${CL.tags.map(t => `<option value="${esc(t.tag)}">`).join('')}</datalist></div><div class="tools">${CL.tags.map(t => `<button type="button" class="gtag" data-act="tagAppend" data-id="${esc(t.tag)}">+ ${esc(t.tag)}</button>`).join('')}</div><p class="dim small">Groups decide brokerage plans and group reports. Letters, digits, - or _.</p>`,
+      'Save groups', async () => {
+        const next = $('tg-in').value.split(',').map(x => x.trim().toUpperCase().replace(/\s+/g, '-')).filter(Boolean);
+        const add = next.filter(t => !cur.includes(t)), remove = cur.filter(t => !next.includes(t));
+        if (!add.length && !remove.length) { closeModal(); return; }
+        await post('/v1/clients/tags', { uccs: [ucc], add, remove }); toast('Groups saved'); closeModal(); CL.date = ''; clientDrawer(ucc); if (S.view === 'clients') render({ keep: true });
+      });
+  },
+  tagAppend: t => { const i = $('tg-in'); const cur = i.value.split(',').map(x => x.trim()).filter(Boolean); if (!cur.map(x => x.toUpperCase()).includes(t)) cur.push(t); i.value = cur.join(', '); },
+  planEdit: id => planModal(id),
+  planNew: () => planModal(''),
+  assign: (target, el) => assignModal(target || '', el?.dataset.plan || ''),
+  unassign: target => confirmModal('Remove plan · ' + target.replace(/^(ucc|tag):/, ''), 'From the date below this ' + (target.startsWith('ucc:') ? 'client' : 'group') + ' falls back to the next rule (group, then firm default).', `<div class="fld"><label for="un-from">Effective from</label><input class="in" type="date" id="un-from" value="${esc(S.date)}"></div>`,
+    'Remove', () => act(() => post('/v1/brokerage/assignments', { target, plan: '', from: $('un-from').value }), 'Plan removed'), true),
   umenu: (id, el, e) => { const m = $('umenu'); m.hidden = !m.hidden; },
   signOut: async () => { try { await api('POST', '/v1/auth/logout', {}); } catch (e) {} showLogin('You have signed out.'); },
   switchUser: async id => { try { await api('POST', '/v1/auth/logout', {}); } catch (e) {} await doLogin(id, CFG.dev_password, ''); },
@@ -877,9 +1029,10 @@ const A = {
   pledge: (id, el) => { if (el.dataset.a === '1') { act(() => post(`/v1/pledges/${encodeURIComponent(id)}/decide`, { accept: true }), 'Pledge accepted; collateral updated'); return; }
     confirmModal('Reject pledge ' + id, '', `<div class="fld"><label for="pl-r">Reason</label><input class="in" id="pl-r" placeholder="e.g. Scrip not on approved collateral list"></div>`, 'Reject', () => act(() => post(`/v1/pledges/${encodeURIComponent(id)}/decide`, { accept: false, reason: $('pl-r').value }), 'Pledge rejected'), true); },
   journal: async () => {
-    const cl = C.ledger?.clients || [];
-    confirmModal('Post journal entry', 'Manual entries are recorded with your name. A checker can reverse them.', `<div class="form"><div class="fld"><label for="jn-u">Client</label><select class="in" id="jn-u">${cl.map(c => `<option value="${c.ucc}" ${UI.ledgerU === c.ucc ? 'selected' : ''}>${c.ucc} · ${esc(c.name)}</option>`).join('')}</select></div><div class="fld"><label for="jn-t">Type</label><select class="in" id="jn-t"><option value="RECEIPT">Receipt into client bank (credit client)</option><option value="PAYMENT">Payment to client (debit client)</option><option value="INTEREST">Delayed payment interest (debit client)</option></select></div><div class="fld"><label for="jn-a">Amount (₹)</label><input class="in" id="jn-a" inputmode="decimal" value="10000"></div><div class="fld"><label for="jn-r">Reference</label><input class="in" id="jn-r" placeholder="UTR or voucher no."></div><div class="fld full"><label for="jn-n">Narration</label><input class="in" id="jn-n" placeholder="What this entry is for"></div></div>`,
+    await clientCache();
+    confirmModal('Post journal entry', 'Manual entries are recorded with your name. A checker can reverse them.', `<div class="form"><div class="fld"><label for="jn-u-q">Client</label>${cpick('jn-u', UI.ledgerU)}</div><div class="fld"><label for="jn-t">Type</label><select class="in" id="jn-t"><option value="RECEIPT">Receipt into client bank (credit client)</option><option value="PAYMENT">Payment to client (debit client)</option><option value="INTEREST">Delayed payment interest (debit client)</option></select></div><div class="fld"><label for="jn-a">Amount (₹)</label><input class="in" id="jn-a" inputmode="decimal" value="10000"></div><div class="fld"><label for="jn-r">Reference</label><input class="in" id="jn-r" placeholder="UTR or voucher no."></div><div class="fld full"><label for="jn-n">Narration</label><input class="in" id="jn-n" placeholder="What this entry is for"></div></div>`,
       'Post entry', async () => {
+        if (!$('jn-u').value) throw new Error('Choose the client');
         const u = $('jn-u').value, t = $('jn-t').value, a = $('jn-a').value.trim(), n = $('jn-n').value.trim(), ref = $('jn-r').value.trim();
         if (!n) throw new Error('Add a narration');
         const client = 'CLIENT:' + u;
@@ -891,9 +1044,9 @@ const A = {
   reverse: id => confirmModal('Reverse ' + id, 'Posts the mirror entry. The original stays in the journal.', `<div class="fld"><label for="rv-r">Reason</label><input class="in" id="rv-r" placeholder="e.g. Credited to the wrong client"></div>`, 'Reverse entry', () => act(() => post(`/v1/journal/${id}/reverse`, { reason: $('rv-r').value }), 'Entry reversed'), true),
   bankReturn: id => confirmModal('Return credit', 'Refunds the amount to the remitting account and clears it from suspense.', `<div class="fld"><label for="br-n">Note</label><input class="in" id="br-n" value="Remitting account not registered to the client"></div>`, 'Return to remitter', () => act(() => post(`/v1/bank/${encodeURIComponent(id)}/return`, { note: $('br-n').value }), 'Refund posted'), true),
   identify: async id => {
-    const cl = (await get(`/v1/clients?date=${S.date}`)).filter(c => c.status === 'Active');
-    confirmModal('Identify credit', 'Only when the bank confirms the remitting account belongs to the client. Otherwise return the funds.', `<div class="fld"><label for="id-u">Client</label><select class="in" id="id-u">${cl.map(c => `<option value="${c.ucc}">${c.ucc} · ${esc(c.name)}</option>`).join('')}</select></div><label class="check"><input type="checkbox" id="id-ok"> The bank confirmed in writing that the remitting account belongs to this client</label>`,
-      'Credit client', () => act(() => post(`/v1/bank/${encodeURIComponent(id)}/identify`, { ucc: $('id-u').value, bank_confirmed: $('id-ok').checked }), 'Receipt posted'));
+    await clientCache();
+    confirmModal('Identify credit', 'Only when the bank confirms the remitting account belongs to the client. Otherwise return the funds.', `<div class="fld"><label for="id-u-q">Client</label>${cpick('id-u', '')}</div><label class="check"><input type="checkbox" id="id-ok"> The bank confirmed in writing that the remitting account belongs to this client</label>`,
+      'Credit client', () => { if (!$('id-u').value) throw new Error('Choose the client'); return act(() => post(`/v1/bank/${encodeURIComponent(id)}/identify`, { ucc: $('id-u').value, bank_confirmed: $('id-ok').checked }), 'Receipt posted'); });
   },
   upstream: () => confirmModal('Upstream client funds', 'Moves money from the client bank account to the clearing corporation as collateral.', `<div class="form"><div class="fld"><label for="up-a">Amount (₹)</label><input class="in" id="up-a" inputmode="decimal"></div><div class="fld"><label for="up-r">Transfer reference</label><input class="in" id="up-r"></div></div>`, 'Record transfer', () => act(() => post('/v1/bank/upstream', { date: S.date, amount: $('up-a').value, ref: $('up-r').value }), 'Transfer recorded')),
   runRas: () => { const d = C.ras, due = d.rows.filter(r => r.settles_on === d.monthly_date && !r.settled && num(r.payout) > 0);
@@ -934,7 +1087,9 @@ document.addEventListener('submit', e => {
   e.preventDefault();
   if (loginState.otp) doLogin(loginState.user, loginPw, $('li-otp').value); else doLogin($('li-user').value.trim(), $('li-pw').value, '');
 });
+document.addEventListener('focusin', e => { const el = e.target; if (el.classList?.contains('cp-q')) { el.select(); cpOpen(el.dataset.cp); } });
 document.addEventListener('click', e => {
+  document.querySelectorAll('.cp-res:not([hidden])').forEach(r => { if (!r.parentElement.contains(e.target)) cpClose(r.id.slice(0, -4)); });
   const um = $('umenu'); if (um && !um.hidden && !e.target.closest('.umenu')) um.hidden = true;
   const a = e.target.closest('[data-act]');
   if (!a) { const r = $('gres'); if (r && !e.target.closest('.srch')) r.hidden = true; return; }
@@ -944,6 +1099,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('input', e => {
   const el = e.target;
+  if (el.classList.contains('cp-q')) { cpOpen(el.dataset.cp); return; }
   if (el.id === 'gsearch') { UI.search = el.value; searchClients(el.value); return; }
   if (el.dataset.ui) { UI[el.dataset.ui] = el.value; if (el.dataset.part) { const el2 = $(el.dataset.part); if (el2) el2.innerHTML = P[el.dataset.part](C[S.view]); } return; }
   if (el.dataset.calc) { UI.calc[el.dataset.calc] = el.value; clearTimeout(calcT); calcT = setTimeout(calc, 250); return; }
@@ -955,14 +1111,25 @@ document.addEventListener('change', e => {
   if (el.dataset.urole) { const id = el.dataset.urole, u = C.settings.users.find(x => x.id === id); act(() => api('PUT', `/v1/users/${encodeURIComponent(id)}`, { id, name: u.name, role: el.value, active: u.active }), `${id} is now ${el.value}`); return; }
   if (el.id === 'ftype') { UI.fileType = el.value; $('page').innerHTML = V.files.html(C.files); bindPage(); return; }
   if (el.id === 'cr-from' || el.id === 'cr-to') { UI.cr.preset = 'custom'; crSync(); document.querySelectorAll('[data-act=crPreset]').forEach(b => b.classList.toggle('on', b.dataset.id === 'custom')); return; }
-  if (el.id === 'cr-ucc') { crSync(); return; }
+  if (el.id === 'bkPlan') { UI.bkPlan = el.value; rerenderPart('bk-t'); return; }
+  if (el.id === 'clientTag') { UI.clientTag = el.value; rerenderPart('clients-t'); return; }
   if (el.id === 'ledgerU') { UI.ledgerU = el.value; render({ keep: true }); return; }
-  if (el.dataset.calc) { UI.calc[el.dataset.calc] = el.value; calc(); return; }
+  if (el.dataset.calc) { UI.calc[el.dataset.calc] = el.value; if (el.dataset.calc === 'bucket') { $('page').innerHTML = V.charges.html(); bindPage(); } else calc(); return; }
   if (el.dataset.ob && el.tagName === 'SELECT') { UI.ob.data[el.dataset.ob] = el.value; if (el.dataset.ob === 'nominee') obModal(); return; }
   if (el.dataset.obseg) { const d = UI.ob.data; d.segments = el.checked ? [...new Set([...d.segments, el.dataset.obseg])] : d.segments.filter(s => s !== el.dataset.obseg); return; }
   if (el.dataset.obchk) { UI.ob.data[el.dataset.obchk] = el.checked; }
 });
 document.addEventListener('keydown', e => {
+  if (e.target.classList?.contains('cp-q')) {
+    const id = e.target.dataset.cp, r = $(id + '-res');
+    if (r && !r.hidden) {
+      const items = [...r.querySelectorAll('button')]; let i = items.findIndex(b => b.classList.contains('hl'));
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (items.length) { items[i]?.classList.remove('hl'); i = (i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length; items[i].classList.add('hl'); items[i].scrollIntoView({ block: 'nearest' }); } return; }
+      if (e.key === 'Enter') { e.preventDefault(); if (items[i]) cpSet(id, items[i].dataset.v); return; }
+      if (e.key === 'Escape') { e.stopPropagation(); cpClose(id); return; }
+      if (e.key === 'Tab') cpClose(id);
+    }
+  }
   if (e.key === 'Escape') { if (!modalLocked) closeModal(); const r = $('gres'); if (r) r.hidden = true; }
   if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); $('gsearch')?.focus(); }
 });
@@ -970,7 +1137,7 @@ let searchCache = { date: '', rows: [] };
 async function searchClients(q) {
   const r = $('gres'); q = q.trim().toLowerCase(); if (!q) { r.hidden = true; return; }
   if (searchCache.date !== S.date || !searchCache.rows.length) { try { searchCache = { date: S.date, rows: await get(`/v1/clients?date=${S.date}`) }; } catch (e) { return; } }
-  const m = searchCache.rows.filter(c => (c.name + ' ' + c.ucc).toLowerCase().includes(q)).slice(0, 7);
+  const m = searchCache.rows.filter(c => (c.name + ' ' + c.ucc + ' ' + c.pan + ' ' + (c.tags || []).join(' ')).toLowerCase().includes(q)).slice(0, 8);
   r.innerHTML = m.length ? m.map(c => `<button data-act="client" data-id="${c.ucc}"><span>${esc(c.name)}</span><span class="mono dim">${c.ucc}</span></button>`).join('') : '<div class="empty">No client matches</div>';
   r.hidden = false;
 }

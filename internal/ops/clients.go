@@ -61,6 +61,7 @@ type Client struct {
 	LastTrade      string       `json:"last_trade,omitempty"`
 	CreatedBy      string       `json:"created_by,omitempty"`
 	ActivatedBy    string       `json:"activated_by,omitempty"`
+	Tags           []string     `json:"tags"` // client groups, e.g. HNI, NRI, ACTIVE-TRADER
 }
 
 var (

@@ -418,19 +418,42 @@ func (s *Server) billingRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) quote(w http.ResponseWriter, r *http.Request) {
-	var leg charges.Leg
-	if !decode(w, r, &leg) {
+	var body struct {
+		charges.Leg
+		UCC string `json:"ucc"`
+		Lot int64  `json:"lot"`
+	}
+	if !decode(w, r, &body) {
 		return
 	}
+	leg := body.Leg
 	if leg.Date == "" {
 		leg.Date = time.Now().In(time.FixedZone("IST", 19800)).Format("2006-01-02")
+	}
+	plan := ""
+	var rule charges.BrokerageRule
+	if body.UCC != "" && s.ops != nil {
+		rl, name, ok, err := s.ops.QuoteRule(r.Context(), tenant(r), body.UCC, leg.Bucket, leg.Date)
+		if err != nil {
+			fail(w, err, nil)
+			return
+		}
+		if ok {
+			rule, plan, leg.NoBrokerage = rl, name, true
+		}
 	}
 	b, err := s.app.Schedule.Compute(leg)
 	if err != nil {
 		fail(w, err, nil)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"breakdown": b, "schedule": s.app.Schedule.Version, "sample_rates": s.app.Schedule.Sample})
+	if leg.NoBrokerage {
+		brok := rule.Compute(leg.Bucket, leg.Price.MulInt(leg.Qty), leg.Qty, max(body.Lot, 1)).Round(money.UnitPaisa)
+		gst := brok.Dec().Pct(s.app.Schedule.GSTPct).Round(money.UnitPaisa)
+		b.Brokerage, b.GST, b.Total = brok, b.GST+gst, b.Total+brok+gst
+		b.Rule = "Plan " + plan + " · " + rule.Describe() + " · statutory " + b.Rule
+	}
+	writeJSON(w, 200, map[string]any{"breakdown": b, "plan": plan, "schedule": s.app.Schedule.Version, "sample_rates": s.app.Schedule.Sample})
 }
 
 func (s *Server) postJournal(w http.ResponseWriter, r *http.Request) {

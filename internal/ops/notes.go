@@ -72,7 +72,7 @@ func (o *Ops) noteData(ctx context.Context, tenant, date, ucc string) ([]ingest.
 		return nil, billing.Output{}, fmt.Errorf("%w: %s has no trades on %s", ErrState, ucc, date)
 	}
 	m, _, _ := o.Market(ctx, tenant, date)
-	out, err := billing.Build(billing.Input{Tenant: tenant, Date: date, Actor: "notes", Trades: mine, SettlementPrices: m.SettlementPrices(), Schedule: o.App.Schedule})
+	out, err := o.App.BuildBills(ctx, billing.Input{Tenant: tenant, Date: date, Actor: "notes", Trades: mine, SettlementPrices: m.SettlementPrices(), Schedule: o.App.Schedule})
 	return mine, out, err
 }
 
@@ -239,6 +239,9 @@ func (o *Ops) RenderNote(ctx context.Context, tenant, date, ucc string) ([]byte,
 		bd, err := o.App.Schedule.Compute(charges.Leg{Bucket: b, Exchange: t.Exchange, Side: t.Side, Qty: t.Qty, Price: t.Price, Date: t.TradeDate})
 		if err != nil {
 			return nil, err
+		}
+		if out.TradeBrokerage != nil {
+			bd.Brokerage = out.TradeBrokerage[billing.TradeKey(t)]
 		}
 		v := t.Value()
 		if t.Side == "B" {

@@ -214,6 +214,9 @@ type Leg struct {
 	Qty      int64     `json:"qty"`
 	Price    money.Dec `json:"price"`
 	Date     string    `json:"date"`
+	// NoBrokerage leaves brokerage (and the GST on it) out, for callers that
+	// charge brokerage per order from a plan.
+	NoBrokerage bool `json:"-"`
 }
 
 // Breakdown is the charge split for one or more legs.
@@ -263,15 +266,19 @@ func (s Schedule) Compute(l Leg) (Breakdown, error) {
 	}
 	v := l.Price.MulInt(l.Qty)
 	var brok money.Dec
-	switch r.BrokerageMode {
-	case BrokFlat:
-		brok = r.BrokerageFlat
-	case BrokPct:
-		brok = v.Pct(r.BrokeragePct)
-	case BrokMinFlatPct:
-		brok = v.Pct(r.BrokeragePct)
-		if r.BrokerageFlat.Cmp(brok) < 0 {
+	switch mode := r.BrokerageMode; {
+	case l.NoBrokerage:
+	default:
+		switch mode {
+		case BrokFlat:
 			brok = r.BrokerageFlat
+		case BrokPct:
+			brok = v.Pct(r.BrokeragePct)
+		case BrokMinFlatPct:
+			brok = v.Pct(r.BrokeragePct)
+			if r.BrokerageFlat.Cmp(brok) < 0 {
+				brok = r.BrokerageFlat
+			}
 		}
 	}
 	sttUnit, _ := money.ParseUnit(r.STTRound)

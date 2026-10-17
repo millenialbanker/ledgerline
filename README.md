@@ -23,6 +23,12 @@ A day starts from what the previous one left behind:
 | End of day | Closing rolls end-of-day positions to the next trading day: futures at the settlement price, options at average premium, expired contracts dropped. |
 | Guard | A day cannot be billed, closed or loaded while the previous trading day with activity is still open. |
 
+## Client groups and brokerage plans
+
+Clients can be put in groups (tags such as HNI, NRI, STAFF), one by one or in bulk from the client list. Groups filter the client list and can be reported on as a whole (ledger, holding and trade-book reports).
+
+Brokerage plans are named sets of rates per product (equity delivery and intraday, futures and options in each segment): percent of turnover, rupees per order, the lower of the two, rupees per lot, or free, each with an optional minimum and maximum per order. Cash-market brokerage is capped at 2.5% of the order value. Plans have dated versions, and are assigned from a date to the firm (default), a group or a single client. A client pays: their own plan, else their group's (the most recently assigned group if several), else the firm default, else the charge schedule. Brokerage is charged per executed order and split across the order's trades on the contract note. Statutory charges always come from the schedule. The charges calculator quotes for a chosen client.
+
 ## Sign-in
 
 Each person has a user ID, a password (12+ characters, PBKDF2-SHA256, 600,000 iterations) and, when the firm requires it (the default), a time-based two-factor code from an authenticator app. Sessions are HttpOnly, SameSite=Strict cookies that end after 30 minutes idle (configurable), 12 hours, sign-out, or an admin reset. Five wrong attempts lock a user for 15 minutes; sign-in attempts are also limited per address. New users get a one-time password to change at first sign-in. Every sign-in, failure and change is in the audit trail. API keys remain for integrations, with `X-Actor`.

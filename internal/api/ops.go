@@ -77,6 +77,12 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/reports/{code}/download", s.reportDownload, false)
 	R("GET /v1/client-reports", s.clientReportDefs, false)
 	R("GET /v1/client-reports/{kind}", s.clientReport, false)
+	R("GET /v1/tags", s.tags, false)
+	R("POST /v1/clients/tags", s.tagClients, true)
+	R("GET /v1/brokerage", s.brokerage, false)
+	R("POST /v1/brokerage/plans", s.savePlan, true)
+	R("POST /v1/brokerage/assignments", s.assignPlan, true)
+	R("GET /v1/brokerage/client/{ucc}", s.clientPlan, false)
 	R("GET /v1/alerts", s.alerts, false)
 	R("POST /v1/alerts/{id}/{action}", s.alertAction, true)
 	R("POST /v1/surveillance/run", s.runRules, true)
@@ -777,4 +783,60 @@ func (s *Server) loadSample(w http.ResponseWriter, r *http.Request) {
 		d = run.NextDay
 	}
 	writeJSON(w, 200, map[string]any{"days": runs, "next": d})
+}
+
+// ---- groups and brokerage plans ----
+
+func (s *Server) tags(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.Tags(r.Context(), tenant(r))
+	ok(w, v, err)
+}
+
+func (s *Server) tagClients(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		UCCs   []string `json:"uccs"`
+		Add    []string `json:"add"`
+		Remove []string `json:"remove"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	n, err := s.ops.TagClients(r.Context(), tenant(r), actor(r), b.UCCs, b.Add, b.Remove)
+	ok(w, map[string]any{"changed": n}, err)
+}
+
+func (s *Server) brokerage(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.Brokerage(r.Context(), tenant(r), d)
+	ok(w, v, err)
+}
+
+func (s *Server) savePlan(w http.ResponseWriter, r *http.Request) {
+	var in ops.PlanInput
+	if !decode(w, r, &in) {
+		return
+	}
+	p, err := s.ops.SavePlan(r.Context(), tenant(r), actor(r), in)
+	ok(w, p, err)
+}
+
+func (s *Server) assignPlan(w http.ResponseWriter, r *http.Request) {
+	var b struct{ Target, Plan, From string }
+	if !decode(w, r, &b) {
+		return
+	}
+	a, err := s.ops.Assign(r.Context(), tenant(r), actor(r), b.Target, b.Plan, b.From)
+	ok(w, a, err)
+}
+
+func (s *Server) clientPlan(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	ep, desc, err := s.ops.ClientBrokerage(r.Context(), tenant(r), strings.ToUpper(r.PathValue("ucc")), d)
+	ok(w, map[string]any{"plan": ep, "rates": desc}, err)
 }
