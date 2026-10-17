@@ -9,7 +9,7 @@ try { Object.assign(S, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e
 const persist = () => { try { localStorage.setItem(LS, JSON.stringify({ tenant: S.tenant, date: S.date, view: S.view })); } catch (e) {} };
 const UI = { inTab: 'due', inSel: new Set(), inQ: '', clientTag: '', clientSel: new Set(), bkQ: '', bkPlan: '', cr: { kind: 'ledger', ucc: '', preset: 'fy', from: '', to: '' }, crRes: null, crErr: null, crBusy: false, reconF: 'OPEN', reconX: 'All', reconQ: '', clientStage: 'All', clientQ: '', rmsF: 'All', rmsQ: '', settleTab: 'cm', noteF: 'All',
   bankF: 'All', rasF: 'due', auditQ: '', ledgerU: '', ledgerTab: 'statement', calc: { bucket: 'CM-DEL', exchange: 'NSE', side: 'B', qty: 100, price: '1412' },
-  debTab: 'cd', mtfTab: 'pos', dpTab: 'acc', dpQ: '', msgTab: 'log', msgQ: '', pAcct: '', hdTab: 'open', hdMonth: '', chTab: 'pending', crmTab: 'pipe', crmStage: 'All', crmQ: '', crmFrom: '', crmTo: '', kycTab: 'risk', kycQ: '', kycF: 'All', ptTab: 'pt', ptFrom: '', ptTo: '', bkTab: 'vch', finFrom: '', finTo: '', finBranch: '', gstFrom: '', gstTo: '', caTab: 'ca', monTab: 'rcpt', monQ: '', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
+  debTab: 'cd', liveAt: '', liveF: 'All', liveQ: '', liveAuto: false, mtfTab: 'pos', dpTab: 'acc', dpQ: '', msgTab: 'log', msgQ: '', pAcct: '', hdTab: 'open', hdMonth: '', chTab: 'pending', crmTab: 'pipe', crmStage: 'All', crmQ: '', crmFrom: '', crmTo: '', kycTab: 'risk', kycQ: '', kycF: 'All', ptTab: 'pt', ptFrom: '', ptTo: '', bkTab: 'vch', finFrom: '', finTo: '', finBranch: '', gstFrom: '', gstTo: '', caTab: 'ca', monTab: 'rcpt', monQ: '', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
 const C = {}; // per-view data from the server
 let CFG = {};
 
@@ -95,7 +95,7 @@ async function openDoc(path) {
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard']]],
   ['Operations', [['files', 'Files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['changes', 'Change requests'], ['corp', 'Corporate actions'], ['statements', 'Client reports']]],
-  ['Risk', [['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge'], ['debits', 'Debtors & interest'], ['mtf', 'Margin trading (MTF)']]],
+  ['Risk', [['live', 'Live RMS'], ['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge'], ['debits', 'Debtors & interest'], ['mtf', 'Margin trading (MTF)']]],
   ['Accounts', [['ledger', 'Ledger'], ['bank', 'Bank reconciliation'], ['money', 'Receipts & payouts'], ['books', 'Firm accounts & GST'], ['ras', 'Running account'], ['charges', 'Charges calculator'], ['brokerage', 'Brokerage plans']]],
   ['Compliance', [['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
   ['Depository', [['dp', 'Demat accounts & DIS']]],
@@ -1078,6 +1078,24 @@ P['mtf-t'] = d => {
   return tbl([['Position'], ['Client'], ['Scrip'], ['Qty', 'r'], ['Cost / value', 'r'], ['Funded', 'r'], ['Equity / maint.', 'r'], ['State'], ['']], d.positions.map(p => `<tr><td class="n">${p.id}<div class="dim small">${fmtDate(p.buy_date)} @ ${nf(p.price, 2)}</div></td><td><button class="linkish mono" data-act="client" data-id="${p.ucc}">${p.ucc}</button> ${esc(p.name)}</td><td>${esc(p.symbol)}</td><td class="r">${nf(p.qty)}</td><td class="r">${nf(p.cost)}<div class="dim small">${nf(p.value)}</div></td><td class="r">${nf(p.funded)}<div class="dim small">+${nf(p.accrued, 2)} interest</div></td><td class="r ${num(p.equity) < num(p.required) ? 'neg' : ''}">${nf(p.equity)}<div class="dim small">${nf(p.required)}</div></td><td>${pill(p.state, st[p.state])} ${p.pledge === 'Pledged' ? `<span class="dim small mono">${esc(p.pledge_ref)}</span>` : ''}${p.why ? `<div class="dim small wrap">${esc(p.why)}</div>` : ''}</td><td>${p.pledge !== 'Pledged' && has('Ops maker', 'Ops checker', 'Risk manager') ? `<button class="btn sm" data-act="mtfPledge" data-id="${p.id}">Pledged</button>` : ''}${rk ? `<button class="btn sm" data-act="mtfClose" data-id="${p.id}" data-q="${p.qty}">Repay</button>` : ''}</td></tr>`), { tall: true, empty: 'No funded positions.' });
 };
 
+/* ---------- live RMS ---------- */
+V.live = {
+  load: () => get(`/v1/live?date=${S.date}${UI.liveAt ? '&until=' + UI.liveAt + ':00' : ''}`),
+  html: d => {
+    return ph('Live RMS', `Intraday risk from trades loaded so far (${d.source === 'OMS' ? 'the OMS trade book; exchange files not loaded yet' : 'exchange trade files'}) at the latest LTP snapshot: derivative and intraday margins, losses (profits are not given intraday), charges on trades not yet billed, and a ${'20'}% auction reserve on delivery sells not covered by holdings. Load the OMS trade book and LTP-SNAPSHOT files as often as needed on the Files page.`,
+      `<div class="tools"><label class="dim small">As at</label><input class="in sm" type="time" id="live-at" value="${esc(UI.liveAt)}"><button class="btn sm" data-act="liveAt">Show</button><button class="btn sm" data-act="liveNow">Latest</button><label class="check small"><input type="checkbox" id="live-auto" ${UI.liveAuto ? 'checked' : ''}> Refresh every minute</label></div>${d.breaches ? `<button class="btn bad" data-act="dl" data-id="/v1/live/liquidation?date=${S.date}${UI.liveAt ? '&until=' + UI.liveAt + ':00' : ''}" data-name="liquidation_${S.date}.csv">Liquidation file (${d.breaches})</button>` : ''}`) +
+    `<div class="kpis">${kpi('Trades loaded', nf(d.trades), d.last_trade ? 'last at ' + esc(d.last_trade) : 'none yet')}${kpi('Prices', d.prices_at ? 'at ' + esc(d.prices_at) : 'close', d.prices_at ? 'LTP snapshot' : 'market data file')}${kpi('Breaches', d.breaches, 'free below zero', d.breaches ? 'bad' : 'good')}${kpi('Margin in use', inr(sum(d.rows, r => num(r.margin))), 'all clients')}${kpi('MTM', inr(sum(d.rows, r => num(r.mtm))), 'derivatives and intraday')}${kpi('Unbilled charges', inr(sum(d.rows, r => num(r.unbilled)), 2), 'today’s trades')}</div>
+    <div class="panel"><div class="hd"><div class="tools">${segBtns('liveF', ['All', 'Breach', 'Debit', 'OK'], 'live-t')}<input class="in" data-ui="liveQ" data-part="live-t" placeholder="Filter name or UCC" value="${esc(UI.liveQ)}"></div><small class="dim">Free = cash + usable collateral − margin + losses − unbilled charges − auction reserve</small></div>
+    <div id="live-t">${P['live-t'](d)}</div></div>
+    <div class="panel"><div class="hd"><h3>Front-office files</h3></div><div class="bd"><div class="tools"><button class="btn" data-act="dl" data-id="/v1/frontoffice/limits?date=${S.date}" data-name="bod_limits_${S.date}.csv">BOD limit file</button><button class="btn" data-act="dl" data-id="/v1/frontoffice/holdings?date=${S.date}" data-name="bod_holdings_${S.date}.csv">BOD holdings file (with T1)</button><button class="btn" data-act="dl" data-id="/v1/frontoffice/allocation?date=${S.date}" data-name="eod_allocation_${S.date}.csv">EOD client allocation to CC</button></div><p class="dim small" style="margin-bottom:0">Limits come from the previous business day’s closing risk (cash, usable collateral, overrides; inactive and blocked accounts get no buying). Holdings include yesterday’s delivery buys not yet received so they can be sold. The allocation splits each client’s funds and collateral across segments, covering each segment’s margin first, for the clearing corporation’s client-level allocation.</p></div></div>`;
+  }
+};
+
+P['live-t'] = d => {
+  const q = UI.liveQ.trim().toLowerCase(), f = UI.liveF, st = { Breach: 'bad', Debit: 'warn', OK: 'good', Idle: 'nt' };
+  const rows = d.rows.filter(r => (f === 'All' ? r.status !== 'Idle' : r.status === f) && (!q || (r.ucc + ' ' + r.name).toLowerCase().includes(q)));
+  return tbl([['Client'], ['Ledger (BOD)', 'r'], ['Collateral', 'r'], ['Margin', 'r'], ['MTM', 'r'], ['Unbilled', 'r'], ['Auction reserve', 'r'], ['Free', 'r'], ['Status']], rows.map(r => `<tr><td><button class="linkish mono" data-act="client" data-id="${r.ucc}">${r.ucc}</button> ${esc(r.name)}<div class="dim small">${r.trades} trades · turnover ${inr(r.turnover)}</div></td><td class="r ${sgn(r.funds)}">${nf(r.funds)}</td><td class="r">${nf(r.collateral)}</td><td class="r">${nf(r.margin)}</td><td class="r ${sgn(r.mtm)}">${nf(r.mtm)}</td><td class="r">${nf(r.unbilled, 2)}</td><td class="r ${num(r.auction) ? 'neg' : ''}">${num(r.auction) ? nf(r.auction) : '—'}${r.short_delivery.length ? `<div class="dim small">${r.short_delivery.map(esc).join(', ')}</div>` : ''}</td><td class="r ${sgn(r.free)}"><b>${nf(r.free)}</b></td><td>${pill(r.status, st[r.status])}${r.blocked ? ' ' + pill('Blocked', 'bad') : ''}</td></tr>`), { tall: true, empty: 'No clients to show.' });
+};
 /* ---------- settlement ---------- */
 V.settlement = {
   load: async () => { const [st, sh] = await Promise.all([get(`/v1/settlement?date=${S.date}`), get('/v1/shortages')]); return { ...st, shortages: sh }; },
@@ -1677,6 +1695,8 @@ async function act(fn, okMsg, reload = true) {
   catch (e) { toast(e.message); throw e; }
 }
 const A = {
+  liveAt: () => { UI.liveAt = $('live-at').value; render({ keep: true }); },
+  liveNow: () => { UI.liveAt = ''; render({ keep: true }); },
   mtfEnrol: () => clientCache().then(() => { modal(mhd('Enrol a client for MTF', 'Record the signed MTF agreement (rights and obligations) and the funding limit.') + `<form class="bd" id="mef"><div class="form"><div class="fld full"><label for="me-u-q">Client</label>${cpick('me-u', '', {})}</div><div class="fld"><label for="me-d">Agreement signed on</label><input class="in" type="date" id="me-d" value="${S.date}"></div><div class="fld"><label for="me-l">Funding limit (₹)</label><input class="in mono" id="me-l" value="500000"></div><div class="fld"><label for="me-r">Interest % a year (blank: firm rate)</label><input class="in mono" id="me-r"></div></div><div id="me-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Enrol</button></div></form>`);
     $('mef').onsubmit = async e => { e.preventDefault(); try { await post('/v1/mtf/enrol', { ucc: $('me-u').value, agreed_on: $('me-d').value, limit: $('me-l').value, rate_pa: $('me-r').value || '0' }); closeModal(); toast('Enrolled'); UI.mtfTab = 'fund'; render({ keep: true }); } catch (err) { $('me-err').innerHTML = errHTML(err); } }; }),
   mtfFund: (id, el) => confirmModal('Fund under MTF · ' + id, 'The client keeps the initial margin; the rest is funded from the firm’s own bank account and becomes an MTF loan. The shares must be pledged to the firm by T+1.', `<div class="fld"><label for="mf-q">Quantity to fund</label><input class="in mono" id="mf-q" value="${el.dataset.q}"></div>`, 'Fund', () => act(() => post('/v1/mtf/fund', { date: S.date, ucc: id, isin: el.dataset.isin, qty: +$('mf-q').value }), p => `${p.id}: ₹${nf(p.funded, 2)} funded`)),
@@ -2005,6 +2025,7 @@ document.addEventListener('change', e => {
     if (role === 'Branch staff' && !branch) branch = (prompt('Branch for ' + id) || '').trim();
     if (role === 'Authorised person' && !partner) partner = (prompt('Partner code for ' + id) || '').trim().toUpperCase();
     act(() => api('PUT', `/v1/users/${encodeURIComponent(id)}`, { id, name: u.name, role, active: u.active, branch, partner }), `${id} is now ${role}`).catch(() => render({ keep: true })); return; }
+  if (el.id === 'live-auto') { UI.liveAuto = el.checked; return; }
   if (el.id === 'p-acct') { UI.pAcct = el.value; render(); return; }
   if (el.id === 'crm-stage') { UI.crmStage = el.value; $('page').innerHTML = V.crm.html(C.crm); bindPage(); return; }
   if (el.id === 'ftype') { UI.fileType = el.value; $('page').innerHTML = V.files.html(C.files); bindPage(); return; }
@@ -2048,3 +2069,5 @@ async function boot() {
   render();
 }
 boot();
+
+setInterval(() => { if (UI.liveAuto && S.view === 'live' && !document.querySelector('.md') && !document.hidden) render({ keep: true }); }, 60000);

@@ -47,6 +47,8 @@ func MasterSources() []MasterSource {
 		{"KRA-STATUS", "KYC status from the KRA (Registered, Validated, On hold, Rejected)", []string{"PAN", "Status", "Remarks"}, false, "Daily"},
 		{"CKYC-NUMBERS", "CKYC identifiers downloaded from CERSAI", []string{"PAN", "CKYCNumber"}, false, "On response"},
 		{"STT-STATEMENT", "Exchange statement of turnover and STT by segment, for reconciliation", []string{"Exchange", "Segment", "Turnover", "STT"}, true, "Daily"},
+		{"LTP-SNAPSHOT", "Last traded prices during the day for live risk (InstrumentType, Expiry and Strike blank for equity)", []string{"Exchange", "Segment", "Symbol", "InstrumentType", "Expiry", "Strike", "LTP", "Time"}, true, "Every few minutes"},
+		{"MTF-ELIGIBLE", "Securities approved for margin trading, with the firm's initial margin % (at least VaR + 3 or 5 × ELM); replaces the list", []string{"ISIN", "Symbol", "MarginPct"}, false, "On change"},
 	}
 }
 
@@ -199,6 +201,25 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 	switch source {
 	case "DEBARRED-LIST", "KRA-STATUS", "CKYC-NUMBERS", "STT-STATEMENT":
 		return o.prepareCompliance(ctx, tenant, actor, source, date, rows)
+	case "LTP-SNAPSHOT":
+		return o.loadLivePrices(ctx, tenant, actor, date, rows)
+	case "MTF-ELIGIBLE":
+		var es []MTFEligible
+		var errs []ingest.ParseError
+		for _, r := range rows {
+			m, err := money.ParseDec(r.get("MarginPct"))
+			if err != nil || m.Sign() <= 0 || m.Cmp(money.DecInt(100)) > 0 {
+				errs = append(errs, ingest.ParseError{Line: r.line, Field: "MarginPct", Msg: "must be a percentage above 0"})
+				continue
+			}
+			es = append(es, MTFEligible{ISIN: strings.ToUpper(r.get("ISIN")), Symbol: strings.ToUpper(r.get("Symbol")), MarginPct: m})
+		}
+		return func() (int, int, error) {
+			if err := docs.Upsert(ctx, o.Docs, tenant, cMTFList, "current", mtfListDoc{Items: es}, actor); err != nil {
+				return 0, 0, err
+			}
+			return len(es), 0, nil
+		}, errs
 	case "CLIENT-MASTER":
 		var cs []Client
 		seen := map[string]bool{}

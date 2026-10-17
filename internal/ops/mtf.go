@@ -78,6 +78,10 @@ type MTFEligible struct {
 	LTP       money.Dec `json:"ltp"`
 }
 
+type mtfListDoc struct {
+	Items []MTFEligible `json:"items"`
+}
+
 // MTFPosition is one funded purchase.
 type MTFPosition struct {
 	ID         string       `json:"id"`
@@ -149,7 +153,8 @@ func (o *Ops) MTFList(ctx context.Context, tenant, date string) (map[string]MTFE
 			fo[i.Symbol] = true
 		}
 	}
-	listed, _ := docs.List[MTFEligible](ctx, o.Docs, tenant, cMTFList, "")
+	ld, _, _ := docs.GetOr(ctx, o.Docs, tenant, cMTFList, "current", mtfListDoc{})
+	listed := ld.Items
 	out := map[string]MTFEligible{}
 	add := func(isin, sym string, given money.Dec) {
 		i, ok := look.ByISIN(isin)

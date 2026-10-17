@@ -173,6 +173,9 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/mtf/report", s.mtfReport, false)
 	R("POST /v1/mtf/{id}/pledge", s.mtfPledge, true)
 	R("POST /v1/mtf/{id}/close", s.mtfClose, true)
+	R("GET /v1/live", s.live, false)
+	R("GET /v1/live/liquidation", s.liveLiquidation, false)
+	R("GET /v1/frontoffice/{kind}", s.frontOffice, false)
 	R("GET /v1/jobs", s.jobs, false)
 	R("POST /v1/jobs", s.saveJob, true)
 	R("POST /v1/jobs/{id}/run", s.runJob, true)
@@ -2523,4 +2526,62 @@ func (s *Server) mtfClose(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := s.ops.CloseMTF(r.Context(), tenant(r), actor(r), b.Date, r.PathValue("id"), b.Qty, b.How)
 	ok(w, v, err)
+}
+
+// ---- live RMS and front-office files ----
+
+func (s *Server) live(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	u := r.URL.Query().Get("until")
+	if u != "" && (len(u) != 8 || u[2] != ':' || u[5] != ':') {
+		writeErr(w, 400, "bad_request", "until must be HH:MM:SS", nil)
+		return
+	}
+	v, err := s.ops.LiveRisk(r.Context(), tenant(r), d, u)
+	ok(w, v, err)
+}
+
+func (s *Server) liveLiquidation(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	f, _, err := s.ops.LiveLiquidationFile(r.Context(), tenant(r), d, r.URL.Query().Get("until"))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	s.app.Log(r.Context(), tenant(r), actor(r), "rms.liquidation_file", d, nil)
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Write(f)
+}
+
+func (s *Server) frontOffice(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	var f []byte
+	var err error
+	switch r.PathValue("kind") {
+	case "limits":
+		f, err = s.ops.LimitFile(r.Context(), tenant(r), d)
+	case "holdings":
+		f, err = s.ops.HoldingsFile(r.Context(), tenant(r), d)
+	case "allocation":
+		f, err = s.ops.AllocationFile(r.Context(), tenant(r), d)
+	default:
+		writeErr(w, 404, "not_found", "unknown file", nil)
+		return
+	}
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	s.app.Log(r.Context(), tenant(r), actor(r), "frontoffice."+r.PathValue("kind"), d, nil)
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Write(f)
 }
