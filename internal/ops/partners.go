@@ -518,6 +518,13 @@ func (o *Ops) ClientScope(ctx context.Context, tenant, actor string) func(ucc st
 		}
 		u = User{ID: actor, Role: RoleMaker}
 	}
+	if u.Role == RoleClient {
+		own := map[string]bool{}
+		for _, c := range u.Clients {
+			own[strings.ToUpper(c)] = true
+		}
+		return func(ucc string) bool { return own[strings.ToUpper(ucc)] }
+	}
 	scoped := u.Role == RoleBranch || u.Role == RoleAP
 	if !scoped && (!private || u.Role == RoleAdmin || u.Role == RoleCompliance) {
 		return nil

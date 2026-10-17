@@ -88,8 +88,29 @@ func (o *Ops) equityBook(ctx context.Context, tenant, ucc, to string) (open []Lo
 	} else {
 		return nil, nil, "", gerr
 	}
+	// Trades through other brokers: those up to asOf give a cost to
+	// holdings whose purchase is not known (shares transferred in); later
+	// ones are replayed with the day's trades below.
+	ext, _ := o.ExternalTrades(ctx, tenant, ucc)
+	for _, x := range ext {
+		if x.Date > asOf || x.Side != "B" {
+			continue
+		}
+		left := x.Qty
+		for i := range open {
+			if left == 0 {
+				break
+			}
+			if l := &open[i]; l.Date == "" && l.Qty > 0 && (l.ISIN == x.ISIN || l.Symbol == x.Symbol) {
+				q := min(l.Qty, left)
+				l.Qty -= q
+				left -= q
+				open = append(open, Lot{ISIN: l.ISIN, Symbol: l.Symbol, Qty: q, Date: x.Date, Price: x.Price})
+			}
+		}
+	}
 	if asOf == "" || asOf >= to {
-		return open, nil, asOf, nil
+		return dropEmpty(open), nil, asOf, nil
 	}
 	cas, _ := docs.List[CorpAction](ctx, o.Docs, tenant, cCorpAction, "")
 	for d := addDays(asOf, 1); d <= to; d = addDays(d, 1) {
@@ -138,6 +159,23 @@ func (o *Ops) equityBook(ctx context.Context, tenant, ucc, to string) (open []Lo
 				a.sq, a.sv = a.sq+t.Qty, a.sv.Add(v)
 			}
 		}
+		for _, x := range ext {
+			if x.Date != d {
+				continue
+			}
+			a := day[x.ISIN]
+			if a == nil {
+				a = &agg{sym: x.Symbol}
+				day[x.ISIN] = a
+				order = append(order, x.ISIN)
+			}
+			v := x.Price.MulInt(x.Qty)
+			if x.Side == "B" {
+				a.bq, a.bv = a.bq+x.Qty, a.bv.Add(v)
+			} else {
+				a.sq, a.sv = a.sq+x.Qty, a.sv.Add(v)
+			}
+		}
 		sort.Strings(order)
 		for _, isin := range order {
 			a := day[isin]
@@ -176,15 +214,19 @@ func (o *Ops) equityBook(ctx context.Context, tenant, ucc, to string) (open []Lo
 				}
 			}
 		}
-		kept := open[:0]
-		for _, l := range open {
-			if l.Qty > 0 {
-				kept = append(kept, l)
-			}
-		}
-		open = kept
+		open = dropEmpty(open)
 	}
 	return open, sales, asOf, nil
+}
+
+func dropEmpty(open []Lot) []Lot {
+	kept := open[:0]
+	for _, l := range open {
+		if l.Qty > 0 {
+			kept = append(kept, l)
+		}
+	}
+	return kept
 }
 
 // gainCategory classifies listed equity held from buy to sell: more than

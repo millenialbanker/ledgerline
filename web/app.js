@@ -9,7 +9,7 @@ try { Object.assign(S, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e
 const persist = () => { try { localStorage.setItem(LS, JSON.stringify({ tenant: S.tenant, date: S.date, view: S.view })); } catch (e) {} };
 const UI = { inTab: 'due', inSel: new Set(), inQ: '', clientTag: '', clientSel: new Set(), bkQ: '', bkPlan: '', cr: { kind: 'ledger', ucc: '', preset: 'fy', from: '', to: '' }, crRes: null, crErr: null, crBusy: false, reconF: 'OPEN', reconX: 'All', reconQ: '', clientStage: 'All', clientQ: '', rmsF: 'All', rmsQ: '', settleTab: 'cm', noteF: 'All',
   bankF: 'All', rasF: 'due', auditQ: '', ledgerU: '', ledgerTab: 'statement', calc: { bucket: 'CM-DEL', exchange: 'NSE', side: 'B', qty: 100, price: '1412' },
-  debTab: 'cd', kycTab: 'risk', kycQ: '', kycF: 'All', ptTab: 'pt', ptFrom: '', ptTo: '', bkTab: 'vch', finFrom: '', finTo: '', finBranch: '', gstFrom: '', gstTo: '', caTab: 'ca', monTab: 'rcpt', monQ: '', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
+  debTab: 'cd', pAcct: '', hdTab: 'open', hdMonth: '', chTab: 'pending', crmTab: 'pipe', crmStage: 'All', crmQ: '', crmFrom: '', crmTo: '', kycTab: 'risk', kycQ: '', kycF: 'All', ptTab: 'pt', ptFrom: '', ptTo: '', bkTab: 'vch', finFrom: '', finTo: '', finBranch: '', gstFrom: '', gstTo: '', caTab: 'ca', monTab: 'rcpt', monQ: '', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
 const C = {}; // per-view data from the server
 let CFG = {};
 
@@ -94,20 +94,23 @@ async function openDoc(path) {
 /* ============================== shell ============================== */
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard']]],
-  ['Operations', [['files', 'Files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['corp', 'Corporate actions'], ['statements', 'Client reports']]],
+  ['Operations', [['files', 'Files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['changes', 'Change requests'], ['corp', 'Corporate actions'], ['statements', 'Client reports']]],
   ['Risk', [['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge'], ['debits', 'Debtors & interest']]],
   ['Accounts', [['ledger', 'Ledger'], ['bank', 'Bank reconciliation'], ['money', 'Receipts & payouts'], ['books', 'Firm accounts & GST'], ['ras', 'Running account'], ['charges', 'Charges calculator'], ['brokerage', 'Brokerage plans']]],
-  ['Compliance', [['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
-  ['Business', [['partners', 'Branches & partners'], ['prepaid', 'Prepaid schemes']]],
+  ['Compliance', [['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
+  ['Business', [['crm', 'Leads & CRM'], ['partners', 'Branches & partners'], ['prepaid', 'Prepaid schemes']]],
   ['Admin', [['settings', 'Settings']]]];
-const VIEWS = NAV.flatMap(g => g[1].map(v => v[0]));
+const PORTAL_NAV = [['My account', [['portal', 'Overview'], ['pnotes', 'Contract notes'], ['statements', 'Reports & statements'], ['pfunds', 'Funds & payouts'], ['pprofile', 'Profile & documents'], ['phelp', 'Help desk'], ['pext', 'Trades elsewhere']]]];
+const PORTAL_VIEWS = PORTAL_NAV[0][1].map(v => v[0]);
+const clientUser = () => S.me?.role === 'Client';
+const VIEWS = [...NAV.flatMap(g => g[1].map(v => v[0])), ...PORTAL_VIEWS];
 try { const h = location.hash.slice(1); if (VIEWS.includes(h)) S.view = h; } catch (e) {}
 
-const SCOPED_VIEWS = ['clients', 'statements', 'notes', 'money', 'debits', 'rms', 'partners', 'prepaid'];
+const SCOPED_VIEWS = ['clients', 'statements', 'notes', 'money', 'debits', 'rms', 'partners', 'prepaid', 'changes', 'helpdesk', 'crm'];
 const scopedUser = () => ['Branch staff', 'Authorised person'].includes(S.me?.role);
 function renderSide() {
   const ct = S.counts, q = { clients: 1, notes: 1, collateral: 1, reports: 1 };
-  const nav = scopedUser() ? NAV.map(([g, items]) => [g, items.filter(([k]) => SCOPED_VIEWS.includes(k))]).filter(([, items]) => items.length) : NAV;
+  const nav = clientUser() ? PORTAL_NAV : scopedUser() ? NAV.map(([g, items]) => [g, items.filter(([k]) => SCOPED_VIEWS.includes(k))]).filter(([, items]) => items.length) : NAV;
   const codes = Object.entries(S.me?.member_codes || {}).map(([k, v]) => k + ' ' + v).join(' · ');
   $('side').innerHTML = `<div class="brand"><div class="mark"><i></i><i></i><i></i></div><div><b>Ledgerline</b><small>${esc(S.me?.firm || 'Back office')}</small></div></div>` +
     nav.map(([g, items]) => `<nav class="navg" aria-label="${g}"><h6>${g}</h6>${items.map(([k, l]) => `<button class="nav ${S.view === k ? 'on' : ''}" data-act="go" data-id="${k}"><span>${l}</span>${ct[k] ? `<span class="ct ${q[k] ? 'q' : ''}">${ct[k]}</span>` : ''}</button>`).join('')}</nav>`).join('') +
@@ -118,7 +121,7 @@ function renderTop() {
   const users = S.me?.users || [];
   $('top').innerHTML = `<div class="tdate"><small>Trade date</small><div class="dnav"><button class="btn sm" data-act="prevDay" aria-label="Previous trading day">‹</button><input class="in mono" type="date" id="date" value="${esc(S.date)}" aria-label="Trade date" style="height:30px"><button class="btn sm" data-act="nextDay" aria-label="Next trading day">›</button></div></div>
   <div class="chips">${d?.extra?.pay_in ? `<span class="chip">Pay-in <b>${fmtDate(d.extra.pay_in)}</b></span>` : ''}${S.me ? `<span class="chip">EOD <b>${d?.eod?.closed ? 'closed ' + esc(d.eod.closed_at) : 'open'}</b></span>` : ''}</div>
-  <div class="srch"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="gsearch" placeholder="Find client by name, UCC or PAN  ( / )" autocomplete="off" value="${esc(UI.search)}"><div class="res" id="gres" hidden></div></div>
+  ${clientUser() ? '<div style="flex:1"></div>' : `<div class="srch"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="gsearch" placeholder="Find client by name, UCC or PAN  ( / )" autocomplete="off" value="${esc(UI.search)}"><div class="res" id="gres" hidden></div></div>`}
   ${S.me ? `<div class="umenu"><button class="ubtn" data-act="umenu" aria-haspopup="menu"><span class="av">${esc(initials(meUser()?.name || S.me.actor))}</span><span><b>${esc(meUser()?.name || S.me.actor)}</b><small>${esc(S.me.role)}</small></span><span class="dim">▾</span></button><div class="umenu-pop" id="umenu" hidden role="menu">
     <button data-act="pwChange" role="menuitem">Change password</button>
     <button data-act="totp" role="menuitem">Two-factor sign-in${S.me.auth?.totp_enabled ? ' · <span class="pos">On</span>' : ' · Off'}</button>
@@ -126,7 +129,7 @@ function renderTop() {
     <div class="sep"></div><button data-act="signOut" role="menuitem">Sign out</button></div></div>` : ''}`;
 }
 async function refreshCounts() {
-  if (scopedUser()) { S.counts = {}; C.dashboard = null; renderSide(); renderTop(); return; }
+  if (scopedUser() || clientUser()) { S.counts = {}; C.dashboard = null; renderSide(); renderTop(); return; }
   try {
     const d = await get(`/v1/dashboard?date=${S.date}`);
     C.dashboard = d;
@@ -137,6 +140,8 @@ async function refreshCounts() {
 }
 let renderSeq = 0;
 async function render(opts = {}) {
+  if (clientUser() && !PORTAL_VIEWS.includes(S.view)) S.view = 'portal';
+  else if (!clientUser() && PORTAL_VIEWS.includes(S.view) && S.view !== 'statements') S.view = 'dashboard';
   if (scopedUser() && !SCOPED_VIEWS.includes(S.view)) S.view = 'clients';
   persist();
   try { history.replaceState(null, '', '#' + S.view); } catch (e) {}
@@ -736,6 +741,186 @@ function kraModal() {
   $('kra-go').onclick = () => { const s = $('kra-since').value; closeModal(); download(`/v1/compliance/kra-upload?since=${s}`, `kra_upload_${s}.csv`); };
 }
 
+/* ============================== client portal ============================== */
+const pAcct = () => UI.pAcct || '';
+const portalLoad = async () => { const v = await get(`/v1/portal?date=${S.date}&ucc=${encodeURIComponent(pAcct())}`); UI.pAcct = v.account.ucc; return v; };
+function pHead(v, title, sub) {
+  const sw = v.accounts.length > 1 ? `<div class="fld" style="min-width:240px"><label for="p-acct">Account</label><select class="in" id="p-acct">${v.accounts.map(a => `<option value="${a.ucc}" ${a.ucc === v.account.ucc ? 'selected' : ''}>${esc(a.name)} · ${a.ucc}</option>`).join('')}</select></div>` : `<span class="chip">${esc(v.account.name)} · <b>${v.account.ucc}</b></span>`;
+  return ph(title, sub, sw);
+}
+const noteRow = n => `<tr><td class="n">${esc(n.no)}${n.revision ? ' ' + pill('Revised', 'acc') : ''}</td><td class="n">${fmtDate(n.date)}</td><td class="r">${n.trades}</td><td class="r ${sgn(n.net)}">${inr(n.net, 2)}</td><td>${pill(n.status === 'Sent' ? 'Emailed' : n.status === 'Bounced' ? 'Email bounced' : 'Ready', n.status === 'Sent' ? 'good' : n.status === 'Bounced' ? 'bad' : 'nt')}</td><td><button class="btn sm" data-act="pNote" data-id="${n.date}|${n.ucc}">Open</button></td></tr>`;
+V.portal = {
+  load: portalLoad,
+  html: v => {
+    const w = v.withdrawable || {}, m = v.margin;
+    return pHead(v, 'Hello, ' + esc(v.account.name.split(' ')[0]), `Your account with ${esc(v.firm.name)} as at ${fmtDate(S.date)}. Figures include today’s trades once the bills are posted.`) +
+    (v.account.inactive ? '<div class="note warn">This account is marked inactive because there was no activity for a long time. To trade again, raise a reactivation request from the Help desk; you will be asked to confirm your details.</div>' : '') +
+    `<div class="kpis">${kpi('Ledger balance', inr(v.ledger, 2), num(v.ledger) < 0 ? 'you owe this amount' : 'credit with us', num(v.ledger) < 0 ? 'bad' : '')}${kpi('Available to withdraw', inr(w.available, 2), w.blocked ? esc(w.blocked_why) : 'after margin and pending items', num(w.available) > 0 ? 'good' : '')}${kpi('Holdings value', inr(v.holdings_value), v.holdings.length + ' scrips in your demat')}${m ? kpi('Margin used', inr(m.required), 'of ' + inr(num(m.funds) + num(m.collateral_usable)) + ' available') : ''}${kpi('Open positions', v.positions.length, 'derivatives and intraday')}</div>
+    <div class="panel"><div class="hd"><h3>Holdings</h3><button class="btn sm" data-act="go" data-id="statements">Holding statement</button></div>${tbl([['Scrip'], ['Qty', 'r'], ['Pledged', 'r'], ['Price', 'r'], ['Value', 'r']], v.holdings.map(h => `<tr><td>${esc(h.symbol)} <span class="dim small">${esc(h.isin)}</span></td><td class="r">${nf(h.qty)}</td><td class="r">${h.pledged ? nf(h.pledged) : '—'}</td><td class="r">${nf(h.ltp, 2)}</td><td class="r">${inr(h.value)}</td></tr>`), { empty: 'No holdings.' })}</div>
+    <div class="panel"><div class="hd"><h3>Recent ledger</h3><button class="btn sm" data-act="go" data-id="statements">Full statement</button></div>${tbl([['Date'], ['Particulars'], ['Debit', 'r'], ['Credit', 'r'], ['Balance', 'r']], v.ledger_lines.slice().reverse().map(l => `<tr><td class="n dim">${fmtDate(l.value_date)}</td><td class="wrap">${esc(l.memo || l.narration)}</td><td class="r">${num(l.debit) ? nf(l.debit, 2) : ''}</td><td class="r">${num(l.credit) ? nf(l.credit, 2) : ''}</td><td class="r">${drcr(l.balance)}</td></tr>`), { empty: 'No entries.' })}</div>
+    ${v.positions.length ? `<div class="panel"><div class="hd"><h3>Open positions</h3></div>${tbl([['Contract'], ['Net qty', 'r'], ['Avg', 'r'], ['LTP', 'r'], ['MTM', 'r']], v.positions.map(p => `<tr><td>${esc(p.name)}</td><td class="r ${sgn(p.qty)}">${nf(p.qty)}</td><td class="r">${nf(p.avg_price, 2)}</td><td class="r">${nf(p.ltp, 2)}</td><td class="r ${sgn(p.mtm)}">${nf(p.mtm)}</td></tr>`))}</div>` : ''}
+    <div class="panel"><div class="hd"><h3>Latest contract notes</h3><button class="btn sm" data-act="go" data-id="pnotes">All notes</button></div>${tbl([['Contract note'], ['Trade date'], ['Trades', 'r'], ['Net', 'r'], ['Status'], ['']], v.notes.slice(0, 5).map(noteRow), { empty: 'No contract notes yet.' })}</div>
+    <div class="note">Grievances: write to us from the Help desk (we reply within 21 days), or to ${esc(v.firm.compliance_email || 'our compliance officer')}. If you are not satisfied you can approach SEBI through SCORES (scores.sebi.gov.in) or the exchanges. ${esc(v.firm.name)} · SEBI registration ${esc(v.firm.sebi_reg || '—')}.</div>`;
+  }
+};
+V.pnotes = { load: portalLoad, html: v => pHead(v, 'Contract notes', 'Every contract note issued to you, newest first. A revised note replaces the earlier note for that day; both are kept.') + `<div class="panel">${tbl([['Contract note'], ['Trade date'], ['Trades', 'r'], ['Net (₹)', 'r'], ['Status'], ['']], v.notes.map(noteRow), { tall: true, empty: 'No contract notes yet.' })}</div>` };
+V.pfunds = {
+  load: portalLoad,
+  html: v => {
+    const w = v.withdrawable || {}, st = { Requested: 'warn', Approved: 'acc', Paid: 'good', Rejected: 'bad', Failed: 'bad', Expired: 'nt', Cancelled: 'nt' };
+    return pHead(v, 'Funds & payouts', 'Withdraw your free credit to your registered bank account. Requests received by the cut-off are paid the next working day. Add funds only from your registered bank account; payments from other accounts are returned.') +
+    `<div class="grid2"><div class="panel"><div class="hd"><h3>Withdraw</h3></div><div class="bd"><div class="kv"><div><small>Ledger credit</small><b class="mono">${inr(w.ledger, 2)}</b></div><div><small>Margin kept</small><b class="mono">${inr(w.margin, 2)}</b></div><div><small>Uncleared cheques</small><b class="mono">${inr(w.uncleared, 2)}</b></div><div><small>Payouts in process</small><b class="mono">${inr(w.pending, 2)}</b></div><div><small>Available</small><b class="mono pos">${inr(w.available, 2)}</b></div></div>
+      ${w.blocked ? `<div class="note warn">${esc(w.blocked_why)}</div>` : `<form id="pof" class="tools" style="margin-top:10px"><input class="in mono" id="po-amt" inputmode="decimal" placeholder="Amount in ₹" style="max-width:180px"><button class="btn pri" type="submit">Request payout</button><span class="dim small">to ${esc(v.account.bank.bank)} · ${esc(v.account.bank.account)}</span></form><div id="po-err"></div>`}</div></div>
+    <div class="panel"><div class="hd"><h3>Add funds</h3></div><div class="bd"><p style="margin-top:0">Transfer by NEFT, RTGS, IMPS or UPI from <b>${esc(v.account.bank.bank)} · ${esc(v.account.bank.account)}</b> to:</p><div class="kv"><div><small>Account name</small><b>${esc(v.firm.name)} – Client Account</b></div><div><small>Account</small><b class="mono">${esc(v.firm.payin_account || 'shown on your welcome letter')}</b></div><div><small>Reference</small><b class="mono">${v.account.ucc}</b></div></div><p class="dim small">Credits are matched to your account automatically from our bank statement. Cheques are credited only once cleared.</p></div></div></div>
+    <div class="panel"><div class="hd"><h3>Payout requests</h3></div>${tbl([['Request'], ['Date'], ['Amount', 'r'], ['Status'], ['Bank reference']], v.payouts.map(p => `<tr><td class="n">${p.id}</td><td class="n">${fmtDate(p.date)}</td><td class="r">${inr(p.amount, 2)}</td><td>${pill(p.status, st[p.status])}${p.reason ? `<div class="dim small">${esc(p.reason)}</div>` : ''}</td><td class="n">${esc(p.utr || '—')}</td></tr>`), { empty: 'No payout requests.' })}</div>`;
+  }
+};
+V.pprofile = {
+  load: async () => { const v = await portalLoad(); v.docs = await get(`/v1/clients/${v.account.ucc}/documents`).catch(() => []); return v; },
+  html: v => {
+    const a = v.account, pend = k => v.changes.find(c => c.kind === k && c.status === 'Pending');
+    const row = (k, label, val) => `<tr><td>${label}</td><td>${val}</td><td>${pend(k) ? pill('Change pending', 'warn') : `<button class="btn sm" data-act="pChange" data-id="${k}">Change</button>`}</td></tr>`;
+    return pHead(v, 'Profile & documents', 'Changes to your contact, address, bank or nomination details are checked by our head office before they take effect, and are reported to the KYC registration agency.') +
+    `<div class="grid2"><div class="panel"><div class="hd"><h3>Your details</h3></div>${tbl([['Detail'], ['On record'], ['']], [
+      `<tr><td>PAN</td><td class="mono">${esc(a.pan)}</td><td></td></tr>`, row('Email', 'Email', esc(a.email)), row('Mobile', 'Mobile', esc(a.mobile)), row('Address', 'City', esc(a.city)),
+      row('Bank account', 'Bank account', `${esc(a.bank.bank)} · ${esc(a.bank.account)} · ${esc(a.bank.ifsc)}`), `<tr><td>Demat</td><td class="mono">${esc(a.demat.depository)} ${esc(a.demat.id)}</td><td></td></tr>`,
+      row('Nomination', 'Nomination', esc(a.nominee) + (a.nominee_name ? ' · ' + esc(a.nominee_name) : '')), `<tr><td>Segments</td><td>${a.segments.map(s => `<span class="tag">${esc(a.segment_names[s] || s)}</span>`).join(' ')}</td><td></td></tr>`])}</div>
+    <div class="panel"><div class="hd"><h3>Documents</h3></div>${tbl([['Kind'], ['File'], ['']], v.docs.map(x => `<tr><td>${esc(x.kind)}</td><td class="wrap">${esc(x.name)}<div class="dim small">${fmtDate(x.at.slice(0, 10))}</div></td><td><button class="btn sm" data-act="openBlob" data-id="/v1/clients/${a.ucc}/documents/${x.id}">Open</button></td></tr>`), { empty: 'No documents.' })}</div></div>
+    <div class="panel"><div class="hd"><h3>Change requests</h3></div>${tbl([['Request'], ['Change'], ['New value'], ['Status'], ['Raised']], v.changes.map(c => `<tr><td class="n">${c.id}</td><td>${esc(c.kind)}</td><td class="wrap">${Object.entries(c.new).filter(([k]) => k !== 'account_masked').map(([k, x]) => esc(x)).join(' · ')}</td><td>${pill(c.status, c.status === 'Approved' ? 'good' : c.status === 'Rejected' ? 'bad' : 'warn')}${c.reason ? `<div class="dim small">${esc(c.reason)}</div>` : ''}</td><td class="n dim">${fmtDate(c.at.slice(0, 10))}</td></tr>`), { empty: 'No change requests.' })}</div>`;
+  }
+};
+const CHG_FIELDS = { Email: [['email', 'New email', 'email']], Mobile: [['mobile', 'New mobile', 'tel']], Address: [['city', 'City'], ['state', 'State']], 'Bank account': [['bank', 'Bank name'], ['ifsc', 'IFSC'], ['account', 'Account number']], Nomination: [] };
+function changeModal(kind, ucc, staff) {
+  const f = CHG_FIELDS[kind], proof = { 'Bank account': 'Bank proof', Address: 'Address proof' }[kind];
+  modal(mhd('Change ' + kind.toLowerCase(), `${ucc} · checked by head office before it takes effect`) + `<form class="bd" id="chf"><div class="form">${f.map(([k, l, t]) => `<div class="fld"><label for="ch-${k}">${l}</label><input class="in" id="ch-${k}" type="${t || 'text'}" required></div>`).join('')}
+    ${kind === 'Nomination' ? `<div class="fld"><label for="ch-nominee">Nomination</label><select class="in" id="ch-nominee"><option>Opted in</option><option>Opted out</option></select></div><div class="fld"><label for="ch-nominee_name">Nominee name</label><input class="in" id="ch-nominee_name"></div>` : ''}
+    ${proof ? `<div class="fld full"><label for="ch-doc">${proof} (${kind === 'Bank account' ? 'cancelled cheque or bank statement' : 'Aadhaar, passport, utility bill'}) · PDF, JPEG or PNG</label><input class="in" type="file" id="ch-doc" accept="application/pdf,image/jpeg,image/png" required></div>` : ''}</div>
+    <div id="ch-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Submit request</button></div></form>`);
+  $('chf').onsubmit = async e => {
+    e.preventDefault(); const values = {}; f.forEach(([k]) => values[k] = $('ch-' + k).value);
+    if (kind === 'Nomination') { values.nominee = $('ch-nominee').value; values.nominee_name = $('ch-nominee_name').value; }
+    try {
+      let doc = '';
+      if (proof) { const file = $('ch-doc').files[0]; const d = await api('POST', `/v1/clients/${ucc}/documents?kind=${encodeURIComponent(proof)}&name=${encodeURIComponent(file.name)}`, file, true); doc = d.id; }
+      const r = await post('/v1/changes', { ucc, kind, values, doc }); closeModal(); toast(`Request ${r.id} submitted`); render({ keep: true });
+    } catch (err) { $('ch-err').innerHTML = errHTML(err); }
+  };
+}
+V.phelp = {
+  load: async () => { const [v, t] = await Promise.all([portalLoad(), get(`/v1/tickets?date=${S.date}`)]); v.t = t; return v; },
+  html: v => pHead(v, 'Help desk', 'Raise a complaint, a service request or a question. Complaints are answered within 21 days; requests and questions within 7. You will be told by email when we reply.') +
+    `<div class="tools" style="margin-bottom:12px"><button class="btn pri" data-act="pTicket">New request or complaint</button></div>` +
+    (v.t.tickets.length ? v.t.tickets.map(t => ticketCard(t, true)).join('') : '<div class="panel"><div class="bd"><div class="note">You have not raised anything yet.</div></div></div>')
+};
+function ticketCard(t, client) {
+  const st = { Open: 'warn', 'In progress': 'acc', 'Awaiting client': 'warn', Resolved: 'good', Closed: 'nt' };
+  return `<div class="panel"><div class="hd"><div><h3 style="margin:0">${esc(t.subject)}</h3><small class="dim">${t.id} · ${esc(t.kind)} · ${esc(t.category)} · ${t.ucc} · raised ${fmtDate(t.opened_on)} · reply due ${fmtDate(t.due)}</small></div>${pill(t.status, st[t.status])}</div><div class="bd">
+    ${t.messages.map(m => `<div class="msg ${m.client ? 'me' : ''}"><small class="dim">${m.client ? (client ? 'You' : 'Client') : (client ? 'Support' : esc(m.by))} · ${esc(m.at.slice(0, 16).replace('T', ' '))}</small><div>${esc(m.text)}</div></div>`).join('')}
+    ${!client ? (t.internal || []).map(m => `<div class="msg int"><small class="dim">Internal note · ${esc(m.by)} · ${esc(m.at.slice(0, 16).replace('T', ' '))}</small><div>${esc(m.text)}</div></div>`).join('') : ''}
+    ${t.status !== 'Closed' ? `<div class="tools" style="margin-top:8px"><input class="in" id="tr-${t.id}" placeholder="${client ? 'Write a reply' : 'Reply to the client, or an internal note'}" style="flex:1">${client ? `<button class="btn sm pri" data-act="tReply" data-id="${t.id}">Send</button>${t.status === 'Resolved' ? `<button class="btn sm" data-act="tClose" data-id="${t.id}">Close – resolved</button>` : ''}` : `<button class="btn sm" data-act="tReply" data-id="${t.id}" data-int="1">Internal note</button><button class="btn sm pri" data-act="tReply" data-id="${t.id}">Reply</button><button class="btn sm" data-act="tResolve" data-id="${t.id}">Reply &amp; resolve</button>`}</div>` : ''}
+  </div></div>`;
+}
+function ticketModal(staff, kinds) {
+  const ucc = staff ? '' : pAcct(), c = (staff ? C.helpdesk : C.phelp).t || C.helpdesk;
+  modal(mhd(staff ? 'Record a complaint or request' : 'New request or complaint', staff ? 'Received by email, phone, SCORES, the exchanges or at a branch.' : 'Tell us what happened; include dates, amounts and reference numbers if you have them.') + `<form class="bd" id="tkf"><div class="form">
+    ${staff ? `<div class="fld full"><label for="tk-u-q">Client</label>${cpick('tk-u', '', {})}</div>` : (C.phelp.accounts.length > 1 ? `<div class="fld"><label for="tk-u">Account</label><select class="in" id="tk-u">${C.phelp.accounts.map(a => `<option value="${a.ucc}" ${a.ucc === ucc ? 'selected' : ''}>${esc(a.name)} · ${a.ucc}</option>`).join('')}</select></div>` : `<input type="hidden" id="tk-u" value="${ucc}">`)}
+    <div class="fld"><label for="tk-k">Type</label><select class="in" id="tk-k"><option>Complaint</option><option>Service request</option><option>Query</option></select></div>
+    <div class="fld"><label for="tk-c">Category</label><select class="in" id="tk-c">${c.categories.map(x => `<option>${esc(x)}</option>`).join('')}</select></div>
+    ${staff ? `<div class="fld"><label for="tk-s">Received from</label><select class="in" id="tk-s">${c.sources.map(x => `<option>${esc(x)}</option>`).join('')}</select></div><div class="fld"><label for="tk-ref">SCORES / exchange reference</label><input class="in" id="tk-ref"></div><div class="fld"><label for="tk-d">Received on</label><input class="in" type="date" id="tk-d" value="${S.date}"></div>` : ''}
+    <div class="fld full"><label for="tk-sub">Subject</label><input class="in" id="tk-sub" required></div>
+    <div class="fld full"><label for="tk-t">Details</label><textarea class="in" id="tk-t" rows="4" required></textarea></div></div>
+    <div id="tk-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Submit</button></div></form>`);
+  $('tkf').onsubmit = async e => {
+    e.preventDefault();
+    const b = { ucc: $('tk-u').value, kind: $('tk-k').value, category: $('tk-c').value, subject: $('tk-sub').value, text: $('tk-t').value };
+    if (staff) Object.assign(b, { source: $('tk-s').value, ref: $('tk-ref').value, opened_on: $('tk-d').value });
+    try { const t = await post('/v1/tickets', b); closeModal(); toast(`${t.id} raised · reply due ${fmtDate(t.due)}`); render({ keep: true }); } catch (err) { $('tk-err').innerHTML = errHTML(err); }
+  };
+}
+V.pext = {
+  load: async () => { const v = await portalLoad(); v.ext = await get(`/v1/external-trades?ucc=${v.account.ucc}`); return v; },
+  html: v => pHead(v, 'Trades through other brokers', 'Add equity buys and sells you made through other brokers, so your capital gains report here covers all your trades. Buys made before your account opened here also give a cost to shares you transferred in.') +
+    `<div class="panel"><div class="hd"><h3>Add a trade</h3></div><form class="bd" id="exf"><div class="form" style="grid-template-columns:repeat(4,1fr)">
+      <div class="fld"><label for="ex-d">Trade date</label><input class="in" type="date" id="ex-d" required></div><div class="fld"><label for="ex-s">Scrip</label><input class="in" id="ex-s" placeholder="e.g. INFY" required></div><div class="fld"><label for="ex-i">ISIN (optional)</label><input class="in mono" id="ex-i"></div><div class="fld"><label for="ex-side">Buy / sell</label><select class="in" id="ex-side"><option value="B">Buy</option><option value="S">Sell</option></select></div>
+      <div class="fld"><label for="ex-q">Quantity</label><input class="in" id="ex-q" inputmode="numeric" required></div><div class="fld"><label for="ex-p">Price (₹)</label><input class="in" id="ex-p" inputmode="decimal" required></div><div class="fld"><label for="ex-b">Broker</label><input class="in" id="ex-b" required></div><div class="fld" style="align-self:end"><button class="btn pri" type="submit">Add</button></div></div><div id="ex-err"></div></form></div>
+    <div class="panel">${tbl([['Date'], ['Scrip'], ['Side'], ['Qty', 'r'], ['Price', 'r'], ['Value', 'r'], ['Broker'], ['']], v.ext.map(x => `<tr><td class="n">${fmtDate(x.date)}</td><td>${esc(x.symbol)} <span class="dim small">${esc(x.isin)}</span></td><td>${x.side === 'B' ? 'Buy' : 'Sell'}</td><td class="r">${nf(x.qty)}</td><td class="r">${nf(x.price, 2)}</td><td class="r">${nf(num(x.price) * x.qty, 2)}</td><td>${esc(x.broker)}</td><td><button class="btn sm" data-act="exDel" data-id="${x.id}">Remove</button></td></tr>`), { empty: 'No outside trades added.' })}</div>`
+};
+
+/* ---------- service desk (staff) ---------- */
+V.helpdesk = {
+  load: async () => { const m = UI.hdMonth || S.date.slice(0, 7); const [t, ds] = await Promise.all([get(`/v1/tickets?date=${S.date}`), get(`/v1/complaints/disclosure?month=${m}`)]); return { t, ds, m }; },
+  html: d => {
+    const ts = d.t.tickets, open = ts.filter(t => !['Resolved', 'Closed'].includes(t.status)), od = open.filter(t => t.overdue);
+    return ph('Investor complaints', 'Complaints, service requests and queries from the portal, email, phone, branches, SEBI SCORES and the exchanges. Complaints are due within 21 calendar days, requests within 7. The monthly disclosure is the table brokers publish on their website by the 7th of each month.', has('Ops maker', 'Ops checker', 'Compliance officer') ? '<button class="btn pri" data-act="sTicket">Record a complaint</button>' : '') +
+    `<div class="kpis">${kpi('Open', open.length, open.filter(t => t.kind === 'Complaint').length + ' complaints')}${kpi('Past due date', od.length, 'reply overdue', od.length ? 'bad' : 'good')}${kpi('From SCORES / exchanges', open.filter(t => t.source !== 'Directly from investors' && t.source !== 'Other sources').length, 'open')}${kpi('Received this month', d.ds.total.received, 'complaints')}${kpi('Average resolution', d.ds.total.avg_resolution_days + ' days', 'complaints resolved this month')}</div>
+    <div class="panel"><div class="hd"><div class="tools">${segBtns('hdTab', [['open', 'Open'], ['all', 'All'], ['disc', 'Monthly disclosure']])}${UI.hdTab === 'disc' ? `<input class="in sm" type="month" id="hd-m" value="${d.m}"><button class="btn sm" data-act="hdMonth">Show</button>` : ''}</div></div>${P['hd-t'](d)}</div>`;
+  }
+};
+P['hd-t'] = d => {
+  if (UI.hdTab === 'disc') {
+    const ds = d.ds, r = x => `<td class="r">${x.pending_at_start}</td><td class="r">${x.received}</td><td class="r">${x.resolved}</td><td class="r">${x.pending}</td><td class="r ${x.pending_over_3_months ? 'neg' : ''}">${x.pending_over_3_months}</td><td class="r">${x.avg_resolution_days}</td>`;
+    return tbl([['Received from'], ['Pending at end of last month', 'r'], ['Received', 'r'], ['Resolved', 'r'], ['Total pending', 'r'], ['Pending > 3 months', 'r'], ['Average resolution (days)', 'r']], ds.rows.map(x => `<tr><td>${esc(x.source)}</td>${r(x)}</tr>`), { foot: `<tfoot><tr><td>Grand total</td>${r(ds.total)}</tr></tfoot>` }) +
+      `<div class="grid2"><div>${tbl([['Month'], ['Carried forward', 'r'], ['Received', 'r'], ['Resolved', 'r'], ['Pending', 'r']], ds.trend.map(x => `<tr><td>${esc(x.month)}</td><td class="r">${x.carried_forward}</td><td class="r">${x.received}</td><td class="r">${x.resolved}</td><td class="r">${x.pending}</td></tr>`))}</div><div>${tbl([['Year'], ['Carried forward', 'r'], ['Received', 'r'], ['Resolved', 'r'], ['Pending', 'r']], ds.annual.map(x => `<tr><td>${esc(x.month)}</td><td class="r">${x.carried_forward}</td><td class="r">${x.received}</td><td class="r">${x.resolved}</td><td class="r">${x.pending}</td></tr>`))}</div></div>
+      <div class="pad"><span class="dim small">Average resolution time is the mean of days from receipt to resolution of complaints resolved in the month. Only complaints are counted; service requests and queries are not.</span></div>`;
+  }
+  const ts = d.t.tickets.filter(t => UI.hdTab === 'all' || !['Resolved', 'Closed'].includes(t.status)), st = { Open: 'warn', 'In progress': 'acc', 'Awaiting client': 'warn', Resolved: 'good', Closed: 'nt' };
+  return tbl([['Ticket'], ['Client'], ['Type'], ['Subject'], ['From'], ['Received'], ['Due'], ['Status'], ['With']], ts.map(t => `<tr><td class="n"><button class="linkish" data-act="tOpen" data-id="${t.id}">${t.id}</button></td><td><button class="linkish mono" data-act="client" data-id="${t.ucc}">${t.ucc}</button> ${esc(t.name)}</td><td>${esc(t.kind)}</td><td class="wrap">${esc(t.subject)}<div class="dim small">${esc(t.category)}</div></td><td class="small">${esc(t.source)}${t.ref ? `<div class="mono dim">${esc(t.ref)}</div>` : ''}</td><td class="n">${fmtDate(t.opened_on)}</td><td class="n ${t.overdue ? 'neg' : ''}">${fmtDate(t.due)}${t.overdue ? '<div class="small">overdue</div>' : ''}</td><td>${pill(t.status, st[t.status])}</td><td class="dim">${esc(t.assignee || '—')}</td></tr>`), { tall: true, empty: 'Nothing open.' });
+};
+function ticketDrawer(id) {
+  const d = C.helpdesk, t = d.t.tickets.find(x => x.id === id);
+  modal(mhd(esc(t.subject), `${t.id} · ${t.ucc} ${esc(t.name)}`) + `<div class="bd"><div class="tools"><label class="dim small">Status</label><select class="in sm" id="td-st">${d.t.statuses.map(s => `<option ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}</select><label class="dim small">With</label><select class="in sm" id="td-as"><option value="">—</option>${d.t.staff.map(s => `<option ${s === t.assignee ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select><button class="btn sm" data-act="tSet" data-id="${t.id}">Update</button></div>${ticketCard(t, false)}</div>`, true);
+}
+V.changes = {
+  load: () => get('/v1/changes'),
+  html: d => {
+    const pend = d.requests.filter(r => r.status === 'Pending'), rs = UI.chTab === 'all' ? d.requests : pend, ck = has('Ops checker');
+    return ph('Change requests', 'Changes to client contact, address, bank and nomination details raised from the client portal, branches or head office. A checker who did not raise a request approves it; approved changes are applied, recorded in the audit trail, and go to the KRA in the next upload.', '') +
+    `<div class="panel"><div class="hd"><div class="tools">${segBtns('chTab', [['pending', `Pending (${pend.length})`], ['all', 'All']])}</div></div>${tbl([['Request'], ['Client'], ['Change'], ['Now'], ['New'], ['Proof'], ['From'], ['Status'], ['']], rs.map(r => `<tr><td class="n">${r.id}</td><td><button class="linkish mono" data-act="client" data-id="${r.ucc}">${r.ucc}</button> ${esc(r.name)}</td><td>${esc(r.kind)}</td><td class="wrap dim">${Object.values(r.old).filter(Boolean).map(esc).join(' · ')}</td><td class="wrap"><b>${Object.entries(r.new).filter(([k]) => k !== 'account_masked').map(([, x]) => esc(x)).join(' · ')}</b></td><td>${r.doc ? `<button class="btn sm" data-act="openBlob" data-id="/v1/clients/${r.ucc}/documents/${r.doc}">View</button>` : '—'}</td><td class="small">${esc(r.source)}<div class="dim">${esc(r.by)}</div></td><td>${pill(r.status, r.status === 'Approved' ? 'good' : r.status === 'Rejected' ? 'bad' : 'warn')}${r.reason ? `<div class="dim small">${esc(r.reason)}</div>` : ''}</td><td>${r.status === 'Pending' && ck ? `<button class="btn sm pri" data-act="chDecide" data-id="${r.id}" data-a="1">Approve</button><button class="btn sm" data-act="chDecide" data-id="${r.id}" data-a="0">Reject</button>` : ''}</td></tr>`), { tall: true, empty: 'No change requests.' })}</div>`;
+  }
+};
+
+/* ---------- leads & CRM ---------- */
+V.crm = {
+  load: () => get(`/v1/crm?date=${S.date}&from=${UI.crmFrom || S.date.slice(0, 8) + '01'}&to=${UI.crmTo || S.date}`),
+  html: d => {
+    const q = UI.crmQ.trim().toLowerCase(), f = UI.crmStage;
+    const ls = d.leads.filter(l => (f === 'All' || l.stage === f) && (!q || (l.name + ' ' + l.city + ' ' + l.id).toLowerCase().includes(q)));
+    const sc = { New: 'nt', Contacted: 'acc', Interested: 'acc', 'Documents pending': 'warn', Converted: 'good', Lost: 'bad' };
+    return ph('Leads & CRM', `Prospects from the website, referrals, walk-ins, campaigns and authorised persons, with calls, notes and appointments. Mobile numbers are masked; calls go through the telephony bridge. Each converted lead activated as a client earns its owner ${inr(d.incentive_per_client)}.`, '<button class="btn pri" data-act="newLead">New lead</button>') +
+    `<div class="kpis">${['New', 'Contacted', 'Interested', 'Documents pending', 'Converted'].map(s => kpi(s, d.stages[s] || 0, s === 'Converted' ? 'all time' : 'open', s === 'Converted' ? 'good' : '')).join('')}${kpi('Follow-ups due', d.follow_ups_due, 'today or earlier', d.follow_ups_due ? 'warn' : 'good')}</div>
+    ${d.today.length ? `<div class="panel"><div class="hd"><h3>Appointments today</h3></div>${tbl([['Time'], ['With'], ['Purpose'], ['Place']], d.today.map(a => `<tr><td class="n">${esc(a.at.slice(11))}</td><td>${esc(a.with)}</td><td>${esc(a.purpose)}</td><td>${esc(a.place || '—')}</td></tr>`))}</div>` : ''}
+    <div class="panel"><div class="hd"><div class="tools">${segBtns('crmTab', [['pipe', 'Pipeline'], ['inc', 'Conversions & incentives']])}${UI.crmTab === 'pipe' ? `<select class="in sm" id="crm-stage">${['All', ...d.stage_list].map(s => `<option ${s === f ? 'selected' : ''}>${s}</option>`).join('')}</select><input class="in" data-ui="crmQ" placeholder="Filter name, city or ID" value="${esc(UI.crmQ)}">` : `<input class="in sm" type="date" id="crm-from" value="${esc(d.From)}"><span class="dim">to</span><input class="in sm" type="date" id="crm-to" value="${esc(d.To)}"><button class="btn sm" data-act="crmPeriod">Show</button>`}</div></div>
+    ${UI.crmTab === 'inc' ? tbl([['Owner'], ['Leads', 'r'], ['Calls', 'r'], ['Appointments', 'r'], ['Converted', 'r'], ['Conversion', 'r'], ['Activated', 'r'], ['Incentive', 'r']], d.incentives.map(r => `<tr><td>${esc(r.owner)}</td><td class="r">${r.leads}</td><td class="r">${r.calls}</td><td class="r">${r.appointments}</td><td class="r">${r.converted}</td><td class="r">${esc(r.conversion_pct || '0.0')}%</td><td class="r">${r.activated}</td><td class="r"><b>${inr(r.incentive)}</b></td></tr>`), { empty: 'No leads created in this period.' }) + '<div class="pad"><span class="dim small">Leads created in the period. Incentive is earned when the converted client is activated.</span></div>'
+      : tbl([['Lead'], ['Mobile'], ['City'], ['Source'], ['Owner'], ['Stage'], ['Next follow-up'], ['']], ls.map(l => `<tr><td><button class="linkish" data-act="leadOpen" data-id="${l.id}"><b>${esc(l.name)}</b></button> <span class="mono dim small">${l.id}</span>${l.interest.length ? `<div class="small dim">${l.interest.map(esc).join(', ')}</div>` : ''}</td><td class="mono">${esc(l.mobile)}</td><td>${esc(l.city || '—')}</td><td>${esc(l.source)}</td><td>${esc(l.owner)}</td><td>${pill(l.stage, sc[l.stage])}${l.ucc ? ` <button class="linkish mono" data-act="client" data-id="${l.ucc}">${l.ucc}</button>` : ''}</td><td class="n ${l.next_action && l.next_action <= S.date && !['Converted', 'Lost'].includes(l.stage) ? 'neg' : ''}">${l.next_action ? fmtDate(l.next_action) : '—'}</td><td>${!['Converted', 'Lost'].includes(l.stage) ? `<button class="btn sm" data-act="leadCall" data-id="${l.id}">Call</button>` : ''}</td></tr>`), { tall: true, empty: 'No leads.' })}</div>`;
+  }
+};
+function leadModal() {
+  modal(mhd('New lead', '') + `<form class="bd" id="ldf"><div class="form"><div class="fld"><label for="ld-n">Name</label><input class="in" id="ld-n" required></div><div class="fld"><label for="ld-m">Mobile</label><input class="in" id="ld-m" inputmode="tel" required></div><div class="fld"><label for="ld-e">Email</label><input class="in" id="ld-e" type="email"></div><div class="fld"><label for="ld-c">City</label><input class="in" id="ld-c"></div>
+    <div class="fld"><label for="ld-s">Source</label><select class="in" id="ld-s">${C.crm.sources.map(s => `<option>${s}</option>`).join('')}</select></div><div class="fld"><label for="ld-r-q">Referred by client (optional)</label>${cpick('ld-r', '', { none: 'No referrer' })}</div>
+    <div class="fld full"><label>Interested in</label><div class="tools">${['Equity', 'F&O', 'Commodity', 'Currency', 'Mutual funds', 'IPO', 'MTF'].map(x => `<label class="check"><input type="checkbox" data-int="${x}"> ${x}</label>`).join('')}</div></div><div class="fld"><label for="ld-nx">Follow up on</label><input class="in" type="date" id="ld-nx" value="${S.date}"></div></div>
+    <div id="ld-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Add lead</button></div></form>`);
+  $('ldf').onsubmit = async e => { e.preventDefault(); try { const l = await post('/v1/leads', { name: $('ld-n').value, mobile: $('ld-m').value, email: $('ld-e').value, city: $('ld-c').value, source: $('ld-s').value, referred_by: $('ld-r').value, interest: [...document.querySelectorAll('[data-int]:checked')].map(x => x.dataset.int), next_action: $('ld-nx').value }); closeModal(); toast(`${l.id} added`); render({ keep: true }); } catch (err) { $('ld-err').innerHTML = errHTML(err); } };
+}
+function leadDrawer(id) {
+  const l = C.crm.leads.find(x => x.id === id), done = ['Converted', 'Lost'].includes(l.stage);
+  modal(mhd(esc(l.name), `${l.id} · ${esc(l.source)} · owner ${esc(l.owner)}`) + `<div class="bd">
+    <div class="kv"><div><small>Mobile</small><b class="mono">${esc(l.mobile)}</b></div><div><small>Email</small><b>${esc(l.email || '—')}</b></div><div><small>City</small><b>${esc(l.city || '—')}</b></div><div><small>Stage</small><b>${esc(l.stage)}</b></div><div><small>Next follow-up</small><b>${l.next_action ? fmtDate(l.next_action) : '—'}</b></div>${l.referred_by ? `<div><small>Referred by</small><b>${l.referred_by}</b></div>` : ''}</div>
+    ${!done ? `<div class="tools"><button class="btn sm" data-act="leadCall" data-id="${l.id}">Call</button><button class="btn sm" data-act="leadAppt" data-id="${l.id}">Book appointment</button><select class="in sm" id="lead-stage">${C.crm.stage_list.filter(s => s !== 'Converted').map(s => `<option ${s === l.stage ? 'selected' : ''}>${s}</option>`).join('')}</select><button class="btn sm" data-act="leadStage" data-id="${l.id}">Set stage</button><button class="btn sm pri" data-act="leadConvert" data-id="${l.id}">Open account</button></div>
+    <div class="tools"><input class="in" id="lead-note" placeholder="Add a note" style="flex:1"><input class="in sm" type="date" id="lead-next" title="Next follow-up"><button class="btn sm" data-act="leadNote" data-id="${l.id}">Save</button></div>` : ''}
+    ${l.appointments.length ? `<div><h3 style="margin:0 0 8px;font-size:15px">Appointments</h3>${tbl([['When'], ['With'], ['Purpose'], ['Status'], ['']], l.appointments.map(a => `<tr><td class="n">${esc(a.at.replace('T', ' '))}</td><td>${esc(a.with)}</td><td>${esc(a.purpose)}</td><td>${pill(a.status, a.status === 'Done' ? 'good' : a.status === 'Scheduled' ? 'acc' : 'nt')}</td><td>${a.status === 'Scheduled' ? `<button class="btn sm" data-act="apptSet" data-id="${l.id}" data-ap="${a.id}" data-st="Done">Done</button><button class="btn sm" data-act="apptSet" data-id="${l.id}" data-ap="${a.id}" data-st="No show">No show</button>` : ''}</td></tr>`))}</div>` : ''}
+    <div><h3 style="margin:0 0 8px;font-size:15px">Activity</h3>${l.notes.slice().reverse().map(n => `<div class="msg"><small class="dim">${esc(n.kind)} · ${esc(n.by)} · ${esc(n.at.slice(0, 16).replace('T', ' '))}${n.outcome ? ' · ' + esc(n.outcome) : ''}</small><div>${esc(n.text || '')}</div></div>`).join('')}</div>
+  </div>`, true);
+}
+const leadAct = async (id, body, msg) => { try { const r = await post(`/v1/leads/${id}/act`, body); toast(r.message || msg); C.crm.leads = C.crm.leads.map(x => x.id === id ? r.lead : x); if (document.querySelector('.drawer') || body.kind === 'appointment') leadDrawer(id); $('page').innerHTML = V.crm.html(C.crm); bindPage(); } catch (e) { toast(e.message); } };
+function portalModal(ucc) {
+  modal(mhd('Client portal access · ' + ucc, 'The client signs in with their own user ID and a one-time password, then sets a password and two-factor sign-in. They see only their own accounts.') + `<form class="bd" id="pgf">
+    <div class="fld"><label for="pg-f">Family accounts on the same login (UCCs, comma separated)</label><input class="in mono" id="pg-f" placeholder="e.g. BH1002, BH1007"></div>
+    <label class="check"><input type="checkbox" id="pg-d"> Family declaration received (spouse, dependent children or dependent parents) for accounts that do not share this client’s email or mobile</label>
+    <div id="pg-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Give access</button></div></form>`);
+  $('pgf').onsubmit = async e => { e.preventDefault(); try { const r = await post(`/v1/clients/${ucc}/portal`, { family: $('pg-f').value.split(',').map(x => x.trim()).filter(Boolean), declared: $('pg-d').checked });
+    modal(mhd('Portal access ready', ucc) + `<div class="bd"><div class="kv"><div><small>User ID</small><b class="mono">${esc(r.user)}</b></div>${r.password ? `<div><small>One-time password</small><b class="mono">${esc(r.password)}</b></div>` : '<div><small>Password</small><b>unchanged (existing login)</b></div>'}</div><div class="note">Send the user ID and the one-time password to the client separately (for example the ID by email and the password by SMS). It must be changed at first sign-in.</div></div><div class="ft"><button class="btn pri" data-act="close">Done</button></div>`); } catch (err) { $('pg-err').innerHTML = errHTML(err); } };
+}
+
 /* ---------- settlement ---------- */
 V.settlement = {
   load: async () => { const [st, sh] = await Promise.all([get(`/v1/settlement?date=${S.date}`), get('/v1/shortages')]); return { ...st, shortages: sh }; },
@@ -860,7 +1045,7 @@ async function clientDrawer(ucc) {
     <div>${h3('Documents')}${(docs || []).length ? tbl([['Kind'], ['File'], ['Size', 'r'], ['']], docs.map(x => `<tr><td>${esc(x.kind)}</td><td class="wrap">${esc(x.name)}<div class="dim small">${esc(x.by)} · ${fmtDate(x.at.slice(0, 10))}</div></td><td class="r">${x.size < 1024 ? x.size + " B" : nf(x.size / 1024) + " KB"}</td><td><button class="btn sm" data-act="openBlob" data-id="/v1/clients/${encodeURIComponent(c.ucc)}/documents/${x.id}">Open</button></td></tr>`)) : '<div class="dim small">No scanned documents yet.</div>'}
       ${has('Ops maker', 'Ops checker', 'Compliance officer', 'Branch staff') ? `<div class="tools" style="margin-top:8px"><select class="in sm" id="doc-kind">${['PAN card', 'Address proof', 'Photograph', 'Signature', 'Bank proof', 'Income proof', 'KYC form', 'Account opening agreement', 'DDPI / POA', 'Nomination form', 'IPV / VIPV record', 'Other'].map(k => `<option>${k}</option>`).join('')}</select><input type="file" id="doc-file" accept="application/pdf,image/jpeg,image/png" class="in sm"><button class="btn sm" data-act="addDoc" data-id="${c.ucc}">Add document</button><span class="dim small">PDF, JPEG or PNG, up to 5 MB</span></div>` : ''}</div>
     ${d.alerts.length ? `<div>${h3('Surveillance alerts')}${d.alerts.map(a => `<div class="note ${a.severity === 'High' ? 'bad' : 'warn'}" style="margin-bottom:6px"><b>${esc(a.type)}</b> · ${esc(a.status)}<br>${esc(a.detail)}</div>`).join('')}</div>` : ''}
-  </div><div class="ft"><button class="btn" data-act="crFor" data-id="${c.ucc}">Statements &amp; reports</button><button class="btn" data-act="openLedger" data-id="${c.ucc}">Full ledger</button>${c.status === 'Active' && has('Risk manager') ? `<button class="btn ${c.blocked ? '' : 'bad'}" data-act="kill" data-id="${c.ucc}" data-b="${c.blocked ? 0 : 1}">${c.blocked ? 'Unblock' : 'Kill switch'}</button>` : ''}<button class="btn pri" data-act="close">Done</button></div>`, true);
+  </div><div class="ft"><button class="btn" data-act="crFor" data-id="${c.ucc}">Statements &amp; reports</button><button class="btn" data-act="openLedger" data-id="${c.ucc}">Full ledger</button>${c.status === 'Active' && has('Ops checker') ? `<button class="btn" data-act="portalAccess" data-id="${c.ucc}">Portal access</button>` : ''}${c.status === 'Active' && has('Risk manager') ? `<button class="btn ${c.blocked ? '' : 'bad'}" data-act="kill" data-id="${c.ucc}" data-b="${c.blocked ? 0 : 1}">${c.blocked ? 'Unblock' : 'Kill switch'}</button>` : ''}<button class="btn pri" data-act="close">Done</button></div>`, true);
 }
 const drcr = a => { const n = num(a); return n === 0 ? '0.00' : nf(Math.abs(n), 2) + (n < 0 ? ' Cr' : ' Dr'); };
 
@@ -1194,10 +1379,10 @@ V.statements = {
     const [from, to] = def.range ? crRange(cr.preset, S.date) : ['', cr.preset === 'custom' && cr.to ? cr.to : S.date];
     cr.from = from; cr.to = to;
     const presets = [['day', 'Today'], ['month', 'This month'], ['q', 'This quarter'], ['fy', 'This FY'], ['lastfy', 'Last FY'], ['custom', 'Custom']];
-    return ph('Client reports', 'Statements and reports for any client and period: on screen, as a printable page (save as PDF), or as CSV. Every number comes from the ledger, trade records and holdings; every print and download is in the audit trail.') +
+    return ph(clientUser() ? 'Reports & statements' : 'Client reports', clientUser() ? 'Your statements and reports for any period: on screen, as a printable page (save as PDF), or as CSV.' : 'Statements and reports for any client and period: on screen, as a printable page (save as PDF), or as CSV. Every number comes from the ledger, trade records and holdings; every print and download is in the audit trail.') +
     `<div class="rtypes">${d.defs.map(x => `<button class="${x.kind === def.kind ? 'on' : ''}" data-act="crKind" data-id="${x.kind}"><b>${esc(x.name)}</b><span>${esc(x.about)}</span></button>`).join('')}</div>
     <div class="panel"><div class="bd"><div class="crform">
-      <div class="fld cr-client"><label for="cr-ucc-q">Client${def.all_ucc ? ' or group' : ''}</label>${cpick('cr-ucc', cr.ucc, { all: def.all_ucc, groups: def.all_ucc, placeholder: def.all_ucc ? 'Search name, UCC, PAN or group' : undefined, on: v => { UI.cr.ucc = v; } })}</div>
+      <div class="fld cr-client"><label for="cr-ucc-q">${clientUser() ? 'Account' : 'Client' + (def.all_ucc ? ' or group' : '')}</label>${cpick('cr-ucc', cr.ucc, { all: def.all_ucc && !clientUser(), groups: def.all_ucc && !clientUser(), placeholder: def.all_ucc ? 'Search name, UCC, PAN or group' : undefined, on: v => { UI.cr.ucc = v; } })}</div>
       ${def.range ? `<div class="fld"><label>Period</label><div class="seg">${presets.map(([k, l]) => `<button class="${cr.preset === k ? 'on' : ''}" data-act="crPreset" data-id="${k}">${l}</button>`).join('')}</div></div>
       <div class="fld"><label for="cr-from">From</label><input class="in" type="date" id="cr-from" value="${from}"></div><div class="fld"><label for="cr-to">To</label><input class="in" type="date" id="cr-to" value="${to}"></div>`
       : `<div class="fld"><label for="cr-to">As on</label><input class="in" type="date" id="cr-to" value="${to}"></div>`}
@@ -1332,6 +1517,30 @@ async function act(fn, okMsg, reload = true) {
   catch (e) { toast(e.message); throw e; }
 }
 const A = {
+  pAcct: (id, el) => { UI.pAcct = el.value; render(); },
+  pNote: id => { const [d, u] = id.split('|'); openDoc(`/v1/notes/${d}/${u}/document`); },
+  pChange: id => changeModal(id, UI.pAcct),
+  pTicket: () => ticketModal(false),
+  sTicket: () => ticketModal(true),
+  tOpen: id => ticketDrawer(id),
+  tReply: async (id, el) => { const t = $('tr-' + id).value; if (!t.trim()) { toast('Write something first'); return; } try { await post(`/v1/tickets/${id}`, { text: t, internal: el.dataset.int === '1' }); toast(el.dataset.int === '1' ? 'Note saved' : 'Reply sent'); closeModal(); render({ keep: true }); } catch (e) { toast(e.message); } },
+  tResolve: async id => { const t = $('tr-' + id).value; try { await post(`/v1/tickets/${id}`, { text: t, status: 'Resolved' }); toast('Resolved'); closeModal(); render({ keep: true }); } catch (e) { toast(e.message); } },
+  tClose: id => act(() => post(`/v1/tickets/${id}`, { status: 'Closed' }), 'Closed. Thank you.'),
+  tSet: id => act(() => post(`/v1/tickets/${id}`, { status: $('td-st').value, assignee: $('td-as').value }), 'Updated'),
+  hdMonth: () => { UI.hdMonth = $('hd-m').value; render({ keep: true }); },
+  chDecide: (id, el) => { const a = el.dataset.a === '1'; if (a) { act(() => post(`/v1/changes/${id}/decide`, { approve: true }), id + ' approved and applied'); return; } confirmModal('Reject ' + id, 'The client sees the reason.', '<div class="fld"><label for="cr-r">Reason</label><input class="in" id="cr-r"></div>', 'Reject', () => act(() => post(`/v1/changes/${id}/decide`, { approve: false, reason: $('cr-r').value }), id + ' rejected'), true); },
+  exDel: id => act(() => post(`/v1/external-trades/${UI.pAcct}/${id}/delete`), 'Removed'),
+  newLead: () => leadModal(),
+  leadOpen: id => leadDrawer(id),
+  leadCall: id => leadAct(id, { kind: 'call', outcome: 'Connected' }, 'Call logged'),
+  leadNote: id => leadAct(id, { kind: 'note', text: $('lead-note').value, next_action: $('lead-next').value }, 'Saved'),
+  leadStage: id => { const s = $('lead-stage').value; if (s === 'Lost') { const r = prompt('Why was the lead lost?'); if (!r) return; leadAct(id, { kind: 'stage', stage: s, text: r }, 'Marked lost'); return; } leadAct(id, { kind: 'stage', stage: s }, 'Stage set'); },
+  leadAppt: id => { modal(mhd('Book appointment', '') + `<form class="bd" id="apf"><div class="form"><div class="fld"><label for="ap-at">When</label><input class="in" type="datetime-local" id="ap-at" required></div><div class="fld"><label for="ap-w">With</label><input class="in" id="ap-w" value="${esc(S.me.actor)}"></div><div class="fld"><label for="ap-p">Purpose</label><input class="in" id="ap-p" value="Account opening"></div><div class="fld"><label for="ap-pl">Place</label><input class="in" id="ap-pl" placeholder="Branch, video call…"></div></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Book</button></div></form>`); $('apf').onsubmit = e => { e.preventDefault(); leadAct(id, { kind: 'appointment', at: $('ap-at').value, with: $('ap-w').value, text: $('ap-p').value, place: $('ap-pl').value }, 'Appointment booked'); }; },
+  apptSet: (id, el) => leadAct(id, { kind: 'appointment_status', appointment: el.dataset.ap, status: el.dataset.st }, 'Updated'),
+  leadConvert: id => { const l = C.crm.leads.find(x => x.id === id); A.newClient(); Object.assign(UI.ob.data, { name: l.name, email: l.email || '', city: l.city || '' }); UI.ob.lead = id; UI.ob.leadMasked = l.masked; if (!l.masked) UI.ob.data.mobile = l.mobile; obModal(); },
+  crmStage: (id, el) => { UI.crmStage = el.value; $('page').innerHTML = V.crm.html(C.crm); bindPage(); },
+  crmPeriod: () => { UI.crmFrom = $('crm-from').value; UI.crmTo = $('crm-to').value; render({ keep: true }); },
+  portalAccess: id => portalModal(id),
   openBlob: id => openBlob(id),
   addDoc: async id => { const f = $('doc-file').files[0]; if (!f) { toast('Choose a file first'); return; } try { await api('POST', `/v1/clients/${encodeURIComponent(id)}/documents?kind=${encodeURIComponent($('doc-kind').value)}&name=${encodeURIComponent(f.name)}`, f, true); toast('Document added'); clientDrawer(id); } catch (e) { toast(e.message); } },
   setRisk: id => riskModal(id),
@@ -1499,7 +1708,7 @@ const A = {
     const body = { name: d.name, type: d.type, pan: d.pan, mobile: d.mobile, email: d.email, city: d.city, kyc_route: d.kyc_route, segments: d.segments, income: d.income, ras: d.ras,
       bank: { bank: d.bank, ifsc: d.ifsc, account: d.account }, demat: { depository: d.depository, id: d.demat_id || '' }, nominee: d.nominee, nominee_name: d.nominee_name || '',
       income_proof: !!d.income_proof, risk_disclosure: !!d.risk_disclosure, ipv_scheduled: !!d.ipv_scheduled };
-    try { const c = await post('/v1/clients', body); UI.ob = null; closeModal(); UI.clientStage = 'KYC verification'; toast(`Application ${c.ucc} created`); render({ keep: true }); }
+    try { const c = await post('/v1/clients', body); const lead = UI.ob.lead; UI.ob = null; closeModal(); if (lead) await post(`/v1/leads/${lead}/act`, { kind: 'stage', stage: 'Converted', ucc: c.ucc }).catch(() => {}); UI.clientStage = 'KYC verification'; toast(`Application ${c.ucc} created${lead ? ' from lead ' + lead : ''}`); render({ keep: true }); }
     catch (e) { UI.ob.err = { _server: e }; obModal(); }
   },
   advance: id => act(() => post(`/v1/clients/${id}/advance`), c => `${c.ucc} moved to ${c.status}`),
@@ -1595,6 +1804,11 @@ document.addEventListener('input', e => {
   if (el.dataset.calc) { UI.calc[el.dataset.calc] = el.value; clearTimeout(calcT); calcT = setTimeout(calc, 250); return; }
   if (el.dataset.ob) { UI.ob.data[el.dataset.ob] = el.value; }
 });
+document.addEventListener('submit', async e => {
+  const f = e.target;
+  if (f.id === 'pof') { e.preventDefault(); try { const r = await post('/v1/payouts', { date: S.date, ucc: UI.pAcct, amount: $('po-amt').value.replace(/,/g, '') }); toast(`Payout ${r.id} requested for ${inr(r.amount, 2)}`); render({ keep: true }); } catch (err) { $('po-err').innerHTML = errHTML(err); } }
+  if (f.id === 'exf') { e.preventDefault(); try { await post('/v1/external-trades', { ucc: UI.pAcct, date: $('ex-d').value, symbol: $('ex-s').value, isin: $('ex-i').value, side: $('ex-side').value, qty: +$('ex-q').value, price: $('ex-p').value, broker: $('ex-b').value }); toast('Trade added'); render({ keep: true }); } catch (err) { $('ex-err').innerHTML = errHTML(err); } }
+});
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.id === 'date' && el.value) { S.date = el.value; C.billResult = null; render(); return; }
@@ -1603,6 +1817,8 @@ document.addEventListener('change', e => {
     if (role === 'Branch staff' && !branch) branch = (prompt('Branch for ' + id) || '').trim();
     if (role === 'Authorised person' && !partner) partner = (prompt('Partner code for ' + id) || '').trim().toUpperCase();
     act(() => api('PUT', `/v1/users/${encodeURIComponent(id)}`, { id, name: u.name, role, active: u.active, branch, partner }), `${id} is now ${role}`).catch(() => render({ keep: true })); return; }
+  if (el.id === 'p-acct') { UI.pAcct = el.value; render(); return; }
+  if (el.id === 'crm-stage') { UI.crmStage = el.value; $('page').innerHTML = V.crm.html(C.crm); bindPage(); return; }
   if (el.id === 'ftype') { UI.fileType = el.value; $('page').innerHTML = V.files.html(C.files); bindPage(); return; }
   if (el.id === 'cr-from' || el.id === 'cr-to') { UI.cr.preset = 'custom'; crSync(); document.querySelectorAll('[data-act=crPreset]').forEach(b => b.classList.toggle('on', b.dataset.id === 'custom')); return; }
   if (el.id === 'bkPlan') { UI.bkPlan = el.value; rerenderPart('bk-t'); return; }

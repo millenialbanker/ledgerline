@@ -129,6 +129,21 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/prepaid/subscriptions", s.buyPrepaid, true)
 	R("POST /v1/prepaid/run", s.runPrepaid, true)
 	R("GET /v1/compliance", s.compliance, false)
+	R("POST /v1/clients/{ucc}/portal", s.portalAccess, true)
+	R("GET /v1/portal", s.portal, false)
+	R("GET /v1/changes", s.changes, false)
+	R("POST /v1/changes", s.requestChange, true)
+	R("POST /v1/changes/{id}/decide", s.decideChange, true)
+	R("GET /v1/external-trades", s.extTrades, false)
+	R("POST /v1/external-trades", s.addExtTrade, true)
+	R("POST /v1/external-trades/{ucc}/{id}/delete", s.delExtTrade, true)
+	R("GET /v1/tickets", s.tickets, false)
+	R("POST /v1/tickets", s.openTicket, true)
+	R("POST /v1/tickets/{id}", s.updateTicket, true)
+	R("GET /v1/complaints/disclosure", s.disclosure, false)
+	R("GET /v1/crm", s.crm, false)
+	R("POST /v1/leads", s.saveLead, true)
+	R("POST /v1/leads/{id}/act", s.actLead, true)
 	R("POST /v1/clients/{ucc}/risk", s.clientRisk, true)
 	R("POST /v1/clients/{ucc}/rekyc", s.reKYC, true)
 	R("GET /v1/compliance/kra-upload", s.kraUpload, false)
@@ -198,6 +213,16 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		if _, st, _, err := s.sessionAuth(r); err == nil {
 			auth = st
 		}
+	}
+	if role == ops.RoleClient {
+		// A client sees only their own login, never the firm's staff list.
+		var mine []ops.User
+		for _, u := range us {
+			if u.ID == actor(r) {
+				mine = append(mine, u)
+			}
+		}
+		us = mine
 	}
 	writeJSON(w, 200, map[string]any{"auth": auth, "tenant": tenant(r), "actor": actor(r), "role": role, "users": us, "roles": ops.Roles, "firm": set.Firm, "dev": s.dev, "member_codes": set.MemberCodes, "holidays": set.Holidays, "sample_rates": s.app.Schedule.Sample, "schedule": s.app.Schedule.Version})
 }
@@ -285,6 +310,21 @@ func (s *Server) clients(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		v = out
+	}
+	if role, _ := s.ops.RoleOf(r.Context(), tenant(r), actor(r)); role == ops.RoleClient && err == nil {
+		// The portal needs names for its account picker, nothing more.
+		type row struct {
+			UCC    string   `json:"ucc"`
+			Name   string   `json:"name"`
+			Status string   `json:"status"`
+			Tags   []string `json:"tags"`
+		}
+		out := []row{}
+		for _, c := range v {
+			out = append(out, row{c.UCC, c.Name, c.Status, []string{}})
+		}
+		ok(w, out, nil)
+		return
 	}
 	ok(w, v, err)
 }
@@ -1322,8 +1362,11 @@ func (s *Server) requestPayout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	src := "Head office"
-	if role, _ := s.ops.RoleOf(r.Context(), tenant(r), actor(r)); role == ops.RoleBranch || role == ops.RoleAP {
+	switch role, _ := s.ops.RoleOf(r.Context(), tenant(r), actor(r)); role {
+	case ops.RoleBranch, ops.RoleAP:
 		src = "Branch"
+	case ops.RoleClient:
+		src = "Client"
 	}
 	v, err := s.ops.RequestPayout(r.Context(), tenant(r), actor(r), b.Date, b.UCC, b.Amount, src)
 	if err != nil {
@@ -1859,4 +1902,215 @@ func (s *Server) clientDocFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
 	w.Header().Set("Content-Disposition", `inline; filename="`+strings.NewReplacer(`"`, "", "\\", "").Replace(d.Name)+`"`)
 	w.Write(b)
+}
+
+// ---- client portal, help desk, CRM ----
+
+func (s *Server) portalAccess(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Family   []string `json:"family"`
+		Declared bool     `json:"declared"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	id, pw, err := s.ops.PortalAccess(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), b.Family, b.Declared)
+	ok(w, map[string]any{"user": id, "password": pw}, err)
+}
+
+func (s *Server) portal(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.Portal(r.Context(), tenant(r), actor(r), d, r.URL.Query().Get("ucc"))
+	ok(w, v, err)
+}
+
+func (s *Server) changes(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.ChangeRequests(r.Context(), tenant(r))
+	if f := s.scope(r); f != nil && err == nil {
+		mine := []ops.ChangeRequest{}
+		for _, c := range v {
+			if f(c.UCC) {
+				mine = append(mine, c)
+			}
+		}
+		v = mine
+	}
+	ok(w, map[string]any{"requests": v, "kinds": ops.ChangeKinds}, err)
+}
+
+func (s *Server) requestChange(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		UCC    string            `json:"ucc"`
+		Kind   string            `json:"kind"`
+		Values map[string]string `json:"values"`
+		Doc    string            `json:"doc"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if !s.canSee(w, r, b.UCC) {
+		return
+	}
+	v, err := s.ops.RequestChange(r.Context(), tenant(r), actor(r), b.UCC, b.Kind, b.Values, b.Doc)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	writeJSON(w, 201, v)
+}
+
+func (s *Server) decideChange(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Approve bool   `json:"approve"`
+		Reason  string `json:"reason"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.DecideChange(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Approve, b.Reason)
+	ok(w, v, err)
+}
+
+func (s *Server) extTrades(w http.ResponseWriter, r *http.Request) {
+	u := r.URL.Query().Get("ucc")
+	if !s.canSee(w, r, u) {
+		return
+	}
+	v, err := s.ops.ExternalTrades(r.Context(), tenant(r), u)
+	ok(w, v, err)
+}
+
+func (s *Server) addExtTrade(w http.ResponseWriter, r *http.Request) {
+	var b ops.ExternalTrade
+	if !decode(w, r, &b) {
+		return
+	}
+	if !s.canSee(w, r, b.UCC) {
+		return
+	}
+	v, err := s.ops.AddExternalTrade(r.Context(), tenant(r), actor(r), b)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	writeJSON(w, 201, v)
+}
+
+func (s *Server) delExtTrade(w http.ResponseWriter, r *http.Request) {
+	if !s.canSee(w, r, r.PathValue("ucc")) {
+		return
+	}
+	err := s.ops.DeleteExternalTrade(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), r.PathValue("id"))
+	ok(w, map[string]any{"deleted": err == nil}, err)
+}
+
+func (s *Server) tickets(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.Tickets(r.Context(), tenant(r), d)
+	if f := s.scope(r); f != nil && err == nil {
+		mine := []ops.Ticket{}
+		for _, t := range v {
+			if f(t.UCC) {
+				mine = append(mine, t)
+			}
+		}
+		v = mine
+	}
+	staff := []string{}
+	if role, _ := s.ops.RoleOf(r.Context(), tenant(r), actor(r)); role == ops.RoleClient {
+		for i := range v {
+			v[i].Internal = nil
+		}
+	} else {
+		us, _ := s.ops.Users(r.Context(), tenant(r))
+		for _, u := range us {
+			if u.Role != ops.RoleClient && u.Active {
+				staff = append(staff, u.ID)
+			}
+		}
+	}
+	ok(w, map[string]any{"tickets": v, "sources": ops.TicketSources, "categories": ops.TicketCategories, "statuses": ops.TicketStatuses, "staff": staff}, err)
+}
+
+func (s *Server) openTicket(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		ops.Ticket
+		Text string `json:"text"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if !s.canSee(w, r, b.UCC) {
+		return
+	}
+	v, err := s.ops.OpenTicket(r.Context(), tenant(r), actor(r), b.Ticket, b.Text)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	writeJSON(w, 201, v)
+}
+
+func (s *Server) updateTicket(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Text     string `json:"text"`
+		Internal bool   `json:"internal"`
+		Status   string `json:"status"`
+		Assignee string `json:"assignee"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.TicketUpdate(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Text, b.Internal, b.Status, b.Assignee)
+	if role, _ := s.ops.RoleOf(r.Context(), tenant(r), actor(r)); role == ops.RoleClient {
+		v.Internal = nil
+	}
+	ok(w, v, err)
+}
+
+func (s *Server) disclosure(w http.ResponseWriter, r *http.Request) {
+	m := r.URL.Query().Get("month")
+	v, err := s.ops.ComplaintsDisclosure(r.Context(), tenant(r), m)
+	ok(w, v, err)
+}
+
+func (s *Server) crm(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	q := r.URL.Query()
+	from, to := q.Get("from"), q.Get("to")
+	if from == "" {
+		from = d[:8] + "01"
+	}
+	if to == "" {
+		to = d
+	}
+	v, err := s.ops.CRM(r.Context(), tenant(r), actor(r), d, from, to)
+	ok(w, v, err)
+}
+
+func (s *Server) saveLead(w http.ResponseWriter, r *http.Request) {
+	var b ops.Lead
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveLead(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) actLead(w http.ResponseWriter, r *http.Request) {
+	var b ops.LeadAction
+	if !decode(w, r, &b) {
+		return
+	}
+	v, msg, err := s.ops.ActOnLead(r.Context(), tenant(r), actor(r), r.PathValue("id"), b)
+	ok(w, map[string]any{"lead": v, "message": msg}, err)
 }

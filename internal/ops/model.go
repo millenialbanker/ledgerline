@@ -84,6 +84,8 @@ type User struct {
 	// their own clients and their downline's.
 	Branch  string `json:"branch,omitempty"`
 	Partner string `json:"partner,omitempty"`
+	// Clients are the accounts a client portal login covers (own first).
+	Clients []string `json:"clients,omitempty"`
 }
 
 // Settings are per-tenant rules and calendar.
@@ -136,6 +138,10 @@ type Settings struct {
 	// before today minus AutoLockDays business days when that is set.
 	LockedUpTo   string `json:"locked_up_to"`
 	AutoLockDays int64  `json:"auto_lock_days"`
+
+	// LeadIncentive is paid to a lead's owner for each converted lead
+	// activated as a client (₹, default 500).
+	LeadIncentive string `json:"lead_incentive"`
 }
 
 // lockedUpTo is the last locked date given today.
@@ -217,7 +223,7 @@ func (o *Ops) PutUser(ctx context.Context, tenant, actor string, u User) error {
 	if strings.TrimSpace(u.Name) == "" {
 		return invalid("user name is required")
 	}
-	ok := false
+	ok := u.Role == RoleClient && len(u.Clients) > 0
 	for _, r := range Roles {
 		ok = ok || r == u.Role
 	}
@@ -303,7 +309,7 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	if s.RASBufferPct < 0 || s.RASBufferPct > 100 {
 		return invalid("RAS buffer must be between 0 and 100")
 	}
-	for _, x := range []struct{ name, v string }{{"interest rate", s.InterestPctPA}, {"GST rate", s.GSTPct}, {"interest minimum", s.InterestMinimum}, {"TDS rate", s.TDSCommissionPct}, {"referral reward", s.ReferralPct}} {
+	for _, x := range []struct{ name, v string }{{"interest rate", s.InterestPctPA}, {"GST rate", s.GSTPct}, {"interest minimum", s.InterestMinimum}, {"TDS rate", s.TDSCommissionPct}, {"referral reward", s.ReferralPct}, {"interest minimum", s.LeadIncentive}} {
 		if x.v == "" {
 			continue
 		}

@@ -308,3 +308,5 @@ tr.sel td{background:var(--accent-soft)}
 
 .tbl tr.grp td{background:var(--sunk);font-size:12.5px}
 .md .bd>*{min-width:0}.drawer .md{width:100%}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}.grid2>.panel{margin:0;min-width:0}@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+.msg{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--panel)}.msg.me{background:var(--accent-soft);margin-left:40px}.msg.int{background:var(--warn-soft);border-style:dashed}.msg div{white-space:pre-wrap}

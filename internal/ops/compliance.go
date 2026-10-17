@@ -647,10 +647,15 @@ var docTypes = map[string]string{"application/pdf": ".pdf", "image/jpeg": ".jpg"
 
 // AddClientDoc stores a scanned document for a client.
 func (o *Ops) AddClientDoc(ctx context.Context, tenant, actor, ucc, kind, name string, data []byte) (ClientDoc, error) {
-	if err := o.require(ctx, tenant, actor, "Adding client documents", RoleMaker, RoleChecker, RoleCompliance, RoleBranch); err != nil {
+	ucc = strings.ToUpper(ucc)
+	if role, _ := o.RoleOf(ctx, tenant, actor); role == RoleClient {
+		// Clients add their own proofs from the portal (for change requests).
+		if accts, _ := o.PortalAccounts(ctx, tenant, actor); !contains(accts, ucc) {
+			return ClientDoc{}, ErrNotFound
+		}
+	} else if err := o.require(ctx, tenant, actor, "Adding client documents", RoleMaker, RoleChecker, RoleCompliance, RoleBranch); err != nil {
 		return ClientDoc{}, err
 	}
-	ucc = strings.ToUpper(ucc)
 	if _, err := o.Client(ctx, tenant, ucc); err != nil {
 		return ClientDoc{}, err
 	}

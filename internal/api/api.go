@@ -143,9 +143,12 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 		}
 		// Branch staff and authorised persons reach only the client-level
 		// screens; everything firm-wide is closed to them.
-		if s.ops != nil {
+		if s.ops != nil && !strings.HasPrefix(pattern, "POST /v1/auth/") {
 			if role, err := s.ops.RoleOf(ctx, tenant, actor); err == nil && (role == ops.RoleBranch || role == ops.RoleAP) && !scopedRoutes[pattern] {
 				writeErr(w, http.StatusForbidden, "forbidden", "This is not available to "+role+" logins.", nil)
+				return
+			} else if err == nil && role == ops.RoleClient && !clientRoutes[pattern] {
+				writeErr(w, http.StatusForbidden, "forbidden", "This is not available in the client portal.", nil)
 				return
 			}
 		}
@@ -628,6 +631,18 @@ var scopedRoutes = map[string]bool{
 	"GET /v1/payouts/withdrawable": true, "POST /v1/payouts": true, "GET /v1/debits": true, "GET /v1/rms": true,
 	"GET /v1/tags": true, "GET /v1/brokerage/client/{ucc}": true, "GET /v1/partners": true, "GET /v1/settings": true,
 	"GET /v1/prepaid": true, "POST /v1/prepaid/subscriptions": true,
+	"GET /v1/clients/{ucc}/documents": true, "POST /v1/clients/{ucc}/documents": true, "GET /v1/clients/{ucc}/documents/{id}": true,
+	"GET /v1/changes": true, "POST /v1/changes": true, "GET /v1/tickets": true, "POST /v1/tickets": true, "POST /v1/tickets/{id}": true,
+	"GET /v1/external-trades": true, "POST /v1/external-trades": true, "GET /v1/crm": true, "POST /v1/leads": true, "POST /v1/leads/{id}/act": true,
+}
+
+// clientRoutes are the routes open to a client's portal login, each
+// limited to the client's own accounts.
+var clientRoutes = map[string]bool{
+	"GET /v1/me": true, "GET /v1/portal": true, "GET /v1/clients": true, "GET /v1/client-reports": true, "GET /v1/client-reports/{kind}": true,
+	"GET /v1/notes/{date}/{ucc}/document": true, "GET /v1/payouts/withdrawable": true, "POST /v1/payouts": true,
+	"POST /v1/changes": true, "GET /v1/tickets": true, "POST /v1/tickets": true, "POST /v1/tickets/{id}": true,
+	"GET /v1/external-trades": true, "POST /v1/external-trades": true, "POST /v1/external-trades/{ucc}/{id}/delete": true,
 	"GET /v1/clients/{ucc}/documents": true, "POST /v1/clients/{ucc}/documents": true, "GET /v1/clients/{ucc}/documents/{id}": true,
 }
 
