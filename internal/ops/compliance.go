@@ -117,7 +117,6 @@ func suggestedRisk(c Client, debarredHit bool, strFiled bool, turnover money.Dec
 	return "Low", nil
 }
 
-
 // PMLARow is one client's PMLA and KYC position.
 type PMLARow struct {
 	UCC        string    `json:"ucc"`
