@@ -9,7 +9,7 @@ try { Object.assign(S, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e
 const persist = () => { try { localStorage.setItem(LS, JSON.stringify({ tenant: S.tenant, date: S.date, view: S.view })); } catch (e) {} };
 const UI = { inTab: 'due', inSel: new Set(), inQ: '', clientTag: '', clientSel: new Set(), bkQ: '', bkPlan: '', cr: { kind: 'ledger', ucc: '', preset: 'fy', from: '', to: '' }, crRes: null, crErr: null, crBusy: false, reconF: 'OPEN', reconX: 'All', reconQ: '', clientStage: 'All', clientQ: '', rmsF: 'All', rmsQ: '', settleTab: 'cm', noteF: 'All',
   bankF: 'All', rasF: 'due', auditQ: '', ledgerU: '', ledgerTab: 'statement', calc: { bucket: 'CM-DEL', exchange: 'NSE', side: 'B', qty: 100, price: '1412' },
-  debTab: 'cd', ptTab: 'pt', ptFrom: '', ptTo: '', bkTab: 'vch', finFrom: '', finTo: '', finBranch: '', gstFrom: '', gstTo: '', caTab: 'ca', monTab: 'rcpt', monQ: '', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
+  debTab: 'cd', kycTab: 'risk', kycQ: '', kycF: 'All', ptTab: 'pt', ptFrom: '', ptTo: '', bkTab: 'vch', finFrom: '', finTo: '', finBranch: '', gstFrom: '', gstTo: '', caTab: 'ca', monTab: 'rcpt', monQ: '', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
 const C = {}; // per-view data from the server
 let CFG = {};
 
@@ -71,6 +71,15 @@ async function download(path, name) {
     setTimeout(() => URL.revokeObjectURL(url), 4000); toast('Downloaded ' + name);
   } catch (e) { toast(e.message); }
 }
+async function openBlob(path) {
+  const w = window.open('', '_blank');
+  try {
+    const res = await fetch(path, { headers: { 'X-Requested-With': 'ledgerline' } });
+    if (!res.ok) throw new Error('Could not open the document');
+    const url = URL.createObjectURL(await res.blob());
+    if (w) w.location = url; else location.href = url;
+  } catch (e) { if (w) w.close(); toast(e.message); }
+}
 async function openDoc(path) {
   const w = window.open('', '_blank');
   try {
@@ -88,7 +97,7 @@ const NAV = [
   ['Operations', [['files', 'Files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['corp', 'Corporate actions'], ['statements', 'Client reports']]],
   ['Risk', [['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge'], ['debits', 'Debtors & interest']]],
   ['Accounts', [['ledger', 'Ledger'], ['bank', 'Bank reconciliation'], ['money', 'Receipts & payouts'], ['books', 'Firm accounts & GST'], ['ras', 'Running account'], ['charges', 'Charges calculator'], ['brokerage', 'Brokerage plans']]],
-  ['Compliance', [['reports', 'Regulatory reports'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
+  ['Compliance', [['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
   ['Business', [['partners', 'Branches & partners'], ['prepaid', 'Prepaid schemes']]],
   ['Admin', [['settings', 'Settings']]]];
 const VIEWS = NAV.flatMap(g => g[1].map(v => v[0]));
@@ -672,6 +681,61 @@ P['int-t'] = iv => {
     <div class="pad"><span class="dim small">Simple interest on each day’s overdue debit (interest already charged does not earn interest). Posting debits the client, credits interest income and GST payable, and issues a tax invoice (SAC 997119). Periods already charged are never charged again.</span></div>`;
 };
 
+/* ---------- KYC & PMLA ---------- */
+V.kyc = {
+  load: async () => { const [v, stt] = await Promise.all([get(`/v1/compliance?date=${S.date}`), get(`/v1/compliance/stt?date=${S.date}`).catch(e => ({ error: e.message, rows: [] }))]); return { v, stt }; },
+  html: d => {
+    const v = d.v, c = v.counts, n = k => c[k] || 0;
+    return ph('KYC & PMLA', 'Client risk under the PMLA rules and the exchange KYC circulars, periodic KYC updation (every 2 years for High risk, 8 for Medium, 10 for Low), KRA and CKYC status, and screening against SEBI and exchange debarment orders and UN sanctions lists. A PAN match blocks the client at once; a name match is raised for review. Lists, KRA status and CKYC numbers are loaded on the Files page.',
+      `<button class="btn" data-act="go" data-id="files">Load a list or status file</button><button class="btn" data-act="dl" data-id="/v1/compliance/ckyc-request" data-name="ckyc_bulk_request.csv">CKYC bulk request</button><button class="btn pri" data-act="kraFile">KRA upload file</button>`) +
+    `<div class="kpis">${kpi('High risk', n('Risk High'), `${n('Risk Medium')} medium · ${n('Risk Low')} low`, n('Risk High') ? 'warn' : '')}${kpi('Risk to review', n('Risk to review'), 'rules point to a higher category', n('Risk to review') ? 'warn' : 'good')}${kpi('List matches', n('List matches'), `${v.lists.length} entries screened`, n('List matches') ? 'bad' : 'good')}${kpi('Re-KYC overdue', n('Re-KYC Overdue'), `${n('Re-KYC Due soon')} due in 90 days`, n('Re-KYC Overdue') ? 'bad' : 'good')}${kpi('KRA not validated', n('KRA not validated'), 'not Validated / Registered', n('KRA not validated') ? 'warn' : 'good')}${kpi('No CKYC number', n('No CKYC number'), 'request in bulk', n('No CKYC number') ? 'warn' : 'good')}</div>
+    <div class="panel"><div class="hd"><div class="tools">${segBtns('kycTab', [['risk', 'Client risk'], ['rekyc', 'Periodic KYC'], ['reg', 'KRA & CKYC'], ['lists', 'Debarred & sanctions'], ['stt', 'Turnover & STT recon']])}${['risk', 'rekyc', 'reg'].includes(UI.kycTab) ? `<input class="in" data-ui="kycQ" data-part="kyc-t" placeholder="Filter name or UCC" value="${esc(UI.kycQ)}">` : ''}</div></div><div id="kyc-t">${P['kyc-t'](d)}</div></div>`;
+  }
+};
+P['kyc-t'] = d => {
+  const v = d.v, q = UI.kycQ.trim().toLowerCase(), can = has('Compliance officer'), mk = has('Ops maker', 'Ops checker', 'Compliance officer');
+  const rows = v.rows.filter(r => !q || (r.ucc + ' ' + r.name).toLowerCase().includes(q));
+  const who = r => `<button class="linkish mono" data-act="client" data-id="${r.ucc}">${r.ucc}</button> ${esc(r.name)}`;
+  const rk = x => pill(x || '—', x === 'High' ? 'bad' : x === 'Medium' ? 'warn' : 'good');
+  if (UI.kycTab === 'rekyc') {
+    const due = rows.filter(r => r.rekyc_state !== 'Current').sort((a, b) => (a.rekyc_due || '').localeCompare(b.rekyc_due || ''));
+    return tbl([['Client'], ['Risk'], ['Last KYC'], ['Due'], ['State'], ['']], due.map(r => `<tr><td>${who(r)}</td><td>${rk(r.risk)}</td><td class="n">${fmtDate(r.kyc_date) || '—'}</td><td class="n">${fmtDate(r.rekyc_due) || '—'}</td><td>${pill(r.rekyc_state || 'No KYC date', r.rekyc_state === 'Overdue' ? 'bad' : 'warn')}</td><td>${mk ? `<button class="btn sm" data-act="reKYC" data-id="${r.ucc}">Record re-KYC</button>` : ''}</td></tr>`), { tall: true, empty: 'No client is due for periodic KYC updation in the next 90 days.' }) + '<div class="pad"><span class="dim small">Recording re-KYC restarts the clock from that date. Done online (KRA re-fetch or DigiLocker), by email confirmation, or in person; raising the risk category shortens the cycle.</span></div>';
+  }
+  if (UI.kycTab === 'reg') return tbl([['Client'], ['PAN'], ['KRA status'], ['CKYC number'], ['KYC date']], rows.map(r => `<tr><td>${who(r)}</td><td class="n">${esc(r.pan)}</td><td>${pill(r.kra_status || 'Not loaded', ['Validated', 'Registered'].includes(r.kra_status) ? 'good' : r.kra_status ? 'bad' : 'nt')}</td><td class="n">${r.ckyc ? esc(r.ckyc) : '<span class="dim">—</span>'}</td><td class="n">${fmtDate(r.kyc_date) || '—'}</td></tr>`), { tall: true, empty: 'No active clients.' }) + '<div class="pad"><span class="dim small">KRA upload file: clients opened or changed since a date, for upload to the KRA. CKYC bulk request: clients without a CKYC number, for download from CERSAI. Load the KRA status file and CKYC numbers back on the Files page.</span></div>';
+  if (UI.kycTab === 'lists') {
+    const hits = v.rows.filter(r => r.debarred.length);
+    return `${hits.length ? `<div class="bd">${hits.map(r => `<div class="note ${r.blocked ? 'bad' : 'warn'}" style="margin-bottom:6px">${who(r)} · ${esc(r.pan)} matches ${r.debarred.map(esc).join('; ')}${r.blocked ? ' · <b>blocked</b>' : ' · name only: review and confirm or clear'}</div>`).join('')}</div>` : '<div class="bd"><div class="note">No active client matches the lists in force.</div></div>'}` +
+      tbl([['Name'], ['PAN'], ['Regulator'], ['Order'], ['Dated'], ['Till']], v.lists.map(l => `<tr><td>${esc(l.name)}</td><td class="n">${esc(l.pan || '—')}</td><td>${esc(l.regulator)}</td><td class="n">${esc(l.order_no)}</td><td class="n">${fmtDate(l.order_date)}</td><td class="n">${l.till ? fmtDate(l.till) : 'Further orders'}</td></tr>`), { tall: true, empty: 'No list loaded. Load a DEBARRED-LIST file on the Files page.' });
+  }
+  if (UI.kycTab === 'stt') {
+    const t = d.stt;
+    return t.error ? `<div class="bd">${errHTML({ message: t.error })}</div>` : tbl([['Exchange segment'], ['Turnover billed', 'r'], ['Turnover per exchange', 'r'], ['Difference', 'r'], ['STT billed', 'r'], ['STT per exchange', 'r'], ['Difference', 'r'], ['Status']], t.rows.map(r => `<tr><td>${esc(r.exchange)}-${esc(r.segment)}</td><td class="r">${nf(r.our_turnover, 2)}</td><td class="r">${r.has_statement ? nf(r.exchange_turnover, 2) : '—'}</td><td class="r ${num(r.diff_turnover) ? 'neg' : ''}">${r.has_statement ? nf(r.diff_turnover, 2) : '—'}</td><td class="r">${nf(r.our_stt, 2)}</td><td class="r">${r.has_statement ? nf(r.exchange_stt, 2) : '—'}</td><td class="r ${num(r.diff_stt) ? 'neg' : ''}">${r.has_statement ? nf(r.diff_stt, 2) : '—'}</td><td>${pill(r.status, r.status === 'Matched' ? 'good' : r.status === 'Difference' ? 'bad' : 'nt')}</td></tr>`), { empty: 'No trades on this date.' }) + '<div class="pad"><span class="dim small">Billed figures are from bills in force for the date (rebills included). Load the exchange’s STT-STATEMENT file to compare; a difference of more than ₹1 is flagged.</span></div>';
+  }
+  const f = UI.kycF;
+  const shown = rows.filter(r => f === 'All' || (f === 'Review' ? r.review : r.risk === f));
+  return `<div class="pad" style="padding-bottom:0">${segBtns('kycF', ['All', 'Review', 'High', 'Medium', 'Low'], 'kyc-t')}</div>` + tbl([['Client'], ['Type'], ['Risk'], ['Rules suggest'], ['Special category'], ['Turnover this FY', 'r'], ['']], shown.map(r => `<tr><td>${who(r)}${r.blocked ? ' ' + pill('Blocked', 'bad') : ''}</td><td>${esc(r.type)}</td><td>${rk(r.risk)}</td><td>${r.review ? rk(r.suggested) + `<div class="dim small wrap">${r.why.map(esc).join('; ')}</div>` : `<span class="dim">${r.suggested === r.risk ? 'Same' : 'Not higher'}</span>`}</td><td class="wrap">${r.csc.map(x => `<span class="tag">${esc(x)}</span>`).join(' ') || '<span class="dim">—</span>'}</td><td class="r">${inr(r.turnover)}</td><td>${can ? `<button class="btn sm" data-act="setRisk" data-id="${r.ucc}">Set risk</button>` : ''}</td></tr>`), { tall: true, empty: 'No clients match.' });
+};
+function riskModal(ucc) {
+  const d = C.kyc, r = d.v.rows.find(x => x.ucc === ucc), csc = new Set(r.csc);
+  modal(mhd('Client risk · ' + esc(r.name), `${r.ucc} · rules suggest ${r.suggested}${r.why.length ? ': ' + r.why.map(esc).join('; ') : ''}`) + `<form class="bd" id="rkf">
+    <div class="fld"><label>Risk category</label><div class="seg" id="rk-r">${['Low', 'Medium', 'High'].map(x => `<button type="button" class="${x === r.risk ? 'on' : ''}" data-v="${x}">${x}</button>`).join('')}</div></div>
+    <div class="fld"><label>Client of special category (CSC)</label><div class="tools">${d.v.csc.map(x => `<label class="check"><input type="checkbox" data-csc="${esc(x)}" ${csc.has(x) ? 'checked' : ''}> ${esc(x)}</label>`).join('')}</div></div>
+    <div class="fld"><label for="rk-note">Basis for the decision</label><input class="in" id="rk-note" required placeholder="e.g. Reviewed income proof and source of funds"></div>
+    <div id="rk-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Save</button></div></form>`);
+  let risk = r.risk;
+  $('rk-r').onclick = e => { const b = e.target.closest('button'); if (!b) return; risk = b.dataset.v; $('rk-r').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); };
+  $('rkf').onsubmit = async e => { e.preventDefault(); try { await post(`/v1/clients/${encodeURIComponent(ucc)}/risk`, { risk, csc: [...document.querySelectorAll('[data-csc]:checked')].map(x => x.dataset.csc), note: $('rk-note').value }); closeModal(); toast('Risk saved'); render({ keep: true }); } catch (err) { $('rk-err').innerHTML = errHTML(err); } };
+}
+function reKYCModal(ucc) {
+  const r = C.kyc.v.rows.find(x => x.ucc === ucc);
+  modal(mhd('Record periodic KYC · ' + esc(r.name), `${r.ucc} · due ${fmtDate(r.rekyc_due)}`) + `<form class="bd" id="rkyf"><div class="form"><div class="fld"><label for="rky-d">Completed on</label><input class="in" type="date" id="rky-d" value="${S.date}"></div><div class="fld"><label for="rky-m">How</label><select class="in" id="rky-m">${['KRA re-fetch', 'DigiLocker / Aadhaar e-KYC', 'Email confirmation of no change', 'In person'].map(x => `<option>${x}</option>`).join('')}</select></div></div><div id="rky-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Record</button></div></form>`);
+  $('rkyf').onsubmit = async e => { e.preventDefault(); try { await post(`/v1/clients/${encodeURIComponent(ucc)}/rekyc`, { date: $('rky-d').value, mode: $('rky-m').value }); closeModal(); toast('Re-KYC recorded'); render({ keep: true }); } catch (err) { $('rky-err').innerHTML = errHTML(err); } };
+}
+function kraModal() {
+  modal(mhd('KRA upload file', 'Clients opened, or whose KYC details changed, on or after a date, in the KRA bulk upload layout.') + `<div class="bd"><div class="fld"><label for="kra-since">Since</label><input class="in" type="date" id="kra-since" value="${S.date.slice(0, 8)}01"></div></div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" id="kra-go">Download</button></div>`);
+  $('kra-go').onclick = () => { const s = $('kra-since').value; closeModal(); download(`/v1/compliance/kra-upload?since=${s}`, `kra_upload_${s}.csv`); };
+}
+
 /* ---------- settlement ---------- */
 V.settlement = {
   load: async () => { const [st, sh] = await Promise.all([get(`/v1/settlement?date=${S.date}`), get('/v1/shortages')]); return { ...st, shortages: sh }; },
@@ -777,7 +841,7 @@ P['clients-t'] = d => {
 };
 async function clientDrawer(ucc) {
   modal(`<div class="bd"><p class="loading">Loading ${esc(ucc)}…</p></div>`, true);
-  let d, bp; try { [d, bp] = await Promise.all([get(`/v1/clients/${encodeURIComponent(ucc)}?date=${S.date}`), get(`/v1/brokerage/client/${encodeURIComponent(ucc)}?date=${S.date}`).catch(() => null)]); } catch (e) { modal(mhd('Client', '') + `<div class="bd">${errHTML(e)}</div>`, true); return; }
+  let d, bp, docs; try { [d, bp, docs] = await Promise.all([get(`/v1/clients/${encodeURIComponent(ucc)}?date=${S.date}`), get(`/v1/brokerage/client/${encodeURIComponent(ucc)}?date=${S.date}`).catch(() => null), get(`/v1/clients/${encodeURIComponent(ucc)}/documents`).catch(() => [])]); } catch (e) { modal(mhd('Client', '') + `<div class="bd">${errHTML(e)}</div>`, true); return; }
   const c = d.client, r = d.risk, st = { OK: 'good', Watch: 'warn', Breach: 'bad', Debit: 'warn' };
   const lines = d.statement.lines.slice(-12);
   const h3 = t => `<h3 style="margin:0 0 8px;font-family:var(--f-cond);font-size:15px">${t}</h3>`;
@@ -793,6 +857,8 @@ async function clientDrawer(ucc) {
     ${d.holdings.length ? `<div>${h3('Demat holdings')}${tbl([['Scrip'], ['Qty', 'r'], ['Pledged', 'r'], ['LTP', 'r'], ['Value', 'r']], d.holdings.map(h => `<tr><td>${esc(h.symbol)}</td><td class="r">${nf(h.qty)}</td><td class="r">${h.pledged ? nf(h.pledged) : '—'}</td><td class="r">${nf(h.ltp, 2)}</td><td class="r">${inr(h.value)}</td></tr>`))}</div>` : ''}
     ${d.trades.length ? `<div>${h3(`Trades on ${fmtDate(S.date)} · ${d.trades.length}`)}${tbl([['Time'], ['Contract'], ['Side'], ['Qty', 'r'], ['Price', 'r'], ['Product']], d.trades.slice(0, 40).map(t => `<tr><td class="n">${t.trade_time}</td><td>${esc(instName(`${t.symbol}|${t.instrument_type}|${t.expiry}|${t.strike}`))}</td><td>${t.side === 'B' ? 'Buy' : 'Sell'}</td><td class="r">${nf(t.qty)}</td><td class="r">${nf(t.price, 2)}</td><td><span class="tag">${esc(t.product)}</span></td></tr>`))}</div>` : ''}
     <div>${h3('Ledger (latest entries)')}${tbl([['Date'], ['Particulars'], ['Debit', 'r'], ['Credit', 'r'], ['Balance', 'r']], lines.map(l => `<tr><td class="n dim">${fmtDate(l.value_date)}</td><td class="wrap">${esc(l.memo || l.narration)}</td><td class="r">${num(l.debit) ? nf(l.debit, 2) : ''}</td><td class="r">${num(l.credit) ? nf(l.credit, 2) : ''}</td><td class="r">${drcr(l.balance)}</td></tr>`), { empty: 'No entries' })}</div>
+    <div>${h3('Documents')}${(docs || []).length ? tbl([['Kind'], ['File'], ['Size', 'r'], ['']], docs.map(x => `<tr><td>${esc(x.kind)}</td><td class="wrap">${esc(x.name)}<div class="dim small">${esc(x.by)} · ${fmtDate(x.at.slice(0, 10))}</div></td><td class="r">${x.size < 1024 ? x.size + " B" : nf(x.size / 1024) + " KB"}</td><td><button class="btn sm" data-act="openBlob" data-id="/v1/clients/${encodeURIComponent(c.ucc)}/documents/${x.id}">Open</button></td></tr>`)) : '<div class="dim small">No scanned documents yet.</div>'}
+      ${has('Ops maker', 'Ops checker', 'Compliance officer', 'Branch staff') ? `<div class="tools" style="margin-top:8px"><select class="in sm" id="doc-kind">${['PAN card', 'Address proof', 'Photograph', 'Signature', 'Bank proof', 'Income proof', 'KYC form', 'Account opening agreement', 'DDPI / POA', 'Nomination form', 'IPV / VIPV record', 'Other'].map(k => `<option>${k}</option>`).join('')}</select><input type="file" id="doc-file" accept="application/pdf,image/jpeg,image/png" class="in sm"><button class="btn sm" data-act="addDoc" data-id="${c.ucc}">Add document</button><span class="dim small">PDF, JPEG or PNG, up to 5 MB</span></div>` : ''}</div>
     ${d.alerts.length ? `<div>${h3('Surveillance alerts')}${d.alerts.map(a => `<div class="note ${a.severity === 'High' ? 'bad' : 'warn'}" style="margin-bottom:6px"><b>${esc(a.type)}</b> · ${esc(a.status)}<br>${esc(a.detail)}</div>`).join('')}</div>` : ''}
   </div><div class="ft"><button class="btn" data-act="crFor" data-id="${c.ucc}">Statements &amp; reports</button><button class="btn" data-act="openLedger" data-id="${c.ucc}">Full ledger</button>${c.status === 'Active' && has('Risk manager') ? `<button class="btn ${c.blocked ? '' : 'bad'}" data-act="kill" data-id="${c.ucc}" data-b="${c.blocked ? 0 : 1}">${c.blocked ? 'Unblock' : 'Kill switch'}</button>` : ''}<button class="btn pri" data-act="close">Done</button></div>`, true);
 }
@@ -1266,6 +1332,11 @@ async function act(fn, okMsg, reload = true) {
   catch (e) { toast(e.message); throw e; }
 }
 const A = {
+  openBlob: id => openBlob(id),
+  addDoc: async id => { const f = $('doc-file').files[0]; if (!f) { toast('Choose a file first'); return; } try { await api('POST', `/v1/clients/${encodeURIComponent(id)}/documents?kind=${encodeURIComponent($('doc-kind').value)}&name=${encodeURIComponent(f.name)}`, f, true); toast('Document added'); clientDrawer(id); } catch (e) { toast(e.message); } },
+  setRisk: id => riskModal(id),
+  reKYC: id => reKYCModal(id),
+  kraFile: () => kraModal(),
   newBranch: () => A.editBranch(''),
   editBranch: code => { const b = C.partners.br.find(x => x.code === code) || { code: '', name: '', city: '', manager: '', active: true };
     confirmModal(code ? 'Edit branch ' + esc(code) : 'New branch', '', `<div class="form"><div class="fld"><label for="bx-c">Code</label><input class="in" id="bx-c" value="${esc(b.code)}" ${code ? 'readonly' : ''}></div><div class="fld"><label for="bx-n">Name</label><input class="in" id="bx-n" value="${esc(b.name)}"></div><div class="fld"><label for="bx-t">City</label><input class="in" id="bx-t" value="${esc(b.city)}"></div><div class="fld"><label for="bx-m">Manager (user ID)</label><input class="in" id="bx-m" value="${esc(b.manager || '')}"></div><label class="check full"><input type="checkbox" id="bx-a" ${b.active ? 'checked' : ''}> Open</label></div>`, 'Save', () => act(() => post('/v1/branches', { code: $('bx-c').value.trim(), name: $('bx-n').value.trim(), city: $('bx-t').value.trim(), manager: $('bx-m').value.trim(), active: $('bx-a').checked }), 'Branch saved')); },

@@ -128,6 +128,15 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/prepaid/schemes", s.savePrepaidScheme, true)
 	R("POST /v1/prepaid/subscriptions", s.buyPrepaid, true)
 	R("POST /v1/prepaid/run", s.runPrepaid, true)
+	R("GET /v1/compliance", s.compliance, false)
+	R("POST /v1/clients/{ucc}/risk", s.clientRisk, true)
+	R("POST /v1/clients/{ucc}/rekyc", s.reKYC, true)
+	R("GET /v1/compliance/kra-upload", s.kraUpload, false)
+	R("GET /v1/compliance/ckyc-request", s.ckycRequest, false)
+	R("GET /v1/compliance/stt", s.sttRecon, false)
+	R("GET /v1/clients/{ucc}/documents", s.clientDocs, false)
+	R("POST /v1/clients/{ucc}/documents", s.addClientDoc, true)
+	R("GET /v1/clients/{ucc}/documents/{id}", s.clientDocFile, false)
 	R("GET /v1/debits", s.debits, false)
 	R("POST /v1/debits/block", s.debitBlock, true)
 	R("GET /v1/debits/block-file", s.debitBlockFile, false)
@@ -1739,4 +1748,115 @@ func (s *Server) runPrepaid(w http.ResponseWriter, r *http.Request) {
 	}
 	a, e, n, err := s.ops.RunPrepaid(r.Context(), tenant(r), actor(r), b.Date)
 	ok(w, map[string]any{"adjusted": a, "expired": e, "renewed": n}, err)
+}
+
+// ---- compliance desk ----
+
+func (s *Server) compliance(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.PMLA(r.Context(), tenant(r), d)
+	ok(w, v, err)
+}
+
+func (s *Server) clientRisk(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Risk string   `json:"risk"`
+		CSC  []string `json:"csc"`
+		Note string   `json:"note"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SetClientRisk(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), b.Risk, b.CSC, b.Note)
+	ok(w, v.Public(), err)
+}
+
+func (s *Server) reKYC(w http.ResponseWriter, r *http.Request) {
+	var b struct{ Date, Mode string }
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.RecordReKYC(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), b.Date, b.Mode)
+	ok(w, v.Public(), err)
+}
+
+func (s *Server) kraUpload(w http.ResponseWriter, r *http.Request) {
+	since, okd := dateParam(w, r.URL.Query().Get("since"), "since", true)
+	if !okd {
+		return
+	}
+	f, err := s.ops.KRAUploadFile(r.Context(), tenant(r), since)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	s.app.Log(r.Context(), tenant(r), actor(r), "kra.upload_file", since, nil)
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="kra_upload_`+since+`.csv"`)
+	w.Write(f)
+}
+
+func (s *Server) ckycRequest(w http.ResponseWriter, r *http.Request) {
+	f, err := s.ops.CKYCRequestFile(r.Context(), tenant(r))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="ckyc_bulk_request.csv"`)
+	w.Write(f)
+}
+
+func (s *Server) sttRecon(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.STTReconcile(r.Context(), tenant(r), d)
+	ok(w, v, err)
+}
+
+func (s *Server) clientDocs(w http.ResponseWriter, r *http.Request) {
+	if !s.canSee(w, r, r.PathValue("ucc")) {
+		return
+	}
+	v, err := s.ops.ClientDocs(r.Context(), tenant(r), r.PathValue("ucc"))
+	ok(w, v, err)
+}
+
+func (s *Server) addClientDoc(w http.ResponseWriter, r *http.Request) {
+	if !s.canSee(w, r, r.PathValue("ucc")) {
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(r.Body, ops.MaxDocBytes+1))
+	if err != nil {
+		writeErr(w, 400, "bad_request", "cannot read the file", nil)
+		return
+	}
+	q := r.URL.Query()
+	v, err := s.ops.AddClientDoc(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), q.Get("kind"), q.Get("name"), data)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	writeJSON(w, 201, v)
+}
+
+func (s *Server) clientDocFile(w http.ResponseWriter, r *http.Request) {
+	if !s.canSee(w, r, r.PathValue("ucc")) {
+		return
+	}
+	d, b, err := s.ops.ClientDocFile(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), r.PathValue("id"))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	w.Header().Set("Content-Type", d.ContentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
+	w.Header().Set("Content-Disposition", `inline; filename="`+strings.NewReplacer(`"`, "", "\\", "").Replace(d.Name)+`"`)
+	w.Write(b)
 }

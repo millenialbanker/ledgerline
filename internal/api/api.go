@@ -628,6 +628,7 @@ var scopedRoutes = map[string]bool{
 	"GET /v1/payouts/withdrawable": true, "POST /v1/payouts": true, "GET /v1/debits": true, "GET /v1/rms": true,
 	"GET /v1/tags": true, "GET /v1/brokerage/client/{ucc}": true, "GET /v1/partners": true, "GET /v1/settings": true,
 	"GET /v1/prepaid": true, "POST /v1/prepaid/subscriptions": true,
+	"GET /v1/clients/{ucc}/documents": true, "POST /v1/clients/{ucc}/documents": true, "GET /v1/clients/{ucc}/documents/{id}": true,
 }
 
 // scope is the client filter for the request's user (nil: every client).

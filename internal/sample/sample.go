@@ -512,6 +512,36 @@ func generate(date string) (Day, *world) {
 	}
 	day.Files = append(day.Files, File{"SURV-ALERTS", "exchange_alerts_" + date + ".csv", "", csvBytes(sa), false})
 
+	// ---- KYC registries and debarment lists ----
+	kra := [][]string{{"PAN", "Status", "Remarks"}}
+	ck := [][]string{{"PAN", "CKYCNumber"}}
+	for i, c := range cs {
+		if c.status != "Active" {
+			continue
+		}
+		st, rm := "Validated", ""
+		switch {
+		case i%11 == 3:
+			st = "Registered"
+		case i%17 == 5:
+			st, rm = "On hold", "Mobile number not verified"
+		}
+		kra = append(kra, []string{c.pan, st, rm})
+		if i%3 != 1 {
+			ck = append(ck, []string{c.pan, fmt.Sprintf("5%013d", 4012000000000+int64(i)*7919)})
+		}
+	}
+	day.Files = append(day.Files, File{"KRA-STATUS", "kra_status_" + date + ".csv", "", csvBytes(kra), false})
+	day.Files = append(day.Files, File{"CKYC-NUMBERS", "ckyc_numbers.csv", "", csvBytes(ck), false})
+	nm := actives[(len(actives)*2)/3].name
+	deb := [][]string{{"PAN", "Name", "Regulator", "OrderNo", "OrderDate", "Till"},
+		{"AQZPV7712K", "Vinod Kalra", "SEBI", "WTM/AB/IVD/ID4/31217/2026", "2026-08-12", ""},
+		{"BKRPS4410M", "Sundaram Agro Exports Ltd", "SEBI", "QJA/SM/MIRSD/30944/2026", "2026-06-30", "2028-06-29"},
+		{"", "Shri " + nm, "NSE", "NSE/INVG/2026/0412", "2026-09-18", ""},
+		{"", "Al-Mansoor Trading Co", "UNSC", "QDe.172", "2025-11-04", ""},
+	}
+	day.Files = append(day.Files, File{"DEBARRED-LIST", "debarred_entities_" + date + ".csv", date, csvBytes(deb), false})
+
 	// ---- IPO / MF ----
 	ipo := [][]string{{"ApplicationNo", "UCC", "Issue", "Lots", "Amount", "UPI", "Mandate"}}
 	allot := [][]string{{"ApplicationNo", "AllottedLots"}}

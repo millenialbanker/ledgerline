@@ -78,6 +78,14 @@ type Client struct {
 	// Private clients are visible only to admins, compliance and VisibleTo.
 	Private   bool     `json:"private,omitempty"`
 	VisibleTo []string `json:"visible_to,omitempty"`
+	// PMLA and KYC registries.
+	CSC            []string `json:"csc,omitempty"` // special categories
+	RiskReviewedOn string   `json:"risk_reviewed_on,omitempty"`
+	KRAStatus      string   `json:"kra_status,omitempty"`
+	KRARemark      string   `json:"kra_remark,omitempty"`
+	CKYC           string   `json:"ckyc,omitempty"`
+	ReKYCOn        string   `json:"rekyc_on,omitempty"`
+	ReKYCMode      string   `json:"rekyc_mode,omitempty"`
 }
 
 var (
@@ -257,6 +265,10 @@ func (o *Ops) CreateApplication(ctx context.Context, tenant, actor string, c Cli
 		if x.PAN == c.PAN {
 			return Client{}, &ValidationError{[]FieldError{{"pan", "A client with this PAN already exists (" + x.UCC + ")"}}}
 		}
+	}
+	if d, hit := o.IsDebarredPAN(ctx, tenant, c.PAN, o.now().Format("2006-01-02")); hit {
+		o.log(ctx, tenant, actor, "onboarding.debarred", c.PAN, map[string]any{"order": d.OrderNo, "regulator": d.Regulator})
+		return Client{}, &ValidationError{[]FieldError{{"pan", "This PAN is debarred from the securities market (" + d.Regulator + " order " + d.OrderNo + "); the account cannot be opened"}}}
 	}
 	if c.UCC == "" {
 		n, err := o.next(ctx, tenant, "ucc", actor)

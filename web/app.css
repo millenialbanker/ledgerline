@@ -177,7 +177,7 @@ input.in,select.in{height:32px}
 .pipe b{font-family:var(--f-mono);font-size:19px}
 /* modal */
 .ov{position:fixed;inset:0;background:rgba(10,14,12,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:max(5vh,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px));overflow-y:auto}
-.ov.drawer{justify-content:flex-end;padding:0;align-items:stretch}
+.ov.drawer{justify-content:flex-end;padding:0;align-items:flex-start}
 .md{background:var(--panel);border:1px solid var(--line2);border-radius:12px;box-shadow:var(--shadow);width:100%;max-width:780px;display:flex;flex-direction:column;min-width:0}
 .drawer .md{max-width:600px;border-radius:0;border-width:0 0 0 1px;min-height:100%;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 .md>.hd{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line)}
@@ -307,3 +307,4 @@ tr.sel td{background:var(--accent-soft)}
 .plan .hd{flex-wrap:wrap;gap:8px}
 
 .tbl tr.grp td{background:var(--sunk);font-size:12.5px}
+.md .bd>*{min-width:0}.drawer .md{width:100%}

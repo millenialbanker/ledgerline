@@ -43,6 +43,10 @@ func MasterSources() []MasterSource {
 		{"IPO-BIDS", "IPO applications from the exchange bidding platform", []string{"ApplicationNo", "UCC", "Issue", "Lots", "Amount", "UPI", "Mandate"}, false, "During the issue"},
 		{"IPO-ALLOTMENT", "IPO allotment results from the registrar", []string{"ApplicationNo", "AllottedLots"}, false, "After allotment"},
 		{"MF-ORDERS", "Mutual fund orders from the exchange platform", []string{"OrderNo", "UCC", "Scheme", "Type", "Amount", "Platform", "Status"}, false, "Daily"},
+		{"DEBARRED-LIST", "SEBI / exchange debarment orders and UN sanctions lists; PAN matches are blocked, name matches raised for review", []string{"PAN", "Name", "Regulator", "OrderNo", "OrderDate", "Till"}, false, "On every new order"},
+		{"KRA-STATUS", "KYC status from the KRA (Registered, Validated, On hold, Rejected)", []string{"PAN", "Status", "Remarks"}, false, "Daily"},
+		{"CKYC-NUMBERS", "CKYC identifiers downloaded from CERSAI", []string{"PAN", "CKYCNumber"}, false, "On response"},
+		{"STT-STATEMENT", "Exchange statement of turnover and STT by segment, for reconciliation", []string{"Exchange", "Segment", "Turnover", "STT"}, true, "Daily"},
 	}
 }
 
@@ -193,6 +197,8 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		return s
 	}
 	switch source {
+	case "DEBARRED-LIST", "KRA-STATUS", "CKYC-NUMBERS", "STT-STATEMENT":
+		return o.prepareCompliance(ctx, tenant, actor, source, date, rows)
 	case "CLIENT-MASTER":
 		var cs []Client
 		seen := map[string]bool{}

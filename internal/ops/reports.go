@@ -51,6 +51,11 @@ func ReportDefs() []ReportDef {
 		{"bills", "Bills and charges register", "Internal audit", "Daily", "T", "CSV"},
 		{"trades", "Trade register", "Internal audit", "Daily", "T", "CSV"},
 		{"alerts", "Surveillance alert register", "Exchanges / FIU-IND", "Monthly", "7th of next month", "CSV"},
+		{"register_securities", "Register of securities (client-wise, with the firm and in demat)", "Inspection", "On demand", "—", "CSV"},
+		{"client_register", "Client register in exchange format", "Inspection", "On demand", "—", "CSV"},
+		{"ledger_balances", "Client ledger balances with days in debit", "Inspection", "On demand", "—", "CSV"},
+		{"no_ras_auth", "Clients without a running account authorisation", "Inspection", "On demand", "—", "CSV"},
+		{"kyc_registry", "KRA, CKYC and periodic KYC status", "Inspection / compliance", "On demand", "—", "CSV"},
 	}
 }
 
@@ -202,6 +207,85 @@ func (o *Ops) ReportRows(ctx context.Context, tenant, date, code string) ([][]st
 		rows := [][]string{{"AlertID", "Date", "Source", "Type", "UCC", "Severity", "Status", "Detail", "Notes"}}
 		for _, a := range as {
 			rows = append(rows, []string{a.ID, a.Date, a.Source, a.Type, a.UCC, a.Severity, a.Status, a.Detail, strings.Join(a.Notes, " | ")})
+		}
+		return rows, nil
+	case "register_securities":
+		hs, err := o.Holdings(ctx, tenant, "")
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Date", "UCC", "Name", "ISIN", "Symbol", "DematQty", "PledgedToFirm", "HeldInCUSPA"}}
+		cu, _ := docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
+		held := map[string]int64{}
+		for _, it := range cu {
+			if it.Status == "Held in CUSPA" {
+				held[holdingID(it.UCC, it.ISIN)] += it.Qty
+			}
+		}
+		seen := map[string]bool{}
+		for _, h := range hs {
+			id := holdingID(h.UCC, h.ISIN)
+			seen[id] = true
+			rows = append(rows, []string{date, h.UCC, clients[h.UCC].Name, h.ISIN, h.Symbol, fmt.Sprint(h.Qty), fmt.Sprint(h.Pledged), fmt.Sprint(held[id])})
+		}
+		for _, it := range cu {
+			if id := holdingID(it.UCC, it.ISIN); it.Status == "Held in CUSPA" && !seen[id] {
+				seen[id] = true
+				rows = append(rows, []string{date, it.UCC, clients[it.UCC].Name, it.ISIN, it.Symbol, "0", "0", fmt.Sprint(held[id])})
+			}
+		}
+		return rows, nil
+	case "client_register":
+		rows := [][]string{{"UCC", "Name", "Category", "PAN", "DOB", "City", "State", "Mobile", "Email", "Bank", "IFSC", "BankAccount", "Depository", "DematID", "Segments", "KYCDate", "Nomination", "Status", "Branch", "AP"}}
+		for _, u := range sortedKeys(clients) {
+			c := clients[u]
+			st := c.Status
+			if c.Inactive {
+				st = "Inactive"
+			}
+			rows = append(rows, []string{c.UCC, c.Name, c.Type, c.PAN, c.DOB, c.City, c.State, c.Mobile, c.Email, c.Bank.Bank, c.Bank.IFSC, MaskAccount(c.Bank.Account), c.Demat.Depository, c.Demat.ID, strings.Join(c.Segments, "/"), c.KYCDate, c.Nominee, st, c.Branch, c.Partner})
+		}
+		return rows, nil
+	case "ledger_balances":
+		funds, err := o.clientFunds(ctx, tenant, date, "")
+		if err != nil {
+			return nil, err
+		}
+		deb, _ := o.Debits(ctx, tenant, date)
+		days := map[string]int{}
+		for _, r := range deb.Rows {
+			days[r.UCC] = r.Days
+		}
+		rows := [][]string{{"Date", "UCC", "Name", "Balance", "DrCr", "DaysInDebit"}}
+		for _, u := range sortedKeys(clients) {
+			f := funds[u]
+			if f == 0 {
+				continue
+			}
+			dc, amt := "Cr", f
+			if f < 0 {
+				dc, amt = "Dr", -f
+			}
+			rows = append(rows, []string{date, u, clients[u].Name, amt.String(), dc, fmt.Sprint(days[u])})
+		}
+		return rows, nil
+	case "no_ras_auth":
+		rows := [][]string{{"UCC", "Name", "PAN", "Status", "RunningAccountPreference"}}
+		for _, u := range sortedKeys(clients) {
+			c := clients[u]
+			if c.RAS != "Monthly" && c.RAS != "Quarterly" {
+				rows = append(rows, []string{u, c.Name, MaskPAN(c.PAN), c.Status, c.RAS})
+			}
+		}
+		return rows, nil
+	case "kyc_registry":
+		v, err := o.PMLA(ctx, tenant, date)
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"UCC", "Name", "Risk", "SpecialCategories", "KYCDate", "ReKYCDue", "ReKYCState", "KRAStatus", "CKYC"}}
+		for _, r := range v.Rows {
+			rows = append(rows, []string{r.UCC, r.Name, r.Risk, strings.Join(r.CSC, "; "), r.KYCDate, r.ReKYCDue, r.ReKYCState, r.KRAStatus, r.CKYC})
 		}
 		return rows, nil
 	}
