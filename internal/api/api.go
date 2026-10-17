@@ -113,6 +113,10 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 				return
 			}
 			tenant, actor = t, strings.TrimSpace(r.Header.Get("X-Actor"))
+			if strings.Contains(actor, ":") {
+				writeErr(w, http.StatusBadRequest, "bad_actor", "X-Actor must be a user ID.", nil)
+				return
+			}
 		} else {
 			t, st, _, err := s.sessionAuth(r)
 			if err != nil {
@@ -644,6 +648,7 @@ var clientRoutes = map[string]bool{
 	"POST /v1/changes": true, "GET /v1/tickets": true, "POST /v1/tickets": true, "POST /v1/tickets/{id}": true,
 	"GET /v1/external-trades": true, "POST /v1/external-trades": true, "POST /v1/external-trades/{ucc}/{id}/delete": true,
 	"GET /v1/clients/{ucc}/documents": true, "POST /v1/clients/{ucc}/documents": true, "GET /v1/clients/{ucc}/documents/{id}": true,
+	"POST /v1/portal/whatsapp": true,
 }
 
 // scope is the client filter for the request's user (nil: every client).

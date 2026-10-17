@@ -154,11 +154,31 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	root := http.NewServeMux()
 	root.Handle("/v1/", apiSrv)
 	root.Handle("/healthz", apiSrv)
+	root.Handle("/hooks/", apiSrv) // payment gateway and WhatsApp webhooks
 	root.Handle("/", web.Handler(cfg))
 	srv := &http.Server{
 		Addr: addr, Handler: root,
 		ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute,
 	}
+	// The scheduler checks each firm's jobs once a minute.
+	go func() {
+		t := time.NewTicker(time.Minute)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case now := <-t.C:
+				for _, tn := range apiSrv.Tenants() {
+					if n, err := o.Tick(ctx, tn, now); err != nil {
+						log.Error("scheduler", "tenant", tn, "err", err)
+					} else if n > 0 {
+						log.Info("scheduler ran jobs", "tenant", tn, "jobs", n)
+					}
+				}
+			}
+		}
+	}()
 	errc := make(chan error, 1)
 	go func() {
 		log.Info("listening", "addr", addr, "adapters", len(reg.List()), "schedule", sched.Version)

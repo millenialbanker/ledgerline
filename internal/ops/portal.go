@@ -82,6 +82,7 @@ func (o *Ops) PortalAccess(ctx context.Context, tenant, actor, ucc string, famil
 		return "", "", err
 	}
 	o.log(ctx, tenant, actor, "portal.granted", id, map[string]any{"accounts": accts, "declared": declared})
+	o.notify(ctx, tenant, actor, "portal.granted", ucc, map[string]string{"user": id})
 	return id, pw, nil
 }
 
@@ -101,6 +102,7 @@ type PortalAccount struct {
 	RAS         string            `json:"ras"`
 	Blocked     bool              `json:"blocked"`
 	Inactive    bool              `json:"inactive"`
+	WhatsApp    bool              `json:"whatsapp"`
 	Names       map[string]string `json:"segment_names"`
 }
 
@@ -126,7 +128,7 @@ func portalAccount(c Client) PortalAccount {
 	b := c.Bank
 	b.Account = MaskAccount(b.Account)
 	return PortalAccount{UCC: c.UCC, Name: c.Name, PAN: MaskPAN(c.PAN), Email: c.Email, Mobile: c.Mobile, City: c.City, Bank: b, Demat: c.Demat,
-		Segments: c.Segments, Nominee: c.Nominee, NomineeName: c.NomineeName, RAS: c.RAS, Blocked: c.Blocked, Inactive: c.Inactive, Names: SegmentNames}
+		Segments: c.Segments, Nominee: c.Nominee, NomineeName: c.NomineeName, RAS: c.RAS, Blocked: c.Blocked, Inactive: c.Inactive, WhatsApp: c.WhatsApp, Names: SegmentNames}
 }
 
 // PortalAccounts lists the accounts a user may see in the portal.

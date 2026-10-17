@@ -132,7 +132,10 @@ type Settings struct {
 	// Money in and out.
 	ChequeBounceCharge string `json:"cheque_bounce_charge"` // ₹ before GST, default 350
 	GatewaySecret      string `json:"gateway_secret,omitempty"`
-	PayoutDebitAccount string `json:"payout_debit_account"` // client bank account payouts are made from
+	WhatsAppSecret     string `json:"whatsapp_secret,omitempty"`
+	// ManagementEmails get scheduled-job results and alerts.
+	ManagementEmails   []string `json:"management_emails"`
+	PayoutDebitAccount string   `json:"payout_debit_account"` // client bank account payouts are made from
 
 	// Period locking: nothing may be posted on or before LockedUpTo, or
 	// before today minus AutoLockDays business days when that is set.
@@ -257,6 +260,9 @@ var validID = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{1,62}$`)
 // the actor is not one of them. With no users configured every actor is
 // treated as Admin (single-user setups).
 func (o *Ops) RoleOf(ctx context.Context, tenant, actor string) (string, error) {
+	if actor == SystemActor {
+		return RoleAdmin, nil
+	}
 	us, err := o.Users(ctx, tenant)
 	if err != nil {
 		return "", err
@@ -321,6 +327,15 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	if s.GatewaySecret == SecretMask {
 		old, _ := o.Settings(ctx, tenant)
 		s.GatewaySecret = old.GatewaySecret
+	}
+	if s.WhatsAppSecret == SecretMask {
+		old, _ := o.Settings(ctx, tenant)
+		s.WhatsAppSecret = old.WhatsAppSecret
+	}
+	for _, e := range s.ManagementEmails {
+		if !reEmail.MatchString(e) {
+			return invalid("management email %q is not an email address", e)
+		}
 	}
 	if s.InterestGraceDays < 0 || s.DebitBlockDays < 0 || s.AutoLockDays < 0 || s.AutoLockDays > 30 {
 		return invalid("day counts must be zero or more (auto lock at most 30)")

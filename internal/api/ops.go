@@ -142,6 +142,18 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/tickets/{id}", s.updateTicket, true)
 	R("GET /v1/complaints/disclosure", s.disclosure, false)
 	R("GET /v1/crm", s.crm, false)
+	R("GET /v1/messages", s.messages, false)
+	R("GET /v1/templates", s.templates, false)
+	R("POST /v1/templates", s.saveTemplate, true)
+	R("POST /v1/templates/{id}/test", s.testTemplate, true)
+	R("POST /v1/messages/bulk", s.bulkSend, true)
+	R("GET /v1/whatsapp/chats", s.waChats, false)
+	R("POST /v1/whatsapp/simulate", s.waSimulate, true)
+	s.mux.HandleFunc("POST /hooks/{tenant}/whatsapp", s.waHook)
+	R("POST /v1/portal/whatsapp", s.portalWhatsApp, true)
+	R("GET /v1/jobs", s.jobs, false)
+	R("POST /v1/jobs", s.saveJob, true)
+	R("POST /v1/jobs/{id}/run", s.runJob, true)
 	R("POST /v1/leads", s.saveLead, true)
 	R("POST /v1/leads/{id}/act", s.actLead, true)
 	R("POST /v1/clients/{ucc}/risk", s.clientRisk, true)
@@ -248,6 +260,9 @@ func (s *Server) settings(w http.ResponseWriter, r *http.Request) {
 	set, err := s.ops.Settings(r.Context(), tenant(r))
 	if set.GatewaySecret != "" {
 		set.GatewaySecret = ops.SecretMask
+	}
+	if set.WhatsAppSecret != "" {
+		set.WhatsAppSecret = ops.SecretMask
 	}
 	ok(w, map[string]any{"settings": set, "schedule": s.app.Schedule}, err)
 }
@@ -2113,4 +2128,128 @@ func (s *Server) actLead(w http.ResponseWriter, r *http.Request) {
 	}
 	v, msg, err := s.ops.ActOnLead(r.Context(), tenant(r), actor(r), r.PathValue("id"), b)
 	ok(w, map[string]any{"lead": v, "message": msg}, err)
+}
+
+// ---- messaging, WhatsApp, scheduler ----
+
+func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.Messages(r.Context(), tenant(r), r.URL.Query().Get("ucc"), 300)
+	ok(w, v, err)
+}
+
+func (s *Server) templates(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.Templates(r.Context(), tenant(r))
+	ok(w, map[string]any{"templates": v, "events": ops.EventVars}, err)
+}
+
+func (s *Server) saveTemplate(w http.ResponseWriter, r *http.Request) {
+	var b ops.Template
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveTemplate(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) testTemplate(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		UCC string `json:"ucc"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.TestMessage(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.UCC)
+	ok(w, v, err)
+}
+
+func (s *Server) bulkSend(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Template string            `json:"template"`
+		Target   string            `json:"target"`
+		UCCs     []string          `json:"uccs"`
+		Data     map[string]string `json:"data"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.BulkSend(r.Context(), tenant(r), actor(r), b.Template, b.Target, b.UCCs, b.Data)
+	ok(w, v, err)
+}
+
+func (s *Server) waChats(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.WAChats(r.Context(), tenant(r), 100)
+	ok(w, v, err)
+}
+
+func (s *Server) waSimulate(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		From string `json:"from"`
+		Text string `json:"text"`
+		Date string `json:"date"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if _, err := s.ops.RoleOf(r.Context(), tenant(r), actor(r)); err != nil {
+		fail(w, err, nil)
+		return
+	}
+	if _, okd := dateParam(w, b.Date, "date", true); !okd {
+		return
+	}
+	v, err := s.ops.WhatsAppInbound(r.Context(), tenant(r), b.From, b.Text, b.Date)
+	ok(w, map[string]any{"reply": v}, err)
+}
+
+// waHook receives WhatsApp messages from the provider. It is not signed in:
+// the body must be signed with the firm's WhatsApp secret.
+func (s *Server) waHook(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 64<<10))
+	if err != nil {
+		writeErr(w, 400, "bad_request", "cannot read the body", nil)
+		return
+	}
+	v, err := s.ops.WhatsAppWebhook(r.Context(), r.PathValue("tenant"), body, r.Header.Get("X-Signature"))
+	ok(w, map[string]any{"reply": v}, err)
+}
+
+func (s *Server) portalWhatsApp(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		UCC string `json:"ucc"`
+		On  bool   `json:"on"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	c, err := s.ops.SetWhatsApp(r.Context(), tenant(r), actor(r), b.UCC, b.On)
+	ok(w, map[string]any{"ucc": c.UCC, "whatsapp": c.WhatsApp}, err)
+}
+
+func (s *Server) jobs(w http.ResponseWriter, r *http.Request) {
+	js, rs, err := s.ops.Jobs(r.Context(), tenant(r))
+	ok(w, map[string]any{"jobs": js, "runs": rs, "kinds": ops.JobKinds}, err)
+}
+
+func (s *Server) saveJob(w http.ResponseWriter, r *http.Request) {
+	var b ops.Job
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveJob(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) runJob(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string `json:"date"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.RunJob(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Date)
+	if err != nil && v.ID != "" {
+		ok(w, v, nil) // the failure is recorded in the run
+		return
+	}
+	ok(w, v, err)
 }

@@ -71,6 +71,8 @@ type Client struct {
 	Branch        string `json:"branch,omitempty"`
 	State         string `json:"state,omitempty"` // place of supply for GST
 	GSTIN         string `json:"gstin,omitempty"`
+	WhatsApp      bool   `json:"whatsapp,omitempty"`      // opted in to WhatsApp messages
+	DND           bool   `json:"dnd,omitempty"`           // on the do-not-disturb register (no promotional SMS)
 	Partner       string `json:"partner,omitempty"`       // authorised person
 	RM            string `json:"rm,omitempty"`            // relationship manager
 	ReferredBy    string `json:"referred_by,omitempty"`   // referring client

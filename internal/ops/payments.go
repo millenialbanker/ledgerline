@@ -189,6 +189,9 @@ func (o *Ops) DecideReceipt(ctx context.Context, tenant, actor, id string, appro
 	})
 	if err == nil {
 		o.log(ctx, tenant, actor, "receipt."+strings.ToLower(status), id, map[string]any{"ucc": r.UCC, "amount": r.Amount.String()})
+		if approve {
+			o.notify(ctx, tenant, actor, "receipt.credited", r.UCC, map[string]string{"amount": formatINR(r.Amount.Dec()), "mode": r.Mode, "date": r.Date, "status": map[string]string{"Credited": "credited", "Uncleared": "credited subject to clearing"}[status]})
+		}
 	}
 	return r.Public(), err
 }
@@ -340,6 +343,7 @@ func (o *Ops) GatewayWebhook(ctx context.Context, tenant string, body []byte, si
 		return r, false, err
 	}
 	o.log(ctx, tenant, "gateway", "receipt.gateway", r.ID, map[string]any{"ucc": r.UCC, "amount": r.Amount.String()})
+	o.notify(ctx, tenant, "gateway", "receipt.credited", r.UCC, map[string]string{"amount": formatINR(r.Amount.Dec()), "mode": "online payment", "date": r.Date, "status": "credited"})
 	return r.Public(), true, nil
 }
 
@@ -547,6 +551,9 @@ func (o *Ops) DecidePayout(ctx context.Context, tenant, actor, date, id string, 
 	})
 	if err == nil {
 		o.log(ctx, tenant, actor, "payout."+strings.ToLower(status), id, map[string]any{"ucc": p.UCC, "amount": p.Amount.String()})
+		if !approve {
+			o.notify(ctx, tenant, actor, "payout.rejected", p.UCC, map[string]string{"amount": formatINR(p.Amount.Dec()), "reason": reason})
+		}
 	}
 	return p, err
 }
@@ -676,13 +683,18 @@ func (o *Ops) ConfirmPayouts(ctx context.Context, tenant, actor, id string, utrs
 		}
 		b.Items[i].Status, b.Items[i].UTR = status, utr
 		res[status]++
-		_, _ = docs.Update(ctx, o.Docs, tenant, cPayout, it.Request, actor, func(x *PayoutRequest) error {
+		pr, _ := docs.Update(ctx, o.Docs, tenant, cPayout, it.Request, actor, func(x *PayoutRequest) error {
 			x.Status, x.UTR = status, utr
 			if status == "Failed" {
 				x.Reason = failed[it.Request]
 			}
 			return nil
 		})
+		if status == "Paid" {
+			o.notify(ctx, tenant, actor, "payout.paid", pr.UCC, map[string]string{"amount": formatINR(pr.Amount.Dec()), "utr": utr})
+		} else {
+			o.notify(ctx, tenant, actor, "payout.failed", pr.UCC, map[string]string{"amount": formatINR(pr.Amount.Dec()), "reason": failed[it.Request]})
+		}
 	}
 	b.Status, b.Results = "Confirmed", res
 	if err := docs.Upsert(ctx, o.Docs, tenant, cPOBatch, b.ID, b, actor); err != nil {

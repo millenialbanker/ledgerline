@@ -9,7 +9,7 @@ try { Object.assign(S, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e
 const persist = () => { try { localStorage.setItem(LS, JSON.stringify({ tenant: S.tenant, date: S.date, view: S.view })); } catch (e) {} };
 const UI = { inTab: 'due', inSel: new Set(), inQ: '', clientTag: '', clientSel: new Set(), bkQ: '', bkPlan: '', cr: { kind: 'ledger', ucc: '', preset: 'fy', from: '', to: '' }, crRes: null, crErr: null, crBusy: false, reconF: 'OPEN', reconX: 'All', reconQ: '', clientStage: 'All', clientQ: '', rmsF: 'All', rmsQ: '', settleTab: 'cm', noteF: 'All',
   bankF: 'All', rasF: 'due', auditQ: '', ledgerU: '', ledgerTab: 'statement', calc: { bucket: 'CM-DEL', exchange: 'NSE', side: 'B', qty: 100, price: '1412' },
-  debTab: 'cd', pAcct: '', hdTab: 'open', hdMonth: '', chTab: 'pending', crmTab: 'pipe', crmStage: 'All', crmQ: '', crmFrom: '', crmTo: '', kycTab: 'risk', kycQ: '', kycF: 'All', ptTab: 'pt', ptFrom: '', ptTo: '', bkTab: 'vch', finFrom: '', finTo: '', finBranch: '', gstFrom: '', gstTo: '', caTab: 'ca', monTab: 'rcpt', monQ: '', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
+  debTab: 'cd', msgTab: 'log', msgQ: '', pAcct: '', hdTab: 'open', hdMonth: '', chTab: 'pending', crmTab: 'pipe', crmStage: 'All', crmQ: '', crmFrom: '', crmTo: '', kycTab: 'risk', kycQ: '', kycF: 'All', ptTab: 'pt', ptFrom: '', ptTo: '', bkTab: 'vch', finFrom: '', finTo: '', finBranch: '', gstFrom: '', gstTo: '', caTab: 'ca', monTab: 'rcpt', monQ: '', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
 const C = {}; // per-view data from the server
 let CFG = {};
 
@@ -99,7 +99,7 @@ const NAV = [
   ['Accounts', [['ledger', 'Ledger'], ['bank', 'Bank reconciliation'], ['money', 'Receipts & payouts'], ['books', 'Firm accounts & GST'], ['ras', 'Running account'], ['charges', 'Charges calculator'], ['brokerage', 'Brokerage plans']]],
   ['Compliance', [['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
   ['Business', [['crm', 'Leads & CRM'], ['partners', 'Branches & partners'], ['prepaid', 'Prepaid schemes']]],
-  ['Admin', [['settings', 'Settings']]]];
+  ['Admin', [['messages', 'Messages'], ['jobs', 'Scheduled jobs'], ['settings', 'Settings']]]];
 const PORTAL_NAV = [['My account', [['portal', 'Overview'], ['pnotes', 'Contract notes'], ['statements', 'Reports & statements'], ['pfunds', 'Funds & payouts'], ['pprofile', 'Profile & documents'], ['phelp', 'Help desk'], ['pext', 'Trades elsewhere']]]];
 const PORTAL_VIEWS = PORTAL_NAV[0][1].map(v => v[0]);
 const clientUser = () => S.me?.role === 'Client';
@@ -784,7 +784,7 @@ V.pprofile = {
     `<div class="grid2"><div class="panel"><div class="hd"><h3>Your details</h3></div>${tbl([['Detail'], ['On record'], ['']], [
       `<tr><td>PAN</td><td class="mono">${esc(a.pan)}</td><td></td></tr>`, row('Email', 'Email', esc(a.email)), row('Mobile', 'Mobile', esc(a.mobile)), row('Address', 'City', esc(a.city)),
       row('Bank account', 'Bank account', `${esc(a.bank.bank)} · ${esc(a.bank.account)} · ${esc(a.bank.ifsc)}`), `<tr><td>Demat</td><td class="mono">${esc(a.demat.depository)} ${esc(a.demat.id)}</td><td></td></tr>`,
-      row('Nomination', 'Nomination', esc(a.nominee) + (a.nominee_name ? ' · ' + esc(a.nominee_name) : '')), `<tr><td>Segments</td><td>${a.segments.map(s => `<span class="tag">${esc(a.segment_names[s] || s)}</span>`).join(' ')}</td><td></td></tr>`])}</div>
+      row('Nomination', 'Nomination', esc(a.nominee) + (a.nominee_name ? ' · ' + esc(a.nominee_name) : '')), `<tr><td>Segments</td><td>${a.segments.map(s => `<span class="tag">${esc(a.segment_names[s] || s)}</span>`).join(' ')}</td><td></td></tr>`, `<tr><td>WhatsApp alerts</td><td>${a.whatsapp ? 'On' : 'Off'} <span class="dim small">· or message us BAL, HOLD, CN</span></td><td><button class="btn sm" data-act="pWhatsApp" data-on="${a.whatsapp ? 0 : 1}">${a.whatsapp ? 'Turn off' : 'Turn on'}</button></td></tr>`])}</div>
     <div class="panel"><div class="hd"><h3>Documents</h3></div>${tbl([['Kind'], ['File'], ['']], v.docs.map(x => `<tr><td>${esc(x.kind)}</td><td class="wrap">${esc(x.name)}<div class="dim small">${fmtDate(x.at.slice(0, 10))}</div></td><td><button class="btn sm" data-act="openBlob" data-id="/v1/clients/${a.ucc}/documents/${x.id}">Open</button></td></tr>`), { empty: 'No documents.' })}</div></div>
     <div class="panel"><div class="hd"><h3>Change requests</h3></div>${tbl([['Request'], ['Change'], ['New value'], ['Status'], ['Raised']], v.changes.map(c => `<tr><td class="n">${c.id}</td><td>${esc(c.kind)}</td><td class="wrap">${Object.entries(c.new).filter(([k]) => k !== 'account_masked').map(([k, x]) => esc(x)).join(' · ')}</td><td>${pill(c.status, c.status === 'Approved' ? 'good' : c.status === 'Rejected' ? 'bad' : 'warn')}${c.reason ? `<div class="dim small">${esc(c.reason)}</div>` : ''}</td><td class="n dim">${fmtDate(c.at.slice(0, 10))}</td></tr>`), { empty: 'No change requests.' })}</div>`;
   }
@@ -919,6 +919,81 @@ function portalModal(ucc) {
     <div id="pg-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Give access</button></div></form>`);
   $('pgf').onsubmit = async e => { e.preventDefault(); try { const r = await post(`/v1/clients/${ucc}/portal`, { family: $('pg-f').value.split(',').map(x => x.trim()).filter(Boolean), declared: $('pg-d').checked });
     modal(mhd('Portal access ready', ucc) + `<div class="bd"><div class="kv"><div><small>User ID</small><b class="mono">${esc(r.user)}</b></div>${r.password ? `<div><small>One-time password</small><b class="mono">${esc(r.password)}</b></div>` : '<div><small>Password</small><b>unchanged (existing login)</b></div>'}</div><div class="note">Send the user ID and the one-time password to the client separately (for example the ID by email and the password by SMS). It must be changed at first sign-in.</div></div><div class="ft"><button class="btn pri" data-act="close">Done</button></div>`); } catch (err) { $('pg-err').innerHTML = errHTML(err); } };
+}
+
+/* ---------- messages & templates ---------- */
+V.messages = {
+  load: async () => { const [ms, tp, wa] = await Promise.all([get('/v1/messages'), get('/v1/templates'), get('/v1/whatsapp/chats')]); return { ms, tp, wa }; },
+  html: d => {
+    const ms = d.ms, cnt = s => ms.filter(m => m.status === s).length, ck = has('Ops checker', 'Compliance officer');
+    return ph('Messages', 'Email, SMS and WhatsApp to clients, sent from templates when something happens on their account (receipts, payouts, margin shortfalls, contract notes, complaints, KYC changes), in bulk, or by scheduled jobs. SMS templates carry their DLT template ID; promotional SMS is held outside 9 am–9 pm; WhatsApp goes only to clients who opted in. Until a provider is connected, messages are kept here as the outbox.',
+      ck ? '<button class="btn" data-act="bulkMsg">Bulk message</button><button class="btn pri" data-act="editTpl" data-id="">New template</button>' : '') +
+    `<div class="kpis">${kpi('Sent', cnt('Sent'), 'last 300 messages', 'good')}${kpi('Bounced / failed', cnt('Bounced') + cnt('Failed'), 'fix contact details', cnt('Bounced') + cnt('Failed') ? 'bad' : '')}${kpi('Held', cnt('Held'), 'promotional, after 9 pm')}${kpi('Not opted in', cnt('Not opted in'), 'WhatsApp')}${kpi('Templates on', d.tp.templates.filter(t => t.active).length, 'of ' + d.tp.templates.length)}</div>
+    <div class="panel"><div class="hd"><div class="tools">${segBtns('msgTab', [['log', 'Sent messages'], ['tpl', 'Templates'], ['wa', 'WhatsApp bot']])}${UI.msgTab === 'log' ? `<input class="in" data-ui="msgQ" data-part="msg-t" placeholder="Filter UCC, event, status" value="${esc(UI.msgQ)}">` : ''}</div></div><div id="msg-t">${P['msg-t'](d)}</div></div>`;
+  }
+};
+P['msg-t'] = d => {
+  const st = { Sent: 'good', Bounced: 'bad', Failed: 'bad', Held: 'warn', 'Not opted in': 'nt' };
+  if (UI.msgTab === 'tpl') return tbl([['Event'], ['Channel'], ['Category'], ['Message'], ['DLT / WA template'], ['On'], ['']], d.tp.templates.map(t => `<tr><td class="n">${esc(t.event)}</td><td>${esc(t.channel)}</td><td>${esc(t.category)}</td><td class="wrap small">${t.subject ? `<b>${esc(t.subject)}</b><br>` : ''}${esc(t.body.slice(0, 160))}${t.body.length > 160 ? '…' : ''}</td><td class="n dim">${esc(t.dlt_template_id || t.wa_template || '—')}</td><td>${pill(t.active ? 'On' : 'Off', t.active ? 'good' : 'nt')}</td><td>${has('Ops checker', 'Compliance officer') ? `<button class="btn sm" data-act="editTpl" data-id="${t.id}">Edit</button><button class="btn sm" data-act="testTpl" data-id="${t.id}">Test</button>` : ''}</td></tr>`), { tall: true });
+  if (UI.msgTab === 'wa') return `<div class="bd"><div class="tools"><input class="in mono" id="wa-from" placeholder="Registered mobile, e.g. 98…" style="max-width:200px"><input class="in" id="wa-text" placeholder="BAL, HOLD, LEDGER, CN, MARGIN, STOP" style="flex:1"><button class="btn pri" data-act="waSend">Send to the bot</button></div><div id="wa-out"></div><p class="dim small">This simulates a client writing to the firm’s WhatsApp number. The live number posts to <span class="mono">/hooks/&lt;firm&gt;/whatsapp</span>, signed with the WhatsApp secret in Settings. A client is identified only by their registered mobile.</p></div>` +
+    tbl([['When'], ['Mobile'], ['Client'], ['Asked'], ['Bot replied']], d.wa.map(c => `<tr><td class="n dim">${esc(c.at.slice(5, 16).replace('T', ' '))}</td><td class="mono">${esc(c.mobile.slice(0, 2) + '••••' + c.mobile.slice(-4))}</td><td class="n">${c.ucc || '—'}</td><td>${esc(c.in)}</td><td class="wrap small">${esc(c.out).replace(/\n/g, '<br>')}</td></tr>`), { tall: true, empty: 'No conversations yet.' });
+  const q = UI.msgQ.trim().toLowerCase(), ms = d.ms.filter(m => !q || (m.ucc + ' ' + m.event + ' ' + m.status + ' ' + m.channel).toLowerCase().includes(q));
+  return tbl([['Message'], ['When'], ['Client'], ['Event'], ['Channel'], ['To'], ['Text'], ['Status']], ms.map(m => `<tr><td class="n dim">${m.id}</td><td class="n">${esc(m.at.slice(5, 16).replace('T', ' '))}</td><td class="n"><button class="linkish" data-act="client" data-id="${m.ucc}">${m.ucc}</button></td><td class="n">${esc(m.event)}</td><td>${esc(m.channel)}</td><td class="mono small">${esc(m.to)}</td><td class="wrap small">${m.subject ? `<b>${esc(m.subject)}</b><br>` : ''}${esc(m.body.slice(0, 140))}${m.body.length > 140 ? '…' : ''}</td><td>${pill(m.status, st[m.status])}${m.note ? `<div class="dim small">${esc(m.note)}</div>` : ''}</td></tr>`), { tall: true, empty: 'No messages yet.' });
+};
+function tplModal(id) {
+  const d = C.messages, t = d.tp.templates.find(x => x.id === id) || { event: 'bulk', channel: 'Email', category: 'Service', subject: '', body: '', active: true }, ev = d.tp.events;
+  const vars = e => ['name', 'ucc', 'firm', ...(ev[e] || [])].map(v => `<code>{${v}}</code>`).join(' ');
+  modal(mhd(id ? 'Edit template ' + id : 'New template', 'Placeholders in braces are filled from the event.') + `<form class="bd" id="tpf"><div class="form">
+    <div class="fld"><label for="tp-ev">Event</label><select class="in" id="tp-ev">${Object.keys(ev).sort().map(e => `<option ${e === t.event ? 'selected' : ''}>${e}</option>`).join('')}</select></div>
+    <div class="fld"><label for="tp-ch">Channel</label><select class="in" id="tp-ch">${['Email', 'SMS', 'WhatsApp'].map(c => `<option ${c === t.channel ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+    <div class="fld"><label for="tp-cat">Category</label><select class="in" id="tp-cat">${['Transactional', 'Service', 'Promotional'].map(c => `<option ${c === t.category ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+    <div class="fld"><label for="tp-dlt">DLT template ID (SMS) / approved template (WhatsApp)</label><input class="in mono" id="tp-dlt" value="${esc(t.dlt_template_id || t.wa_template || '')}"></div>
+    <div class="fld full"><label for="tp-sub">Subject (email)</label><input class="in" id="tp-sub" value="${esc(t.subject || '')}"></div>
+    <div class="fld full"><label for="tp-body">Message</label><textarea class="in" id="tp-body" rows="6">${esc(t.body)}</textarea><span class="dim small" id="tp-vars">Available: ${vars(t.event)}</span></div>
+    <label class="check full"><input type="checkbox" id="tp-on" ${t.active ? 'checked' : ''}> Send this template when the event happens</label></div>
+    <div id="tp-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Save</button></div></form>`);
+  $('tp-ev').onchange = () => { $('tp-vars').innerHTML = 'Available: ' + vars($('tp-ev').value); };
+  $('tpf').onsubmit = async e => { e.preventDefault(); const ch = $('tp-ch').value; try { await post('/v1/templates', { id: id || '', event: $('tp-ev').value, channel: ch, category: $('tp-cat').value, subject: $('tp-sub').value, body: $('tp-body').value, dlt_template_id: ch === 'SMS' ? $('tp-dlt').value : '', wa_template: ch === 'WhatsApp' ? $('tp-dlt').value : '', active: $('tp-on').checked }); closeModal(); toast('Template saved'); render({ keep: true }); } catch (err) { $('tp-err').innerHTML = errHTML(err); } };
+}
+function bulkModal() {
+  const d = C.messages, bt = d.tp.templates.filter(t => t.active && t.event === 'bulk');
+  if (!bt.length) { toast('Make a template for the event "bulk" first'); return; }
+  clientCache().then(() => {
+    modal(mhd('Bulk message', 'Sends a "bulk" template to everyone, a client group, or chosen clients.') + `<form class="bd" id="bkmf"><div class="form">
+      <div class="fld full"><label for="bm-t">Template</label><select class="in" id="bm-t">${bt.map(t => `<option value="${t.id}">${esc(t.channel)} · ${esc(t.subject || t.body.slice(0, 60))}</option>`).join('')}</select></div>
+      <div class="fld full"><label for="bm-to">Send to</label><select class="in" id="bm-to"><option value="all">All active clients</option>${(CL.tags || []).map(g => `<option value="TAG:${esc(g.tag || g)}">Group ${esc(g.tag || g)}</option>`).join('')}<option value="list">These UCCs…</option></select></div>
+      <div class="fld full"><label for="bm-u">UCCs (comma separated, for "These UCCs")</label><input class="in mono" id="bm-u"></div></div>
+      <div id="bm-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Send</button></div></form>`);
+    $('bkmf').onsubmit = async e => { e.preventDefault(); const to = $('bm-to').value; try { const r = await post('/v1/messages/bulk', { template: $('bm-t').value, target: to === 'list' ? '' : to, uccs: to === 'list' ? $('bm-u').value.split(',').map(x => x.trim().toUpperCase()).filter(Boolean) : [] }); closeModal(); toast(Object.entries(r).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(', ')); render({ keep: true }); } catch (err) { $('bm-err').innerHTML = errHTML(err); } };
+  });
+}
+
+/* ---------- scheduled jobs ---------- */
+V.jobs = {
+  load: () => get('/v1/jobs'),
+  html: d => {
+    const adm = has('Admin'), run = has('Admin', 'Ops checker'), kn = Object.fromEntries(d.kinds.map(k => [k.kind, k]));
+    const when = w => w === 'business' ? 'Business days' : w === 'daily' ? 'Every day' : w.startsWith('weekly:') ? 'Every ' + w.slice(7) : 'Monthly on day ' + w.slice(8);
+    return ph('Scheduled jobs', 'Routine work run automatically at a set time (IST): contract notes, margin and debit alerts, monthly statements, KRA files, reports to management, interest. Each run is recorded, and management is emailed when a job succeeds or fails. Jobs run as the system, with every action in the audit trail.', adm ? '<button class="btn pri" data-act="editJob" data-id="">New job</button>' : '') +
+    `<div class="panel">${tbl([['Job'], ['Schedule'], ['Next run'], ['Last run'], ['']], d.jobs.map(j => `<tr><td><b>${esc(j.name)}</b> ${pill(j.active ? 'On' : 'Off', j.active ? 'good' : 'nt')}<div class="dim small">${Object.keys(j.params || {}).length ? Object.entries(j.params).map(([k, v]) => esc(k + ': ' + v)).join(', ') : esc(kn[j.kind]?.name || j.kind)}</div></td><td>${when(j.when)} at ${esc(j.at)}${j.only_failure ? '<div class="dim small">management told only on failure</div>' : ''}</td><td class="n">${j.active && j.next ? esc(j.next) : '—'}</td><td class="wrap small">${j.last_status ? pill(j.last_status, j.last_status === 'Succeeded' ? 'good' : 'bad') + ' ' + esc(j.last_summary) + `<div class="dim">${esc(j.last_run.slice(0, 16).replace('T', ' '))}</div>` : '<span class="dim">never</span>'}</td><td>${run ? `<button class="btn sm" data-act="runJob" data-id="${j.id}">Run now</button>` : ''}${adm ? `<button class="btn sm" data-act="editJob" data-id="${j.id}">Edit</button>` : ''}</td></tr>`), { empty: 'No jobs.' })}</div>
+    <div class="panel"><div class="hd"><h3>Recent runs</h3></div>${tbl([['Run'], ['Job'], ['For date'], ['Started'], ['Took', 'r'], ['Result'], ['Told']], d.runs.map(r => `<tr><td class="n dim">${r.id}</td><td>${esc(r.name)}</td><td class="n">${fmtDate(r.date)}</td><td class="n">${esc(r.started.slice(0, 16).replace('T', ' '))}<div class="dim small">${esc(r.by)}</div></td><td class="r">${r.ms} ms</td><td class="wrap small">${pill(r.status, r.status === 'Succeeded' ? 'good' : 'bad')} ${esc(r.summary)}</td><td class="small dim">${esc(r.notified || '—')}</td></tr>`), { tall: true, empty: 'No runs yet.' })}</div>`;
+  }
+};
+function jobModal(id) {
+  const d = C.jobs, j = d.jobs.find(x => x.id === id) || { name: '', kind: 'send_notes', at: '19:00', when: 'business', params: {}, notify: [], active: true }, kinds = d.kinds;
+  const params = k => (kinds.find(x => x.kind === k)?.params || []).map(p => `<div class="fld"><label for="jp-${p}">${p === 'to' ? 'Email to (comma separated)' : p === 'report' ? 'Report code (e.g. ledger_balances)' : p === 'min_days' ? 'Minimum days in debit' : p}</label><input class="in" id="jp-${p}" data-jp="${p}" value="${esc(j.params?.[p] || '')}"></div>`).join('');
+  modal(mhd(id ? 'Edit job' : 'New job', '') + `<form class="bd" id="jbf"><div class="form">
+    <div class="fld full"><label for="jb-n">Name</label><input class="in" id="jb-n" value="${esc(j.name)}" required></div>
+    <div class="fld full"><label for="jb-k">Job</label><select class="in" id="jb-k">${kinds.map(k => `<option value="${k.kind}" ${k.kind === j.kind ? 'selected' : ''}>${esc(k.name)}</option>`).join('')}</select><span class="dim small" id="jb-about">${esc(kinds.find(k => k.kind === j.kind)?.about || '')}</span></div>
+    <div id="jb-params" class="full form" style="padding:0">${params(j.kind)}</div>
+    <div class="fld"><label for="jb-w">Runs</label><select class="in" id="jb-w">${[['business', 'Business days'], ['daily', 'Every day'], ...['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(x => ['weekly:' + x, 'Every ' + x]), ...[1, 2, 5, 7, 10, 15, 25].map(x => ['monthly:' + x, 'Monthly on day ' + x])].map(([v, l]) => `<option value="${v}" ${v === j.when ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="fld"><label for="jb-at">At (IST)</label><input class="in" type="time" id="jb-at" value="${esc(j.at)}"></div>
+    <div class="fld full"><label for="jb-to">Tell (emails; empty for the management list in Settings)</label><input class="in" id="jb-to" value="${esc((j.notify || []).join(', '))}"></div>
+    <label class="check"><input type="checkbox" id="jb-of" ${j.only_failure ? 'checked' : ''}> Only when it fails</label><label class="check"><input type="checkbox" id="jb-on" ${j.active ? 'checked' : ''}> Switched on</label></div>
+    <div id="jb-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Save</button></div></form>`);
+  $('jb-k').onchange = () => { const k = $('jb-k').value; $('jb-params').innerHTML = params(k); $('jb-about').textContent = kinds.find(x => x.kind === k)?.about || ''; };
+  $('jbf').onsubmit = async e => { e.preventDefault(); const p = {}; document.querySelectorAll('[data-jp]').forEach(x => p[x.dataset.jp] = x.value);
+    try { await post('/v1/jobs', { id: id || '', name: $('jb-n').value, kind: $('jb-k').value, params: p, when: $('jb-w').value, at: $('jb-at').value, notify: $('jb-to').value.split(',').map(x => x.trim()).filter(Boolean), only_failure: $('jb-of').checked, active: $('jb-on').checked }); closeModal(); toast('Job saved'); render({ keep: true }); } catch (err) { $('jb-err').innerHTML = errHTML(err); } };
 }
 
 /* ---------- settlement ---------- */
@@ -1482,6 +1557,9 @@ V.settings = {
       <div class="fld"><label for="st-refp">Referral reward (% of referred clients’ brokerage)</label><input class="in" id="st-refp" value="${esc(s.referral_pct || '10')}" ${admin ? '' : 'disabled'}></div>
       <div class="fld"><label for="st-refm">Referral earns for (months)</label><input class="in" id="st-refm" type="number" value="${s.referral_months || 12}" ${admin ? '' : 'disabled'}></div>
       <div class="fld full"><label for="st-gws">Payment gateway webhook secret</label><input class="in mono" id="st-gws" type="password" autocomplete="off" value="${esc(s.gateway_secret || '')}" ${admin ? '' : 'disabled'}><span class="dim small">Webhook address: <span class="mono">${esc(location.origin)}/hooks/${esc(S.me.tenant)}/gateway</span>. Payments must carry the client code in notes.ucc.</span></div>
+      <div class="fld full"><label for="st-was">WhatsApp webhook secret</label><input class="in mono" id="st-was" type="password" autocomplete="off" value="${esc(s.whatsapp_secret || '')}" ${admin ? '' : 'disabled'}><span class="dim small">Inbound messages: <span class="mono">${esc(location.origin)}/hooks/${esc(S.me.tenant)}/whatsapp</span>, signed with HMAC-SHA256 in X-Signature.</span></div>
+      <div class="fld full"><label for="st-mgmt">Management emails (job results and alerts)</label><input class="in" id="st-mgmt" value="${esc((s.management_emails || []).join(', '))}" ${admin ? '' : 'disabled'}></div>
+      <div class="fld"><label for="st-linc">Incentive per converted lead (₹)</label><input class="in mono" id="st-linc" value="${esc(s.lead_incentive || '500')}" ${admin ? '' : 'disabled'}></div>
     </div></div></div>
     <div class="panel"><div class="hd"><h3>Sign-in security</h3></div><div class="bd"><div class="form">
       <div class="fld"><label for="st-2fa">Two-factor sign-in</label><select class="in" id="st-2fa" ${admin ? '' : 'disabled'}><option value="required" ${s.two_factor !== 'optional' ? 'selected' : ''}>Required for every user</option><option value="optional" ${s.two_factor === 'optional' ? 'selected' : ''}>Optional</option></select></div>
@@ -1517,6 +1595,13 @@ async function act(fn, okMsg, reload = true) {
   catch (e) { toast(e.message); throw e; }
 }
 const A = {
+  editTpl: id => tplModal(id),
+  testTpl: id => clientCache().then(() => { modal(mhd('Test template ' + id, 'Sends it once to a client with sample values, through the same delivery rules.') + `<div class="bd"><div class="fld"><label for="tt-u-q">Client</label>${cpick('tt-u', '', {})}</div></div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" id="tt-go">Send test</button></div>`); $('tt-go').onclick = () => act(() => post(`/v1/templates/${id}/test`, { ucc: $('tt-u').value }), r => `${r[0].channel} to ${r[0].to}: ${r[0].status}${r[0].note ? ' (' + r[0].note + ')' : ''}`); }),
+  bulkMsg: () => bulkModal(),
+  waSend: async () => { try { const r = await post('/v1/whatsapp/simulate', { from: $('wa-from').value, text: $('wa-text').value, date: S.date }); $('wa-out').innerHTML = `<div class="msg"><small class="dim">Bot</small><div>${esc(r.reply)}</div></div>`; const from = $('wa-from').value; C.messages.wa = await get('/v1/whatsapp/chats'); $('msg-t').innerHTML = P['msg-t'](C.messages); $('wa-from').value = from; $('wa-out').innerHTML = `<div class="msg"><small class="dim">Bot</small><div>${esc(r.reply)}</div></div>`; } catch (e) { toast(e.message); } },
+  editJob: id => jobModal(id),
+  runJob: id => act(() => post(`/v1/jobs/${id}/run`, { date: S.date }), r => `${r.name}: ${r.status.toLowerCase()} · ${r.summary}`),
+  pWhatsApp: (id, el) => act(() => post('/v1/portal/whatsapp', { ucc: UI.pAcct, on: el.dataset.on === '1' }), r => r.whatsapp ? 'WhatsApp alerts on' : 'WhatsApp alerts off'),
   pAcct: (id, el) => { UI.pAcct = el.value; render(); },
   pNote: id => { const [d, u] = id.split('|'); openDoc(`/v1/notes/${d}/${u}/document`); },
   pChange: id => changeModal(id, UI.pAcct),
@@ -1757,7 +1842,7 @@ const A = {
   saveSettings: () => {
     const s = { ...C.settings.settings, firm: $('st-firm').value, sebi_reg: $('st-sebi').value, compliance_email: $('st-comp').value, warn_util_pct: parseInt($('st-warn').value, 10), ras_buffer_pct: parseInt($('st-buf').value, 10), ras_monthly: $('st-rasm').value, ras_quarterly: $('st-rasq').value,
       two_factor: $('st-2fa').value, inactive_months: parseInt($('st-inm').value, 10) || 24, session_idle_minutes: parseInt($('st-idle').value, 10) || 30, snapshot_times: $('st-snap').value.split(',').map(x => x.trim()).filter(Boolean), holidays: $('st-hol').value.split(',').map(x => x.trim()).filter(Boolean), penalty_pass_through: $('st-pen').checked,
-      interest_pct_pa: $('st-int').value.trim(), interest_grace_days: parseInt($('st-grace').value, 10) || 0, interest_minimum: $('st-imin').value.trim(), gst_pct: $('st-gst').value.trim(), interest_exempt_tags: $('st-iex').value.split(',').map(x => x.trim().toUpperCase()).filter(Boolean), debit_block_days: parseInt($('st-dbd').value, 10) || 7, locked_up_to: $('st-lock').value, firm_gstin: $('st-gstin').value.trim().toUpperCase(), firm_state: $('st-state').value.trim(), cheque_bounce_charge: $('st-bnc').value.trim(), tds_commission_pct: $('st-tds').value.trim(), referral_pct: $('st-refp').value.trim(), referral_months: parseInt($('st-refm').value, 10) || 12, payout_debit_account: $('st-pda').value.trim(), gateway_secret: $('st-gws').value, auto_lock_days: parseInt($('st-alock').value, 10) || 0 };
+      interest_pct_pa: $('st-int').value.trim(), interest_grace_days: parseInt($('st-grace').value, 10) || 0, interest_minimum: $('st-imin').value.trim(), gst_pct: $('st-gst').value.trim(), interest_exempt_tags: $('st-iex').value.split(',').map(x => x.trim().toUpperCase()).filter(Boolean), debit_block_days: parseInt($('st-dbd').value, 10) || 7, locked_up_to: $('st-lock').value, firm_gstin: $('st-gstin').value.trim().toUpperCase(), firm_state: $('st-state').value.trim(), cheque_bounce_charge: $('st-bnc').value.trim(), tds_commission_pct: $('st-tds').value.trim(), referral_pct: $('st-refp').value.trim(), referral_months: parseInt($('st-refm').value, 10) || 12, payout_debit_account: $('st-pda').value.trim(), gateway_secret: $('st-gws').value, whatsapp_secret: $('st-was').value, management_emails: $('st-mgmt').value.split(',').map(x => x.trim()).filter(Boolean), lead_incentive: $('st-linc').value.trim(), auto_lock_days: parseInt($('st-alock').value, 10) || 0 };
     act(() => api('PUT', '/v1/settings', s), 'Settings saved').then(loadMe);
   },
   eod: async () => {

@@ -167,6 +167,9 @@ func (o *Ops) SendNotes(ctx context.Context, tenant, actor, date, ucc string) (s
 			return sent, bounced, err
 		}
 		_ = docs.Upsert(ctx, o.Docs, tenant, cOutbox, fmt.Sprintf("%08d", id), OutboxItem{ID: fmt.Sprintf("%08d", id), To: email, Subject: noteSubject(n), Ref: n.No, At: at, Result: result}, actor)
+		if result == "Sent" {
+			o.notify(ctx, tenant, actor, "contract_note.sent", n.UCC, map[string]string{"no": n.No, "date": date})
+		}
 		_, err = docs.Update(ctx, o.Docs, tenant, cNote, date+"|"+n.UCC, actor, func(x *ContractNote) error {
 			x.Status, x.Email = result, email
 			x.SentAt = ""

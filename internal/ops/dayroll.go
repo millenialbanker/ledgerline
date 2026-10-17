@@ -31,6 +31,15 @@ import (
 // because its positions would not have carried forward yet.
 
 // PrevBusinessDay is the trading day before date.
+// IsBusinessDay reports whether date is a weekday that is not a holiday.
+func (s Settings) IsBusinessDay(date string) bool {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil || t.Weekday() == time.Saturday || t.Weekday() == time.Sunday {
+		return false
+	}
+	return !contains(s.Holidays, date)
+}
+
 func (s Settings) PrevBusinessDay(date string) string {
 	t, err := time.Parse("2006-01-02", date)
 	if err != nil {
