@@ -499,7 +499,7 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 			if m != "Accepted" && m != "Pending" && m != "Declined" {
 				bad(r.line, "Mandate", "must be Accepted, Pending or Declined")
 			}
-			as = append(as, IPOApp{ID: r.get("ApplicationNo"), UCC: strings.ToUpper(r.get("UCC")), Issue: r.get("Issue"), Lots: pint(r, "Lots", false), Amount: amt, UPI: r.get("UPI"), Mandate: m, Allotment: "Awaiting"})
+			as = append(as, IPOApp{ID: r.get("ApplicationNo"), UCC: strings.ToUpper(r.get("UCC")), Issue: r.get("Issue"), Lots: pint(r, "Lots", false), Amount: amt, UPI: r.get("UPI"), Mandate: m, Allotment: "Awaiting", Date: o.fileDate(date)})
 		}
 		return func() (int, int, error) {
 			cm, _ := o.ClientMap(ctx, tenant)
@@ -562,7 +562,7 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 			if err != nil {
 				bad(r.line, "Amount", "must be rupees")
 			}
-			ms = append(ms, MFOrder{ID: r.get("OrderNo"), UCC: strings.ToUpper(r.get("UCC")), Scheme: r.get("Scheme"), Type: r.get("Type"), Amount: amt, Platform: r.get("Platform"), Status: r.get("Status")})
+			ms = append(ms, MFOrder{ID: r.get("OrderNo"), UCC: strings.ToUpper(r.get("UCC")), Scheme: r.get("Scheme"), Type: r.get("Type"), Amount: amt, Platform: r.get("Platform"), Status: r.get("Status"), Date: o.fileDate(date)})
 		}
 		return func() (int, int, error) {
 			cm, _ := o.ClientMap(ctx, tenant)

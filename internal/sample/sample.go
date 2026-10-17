@@ -196,7 +196,9 @@ func generate(date string) (Day, *world) {
 	// ---- clients ----
 	var cs []client
 	used := map[string]bool{}
-	oldDates := []string{"2026-08-28", "2026-09-04", "2026-09-09", "2026-09-22", "2026-09-30", "2026-10-07", "2026-10-13", "2026-10-15"}
+	// Some non-trading clients last traded long ago, so the 24-month inactivity
+	// rule has accounts to flag and one approaching.
+	oldDates := []string{"2024-03-11", "2023-11-20", "2024-08-05", "2024-11-04", "2026-09-30", "2026-10-07", "2026-10-13", "2026-10-15"}
 	for i := 0; i < 64; i++ {
 		typ := "Individual"
 		if i%17 == 5 {
@@ -386,6 +388,9 @@ func generate(date string) (Day, *world) {
 			strike := ""
 			if d.strike > 0 {
 				strike = fmt.Sprint(d.strike)
+			}
+			if c.lastTrade < "2026-07-01" {
+				return // long-inactive clients carry no open derivatives
 			}
 			ps = append(ps, []string{c.ucc, d.exch, d.seg, d.sym, d.typ, d.exp, strike, fmt.Sprint(qty), fpx(avg)})
 		}

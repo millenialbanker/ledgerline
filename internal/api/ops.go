@@ -77,6 +77,11 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/reports/{code}/download", s.reportDownload, false)
 	R("GET /v1/client-reports", s.clientReportDefs, false)
 	R("GET /v1/client-reports/{kind}", s.clientReport, false)
+	R("GET /v1/inactive", s.inactive, false)
+	R("POST /v1/inactive/flag", s.flagInactive, true)
+	R("POST /v1/inactive/reactivations", s.requestReactivation, true)
+	R("POST /v1/inactive/reactivations/{id}/decide", s.decideReactivation, true)
+	R("POST /v1/clients/{ucc}/contact", s.updateContact, true)
 	R("GET /v1/tags", s.tags, false)
 	R("POST /v1/clients/tags", s.tagClients, true)
 	R("GET /v1/brokerage", s.brokerage, false)
@@ -839,4 +844,79 @@ func (s *Server) clientPlan(w http.ResponseWriter, r *http.Request) {
 	}
 	ep, desc, err := s.ops.ClientBrokerage(r.Context(), tenant(r), strings.ToUpper(r.PathValue("ucc")), d)
 	ok(w, map[string]any{"plan": ep, "rates": desc}, err)
+}
+
+// ---- inactive accounts ----
+
+func (s *Server) inactive(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.Dormancy(r.Context(), tenant(r), d)
+	ok(w, v, err)
+}
+
+func (s *Server) flagInactive(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string   `json:"date"`
+		UCCs []string `json:"uccs"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if _, okd := dateParam(w, b.Date, "date", true); !okd {
+		return
+	}
+	n, err := s.ops.FlagInactive(r.Context(), tenant(r), actor(r), b.Date, b.UCCs)
+	ok(w, map[string]any{"flagged": n}, err)
+}
+
+func (s *Server) requestReactivation(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string `json:"date"`
+		ops.Reactivation
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if _, okd := dateParam(w, b.Date, "date", true); !okd {
+		return
+	}
+	v, err := s.ops.RequestReactivation(r.Context(), tenant(r), actor(r), b.Date, b.Reactivation)
+	ok(w, v, err)
+}
+
+func (s *Server) decideReactivation(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date    string `json:"date"`
+		Approve bool   `json:"approve"`
+		Reason  string `json:"reason"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if _, okd := dateParam(w, b.Date, "date", true); !okd {
+		return
+	}
+	v, err := s.ops.DecideReactivation(r.Context(), tenant(r), actor(r), b.Date, r.PathValue("id"), b.Approve, b.Reason)
+	ok(w, v, err)
+}
+
+func (s *Server) updateContact(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date      string `json:"date"`
+		Email     string `json:"email"`
+		Mobile    string `json:"mobile"`
+		City      string `json:"city"`
+		KRAStatus string `json:"kra_status"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if _, okd := dateParam(w, b.Date, "date", true); !okd {
+		return
+	}
+	c, err := s.ops.UpdateContact(r.Context(), tenant(r), actor(r), b.Date, r.PathValue("ucc"), b.Email, b.Mobile, b.City, b.KRAStatus)
+	ok(w, c, err)
 }

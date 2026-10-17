@@ -97,6 +97,12 @@ func (o *Ops) RunRules(ctx context.Context, tenant, actor, date string) (int, er
 				n++
 			}
 		}
+		if c.Inactive {
+			if o.raiseAlert(ctx, tenant, actor, Alert{Date: date, Source: "Internal", Type: "Trade in an inactive account", UCC: u, Severity: "High",
+				Detail: fmt.Sprintf("Trades of ₹%s on %s while the UCC is flagged inactive since %s; the account must be reactivated (IPV, KYC check, KRA validated) before trading", formatINR(turnover[u]), date, c.InactiveSince)}, "INA:"+date+":"+u) {
+				n++
+			}
+		}
 		if c.LastTrade != "" && daysBetween(c.LastTrade, date) > 180 && turnover[u].Cmp(money.DecInt(1_000_000)) > 0 {
 			if o.raiseAlert(ctx, tenant, actor, Alert{Date: date, Source: "Internal", Type: "Dormant account reactivated with large trade", UCC: u, Severity: "Medium",
 				Detail: fmt.Sprintf("No trades since %s, then ₹%s on %s", c.LastTrade, formatINR(turnover[u]), date)}, "DOR:"+date+":"+u) {
@@ -173,6 +179,7 @@ type IPOApp struct {
 	Mandate   string       `json:"mandate"` // Accepted, Pending, Declined
 	Allotment string       `json:"allotment"`
 	Allotted  int64        `json:"allotted_lots"`
+	Date      string       `json:"date,omitempty"` // bid date (the upload's business date)
 }
 
 // MFOrder is a mutual fund order through an exchange platform.
@@ -185,6 +192,7 @@ type MFOrder struct {
 	Amount   money.Amount `json:"amount"`
 	Platform string       `json:"platform"`
 	Status   string       `json:"status"`
+	Date     string       `json:"date,omitempty"`
 }
 
 // IPOApps lists IPO applications.

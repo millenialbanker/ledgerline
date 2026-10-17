@@ -101,6 +101,9 @@ type Settings struct {
 	// TwoFactor is "required" (the default when empty) or "optional".
 	TwoFactor          string `json:"two_factor"`
 	SessionIdleMinutes int64  `json:"session_idle_minutes"`
+	// InactiveMonths is the no-activity period after which a trading
+	// account is flagged Inactive (24 under the October 2024 circulars).
+	InactiveMonths int64 `json:"inactive_months"`
 }
 
 // Require2FA reports whether every user must use two-factor sign-in.

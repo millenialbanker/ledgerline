@@ -99,7 +99,18 @@ func (o *Ops) ReportRows(ctx context.Context, tenant, date, code string) ([][]st
 			return nil, err
 		}
 		rows := [][]string{{"TradeDate", "UCC", "PAN", "LedgerBalance", "UPIBlocked", "CollateralAfterHaircut", "MarginRequired", "FreeBalance"}}
+		hs, _ := o.Holdings(ctx, tenant, "")
+		held := map[string]bool{}
+		for _, h := range hs {
+			if h.Qty > 0 {
+				held[h.UCC] = true
+			}
+		}
 		for _, r := range rv.Rows {
+			// Inactive clients with nil funds and securities are exempt.
+			if r.Inactive && r.Funds.Sign() == 0 && !held[r.UCC] {
+				continue
+			}
 			rows = append(rows, []string{date, r.UCC, clients[r.UCC].PAN, r.Funds.Fixed(2), r.UPI.Fixed(2), r.Collateral.Fixed(2), r.Required.Fixed(2), r.Free.Fixed(2)})
 		}
 		return rows, nil
@@ -127,8 +138,13 @@ func (o *Ops) ReportRows(ctx context.Context, tenant, date, code string) ([][]st
 		rows := [][]string{{"UCC", "Name", "PAN", "Category", "Segments", "Mobile", "Email", "Status"}}
 		for _, u := range sortedKeys(clients) {
 			c := clients[u]
-			if c.Status == "UCC upload" || c.KYCDate == date {
+			switch {
+			case c.Status == "UCC upload" || c.KYCDate == date:
 				rows = append(rows, []string{c.UCC, c.Name, c.PAN, c.Type, strings.Join(c.Segments, "/"), c.Mobile, c.Email, c.Status})
+			case c.Inactive && c.InactiveSince == date:
+				rows = append(rows, []string{c.UCC, c.Name, c.PAN, c.Type, strings.Join(c.Segments, "/"), c.Mobile, c.Email, "Inactive"})
+			case !c.Inactive && c.ReactivatedOn == date:
+				rows = append(rows, []string{c.UCC, c.Name, c.PAN, c.Type, strings.Join(c.Segments, "/"), c.Mobile, c.Email, "Active (reactivated)"})
 			}
 		}
 		return rows, nil
@@ -520,6 +536,10 @@ func (o *Ops) Dashboard(ctx context.Context, tenant, date string) (Dashboard, er
 			d.Settlement[ob.Status]++
 		}
 		d.Extra["pay_in"] = st.PayIn
+	}
+	if dv, err := o.Dormancy(ctx, tenant, date); err == nil {
+		d.Extra["inactive_due"] = fmt.Sprint(dv.Counts["Due"])
+		d.Extra["reactivation_pending"] = fmt.Sprint(dv.Counts["Reactivation pending"])
 	}
 	bt, _ := o.BankTxns(ctx, tenant)
 	for _, t := range bt {

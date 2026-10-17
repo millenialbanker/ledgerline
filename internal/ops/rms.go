@@ -56,6 +56,7 @@ type RiskRow struct {
 	Overrides   money.Dec `json:"overrides"`
 	Limit       money.Dec `json:"limit"`
 	Blocked     bool      `json:"blocked"`
+	Inactive    bool      `json:"inactive,omitempty"` // UCC flagged inactive: no new positions
 	Positions   int       `json:"positions"`
 	SqOffSent   int       `json:"square_off_sent"`
 }
@@ -285,7 +286,7 @@ func (o *Ops) Risk(ctx context.Context, tenant, date string) (RiskView, error) {
 		if c.Status != "Active" {
 			continue
 		}
-		r := RiskRow{UCC: u, Name: c.Name, Funds: funds[u].Dec(), UPI: c.UPIBlock.Dec(), Collateral: coll[u], Blocked: c.Blocked, Positions: len(pos[u])}
+		r := RiskRow{UCC: u, Name: c.Name, Funds: funds[u].Dec(), UPI: c.UPIBlock.Dec(), Collateral: coll[u], Blocked: c.Blocked || c.Inactive, Inactive: c.Inactive, Positions: len(pos[u])}
 		for _, p := range pos[u] {
 			r.Required = r.Required.Add(p.Margin)
 			r.FutEq = r.FutEq.Add(p.FutEq)

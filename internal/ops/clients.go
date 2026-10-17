@@ -62,6 +62,12 @@ type Client struct {
 	CreatedBy      string       `json:"created_by,omitempty"`
 	ActivatedBy    string       `json:"activated_by,omitempty"`
 	Tags           []string     `json:"tags"` // client groups, e.g. HNI, NRI, ACTIVE-TRADER
+	// Inactive is the exchanges' UCC "Inactive" flag: no activity for the
+	// inactivity period (24 months under the 2024 exchange circulars).
+	Inactive      bool   `json:"inactive,omitempty"`
+	InactiveSince string `json:"inactive_since,omitempty"`
+	ReactivatedOn string `json:"reactivated_on,omitempty"`
+	KYCUpdatedOn  string `json:"kyc_updated_on,omitempty"` // last KYC detail change uploaded to the KRA
 }
 
 var (
