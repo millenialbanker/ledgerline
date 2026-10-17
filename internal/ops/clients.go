@@ -71,6 +71,13 @@ type Client struct {
 	Branch        string `json:"branch,omitempty"`
 	State         string `json:"state,omitempty"` // place of supply for GST
 	GSTIN         string `json:"gstin,omitempty"`
+	Partner       string `json:"partner,omitempty"`       // authorised person
+	RM            string `json:"rm,omitempty"`            // relationship manager
+	ReferredBy    string `json:"referred_by,omitempty"`   // referring client
+	ReferredFrom  string `json:"referred_from,omitempty"` // referral period start
+	// Private clients are visible only to admins, compliance and VisibleTo.
+	Private   bool     `json:"private,omitempty"`
+	VisibleTo []string `json:"visible_to,omitempty"`
 }
 
 var (

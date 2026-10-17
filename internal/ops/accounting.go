@@ -691,6 +691,26 @@ func (o *Ops) GST(ctx context.Context, tenant, from, to string) (GSTReturn, erro
 				src = orig
 			}
 		}
+		if src.Source.Kind == "PREPAID_ADJ" {
+			// Brokerage met from prepaid credit: GST was paid on the
+			// advance, so this day's note carries less taxable value.
+			d, u, _ := strings.Cut(src.Source.ID, "/")
+			k := d + "|" + u
+			a := notes[k]
+			if a == nil {
+				a = &acc{}
+				notes[k] = a
+			}
+			for _, x := range e.Postings {
+				switch x.Account {
+				case PayablePrepaid:
+					a.taxable -= x.Debit - x.Credit
+				case ledger.PayableGST:
+					a.gst -= x.Debit - x.Credit
+				}
+			}
+			continue
+		}
 		if src.Source.Kind != "BILL" && src.Source.Kind != "MTM" && src.Source.Kind != "EXPIRY" {
 			continue
 		}

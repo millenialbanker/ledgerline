@@ -61,7 +61,7 @@ const (
 )
 
 // Roles lists every role in display order.
-var Roles = []string{RoleMaker, RoleChecker, RoleRisk, RoleCompliance, RoleAdmin}
+var Roles = []string{RoleMaker, RoleChecker, RoleRisk, RoleCompliance, RoleAdmin, RoleBranch, RoleAP}
 
 var (
 	ErrInvalid   = errors.New("invalid")
@@ -80,6 +80,10 @@ type User struct {
 	Name   string `json:"name"`
 	Role   string `json:"role"`
 	Active bool   `json:"active"`
+	// Branch staff see their branch's clients; authorised persons see
+	// their own clients and their downline's.
+	Branch  string `json:"branch,omitempty"`
+	Partner string `json:"partner,omitempty"`
 }
 
 // Settings are per-tenant rules and calendar.
@@ -117,6 +121,11 @@ type Settings struct {
 	// GST registration of the firm (place of supply decides IGST vs CGST+SGST).
 	FirmGSTIN string `json:"firm_gstin"`
 	FirmState string `json:"firm_state"`
+
+	// Partners and referrals.
+	TDSCommissionPct string `json:"tds_commission_pct"` // section 194H, default 2
+	ReferralPct      string `json:"referral_pct"`       // of referred clients' brokerage, default 10
+	ReferralMonths   int64  `json:"referral_months"`    // default 12
 
 	// Money in and out.
 	ChequeBounceCharge string `json:"cheque_bounce_charge"` // ₹ before GST, default 350
@@ -215,6 +224,20 @@ func (o *Ops) PutUser(ctx context.Context, tenant, actor string, u User) error {
 	if !ok {
 		return invalid("unknown role %q", u.Role)
 	}
+	switch u.Role {
+	case RoleBranch:
+		if u.Branch == "" {
+			return invalid("branch staff need a branch")
+		}
+		u.Partner = ""
+	case RoleAP:
+		if u.Partner == "" {
+			return invalid("an authorised person's login needs the partner code")
+		}
+		u.Branch = ""
+	default:
+		u.Branch, u.Partner = "", ""
+	}
 	if err := docs.Upsert(ctx, o.Docs, tenant, cUser, u.ID, u, actor); err != nil {
 		return err
 	}
@@ -280,7 +303,7 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	if s.RASBufferPct < 0 || s.RASBufferPct > 100 {
 		return invalid("RAS buffer must be between 0 and 100")
 	}
-	for _, x := range []struct{ name, v string }{{"interest rate", s.InterestPctPA}, {"GST rate", s.GSTPct}, {"interest minimum", s.InterestMinimum}} {
+	for _, x := range []struct{ name, v string }{{"interest rate", s.InterestPctPA}, {"GST rate", s.GSTPct}, {"interest minimum", s.InterestMinimum}, {"TDS rate", s.TDSCommissionPct}, {"referral reward", s.ReferralPct}} {
 		if x.v == "" {
 			continue
 		}

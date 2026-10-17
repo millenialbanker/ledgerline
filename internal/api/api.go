@@ -141,6 +141,14 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 				return
 			}
 		}
+		// Branch staff and authorised persons reach only the client-level
+		// screens; everything firm-wide is closed to them.
+		if s.ops != nil {
+			if role, err := s.ops.RoleOf(ctx, tenant, actor); err == nil && (role == ops.RoleBranch || role == ops.RoleAP) && !scopedRoutes[pattern] {
+				writeErr(w, http.StatusForbidden, "forbidden", "This is not available to "+role+" logins.", nil)
+				return
+			}
+		}
 		h(w, r.WithContext(ctx))
 	})
 }
@@ -561,6 +569,14 @@ func (s *Server) statement(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if u, isClient := strings.CutPrefix(acct, "CLIENT:"); isClient && !s.canSee(w, r, u) {
+		return
+	} else if !isClient && s.scope(r) != nil {
+		if role, _ := s.ops.RoleOf(r.Context(), tenant(r), actor(r)); role == ops.RoleBranch || role == ops.RoleAP {
+			writeErr(w, 403, "forbidden", "Only client ledgers are available to this login.", nil)
+			return
+		}
+	}
 	if s.ops != nil && !s.ops.AccountVisible(r.Context(), tenant(r), actor(r))(acct) {
 		writeErr(w, 403, "forbidden", "This account is restricted.", nil)
 		return
@@ -601,4 +617,32 @@ func ParseKeys(s string) (map[string]string, error) {
 		out[k] = t
 	}
 	return out, nil
+}
+
+// scopedRoutes are the routes open to branch staff and authorised persons.
+// Each filters its data to the clients they may see.
+var scopedRoutes = map[string]bool{
+	"GET /v1/me": true, "GET /v1/clients": true, "GET /v1/clients/{ucc}": true, "GET /v1/client-reports": true,
+	"GET /v1/client-reports/{kind}": true, "GET /v1/ledger/statement": true, "GET /v1/notes": true,
+	"GET /v1/notes/{date}/{ucc}/document": true, "GET /v1/receipts": true, "POST /v1/receipts": true, "GET /v1/payouts": true,
+	"GET /v1/payouts/withdrawable": true, "POST /v1/payouts": true, "GET /v1/debits": true, "GET /v1/rms": true,
+	"GET /v1/tags": true, "GET /v1/brokerage/client/{ucc}": true, "GET /v1/partners": true, "GET /v1/settings": true,
+	"GET /v1/prepaid": true, "POST /v1/prepaid/subscriptions": true,
+}
+
+// scope is the client filter for the request's user (nil: every client).
+func (s *Server) scope(r *http.Request) func(string) bool {
+	if s.ops == nil {
+		return nil
+	}
+	return s.ops.ClientScope(r.Context(), tenant(r), actor(r))
+}
+
+// canSee writes a 404 and returns false when the user may not see ucc.
+func (s *Server) canSee(w http.ResponseWriter, r *http.Request, ucc string) bool {
+	if f := s.scope(r); f != nil && !f(ucc) {
+		writeErr(w, http.StatusNotFound, "not_found", "No such client.", nil)
+		return false
+	}
+	return true
 }

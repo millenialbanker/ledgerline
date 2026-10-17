@@ -93,7 +93,7 @@ func (o *Ops) Receipts(ctx context.Context, tenant string) ([]Receipt, error) {
 
 // RecordReceipt records a receipt for a checker to approve.
 func (o *Ops) RecordReceipt(ctx context.Context, tenant, actor string, r Receipt) (Receipt, error) {
-	if err := o.require(ctx, tenant, actor, "Recording a receipt", RoleMaker, RoleChecker); err != nil {
+	if err := o.require(ctx, tenant, actor, "Recording a receipt", RoleMaker, RoleChecker, RoleBranch); err != nil {
 		return r, err
 	}
 	r.UCC = strings.ToUpper(strings.TrimSpace(r.UCC))
@@ -477,7 +477,7 @@ func (o *Ops) PayoutRequests(ctx context.Context, tenant, date string) ([]Payout
 func (o *Ops) RequestPayout(ctx context.Context, tenant, actor, date, ucc string, amount money.Amount, source string) (PayoutRequest, error) {
 	ucc = strings.ToUpper(ucc)
 	if source != "Client" {
-		if err := o.require(ctx, tenant, actor, "Entering a payout request", RoleMaker, RoleChecker); err != nil {
+		if err := o.require(ctx, tenant, actor, "Entering a payout request", RoleMaker, RoleChecker, RoleBranch, RoleAP); err != nil {
 			return PayoutRequest{}, err
 		}
 	}

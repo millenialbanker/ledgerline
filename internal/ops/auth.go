@@ -211,6 +211,11 @@ func (o *Ops) cred(ctx context.Context, tenant, user string) (Credential, int64,
 	return docs.Get[Credential](ctx, o.Docs, tenant, cCred, user)
 }
 
+// UserByID returns a user.
+func (o *Ops) UserByID(ctx context.Context, tenant, id string) (User, error) {
+	return o.user(ctx, tenant, id)
+}
+
 func (o *Ops) user(ctx context.Context, tenant, id string) (User, error) {
 	u, _, err := docs.Get[User](ctx, o.Docs, tenant, cUser, id)
 	return u, err

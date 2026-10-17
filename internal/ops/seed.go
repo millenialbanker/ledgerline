@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
 	"ledgerline/internal/charges"
 	"ledgerline/internal/docs"
@@ -18,6 +19,8 @@ var DevUsers = []User{
 	{ID: "anita.rao", Name: "Anita Rao", Role: RoleRisk, Active: true},
 	{ID: "vikram.shah", Name: "Vikram Shah", Role: RoleCompliance, Active: true},
 	{ID: "admin", Name: "Administrator", Role: RoleAdmin, Active: true},
+	{ID: "meera.iyer", Name: "Meera Iyer", Role: RoleBranch, Active: true, Branch: "Bengaluru"},
+	{ID: "sunrise.ap", Name: "Sunrise Investments", Role: RoleAP, Active: true, Partner: "AP001"},
 }
 
 // SeedDev creates users and settings for a development tenant if absent.
@@ -165,6 +168,9 @@ func (o *Ops) LoadSampleFor(ctx context.Context, tenant, actor, date string, tra
 		if err := o.seedSampleBrokerage(ctx, tenant, date); err != nil {
 			return n, fmt.Errorf("sample groups and plans: %w", err)
 		}
+		if err := o.seedSamplePartners(ctx, tenant); err != nil {
+			return n, fmt.Errorf("sample branches and partners: %w", err)
+		}
 	}
 	st.Loaded = append(st.Loaded, date)
 	return n, docs.Upsert(ctx, o.Docs, tenant, cDevSample, "state", st, actor)
@@ -305,6 +311,59 @@ func (o *Ops) seedSampleBrokerage(ctx context.Context, tenant, date string) erro
 	}
 	for _, a := range [][2]string{{"default", "standard"}, {"tag:ACTIVE-TRADER", "active-trader"}, {"tag:HNI", "hni-flat"}, {"tag:STAFF", "staff"}, {"ucc:BH1003", "hni-flat"}} {
 		if _, err := o.Assign(ctx, tenant, "admin", a[0], a[1], "2026-04-01"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// seedSamplePartners creates sample branches, partners, client mapping,
+// a referral and prepaid schemes.
+func (o *Ops) seedSamplePartners(ctx context.Context, tenant string) error {
+	for _, b := range []Branch{{"Mumbai", "Mumbai head office", "Mumbai", "farhan.khan", true}, {"Bengaluru", "Bengaluru branch", "Bengaluru", "meera.iyer", true}, {"Delhi", "Delhi branch", "Delhi", "", true}} {
+		if _, err := o.SaveBranch(ctx, tenant, "admin", b); err != nil {
+			return err
+		}
+	}
+	for _, p := range []Partner{
+		{Code: "RM01", Name: "Rohan Mehta", Kind: "Relationship manager", Branch: "Mumbai", Active: true},
+		{Code: "AP001", Name: "Sunrise Investments", Kind: "Authorised person", Branch: "Mumbai", Parent: "RM01", PAN: "ABCFS1234K", GSTIN: "27ABCFS1234K1Z5", RegNo: "AP0012345", SharePct: money.MustDec("40"), Active: true},
+		{Code: "AP002", Name: "Malabar Capital", Kind: "Authorised person", Branch: "Bengaluru", PAN: "AAKFM5678Q", RegNo: "AP0067890", SharePct: money.MustDec("50"), Active: true},
+	} {
+		if _, err := o.SavePartner(ctx, tenant, "admin", p); err != nil {
+			return err
+		}
+	}
+	cs, err := o.Clients(ctx, tenant)
+	if err != nil {
+		return err
+	}
+	sort.Slice(cs, func(i, j int) bool { return cs[i].UCC < cs[j].UCC })
+	n := 0
+	for _, c := range cs {
+		n++
+		ap, rm := "", ""
+		switch {
+		case c.Branch == "Mumbai" && n%3 == 0:
+			ap, rm = "AP001", "RM01"
+		case c.Branch == "Mumbai":
+			rm = "RM01"
+		case c.Branch == "Bengaluru" && n%2 == 0:
+			ap = "AP002"
+		}
+		ref, from := "", ""
+		if c.UCC == "BH1004" || c.UCC == "BH1008" {
+			ref, from = "BH1001", "2026-04-01"
+		}
+		if _, err := o.AssignClient(ctx, tenant, "admin", c.UCC, c.Branch, ap, rm, ref, from); err != nil {
+			return err
+		}
+	}
+	for _, s := range []PrepaidScheme{
+		{ID: "credit-10k", Name: "Prepaid ₹10,000 brokerage", Kind: "Credit", Price: money.MustAmount("11800"), Days: 365, Active: true},
+		{ID: "trader-annual", Name: "Active trader annual plan", Kind: "Plan", Price: money.MustAmount("2360"), Days: 365, Plan: "active-trader", Active: true},
+	} {
+		if _, err := o.SavePrepaidScheme(ctx, tenant, "admin", s); err != nil {
 			return err
 		}
 	}

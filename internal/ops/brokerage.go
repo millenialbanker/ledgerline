@@ -261,6 +261,12 @@ func (o *Ops) Assign(ctx context.Context, tenant, actor, target, planID, from st
 	if err := o.require(ctx, tenant, actor, "Assigning brokerage plans", RoleChecker); err != nil {
 		return PlanAssignment{}, err
 	}
+	return o.assign(ctx, tenant, actor, target, planID, from)
+}
+
+// assign records an assignment without a role check (system changes such
+// as a prepaid scheme starting or ending).
+func (o *Ops) assign(ctx context.Context, tenant, actor, target, planID, from string) (PlanAssignment, error) {
 	if !validDate(from) {
 		return PlanAssignment{}, invalid("effective from must be a date")
 	}

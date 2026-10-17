@@ -114,6 +114,20 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/gst", s.gst, false)
 	R("GET /v1/gst/gstr1/{table}", s.gstr1, false)
 	R("GET /v1/invoices/{no}/document", s.invoiceDoc, false)
+	R("GET /v1/branches", s.branches, false)
+	R("POST /v1/branches", s.saveBranch, true)
+	R("GET /v1/partners", s.partners, false)
+	R("POST /v1/partners", s.savePartner, true)
+	R("POST /v1/clients/{ucc}/mapping", s.mapClient, true)
+	R("POST /v1/clients/{ucc}/privacy", s.clientPrivacy, true)
+	R("GET /v1/ap-payouts", s.apPayouts, false)
+	R("POST /v1/ap-payouts/post", s.postAPPayouts, true)
+	R("GET /v1/referrals", s.referrals, false)
+	R("POST /v1/referrals/post", s.postReferrals, true)
+	R("GET /v1/prepaid", s.prepaid, false)
+	R("POST /v1/prepaid/schemes", s.savePrepaidScheme, true)
+	R("POST /v1/prepaid/subscriptions", s.buyPrepaid, true)
+	R("POST /v1/prepaid/run", s.runPrepaid, true)
 	R("GET /v1/debits", s.debits, false)
 	R("POST /v1/debits/block", s.debitBlock, true)
 	R("GET /v1/debits/block-file", s.debitBlockFile, false)
@@ -254,12 +268,24 @@ func (s *Server) clients(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.ClientRows(r.Context(), tenant(r), d)
+	if f := s.scope(r); f != nil && err == nil {
+		out := v[:0]
+		for _, c := range v {
+			if f(c.UCC) {
+				out = append(out, c)
+			}
+		}
+		v = out
+	}
 	ok(w, v, err)
 }
 
 func (s *Server) client(w http.ResponseWriter, r *http.Request) {
 	d, okd := qdate(w, r)
 	if !okd {
+		return
+	}
+	if !s.canSee(w, r, r.PathValue("ucc")) {
 		return
 	}
 	v, err := s.ops.ClientDetail(r.Context(), tenant(r), r.PathValue("ucc"), d)
@@ -341,6 +367,27 @@ func (s *Server) rms(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.Risk(r.Context(), tenant(r), d)
+	if f := s.scope(r); f != nil && err == nil {
+		rows := v.Rows[:0]
+		for _, x := range v.Rows {
+			if f(x.UCC) {
+				rows = append(rows, x)
+			}
+		}
+		v.Rows = rows
+		for u := range v.Positions {
+			if !f(u) {
+				delete(v.Positions, u)
+			}
+		}
+		ovs := v.Overrides[:0]
+		for _, x := range v.Overrides {
+			if f(x.UCC) {
+				ovs = append(ovs, x)
+			}
+		}
+		v.Overrides = ovs
+	}
 	ok(w, v, err)
 }
 
@@ -447,6 +494,15 @@ func (s *Server) notes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.Notes(r.Context(), tenant(r), d)
+	if f := s.scope(r); f != nil && err == nil {
+		out := v[:0]
+		for _, n := range v {
+			if f(n.UCC) {
+				out = append(out, n)
+			}
+		}
+		v = out
+	}
 	ok(w, v, err)
 }
 
@@ -469,6 +525,9 @@ func (s *Server) sendNotes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) noteDocument(w http.ResponseWriter, r *http.Request) {
+	if !s.canSee(w, r, r.PathValue("ucc")) {
+		return
+	}
 	b, err := s.ops.RenderNote(r.Context(), tenant(r), r.PathValue("date"), r.PathValue("ucc"))
 	if err != nil {
 		fail(w, err, nil)
@@ -633,6 +692,16 @@ func (s *Server) clientReportDefs(w http.ResponseWriter, r *http.Request) {
 // HTML: ?ucc=&from=&to=&format=json|csv|html.
 func (s *Server) clientReport(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	if f := s.scope(r); f != nil {
+		u := strings.ToUpper(q.Get("ucc"))
+		if u == "ALL" || strings.HasPrefix(u, "TAG:") {
+			writeErr(w, 403, "forbidden", "Reports for all clients or a group are not available to this login; choose one client.", nil)
+			return
+		}
+		if !s.canSee(w, r, u) {
+			return
+		}
+	}
 	rep, err := s.ops.ClientReportFor(r.Context(), tenant(r), r.PathValue("kind"), q.Get("ucc"), q.Get("from"), q.Get("to"))
 	if err != nil {
 		fail(w, err, nil)
@@ -899,6 +968,9 @@ func (s *Server) assignPlan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) clientPlan(w http.ResponseWriter, r *http.Request) {
+	if !s.canSee(w, r, r.PathValue("ucc")) {
+		return
+	}
 	d, okd := qdate(w, r)
 	if !okd {
 		return
@@ -1009,6 +1081,15 @@ func (s *Server) debits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.Debits(r.Context(), tenant(r), d)
+	if f := s.scope(r); f != nil && err == nil {
+		rows := v.Rows[:0]
+		for _, x := range v.Rows {
+			if f(x.UCC) {
+				rows = append(rows, x)
+			}
+		}
+		v.Rows = rows
+	}
 	ok(w, v, err)
 }
 
@@ -1068,12 +1149,24 @@ func (s *Server) invoices(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) receipts(w http.ResponseWriter, r *http.Request) {
 	rs, err := s.ops.Receipts(r.Context(), tenant(r))
+	if f := s.scope(r); f != nil && err == nil {
+		out := rs[:0]
+		for _, x := range rs {
+			if f(x.UCC) {
+				out = append(out, x)
+			}
+		}
+		rs = out
+	}
 	ok(w, rs, err)
 }
 
 func (s *Server) recordReceipt(w http.ResponseWriter, r *http.Request) {
 	var b ops.Receipt
 	if !decode(w, r, &b) {
+		return
+	}
+	if !s.canSee(w, r, b.UCC) {
 		return
 	}
 	v, err := s.ops.RecordReceipt(r.Context(), tenant(r), actor(r), b)
@@ -1173,6 +1266,16 @@ func (s *Server) payouts(w http.ResponseWriter, r *http.Request) {
 		fail(w, err, nil)
 		return
 	}
+	if f := s.scope(r); f != nil {
+		out := rs[:0]
+		for _, x := range rs {
+			if f(x.UCC) {
+				out = append(out, x)
+			}
+		}
+		ok(w, map[string]any{"requests": out, "batches": []ops.PayoutBatch{}}, nil)
+		return
+	}
 	bs, err := s.ops.PayoutBatches(r.Context(), tenant(r))
 	for i := range bs {
 		for j := range bs[i].Items {
@@ -1185,6 +1288,9 @@ func (s *Server) payouts(w http.ResponseWriter, r *http.Request) {
 func (s *Server) withdrawable(w http.ResponseWriter, r *http.Request) {
 	d, okd := qdate(w, r)
 	if !okd {
+		return
+	}
+	if !s.canSee(w, r, r.URL.Query().Get("ucc")) {
 		return
 	}
 	v, err := s.ops.Withdrawable(r.Context(), tenant(r), d, strings.ToUpper(r.URL.Query().Get("ucc")))
@@ -1203,7 +1309,14 @@ func (s *Server) requestPayout(w http.ResponseWriter, r *http.Request) {
 	if _, okd := dateParam(w, b.Date, "date", true); !okd {
 		return
 	}
-	v, err := s.ops.RequestPayout(r.Context(), tenant(r), actor(r), b.Date, b.UCC, b.Amount, "Head office")
+	if !s.canSee(w, r, b.UCC) {
+		return
+	}
+	src := "Head office"
+	if role, _ := s.ops.RoleOf(r.Context(), tenant(r), actor(r)); role == ops.RoleBranch || role == ops.RoleAP {
+		src = "Branch"
+	}
+	v, err := s.ops.RequestPayout(r.Context(), tenant(r), actor(r), b.Date, b.UCC, b.Amount, src)
 	if err != nil {
 		fail(w, err, nil)
 		return
@@ -1457,4 +1570,173 @@ func (s *Server) invoiceDoc(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
 	w.Write(b)
+}
+
+// ---- branches, partners, referrals, prepaid ----
+
+func (s *Server) branches(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.Branches(r.Context(), tenant(r))
+	ok(w, v, err)
+}
+
+func (s *Server) saveBranch(w http.ResponseWriter, r *http.Request) {
+	var b ops.Branch
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveBranch(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) partners(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.Partners(r.Context(), tenant(r), d)
+	if err == nil {
+		if u, uerr := s.ops.UserByID(r.Context(), tenant(r), actor(r)); uerr == nil && (u.Role == ops.RoleAP || u.Role == ops.RoleBranch) {
+			out := v[:0]
+			keep := map[string]bool{u.Partner: true}
+			for changed := true; changed; {
+				changed = false
+				for _, p := range v {
+					if keep[p.Parent] && !keep[p.Code] {
+						keep[p.Code], changed = true, true
+					}
+				}
+			}
+			for _, p := range v {
+				if (u.Role == ops.RoleAP && keep[p.Code]) || (u.Role == ops.RoleBranch && p.Branch == u.Branch) {
+					out = append(out, p)
+				}
+			}
+			v = out
+		}
+	}
+	ok(w, v, err)
+}
+
+func (s *Server) savePartner(w http.ResponseWriter, r *http.Request) {
+	var b ops.Partner
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SavePartner(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) mapClient(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Branch   string `json:"branch"`
+		Partner  string `json:"partner"`
+		RM       string `json:"rm"`
+		Referrer string `json:"referrer"`
+		From     string `json:"referred_from"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.AssignClient(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), b.Branch, b.Partner, b.RM, b.Referrer, b.From)
+	ok(w, v.Public(), err)
+}
+
+func (s *Server) clientPrivacy(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Private   bool     `json:"private"`
+		VisibleTo []string `json:"visible_to"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SetClientPrivacy(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), b.Private, b.VisibleTo)
+	ok(w, v.Public(), err)
+}
+
+func (s *Server) apPayouts(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	v, err := s.ops.APPayouts(r.Context(), tenant(r), q.Get("from"), q.Get("to"))
+	ok(w, v, err)
+}
+
+func (s *Server) postAPPayouts(w http.ResponseWriter, r *http.Request) {
+	var b struct{ From, To string }
+	if !decode(w, r, &b) {
+		return
+	}
+	n, err := s.ops.PostAPPayouts(r.Context(), tenant(r), actor(r), b.From, b.To)
+	ok(w, map[string]any{"posted": n}, err)
+}
+
+func (s *Server) referrals(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	v, err := s.ops.Referrals(r.Context(), tenant(r), q.Get("from"), q.Get("to"))
+	ok(w, v, err)
+}
+
+func (s *Server) postReferrals(w http.ResponseWriter, r *http.Request) {
+	var b struct{ From, To string }
+	if !decode(w, r, &b) {
+		return
+	}
+	n, err := s.ops.PostReferrals(r.Context(), tenant(r), actor(r), b.From, b.To)
+	ok(w, map[string]any{"posted": n}, err)
+}
+
+func (s *Server) prepaid(w http.ResponseWriter, r *http.Request) {
+	sc, err := s.ops.PrepaidSchemes(r.Context(), tenant(r))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	subs, err := s.ops.PrepaidSubs(r.Context(), tenant(r))
+	if f := s.scope(r); f != nil && err == nil {
+		out := subs[:0]
+		for _, x := range subs {
+			if f(x.UCC) {
+				out = append(out, x)
+			}
+		}
+		subs = out
+	}
+	ok(w, map[string]any{"schemes": sc, "subscriptions": subs}, err)
+}
+
+func (s *Server) savePrepaidScheme(w http.ResponseWriter, r *http.Request) {
+	var b ops.PrepaidScheme
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SavePrepaidScheme(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) buyPrepaid(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date      string `json:"date"`
+		UCC       string `json:"ucc"`
+		Scheme    string `json:"scheme"`
+		AutoRenew bool   `json:"auto_renew"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if !s.canSee(w, r, b.UCC) {
+		return
+	}
+	v, err := s.ops.BuyPrepaid(r.Context(), tenant(r), actor(r), b.Date, b.UCC, b.Scheme, b.AutoRenew)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	writeJSON(w, 201, v)
+}
+
+func (s *Server) runPrepaid(w http.ResponseWriter, r *http.Request) {
+	var b struct{ Date string }
+	if !decode(w, r, &b) {
+		return
+	}
+	a, e, n, err := s.ops.RunPrepaid(r.Context(), tenant(r), actor(r), b.Date)
+	ok(w, map[string]any{"adjusted": a, "expired": e, "renewed": n}, err)
 }
