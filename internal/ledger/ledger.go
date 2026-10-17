@@ -63,8 +63,8 @@ func ClearingAccount(exchange, segment string) string { return "CC:" + exchange 
 func ExchangeTxnPayable(exchange string) string { return "PAYABLE:EXCH_TXN:" + exchange }
 
 var prefixTypes = map[string]AccountType{
-	"CLIENT": Liability, "PAYABLE": Liability, "AP": Liability, "SUSPENSE": Liability,
-	"BANK": Asset, "CC": Asset, "RECEIVABLE": Asset,
+	"CLIENT": Liability, "PAYABLE": Liability, "AP": Liability, "SUSPENSE": Liability, "LOAN": Liability,
+	"BANK": Asset, "CC": Asset, "RECEIVABLE": Asset, "CASH": Asset, "ASSET": Asset,
 	"INCOME": Income, "EXPENSE": Expense, "EQUITY": Equity,
 }
 

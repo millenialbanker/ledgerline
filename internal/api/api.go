@@ -522,6 +522,24 @@ func (s *Server) trialBalance(w http.ResponseWriter, r *http.Request) {
 		fail(w, err, nil)
 		return
 	}
+	if s.ops != nil {
+		// Restricted accounts are folded into one line for users who may
+		// not see them, so the totals still agree.
+		vis := s.ops.AccountVisible(r.Context(), tenant(r), actor(r))
+		var rows []ledger.TBRow
+		var hidden ledger.TBRow
+		for _, row := range tb.Rows {
+			if vis(row.Account) {
+				rows = append(rows, row)
+				continue
+			}
+			hidden.Account, hidden.Debit, hidden.Credit = "RESTRICTED", hidden.Debit+row.Debit, hidden.Credit+row.Credit
+		}
+		if hidden.Account != "" {
+			rows = append(rows, hidden)
+		}
+		tb.Rows = rows
+	}
 	writeJSON(w, 200, tb)
 }
 
@@ -541,6 +559,10 @@ func (s *Server) statement(w http.ResponseWriter, r *http.Request) {
 	}
 	to, ok := dateParam(w, q.Get("to"), "to", false)
 	if !ok {
+		return
+	}
+	if s.ops != nil && !s.ops.AccountVisible(r.Context(), tenant(r), actor(r))(acct) {
+		writeErr(w, 403, "forbidden", "This account is restricted.", nil)
 		return
 	}
 	st, err := s.app.Ledger.Statement(r.Context(), tenant(r), acct, from, to)

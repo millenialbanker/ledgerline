@@ -46,6 +46,7 @@ func (o *Ops) SeedDev(ctx context.Context, tenant string) error {
 		s.Holidays = []string{"2026-12-25"}
 		s.TwoFactor = "optional"               // development: sign in with password only
 		s.GatewaySecret = "dev-gateway-secret" // sample only
+		s.FirmState, s.FirmGSTIN = "Maharashtra", "27AAACB1234C1Z5"
 		s.PayoutDebitAccount = "50200012345678"
 		s.Calendar = []CalendarItem{
 			{"2026-10-16", "Client funds and securities balance upload", "Accounts"},

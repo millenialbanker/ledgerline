@@ -68,6 +68,9 @@ type Client struct {
 	InactiveSince string `json:"inactive_since,omitempty"`
 	ReactivatedOn string `json:"reactivated_on,omitempty"`
 	KYCUpdatedOn  string `json:"kyc_updated_on,omitempty"` // last KYC detail change uploaded to the KRA
+	Branch        string `json:"branch,omitempty"`
+	State         string `json:"state,omitempty"` // place of supply for GST
+	GSTIN         string `json:"gstin,omitempty"`
 }
 
 var (
@@ -77,6 +80,7 @@ var (
 	reEmail  = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 	reAcct   = regexp.MustCompile(`^[0-9]{9,18}$`)
 	reUCC    = regexp.MustCompile(`^[A-Z0-9]{3,10}$`)
+	reGSTIN  = regexp.MustCompile(`^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$`)
 )
 
 // FieldError is one validation problem on a form field.

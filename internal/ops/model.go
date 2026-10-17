@@ -114,6 +114,10 @@ type Settings struct {
 	// DebitBlockDays: clients in debit this many days are blocked from buying.
 	DebitBlockDays int64 `json:"debit_block_days"`
 
+	// GST registration of the firm (place of supply decides IGST vs CGST+SGST).
+	FirmGSTIN string `json:"firm_gstin"`
+	FirmState string `json:"firm_state"`
+
 	// Money in and out.
 	ChequeBounceCharge string `json:"cheque_bounce_charge"` // ₹ before GST, default 350
 	GatewaySecret      string `json:"gateway_secret,omitempty"`

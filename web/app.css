@@ -305,3 +305,5 @@ tr.sel td{background:var(--accent-soft)}
 .pmt .in.sm{width:100%;min-width:70px}.pmt td{padding:4px 6px}.pmt select.in.sm{min-width:170px}
 #clientTag{width:auto;height:32px}
 .plan .hd{flex-wrap:wrap;gap:8px}
+
+.tbl tr.grp td{background:var(--sunk);font-size:12.5px}

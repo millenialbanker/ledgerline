@@ -105,6 +105,15 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/buybacks/{id}/settle", s.settleBuyBack, true)
 	R("GET /v1/shortages", s.shortages, false)
 	R("POST /v1/shortages/{id}/settle", s.settleShortage, true)
+	R("GET /v1/accounts", s.accounts, false)
+	R("POST /v1/accounts", s.saveAccount, true)
+	R("GET /v1/vouchers", s.vouchers, false)
+	R("POST /v1/vouchers", s.saveVoucher, true)
+	R("POST /v1/vouchers/{no}/{action}", s.decideVoucher, true)
+	R("GET /v1/financials", s.financials, false)
+	R("GET /v1/gst", s.gst, false)
+	R("GET /v1/gst/gstr1/{table}", s.gstr1, false)
+	R("GET /v1/invoices/{no}/document", s.invoiceDoc, false)
 	R("GET /v1/debits", s.debits, false)
 	R("POST /v1/debits/block", s.debitBlock, true)
 	R("GET /v1/debits/block-file", s.debitBlockFile, false)
@@ -725,6 +734,20 @@ func (s *Server) journal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	es, err := s.app.Ledger.Store.List(r.Context(), tenant(r), ledger.Filter{From: d, To: d})
+	if err == nil {
+		vis := s.ops.AccountVisible(r.Context(), tenant(r), actor(r))
+		out := es[:0]
+		for _, e := range es {
+			okE := true
+			for _, p := range e.Postings {
+				okE = okE && vis(p.Account)
+			}
+			if okE {
+				out = append(out, e)
+			}
+		}
+		es = out
+	}
 	ok(w, es, err)
 }
 
@@ -1350,4 +1373,88 @@ func (s *Server) settleShortage(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := s.ops.SettleShortage(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Date, b.Price)
 	ok(w, v, err)
+}
+
+// ---- firm accounts and GST ----
+
+func (s *Server) accounts(w http.ResponseWriter, r *http.Request) {
+	d, okd := dateParam(w, r.URL.Query().Get("date"), "date", false)
+	if !okd {
+		return
+	}
+	v, err := s.ops.Accounts(r.Context(), tenant(r), actor(r), d)
+	ok(w, v, err)
+}
+
+func (s *Server) saveAccount(w http.ResponseWriter, r *http.Request) {
+	var b ops.Account
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveAccount(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) vouchers(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.Vouchers(r.Context(), tenant(r), actor(r))
+	ok(w, v, err)
+}
+
+func (s *Server) saveVoucher(w http.ResponseWriter, r *http.Request) {
+	var b ops.Voucher
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveVoucher(r.Context(), tenant(r), actor(r), b)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	writeJSON(w, 201, v)
+}
+
+func (s *Server) decideVoucher(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Reason string `json:"reason"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.DecideVoucher(r.Context(), tenant(r), actor(r), r.PathValue("no"), r.PathValue("action"), b.Reason)
+	ok(w, v, err)
+}
+
+func (s *Server) financials(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	v, err := s.ops.Financials(r.Context(), tenant(r), actor(r), q.Get("from"), q.Get("to"), q.Get("branch"))
+	ok(w, v, err)
+}
+
+func (s *Server) gst(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	v, err := s.ops.GST(r.Context(), tenant(r), q.Get("from"), q.Get("to"))
+	ok(w, v, err)
+}
+
+func (s *Server) gstr1(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	f, err := s.ops.GSTR1CSV(r.Context(), tenant(r), q.Get("from"), q.Get("to"), r.PathValue("table"))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="gstr1_`+r.PathValue("table")+`_`+q.Get("from")+`_`+q.Get("to")+`.csv"`)
+	w.Write(f)
+}
+
+func (s *Server) invoiceDoc(w http.ResponseWriter, r *http.Request) {
+	b, err := s.ops.RenderInvoice(r.Context(), tenant(r), r.PathValue("no"))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
+	w.Write(b)
 }

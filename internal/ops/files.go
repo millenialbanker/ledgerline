@@ -31,7 +31,7 @@ type MasterSource struct {
 // MasterSources lists the non-trade file types, with their CSV headers.
 func MasterSources() []MasterSource {
 	return []MasterSource{
-		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding)", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
+		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding). Optional columns: Branch, State (place of supply for GST), GSTIN", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
 		{"OPENING-BALANCES", "Opening trial balance (migration); must balance. Optional column Since: for a client debit, the date it became due, so ageing, interest and debit blocks carry over", []string{"Account", "Debit", "Credit"}, true, "Once at go-live"},
 		{"MARKET-DATA", "Contract master, prices and risk parameters (SPAN, VaR, haircuts)", []string{"Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "ISIN", "Company", "Lot", "LTP", "Close", "VaRPct", "ELMPct", "HaircutPct", "SPANPct", "ExposurePct", "Delta", "Underlying", "Index"}, true, "BOD and EOD"},
 		{"DP-HOLDINGS", "Client demat holdings and pledges from the depository", []string{"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost"}, false, "BOD"},
@@ -201,7 +201,11 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 				City: r.get("City"), Segments: strings.Split(r.get("Segments"), ";"), Risk: r.get("Risk"), Income: r.get("Income"), RAS: r.get("RAS"),
 				Bank: BankAccount{r.get("Bank"), r.get("IFSC"), r.get("Account")}, Demat: Demat{r.get("Depository"), r.get("DematID")},
 				Nominee: r.get("Nominee"), NomineeName: r.get("NomineeName"), KYCDate: pdate(r, "KYCDate", true), Status: r.get("Status"),
-				API: strings.EqualFold(r.get("API"), "Y"), LastTrade: pdate(r, "LastTrade", true), IncomeProof: true, RiskDisclosure: true, CreatedBy: "import"}
+				API: strings.EqualFold(r.get("API"), "Y"), LastTrade: pdate(r, "LastTrade", true), IncomeProof: true, RiskDisclosure: true, CreatedBy: "import",
+				Branch: r.get("Branch"), State: r.get("State"), GSTIN: strings.ToUpper(r.get("GSTIN"))}
+			if c.GSTIN != "" && !reGSTIN.MatchString(c.GSTIN) {
+				bad(r.line, "GSTIN", "is not a valid GSTIN")
+			}
 			if v := r.get("UPIBlock"); v != "" {
 				a, err := money.ParseAmount(v)
 				if err != nil {
@@ -237,9 +241,23 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		return func() (int, int, error) {
 			n := 0
 			for _, c := range cs {
-				// Groups are maintained in the back office; a re-import keeps them.
-				if old, _, err := docs.Get[Client](ctx, o.Docs, tenant, cClient, c.UCC); err == nil && len(c.Tags) == 0 {
-					c.Tags = old.Tags
+				// Groups, blocks, inactivity and other back-office fields are
+				// kept when a re-import does not carry them.
+				if old, _, err := docs.Get[Client](ctx, o.Docs, tenant, cClient, c.UCC); err == nil {
+					if len(c.Tags) == 0 {
+						c.Tags = old.Tags
+					}
+					c.Blocked, c.BlockedReason = old.Blocked, old.BlockedReason
+					c.Inactive, c.InactiveSince, c.ReactivatedOn, c.KYCUpdatedOn = old.Inactive, old.InactiveSince, old.ReactivatedOn, old.KYCUpdatedOn
+					if c.Branch == "" {
+						c.Branch = old.Branch
+					}
+					if c.State == "" {
+						c.State = old.State
+					}
+					if c.GSTIN == "" {
+						c.GSTIN = old.GSTIN
+					}
 				}
 				if err := docs.Upsert(ctx, o.Docs, tenant, cClient, c.UCC, c, actor); err != nil {
 					return n, 0, err

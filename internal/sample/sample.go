@@ -87,11 +87,19 @@ var derivs = []der{
 var (
 	firstNames = []string{"Aarav", "Vivaan", "Ananya", "Ishaan", "Diya", "Kabir", "Meera", "Rohan", "Saanvi", "Arjun", "Kavya", "Nikhil", "Pooja", "Rahul", "Sneha", "Vikram", "Aditi", "Siddharth", "Neha", "Karan", "Priya", "Manish", "Ritu", "Amit", "Sunita", "Deepak", "Farhan", "Zoya", "Harpreet", "Lakshmi", "Venkat", "Suresh", "Gautam", "Tanvi", "Yash", "Nandini", "Rekha", "Imran"}
 	lastNames  = []string{"Shah", "Mehta", "Iyer", "Reddy", "Nair", "Gupta", "Agarwal", "Banerjee", "Chatterjee", "Kulkarni", "Patil", "Rao", "Sharma", "Verma", "Singh", "Kapoor", "Joshi", "Desai", "Menon", "Bose", "Khan", "Das", "Pillai", "Jain", "Malhotra", "Sen"}
-	cities     = []string{"Mumbai", "Pune", "Ahmedabad", "Kolkata", "Bengaluru", "Chennai", "Hyderabad", "Jaipur", "Indore", "Surat", "Delhi", "Lucknow", "Kochi", "Nagpur"}
-	banks      = [][2]string{{"HDFC Bank", "HDFC"}, {"ICICI Bank", "ICIC"}, {"State Bank of India", "SBIN"}, {"Axis Bank", "UTIB"}, {"Kotak Mahindra Bank", "KKBK"}, {"Bank of Baroda", "BARB"}}
-	corps      = []string{"Brightwater Capital LLP", "Sahyadri Agro Exports Pvt Ltd", "Northline Logistics Pvt Ltd"}
-	incomes    = []string{"1-5 L", "5-10 L", "10-25 L", "25 L-1 Cr", ">1 Cr", "<1 L"}
-	stages     = []string{"Application", "KYC verification", "In-person verification", "UCC upload"}
+	// cityInfo gives each sample city's branch, state and GST state code.
+	cityInfo = map[string]struct{ branch, state, code string }{
+		"Mumbai": {"Mumbai", "Maharashtra", "27"}, "Pune": {"Mumbai", "Maharashtra", "27"}, "Nagpur": {"Mumbai", "Maharashtra", "27"},
+		"Ahmedabad": {"Mumbai", "Gujarat", "24"}, "Surat": {"Mumbai", "Gujarat", "24"}, "Bengaluru": {"Bengaluru", "Karnataka", "29"},
+		"Chennai": {"Bengaluru", "Tamil Nadu", "33"}, "Hyderabad": {"Bengaluru", "Telangana", "36"}, "Kochi": {"Bengaluru", "Kerala", "32"},
+		"Delhi": {"Delhi", "Delhi", "07"}, "Jaipur": {"Delhi", "Rajasthan", "08"}, "Lucknow": {"Delhi", "Uttar Pradesh", "09"},
+		"Indore": {"Delhi", "Madhya Pradesh", "23"}, "Kolkata": {"Delhi", "West Bengal", "19"},
+	}
+	cities  = []string{"Mumbai", "Pune", "Ahmedabad", "Kolkata", "Bengaluru", "Chennai", "Hyderabad", "Jaipur", "Indore", "Surat", "Delhi", "Lucknow", "Kochi", "Nagpur"}
+	banks   = [][2]string{{"HDFC Bank", "HDFC"}, {"ICICI Bank", "ICIC"}, {"State Bank of India", "SBIN"}, {"Axis Bank", "UTIB"}, {"Kotak Mahindra Bank", "KKBK"}, {"Bank of Baroda", "BARB"}}
+	corps   = []string{"Brightwater Capital LLP", "Sahyadri Agro Exports Pvt Ltd", "Northline Logistics Pvt Ltd"}
+	incomes = []string{"1-5 L", "5-10 L", "10-25 L", "25 L-1 Cr", ">1 Cr", "<1 L"}
+	stages  = []string{"Application", "KYC verification", "In-person verification", "UCC upload"}
 )
 
 type client struct {
@@ -296,7 +304,7 @@ func generate(date string) (Day, *world) {
 	for i := range cs {
 		byUCC[cs[i].ucc] = &cs[i]
 	}
-	cm := [][]string{{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}}
+	cm := [][]string{{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock", "Branch", "State", "GSTIN"}}
 	for _, c := range cs {
 		nn := ""
 		if c.nominee == "Opted in" {
@@ -310,7 +318,12 @@ func generate(date string) (Day, *world) {
 		if c.upi > 0 {
 			upi = fmt.Sprint(c.upi)
 		}
-		cm = append(cm, []string{c.ucc, c.name, c.typ, c.pan, "", c.mobile, c.email, c.city, strings.Join(c.segs, ";"), c.risk, c.income, c.ras, c.bank, c.ifsc, c.acct, c.dp, c.dematID, c.nominee, nn, c.kyc, c.status, api, c.lastTrade, upi})
+		loc := cityInfo[c.city]
+		gstin := ""
+		if c.typ == "Corporate" {
+			gstin = loc.code + c.pan + "1Z5"
+		}
+		cm = append(cm, []string{c.ucc, c.name, c.typ, c.pan, "", c.mobile, c.email, c.city, strings.Join(c.segs, ";"), c.risk, c.income, c.ras, c.bank, c.ifsc, c.acct, c.dp, c.dematID, c.nominee, nn, c.kyc, c.status, api, c.lastTrade, upi, loc.branch, loc.state, gstin})
 	}
 	day.Files = append(day.Files, File{"CLIENT-MASTER", "client_master.csv", "", csvBytes(cm), false})
 
