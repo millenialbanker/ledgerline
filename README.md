@@ -37,6 +37,28 @@ Billing → **Correct** on the client's row (Ops checker). Choose what is being 
 
 Following the exchange circulars of October 2024 (NSE NSE/INSP/64718 of 25-Oct-2024 and the matching BSE and MCX circulars), a trading account with no activity for 24 months (configurable) is due to be flagged Inactive in the UCC database. Activity counted: exchange trades in any segment, IPO bids not cancelled, mutual fund SIP or lumpsum purchases on exchange platforms, KYC contact changes uploaded to the KRA, and reactivation. An Ops checker or compliance officer flags due accounts (they go into the day's UCC batch); inactive accounts get a nil OMS limit, a High alert if they trade, and drop out of the funds-and-securities report when their balances are nil. Reactivation is a maker request recording IPV/VIPV, confirmation or update of details and a Validated/Registered KRA status, approved by a different checker; the 24 months restart from reactivation.
 
+## Modules
+
+The console has 38 screens for staff and a separate client portal. Beyond trades, reconciliation, billing, settlement and contract notes:
+
+**Risk.** Live RMS from intraday OMS trades and LTP snapshots (margins, losses, unbilled charges, a 20% auction reserve on uncovered delivery sells) with a liquidation order file; end-of-day RMS with overrides, kill switch and square-off; peak margin and penalties; collateral and pledges; debtors (continuous debit with front-end block file, ageing, debtors' stock, interest with GST invoices); margin trading (MTF: policy and net-worth limit, enrolment, eligible list at VaR + 3/5 × ELM, funding from own funds, MTF pledge by T+1, daily interest, margin calls, liquidation, the exchange MTF report). Front-office files: beginning-of-day limits and holdings (with T1 for BTST), end-of-day client allocation of funds and collateral to the clearing corporation.
+
+**Money.** Receipts entered by a maker and approved by a checker from the registered account only; cheque clearing and returns with charges; signed payment-gateway webhook; payout requests checked across segments; NEFT/RTGS payout batches with UTRs; running account settlement.
+
+**Securities.** Corporate actions (dividend, bonus, split) in holdings and purchase lots, dividend reconciliation, buy-back tenders, internal close-out and auction of short deliveries.
+
+**Firm accounts.** Chart of accounts, vouchers with maker-checker, branch books, P&L and balance sheet, GST invoice register with GSTR-1 tables and GSTR-3B, period locking (fixed or automatic T-n) and private account heads.
+
+**Depository.** BO accounts with BSDA eligibility; DIS books and maker-checker slips verified against the slip register and free balance (client confirmation above ₹5 lakh); upload batch and execution; demat, freeze, transmission and closure; DP tariff and monthly DP bills posted to the trading ledger with GST.
+
+**Compliance.** PMLA risk with special categories and periodic KYC (2/8/10 years); KRA status and upload file, CKYC numbers and bulk request; SEBI/exchange debarment and UN sanctions screening (PAN match blocks, name match for review); scanned client documents; inspection reports; STT and turnover reconciliation; inactive accounts; surveillance; investor complaints with 21/7-day due dates, SCORES and exchange references and the monthly website disclosure; NRI under PIS (rule checks, PIS bank file, TDS on capital gains).
+
+**Clients and business.** Client portal (family logins, holdings, ledger, contract notes, reports, payouts, profile changes approved by head office, help desk, trades through other brokers for capital gains, WhatsApp alerts); leads and CRM with masked mobiles, calls through a telephony bridge, appointments and conversion incentives; branches, authorised persons and brokerage sharing with scoped logins; referrals; prepaid brokerage schemes; brokerage plans and client groups.
+
+**Messaging and automation.** Templates per event and channel (email, SMS with DLT template IDs, WhatsApp with opt-in), event messages, bulk sends, a WhatsApp bot for balance, holdings, ledger, contract notes and margin, and scheduled jobs (contract notes, alerts, statements, KRA file, emailed reports, interest) with run history and management emails.
+
+Connections that need the broker's own accounts (exchange extranet, depositories, KRA/CKYC, banks, SMS/WhatsApp providers, digital signature) are built up to a pluggable point with a simulated stand-in, the way contract-note email goes to an outbox.
+
 ## Sign-in
 
 Each person has a user ID, a password (12+ characters, PBKDF2-SHA256, 600,000 iterations) and, when the firm requires it (the default), a time-based two-factor code from an authenticator app. Sessions are HttpOnly, SameSite=Strict cookies that end after 30 minutes idle (configurable), 12 hours, sign-out, or an admin reset. Five wrong attempts lock a user for 15 minutes; sign-in attempts are also limited per address. New users get a one-time password to change at first sign-in. Every sign-in, failure and change is in the audit trail. API keys remain for integrations, with `X-Actor`.
@@ -84,7 +106,7 @@ These hold even if application code has a bug:
 ## Verified in this build
 
 - `go test ./...`: 12 packages, including a full generated sample day through every operations module (`internal/ops`), and the original 4-file day through the app layer and HTTP API.
-- The console driven end to end in headless Chromium: every screen, plus onboarding, overrides with a second user, square-off, penalties, rebill, settlement, bank returns, RAS, reports, alerts and EOD.
+- The console driven end to end in headless Chromium: all 38 screens and their tabs, the client portal, plus onboarding, overrides with a second user, square-off, penalties, rebill, settlement, bank returns, RAS, reports, alerts and EOD.
 - Charges checked against hand-worked figures. For example, 10 RELIANCE @ ₹1,412 delivery buy costs ₹16.75: STT 14.12, exchange 0.42, SEBI 0.01, stamp 2.12, GST 0.08.
 - Client BH1001's closing balance on the sample day is ₹17,863.72 Dr, computed by hand and asserted in tests.
 - `db/tests/run.sh` on PostgreSQL 16: nine schema guarantee tests, then every store SQL statement (including the document store) prepared and executed in order against the live schema.
@@ -166,8 +188,7 @@ curl -H "$K" -X POST -d '{"bucket":"FO-OPT","exchange":"NSE","side":"S","qty":13
 
 Before a pilot:
 
-1. **Real file layouts and rates** from the pilot broker (see placeholders above), including the clearing corporations' SPAN and obligation files.
-2. **Connectors:** exchange extranet and depository APIs for BOD/EOD file pulls, OMS limit push and square-off, bank statement feed, mail relay with digital signing for contract notes.
-3. **Sign-in:** single sign-on with per-user credentials, replacing the shared tenant key plus `X-Actor`.
-4. **Exact regulatory formats** for each report, and auction handling for short deliveries.
-5. **Option exercise and assignment** at expiry.
+1. **Real file layouts and rates** from the pilot broker (see placeholders above), including the clearing corporations' SPAN and obligation files, the depository's DIS batch and the front end's limit format.
+2. **Connectors:** exchange extranet and depository APIs, KRA/CKYC, bank statement feed and payout API, SMS/WhatsApp providers, mail relay with digital signing.
+3. **Exact regulatory formats** for each report.
+4. **Hosting in India**, backups, and the SEBI cyber security framework (CSCRF) evidence.
