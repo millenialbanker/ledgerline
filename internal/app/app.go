@@ -86,8 +86,8 @@ type App struct {
 	// BillingHooks, when set, supplies per-client brokerage plans and lot
 	// sizes for a billing run.
 	BillingHooks func(ctx context.Context, tenant, date string) (BrokerageFunc, func(ingest.TradeEvent) int64, error)
-	runSeq int64
-	mu     sync.Mutex
+	runSeq       int64
+	mu           sync.Mutex
 }
 
 // Stores bundles the persistence an App needs.
