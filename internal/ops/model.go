@@ -104,6 +104,35 @@ type Settings struct {
 	// InactiveMonths is the no-activity period after which a trading
 	// account is flagged Inactive (24 under the October 2024 circulars).
 	InactiveMonths int64 `json:"inactive_months"`
+
+	// Interest (delayed payment charges) on overdue debit balances.
+	InterestPctPA      string   `json:"interest_pct_pa"`      // annual %, default 18
+	InterestGraceDays  int64    `json:"interest_grace_days"`  // free days at the start of a debit spell
+	InterestMinimum    string   `json:"interest_minimum"`     // ₹; smaller amounts are not charged
+	InterestExemptTags []string `json:"interest_exempt_tags"` // client groups not charged
+	GSTPct             string   `json:"gst_pct"`              // default 18
+	// DebitBlockDays: clients in debit this many days are blocked from buying.
+	DebitBlockDays int64 `json:"debit_block_days"`
+
+	// Period locking: nothing may be posted on or before LockedUpTo, or
+	// before today minus AutoLockDays business days when that is set.
+	LockedUpTo   string `json:"locked_up_to"`
+	AutoLockDays int64  `json:"auto_lock_days"`
+}
+
+// lockedUpTo is the last locked date given today.
+func (s Settings) lockedUpTo(today string) string {
+	l := s.LockedUpTo
+	if s.AutoLockDays > 0 {
+		d := today
+		for i := int64(0); i < s.AutoLockDays; i++ {
+			d = s.PrevBusinessDay(d)
+		}
+		if d > l {
+			l = d
+		}
+	}
+	return l
 }
 
 // Require2FA reports whether every user must use two-factor sign-in.
@@ -140,6 +169,7 @@ func New(a *app.App) *Ops {
 	o := &Ops{App: a, Docs: a.Docs, Now: time.Now}
 	a.Adjust = o.applyCCM
 	a.BillingHooks = o.billingHooks
+	a.Ledger.Guard = func(ctx context.Context, e ledger.Entry) error { return o.checkLock(ctx, e.Tenant, e.ValueDate) }
 	return o
 }
 
@@ -238,7 +268,22 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	if s.RASBufferPct < 0 || s.RASBufferPct > 100 {
 		return invalid("RAS buffer must be between 0 and 100")
 	}
-	for _, d := range append([]string{s.RASMonthly, s.RASQuarterly}, s.Holidays...) {
+	for _, x := range []struct{ name, v string }{{"interest rate", s.InterestPctPA}, {"GST rate", s.GSTPct}, {"interest minimum", s.InterestMinimum}} {
+		if x.v == "" {
+			continue
+		}
+		d, err := money.ParseDec(x.v)
+		if err != nil || d.Sign() < 0 || d.Cmp(money.DecInt(100)) > 0 && x.name != "interest minimum" {
+			return invalid("%s %q must be a number between 0 and 100", x.name, x.v)
+		}
+	}
+	if s.InterestGraceDays < 0 || s.DebitBlockDays < 0 || s.AutoLockDays < 0 || s.AutoLockDays > 30 {
+		return invalid("day counts must be zero or more (auto lock at most 30)")
+	}
+	for i, t := range s.InterestExemptTags {
+		s.InterestExemptTags[i] = NormaliseTag(t)
+	}
+	for _, d := range append([]string{s.RASMonthly, s.RASQuarterly, s.LockedUpTo}, s.Holidays...) {
 		if d != "" && !ledger.ValidDate(d) {
 			return invalid("date %q must be YYYY-MM-DD", d)
 		}

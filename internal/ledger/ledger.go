@@ -208,7 +208,12 @@ type Store interface {
 }
 
 // Ledger provides posting and projections over a Store.
-type Ledger struct{ Store Store }
+type Ledger struct {
+	Store Store
+	// Guard, when set, may refuse an entry before it is appended, for
+	// example one dated in a locked period.
+	Guard func(ctx context.Context, e Entry) error
+}
 
 func New(s Store) *Ledger { return &Ledger{Store: s} }
 
@@ -216,6 +221,11 @@ func New(s Store) *Ledger { return &Ledger{Store: s} }
 func (l *Ledger) Post(ctx context.Context, e Entry) (Entry, bool, error) {
 	if err := e.Validate(); err != nil {
 		return Entry{}, false, err
+	}
+	if l.Guard != nil {
+		if err := l.Guard(ctx, e); err != nil {
+			return Entry{}, false, err
+		}
 	}
 	return l.Store.Append(ctx, e)
 }

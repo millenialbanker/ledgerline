@@ -316,14 +316,20 @@ func generate(date string) (Day, *world) {
 
 	// ---- opening balances ----
 	var credits, debits int64
-	ob := [][]string{{"Account", "Debit", "Credit"}}
+	ob := [][]string{{"Account", "Debit", "Credit", "Since"}}
+	// Migrated debits carry the date they fell due, so ageing, interest
+	// and continuous-debit blocks start from history, not from go-live.
+	ages := []int{2, 9, 23, 41, 76, 130, 210}
+	nDebit := 0
 	for _, c := range cs {
 		switch {
 		case c.open > 0:
 			ob = append(ob, []string{"CLIENT:" + c.ucc, "", paise(c.open)})
 			credits += c.open
 		case c.open < 0:
-			ob = append(ob, []string{"CLIENT:" + c.ucc, paise(-c.open), ""})
+			since := prev.AddDate(0, 0, -ages[nDebit%len(ages)]).Format("2006-01-02")
+			nDebit++
+			ob = append(ob, []string{"CLIENT:" + c.ucc, paise(-c.open), "", since})
 			debits += -c.open
 		}
 	}

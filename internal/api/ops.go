@@ -78,6 +78,12 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/client-reports", s.clientReportDefs, false)
 	R("GET /v1/client-reports/{kind}", s.clientReport, false)
 	R("POST /v1/billing/correct", s.correctBill, true)
+	R("GET /v1/debits", s.debits, false)
+	R("POST /v1/debits/block", s.debitBlock, true)
+	R("GET /v1/debits/block-file", s.debitBlockFile, false)
+	R("GET /v1/interest", s.interest, false)
+	R("POST /v1/interest/post", s.postInterest, true)
+	R("GET /v1/invoices", s.invoices, false)
 	R("GET /v1/inactive", s.inactive, false)
 	R("POST /v1/inactive/flag", s.flagInactive, true)
 	R("POST /v1/inactive/reactivations", s.requestReactivation, true)
@@ -938,5 +944,68 @@ func (s *Server) correctBill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.CorrectBill(r.Context(), tenant(r), actor(r), b.Date, b.UCC, b.Reason, b.Plan, b.Scope, b.Send)
+	ok(w, v, err)
+}
+
+// ---- debits and interest ----
+
+func (s *Server) debits(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.Debits(r.Context(), tenant(r), d)
+	ok(w, v, err)
+}
+
+func (s *Server) debitBlock(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string `json:"date"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if _, okd := dateParam(w, b.Date, "date", true); !okd {
+		return
+	}
+	bl, un, err := s.ops.ApplyDebitBlocks(r.Context(), tenant(r), actor(r), b.Date)
+	ok(w, map[string]any{"blocked": bl, "unblocked": un}, err)
+}
+
+func (s *Server) debitBlockFile(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	f, err := s.ops.DebitBlockFile(r.Context(), tenant(r), d)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="debit_block_`+d+`.csv"`)
+	w.Write(f)
+}
+
+func (s *Server) interest(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	v, err := s.ops.Interest(r.Context(), tenant(r), q.Get("from"), q.Get("to"))
+	ok(w, v, err)
+}
+
+func (s *Server) postInterest(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, n, err := s.ops.PostInterest(r.Context(), tenant(r), actor(r), b.From, b.To)
+	ok(w, map[string]any{"posted": n, "view": v}, err)
+}
+
+func (s *Server) invoices(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.Invoices(r.Context(), tenant(r), strings.ToUpper(r.URL.Query().Get("ucc")))
 	ok(w, v, err)
 }

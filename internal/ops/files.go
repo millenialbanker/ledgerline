@@ -32,7 +32,7 @@ type MasterSource struct {
 func MasterSources() []MasterSource {
 	return []MasterSource{
 		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding)", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
-		{"OPENING-BALANCES", "Opening trial balance (migration); must balance", []string{"Account", "Debit", "Credit"}, true, "Once at go-live"},
+		{"OPENING-BALANCES", "Opening trial balance (migration); must balance. Optional column Since: for a client debit, the date it became due, so ageing, interest and debit blocks carry over", []string{"Account", "Debit", "Credit"}, true, "Once at go-live"},
 		{"MARKET-DATA", "Contract master, prices and risk parameters (SPAN, VaR, haircuts)", []string{"Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "ISIN", "Company", "Lot", "LTP", "Close", "VaRPct", "ELMPct", "HaircutPct", "SPANPct", "ExposurePct", "Delta", "Underlying", "Index"}, true, "BOD and EOD"},
 		{"DP-HOLDINGS", "Client demat holdings and pledges from the depository", []string{"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost"}, false, "BOD"},
 		{"HOLDING-LOTS", "Purchase lots behind client holdings (quantity, buy date, buy price) for P&L and capital gains; from the previous back office", []string{"UCC", "ISIN", "Symbol", "Qty", "BuyDate", "BuyPrice"}, true, "Once at go-live (as at the day before)"},
@@ -250,6 +250,12 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		}, errs
 	case "OPENING-BALANCES":
 		var ps []ledger.Posting
+		type agedDebit struct {
+			acct  string
+			amt   money.Amount
+			since string
+		}
+		var aged []agedDebit
 		for _, r := range rows {
 			acct := strings.ToUpper(r.get("Account"))
 			if _, err := ledger.TypeOf(acct); err != nil {
@@ -274,6 +280,16 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 				bad(r.line, "Debit", "exactly one of Debit or Credit must be above zero")
 			}
 			ps = append(ps, ledger.Posting{Account: acct, Debit: dr, Credit: cr, Memo: "Opening balance"})
+			if v := r.get("Since"); v != "" {
+				switch {
+				case !ledger.ValidDate(v) || v > date:
+					bad(r.line, "Since", "must be a date (YYYY-MM-DD) on or before the opening date")
+				case !strings.HasPrefix(acct, "CLIENT:") || dr == 0:
+					bad(r.line, "Since", "only a client debit balance can carry a due date")
+				case v < date:
+					aged = append(aged, agedDebit{acct, dr, v})
+				}
+			}
 		}
 		var td, tc money.Amount
 		for _, p := range ps {
@@ -288,7 +304,24 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 			for _, p := range ps {
 				fmt.Fprintf(h, "%s|%d|%d;", p.Account, p.Debit, p.Credit)
 			}
-			_, created, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "OPEN:" + date + ":" + hex.EncodeToString(h.Sum(nil))[:16], ValueDate: date,
+			key := "OPEN:" + date + ":" + hex.EncodeToString(h.Sum(nil))[:16]
+			// A client debit with a due date is brought in on that date
+			// against opening equity, and the main entry carries the equity
+			// leg instead, so the go-live position is unchanged.
+			for i, a := range aged {
+				if _, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: fmt.Sprintf("%s:aged:%d", key, i), ValueDate: a.since,
+					Narration: "Opening debit balance due since " + a.since, Source: ledger.SourceRef{Kind: "OPENING", ID: date},
+					Postings: []ledger.Posting{{Account: a.acct, Debit: a.amt, Memo: "Opening debit (aged)"}, {Account: ledger.OpeningEquity, Credit: a.amt, Memo: "Opening debit (aged)"}}, CreatedBy: actor}); err != nil {
+					return 0, 0, err
+				}
+				for j := range ps {
+					if ps[j].Account == a.acct && ps[j].Debit == a.amt {
+						ps[j].Account, ps[j].Memo = ledger.OpeningEquity, "Opening debit of "+a.acct+" brought in on "+a.since
+						break
+					}
+				}
+			}
+			_, created, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: key, ValueDate: date,
 				Narration: "Opening balances", Source: ledger.SourceRef{Kind: "OPENING", ID: date}, Postings: ps, CreatedBy: actor})
 			if err != nil {
 				return 0, 0, err

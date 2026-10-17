@@ -9,7 +9,7 @@ try { Object.assign(S, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e
 const persist = () => { try { localStorage.setItem(LS, JSON.stringify({ tenant: S.tenant, date: S.date, view: S.view })); } catch (e) {} };
 const UI = { inTab: 'due', inSel: new Set(), inQ: '', clientTag: '', clientSel: new Set(), bkQ: '', bkPlan: '', cr: { kind: 'ledger', ucc: '', preset: 'fy', from: '', to: '' }, crRes: null, crErr: null, crBusy: false, reconF: 'OPEN', reconX: 'All', reconQ: '', clientStage: 'All', clientQ: '', rmsF: 'All', rmsQ: '', settleTab: 'cm', noteF: 'All',
   bankF: 'All', rasF: 'due', auditQ: '', ledgerU: '', ledgerTab: 'statement', calc: { bucket: 'CM-DEL', exchange: 'NSE', side: 'B', qty: 100, price: '1412' },
-  fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
+  debTab: 'cd', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
 const C = {}; // per-view data from the server
 let CFG = {};
 
@@ -86,7 +86,7 @@ async function openDoc(path) {
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard']]],
   ['Operations', [['files', 'Files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['statements', 'Client reports']]],
-  ['Risk', [['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge']]],
+  ['Risk', [['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge'], ['debits', 'Debtors & interest']]],
   ['Accounts', [['ledger', 'Ledger'], ['bank', 'Bank reconciliation'], ['ras', 'Running account'], ['charges', 'Charges calculator'], ['brokerage', 'Brokerage plans']]],
   ['Compliance', [['reports', 'Regulatory reports'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
   ['Admin', [['settings', 'Settings']]]];
@@ -439,6 +439,43 @@ async function correctModal(ucc) {
     } catch (err) { $('cb-err').innerHTML = errHTML(err); $('cbf').querySelector('button[type=submit]').disabled = false; }
   };
 }
+
+/* ---------- debtors and interest ---------- */
+V.debits = {
+  load: async () => {
+    const from = UI.intFrom || S.date.slice(0, 8) + '01', to = UI.intTo || S.date;
+    const [deb, intr] = await Promise.all([get(`/v1/debits?date=${S.date}`), get(`/v1/interest?from=${from}&to=${to}`).catch(e => ({ error: e.message, rows: [], from, to }))]);
+    return { deb, intr };
+  },
+  html: d => {
+    const v = d.deb, risk = has('Risk manager'), long = v.rows.filter(r => r.days >= v.block_days).length;
+    return ph('Debtors & interest', `Clients whose ledger is in debit after the pay-in date. A bill dated T is due on T+1, so it counts against the client from the next day. Clients in debit for ${v.block_days} days or more are blocked from buying in the trading front end until they clear the debit; interest (delayed payment charges) is charged on the overdue debit at the firm’s rate.`,
+      `<button class="btn" data-act="dl" data-id="/v1/debits/block-file?date=${S.date}" data-name="debit_block_${S.date}.csv">Block / unblock file</button>${risk ? `<button class="btn pri" data-act="debitBlock" ${v.to_block + v.to_unblock ? '' : 'disabled'}>Apply blocks (${v.to_block} block · ${v.to_unblock} unblock)</button>` : ''}`) +
+    `<div class="kpis">${kpi('Clients in debit', v.rows.filter(r => num(r.debit) > 0).length, inr(v.debit) + ' overdue', v.rows.length ? 'warn' : 'good')}${kpi(`In debit ≥ ${v.block_days} days`, long, 'continuous debit', long ? 'bad' : 'good')}${kpi('To block / unblock', `${v.to_block} / ${v.to_unblock}`, 'front-end buying', v.to_block ? 'bad' : '')}${kpi('Not covered by securities', inr(v.shortfall), 'debit above holdings after haircut', num(v.shortfall) ? 'bad' : 'good')}${kpi('Interest accrued', inr(v.accrued, 2), 'this month, not yet posted')}</div>
+    <div class="panel"><div class="hd"><div class="tools">${segBtns('debTab', [['cd', 'Continuous debit'], ['age', 'Debit ageing'], ['stock', 'Debtors’ stock'], ['int', 'Interest']])}${UI.debTab !== 'int' ? `<input class="in" data-ui="debQ" data-part="deb-t" placeholder="Filter name, UCC or group" value="${esc(UI.debQ)}">` : ''}</div></div><div id="deb-t">${P['deb-t'](d)}</div></div>`;
+  }
+};
+P['deb-t'] = d => {
+  const v = d.deb, q = UI.debQ.trim().toLowerCase(), f = r => !q || (r.ucc + ' ' + r.name + ' ' + r.tags.join(' ')).toLowerCase().includes(q);
+  const who = r => `<button class="linkish mono" data-act="client" data-id="${r.ucc}">${r.ucc}</button> ${esc(r.name)}${r.tags.length ? ' ' + r.tags.map(t => `<span class="gtag">${esc(t)}</span>`).join('') : ''}`;
+  const rows = v.rows.filter(f);
+  if (UI.debTab === 'age') return tbl([['Client'], ['Overdue debit', 'r'], ...v.buckets.map(b => [b, 'r'])], rows.filter(r => num(r.debit) > 0).map(r => `<tr><td>${who(r)}</td><td class="r">${nf(r.debit, 2)}</td>${r.ageing.map((a, i) => `<td class="r ${num(a) && i >= 2 ? 'neg' : ''}">${num(a) ? nf(a, 2) : '<span class="dim">—</span>'}</td>`).join('')}</tr>`),
+    { tall: true, empty: 'No client is in debit.', foot: rows.length ? `<tfoot><tr><td>Total</td><td class="r">${nf(v.debit, 2)}</td>${v.totals.map(a => `<td class="r">${nf(a, 2)}</td>`).join('')}</tr></tfoot>` : '' }) + '<div class="pad"><span class="dim small">Ageing is first in, first out: each receipt clears the oldest debit first, so the buckets show how old the money still owed is.</span></div>';
+  if (UI.debTab === 'stock') return tbl([['Client'], ['Overdue debit', 'r'], ['Pledged', 'r'], ['Other holdings', 'r'], ['Value after haircut', 'r'], ['Cover', 'r'], ['Not covered', 'r'], ['Days', 'r']], rows.filter(r => num(r.debit) > 0).sort((a, b) => num(b.shortfall) - num(a.shortfall)).map(r => `<tr><td>${who(r)}</td><td class="r">${nf(r.debit, 2)}</td><td class="r">${nf(r.pledged)}</td><td class="r">${nf(r.unpledged)}</td><td class="r">${nf(r.collateral)}</td><td class="r ${num(r.cover_pct) < 100 ? 'neg' : 'pos'}">${nf(r.cover_pct)}%</td><td class="r ${num(r.shortfall) ? 'neg' : ''}">${num(r.shortfall) ? nf(r.shortfall, 2) : '—'}</td><td class="r">${r.days}</td></tr>`),
+    { tall: true, empty: 'No client is in debit.' }) + '<div class="pad"><span class="dim small">Holdings valued at the last price less the VaR haircut. Only pledged securities (or those under a DDPI/POA) can be sold to recover a debit; “Other holdings” shows what more the client holds.</span></div>';
+  if (UI.debTab === 'int') return P['int-t'](d.intr);
+  return tbl([['Client'], ['In debit since'], ['Days', 'r'], ['Overdue debit', 'r'], ['Ledger now', 'r'], ['Interest this month', 'r'], ['Front end'], ['Action']], rows.map(r => `<tr><td>${who(r)}</td><td class="n">${r.since ? fmtDate(r.since) : '—'}</td><td class="r ${r.days >= v.block_days ? 'neg' : ''}">${r.days || '—'}</td><td class="r">${num(r.debit) ? nf(r.debit, 2) : '—'}</td><td class="r ${sgn(r.ledger)}">${nf(r.ledger, 2)}</td><td class="r">${num(r.accrued) ? nf(r.accrued, 2) : '—'}</td><td>${r.blocked ? pill('Buy blocked', 'bad') + `<div class="dim small wrap">${esc(r.blocked_by)}</div>` : pill('Open', 'good')}</td><td>${r.action ? pill(r.action, r.action === 'Block' ? 'bad' : 'good') : ''}</td></tr>`),
+    { tall: true, empty: 'No client is in debit after pay-in.' });
+};
+P['int-t'] = iv => {
+  const can = has('Ops checker', 'Risk manager'), rows = iv.rows || [], to = rows.filter(r => r.status === 'To post');
+  return `<div class="pad" style="padding-bottom:0"><div class="tools"><label class="dim small">Period</label><input class="in sm" type="date" id="int-from" value="${esc(iv.from)}"><span class="dim">to</span><input class="in sm" type="date" id="int-to" value="${esc(iv.to)}"><button class="btn sm" data-act="intPeriod">Show</button>
+    <span class="dim small" style="margin-left:auto">${iv.error ? '' : `${esc(iv.rate_pct)}% a year · ${iv.grace_days || 0} grace days · GST ${esc(iv.gst_pct)}% · minimum ${inr(iv.minimum, 2)}${(iv.exempt_tags || []).length ? ' · exempt: ' + iv.exempt_tags.map(esc).join(', ') : ''}`}</span>
+    ${can && to.length ? `<button class="btn sm pri" data-act="postInterest">Post interest for ${to.length} client${to.length > 1 ? 's' : ''} (${inr(iv.to_post, 2)})</button>` : ''}</div></div>
+    ${iv.error ? `<div class="bd">${errHTML({ message: iv.error })}</div>` : tbl([['Client'], ['Days charged', 'r'], ['Average debit', 'r'], ['Interest', 'r'], ['GST', 'r'], ['Total', 'r'], ['Status'], ['Invoice']], rows.map(r => `<tr><td><button class="linkish mono" data-act="client" data-id="${r.ucc}">${r.ucc}</button> ${esc(r.name)}${r.tags.map(t => ` <span class="gtag">${esc(t)}</span>`).join('')}</td><td class="r">${r.debit_days}</td><td class="r">${nf(r.avg_debit, 2)}<div class="dim small">peak ${nf(r.max_debit)}</div></td><td class="r">${nf(r.interest, 2)}</td><td class="r">${nf(r.gst, 2)}</td><td class="r"><b>${nf(r.total, 2)}</b></td><td>${pill(r.status, r.status === 'To post' ? 'warn' : r.status.startsWith('Posted') ? 'good' : 'nt')}</td><td class="n dim">${esc(r.invoice || '')}</td></tr>`),
+      { tall: true, empty: 'No overdue debit in this period.', foot: rows.length ? `<tfoot><tr><td colspan="3">Total</td><td class="r">${nf(sum(rows, r => num(r.interest)), 2)}</td><td class="r">${nf(sum(rows, r => num(r.gst)), 2)}</td><td class="r">${nf(sum(rows, r => num(r.total)), 2)}</td><td colspan="2"></td></tr></tfoot>` : '' })}
+    <div class="pad"><span class="dim small">Simple interest on each day’s overdue debit (interest already charged does not earn interest). Posting debits the client, credits interest income and GST payable, and issues a tax invoice (SAC 997119). Periods already charged are never charged again.</span></div>`;
+};
 
 /* ---------- settlement ---------- */
 V.settlement = {
@@ -974,6 +1011,19 @@ V.settings = {
       <div class="fld full"><label for="st-hol">Exchange holidays (YYYY-MM-DD, comma separated)</label><input class="in mono" id="st-hol" value="${esc((s.holidays || []).join(', '))}" ${admin ? '' : 'disabled'}></div>
       <label class="check full"><input type="checkbox" id="st-pen" ${s.penalty_pass_through ? 'checked' : ''} ${admin ? '' : 'disabled'}> Pass short-collection penalties through to client ledgers</label>
     </div></div></div></div>
+    <div class="grid g2"><div class="panel"><div class="hd"><h3>Debit balances and interest</h3></div><div class="bd"><div class="form">
+      <div class="fld"><label for="st-int">Interest on overdue debit (% a year)</label><input class="in" id="st-int" value="${esc(s.interest_pct_pa || '18')}" ${admin ? '' : 'disabled'}></div>
+      <div class="fld"><label for="st-grace">Grace days at the start of a debit</label><input class="in" id="st-grace" type="number" min="0" max="30" value="${s.interest_grace_days || 0}" ${admin ? '' : 'disabled'}></div>
+      <div class="fld"><label for="st-imin">Do not charge below (₹)</label><input class="in" id="st-imin" value="${esc(s.interest_minimum || '1.00')}" ${admin ? '' : 'disabled'}></div>
+      <div class="fld"><label for="st-gst">GST on charges (%)</label><input class="in" id="st-gst" value="${esc(s.gst_pct || '18')}" ${admin ? '' : 'disabled'}></div>
+      <div class="fld"><label for="st-iex">Groups not charged interest (comma separated)</label><input class="in mono" id="st-iex" value="${esc((s.interest_exempt_tags || []).join(', '))}" ${admin ? '' : 'disabled'}></div>
+      <div class="fld"><label for="st-dbd">Block buying after days in debit</label><input class="in" id="st-dbd" type="number" min="1" max="90" value="${s.debit_block_days || 7}" ${admin ? '' : 'disabled'}></div>
+    </div></div></div>
+    <div class="panel"><div class="hd"><h3>Period locking</h3></div><div class="bd"><div class="form">
+      <div class="fld"><label for="st-lock">Books locked up to</label><input class="in" id="st-lock" type="date" value="${esc(s.locked_up_to || '')}" ${admin ? '' : 'disabled'}></div>
+      <div class="fld"><label for="st-alock">Also lock automatically (business days back, 0 = off)</label><input class="in" id="st-alock" type="number" min="0" max="30" value="${s.auto_lock_days || 0}" ${admin ? '' : 'disabled'}></div>
+      <p class="dim full" style="margin:0;font-size:12.5px">Nothing can be posted, reversed or rebilled on a locked date. Lock a month once it is audited; 2 business days locks T-2 automatically.</p>
+    </div></div></div></div>
     <div class="panel"><div class="hd"><h3>Sign-in security</h3></div><div class="bd"><div class="form">
       <div class="fld"><label for="st-2fa">Two-factor sign-in</label><select class="in" id="st-2fa" ${admin ? '' : 'disabled'}><option value="required" ${s.two_factor !== 'optional' ? 'selected' : ''}>Required for every user</option><option value="optional" ${s.two_factor === 'optional' ? 'selected' : ''}>Optional</option></select></div>
       <div class="fld"><label for="st-idle">Sign out after inactivity (minutes)</label><input class="in" id="st-idle" type="number" min="5" max="240" value="${s.session_idle_minutes || 30}" ${admin ? '' : 'disabled'}></div>
@@ -1008,6 +1058,9 @@ async function act(fn, okMsg, reload = true) {
   catch (e) { toast(e.message); throw e; }
 }
 const A = {
+  intPeriod: () => { UI.intFrom = $('int-from').value; UI.intTo = $('int-to').value; render({ keep: true }); },
+  postInterest: () => { const iv = C.debits.intr; confirmModal('Post interest', `${fmtDate(iv.from)} to ${fmtDate(iv.to)} at ${iv.rate_pct}% a year`, `<div class="note">Debits ${iv.rows.filter(r => r.status === 'To post').length} clients ${inr(iv.to_post, 2)} including GST and issues a tax invoice to each.</div>`, 'Post interest', () => act(() => post('/v1/interest/post', { from: iv.from, to: iv.to }), r => `Interest posted for ${r.posted} client${r.posted === 1 ? '' : 's'}`)); },
+  debitBlock: () => { const v = C.debits.deb; confirmModal('Apply continuous-debit blocks', `${v.to_block} to block, ${v.to_unblock} to unblock`, '<div class="note">Blocked clients cannot buy until the debit is cleared; selling stays open. Send the block/unblock file to the trading front end after applying.</div>', 'Apply', () => act(() => post('/v1/debits/block', { date: S.date }), r => `${r.blocked} blocked, ${r.unblocked} unblocked`)); },
   correctBill: u => correctModal(u || ''),
   inSelOne: (u, el) => { el.checked ? UI.inSel.add(u) : UI.inSel.delete(u); rerenderPart('in-t'); },
   inSelAll: (id, el) => { document.querySelectorAll('[data-act=inSelOne]').forEach(x => el.checked ? UI.inSel.add(x.dataset.id) : UI.inSel.delete(x.dataset.id)); rerenderPart('in-t'); },
@@ -1163,7 +1216,8 @@ const A = {
   rules: () => act(() => post('/v1/surveillance/run', { date: S.date }), r => `${r.raised} new alert${r.raised === 1 ? '' : 's'}`),
   saveSettings: () => {
     const s = { ...C.settings.settings, firm: $('st-firm').value, sebi_reg: $('st-sebi').value, compliance_email: $('st-comp').value, warn_util_pct: parseInt($('st-warn').value, 10), ras_buffer_pct: parseInt($('st-buf').value, 10), ras_monthly: $('st-rasm').value, ras_quarterly: $('st-rasq').value,
-      two_factor: $('st-2fa').value, inactive_months: parseInt($('st-inm').value, 10) || 24, session_idle_minutes: parseInt($('st-idle').value, 10) || 30, snapshot_times: $('st-snap').value.split(',').map(x => x.trim()).filter(Boolean), holidays: $('st-hol').value.split(',').map(x => x.trim()).filter(Boolean), penalty_pass_through: $('st-pen').checked };
+      two_factor: $('st-2fa').value, inactive_months: parseInt($('st-inm').value, 10) || 24, session_idle_minutes: parseInt($('st-idle').value, 10) || 30, snapshot_times: $('st-snap').value.split(',').map(x => x.trim()).filter(Boolean), holidays: $('st-hol').value.split(',').map(x => x.trim()).filter(Boolean), penalty_pass_through: $('st-pen').checked,
+      interest_pct_pa: $('st-int').value.trim(), interest_grace_days: parseInt($('st-grace').value, 10) || 0, interest_minimum: $('st-imin').value.trim(), gst_pct: $('st-gst').value.trim(), interest_exempt_tags: $('st-iex').value.split(',').map(x => x.trim().toUpperCase()).filter(Boolean), debit_block_days: parseInt($('st-dbd').value, 10) || 7, locked_up_to: $('st-lock').value, auto_lock_days: parseInt($('st-alock').value, 10) || 0 };
     act(() => api('PUT', '/v1/settings', s), 'Settings saved').then(loadMe);
   },
   eod: async () => {
