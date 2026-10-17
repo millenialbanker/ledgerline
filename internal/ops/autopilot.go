@@ -749,10 +749,11 @@ func autoRecon(r *runCtx) error {
 			r.done++
 			continue
 		}
-		if b.Type == recon.UCCMismatch {
-			p = nil // needs a client code modification
+		if res == "" {
+			// Needs checking: the break view has the steps and a note to fill in.
+			p = nil
 		}
-		r.queue(b.ID, fmt.Sprintf("Break %s · %s", b.ID, strings.ReplaceAll(strings.ToLower(string(b.Type)), "_", " ")), b.UCC+" "+b.Instrument+": "+b.Suggestion, b.UCC, role, "recon", r.date+" 18:00", p)
+		r.queue(b.ID, fmt.Sprintf("Break %s · %s", b.ID, strings.ReplaceAll(strings.ToLower(string(b.Type)), "_", " ")), b.UCC+" "+b.Instrument+": "+b.Suggestion+" Open it for the steps to check and fix.", b.UCC, role, "recon", r.date+" 18:00", p)
 	}
 	r.note("%d breaks cleared, %d to review", r.done, r.queued)
 	return nil

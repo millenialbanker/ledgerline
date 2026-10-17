@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"ledgerline/internal/recon"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -63,6 +64,7 @@ func New(a *app.App, o *ops.Ops, keys map[string]string, log *slog.Logger, dev b
 	s.route("GET /v1/trades", s.trades, false)
 	s.route("POST /v1/recon/runs", s.reconRun, true)
 	s.route("GET /v1/recon/breaks", s.breaks, false)
+	s.route("GET /v1/recon/playbooks", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, recon.Playbooks()) }, false)
 	s.route("POST /v1/recon/breaks/{id}/resolve", s.resolveBreak, true)
 	s.route("POST /v1/billing/runs", s.billingRun, true)
 	s.route("POST /v1/charges/quote", s.quote, false)

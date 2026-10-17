@@ -357,8 +357,21 @@ async function upload(file) {
 }
 
 /* ---------- reconciliation ---------- */
+let PB = null, PBN = [];
+const PB_FIELD = { UCC_MISMATCH: 'ucc', SIDE_MISMATCH: 'side', INSTRUMENT_MISMATCH: 'instrument', QTY_MISMATCH: 'qty', PRICE_MISMATCH: 'price', ALGO_ID_MISSING: 'algo_id' };
+function playbookHTML(b, t, o) {
+  const p = (PB || []).find(x => x.type === b.type); if (!p) return '';
+  const d = (b.diffs || []).find(x => x.field === PB_FIELD[b.type]) || (b.diffs || [])[0] || {};
+  const v = { trade: b.trade_no, ucc: b.ucc, exchange: d.exchange || '', oms: d.oms || '', order: (t && t.order_no) || (o && o.order_no) || '', terminal: (t && t.terminal) || '' };
+  const fill = x => x.replace(/\{(\w+)\}/g, (m, k) => (k in v && v[k] !== '') ? v[k] : m);
+  const open = b.status === 'OPEN';
+  PBN = p.outcomes.map(x => fill(x.note));
+  return `<div class="pb"><h4>1 · Check what happened</h4><ol>${p.check.map(x => `<li>${esc(fill(x))}</li>`).join('')}</ol>
+    <h4>2 · Then fix it, depending on what you found</h4>${p.outcomes.map((x, i) => `<div class="pbo"><b>If ${esc(x.if.charAt(0).toLowerCase() + x.if.slice(1))}</b><ol>${x.fix.map(f => `<li>${esc(fill(f))}</li>`).join('')}</ol>${open ? `<button class="btn sm" data-act="pbNote" data-id="${i}">Use this note</button>` : ''}</div>`).join('')}
+    ${open ? '<h4>3 · Record what you did</h4>' : ''}</div>`;
+}
 V.recon = {
-  load: async () => { const [all, ex, oms, ccm] = await Promise.all([get(`/v1/recon/breaks?date=${S.date}`), get(`/v1/trades?date=${S.date}&origin=EXCHANGE`), get(`/v1/trades?date=${S.date}&origin=OMS`), get(`/v1/ccm?date=${S.date}`)]); return { all, ex, oms, ccm }; },
+  load: async () => { const [all, ex, oms, ccm] = await Promise.all([get(`/v1/recon/breaks?date=${S.date}`), get(`/v1/trades?date=${S.date}&origin=EXCHANGE`), get(`/v1/trades?date=${S.date}&origin=OMS`), get(`/v1/ccm?date=${S.date}`)]); if (!PB) { try { PB = await get('/v1/recon/playbooks'); } catch (e) { PB = []; } } return { all, ex, oms, ccm }; },
   html: d => {
     const open = d.all.filter(b => b.status === 'OPEN');
     const types = ['MISSING_IN_OMS', 'MISSING_IN_EXCHANGE', 'TRADE_NO_MISMATCH', 'UCC_MISMATCH', 'SIDE_MISMATCH', 'QTY_MISMATCH', 'PRICE_MISMATCH', 'INSTRUMENT_MISMATCH', 'ALGO_ID_MISSING'];
@@ -390,7 +403,7 @@ function breakModal(id) {
   const isOpen = b.status === 'OPEN', canAct = has('Ops maker', 'Ops checker');
   modal(mhd(label(b.type) + ' · ' + esc(b.trade_no), `${esc(b.exchange)}-${esc(b.segment)} · ${esc(b.ucc)} · value ${inr(b.value, 2)}`) + `<div class="bd">
     <div class="cmp"><div class="h">Field</div><div class="h">Exchange file</div><div class="h">OMS</div>${f.map(([l, k]) => `<div class="k">${l}</div><div class="v">${cell(t, k)}</div><div class="v">${cell(o, k)}</div>`).join('')}</div>
-    <div class="note ${isOpen ? 'warn' : ''}"><b>Suggested fix.</b> ${esc(b.suggestion)}</div>
+    ${playbookHTML(b, t, o) || `<div class="note ${isOpen ? 'warn' : ''}"><b>Suggested fix.</b> ${esc(b.suggestion)}</div>`}
     ${b.status === 'RESOLVED' ? `<div class="kv"><div><small>Resolved by</small><b>${esc(b.resolved_by)}</b></div><div><small>Resolution</small><b>${esc(b.resolution)}</b></div></div>` : ''}
     ${isOpen && canAct ? `<div class="fld"><label for="bnote">What you checked and fixed (recorded in the audit trail)</label><textarea class="in" id="bnote"></textarea></div>` : ''}
     ${isOpen && !canAct ? `<div class="note">Resolving breaks needs an Ops maker or checker. You are signed in as ${esc(role())}.</div>` : ''}
@@ -1158,7 +1171,7 @@ P['ap-t'] = d => {
   const ws = d.work.filter(w => mine === 'closed' ? w.status !== 'Open' : w.status === 'Open' && (mine === 'all' || !w.role || w.role === role || role === 'Admin'));
   const st = { Done: 'good', Dismissed: 'nt', Cleared: 'nt', Open: 'warn' };
   return tbl([['Item'], ['For'], ['Due'], ['Status'], ['']], ws.map(w => `<tr><td style="max-width:560px"><b>${esc(w.title)}</b>${w.ucc ? ` <button class="linkish mono" data-act="client" data-id="${w.ucc}">${w.ucc}</button>` : ''}<div class="dim small wrap">${esc(w.detail)}</div><div class="dim small">${esc((d.policies.find(p => p.id === w.process) || {}).name || w.process)} · ${fmtDate(w.date)}</div></td><td class="small">${esc(w.role || 'Anyone')}</td><td class="n ${w.overdue ? 'neg' : ''}">${esc(w.due)}${w.overdue ? '<div class="small">overdue</div>' : ''}</td><td>${pill(w.status, st[w.status])}${w.closed_by ? `<div class="dim small">${esc(w.closed_by)}${w.note ? ': ' + esc(w.note) : ''}</div>` : ''}</td>
-    <td>${w.status === 'Open' ? `${w.proposed ? `<button class="btn sm pri" data-act="wDo" data-id="${w.id}">${esc(w.proposed.label)}</button>` : ''}<button class="btn sm" data-act="go" data-id="${w.view}">Open</button><button class="btn sm" data-act="wDismiss" data-id="${w.id}">Done elsewhere</button>` : ''}</td></tr>`), { tall: true, empty: mine === 'closed' ? 'Nothing closed yet.' : 'Nothing waiting. Everything else ran by itself.' });
+    <td>${w.status === 'Open' ? `${w.proposed ? `<button class="btn sm pri" data-act="wDo" data-id="${w.id}">${esc(w.proposed.label)}</button>` : ''}<button class="btn sm" data-act="wOpen" data-id="${w.id}">Open</button><button class="btn sm" data-act="wDismiss" data-id="${w.id}">Done elsewhere</button>` : ''}</td></tr>`), { tall: true, empty: mine === 'closed' ? 'Nothing closed yet.' : 'Nothing waiting. Everything else ran by itself.' });
 };
 const autoFnIds = ['debit_blocks', 'pledges', 'third_party', 'unidentified', 'payouts', 'payout_batch', 'recon', 'billing', 'settlement', 'notes', 'margin_calls', 'square_off', 'mtf_liquidation', 'penalties', 'reports', 'surveillance', 'nri', 'kyc', 'inactive', 'service', 'leads', 'day_close', 'monthly', 'ras'];
 
@@ -1950,6 +1963,11 @@ const A = {
   crPrint: () => { crSync(); openDoc(crURL('html')); },
   crCSV: () => { crSync(); const r = UI.cr; download(crURL('csv'), `${r.kind}_${r.ucc}_${r.from ? r.from + '_' : ''}${r.to}.csv`); },
   crFor: id => { UI.cr.ucc = id; UI.crRes = null; A.go('statements'); },
+  wOpen: async id => {
+    const w = (C.autopilot?.work || []).find(x => x.id === id); if (!w) return;
+    S.view = w.view; closeModal(); await render(); window.scrollTo(0, 0);
+    const k = String(w.key || '').split(':').pop(); if (w.view === 'recon' && C.recon?.all?.some(b => b.id === k)) breakModal(k);
+  },
   go: id => { S.view = id; closeModal(); render(); window.scrollTo(0, 0); },
   close: () => closeModal(),
   ovclose: (id, el, e) => { if (e.target === el && !modalLocked) closeModal(); },
@@ -1977,6 +1995,7 @@ const A = {
   allotSample: () => act(() => post('/v1/dev/sample', { date: S.date, later: true }), 'Allotment file applied'),
   runRecon: () => act(() => post('/v1/recon/runs', { date: S.date }), r => `Reconciled: ${r.result.matched} matched, ${r.open} open breaks`),
   brk: id => breakModal(id),
+  pbNote: id => { const el = $('bnote'); if (!el) return; el.value = PBN[+id] || ''; el.focus(); const i = el.value.indexOf('___'); if (i >= 0) el.setSelectionRange(i, i + 3); },
   resolve: id => { const note = ($('bnote')?.value || '').trim(); if (!note) { toast('Write what you checked and fixed first'); $('bnote')?.focus(); return; } act(() => post(`/v1/recon/breaks/${encodeURIComponent(id)}/resolve`, { resolution: note }), 'Break resolved'); },
   ccm: id => act(() => post(`/v1/recon/breaks/${encodeURIComponent(id)}/ccm`, { reason: ($('bnote')?.value || '').trim() }), c => `Client code modified ${c.from} → ${c.to}. Rebill the day to move the charges.`),
   bill: async id => { try { C.billResult = await post('/v1/billing/runs', { date: S.date, rebill: id === '1' }); toast(`${C.billResult.posted.length} bills posted`); } catch (e) { C.billResult = { error: e }; toast('Billing did not run'); } render({ keep: true }); },
