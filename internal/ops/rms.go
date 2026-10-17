@@ -267,6 +267,10 @@ func (o *Ops) Risk(ctx context.Context, tenant, date string) (RiskView, error) {
 	if err != nil {
 		return RiskView{}, err
 	}
+	// Uncleared cheques do not count until the bank clears them.
+	for u, a := range o.uncleared(ctx, tenant) {
+		funds[u] -= a
+	}
 	ovs, err := o.Overrides(ctx, tenant, date)
 	if err != nil {
 		return RiskView{}, err

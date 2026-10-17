@@ -9,7 +9,7 @@ try { Object.assign(S, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e
 const persist = () => { try { localStorage.setItem(LS, JSON.stringify({ tenant: S.tenant, date: S.date, view: S.view })); } catch (e) {} };
 const UI = { inTab: 'due', inSel: new Set(), inQ: '', clientTag: '', clientSel: new Set(), bkQ: '', bkPlan: '', cr: { kind: 'ledger', ucc: '', preset: 'fy', from: '', to: '' }, crRes: null, crErr: null, crBusy: false, reconF: 'OPEN', reconX: 'All', reconQ: '', clientStage: 'All', clientQ: '', rmsF: 'All', rmsQ: '', settleTab: 'cm', noteF: 'All',
   bankF: 'All', rasF: 'due', auditQ: '', ledgerU: '', ledgerTab: 'statement', calc: { bucket: 'CM-DEL', exchange: 'NSE', side: 'B', qty: 100, price: '1412' },
-  debTab: 'cd', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
+  debTab: 'cd', monTab: 'rcpt', monQ: '', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
 const C = {}; // per-view data from the server
 let CFG = {};
 
@@ -87,7 +87,7 @@ const NAV = [
   ['Overview', [['dashboard', 'Dashboard']]],
   ['Operations', [['files', 'Files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['statements', 'Client reports']]],
   ['Risk', [['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge'], ['debits', 'Debtors & interest']]],
-  ['Accounts', [['ledger', 'Ledger'], ['bank', 'Bank reconciliation'], ['ras', 'Running account'], ['charges', 'Charges calculator'], ['brokerage', 'Brokerage plans']]],
+  ['Accounts', [['ledger', 'Ledger'], ['bank', 'Bank reconciliation'], ['money', 'Receipts & payouts'], ['ras', 'Running account'], ['charges', 'Charges calculator'], ['brokerage', 'Brokerage plans']]],
   ['Compliance', [['reports', 'Regulatory reports'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
   ['Admin', [['settings', 'Settings']]]];
 const VIEWS = NAV.flatMap(g => g[1].map(v => v[0]));
@@ -438,6 +438,61 @@ async function correctModal(ucc) {
       render({ keep: true });
     } catch (err) { $('cb-err').innerHTML = errHTML(err); $('cbf').querySelector('button[type=submit]').disabled = false; }
   };
+}
+
+/* ---------- receipts and payouts ---------- */
+V.money = {
+  load: async () => { const [rc, po] = await Promise.all([get('/v1/receipts'), get(`/v1/payouts?date=${S.date}`)]); return { rc, ...po }; },
+  html: d => {
+    const pend = d.rc.filter(r => r.status === 'Pending'), unc = d.rc.filter(r => r.status === 'Uncleared'), gw = d.rc.filter(r => r.mode === 'Gateway' && !r.settled && r.status === 'Credited');
+    const req = d.requests.filter(r => r.status === 'Requested'), appr = d.requests.filter(r => r.status === 'Approved' && !r.batch), open = d.batches.filter(b => b.status !== 'Confirmed');
+    const mk = has('Ops maker', 'Ops checker'), ck = has('Ops checker');
+    return ph('Receipts & payouts', 'Money that reaches the firm outside the bank-statement match (cheques, transfers advised by the client, online payments) and money paid out to clients on request. Only the client’s registered bank account may pay in. Uncleared cheques do not count towards limits or payouts. Payouts are checked against the ledger across all segments, margin not covered by collateral, uncleared cheques, unposted interest and other approved payouts.',
+      `${mk ? '<button class="btn" data-act="newReceipt">Record a receipt</button><button class="btn" data-act="newPayout">Payout request</button>' : ''}${ck && appr.length ? `<button class="btn pri" data-act="payoutBatch">Release ${appr.length} payout${appr.length > 1 ? 's' : ''} to the bank</button>` : ''}`) +
+    `<div class="kpis">${kpi('Receipts to approve', pend.length, inr(sum(pend, r => num(r.amount))), pend.length ? 'warn' : 'good')}${kpi('Uncleared cheques', unc.length, inr(sum(unc, r => num(r.amount))) + ' not usable yet', unc.length ? 'warn' : '')}${kpi('Online payments to settle', gw.length, inr(sum(gw, r => num(r.amount))) + ' with the gateway')}${kpi('Payout requests', req.length, inr(sum(req, r => num(r.amount))) + ' awaiting approval', req.length ? 'warn' : 'good')}${kpi('Approved, not released', appr.length, inr(sum(appr, r => num(r.amount))))}${kpi('Batches at the bank', open.length, open.length ? 'confirm with UTRs' : 'none open', open.length ? 'warn' : '')}</div>
+    <div class="panel"><div class="hd"><div class="tools">${segBtns('monTab', [['rcpt', `Receipts · ${d.rc.length}`], ['chq', `Cheques to clear · ${unc.length}`], ['gw', 'Online payments'], ['req', `Payout requests · ${d.requests.length}`], ['batch', `Payout batches · ${d.batches.length}`]])}<input class="in" data-ui="monQ" data-part="mon-t" placeholder="Filter name, UCC or reference" value="${esc(UI.monQ)}"></div>
+      ${UI.monTab === 'gw' ? `<div class="split">${CFG.dev ? '<button class="btn sm" data-act="devGateway">Simulate an online payment</button>' : ''}${ck && gw.length ? '<button class="btn sm pri" data-act="settleGateway">Record gateway settlement</button>' : ''}</div>` : ''}</div><div id="mon-t">${P['mon-t'](d)}</div></div>`;
+  }
+};
+P['mon-t'] = d => {
+  const q = UI.monQ.trim().toLowerCase(), f = r => !q || [r.ucc, r.name, r.ref, r.id].join(' ').toLowerCase().includes(q);
+  const ck = has('Ops checker'), mk = has('Ops maker', 'Ops checker'), me = S.me.actor;
+  const who = r => `<button class="linkish mono" data-act="client" data-id="${r.ucc}">${r.ucc}</button> ${esc(r.name)}`;
+  const rst = s => pill(s, { Credited: 'good', Paid: 'good', Approved: 'good', Pending: 'warn', Requested: 'warn', Uncleared: 'warn', Bounced: 'bad', Rejected: 'bad', Failed: 'bad', Expired: 'nt', 'Sent to bank': 'warn', Confirmed: 'good' }[s] || 'nt');
+  if (UI.monTab === 'req') return tbl([['Request'], ['Client'], ['Amount', 'r'], ['Available then', 'r'], ['Entered by'], ['Status'], ['']], d.requests.filter(f).map(r => `<tr><td class="n">${r.id}<div class="dim small">${fmtDate(r.date)} · valid to ${fmtDate(r.expires_on)}</div></td><td>${who(r)}</td><td class="r">${nf(r.amount, 2)}</td><td class="r dim">${nf(r.available, 2)}</td><td>${esc(r.source)}<div class="dim small">${esc(r.maker)}</div></td><td>${rst(r.status)}${r.batch ? `<div class="dim small">${esc(r.batch)}${r.utr ? ' · UTR ' + esc(r.utr) : ''}</div>` : ''}${r.reason ? `<div class="dim small wrap">${esc(r.reason)}</div>` : ''}</td><td>${r.status === 'Requested' && has('Ops checker', 'Risk manager') && r.maker !== me ? `<div class="split"><button class="btn sm pri" data-act="poDecide" data-id="${r.id}" data-a="1">Approve</button><button class="btn sm bad" data-act="poDecide" data-id="${r.id}" data-a="0">Reject</button></div>` : ''}</td></tr>`), { tall: true, empty: 'No payout requests' });
+  if (UI.monTab === 'batch') return tbl([['Batch'], ['Date'], ['Transfers', 'r'], ['Total', 'r'], ['Status'], ['']], d.batches.filter(b => !q || b.id.toLowerCase().includes(q) || b.items.some(f)).map(b => `<tr><td class="n">${b.id}<div class="dim small">${esc(b.by)}</div></td><td class="n">${fmtDate(b.date)}</td><td class="r">${b.items.length}<div class="dim small">${b.items.filter(i => i.mode === 'RTGS').length} RTGS</div></td><td class="r">${nf(b.total, 2)}</td><td>${rst(b.status)}${b.results ? `<div class="dim small">${b.results.Paid} paid · ${b.results.Failed} failed</div>` : ''}</td><td><div class="split"><button class="btn sm" data-act="dl" data-id="/v1/payouts/batches/${b.id}/file" data-name="payout_${b.id}.csv">Bank file</button>${b.status !== 'Confirmed' && mk ? `<button class="btn sm pri" data-act="poConfirm" data-id="${b.id}">Enter bank result</button>` : ''}</div></td></tr>`), { empty: 'No payout batches yet' });
+  let rows = d.rc.filter(f);
+  if (UI.monTab === 'chq') rows = rows.filter(r => r.status === 'Uncleared');
+  if (UI.monTab === 'gw') rows = rows.filter(r => r.mode === 'Gateway');
+  return tbl([['Receipt'], ['Client'], ['Mode'], ['Reference'], ['Amount', 'r'], ['Maker / checker'], ['Status'], ['']], rows.map(r => `<tr><td class="n">${r.id}<div class="dim small">${fmtDate(r.date)}</div></td><td>${who(r)}</td><td>${esc(r.mode)}</td><td class="n">${esc(r.ref)}<div class="dim small">${esc(r.drawee_bank || '')} ${esc(r.from_account || '')}</div></td><td class="r">${nf(r.amount, 2)}</td><td class="dim small">${esc(r.maker)}${r.checker ? ' · ' + esc(r.checker) : ''}</td><td>${rst(r.status)}${r.cleared_on ? `<div class="dim small">${fmtDate(r.cleared_on)}</div>` : ''}${r.settled ? `<div class="dim small">settled ${esc(r.settled)}</div>` : ''}${r.note ? `<div class="dim small wrap">${esc(r.note)}</div>` : ''}</td><td>${r.status === 'Pending' && ck && r.maker !== me ? `<div class="split"><button class="btn sm pri" data-act="rcDecide" data-id="${r.id}" data-a="1">Approve</button><button class="btn sm bad" data-act="rcDecide" data-id="${r.id}" data-a="0">Reject</button></div>` : ''}${r.status === 'Uncleared' && mk ? `<div class="split"><button class="btn sm" data-act="chqClear" data-id="${r.id}" data-a="0">Cleared</button><button class="btn sm bad" data-act="chqClear" data-id="${r.id}" data-a="1">Returned</button></div>` : ''}</td></tr>`),
+    { tall: true, empty: UI.monTab === 'chq' ? 'No cheques waiting to clear' : UI.monTab === 'gw' ? 'No online payments yet' : 'No receipts recorded' });
+};
+async function receiptModal() {
+  await clientCache();
+  modal(mhd('Record a receipt', 'A different Ops checker approves it before the client is credited. Cash is not accepted.') + `<form class="bd" id="rcf"><div class="form">
+    <div class="fld full"><label for="rc-u-q">Client</label>${cpick('rc-u', '', {})}</div>
+    <div class="fld"><label for="rc-mode">Mode</label><select class="in" id="rc-mode">${['Cheque', 'NEFT', 'RTGS', 'IMPS', 'UPI'].map(m => `<option>${m}</option>`).join('')}</select></div>
+    <div class="fld"><label for="rc-date">Date</label><input class="in" type="date" id="rc-date" value="${esc(S.date)}"></div>
+    <div class="fld"><label for="rc-ref">Cheque number / UTR</label><input class="in mono" id="rc-ref" required></div>
+    <div class="fld"><label for="rc-amt">Amount (₹)</label><input class="in" id="rc-amt" inputmode="decimal" required></div>
+    <div class="fld"><label for="rc-bank">Drawee bank</label><input class="in" id="rc-bank" placeholder="for cheques"></div>
+    <div class="fld"><label for="rc-acct">From account / UPI ID</label><input class="in mono" id="rc-acct" placeholder="blank = registered account"></div>
+    </div><div id="rc-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Send for approval</button></div></form>`);
+  $('rcf').onsubmit = async e => { e.preventDefault();
+    try { await post('/v1/receipts', { ucc: $('rc-u').value, mode: $('rc-mode').value, date: $('rc-date').value, ref: $('rc-ref').value.trim(), amount: $('rc-amt').value.trim(), drawee_bank: $('rc-bank').value.trim(), from_account: $('rc-acct').value.trim() }); closeModal(); toast('Receipt recorded; awaiting approval'); render({ keep: true }); }
+    catch (err) { $('rc-err').innerHTML = errHTML(err); } };
+}
+async function payoutModal() {
+  await clientCache();
+  const show = async u => { if (!u) { $('po-w').innerHTML = ''; return; } try { const w = await get(`/v1/payouts/withdrawable?date=${S.date}&ucc=${encodeURIComponent(u)}`);
+    $('po-w').innerHTML = `<div class="kv"><div><small>Ledger</small><b class="mono ${sgn(w.ledger)}">${inr(w.ledger, 2)}</b></div><div><small>Margin kept</small><b class="mono">${inr(w.margin, 2)}</b></div><div><small>Uncleared</small><b class="mono">${inr(w.uncleared, 2)}</b></div><div><small>Interest accrued</small><b class="mono">${inr(w.accrued, 2)}</b></div><div><small>Already approved</small><b class="mono">${inr(w.pending, 2)}</b></div><div><small>Available</small><b class="mono pos">${inr(w.available, 2)}</b></div></div>${w.note ? `<div class="note warn">${esc(w.note)}</div>` : ''}`; $('po-amt').value = num(w.available) ? num(w.available).toFixed(2) : ''; } catch (e) { $('po-w').innerHTML = errHTML(e); } };
+  modal(mhd('Payout request · ' + fmtDate(S.date), 'Entered for a client who asked by phone, email or at a branch. Valid for two business days; an Ops checker or Risk manager approves it after a fresh check.') + `<form class="bd" id="pof">
+    <div class="fld"><label for="po-u-q">Client</label>${cpick('po-u', '', { on: show })}</div><div id="po-w"></div>
+    <div class="fld"><label for="po-amt">Amount (₹)</label><input class="in" id="po-amt" inputmode="decimal" required></div>
+    <div id="po-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Enter request</button></div></form>`);
+  $('pof').onsubmit = async e => { e.preventDefault();
+    try { await post('/v1/payouts', { date: S.date, ucc: $('po-u').value, amount: $('po-amt').value.trim() }); closeModal(); toast('Payout request entered'); UI.monTab = 'req'; render({ keep: true }); }
+    catch (err) { $('po-err').innerHTML = errHTML(err); } };
 }
 
 /* ---------- debtors and interest ---------- */
@@ -1024,6 +1079,11 @@ V.settings = {
       <div class="fld"><label for="st-alock">Also lock automatically (business days back, 0 = off)</label><input class="in" id="st-alock" type="number" min="0" max="30" value="${s.auto_lock_days || 0}" ${admin ? '' : 'disabled'}></div>
       <p class="dim full" style="margin:0;font-size:12.5px">Nothing can be posted, reversed or rebilled on a locked date. Lock a month once it is audited; 2 business days locks T-2 automatically.</p>
     </div></div></div></div>
+    <div class="panel"><div class="hd"><h3>Receipts and payouts</h3></div><div class="bd"><div class="form">
+      <div class="fld"><label for="st-bnc">Cheque return charge (₹, before GST)</label><input class="in" id="st-bnc" value="${esc(s.cheque_bounce_charge || '350.00')}" ${admin ? '' : 'disabled'}></div>
+      <div class="fld"><label for="st-pda">Client bank account payouts are made from</label><input class="in mono" id="st-pda" value="${esc(s.payout_debit_account || '')}" ${admin ? '' : 'disabled'}></div>
+      <div class="fld full"><label for="st-gws">Payment gateway webhook secret</label><input class="in mono" id="st-gws" type="password" autocomplete="off" value="${esc(s.gateway_secret || '')}" ${admin ? '' : 'disabled'}><span class="dim small">Webhook address: <span class="mono">${esc(location.origin)}/hooks/${esc(S.me.tenant)}/gateway</span>. Payments must carry the client code in notes.ucc.</span></div>
+    </div></div></div>
     <div class="panel"><div class="hd"><h3>Sign-in security</h3></div><div class="bd"><div class="form">
       <div class="fld"><label for="st-2fa">Two-factor sign-in</label><select class="in" id="st-2fa" ${admin ? '' : 'disabled'}><option value="required" ${s.two_factor !== 'optional' ? 'selected' : ''}>Required for every user</option><option value="optional" ${s.two_factor === 'optional' ? 'selected' : ''}>Optional</option></select></div>
       <div class="fld"><label for="st-idle">Sign out after inactivity (minutes)</label><input class="in" id="st-idle" type="number" min="5" max="240" value="${s.session_idle_minutes || 30}" ${admin ? '' : 'disabled'}></div>
@@ -1058,6 +1118,19 @@ async function act(fn, okMsg, reload = true) {
   catch (e) { toast(e.message); throw e; }
 }
 const A = {
+  newReceipt: () => receiptModal(),
+  newPayout: () => payoutModal(),
+  rcDecide: (id, el) => { const ok = el.dataset.a === '1'; confirmModal((ok ? 'Approve ' : 'Reject ') + id, ok ? 'Credits the client now (cheques stay uncleared until the bank clears them).' : 'The client is not credited.', ok ? '' : '<div class="fld"><label for="rd-n">Reason</label><input class="in" id="rd-n"></div>', ok ? 'Approve' : 'Reject', () => act(() => post(`/v1/receipts/${id}/decide`, { approve: ok, note: $('rd-n')?.value || '' }), ok ? 'Receipt approved' : 'Receipt rejected'), !ok); },
+  chqClear: (id, el) => { const bounced = el.dataset.a === '1'; confirmModal(bounced ? 'Cheque returned · ' + id : 'Cheque cleared · ' + id, bounced ? 'Reverses the credit to the client.' : 'The amount becomes usable for limits and payouts.', `<div class="form"><div class="fld"><label for="cq-d">Date</label><input class="in" type="date" id="cq-d" value="${esc(S.date)}"></div>${bounced ? '<div class="fld"><label for="cq-n">Bank’s return reason</label><input class="in" id="cq-n" placeholder="e.g. Funds insufficient"></div><label class="check full"><input type="checkbox" id="cq-c" checked> Charge the cheque return fee (with GST) and issue an invoice</label>' : ''}</div>`,
+    bounced ? 'Mark returned' : 'Mark cleared', () => act(() => post(`/v1/receipts/${id}/clear`, { date: $('cq-d').value, bounced, charge: !!$('cq-c')?.checked, note: $('cq-n')?.value || '' }), bounced ? 'Cheque marked returned' : 'Cheque cleared'), bounced); },
+  settleGateway: () => confirmModal('Gateway settlement', 'The gateway has paid collected money into the client bank account.', '<div class="form"><div class="fld"><label for="gs-r">Settlement reference</label><input class="in mono" id="gs-r"></div><div class="fld"><label for="gs-f">Gateway fee deducted (₹)</label><input class="in" id="gs-f" value="0"></div><p class="dim small full" style="margin:0">The fee is the firm’s cost: it is booked as an expense and made good to the client account from the firm’s own bank.</p></div>', 'Record', () => act(() => post('/v1/gateway/settle', { date: S.date, ref: $('gs-r').value.trim(), fee: $('gs-f').value.trim() || '0' }), r => `${r.receipts} payments settled`)),
+  devGateway: async () => { await clientCache(); confirmModal('Simulate an online payment', 'Sends a signed payment.captured webhook, as the gateway would.', `<div class="fld"><label for="dg-u-q">Client</label>${cpick('dg-u', '', {})}</div><div class="fld"><label for="dg-a">Amount (₹)</label><input class="in" id="dg-a" value="25000"></div>`, 'Send webhook', () => act(() => post('/v1/dev/gateway-payment', { ucc: $('dg-u').value, amount: $('dg-a').value, date: S.date }), r => `Online payment ${r.receipt.ref} credited to ${r.receipt.ucc}`)); },
+  poDecide: (id, el) => { const ok = el.dataset.a === '1'; confirmModal((ok ? 'Approve payout ' : 'Reject payout ') + id, ok ? 'Funds are checked again across all segments before approval.' : 'Tell the client why.', ok ? '' : '<div class="fld"><label for="pd-r">Reason</label><input class="in" id="pd-r"></div>', ok ? 'Approve' : 'Reject', () => act(() => post(`/v1/payouts/${id}/decide`, { date: S.date, approve: ok, reason: $('pd-r')?.value || '' }), ok ? 'Payout approved' : 'Payout rejected'), !ok); },
+  payoutBatch: () => confirmModal('Release payouts', 'Debits each client and produces the bank upload (NEFT; RTGS from ₹2 lakh).', '', 'Release', () => act(() => post('/v1/payouts/batches', { date: S.date }), r => { UI.monTab = 'batch'; return `Batch ${r.id}: ${r.items.length} transfers, ${inr(r.total, 2)}`; })),
+  poConfirm: id => { const b = C.money.batches.find(x => x.id === id);
+    modal(mhd('Bank result · ' + id, 'Enter the UTR for each paid transfer, or mark it failed: a failed transfer is credited back to the client.') + `<div class="bd">${tbl([['Request'], ['Client'], ['Amount', 'r'], ['UTR'], ['Failed?']], b.items.map(i => `<tr><td class="n">${i.request}</td><td>${i.ucc} ${esc(i.name)}</td><td class="r">${nf(i.amount, 2)}</td><td><input class="in sm mono" data-utr="${i.request}" placeholder="UTR"></td><td><input class="in sm" data-fail="${i.request}" placeholder="reason if failed"></td></tr>`))}<div id="pc-err"></div></div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" id="pc-ok">Confirm</button></div>`);
+    $('pc-ok').onclick = async () => { const utrs = {}, failed = {}; document.querySelectorAll('[data-utr]').forEach(x => { if (x.value.trim()) utrs[x.dataset.utr] = x.value.trim(); }); document.querySelectorAll('[data-fail]').forEach(x => { if (x.value.trim()) failed[x.dataset.fail] = x.value.trim(); });
+      try { await act(() => post(`/v1/payouts/batches/${id}/confirm`, { utrs, failed }), r => `${r.results.Paid} paid, ${r.results.Failed} failed`); } catch (e) { $('pc-err').innerHTML = errHTML(e); } }; },
   intPeriod: () => { UI.intFrom = $('int-from').value; UI.intTo = $('int-to').value; render({ keep: true }); },
   postInterest: () => { const iv = C.debits.intr; confirmModal('Post interest', `${fmtDate(iv.from)} to ${fmtDate(iv.to)} at ${iv.rate_pct}% a year`, `<div class="note">Debits ${iv.rows.filter(r => r.status === 'To post').length} clients ${inr(iv.to_post, 2)} including GST and issues a tax invoice to each.</div>`, 'Post interest', () => act(() => post('/v1/interest/post', { from: iv.from, to: iv.to }), r => `Interest posted for ${r.posted} client${r.posted === 1 ? '' : 's'}`)); },
   debitBlock: () => { const v = C.debits.deb; confirmModal('Apply continuous-debit blocks', `${v.to_block} to block, ${v.to_unblock} to unblock`, '<div class="note">Blocked clients cannot buy until the debit is cleared; selling stays open. Send the block/unblock file to the trading front end after applying.</div>', 'Apply', () => act(() => post('/v1/debits/block', { date: S.date }), r => `${r.blocked} blocked, ${r.unblocked} unblocked`)); },
@@ -1217,7 +1290,7 @@ const A = {
   saveSettings: () => {
     const s = { ...C.settings.settings, firm: $('st-firm').value, sebi_reg: $('st-sebi').value, compliance_email: $('st-comp').value, warn_util_pct: parseInt($('st-warn').value, 10), ras_buffer_pct: parseInt($('st-buf').value, 10), ras_monthly: $('st-rasm').value, ras_quarterly: $('st-rasq').value,
       two_factor: $('st-2fa').value, inactive_months: parseInt($('st-inm').value, 10) || 24, session_idle_minutes: parseInt($('st-idle').value, 10) || 30, snapshot_times: $('st-snap').value.split(',').map(x => x.trim()).filter(Boolean), holidays: $('st-hol').value.split(',').map(x => x.trim()).filter(Boolean), penalty_pass_through: $('st-pen').checked,
-      interest_pct_pa: $('st-int').value.trim(), interest_grace_days: parseInt($('st-grace').value, 10) || 0, interest_minimum: $('st-imin').value.trim(), gst_pct: $('st-gst').value.trim(), interest_exempt_tags: $('st-iex').value.split(',').map(x => x.trim().toUpperCase()).filter(Boolean), debit_block_days: parseInt($('st-dbd').value, 10) || 7, locked_up_to: $('st-lock').value, auto_lock_days: parseInt($('st-alock').value, 10) || 0 };
+      interest_pct_pa: $('st-int').value.trim(), interest_grace_days: parseInt($('st-grace').value, 10) || 0, interest_minimum: $('st-imin').value.trim(), gst_pct: $('st-gst').value.trim(), interest_exempt_tags: $('st-iex').value.split(',').map(x => x.trim().toUpperCase()).filter(Boolean), debit_block_days: parseInt($('st-dbd').value, 10) || 7, locked_up_to: $('st-lock').value, cheque_bounce_charge: $('st-bnc').value.trim(), payout_debit_account: $('st-pda').value.trim(), gateway_secret: $('st-gws').value, auto_lock_days: parseInt($('st-alock').value, 10) || 0 };
     act(() => api('PUT', '/v1/settings', s), 'Settings saved').then(loadMe);
   },
   eod: async () => {

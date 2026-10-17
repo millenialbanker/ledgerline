@@ -2,9 +2,12 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/ledger"
@@ -78,6 +81,19 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/client-reports", s.clientReportDefs, false)
 	R("GET /v1/client-reports/{kind}", s.clientReport, false)
 	R("POST /v1/billing/correct", s.correctBill, true)
+	R("GET /v1/receipts", s.receipts, false)
+	R("POST /v1/receipts", s.recordReceipt, true)
+	R("POST /v1/receipts/{id}/decide", s.decideReceipt, true)
+	R("POST /v1/receipts/{id}/clear", s.clearCheque, true)
+	R("POST /v1/gateway/settle", s.settleGateway, true)
+	s.mux.HandleFunc("POST /hooks/{tenant}/gateway", s.gatewayHook)
+	R("GET /v1/payouts", s.payouts, false)
+	R("GET /v1/payouts/withdrawable", s.withdrawable, false)
+	R("POST /v1/payouts", s.requestPayout, true)
+	R("POST /v1/payouts/{id}/decide", s.decidePayout, true)
+	R("POST /v1/payouts/batches", s.payoutBatch, true)
+	R("GET /v1/payouts/batches/{id}/file", s.payoutFile, false)
+	R("POST /v1/payouts/batches/{id}/confirm", s.confirmPayouts, true)
 	R("GET /v1/debits", s.debits, false)
 	R("POST /v1/debits/block", s.debitBlock, true)
 	R("GET /v1/debits/block-file", s.debitBlockFile, false)
@@ -109,6 +125,7 @@ func (s *Server) opsRoutes() {
 	if s.dev {
 		R("POST /v1/dev/sample", s.loadSample, true)
 		R("GET /v1/dev/sample", s.sampleStatus, false)
+		R("POST /v1/dev/gateway-payment", s.devGatewayPayment, true)
 	}
 }
 
@@ -161,6 +178,9 @@ func (s *Server) putUser(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) settings(w http.ResponseWriter, r *http.Request) {
 	set, err := s.ops.Settings(r.Context(), tenant(r))
+	if set.GatewaySecret != "" {
+		set.GatewaySecret = ops.SecretMask
+	}
 	ok(w, map[string]any{"settings": set, "schedule": s.app.Schedule}, err)
 }
 
@@ -1007,5 +1027,206 @@ func (s *Server) postInterest(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) invoices(w http.ResponseWriter, r *http.Request) {
 	v, err := s.ops.Invoices(r.Context(), tenant(r), strings.ToUpper(r.URL.Query().Get("ucc")))
+	ok(w, v, err)
+}
+
+// ---- receipts, gateway and payouts ----
+
+func (s *Server) receipts(w http.ResponseWriter, r *http.Request) {
+	rs, err := s.ops.Receipts(r.Context(), tenant(r))
+	ok(w, rs, err)
+}
+
+func (s *Server) recordReceipt(w http.ResponseWriter, r *http.Request) {
+	var b ops.Receipt
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.RecordReceipt(r.Context(), tenant(r), actor(r), b)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	writeJSON(w, 201, v)
+}
+
+func (s *Server) decideReceipt(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Approve bool   `json:"approve"`
+		Note    string `json:"note"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.DecideReceipt(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Approve, b.Note)
+	ok(w, v, err)
+}
+
+func (s *Server) clearCheque(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date    string `json:"date"`
+		Bounced bool   `json:"bounced"`
+		Charge  bool   `json:"charge"`
+		Note    string `json:"note"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.ClearCheque(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Date, b.Bounced, b.Charge, b.Note)
+	ok(w, v, err)
+}
+
+func (s *Server) settleGateway(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string       `json:"date"`
+		Ref  string       `json:"ref"`
+		Fee  money.Amount `json:"fee"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	n, gross, err := s.ops.SettleGateway(r.Context(), tenant(r), actor(r), b.Date, b.Ref, b.Fee)
+	ok(w, map[string]any{"receipts": n, "gross": gross}, err)
+}
+
+// gatewayHook receives payment-gateway webhooks. It is not signed in: the
+// body must carry a valid HMAC signature made with the firm's gateway secret.
+func (s *Server) gatewayHook(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeErr(w, 400, "bad_request", "cannot read the body", nil)
+		return
+	}
+	sig := r.Header.Get("X-Razorpay-Signature")
+	if sig == "" {
+		sig = r.Header.Get("X-Signature")
+	}
+	rc, created, err := s.ops.GatewayWebhook(r.Context(), r.PathValue("tenant"), body, sig)
+	ok(w, map[string]any{"receipt": rc.ID, "created": created}, err)
+}
+
+func (s *Server) devGatewayPayment(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		UCC    string       `json:"ucc"`
+		Amount money.Amount `json:"amount"`
+		Date   string       `json:"date"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	set, err := s.ops.Settings(r.Context(), tenant(r))
+	if err != nil || set.GatewaySecret == "" {
+		fail(w, fmt.Errorf("%w: set a gateway secret in Settings first", ops.ErrState), nil)
+		return
+	}
+	ev := ops.GatewayPayment{Event: "payment.captured"}
+	e := &ev.Payload.Payment.Entity
+	e.ID = fmt.Sprintf("pay_dev%d", time.Now().UnixNano()%1e10)
+	e.Amount, e.Method, e.VPA, e.Status = b.Amount.Paise(), "upi", strings.ToLower(b.UCC)+"@okbank", "captured"
+	e.Notes = map[string]string{"ucc": b.UCC, "value_date": b.Date}
+	body, _ := json.Marshal(ev)
+	rc, created, err := s.ops.GatewayWebhook(r.Context(), tenant(r), body, ops.SignGateway(set.GatewaySecret, body))
+	ok(w, map[string]any{"receipt": rc, "created": created}, err)
+}
+
+func (s *Server) payouts(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	rs, err := s.ops.PayoutRequests(r.Context(), tenant(r), d)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	bs, err := s.ops.PayoutBatches(r.Context(), tenant(r))
+	for i := range bs {
+		for j := range bs[i].Items {
+			bs[i].Items[j].Account = ops.MaskAccount(bs[i].Items[j].Account)
+		}
+	}
+	ok(w, map[string]any{"requests": rs, "batches": bs}, err)
+}
+
+func (s *Server) withdrawable(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.Withdrawable(r.Context(), tenant(r), d, strings.ToUpper(r.URL.Query().Get("ucc")))
+	ok(w, v, err)
+}
+
+func (s *Server) requestPayout(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date   string       `json:"date"`
+		UCC    string       `json:"ucc"`
+		Amount money.Amount `json:"amount"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if _, okd := dateParam(w, b.Date, "date", true); !okd {
+		return
+	}
+	v, err := s.ops.RequestPayout(r.Context(), tenant(r), actor(r), b.Date, b.UCC, b.Amount, "Head office")
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	writeJSON(w, 201, v)
+}
+
+func (s *Server) decidePayout(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date    string `json:"date"`
+		Approve bool   `json:"approve"`
+		Reason  string `json:"reason"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.DecidePayout(r.Context(), tenant(r), actor(r), b.Date, r.PathValue("id"), b.Approve, b.Reason)
+	ok(w, v, err)
+}
+
+func (s *Server) payoutBatch(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string `json:"date"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.CreatePayoutBatch(r.Context(), tenant(r), actor(r), b.Date)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	for j := range v.Items {
+		v.Items[j].Account = ops.MaskAccount(v.Items[j].Account)
+	}
+	writeJSON(w, 201, v)
+}
+
+func (s *Server) payoutFile(w http.ResponseWriter, r *http.Request) {
+	f, err := s.ops.PayoutFile(r.Context(), tenant(r), r.PathValue("id"))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="payout_`+r.PathValue("id")+`.csv"`)
+	w.Write(f)
+}
+
+func (s *Server) confirmPayouts(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		UTRs   map[string]string `json:"utrs"`
+		Failed map[string]string `json:"failed"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.ConfirmPayouts(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.UTRs, b.Failed)
 	ok(w, v, err)
 }

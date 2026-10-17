@@ -114,6 +114,11 @@ type Settings struct {
 	// DebitBlockDays: clients in debit this many days are blocked from buying.
 	DebitBlockDays int64 `json:"debit_block_days"`
 
+	// Money in and out.
+	ChequeBounceCharge string `json:"cheque_bounce_charge"` // ₹ before GST, default 350
+	GatewaySecret      string `json:"gateway_secret,omitempty"`
+	PayoutDebitAccount string `json:"payout_debit_account"` // client bank account payouts are made from
+
 	// Period locking: nothing may be posted on or before LockedUpTo, or
 	// before today minus AutoLockDays business days when that is set.
 	LockedUpTo   string `json:"locked_up_to"`
@@ -134,6 +139,9 @@ func (s Settings) lockedUpTo(today string) string {
 	}
 	return l
 }
+
+// SecretMask stands in for a stored secret when settings are shown.
+const SecretMask = "********"
 
 // Require2FA reports whether every user must use two-factor sign-in.
 func (s Settings) Require2FA() bool { return s.TwoFactor != "optional" }
@@ -276,6 +284,10 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 		if err != nil || d.Sign() < 0 || d.Cmp(money.DecInt(100)) > 0 && x.name != "interest minimum" {
 			return invalid("%s %q must be a number between 0 and 100", x.name, x.v)
 		}
+	}
+	if s.GatewaySecret == SecretMask {
+		old, _ := o.Settings(ctx, tenant)
+		s.GatewaySecret = old.GatewaySecret
 	}
 	if s.InterestGraceDays < 0 || s.DebitBlockDays < 0 || s.AutoLockDays < 0 || s.AutoLockDays > 30 {
 		return invalid("day counts must be zero or more (auto lock at most 30)")
