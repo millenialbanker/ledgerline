@@ -84,6 +84,11 @@ func (o *Ops) noteData(ctx context.Context, tenant, date, ucc string) ([]ingest.
 // GenerateNotes creates a note for every client who traded on the date and
 // does not have one yet. Bills must be posted first.
 func (o *Ops) GenerateNotes(ctx context.Context, tenant, actor, date string) (int, error) {
+	return o.generateNotes(ctx, tenant, actor, date, nil)
+}
+
+// generateNotes generates notes for every client who traded, except those held.
+func (o *Ops) generateNotes(ctx context.Context, tenant, actor, date string, held map[string]bool) (int, error) {
 	if err := o.require(ctx, tenant, actor, "Generating contract notes", RoleMaker, RoleChecker); err != nil {
 		return 0, err
 	}
@@ -109,7 +114,7 @@ func (o *Ops) GenerateNotes(ctx context.Context, tenant, actor, date string) (in
 	}
 	n := 0
 	for _, u := range sortedKeys(uccs) {
-		if have[u] {
+		if have[u] || held[u] {
 			continue
 		}
 		_, out, err := o.noteData(ctx, tenant, date, u)

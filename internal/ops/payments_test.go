@@ -11,6 +11,8 @@ import (
 
 func TestReceiptsGatewayAndPayouts(t *testing.T) {
 	o, ctx := newOps(t)
+	// This test walks the manual flow; automatic approval is tested in autopilot_test.
+	docs.Upsert(ctx, o.Docs, T, cAutoPol, "payouts", AutoPolicy{ID: "payouts", Mode: ModeOff}, "test")
 	c := Client{UCC: "PY001", Name: "Pay Client", Status: "Active", Tags: []string{}, Bank: BankAccount{Bank: "HDFC Bank", IFSC: "HDFC0001234", Account: "50100011112222"}}
 	if err := docs.Upsert(ctx, o.Docs, T, cClient, c.UCC, c, "test"); err != nil {
 		t.Fatal(err)

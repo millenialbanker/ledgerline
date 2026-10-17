@@ -2,6 +2,11 @@ package ops
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
@@ -237,6 +242,14 @@ type ChangeRequest struct {
 	Checker string            `json:"checker,omitempty"`
 	Reason  string            `json:"reason,omitempty"`
 	Decided string            `json:"decided_at,omitempty"`
+	// Email and mobile changes from the portal are verified with a code
+	// sent to the new contact.
+	OTPHash    string `json:"otp_hash,omitempty"`
+	OTPExpires string `json:"otp_expires,omitempty"`
+	OTPTries   int    `json:"otp_tries,omitempty"`
+	NeedsOTP   bool   `json:"needs_otp,omitempty"`
+	Verified   string `json:"verified_at,omitempty"`
+	DevCode    string `json:"dev_code,omitempty"` // development only; never stored
 }
 
 func changeOld(c Client, kind string) map[string]string {
@@ -349,14 +362,30 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 		return r, err
 	}
 	r.ID = fmt.Sprintf("CHG-%05d", n)
+	code := ""
+	if src == "Portal" && (kind == "Email" || kind == "Mobile") {
+		code = otpCode()
+		r.NeedsOTP, r.OTPHash, r.OTPExpires = true, hashOTP(r.ID, code), o.now().Add(15*time.Minute).Format(time.RFC3339)
+	}
 	if _, err := docs.Put(ctx, o.Docs, tenant, cChange, r.ID, r, 0, actor); err != nil {
 		return r, err
 	}
 	o.log(ctx, tenant, actor, "change.requested", r.ID, map[string]any{"ucc": ucc, "kind": kind, "source": src})
-	return r.public(), nil
+	if code != "" {
+		to, ch := r.New["email"], ChEmail
+		if kind == "Mobile" {
+			to, ch = r.New["mobile"], ChSMS
+		}
+		// The provider gets the code; the copy kept here does not.
+		o.sendDirect(ctx, tenant, actor, ch, to, ucc, "change.otp", "Verify your new "+strings.ToLower(kind), fmt.Sprintf("Your code to confirm the change of %s on account %s is ••••••. It is valid for 15 minutes. Do not share it.", strings.ToLower(kind), ucc))
+	}
+	out := r.public()
+	out.DevCode = code // the API passes it on only on a development server
+	return out, nil
 }
 
 func (r ChangeRequest) public() ChangeRequest {
+	r.OTPHash, r.OTPExpires, r.OTPTries, r.DevCode = "", "", 0, ""
 	if a, ok := r.New["account"]; ok {
 		n := map[string]string{}
 		for k, v := range r.New {
@@ -393,6 +422,9 @@ func (o *Ops) DecideChange(ctx context.Context, tenant, actor, id string, approv
 	}
 	if r.By == actor {
 		return r.public(), fmt.Errorf("%w: the person who raised a change cannot approve it", ErrForbidden)
+	}
+	if approve && r.NeedsOTP && r.Verified == "" {
+		return r.public(), fmt.Errorf("%w: the client has not yet entered the code sent to the new %s", ErrState, strings.ToLower(r.Kind))
 	}
 	if !approve && strings.TrimSpace(reason) == "" {
 		return r.public(), invalid("give the reason for rejecting")
@@ -537,4 +569,64 @@ func (o *Ops) DeleteExternalTrade(ctx context.Context, tenant, actor, ucc, id st
 	}
 	o.log(ctx, tenant, actor, "external_trade.deleted", id, map[string]any{"ucc": ucc})
 	return nil
+}
+
+func otpCode() string {
+	var b [4]byte
+	_, _ = rand.Read(b[:])
+	return fmt.Sprintf("%06d", binary.BigEndian.Uint32(b[:])%1000000)
+}
+
+func hashOTP(id, code string) string {
+	h := sha256.Sum256([]byte(id + "|" + code))
+	return hex.EncodeToString(h[:])
+}
+
+// VerifyChange checks the code the client received on the new contact. A
+// verified email or mobile change is applied at once when the automation
+// is on; otherwise it waits for a checker as before.
+func (o *Ops) VerifyChange(ctx context.Context, tenant, actor, id, code string) (ChangeRequest, error) {
+	accts, err := o.PortalAccounts(ctx, tenant, actor)
+	if err != nil {
+		return ChangeRequest{}, err
+	}
+	r, _, err := docs.Get[ChangeRequest](ctx, o.Docs, tenant, cChange, id)
+	if err != nil || !contains(accts, r.UCC) {
+		return ChangeRequest{}, ErrNotFound
+	}
+	if !r.NeedsOTP || r.Verified != "" || r.Status != "Pending" {
+		return r.public(), fmt.Errorf("%w: %s does not need a code", ErrState, id)
+	}
+	if r.OTPTries >= 5 || o.now().Format(time.RFC3339) > r.OTPExpires {
+		return r.public(), invalid("the code has expired; raise the change again")
+	}
+	ok := hmac.Equal([]byte(hashOTP(id, strings.TrimSpace(code))), []byte(r.OTPHash))
+	r, err = docs.Update(ctx, o.Docs, tenant, cChange, id, actor, func(x *ChangeRequest) error {
+		x.OTPTries++
+		if ok {
+			x.Verified = o.now().Format(time.RFC3339)
+		}
+		return nil
+	})
+	if err != nil {
+		return r, err
+	}
+	if !ok {
+		return r.public(), invalid("the code is not right (%d tries left)", 5-r.OTPTries)
+	}
+	o.log(ctx, tenant, actor, "change.verified", id, nil)
+	if _, mode, _ := o.policy(ctx, tenant, "change_otp"); mode == ModeAuto {
+		return o.DecideChange(ctx, tenant, SystemActor, id, true, "")
+	}
+	return r.public(), nil
+}
+
+// sendDirect sends one message to a given address (codes to a new contact).
+func (o *Ops) sendDirect(ctx context.Context, tenant, actor, channel, to, ucc, event, subject, body string) {
+	n, err := o.next(ctx, tenant, "message", actor)
+	if err != nil {
+		return
+	}
+	m := Message{ID: fmt.Sprintf("MSG-%07d", n), At: o.now().Format(time.RFC3339), Event: event, Channel: channel, Category: "Transactional", UCC: ucc, To: to, Subject: subject, Body: body, Status: "Sent"}
+	_ = docs.Upsert(ctx, o.Docs, tenant, cMessage, m.ID, m, actor)
 }

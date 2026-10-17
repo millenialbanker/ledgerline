@@ -9,7 +9,7 @@ try { Object.assign(S, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e
 const persist = () => { try { localStorage.setItem(LS, JSON.stringify({ tenant: S.tenant, date: S.date, view: S.view })); } catch (e) {} };
 const UI = { inTab: 'due', inSel: new Set(), inQ: '', clientTag: '', clientSel: new Set(), bkQ: '', bkPlan: '', cr: { kind: 'ledger', ucc: '', preset: 'fy', from: '', to: '' }, crRes: null, crErr: null, crBusy: false, reconF: 'OPEN', reconX: 'All', reconQ: '', clientStage: 'All', clientQ: '', rmsF: 'All', rmsQ: '', settleTab: 'cm', noteF: 'All',
   bankF: 'All', rasF: 'due', auditQ: '', ledgerU: '', ledgerTab: 'statement', calc: { bucket: 'CM-DEL', exchange: 'NSE', side: 'B', qty: 100, price: '1412' },
-  debTab: 'cd', nriTab: 'cl', nriFrom: '', nriTo: '', liveAt: '', liveF: 'All', liveQ: '', liveAuto: false, mtfTab: 'pos', dpTab: 'acc', dpQ: '', msgTab: 'log', msgQ: '', pAcct: '', hdTab: 'open', hdMonth: '', chTab: 'pending', crmTab: 'pipe', crmStage: 'All', crmQ: '', crmFrom: '', crmTo: '', kycTab: 'risk', kycQ: '', kycF: 'All', ptTab: 'pt', ptFrom: '', ptTo: '', bkTab: 'vch', finFrom: '', finTo: '', finBranch: '', gstFrom: '', gstTo: '', caTab: 'ca', monTab: 'rcpt', monQ: '', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
+  debTab: 'cd', apTab: 'work', apMine: 'mine', nriTab: 'cl', nriFrom: '', nriTo: '', liveAt: '', liveF: 'All', liveQ: '', liveAuto: false, mtfTab: 'pos', dpTab: 'acc', dpQ: '', msgTab: 'log', msgQ: '', pAcct: '', hdTab: 'open', hdMonth: '', chTab: 'pending', crmTab: 'pipe', crmStage: 'All', crmQ: '', crmFrom: '', crmTo: '', kycTab: 'risk', kycQ: '', kycF: 'All', ptTab: 'pt', ptFrom: '', ptTo: '', bkTab: 'vch', finFrom: '', finTo: '', finBranch: '', gstFrom: '', gstTo: '', caTab: 'ca', monTab: 'rcpt', monQ: '', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
 const C = {}; // per-view data from the server
 let CFG = {};
 
@@ -93,7 +93,7 @@ async function openDoc(path) {
 
 /* ============================== shell ============================== */
 const NAV = [
-  ['Overview', [['dashboard', 'Dashboard']]],
+  ['Overview', [['dashboard', 'Dashboard'], ['autopilot', 'Autopilot & work queue']]],
   ['Operations', [['files', 'Files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['changes', 'Change requests'], ['corp', 'Corporate actions'], ['statements', 'Client reports']]],
   ['Risk', [['live', 'Live RMS'], ['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge'], ['debits', 'Debtors & interest'], ['mtf', 'Margin trading (MTF)']]],
   ['Accounts', [['ledger', 'Ledger'], ['bank', 'Bank reconciliation'], ['money', 'Receipts & payouts'], ['books', 'Firm accounts & GST'], ['ras', 'Running account'], ['charges', 'Charges calculator'], ['brokerage', 'Brokerage plans']]],
@@ -110,7 +110,7 @@ try { const h = location.hash.slice(1); if (VIEWS.includes(h)) S.view = h; } cat
 const SCOPED_VIEWS = ['clients', 'statements', 'notes', 'money', 'debits', 'rms', 'partners', 'prepaid', 'changes', 'helpdesk', 'crm'];
 const scopedUser = () => ['Branch staff', 'Authorised person'].includes(S.me?.role);
 function renderSide() {
-  const ct = S.counts, q = { clients: 1, notes: 1, collateral: 1, reports: 1 };
+  const ct = S.counts, q = { clients: 1, notes: 1, collateral: 1, reports: 1, autopilot: 1 };
   const nav = clientUser() ? PORTAL_NAV : scopedUser() ? NAV.map(([g, items]) => [g, items.filter(([k]) => SCOPED_VIEWS.includes(k))]).filter(([, items]) => items.length) : NAV;
   const codes = Object.entries(S.me?.member_codes || {}).map(([k, v]) => k + ' ' + v).join(' · ');
   $('side').innerHTML = `<div class="brand"><div class="mark"><i></i><i></i><i></i></div><div><b>Ledgerline</b><small>${esc(S.me?.firm || 'Back office')}</small></div></div>` +
@@ -135,7 +135,7 @@ async function refreshCounts() {
     const d = await get(`/v1/dashboard?date=${S.date}`);
     C.dashboard = d;
     S.counts = { recon: d.recon.OPEN || 0, rms: d.risk.Breach || 0, collateral: d.pending_pledges || 0, bank: (d.bank['Third-party'] || 0) + (d.bank.Unidentified || 0),
-      surv: d.alerts.open || 0, inactive: (+d.extra.inactive_due || 0) + (+d.extra.reactivation_pending || 0), clients: d.onboarding || 0, notes: (d.notes.total || 0) - (d.notes.Sent || 0), reports: d.reports_due || 0 };
+      surv: d.alerts.open || 0, inactive: (+d.extra.inactive_due || 0) + (+d.extra.reactivation_pending || 0), clients: d.onboarding || 0, notes: (d.notes.total || 0) - (d.notes.Sent || 0), reports: d.reports_due || 0, autopilot: +d.extra.work_open || 0 };
   } catch (e) {}
   renderSide(); renderTop();
 }
@@ -342,6 +342,7 @@ V.files = {
       <label class="drop" id="drop" for="file"><b>Drop a file here</b> or click to choose<br><span class="dim" style="font-size:12px">CSV or text, up to 64 MB</span></label><input type="file" id="file" hidden>
       ${r ? (r.error ? errHTML(r.error) : `<div class="note good" style="background:var(--good-soft)"><b>${esc(r.name)}</b> loaded with ${esc(r.res.adapter)}: ${r.res.added} new row${r.res.added === 1 ? '' : 's'}${r.res.duplicate_rows ? `, ${r.res.duplicate_rows} already loaded` : ''}.${r.res.file.prior_id ? ` Identical to earlier upload ${esc(r.res.file.prior_id)}.` : ''}</div>`) : ''}
     </div></div>
+    <div class="panel"><div class="hd"><h3>Inbox: drop several files</h3><small>type worked out from the columns</small></div><div class="bd"><div class="tools"><input type="file" id="inbox-files" multiple class="in sm"><button class="btn pri" data-act="inbox">Load all</button></div><span class="dim small">Masters load first, then trade files, then the rest; files already loaded are skipped. Pledge requests and bank statements are processed by the autopilot straight away.</span>${UI.inboxRes ? tbl([['File'], ['Recognised as'], ['Rows', 'r'], ['Result']], UI.inboxRes.map(f => `<tr><td class="wrap small">${esc(f.name)}</td><td class="mono small">${esc(f.source || '—')}</td><td class="r">${f.rows}</td><td>${pill(f.status, f.status === 'Loaded' ? 'good' : f.status === 'Already loaded' ? 'nt' : 'bad')}${f.message ? `<div class="dim small wrap">${esc(f.message)}</div>` : ''}</td></tr>`)) : ''}</div></div>
     <div class="panel"><div class="hd"><h3>Daily file checklist</h3><small>What a normal day needs</small></div>${tbl([['When'], ['File'], ['Purpose']], [['BOD', 'MARKET-DATA', 'Prices, SPAN, VaR, haircuts'], ['BOD', 'DP-HOLDINGS', 'Client demat balances and pledges'], ['BOD', 'POSITIONS', 'Carried derivatives positions'], ['Intraday', 'PLEDGE-REQUESTS', 'Margin pledges to accept'], ['Intraday / EOD', 'BANK-STMT', 'Client receipts'], ['EOD', 'Exchange trade files', 'NSE CM/FO/CD, BSE CM, MCX'], ['EOD', 'OMS-TRADE', 'For reconciliation'], ['Daily', 'SURV-ALERTS', 'Exchange alerts']].map(x => `<tr><td>${x[0]}</td><td class="n">${x[1]}</td><td class="dim">${x[2]}</td></tr>`))}</div></div>
     <div class="panel"><div class="hd"><h3>Upload history</h3><small>${d.files.length} files</small></div>${tbl([['Time'], ['File'], ['Type'], ['Result'], ['Rows', 'r'], ['By']], d.files.map(f => { const x = f.detail || {}; return `<tr><td class="n dim">${new Date(f.at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</td><td>${esc(x.name)} <span class="tag">${esc(f.object)}</span></td><td class="n">${esc(x.source)}</td><td>${f.action === 'file.ingested' ? pill('Loaded', 'good') : pill('Rejected', 'bad') + ` <span class="dim">${esc(x.error || '')}</span>`}</td><td class="r">${x.added ?? 0}${x.duplicates ? ` <span class="dim">+${x.duplicates} dup</span>` : ''}</td><td>${esc(f.actor)}</td></tr>`; }), { tall: true, empty: 'No files uploaded yet' })}</div>`;
   }
@@ -787,7 +788,7 @@ V.pprofile = {
       row('Bank account', 'Bank account', `${esc(a.bank.bank)} · ${esc(a.bank.account)} · ${esc(a.bank.ifsc)}`), `<tr><td>Demat</td><td class="mono">${esc(a.demat.depository)} ${esc(a.demat.id)}</td><td></td></tr>`,
       row('Nomination', 'Nomination', esc(a.nominee) + (a.nominee_name ? ' · ' + esc(a.nominee_name) : '')), `<tr><td>Segments</td><td>${a.segments.map(s => `<span class="tag">${esc(a.segment_names[s] || s)}</span>`).join(' ')}</td><td></td></tr>`, `<tr><td>WhatsApp alerts</td><td>${a.whatsapp ? 'On' : 'Off'} <span class="dim small">· or message us BAL, HOLD, CN</span></td><td><button class="btn sm" data-act="pWhatsApp" data-on="${a.whatsapp ? 0 : 1}">${a.whatsapp ? 'Turn off' : 'Turn on'}</button></td></tr>`])}</div>
     <div class="panel"><div class="hd"><h3>Documents</h3></div>${tbl([['Kind'], ['File'], ['']], v.docs.map(x => `<tr><td>${esc(x.kind)}</td><td class="wrap">${esc(x.name)}<div class="dim small">${fmtDate(x.at.slice(0, 10))}</div></td><td><button class="btn sm" data-act="openBlob" data-id="/v1/clients/${a.ucc}/documents/${x.id}">Open</button></td></tr>`), { empty: 'No documents.' })}</div></div>
-    <div class="panel"><div class="hd"><h3>Change requests</h3></div>${tbl([['Request'], ['Change'], ['New value'], ['Status'], ['Raised']], v.changes.map(c => `<tr><td class="n">${c.id}</td><td>${esc(c.kind)}</td><td class="wrap">${Object.entries(c.new).filter(([k]) => k !== 'account_masked').map(([k, x]) => esc(x)).join(' · ')}</td><td>${pill(c.status, c.status === 'Approved' ? 'good' : c.status === 'Rejected' ? 'bad' : 'warn')}${c.reason ? `<div class="dim small">${esc(c.reason)}</div>` : ''}</td><td class="n dim">${fmtDate(c.at.slice(0, 10))}</td></tr>`), { empty: 'No change requests.' })}</div>`;
+    <div class="panel"><div class="hd"><h3>Change requests</h3></div>${tbl([['Request'], ['Change'], ['New value'], ['Status'], ['Raised']], v.changes.map(c => `<tr><td class="n">${c.id}</td><td>${esc(c.kind)}</td><td class="wrap">${Object.entries(c.new).filter(([k]) => k !== 'account_masked').map(([k, x]) => esc(x)).join(' · ')}</td><td>${pill(c.status, c.status === 'Approved' ? 'good' : c.status === 'Rejected' ? 'bad' : 'warn')}${c.needs_otp && !c.verified_at && c.status === 'Pending' ? ` <button class="btn sm" data-act="pVerify" data-id="${c.id}">Enter code</button>` : ''}${c.reason ? `<div class="dim small">${esc(c.reason)}</div>` : ''}</td><td class="n dim">${fmtDate(c.at.slice(0, 10))}</td></tr>`), { empty: 'No change requests.' })}</div>`;
   }
 };
 const CHG_FIELDS = { Email: [['email', 'New email', 'email']], Mobile: [['mobile', 'New mobile', 'tel']], Address: [['city', 'City'], ['state', 'State']], 'Bank account': [['bank', 'Bank name'], ['ifsc', 'IFSC'], ['account', 'Account number']], Nomination: [] };
@@ -803,7 +804,7 @@ function changeModal(kind, ucc, staff) {
     try {
       let doc = '';
       if (proof) { const file = $('ch-doc').files[0]; const d = await api('POST', `/v1/clients/${ucc}/documents?kind=${encodeURIComponent(proof)}&name=${encodeURIComponent(file.name)}`, file, true); doc = d.id; }
-      const r = await post('/v1/changes', { ucc, kind, values, doc }); closeModal(); toast(`Request ${r.id} submitted`); render({ keep: true });
+      const r = await post('/v1/changes', { ucc, kind, values, doc }); closeModal(); if (r.needs_otp) { (UI.devCodes ||= {})[r.id] = r.dev_code; render({ keep: true }); A.pVerify(r.id); return; } toast(`Request ${r.id} submitted`); render({ keep: true });
     } catch (err) { $('ch-err').innerHTML = errHTML(err); }
   };
 }
@@ -1125,6 +1126,41 @@ function nriModal(ucc) {
     $('nrf').onsubmit = async e => { e.preventDefault(); try { await post('/v1/nri', { ucc: $('nr-u').value, account_type: $('nr-acc').value, pis_bank: $('nr-bank').value, pis_branch: $('nr-branch').value, pis_account: $('nr-pis').value, pis_permission: $('nr-perm').value, pis_permission_date: $('nr-pd').value, country: $('nr-ctry').value, cp_code: $('nr-cp').value }); closeModal(); toast('NRI details saved'); render({ keep: true }); } catch (err) { $('nr-err').innerHTML = errHTML(err); } };
   });
 }
+
+/* ---------- autopilot & work queue ---------- */
+const STAGE_NAMES = { bod: 'Start of day', intraday: 'Intraday', preclose: 'Pre-close', eod: 'End of day', monthly: 'Month end', event: 'When it happens' };
+V.autopilot = {
+  load: () => get(`/v1/autopilot?date=${S.date}`),
+  html: d => {
+    const adm = has('Admin'), run = has('Admin', 'Ops checker');
+    return ph('Autopilot', 'Routine work runs by itself and records what it did; people get only the exceptions, in the work queue, each with the role who should act, a due time and, where possible, the action already prepared. Where the rules need a person’s judgement or signature, automation stops at preparing the work.',
+      `${S.me?.dev ? '<button class="btn" data-act="apDay">Run a sample day on autopilot</button>' : ''}${run ? `<select class="in sm" id="ap-stage">${['bod', 'intraday', 'preclose', 'eod', 'monthly'].map(s => `<option value="${s}">${STAGE_NAMES[s]}</option>`).join('')}</select><button class="btn" data-act="apRun">Run stage now</button>` : ''}${adm ? `<button class="btn ${d.scheduled ? '' : 'pri'}" data-act="apSchedule" data-on="${d.scheduled ? 0 : 1}">${d.scheduled ? 'Switch schedule off' : 'Switch schedule on'}</button>` : ''}`) +
+    `<div class="kpis">${kpi('Done automatically', nf(d.done_today), 'actions on ' + fmtDate(S.date), d.done_today ? 'good' : '')}${kpi('Straight-through', nf(d.stp_pct, 0) + '%', 'of today’s work needed no one', d.stp_pct >= 80 ? 'good' : d.stp_pct ? 'warn' : '')}${kpi('Time saved', nf(d.minutes_saved_today / 60, 1) + ' h', 'estimated, today')}${kpi('Work queue', d.open, d.overdue + ' overdue', d.overdue ? 'bad' : d.open ? 'warn' : 'good')}${kpi('Schedule', d.scheduled ? 'On' : 'Off', d.scheduled ? 'runs on business days' : 'run stages by hand', d.scheduled ? 'good' : '')}</div>
+    <div class="stages">${d.stages.map(s => `<div class="stage ${s.status === 'Failed' ? 'bad' : s.status ? 'ok' : ''}"><small>${esc(s.at || '')}</small><b>${esc(s.name)}</b><span class="dim small">${s.last ? esc(s.summary || s.status) : 'not run yet'}</span></div>`).join('')}</div>
+    <div class="panel"><div class="hd"><div class="tools">${segBtns('apTab', [['work', `Work queue (${d.open})`], ['pol', 'Automations'], ['log', 'Run log'], ['human', 'Stays with people']])}${UI.apTab === 'work' ? segBtns('apMine', [['mine', 'For my role'], ['all', 'Everyone'], ['closed', 'Closed']], 'ap-t') : ''}</div></div><div id="ap-t">${P['ap-t'](d)}</div></div>`;
+  }
+};
+P['ap-t'] = d => {
+  if (UI.apTab === 'pol') {
+    const areas = [...new Set(d.policies.map(p => p.area))], edit = has('Admin', 'Compliance officer');
+    return areas.map(a => `<div class="pad" style="padding-bottom:0"><h3 style="margin:0;font-size:15px">${esc(a)}</h3></div>` + tbl([['Automation'], ['Runs'], ['Mode'], ['Settings'], ['Last run']], d.policies.filter(p => p.area === a).map(p => {
+      const modes = ['Auto', 'Suggest', 'Off'].filter(m => ({ Off: 0, Suggest: 1, Auto: 2 })[m] <= ({ Human: 0, Off: 0, Suggest: 1, Auto: 2 })[p.cap]);
+      const lr = p.last_run;
+      return `<tr><td style="max-width:420px"><b>${esc(p.name)}</b><div class="dim small wrap">${esc(p.about)}</div>${p.cap !== 'Auto' ? `<div class="small"><span class="pill warn">At most ${esc(p.cap)}</span> <span class="dim">${esc(p.cap_why)}</span></div>` : ''}</td><td class="small">${STAGE_NAMES[p.stage]}</td>
+        <td>${edit ? `<select class="in sm" data-appol="${p.id}">${modes.map(m => `<option ${m === p.mode ? 'selected' : ''}>${m}</option>`).join('')}</select>` : pill(p.mode, p.mode === 'Auto' ? 'good' : p.mode === 'Suggest' ? 'acc' : 'nt')}</td>
+        <td class="small">${Object.entries(p.settings || {}).map(([k, v]) => `<label class="dim">${k === 'limit' ? 'up to ₹' : k === 'at' ? 'at' : esc(k)}</label> <input class="in sm mono" style="width:100px" data-apparam="${p.id}" data-k="${k}" value="${esc(v)}" ${edit ? '' : 'disabled'}>`).join('<br>') || '<span class="dim">—</span>'}</td>
+        <td class="small wrap">${lr ? `${pill(lr.error ? 'Failed' : `${lr.done} done`, lr.error ? 'bad' : 'good')}${lr.queued ? ' ' + pill(lr.queued + ' queued', 'warn') : ''}<div class="dim">${esc(lr.error || lr.note || '')}</div><div class="dim">${esc(lr.at.slice(0, 16).replace('T', ' '))}</div>` : '<span class="dim">not run yet</span>'}${has('Admin', 'Ops checker') && autoFnIds.includes(p.id) ? ` <button class="btn sm" data-act="apRunOne" data-id="${p.id}">Run</button>` : ''}</td></tr>`;
+    }))).join('') + (edit ? '<div class="pad"><button class="btn pri" data-act="apSave">Save automation settings</button> <span class="dim small">Changes are recorded in the audit trail.</span></div>' : '');
+  }
+  if (UI.apTab === 'log') return tbl([['When'], ['For'], ['Automation'], ['Mode'], ['Done', 'r'], ['Queued', 'r'], ['Result']], d.runs.filter(r => r.policy).map(r => `<tr><td class="n">${esc(r.at.slice(5, 16).replace('T', ' '))}</td><td class="n">${fmtDate(r.date)}</td><td>${esc((d.policies.find(p => p.id === r.policy) || {}).name || r.policy)}</td><td>${esc(r.mode)}</td><td class="r">${r.done}</td><td class="r">${r.queued}</td><td class="wrap small">${r.error ? `<span class="neg">${esc(r.error)}</span>` : esc(r.note || '')}</td></tr>`), { tall: true, empty: 'Nothing has run yet.' });
+  if (UI.apTab === 'human') return tbl([['Stays with people'], ['Why']], d.human_only.map(h => `<tr><td><b>${esc(h.process)}</b></td><td class="wrap">${esc(h.why)}</td></tr>`)) + '<div class="pad"><span class="dim small">For these the system still prepares everything it can (evidence, documents, suggested decision) and the item appears in the work queue.</span></div>';
+  const role = S.me?.role, mine = UI.apMine;
+  const ws = d.work.filter(w => mine === 'closed' ? w.status !== 'Open' : w.status === 'Open' && (mine === 'all' || !w.role || w.role === role || role === 'Admin'));
+  const st = { Done: 'good', Dismissed: 'nt', Cleared: 'nt', Open: 'warn' };
+  return tbl([['Item'], ['For'], ['Due'], ['Status'], ['']], ws.map(w => `<tr><td style="max-width:560px"><b>${esc(w.title)}</b>${w.ucc ? ` <button class="linkish mono" data-act="client" data-id="${w.ucc}">${w.ucc}</button>` : ''}<div class="dim small wrap">${esc(w.detail)}</div><div class="dim small">${esc((d.policies.find(p => p.id === w.process) || {}).name || w.process)} · ${fmtDate(w.date)}</div></td><td class="small">${esc(w.role || 'Anyone')}</td><td class="n ${w.overdue ? 'neg' : ''}">${esc(w.due)}${w.overdue ? '<div class="small">overdue</div>' : ''}</td><td>${pill(w.status, st[w.status])}${w.closed_by ? `<div class="dim small">${esc(w.closed_by)}${w.note ? ': ' + esc(w.note) : ''}</div>` : ''}</td>
+    <td>${w.status === 'Open' ? `${w.proposed ? `<button class="btn sm pri" data-act="wDo" data-id="${w.id}">${esc(w.proposed.label)}</button>` : ''}<button class="btn sm" data-act="go" data-id="${w.view}">Open</button><button class="btn sm" data-act="wDismiss" data-id="${w.id}">Done elsewhere</button>` : ''}</td></tr>`), { tall: true, empty: mine === 'closed' ? 'Nothing closed yet.' : 'Nothing waiting. Everything else ran by itself.' });
+};
+const autoFnIds = ['debit_blocks', 'pledges', 'third_party', 'unidentified', 'payouts', 'payout_batch', 'recon', 'billing', 'settlement', 'notes', 'margin_calls', 'square_off', 'mtf_liquidation', 'penalties', 'reports', 'surveillance', 'nri', 'kyc', 'inactive', 'service', 'leads', 'day_close', 'monthly', 'ras'];
 
 /* ---------- settlement ---------- */
 V.settlement = {
@@ -1725,6 +1761,18 @@ async function act(fn, okMsg, reload = true) {
   catch (e) { toast(e.message); throw e; }
 }
 const A = {
+  apRun: () => act(() => post('/v1/autopilot/run', { date: S.date, stage: $('ap-stage').value }), r => { const d = sum(r.runs, x => x.done), q = sum(r.runs, x => x.queued); return `${r.runs.length} automations: ${d} done, ${q} for people`; }),
+  apRunOne: id => act(() => post('/v1/autopilot/run', { date: S.date, only: id }), r => r.runs[0] ? `${r.runs[0].done} done, ${r.runs[0].queued} for people${r.runs[0].error ? ' · ' + r.runs[0].error : ''}` : 'Off'),
+  apSchedule: (id, el) => act(() => post('/v1/autopilot/schedule', { on: el.dataset.on === '1' }), r => r.on ? 'Autopilot runs on its own on business days' : 'Schedule switched off'),
+  apDay: async (id, el) => { el.disabled = true; toast('Loading the next sample day and running it on autopilot…'); try { const r = await post('/v1/dev/sample', { autopilot: true }); const d = sum(r.runs, x => x.done), q = sum(r.runs, x => x.queued); S.date = r.date; toast(`${fmtDate(r.date)}: ${d} actions done automatically, ${q} items for people`); UI.apTab = 'work'; render(); } catch (e) { toast(e.message); el.disabled = false; } },
+  apSave: async () => { const pol = {}; document.querySelectorAll('[data-appol]').forEach(x => { pol[x.dataset.appol] = { id: x.dataset.appol, mode: x.value, params: {} }; }); document.querySelectorAll('[data-apparam]').forEach(x => { (pol[x.dataset.apparam] ||= { id: x.dataset.apparam, params: {} }).params[x.dataset.k] = x.value.trim(); });
+    const cur = Object.fromEntries(C.autopilot.policies.map(p => [p.id, p])); let n = 0;
+    try { for (const p of Object.values(pol)) { const c = cur[p.id]; if (c.mode === p.mode && JSON.stringify(c.settings || {}) === JSON.stringify({ ...(c.settings || {}), ...p.params })) continue; await post('/v1/autopilot/policies', { id: p.id, mode: p.mode || c.mode, params: p.params }); n++; } toast(n ? `${n} automation${n > 1 ? 's' : ''} changed` : 'Nothing changed'); render({ keep: true }); } catch (e) { toast(e.message); } },
+  wDo: id => act(() => post(`/v1/work/${id}`, { do: true }), w => 'Done: ' + w.title),
+  wDismiss: id => confirmModal('Close item', 'Say what was done, so the record is complete.', '<div class="fld"><label for="wd-n">Note</label><input class="in" id="wd-n" placeholder="e.g. Resolved with the client by phone"></div>', 'Close', () => act(() => post(`/v1/work/${id}`, { do: false, note: $('wd-n').value }), 'Closed')),
+  inbox: async () => { const fs = $('inbox-files').files; if (!fs.length) { toast('Choose files first'); return; } const fd = new FormData(); [...fs].forEach(f => fd.append('files', f)); try { const r = await api('POST', `/v1/inbox?date=${S.date}`, fd, true); UI.inboxRes = r.files; toast(`${r.files.filter(f => f.status === 'Loaded').length} of ${r.files.length} files loaded`); render({ keep: true }); } catch (e) { toast(e.message); } },
+  pVerify: id => { modal(mhd('Enter the code', 'We sent a 6-digit code to your new contact. It is valid for 15 minutes.') + `<form class="bd" id="otpf"><div class="fld"><label for="otp-c">Code</label><input class="in mono" id="otp-c" inputmode="numeric" maxlength="6" required>${UI.devCodes?.[id] ? `<span class="dim small">Development server: the code is ${UI.devCodes[id]}</span>` : ''}</div><div id="otp-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Later</button><button class="btn pri" type="submit">Confirm</button></div></form>`);
+    $('otpf').onsubmit = async e => { e.preventDefault(); try { const r = await post(`/v1/changes/${id}/verify`, { code: $('otp-c').value }); closeModal(); toast(r.status === 'Approved' ? 'Verified and updated' : 'Verified; head office will confirm'); render({ keep: true }); } catch (err) { $('otp-err').innerHTML = errHTML(err); } }; },
   nriSet: id => nriModal(id),
   nriPeriod: () => { UI.nriFrom = $('nri-from').value; UI.nriTo = $('nri-to').value; render({ keep: true }); },
   liveAt: () => { UI.liveAt = $('live-at').value; render({ keep: true }); },

@@ -510,6 +510,11 @@ func (o *Ops) RequestPayout(ctx context.Context, tenant, actor, date, ucc string
 		return p, err
 	}
 	o.log(ctx, tenant, actor, "payout.requested", p.ID, map[string]any{"ucc": ucc, "amount": amount.String(), "source": source})
+	if _, mode, _ := o.policy(ctx, tenant, "payouts"); mode != ModeOff {
+		if _, err := o.RunStage(ctx, tenant, SystemActor, date, "", "payouts"); err == nil {
+			p, _, _ = docs.Get[PayoutRequest](ctx, o.Docs, tenant, cPayout, p.ID)
+		}
+	}
 	return p, nil
 }
 

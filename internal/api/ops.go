@@ -180,6 +180,13 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/nri", s.setNRI, true)
 	R("GET /v1/nri/pis-file", s.pisFile, false)
 	R("GET /v1/nri/tds", s.nriTDS, false)
+	R("GET /v1/autopilot", s.autopilot, false)
+	R("POST /v1/autopilot/policies", s.autoPolicy, true)
+	R("POST /v1/autopilot/run", s.autoRun, true)
+	R("POST /v1/autopilot/schedule", s.autoSchedule, true)
+	R("POST /v1/work/{id}", s.workItem, true)
+	R("POST /v1/inbox", s.inbox, true)
+	R("POST /v1/changes/{id}/verify", s.verifyChange, true)
 	R("GET /v1/jobs", s.jobs, false)
 	R("POST /v1/jobs", s.saveJob, true)
 	R("POST /v1/jobs/{id}/run", s.runJob, true)
@@ -962,11 +969,36 @@ func (s *Server) loadSample(w http.ResponseWriter, r *http.Request) {
 		Later bool   `json:"later"`
 		Run   bool   `json:"run"`
 		Days  int    `json:"days"`
+		Auto  bool   `json:"autopilot"`
 	}
 	if !decode(w, r, &b) {
 		return
 	}
 	ctx, t, a := r.Context(), tenant(r), actor(r)
+	if b.Auto {
+		if b.Date == "" {
+			b.Date, _ = s.ops.NextSampleDay(ctx, t)
+			if b.Date == "" {
+				b.Date = "2026-10-16"
+			}
+		}
+		n, err := s.ops.LoadSampleFor(ctx, t, a, b.Date, s.ingester())
+		if err != nil {
+			fail(w, err, nil)
+			return
+		}
+		var all []ops.AutoRun
+		for _, st := range []string{"bod", "intraday", "preclose", "eod"} {
+			runs, err := s.ops.RunStage(ctx, t, ops.SystemActor, b.Date, st, "")
+			if err != nil {
+				fail(w, err, nil)
+				return
+			}
+			all = append(all, runs...)
+		}
+		ok(w, map[string]any{"date": b.Date, "files": n, "runs": all}, nil)
+		return
+	}
 	if b.Later {
 		st, err := s.ops.SampleStatus(ctx, t)
 		if err != nil || st.Start == "" {
@@ -2003,6 +2035,9 @@ func (s *Server) requestChange(w http.ResponseWriter, r *http.Request) {
 		fail(w, err, nil)
 		return
 	}
+	if !s.dev {
+		v.DevCode = ""
+	}
 	writeJSON(w, 201, v)
 }
 
@@ -2636,5 +2671,112 @@ func (s *Server) nriTDS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.NRITDS(r.Context(), tenant(r), from, to)
+	ok(w, v, err)
+}
+
+// ---- autopilot ----
+
+func (s *Server) autopilot(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.Autopilot(r.Context(), tenant(r), d)
+	if f := s.scope(r); f != nil && err == nil {
+		mine := []ops.WorkItem{}
+		for _, x := range v.Work {
+			if x.UCC == "" || f(x.UCC) {
+				mine = append(mine, x)
+			}
+		}
+		v.Work = mine
+	}
+	ok(w, v, err)
+}
+
+func (s *Server) autoPolicy(w http.ResponseWriter, r *http.Request) {
+	var b ops.AutoPolicy
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SetAutoPolicy(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) autoRun(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date  string `json:"date"`
+		Stage string `json:"stage"`
+		Only  string `json:"only"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.RunStage(r.Context(), tenant(r), actor(r), b.Date, b.Stage, b.Only)
+	ok(w, map[string]any{"runs": v}, err)
+}
+
+func (s *Server) autoSchedule(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		On bool `json:"on"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	n, err := s.ops.SetAutopilotSchedule(r.Context(), tenant(r), actor(r), b.On)
+	ok(w, map[string]any{"jobs": n, "on": b.On}, err)
+}
+
+func (s *Server) workItem(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Do   bool   `json:"do"`
+		Note string `json:"note"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.CloseWorkItem(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Do, b.Note)
+	ok(w, v, err)
+}
+
+// inbox takes several files at once (multipart form, field "files") and
+// works out what each one is.
+func (s *Server) inbox(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(maxFileBytes); err != nil {
+		writeErr(w, 400, "bad_request", "send the files as multipart/form-data in the field 'files'", nil)
+		return
+	}
+	d, okd := dateParam(w, r.URL.Query().Get("date"), "date", true)
+	if !okd {
+		return
+	}
+	var files []ops.InFile
+	for _, fh := range r.MultipartForm.File["files"] {
+		f, err := fh.Open()
+		if err != nil {
+			continue
+		}
+		b, err := io.ReadAll(io.LimitReader(f, maxFileBytes))
+		f.Close()
+		if err == nil {
+			files = append(files, ops.InFile{Name: fh.Filename, Data: b})
+		}
+	}
+	if len(files) == 0 {
+		writeErr(w, 400, "bad_request", "no files", nil)
+		return
+	}
+	v, err := s.ops.Intake(r.Context(), tenant(r), actor(r), d, files)
+	ok(w, map[string]any{"files": v}, err)
+}
+
+func (s *Server) verifyChange(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Code string `json:"code"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.VerifyChange(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Code)
 	ok(w, v, err)
 }

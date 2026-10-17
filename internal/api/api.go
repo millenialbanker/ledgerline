@@ -638,6 +638,7 @@ var scopedRoutes = map[string]bool{
 	"GET /v1/clients/{ucc}/documents": true, "POST /v1/clients/{ucc}/documents": true, "GET /v1/clients/{ucc}/documents/{id}": true,
 	"GET /v1/changes": true, "POST /v1/changes": true, "GET /v1/tickets": true, "POST /v1/tickets": true, "POST /v1/tickets/{id}": true,
 	"GET /v1/external-trades": true, "POST /v1/external-trades": true, "GET /v1/crm": true, "POST /v1/leads": true, "POST /v1/leads/{id}/act": true,
+	"GET /v1/autopilot": true, "POST /v1/work/{id}": true,
 }
 
 // clientRoutes are the routes open to a client's portal login, each
@@ -648,7 +649,7 @@ var clientRoutes = map[string]bool{
 	"POST /v1/changes": true, "GET /v1/tickets": true, "POST /v1/tickets": true, "POST /v1/tickets/{id}": true,
 	"GET /v1/external-trades": true, "POST /v1/external-trades": true, "POST /v1/external-trades/{ucc}/{id}/delete": true,
 	"GET /v1/clients/{ucc}/documents": true, "POST /v1/clients/{ucc}/documents": true, "GET /v1/clients/{ucc}/documents/{id}": true,
-	"POST /v1/portal/whatsapp": true,
+	"POST /v1/portal/whatsapp": true, "POST /v1/changes/{id}/verify": true,
 }
 
 // scope is the client filter for the request's user (nil: every client).

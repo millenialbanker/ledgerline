@@ -59,6 +59,16 @@ The console has 38 screens for staff and a separate client portal. Beyond trades
 
 Connections that need the broker's own accounts (exchange extranet, depositories, KRA/CKYC, banks, SMS/WhatsApp providers, digital signature) are built up to a pluggable point with a simulated stand-in, the way contract-note email goes to an outbox.
 
+## Autopilot
+
+Routine work runs by itself; people get only the exceptions. Each process has a policy: **Auto** (done and recorded), **Suggest** (prepared, one click to approve) or **Off**, capped where the rules need a person's judgement or signature. Stages run on business days from the scheduler (start of day, intraday, pre-close, end of day, month end), or by hand; some run the moment something happens.
+
+| Runs by itself | Prepared for one click | Stays with people |
+| --- | --- | --- |
+| File intake (type recognised from the columns, loaded in order), debit blocks, margin pledges, return of third-party credits, payouts up to a limit for clients with no risk flags, payout bank file, reconciliation breaks with no economic difference, billing (clients in a client-code dispute wait), settlement and derivatives MTM, contract notes, margin calls, square-off at the cut-off, penalties, daily reports generated and validated, NRI checks, KYC reminders, inactive flags, email/mobile changes verified by OTP, service requests for missing notes or statements, complaint assignment, day close, running account settlement, month-end interest, MTF interest, DP bills, AP payouts | Unknown credits (name match, bank confirms), large or flagged payouts, money-affecting breaks, PMLA risk the rules suggest, MTF liquidation, report uploads until a portal connection exists | Client activation and reactivation, surveillance decisions and STRs, physical DIS verification, client code modifications, bill corrections and overrides, bank/address/nomination changes, MTF enrolment, firm vouchers |
+
+Everything that cannot finish lands in one **work queue** with the role who should act, a due time, and the action ready where possible; items close themselves when the condition clears. On the sample day, 288 actions ran without anyone and 74 items went to people (80% straight-through).
+
 ## Sign-in
 
 Each person has a user ID, a password (12+ characters, PBKDF2-SHA256, 600,000 iterations) and, when the firm requires it (the default), a time-based two-factor code from an authenticator app. Sessions are HttpOnly, SameSite=Strict cookies that end after 30 minutes idle (configurable), 12 hours, sign-out, or an admin reset. Five wrong attempts lock a user for 15 minutes; sign-in attempts are also limited per address. New users get a one-time password to change at first sign-in. Every sign-in, failure and change is in the audit trail. API keys remain for integrations, with `X-Actor`.

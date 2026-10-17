@@ -51,8 +51,15 @@ func TestClientPortal(t *testing.T) {
 	if _, err := o.DecideChange(ctx, T, "priya.nair", r.ID, true, ""); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("maker approved: %v", err)
 	}
-	if _, err := o.DecideChange(ctx, T, "farhan.khan", r.ID, true, ""); err != nil {
-		t.Fatal(err)
+	if _, err := o.DecideChange(ctx, T, "farhan.khan", r.ID, true, ""); err == nil {
+		t.Fatal("approved before the client verified the code")
+	}
+	if _, err := o.VerifyChange(ctx, T, "bh1001", r.ID, "000000x"); err == nil {
+		t.Fatal("wrong code accepted")
+	}
+	// Verified by code: applied straight away (automation on by default).
+	if v, err := o.VerifyChange(ctx, T, "bh1001", r.ID, r.DevCode); err != nil || v.Status != "Approved" {
+		t.Fatalf("verify: %+v %v", v, err)
 	}
 	c, _ := o.Client(ctx, T, "BH1001")
 	if c.Email != "aarav.new@mail.example" || c.KYCUpdatedOn == "" {

@@ -131,6 +131,14 @@ func (o *Ops) OpenTicket(ctx context.Context, tenant, actor string, t Ticket, te
 	}
 	o.log(ctx, tenant, actor, "ticket.opened", t.ID, map[string]any{"ucc": t.UCC, "kind": t.Kind, "category": t.Category, "source": t.Source})
 	o.notify(ctx, tenant, actor, "ticket.opened", t.UCC, map[string]string{"id": t.ID, "subject": t.Subject, "due": t.Due})
+	if _, mode, _ := o.policy(ctx, tenant, "service"); mode == ModeAuto {
+		if _, err := o.RunStage(ctx, tenant, SystemActor, today, "", "service"); err == nil {
+			t, _, _ = docs.Get[Ticket](ctx, o.Docs, tenant, cTicket, t.ID)
+			if role == RoleClient {
+				t.Internal = nil
+			}
+		}
+	}
 	return t, nil
 }
 

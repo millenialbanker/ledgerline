@@ -623,6 +623,15 @@ func (o *Ops) Dashboard(ctx context.Context, tenant, date string) (Dashboard, er
 	}
 	if dv, err := o.Dormancy(ctx, tenant, date); err == nil {
 		d.Extra["inactive_due"] = fmt.Sprint(dv.Counts["Due"])
+		if ws, err := o.WorkItems(ctx, tenant, "Open"); err == nil {
+			over := 0
+			for _, w := range ws {
+				if w.Overdue {
+					over++
+				}
+			}
+			d.Extra["work_open"], d.Extra["work_overdue"] = fmt.Sprint(len(ws)), fmt.Sprint(over)
+		}
 		d.Extra["reactivation_pending"] = fmt.Sprint(dv.Counts["Reactivation pending"])
 	}
 	bt, _ := o.BankTxns(ctx, tenant)

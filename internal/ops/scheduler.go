@@ -47,6 +47,7 @@ var JobKinds = []JobKind{
 	{"email_report", "Email a report", "Generates a regulatory or inspection report and emails it to the recipients.", []string{"report", "to"}},
 	{"kra_upload", "KRA upload file", "Builds the KRA upload file of clients opened or changed since the last run and keeps it with the files.", nil},
 	{"inactive_scan", "Inactive account scan", "Counts accounts due to be flagged inactive and tells compliance.", nil},
+	{"autopilot", "Autopilot stage", "Runs every automation of a stage (bod, intraday, preclose, eod, monthly) under the firm's autopilot settings.", []string{"stage"}},
 	{"post_interest", "Post interest", "Posts interest (delayed payment charges) on debit balances for the previous month.", nil},
 }
 
@@ -180,6 +181,9 @@ func (o *Ops) SaveJob(ctx context.Context, tenant, actor string, j Job) (Job, er
 // Jobs lists jobs with their next run, and recent runs.
 func (o *Ops) Jobs(ctx context.Context, tenant string) ([]Job, []JobRun, error) {
 	if err := o.SeedJobs(ctx, tenant); err != nil {
+		return nil, nil, err
+	}
+	if err := o.seedAutopilotJobs(ctx, tenant); err != nil {
 		return nil, nil, err
 	}
 	js, err := docs.List[Job](ctx, o.Docs, tenant, cJob, "")
@@ -418,6 +422,23 @@ func (o *Ops) runJob(ctx context.Context, tenant string, j Job, date string) (st
 			return "", err
 		}
 		return fmt.Sprintf("%d accounts due to be flagged inactive, %d approaching, %d reactivations pending", v.Counts["Due"], v.Counts["Approaching"], v.Counts["Reactivation pending"]), nil
+	case "autopilot":
+		runs, err := o.RunStage(ctx, tenant, a, date, j.Params["stage"], "")
+		if err != nil {
+			return "", err
+		}
+		done, queued, failed := 0, 0, 0
+		for _, r := range runs {
+			done, queued = done+r.Done, queued+r.Queued
+			if r.Error != "" {
+				failed++
+			}
+		}
+		s := fmt.Sprintf("%d automations: %d done, %d queued for people", len(runs), done, queued)
+		if failed > 0 {
+			return s, fmt.Errorf("%s; %d automations failed", s, failed)
+		}
+		return s, nil
 	case "post_interest":
 		to := addDays(date[:8]+"01", -1)
 		iv, n, err := o.PostInterest(ctx, tenant, a, to[:8]+"01", to)
@@ -472,4 +493,49 @@ func csvBytesOf(rows [][]string) []byte {
 func sha256Hex(b []byte) string {
 	s := sha256.Sum256(b)
 	return hex.EncodeToString(s[:])
+}
+
+// seedAutopilotJobs adds the autopilot schedule, switched off, so the firm
+// turns it on when it is ready.
+func (o *Ops) seedAutopilotJobs(ctx context.Context, tenant string) error {
+	for _, j := range []Job{
+		{ID: "JOB-AP-BOD", Name: "Autopilot: start of day", Kind: "autopilot", At: "08:15", When: "business", Params: map[string]string{"stage": "bod"}},
+		{ID: "JOB-AP-MID", Name: "Autopilot: intraday", Kind: "autopilot", At: "12:30", When: "business", Params: map[string]string{"stage": "intraday"}},
+		{ID: "JOB-AP-PRE", Name: "Autopilot: pre-close", Kind: "autopilot", At: "15:00", When: "business", Params: map[string]string{"stage": "preclose"}},
+		{ID: "JOB-AP-EOD", Name: "Autopilot: end of day", Kind: "autopilot", At: "19:00", When: "business", Params: map[string]string{"stage": "eod"}, OnlyFailure: true},
+		{ID: "JOB-AP-MON", Name: "Autopilot: month end", Kind: "autopilot", At: "07:30", When: "daily", Params: map[string]string{"stage": "monthly"}, OnlyFailure: true},
+	} {
+		if _, _, err := docs.Get[Job](ctx, o.Docs, tenant, cJob, j.ID); err == nil {
+			continue
+		}
+		if err := docs.Upsert(ctx, o.Docs, tenant, cJob, j.ID, j, "system"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SetAutopilotSchedule switches the autopilot jobs on or off together.
+func (o *Ops) SetAutopilotSchedule(ctx context.Context, tenant, actor string, on bool) (int, error) {
+	if err := o.require(ctx, tenant, actor, "Switching the autopilot schedule", RoleAdmin); err != nil {
+		return 0, err
+	}
+	if err := o.seedAutopilotJobs(ctx, tenant); err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, id := range []string{"JOB-AP-BOD", "JOB-AP-MID", "JOB-AP-PRE", "JOB-AP-EOD", "JOB-AP-MON"} {
+		if _, err := docs.Update(ctx, o.Docs, tenant, cJob, id, actor, func(j *Job) error { j.Active = on; return nil }); err != nil {
+			return n, err
+		}
+		n++
+	}
+	o.log(ctx, tenant, actor, "autopilot.schedule", "", map[string]any{"on": on})
+	return n, nil
+}
+
+// AutopilotScheduled reports whether the autopilot jobs are on.
+func (o *Ops) AutopilotScheduled(ctx context.Context, tenant string) bool {
+	j, _, err := docs.Get[Job](ctx, o.Docs, tenant, cJob, "JOB-AP-EOD")
+	return err == nil && j.Active
 }
