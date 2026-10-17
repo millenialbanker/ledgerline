@@ -233,6 +233,13 @@ func (a *App) RunBilling(ctx context.Context, tenant, actor, date string, prices
 // posted under a new revision key, and bills for groups that no longer have
 // trades are reversed.
 func (a *App) RunBillingOpts(ctx context.Context, tenant, actor, date string, prices map[string]money.Dec, rebill bool) (BillingResult, error) {
+	return a.RunBillingFor(ctx, tenant, actor, date, prices, rebill, "", "")
+}
+
+// RunBillingFor bills a date, optionally for one client only (ucc), with a
+// reason recorded on any reversal. Rebilling one client leaves every other
+// client's bills untouched.
+func (a *App) RunBillingFor(ctx context.Context, tenant, actor, date string, prices map[string]money.Dec, rebill bool, ucc, reason string) (BillingResult, error) {
 	if err := need(actor); err != nil {
 		return BillingResult{}, err
 	}
@@ -247,19 +254,47 @@ func (a *App) RunBillingOpts(ctx context.Context, tenant, actor, date string, pr
 	if err != nil {
 		return BillingResult{}, err
 	}
+	mine := func(srcID string) bool { // source ID is date/ucc/EXCH-SEG
+		if ucc == "" {
+			return true
+		}
+		p := strings.Split(srcID, "/")
+		return len(p) == 3 && p[1] == ucc
+	}
+	if ucc != "" {
+		var es []ledger.Entry
+		for _, e := range out.Entries {
+			if mine(e.Source.ID) {
+				es = append(es, e)
+			}
+		}
+		var gs []billing.Group
+		for _, g := range out.Groups {
+			if g.UCC == ucc {
+				gs = append(gs, g)
+			}
+		}
+		out.Entries, out.Groups = es, gs
+	}
+	why := func(base string) string {
+		if reason != "" {
+			return "rebill: " + reason
+		}
+		return base
+	}
 	res := BillingResult{Date: date, Posted: []string{}, Existing: []string{}, Conflicts: []string{}, Reversed: []string{}, Warnings: []string{}, Groups: out.Groups}
 	if a.Schedule.Sample {
 		res.Warnings = append(res.Warnings, "Billed with the SAMPLE charge schedule "+a.Schedule.Version+"; load real rates before go-live.")
 	}
 	open, _ := a.Breaks.List(ctx, tenant, date, BreakOpen)
-	ucc := 0
+	nUCC := 0
 	for _, b := range open {
 		if b.Type == recon.UCCMismatch || b.Type == recon.MissingInOMS {
-			ucc++
+			nUCC++
 		}
 	}
-	if ucc > 0 {
-		res.Warnings = append(res.Warnings, fmt.Sprintf("%d open UCC or missing-in-OMS break(s) for %s; a later client code modification will need a rebill.", ucc, date))
+	if nUCC > 0 {
+		res.Warnings = append(res.Warnings, fmt.Sprintf("%d open UCC or missing-in-OMS break(s) for %s; a later client code modification will need a rebill.", nUCC, date))
 	}
 
 	// Current bills for the date: latest unreversed entry per bill source.
@@ -276,7 +311,7 @@ func (a *App) RunBillingOpts(ctx context.Context, tenant, actor, date string, pr
 	latest := map[string]ledger.Entry{}
 	revisions := map[string]int{}
 	for _, e := range existing {
-		if e.Source.Kind != "BILL" {
+		if e.Source.Kind != "BILL" || !mine(e.Source.ID) {
 			continue
 		}
 		revisions[e.Source.ID]++
@@ -308,7 +343,7 @@ func (a *App) RunBillingOpts(ctx context.Context, tenant, actor, date string, pr
 				res.Conflicts = append(res.Conflicts, cur.Key)
 				continue
 			}
-			if err := reverse(cur, "rebill: trades changed after billing"); err != nil {
+			if err := reverse(cur, why("rebill: trades changed after billing")); err != nil {
 				return res, err
 			}
 		}
@@ -333,12 +368,12 @@ func (a *App) RunBillingOpts(ctx context.Context, tenant, actor, date string, pr
 			res.Conflicts = append(res.Conflicts, cur.Key)
 			continue
 		}
-		if err := reverse(cur, "rebill: no trades remain for this client segment"); err != nil {
+		if err := reverse(cur, why("rebill: no trades remain for this client segment")); err != nil {
 			return res, err
 		}
 	}
 	sort.Strings(res.Conflicts)
-	a.log(ctx, tenant, actor, "billing.run", date, map[string]any{"posted": len(res.Posted), "existing": len(res.Existing), "conflicts": len(res.Conflicts), "reversed": len(res.Reversed), "rebill": rebill, "schedule": a.Schedule.Version})
+	a.log(ctx, tenant, actor, "billing.run", date, map[string]any{"posted": len(res.Posted), "existing": len(res.Existing), "conflicts": len(res.Conflicts), "reversed": len(res.Reversed), "rebill": rebill, "schedule": a.Schedule.Version, "client": ucc, "reason": reason})
 	return res, nil
 }
 

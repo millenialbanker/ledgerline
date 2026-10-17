@@ -377,7 +377,7 @@ function breakModal(id) {
 
 /* ---------- billing ---------- */
 V.billing = {
-  load: async () => { const [journal, ex, market] = await Promise.all([get(`/v1/journal?date=${S.date}`), get(`/v1/trades?date=${S.date}&origin=EXCHANGE`), get(`/v1/market?date=${S.date}`).catch(() => null)]); return { journal, ex, market }; },
+  load: async () => { const [journal, ex, market] = await Promise.all([get(`/v1/journal?date=${S.date}`), get(`/v1/trades?date=${S.date}&origin=EXCHANGE`), get(`/v1/market?date=${S.date}`).catch(() => null)]); C.billData = { journal }; return { journal, ex, market }; },
   html: d => {
     const rev = new Set(d.journal.filter(e => e.reversal_of).map(e => e.reversal_of));
     const bills = d.journal.filter(e => e.source.kind === 'BILL' && !rev.has(e.id));
@@ -392,15 +392,52 @@ V.billing = {
     (C.billResult ? billNote(C.billResult) : '') +
     `<div class="kpis">${kpi('Exchange trades', nf(d.ex.length), futs + ' futures trades')}${kpi('Bills in force', bills.length, reversed ? reversed + ' reversed by rebills' : 'client segments', bills.length ? 'good' : 'warn')}${kpi('Brokerage', inr(charges.brok, 2), 'income')}${kpi('STT / CTT', inr(charges.stt, 2), 'payable')}${kpi('Exchange charges', inr(charges.txn, 2), 'payable')}${kpi('GST + stamp', inr(charges.gst + charges.stamp, 2), 'payable')}</div>
     ${d.market ? '' : '<div class="note warn">Market data is not loaded for this date, so futures cannot be marked to market. Upload MARKET-DATA first.</div>'}
-    <div class="panel"><div class="hd"><h3>Bills</h3><small>Negative = client owes the broker</small></div>${tbl([['UCC'], ['Segment'], ['Trades', 'r'], ['Trade value / MTM', 'r'], ['Brokerage', 'r'], ['STT', 'r'], ['Exch txn', 'r'], ['Stamp', 'r'], ['GST', 'r'], ['Net to client', 'r'], ['Entry']],
-      rows.map(r => `<tr><td class="n"><button class="linkish" data-act="client" data-id="${r.ucc}">${r.ucc}</button></td><td>${esc(r.seg)}</td><td class="r">${r.trades}</td><td class="r ${sgn(r.tv)}">${nf(r.tv, 2)}</td><td class="r">${nf(r.c.brok, 2)}</td><td class="r">${nf(r.c.stt, 2)}</td><td class="r">${nf(r.c.txn, 2)}</td><td class="r">${nf(r.c.stamp, 2)}</td><td class="r">${nf(r.c.gst, 2)}</td><td class="r ${sgn(r.tv - r.ch)}">${nf(r.tv - r.ch, 2)}</td><td class="n dim">${esc(r.e.id)}${r.e.key.includes('#r') ? ' ' + pill('revised', 'acc') : ''}</td></tr>`),
-      { tall: true, empty: 'No bills posted for this date yet.', foot: rows.length ? `<tfoot><tr><td colspan="3">Total</td><td class="r">${nf(sum(rows, r => r.tv), 2)}</td><td class="r">${nf(charges.brok, 2)}</td><td class="r">${nf(charges.stt, 2)}</td><td class="r">${nf(charges.txn, 2)}</td><td class="r">${nf(charges.stamp, 2)}</td><td class="r">${nf(charges.gst, 2)}</td><td class="r">${nf(sum(rows, r => r.tv - r.ch), 2)}</td><td></td></tr></tfoot>` : '' })}</div>`;
+    <div class="panel"><div class="hd"><h3>Bills</h3><div class="split"><small>Negative = client owes the broker</small>${canRebill && rows.length ? '<button class="btn sm" data-act="correctBill">Correct a client’s bill</button>' : ''}</div></div>${tbl([['UCC'], ['Segment'], ['Trades', 'r'], ['Trade value / MTM', 'r'], ['Brokerage', 'r'], ['STT', 'r'], ['Exch txn', 'r'], ['Stamp', 'r'], ['GST', 'r'], ['Net to client', 'r'], ['Entry'], ['']],
+      rows.map(r => `<tr><td class="n"><button class="linkish" data-act="client" data-id="${r.ucc}">${r.ucc}</button></td><td>${esc(r.seg)}</td><td class="r">${r.trades}</td><td class="r ${sgn(r.tv)}">${nf(r.tv, 2)}</td><td class="r">${nf(r.c.brok, 2)}</td><td class="r">${nf(r.c.stt, 2)}</td><td class="r">${nf(r.c.txn, 2)}</td><td class="r">${nf(r.c.stamp, 2)}</td><td class="r">${nf(r.c.gst, 2)}</td><td class="r ${sgn(r.tv - r.ch)}">${nf(r.tv - r.ch, 2)}</td><td class="n dim" title="${esc(r.e.id)}">${esc(r.e.id.replace(/^JE-0+/, 'JE-'))}${r.e.key.includes('#r') ? ' ' + pill('revised', 'acc') : ''}</td><td>${canRebill ? `<button class="btn sm" data-act="correctBill" data-id="${r.ucc}">Correct</button>` : ''}</td></tr>`),
+      { tall: true, empty: 'No bills posted for this date yet.', foot: rows.length ? `<tfoot><tr><td colspan="3">Total</td><td class="r">${nf(sum(rows, r => r.tv), 2)}</td><td class="r">${nf(charges.brok, 2)}</td><td class="r">${nf(charges.stt, 2)}</td><td class="r">${nf(charges.txn, 2)}</td><td class="r">${nf(charges.stamp, 2)}</td><td class="r">${nf(charges.gst, 2)}</td><td class="r">${nf(sum(rows, r => r.tv - r.ch), 2)}</td><td></td><td></td></tr></tfoot>` : '' })}</div>`;
   }
 };
 function billNote(r) {
   if (r.error) return errHTML(r.error);
   const dv = r.derivatives;
   return `<div class="note ${r.conflicts.length ? 'warn' : ''}"><b>${r.posted.length} bill${r.posted.length === 1 ? '' : 's'} posted, ${r.existing.length} unchanged${r.reversed.length ? `, ${r.reversed.length} reversed` : ''}${r.conflicts.length ? `, ${r.conflicts.length} changed since billing (use Rebill)` : ''}.</b>${dv ? ` Carried futures marked to market: ${dv.mtm.length} new${dv.existing ? `, ${dv.existing} already posted` : ''}${dv.expiry.length ? `; option exercise and assignment: ${dv.expiry.length}` : ''}.` : ''}${r.warnings.length ? `<ul style="margin:6px 0 0;padding-left:18px">${r.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}</div>`;
+}
+
+async function correctModal(ucc) {
+  await clientCache();
+  const plans = (await get(`/v1/brokerage?date=${S.date}`).catch(() => ({ plans: [] }))).plans;
+  let kind = 'plan';
+  const billSummary = u => { const rows = (C.billData?.journal || []).filter(e => e.source.kind === 'BILL' && e.source.id.split('/')[1] === u && !(C.billData.journal.some(x => x.reversal_of === e.id)));
+    if (!u) return ''; if (!rows.length) return '<div class="note warn">No bill for this client on this date.</div>';
+    const brok = sum(rows, e => sum(e.postings.filter(p => p.account === 'INCOME:BROKERAGE'), p => num(p.credit))), net = sum(rows, e => sum(e.postings.filter(p => p.account.startsWith('CLIENT:')), p => num(p.credit) - num(p.debit)));
+    return `<div class="kv"><div><small>Bills now</small><b>${rows.length} segment${rows.length > 1 ? 's' : ''}</b></div><div><small>Brokerage now</small><b class="mono">${inr(brok, 2)}</b></div><div><small>Net to client now</small><b class="mono ${sgn(net)}">${inr(net, 2)}</b></div></div>`; };
+  const planInfo = async u => { if (!u) return ''; try { const p = await get(`/v1/brokerage/client/${encodeURIComponent(u)}?date=${S.date}`); return `<span class="dim small">On <b>${esc(p.plan.plan_name)}</b> (${esc(p.plan.source)})</span>`; } catch (e) { return ''; } };
+  modal(mhd('Correct a bill · ' + fmtDate(S.date), 'Reverses the client’s bill for this date, posts the corrected one, and issues a revised contract note that replaces the one already sent. Other clients are not touched.') + `<form class="bd" id="cbf">
+    <div class="fld"><label for="cb-u-q">Client</label>${cpick('cb-u', ucc || '', { on: async v => { $('cb-sum').innerHTML = billSummary(v); $('cb-plan-now').innerHTML = await planInfo(v); } })}<div id="cb-plan-now">${await planInfo(ucc)}</div></div>
+    <div id="cb-sum">${billSummary(ucc)}</div>
+    <div class="fld"><label>What is being corrected?</label><div class="seg" id="cb-kind"><button type="button" class="on" data-k="plan">Brokerage rate</button><button type="button" data-k="trades">Trades already corrected</button></div></div>
+    <div class="form cb-plan"><div class="fld"><label for="cb-plan">Charge brokerage under</label><select class="in" id="cb-plan">${plans.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></div>
+      <div class="fld"><label for="cb-scope">For</label><select class="in" id="cb-scope"><option value="day">This trade date only</option><option value="onward">This date onwards</option></select></div>
+      <p class="dim small full" style="margin:0">Need a different rate? Create a plan on the Brokerage plans page first (for a waiver, a plan with “Free”).</p></div>
+    <div class="note cb-trades" hidden>Use this after a client code modification, a corrected trade file, or a change in settlement prices: the bill is recomputed from the trades as they stand now.</div>
+    <div class="fld"><label for="cb-reason">Reason (printed on the revised contract note)</label><input class="in" id="cb-reason" placeholder="e.g. Brokerage charged at the wrong rate; corrected to the agreed plan" required></div>
+    <label class="check"><input type="checkbox" id="cb-send" checked> Send the revised contract note to the client now</label>
+    <div id="cb-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Rebill and revise note</button></div></form>`);
+  if (ucc) setTimeout(() => { $('cb-reason').focus(); cpClose('cb-u'); }, 30);
+  $('cb-kind').onclick = e => { const b = e.target.closest('button'); if (!b) return; kind = b.dataset.k; $('cb-kind').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); document.querySelector('.cb-plan').hidden = kind !== 'plan'; document.querySelector('.cb-trades').hidden = kind !== 'trades'; };
+  $('cbf').onsubmit = async e => {
+    e.preventDefault(); const u = $('cb-u').value;
+    if (!u) { $('cb-err').innerHTML = errHTML({ message: 'Choose the client' }); return; }
+    $('cbf').querySelector('button[type=submit]').disabled = true;
+    try {
+      const r = await post('/v1/billing/correct', { date: S.date, ucc: u, reason: $('cb-reason').value, plan: kind === 'plan' ? $('cb-plan').value : '', scope: $('cb-scope').value, send: $('cb-send').checked });
+      const g = r.billing.groups || [], brok = sum(g, x => num(x.charges.brokerage)), net = sum(g, x => num(x.net));
+      modal(mhd('Bill corrected · ' + esc(u), fmtDate(S.date)) + `<div class="bd"><div class="kv"><div><small>Old bills reversed</small><b>${r.billing.reversed.length}</b></div><div><small>New bills posted</small><b>${r.billing.posted.length}</b></div><div><small>Brokerage now</small><b class="mono">${inr(brok, 2)}</b></div><div><small>Net to client now</small><b class="mono ${sgn(net)}">${inr(net, 2)}</b></div></div>
+        ${r.note ? `<div class="note ${r.sent === 'Bounced' ? 'warn' : ''}">Revised contract note <b>${esc(r.note.no)}</b> replaces ${esc(r.note.replaces)}. ${r.sent === 'Sent' ? 'Sent to ' + esc(r.note.email) + '.' : r.sent === 'Bounced' ? 'The email bounced; fix the address and resend from Contract notes.' : 'Not sent yet: send it from Contract notes.'}</div>` : '<div class="note">No contract note had been generated for this client yet; generate notes as usual.</div>'}</div>
+        <div class="ft">${r.note ? `<button class="btn" data-act="noteDoc" data-id="${esc(u)}">Open revised note</button>` : ''}<button class="btn pri" data-act="close">Done</button></div>`);
+      render({ keep: true });
+    } catch (err) { $('cb-err').innerHTML = errHTML(err); $('cbf').querySelector('button[type=submit]').disabled = false; }
+  };
 }
 
 /* ---------- settlement ---------- */
@@ -436,7 +473,7 @@ V.notes = {
     <div class="panel"><div class="hd">${segBtns('noteF', ['All', 'Sent', 'Generated', 'Bounced'], 'notes-t')}<small>${d.length ? '' : 'Run billing, then generate'}</small></div><div id="notes-t">${P['notes-t'](d)}</div></div>`;
   }
 };
-P['notes-t'] = d => tbl([['Contract note'], ['UCC'], ['Client'], ['Email'], ['Trades', 'r'], ['Net (₹)', 'r'], ['Status'], ['Sent'], ['']], d.filter(n => UI.noteF === 'All' || n.status === UI.noteF).map(n => `<tr><td class="n">${esc(n.no)}</td><td class="n">${n.ucc}</td><td>${esc(n.name)}</td><td class="dim">${esc(n.email)}</td><td class="r">${n.trades}</td><td class="r ${sgn(n.net)}">${inr(n.net, 2)}</td><td>${pill(n.status, n.status === 'Sent' ? 'good' : n.status === 'Bounced' ? 'bad' : 'warn')}</td><td class="n dim">${esc(n.sent_at || '—')}</td><td><button class="btn sm" data-act="noteDoc" data-id="${n.ucc}">Open</button>${n.status !== 'Sent' && has('Ops maker', 'Ops checker') ? `<button class="btn sm" data-act="sendNote" data-id="${n.ucc}">${n.status === 'Bounced' ? 'Re-send' : 'Send'}</button>` : ''}</td></tr>`), { tall: true, empty: 'No contract notes for this date.' });
+P['notes-t'] = d => tbl([['Contract note'], ['UCC'], ['Client'], ['Email'], ['Trades', 'r'], ['Net (₹)', 'r'], ['Status'], ['Sent'], ['']], d.filter(n => UI.noteF === 'All' || n.status === UI.noteF).map(n => `<tr><td class="n">${esc(n.no)}${n.revision ? ` <span title="Revision ${n.revision}: replaces ${esc(n.replaces)}">${pill('Revised', 'acc')}</span>` : ''}</td><td class="n">${n.ucc}</td><td>${esc(n.name)}</td><td class="dim">${esc(n.email)}</td><td class="r">${n.trades}</td><td class="r ${sgn(n.net)}">${inr(n.net, 2)}</td><td>${pill(n.status, n.status === 'Sent' ? 'good' : n.status === 'Bounced' ? 'bad' : 'warn')}</td><td class="n dim">${esc(n.sent_at || '—')}</td><td><button class="btn sm" data-act="noteDoc" data-id="${n.ucc}">Open</button>${has('Ops maker', 'Ops checker') ? `<button class="btn sm" data-act="sendNote" data-id="${n.ucc}">${n.status === 'Generated' ? 'Send' : 'Resend'}</button>` : ''}</td></tr>`), { tall: true, empty: 'No contract notes for this date.' });
 
 /* ---------- clients ---------- */
 const STAGES = ['Application', 'KYC verification', 'In-person verification', 'UCC upload', 'Active'];
@@ -971,6 +1008,7 @@ async function act(fn, okMsg, reload = true) {
   catch (e) { toast(e.message); throw e; }
 }
 const A = {
+  correctBill: u => correctModal(u || ''),
   inSelOne: (u, el) => { el.checked ? UI.inSel.add(u) : UI.inSel.delete(u); rerenderPart('in-t'); },
   inSelAll: (id, el) => { document.querySelectorAll('[data-act=inSelOne]').forEach(x => el.checked ? UI.inSel.add(x.dataset.id) : UI.inSel.delete(x.dataset.id)); rerenderPart('in-t'); },
   flagInactive: () => { const u = [...UI.inSel]; if (!u.length) { toast('Select the accounts to flag'); return; }

@@ -3,11 +3,13 @@ package ops
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"html/template"
 	"sort"
 	"strings"
 
+	"ledgerline/internal/app"
 	"ledgerline/internal/billing"
 	"ledgerline/internal/charges"
 	"ledgerline/internal/docs"
@@ -28,6 +30,9 @@ type ContractNote struct {
 	SentAt    string    `json:"sent_at,omitempty"`
 	Attempts  int       `json:"attempts"`
 	Generated string    `json:"generated_by"`
+	Revision  int       `json:"revision,omitempty"` // 0 for the original note
+	Replaces  string    `json:"replaces,omitempty"` // number of the note this one replaces
+	Reason    string    `json:"reason,omitempty"`   // why it was revised
 }
 
 // OutboxItem is a message handed to the mail relay.
@@ -147,7 +152,9 @@ func (o *Ops) SendNotes(ctx context.Context, tenant, actor, date, ucc string) (s
 	}
 	at := o.now().Format("15:04")
 	for _, n := range ns {
-		if (ucc != "" && n.UCC != ucc) || n.Status == "Sent" {
+		// A named client is sent their note even if it went before (a resend);
+		// a bulk send skips notes already delivered.
+		if (ucc != "" && n.UCC != ucc) || (ucc == "" && n.Status == "Sent") {
 			continue
 		}
 		email := clients[n.UCC].Email
@@ -159,9 +166,10 @@ func (o *Ops) SendNotes(ctx context.Context, tenant, actor, date, ucc string) (s
 		if err != nil {
 			return sent, bounced, err
 		}
-		_ = docs.Upsert(ctx, o.Docs, tenant, cOutbox, fmt.Sprintf("%08d", id), OutboxItem{ID: fmt.Sprintf("%08d", id), To: email, Subject: "Contract note " + n.No, Ref: n.No, At: at, Result: result}, actor)
+		_ = docs.Upsert(ctx, o.Docs, tenant, cOutbox, fmt.Sprintf("%08d", id), OutboxItem{ID: fmt.Sprintf("%08d", id), To: email, Subject: noteSubject(n), Ref: n.No, At: at, Result: result}, actor)
 		_, err = docs.Update(ctx, o.Docs, tenant, cNote, date+"|"+n.UCC, actor, func(x *ContractNote) error {
 			x.Status, x.Email = result, email
+			x.SentAt = ""
 			x.Attempts++
 			if result == "Sent" {
 				x.SentAt = at
@@ -196,6 +204,7 @@ td.n{font-family:ui-monospace,Menlo,monospace}tfoot td{font-weight:700;border-to
 .note{margin-top:20px;font-size:11px;color:#525D57}.sample{background:#FAEFD6;padding:8px 10px;border-radius:6px;margin-bottom:14px}
 @media print{body{margin:12mm}.noprint{display:none}}
 </style></head><body>
+{{if .Note.Revision}}<div class="sample" style="background:#F6DEDB"><b>REVISED CONTRACT NOTE</b> (revision {{.Note.Revision}}). It replaces contract note {{.Note.Replaces}} for this trade date, which stands cancelled. Reason: {{.Note.Reason}}</div>{{end}}
 {{if .Sample}}<div class="sample">Charges use the sample rate schedule {{.Schedule}}. Not valid for real clients.</div>{{end}}
 <div class="meta"><div><h1>{{.Firm}}</h1><span>SEBI registration {{.SEBIReg}}</span><span>{{.Members}}</span><span>Compliance officer: {{.Compliance}}</span></div>
 <div class="r"><b>CONTRACT NOTE {{.Note.No}}</b><span>Trade date {{.Note.Date}}</span><span>Settlement {{.PayIn}}</span></div></div>
@@ -292,4 +301,131 @@ func formatINR(d money.Dec) string {
 		return "-" + whole + "." + frac
 	}
 	return whole + "." + frac
+}
+
+func noteSubject(n ContractNote) string {
+	if n.Revision > 0 {
+		return "Revised contract note " + n.No + " (replaces " + n.Replaces + ")"
+	}
+	return "Contract note " + n.No
+}
+
+// ReviseNote issues a revised contract note after a client's bill changed:
+// a new number for the same trade date, marked as replacing the earlier
+// note, ready to send. The earlier note's record stays in the history.
+func (o *Ops) ReviseNote(ctx context.Context, tenant, actor, date, ucc, reason string) (ContractNote, bool, error) {
+	cur, _, err := docs.Get[ContractNote](ctx, o.Docs, tenant, cNote, date+"|"+ucc)
+	if errors.Is(err, docs.ErrNotFound) {
+		return ContractNote{}, false, nil
+	}
+	if err != nil {
+		return cur, false, err
+	}
+	_, out, err := o.noteData(ctx, tenant, date, ucc)
+	if err != nil {
+		return cur, false, err
+	}
+	net := money.Dec{}
+	for _, g := range out.Groups {
+		net = net.Add(g.Net.Dec())
+	}
+	seq, err := o.next(ctx, tenant, "cnote:"+fyLabel(date), actor)
+	if err != nil {
+		return cur, false, err
+	}
+	n, err := docs.Update(ctx, o.Docs, tenant, cNote, date+"|"+ucc, actor, func(x *ContractNote) error {
+		x.Replaces, x.Revision, x.Reason = x.No, x.Revision+1, reason
+		x.No = fmt.Sprintf("CN/%s/%06d", fyLabel(date), seq)
+		x.Net, x.Status, x.SentAt, x.Attempts, x.Generated = net, "Generated", "", 0, actor
+		return nil
+	})
+	if err != nil {
+		return n, false, err
+	}
+	o.log(ctx, tenant, actor, "notes.revised", ucc, map[string]any{"date": date, "no": n.No, "replaces": n.Replaces, "reason": reason})
+	return n, true, nil
+}
+
+// BillCorrection is the outcome of correcting one client's bill.
+type BillCorrection struct {
+	Billing app.BillingResult `json:"billing"`
+	Note    *ContractNote     `json:"note,omitempty"`
+	Sent    string            `json:"sent,omitempty"` // Sent or Bounced when sent straight away
+	Plan    string            `json:"plan,omitempty"`
+}
+
+// CorrectBill rebills one client for one date after a correction (a
+// brokerage plan change for the client, or corrected trades), reverses the
+// old bill, posts the new one, revises the contract note and optionally
+// sends it. Needs an Ops checker; the reason is kept on the reversal, the
+// revised note and in the audit trail.
+func (o *Ops) CorrectBill(ctx context.Context, tenant, actor, date, ucc, reason, planID, scope string, send bool) (BillCorrection, error) {
+	var res BillCorrection
+	if err := o.require(ctx, tenant, actor, "Correcting a bill", RoleChecker); err != nil {
+		return res, err
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return res, invalid("give the reason for the correction; it is printed on the revised contract note")
+	}
+	ucc = strings.ToUpper(strings.TrimSpace(ucc))
+	if _, err := o.Client(ctx, tenant, ucc); err != nil {
+		return res, err
+	}
+	if planID != "" {
+		// The plan in force for this client before the change, to restore
+		// after a one-day change.
+		prev := ""
+		if as, err := o.Assignments(ctx, tenant); err == nil {
+			for _, a := range as {
+				if a.Target == "ucc:"+ucc && a.From <= date {
+					prev = a.PlanID
+				}
+			}
+		}
+		if _, err := o.Assign(ctx, tenant, actor, "ucc:"+ucc, planID, date); err != nil {
+			return res, err
+		}
+		if scope == "day" {
+			set, _ := o.Settings(ctx, tenant)
+			if _, err := o.Assign(ctx, tenant, actor, "ucc:"+ucc, prev, set.NextBusinessDay(date)); err != nil {
+				return res, err
+			}
+		}
+		res.Plan = planID
+	}
+	m, _, err := o.Market(ctx, tenant, date)
+	if err != nil && !errors.Is(err, ErrNoMarketData) {
+		return res, err
+	}
+	b, err := o.App.RunBillingFor(ctx, tenant, actor, date, m.SettlementPrices(), true, ucc, reason)
+	res.Billing = b
+	if err != nil {
+		return res, err
+	}
+	if len(b.Posted) == 0 && len(b.Reversed) == 0 {
+		return res, invalid("the bill for %s on %s did not change; correct the cause first (brokerage plan, trades or client code), then rebill", ucc, fmtDay(date))
+	}
+	n, revised, err := o.ReviseNote(ctx, tenant, actor, date, ucc, reason)
+	if err != nil {
+		return res, err
+	}
+	if revised {
+		res.Note = &n
+		if send {
+			s, _, err := o.SendNotes(ctx, tenant, actor, date, ucc)
+			if err != nil {
+				return res, err
+			}
+			res.Sent = "Bounced"
+			if s > 0 {
+				res.Sent = "Sent"
+			}
+			if cur, _, err := docs.Get[ContractNote](ctx, o.Docs, tenant, cNote, date+"|"+ucc); err == nil {
+				res.Note = &cur
+			}
+		}
+	}
+	o.log(ctx, tenant, actor, "bill.corrected", ucc, map[string]any{"date": date, "reason": reason, "plan": planID, "scope": scope, "posted": len(b.Posted), "reversed": len(b.Reversed)})
+	return res, nil
 }

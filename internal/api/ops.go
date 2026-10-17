@@ -77,6 +77,7 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/reports/{code}/download", s.reportDownload, false)
 	R("GET /v1/client-reports", s.clientReportDefs, false)
 	R("GET /v1/client-reports/{kind}", s.clientReport, false)
+	R("POST /v1/billing/correct", s.correctBill, true)
 	R("GET /v1/inactive", s.inactive, false)
 	R("POST /v1/inactive/flag", s.flagInactive, true)
 	R("POST /v1/inactive/reactivations", s.requestReactivation, true)
@@ -919,4 +920,23 @@ func (s *Server) updateContact(w http.ResponseWriter, r *http.Request) {
 	}
 	c, err := s.ops.UpdateContact(r.Context(), tenant(r), actor(r), b.Date, r.PathValue("ucc"), b.Email, b.Mobile, b.City, b.KRAStatus)
 	ok(w, c, err)
+}
+
+func (s *Server) correctBill(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date   string `json:"date"`
+		UCC    string `json:"ucc"`
+		Reason string `json:"reason"`
+		Plan   string `json:"plan"`
+		Scope  string `json:"scope"` // day or onward
+		Send   bool   `json:"send"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if _, okd := dateParam(w, b.Date, "date", true); !okd {
+		return
+	}
+	v, err := s.ops.CorrectBill(r.Context(), tenant(r), actor(r), b.Date, b.UCC, b.Reason, b.Plan, b.Scope, b.Send)
+	ok(w, v, err)
 }
