@@ -91,7 +91,9 @@ func (o *Ops) equityBook(ctx context.Context, tenant, ucc, to string) (open []Lo
 	if asOf == "" || asOf >= to {
 		return open, nil, asOf, nil
 	}
+	cas, _ := docs.List[CorpAction](ctx, o.Docs, tenant, cCorpAction, "")
 	for d := addDays(asOf, 1); d <= to; d = addDays(d, 1) {
+		open = applyCorpLots(open, cas, d)
 		ts, err := o.exchangeTrades(ctx, tenant, d)
 		if err != nil {
 			return nil, nil, "", err

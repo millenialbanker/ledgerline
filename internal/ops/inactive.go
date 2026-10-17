@@ -149,6 +149,14 @@ func (o *Ops) lastActivity(ctx context.Context, tenant, date string, cs map[stri
 			see(m.UCC, m.Date, "Mutual fund "+strings.ToLower(m.Type))
 		}
 	}
+	bbs, _ := o.BuyBacks(ctx, tenant)
+	for _, b := range bbs {
+		for _, x := range b.Bids {
+			if x.Status != "Cancelled" {
+				see(x.UCC, x.Date, "Buy-back tender")
+			}
+		}
+	}
 	return out, nil
 }
 

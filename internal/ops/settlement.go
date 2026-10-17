@@ -251,6 +251,9 @@ func (o *Ops) SettleAction(ctx context.Context, tenant, actor, date, key, action
 				return *ob, err
 			}
 		}
+		if _, err := o.recordShortage(ctx, tenant, actor, date, st, *ob, -ob.NetQty-max(ob.Free, 0)); err != nil {
+			return *ob, err
+		}
 		status = "Short reported"
 	case "cuspa":
 		n, err := o.next(ctx, tenant, "cuspa", actor)

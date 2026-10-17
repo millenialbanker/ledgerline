@@ -94,6 +94,17 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/payouts/batches", s.payoutBatch, true)
 	R("GET /v1/payouts/batches/{id}/file", s.payoutFile, false)
 	R("POST /v1/payouts/batches/{id}/confirm", s.confirmPayouts, true)
+	R("GET /v1/corporate-actions", s.corpActions, false)
+	R("POST /v1/corporate-actions", s.saveCorpAction, true)
+	R("POST /v1/corporate-actions/{id}/apply", s.applyCorpAction, true)
+	R("POST /v1/corporate-actions/{id}/dividend", s.receiveDividend, true)
+	R("GET /v1/buybacks", s.buybacks, false)
+	R("POST /v1/buybacks", s.saveBuyBack, true)
+	R("POST /v1/buybacks/{id}/tender", s.tenderBuyBack, true)
+	R("GET /v1/buybacks/{id}/file", s.buybackFile, false)
+	R("POST /v1/buybacks/{id}/settle", s.settleBuyBack, true)
+	R("GET /v1/shortages", s.shortages, false)
+	R("POST /v1/shortages/{id}/settle", s.settleShortage, true)
 	R("GET /v1/debits", s.debits, false)
 	R("POST /v1/debits/block", s.debitBlock, true)
 	R("GET /v1/debits/block-file", s.debitBlockFile, false)
@@ -1228,5 +1239,115 @@ func (s *Server) confirmPayouts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.ConfirmPayouts(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.UTRs, b.Failed)
+	ok(w, v, err)
+}
+
+// ---- corporate actions, buy-backs, shortages ----
+
+func (s *Server) corpActions(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.CorpActions(r.Context(), tenant(r))
+	ok(w, v, err)
+}
+
+func (s *Server) saveCorpAction(w http.ResponseWriter, r *http.Request) {
+	var b ops.CorpAction
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveCorpAction(r.Context(), tenant(r), actor(r), b)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	writeJSON(w, 201, v)
+}
+
+func (s *Server) applyCorpAction(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.ApplyCorpAction(r.Context(), tenant(r), actor(r), r.PathValue("id"))
+	ok(w, v, err)
+}
+
+func (s *Server) receiveDividend(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date     string       `json:"date"`
+		Ref      string       `json:"ref"`
+		Received money.Amount `json:"received"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.ReceiveDividend(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Date, b.Ref, b.Received)
+	ok(w, v, err)
+}
+
+func (s *Server) buybacks(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.BuyBacks(r.Context(), tenant(r))
+	ok(w, v, err)
+}
+
+func (s *Server) saveBuyBack(w http.ResponseWriter, r *http.Request) {
+	var b ops.BuyBack
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveBuyBack(r.Context(), tenant(r), actor(r), b)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	writeJSON(w, 201, v)
+}
+
+func (s *Server) tenderBuyBack(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string `json:"date"`
+		UCC  string `json:"ucc"`
+		Qty  int64  `json:"qty"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.TenderBuyBack(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Date, b.UCC, b.Qty, false)
+	ok(w, v, err)
+}
+
+func (s *Server) buybackFile(w http.ResponseWriter, r *http.Request) {
+	f, err := s.ops.BuyBackFile(r.Context(), tenant(r), r.PathValue("id"))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="buyback_bids_`+r.PathValue("id")+`.csv"`)
+	w.Write(f)
+}
+
+func (s *Server) settleBuyBack(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date     string           `json:"date"`
+		Exchange string           `json:"exchange"`
+		Accepted map[string]int64 `json:"accepted"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SettleBuyBack(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Date, b.Exchange, b.Accepted)
+	ok(w, v, err)
+}
+
+func (s *Server) shortages(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.Shortages(r.Context(), tenant(r))
+	ok(w, v, err)
+}
+
+func (s *Server) settleShortage(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date  string    `json:"date"`
+		Price money.Dec `json:"price"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SettleShortage(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Date, b.Price)
 	ok(w, v, err)
 }
