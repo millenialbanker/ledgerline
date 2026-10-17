@@ -176,6 +176,10 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/live", s.live, false)
 	R("GET /v1/live/liquidation", s.liveLiquidation, false)
 	R("GET /v1/frontoffice/{kind}", s.frontOffice, false)
+	R("GET /v1/nri", s.nri, false)
+	R("POST /v1/nri", s.setNRI, true)
+	R("GET /v1/nri/pis-file", s.pisFile, false)
+	R("GET /v1/nri/tds", s.nriTDS, false)
 	R("GET /v1/jobs", s.jobs, false)
 	R("POST /v1/jobs", s.saveJob, true)
 	R("POST /v1/jobs/{id}/run", s.runJob, true)
@@ -2584,4 +2588,53 @@ func (s *Server) frontOffice(w http.ResponseWriter, r *http.Request) {
 	s.app.Log(r.Context(), tenant(r), actor(r), "frontoffice."+r.PathValue("kind"), d, nil)
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Write(f)
+}
+
+// ---- NRI ----
+
+func (s *Server) nri(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.NRI(r.Context(), tenant(r), actor(r), d)
+	ok(w, v, err)
+}
+
+func (s *Server) setNRI(w http.ResponseWriter, r *http.Request) {
+	var b ops.NRIDetails
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SetNRI(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) pisFile(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	f, _, err := s.ops.PISFile(r.Context(), tenant(r), d)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	s.app.Log(r.Context(), tenant(r), actor(r), "nri.pis_file", d, nil)
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Write(f)
+}
+
+func (s *Server) nriTDS(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	from, okf := dateParam(w, q.Get("from"), "from", true)
+	if !okf {
+		return
+	}
+	to, okt := dateParam(w, q.Get("to"), "to", true)
+	if !okt {
+		return
+	}
+	v, err := s.ops.NRITDS(r.Context(), tenant(r), from, to)
+	ok(w, v, err)
 }

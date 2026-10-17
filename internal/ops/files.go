@@ -48,6 +48,7 @@ func MasterSources() []MasterSource {
 		{"CKYC-NUMBERS", "CKYC identifiers downloaded from CERSAI", []string{"PAN", "CKYCNumber"}, false, "On response"},
 		{"STT-STATEMENT", "Exchange statement of turnover and STT by segment, for reconciliation", []string{"Exchange", "Segment", "Turnover", "STT"}, true, "Daily"},
 		{"LTP-SNAPSHOT", "Last traded prices during the day for live risk (InstrumentType, Expiry and Strike blank for equity)", []string{"Exchange", "Segment", "Symbol", "InstrumentType", "Expiry", "Strike", "LTP", "Time"}, true, "Every few minutes"},
+		{"NRI-CAUTION", "RBI caution and ban lists for foreign investment in listed companies (NRI purchases); replaces the list", []string{"ISIN", "Symbol", "Status"}, true, "On every RBI update"},
 		{"MTF-ELIGIBLE", "Securities approved for margin trading, with the firm's initial margin % (at least VaR + 3 or 5 × ELM); replaces the list", []string{"ISIN", "Symbol", "MarginPct"}, false, "On change"},
 	}
 }
@@ -201,6 +202,8 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 	switch source {
 	case "DEBARRED-LIST", "KRA-STATUS", "CKYC-NUMBERS", "STT-STATEMENT":
 		return o.prepareCompliance(ctx, tenant, actor, source, date, rows)
+	case "NRI-CAUTION":
+		return o.loadNRICaution(ctx, tenant, actor, date, rows)
 	case "LTP-SNAPSHOT":
 		return o.loadLivePrices(ctx, tenant, actor, date, rows)
 	case "MTF-ELIGIBLE":
