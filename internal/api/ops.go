@@ -163,6 +163,16 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/dp/billing", s.dpBilling, true)
 	R("POST /v1/dp/requests", s.dpRequest, true)
 	R("POST /v1/dp/requests/{id}", s.dpActRequest, true)
+	R("GET /v1/mtf", s.mtf, false)
+	R("POST /v1/mtf/config", s.mtfConfig, true)
+	R("POST /v1/mtf/enrol", s.mtfEnrol, true)
+	R("POST /v1/mtf/fund", s.mtfFund, true)
+	R("POST /v1/mtf/calls", s.mtfCalls, true)
+	R("POST /v1/mtf/interest", s.mtfInterest, true)
+	R("GET /v1/mtf/liquidation", s.mtfLiquidation, false)
+	R("GET /v1/mtf/report", s.mtfReport, false)
+	R("POST /v1/mtf/{id}/pledge", s.mtfPledge, true)
+	R("POST /v1/mtf/{id}/close", s.mtfClose, true)
 	R("GET /v1/jobs", s.jobs, false)
 	R("POST /v1/jobs", s.saveJob, true)
 	R("POST /v1/jobs/{id}/run", s.runJob, true)
@@ -2400,5 +2410,117 @@ func (s *Server) dpActRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.ActOnDPRequest(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Action, b.Note)
+	ok(w, v, err)
+}
+
+// ---- MTF ----
+
+func (s *Server) mtf(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.MTF(r.Context(), tenant(r), d)
+	ok(w, v, err)
+}
+
+func (s *Server) mtfConfig(w http.ResponseWriter, r *http.Request) {
+	var b ops.MTFConfig
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveMTFConfig(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) mtfEnrol(w http.ResponseWriter, r *http.Request) {
+	var b ops.MTFEnrolment
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.EnrolMTF(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) mtfFund(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string `json:"date"`
+		UCC  string `json:"ucc"`
+		ISIN string `json:"isin"`
+		Qty  int64  `json:"qty"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.FundMTF(r.Context(), tenant(r), actor(r), b.Date, b.UCC, b.ISIN, b.Qty)
+	ok(w, v, err)
+}
+
+func (s *Server) mtfCalls(w http.ResponseWriter, r *http.Request) {
+	var b struct{ Date string }
+	if !decode(w, r, &b) {
+		return
+	}
+	n, err := s.ops.RaiseMTFCalls(r.Context(), tenant(r), actor(r), b.Date)
+	ok(w, map[string]any{"raised": n}, err)
+}
+
+func (s *Server) mtfInterest(w http.ResponseWriter, r *http.Request) {
+	var b struct{ Date string }
+	if !decode(w, r, &b) {
+		return
+	}
+	n, err := s.ops.PostMTFInterest(r.Context(), tenant(r), actor(r), b.Date, "")
+	ok(w, map[string]any{"posted": n}, err)
+}
+
+func (s *Server) mtfLiquidation(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	f, _, err := s.ops.MTFLiquidationFile(r.Context(), tenant(r), d)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Write(f)
+}
+
+func (s *Server) mtfReport(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	f, err := s.ops.MTFReport(r.Context(), tenant(r), d)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	s.app.Log(r.Context(), tenant(r), actor(r), "mtf.report", d, nil)
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Write(f)
+}
+
+func (s *Server) mtfPledge(w http.ResponseWriter, r *http.Request) {
+	var b struct{ Ref string }
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.MarkMTFPledged(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Ref)
+	ok(w, v, err)
+}
+
+func (s *Server) mtfClose(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string `json:"date"`
+		Qty  int64  `json:"qty"`
+		How  string `json:"how"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.CloseMTF(r.Context(), tenant(r), actor(r), b.Date, r.PathValue("id"), b.Qty, b.How)
 	ok(w, v, err)
 }
