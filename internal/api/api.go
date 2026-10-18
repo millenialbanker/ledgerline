@@ -642,6 +642,7 @@ var scopedRoutes = map[string]bool{
 	"GET /v1/external-trades": true, "POST /v1/external-trades": true, "GET /v1/crm": true, "POST /v1/leads": true, "POST /v1/leads/{id}/act": true,
 	"GET /v1/autopilot": true, "POST /v1/work/{id}": true,
 	"GET /v1/insights": true, "POST /v1/insights/{id}": true, "GET /v1/tax-plan": true,
+	"GET /v1/year-end": true, "GET /v1/year-end/{fy}/{ucc}/document": true,
 	"GET /v1/whatsapp/consents": true, "POST /v1/clients/{ucc}/whatsapp-consent": true,
 }
 
@@ -654,7 +655,8 @@ var clientRoutes = map[string]bool{
 	"GET /v1/external-trades": true, "POST /v1/external-trades": true, "POST /v1/external-trades/{ucc}/{id}/delete": true,
 	"GET /v1/clients/{ucc}/documents": true, "POST /v1/clients/{ucc}/documents": true, "GET /v1/clients/{ucc}/documents/{id}": true,
 	"POST /v1/portal/whatsapp": true, "POST /v1/changes/{id}/verify": true,
-	"GET /v1/portal/insights": true, "POST /v1/portal/insights/prefs": true, "POST /v1/portal/buyback/{id}/tender": true,
+	"GET /v1/year-end/{fy}/{ucc}/document": true,
+	"GET /v1/portal/insights":              true, "POST /v1/portal/insights/prefs": true, "POST /v1/portal/buyback/{id}/tender": true,
 }
 
 // scope is the client filter for the request's user (nil: every client).

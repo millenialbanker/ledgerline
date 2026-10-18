@@ -73,6 +73,8 @@ var EventVars = map[string][]string{
 	"portal.granted":        {"user"},
 	"statement.monthly":     {"from", "to", "closing"},
 	"bulk":                  {},
+	"whatsapp.consent":      {"link", "mobile"},
+	"yearend.pack":          {"fy", "stt"},
 	"insight.tax_harvest":   {"fy", "stcg", "ltcg", "st_loss", "lt_loss", "saving", "exempt_left", "gain_harvest", "last_day", "symbols"},
 	"insight.buyback":       {"symbol", "company", "price", "ltp", "premium_pct", "held", "category", "entitlement", "record", "close"},
 	"insight.fo_expiry":     {"contract", "expiry", "action", "qty", "symbol", "value"},
@@ -130,6 +132,7 @@ func DefaultTemplates() []Template {
 		t("insight.dormant", ChWhatsApp, "Service", "", "{name}, there has been no activity in your trading account {ucc} since {last}. Under exchange rules it will be marked inactive on {date}. Any trade or a KYC update keeps it active.", ""),
 		t("whatsapp.consent", ChEmail, "Service", "Get your account messages on WhatsApp?", "Dear {name},\n\nWould you like to receive messages about your trading account {ucc} on WhatsApp at {mobile}: alerts on funds, margin and contract notes, and information about your own account such as tax on your gains and offers on shares you hold?\n\nTo choose, open this link: {link}\n\nYou can stop at any time by replying STOP on WhatsApp. Contract notes, statements and regulatory alerts continue by email and SMS either way.\n\n{firm}", ""),
 		t("whatsapp.consent", ChSMS, "Service", "", "Dear {name}, get your account alerts from {firm} on WhatsApp? Choose here: {link} -{firm}", "1107166000000000011"),
+		t("yearend.pack", ChEmail, "Service", "Your year-end statement for FY {fy}", "Dear {name},\n\nYour year-end statement for the financial year {fy} is ready in the client portal (Tax & insights → Year-end statements). It has your capital gains, futures and options result, charges paid, the closing balance and holdings, and the securities transaction tax particulars for Form No. 10DB (STT paid: ₹{stt}).\n\nPlease check it and tell us of any discrepancy within 30 days.\n\n{firm}", ""),
 		t("statement.monthly", ChEmail, "Transactional", "Statement of account {from} to {to}", "Dear {name},\n\nPlease find your statement of account for {from} to {to}. Closing balance: {closing}. Please report any discrepancy within 30 days.\n\n{firm}", ""),
 	}
 	// WhatsApp messages a business starts must use a template approved by

@@ -9,7 +9,7 @@ try { Object.assign(S, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e
 const persist = () => { try { localStorage.setItem(LS, JSON.stringify({ tenant: S.tenant, date: S.date, view: S.view })); } catch (e) {} };
 const UI = { inTab: 'due', inSel: new Set(), inQ: '', clientTag: '', clientSel: new Set(), bkQ: '', bkPlan: '', cr: { kind: 'ledger', ucc: '', preset: 'fy', from: '', to: '' }, crRes: null, crErr: null, crBusy: false, reconF: 'OPEN', reconX: 'All', reconQ: '', clientStage: 'All', clientQ: '', rmsF: 'All', rmsQ: '', settleTab: 'cm', noteF: 'All',
   bankF: 'All', rasF: 'due', auditQ: '', ledgerU: '', ledgerTab: 'statement', calc: { bucket: 'CM-DEL', exchange: 'NSE', side: 'B', qty: 100, price: '1412' },
-  debTab: 'cd', insKind: 'All', insSt: 'live', insQ: '', apTab: 'work', apMine: 'mine', nriTab: 'cl', nriFrom: '', nriTo: '', liveAt: '', liveF: 'All', liveQ: '', liveAuto: false, mtfTab: 'pos', dpTab: 'acc', dpQ: '', msgTab: 'log', msgQ: '', pAcct: '', hdTab: 'open', hdMonth: '', chTab: 'pending', crmTab: 'pipe', crmStage: 'All', crmQ: '', crmFrom: '', crmTo: '', kycTab: 'risk', kycQ: '', kycF: 'All', ptTab: 'pt', ptFrom: '', ptTo: '', bkTab: 'vch', finFrom: '', finTo: '', finBranch: '', gstFrom: '', gstTo: '', caTab: 'ca', monTab: 'rcpt', monQ: '', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
+  debTab: 'cd', yeFY: '', yeQ: '', insKind: 'All', insSt: 'live', insQ: '', apTab: 'work', apMine: 'mine', nriTab: 'cl', nriFrom: '', nriTo: '', liveAt: '', liveF: 'All', liveQ: '', liveAuto: false, mtfTab: 'pos', dpTab: 'acc', dpQ: '', msgTab: 'log', msgQ: '', pAcct: '', hdTab: 'open', hdMonth: '', chTab: 'pending', crmTab: 'pipe', crmStage: 'All', crmQ: '', crmFrom: '', crmTo: '', kycTab: 'risk', kycQ: '', kycF: 'All', ptTab: 'pt', ptFrom: '', ptTo: '', bkTab: 'vch', finFrom: '', finTo: '', finBranch: '', gstFrom: '', gstTo: '', caTab: 'ca', monTab: 'rcpt', monQ: '', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
 const C = {}; // per-view data from the server
 let CFG = {};
 
@@ -94,7 +94,7 @@ async function openDoc(path) {
 /* ============================== shell ============================== */
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard'], ['autopilot', 'Autopilot & work queue']]],
-  ['Operations', [['files', 'Files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['changes', 'Change requests'], ['corp', 'Corporate actions'], ['statements', 'Client reports']]],
+  ['Operations', [['files', 'Files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['changes', 'Change requests'], ['corp', 'Corporate actions'], ['statements', 'Client reports'], ['yearend', 'Year-end packs']]],
   ['Risk', [['live', 'Live RMS'], ['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge'], ['debits', 'Debtors & interest'], ['mtf', 'Margin trading (MTF)']]],
   ['Accounts', [['ledger', 'Ledger'], ['bank', 'Bank reconciliation'], ['money', 'Receipts & payouts'], ['books', 'Firm accounts & GST'], ['ras', 'Running account'], ['charges', 'Charges calculator'], ['brokerage', 'Brokerage plans']]],
   ['Compliance', [['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
@@ -107,7 +107,7 @@ const clientUser = () => S.me?.role === 'Client';
 const VIEWS = [...NAV.flatMap(g => g[1].map(v => v[0])), ...PORTAL_VIEWS];
 try { const h = location.hash.slice(1); if (VIEWS.includes(h)) S.view = h; } catch (e) {}
 
-const SCOPED_VIEWS = ['insights', 'clients', 'statements', 'notes', 'money', 'debits', 'rms', 'partners', 'prepaid', 'changes', 'helpdesk', 'crm'];
+const SCOPED_VIEWS = ['yearend', 'insights', 'clients', 'statements', 'notes', 'money', 'debits', 'rms', 'partners', 'prepaid', 'changes', 'helpdesk', 'crm'];
 const scopedUser = () => ['Branch staff', 'Authorised person'].includes(S.me?.role);
 function renderSide() {
   const ct = S.counts, q = { clients: 1, notes: 1, collateral: 1, reports: 1, autopilot: 1 };
@@ -762,6 +762,22 @@ function waConsentModal(ucc, on) {
   confirmModal(on ? 'Record WhatsApp consent' : 'Record WhatsApp opt-out', `${ucc}. Record only what the client said, with a reference you can show later.`, `<div class="form"><div class="fld"><label for="wc-src">How the client told us</label><select class="in" id="wc-src">${['Recorded call', 'Signed form', 'Account opening form'].map(x => `<option>${x}</option>`).join('')}</select></div><div class="fld"><label for="wc-ref">Reference</label><input class="in" id="wc-ref" placeholder="Call recording ID, form number"></div></div>`, on ? 'Record consent' : 'Record opt-out', async () => { await post(`/v1/clients/${encodeURIComponent(ucc)}/whatsapp-consent`, { on, source: $('wc-src').value, ref: $('wc-ref').value }); closeModal(); toast(on ? 'Consent recorded' : 'Opt-out recorded'); if (S.view === 'messages') render({ keep: true }); else clientDrawer(ucc); });
 }
 
+/* ---------- year-end packs ---------- */
+const fyLabel = d => { let y = +d.slice(0, 4); if (d.slice(5, 7) < '04') y--; return `${y}-${String((y + 1) % 100).padStart(2, '0')}`; };
+V.yearend = {
+  load: () => get(`/v1/year-end?date=${S.date}${UI.yeFY ? '&fy=' + UI.yeFY : ''}`),
+  html: d => {
+    const can = has('Ops maker', 'Ops checker', 'Compliance officer');
+    return ph('Year-end packs', 'One statement per client and financial year for their tax return: capital gains, futures and options result, charges paid, closing balance and holdings, and the securities transaction tax particulars for Form No. 10DB (rule 20AB), one form per exchange. Clients open it in the portal; emailing tells them it is ready.',
+      `<select class="in sm" id="ye-fy">${d.years.map(y => `<option ${y === d.fy ? 'selected' : ''}>${y}</option>`).join('')}</select>${can ? `<button class="btn pri" data-act="yeSendAll" ${d.running ? 'disabled title="After 31 March"' : ''}>Email all clients</button>` : ''}`) +
+    (d.running ? `<div class="note">FY ${esc(d.fy)} is still running: packs show figures to ${fmtDate(d.to)} and can be emailed after 31 March.</div>` : '') +
+    `<div class="kpis">${kpi('Clients', nf(d.rows.length), 'active')}${kpi('STT collected', cmp(d.stt), `FY ${esc(d.fy)}${d.running ? ' to date' : ''}`)}${kpi('Packs emailed', nf(d.sent), `of ${d.rows.length}`, d.sent && d.sent === d.rows.length ? 'good' : '')}${kpi('No email address', nf(d.rows.filter(r => !r.email).length), 'see the pack in the portal only', d.rows.some(r => !r.email) ? 'warn' : '')}</div>
+    <div class="panel"><div class="hd"><input class="in" data-ui="yeQ" data-part="ye-t" placeholder="Filter client" value="${esc(UI.yeQ)}"></div><div id="ye-t">${P['ye-t'](d)}</div></div>`;
+  }
+};
+P['ye-t'] = d => { const q = UI.yeQ.trim().toLowerCase(), can = has('Ops maker', 'Ops checker', 'Compliance officer');
+  return tbl([['Client'], ['STT trades', 'r'], ['Value', 'r'], ['STT', 'r'], ['Emailed'], ['']], d.rows.filter(r => !q || (r.ucc + ' ' + r.name).toLowerCase().includes(q)).map(r => `<tr><td><button class="linkish mono" data-act="client" data-id="${r.ucc}">${r.ucc}</button> ${esc(r.name)}</td><td class="r">${nf(r.trades)}</td><td class="r">${cmp(r.value)}</td><td class="r">${inr(r.stt, 2)}</td><td>${r.sent_at ? fmtDate(r.sent_at.slice(0, 10)) : r.email ? '<span class="dim">not yet</span>' : '<span class="dim">no email</span>'}</td><td><button class="btn sm" data-act="yeOpen" data-id="${r.ucc}">Open</button>${can && !d.running && r.email ? `<button class="btn sm" data-act="yeSend" data-id="${r.ucc}">Email</button>` : ''}</td></tr>`), { tall: true, empty: 'No active clients.' }); };
+
 /* ---------- client insights ---------- */
 const INS_KINDS = { tax_harvest: 'Tax-loss harvesting', buyback: 'Buy-back', fo_expiry: 'Physical settlement', advance_tax: 'Advance tax', corp_action: 'Dividends & bonuses', idle_funds: 'Idle funds', pledge_margin: 'Margin from holdings', dormant: 'Turning inactive' };
 const INS_ST = { Open: 'warn', Sent: 'acc', Called: 'acc', Acted: 'good', Dismissed: 'nt', Expired: 'nt' };
@@ -821,6 +837,7 @@ V.pinsights = {
     (d.items.length ? `<div class="panel"><div class="hd"><h3>For your attention</h3></div><div class="bd ins-list">${d.items.map(i => `<div class="ins"><small>${esc(INS_KINDS[i.kind] || i.kind)}${i.due ? ' · by ' + fmtDate(i.due) : ''}</small><b>${esc(i.title)}</b><span class="dim small">${esc(i.detail)}</span></div>`).join('')}</div></div>` : '') +
     (d.buybacks.length ? `<div class="panel"><div class="hd"><h3>Buy-back offers on your shares</h3></div>${tbl([['Company'], ['Offer price', 'r'], ['Market price', 'r'], ['Your free shares', 'r'], ['Category'], ['Entitlement', 'r'], ['Closes'], ['Tender']], d.buybacks.map(b => `<tr><td><b>${esc(b.symbol)}</b><div class="dim small">${esc(b.company)}</div></td><td class="r">${nf(b.price, 2)}</td><td class="r">${num(b.ltp) ? nf(b.ltp, 2) : '—'}</td><td class="r">${nf(b.free)}</td><td class="small">${esc(b.category)}</td><td class="r">${b.entitlement ? nf(b.entitlement) : '—'}</td><td class="n">${fmtDate(b.close)}</td><td>${b.open ? `<div class="tools"><input class="in sm mono" id="pt-${esc(b.id)}" inputmode="numeric" style="width:90px" value="${b.tendered || b.entitlement || ''}"><button class="btn sm pri" data-act="pTender" data-id="${esc(b.id)}">${b.tendered ? 'Change' : 'Tender'}</button></div>${b.tendered ? `<div class="dim small">${nf(b.tendered)} tendered; 0 cancels</div>` : ''}` : '<span class="dim small">opens later</span>'}</td></tr>`))}<div class="pad"><span class="dim small">Shares not accepted are returned to your demat. Since 1 October 2024 the buy-back amount is taxed as dividend in your hands and the cost of the shares accepted becomes a capital loss.</span></div></div>` : '') +
     `<div class="panel"><div class="hd"><h3>Capital gains and tax-loss harvesting · FY ${esc(d.tax.fy)}</h3><button class="btn sm" data-act="go" data-id="statements">Capital gains statement</button></div><div class="bd">${taxPlanHTML(d.tax)}</div></div>
+    <div class="panel"><div class="hd"><h3>Year-end statements</h3></div><div class="bd"><p class="dim small" style="margin-top:0">For your tax return: capital gains, F&amp;O result, charges, closing balance and holdings, and the STT particulars for Form No. 10DB.</p><div class="tools">${[fyLabel(S.date), fyLabel(String(+S.date.slice(0, 4) - 1) + S.date.slice(4))].map(y => `<button class="btn" data-act="pYearEnd" data-id="${y}">FY ${y}${y === fyLabel(S.date) ? ' (to date)' : ''}</button>`).join('')}</div></div></div>
     <div class="panel"><div class="bd"><label class="check"><input type="checkbox" id="pins-off" ${d.off ? '' : 'checked'}> Send me insights about my account by email and WhatsApp</label><div class="dim small">Contract notes, statements and margin alerts are always sent.</div></div></div>`;
   }
 };
@@ -2074,6 +2091,10 @@ const A = {
   allotSample: () => act(() => post('/v1/dev/sample', { date: S.date, later: true }), 'Allotment file applied'),
   runRecon: () => act(() => post('/v1/recon/runs', { date: S.date }), r => `Reconciled: ${r.result.matched} matched, ${r.open} open breaks`),
   insOpen: id => insModal(id),
+  yeOpen: id => openDoc(`/v1/year-end/${C.yearend.fy}/${encodeURIComponent(id)}/document?date=${S.date}`),
+  pYearEnd: fy => openDoc(`/v1/year-end/${fy}/${encodeURIComponent(UI.pAcct)}/document?date=${S.date}`),
+  yeSend: id => act(() => post(`/v1/year-end/${C.yearend.fy}/send`, { date: S.date, uccs: [id] }), r => r.sent ? `Emailed ${id}` : 'Not sent: check the email address'),
+  yeSendAll: () => confirmModal('Email year-end packs', `Tells every active client with an email that their FY ${C.yearend.fy} statement is ready in the portal.`, '', 'Email all', async () => { const r = await post(`/v1/year-end/${C.yearend.fy}/send`, { date: S.date }); closeModal(); toast(`${r.sent} emailed${r.failed ? `, ${r.failed} not sent` : ''}`); render({ keep: true }); }),
   waConsent: (id, el) => waConsentModal(id, el.dataset.on === '1'),
   waCampaign: ch => confirmModal('Ask clients for WhatsApp consent', `By ${ch}, to active clients not asked yet. Each gets a one-tap link to say yes or no.`, '', 'Send', async () => { const r = await post('/v1/whatsapp/consent-campaign', { channel: ch }); closeModal(); toast(`${r.invited} asked${r.skipped ? `, ${r.skipped} not sent` : ''}${r.remaining ? `, ${r.remaining} left for the next run` : ''}`); render({ keep: true }); }),
   insFind: () => act(() => post('/v1/insights/find', { date: S.date }), r => `${r.found} opportunit${r.found === 1 ? 'y' : 'ies'} found; nothing was sent`),
@@ -2214,6 +2235,7 @@ document.addEventListener('change', e => {
     act(() => api('PUT', `/v1/users/${encodeURIComponent(id)}`, { id, name: u.name, role, active: u.active, branch, partner }), `${id} is now ${role}`).catch(() => render({ keep: true })); return; }
   if (el.id === 'live-auto') { UI.liveAuto = el.checked; return; }
   if (el.id === 'p-acct') { UI.pAcct = el.value; render(); return; }
+  if (el.id === 'ye-fy') { UI.yeFY = el.value; render({ keep: true }); return; }
   if (el.id === 'pins-off') { act(() => post('/v1/portal/insights/prefs', { ucc: UI.pAcct, off: !el.checked }), el.checked ? 'Insights turned on' : 'Insights turned off').catch(() => render({ keep: true })); return; }
   if (el.id === 'crm-stage') { UI.crmStage = el.value; $('page').innerHTML = V.crm.html(C.crm); bindPage(); return; }
   if (el.id === 'ftype') { UI.fileType = el.value; $('page').innerHTML = V.files.html(C.files); bindPage(); return; }

@@ -157,6 +157,9 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/clients/{ucc}/whatsapp-consent", s.waRecordConsent, true)
 	R("POST /v1/portal/whatsapp", s.portalWhatsApp, true)
 	R("GET /v1/insights", s.insights, false)
+	R("GET /v1/year-end", s.yearEnds, false)
+	R("POST /v1/year-end/{fy}/send", s.sendYearEnd, true)
+	R("GET /v1/year-end/{fy}/{ucc}/document", s.yearEndDoc, false)
 	R("POST /v1/insights/find", s.findInsights, true)
 	R("POST /v1/insights/{id}", s.actInsight, true)
 	R("GET /v1/tax-plan", s.taxPlan, false)
@@ -2944,4 +2947,53 @@ func (s *Server) optinPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
 	_ = ops.ConsentHTML.Execute(w, p)
+}
+
+// ---- year-end packs ----
+
+func (s *Server) yearEnds(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.YearEnds(r.Context(), tenant(r), r.URL.Query().Get("fy"), d, s.scope(r))
+	ok(w, v, err)
+}
+
+func (s *Server) sendYearEnd(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string   `json:"date"`
+		UCCs []string `json:"uccs"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if b.Date == "" {
+		b.Date = time.Now().Format("2006-01-02")
+	}
+	n, failed, err := s.ops.SendYearEnd(r.Context(), tenant(r), actor(r), r.PathValue("fy"), b.Date, b.UCCs)
+	ok(w, map[string]any{"sent": n, "failed": failed}, err)
+}
+
+func (s *Server) yearEndDoc(w http.ResponseWriter, r *http.Request) {
+	if !s.canSee(w, r, r.PathValue("ucc")) {
+		return
+	}
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	p, err := s.ops.YearEnd(r.Context(), tenant(r), r.PathValue("ucc"), r.PathValue("fy"), d)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	b, err := ops.RenderYearEnd(p)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
+	w.Write(b)
 }
