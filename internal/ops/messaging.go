@@ -94,7 +94,7 @@ func DefaultTemplates() []Template {
 	t := func(ev, ch, cat, subj, body, dlt string) Template {
 		return Template{Event: ev, Channel: ch, Category: cat, Subject: subj, Body: body, DLT: dlt, Active: true}
 	}
-	return []Template{
+	ts := []Template{
 		t("receipt.credited", ChSMS, "Transactional", "", "Dear {name}, Rs {amount} received by {mode} is {status} in your account {ucc} on {date}. -{firm}", "1107166000000000001"),
 		t("receipt.credited", ChWhatsApp, "Transactional", "", "Hi {name}, we have received ₹{amount} ({mode}) for account {ucc}. Status: {status}.", ""),
 		t("payout.paid", ChSMS, "Transactional", "", "Dear {name}, Rs {amount} has been paid to your registered bank account. UTR {utr}. -{firm}", "1107166000000000002"),
@@ -122,8 +122,23 @@ func DefaultTemplates() []Template {
 		t("insight.idle_funds", ChEmail, "Promotional", "₹{amount} in your trading account", "Dear {name},\n\nYour trading account {ucc} has a credit balance of ₹{amount} and no trades since {since}. You can withdraw it at any time from the client portal (Funds & payouts); otherwise it is returned to your bank on the running-account settlement date.\n\n{firm}", ""),
 		t("insight.pledge_margin", ChEmail, "Promotional", "Use your holdings as margin", "Dear {name},\n\nYou have {count} holding(s) that are not pledged. Pledged as margin, they would give about ₹{margin} after haircuts, while you keep ownership and corporate benefits. Exchange rules require at least half of the margin for derivatives in cash.\n\nYou can request a pledge from the depository's site or ask us. This is information about your account, not investment advice.\n\n{firm}", ""),
 		t("insight.dormant", ChEmail, "Service", "Your trading account will be marked inactive on {date}", "Dear {name},\n\nThere has been no activity in your trading account {ucc} since {last}. Under the stock exchanges' rules it will be marked inactive on {date}, after which you cannot trade until it is reactivated with a fresh verification.\n\nAny trade or an update of your KYC details keeps it active. If you no longer need the account, you can ask us to close it.\n\n{firm}", ""),
+		t("insight.fo_expiry", ChWhatsApp, "Transactional", "", "⚠️ {name}, your {contract} position expires on {expiry}. Stock derivatives held at expiry settle by delivery: you would {action} {qty} {symbol} shares, about ₹{value}. Close or roll over before expiry if you do not want delivery.", ""),
+		t("insight.advance_tax", ChWhatsApp, "Service", "", "{name}, advance tax instalment due {due}. Capital gains booked this year: short-term ₹{stcg}, long-term ₹{ltcg}; estimated tax about ₹{tax}. Reply TAX for details. Information only, not tax advice.", ""),
+		t("insight.corp_action", ChWhatsApp, "Service", "", "{name}, {symbol} has announced a {what}. Record date {record}, ex-date {ex}. You hold {held} shares.", ""),
+		t("insight.idle_funds", ChWhatsApp, "Promotional", "", "{name}, ₹{amount} is in your trading account {ucc} with no trades since {since}. You can withdraw it any time from the client portal → Funds & payouts. Reply BAL for your balance.", ""),
+		t("insight.pledge_margin", ChWhatsApp, "Promotional", "", "{name}, {count} of your holdings are not pledged. As margin they would give about ₹{margin} after haircuts; you keep ownership and dividends. Ask us or pledge from the depository's site. Information only, not advice.", ""),
+		t("insight.dormant", ChWhatsApp, "Service", "", "{name}, there has been no activity in your trading account {ucc} since {last}. Under exchange rules it will be marked inactive on {date}. Any trade or a KYC update keeps it active.", ""),
 		t("statement.monthly", ChEmail, "Transactional", "Statement of account {from} to {to}", "Dear {name},\n\nPlease find your statement of account for {from} to {to}. Closing balance: {closing}. Please report any discrepancy within 30 days.\n\n{firm}", ""),
 	}
+	// WhatsApp messages a business starts must use a template approved by
+	// Meta under this name (utility for account information, marketing for
+	// promotional ones).
+	for i := range ts {
+		if ts[i].Channel == ChWhatsApp && ts[i].WAName == "" {
+			ts[i].WAName = strings.NewReplacer(".", "_").Replace(ts[i].Event)
+		}
+	}
+	return ts
 }
 
 func (o *Ops) templates(ctx context.Context, tenant string) ([]Template, error) {
@@ -135,10 +150,10 @@ func (o *Ops) templates(ctx context.Context, tenant string) ([]Template, error) 
 		// Templates for events added since the firm was set up.
 		have := map[string]bool{}
 		for _, t := range ts {
-			have[t.Event] = true
+			have[t.Event+"|"+t.Channel] = true
 		}
 		for _, t := range DefaultTemplates() {
-			if have[t.Event] {
+			if have[t.Event+"|"+t.Channel] {
 				continue
 			}
 			t.ID = "TPL-" + strings.NewReplacer(".", "-", "_", "-").Replace(t.Event) + "-" + strings.ToLower(t.Channel)
@@ -465,7 +480,7 @@ func (o *Ops) WhatsAppInbound(ctx context.Context, tenant, from, text, date stri
 	return reply, docs.Upsert(ctx, o.Docs, tenant, cWAChat, ch.ID, ch, "whatsapp")
 }
 
-const botMenu = "Reply with:\nBAL – balance and funds you can withdraw\nHOLD – your holdings\nLEDGER – last five ledger entries\nCN – latest contract note\nMARGIN – margin used and free\nSTOP – stop WhatsApp messages"
+const botMenu = "Reply with:\nBAL – balance and funds you can withdraw\nHOLD – your holdings\nLEDGER – last five ledger entries\nCN – latest contract note\nMARGIN – margin used and free\nTAX – capital gains this year and losses you could book\nOFFERS – buy-backs open on your shares\nSTOP – stop WhatsApp messages"
 
 func (o *Ops) botAnswer(ctx context.Context, tenant, cmd string, c Client, date string, set Settings) string {
 	first := strings.Fields(c.Name)[0]
@@ -546,6 +561,44 @@ func (o *Ops) botAnswer(ctx context.Context, tenant, cmd string, c Client, date 
 			}
 		}
 		return "No margin is blocked in your account."
+	case "TAX":
+		p, err := o.TaxPlan(ctx, tenant, c.UCC, date)
+		if err != nil {
+			return "Sorry, your tax working is not available right now."
+		}
+		msg := fmt.Sprintf("FY %s for %s, as at %s:\nGains booked: short-term ₹%s, long-term ₹%s\nOpen losses: short-term ₹%s, long-term ₹%s\nEstimated tax on gains booked: ₹%s", p.FY, c.UCC, date, rupees(p.STCG), rupees(p.LTCG), rupees(p.STLoss), rupees(p.LTLoss), rupees(p.TaxNow))
+		if p.Saving.Sign() > 0 {
+			msg += fmt.Sprintf("\nBooking the open losses could reduce it by about ₹%s.", rupees(p.Saving))
+		}
+		if p.GainHarvest.Sign() > 0 {
+			msg += fmt.Sprintf("\nLong-term gains still within the ₹1.25 lakh exemption: ₹%s.", rupees(p.GainHarvest))
+		}
+		if p.DaysLeft >= 0 {
+			msg += fmt.Sprintf("\nLast trading day for this year: %s.", fmtDay(p.LastDay))
+		}
+		return msg + "\nStock-wise working: client portal → Tax & insights. Information only, not tax or investment advice."
+	case "OFFERS":
+		bs, _ := o.BuyBacks(ctx, tenant)
+		_, look, _ := o.Market(ctx, tenant, date)
+		var lines []string
+		for _, b := range bs {
+			if b.Status != "Open" || date > b.Close {
+				continue
+			}
+			h, _, err := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingID(c.UCC, b.ISIN))
+			if err != nil || h.Qty-h.Pledged <= 0 {
+				continue
+			}
+			ltp := "—"
+			if i, ok := look.ByISIN(b.ISIN); ok {
+				ltp = i.LTP.Fixed(2)
+			}
+			lines = append(lines, fmt.Sprintf("%s buy-back at ₹%s (last price ₹%s), closes %s; you hold %d free", b.Symbol, b.Price.Fixed(2), ltp, fmtDay(b.Close), h.Qty-h.Pledged))
+		}
+		if len(lines) == 0 {
+			return "No buy-back offers are open on shares you hold."
+		}
+		return strings.Join(lines, "\n") + "\nTender in the client portal → Tax & insights, or reply to ask us to tender for you."
 	case "STOP":
 		return "You will not get WhatsApp messages from us any more. Send START to subscribe again."
 	}

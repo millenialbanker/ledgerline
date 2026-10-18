@@ -232,3 +232,30 @@ func TestInsightsSampleDay(t *testing.T) {
 		t.Fatal("risk manager ran insights")
 	}
 }
+
+func TestInsightsOnWhatsApp(t *testing.T) {
+	o, ctx := setup(t)
+	ts, _ := o.templates(ctx, T)
+	wa := map[string]bool{}
+	for _, x := range ts {
+		if x.Channel == ChWhatsApp && strings.HasPrefix(x.Event, "insight.") {
+			wa[x.Event] = x.WAName != ""
+		}
+	}
+	for _, k := range InsightKinds {
+		if !wa["insight."+k.ID] {
+			t.Errorf("no approved WhatsApp template for %s", k.ID)
+		}
+	}
+	c, _ := o.Client(ctx, T, "BH1001")
+	for _, cmd := range []string{"TAX", "OFFERS", "HELP"} {
+		reply, err := o.WhatsAppInbound(ctx, T, c.Mobile, cmd, D)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("%s -> %s", cmd, reply)
+		if cmd == "TAX" && !strings.Contains(reply, "Gains booked") {
+			t.Fatalf("TAX: %s", reply)
+		}
+	}
+}
