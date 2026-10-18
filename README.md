@@ -94,6 +94,7 @@ Messages are information about the client's own account, never a recommendation 
 - **Branch hierarchy and limit requests.** Offices form a tree (zone, region, branch, franchise); staff see the clients of every office under theirs. Branch staff and authorised persons request extra limit for their own clients; head-office risk decides, and the request is queued for risk.
 - **Circulars and compliance calendar.** A CIRCULARS file (Source, Ref, Date, Subject; optional Department, URL, Text) is triaged by rules into areas, priority, a summary, the effective date and actions with owners and due dates. Recurring obligations (complaints disclosure, CTR, RAS, internal audit, net worth, system and cyber audit, AP inspection, policy reviews) carry due-date rules and the evidence of each time they were met, and are queued a week ahead. The seeded dates are a starting point to check against current circulars.
 - **Clearing deposits.** Cash, FDs, bank guarantees and securities with each clearing corporation, valued after haircut, checked against base minimum capital and the 50% cash-equivalent rule, with maturities queued 30 days ahead.
+- **Encryption and a sealed audit trail.** Every client record, workflow record, user, setting and stored file (KYC documents, exchange and bank files, reports, contract notes), and the change history of each, is encrypted with AES-256-GCM before it reaches the database, under a separate key for each firm derived from the server's master key. A copied database or backup reveals no client data; a ciphertext moved to another record or altered is refused. Identifiers, ledger amounts and trade records stay in clear so the database can index them and enforce balancing and duplicate rules. Each audit entry carries a keyed seal (HMAC-SHA256) linking it to the previous one; Audit trail → Check seals verifies the whole chain and shows any entry that was changed, removed or inserted. PAN and bank account numbers are masked on screen; ops checkers, compliance and administrators can see one in full with a reason, which is recorded. The server sends HSTS over HTTPS, `nosniff`, `no-referrer` and `no-store` on API responses, and accepts TLS 1.2 and 1.3 only. Still to do when hosting: keys in AWS KMS (Mumbai), disk and backup encryption, TLS to the database, and an external VAPT.
 - **Online account opening (e-KYC).** A public page at `/open/<firm>` (link it from the website; `?ap=<code>` or `?lead=<id>` credits a partner or lead) takes an applicant through nine steps on a phone: mobile and email codes, PAN check and KRA search, address from DigiLocker or an uploaded proof, a ₹1 bank check, segments with income proof for derivatives, nominee or opt-out, photograph, signature and PAN copy, an in-person verification video with a spoken code, then review, declarations and Aadhaar e-Sign. Progress is saved, so applicants can resume. The signed form and every document are attached to the new client at KYC verification, a WhatsApp choice is kept as consent from the account opening form, and Online applications shows each check's result for staff to verify or reject with a reason. The checks run through one provider interface (PAN, KRA, DigiLocker, penny drop, face match, e-Sign): `-dev` simulates them; without a provider they are marked for staff to check by hand. Connect a KYC vendor and an e-Sign ASP before going live.
 
 ## Sign-in
@@ -170,10 +171,20 @@ docker compose up --build                   # Postgres with schema + API on :808
 PGHOST=localhost PGUSER=postgres make sqltest   # schema and store SQL tests
 make build-pgx                                  # server with the pgx driver
 LEDGERLINE_DB='postgres://ledgerline_svc:...@localhost/ledgerline' \
-LEDGERLINE_API_KEYS='<32+ random chars>:<tenant id>' bin/ledgerline
+LEDGERLINE_API_KEYS='<32+ random chars>:<tenant id>' \
+LEDGERLINE_DATA_KEYS="$(bin/ledgerctl keygen)" bin/ledgerline
 ```
 
 The service must connect as a **non-superuser** granted `ledgerline_app`. Superusers bypass row-level security.
+
+### Security settings
+
+| Variable | Purpose |
+|---|---|
+| `LEDGERLINE_DATA_KEYS` or `LEDGERLINE_DATA_KEYS_FILE` | Master keys that encrypt client data, newest first: `2:<base64>,1:<base64>`. **Required with a database**; the server refuses to start without them. A key file must be `chmod 600`. Create a key with `ledgerctl keygen`. Keep copies in a secrets manager: losing every copy makes the data unreadable. |
+| `LEDGERLINE_TLS_CERT`, `LEDGERLINE_TLS_KEY` | Serve HTTPS directly (TLS 1.2 minimum). Leave unset when a load balancer terminates TLS. |
+
+**Rotating keys:** run `ledgerctl keygen -version 2`, set `LEDGERLINE_DATA_KEYS="2:<new>,1:<old>"` and restart. New writes use version 2; everything written under version 1 stays readable. Keep version 1 loaded: stored files and change history are never rewritten, so they stay under the key they were written with.
 
 ### API
 

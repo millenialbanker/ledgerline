@@ -23,4 +23,7 @@ services:
     environment:
       LEDGERLINE_DB: postgres://ledgerline_svc:ledgerline_svc@db:5432/ledgerline?sslmode=disable
       LEDGERLINE_API_KEYS: local-dev-key-0123456789:demo
+      # Local development only. Production keys come from a secrets manager
+      # (create one with: ledgerctl keygen), never from this file.
+      LEDGERLINE_DATA_KEYS: "1:W3BoUHQGDlp5Gg2ObByeJsjzKn56e0guxLCsqhBrD4Q="
     ports: ["8080:8080"]

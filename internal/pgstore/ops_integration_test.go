@@ -17,6 +17,7 @@ import (
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/ops"
 	"ledgerline/internal/sample"
+	"ledgerline/internal/vault"
 )
 
 // TestIntegrationOpsParity runs the generated sample day through every
@@ -35,8 +36,12 @@ func TestIntegrationOpsParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.DB.Close()
+	// PostgreSQL runs encrypted, memory in clear: the figures must still agree.
+	v := vault.New(vault.Ephemeral())
+	pgStores := vault.Protect(st.Stores(), v)
 	mem := opsDay(t, ctx, app.MemoryStores(), tenant)
-	pg := opsDay(t, ctx, st.Stores(), tenant)
+	pg := opsDay(t, ctx, pgStores, tenant)
+	defer checkEncryptedAtRest(t, ctx, st, pgStores, tenant)
 	if len(mem) != len(pg) {
 		t.Fatalf("memory produced %d facts, PostgreSQL %d", len(mem), len(pg))
 	}
@@ -229,7 +234,7 @@ func TestIntegrationWeekParity(t *testing.T) {
 		}
 		return out
 	}
-	mem, pg := run(app.MemoryStores()), run(st.Stores())
+	mem, pg := run(app.MemoryStores()), run(vault.Protect(st.Stores(), vault.New(vault.Ephemeral())))
 	if len(mem) != len(pg) {
 		t.Fatalf("memory %d lines, PostgreSQL %d", len(mem), len(pg))
 	}
@@ -243,4 +248,37 @@ func TestIntegrationWeekParity(t *testing.T) {
 		}
 	}
 	t.Logf("three days: %d facts compared, %d differ", len(mem), diffs)
+}
+
+// checkEncryptedAtRest reads the tenant's rows straight from PostgreSQL and
+// requires that no client PAN, bank account or email appears in clear in
+// documents, document history or stored files, and that the audit chain
+// verifies.
+func checkEncryptedAtRest(t *testing.T, ctx context.Context, st *Store, stores app.Stores, tenant string) {
+	t.Helper()
+	tx, err := st.DB.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, Q["set_tenant"], tenant); err != nil {
+		t.Fatal(err)
+	}
+	var docsN, clear, histClear, files, filesClear int
+	needle := "%ABCPI1234K%"
+	tx.QueryRowContext(ctx, `SELECT count(*), count(*) FILTER (WHERE body::text ILIKE $2 OR body::text ILIKE '%"pan"%') FROM ll.doc WHERE tenant_id = $1`, tenant, needle).Scan(&docsN, &clear)
+	tx.QueryRowContext(ctx, `SELECT count(*) FILTER (WHERE body::text ILIKE $2 OR body::text ILIKE '%"pan"%') FROM ll.doc_history WHERE tenant_id = $1`, tenant, needle).Scan(&histClear)
+	tx.QueryRowContext(ctx, `SELECT count(*), count(*) FILTER (WHERE position('ABCPI1234K'::bytea in content) > 0 OR substring(content from 1 for 4) <> 'LLV1'::bytea) FROM ll.raw_file WHERE tenant_id = $1`, tenant).Scan(&files, &filesClear)
+	t.Logf("at rest: %d documents (%d in clear), %d history rows in clear, %d files (%d in clear)", docsN, clear, histClear, files, filesClear)
+	if docsN == 0 || files == 0 {
+		t.Fatal("nothing stored; the check did not run")
+	}
+	if clear+histClear+filesClear > 0 {
+		t.Errorf("client data stored in clear: %d documents, %d history rows, %d files", clear, histClear, filesClear)
+	}
+	r, err := stores.Audit.(*vault.Audit).VerifyAudit(ctx, tenant)
+	if err != nil || !r.OK || r.Sealed == 0 {
+		t.Errorf("audit chain: %+v %v", r, err)
+	}
+	t.Logf("audit chain: %d sealed entries verified", r.Sealed)
 }

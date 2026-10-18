@@ -16,6 +16,7 @@ import (
 	"ledgerline/internal/charges"
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/ops"
+	"ledgerline/internal/vault"
 )
 
 func opsServer(t *testing.T) *httptest.Server {
@@ -25,7 +26,7 @@ func opsServer(t *testing.T) *httptest.Server {
 	f, _ := os.Open("../../config/charges/sample-schedule.json")
 	defer f.Close()
 	sched, _ := charges.LoadSchedule(f)
-	a := app.New(app.MemoryStores(), reg, sched)
+	a := app.New(vault.Protect(app.MemoryStores(), vault.New(vault.Ephemeral())), reg, sched)
 	o := ops.New(a)
 	if err := o.SeedDev(t.Context(), "demo"); err != nil {
 		t.Fatal(err)

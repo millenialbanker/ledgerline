@@ -39,6 +39,22 @@ EXECUTE q_resolve_break('alpha','BRK-x','Fixed OMS fill','ops',now());
 EXECUTE q_list_breaks('alpha','','','BRK-x');
 EXECUTE q_insert_audit('alpha', now(), 'ops', 'recon.break.resolved', 'BRK-x', '{"resolution":"Fixed OMS fill"}');
 EXECUTE q_list_audit('alpha', 5);
+-- sealed audit: lock, last hash, sealed insert, scan; a fork (same predecessor twice) is refused
+EXECUTE q_audit_lock('alpha');
+EXECUTE q_audit_last_hash('alpha');
+EXECUTE q_insert_audit_sealed('alpha', now(), 'ops', 'a', 'x', NULL, '', '1:aa');
+EXECUTE q_insert_audit_sealed('alpha', now(), 'ops', 'b', 'x', '{"k":1}', '1:aa', '1:bb');
+DO $$ BEGIN
+  BEGIN
+    INSERT INTO ll.audit_log (tenant_id, actor, action, prev_hash, hash) VALUES ('alpha', 'x', 'fork', '1:aa', '1:cc');
+    RAISE EXCEPTION 'FAIL: audit chain fork accepted';
+  EXCEPTION WHEN unique_violation THEN NULL; END;
+  BEGIN
+    INSERT INTO ll.audit_log (tenant_id, actor, action, prev_hash) VALUES ('alpha', 'x', 'half', '1:dd');
+    RAISE EXCEPTION 'FAIL: half-sealed audit row accepted';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+END $$;
+EXECUTE q_scan_audit('alpha', 0, 10);
 -- documents: insert once, stale update refused, version advances, history kept, prefix list escapes LIKE
 EXECUTE q_doc_insert('alpha','client','BH1001','{"name":"A"}','ops');
 EXECUTE q_doc_insert('alpha','client','BH1001','{"name":"dup"}','ops');

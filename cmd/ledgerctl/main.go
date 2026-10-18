@@ -23,6 +23,7 @@ import (
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/ledger"
 	"ledgerline/internal/money"
+	"ledgerline/internal/vault"
 )
 
 func main() {
@@ -37,6 +38,8 @@ func main() {
 		err = check(os.Args[2:])
 	case "quote":
 		err = quote(os.Args[2:])
+	case "keygen":
+		err = keygen(os.Args[2:])
 	default:
 		usage()
 	}
@@ -47,7 +50,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: ledgerctl demo | check -source NAME FILE | quote -bucket B -exchange X -side B|S -qty N -price P [-date YYYY-MM-DD]")
+	fmt.Fprintln(os.Stderr, "usage: ledgerctl demo | keygen [-version N] | check -source NAME FILE | quote -bucket B -exchange X -side B|S -qty N -price P [-date YYYY-MM-DD]")
 	os.Exit(2)
 }
 
@@ -233,5 +236,22 @@ func quote(args []string) error {
 	if sched.Sample {
 		fmt.Println("(sample rate schedule " + sched.Version + ")")
 	}
+	return nil
+}
+
+// keygen prints a new master key for LEDGERLINE_DATA_KEYS. To rotate, put
+// the new key first and keep the old ones after it: "2:<new>,1:<old>".
+func keygen(args []string) error {
+	fs := flag.NewFlagSet("keygen", flag.ContinueOnError)
+	v := fs.Int("version", 1, "key version (one more than the current key when rotating)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *v <= 0 {
+		return fmt.Errorf("version must be positive")
+	}
+	fmt.Println(vault.NewKey(*v))
+	fmt.Fprintln(os.Stderr, "Store this key in your secrets manager and set it as LEDGERLINE_DATA_KEYS (or in a file named by LEDGERLINE_DATA_KEYS_FILE, chmod 600).")
+	fmt.Fprintln(os.Stderr, "Losing every copy of it makes the firm's stored data unreadable. Rotate by prepending a new version and keeping the old one.")
 	return nil
 }

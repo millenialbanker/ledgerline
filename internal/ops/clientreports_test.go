@@ -11,6 +11,7 @@ import (
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/money"
+	"ledgerline/internal/vault"
 )
 
 // TestEquityBookHandWorked checks the lot engine on figures worked by hand:
@@ -27,7 +28,7 @@ func TestEquityBookHandWorked(t *testing.T) {
 	f, _ := ledgerline.FS.Open("config/charges/sample-schedule.json")
 	sched, _ := charges.LoadSchedule(f)
 	f.Close()
-	a := app.New(app.MemoryStores(), reg, sched)
+	a := app.New(vault.Protect(app.MemoryStores(), vault.New(vault.Ephemeral())), reg, sched)
 	o := New(a)
 	if err := o.SeedDev(ctx, "t"); err != nil {
 		t.Fatal(err)

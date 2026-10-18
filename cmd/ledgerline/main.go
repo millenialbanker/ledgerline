@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -27,6 +28,7 @@ import (
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/ops"
 	"ledgerline/internal/pgstore"
+	"ledgerline/internal/vault"
 	"ledgerline/internal/web"
 )
 
@@ -106,6 +108,15 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	default:
 		return errors.New("set LEDGERLINE_DB for PostgreSQL, or pass -dev for in-memory stores")
 	}
+	// Client data is encrypted before it reaches any store. A database
+	// without data keys is refused, so a misconfigured server can never
+	// write client data in clear.
+	kr, err := dataKeys(dsn != "", dev)
+	if err != nil {
+		return err
+	}
+	stores = vault.Protect(stores, vault.New(kr))
+	log.Info("client data encrypted", "keys", kr.Describe(), "key_version", kr.Current())
 	if dev && len(keys) == 0 {
 		keys = map[string]string{devKey: "demo"}
 		log.Warn("development API key enabled", "key", devKey, "tenant", "demo")
@@ -160,7 +171,7 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	root.Handle("/onboard/", apiSrv) // online account opening (public API)
 	root.Handle("/", web.Handler(cfg))
 	srv := &http.Server{
-		Addr: addr, Handler: root,
+		Addr: addr, Handler: secure(root),
 		ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute,
 	}
 	// The scheduler checks each firm's jobs once a minute.
@@ -185,7 +196,19 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	errc := make(chan error, 1)
 	go func() {
 		log.Info("listening", "addr", addr, "adapters", len(reg.List()), "schedule", sched.Version)
-		fmt.Fprintf(os.Stderr, "\nLedgerline console: http://localhost%s\nPress Ctrl+C to stop.\n\n", portOf(addr))
+		scheme := "http"
+		if os.Getenv("LEDGERLINE_TLS_CERT") != "" {
+			scheme = "https"
+		}
+		fmt.Fprintf(os.Stderr, "\nLedgerline console: %s://localhost%s\nPress Ctrl+C to stop.\n\n", scheme, portOf(addr))
+		cert, key := os.Getenv("LEDGERLINE_TLS_CERT"), os.Getenv("LEDGERLINE_TLS_KEY")
+		if cert != "" || key != "" {
+			// TLS 1.2 is the floor (SEBI CSCRF); Go's defaults pick
+			// forward-secret AEAD suites only and prefer TLS 1.3.
+			srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+			errc <- srv.ListenAndServeTLS(cert, key)
+			return
+		}
 		errc <- srv.ListenAndServe()
 	}()
 	select {
@@ -216,4 +239,47 @@ func portOf(addr string) string {
 		return addr[i:]
 	}
 	return ":" + addr
+}
+
+// dataKeys loads the master keys that protect client data:
+// LEDGERLINE_DATA_KEYS="2:<base64>,1:<base64>" (newest first) or a file
+// named by LEDGERLINE_DATA_KEYS_FILE holding the same. Create a key with
+// "ledgerctl keygen". An in-memory development server without keys uses a
+// temporary key; a server with a database must be given keys.
+func dataKeys(db, dev bool) (*vault.Keyring, error) {
+	spec, src := os.Getenv("LEDGERLINE_DATA_KEYS"), "LEDGERLINE_DATA_KEYS environment variable"
+	if p := os.Getenv("LEDGERLINE_DATA_KEYS_FILE"); p != "" {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return nil, fmt.Errorf("data keys file: %w", err)
+		}
+		if st, err := os.Stat(p); err == nil && st.Mode().Perm()&0o077 != 0 {
+			return nil, fmt.Errorf("data keys file %s is readable by other users; run: chmod 600 %s", p, p)
+		}
+		spec, src = string(b), "key file "+p
+	}
+	if strings.TrimSpace(spec) == "" {
+		if db || !dev {
+			return nil, errors.New("no data keys: client data must be encrypted. Create one with \"ledgerctl keygen\" and set LEDGERLINE_DATA_KEYS or LEDGERLINE_DATA_KEYS_FILE")
+		}
+		return vault.Ephemeral(), nil
+	}
+	return vault.ParseKeyring(spec, src)
+}
+
+// secure adds the browser security headers every response needs. HSTS is
+// sent only over HTTPS (directly or behind a TLS load balancer).
+func secure(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hd := w.Header()
+		if r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
+			hd.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		hd.Set("X-Content-Type-Options", "nosniff")
+		hd.Set("Referrer-Policy", "no-referrer")
+		if strings.HasPrefix(r.URL.Path, "/v1/") || strings.HasPrefix(r.URL.Path, "/onboard/") {
+			hd.Set("Cache-Control", "no-store")
+		}
+		h.ServeHTTP(w, r)
+	})
 }

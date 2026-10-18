@@ -47,6 +47,8 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/clients", s.clients, false)
 	R("POST /v1/clients", s.createClient, true)
 	R("GET /v1/clients/{ucc}", s.client, false)
+	R("POST /v1/clients/{ucc}/reveal", s.revealClient, true)
+	R("GET /v1/security", s.security, false)
 	R("POST /v1/clients/{ucc}/advance", s.advance, true)
 	R("POST /v1/clients/{ucc}/block", s.block, true)
 	R("GET /v1/market", s.market, false)
@@ -3094,4 +3096,21 @@ func (s *Server) releaseDeposit(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := s.ops.ReleaseDeposit(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Status, b.Note)
 	ok(w, v, err)
+}
+
+func (s *Server) security(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.Security(r.Context(), tenant(r), actor(r), r.URL.Query().Get("verify") == "1")
+	ok(w, v, err)
+}
+
+func (s *Server) revealClient(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Field  string `json:"field"`
+		Reason string `json:"reason"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.RevealClient(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), b.Field, b.Reason)
+	ok(w, map[string]string{"value": v}, err)
 }

@@ -11,6 +11,7 @@ import (
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/ledger"
 	"ledgerline/internal/money"
+	"ledgerline/internal/vault"
 )
 
 func newOps(t *testing.T) (*Ops, context.Context) {
@@ -20,7 +21,7 @@ func newOps(t *testing.T) (*Ops, context.Context) {
 	f, _ := ledgerline.FS.Open("config/charges/sample-schedule.json")
 	sched, _ := charges.LoadSchedule(f)
 	f.Close()
-	a := app.New(app.MemoryStores(), reg, sched)
+	a := app.New(vault.Protect(app.MemoryStores(), vault.New(vault.Ephemeral())), reg, sched)
 	o := New(a)
 	o.SimulateOMS = true
 	if err := o.SeedDev(ctx, T); err != nil {

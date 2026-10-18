@@ -139,7 +139,12 @@ ORDER BY trade_date, type, trade_no`,
 WHERE tenant_id = $1::text AND id = $2::text AND status = 'OPEN'`,
 
 	"insert_audit": `INSERT INTO ll.audit_log (tenant_id, at, actor, action, object, detail) VALUES ($1::text, $2::timestamptz, $3::text, $4::text, $5::text, $6::jsonb)`,
-	"list_audit":   `SELECT at, actor, action, object, coalesce(detail::text, '') FROM ll.audit_log WHERE tenant_id = $1::text ORDER BY id DESC LIMIT $2::int`,
+	"list_audit":   `SELECT id, at, actor, action, object, coalesce(detail::text, ''), coalesce(prev_hash, ''), coalesce(hash, '') FROM ll.audit_log WHERE tenant_id = $1::text ORDER BY id DESC LIMIT $2::int`,
+	// audit_lock serialises sealed appends per tenant (held to commit).
+	"audit_lock":          `SELECT pg_advisory_xact_lock(hashtextextended('ll.audit:' || $1::text, 0))`,
+	"audit_last_hash":     `SELECT coalesce((SELECT hash FROM ll.audit_log WHERE tenant_id = $1::text AND hash IS NOT NULL ORDER BY id DESC LIMIT 1), '')`,
+	"insert_audit_sealed": `INSERT INTO ll.audit_log (tenant_id, at, actor, action, object, detail, prev_hash, hash) VALUES ($1::text, $2::timestamptz, $3::text, $4::text, $5::text, $6::jsonb, $7::text, $8::text)`,
+	"scan_audit":          `SELECT id, at, actor, action, object, coalesce(detail::text, ''), coalesce(prev_hash, ''), coalesce(hash, '') FROM ll.audit_log WHERE tenant_id = $1::text AND id > $2::bigint ORDER BY id LIMIT $3::int`,
 }
 
 // ---- ledger.Store ----
@@ -259,7 +264,9 @@ func (s *Store) listTx(ctx context.Context, tx *sql.Tx, tenant, id string, f led
 // ---- ingest.RawStore ----
 
 func (s *Store) Put(ctx context.Context, f ingest.RawFile) (ingest.RawFile, error) {
-	f.Size = int64(len(f.Content))
+	if f.Size == 0 {
+		f.Size = int64(len(f.Content)) // an encrypting store sets the original size
+	}
 	err := s.tx(ctx, f.Tenant, func(tx *sql.Tx) error {
 		return tx.QueryRowContext(ctx, Q["insert_raw"], f.Tenant, f.Source, f.Name, f.SHA256, f.Size, f.Content).Scan(&f.ID, &f.PriorID, &f.ReceivedAt)
 	})
@@ -485,6 +492,70 @@ func (s *Store) Log(ctx context.Context, e app.AuditEvent) error {
 	})
 }
 
+func scanAudit(rows *sql.Rows, tenant string) (app.AuditEvent, error) {
+	e := app.AuditEvent{Tenant: tenant}
+	var detail string
+	if err := rows.Scan(&e.Seq, &e.At, &e.Actor, &e.Action, &e.Object, &detail, &e.Prev, &e.Hash); err != nil {
+		return e, err
+	}
+	e.At = e.At.UTC()
+	if detail != "" {
+		if err := json.Unmarshal([]byte(detail), &e.Detail); err != nil {
+			return e, err
+		}
+	}
+	return e, nil
+}
+
+// LogSealed appends an entry to the tenant's sealed chain. The advisory
+// lock makes concurrent writers (several servers included) take turns.
+func (s *Store) LogSealed(ctx context.Context, e app.AuditEvent, seal app.AuditSealer) error {
+	var detail any
+	if len(e.Detail) > 0 {
+		b, err := json.Marshal(e.Detail)
+		if err != nil {
+			return err
+		}
+		detail = string(b)
+	}
+	e.At = e.At.UTC().Truncate(time.Microsecond)
+	return s.tx(ctx, e.Tenant, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, Q["audit_lock"], e.Tenant); err != nil {
+			return err
+		}
+		if err := tx.QueryRowContext(ctx, Q["audit_last_hash"], e.Tenant).Scan(&e.Prev); err != nil {
+			return err
+		}
+		h, err := seal(e)
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, Q["insert_audit_sealed"], e.Tenant, e.At, e.Actor, e.Action, e.Object, detail, e.Prev, h)
+		return err
+	})
+}
+
+// ScanAudit returns entries oldest first after seq.
+func (s *Store) ScanAudit(ctx context.Context, tenant string, after int64, limit int) ([]app.AuditEvent, error) {
+	out := []app.AuditEvent{}
+	err := s.tx(ctx, tenant, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, Q["scan_audit"], tenant, after, limit)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			e, err := scanAudit(rows, tenant)
+			if err != nil {
+				return err
+			}
+			out = append(out, e)
+		}
+		return rows.Err()
+	})
+	return out, err
+}
+
 func (s *Store) ListAudit(ctx context.Context, tenant string, limit int) ([]app.AuditEvent, error) {
 	if limit <= 0 || limit > 10000 {
 		limit = 10000
@@ -497,13 +568,9 @@ func (s *Store) ListAudit(ctx context.Context, tenant string, limit int) ([]app.
 		}
 		defer rows.Close()
 		for rows.Next() {
-			e := app.AuditEvent{Tenant: tenant}
-			var detail string
-			if err := rows.Scan(&e.At, &e.Actor, &e.Action, &e.Object, &detail); err != nil {
+			e, err := scanAudit(rows, tenant)
+			if err != nil {
 				return err
-			}
-			if detail != "" {
-				_ = json.Unmarshal([]byte(detail), &e.Detail)
 			}
 			out = append(out, e)
 		}
@@ -514,6 +581,17 @@ func (s *Store) ListAudit(ctx context.Context, tenant string, limit int) ([]app.
 
 // auditStoreAdapter exposes ListAudit under the AuditStore method name.
 type auditStoreAdapter struct{ *Store }
+
+func (a auditStoreAdapter) LogSealed(ctx context.Context, e app.AuditEvent, seal app.AuditSealer) error {
+	return a.Store.LogSealed(ctx, e, seal)
+}
+
+func (a auditStoreAdapter) Scan(ctx context.Context, tenant string, after int64, limit int) ([]app.AuditEvent, error) {
+	if limit <= 0 {
+		limit = 5000
+	}
+	return a.Store.ScanAudit(ctx, tenant, after, limit)
+}
 
 func (a auditStoreAdapter) List(ctx context.Context, tenant string, limit int) ([]app.AuditEvent, error) {
 	return a.Store.ListAudit(ctx, tenant, limit)

@@ -121,7 +121,9 @@ func (m *MemRawStore) Put(_ context.Context, f RawFile) (RawFile, error) {
 	m.seq++
 	f.ID = fmt.Sprintf("RF-%08d", m.seq)
 	f.ReceivedAt = m.Now().UTC()
-	f.Size = int64(len(f.Content))
+	if f.Size == 0 {
+		f.Size = int64(len(f.Content))
+	}
 	f.Content = append([]byte(nil), f.Content...)
 	sk := f.Tenant + "|" + f.Source + "|" + f.SHA256
 	f.PriorID = m.bySum[sk]

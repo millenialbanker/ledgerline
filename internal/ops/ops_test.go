@@ -12,6 +12,7 @@ import (
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/money"
 	"ledgerline/internal/sample"
+	"ledgerline/internal/vault"
 )
 
 const T, D = "demo", "2026-10-16"
@@ -29,7 +30,7 @@ func setup(t *testing.T) (*Ops, context.Context) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := app.New(app.MemoryStores(), reg, sched)
+	a := app.New(vault.Protect(app.MemoryStores(), vault.New(vault.Ephemeral())), reg, sched)
 	o := New(a)
 	o.SimulateOMS = true
 	if err := o.SeedDev(ctx, T); err != nil {

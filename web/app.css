@@ -110,7 +110,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .tbl tr:last-child td{border-bottom:0}
 .tbl tbody tr:hover td{background:color-mix(in srgb,var(--accent-soft) 45%,transparent)}
 .tbl .r{text-align:right}.tbl td.r,.tbl td.n{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
-.tbl td.wrap{white-space:normal;min-width:220px}
+.tbl td.wrap{white-space:normal;min-width:220px;overflow-wrap:anywhere}
 .tbl tr.click{cursor:pointer}
 .tbl tfoot td{font-weight:600;background:var(--sunk);border-top:1px solid var(--line2)}
 .empty{text-align:center;color:var(--ink3);padding:26px!important}
@@ -199,6 +199,8 @@ input.in,select.in{height:32px}
 .note{padding:10px 12px;border-radius:8px;background:var(--accent-soft);color:var(--ink);font-size:13px;border:1px solid color-mix(in srgb,var(--accent) 25%,transparent)}
 .note.warn{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 30%,transparent)}
 .note.bad{background:var(--bad-soft);border-color:color-mix(in srgb,var(--bad) 30%,transparent)}
+.note.good{background:var(--good-soft);border-color:color-mix(in srgb,var(--good) 30%,transparent)}
+.revealed{background:var(--warn-soft);padding:0 3px;border-radius:3px}
 .steps{display:flex;gap:6px;flex-wrap:wrap}
 .steps span{font-size:12px;padding:4px 10px;border-radius:20px;background:var(--sunk);color:var(--ink3);border:1px solid var(--line)}
 .steps span.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}

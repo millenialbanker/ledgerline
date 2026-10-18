@@ -26,7 +26,7 @@ func TestDumpPrepared(t *testing.T) {
 		if strings.Count(Q[n], "$") == 0 {
 			t.Errorf("%s has no parameters; tenant scoping is missing", n)
 		}
-		if n != "set_tenant" && !strings.Contains(Q[n], "tenant_id") {
+		if n != "set_tenant" && n != "audit_lock" && !strings.Contains(Q[n], "tenant_id") {
 			t.Errorf("%s does not filter or set tenant_id", n)
 		}
 	}

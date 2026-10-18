@@ -6,6 +6,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -57,6 +58,43 @@ type AuditEvent struct {
 	Action string         `json:"action"`
 	Object string         `json:"object"`
 	Detail map[string]any `json:"detail,omitempty"`
+	// Prev and Hash chain the tenant's entries: Hash is a keyed hash over
+	// this entry and Prev (the previous entry's Hash), so an edited, removed
+	// or inserted entry breaks the chain. Empty on entries written before
+	// sealing was switched on.
+	Prev string `json:"prev,omitempty"`
+	Hash string `json:"hash,omitempty"`
+	Seq  int64  `json:"seq,omitempty"`
+}
+
+// AuditSealer computes an entry's Hash once Prev is set.
+type AuditSealer func(e AuditEvent) (string, error)
+
+// ChainedAudit is implemented by audit stores that can append sealed
+// entries: under a lock per tenant, it reads the last Hash, sets Prev, calls
+// seal and stores the entry with its Hash. Scan returns entries oldest
+// first after a sequence number.
+type ChainedAudit interface {
+	LogSealed(ctx context.Context, e AuditEvent, seal AuditSealer) error
+	Scan(ctx context.Context, tenant string, after int64, limit int) ([]AuditEvent, error)
+}
+
+// AuditCanonical is the exact byte string an entry's Hash covers. Time is
+// UTC to the microsecond (what PostgreSQL keeps) and the detail is
+// normalised (sorted keys, numbers as JSON numbers), so the same bytes are
+// produced when the entry is read back from either store.
+func AuditCanonical(e AuditEvent) ([]byte, error) {
+	var det any
+	if len(e.Detail) > 0 {
+		b, err := json.Marshal(e.Detail)
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(b, &det); err != nil {
+			return nil, err
+		}
+	}
+	return json.Marshal([]any{"ll-audit-v1", e.Tenant, e.At.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano), e.Actor, e.Action, e.Object, det, e.Prev})
 }
 
 // AuditStore is append-only.
@@ -482,8 +520,51 @@ func NewMemAuditStore() *MemAuditStore { return &MemAuditStore{} }
 func (s *MemAuditStore) Log(_ context.Context, e AuditEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	e.Seq = int64(len(s.ev) + 1)
 	s.ev = append(s.ev, e)
 	return nil
+}
+
+func (s *MemAuditStore) LogSealed(_ context.Context, e AuditEvent, seal AuditSealer) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e.At = e.At.UTC().Truncate(time.Microsecond)
+	e.Prev = ""
+	for i := len(s.ev) - 1; i >= 0; i-- {
+		if s.ev[i].Tenant == e.Tenant && s.ev[i].Hash != "" {
+			e.Prev = s.ev[i].Hash
+			break
+		}
+	}
+	h, err := seal(e)
+	if err != nil {
+		return err
+	}
+	e.Hash, e.Seq = h, int64(len(s.ev)+1)
+	s.ev = append(s.ev, e)
+	return nil
+}
+
+func (s *MemAuditStore) Scan(_ context.Context, tenant string, after int64, limit int) ([]AuditEvent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := []AuditEvent{}
+	for _, e := range s.ev {
+		if e.Tenant == tenant && e.Seq > after {
+			out = append(out, e)
+			if limit > 0 && len(out) >= limit {
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+// Tamper changes a stored entry in place, for tests of the seal.
+func (s *MemAuditStore) Tamper(fn func(e []AuditEvent)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	fn(s.ev)
 }
 
 func (s *MemAuditStore) List(_ context.Context, tenant string, limit int) ([]AuditEvent, error) {

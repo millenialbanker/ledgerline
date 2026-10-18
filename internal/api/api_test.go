@@ -14,6 +14,7 @@ import (
 	"ledgerline/internal/app"
 	"ledgerline/internal/charges"
 	"ledgerline/internal/ingest"
+	"ledgerline/internal/vault"
 )
 
 const key = "test-key-0123456789abcdef"
@@ -30,7 +31,7 @@ func server(t *testing.T) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := app.New(app.MemoryStores(), reg, sched)
+	a := app.New(vault.Protect(app.MemoryStores(), vault.New(vault.Ephemeral())), reg, sched)
 	srv := httptest.NewServer(New(a, nil, map[string]string{key: "bhairav", "other-tenant-key-0000": "beta"}, slog.New(slog.NewTextHandler(io.Discard, nil)), false))
 	t.Cleanup(srv.Close)
 	return srv
