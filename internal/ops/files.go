@@ -43,6 +43,7 @@ func MasterSources() []MasterSource {
 		{"IPO-BIDS", "IPO applications from the exchange bidding platform", []string{"ApplicationNo", "UCC", "Issue", "Lots", "Amount", "UPI", "Mandate"}, false, "During the issue"},
 		{"IPO-ALLOTMENT", "IPO allotment results from the registrar", []string{"ApplicationNo", "AllottedLots"}, false, "After allotment"},
 		{"MF-ORDERS", "Mutual fund orders from the exchange platform", []string{"OrderNo", "UCC", "Scheme", "Type", "Amount", "Platform", "Status"}, false, "Daily"},
+		{"CIRCULARS", "Circulars from SEBI, the exchanges, clearing corporations and depositories (Date YYYY-MM-DD or DD-Mon-YYYY); optional columns Department, URL, Text. Each is triaged into areas, priority and actions", []string{"Source", "Ref", "Date", "Subject"}, false, "Daily"},
 		{"DEBARRED-LIST", "SEBI / exchange debarment orders and UN sanctions lists; PAN matches are blocked, name matches raised for review", []string{"PAN", "Name", "Regulator", "OrderNo", "OrderDate", "Till"}, false, "On every new order"},
 		{"KRA-STATUS", "KYC status from the KRA (Registered, Validated, On hold, Rejected)", []string{"PAN", "Status", "Remarks"}, false, "Daily"},
 		{"CKYC-NUMBERS", "CKYC identifiers downloaded from CERSAI", []string{"PAN", "CKYCNumber"}, false, "On response"},
@@ -204,6 +205,8 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		return o.prepareCompliance(ctx, tenant, actor, source, date, rows)
 	case "NRI-CAUTION":
 		return o.loadNRICaution(ctx, tenant, actor, date, rows)
+	case "CIRCULARS":
+		return o.prepareCirculars(ctx, tenant, actor, rows)
 	case "LTP-SNAPSHOT":
 		return o.loadLivePrices(ctx, tenant, actor, date, rows)
 	case "MTF-ELIGIBLE":

@@ -158,6 +158,10 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/portal/whatsapp", s.portalWhatsApp, true)
 	R("GET /v1/insights", s.insights, false)
 	R("GET /v1/year-end", s.yearEnds, false)
+	R("GET /v1/circulars", s.circulars, false)
+	R("POST /v1/circulars/{id}", s.actCircular, true)
+	R("POST /v1/duties", s.saveDuty, true)
+	R("POST /v1/duties/{id}/done", s.dutyDone, true)
 	R("POST /v1/year-end/{fy}/send", s.sendYearEnd, true)
 	R("GET /v1/year-end/{fy}/{ucc}/document", s.yearEndDoc, false)
 	R("POST /v1/insights/find", s.findInsights, true)
@@ -2996,4 +3000,53 @@ func (s *Server) yearEndDoc(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
 	w.Write(b)
+}
+
+// ---- circulars and the compliance calendar ----
+
+func (s *Server) circulars(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	cs, err := s.ops.Circulars(r.Context(), tenant(r))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	ds, err := s.ops.Duties(r.Context(), tenant(r), d)
+	ok(w, map[string]any{"circulars": cs, "duties": ds}, err)
+}
+
+func (s *Server) actCircular(w http.ResponseWriter, r *http.Request) {
+	var b ops.CircularAction
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.ActOnCircular(r.Context(), tenant(r), actor(r), r.PathValue("id"), b)
+	ok(w, v, err)
+}
+
+func (s *Server) saveDuty(w http.ResponseWriter, r *http.Request) {
+	var b ops.Duty
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveDuty(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) dutyDone(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date     string `json:"date"`
+		Evidence string `json:"evidence"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if _, okd := dateParam(w, b.Date, "date", false); !okd {
+		return
+	}
+	v, err := s.ops.DoneDuty(r.Context(), tenant(r), actor(r), b.Date, r.PathValue("id"), b.Evidence)
+	ok(w, v, err)
 }
