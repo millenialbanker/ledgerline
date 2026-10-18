@@ -114,6 +114,8 @@ type Settings struct {
 	InsightCoolOffDays int64 `json:"insight_cool_off_days"`
 	// WABotSessionHours: how long a code given on WhatsApp keeps account information open (default 24).
 	WABotSessionHours int64 `json:"wa_bot_session_hours"`
+	// ClearingBMC is base minimum capital required by each clearing corporation (₹).
+	ClearingBMC map[string]string `json:"clearing_bmc,omitempty"`
 
 	// Interest (delayed payment charges) on overdue debit balances.
 	InterestPctPA      string   `json:"interest_pct_pa"`      // annual %, default 18

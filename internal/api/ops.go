@@ -159,6 +159,9 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/insights", s.insights, false)
 	R("GET /v1/year-end", s.yearEnds, false)
 	R("GET /v1/circulars", s.circulars, false)
+	R("GET /v1/deposits", s.deposits, false)
+	R("POST /v1/deposits", s.saveDeposit, true)
+	R("POST /v1/deposits/{id}/release", s.releaseDeposit, true)
 	R("POST /v1/circulars/{id}", s.actCircular, true)
 	R("POST /v1/duties", s.saveDuty, true)
 	R("POST /v1/duties/{id}/done", s.dutyDone, true)
@@ -323,7 +326,13 @@ func (s *Server) settings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
-	var set ops.Settings
+	// Start from the saved settings so fields a screen does not send keep
+	// their values.
+	set, err := s.ops.Settings(r.Context(), tenant(r))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
 	if !decode(w, r, &set) {
 		return
 	}
@@ -3048,5 +3057,37 @@ func (s *Server) dutyDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.DoneDuty(r.Context(), tenant(r), actor(r), b.Date, r.PathValue("id"), b.Evidence)
+	ok(w, v, err)
+}
+
+// ---- clearing deposits ----
+
+func (s *Server) deposits(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.Deposits(r.Context(), tenant(r), d)
+	ok(w, v, err)
+}
+
+func (s *Server) saveDeposit(w http.ResponseWriter, r *http.Request) {
+	var b ops.Deposit
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveDeposit(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) releaseDeposit(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Status string `json:"status"`
+		Note   string `json:"note"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.ReleaseDeposit(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Status, b.Note)
 	ok(w, v, err)
 }
