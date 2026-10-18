@@ -49,7 +49,24 @@ func Handler(cfg Config) http.Handler {
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Write(page)
 	})
-	for name, ct := range map[string]string{"app.js": "text/javascript; charset=utf-8", "app.css": "text/css; charset=utf-8"} {
+	open, err := fs.ReadFile(ledgerline.FS, "web/open.html")
+	if err != nil {
+		panic("web: account opening page missing from build: " + err.Error())
+	}
+	// The public account-opening page uses the camera for the photograph
+	// and the in-person verification video.
+	mux.HandleFunc("GET /open/{tenant}", func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Referrer-Policy", "no-referrer")
+		h.Set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()")
+		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'")
+		h.Set("Content-Type", "text/html; charset=utf-8")
+		h.Set("Cache-Control", "no-cache")
+		w.Write(open)
+	})
+	for name, ct := range map[string]string{"app.js": "text/javascript; charset=utf-8", "app.css": "text/css; charset=utf-8", "open.js": "text/javascript; charset=utf-8", "open.css": "text/css; charset=utf-8"} {
 		b, err := fs.ReadFile(ledgerline.FS, "web/"+name)
 		if err != nil {
 			panic("web: " + name + " missing from build: " + err.Error())

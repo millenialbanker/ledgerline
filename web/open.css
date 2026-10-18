@@ -1,0 +1,55 @@
+/* Layout: one narrow column for a phone, firm header, step rail, one card per step */
+:root{
+  --bg:#F2F3EF; --panel:#FFFFFF; --sunk:#EAECE6; --line:#DADDD5; --ink:#16201B; --ink2:#525D57;
+  --accent:#2C47A3; --accent-ink:#FFFFFF; --accent-soft:#E5E9F6;
+  --good:#1D7448; --good-soft:#E1F0E6; --warn:#9A6200; --warn-soft:#FAEFD6; --bad:#B0281F; --bad-soft:#F8E2DF;
+  --f-sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-cond:'IBM Plex Sans Condensed','IBM Plex Sans',system-ui,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0F1412; --panel:#161D19; --sunk:#1B231F; --line:#28322D; --ink:#E5EBE7; --ink2:#A3AEA8;
+  --accent:#8FA4F2; --accent-ink:#0F1412; --accent-soft:#1D2646;
+  --good:#5DC08C; --good-soft:#15291E; --warn:#E3A944; --warn-soft:#2D2311; --bad:#F0796E; --bad-soft:#33181A; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-sans)}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:560px;margin:0 auto;padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 32px max(16px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:14px}
+.head{display:flex;gap:12px;align-items:center}
+.head small{display:block;color:var(--ink2);font-size:12px}
+.mark{width:34px;height:34px;border-radius:8px;background:var(--accent);display:grid;grid-template-rows:repeat(3,1fr);padding:8px 7px;gap:3px;flex:none}
+.mark i{display:block;background:var(--accent-ink);border-radius:1px}
+.mark i:nth-child(2){width:70%}.mark i:nth-child(3){width:45%}
+.prog{list-style:none;display:flex;gap:4px;margin:0;padding:0}
+.prog li{flex:1;height:5px;border-radius:3px;background:var(--line)}
+.prog li.done{background:var(--good)}.prog li.on{background:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:14px}
+h1{font:600 21px/1.25 var(--f-cond);margin:0}
+.dim{color:var(--ink2)}.small{font-size:13px}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld label{font-size:13px;font-weight:500}
+.in{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.in.mono{font-family:var(--f-mono);letter-spacing:.04em}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:420px){.row{grid-template-columns:1fr}}
+.err{color:var(--bad);font-size:13px}
+.btn{padding:11px 16px;border-radius:8px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-weight:500}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn:disabled{opacity:.55;cursor:default}
+.acts{display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:14px}
+.check input{margin-top:3px;width:18px;height:18px;flex:none}
+.note{padding:10px 12px;border-radius:8px;background:var(--accent-soft);font-size:14px}
+.note.ok{background:var(--good-soft)}.note.bad{background:var(--bad-soft)}.note.warn{background:var(--warn-soft)}
+.res{display:flex;flex-direction:column;gap:6px}
+.res div{display:flex;gap:8px;font-size:13px;align-items:baseline}
+.pill{font-size:11.5px;padding:1px 8px;border-radius:99px;font-weight:600;white-space:nowrap}
+.pill.Passed{background:var(--good-soft);color:var(--good)}.pill.Failed{background:var(--bad-soft);color:var(--bad)}.pill.Check{background:var(--warn-soft);color:var(--warn)}
+.media{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+video,canvas.sig,img.prev{max-width:100%;border-radius:8px;border:1px solid var(--line);background:var(--sunk)}
+canvas.sig{width:100%;height:150px;touch-action:none;background:#fff}
+.code{font:600 28px var(--f-mono);letter-spacing:.2em}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px}
+.kv dt{color:var(--ink2)}.kv dd{margin:0}
+.foot{font-size:12px;text-align:center}

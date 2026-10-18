@@ -254,6 +254,12 @@ func (o *Ops) CreateApplication(ctx context.Context, tenant, actor string, c Cli
 	if err := o.require(ctx, tenant, actor, "Creating a client", RoleMaker, RoleChecker); err != nil {
 		return Client{}, err
 	}
+	return o.createApplication(ctx, tenant, actor, c)
+}
+
+// createApplication validates and stores a new application; callers check
+// who may create it.
+func (o *Ops) createApplication(ctx context.Context, tenant, actor string, c Client) (Client, error) {
 	c.Normalise()
 	if c.Nominee == "" {
 		c.Nominee = "Opted out"

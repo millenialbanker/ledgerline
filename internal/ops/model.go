@@ -200,6 +200,9 @@ type Ops struct {
 	SimulateOMS bool
 	// DevCodes shows one-time codes in replies. Development only.
 	DevCodes bool
+	// KYC runs online account-opening checks; nil means simulated on a
+	// development server and manual checking otherwise.
+	KYC KYCProvider
 }
 
 // New builds Ops and installs the client-code-modification hook on the app.
