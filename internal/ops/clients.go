@@ -88,6 +88,8 @@ type Client struct {
 	CKYC           string   `json:"ckyc,omitempty"`
 	ReKYCOn        string   `json:"rekyc_on,omitempty"`
 	ReKYCMode      string   `json:"rekyc_mode,omitempty"`
+	// NoInsights: the client turned account insights off in the portal.
+	NoInsights bool `json:"no_insights,omitempty"`
 }
 
 var (

@@ -89,6 +89,15 @@ var AutoDefs = []AutoDef{
 	{"leads", "Clients", "Lead follow-ups", "Queues every lead whose follow-up is due, for its owner.", "bod", ModeAuto, "", ModeAuto, nil, 10},
 	{"day_close", "Operations", "Day close", "Closes the day and carries positions forward when every end-of-day check passes; otherwise queues what is blocking.", "eod", ModeAuto, "", ModeAuto, nil, 15},
 	{"monthly", "Accounts", "Month-end postings", "Posts interest on debit balances, MTF interest, DP bills and AP payouts for the month just ended.", "monthly", ModeAuto, "", ModeSuggest, nil, 60},
+	{"ins_tax_harvest", "Client insights", "Tax-loss harvesting", "From mid-January to the last day that settles in the financial year: clients whose open losses would cut tax on gains already booked this year, or who can still book long-term gains within the ₹1.25 lakh exemption. A reminder goes a week before the last day.", "eod", ModeAuto, "", ModeAuto, map[string]string{"from": "01-15", "min_saving": "1000", "remind_days": "7"}, 20},
+	{"ins_buyback", "Client insights", "Buy-back eligibility", "Holders of shares in an open buy-back priced above the market who have not tendered, with their category and entitlement; a reminder two days before it closes.", "eod", ModeAuto, "", ModeAuto, nil, 15},
+	{"ins_fo_expiry", "Client insights", "Physical settlement at expiry", "Stock futures, and stock options in the money, expiring within a few business days: they settle by delivery unless closed or rolled over.", "eod", ModeAuto, "", ModeAuto, map[string]string{"days": "3"}, 15},
+	{"ins_advance_tax", "Client insights", "Advance tax on gains", "Ten days before each advance-tax instalment, clients with capital gains booked this year.", "eod", ModeAuto, "", ModeAuto, map[string]string{"days": "10", "min_gain": "50000"}, 10},
+	{"ins_corp_action", "Client insights", "Dividends and bonuses", "Holders of shares with a dividend, bonus or split whose record date is within ten days.", "eod", ModeAuto, "", ModeAuto, map[string]string{"days": "10"}, 10},
+	{"ins_idle_funds", "Client insights", "Idle funds", "Clients with a credit balance, no positions and no trade for a month, who may want to withdraw it.", "eod", ModeAuto, "", ModeSuggest, map[string]string{"min": "25000", "days": "30"}, 10},
+	{"ins_pledge_margin", "Client insights", "Margin from holdings", "Derivatives clients whose unpledged holdings could be pledged as margin, after haircuts.", "eod", ModeAuto, "", ModeSuggest, map[string]string{"min": "50000"}, 10},
+	{"ins_dormant", "Client insights", "Account turning inactive", "Accounts that the exchanges' rules will flag inactive within 60 days unless there is activity.", "eod", ModeAuto, "", ModeAuto, map[string]string{"days": "60"}, 10},
+	{"ins_outcomes", "Client insights", "Insight outcomes", "Marks insights acted on when the client trades, tenders or rolls over within 15 days, and records the turnover.", "eod", ModeAuto, "", ModeAuto, nil, 5},
 	{"ras", "Money", "Running account settlement", "On the settlement dates, settles running accounts and sends the payouts.", "eod", ModeAuto, "", ModeAuto, nil, 60},
 }
 
@@ -170,6 +179,20 @@ func (o *Ops) SetAutoPolicy(ctx context.Context, tenant, actor string, p AutoPol
 	if v, ok := p.Params["limit"]; ok {
 		if a, err := money.ParseAmount(v); err != nil || a < 0 {
 			return p, invalid("limit must be an amount in rupees")
+		}
+	}
+	for _, k := range []string{"from", "to"} {
+		if v, ok := p.Params[k]; ok {
+			if _, err := time.Parse("01-02", v); err != nil {
+				return p, invalid("%s must be a month and day, MM-DD", k)
+			}
+		}
+	}
+	for _, k := range []string{"days", "remind_days", "min", "min_saving", "min_gain"} {
+		if v, ok := p.Params[k]; ok {
+			if n, err := money.ParseDec(strings.ReplaceAll(v, ",", "")); err != nil || n.Sign() < 0 {
+				return p, invalid("%s must be a number", k)
+			}
 		}
 	}
 	if v, ok := p.Params["at"]; ok {
@@ -385,6 +408,9 @@ func init() {
 		"notes": autoNotes, "margin_calls": autoMarginCalls, "square_off": autoSquareOff, "mtf_liquidation": autoMTFLiquidation,
 		"penalties": autoPenalties, "reports": autoReports, "surveillance": autoSurveillance, "nri": autoNRI, "kyc": autoKYC,
 		"inactive": autoInactive, "service": autoService, "leads": autoLeads, "day_close": autoDayClose, "monthly": autoMonthly, "ras": autoRAS,
+		"ins_tax_harvest": autoTaxHarvest, "ins_buyback": autoBuyBack, "ins_fo_expiry": autoFOExpiry, "ins_advance_tax": autoAdvanceTax,
+		"ins_corp_action": autoCorpAction, "ins_idle_funds": autoIdleFunds, "ins_pledge_margin": autoPledgeMargin, "ins_dormant": autoDormant,
+		"ins_outcomes": autoInsightOutcomes,
 	}
 }
 

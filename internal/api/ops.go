@@ -151,6 +151,13 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/whatsapp/simulate", s.waSimulate, true)
 	s.mux.HandleFunc("POST /hooks/{tenant}/whatsapp", s.waHook)
 	R("POST /v1/portal/whatsapp", s.portalWhatsApp, true)
+	R("GET /v1/insights", s.insights, false)
+	R("POST /v1/insights/find", s.findInsights, true)
+	R("POST /v1/insights/{id}", s.actInsight, true)
+	R("GET /v1/tax-plan", s.taxPlan, false)
+	R("GET /v1/portal/insights", s.portalInsights, false)
+	R("POST /v1/portal/insights/prefs", s.portalInsightPrefs, true)
+	R("POST /v1/portal/buyback/{id}/tender", s.portalTender, true)
 	R("GET /v1/dp", s.dpDesk, false)
 	R("POST /v1/dp/tariff", s.dpTariff, true)
 	R("POST /v1/dp/accounts/{ucc}/bsda", s.dpBSDA, true)
@@ -2778,5 +2785,99 @@ func (s *Server) verifyChange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.VerifyChange(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Code)
+	ok(w, v, err)
+}
+
+// ---- client insights ----
+
+func (s *Server) insights(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.Insights(r.Context(), tenant(r), d, s.scope(r))
+	ok(w, v, err)
+}
+
+func (s *Server) findInsights(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string `json:"date"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	n, err := s.ops.FindInsights(r.Context(), tenant(r), actor(r), b.Date)
+	ok(w, map[string]any{"found": n}, err)
+}
+
+func (s *Server) actInsight(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Action  string `json:"action"`
+		Outcome string `json:"outcome"`
+		Text    string `json:"text"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if f := s.scope(r); f != nil {
+		in, err := s.ops.InsightByID(r.Context(), tenant(r), r.PathValue("id"))
+		if err != nil || !f(in.UCC) {
+			ok(w, nil, ops.ErrNotFound)
+			return
+		}
+	}
+	v, err := s.ops.ActOnInsight(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Action, b.Outcome, b.Text)
+	ok(w, v, err)
+}
+
+func (s *Server) taxPlan(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	u := strings.ToUpper(r.URL.Query().Get("ucc"))
+	if f := s.scope(r); f != nil && !f(u) {
+		ok(w, nil, ops.ErrNotFound)
+		return
+	}
+	if _, err := s.ops.Client(r.Context(), tenant(r), u); err != nil {
+		ok(w, nil, err)
+		return
+	}
+	v, err := s.ops.TaxPlan(r.Context(), tenant(r), u, d)
+	ok(w, v, err)
+}
+
+func (s *Server) portalInsights(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.ClientInsights(r.Context(), tenant(r), actor(r), d, r.URL.Query().Get("ucc"))
+	ok(w, v, err)
+}
+
+func (s *Server) portalInsightPrefs(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		UCC string `json:"ucc"`
+		Off bool   `json:"off"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	c, err := s.ops.SetInsightsOff(r.Context(), tenant(r), actor(r), b.UCC, b.Off)
+	ok(w, map[string]any{"ucc": c.UCC, "off": c.NoInsights}, err)
+}
+
+func (s *Server) portalTender(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		UCC  string `json:"ucc"`
+		Qty  int64  `json:"qty"`
+		Date string `json:"date"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.ClientTenderBuyBack(r.Context(), tenant(r), actor(r), b.Date, r.PathValue("id"), b.UCC, b.Qty)
 	ok(w, v, err)
 }

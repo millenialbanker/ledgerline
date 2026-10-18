@@ -69,6 +69,23 @@ Routine work runs by itself; people get only the exceptions. Each process has a 
 
 Everything that cannot finish lands in one **work queue** with the role who should act, a due time, and the action ready where possible; items close themselves when the condition clears. On the sample day, 288 actions ran without anyone and 74 items went to people (80% straight-through).
 
+## Client insights
+
+Every evening Ledgerline looks through each client's own account for things the client would want to know, and either messages the client (Auto) or puts them on the relationship managers' call list (Suggest), set per kind on Autopilot:
+
+| Insight | When | Worth to the client |
+| --- | --- | --- |
+| Tax-loss harvesting | 15 Jan to the last trading day that settles by 31 March | Tax saved by booking open losses against gains already booked (STCL against STCG then LTCG, LTCL against LTCG), or long-term gains still within the ₹1.25 lakh exemption. A reminder goes a week before the last day. |
+| Buy-back eligibility | While an offer priced above the market is open | Category (small shareholder up to ₹2 lakh, or general), entitlement from the letter-of-offer ratios, premium on it. Clients tender from the portal. |
+| Physical settlement at expiry | Three business days before expiry | Stock futures and in-the-money stock options that would settle by delivery, with the delivery value. |
+| Advance tax | Ten days before each instalment | Capital gains booked this year and the estimated tax on them. |
+| Dividends and bonuses | Record date within ten days | Holders' entitlement. |
+| Idle funds | Credit balance, no positions, no trade for 30 days | The funds, and that they can be withdrawn. |
+| Margin from holdings | Derivatives clients with unpledged holdings | Margin available after haircuts. |
+| Account turning inactive | 60 days before the exchanges' inactivity date | What keeps it active. |
+
+Messages are information about the client's own account, never a recommendation to buy or sell: each template carries a not-advice line, the compliance officer approves the wording (Messages), clients can turn insights off in the portal, promotional SMS follows the DND register, and a client gets at most one non-urgent insight every three days. Outcomes are tracked: a client who trades in the scrips concerned, tenders or rolls over within 15 days counts as acted on, with the turnover. Clients see their full capital-gains and harvesting working any time under **Tax & insights** in the portal; staff see the same working from the insight. Tax figures are estimates at the listed-equity rates (20% short-term, 12.5% long-term above ₹1.25 lakh, 4% cess), without surcharge or other income.
+
 ## Sign-in
 
 Each person has a user ID, a password (12+ characters, PBKDF2-SHA256, 600,000 iterations) and, when the firm requires it (the default), a time-based two-factor code from an authenticator app. Sessions are HttpOnly, SameSite=Strict cookies that end after 30 minutes idle (configurable), 12 hours, sign-out, or an admin reset. Five wrong attempts lock a user for 15 minutes; sign-in attempts are also limited per address. New users get a one-time password to change at first sign-in. Every sign-in, failure and change is in the audit trail. API keys remain for integrations, with `X-Actor`.

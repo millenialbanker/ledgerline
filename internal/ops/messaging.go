@@ -58,21 +58,29 @@ type Template struct {
 
 // EventVars lists each event and the placeholders it fills.
 var EventVars = map[string][]string{
-	"receipt.credited":   {"amount", "mode", "date", "status"},
-	"payout.paid":        {"amount", "utr"},
-	"payout.rejected":    {"amount", "reason"},
-	"payout.failed":      {"amount", "reason"},
-	"contract_note.sent": {"no", "date"},
-	"margin.shortfall":   {"shortfall", "date"},
-	"debit.reminder":     {"debit", "days", "date"},
-	"rekyc.due":          {"due"},
-	"ticket.opened":      {"id", "subject", "due"},
-	"ticket.reply":       {"id", "subject", "status"},
-	"change.approved":    {"kind", "id"},
-	"change.rejected":    {"kind", "id", "reason"},
-	"portal.granted":     {"user"},
-	"statement.monthly":  {"from", "to", "closing"},
-	"bulk":               {},
+	"receipt.credited":      {"amount", "mode", "date", "status"},
+	"payout.paid":           {"amount", "utr"},
+	"payout.rejected":       {"amount", "reason"},
+	"payout.failed":         {"amount", "reason"},
+	"contract_note.sent":    {"no", "date"},
+	"margin.shortfall":      {"shortfall", "date"},
+	"debit.reminder":        {"debit", "days", "date"},
+	"rekyc.due":             {"due"},
+	"ticket.opened":         {"id", "subject", "due"},
+	"ticket.reply":          {"id", "subject", "status"},
+	"change.approved":       {"kind", "id"},
+	"change.rejected":       {"kind", "id", "reason"},
+	"portal.granted":        {"user"},
+	"statement.monthly":     {"from", "to", "closing"},
+	"bulk":                  {},
+	"insight.tax_harvest":   {"fy", "stcg", "ltcg", "st_loss", "lt_loss", "saving", "exempt_left", "gain_harvest", "last_day", "symbols"},
+	"insight.buyback":       {"symbol", "company", "price", "ltp", "premium_pct", "held", "category", "entitlement", "record", "close"},
+	"insight.fo_expiry":     {"contract", "expiry", "action", "qty", "symbol", "value"},
+	"insight.advance_tax":   {"due", "stcg", "ltcg", "tax", "total"},
+	"insight.corp_action":   {"symbol", "what", "record", "ex", "held", "amount"},
+	"insight.idle_funds":    {"amount", "since"},
+	"insight.pledge_margin": {"margin", "count"},
+	"insight.dormant":       {"date", "last"},
 }
 
 // Events lists the events in display order.
@@ -103,14 +111,43 @@ func DefaultTemplates() []Template {
 		t("change.approved", ChEmail, "Service", "Your {kind} has been updated", "Dear {name},\n\nYour request {id} to change your {kind} has been approved and is now in effect.\n\n{firm}", ""),
 		t("change.rejected", ChEmail, "Service", "Your change request {id}", "Dear {name},\n\nWe could not process your request {id} to change your {kind}: {reason}.\n\n{firm}", ""),
 		t("portal.granted", ChEmail, "Service", "Your client portal login", "Dear {name},\n\nYour client portal user ID is {user}. Your one-time password is being sent separately by SMS.\n\n{firm}", ""),
+		t("insight.tax_harvest", ChEmail, "Service", "Your capital gains for FY {fy} and open losses", "Dear {name},\n\nA summary from your account {ucc} for the financial year {fy}:\n\nGains booked so far: short-term ₹{stcg}, long-term ₹{ltcg}.\nUnrealised losses in your holdings: short-term ₹{st_loss}, long-term ₹{lt_loss} ({symbols}).\n\nUnder the income-tax rules, losses booked in the year are set off against gains of the year. Booking these losses would reduce the estimated tax on this year's gains by about ₹{saving}. Long-term gains still within this year's ₹1.25 lakh exemption: ₹{exempt_left}.\n\nFor a sale to count in this financial year it must settle by 31 March: the last trading day is {last_day}. Your holding-wise working is under Tax & insights in the client portal.\n\nThis is information from your account, not tax or investment advice. Please consult your tax adviser before acting. Selling and buying back costs brokerage, STT and other charges.\n\n{firm}", ""),
+		t("insight.tax_harvest", ChWhatsApp, "Service", "", "{name}, FY {fy} so far: gains booked short-term ₹{stcg}, long-term ₹{ltcg}. Open losses in your holdings: ₹{st_loss} short-term, ₹{lt_loss} long-term. Booking them by {last_day} could reduce tax on this year's gains by about ₹{saving}. Details: client portal → Tax & insights. Information only, not tax or investment advice.", ""),
+		t("insight.buyback", ChEmail, "Service", "{company} buy-back: you hold eligible shares", "Dear {name},\n\n{company} is buying back shares at ₹{price} per share through the stock exchange's tender window (last price ₹{ltp}, {premium_pct}% lower). You held {held} free shares; category: {category}; entitlement: {entitlement}. The record date was {record}.\n\nThe tender period closes on {close}. You can tender in the client portal under Tax & insights, or ask us to tender for you. Shares not accepted are returned to your demat account.\n\nSince 1 October 2024 the buy-back amount is taxed in the shareholder's hands as dividend, and the cost of the shares accepted becomes a capital loss. This is information about an offer on shares you hold, not investment advice.\n\n{firm}", ""),
+		t("insight.buyback", ChWhatsApp, "Service", "", "{name}, {company} buy-back at ₹{price} ({premium_pct}% above the last price) is open till {close}. You hold {held} free shares ({category}; entitlement {entitlement}). Tender in the client portal → Tax & insights. Information only, not advice.", ""),
+		t("insight.fo_expiry", ChEmail, "Transactional", "{contract} expires on {expiry}: delivery settlement", "Dear {name},\n\nYour position in {contract} expires on {expiry}. Stock derivatives held at expiry are settled by delivery: you would {action} {qty} shares of {symbol}, about ₹{value}. Funds or shares must be in your account for the settlement, and margins rise in the days before expiry.\n\nIf you do not intend to settle by delivery, close or roll over the position before expiry.\n\n{firm}", ""),
+		t("insight.fo_expiry", ChSMS, "Transactional", "", "Dear {name}, your {contract} position expires {expiry} and settles by delivery: {action} {qty} {symbol} (approx Rs {value}). Close or roll over to avoid. -{firm}", "1107166000000000010"),
+		t("insight.advance_tax", ChEmail, "Service", "Advance tax instalment due {due}", "Dear {name},\n\nThe next advance-tax instalment is due on {due}. Capital gains booked in your account {ucc} this financial year: short-term ₹{stcg}, long-term ₹{ltcg}; estimated tax on them about ₹{tax}. Your capital gains statement is in the client portal under Reports & statements.\n\nThis does not include other income, F&O results or other brokers. It is information, not tax advice; please check with your tax adviser.\n\n{firm}", ""),
+		t("insight.corp_action", ChEmail, "Service", "{symbol}: {what}", "Dear {name},\n\n{symbol} has announced a {what}. Record date: {record}; ex-date: {ex}. You hold {held} shares in your demat account.\n\n{firm}", ""),
+		t("insight.idle_funds", ChEmail, "Promotional", "₹{amount} in your trading account", "Dear {name},\n\nYour trading account {ucc} has a credit balance of ₹{amount} and no trades since {since}. You can withdraw it at any time from the client portal (Funds & payouts); otherwise it is returned to your bank on the running-account settlement date.\n\n{firm}", ""),
+		t("insight.pledge_margin", ChEmail, "Promotional", "Use your holdings as margin", "Dear {name},\n\nYou have {count} holding(s) that are not pledged. Pledged as margin, they would give about ₹{margin} after haircuts, while you keep ownership and corporate benefits. Exchange rules require at least half of the margin for derivatives in cash.\n\nYou can request a pledge from the depository's site or ask us. This is information about your account, not investment advice.\n\n{firm}", ""),
+		t("insight.dormant", ChEmail, "Service", "Your trading account will be marked inactive on {date}", "Dear {name},\n\nThere has been no activity in your trading account {ucc} since {last}. Under the stock exchanges' rules it will be marked inactive on {date}, after which you cannot trade until it is reactivated with a fresh verification.\n\nAny trade or an update of your KYC details keeps it active. If you no longer need the account, you can ask us to close it.\n\n{firm}", ""),
 		t("statement.monthly", ChEmail, "Transactional", "Statement of account {from} to {to}", "Dear {name},\n\nPlease find your statement of account for {from} to {to}. Closing balance: {closing}. Please report any discrepancy within 30 days.\n\n{firm}", ""),
 	}
 }
 
 func (o *Ops) templates(ctx context.Context, tenant string) ([]Template, error) {
 	ts, err := docs.List[Template](ctx, o.Docs, tenant, cTemplate, "")
-	if err != nil || len(ts) > 0 {
+	if err != nil {
 		return ts, err
+	}
+	if len(ts) > 0 {
+		// Templates for events added since the firm was set up.
+		have := map[string]bool{}
+		for _, t := range ts {
+			have[t.Event] = true
+		}
+		for _, t := range DefaultTemplates() {
+			if have[t.Event] {
+				continue
+			}
+			t.ID = "TPL-" + strings.NewReplacer(".", "-", "_", "-").Replace(t.Event) + "-" + strings.ToLower(t.Channel)
+			if err := docs.Upsert(ctx, o.Docs, tenant, cTemplate, t.ID, t, "system"); err != nil {
+				return nil, err
+			}
+			ts = append(ts, t)
+		}
+		return ts, nil
 	}
 	for i, t := range DefaultTemplates() {
 		t.ID = fmt.Sprintf("TPL-%03d", i+1)

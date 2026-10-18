@@ -110,6 +110,8 @@ type Settings struct {
 	// InactiveMonths is the no-activity period after which a trading
 	// account is flagged Inactive (24 under the October 2024 circulars).
 	InactiveMonths int64 `json:"inactive_months"`
+	// InsightCoolOffDays: a client gets at most one non-urgent insight message in this many days (default 3).
+	InsightCoolOffDays int64 `json:"insight_cool_off_days"`
 
 	// Interest (delayed payment charges) on overdue debit balances.
 	InterestPctPA      string   `json:"interest_pct_pa"`      // annual %, default 18

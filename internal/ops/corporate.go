@@ -368,17 +368,20 @@ func applyCorpLots(open []Lot, cas []CorpAction, d string) []Lot {
 // BuyBack is a company's tender offer to buy back shares through the
 // exchange's acquisition window.
 type BuyBack struct {
-	ID      string       `json:"id"`
-	ISIN    string       `json:"isin"`
-	Symbol  string       `json:"symbol"`
-	Company string       `json:"company"`
-	Price   money.Dec    `json:"price"`
-	Record  string       `json:"record_date"`
-	Open    string       `json:"open"`
-	Close   string       `json:"close"`
-	Status  string       `json:"status"` // Open, Settled
-	Bids    []BuyBackBid `json:"bids"`
-	By      string       `json:"by"`
+	ID      string    `json:"id"`
+	ISIN    string    `json:"isin"`
+	Symbol  string    `json:"symbol"`
+	Company string    `json:"company"`
+	Price   money.Dec `json:"price"`
+	Record  string    `json:"record_date"`
+	Open    string    `json:"open"`
+	Close   string    `json:"close"`
+	Status  string    `json:"status"` // Open, Settled
+	// Entitlement ratios from the letter of offer, "a/b": a shares for every b held.
+	SmallRatio   string       `json:"small_ratio,omitempty"`   // reserved category (holding up to ₹2 lakh on the record date)
+	GeneralRatio string       `json:"general_ratio,omitempty"` // general category
+	Bids         []BuyBackBid `json:"bids"`
+	By           string       `json:"by"`
 }
 
 // BuyBackBid is a client's tender.
@@ -413,6 +416,11 @@ func (o *Ops) SaveBuyBack(ctx context.Context, tenant, actor string, b BuyBack) 
 	b.ISIN, b.Symbol = strings.ToUpper(strings.TrimSpace(b.ISIN)), strings.ToUpper(strings.TrimSpace(b.Symbol))
 	if b.ISIN == "" || b.Price.Sign() <= 0 || !ledger.ValidDate(b.Open) || !ledger.ValidDate(b.Close) || b.Close < b.Open {
 		return b, invalid("ISIN, a price above zero and the tender period (open on or before close) are required")
+	}
+	for _, r := range []string{b.SmallRatio, b.GeneralRatio} {
+		if strings.TrimSpace(r) != "" && entitlement(1000000, r) == 0 {
+			return b, invalid("entitlement ratios are written a/b, e.g. 13/100 (13 shares for every 100 held)")
+		}
 	}
 	n, err := o.next(ctx, tenant, "buyback", actor)
 	if err != nil {
