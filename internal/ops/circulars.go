@@ -235,6 +235,9 @@ func (o *Ops) prepareCirculars(ctx context.Context, tenant, actor string, rows [
 // Circulars lists circulars, newest first.
 func (o *Ops) Circulars(ctx context.Context, tenant string) ([]Circular, error) {
 	cs, err := docs.List[Circular](ctx, o.Docs, tenant, cCircular, "")
+	if cs == nil {
+		cs = []Circular{}
+	}
 	sort.SliceStable(cs, func(i, j int) bool {
 		if cs[i].Date != cs[j].Date {
 			return cs[i].Date > cs[j].Date

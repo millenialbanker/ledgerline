@@ -153,7 +153,7 @@ func (o *Ops) ReleaseDeposit(ctx context.Context, tenant, actor, id, status, not
 
 // Deposits builds the register for a date.
 func (o *Ops) Deposits(ctx context.Context, tenant, date string) (DepositView, error) {
-	v := DepositView{Date: date, Deposits: []Deposit{}, Kinds: DepositKinds, CCs: ClearingCorps}
+	v := DepositView{Date: date, Deposits: []Deposit{}, ByCC: []DepositRequirement{}, Kinds: DepositKinds, CCs: ClearingCorps}
 	ds, err := docs.List[Deposit](ctx, o.Docs, tenant, cDeposit, "")
 	if err != nil {
 		return v, err
