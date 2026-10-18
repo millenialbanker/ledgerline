@@ -112,6 +112,8 @@ type Settings struct {
 	InactiveMonths int64 `json:"inactive_months"`
 	// InsightCoolOffDays: a client gets at most one non-urgent insight message in this many days (default 3).
 	InsightCoolOffDays int64 `json:"insight_cool_off_days"`
+	// WABotSessionHours: how long a code given on WhatsApp keeps account information open (default 24).
+	WABotSessionHours int64 `json:"wa_bot_session_hours"`
 
 	// Interest (delayed payment charges) on overdue debit balances.
 	InterestPctPA      string   `json:"interest_pct_pa"`      // annual %, default 18
@@ -194,6 +196,8 @@ type Ops struct {
 	// SimulateOMS fills RMS square-off instructions immediately at the last
 	// price, as a stand-in for a real OMS connection. Development only.
 	SimulateOMS bool
+	// DevCodes shows one-time codes in replies. Development only.
+	DevCodes bool
 }
 
 // New builds Ops and installs the client-code-modification hook on the app.

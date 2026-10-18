@@ -475,11 +475,22 @@ func (o *Ops) WhatsAppInbound(ctx context.Context, tenant, from, text, date stri
 			}
 			pick = fmt.Sprintf("\n(Showing %s. This number is linked to %s; add the UCC, e.g. BAL %s.)", c.UCC, strings.Join(us, ", "), us[len(us)-1])
 		}
-		reply = o.botAnswer(ctx, tenant, cmd, c, date, set) + pick
+		gate, stop, runCmd, runUCC := o.botGate(ctx, tenant, mobile, c, text, cmd, set)
+		if stop {
+			reply = gate
+		} else {
+			for _, x := range mine {
+				if x.UCC == runUCC {
+					c = x
+				}
+			}
+			cmd, ucc = runCmd, c.UCC
+			reply = o.botAnswer(ctx, tenant, cmd, c, date, set) + pick
+		}
 		if cmd == "STOP" && c.WhatsApp {
 			_, _ = o.recordConsent(ctx, tenant, "whatsapp", c.UCC, false, SrcWhatsApp, "STOP from "+maskMobile(mobile))
 		}
-		if !c.WhatsApp && cmd != "STOP" && cmd != "START" && cmd != "YES" {
+		if !stop && !c.WhatsApp && cmd != "STOP" && cmd != "START" && cmd != "YES" {
 			reply += "\n\nReply YES to also get account alerts and updates from us on WhatsApp."
 		}
 	}

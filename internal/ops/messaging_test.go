@@ -37,8 +37,18 @@ func TestMessagingAndBot(t *testing.T) {
 		t.Fatalf("receipt messages: %v", got)
 	}
 
-	// The bot answers the registered mobile; only YES opts it in to messages.
+	// Account information needs a code sent to the registered email.
+	o.DevCodes = true
 	reply, err := o.WhatsAppInbound(ctx, T, "+91"+c.Mobile, "bal", D)
+	if err != nil || !strings.Contains(reply, "6-digit code") || strings.Contains(reply, "Available to withdraw") {
+		t.Fatalf("bal before code: %q %v", reply, err)
+	}
+	code := reply[strings.Index(reply, "the code is ")+12:][:6]
+	if r2, _ := o.WhatsAppInbound(ctx, T, c.Mobile, "000000", D); !strings.Contains(r2, "not right") && code != "000000" {
+		t.Fatalf("wrong code: %q", r2)
+	}
+	// The right code answers the request that was held back.
+	reply, err = o.WhatsAppInbound(ctx, T, c.Mobile, code, D)
 	if err != nil || !strings.Contains(reply, "Available to withdraw") || !strings.Contains(reply, "BH1003") {
 		t.Fatalf("bal: %q %v", reply, err)
 	}

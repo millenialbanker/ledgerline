@@ -118,6 +118,7 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	o := ops.New(a)
 	if dev {
 		o.SimulateOMS = true
+		o.DevCodes = true
 		for _, t := range keys {
 			if err := o.SeedDev(ctx, t); err != nil {
 				return fmt.Errorf("seeding development tenant %s: %w", t, err)

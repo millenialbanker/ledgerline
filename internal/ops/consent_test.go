@@ -14,7 +14,7 @@ func TestWhatsAppConsent(t *testing.T) {
 	_ = docs.Upsert(ctx, o.Docs, T, cClient, c.UCC, c, "test")
 
 	// Writing to the bot does not opt in; YES does, STOP undoes it.
-	reply, _ := o.WhatsAppInbound(ctx, T, c.Mobile, "BAL", D)
+	reply, _ := o.WhatsAppInbound(ctx, T, c.Mobile, "HELP", D)
 	if c, _ = o.Client(ctx, T, "BH1001"); c.WhatsApp || !strings.Contains(reply, "Reply YES") {
 		t.Fatalf("opted in by BAL: %v %q", c.WhatsApp, reply)
 	}

@@ -248,6 +248,12 @@ func TestInsightsOnWhatsApp(t *testing.T) {
 		}
 	}
 	c, _ := o.Client(ctx, T, "BH1001")
+	o.DevCodes = true
+	r0, _ := o.WhatsAppInbound(ctx, T, c.Mobile, "TAX", D)
+	if !strings.Contains(r0, "the code is ") {
+		t.Fatalf("no code asked: %s", r0)
+	}
+	_, _ = o.WhatsAppInbound(ctx, T, c.Mobile, r0[strings.Index(r0, "the code is ")+12:][:6], D)
 	for _, cmd := range []string{"TAX", "OFFERS", "HELP"} {
 		reply, err := o.WhatsAppInbound(ctx, T, c.Mobile, cmd, D)
 		if err != nil {
