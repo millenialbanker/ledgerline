@@ -150,6 +150,11 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/whatsapp/chats", s.waChats, false)
 	R("POST /v1/whatsapp/simulate", s.waSimulate, true)
 	s.mux.HandleFunc("POST /hooks/{tenant}/whatsapp", s.waHook)
+	s.mux.HandleFunc("GET /optin/{tenant}/{token}", s.optinPage)
+	s.mux.HandleFunc("POST /optin/{tenant}/{token}", s.optinPage)
+	R("GET /v1/whatsapp/consents", s.waConsents, false)
+	R("POST /v1/whatsapp/consent-campaign", s.waCampaign, true)
+	R("POST /v1/clients/{ucc}/whatsapp-consent", s.waRecordConsent, true)
 	R("POST /v1/portal/whatsapp", s.portalWhatsApp, true)
 	R("GET /v1/insights", s.insights, false)
 	R("POST /v1/insights/find", s.findInsights, true)
@@ -2880,4 +2885,63 @@ func (s *Server) portalTender(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := s.ops.ClientTenderBuyBack(r.Context(), tenant(r), actor(r), b.Date, r.PathValue("id"), b.UCC, b.Qty)
 	ok(w, v, err)
+}
+
+// ---- WhatsApp consent ----
+
+func (s *Server) waConsents(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.Consents(r.Context(), tenant(r), s.scope(r))
+	ok(w, v, err)
+}
+
+func (s *Server) waRecordConsent(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		On     bool   `json:"on"`
+		Source string `json:"source"`
+		Ref    string `json:"ref"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	u := strings.ToUpper(r.PathValue("ucc"))
+	if f := s.scope(r); f != nil && !f(u) {
+		ok(w, nil, ops.ErrNotFound)
+		return
+	}
+	c, err := s.ops.RecordConsent(r.Context(), tenant(r), actor(r), u, b.On, b.Source, b.Ref)
+	ok(w, map[string]any{"ucc": c.UCC, "consent": c.WAConsent}, err)
+}
+
+func (s *Server) waCampaign(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Channel string `json:"channel"`
+		Limit   int    `json:"limit"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	scheme := "https"
+	if r.TLS == nil && r.Header.Get("X-Forwarded-Proto") != "https" {
+		scheme = "http"
+	}
+	v, err := s.ops.ConsentCampaign(r.Context(), tenant(r), actor(r), b.Channel, scheme+"://"+r.Host, b.Limit)
+	ok(w, v, err)
+}
+
+// optinPage is the public page a consent link opens; answering needs a POST
+// so that link scanners which fetch the page do not answer for the client.
+func (s *Server) optinPage(w http.ResponseWriter, r *http.Request) {
+	t, tok := r.PathValue("tenant"), r.PathValue("token")
+	var p ops.ConsentPage
+	if r.Method == http.MethodPost {
+		_ = r.ParseForm()
+		p, _ = s.ops.AnswerConsent(r.Context(), t, tok, r.PostForm.Get("answer") == "yes")
+	} else {
+		p, _, _ = s.ops.OpenConsent(r.Context(), t, tok)
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
+	_ = ops.ConsentHTML.Execute(w, p)
 }

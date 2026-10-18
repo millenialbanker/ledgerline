@@ -37,13 +37,17 @@ func TestMessagingAndBot(t *testing.T) {
 		t.Fatalf("receipt messages: %v", got)
 	}
 
-	// The bot answers the registered mobile, which opts it in.
+	// The bot answers the registered mobile; only YES opts it in to messages.
 	reply, err := o.WhatsAppInbound(ctx, T, "+91"+c.Mobile, "bal", D)
 	if err != nil || !strings.Contains(reply, "Available to withdraw") || !strings.Contains(reply, "BH1003") {
 		t.Fatalf("bal: %q %v", reply, err)
 	}
+	if c, _ = o.Client(ctx, T, "BH1003"); c.WhatsApp {
+		t.Fatal("opted in just by messaging")
+	}
+	o.WhatsAppInbound(ctx, T, c.Mobile, "YES", D)
 	if c, _ = o.Client(ctx, T, "BH1003"); !c.WhatsApp {
-		t.Fatal("not opted in by messaging")
+		t.Fatal("YES did not opt in")
 	}
 	for _, cmd := range []string{"HOLD", "LEDGER", "CN", "MARGIN", "what?"} {
 		if rep, err := o.WhatsAppInbound(ctx, T, c.Mobile, cmd, D); err != nil || rep == "" {

@@ -128,6 +128,8 @@ func DefaultTemplates() []Template {
 		t("insight.idle_funds", ChWhatsApp, "Promotional", "", "{name}, ₹{amount} is in your trading account {ucc} with no trades since {since}. You can withdraw it any time from the client portal → Funds & payouts. Reply BAL for your balance.", ""),
 		t("insight.pledge_margin", ChWhatsApp, "Promotional", "", "{name}, {count} of your holdings are not pledged. As margin they would give about ₹{margin} after haircuts; you keep ownership and dividends. Ask us or pledge from the depository's site. Information only, not advice.", ""),
 		t("insight.dormant", ChWhatsApp, "Service", "", "{name}, there has been no activity in your trading account {ucc} since {last}. Under exchange rules it will be marked inactive on {date}. Any trade or a KYC update keeps it active.", ""),
+		t("whatsapp.consent", ChEmail, "Service", "Get your account messages on WhatsApp?", "Dear {name},\n\nWould you like to receive messages about your trading account {ucc} on WhatsApp at {mobile}: alerts on funds, margin and contract notes, and information about your own account such as tax on your gains and offers on shares you hold?\n\nTo choose, open this link: {link}\n\nYou can stop at any time by replying STOP on WhatsApp. Contract notes, statements and regulatory alerts continue by email and SMS either way.\n\n{firm}", ""),
+		t("whatsapp.consent", ChSMS, "Service", "", "Dear {name}, get your account alerts from {firm} on WhatsApp? Choose here: {link} -{firm}", "1107166000000000011"),
 		t("statement.monthly", ChEmail, "Transactional", "Statement of account {from} to {to}", "Dear {name},\n\nPlease find your statement of account for {from} to {to}. Closing balance: {closing}. Please report any discrepancy within 30 days.\n\n{firm}", ""),
 	}
 	// WhatsApp messages a business starts must use a template approved by
@@ -456,8 +458,11 @@ func (o *Ops) WhatsAppInbound(ctx context.Context, tenant, from, text, date stri
 			}
 		}
 		ucc = c.UCC
-		if !c.WhatsApp && cmd != "STOP" {
-			_, _ = docs.Update(ctx, o.Docs, tenant, cClient, c.UCC, "whatsapp", func(x *Client) error { x.WhatsApp = true; return nil })
+		// Writing to the firm opens a conversation, but proactive messages
+		// need the client's clear yes: START or YES.
+		if (cmd == "START" || cmd == "YES") && !c.WhatsApp {
+			_, _ = o.recordConsent(ctx, tenant, "whatsapp", c.UCC, true, SrcWhatsApp, "message from "+maskMobile(mobile))
+			c.WhatsApp = true
 		}
 		pick := ""
 		if len(mine) > 1 {
@@ -468,8 +473,11 @@ func (o *Ops) WhatsAppInbound(ctx context.Context, tenant, from, text, date stri
 			pick = fmt.Sprintf("\n(Showing %s. This number is linked to %s; add the UCC, e.g. BAL %s.)", c.UCC, strings.Join(us, ", "), us[len(us)-1])
 		}
 		reply = o.botAnswer(ctx, tenant, cmd, c, date, set) + pick
-		if cmd == "STOP" {
-			_, _ = docs.Update(ctx, o.Docs, tenant, cClient, c.UCC, "whatsapp", func(x *Client) error { x.WhatsApp = false; return nil })
+		if cmd == "STOP" && c.WhatsApp {
+			_, _ = o.recordConsent(ctx, tenant, "whatsapp", c.UCC, false, SrcWhatsApp, "STOP from "+maskMobile(mobile))
+		}
+		if !c.WhatsApp && cmd != "STOP" && cmd != "START" && cmd != "YES" {
+			reply += "\n\nReply YES to also get account alerts and updates from us on WhatsApp."
 		}
 	}
 	n, err := o.next(ctx, tenant, "wachat", "whatsapp")
@@ -485,7 +493,7 @@ const botMenu = "Reply with:\nBAL – balance and funds you can withdraw\nHOLD �
 func (o *Ops) botAnswer(ctx context.Context, tenant, cmd string, c Client, date string, set Settings) string {
 	first := strings.Fields(c.Name)[0]
 	switch cmd {
-	case "", "HI", "HELLO", "MENU", "HELP", "START":
+	case "", "HI", "HELLO", "MENU", "HELP":
 		return fmt.Sprintf("Hello %s 👋 This is %s.\n%s", first, set.Firm, botMenu)
 	case "BAL", "BALANCE":
 		w, err := o.Withdrawable(ctx, tenant, date, c.UCC)
@@ -599,6 +607,8 @@ func (o *Ops) botAnswer(ctx context.Context, tenant, cmd string, c Client, date 
 			return "No buy-back offers are open on shares you hold."
 		}
 		return strings.Join(lines, "\n") + "\nTender in the client portal → Tax & insights, or reply to ask us to tender for you."
+	case "START", "YES":
+		return fmt.Sprintf("Thank you %s, you will now get account messages from %s on WhatsApp. Reply STOP at any time to stop.\n%s", first, set.Firm, botMenu)
 	case "STOP":
 		return "You will not get WhatsApp messages from us any more. Send START to subscribe again."
 	}
@@ -673,11 +683,7 @@ func (o *Ops) SetWhatsApp(ctx context.Context, tenant, actor, ucc string, on boo
 	if !contains(accts, ucc) {
 		return Client{}, ErrNotFound
 	}
-	c, err := docs.Update(ctx, o.Docs, tenant, cClient, ucc, actor, func(x *Client) error { x.WhatsApp = on; return nil })
-	if err == nil {
-		o.log(ctx, tenant, actor, "client.whatsapp", ucc, map[string]any{"opt_in": on})
-	}
-	return c, err
+	return o.recordConsent(ctx, tenant, actor, ucc, on, SrcPortal, "portal user "+actor)
 }
 
 // TestMessage sends one template to one client with sample values.

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"ledgerline/internal/docs"
 	"ledgerline/internal/money"
@@ -90,6 +91,8 @@ type Client struct {
 	ReKYCMode      string   `json:"rekyc_mode,omitempty"`
 	// NoInsights: the client turned account insights off in the portal.
 	NoInsights bool `json:"no_insights,omitempty"`
+	// WAConsent records the client's WhatsApp choice: when, how and by whom.
+	WAConsent *WAConsent `json:"wa_consent,omitempty"`
 }
 
 var (
@@ -285,6 +288,10 @@ func (o *Ops) CreateApplication(ctx context.Context, tenant, actor string, c Cli
 	c.KYCDate = o.now().Format("2006-01-02")
 	c.CreatedBy = actor
 	c.UPIBlock, c.Blocked, c.LastTrade = 0, false, ""
+	c.WAConsent = nil
+	if c.WhatsApp {
+		c.setConsent(true, o.now().Format(time.RFC3339), SrcOnboarding, actor, "application "+c.UCC)
+	}
 	if _, err := docs.Put(ctx, o.Docs, tenant, cClient, c.UCC, c, 0, actor); err != nil {
 		return Client{}, err
 	}

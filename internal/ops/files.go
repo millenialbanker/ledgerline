@@ -31,7 +31,7 @@ type MasterSource struct {
 // MasterSources lists the non-trade file types, with their CSV headers.
 func MasterSources() []MasterSource {
 	return []MasterSource{
-		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding). Optional columns: Branch, State (place of supply for GST), GSTIN", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
+		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding). Optional columns: Branch, State (place of supply for GST), GSTIN; WhatsApp (Y), WAConsentDate and WAConsentRef for WhatsApp consent recorded in the previous system", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
 		{"OPENING-BALANCES", "Opening trial balance (migration); must balance. Optional column Since: for a client debit, the date it became due, so ageing, interest and debit blocks carry over", []string{"Account", "Debit", "Credit"}, true, "Once at go-live"},
 		{"MARKET-DATA", "Contract master, prices and risk parameters (SPAN, VaR, haircuts)", []string{"Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "ISIN", "Company", "Lot", "LTP", "Close", "VaRPct", "ELMPct", "HaircutPct", "SPANPct", "ExposurePct", "Delta", "Underlying", "Index"}, true, "BOD and EOD"},
 		{"DP-HOLDINGS", "Client demat holdings and pledges from the depository", []string{"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost"}, false, "BOD"},
@@ -235,6 +235,14 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 				Branch: r.get("Branch"), State: r.get("State"), GSTIN: strings.ToUpper(r.get("GSTIN"))}
 			if c.GSTIN != "" && !reGSTIN.MatchString(c.GSTIN) {
 				bad(r.line, "GSTIN", "is not a valid GSTIN")
+			}
+			if strings.EqualFold(r.get("WhatsApp"), "Y") {
+				at := pdate(r, "WAConsentDate", true)
+				if at == "" {
+					bad(r.line, "WAConsentDate", "WhatsApp consent migrated from the previous system needs the date it was given")
+				} else {
+					c.setConsent(true, at, SrcMigrated, "import", firstOf(r.get("WAConsentRef"), "client master import"))
+				}
 			}
 			if v := r.get("UPIBlock"); v != "" {
 				a, err := money.ParseAmount(v)

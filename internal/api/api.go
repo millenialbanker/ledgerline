@@ -642,6 +642,7 @@ var scopedRoutes = map[string]bool{
 	"GET /v1/external-trades": true, "POST /v1/external-trades": true, "GET /v1/crm": true, "POST /v1/leads": true, "POST /v1/leads/{id}/act": true,
 	"GET /v1/autopilot": true, "POST /v1/work/{id}": true,
 	"GET /v1/insights": true, "POST /v1/insights/{id}": true, "GET /v1/tax-plan": true,
+	"GET /v1/whatsapp/consents": true, "POST /v1/clients/{ucc}/whatsapp-consent": true,
 }
 
 // clientRoutes are the routes open to a client's portal login, each
