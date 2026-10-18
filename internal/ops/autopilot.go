@@ -278,6 +278,18 @@ func (r *runCtx) queue(key, title, detail, ucc, role, view, due string, p *Propo
 	_ = docs.Upsert(r.ctx, r.o.Docs, r.tenant, cWorkItem, id, w, SystemActor)
 }
 
+// closeWork marks a process's item done when it was settled elsewhere.
+func (o *Ops) closeWork(ctx context.Context, tenant, actor, process, key, note string) {
+	k := process + ":" + key
+	id := "W-" + strings.NewReplacer(":", "-", "|", "-", " ", "", "/", "-").Replace(k)
+	w, _, err := docs.Get[WorkItem](ctx, o.Docs, tenant, cWorkItem, id)
+	if err != nil || w.Status != "Open" {
+		return
+	}
+	w.Status, w.Closed, w.ClosedBy, w.Note = "Done", o.now().Format(time.RFC3339), actor, note
+	_ = docs.Upsert(ctx, o.Docs, tenant, cWorkItem, id, w, actor)
+}
+
 // clearStale closes this process's open items that no longer apply.
 func (r *runCtx) clearStale() {
 	ws, _ := docs.List[WorkItem](r.ctx, r.o.Docs, r.tenant, cWorkItem, "")

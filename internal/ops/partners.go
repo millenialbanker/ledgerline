@@ -54,6 +54,40 @@ type Branch struct {
 	City    string `json:"city"`
 	Manager string `json:"manager,omitempty"`
 	Active  bool   `json:"active"`
+	// Parent is the zone or region this office reports to; staff of a
+	// parent see the clients of every office under it.
+	Parent string `json:"parent,omitempty"`
+	Kind   string `json:"kind,omitempty"` // Zone, Region, Branch, Franchise
+}
+
+// BranchKinds are the levels of the branch tree.
+var BranchKinds = []string{"Zone", "Region", "Branch", "Franchise"}
+
+// branchTree returns each office's code with every office under it.
+func branchTree(bs []Branch) map[string][]string {
+	kids := map[string][]string{}
+	for _, b := range bs {
+		if b.Parent != "" {
+			kids[b.Parent] = append(kids[b.Parent], b.Code)
+		}
+	}
+	out := map[string][]string{}
+	for _, b := range bs {
+		seen := map[string]bool{}
+		var walk func(string)
+		walk = func(c string) {
+			if seen[c] {
+				return
+			}
+			seen[c] = true
+			out[b.Code] = append(out[b.Code], c)
+			for _, k := range kids[c] {
+				walk(k)
+			}
+		}
+		walk(b.Code)
+	}
+	return out
 }
 
 // Partner is an authorised person, relationship manager or referrer.
@@ -94,6 +128,31 @@ func (o *Ops) SaveBranch(ctx context.Context, tenant, actor string, b Branch) (B
 	b.Code = strings.TrimSpace(b.Code)
 	if b.Code == "" || strings.TrimSpace(b.Name) == "" {
 		return b, invalid("branch code and name are required")
+	}
+	if b.Kind == "" {
+		b.Kind = "Branch"
+	}
+	if !contains(BranchKinds, b.Kind) {
+		return b, invalid("kind must be one of %s", strings.Join(BranchKinds, ", "))
+	}
+	if b.Parent != "" {
+		bs, _ := o.Branches(ctx, tenant)
+		found := false
+		for _, x := range bs {
+			found = found || x.Code == b.Parent
+		}
+		if !found {
+			return b, invalid("parent office %s does not exist", b.Parent)
+		}
+		for _, x := range bs {
+			if x.Code == b.Code {
+				x.Parent = b.Parent
+			}
+		}
+		bs = append(bs, b)
+		if contains(branchTree(bs)[b.Code][1:], b.Parent) || b.Parent == b.Code {
+			return b, invalid("%s cannot report to an office under it", b.Code)
+		}
 	}
 	if err := docs.Upsert(ctx, o.Docs, tenant, cBranch, b.Code, b, actor); err != nil {
 		return b, err
@@ -529,6 +588,14 @@ func (o *Ops) ClientScope(ctx context.Context, tenant, actor string) func(ucc st
 	if !scoped && (!private || u.Role == RoleAdmin || u.Role == RoleCompliance) {
 		return nil
 	}
+	offices := map[string]bool{}
+	if u.Role == RoleBranch && u.Branch != "" {
+		bs, _ := o.Branches(ctx, tenant)
+		offices[u.Branch] = true
+		for _, c := range branchTree(bs)[u.Branch] {
+			offices[c] = true
+		}
+	}
 	partners := map[string]bool{}
 	if u.Role == RoleAP {
 		ps, _ := docs.List[Partner](ctx, o.Docs, tenant, cPartner, "")
@@ -566,7 +633,7 @@ func (o *Ops) ClientScope(ctx context.Context, tenant, actor string) func(ucc st
 		}
 		switch u.Role {
 		case RoleBranch:
-			return u.Branch != "" && c.Branch == u.Branch
+			return c.Branch != "" && offices[c.Branch]
 		case RoleAP:
 			return partners[c.Partner] || partners[c.RM]
 		}

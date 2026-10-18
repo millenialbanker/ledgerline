@@ -240,6 +240,10 @@ type Override struct {
 	Checker   string    `json:"checker,omitempty"`
 	Status    string    `json:"status"` // Pending, Approved, Rejected
 	CreatedAt string    `json:"created_at"`
+	// Branch requests: raised by branch staff or an authorised person for
+	// their own client, decided by head-office risk.
+	Branch   string `json:"branch,omitempty"`
+	ByBranch bool   `json:"by_branch,omitempty"`
 }
 
 // Overrides lists a date's overrides.
@@ -350,8 +354,13 @@ func fillRisk(r *RiskRow, set Settings) {
 
 // CreateOverride asks for a temporary limit increase (maker).
 func (o *Ops) CreateOverride(ctx context.Context, tenant, actor, date, ucc string, amount money.Dec, reason string) (Override, error) {
-	if err := o.require(ctx, tenant, actor, "Creating a limit override", RoleMaker, RoleRisk); err != nil {
+	if err := o.require(ctx, tenant, actor, "Creating a limit override", RoleMaker, RoleRisk, RoleBranch, RoleAP); err != nil {
 		return Override{}, err
+	}
+	role, _ := o.RoleOf(ctx, tenant, actor)
+	byBranch := role == RoleBranch || role == RoleAP
+	if f := o.ClientScope(ctx, tenant, actor); byBranch && f != nil && !f(ucc) {
+		return Override{}, ErrNotFound
 	}
 	if amount.Sign() <= 0 {
 		return Override{}, invalid("override amount must be above zero")
@@ -367,9 +376,13 @@ func (o *Ops) CreateOverride(ctx context.Context, tenant, actor, date, ucc strin
 	if err != nil {
 		return Override{}, err
 	}
-	ov := Override{ID: fmt.Sprintf("OV-%04d", n), Date: date, UCC: c.UCC, Amount: amount, Reason: reason, Maker: actor, Status: "Pending", CreatedAt: o.now().Format("15:04")}
+	ov := Override{ID: fmt.Sprintf("OV-%04d", n), Date: date, UCC: c.UCC, Amount: amount, Reason: reason, Maker: actor, Status: "Pending", CreatedAt: o.now().Format("15:04"), Branch: c.Branch, ByBranch: byBranch}
 	if _, err := docs.Put(ctx, o.Docs, tenant, cOverride, date+"|"+ov.ID, ov, 0, actor); err != nil {
 		return Override{}, err
+	}
+	if byBranch {
+		r := &runCtx{o: o, ctx: ctx, tenant: tenant, date: date, process: "limit_requests", keys: map[string]bool{}}
+		r.queue(ov.ID, fmt.Sprintf("Limit request %s · %s ₹%s", ov.ID, c.UCC, formatINR(amount)), fmt.Sprintf("From %s (%s): %s", actor, firstOf(c.Branch, "no branch"), reason), c.UCC, RoleRisk, "rms", date+" 15:00", nil)
 	}
 	o.log(ctx, tenant, actor, "rms.override.created", ov.ID, map[string]any{"ucc": ov.UCC, "amount": amount.String(), "reason": reason})
 	return ov, nil
@@ -382,6 +395,11 @@ func (o *Ops) DecideOverride(ctx context.Context, tenant, actor, date, id string
 		return Override{}, err
 	}
 	ov, err := docs.Update(ctx, o.Docs, tenant, cOverride, date+"|"+id, actor, func(x *Override) error {
+		if x.ByBranch {
+			if role, _ := o.RoleOf(ctx, tenant, actor); role != RoleRisk && role != RoleAdmin {
+				return fmt.Errorf("%w: branch limit requests are decided by head-office risk", ErrForbidden)
+			}
+		}
 		if x.Status != "Pending" {
 			return fmt.Errorf("%w: override %s is %s", ErrState, id, x.Status)
 		}
@@ -398,6 +416,9 @@ func (o *Ops) DecideOverride(ctx context.Context, tenant, actor, date, id string
 	})
 	if err == nil {
 		o.log(ctx, tenant, actor, "rms.override."+strings.ToLower(ov.Status), id, map[string]any{"ucc": ov.UCC, "amount": ov.Amount.String()})
+		if ov.ByBranch {
+			o.closeWork(ctx, tenant, actor, "limit_requests", ov.ID, ov.Status)
+		}
 	}
 	return ov, err
 }

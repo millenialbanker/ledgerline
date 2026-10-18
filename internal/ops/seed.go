@@ -322,7 +322,15 @@ func (o *Ops) seedSampleBrokerage(ctx context.Context, tenant, date string) erro
 // seedSamplePartners creates sample branches, partners, client mapping,
 // a referral and prepaid schemes.
 func (o *Ops) seedSamplePartners(ctx context.Context, tenant string) error {
-	for _, b := range []Branch{{"Mumbai", "Mumbai head office", "Mumbai", "farhan.khan", true}, {"Bengaluru", "Bengaluru branch", "Bengaluru", "meera.iyer", true}, {"Delhi", "Delhi branch", "Delhi", "", true}} {
+	for _, b := range []Branch{
+		{Code: "WEST", Name: "West zone", City: "Mumbai", Active: true, Kind: "Zone"},
+		{Code: "SOUTH", Name: "South zone", City: "Bengaluru", Active: true, Kind: "Zone"},
+		{Code: "NORTH", Name: "North zone", City: "Delhi", Active: true, Kind: "Zone"},
+		{Code: "Mumbai", Name: "Mumbai head office", City: "Mumbai", Manager: "farhan.khan", Active: true, Kind: "Branch", Parent: "WEST"},
+		{Code: "Bengaluru", Name: "Bengaluru branch", City: "Bengaluru", Manager: "meera.iyer", Active: true, Kind: "Branch", Parent: "SOUTH"},
+		{Code: "Mysuru", Name: "Mysuru franchise", City: "Mysuru", Active: true, Kind: "Franchise", Parent: "Bengaluru"},
+		{Code: "Delhi", Name: "Delhi branch", City: "Delhi", Active: true, Kind: "Branch", Parent: "NORTH"},
+	} {
 		if _, err := o.SaveBranch(ctx, tenant, "admin", b); err != nil {
 			return err
 		}
