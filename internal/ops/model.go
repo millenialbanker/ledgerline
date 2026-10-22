@@ -210,6 +210,8 @@ type Ops struct {
 	KYC KYCProvider
 	// LedgyAI, when set, phrases Ledgy's answers (see Settings.LedgyAI).
 	LedgyAI LedgyWriter
+	// Meter prices AI answers and takes them from each firm's credit.
+	Meter *Meter
 	// EditionOf is each firm's edition (manual, autopilot or full), set by
 	// the provider; DefaultEdition applies to firms not listed.
 	// Residency is where the server says it is hosted (see residency.go).

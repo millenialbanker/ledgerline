@@ -53,6 +53,9 @@ type Server struct {
 	seq  atomic.Int64
 
 	loginLimit limiter
+	// ProviderKey authorises the software provider's own endpoints under
+	// /provider/ (adding AI credit, usage for invoicing). Empty disables them.
+	ProviderKey string
 }
 
 // New builds a server. keys maps API keys to tenant IDs.
@@ -74,6 +77,8 @@ func New(a *app.App, o *ops.Ops, keys map[string]string, log *slog.Logger, dev b
 	s.route("GET /v1/ledger/trial-balance", s.trialBalance, false)
 	s.route("GET /v1/ledger/statement", s.statement, false)
 	s.route("GET /v1/audit", s.audit, false)
+	s.mux.HandleFunc("POST /provider/ai/credit", s.provider(s.providerCredit))
+	s.mux.HandleFunc("GET /provider/ai/usage", s.provider(s.providerUsage))
 	s.opsRoutes()
 	s.authRoutes()
 	return s

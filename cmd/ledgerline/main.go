@@ -152,17 +152,38 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 		if o.Residency.Region != "" && !ops.InIndia(o.Residency.Region) {
 			return fmt.Errorf("India-only mode: LEDGERLINE_REGION %q is not a region in India", o.Residency.Region)
 		}
-		if os.Getenv("LEDGERLINE_LEDGY_KEY") != "" {
-			return errors.New("India-only mode: Ledgy's AI phrasing uses Anthropic's API outside India; unset LEDGERLINE_LEDGY_KEY or LEDGERLINE_INDIA_ONLY")
+		for _, k := range []string{"LEDGERLINE_LEDGY_KEY", "LEDGERLINE_ANTHROPIC_KEY", "LEDGERLINE_OPENAI_KEY", "LEDGERLINE_GEMINI_KEY"} {
+			if os.Getenv(k) != "" {
+				return fmt.Errorf("India-only mode: %s connects Ledgy to an AI provider outside India; unset it or LEDGERLINE_INDIA_ONLY", k)
+			}
 		}
 		log.Info("India-only mode: no connection outside India is allowed", "region", o.Residency.Region)
 	}
-	// Ledgy can phrase its answers with Claude when a key is configured and
-	// the firm switches it on in Settings. Only the masked question and the
-	// help articles are sent.
-	if key := os.Getenv("LEDGERLINE_LEDGY_KEY"); key != "" {
-		o.LedgyAI = &help.Claude{Key: key, Model: os.Getenv("LEDGERLINE_LEDGY_MODEL")}
-		log.Info("Ledgy can use Claude when a firm switches it on", "model", o.LedgyAI.Name())
+	// Ledgy can phrase its answers with an AI model when one is configured
+	// and the firm switches it on in Settings. Only the masked question and
+	// the help articles are sent. Every answer is metered and paid from the
+	// firm's prepaid AI credit at a markup of at least 2x the provider's cost.
+	if w, err := aiWriter(); err != nil {
+		return err
+	} else if w != nil {
+		prices, err := ops.LoadAIPrices(os.Getenv("LEDGERLINE_AI_PRICES"))
+		if err != nil {
+			return err
+		}
+		rate := os.Getenv("LEDGERLINE_AI_USDINR")
+		if rate == "" && dev {
+			rate = "88"
+			log.Warn("AI metering uses a sample rate of ₹88 per US dollar; set LEDGERLINE_AI_USDINR")
+		}
+		m, err := ops.NewMeter(prices, rate, os.Getenv("LEDGERLINE_AI_MARKUP"), os.Getenv("LEDGERLINE_AI_MIN_CHARGE"), "")
+		if err != nil {
+			return err
+		}
+		if _, _, _, err := m.Charge(w.Provider(), w.Model(), help.Usage{}); err != nil {
+			return err
+		}
+		o.LedgyAI, o.Meter = w, m
+		log.Info("Ledgy AI available to firms that switch it on", "provider", w.Provider(), "model", w.Model(), "markup", m.Markup.String(), "usd_inr", m.USDINR.String())
 	}
 	if _, err := ops.HelpKB(); err != nil {
 		return fmt.Errorf("Ledgy help articles: %w", err)
@@ -193,6 +214,7 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 		}
 	}
 	apiSrv := api.New(a, o, keys, log, dev)
+	apiSrv.ProviderKey = os.Getenv("LEDGERLINE_PROVIDER_KEY")
 	cfg := web.Config{Dev: dev, Version: "2.1"}
 	if ts := apiSrv.Tenants(); len(ts) == 1 {
 		cfg.Tenant = ts[0]
@@ -206,9 +228,10 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	root := http.NewServeMux()
 	root.Handle("/v1/", apiSrv)
 	root.Handle("/healthz", apiSrv)
-	root.Handle("/hooks/", apiSrv)   // payment gateway and WhatsApp webhooks
-	root.Handle("/optin/", apiSrv)   // WhatsApp consent links sent to clients
-	root.Handle("/onboard/", apiSrv) // online account opening (public API)
+	root.Handle("/hooks/", apiSrv)    // payment gateway and WhatsApp webhooks
+	root.Handle("/optin/", apiSrv)    // WhatsApp consent links sent to clients
+	root.Handle("/onboard/", apiSrv)  // online account opening (public API)
+	root.Handle("/provider/", apiSrv) // the software provider's own endpoints
 	root.Handle("/", web.Handler(cfg))
 	srv := &http.Server{
 		Addr: addr, Handler: secure(root),
@@ -334,4 +357,48 @@ func dbHost(dsn string) string {
 		return "configured"
 	}
 	return u.Hostname()
+}
+
+// aiWriter picks the AI provider from the environment: LEDGERLINE_AI_PROVIDER
+// (anthropic, openai or gemini) with that provider's key, and optionally
+// LEDGERLINE_AI_MODEL. LEDGERLINE_LEDGY_KEY alone means Anthropic.
+func aiWriter() (help.Writer, error) {
+	model, baseURL := os.Getenv("LEDGERLINE_AI_MODEL"), os.Getenv("LEDGERLINE_AI_BASE_URL") // base URL: a gateway or proxy in front of the provider
+	if model == "" {
+		model = os.Getenv("LEDGERLINE_LEDGY_MODEL")
+	}
+	provider := strings.ToLower(os.Getenv("LEDGERLINE_AI_PROVIDER"))
+	anth := os.Getenv("LEDGERLINE_ANTHROPIC_KEY")
+	if anth == "" {
+		anth = os.Getenv("LEDGERLINE_LEDGY_KEY")
+	}
+	if provider == "" {
+		switch {
+		case anth != "":
+			provider = "anthropic"
+		case os.Getenv("LEDGERLINE_OPENAI_KEY") != "":
+			provider = "openai"
+		case os.Getenv("LEDGERLINE_GEMINI_KEY") != "":
+			provider = "gemini"
+		default:
+			return nil, nil
+		}
+	}
+	need := func(k, v string) error {
+		if v == "" {
+			return fmt.Errorf("LEDGERLINE_AI_PROVIDER=%s needs %s", provider, k)
+		}
+		return nil
+	}
+	switch provider {
+	case "anthropic":
+		return &help.Claude{Key: anth, ModelID: model, BaseURL: baseURL}, need("LEDGERLINE_ANTHROPIC_KEY", anth)
+	case "openai":
+		k := os.Getenv("LEDGERLINE_OPENAI_KEY")
+		return &help.OpenAI{Key: k, ModelID: model, BaseURL: baseURL}, need("LEDGERLINE_OPENAI_KEY", k)
+	case "gemini":
+		k := os.Getenv("LEDGERLINE_GEMINI_KEY")
+		return &help.Gemini{Key: k, ModelID: model, BaseURL: baseURL}, need("LEDGERLINE_GEMINI_KEY", k)
+	}
+	return nil, fmt.Errorf("LEDGERLINE_AI_PROVIDER must be anthropic, openai or gemini (got %q)", provider)
 }

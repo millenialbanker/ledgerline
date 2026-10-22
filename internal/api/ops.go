@@ -2,10 +2,14 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,6 +53,7 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/clients/{ucc}", s.client, false)
 	R("POST /v1/clients/{ucc}/reveal", s.revealClient, true)
 	R("GET /v1/security", s.security, false)
+	R("GET /v1/ai/usage", s.aiUsage, false)
 	R("POST /v1/ledgy/ask", s.ledgyAsk, true)
 	R("GET /v1/ledgy/suggest", s.ledgySuggest, false)
 	R("GET /v1/ledgy/articles/{id}", s.ledgyArticle, false)
@@ -3179,4 +3184,70 @@ func (s *Server) devEdition(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, s.ops.EditionStatus(r.Context(), tenant(r)))
+}
+
+func (s *Server) aiUsage(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.AIUsage(r.Context(), tenant(r), actor(r), r.URL.Query().Get("month"))
+	ok(w, v, err)
+}
+
+// provider wraps the provider's endpoints: bearer LEDGERLINE_PROVIDER_KEY.
+func (s *Server) provider(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tok, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if s.ProviderKey == "" || len(tok) < 24 || subtle.ConstantTimeCompare([]byte(tok), []byte(s.ProviderKey)) != 1 {
+			writeErr(w, http.StatusUnauthorized, "unauthorized", "Provider endpoints need the provider key.", nil)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		h(w, r)
+	}
+}
+
+// providerCredit adds prepaid AI credit to a firm after it has paid.
+func (s *Server) providerCredit(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Tenant string `json:"tenant"`
+		Amount string `json:"amount"`
+		Ref    string `json:"ref"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if !s.knownTenant(b.Tenant) {
+		writeErr(w, http.StatusNotFound, "not_found", "No such firm on this server.", nil)
+		return
+	}
+	amt, err := money.ParseAmount(b.Amount)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid", "amount must be rupees, for example 5000 or 5000.00", nil)
+		return
+	}
+	v, err := s.ops.AddAICredit(r.Context(), b.Tenant, "provider", amt, b.Ref)
+	ok(w, v, err)
+}
+
+// providerUsage lists every firm's AI use for a month: provider cost,
+// charges and margin, as JSON or (format=csv) CSV for invoicing.
+func (s *Server) providerUsage(w http.ResponseWriter, r *http.Request) {
+	month := r.URL.Query().Get("month")
+	ts := s.Tenants()
+	sort.Strings(ts)
+	rows, err := s.ops.ProviderAIUsage(r.Context(), ts, month)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	if r.URL.Query().Get("format") != "csv" {
+		writeJSON(w, 200, rows)
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="ai-usage-`+month+`.csv"`)
+	cw := csv.NewWriter(w)
+	cw.Write([]string{"Firm", "Answers", "Tokens", "Provider cost (INR)", "Charged (INR, before GST)", "Margin (INR)", "Credit added in month (INR)", "Credit balance (INR)"})
+	for _, x := range rows {
+		cw.Write([]string{x.Tenant, strconv.Itoa(x.Answers), strconv.Itoa(x.Tokens), x.CostINR, x.Charged.String(), x.Margin, x.ToppedUp.String(), x.Balance.String()})
+	}
+	cw.Flush()
 }

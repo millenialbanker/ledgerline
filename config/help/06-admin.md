@@ -210,3 +210,17 @@ Open [[audit|Audit trail]] and click **Check seals**. The Data protection panel 
 - With India-only mode on, the server refuses to start with a hosting region outside India or with Ledgy's AI phrasing (which uses Anthropic's API in the USA).
 
 Hosting, backups and the standby copy must also be in an Indian region. That's set up by whoever runs the server.
+
+## ai-credit
+title: How does AI credit for Ledgy work?
+screen: settings
+roles: Admin, Compliance officer
+ask: ai credit; ledgy credits; ai answers cost; buy ai credits; ai credit ran out; ai usage; ai charges; top up ai; recharge ai
+related: settings-overview
+
+Ledgy always answers from its help articles at no cost. If your firm switches on **Let Ledgy write answers with AI** in [[settings|Settings]], an AI model rewrites the answer in plainer words, and each AI answer is charged from your firm's **prepaid AI credit** by the tokens it used.
+
+- **AI credit and usage** in Settings shows the credit left, AI answers this month, the charge (plus GST), the most one answer can cost, each answer and every top-up.
+- When credit runs out, Ledgy keeps answering from its help articles without AI and says so.
+- Credit is added by your Ledgerline provider after payment. Ask them for a top-up.
+- Only the question (with PAN, numbers and emails masked) and the help articles are sent to the AI provider; questions aren't stored with the charges.

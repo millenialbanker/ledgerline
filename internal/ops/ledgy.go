@@ -39,10 +39,7 @@ func HelpKB() (*help.KB, error) {
 }
 
 // LedgyWriter phrases an answer from the articles (an AI model). Optional.
-type LedgyWriter interface {
-	Write(ctx context.Context, question string, articles []help.Article, perms []help.PermHit) (string, error)
-	Name() string
-}
+type LedgyWriter = help.Writer
 
 // LedgyAnswer is Ledgy's reply.
 type LedgyAnswer struct {
@@ -54,6 +51,7 @@ type LedgyAnswer struct {
 	Facts     []LedgyFacts   `json:"facts"`
 	AI        string         `json:"ai,omitempty"`
 	AIBy      string         `json:"ai_by,omitempty"`
+	AINote    string         `json:"ai_note,omitempty"`
 	Suggest   []string       `json:"suggest"`
 	Related   []LedgyLink    `json:"related"`
 	Role      string         `json:"role"`
@@ -227,19 +225,36 @@ func (o *Ops) Ledgy(ctx context.Context, tenant, actor, q, view, date string) (L
 
 	// Phrasing by an AI model, when the firm switched it on. Only the
 	// question (masked) and the articles are sent, never client data.
-	if o.LedgyAI != nil && ans.Confident {
+	// Every call is metered and paid from the firm's prepaid AI credit.
+	if o.LedgyAI != nil && o.Meter != nil && ans.Confident {
 		if set, _ := o.Settings(ctx, tenant); set.LedgyAI {
 			var arts []help.Article
+			if ans.Article != nil {
+				arts = append(arts, *ans.Article)
+			}
 			for _, h := range hits {
-				if len(arts) < 3 && h.Score >= confidentScore*0.6 {
+				if len(arts) < 3 && h.Score >= confidentScore*0.6 && (ans.Article == nil || h.Article.ID != ans.Article.ID) {
 					arts = append(arts, h.Article)
 				}
 			}
-			cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
-			text, err := o.LedgyAI.Write(cctx, MaskQuestion(q), arts, ans.Perms)
-			cancel()
-			if err == nil && strings.TrimSpace(text) != "" {
-				ans.AI, ans.AIBy = strings.TrimSpace(text), o.LedgyAI.Name()
+			mq := MaskQuestion(q)
+			reserve, err := o.aiReserve(o.LedgyAI.Provider(), o.LedgyAI.Model(), help.EstimateInputTokens(mq, arts, ans.Perms), o.LedgyAI.MaxOutput())
+			switch {
+			case err != nil:
+				ans.AINote = "AI answers are unavailable: " + err.Error()
+			case o.aiBalance(ctx, tenant) < reserve:
+				ans.AINote = "Your firm's AI credit has run out, so this is Ledgy's standard answer. Ask your Ledgerline provider to add credit."
+			default:
+				cctx, cancel := context.WithTimeout(ctx, 25*time.Second)
+				r, err := o.LedgyAI.Write(cctx, mq, arts, ans.Perms)
+				cancel()
+				if err == nil && strings.TrimSpace(r.Text) != "" {
+					if _, merr := o.aiMeter(ctx, tenant, actor, r); merr == nil {
+						ans.AI, ans.AIBy = strings.TrimSpace(r.Text), aiName(r)
+					} else {
+						ans.AINote = "AI answer withheld: it could not be metered (" + merr.Error() + ")."
+					}
+				}
 			}
 		}
 	}
@@ -498,4 +513,12 @@ func (o *Ops) ledgyWork(ctx context.Context, tenant, role string) LedgyFacts {
 		f.Lines = append(f.Lines, LedgyLine{Text: w.Title + due, State: "bad", Screen: w.View, UCC: w.UCC})
 	}
 	return f
+}
+
+func aiName(r help.Reply) string {
+	n := map[string]string{"anthropic": "Claude", "openai": "OpenAI", "gemini": "Gemini"}[r.Provider]
+	if n == "" {
+		n = r.Provider
+	}
+	return n + " (" + r.Model + ")"
 }

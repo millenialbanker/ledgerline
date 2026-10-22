@@ -110,5 +110,6 @@ Uploading delivery instructions | Ops maker, Ops checker
 Upstreaming funds | Ops checker
 Verifying delivery instructions | Ops checker
 View data protection | Compliance officer
+Viewing AI usage | Compliance officer
 Working client insights | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Working complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person

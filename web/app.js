@@ -1897,6 +1897,16 @@ V.audit = {
   html: d => ph('Audit trail', 'Every action with the user and time. The database refuses edits and deletes to this log, and each entry is sealed to the one before it with a key the database never sees, so a changed, removed or inserted entry shows up when the seals are checked.', has('Compliance officer') ? '<button class="btn" data-act="sealCheck">Check seals</button>' : '') + (UI.seal ? sealHTML(UI.seal) : '') + `<div class="panel"><div class="hd"><input class="in" data-ui="auditQ" data-part="audit-t" placeholder="Filter by user, action or object" value="${esc(UI.auditQ)}"><small>${d.length} entries</small></div><div id="audit-t">${P['audit-t'](d)}</div></div>`
 };
 const fmtTS = t => t ? new Date(t).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'medium' }) : '';
+function aiUsageHTML(v) {
+  const w = v.wallet || {}, low = v.enabled && num(w.balance) < num(v.per_answer_max) * 20;
+  return `<div class="panel"><div class="hd"><h3>AI credit and usage</h3><small>${v.enabled ? esc(v.provider + ' · ' + v.model) : 'AI not configured on this server'}</small></div><div class="bd">
+    <div class="kpis">${kpi('Credit left', inr(w.balance, 2), low ? 'Running low: ask your provider to add credit' : 'prepaid', low ? 'warn' : 'good')}${kpi('AI answers', nf(v.answers), 'in ' + v.month)}${kpi('Charged', inr(v.charged, 2), 'plus GST ' + inr(v.gst, 2))}${kpi('Most an answer can cost', inr(v.per_answer_max, 2), 'usually much less')}</div>
+    <div class="tools" style="margin:10px 0"><label class="small dim" for="ai-month">Month</label><input class="in sm" type="month" id="ai-month" value="${esc(v.month)}"></div>
+    ${tbl([['Time'], ['User'], ['Model'], ['Tokens', 'r'], ['Charge (₹)', 'r'], ['Credit after (₹)', 'r']], v.uses.slice(0, 50).map(u => `<tr><td class="n dim">${esc(fmtTS(u.at))}</td><td>${esc(u.actor)}</td><td class="mono small">${esc(u.model)}</td><td class="r">${nf(u.input_tokens + u.output_tokens)}</td><td class="r">${nf(num(u.charge), 2)}</td><td class="r">${nf(num(u.balance_after), 2)}</td></tr>`), { empty: 'No AI answers this month.' })}
+    ${v.top_ups.length ? `<h4 style="margin:14px 0 6px">Credit added</h4>` + tbl([['Date'], ['Amount (₹)', 'r'], ['Reference']], v.top_ups.slice(0, 20).map(t => `<tr><td class="n">${esc(fmtTS(t.at))}</td><td class="r">${nf(num(t.amount), 2)}</td><td>${esc(t.ref)}</td></tr>`)) : ''}
+    <p class="dim small" style="margin:8px 0 0">Each AI answer is charged from this prepaid credit by the tokens it used. Questions are not stored here. When credit runs out, Ledgy keeps answering from its help articles without AI.</p>
+  </div></div>`;
+}
 function sealHTML(s) {
   const a = s.audit;
   const head = !s.encrypted ? `<div class="note bad">Client data is not encrypted on this server: it was started without data keys.</div>` :
@@ -1912,7 +1922,7 @@ P['audit-t'] = d => { const q = UI.auditQ.toLowerCase(); return tbl([['Time'], [
 
 /* ---------- settings ---------- */
 V.settings = {
-  load: async () => { const [s, users] = await Promise.all([get('/v1/settings'), get('/v1/users')]); return { ...s, users }; },
+  load: async () => { const [s, users, ai] = await Promise.all([get('/v1/settings'), get('/v1/users'), has('Compliance officer') ? get(`/v1/ai/usage?month=${UI.aiMonth || ''}`).catch(() => null) : null]); return { ...s, users, ai }; },
   html: d => {
     const s = d.settings, sc = d.schedule, admin = has('Admin');
     return ph('Settings', admin ? 'Firm details, risk thresholds, calendar and users. Changes apply to new calculations; posted entries are never rewritten.' : 'Only an Admin can change settings.', admin ? '<button class="btn pri" data-act="saveSettings">Save settings</button>' : '') +
@@ -1967,6 +1977,7 @@ V.settings = {
       <label class="check"><input type="checkbox" id="st-lai" ${s.ledgy_ai ? 'checked' : ''} ${admin && S.me?.ledgy_ai ? '' : 'disabled'}> Let Ledgy write answers with Claude</label>
       <p class="dim" style="margin:6px 0 0;font-size:12.5px">${S.me?.ledgy_ai ? 'Ledgy answers from its help articles either way. With this on, the question (with PAN, numbers and emails masked) and the matching articles are sent to Anthropic to phrase the answer; client data never is. Leave it off if your policy keeps all processing in India.' : 'Not available: the server has no Claude API key (LEDGERLINE_LEDGY_KEY). Ledgy answers from its help articles.'}</p>
     </div></div>
+    ${d.ai ? aiUsageHTML(d.ai) : ''}
     <div class="panel"><div class="hd"><h3>Users and roles</h3>${admin ? '<button class="btn sm pri" data-act="addUser">Add user</button>' : '<small>Maker-checker: the person who creates an override, application or entry cannot approve it</small>'}</div>${tbl([['User'], ['Role'], ['Sign-in'], ['Last sign-in'], ['Status'], ['']], d.users.map(u => `<tr><td><b style="font-weight:600">${esc(u.name)}</b><div class="mono dim" style="font-size:11.5px">${esc(u.id)}</div></td><td>${admin && u.id !== S.me.actor ? `<select class="in sm" data-urole="${esc(u.id)}">${(S.me.roles || []).map(r => `<option ${r === u.role ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select>` : esc(u.role)}${u.branch ? `<div class="dim small">branch ${esc(u.branch)}</div>` : ''}${u.partner ? `<div class="dim small">partner ${esc(u.partner)}</div>` : ''}</td>
       <td>${u.has_password ? '' : pill('No password', 'warn') + ' '}${u.totp_enabled ? pill('2FA on', 'good') : pill('2FA off', 'nt')}${u.must_change_password ? ' ' + pill('Temp password', 'warn') : ''}${u.locked ? ' ' + pill('Locked', 'bad') : ''}</td><td class="n dim">${u.last_login ? new Date(u.last_login).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}</td>
       <td>${u.active ? pill('Active', 'good') : pill('Inactive', 'nt')}</td><td>${admin && u.id !== S.me.actor ? `<div class="split"><button class="btn sm" data-act="resetPw" data-id="${esc(u.id)}">Reset password</button>${u.totp_enabled ? `<button class="btn sm" data-act="reset2fa" data-id="${esc(u.id)}">Reset 2FA</button>` : ''}<button class="btn sm ${u.active ? 'bad' : ''}" data-act="toggleUser" data-id="${esc(u.id)}">${u.active ? 'Deactivate' : 'Activate'}</button></div>` : ''}</td></tr>`))}</div>
@@ -2429,3 +2440,5 @@ async function boot() {
 boot();
 
 setInterval(() => { if (UI.liveAuto && S.view === 'live' && !document.querySelector('.md') && !document.hidden) render({ keep: true }); }, 60000);
+
+document.addEventListener('change', e => { if (e.target.id === 'ai-month') { UI.aiMonth = e.target.value; render({ keep: true }); } });

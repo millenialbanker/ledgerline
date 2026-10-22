@@ -1,0 +1,13 @@
+{
+  "_about": "What each AI provider charges per million tokens, in US dollars, before any discount. Ledgy will not call a model that is not listed here, so no AI answer is ever sold unmetered. Check against the providers' pricing pages and update this file (or point LEDGERLINE_AI_PRICES at your own copy) whenever they change. Long-prompt surcharges do not apply: Ledgy's prompts are a few thousand tokens.",
+  "prices": [
+    {"provider": "anthropic", "model": "claude-haiku-5-5",  "input_per_m": "0.10", "output_per_m": "0.50", "checked": "2026-10-22", "source": "https://platform.claude.com/docs/en/about-claude/pricing (prompts up to 100k tokens)"},
+    {"provider": "anthropic", "model": "claude-sonnet-5-5", "input_per_m": "2.00", "output_per_m": "10.00", "checked": "2026-10-22", "source": "https://platform.claude.com/docs/en/about-claude/pricing"},
+    {"provider": "anthropic", "model": "claude-opus-5-5",   "input_per_m": "4.00", "output_per_m": "20.00", "checked": "2026-10-22", "source": "https://platform.claude.com/docs/en/about-claude/pricing"},
+    {"provider": "openai",    "model": "gpt-5.6-luna",      "input_per_m": "0.20", "output_per_m": "1.20", "checked": "2026-10-22", "source": "third-party summary of openai.com/api/pricing (mem0.ai, verified 6 Oct 2026): confirm on OpenAI's page"},
+    {"provider": "openai",    "model": "gpt-5.4-mini",      "input_per_m": "0.75", "output_per_m": "4.50", "checked": "2026-10-22", "source": "third-party summary of openai.com/api/pricing (mem0.ai): confirm on OpenAI's page"},
+    {"provider": "gemini",    "model": "gemini-3.1-flash-lite", "input_per_m": "0.25", "output_per_m": "1.50", "checked": "2026-10-22", "source": "third-party summary of ai.google.dev pricing (morphllm.com, 21 Aug 2026): confirm on Google's page"},
+    {"provider": "gemini",    "model": "gemini-2.5-flash-lite", "input_per_m": "0.10", "output_per_m": "0.40", "checked": "2026-10-22", "source": "third-party summary of ai.google.dev pricing (morphllm.com, 21 Aug 2026): confirm on Google's page"},
+    {"provider": "gemini",    "model": "gemini-3-flash",    "input_per_m": "0.50", "output_per_m": "3.00", "checked": "2026-10-22", "source": "third-party summary of ai.google.dev pricing (morphllm.com, 21 Aug 2026): confirm on Google's page"}
+  ]
+}

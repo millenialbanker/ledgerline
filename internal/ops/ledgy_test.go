@@ -8,6 +8,7 @@ import (
 
 	"ledgerline/internal/docs"
 	"ledgerline/internal/help"
+	"ledgerline/internal/money"
 )
 
 func TestLedgyAnswersAndChecks(t *testing.T) {
@@ -126,18 +127,41 @@ func TestLedgyScopeGapsAndFeedback(t *testing.T) {
 	}
 }
 
-type fakeWriter struct{ q string }
+type fakeWriter struct {
+	q        string
+	in, out  int
+	provider string
+	model    string
+}
 
-func (f *fakeWriter) Name() string { return "test" }
-func (f *fakeWriter) Write(_ context.Context, q string, arts []help.Article, _ []help.PermHit) (string, error) {
+func (f *fakeWriter) Provider() string {
+	if f.provider == "" {
+		return "anthropic"
+	}
+	return f.provider
+}
+func (f *fakeWriter) Model() string {
+	if f.model == "" {
+		return "claude-haiku-5-5"
+	}
+	return f.model
+}
+func (f *fakeWriter) MaxOutput() int { return help.MaxOutputTokens }
+func (f *fakeWriter) Write(_ context.Context, q string, arts []help.Article, _ []help.PermHit) (help.Reply, error) {
 	f.q = q
-	return "1. Open **" + arts[0].Title + "**.", nil
+	in, out := f.in, f.out
+	if in == 0 {
+		in, out = 2500, 400
+	}
+	return help.Reply{Text: "1. Open **" + arts[0].Title + "**.", Provider: f.Provider(), Model: f.Model(), Usage: help.Usage{InputTokens: in, OutputTokens: out}}, nil
 }
 
 func TestLedgyAIOnlyWhenSwitchedOn(t *testing.T) {
 	o, ctx := setup(t)
 	fw := &fakeWriter{}
 	o.LedgyAI = fw
+	prices, _ := LoadAIPrices("")
+	o.Meter, _ = NewMeter(prices, "88", "2", "", "")
 	a, _ := o.Ledgy(ctx, T, "priya.nair", "change brokerage for ABCPI1234K", "", D)
 	if a.AI != "" {
 		t.Fatal("AI used while the firm has it off")
@@ -147,8 +171,16 @@ func TestLedgyAIOnlyWhenSwitchedOn(t *testing.T) {
 	if err := o.SaveSettings(ctx, T, "admin", set); err != nil {
 		t.Fatal(err)
 	}
+	// No credit yet: the standard answer, with a note.
+	a, _ = o.Ledgy(ctx, T, "priya.nair", "change brokerage for ABCPI1234K", "", D)
+	if a.AI != "" || !strings.Contains(a.AINote, "credit") {
+		t.Fatalf("without credit: %q %q", a.AI, a.AINote)
+	}
+	if _, err := o.AddAICredit(ctx, T, "provider", money.Amount(1000), "INV-1"); err != nil { // ₹10
+		t.Fatal(err)
+	}
 	a, _ = o.Ledgy(ctx, T, "priya.nair", "change brokerage for ABCPI1234K", "", D)
 	if a.AI == "" || strings.Contains(fw.q, "ABCPI1234K") || !strings.Contains(fw.q, "[PAN]") {
-		t.Fatalf("ai: %q sent %q", a.AI, fw.q)
+		t.Fatalf("ai: %q note %q sent %q", a.AI, a.AINote, fw.q)
 	}
 }

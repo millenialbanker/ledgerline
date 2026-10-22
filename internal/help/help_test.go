@@ -195,6 +195,7 @@ func TestQuestions(t *testing.T) {
 		{"tender shares in buyback", "", "buyback"},
 		{"what is in my work queue", "", "work-queue"},
 		{"is our data stored in India", "", "data-in-india"},
+		{"our ai credit ran out", "", "ai-credit"},
 		{"why is the autopilot screen missing", "", "editions"},
 		{"what does full autopilot change", "", "editions"},
 	}
@@ -228,31 +229,57 @@ func TestWhoCan(t *testing.T) {
 	}
 }
 
-func TestClaudeWriterSendsOnlyArticles(t *testing.T) {
-	var got map[string]any
-	var hdr http.Header
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		hdr = r.Header
-		json.NewDecoder(r.Body).Decode(&got)
-		w.Write([]byte(`{"content":[{"type":"text","text":"1. Open **Brokerage plans**."}]}`))
-	}))
-	defer srv.Close()
+// TestProvidersReportUsage runs each provider against a fake API: the right
+// endpoint and headers, only the articles and masked question sent, and
+// the token counts read back for metering.
+func TestProvidersReportUsage(t *testing.T) {
 	k := kb(t)
 	a, _ := k.Get("change-brokerage")
-	c := &Claude{Key: "test-key", BaseURL: srv.URL}
-	text, err := c.Write(context.Background(), "change brokerage for [PAN]", []Article{a}, nil)
-	if err != nil || !strings.Contains(text, "Brokerage plans") {
-		t.Fatalf("%q %v", text, err)
+	cases := []struct {
+		name     string
+		w        func(url string) Writer
+		path     string
+		header   string
+		response string
+		in, out  int
+	}{
+		{"anthropic", func(u string) Writer { return &Claude{Key: "k-anth", BaseURL: u} }, "/v1/messages", "x-api-key",
+			`{"content":[{"type":"text","text":"1. Open **Brokerage plans**."}],"usage":{"input_tokens":2100,"output_tokens":180}}`, 2100, 180},
+		{"openai", func(u string) Writer { return &OpenAI{Key: "k-oai", BaseURL: u} }, "/v1/chat/completions", "authorization",
+			`{"choices":[{"message":{"content":"1. Open **Brokerage plans**."}}],"usage":{"prompt_tokens":2050,"completion_tokens":170}}`, 2050, 170},
+		{"gemini", func(u string) Writer { return &Gemini{Key: "k-gem", BaseURL: u} }, "/v1beta/models/gemini-3.1-flash-lite:generateContent", "x-goog-api-key",
+			`{"candidates":[{"content":{"parts":[{"text":"1. Open **Brokerage plans**."}]}}],"usageMetadata":{"promptTokenCount":2000,"candidatesTokenCount":150,"thoughtsTokenCount":20}}`, 2000, 170},
 	}
-	if hdr.Get("x-api-key") != "test-key" || hdr.Get("anthropic-version") == "" || got["model"] != "claude-haiku-5-5" {
-		t.Fatalf("request: %v %v", hdr, got["model"])
+	for _, c := range cases {
+		var got map[string]any
+		var hdr http.Header
+		var path string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			hdr, path = r.Header, r.URL.Path
+			json.NewDecoder(r.Body).Decode(&got)
+			w.Write([]byte(c.response))
+		}))
+		w := c.w(srv.URL)
+		r, err := w.Write(context.Background(), "change brokerage for [PAN]", []Article{a}, nil)
+		srv.Close()
+		if err != nil || !strings.Contains(r.Text, "Brokerage plans") {
+			t.Fatalf("%s: %q %v", c.name, r.Text, err)
+		}
+		if path != c.path || hdr.Get(c.header) == "" {
+			t.Fatalf("%s: path %s header %s", c.name, path, hdr.Get(c.header))
+		}
+		if r.Usage.InputTokens != c.in || r.Usage.OutputTokens != c.out || r.Provider != c.name || r.Model != w.Model() {
+			t.Fatalf("%s: usage %+v %s %s", c.name, r.Usage, r.Provider, r.Model)
+		}
+		body, _ := json.Marshal(got)
+		if !strings.Contains(string(body), `change-brokerage`) || !strings.Contains(string(body), "[PAN]") {
+			t.Fatalf("%s: prompt %s", c.name, body)
+		}
 	}
-	msg := got["messages"].([]any)[0].(map[string]any)["content"].(string)
-	if !strings.Contains(msg, `id="change-brokerage"`) || !strings.Contains(msg, "[PAN]") {
-		t.Fatalf("prompt: %s", msg)
-	}
-	srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(529) })
-	if _, err := c.Write(context.Background(), "x", nil, nil); err == nil {
+	// A provider error is reported, not billed.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(529) }))
+	defer srv.Close()
+	if _, err := (&Claude{Key: "k", BaseURL: srv.URL}).Write(context.Background(), "x", nil, nil); err == nil {
 		t.Fatal("API error not reported")
 	}
 }

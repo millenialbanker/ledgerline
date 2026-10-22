@@ -69,6 +69,7 @@ function lgAnswerHTML(m) {
   if (m.article) return lgArticle(m.article, { feedback: false });
   let h = '';
   if (a.ai) h += `<div class="lg-ai">${lgMD(a.ai)}<small>Written by ${esc(a.ai_by)} from the help articles below.</small></div>`;
+  if (a.ai_note) h += `<div class="lg-note">${esc(a.ai_note)}</div>`;
   h += lgFacts(a.facts);
   if (a.perms?.length) h += `<div class="lg-facts"><div class="lg-fh">Who can do it</div>${a.perms.map(p => `<div class="lg-fl info"><i></i><span><b>${esc(p.what)}:</b> ${esc(p.roles.join(' or '))}${p.roles.includes('Admin') ? '' : ' (and Admin)'}</span></div>`).join('')}<div class="lg-note">Your role: ${esc(a.role)}</div></div>`;
   if (a.article) h += lgArticle(a.article, { feedback: true, q: a.question });

@@ -57,7 +57,8 @@ func (o *Ops) ResidencyLines() []ResidencyLine {
 		{What: "Ledgy help", Where: "Help articles on this server", Status: "india"},
 	}
 	if o.LedgyAI != nil {
-		lines = append(lines, ResidencyLine{What: "Ledgy AI phrasing", Where: "Anthropic (USA)", Status: "outside", Note: "Only when a firm switches it on: the masked question and help articles, never client data. Not allowed in India-only mode."})
+		where := map[string]string{"anthropic": "Anthropic (USA)", "openai": "OpenAI (USA)", "gemini": "Google Gemini API (outside India)"}[o.LedgyAI.Provider()]
+		lines = append(lines, ResidencyLine{What: "Ledgy AI phrasing", Where: where, Status: "outside", Note: "Only when a firm switches it on: the masked question and help articles, never client data. Not allowed in India-only mode."})
 	} else {
 		lines = append(lines, ResidencyLine{What: "Ledgy AI phrasing", Where: "Not connected", Status: "none"})
 	}
