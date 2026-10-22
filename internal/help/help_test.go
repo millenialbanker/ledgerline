@@ -196,6 +196,7 @@ func TestQuestions(t *testing.T) {
 		{"what is in my work queue", "", "work-queue"},
 		{"is our data stored in India", "", "data-in-india"},
 		{"our ai credit ran out", "", "ai-credit"},
+		{"how do I add a widget to my dashboard", "", "customize-dashboard"},
 		{"why is the autopilot screen missing", "", "editions"},
 		{"what does full autopilot change", "", "editions"},
 	}

@@ -54,6 +54,9 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/clients/{ucc}/reveal", s.revealClient, true)
 	R("GET /v1/security", s.security, false)
 	R("GET /v1/ai/usage", s.aiUsage, false)
+	R("GET /v1/me/dashboard", s.dashLayouts, false)
+	R("PUT /v1/me/dashboard", s.saveDashLayout, true)
+	R("PUT /v1/dashboard/default", s.saveFirmDash, true)
 	R("POST /v1/ledgy/ask", s.ledgyAsk, true)
 	R("GET /v1/ledgy/suggest", s.ledgySuggest, false)
 	R("GET /v1/ledgy/articles/{id}", s.ledgyArticle, false)
@@ -3184,6 +3187,33 @@ func (s *Server) devEdition(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, s.ops.EditionStatus(r.Context(), tenant(r)))
+}
+
+func (s *Server) dashLayouts(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.DashboardLayouts(r.Context(), tenant(r), actor(r))
+	ok(w, v, err)
+}
+
+func (s *Server) saveDashLayout(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Widgets []ops.DashWidget `json:"widgets"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveDashboardLayout(r.Context(), tenant(r), actor(r), b.Widgets)
+	ok(w, v, err)
+}
+
+func (s *Server) saveFirmDash(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Widgets []ops.DashWidget `json:"widgets"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveFirmDashboard(r.Context(), tenant(r), actor(r), b.Widgets)
+	ok(w, v, err)
 }
 
 func (s *Server) aiUsage(w http.ResponseWriter, r *http.Request) {

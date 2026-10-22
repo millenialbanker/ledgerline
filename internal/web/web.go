@@ -66,7 +66,7 @@ func Handler(cfg Config) http.Handler {
 		h.Set("Cache-Control", "no-cache")
 		w.Write(open)
 	})
-	for name, ct := range map[string]string{"app.js": "text/javascript; charset=utf-8", "ledgy.js": "text/javascript; charset=utf-8", "app.css": "text/css; charset=utf-8", "open.js": "text/javascript; charset=utf-8", "open.css": "text/css; charset=utf-8"} {
+	for name, ct := range map[string]string{"app.js": "text/javascript; charset=utf-8", "ledgy.js": "text/javascript; charset=utf-8", "dash.js": "text/javascript; charset=utf-8", "app.css": "text/css; charset=utf-8", "open.js": "text/javascript; charset=utf-8", "open.css": "text/css; charset=utf-8"} {
 		b, err := fs.ReadFile(ledgerline.FS, "web/"+name)
 		if err != nil {
 			panic("web: " + name + " missing from build: " + err.Error())

@@ -263,67 +263,7 @@ async function totpModal(forced) {
 const V = {}, P = {};
 
 /* ---------- dashboard ---------- */
-V.dashboard = {
-  load: async () => { const [d, sm] = await Promise.all([get(`/v1/dashboard?date=${S.date}`), S.me?.dev ? get('/v1/dev/sample').catch(() => null) : null]); S.sample = sm || {}; return d; },
-  html: d => {
-    if (!d.trades && !d.oms_fills) return ph('Operations dashboard', `${esc(S.me.firm)} · ${fmtDate(S.date)}`) + emptyDay();
-    const segc = ['var(--accent)', 'var(--good)', 'var(--warn)', 'var(--ink3)', 'var(--bad)'];
-    const tmax = Math.max(1, ...d.by_segment.map(x => num(x.value)));
-    const hmax = Math.max(1, ...d.by_hour.map(x => x.count));
-    const withReq = d.risk.WithMargin || 0;
-    const ub = d.util_buckets.map((u, k) => [u.label, u.count, ['var(--good)', 'var(--accent)', 'var(--warn)', 'var(--bad)'][k]]);
-    const open = d.recon.OPEN || 0, breach = d.risk.Breach || 0;
-    const sett = d.settlement, exc = (sett['Short delivery'] || 0) + (sett['Funds shortfall'] || 0) + (sett['Unpledge & pay-in'] || 0);
-    const bankAtt = (d.bank['Third-party'] || 0) + (d.bank.Unidentified || 0);
-    const att = [];
-    if (breach) att.push(['bad', 'rms', `${breach} client${breach > 1 ? 's' : ''} in margin breach`, `${cmp(d.extra.breach_amount)} uncovered · square off or collect funds`]);
-    if (open) att.push(['bad', 'recon', `${open} open reconciliation break${open > 1 ? 's' : ''}`, 'Resolve before EOD']);
-    if (!d.billed && d.trades) att.push(['warn', 'billing', 'Bills not posted', 'Run billing after reconciliation']);
-    if (exc) att.push(['warn', 'settlement', `${exc} settlement exception${exc > 1 ? 's' : ''} for ${fmtDate(d.extra.pay_in)}`, 'Short deliveries, unpledge requests and funds shortfalls']);
-    if (bankAtt) att.push(['warn', 'bank', `${bankAtt} bank credit${bankAtt > 1 ? 's' : ''} need attention`, 'Third-party or unidentified receipts']);
-    if (d.pending_overrides) att.push(['acc', 'rms', `${d.pending_overrides} limit override${d.pending_overrides > 1 ? 's' : ''} awaiting checker`, 'Maker-checker approval required']);
-    if (d.pending_pledges) att.push(['acc', 'collateral', `${d.pending_pledges} pledge request${d.pending_pledges > 1 ? 's' : ''} pending`, 'Accept or reject at the depository']);
-    if (d.alerts.high) att.push(['bad', 'surv', `${d.alerts.high} high-severity surveillance alert${d.alerts.high > 1 ? 's' : ''}`, 'Review and respond']);
-    if ((d.notes.total || 0) - (d.notes.Sent || 0) > 0) att.push(['acc', 'notes', `${d.notes.total - (d.notes.Sent || 0)} contract notes not delivered`, 'Must reach clients within 24 hours']);
-    if (+d.extra.inactive_due) att.push(['warn', 'inactive', `${d.extra.inactive_due} account${+d.extra.inactive_due > 1 ? 's' : ''} due to be flagged inactive`, 'No activity for 24 months: flag in the UCC database']);
-    if (+d.extra.reactivation_pending) att.push(['acc', 'inactive', `${d.extra.reactivation_pending} reactivation request${+d.extra.reactivation_pending > 1 ? 's' : ''} awaiting checker`, 'IPV and KRA checks recorded']);
-    if (d.reports_due) att.push(['acc', 'reports', `${d.reports_due} daily report${d.reports_due > 1 ? 's' : ''} not uploaded`, 'Generate, validate and upload']);
-    const stepCls = (done, alert) => done ? (alert ? 'alert' : 'done') : 'pend';
-    const notesSent = d.notes.Sent || 0;
-    return ph('Operations dashboard', `${esc(S.me.firm)} · ${fmtDate(S.date)}`, `<button class="btn" data-act="go" data-id="recon">Open break queue</button><button class="btn pri" data-act="eod">Run EOD close</button>`) +
-    (d.eod.previous_open ? `<div class="note warn"><b>Previous day still open.</b> ${esc(d.eod.previous_open)}. <button class="linkish" data-act="gotoDate" data-id="${prevBD(S.date)}">Go to ${fmtDate(prevBD(S.date))}</button></div>` : '') +
-    (d.eod.closed && S.me?.dev && S.sample?.next && S.sample.next > S.date ? `<div class="note"><b>Day closed${d.eod.rolled_positions ? `; ${d.eod.rolled_positions} open positions carried to ${fmtDate(d.eod.next_day)}` : ''}.</b> <button class="linkish" data-act="gotoDate" data-id="${S.sample.next}">Continue the sample on ${fmtDate(S.sample.next)}</button></div>` : '') +
-    (d.warnings.length ? `<div class="note warn">${d.warnings.map(esc).join('<br>')}</div>` : '') +
-    `<div class="proc">
-      <div class="done"><small>Files</small><b>${d.trades} trades loaded</b><span>${d.oms_fills} OMS fills</span></div>
-      <div class="${stepCls(d.recon.total, open)}"><small>Trade recon</small><b>${d.recon.total ? (open ? open + ' breaks open' : 'All resolved') : 'Not run'}</b><span>${d.recon.total ? (d.recon.total - open) + ' of ' + d.recon.total + ' resolved or cleared' : 'Run reconciliation'}</span></div>
-      <div class="${stepCls(d.billed)}"><small>Billing</small><b>${d.billed ? 'Bills posted' : 'Not billed'}</b><span>${d.billed ? 'Ledger updated' : 'After reconciliation'}</span></div>
-      <div class="${breach ? 'alert' : 'live'}"><small>RMS</small><b>${breach ? breach + ' breaches' : 'Limits live'}</b><span>${withReq} clients with margin</span></div>
-      <div class="${stepCls(d.notes.total && notesSent === d.notes.total, false)}"><small>Contract notes</small><b>${d.notes.total ? notesSent + ' of ' + d.notes.total + ' sent' : 'Not generated'}</b><span>${d.notes.Bounced ? d.notes.Bounced + ' bounced' : 'Within 24 hours'}</span></div>
-      <div class="${d.eod.closed ? 'done' : 'pend'}"><small>EOD</small><b>${d.eod.closed ? 'Closed ' + esc(d.eod.closed_at) : 'Open'}</b><span>Pay-in ${fmtDate(d.extra.pay_in)}</span></div>
-    </div>
-    <div class="kpis">
-      ${kpi('Exchange trades', nf(d.trades), cmp(d.turnover) + ' turnover')}
-      ${kpi('Open breaks', open, d.recon.total ? d.recon.total + ' found today' : 'reconciliation not run', open ? 'bad' : (d.recon.total ? 'good' : ''))}
-      ${kpi('Margin breaches', breach, 'Short collection ' + cmp(d.short), breach ? 'bad' : 'good')}
-      ${kpi('Client funds cover', num(d.funds.cover).toFixed(2) + '×', 'Bank + CC vs client credits', d.funds.ok ? 'good' : 'bad')}
-      ${kpi('Penalty exposure', inr(d.penalty), 'Short-collection slab estimate', num(d.penalty) > 0 ? 'warn' : 'good')}
-      ${kpi('Open alerts', d.alerts.open || 0, (d.alerts.high || 0) + ' high severity', d.alerts.high ? 'bad' : '')}
-    </div>
-    <div class="grid g21">
-      <div class="panel"><div class="hd"><h3>Needs attention</h3><small>${att.length} items</small></div><div class="att">${att.map(a => `<button data-act="go" data-id="${a[1]}"><i class="${a[0]}"></i><div><b>${esc(a[2])}</b><span>${esc(a[3])}</span></div><span class="dim">›</span></button>`).join('') || '<div class="empty">Nothing needs attention</div>'}</div></div>
-      <div class="panel"><div class="hd"><h3>Margin utilisation</h3><small>${withReq} clients with positions</small></div><div class="bd">
-        <div class="stack">${ub.map(u => `<i style="width:${withReq ? u[1] / withReq * 100 : 0}%;background:${u[2]}"></i>`).join('')}</div>
-        <div class="legend">${ub.map(u => `<span style="--c:${u[2]}">${u[0]} · <b class="mono">${u[1]}</b></span>`).join('')}</div>
-        <div class="sum" style="margin-top:16px"><span>Required <b>${cmp(d.required)}</b></span><span>Collected <b>${cmp(d.collected)}</b></span></div>
-      </div></div>
-    </div>
-    <div class="grid g2">
-      <div class="panel"><div class="hd"><h3>Turnover by exchange segment</h3><small>Notional; options at premium</small></div><div class="bd"><div class="hbars">${d.by_segment.map((x, k) => `<div class="hb"><span>${esc(x.label)}</span><div class="track"><i style="width:${(num(x.value) / tmax * 100).toFixed(1)}%;background:${segc[k % 5]}"></i></div><span class="v">${cmp(x.value)}</span></div>`).join('')}</div></div></div>
-      <div class="panel"><div class="hd"><h3>Trades by hour</h3><small>Exchange trade files, IST</small></div><div class="bd"><div class="cols">${d.by_hour.map(x => `<div class="c"><em>${x.count}</em><i style="height:${(x.count / hmax * 82).toFixed(1)}%"></i></div>`).join('')}</div><div class="cols-x">${d.by_hour.map(x => `<span>${esc(x.label)}</span>`).join('')}</div></div></div>
-    </div>`;
-  }
-};
+// The dashboard view and its widgets are in dash.js.
 function emptyDay() {
   const sm = S.sample || {}, first = !(sm.loaded || []).length, isNext = sm.next === S.date;
   const dev = S.me?.dev;
@@ -2209,7 +2149,7 @@ const A = {
     S.view = w.view; closeModal(); await render(); window.scrollTo(0, 0);
     const k = String(w.key || '').split(':').pop(); if (w.view === 'recon' && C.recon?.all?.some(b => b.id === k)) breakModal(k);
   },
-  go: id => { S.view = id; closeModal(); render(); window.scrollTo(0, 0); },
+  go: id => { S.view = id; UI.dashEdit = false; closeModal(); render(); window.scrollTo(0, 0); },
   close: () => closeModal(),
   ovclose: (id, el, e) => { if (e.target === el && !modalLocked) closeModal(); },
   ui: (id, el) => { UI[el.dataset.k] = el.dataset.v; const part = el.dataset.part; if (part && $(part)) { rerenderPart(part); el.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === el)); } else { $('page').innerHTML = V[S.view].html(C[S.view]); bindPage(); } },

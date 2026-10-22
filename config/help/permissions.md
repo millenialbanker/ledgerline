@@ -98,6 +98,7 @@ Sending bulk messages | Ops checker, Compliance officer
 Sending contract notes | Ops maker, Ops checker
 Sending year-end packs | Ops maker, Ops checker, Compliance officer
 Setting client risk | Compliance officer
+Setting the firm's default dashboard | Admin
 Settlement actions | Ops maker, Ops checker
 Settling a buy-back | Ops checker
 Square-off | Risk manager

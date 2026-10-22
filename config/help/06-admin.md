@@ -224,3 +224,19 @@ Ledgy always answers from its help articles at no cost. If your firm switches on
 - When credit runs out, Ledgy keeps answering from its help articles without AI and says so.
 - Credit is added by your Ledgerline provider after payment. Ask them for a top-up.
 - Only the question (with PAN, numbers and emails masked) and the help articles are sent to the AI provider; questions aren't stored with the charges.
+
+## customize-dashboard
+title: Customize your dashboard
+screen: dashboard
+roles: Ops maker, Ops checker, Risk manager, Compliance officer, Admin
+ask: customize dashboard; customise dashboard; add widget; remove widget; move widget; resize widget; rearrange dashboard; dashboard layout; drag and drop dashboard; reset dashboard; firm default dashboard; change dashboard
+related: daily-routine
+
+On the [[dashboard|Dashboard]], click **Customize**:
+
+1. **Move** a widget: drag it by its title bar. Or click its title bar and use the arrow keys.
+2. **Resize** it: drag its bottom-right corner, use **Shift** and the arrow keys, or click **⋯** for Wider, Narrower, Taller and Shorter.
+3. **Add widget** opens the list of all 23 widgets, from day progress and margin breaches to top clients, most traded contracts, settlement and client money segregation. **×** removes one.
+4. Click **Done**. Changes save as you go, only for you.
+
+**Reset** goes back to the firm's default layout. An Admin can click **Save as firm default** so new users, and anyone who resets, start from their layout; people's own layouts aren't changed.

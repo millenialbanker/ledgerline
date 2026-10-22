@@ -513,7 +513,28 @@ type Dashboard struct {
 	Onboarding  int               `json:"onboarding"`
 	Warnings    []string          `json:"warnings"`
 	Extra       map[string]string `json:"extra"`
+
+	// For the dashboard widgets.
+	TopTurnover   []ClientStat `json:"top_turnover"`  // clients by today's turnover
+	TopUtil       []ClientStat `json:"top_util"`      // clients by margin utilisation
+	TopContracts  []LabelValue `json:"top_contracts"` // instruments by today's turnover
+	BreaksByType  []LabelValue `json:"breaks_by_type"`
+	Sides         []LabelValue `json:"sides"` // Buy, Sell
+	ClientsTraded int          `json:"clients_traded"`
 }
+
+// ClientStat is one client in a dashboard top-list.
+type ClientStat struct {
+	UCC    string    `json:"ucc"`
+	Name   string    `json:"name"`
+	Value  money.Dec `json:"value"`
+	Count  int       `json:"count,omitempty"`
+	Util   float64   `json:"utilisation,omitempty"`
+	Status string    `json:"status,omitempty"`
+}
+
+// dashTop is how many rows a top-list carries.
+const dashTop = 8
 
 // LabelValue is one bar in a chart.
 type LabelValue struct {
@@ -535,6 +556,9 @@ func (o *Ops) Dashboard(ctx context.Context, tenant, date string) (Dashboard, er
 	segN := map[string]int{}
 	hour := map[string]int{}
 	segName := map[string]string{"CM": "Cash", "FO": "F&O", "CD": "Currency", "COM": "Commodity"}
+	byUCC, byUCCn := map[string]money.Dec{}, map[string]int{}
+	byInst, byInstN := map[string]money.Dec{}, map[string]int{}
+	side := [2]LabelValue{{Label: "Buy"}, {Label: "Sell"}}
 	for _, t := range ex {
 		k := t.Exchange + " " + segName[t.Segment]
 		seg[k] = seg[k].Add(t.Value())
@@ -543,6 +567,24 @@ func (o *Ops) Dashboard(ctx context.Context, tenant, date string) (Dashboard, er
 		if len(t.TradeTime) >= 2 {
 			hour[t.TradeTime[:2]]++
 		}
+		byUCC[t.UCC] = byUCC[t.UCC].Add(t.Value())
+		byUCCn[t.UCC]++
+		byInst[t.Instrument()] = byInst[t.Instrument()].Add(t.Value())
+		byInstN[t.Instrument()]++
+		i := 0
+		if t.Side == "S" {
+			i = 1
+		}
+		side[i].Value, side[i].Count = side[i].Value.Add(t.Value()), side[i].Count+1
+	}
+	d.Sides = side[:]
+	d.ClientsTraded = len(byUCC)
+	for _, k := range sortedKeys(byInst) {
+		d.TopContracts = append(d.TopContracts, LabelValue{Label: k, Value: byInst[k], Count: byInstN[k]})
+	}
+	sort.SliceStable(d.TopContracts, func(i, j int) bool { return d.TopContracts[i].Value.Cmp(d.TopContracts[j].Value) > 0 })
+	if len(d.TopContracts) > dashTop {
+		d.TopContracts = d.TopContracts[:dashTop]
 	}
 	for _, k := range sortedKeys(seg) {
 		d.BySegment = append(d.BySegment, LabelValue{Label: k, Value: seg[k], Count: segN[k]})
@@ -553,9 +595,17 @@ func (o *Ops) Dashboard(ctx context.Context, tenant, date string) (Dashboard, er
 		d.ByHour = append(d.ByHour, LabelValue{Label: k + ":00", Count: hour[k]})
 	}
 	all, _ := o.App.Breaks.List(ctx, tenant, date, "")
+	byType := map[string]int{}
 	for _, b := range all {
 		d.Recon[b.Status]++
+		if b.Status == "OPEN" {
+			byType[string(b.Type)]++
+		}
 	}
+	for _, k := range sortedKeys(byType) {
+		d.BreaksByType = append(d.BreaksByType, LabelValue{Label: k, Count: byType[k]})
+	}
+	sort.SliceStable(d.BreaksByType, func(i, j int) bool { return d.BreaksByType[i].Count > d.BreaksByType[j].Count })
 	d.Recon["total"] = len(all)
 	es, _ := o.App.Ledger.Store.List(ctx, tenant, ledgerFilterDate(date))
 	for _, e := range es {
@@ -597,6 +647,15 @@ func (o *Ops) Dashboard(ctx context.Context, tenant, date string) (Dashboard, er
 		}
 	}
 	d.UtilBuckets = buckets
+	for _, r := range rv.Rows {
+		if r.Required.Sign() > 0 {
+			d.TopUtil = append(d.TopUtil, ClientStat{UCC: r.UCC, Name: r.Name, Value: r.Free, Util: r.Util, Status: r.Status})
+		}
+	}
+	sort.SliceStable(d.TopUtil, func(i, j int) bool { return d.TopUtil[i].Util > d.TopUtil[j].Util })
+	if len(d.TopUtil) > dashTop {
+		d.TopUtil = d.TopUtil[:dashTop]
+	}
 	d.Extra["breach_amount"] = breachAmt.Fixed(2)
 	for _, ov := range rv.Overrides {
 		if ov.Status == "Pending" {
@@ -660,10 +719,19 @@ func (o *Ops) Dashboard(ctx context.Context, tenant, date string) (Dashboard, er
 		}
 	}
 	cs, _ := o.Clients(ctx, tenant)
+	names := map[string]string{}
 	for _, c := range cs {
+		names[c.UCC] = c.Name
 		if c.Status != "Active" {
 			d.Onboarding++
 		}
+	}
+	for _, k := range sortedKeys(byUCC) {
+		d.TopTurnover = append(d.TopTurnover, ClientStat{UCC: k, Name: names[k], Value: byUCC[k], Count: byUCCn[k]})
+	}
+	sort.SliceStable(d.TopTurnover, func(i, j int) bool { return d.TopTurnover[i].Value.Cmp(d.TopTurnover[j].Value) > 0 })
+	if len(d.TopTurnover) > dashTop {
+		d.TopTurnover = d.TopTurnover[:dashTop]
 	}
 	d.EOD, _ = o.EOD(ctx, tenant, date)
 	return d, nil
