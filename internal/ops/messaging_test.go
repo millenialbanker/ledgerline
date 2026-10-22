@@ -108,16 +108,24 @@ func TestScheduler(t *testing.T) {
 	if err != nil || len(js) < 8 || js[0].Active {
 		t.Fatalf("seeded jobs: %d %v", len(js), err)
 	}
-	if _, err := o.SaveJob(ctx, T, "farhan.khan", Job{Name: "x", Kind: "send_notes", At: "10:00", When: "business"}); !errors.Is(err, ErrForbidden) {
+	if _, err := o.SaveJob(ctx, T, "farhan.khan", Job{Name: "x", Kind: "monthly_statements", At: "10:00", When: "business"}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("checker scheduled a job: %v", err)
 	}
 	if _, err := o.SaveJob(ctx, T, "admin", Job{Name: "x", Kind: "email_report", At: "10:00", When: "business"}); err == nil {
 		t.Fatal("email_report without params")
 	}
-	if _, err := o.SaveJob(ctx, T, "admin", Job{Name: "x", Kind: "send_notes", At: "25:00", When: "business"}); err == nil {
+	if _, err := o.SaveJob(ctx, T, "admin", Job{Name: "x", Kind: "monthly_statements", At: "25:00", When: "business"}); err == nil {
 		t.Fatal("bad time")
 	}
 	notes := js[0]
+	if notes.Kind != "debit_reminders" {
+		t.Fatalf("first default job is %s", notes.Kind)
+	}
+	for _, j := range js {
+		if _, gone := RetiredJobKinds[j.Kind]; gone {
+			t.Fatalf("retired job %s still offered", j.Kind)
+		}
+	}
 	notes.Active = true
 	if _, err := o.SaveJob(ctx, T, "admin", notes); err != nil {
 		t.Fatal(err)
@@ -128,7 +136,7 @@ func TestScheduler(t *testing.T) {
 		t.Fatal(err)
 	}
 	run, err := o.RunJob(ctx, T, "farhan.khan", notes.ID, D)
-	if err != nil || run.Status != "Succeeded" || !strings.Contains(run.Summary, "notes generated") || run.Notified == "" {
+	if err != nil || run.Status != "Succeeded" || !strings.Contains(run.Summary, "clients reminded") || run.Notified == "" {
 		t.Fatalf("run: %+v %v", run, err)
 	}
 	ob, _ := docs.List[OutboxItem](ctx, o.Docs, T, cOutbox, "")
@@ -160,5 +168,29 @@ func TestScheduler(t *testing.T) {
 	sat := time.Date(2026, 10, 24, 20, 0, 0, 0, ist)
 	if n, _ := o.Tick(ctx, T, sat); n != 1 { // only the daily job on a Saturday
 		t.Fatalf("saturday ran %d", n)
+	}
+}
+
+func TestRetiredJobsNeverRun(t *testing.T) {
+	o, ctx := newOps(t)
+	// A job of a retired kind saved before the change is hidden and skipped.
+	j := Job{ID: "JOB-900", Name: "Contract notes", Kind: "send_notes", At: "00:00", When: "daily", Active: true, Params: map[string]string{}}
+	if err := docs.Upsert(ctx, o.Docs, T, cJob, j.ID, j, "system"); err != nil {
+		t.Fatal(err)
+	}
+	js, _, err := o.Jobs(ctx, T)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, x := range js {
+		if x.ID == "JOB-900" {
+			t.Fatal("retired job listed")
+		}
+	}
+	if n, _ := o.Tick(ctx, T, time.Date(2026, 10, 19, 23, 0, 0, 0, ist)); n != 0 {
+		t.Fatalf("ran %d jobs; all defaults are off and the retired one must not run", n)
+	}
+	if _, err := o.SaveJob(ctx, T, "admin", Job{Name: "x", Kind: "send_notes", At: "10:00", When: "business"}); err == nil {
+		t.Fatal("new job of a retired kind accepted")
 	}
 }

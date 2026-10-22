@@ -640,15 +640,8 @@ func (o *Ops) AppForm(ctx context.Context, tenant string, a Application) ([]byte
 		}
 	}
 	var b bytes.Buffer
-	err := appFormTmpl.Execute(&b, map[string]any{"A": a, "Firm": set.Firm, "SEBI": set.SEBIReg, "Segments": strings.Join(segs, ", "), "Decl": decl, "PANMasked": MaskPAN(a.PAN), "AcctMasked": maskAcct(a.Account)})
+	err := appFormTmpl.Execute(&b, map[string]any{"A": a, "Firm": set.Firm, "SEBI": set.SEBIReg, "Segments": strings.Join(segs, ", "), "Decl": decl, "PANMasked": MaskPAN(a.PAN), "AcctMasked": MaskAccount(a.Account)})
 	return b.Bytes(), err
-}
-
-func maskAcct(s string) string {
-	if len(s) <= 4 {
-		return s
-	}
-	return strings.Repeat("•", len(s)-4) + s[len(s)-4:]
 }
 
 var appFormTmpl = template.Must(template.New("form").Parse(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Account opening form {{.A.ID}}</title>

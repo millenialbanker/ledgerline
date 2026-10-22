@@ -47,6 +47,12 @@ import (
 // missing key version, or data that was altered in the database.
 var ErrDecrypt = errors.New("vault: stored data could not be decrypted (wrong key or altered data)")
 
+// ErrUnencrypted means a record or file in the database is not encrypted.
+// Everything Ledgerline writes is encrypted, so such a row was put there
+// some other way (directly in the database) and is refused rather than
+// trusted.
+var ErrUnencrypted = errors.New("vault: record is stored unencrypted; it was not written by Ledgerline and is refused")
+
 // Keys supplies per-tenant key material.
 type Keys interface {
 	// Current is the key version used for new writes.
@@ -221,11 +227,10 @@ func (v *Vault) Seal(tenant string, aad, pt []byte) ([]byte, error) {
 // Sealed reports whether b was produced by Seal.
 func Sealed(b []byte) bool { return len(b) > len(magic)+4 && bytes.Equal(b[:len(magic)], magic) }
 
-// Open decrypts b. Data that was never encrypted (written before encryption
-// was switched on) is returned as it is.
+// Open decrypts b. Data that is not encrypted is refused.
 func (v *Vault) Open(tenant string, aad, b []byte) ([]byte, error) {
 	if !Sealed(b) {
-		return b, nil
+		return nil, ErrUnencrypted
 	}
 	ver := int(binary.BigEndian.Uint32(b[len(magic):]))
 	a, err := v.aead(tenant, ver)
@@ -314,7 +319,7 @@ type Docs struct {
 func (d *Docs) open(tenant string, x docs.Doc) (docs.Doc, error) {
 	body := bytes.TrimSpace(x.Body)
 	if !bytes.HasPrefix(body, []byte(envPrefix)) {
-		return x, nil // written before encryption was switched on
+		return docs.Doc{}, fmt.Errorf("%s/%s: %w", x.Collection, x.ID, ErrUnencrypted)
 	}
 	if len(body) < len(envPrefix)+1 || body[len(body)-1] != '"' {
 		return docs.Doc{}, fmt.Errorf("%s/%s: %w", x.Collection, x.ID, ErrDecrypt)
@@ -434,7 +439,7 @@ type Audit struct {
 func (a *Audit) Log(ctx context.Context, e app.AuditEvent) error {
 	c, ok := a.Inner.(app.ChainedAudit)
 	if !ok {
-		return a.Inner.Log(ctx, e)
+		return errors.New("vault: this audit store cannot seal entries; refusing to write the audit trail unsealed")
 	}
 	return c.LogSealed(ctx, e, func(e app.AuditEvent) (string, error) {
 		b, err := app.AuditCanonical(e)

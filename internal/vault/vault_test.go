@@ -122,22 +122,28 @@ func TestKeyRotation(t *testing.T) {
 	}
 }
 
-func TestPlaintextWrittenBeforeEncryptionStillReads(t *testing.T) {
+func TestUnencryptedRowsAreRefused(t *testing.T) {
 	ctx := context.Background()
 	mem := docs.NewMem()
-	mem.Put(ctx, "alpha", "client", "OLD", json.RawMessage(`{"pan":"OLDPN1234X"}`), 0, false, "x")
 	d := &Docs{Inner: mem, V: New(Ephemeral())}
-	got, err := d.Get(ctx, "alpha", "client", "OLD")
-	if err != nil || !strings.Contains(string(got.Body), "OLDPN1234X") {
-		t.Fatalf("legacy record: %s %v", got.Body, err)
+	d.Put(ctx, "alpha", "client", "A", json.RawMessage(`{"bank":"50100123456789"}`), 0, false, "ops")
+	// Someone with database access writes a record in clear, and replaces
+	// an encrypted one with clear text (say, a different bank account).
+	mem.Put(ctx, "alpha", "client", "PLANTED", json.RawMessage(`{"pan":"PLNTD1234X"}`), 0, false, "db")
+	mem.Put(ctx, "alpha", "client", "A", json.RawMessage(`{"bank":"99999999999999"}`), 0, true, "db")
+	for _, id := range []string{"PLANTED", "A"} {
+		if _, err := d.Get(ctx, "alpha", "client", id); !errors.Is(err, ErrUnencrypted) {
+			t.Errorf("%s: unencrypted row accepted: %v", id, err)
+		}
 	}
-	// Updating it encrypts it.
-	if _, err := docs.Update(ctx, d, "alpha", "client", "OLD", "x", func(m *map[string]any) error { (*m)["k"] = 1; return nil }); err != nil {
-		t.Fatal(err)
+	if _, err := d.List(ctx, "alpha", "client", ""); !errors.Is(err, ErrUnencrypted) {
+		t.Errorf("list accepted an unencrypted row: %v", err)
 	}
-	raw, _ := mem.Get(ctx, "alpha", "client", "OLD")
-	if bytes.Contains(raw.Body, []byte("OLDPN1234X")) {
-		t.Fatal("record stayed plaintext after update")
+	// Files too.
+	raw := ingest.NewMemRawStore()
+	f, _ := raw.Put(ctx, ingest.RawFile{Tenant: "alpha", Source: "CLIENT-DOC", Name: "x.pdf", SHA256: "ab", Content: []byte("planted file")})
+	if _, err := (&Raw{Inner: raw, V: New(Ephemeral())}).Get(ctx, "alpha", f.ID); !errors.Is(err, ErrUnencrypted) {
+		t.Errorf("unencrypted file accepted: %v", err)
 	}
 }
 

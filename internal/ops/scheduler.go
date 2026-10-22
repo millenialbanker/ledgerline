@@ -39,16 +39,32 @@ type JobKind struct {
 
 // JobKinds are the jobs the scheduler can run.
 var JobKinds = []JobKind{
-	{"send_notes", "Send contract notes", "Generates contract notes for the business date and emails those not yet sent.", nil},
-	{"margin_alerts", "Margin shortfall alerts", "Messages every client whose margin is short (RMS status Breach).", nil},
 	{"debit_reminders", "Debit reminders", "Messages clients in debit for at least the given number of days.", []string{"min_days"}},
-	{"rekyc_reminders", "Periodic KYC reminders", "Messages clients whose periodic KYC updation is due within 30 days or overdue.", nil},
 	{"monthly_statements", "Monthly statements", "Emails every active client their statement of account for the previous month.", nil},
 	{"email_report", "Email a report", "Generates a regulatory or inspection report and emails it to the recipients.", []string{"report", "to"}},
 	{"kra_upload", "KRA upload file", "Builds the KRA upload file of clients opened or changed since the last run and keeps it with the files.", nil},
-	{"inactive_scan", "Inactive account scan", "Counts accounts due to be flagged inactive and tells compliance.", nil},
 	{"autopilot", "Autopilot stage", "Runs every automation of a stage (bod, intraday, preclose, eod, monthly) under the firm's autopilot settings.", []string{"stage"}},
-	{"post_interest", "Post interest", "Posts interest (delayed payment charges) on debit balances for the previous month.", nil},
+}
+
+// RetiredJobKinds were scheduled jobs that Autopilot now does, with its
+// policies, caps and work queue. Saved jobs of these kinds are hidden and
+// never run, so the same work cannot happen twice.
+var RetiredJobKinds = map[string]string{
+	"send_notes":      "Autopilot: Contract notes (also holds notes for clients with an open code change)",
+	"margin_alerts":   "Autopilot: Margin calls (one alert per client per day, plus MTF calls)",
+	"rekyc_reminders": "Autopilot: KYC registries and reminders",
+	"post_interest":   "Autopilot: Month-end postings (a checker approves before posting)",
+	"inactive_scan":   "Autopilot: Inactive account flagging",
+}
+
+func liveJobs(js []Job) []Job {
+	out := js[:0]
+	for _, j := range js {
+		if _, gone := RetiredJobKinds[j.Kind]; !gone {
+			out = append(out, j)
+		}
+	}
+	return out
 }
 
 // Job is a scheduled job.
@@ -190,6 +206,7 @@ func (o *Ops) Jobs(ctx context.Context, tenant string) ([]Job, []JobRun, error) 
 	if err != nil {
 		return nil, nil, err
 	}
+	js = liveJobs(js)
 	set, _ := o.Settings(ctx, tenant)
 	now := o.now()
 	for i := range js {
@@ -217,6 +234,7 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	if err != nil {
 		return 0, err
 	}
+	js = liveJobs(js)
 	set, _ := o.Settings(ctx, tenant)
 	now = now.In(ist)
 	today, hm := now.Format("2006-01-02"), now.Format("15:04")
@@ -297,30 +315,6 @@ func (o *Ops) RunJob(ctx context.Context, tenant, actor, id, date string) (JobRu
 func (o *Ops) runJob(ctx context.Context, tenant string, j Job, date string) (string, error) {
 	a := SystemActor
 	switch j.Kind {
-	case "send_notes":
-		g, err := o.GenerateNotes(ctx, tenant, a, date)
-		if err != nil {
-			return "", err
-		}
-		s, b, err := o.SendNotes(ctx, tenant, a, date, "")
-		return fmt.Sprintf("%d notes generated, %d sent, %d bounced", g, s, b), err
-	case "margin_alerts":
-		rv, err := o.Risk(ctx, tenant, date)
-		if err != nil {
-			return "", err
-		}
-		n := 0
-		for _, r := range rv.Rows {
-			if r.Status == "Breach" {
-				short := r.Required.Sub(r.Funds.Add(r.CollUsable))
-				if short.Sign() <= 0 {
-					short = r.Free.Neg()
-				}
-				o.notify(ctx, tenant, a, "margin.shortfall", r.UCC, map[string]string{"shortfall": formatINR(short), "date": date})
-				n++
-			}
-		}
-		return fmt.Sprintf("%d clients alerted", n), nil
 	case "debit_reminders":
 		var min int
 		fmt.Sscanf(j.Params["min_days"], "%d", &min)
@@ -336,19 +330,6 @@ func (o *Ops) runJob(ctx context.Context, tenant string, j Job, date string) (st
 			}
 		}
 		return fmt.Sprintf("%d clients reminded (in debit %d days or more)", n, min), nil
-	case "rekyc_reminders":
-		v, err := o.PMLA(ctx, tenant, date)
-		if err != nil {
-			return "", err
-		}
-		n := 0
-		for _, r := range v.Rows {
-			if r.ReKYCDue != "" && r.ReKYCDue <= addDays(date, 30) {
-				o.notify(ctx, tenant, a, "rekyc.due", r.UCC, map[string]string{"due": r.ReKYCDue})
-				n++
-			}
-		}
-		return fmt.Sprintf("%d clients reminded", n), nil
 	case "monthly_statements":
 		to := addDays(date[:8]+"01", -1)
 		from := to[:8] + "01"
@@ -416,12 +397,6 @@ func (o *Ops) runJob(ctx context.Context, tenant string, j Job, date string) (st
 			return "", err
 		}
 		return fmt.Sprintf("%s with %d clients", name, strings.Count(string(data), "\n")-1), nil
-	case "inactive_scan":
-		v, err := o.Dormancy(ctx, tenant, date)
-		if err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("%d accounts due to be flagged inactive, %d approaching, %d reactivations pending", v.Counts["Due"], v.Counts["Approaching"], v.Counts["Reactivation pending"]), nil
 	case "autopilot":
 		runs, err := o.RunStage(ctx, tenant, a, date, j.Params["stage"], "")
 		if err != nil {
@@ -439,13 +414,6 @@ func (o *Ops) runJob(ctx context.Context, tenant string, j Job, date string) (st
 			return s, fmt.Errorf("%s; %d automations failed", s, failed)
 		}
 		return s, nil
-	case "post_interest":
-		to := addDays(date[:8]+"01", -1)
-		iv, n, err := o.PostInterest(ctx, tenant, a, to[:8]+"01", to)
-		if err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("interest posted for %d clients, ₹%s", n, formatINR(iv.ToPost.Dec())), nil
 	}
 	return "", invalid("unknown job kind %q", j.Kind)
 }
@@ -456,14 +424,10 @@ func (o *Ops) SeedJobs(ctx context.Context, tenant string) error {
 		return nil
 	}
 	seed := []Job{
-		{Name: "Contract notes", Kind: "send_notes", At: "19:30", When: "business"},
-		{Name: "Margin shortfall alerts", Kind: "margin_alerts", At: "16:15", When: "business"},
 		{Name: "Debit reminders", Kind: "debit_reminders", At: "10:00", When: "business", Params: map[string]string{"min_days": "3"}},
 		{Name: "Monthly statements", Kind: "monthly_statements", At: "08:00", When: "monthly:2"},
-		{Name: "Periodic KYC reminders", Kind: "rekyc_reminders", At: "09:00", When: "weekly:Mon"},
 		{Name: "KRA upload file", Kind: "kra_upload", At: "20:00", When: "business", OnlyFailure: true},
 		{Name: "Client ledger balances to management", Kind: "email_report", At: "21:00", When: "business", Params: map[string]string{"report": "ledger_balances", "to": "md@bhairav.example"}},
-		{Name: "Interest on debit balances", Kind: "post_interest", At: "07:00", When: "monthly:1"},
 	}
 	for i, j := range seed {
 		j.ID = fmt.Sprintf("JOB-%03d", i+1)

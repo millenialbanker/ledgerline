@@ -5,6 +5,7 @@ package pgstore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -275,6 +276,16 @@ func checkEncryptedAtRest(t *testing.T, ctx context.Context, st *Store, stores a
 	}
 	if clear+histClear+filesClear > 0 {
 		t.Errorf("client data stored in clear: %d documents, %d history rows, %d files", clear, histClear, filesClear)
+	}
+	// A record put straight into the database in clear is refused.
+	if _, err := tx.ExecContext(ctx, `INSERT INTO ll.doc (tenant_id, coll, id, version, body, updated_by) VALUES ($1, 'client', 'PLANTED', 1, '{"pan":"PLNTD1234X"}', 'db')`, tenant); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stores.Docs.Get(ctx, tenant, "client", "PLANTED"); !errors.Is(err, vault.ErrUnencrypted) {
+		t.Errorf("planted plaintext record accepted: %v", err)
 	}
 	r, err := stores.Audit.(*vault.Audit).VerifyAudit(ctx, tenant)
 	if err != nil || !r.OK || r.Sealed == 0 {
