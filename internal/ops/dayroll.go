@@ -37,25 +37,12 @@ func (s Settings) IsBusinessDay(date string) bool {
 	if err != nil || t.Weekday() == time.Saturday || t.Weekday() == time.Sunday {
 		return false
 	}
-	return !contains(s.Holidays, date)
+	h, _ := s.IsHoliday(date)
+	return !h
 }
 
 func (s Settings) PrevBusinessDay(date string) string {
-	t, err := time.Parse("2006-01-02", date)
-	if err != nil {
-		return ""
-	}
-	hol := map[string]bool{}
-	for _, h := range s.Holidays {
-		hol[h] = true
-	}
-	for {
-		t = t.AddDate(0, 0, -1)
-		d := t.Format("2006-01-02")
-		if t.Weekday() != time.Saturday && t.Weekday() != time.Sunday && !hol[d] {
-			return d
-		}
-	}
+	return s.stepDay(date, -1, false)
 }
 
 // hadActivity reports whether a day has anything that must roll forward.

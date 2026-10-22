@@ -251,8 +251,17 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 		return 0, err
 	}
 	js = liveJobs(js)
+	// Backups and the exchange holiday check run in every edition: they
+	// keep the firm's data safe and its calendar right, and change nothing
+	// in its work (a fetched holiday list waits for approval).
+	if err := o.backupTick(ctx, tenant, now); err != nil {
+		return 0, fmt.Errorf("backups: %w", err)
+	}
+	if err := o.holidayTick(ctx, tenant, now); err != nil {
+		return 0, fmt.Errorf("exchange holidays: %w", err)
+	}
 	if o.manual(ctx, tenant) {
-		return 0, nil // Manual edition: nothing runs on a timer
+		return 0, nil // Manual edition: none of the firm's jobs run on a timer
 	}
 	set, _ := o.Settings(ctx, tenant)
 	now = now.In(ist)

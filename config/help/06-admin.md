@@ -190,7 +190,7 @@ related: autopilot, scheduled-jobs
 
 Your edition is shown under the firm name in the sidebar and on [[settings|Settings]]. Your Ledgerline provider sets it.
 
-- **Manual:** every step is a person's click. There's no Autopilot screen, no work queue and nothing runs on a timer; jobs can be run by hand with **Run now**.
+- **Manual:** every step is a person's click. There's no Autopilot screen, no work queue and none of the firm's work runs on a timer; jobs can be run by hand with **Run now**. Backups and the exchange holiday check still run, because they keep data safe and change nothing until someone approves.
 - **Autopilot:** routine work runs by itself where it's safe; people are asked whenever judgement or approval is needed.
 - **Full autopilot:** everything runs automatically at the most the rules allow. People still do what the regulations reserve for them: activating and reactivating clients, surveillance decisions and STRs, verifying physical slips, client code modifications, bill corrections and overrides, bank, address and nomination changes, MTF enrolment, PMLA risk categories and firm vouchers.
 
@@ -240,3 +240,36 @@ On the [[dashboard|Dashboard]], click **Customize**:
 4. Click **Done**. Changes save as you go, only for you.
 
 **Reset** goes back to the firm's default layout. An Admin can click **Save as firm default** so new users, and anyone who resets, start from their layout; people's own layouts aren't changed.
+
+## backups
+title: How are backups taken, and what if one fails?
+screen: backups
+roles: Admin, Compliance officer, Ops checker
+ask: backup; backups; database backup; daily backup; weekly backup; quarterly backup; yearly backup; backup failed; restore; restore backup; data recovery; disaster recovery; how long are backups kept; backup retention; back up now
+related: eod-close, exchange-holidays, data-in-india
+
+When a day is closed (**EOD close**), the whole firm is backed up: clients, ledgers, trades, files, settings and the audit trail. The backup is encrypted with the firm's data keys and read back to check it before it counts. Open [[backups|Backups]] to see them.
+
+- **Daily, weekly, quarterly, yearly:** every backup is a daily one. The backup of the **last trading day** of a week, a quarter or the year (31 March, or 31 December if set) is also kept as weekly, quarterly or yearly. Last trading days follow the approved exchange holiday calendar.
+- **Kept:** 30 daily, 13 weekly, 12 quarterly and 10 yearly backups unless an Admin changes it under **Retention**. Keep yearly backups for as many years as your records must be kept.
+- **A day not closed** by 23:30 is backed up anyway, and again once it is closed.
+- **A failed backup** is retried every 15 minutes, four times. Management is emailed, and the dashboard shows it under **Needs attention**. Fix the cause (usually disk space or the backup folder), then an Admin clicks **Back up now**.
+- **Check again** reads a backup end to end to prove it opens and is complete.
+- **Restoring** is done by whoever runs the server, into an empty database, with the same data keys. It never overwrites data. See the **Restoring** panel.
+
+Ask the people who run the server to copy the backup folder off the server every day, to storage in an Indian region.
+
+## exchange-holidays
+title: Load and approve exchange holidays
+screen: circulars
+roles: Ops maker, Ops checker, Compliance officer
+ask: exchange holidays; holiday list; trading holidays; settlement holidays; clearing holidays; holiday calendar; import holidays; nse holidays; bse holidays; mcx holidays; next year holidays; approve holidays; pay-in date wrong; business day wrong; market holiday
+related: settlement, backups, settings-overview
+
+Open [[circulars|Circulars & calendar]] → **Exchange holidays**.
+
+1. NSE's trading and settlement (clearing) holidays for every segment are fetched by themselves: every morning in December until next year's list is found, and every Monday for changes (for example a holiday added for an election). **Check NSE now** fetches them at once.
+2. BSE's equity, derivative and currency lists follow NSE's (the exchanges publish matching circulars). For **MCX**, save its circular's holiday table as a CSV (Date and Description columns) and click **Upload a circular**.
+3. A new or changed list waits for approval. An **Ops checker or the compliance officer** checks it against the circulars and clicks **Approve**. Whoever uploaded a list can't approve it.
+
+Once approved, equity trading holidays decide business days, and settlement holidays also move the **pay-in** date (for example, a bank holiday that is a clearing holiday but a trading day). Holidays typed in Settings still count on top. The dashboard warns when a year has no approved list.

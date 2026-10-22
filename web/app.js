@@ -106,7 +106,7 @@ const NAV = [
   ['Compliance', [['circulars', 'Circulars & calendar'], ['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
   ['Depository', [['dp', 'Demat accounts & DIS']]],
   ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['partners', 'Branches & partners'], ['prepaid', 'Prepaid schemes']]],
-  ['Admin', [['messages', 'Messages'], ['jobs', 'Scheduled jobs'], ['settings', 'Settings']]]];
+  ['Admin', [['messages', 'Messages'], ['jobs', 'Scheduled jobs'], ['backups', 'Backups'], ['settings', 'Settings']]]];
 const PORTAL_NAV = [['My account', [['portal', 'Overview'], ['pnotes', 'Contract notes'], ['statements', 'Reports & statements'], ['pinsights', 'Tax & insights'], ['pfunds', 'Funds & payouts'], ['pprofile', 'Profile & documents'], ['phelp', 'Help desk'], ['pext', 'Trades elsewhere']]]];
 const PORTAL_VIEWS = PORTAL_NAV[0][1].map(v => v[0]);
 const clientUser = () => S.me?.role === 'Client';
@@ -744,7 +744,7 @@ function appModal(id) {
 /* ---------- circulars and compliance calendar ---------- */
 const CI_PRI = { High: 'bad', Medium: 'warn', Low: 'nt', Information: 'nt' }, CI_ST = { New: 'warn', 'Action needed': 'acc', Done: 'good', 'Not applicable': 'nt' };
 V.circulars = {
-  load: () => get(`/v1/circulars?date=${S.date}`),
+  load: async () => { const [c, h] = await Promise.all([get(`/v1/circulars?date=${S.date}`), get('/v1/holidays').catch(() => null)]); c.hol = h; return c; },
   html: d => {
     const cs = d.circulars, open = cs.filter(c => c.status === 'New' || c.status === 'Action needed');
     const tasks = cs.flatMap(c => c.tasks.filter(t => t.status === 'Open').map(t => ({ ...t, c })));
@@ -753,11 +753,12 @@ V.circulars = {
     return ph('Circulars & calendar', 'Circulars from SEBI, the exchanges, clearing corporations and depositories, each sorted by area and priority with the actions it usually needs, an owner and a due date; and the firm’s recurring obligations with the evidence of each time they were met. Load circulars on Files or below; once the exchange connection is set up they arrive by themselves.',
       has('Compliance officer', 'Ops maker', 'Ops checker') ? '<input type="file" id="ci-file" accept=".csv,text/csv" hidden><button class="btn" data-act="ciUpload">Load circulars file</button>' : '') +
     `<div class="kpis">${kpi('To review', nf(cs.filter(c => c.status === 'New').length), 'new circulars', cs.some(c => c.status === 'New' && c.priority === 'High') ? 'bad' : '')}${kpi('Open actions', nf(tasks.length), nf(tasks.filter(t => t.due && t.due < S.date).length) + ' overdue', tasks.some(t => t.due && t.due < S.date) ? 'bad' : '')}${kpi('Your actions', nf(mine.length), esc(role || ''))}${kpi('Due in 7 days', nf(due7.length), nf(d.duties.filter(x => x.overdue).length) + ' overdue obligations', d.duties.some(x => x.overdue) ? 'bad' : due7.length ? 'warn' : 'good')}</div>
-    <div class="panel"><div class="hd"><div class="tools">${segBtns('ciTab', [['circ', `Circulars · ${open.length} open`], ['tasks', `Actions · ${tasks.length}`], ['cal', 'Compliance calendar']])}</div></div><div id="ci-t">${P['ci-t'](d)}</div></div>`;
+    <div class="panel"><div class="hd"><div class="tools">${segBtns('ciTab', [['circ', `Circulars · ${open.length} open`], ['tasks', `Actions · ${tasks.length}`], ['cal', 'Compliance calendar'], ['hol', `Exchange holidays${d.hol && d.hol.years.some(y => y.pending) ? ' · to approve' : ''}`]])}</div></div><div id="ci-t">${P['ci-t'](d)}</div></div>`;
   }
 };
 const addDaysJS = (d, n) => { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
 P['ci-t'] = d => {
+  if (UI.ciTab === 'hol') return holidaysHTML(d.hol);
   const comp = has('Compliance officer');
   if (UI.ciTab === 'cal') return tbl([['Obligation'], ['Authority'], ['How often'], ['Next due'], ['Owner'], ['Last done'], ['']], d.duties.filter(x => x.active).map(x => { const last = x.done[x.done.length - 1]; return `<tr><td style="max-width:420px"><b>${esc(x.title)}</b><div class="dim small">Keep: ${esc(x.evidence)}</div></td><td>${esc(x.authority)}</td><td>${esc(x.frequency)}</td><td class="n ${x.overdue ? 'neg' : ''}">${x.next_due ? fmtDate(x.next_due) : '—'}${x.overdue ? '<div class="small">overdue</div>' : ''}<div class="dim small">for ${esc(x.period || '')}</div></td><td class="small">${esc(x.role)}</td><td class="small wrap">${last ? `${fmtDate(last.at.slice(0, 10))} · ${esc(last.by)}${last.late ? ' ' + pill('late', 'warn') : ''}<div class="dim">${esc(last.evidence)}</div>` : '<span class="dim">never</span>'}</td><td>${has(x.role, 'Compliance officer') ? `<button class="btn sm" data-act="dutyDone" data-id="${x.id}">Mark done</button>` : ''}</td></tr>`; }), { tall: true }) + '<div class="pad"><span class="dim small">A starting list for a stockbroker: check each due date against the current circulars. Items are queued for their owner a week before they fall due.</span></div>';
   if (UI.ciTab === 'tasks') { const ts = d.circulars.flatMap(c => c.tasks.filter(t => t.status === 'Open').map(t => ({ ...t, c }))).sort((a, b) => (a.due || '9').localeCompare(b.due || '9'));
@@ -1880,7 +1881,7 @@ V.settings = {
       <div class="fld"><label for="st-rasq">Next quarterly RAS date</label><input class="in" id="st-rasq" type="date" value="${esc(s.ras_quarterly)}" ${admin ? '' : 'disabled'}></div>
       <div class="fld"><label for="st-inm">Inactive after (months without activity)</label><input class="in" id="st-inm" type="number" min="12" max="60" value="${s.inactive_months || 24}" ${admin ? '' : 'disabled'}></div>
       <div class="fld full"><label for="st-snap">Margin snapshot times (HH:MM:SS, comma separated)</label><input class="in mono" id="st-snap" value="${esc((s.snapshot_times || []).join(', '))}" ${admin ? '' : 'disabled'}></div>
-      <div class="fld full"><label for="st-hol">Exchange holidays (YYYY-MM-DD, comma separated)</label><input class="in mono" id="st-hol" value="${esc((s.holidays || []).join(', '))}" ${admin ? '' : 'disabled'}></div>
+      <div class="fld full"><label for="st-hol">Extra holidays (YYYY-MM-DD, comma separated)</label><input class="in mono" id="st-hol" value="${esc((s.holidays || []).join(', '))}" ${admin ? '' : 'disabled'}><div class="dim small" style="margin-top:4px">Exchange trading and settlement holidays come from the approved exchange calendar (<button type="button" class="linkish" data-act="go" data-id="circulars:hol">Circulars & calendar → Exchange holidays</button>). Add a day here only for a closure that is not in it.</div></div>
       <label class="check full"><input type="checkbox" id="st-pen" ${s.penalty_pass_through ? 'checked' : ''} ${admin ? '' : 'disabled'}> Pass short-collection penalties through to client ledgers</label>
     </div></div></div></div>
     <div class="grid g2"><div class="panel"><div class="hd"><h3>Debit balances and interest</h3></div><div class="bd"><div class="form">
@@ -2149,7 +2150,7 @@ const A = {
     S.view = w.view; closeModal(); await render(); window.scrollTo(0, 0);
     const k = String(w.key || '').split(':').pop(); if (w.view === 'recon' && C.recon?.all?.some(b => b.id === k)) breakModal(k);
   },
-  go: id => { S.view = id; UI.dashEdit = false; closeModal(); render(); window.scrollTo(0, 0); },
+  go: id => { const [v, tab] = String(id).split(':'); if (v === 'circulars' && tab) UI.ciTab = tab; S.view = v; UI.dashEdit = false; closeModal(); render(); window.scrollTo(0, 0); },
   close: () => closeModal(),
   ovclose: (id, el, e) => { if (e.target === el && !modalLocked) closeModal(); },
   ui: (id, el) => { UI[el.dataset.k] = el.dataset.v; const part = el.dataset.part; if (part && $(part)) { rerenderPart(part); el.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === el)); } else { $('page').innerHTML = V[S.view].html(C[S.view]); bindPage(); } },

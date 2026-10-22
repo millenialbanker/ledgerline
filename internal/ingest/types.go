@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -195,4 +196,77 @@ func (m *MemTradeStore) List(_ context.Context, tenant string, origin Origin, da
 		}
 	}
 	return out, nil
+}
+
+// ExportTenant returns a tenant's stored files in ID order, for backups.
+func (m *MemRawStore) ExportTenant(tenant string) []RawFile {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := []RawFile{}
+	for k, f := range m.files {
+		if strings.HasPrefix(k, tenant+"|") {
+			out = append(out, f)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+// ImportTenant restores a tenant's files, keeping their IDs. The tenant
+// must have no files yet.
+func (m *MemRawStore) ImportTenant(tenant string, fs []RawFile) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for k := range m.files {
+		if strings.HasPrefix(k, tenant+"|") {
+			return fmt.Errorf("ingest: tenant %s already has files", tenant)
+		}
+	}
+	for _, f := range fs {
+		if f.Tenant != tenant {
+			return fmt.Errorf("ingest: file %s belongs to %s", f.ID, f.Tenant)
+		}
+		m.files[tenant+"|"+f.ID] = f
+		if f.PriorID == "" {
+			m.bySum[f.Tenant+"|"+f.Source+"|"+f.SHA256] = f.ID
+		}
+		var n int
+		if _, err := fmt.Sscanf(f.ID, "RF-%d", &n); err == nil && n > m.seq {
+			m.seq = n
+		}
+	}
+	return nil
+}
+
+// ExportTenant returns a tenant's trades in the order they were added.
+func (m *MemTradeStore) ExportTenant(tenant string) []TradeEvent {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := []TradeEvent{}
+	for _, k := range m.order {
+		if e := m.events[k]; e.Tenant == tenant {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// ImportTenant restores a tenant's trades. The tenant must have none yet.
+func (m *MemTradeStore) ImportTenant(tenant string, evs []TradeEvent) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, k := range m.order {
+		if m.events[k].Tenant == tenant {
+			return fmt.Errorf("ingest: tenant %s already has trades", tenant)
+		}
+	}
+	for _, e := range evs {
+		if e.Tenant != tenant {
+			return fmt.Errorf("ingest: trade %s belongs to %s", e.TradeNo, e.Tenant)
+		}
+		k := e.Tenant + "|" + string(e.Origin) + "|" + e.Key()
+		m.events[k] = e
+		m.order = append(m.order, k)
+	}
+	return nil
 }

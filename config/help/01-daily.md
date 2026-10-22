@@ -182,6 +182,8 @@ On the [[dashboard|Dashboard]], click **Run EOD close**. Ledgerline checks:
 
 If a check fails and there's a genuine reason (say, a holiday segment with no file), close anyway with a note explaining why. The note is kept in the audit trail. Closing needs an **Ops checker**.
 
+Closing the day also starts the firm's backup (see [[backups|Backups]]).
+
 ## previous-day-open
 title: Fix "close the previous day first"
 screen: dashboard

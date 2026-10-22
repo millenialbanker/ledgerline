@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ledgerline/internal/backup"
 	"regexp"
 	"sort"
 	"strings"
@@ -100,7 +101,7 @@ type Settings struct {
 	PenaltyPassThrough bool              `json:"penalty_pass_through"`
 	RASMonthly         string            `json:"ras_monthly"`
 	RASQuarterly       string            `json:"ras_quarterly"`
-	Holidays           []string          `json:"holidays"`
+	Holidays           []string          `json:"holidays"` // typed in by the firm; exchange calendars add to these
 	SnapshotTimes      []string          `json:"snapshot_times"`
 	IndexNetLimitCr    int64             `json:"index_net_limit_cr"`
 	InactiveDays       int64             `json:"inactive_days"`
@@ -156,6 +157,16 @@ type Settings struct {
 	// server). Only the question, with identifiers masked, and the help
 	// articles are sent; never client data.
 	LedgyAI bool `json:"ledgy_ai,omitempty"`
+	// Backups (backups.go): how many each tier keeps, whether the year
+	// for yearly backups ends in March or December, and when a day that
+	// was not closed is backed up anyway.
+	BackupKeep     backup.Keep `json:"backup_keep"`
+	BackupYearEnd  string      `json:"backup_year_end"`
+	BackupFallback string      `json:"backup_fallback"`
+	// From approved exchange holiday calendars (holidays.go), filled in
+	// when settings are loaded; never saved with them.
+	exTrading    map[string]string
+	exSettlement map[string]string
 }
 
 // lockedUpTo is the last locked date given today.
@@ -220,6 +231,18 @@ type Ops struct {
 	DefaultEdition string
 	edMu           sync.Mutex
 	edCache        editionCache
+	// HolidaySources fetch exchange holiday lists (holidays.go); none means
+	// lists are uploaded from the circulars only.
+	HolidaySources []HolidaySource
+	// Backups is where firm backups are written (backups.go); nil means
+	// backups are off. Sealer encrypts them with the firms' data keys.
+	Backups *backup.Dir
+	Sealer  backup.Sealer
+	// BackupSync runs the backup after a day's close before replying
+	// (tests); otherwise it runs in the background.
+	BackupSync bool
+	bkMu       sync.Mutex
+	bkRunning  map[string]bool
 }
 
 // New builds Ops and installs the client-code-modification hook on the app.
@@ -329,6 +352,10 @@ func (o *Ops) require(ctx context.Context, tenant, actor, what string, roles ...
 // Settings returns the tenant settings.
 func (o *Ops) Settings(ctx context.Context, tenant string) (Settings, error) {
 	s, _, err := docs.GetOr(ctx, o.Docs, tenant, cSettings, "main", DefaultSettings())
+	if err == nil {
+		c := o.exchangeDays(ctx, tenant)
+		s.exTrading, s.exSettlement = c.trading, c.settlement
+	}
 	return s, err
 }
 
@@ -385,21 +412,59 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 
 // NextBusinessDay returns the next weekday after date that is not a holiday.
 func (s Settings) NextBusinessDay(date string) string {
+	return s.stepDay(date, 1, false)
+}
+
+// NextSettlementDay is the pay-in day for trades of date: the next
+// business day that is not also a settlement (clearing) holiday.
+func (s Settings) NextSettlementDay(date string) string {
+	return s.stepDay(date, 1, true)
+}
+
+// IsHoliday reports whether date is a trading holiday (exchange calendar
+// or typed in Settings), and its name.
+func (s Settings) IsHoliday(date string) (bool, string) {
+	if n, ok := s.exTrading[date]; ok {
+		return true, n
+	}
+	if contains(s.Holidays, date) {
+		return true, "Holiday (Settings)"
+	}
+	return false, ""
+}
+
+// TradingHolidays lists every trading holiday known, sorted.
+func (s Settings) TradingHolidays() []string {
+	m := map[string]bool{}
+	for _, h := range s.Holidays {
+		m[h] = true
+	}
+	for d := range s.exTrading {
+		m[d] = true
+	}
+	return sortedKeys(m)
+}
+
+func (s Settings) stepDay(date string, by int, settle bool) string {
 	t, err := time.Parse("2006-01-02", date)
 	if err != nil {
 		return ""
 	}
-	hol := map[string]bool{}
-	for _, h := range s.Holidays {
-		hol[h] = true
-	}
-	for {
-		t = t.AddDate(0, 0, 1)
+	for i := 0; i < 400; i++ {
+		t = t.AddDate(0, 0, by)
 		d := t.Format("2006-01-02")
-		if t.Weekday() != time.Saturday && t.Weekday() != time.Sunday && !hol[d] {
-			return d
+		if t.Weekday() == time.Saturday || t.Weekday() == time.Sunday {
+			continue
 		}
+		if h, _ := s.IsHoliday(d); h {
+			continue
+		}
+		if _, ok := s.exSettlement[d]; settle && ok {
+			continue
+		}
+		return d
 	}
+	return ""
 }
 
 // ---- sequences ----

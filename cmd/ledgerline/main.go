@@ -13,11 +13,13 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
+	"ledgerline/internal/backup"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -41,6 +43,13 @@ const devKey = "dev-key-not-for-production"
 var sqlDriver string
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "backup" {
+		if err := backupCmd(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	addr := flag.String("addr", envOr("LEDGERLINE_ADDR", ":8080"), "listen address")
 	adapters := flag.String("adapters", os.Getenv("LEDGERLINE_ADAPTERS"), "directory of file layout specs (default: built into this binary)")
 	schedule := flag.String("charges", os.Getenv("LEDGERLINE_CHARGES"), "charge schedule JSON (default: built-in sample schedule)")
@@ -117,7 +126,8 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	if err != nil {
 		return err
 	}
-	stores = vault.Protect(stores, vault.New(kr))
+	vlt := vault.New(kr)
+	stores = vault.Protect(stores, vlt)
 	log.Info("client data encrypted", "keys", kr.Describe(), "key_version", kr.Current())
 	if dev && len(keys) == 0 {
 		keys = map[string]string{devKey: "demo"}
@@ -129,6 +139,25 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 
 	a := app.New(stores, reg, sched)
 	o := ops.New(a)
+	// Backups: after each day's close, into LEDGERLINE_BACKUP_DIR (a folder
+	// on a separate disk, copied off the server). Encrypted with the data
+	// keys, so keep a copy of the keys somewhere other than the backups.
+	o.Sealer = vlt
+	if dir := os.Getenv("LEDGERLINE_BACKUP_DIR"); dir != "" {
+		o.Backups = &backup.Dir{Path: dir}
+		log.Info("backups after each day's close", "dir", dir)
+	} else if dev {
+		o.Backups = &backup.Dir{Path: filepath.Join(os.TempDir(), "ledgerline-backups")}
+		log.Warn("development backups go to a temporary folder", "dir", o.Backups.Path)
+	} else {
+		log.Warn("BACKUPS ARE OFF: set LEDGERLINE_BACKUP_DIR to a folder on a separate disk")
+	}
+	// Exchange holidays: NSE's lists are fetched from its API (BSE follows
+	// them); MCX's come from its circular. LEDGERLINE_HOLIDAY_FETCH=off
+	// stops fetching; LEDGERLINE_NSE_URL points at a gateway or mirror.
+	if !strings.EqualFold(os.Getenv("LEDGERLINE_HOLIDAY_FETCH"), "off") {
+		o.HolidaySources = []ops.HolidaySource{&ops.NSEHolidays{BaseURL: os.Getenv("LEDGERLINE_NSE_URL")}}
+	}
 	// Editions: how much runs by itself, per firm (manual, autopilot, full).
 	// Set by the provider: LEDGERLINE_EDITION for every firm, and
 	// LEDGERLINE_EDITIONS="firm:edition,..." for particular firms.

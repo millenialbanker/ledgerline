@@ -433,3 +433,13 @@ body.dw-sizing,body.dw-sizing *{cursor:nwse-resize!important;user-select:none}
 .dw-arr div{display:flex;gap:8px;align-items:center}.dw-arr span{width:70px;color:var(--ink2);font-size:13px}
 @media (max-width:900px){.dgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.dgrid>.dw,.dgrid>.dw-add{grid-column:1/-1!important}.dgrid>.dw[data-small]{grid-column:span 1!important}.dw-rs{display:none}}
 @media (prefers-reduced-motion:reduce){.dw-ghost{transform:none}}
+
+/* Backups and exchange holidays */
+.hol-k{display:inline-block;padding:1px 6px;border-radius:5px;margin:1px 2px 1px 0;font-size:11.5px;white-space:nowrap}
+.hol-k.trading{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--ink)}
+.hol-k.settlement{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--ink)}
+tr.hol-add td:first-child{box-shadow:inset 3px 0 0 var(--good)}
+tr.hol-rm td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+.hol-pend{border-color:var(--accent)}
+.hol-h{margin:14px 0 6px;font-size:13px}
+fieldset.fld{border:0;padding:0;margin:0}fieldset.fld legend{font-size:12.5px;color:var(--ink2);margin-bottom:4px}

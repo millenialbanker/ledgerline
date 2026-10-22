@@ -44,7 +44,7 @@ type EditionInfo struct {
 
 // Editions lists the editions in order.
 var Editions = []EditionInfo{
-	{EditionManual, "Manual", "Every step is done by a person. No automation, no work queue and no scheduled runs; jobs can be run by hand."},
+	{EditionManual, "Manual", "Every step is done by a person. No automation, no work queue and no scheduled runs; jobs can be run by hand. Backups and the exchange holiday check still run."},
 	{EditionAutopilot, "Autopilot", "Routine work runs by itself where it is safe; people are asked whenever judgement or approval is needed."},
 	{EditionFull, "Full autopilot", "Everything runs automatically at the most the rules allow; people act only where the regulations require a person."},
 }

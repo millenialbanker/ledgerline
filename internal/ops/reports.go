@@ -480,6 +480,7 @@ func (o *Ops) CloseDay(ctx context.Context, tenant, actor, date, note string) (E
 		return st, err
 	}
 	o.log(ctx, tenant, actor, "eod.closed", date, map[string]any{"exceptions": ex})
+	o.backupAfterClose(ctx, tenant, date)
 	return st, nil
 }
 
@@ -734,5 +735,25 @@ func (o *Ops) Dashboard(ctx context.Context, tenant, date string) (Dashboard, er
 		d.TopTurnover = d.TopTurnover[:dashTop]
 	}
 	d.EOD, _ = o.EOD(ctx, tenant, date)
+	// Backups and the exchange holiday calendar, for "needs attention".
+	set, _ := o.Settings(ctx, tenant)
+	if o.Backups == nil {
+		d.Extra["backup_problem"] = "Backups are not set up on this server"
+	} else if es, err := o.Backups.List(tenant); err == nil {
+		if ps := o.backupProblems(ctx, tenant, set, es); len(ps) > 0 {
+			d.Extra["backup_problem"] = ps[0]
+		}
+	}
+	y := o.now().Year()
+	pending := 0
+	for _, yr := range []int{y, y + 1} {
+		if _, p, _, _ := o.approvedAndPending(ctx, tenant, yr); p != nil {
+			pending++
+		}
+		if ws := o.holidayWarnings(ctx, tenant, set, yr); len(ws) > 0 && d.Extra["holiday_warning"] == "" {
+			d.Extra["holiday_warning"] = ws[0]
+		}
+	}
+	d.Extra["holidays_pending"] = fmt.Sprint(pending)
 	return d, nil
 }

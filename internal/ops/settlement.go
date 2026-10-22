@@ -130,7 +130,7 @@ func (o *Ops) Obligations(ctx context.Context, tenant, date string) (Settlement,
 	if err != nil {
 		return Settlement{}, err
 	}
-	out := Settlement{Date: date, PayIn: set.NextBusinessDay(date), Obligations: []Obligation{}, Totals: map[string]string{}}
+	out := Settlement{Date: date, PayIn: set.NextSettlementDay(date), Obligations: []Obligation{}, Totals: map[string]string{}}
 	var payIn, payOut money.Dec
 	for _, k := range sortedKeys(g) {
 		ob := g[k]

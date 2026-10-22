@@ -86,3 +86,37 @@ func (m *MemStore) List(_ context.Context, tenant string, f Filter) ([]Entry, er
 	})
 	return out, nil
 }
+
+// ExportTenant returns a tenant's entries in append order, for backups.
+func (m *MemStore) ExportTenant(tenant string) []Entry {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]Entry, 0, len(m.entries[tenant]))
+	for _, e := range m.entries[tenant] {
+		out = append(out, clone(e))
+	}
+	return out
+}
+
+// ImportTenant restores a tenant's entries, keeping their IDs and sequence
+// numbers. The tenant must have no entries yet.
+func (m *MemStore) ImportTenant(tenant string, es []Entry) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.entries[tenant]) > 0 {
+		return fmt.Errorf("ledger: tenant %s already has entries", tenant)
+	}
+	for _, e := range es {
+		if e.Tenant != tenant {
+			return fmt.Errorf("ledger: entry %s belongs to %s", e.ID, e.Tenant)
+		}
+		m.entries[tenant] = append(m.entries[tenant], clone(e))
+		i := len(m.entries[tenant]) - 1
+		m.byKey[tenant+"|"+e.Key] = i
+		m.byID[tenant+"|"+e.ID] = i
+		if e.Seq > m.seq {
+			m.seq = e.Seq
+		}
+	}
+	return nil
+}

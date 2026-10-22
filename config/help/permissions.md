@@ -10,6 +10,7 @@ Applying corporate actions | Ops checker
 Approving a receipt | Ops checker
 Approving an override | Ops checker, Risk manager
 Approving client changes | Ops checker
+Approving exchange holidays | Ops checker, Compliance officer
 Approving payouts | Ops checker, Risk manager
 Approving reactivation | Ops checker, Compliance officer
 Approving vouchers | Ops checker
@@ -18,6 +19,7 @@ Assigning brokerage plans | Ops checker
 Blocking clients in continuous debit | Risk manager
 Buy-back offers | Ops maker, Ops checker
 Changing automation | Compliance officer, Admin
+Changing backup settings | Admin
 Changing brokerage plans | Ops checker
 Changing client groups | Ops maker, Ops checker
 Changing settings | Admin
@@ -26,6 +28,8 @@ Changing the MTF policy | Risk manager, Admin
 Changing the account type | Ops checker
 Changing the chart of accounts | Ops checker
 Changing the compliance calendar | Compliance officer
+Checking a backup | Ops checker, Compliance officer
+Checking exchange holidays | Ops maker, Ops checker, Compliance officer
 Clearing cheques | Ops maker, Ops checker
 Client code modification | Ops maker, Ops checker
 Closing MTF positions | Ops checker, Risk manager
@@ -54,6 +58,7 @@ Generating reports | Ops maker, Ops checker, Risk manager, Compliance officer
 Giving clients portal access | Ops checker, Admin
 Identifying a bank credit | Ops checker
 Issuing DIS books | Ops maker, Ops checker
+Loading exchange holidays | Ops maker, Ops checker, Compliance officer
 Loading files | Ops maker, Ops checker, Risk manager, Compliance officer
 MTF enrolment | Ops checker, Risk manager
 MTF margin calls | Ops checker, Risk manager
@@ -103,6 +108,7 @@ Settlement actions | Ops maker, Ops checker
 Settling a buy-back | Ops checker
 Square-off | Risk manager
 Switching the autopilot schedule | Admin
+Taking a backup | Admin
 Tendering for a client | Ops maker, Ops checker
 Testing templates | Ops checker, Compliance officer
 The kill switch | Risk manager
@@ -112,5 +118,6 @@ Upstreaming funds | Ops checker
 Verifying delivery instructions | Ops checker
 View data protection | Compliance officer
 Viewing AI usage | Compliance officer
+Viewing backups | Ops checker, Compliance officer
 Working client insights | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Working complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person

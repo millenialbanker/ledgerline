@@ -281,7 +281,7 @@ func (o *Ops) RenderNote(ctx context.Context, tenant, date, ucc string) ([]byte,
 	var buf bytes.Buffer
 	err = noteTmpl.Execute(&buf, map[string]any{
 		"Note": n, "Client": c, "PAN": MaskPAN(c.PAN), "Firm": set.Firm, "SEBIReg": set.SEBIReg, "Members": "Member codes " + strings.Join(members, " · "),
-		"Compliance": set.ComplianceEmail, "PayIn": set.NextBusinessDay(date), "Lines": lines, "Groups": out.Groups,
+		"Compliance": set.ComplianceEmail, "PayIn": set.NextSettlementDay(date), "Lines": lines, "Groups": out.Groups,
 		"Payable": net.Sign() < 0, "NetAbs": net.Abs(), "Sample": o.App.Schedule.Sample, "Schedule": o.App.Schedule.Version,
 	})
 	return buf.Bytes(), err

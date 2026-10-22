@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"ledgerline/internal/backup"
 	"net/http"
 	"sort"
 	"strconv"
@@ -54,6 +55,14 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/clients/{ucc}/reveal", s.revealClient, true)
 	R("GET /v1/security", s.security, false)
 	R("GET /v1/ai/usage", s.aiUsage, false)
+	R("GET /v1/backups", s.backups, false)
+	R("POST /v1/backups/run", s.backupNow, true)
+	R("POST /v1/backups/{id}/verify", s.verifyBackup, true)
+	R("PUT /v1/backups/policy", s.backupPolicy, true)
+	R("GET /v1/holidays", s.holidays, false)
+	R("POST /v1/holidays/check", s.checkHolidays, true)
+	R("POST /v1/holidays/upload", s.uploadHolidays, true)
+	R("POST /v1/holidays/{id}", s.decideHolidays, true)
 	R("GET /v1/me/dashboard", s.dashLayouts, false)
 	R("PUT /v1/me/dashboard", s.saveDashLayout, true)
 	R("PUT /v1/dashboard/default", s.saveFirmDash, true)
@@ -315,7 +324,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		}
 		us = mine
 	}
-	writeJSON(w, 200, map[string]any{"auth": auth, "tenant": tenant(r), "actor": actor(r), "role": role, "users": us, "roles": ops.Roles, "firm": set.Firm, "dev": s.dev, "member_codes": set.MemberCodes, "holidays": set.Holidays, "sample_rates": s.app.Schedule.Sample, "schedule": s.app.Schedule.Version, "ledgy_ai": s.ops.LedgyAI != nil, "edition": s.ops.EditionStatus(r.Context(), tenant(r))})
+	writeJSON(w, 200, map[string]any{"auth": auth, "tenant": tenant(r), "actor": actor(r), "role": role, "users": us, "roles": ops.Roles, "firm": set.Firm, "dev": s.dev, "member_codes": set.MemberCodes, "holidays": set.TradingHolidays(), "sample_rates": s.app.Schedule.Sample, "schedule": s.app.Schedule.Version, "ledgy_ai": s.ops.LedgyAI != nil, "edition": s.ops.EditionStatus(r.Context(), tenant(r))})
 }
 
 func (s *Server) users(w http.ResponseWriter, r *http.Request) {
@@ -3187,6 +3196,79 @@ func (s *Server) devEdition(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, s.ops.EditionStatus(r.Context(), tenant(r)))
+}
+
+func (s *Server) backups(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.BackupsStatus(r.Context(), tenant(r), actor(r))
+	ok(w, v, err)
+}
+
+// backupNow starts a backup and replies at once; the screen shows it
+// running and then its result.
+func (s *Server) backupNow(w http.ResponseWriter, r *http.Request) {
+	err := s.ops.BackupNowAsync(r.Context(), tenant(r), actor(r))
+	ok(w, map[string]any{"started": err == nil}, err)
+}
+
+func (s *Server) verifyBackup(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.VerifyBackup(r.Context(), tenant(r), actor(r), r.PathValue("id"))
+	ok(w, v, err)
+}
+
+func (s *Server) backupPolicy(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Keep     backup.Keep `json:"keep"`
+		YearEnd  string      `json:"year_end"`
+		Fallback string      `json:"fallback"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	_, err := s.ops.SetBackupPolicy(r.Context(), tenant(r), actor(r), b.Keep, b.YearEnd, b.Fallback)
+	ok(w, map[string]any{"saved": err == nil}, err)
+}
+
+func (s *Server) holidays(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.Holidays(r.Context(), tenant(r))
+	ok(w, v, err)
+}
+
+func (s *Server) checkHolidays(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Year int `json:"year"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.CheckHolidays(r.Context(), tenant(r), actor(r), b.Year)
+	ok(w, v, err)
+}
+
+func (s *Server) uploadHolidays(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Year     int      `json:"year"`
+		Exchange string   `json:"exchange"`
+		Kind     string   `json:"kind"`
+		Segments []string `json:"segments"`
+		CSV      string   `json:"csv"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.UploadHolidays(r.Context(), tenant(r), actor(r), b.Year, b.Exchange, b.Kind, b.Segments, []byte(b.CSV))
+	ok(w, v, err)
+}
+
+func (s *Server) decideHolidays(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Approve bool   `json:"approve"`
+		Note    string `json:"note"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.DecideHolidays(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Approve, b.Note)
+	ok(w, v, err)
 }
 
 func (s *Server) dashLayouts(w http.ResponseWriter, r *http.Request) {

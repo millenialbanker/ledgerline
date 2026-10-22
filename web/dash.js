@@ -28,6 +28,9 @@ function dashAttention(d) {
   if (+d.extra.inactive_due) att.push(['warn', 'inactive', `${d.extra.inactive_due} account${+d.extra.inactive_due > 1 ? 's' : ''} due to be flagged inactive`, 'No activity for 24 months: flag in the UCC database']);
   if (+d.extra.reactivation_pending) att.push(['acc', 'inactive', `${d.extra.reactivation_pending} reactivation request${+d.extra.reactivation_pending > 1 ? 's' : ''} awaiting checker`, 'IPV and KRA checks recorded']);
   if (d.reports_due) att.push(['acc', 'reports', `${d.reports_due} daily report${d.reports_due > 1 ? 's' : ''} not uploaded`, 'Generate, validate and upload']);
+  if (d.extra.backup_problem) att.unshift(['bad', 'backups', 'Backups need attention', d.extra.backup_problem]);
+  if (+d.extra.holidays_pending) att.push(['acc', 'circulars:hol', `Exchange holiday list waiting for approval`, 'Fetched from the exchanges or uploaded; check it and approve so settlement dates follow it']);
+  else if (d.extra.holiday_warning) att.push(['warn', 'circulars:hol', 'Exchange holiday calendar', d.extra.holiday_warning]);
   return att;
 }
 

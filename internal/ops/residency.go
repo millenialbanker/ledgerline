@@ -56,6 +56,15 @@ func (o *Ops) ResidencyLines() []ResidencyLine {
 		{What: "Pages, scripts and fonts", Where: "Served by Ledgerline", Status: "india", Note: "Browsers contact no other site."},
 		{What: "Ledgy help", Where: "Help articles on this server", Status: "india"},
 	}
+	if o.Backups != nil {
+		lines = append(lines, ResidencyLine{What: "Backups", Where: o.Backups.Path + " (on this server)", Status: host.Status,
+			Note: "Encrypted with the data keys. Keep the backup disk, and the copy kept off this server, in an Indian region; keep a copy of the data keys apart from the backups."})
+	} else {
+		lines = append(lines, ResidencyLine{What: "Backups", Where: "Not set up (LEDGERLINE_BACKUP_DIR)", Status: "none", Note: "Set a backup folder on a separate disk in an Indian region."})
+	}
+	if len(o.HolidaySources) > 0 {
+		lines = append(lines, ResidencyLine{What: "Exchange holiday lists", Where: "Fetched from NSE (India)", Status: "india", Note: "Only the public holiday list is read; nothing is sent."})
+	}
 	if o.LedgyAI != nil {
 		where := map[string]string{"anthropic": "Anthropic (USA)", "openai": "OpenAI (USA)", "gemini": "Google Gemini API (outside India)"}[o.LedgyAI.Provider()]
 		lines = append(lines, ResidencyLine{What: "Ledgy AI phrasing", Where: where, Status: "outside", Note: "Only when a firm switches it on: the masked question and help articles, never client data. Not allowed in India-only mode."})

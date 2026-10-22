@@ -179,3 +179,39 @@ func (m *Mem) Put(_ context.Context, t, c, id string, body json.RawMessage, expe
 	m.docs[k] = d
 	return d, nil
 }
+
+// ExportTenant returns every document of a tenant, by collection and ID,
+// for backups.
+func (m *Mem) ExportTenant(tenant string) []Doc {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := []Doc{}
+	for k, d := range m.docs {
+		if strings.HasPrefix(k, tenant+"\x00") {
+			out = append(out, d)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Collection != out[j].Collection {
+			return out[i].Collection < out[j].Collection
+		}
+		return out[i].ID < out[j].ID
+	})
+	return out
+}
+
+// ImportTenant restores a tenant's documents with their versions. The
+// tenant must have none yet.
+func (m *Mem) ImportTenant(tenant string, ds []Doc) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for k := range m.docs {
+		if strings.HasPrefix(k, tenant+"\x00") {
+			return fmt.Errorf("docs: tenant %s already has documents", tenant)
+		}
+	}
+	for _, d := range ds {
+		m.docs[key(tenant, d.Collection, d.ID)] = d
+	}
+	return nil
+}

@@ -116,6 +116,7 @@ type App struct {
 	Breaks   BreakStore
 	Audit    AuditStore
 	Docs     docs.Store
+	Snap     Snapshotter
 	Schedule charges.Schedule
 	Now      func() time.Time
 	// Adjust, when set, rewrites exchange trades before recon and billing,
@@ -136,11 +137,15 @@ type Stores struct {
 	Breaks BreakStore
 	Audit  AuditStore
 	Docs   docs.Store
+	// Snap backs up and restores a whole firm (nil: backups unavailable).
+	Snap Snapshotter
 }
 
 // MemoryStores returns in-memory implementations of every store.
 func MemoryStores() Stores {
-	return Stores{Ledger: ledger.NewMemStore(), Raw: ingest.NewMemRawStore(), Trades: ingest.NewMemTradeStore(), Breaks: NewMemBreakStore(), Audit: NewMemAuditStore(), Docs: docs.NewMem()}
+	l, r, t, b, a, d := ledger.NewMemStore(), ingest.NewMemRawStore(), ingest.NewMemTradeStore(), NewMemBreakStore(), NewMemAuditStore(), docs.NewMem()
+	return Stores{Ledger: l, Raw: r, Trades: t, Breaks: b, Audit: a, Docs: d,
+		Snap: &MemSnapshot{Ledger: l, Raw: r, Trades: t, Breaks: b, Audit: a, Docs: d}}
 }
 
 // New builds an App.
@@ -148,7 +153,7 @@ func New(s Stores, reg *ingest.Registry, sched charges.Schedule) *App {
 	return &App{
 		Ledger: ledger.New(s.Ledger),
 		Ingest: &ingest.Service{Raw: s.Raw, Trades: s.Trades, Registry: reg},
-		Trades: s.Trades, Breaks: s.Breaks, Audit: s.Audit, Docs: s.Docs, Schedule: sched, Now: time.Now,
+		Trades: s.Trades, Breaks: s.Breaks, Audit: s.Audit, Docs: s.Docs, Snap: s.Snap, Schedule: sched, Now: time.Now,
 	}
 }
 
@@ -509,6 +514,36 @@ func (s *MemBreakStore) Resolve(_ context.Context, tenant, id, actor, resolution
 	return *b, nil
 }
 
+// ExportTenant returns a tenant's breaks by ID, for backups.
+func (s *MemBreakStore) ExportTenant(tenant string) []BreakRecord {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := []BreakRecord{}
+	for k, b := range s.m {
+		if strings.HasPrefix(k, tenant+"|") {
+			out = append(out, *b)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+// ImportTenant restores a tenant's breaks. The tenant must have none yet.
+func (s *MemBreakStore) ImportTenant(tenant string, bs []BreakRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for k := range s.m {
+		if strings.HasPrefix(k, tenant+"|") {
+			return fmt.Errorf("app: tenant %s already has breaks", tenant)
+		}
+	}
+	for i := range bs {
+		b := bs[i]
+		s.m[tenant+"|"+b.ID] = &b
+	}
+	return nil
+}
+
 // MemAuditStore is an in-memory AuditStore.
 type MemAuditStore struct {
 	mu sync.Mutex
@@ -558,6 +593,33 @@ func (s *MemAuditStore) Scan(_ context.Context, tenant string, after int64, limi
 		}
 	}
 	return out, nil
+}
+
+// ExportTenant returns a tenant's audit trail in order, for backups.
+func (s *MemAuditStore) ExportTenant(tenant string) []AuditEvent {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := []AuditEvent{}
+	for _, e := range s.ev {
+		if e.Tenant == tenant {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// ImportTenant restores a tenant's audit trail as it was, seals included.
+// The tenant must have no entries yet.
+func (s *MemAuditStore) ImportTenant(tenant string, es []AuditEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.ev {
+		if e.Tenant == tenant {
+			return fmt.Errorf("app: tenant %s already has an audit trail", tenant)
+		}
+	}
+	s.ev = append(s.ev, es...)
+	return nil
 }
 
 // Tamper changes a stored entry in place, for tests of the seal.
