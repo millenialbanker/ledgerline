@@ -31,8 +31,14 @@ jobs:
           LEDGERLINE_TEST_OPS_TENANT: ci_ops
           LEDGERLINE_TEST_WEEK_TENANT: ci_week
           LEDGERLINE_TEST_DB: postgres://ll_it:ll_it@localhost:5432/ledgerline_test?sslmode=disable
+          LEDGERLINE_TEST_BACKUP_TENANT: ci_backup
+          LEDGERLINE_TEST_RESTORE_DB: postgres://ll_owner:ll_owner@localhost:5432/ledgerline_restore?sslmode=disable
         run: |
-          psql -d ledgerline_test -c "CREATE ROLE ll_it LOGIN PASSWORD 'll_it' IN ROLE ledgerline_app; INSERT INTO ll.tenant (id, name) VALUES ('ci', 'CI tenant'), ('ci_ops', 'CI operations tenant'), ('ci_week', 'CI week tenant');"
+          psql -d ledgerline_test -c "CREATE ROLE ll_it LOGIN PASSWORD 'll_it' IN ROLE ledgerline_app; INSERT INTO ll.tenant (id, name) VALUES ('ci', 'CI tenant'), ('ci_ops', 'CI operations tenant'), ('ci_week', 'CI week tenant'), ('ci_backup', 'CI backup tenant');"
+          # An empty database to restore into, owned by a role that is not a superuser.
+          psql -d postgres -c "CREATE ROLE ll_owner LOGIN PASSWORD 'll_owner'" -c "CREATE DATABASE ledgerline_restore"
+          for m in db/migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -d ledgerline_restore -f "$m"; done
+          psql -v ON_ERROR_STOP=1 -q -d ledgerline_restore -f db/tests/restore_owner.sql
           go get github.com/jackc/pgx/v5@v5.7.2
           go mod tidy
           set -o pipefail
