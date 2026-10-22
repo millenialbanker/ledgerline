@@ -25,6 +25,7 @@ import (
 	"ledgerline/internal/api"
 	"ledgerline/internal/app"
 	"ledgerline/internal/charges"
+	"ledgerline/internal/help"
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/ops"
 	"ledgerline/internal/pgstore"
@@ -127,6 +128,16 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 
 	a := app.New(stores, reg, sched)
 	o := ops.New(a)
+	// Ledgy can phrase its answers with Claude when a key is configured and
+	// the firm switches it on in Settings. Only the masked question and the
+	// help articles are sent.
+	if key := os.Getenv("LEDGERLINE_LEDGY_KEY"); key != "" {
+		o.LedgyAI = &help.Claude{Key: key, Model: os.Getenv("LEDGERLINE_LEDGY_MODEL")}
+		log.Info("Ledgy can use Claude when a firm switches it on", "model", o.LedgyAI.Name())
+	}
+	if _, err := ops.HelpKB(); err != nil {
+		return fmt.Errorf("Ledgy help articles: %w", err)
+	}
 	if dev {
 		o.SimulateOMS = true
 		o.DevCodes = true

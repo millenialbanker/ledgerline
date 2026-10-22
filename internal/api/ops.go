@@ -49,6 +49,11 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/clients/{ucc}", s.client, false)
 	R("POST /v1/clients/{ucc}/reveal", s.revealClient, true)
 	R("GET /v1/security", s.security, false)
+	R("POST /v1/ledgy/ask", s.ledgyAsk, true)
+	R("GET /v1/ledgy/suggest", s.ledgySuggest, false)
+	R("GET /v1/ledgy/articles/{id}", s.ledgyArticle, false)
+	R("POST /v1/ledgy/feedback", s.ledgyFeedback, true)
+	R("GET /v1/ledgy/gaps", s.ledgyGaps, false)
 	R("POST /v1/clients/{ucc}/advance", s.advance, true)
 	R("POST /v1/clients/{ucc}/block", s.block, true)
 	R("GET /v1/market", s.market, false)
@@ -300,7 +305,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		}
 		us = mine
 	}
-	writeJSON(w, 200, map[string]any{"auth": auth, "tenant": tenant(r), "actor": actor(r), "role": role, "users": us, "roles": ops.Roles, "firm": set.Firm, "dev": s.dev, "member_codes": set.MemberCodes, "holidays": set.Holidays, "sample_rates": s.app.Schedule.Sample, "schedule": s.app.Schedule.Version})
+	writeJSON(w, 200, map[string]any{"auth": auth, "tenant": tenant(r), "actor": actor(r), "role": role, "users": us, "roles": ops.Roles, "firm": set.Firm, "dev": s.dev, "member_codes": set.MemberCodes, "holidays": set.Holidays, "sample_rates": s.app.Schedule.Sample, "schedule": s.app.Schedule.Version, "ledgy_ai": s.ops.LedgyAI != nil})
 }
 
 func (s *Server) users(w http.ResponseWriter, r *http.Request) {
@@ -3113,4 +3118,41 @@ func (s *Server) revealClient(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := s.ops.RevealClient(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), b.Field, b.Reason)
 	ok(w, map[string]string{"value": v}, err)
+}
+
+func (s *Server) ledgyAsk(w http.ResponseWriter, r *http.Request) {
+	var b struct{ Q, View, Date string }
+	if !decode(w, r, &b) {
+		return
+	}
+	if b.Date == "" {
+		b.Date = time.Now().In(time.FixedZone("IST", 19800)).Format("2006-01-02")
+	}
+	v, err := s.ops.Ledgy(r.Context(), tenant(r), actor(r), b.Q, b.View, b.Date)
+	ok(w, v, err)
+}
+
+func (s *Server) ledgySuggest(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, map[string]any{"questions": s.ops.LedgySuggestions(r.URL.Query().Get("view"))})
+}
+
+func (s *Server) ledgyArticle(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.LedgyArticle(r.PathValue("id"))
+	ok(w, v, err)
+}
+
+func (s *Server) ledgyFeedback(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Q, View, Article string
+		Helpful          bool
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	ok(w, map[string]bool{"ok": true}, s.ops.LedgyFeedback(r.Context(), tenant(r), actor(r), b.Q, b.View, b.Article, b.Helpful))
+}
+
+func (s *Server) ledgyGaps(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.LedgyGaps(r.Context(), tenant(r), actor(r))
+	ok(w, v, err)
 }

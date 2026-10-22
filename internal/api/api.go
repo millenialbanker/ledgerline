@@ -631,6 +631,7 @@ func ParseKeys(s string) (map[string]string, error) {
 // scopedRoutes are the routes open to branch staff and authorised persons.
 // Each filters its data to the clients they may see.
 var scopedRoutes = map[string]bool{
+	"POST /v1/ledgy/ask": true, "GET /v1/ledgy/suggest": true, "GET /v1/ledgy/articles/{id}": true, "POST /v1/ledgy/feedback": true,
 	"GET /v1/me": true, "GET /v1/clients": true, "GET /v1/clients/{ucc}": true, "GET /v1/client-reports": true,
 	"GET /v1/client-reports/{kind}": true, "GET /v1/ledger/statement": true, "GET /v1/notes": true,
 	"GET /v1/notes/{date}/{ucc}/document": true, "GET /v1/receipts": true, "POST /v1/receipts": true, "GET /v1/payouts": true,

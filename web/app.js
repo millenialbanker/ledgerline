@@ -29,7 +29,12 @@ const fmtDate = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ''); retur
 const instName = k => { const [s, t, e, x] = String(k).split('|'); if (!t || t === 'EQ') return s; const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(e || ''); const ex = m ? m[3] + MON[+m[2] - 1].toUpperCase() + m[1].slice(2) : e; return t === 'FUT' ? `${s} ${ex} FUT` : `${s} ${ex} ${x} ${t}`; };
 const LABELS = { MISSING_IN_OMS: 'Missing in OMS', MISSING_IN_EXCHANGE: 'Missing in exchange', TRADE_NO_MISMATCH: 'Trade no. mismatch', UCC_MISMATCH: 'UCC mismatch', SIDE_MISMATCH: 'Side mismatch', QTY_MISMATCH: 'Qty mismatch', PRICE_MISMATCH: 'Price mismatch', INSTRUMENT_MISMATCH: 'Contract mismatch', ALGO_ID_MISSING: 'Algo ID missing' };
 const label = t => LABELS[t] || String(t).replace(/_/g, ' ').toLowerCase().replace(/^\w/, c => c.toUpperCase());
-function toast(m) { const t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 3800); }
+function toast(m, ask) {
+  const t = $('toast'); clearTimeout(toast.t); t.hidden = false;
+  // Errors offer "Ask Ledgy" and stay a little longer.
+  if (ask && typeof lgAllowed === 'function' && lgAllowed()) { t.innerHTML = `${esc(m)} <button class="linkish lg-toastask" data-act="ledgyAsk" data-q="${esc(m)}">Ask Ledgy</button>`; toast.t = setTimeout(() => t.hidden = true, 8000); return; }
+  t.textContent = m; toast.t = setTimeout(() => t.hidden = true, 3800);
+}
 function tbl(head, rows, o = {}) { return `<div class="tw ${o.tall ? 'tall' : ''}"><table class="tbl"><thead><tr>${head.map(h => `<th class="${h[1] || ''}">${h[0]}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.join('') : `<tr><td colspan="${head.length}" class="empty">${o.empty || 'Nothing to show'}</td></tr>`}</tbody>${o.foot || ''}</table></div>`; }
 function ph(title, sub, acts) { return `<div class="ph"><div><h1>${title}</h1>${sub ? `<p>${sub}</p>` : ''}</div>${acts ? `<div class="acts">${acts}</div>` : ''}</div>`; }
 function kpi(l, v, sub, k) { return `<div class="kpi ${k || ''}"><small>${l}</small><b>${v}</b>${sub ? `<span>${sub}</span>` : ''}</div>`; }
@@ -60,7 +65,8 @@ function errHTML(e) {
   const errs = e.details?.errors, fields = e.details?.fields;
   if (Array.isArray(errs) && errs.length) extra = `<ul>${errs.slice(0, 25).map(x => `<li>Line ${x.line}${x.field ? ' · ' + esc(x.field) : ''}: ${esc(x.message)}</li>`).join('')}${errs.length > 25 ? `<li>…and ${errs.length - 25} more</li>` : ''}</ul>`;
   if (Array.isArray(fields)) extra = `<ul>${fields.map(f => `<li>${esc(f.message)}</li>`).join('')}</ul>`;
-  return `<div class="errbox"><b>${esc(e.message)}</b>${extra}</div>`;
+  const ask = typeof lgAllowed === 'function' && lgAllowed() && e.message ? `<button class="linkish small lg-askerr" data-act="ledgyAsk" data-q="${esc(e.message)}">Ask Ledgy about this</button>` : '';
+  return `<div class="errbox"><b>${esc(e.message)}</b>${extra}${ask}</div>`;
 }
 async function download(path, name) {
   try {
@@ -69,7 +75,7 @@ async function download(path, name) {
     const blob = await res.blob(); const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000); toast('Downloaded ' + name);
-  } catch (e) { toast(e.message); }
+  } catch (e) { toast(e.message, true); }
 }
 async function openBlob(path) {
   const w = window.open('', '_blank');
@@ -78,7 +84,7 @@ async function openBlob(path) {
     if (!res.ok) throw new Error('Could not open the document');
     const url = URL.createObjectURL(await res.blob());
     if (w) w.location = url; else location.href = url;
-  } catch (e) { if (w) w.close(); toast(e.message); }
+  } catch (e) { if (w) w.close(); toast(e.message, true); }
 }
 async function openDoc(path) {
   const w = window.open('', '_blank');
@@ -88,7 +94,7 @@ async function openDoc(path) {
     if (!res.ok) throw new Error('Could not open the document');
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
     if (w) w.location = url; else location.href = url;
-  } catch (e) { if (w) w.close(); toast(e.message); }
+  } catch (e) { if (w) w.close(); toast(e.message, true); }
 }
 
 /* ============================== shell ============================== */
@@ -231,7 +237,7 @@ async function totpModal(forced) {
     modal(mhd('Two-factor sign-in', 'On for your user') + `<div class="bd"><div class="note">Signing in needs your password and a code from your authenticator app. If you lose your phone, ask an administrator to reset two-factor sign-in for you.</div></div><div class="ft"><button class="btn pri" data-act="close">Done</button></div>`);
     return;
   }
-  let d; try { d = await post('/v1/auth/2fa/setup'); } catch (e) { toast(e.message); return; }
+  let d; try { d = await post('/v1/auth/2fa/setup'); } catch (e) { toast(e.message, true); return; }
   setTimeout(() => { modalLocked = !!forced; });
   modal(mhd('Set up two-factor sign-in', forced ? 'Your firm requires a code from an authenticator app at every sign-in.' : 'Adds a code from your phone to every sign-in.').replace(forced ? /<button class="x"[^>]*>×<\/button>/ : /$^/, '') + `<form class="bd" id="totpf">
     <ol class="steps-list"><li>Open an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Authy).</li>
@@ -1105,7 +1111,7 @@ function leadDrawer(id) {
     <div><h3 style="margin:0 0 8px;font-size:15px">Activity</h3>${l.notes.slice().reverse().map(n => `<div class="msg"><small class="dim">${esc(n.kind)} · ${esc(n.by)} · ${esc(n.at.slice(0, 16).replace('T', ' '))}${n.outcome ? ' · ' + esc(n.outcome) : ''}</small><div>${esc(n.text || '')}</div></div>`).join('')}</div>
   </div>`, true);
 }
-const leadAct = async (id, body, msg) => { try { const r = await post(`/v1/leads/${id}/act`, body); toast(r.message || msg); C.crm.leads = C.crm.leads.map(x => x.id === id ? r.lead : x); if (document.querySelector('.drawer') || body.kind === 'appointment') leadDrawer(id); $('page').innerHTML = V.crm.html(C.crm); bindPage(); } catch (e) { toast(e.message); } };
+const leadAct = async (id, body, msg) => { try { const r = await post(`/v1/leads/${id}/act`, body); toast(r.message || msg); C.crm.leads = C.crm.leads.map(x => x.id === id ? r.lead : x); if (document.querySelector('.drawer') || body.kind === 'appointment') leadDrawer(id); $('page').innerHTML = V.crm.html(C.crm); bindPage(); } catch (e) { toast(e.message, true); } };
 function portalModal(ucc) {
   modal(mhd('Client portal access · ' + ucc, 'The client signs in with their own user ID and a one-time password, then sets a password and two-factor sign-in. They see only their own accounts.') + `<form class="bd" id="pgf">
     <div class="fld"><label for="pg-f">Family accounts on the same login (UCCs, comma separated)</label><input class="in mono" id="pg-f" placeholder="e.g. BH1002, BH1007"></div>
@@ -1947,6 +1953,10 @@ V.settings = {
       <div class="fld"><label for="st-idle">Sign out after inactivity (minutes)</label><input class="in" id="st-idle" type="number" min="5" max="240" value="${s.session_idle_minutes || 30}" ${admin ? '' : 'disabled'}></div>
       <p class="dim full" style="margin:0;font-size:12.5px">Passwords: at least 12 characters, stored as PBKDF2-SHA256 hashes. Five wrong attempts lock a user for 15 minutes. Sessions also end after 12 hours, at sign-out, and when an administrator resets the user.</p>
     </div></div></div>
+    <div class="panel"><div class="hd"><h3>Ledgy (help)</h3></div><div class="bd">
+      <label class="check"><input type="checkbox" id="st-lai" ${s.ledgy_ai ? 'checked' : ''} ${admin && S.me?.ledgy_ai ? '' : 'disabled'}> Let Ledgy write answers with Claude</label>
+      <p class="dim" style="margin:6px 0 0;font-size:12.5px">${S.me?.ledgy_ai ? 'Ledgy answers from its help articles either way. With this on, the question (with PAN, numbers and emails masked) and the matching articles are sent to Anthropic to phrase the answer; client data never is. Leave it off if your policy keeps all processing in India.' : 'Not available: the server has no Claude API key (LEDGERLINE_LEDGY_KEY). Ledgy answers from its help articles.'}</p>
+    </div></div>
     <div class="panel"><div class="hd"><h3>Users and roles</h3>${admin ? '<button class="btn sm pri" data-act="addUser">Add user</button>' : '<small>Maker-checker: the person who creates an override, application or entry cannot approve it</small>'}</div>${tbl([['User'], ['Role'], ['Sign-in'], ['Last sign-in'], ['Status'], ['']], d.users.map(u => `<tr><td><b style="font-weight:600">${esc(u.name)}</b><div class="mono dim" style="font-size:11.5px">${esc(u.id)}</div></td><td>${admin && u.id !== S.me.actor ? `<select class="in sm" data-urole="${esc(u.id)}">${(S.me.roles || []).map(r => `<option ${r === u.role ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select>` : esc(u.role)}${u.branch ? `<div class="dim small">branch ${esc(u.branch)}</div>` : ''}${u.partner ? `<div class="dim small">partner ${esc(u.partner)}</div>` : ''}</td>
       <td>${u.has_password ? '' : pill('No password', 'warn') + ' '}${u.totp_enabled ? pill('2FA on', 'good') : pill('2FA off', 'nt')}${u.must_change_password ? ' ' + pill('Temp password', 'warn') : ''}${u.locked ? ' ' + pill('Locked', 'bad') : ''}</td><td class="n dim">${u.last_login ? new Date(u.last_login).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}</td>
       <td>${u.active ? pill('Active', 'good') : pill('Inactive', 'nt')}</td><td>${admin && u.id !== S.me.actor ? `<div class="split"><button class="btn sm" data-act="resetPw" data-id="${esc(u.id)}">Reset password</button>${u.totp_enabled ? `<button class="btn sm" data-act="reset2fa" data-id="${esc(u.id)}">Reset 2FA</button>` : ''}<button class="btn sm ${u.active ? 'bad' : ''}" data-act="toggleUser" data-id="${esc(u.id)}">${u.active ? 'Deactivate' : 'Activate'}</button></div>` : ''}</td></tr>`))}</div>
@@ -1973,19 +1983,19 @@ function showTempPw(user, pw, what) {
 /* ============================== actions ============================== */
 async function act(fn, okMsg, reload = true) {
   try { const r = await fn(); if (okMsg) toast(typeof okMsg === 'function' ? okMsg(r) : okMsg); closeModal(); if (reload) await render({ keep: true }); return r; }
-  catch (e) { toast(e.message); throw e; }
+  catch (e) { toast(e.message, true); throw e; }
 }
 const A = {
   apRun: () => act(() => post('/v1/autopilot/run', { date: S.date, stage: $('ap-stage').value }), r => { const d = sum(r.runs, x => x.done), q = sum(r.runs, x => x.queued); return `${r.runs.length} automations: ${d} done, ${q} for people`; }),
   apRunOne: id => act(() => post('/v1/autopilot/run', { date: S.date, only: id }), r => r.runs[0] ? `${r.runs[0].done} done, ${r.runs[0].queued} for people${r.runs[0].error ? ' · ' + r.runs[0].error : ''}` : 'Off'),
   apSchedule: (id, el) => act(() => post('/v1/autopilot/schedule', { on: el.dataset.on === '1' }), r => r.on ? 'Autopilot runs on its own on business days' : 'Schedule switched off'),
-  apDay: async (id, el) => { el.disabled = true; toast('Loading the next sample day and running it on autopilot…'); try { const r = await post('/v1/dev/sample', { autopilot: true }); const d = sum(r.runs, x => x.done), q = sum(r.runs, x => x.queued); S.date = r.date; toast(`${fmtDate(r.date)}: ${d} actions done automatically, ${q} items for people`); UI.apTab = 'work'; render(); } catch (e) { toast(e.message); el.disabled = false; } },
+  apDay: async (id, el) => { el.disabled = true; toast('Loading the next sample day and running it on autopilot…'); try { const r = await post('/v1/dev/sample', { autopilot: true }); const d = sum(r.runs, x => x.done), q = sum(r.runs, x => x.queued); S.date = r.date; toast(`${fmtDate(r.date)}: ${d} actions done automatically, ${q} items for people`); UI.apTab = 'work'; render(); } catch (e) { toast(e.message, true); el.disabled = false; } },
   apSave: async () => { const pol = {}; document.querySelectorAll('[data-appol]').forEach(x => { pol[x.dataset.appol] = { id: x.dataset.appol, mode: x.value, params: {} }; }); document.querySelectorAll('[data-apparam]').forEach(x => { (pol[x.dataset.apparam] ||= { id: x.dataset.apparam, params: {} }).params[x.dataset.k] = x.value.trim(); });
     const cur = Object.fromEntries(C.autopilot.policies.map(p => [p.id, p])); let n = 0;
-    try { for (const p of Object.values(pol)) { const c = cur[p.id]; if (c.mode === p.mode && JSON.stringify(c.settings || {}) === JSON.stringify({ ...(c.settings || {}), ...p.params })) continue; await post('/v1/autopilot/policies', { id: p.id, mode: p.mode || c.mode, params: p.params }); n++; } toast(n ? `${n} automation${n > 1 ? 's' : ''} changed` : 'Nothing changed'); render({ keep: true }); } catch (e) { toast(e.message); } },
+    try { for (const p of Object.values(pol)) { const c = cur[p.id]; if (c.mode === p.mode && JSON.stringify(c.settings || {}) === JSON.stringify({ ...(c.settings || {}), ...p.params })) continue; await post('/v1/autopilot/policies', { id: p.id, mode: p.mode || c.mode, params: p.params }); n++; } toast(n ? `${n} automation${n > 1 ? 's' : ''} changed` : 'Nothing changed'); render({ keep: true }); } catch (e) { toast(e.message, true); } },
   wDo: id => act(() => post(`/v1/work/${id}`, { do: true }), w => 'Done: ' + w.title),
   wDismiss: id => confirmModal('Close item', 'Say what was done, so the record is complete.', '<div class="fld"><label for="wd-n">Note</label><input class="in" id="wd-n" placeholder="e.g. Resolved with the client by phone"></div>', 'Close', () => act(() => post(`/v1/work/${id}`, { do: false, note: $('wd-n').value }), 'Closed')),
-  inbox: async () => { const fs = $('inbox-files').files; if (!fs.length) { toast('Choose files first'); return; } const fd = new FormData(); [...fs].forEach(f => fd.append('files', f)); try { const r = await api('POST', `/v1/inbox?date=${S.date}`, fd, true); UI.inboxRes = r.files; toast(`${r.files.filter(f => f.status === 'Loaded').length} of ${r.files.length} files loaded`); render({ keep: true }); } catch (e) { toast(e.message); } },
+  inbox: async () => { const fs = $('inbox-files').files; if (!fs.length) { toast('Choose files first'); return; } const fd = new FormData(); [...fs].forEach(f => fd.append('files', f)); try { const r = await api('POST', `/v1/inbox?date=${S.date}`, fd, true); UI.inboxRes = r.files; toast(`${r.files.filter(f => f.status === 'Loaded').length} of ${r.files.length} files loaded`); render({ keep: true }); } catch (e) { toast(e.message, true); } },
   pVerify: id => { modal(mhd('Enter the code', 'We sent a 6-digit code to your new contact. It is valid for 15 minutes.') + `<form class="bd" id="otpf"><div class="fld"><label for="otp-c">Code</label><input class="in mono" id="otp-c" inputmode="numeric" maxlength="6" required>${UI.devCodes?.[id] ? `<span class="dim small">Development server: the code is ${UI.devCodes[id]}</span>` : ''}</div><div id="otp-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Later</button><button class="btn pri" type="submit">Confirm</button></div></form>`);
     $('otpf').onsubmit = async e => { e.preventDefault(); try { const r = await post(`/v1/changes/${id}/verify`, { code: $('otp-c').value }); closeModal(); toast(r.status === 'Approved' ? 'Verified and updated' : 'Verified; head office will confirm'); render({ keep: true }); } catch (err) { $('otp-err').innerHTML = errHTML(err); } }; },
   nriSet: id => nriModal(id),
@@ -2007,16 +2017,16 @@ const A = {
     if (ok && !hv) { act(() => post(`/v1/dp/dis/${id}/verify`, { approve: true }), id + ' verified'); return; }
     confirmModal(ok ? 'Verify ' + id : 'Reject ' + id, ok ? 'Above ₹5 lakh: record how the client confirmed the instruction.' : 'The reason is kept with the slip.', `<div class="fld"><label for="dv-t">${ok ? 'Client confirmation (call reference, email)' : 'Reason'}</label><input class="in" id="dv-t"></div>`, ok ? 'Verify' : 'Reject', () => act(() => post(`/v1/dp/dis/${id}/verify`, ok ? { approve: true, confirmation: $('dv-t').value } : { approve: false, note: $('dv-t').value }), id + (ok ? ' verified' : ' rejected')), !ok); },
   dpExec: (id, el) => { const ok = el.dataset.ok === '1'; if (ok) { act(() => post(`/v1/dp/dis/${id}/execute`, { ok: true, date: S.date }), id + ' executed; holdings updated'); return; } confirmModal('Failed · ' + id, '', '<div class="fld"><label for="dx-r">Rejection reason from the DP system</label><input class="in" id="dx-r"></div>', 'Mark failed', () => act(() => post(`/v1/dp/dis/${id}/execute`, { ok: false, reason: $('dx-r').value }), id + ' marked failed'), true); },
-  dpBatch: async () => { try { const r = await post('/v1/dp/dis/batch', { date: S.date }); const url = URL.createObjectURL(new Blob([r.file], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = `dis_upload_${S.date}.csv`; document.body.appendChild(a); a.click(); a.remove(); toast(`${r.instructions} instruction${r.instructions > 1 ? 's' : ''} in the upload batch`); render({ keep: true }); } catch (e) { toast(e.message); } },
+  dpBatch: async () => { try { const r = await post('/v1/dp/dis/batch', { date: S.date }); const url = URL.createObjectURL(new Blob([r.file], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = `dis_upload_${S.date}.csv`; document.body.appendChild(a); a.click(); a.remove(); toast(`${r.instructions} instruction${r.instructions > 1 ? 's' : ''} in the upload batch`); render({ keep: true }); } catch (e) { toast(e.message, true); } },
   dpAct: (id, el) => { const a = el.dataset.a; if (a === 'reject') { confirmModal('Reject ' + id, '', '<div class="fld"><label for="da-r">Reason</label><input class="in" id="da-r"></div>', 'Reject', () => act(() => post(`/v1/dp/requests/${id}`, { action: 'reject', note: $('da-r').value }), id + ' rejected'), true); return; } act(() => post(`/v1/dp/requests/${id}`, { action: a }), r => `${r.id}: ${r.status.toLowerCase()}`); },
   dpBSDA: (id, el) => act(() => post(`/v1/dp/accounts/${id}/bsda`, { on: el.dataset.on === '1', date: S.date }), b => `${b.ucc} is now ${b.bsda ? 'a BSDA' : 'a regular account'}`),
   dpTariff: () => { const v = id => $('dt-' + id).value.trim(); act(() => post('/v1/dp/tariff', { amc_year: v('amc'), bsda_nil_upto: v('bsda0'), bsda_limit: v('bsdal'), bsda_amc_year: v('bsdaamc'), debit_charge: v('debit'), depository_share: v('share'), pledge_charge: v('pledge'), demat_per_cert: v('demat'), offmarket_pct: v('om'), offmarket_min: v('ommin'), from: v('from') }), 'Tariff saved'); },
   dpBill: () => { const m = $('dp-month').value; confirmModal('DP billing for ' + m, 'Posts each client’s DP charges for the month to their trading ledger with GST and an invoice. A month is billed once, so run it after the month ends.', '', 'Run billing', () => act(() => post('/v1/dp/billing', { month: m }), r => `${r.bills.length} DP bills posted`)); },
-  dpTxns: async id => { try { const ts = await get(`/v1/dp/transactions?ucc=${id}`); modal(mhd('DP transactions · ' + id, '') + `<div class="bd">${tbl([['Date'], ['Scrip'], ['Kind'], ['Qty', 'r'], ['Reference']], ts.map(t => `<tr><td class="n">${fmtDate(t.date)}</td><td>${esc(t.symbol || t.isin)}</td><td>${esc(t.kind)}</td><td class="r ${sgn(t.qty)}">${nf(t.qty)}</td><td class="n">${esc(t.ref)}</td></tr>`), { empty: 'No DP transactions recorded here yet (pay-in and pay-out movements are in Settlement).' })}</div>`, true); } catch (e) { toast(e.message); } },
+  dpTxns: async id => { try { const ts = await get(`/v1/dp/transactions?ucc=${id}`); modal(mhd('DP transactions · ' + id, '') + `<div class="bd">${tbl([['Date'], ['Scrip'], ['Kind'], ['Qty', 'r'], ['Reference']], ts.map(t => `<tr><td class="n">${fmtDate(t.date)}</td><td>${esc(t.symbol || t.isin)}</td><td>${esc(t.kind)}</td><td class="r ${sgn(t.qty)}">${nf(t.qty)}</td><td class="n">${esc(t.ref)}</td></tr>`), { empty: 'No DP transactions recorded here yet (pay-in and pay-out movements are in Settlement).' })}</div>`, true); } catch (e) { toast(e.message, true); } },
   editTpl: id => tplModal(id),
   testTpl: id => clientCache().then(() => { modal(mhd('Test template ' + id, 'Sends it once to a client with sample values, through the same delivery rules.') + `<div class="bd"><div class="fld"><label for="tt-u-q">Client</label>${cpick('tt-u', '', {})}</div></div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" id="tt-go">Send test</button></div>`); $('tt-go').onclick = () => act(() => post(`/v1/templates/${id}/test`, { ucc: $('tt-u').value }), r => `${r[0].channel} to ${r[0].to}: ${r[0].status}${r[0].note ? ' (' + r[0].note + ')' : ''}`); }),
   bulkMsg: () => bulkModal(),
-  waSend: async () => { try { const r = await post('/v1/whatsapp/simulate', { from: $('wa-from').value, text: $('wa-text').value, date: S.date }); $('wa-out').innerHTML = `<div class="msg"><small class="dim">Bot</small><div>${esc(r.reply)}</div></div>`; const from = $('wa-from').value; C.messages.wa = await get('/v1/whatsapp/chats'); $('msg-t').innerHTML = P['msg-t'](C.messages); $('wa-from').value = from; $('wa-out').innerHTML = `<div class="msg"><small class="dim">Bot</small><div>${esc(r.reply)}</div></div>`; } catch (e) { toast(e.message); } },
+  waSend: async () => { try { const r = await post('/v1/whatsapp/simulate', { from: $('wa-from').value, text: $('wa-text').value, date: S.date }); $('wa-out').innerHTML = `<div class="msg"><small class="dim">Bot</small><div>${esc(r.reply)}</div></div>`; const from = $('wa-from').value; C.messages.wa = await get('/v1/whatsapp/chats'); $('msg-t').innerHTML = P['msg-t'](C.messages); $('wa-from').value = from; $('wa-out').innerHTML = `<div class="msg"><small class="dim">Bot</small><div>${esc(r.reply)}</div></div>`; } catch (e) { toast(e.message, true); } },
   editJob: id => jobModal(id),
   runJob: id => act(() => post(`/v1/jobs/${id}/run`, { date: S.date }), r => `${r.name}: ${r.status.toLowerCase()} · ${r.summary}`),
   pWhatsApp: (id, el) => act(() => post('/v1/portal/whatsapp', { ucc: UI.pAcct, on: el.dataset.on === '1' }), r => r.whatsapp ? 'WhatsApp alerts on' : 'WhatsApp alerts off'),
@@ -2026,8 +2036,8 @@ const A = {
   pTicket: () => ticketModal(false),
   sTicket: () => ticketModal(true),
   tOpen: id => ticketDrawer(id),
-  tReply: async (id, el) => { const t = $('tr-' + id).value; if (!t.trim()) { toast('Write something first'); return; } try { await post(`/v1/tickets/${id}`, { text: t, internal: el.dataset.int === '1' }); toast(el.dataset.int === '1' ? 'Note saved' : 'Reply sent'); closeModal(); render({ keep: true }); } catch (e) { toast(e.message); } },
-  tResolve: async id => { const t = $('tr-' + id).value; try { await post(`/v1/tickets/${id}`, { text: t, status: 'Resolved' }); toast('Resolved'); closeModal(); render({ keep: true }); } catch (e) { toast(e.message); } },
+  tReply: async (id, el) => { const t = $('tr-' + id).value; if (!t.trim()) { toast('Write something first'); return; } try { await post(`/v1/tickets/${id}`, { text: t, internal: el.dataset.int === '1' }); toast(el.dataset.int === '1' ? 'Note saved' : 'Reply sent'); closeModal(); render({ keep: true }); } catch (e) { toast(e.message, true); } },
+  tResolve: async id => { const t = $('tr-' + id).value; try { await post(`/v1/tickets/${id}`, { text: t, status: 'Resolved' }); toast('Resolved'); closeModal(); render({ keep: true }); } catch (e) { toast(e.message, true); } },
   tClose: id => act(() => post(`/v1/tickets/${id}`, { status: 'Closed' }), 'Closed. Thank you.'),
   tSet: id => act(() => post(`/v1/tickets/${id}`, { status: $('td-st').value, assignee: $('td-as').value }), 'Updated'),
   hdMonth: () => { UI.hdMonth = $('hd-m').value; render({ keep: true }); },
@@ -2045,7 +2055,7 @@ const A = {
   crmPeriod: () => { UI.crmFrom = $('crm-from').value; UI.crmTo = $('crm-to').value; render({ keep: true }); },
   portalAccess: id => portalModal(id),
   openBlob: id => openBlob(id),
-  addDoc: async id => { const f = $('doc-file').files[0]; if (!f) { toast('Choose a file first'); return; } try { await api('POST', `/v1/clients/${encodeURIComponent(id)}/documents?kind=${encodeURIComponent($('doc-kind').value)}&name=${encodeURIComponent(f.name)}`, f, true); toast('Document added'); clientDrawer(id); } catch (e) { toast(e.message); } },
+  addDoc: async id => { const f = $('doc-file').files[0]; if (!f) { toast('Choose a file first'); return; } try { await api('POST', `/v1/clients/${encodeURIComponent(id)}/documents?kind=${encodeURIComponent($('doc-kind').value)}&name=${encodeURIComponent(f.name)}`, f, true); toast('Document added'); clientDrawer(id); } catch (e) { toast(e.message, true); } },
   setRisk: id => riskModal(id),
   reKYC: id => reKYCModal(id),
   kraFile: () => kraModal(),
@@ -2067,7 +2077,7 @@ const A = {
   editAccount: code => accountModal(C.books.acc.find(a => a.code === code)),
   acctStmt: async code => { try { const st = await get(`/v1/ledger/statement?account=${encodeURIComponent(code)}&from=${fyStart(S.date)}&to=${S.date}`);
     const dc = a => num(a) >= 0 ? nf(a, 2) + ' Dr' : nf(-num(a), 2) + ' Cr';
-    modal(mhd('Account statement · ' + esc(code), `${fmtDate(st.from)} – ${fmtDate(st.to)} · opening ${dc(st.opening)} · closing ${dc(st.closing)}`) + `<div class="bd">${tbl([['Date'], ['Entry'], ['Narration'], ['Debit', 'r'], ['Credit', 'r'], ['Balance', 'r']], st.lines.map(l => `<tr><td class="n">${fmtDate(l.value_date)}</td><td class="n dim">${esc(l.entry_id)}</td><td class="wrap">${esc(l.narration)}</td><td class="r">${num(l.debit) ? nf(l.debit, 2) : ''}</td><td class="r">${num(l.credit) ? nf(l.credit, 2) : ''}</td><td class="r">${dc(l.balance)}</td></tr>`), { tall: true, empty: 'No movements in this financial year.' })}</div>`); } catch (e) { toast(e.message); } },
+    modal(mhd('Account statement · ' + esc(code), `${fmtDate(st.from)} – ${fmtDate(st.to)} · opening ${dc(st.opening)} · closing ${dc(st.closing)}`) + `<div class="bd">${tbl([['Date'], ['Entry'], ['Narration'], ['Debit', 'r'], ['Credit', 'r'], ['Balance', 'r']], st.lines.map(l => `<tr><td class="n">${fmtDate(l.value_date)}</td><td class="n dim">${esc(l.entry_id)}</td><td class="wrap">${esc(l.narration)}</td><td class="r">${num(l.debit) ? nf(l.debit, 2) : ''}</td><td class="r">${num(l.credit) ? nf(l.credit, 2) : ''}</td><td class="r">${dc(l.balance)}</td></tr>`), { tall: true, empty: 'No movements in this financial year.' })}</div>`); } catch (e) { toast(e.message, true); } },
   vchDo: (id, el) => { const a = el.dataset.a, v = C.books.vch.find(x => x.no.replaceAll('/', '-') === id); confirmModal({ approve: 'Post ', reject: 'Reject ', cancel: 'Cancel ' }[a] + v.no, v.narration, a === 'approve' ? '' : '<div class="fld"><label for="vd-r">Reason</label><input class="in" id="vd-r"></div>', { approve: 'Post', reject: 'Reject', cancel: 'Cancel voucher' }[a], () => act(() => post(`/v1/vouchers/${id}/${a}`, { reason: $('vd-r')?.value || '' }), { approve: 'Voucher posted', reject: 'Voucher rejected', cancel: 'Voucher cancelled (reversed)' }[a]), a !== 'approve'); },
   finPeriod: () => { UI.finFrom = $('fin-from').value; UI.finTo = $('fin-to').value; UI.finBranch = $('fin-br')?.value || ''; render({ keep: true }); },
   gstPeriod: () => { UI.gstFrom = $('gst-from').value; UI.gstTo = $('gst-to').value; render({ keep: true }); },
@@ -2127,7 +2137,7 @@ const A = {
     const t = ($('bulk-tag')?.value || '').trim(); if (!t) { toast('Type a group name'); $('bulk-tag')?.focus(); return; }
     const uccs = [...UI.clientSel];
     try { const r = await post('/v1/clients/tags', { uccs, add: op === 'add' ? [t] : [], remove: op === 'remove' ? [t] : [] }); toast(`${r.changed} client${r.changed === 1 ? '' : 's'} ${op === 'add' ? 'added to' : 'removed from'} ${t.toUpperCase()}`); UI.clientSel.clear(); render({ keep: true }); }
-    catch (e) { toast(e.message); }
+    catch (e) { toast(e.message, true); }
   },
   reveal: (ucc, el) => { const f = el.dataset.f, label = f === 'pan' ? 'PAN' : 'bank account number';
     confirmModal('See the full ' + label, `${ucc}. Your reason is recorded in the audit trail with your name and the time.`, '<div class="fld"><label for="rv-why">Reason</label><input class="in" id="rv-why" placeholder="e.g. KRA mismatch on upload; checking with the PAN card"></div>', 'Show', async () => {
@@ -2135,7 +2145,7 @@ const A = {
       await clientDrawer(ucc); // the reason box replaced the drawer; reopen it with the value shown
       const t = $('rv-' + f); if (t) { t.textContent = r.value; t.classList.add('revealed'); t.nextElementSibling?.remove(); t.scrollIntoView({ block: 'center' }); }
       toast('Shown and recorded in the audit trail'); }); },
-  sealCheck: async (id, el) => { el.disabled = true; el.textContent = 'Checking…'; try { UI.seal = await get('/v1/security?verify=1'); } catch (e) { toast(e.message); } await render({ keep: true }); },
+  sealCheck: async (id, el) => { el.disabled = true; el.textContent = 'Checking…'; try { UI.seal = await get('/v1/security?verify=1'); } catch (e) { toast(e.message, true); } await render({ keep: true }); },
   editTags: async ucc => {
     const [c] = await Promise.all([get(`/v1/clients/${encodeURIComponent(ucc)}?date=${S.date}`), clientCache(true)]);
     const cur = c.client.tags || [];
@@ -2184,7 +2194,7 @@ const A = {
   dl: (path, el) => download(path, el.dataset.name),
   client: id => clientDrawer(id),
   openLedger: id => { UI.ledgerU = id; A.go('ledger'); },
-  sample: async (id, el) => { if (el) el.disabled = true; toast('Loading the sample trading day…'); try { const r = await post('/v1/dev/sample', { date: S.date }); toast(`Loaded ${r.files} sample files for ${fmtDate(S.date)}`); } catch (e) { toast(e.message); } render({ keep: true }); },
+  sample: async (id, el) => { if (el) el.disabled = true; toast('Loading the sample trading day…'); try { const r = await post('/v1/dev/sample', { date: S.date }); toast(`Loaded ${r.files} sample files for ${fmtDate(S.date)}`); } catch (e) { toast(e.message, true); } render({ keep: true }); },
   sampleRun: async (id, el) => {
     if (el) el.disabled = true; const n = +id || 1;
     toast(n > 1 ? `Working ${n} trading days end to end…` : 'Working the day end to end…');
@@ -2195,7 +2205,7 @@ const A = {
       modal(mhd(`${r.days.length} sample day${r.days.length > 1 ? 's' : ''} worked end to end`, 'Loaded, reconciled, breaks resolved, billed, derivatives settled, obligations settled, contract notes sent, day closed and positions rolled forward.') +
         `<div class="bd">${tbl([['Date'], ['Trades', 'r'], ['Breaks', 'r'], ['Bills', 'r'], ['Carried MTM', 'r'], ['Expiry', 'r'], ['Settled', 'r'], ['Notes', 'r'], ['Positions rolled', 'r']], r.days.map(x => `<tr><td class="n">${fmtDate(x.date)}</td><td class="r">${x.trades}</td><td class="r">${x.breaks}</td><td class="r">${x.bills}</td><td class="r">${x.carried_mtm}</td><td class="r">${x.expiry}</td><td class="r">${x.settled}</td><td class="r">${x.notes}</td><td class="r">${x.rolled_positions}</td></tr>`))}
         <p class="dim small" style="margin-top:10px">Now showing ${fmtDate(last.date)}. Client reports cover the whole period; the next sample day is ${fmtDate(last.next_day)}.</p></div><div class="ft"><button class="btn" data-act="crFor" data-id="BH1042">Open client reports</button><button class="btn pri" data-act="close">Done</button></div>`);
-    } catch (e) { toast(e.message); }
+    } catch (e) { toast(e.message, true); }
     render({ keep: true });
   },
   gotoDate: id => { S.date = id; C.billResult = null; closeModal(); render(); },
@@ -2298,12 +2308,12 @@ const A = {
   rules: () => act(() => post('/v1/surveillance/run', { date: S.date }), r => `${r.raised} new alert${r.raised === 1 ? '' : 's'}`),
   saveSettings: () => {
     const s = { ...C.settings.settings, firm: $('st-firm').value, sebi_reg: $('st-sebi').value, compliance_email: $('st-comp').value, warn_util_pct: parseInt($('st-warn').value, 10), ras_buffer_pct: parseInt($('st-buf').value, 10), ras_monthly: $('st-rasm').value, ras_quarterly: $('st-rasq').value,
-      two_factor: $('st-2fa').value, inactive_months: parseInt($('st-inm').value, 10) || 24, session_idle_minutes: parseInt($('st-idle').value, 10) || 30, snapshot_times: $('st-snap').value.split(',').map(x => x.trim()).filter(Boolean), holidays: $('st-hol').value.split(',').map(x => x.trim()).filter(Boolean), penalty_pass_through: $('st-pen').checked,
+      two_factor: $('st-2fa').value, ledgy_ai: !!$('st-lai')?.checked, inactive_months: parseInt($('st-inm').value, 10) || 24, session_idle_minutes: parseInt($('st-idle').value, 10) || 30, snapshot_times: $('st-snap').value.split(',').map(x => x.trim()).filter(Boolean), holidays: $('st-hol').value.split(',').map(x => x.trim()).filter(Boolean), penalty_pass_through: $('st-pen').checked,
       interest_pct_pa: $('st-int').value.trim(), interest_grace_days: parseInt($('st-grace').value, 10) || 0, interest_minimum: $('st-imin').value.trim(), gst_pct: $('st-gst').value.trim(), interest_exempt_tags: $('st-iex').value.split(',').map(x => x.trim().toUpperCase()).filter(Boolean), debit_block_days: parseInt($('st-dbd').value, 10) || 7, locked_up_to: $('st-lock').value, firm_gstin: $('st-gstin').value.trim().toUpperCase(), firm_state: $('st-state').value.trim(), cheque_bounce_charge: $('st-bnc').value.trim(), tds_commission_pct: $('st-tds').value.trim(), referral_pct: $('st-refp').value.trim(), referral_months: parseInt($('st-refm').value, 10) || 12, payout_debit_account: $('st-pda').value.trim(), gateway_secret: $('st-gws').value, whatsapp_secret: $('st-was').value, management_emails: $('st-mgmt').value.split(',').map(x => x.trim()).filter(Boolean), lead_incentive: $('st-linc').value.trim(), auto_lock_days: parseInt($('st-alock').value, 10) || 0 };
     act(() => api('PUT', '/v1/settings', s), 'Settings saved').then(loadMe);
   },
   eod: async () => {
-    let st; try { st = await get(`/v1/eod?date=${S.date}`); } catch (e) { toast(e.message); return; }
+    let st; try { st = await get(`/v1/eod?date=${S.date}`); } catch (e) { toast(e.message, true); return; }
     const okAll = st.checks.every(c => c.ok);
     if (st.closed) { modal(mhd('EOD · ' + fmtDate(S.date), `Closed at ${esc(st.closed_at)} by ${esc(st.closed_by)}`) + `<div class="bd">${st.next_day ? `<div class="note"><b>${st.rolled_positions} open position${st.rolled_positions === 1 ? '' : 's'} carried to ${fmtDate(st.next_day)}.</b> Futures at today's settlement price; options at their average premium; expired contracts dropped.</div>` : ''}${(st.exceptions || []).length ? `<div class="note warn"><b>Closed with exceptions</b><ul style="margin:6px 0 0;padding-left:18px">${st.exceptions.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '<div class="note">Closed clean.</div>'}</div><div class="ft"><button class="btn" data-act="close">Close</button></div>`); return; }
     confirmModal('EOD close · ' + fmtDate(S.date), okAll ? 'All checks passed' : 'Resolve what you can; closing with exceptions needs a note', `${st.previous_open ? `<div class="note warn">${esc(st.previous_open)}</div>` : ''}<div class="checks">${st.checks.map(c => `<div><span>${esc(c.name)}<br><span class="dim" style="font-size:12px">${esc(c.detail)}</span></span>${c.ok ? pill('Done', 'good') : `<button class="btn sm" data-act="go" data-id="${c.view}">Open</button>`}</div>`).join('')}</div>${okAll ? '' : '<div class="fld"><label for="eod-n">Note for closing with exceptions</label><textarea class="in" id="eod-n"></textarea></div>'}${has('Ops checker') ? '' : '<div class="note">Closing the day needs an Ops checker.</div>'}`,
@@ -2362,7 +2372,7 @@ document.addEventListener('change', e => {
   if (el.id === 'live-auto') { UI.liveAuto = el.checked; return; }
   if (el.id === 'p-acct') { UI.pAcct = el.value; render(); return; }
   if (el.id === 'ye-fy') { UI.yeFY = el.value; render({ keep: true }); return; }
-  if (el.id === 'ci-file') { const f = el; if (!f.files.length) return; const fd = new FormData(); fd.append('files', f.files[0]); api('POST', `/v1/inbox?date=${S.date}`, fd, true).then(r => { const x = r.files[0] || {}; toast(x.status === 'Loaded' ? `${x.rows} circular${x.rows === 1 ? '' : 's'} loaded and sorted` : `${x.status}: ${x.message || ''}`); render({ keep: true }); }).catch(e => toast(e.message)); return; }
+  if (el.id === 'ci-file') { const f = el; if (!f.files.length) return; const fd = new FormData(); fd.append('files', f.files[0]); api('POST', `/v1/inbox?date=${S.date}`, fd, true).then(r => { const x = r.files[0] || {}; toast(x.status === 'Loaded' ? `${x.rows} circular${x.rows === 1 ? '' : 's'} loaded and sorted` : `${x.status}: ${x.message || ''}`); render({ keep: true }); }).catch(e => toast(e.message, true)); return; }
   if (el.id === 'pins-off') { act(() => post('/v1/portal/insights/prefs', { ucc: UI.pAcct, off: !el.checked }), el.checked ? 'Insights turned on' : 'Insights turned off').catch(() => render({ keep: true })); return; }
   if (el.id === 'crm-stage') { UI.crmStage = el.value; $('page').innerHTML = V.crm.html(C.crm); bindPage(); return; }
   if (el.id === 'ftype') { UI.fileType = el.value; $('page').innerHTML = V.files.html(C.files); bindPage(); return; }

@@ -151,6 +151,10 @@ type Settings struct {
 	// LeadIncentive is paid to a lead's owner for each converted lead
 	// activated as a client (₹, default 500).
 	LeadIncentive string `json:"lead_incentive"`
+	// LedgyAI lets Ledgy phrase answers with an AI model (configured on the
+	// server). Only the question, with identifiers masked, and the help
+	// articles are sent; never client data.
+	LedgyAI bool `json:"ledgy_ai,omitempty"`
 }
 
 // lockedUpTo is the last locked date given today.
@@ -203,6 +207,8 @@ type Ops struct {
 	// KYC runs online account-opening checks; nil means simulated on a
 	// development server and manual checking otherwise.
 	KYC KYCProvider
+	// LedgyAI, when set, phrases Ledgy's answers (see Settings.LedgyAI).
+	LedgyAI LedgyWriter
 }
 
 // New builds Ops and installs the client-code-modification hook on the app.
