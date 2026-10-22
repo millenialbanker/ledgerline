@@ -33,6 +33,24 @@ type ContractNote struct {
 	Revision  int       `json:"revision,omitempty"` // 0 for the original note
 	Replaces  string    `json:"replaces,omitempty"` // number of the note this one replaces
 	Reason    string    `json:"reason,omitempty"`   // why it was revised
+	// Part is "commodity" for a note of commodity trades (MCX), issued
+	// after that part of the day; empty for equity (NSE and BSE).
+	Part string `json:"part,omitempty"`
+}
+
+func (n ContractNote) part() string {
+	if n.Part == "" {
+		return PartEquity
+	}
+	return n.Part
+}
+
+// noteID is a note's record: date|UCC for equity, date|UCC|commodity.
+func noteID(date, ucc, part string) string {
+	if part == "" || part == PartEquity {
+		return date + "|" + ucc
+	}
+	return date + "|" + ucc + "|" + part
 }
 
 // OutboxItem is a message handed to the mail relay.
@@ -61,20 +79,23 @@ func (o *Ops) Notes(ctx context.Context, tenant, date string) ([]ContractNote, e
 }
 
 // noteData prices one client's trades for a note.
-func (o *Ops) noteData(ctx context.Context, tenant, date, ucc string) ([]ingest.TradeEvent, billing.Output, error) {
+func (o *Ops) noteData(ctx context.Context, tenant, date, ucc, part string) ([]ingest.TradeEvent, billing.Output, error) {
 	all, err := o.exchangeTrades(ctx, tenant, date)
 	if err != nil {
 		return nil, billing.Output{}, err
 	}
+	if part == "" {
+		part = PartEquity
+	}
 	var mine []ingest.TradeEvent
 	for _, t := range all {
-		if t.UCC == ucc {
+		if t.UCC == ucc && PartOf(t.Exchange, t.Segment) == part {
 			mine = append(mine, t)
 		}
 	}
 	sort.Slice(mine, func(i, j int) bool { return mine[i].TradeTime < mine[j].TradeTime })
 	if len(mine) == 0 {
-		return nil, billing.Output{}, fmt.Errorf("%w: %s has no trades on %s", ErrState, ucc, date)
+		return nil, billing.Output{}, fmt.Errorf("%w: %s has no %s trades on %s", ErrState, ucc, part, date)
 	}
 	m, _, _ := o.Market(ctx, tenant, date)
 	out, err := o.App.BuildBills(ctx, billing.Input{Tenant: tenant, Date: date, Actor: "notes", Trades: mine, SettlementPrices: m.SettlementPrices(), Schedule: o.App.Schedule})
@@ -104,20 +125,23 @@ func (o *Ops) generateNotes(ctx context.Context, tenant, actor, date string, hel
 	if err != nil {
 		return 0, err
 	}
+	// One note per client per part: equity trades on one, commodity
+	// trades (closed later) on another.
 	have := map[string]bool{}
 	for _, n := range existing {
-		have[n.UCC] = true
+		have[n.UCC+"|"+n.part()] = true
 	}
 	uccs := map[string]int{}
 	for _, t := range trades {
-		uccs[t.UCC]++
+		uccs[t.UCC+"|"+PartOf(t.Exchange, t.Segment)]++
 	}
 	n := 0
-	for _, u := range sortedKeys(uccs) {
-		if have[u] || held[u] {
+	for _, k := range sortedKeys(uccs) {
+		u, part, _ := strings.Cut(k, "|")
+		if have[k] || held[u] {
 			continue
 		}
-		_, out, err := o.noteData(ctx, tenant, date, u)
+		_, out, err := o.noteData(ctx, tenant, date, u, part)
 		if err != nil {
 			return n, fmt.Errorf("%s: %w", u, err)
 		}
@@ -130,8 +154,11 @@ func (o *Ops) generateNotes(ctx context.Context, tenant, actor, date string, hel
 			return n, err
 		}
 		c := clients[u]
-		note := ContractNote{No: fmt.Sprintf("CN/%s/%06d", fyLabel(date), seq), Date: date, UCC: u, Name: c.Name, Email: c.Email, Trades: uccs[u], Net: net, Status: "Generated", Generated: actor}
-		if _, err := docs.Put(ctx, o.Docs, tenant, cNote, date+"|"+u, note, 0, actor); err != nil {
+		note := ContractNote{No: fmt.Sprintf("CN/%s/%06d", fyLabel(date), seq), Date: date, UCC: u, Name: c.Name, Email: c.Email, Trades: uccs[k], Net: net, Status: "Generated", Generated: actor}
+		if part != PartEquity {
+			note.Part = part
+		}
+		if _, err := docs.Put(ctx, o.Docs, tenant, cNote, noteID(date, u, part), note, 0, actor); err != nil {
 			return n, err
 		}
 		n++
@@ -175,7 +202,7 @@ func (o *Ops) SendNotes(ctx context.Context, tenant, actor, date, ucc string) (s
 		if result == "Sent" {
 			o.notify(ctx, tenant, actor, "contract_note.sent", n.UCC, map[string]string{"no": n.No, "date": date})
 		}
-		_, err = docs.Update(ctx, o.Docs, tenant, cNote, date+"|"+n.UCC, actor, func(x *ContractNote) error {
+		_, err = docs.Update(ctx, o.Docs, tenant, cNote, noteID(date, n.UCC, n.Part), actor, func(x *ContractNote) error {
 			x.Status, x.Email = result, email
 			x.SentAt = ""
 			x.Attempts++
@@ -236,8 +263,8 @@ type noteLine struct {
 }
 
 // RenderNote returns a printable HTML contract note.
-func (o *Ops) RenderNote(ctx context.Context, tenant, date, ucc string) ([]byte, error) {
-	n, _, err := docs.Get[ContractNote](ctx, o.Docs, tenant, cNote, date+"|"+strings.ToUpper(ucc))
+func (o *Ops) RenderNote(ctx context.Context, tenant, date, ucc, part string) ([]byte, error) {
+	n, _, err := docs.Get[ContractNote](ctx, o.Docs, tenant, cNote, noteID(date, strings.ToUpper(ucc), part))
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +273,7 @@ func (o *Ops) RenderNote(ctx context.Context, tenant, date, ucc string) ([]byte,
 		return nil, err
 	}
 	set, _ := o.Settings(ctx, tenant)
-	trades, out, err := o.noteData(ctx, tenant, date, n.UCC)
+	trades, out, err := o.noteData(ctx, tenant, date, n.UCC, n.part())
 	if err != nil {
 		return nil, err
 	}
@@ -312,24 +339,28 @@ func formatINR(d money.Dec) string {
 }
 
 func noteSubject(n ContractNote) string {
-	if n.Revision > 0 {
-		return "Revised contract note " + n.No + " (replaces " + n.Replaces + ")"
+	kind := "Contract note "
+	if n.part() == PartCommodity {
+		kind = "Commodity contract note "
 	}
-	return "Contract note " + n.No
+	if n.Revision > 0 {
+		return "Revised " + strings.ToLower(kind[:1]) + kind[1:] + n.No + " (replaces " + n.Replaces + ")"
+	}
+	return kind + n.No
 }
 
 // ReviseNote issues a revised contract note after a client's bill changed:
 // a new number for the same trade date, marked as replacing the earlier
 // note, ready to send. The earlier note's record stays in the history.
-func (o *Ops) ReviseNote(ctx context.Context, tenant, actor, date, ucc, reason string) (ContractNote, bool, error) {
-	cur, _, err := docs.Get[ContractNote](ctx, o.Docs, tenant, cNote, date+"|"+ucc)
+func (o *Ops) ReviseNote(ctx context.Context, tenant, actor, date, ucc, part, reason string) (ContractNote, bool, error) {
+	cur, _, err := docs.Get[ContractNote](ctx, o.Docs, tenant, cNote, noteID(date, ucc, part))
 	if errors.Is(err, docs.ErrNotFound) {
 		return ContractNote{}, false, nil
 	}
 	if err != nil {
 		return cur, false, err
 	}
-	_, out, err := o.noteData(ctx, tenant, date, ucc)
+	_, out, err := o.noteData(ctx, tenant, date, ucc, part)
 	if err != nil {
 		return cur, false, err
 	}
@@ -341,7 +372,7 @@ func (o *Ops) ReviseNote(ctx context.Context, tenant, actor, date, ucc, reason s
 	if err != nil {
 		return cur, false, err
 	}
-	n, err := docs.Update(ctx, o.Docs, tenant, cNote, date+"|"+ucc, actor, func(x *ContractNote) error {
+	n, err := docs.Update(ctx, o.Docs, tenant, cNote, noteID(date, ucc, part), actor, func(x *ContractNote) error {
 		x.Replaces, x.Revision, x.Reason = x.No, x.Revision+1, reason
 		x.No = fmt.Sprintf("CN/%s/%06d", fyLabel(date), seq)
 		x.Net, x.Status, x.SentAt, x.Attempts, x.Generated = net, "Generated", "", 0, actor
@@ -414,9 +445,17 @@ func (o *Ops) CorrectBill(ctx context.Context, tenant, actor, date, ucc, reason,
 	if len(b.Posted) == 0 && len(b.Reversed) == 0 {
 		return res, invalid("the bill for %s on %s did not change; correct the cause first (brokerage plan, trades or client code), then rebill", ucc, fmtDay(date))
 	}
-	n, revised, err := o.ReviseNote(ctx, tenant, actor, date, ucc, reason)
-	if err != nil {
-		return res, err
+	// Revise each of the client's notes for the day (equity, commodity).
+	var n ContractNote
+	revised := false
+	for _, p := range CloseParts {
+		x, ok, err := o.ReviseNote(ctx, tenant, actor, date, ucc, p.ID, reason)
+		if err != nil {
+			return res, err
+		}
+		if ok && !revised {
+			n, revised = x, true
+		}
 	}
 	if revised {
 		res.Note = &n
@@ -429,7 +468,7 @@ func (o *Ops) CorrectBill(ctx context.Context, tenant, actor, date, ucc, reason,
 			if s > 0 {
 				res.Sent = "Sent"
 			}
-			if cur, _, err := docs.Get[ContractNote](ctx, o.Docs, tenant, cNote, date+"|"+ucc); err == nil {
+			if cur, _, err := docs.Get[ContractNote](ctx, o.Docs, tenant, cNote, noteID(date, ucc, n.Part)); err == nil {
 				res.Note = &cur
 			}
 		}

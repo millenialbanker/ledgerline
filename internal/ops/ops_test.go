@@ -148,7 +148,7 @@ func TestSampleDay(t *testing.T) {
 		t.Fatal(err)
 	}
 	notes, _ := o.Notes(ctx, T, D)
-	html, err := o.RenderNote(ctx, T, D, notes[0].UCC)
+	html, err := o.RenderNote(ctx, T, D, notes[0].UCC, notes[0].Part)
 	if err != nil || !strings.Contains(string(html), notes[0].No) {
 		t.Fatalf("render: %v", err)
 	}

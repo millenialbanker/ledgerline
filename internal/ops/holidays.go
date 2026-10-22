@@ -239,7 +239,11 @@ func (o *Ops) approvedAndPending(ctx context.Context, tenant string, year int) (
 // calDays is the business calendar from approved exchange calendars.
 type calDays struct {
 	trading, settlement map[string]string
-	at                  time.Time
+	// MCX commodity trading holidays (closed all day), and the years an
+	// approved MCX list covers; other years follow the equity calendar.
+	mcx      map[string]string
+	mcxYears map[string]bool
+	at       time.Time
 }
 
 var (
@@ -262,7 +266,7 @@ func (o *Ops) exchangeDays(ctx context.Context, tenant string) calDays {
 		return c
 	}
 	calMu.Unlock()
-	c := calDays{trading: map[string]string{}, settlement: map[string]string{}, at: time.Now()}
+	c := calDays{trading: map[string]string{}, settlement: map[string]string{}, mcx: map[string]string{}, mcxYears: map[string]bool{}, at: time.Now()}
 	all, err := docs.List[HolidayCalendar](ctx, o.Docs, tenant, cHolCal, "")
 	if err != nil {
 		return c
@@ -272,6 +276,14 @@ func (o *Ops) exchangeDays(ctx context.Context, tenant string) calDays {
 			continue
 		}
 		for _, h := range cal.Holidays {
+			if h.Exchange == "MCX" && h.Segment == "COM" && h.Kind == "trading" {
+				c.mcxYears[h.Date[:4]] = true
+				// A day with the evening session open is still a trading day.
+				if n := strings.ToLower(h.Note); !strings.Contains(n, "evening session open") && !strings.Contains(n, "evening open") {
+					c.mcx[h.Date] = h.Name
+				}
+				continue
+			}
 			if h.Segment != "CM" || (h.Exchange != "NSE" && h.Exchange != "BSE") {
 				continue
 			}

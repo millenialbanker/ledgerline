@@ -198,6 +198,7 @@ func TestQuestions(t *testing.T) {
 		{"our ai credit ran out", "", "ai-credit"},
 		{"how do I add a widget to my dashboard", "", "customize-dashboard"},
 		{"did last night's backup fail", "", "backups"},
+		{"how do I close MCX after the session", "", "eod-close"},
 		{"how do I load next year's NSE holiday list", "", "exchange-holidays"},
 		{"pay-in date is wrong because of a bank holiday", "", "exchange-holidays"},
 		{"why is the autopilot screen missing", "", "editions"},

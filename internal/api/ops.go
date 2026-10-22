@@ -686,7 +686,7 @@ func (s *Server) noteDocument(w http.ResponseWriter, r *http.Request) {
 	if !s.canSee(w, r, r.PathValue("ucc")) {
 		return
 	}
-	b, err := s.ops.RenderNote(r.Context(), tenant(r), r.PathValue("date"), r.PathValue("ucc"))
+	b, err := s.ops.RenderNote(r.Context(), tenant(r), r.PathValue("date"), r.PathValue("ucc"), r.URL.Query().Get("part"))
 	if err != nil {
 		fail(w, err, nil)
 		return
@@ -947,11 +947,16 @@ func (s *Server) eod(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) closeDay(w http.ResponseWriter, r *http.Request) {
-	var b struct{ Date, Note string }
+	var b struct{ Date, Note, Part string }
 	if !decode(w, r, &b) {
 		return
 	}
-	v, err := s.ops.CloseDay(r.Context(), tenant(r), actor(r), b.Date, b.Note)
+	if b.Part == "" { // the whole day: every part still open
+		v, err := s.ops.CloseDay(r.Context(), tenant(r), actor(r), b.Date, b.Note)
+		ok(w, v, err)
+		return
+	}
+	v, err := s.ops.ClosePart(r.Context(), tenant(r), actor(r), b.Date, b.Part, b.Note)
 	ok(w, v, err)
 }
 
@@ -3217,14 +3222,15 @@ func (s *Server) verifyBackup(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) backupPolicy(w http.ResponseWriter, r *http.Request) {
 	var b struct {
-		Keep     backup.Keep `json:"keep"`
-		YearEnd  string      `json:"year_end"`
-		Fallback string      `json:"fallback"`
+		Keep      backup.Keep `json:"keep"`
+		YearEnd   string      `json:"year_end"`
+		Fallback  string      `json:"fallback"`
+		FallbackC string      `json:"fallback_commodity"`
 	}
 	if !decode(w, r, &b) {
 		return
 	}
-	_, err := s.ops.SetBackupPolicy(r.Context(), tenant(r), actor(r), b.Keep, b.YearEnd, b.Fallback)
+	_, err := s.ops.SetBackupPolicy(r.Context(), tenant(r), actor(r), b.Keep, b.YearEnd, b.Fallback, b.FallbackC)
 	ok(w, map[string]any{"saved": err == nil}, err)
 }
 

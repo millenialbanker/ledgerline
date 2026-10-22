@@ -248,11 +248,11 @@ roles: Admin, Compliance officer, Ops checker
 ask: backup; backups; database backup; daily backup; weekly backup; quarterly backup; yearly backup; backup failed; restore; restore backup; data recovery; disaster recovery; how long are backups kept; backup retention; back up now
 related: eod-close, exchange-holidays, data-in-india
 
-When a day is closed (**EOD close**), the whole firm is backed up: clients, ledgers, trades, files, settings and the audit trail. The backup is encrypted with the firm's data keys and read back to check it before it counts. Open [[backups|Backups]] to see them.
+After each close (the **equity close** in the evening and the **commodity close** after MCX's session), the whole firm is backed up: clients, ledgers, trades, files, settings and the audit trail. The backup is encrypted with the firm's data keys and read back to check it before it counts. Open [[backups|Backups]] to see them.
 
 - **Daily, weekly, quarterly, yearly:** every backup is a daily one. The backup of the **last trading day** of a week, a quarter or the year (31 March, or 31 December if set) is also kept as weekly, quarterly or yearly. Last trading days follow the approved exchange holiday calendar.
-- **Kept:** 30 daily, 13 weekly, 12 quarterly and 10 yearly backups unless an Admin changes it under **Retention**. Keep yearly backups for as many years as your records must be kept.
-- **A day not closed** by 23:30 is backed up anyway, and again once it is closed.
+- **Kept:** 30 days of daily backups (both closes of each day), 13 weekly, 12 quarterly and 10 yearly unless an Admin changes it under **Retention**. Keep yearly backups for as many years as your records must be kept.
+- **A part not closed** is backed up anyway: equity at 23:30, commodity at 00:30 the next morning (after MCX's session). It is backed up again once it is closed. Both times can be changed under **Retention**.
 - **A failed backup** is retried every 15 minutes, four times. Management is emailed, and the dashboard shows it under **Needs attention**. Fix the cause (usually disk space or the backup folder), then an Admin clicks **Back up now**.
 - **Check again** reads a backup end to end to prove it opens and is complete.
 - **Restoring** is done by whoever runs the server, into an empty database, with the same data keys. It never overwrites data. See the **Restoring** panel.

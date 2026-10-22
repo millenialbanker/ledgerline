@@ -97,7 +97,7 @@ func TestBrokeragePlans(t *testing.T) {
 		}
 	}
 	// The contract note splits the order's 600 by trade value: 360 and 240.
-	_, out, err := o.noteData(ctx, T, "2026-10-16", "BH1")
+	_, out, err := o.noteData(ctx, T, "2026-10-16", "BH1", "")
 	if err != nil {
 		t.Fatal(err)
 	}

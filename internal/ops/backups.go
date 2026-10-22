@@ -72,6 +72,14 @@ func (s Settings) backupFallback() string {
 	return "23:30"
 }
 
+// backupFallbackCommodity is a time the morning after the trading day.
+func (s Settings) backupFallbackCommodity() string {
+	if _, err := time.Parse("15:04", s.BackupFallbackCommodity); err == nil {
+		return s.BackupFallbackCommodity
+	}
+	return "00:30"
+}
+
 // BackupTiers returns the tiers a backup of date belongs to.
 func (s Settings) BackupTiers(date string) []string {
 	t, err := time.Parse("2006-01-02", date)
@@ -112,6 +120,7 @@ type BackupRun struct {
 	ID      string   `json:"id"`
 	Backup  string   `json:"backup,omitempty"`
 	Date    string   `json:"date"`
+	Part    string   `json:"part,omitempty"`
 	Tiers   []string `json:"tiers"`
 	Trigger string   `json:"trigger"`
 	By      string   `json:"by"`
@@ -142,7 +151,7 @@ var errBackupsOff = errors.New("backups are not set up on this server: set LEDGE
 
 // RunBackup backs up the firm as of date now. It records the attempt,
 // prunes old backups when it succeeds and tells management when it fails.
-func (o *Ops) RunBackup(ctx context.Context, tenant, actor, date, trigger string, tiers []string, closed bool) (BackupRun, error) {
+func (o *Ops) RunBackup(ctx context.Context, tenant, actor, date, part, trigger string, tiers []string, closed bool) (BackupRun, error) {
 	if o.Backups == nil || o.Sealer == nil || o.App.Snap == nil {
 		return BackupRun{}, errBackupsOff
 	}
@@ -160,8 +169,8 @@ func (o *Ops) RunBackup(ctx context.Context, tenant, actor, date, trigger string
 
 	set, _ := o.Settings(ctx, tenant)
 	start := o.now()
-	run := BackupRun{Date: date, Tiers: tiers, Trigger: trigger, By: actor, Started: start.Format(time.RFC3339), Status: "Succeeded"}
-	m := backup.Manifest{ID: backup.NewID(date, start), Tenant: tenant, Firm: set.Firm, Date: date, Tiers: tiers, Trigger: trigger, By: actor}
+	run := BackupRun{Date: date, Part: part, Tiers: tiers, Trigger: trigger, By: actor, Started: start.Format(time.RFC3339), Status: "Succeeded"}
+	m := backup.Manifest{ID: backup.NewID(date, start), Tenant: tenant, Firm: set.Firm, Date: date, Part: part, Tiers: tiers, Trigger: trigger, By: actor}
 	e, err := o.Backups.Create(ctx, o.App.Snap, o.Sealer, m, start)
 	run.Backup, run.Millis, run.Size, run.Rows = m.ID, time.Since(start).Milliseconds(), e.Size, e.Total
 	if err != nil {
@@ -180,7 +189,7 @@ func (o *Ops) RunBackup(ctx context.Context, tenant, actor, date, trigger string
 		_ = docs.Upsert(ctx, o.Docs, tenant, cBackupRun, run.ID, run, SystemActor)
 	}
 	if !contains(tiers, backup.Manual) || len(tiers) > 1 {
-		o.markBackupDay(ctx, tenant, date, run, closed)
+		o.markBackupDay(ctx, tenant, date+"|"+part, run, closed)
 	} else if err == nil {
 		// A good manual backup shows the cause of earlier failures is
 		// fixed: clear them so the schedule tries again.
@@ -196,7 +205,11 @@ func (o *Ops) RunBackup(ctx context.Context, tenant, actor, date, trigger string
 	if err != nil {
 		detail["error"] = run.Error
 		o.log(ctx, tenant, actor, "backup.failed", m.ID, detail)
-		o.tellManagement(ctx, tenant, set, fmt.Sprintf("[%s] Backup FAILED for %s: %s", set.Firm, date, run.Error), m.ID)
+		what := date
+		if part != "" {
+			what += " (" + part + " close)"
+		}
+		o.tellManagement(ctx, tenant, set, fmt.Sprintf("[%s] Backup FAILED for %s: %s", set.Firm, what, run.Error), m.ID)
 		return run, err
 	}
 	o.log(ctx, tenant, actor, "backup.created", m.ID, detail)
@@ -214,12 +227,13 @@ func (o *Ops) tellManagement(ctx context.Context, tenant string, set Settings, s
 	}
 }
 
-func (o *Ops) markBackupDay(ctx context.Context, tenant, date string, run BackupRun, closed bool) {
+func (o *Ops) markBackupDay(ctx context.Context, tenant, key string, run BackupRun, closed bool) {
+	date := key[:min(10, len(key))]
 	upd := func(x *backupState) error {
 		if x.Days == nil {
 			x.Days = map[string]backupDay{}
 		}
-		d := x.Days[date]
+		d := x.Days[key]
 		d.Attempts++
 		d.Last = run.Started
 		if run.Status == "Succeeded" {
@@ -231,7 +245,7 @@ func (o *Ops) markBackupDay(ctx context.Context, tenant, date string, run Backup
 		} else {
 			d.Error = run.Error
 		}
-		x.Days[date] = d
+		x.Days[key] = d
 		// Forget days older than ten weeks.
 		cut := addDays(date, -70)
 		for k := range x.Days {
@@ -248,15 +262,15 @@ func (o *Ops) markBackupDay(ctx context.Context, tenant, date string, run Backup
 	}
 }
 
-// backupAfterClose starts the backup of a day that was just closed.
-func (o *Ops) backupAfterClose(ctx context.Context, tenant, date string) {
+// backupAfterClose starts the backup that follows a part's close.
+func (o *Ops) backupAfterClose(ctx context.Context, tenant, date, part string) {
 	if o.Backups == nil {
 		return
 	}
 	set, _ := o.Settings(ctx, tenant)
 	tiers := set.BackupTiers(date)
 	run := func(ctx context.Context) {
-		_, _ = o.RunBackup(ctx, tenant, SystemActor, date, "after the day was closed", tiers, true)
+		_, _ = o.RunBackup(ctx, tenant, SystemActor, date, part, "after the "+part+" close", tiers, true)
 	}
 	if o.BackupSync {
 		run(ctx)
@@ -265,8 +279,10 @@ func (o *Ops) backupAfterClose(ctx context.Context, tenant, date string) {
 	go run(context.WithoutCancel(ctx))
 }
 
-// backupTick, every minute: retries failed backups of closed days, and
-// backs up a business day not closed by the fallback time.
+// backupTick, every minute, for each part: retries failed backups of
+// closed parts, and backs up a part not closed by its fallback time (the
+// equity part the same evening, the commodity part the next morning after
+// MCX's session).
 func (o *Ops) backupTick(ctx context.Context, tenant string, now time.Time) error {
 	if o.Backups == nil {
 		return nil
@@ -277,20 +293,40 @@ func (o *Ops) backupTick(ctx context.Context, tenant string, now time.Time) erro
 		return err
 	}
 	st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cBackupState, "main", backupState{})
-	today := now.Format("2006-01-02")
-	days := []string{set.PrevBusinessDay(today)}
-	if set.IsBusinessDay(today) && now.Format("15:04") >= set.backupFallback() {
-		days = append(days, today)
+	today, hm := now.Format("2006-01-02"), now.Format("15:04")
+	type cand struct {
+		date, part string
+		fallback   bool // past its fallback time
 	}
-	for i, d := range days {
-		eod, _, _ := docs.GetOr(ctx, o.Docs, tenant, cEOD, d, EODState{})
-		bd := st.Days[d]
-		closedNoBackup := eod.Closed && (!bd.OK || !bd.Closed)
+	var cs []cand
+	// Equity: the previous trading day (retries), and today after 23:30.
+	cs = append(cs, cand{set.PrevTradingDay(PartEquity, today), PartEquity, false})
+	if set.IsTradingDay(PartEquity, today) && hm >= set.backupFallback() {
+		cs = append(cs, cand{today, PartEquity, true})
+	}
+	// Commodity: the session ends near midnight, so the fallback is the
+	// next morning, for the last commodity trading day before today.
+	cprev := set.PrevTradingDay(PartCommodity, today)
+	cs = append(cs, cand{cprev, PartCommodity, hm >= set.backupFallbackCommodity()})
+	if pp := set.PrevTradingDay(PartCommodity, cprev); pp != "" {
+		cs = append(cs, cand{pp, PartCommodity, false})
+	}
+	for _, c := range cs {
+		if c.date == "" {
+			continue
+		}
+		if need, _ := o.partActive(ctx, tenant, c.date, c.part); !need && c.part == PartCommodity {
+			continue
+		}
+		eod, _ := o.EOD(ctx, tenant, c.date)
+		p := eod.part(c.part)
+		if p == nil || !p.Needed {
+			continue
+		}
+		bd := st.Days[c.date+"|"+c.part]
+		closedNoBackup := p.Closed && (!bd.OK || !bd.Closed)
 		failed := bd.Attempts > 0 && !bd.OK
-		// Today, after the fallback time, is backed up even if not closed.
-		// An earlier day that was never closed or tried is left alone: a
-		// backup now would hold today's work under that day's date.
-		fallback := i == 1 && !eod.Closed && !bd.OK
+		fallback := c.fallback && !p.Closed && !bd.OK
 		if !closedNoBackup && !failed && !fallback {
 			continue
 		}
@@ -300,14 +336,14 @@ func (o *Ops) backupTick(ctx context.Context, tenant string, now time.Time) erro
 		if t, err := time.Parse(time.RFC3339, bd.Last); err == nil && now.Sub(t) < 15*time.Minute {
 			continue
 		}
-		trigger := "end of day: the day was not closed"
-		if eod.Closed {
-			trigger = "after the day was closed (retry)"
-			if bd.Attempts == 0 {
-				trigger = "after the day was closed"
+		trigger := "end of day: the " + c.part + " part was not closed"
+		if p.Closed {
+			trigger = "after the " + c.part + " close"
+			if bd.Attempts > 0 {
+				trigger += " (retry)"
 			}
 		}
-		_, _ = o.RunBackup(ctx, tenant, SystemActor, d, trigger, set.BackupTiers(d), eod.Closed)
+		_, _ = o.RunBackup(ctx, tenant, SystemActor, c.date, c.part, trigger, set.BackupTiers(c.date), p.Closed)
 	}
 	return nil
 }
@@ -322,6 +358,7 @@ type BackupsView struct {
 	Keep       backup.Keep    `json:"keep"`
 	YearEnd    string         `json:"year_end"`
 	Fallback   string         `json:"fallback"`
+	FallbackC  string         `json:"fallback_commodity"`
 	Backups    []backup.Entry `json:"backups"`
 	Runs       []BackupRun    `json:"runs"`
 	Next       struct {
@@ -343,7 +380,7 @@ func (o *Ops) BackupsStatus(ctx context.Context, tenant, actor string) (BackupsV
 	if err != nil {
 		return BackupsView{}, err
 	}
-	v := BackupsView{Keep: set.backupKeep(), YearEnd: set.backupYearEnd(), Fallback: set.backupFallback(), Backups: []backup.Entry{}, Runs: []BackupRun{}, Counts: map[string]int{}, Problems: []string{}}
+	v := BackupsView{Keep: set.backupKeep(), YearEnd: set.backupYearEnd(), Fallback: set.backupFallback(), FallbackC: set.backupFallbackCommodity(), Backups: []backup.Entry{}, Runs: []BackupRun{}, Counts: map[string]int{}, Problems: []string{}}
 	bd := o.businessDate(ctx, tenant)
 	v.Next.Date = bd
 	if eod, _, _ := docs.GetOr(ctx, o.Docs, tenant, cEOD, bd, EODState{}); eod.Closed {
@@ -401,25 +438,30 @@ func (o *Ops) backupProblems(ctx context.Context, tenant string, set Settings, e
 		out = append(out, "There is no good backup yet. The first is taken when a day is closed, or click Back up now.")
 		return out
 	}
-	// The last closed business day should be backed up.
+	// Each closed part of the last trading day should be backed up.
 	today := o.now().Format("2006-01-02")
-	prev := set.PrevBusinessDay(today)
-	if eod, _, _ := docs.GetOr(ctx, o.Docs, tenant, cEOD, prev, EODState{}); eod.Closed {
+	for _, part := range []string{PartEquity, PartCommodity} {
+		prev := set.PrevTradingDay(part, today)
+		eod, _, _ := docs.GetOr(ctx, o.Docs, tenant, cEOD, prev, EODState{})
+		p := eod.part(part)
+		if p == nil || !p.Closed {
+			continue
+		}
 		ok := false
 		for _, e := range good {
-			if e.Date >= prev {
+			if e.Date > prev || e.Date == prev && (e.Part == part || e.Part == "") {
 				ok = true
 				break
 			}
 		}
 		if !ok {
-			out = append(out, fmt.Sprintf("%s was closed but has no good backup; the last good one is of %s.", prev, good[0].Date))
+			out = append(out, fmt.Sprintf("The %s close of %s has no good backup; the last good one is of %s.", part, prev, good[0].Date))
 		}
 	}
 	st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cBackupState, "main", backupState{})
 	for _, d := range sortedKeys(st.Days) {
 		if x := st.Days[d]; x.Attempts >= 4 {
-			out = append(out, fmt.Sprintf("The backup of %s failed four times in a row and is not retried; fix the cause, then click Back up now: %s", d, x.Error))
+			out = append(out, fmt.Sprintf("The backup of %s failed four times in a row and is not retried; fix the cause, then click Back up now: %s", strings.Replace(d, "|", " after the ", 1)+" close", x.Error))
 		}
 	}
 	return out
@@ -432,7 +474,7 @@ func (o *Ops) BackupNow(ctx context.Context, tenant, actor string) (BackupRun, e
 	if err := o.require(ctx, tenant, actor, "Taking a backup", RoleAdmin); err != nil {
 		return BackupRun{}, err
 	}
-	return o.RunBackup(ctx, tenant, actor, o.businessDate(ctx, tenant), "taken by hand", []string{backup.Manual}, false)
+	return o.RunBackup(ctx, tenant, actor, o.businessDate(ctx, tenant), "", "taken by hand", []string{backup.Manual}, false)
 }
 
 // BackupNowAsync checks the user may take a backup and starts it in the
@@ -476,7 +518,7 @@ func (o *Ops) VerifyBackup(ctx context.Context, tenant, actor, id string) (backu
 
 // SetBackupPolicy changes how many backups each tier keeps, when the year
 // ends for yearly backups, and the fallback time.
-func (o *Ops) SetBackupPolicy(ctx context.Context, tenant, actor string, k backup.Keep, yearEnd, fallback string) (Settings, error) {
+func (o *Ops) SetBackupPolicy(ctx context.Context, tenant, actor string, k backup.Keep, yearEnd, fallback, fallbackCommodity string) (Settings, error) {
 	if err := o.require(ctx, tenant, actor, "Changing backup settings", RoleAdmin); err != nil {
 		return Settings{}, err
 	}
@@ -494,18 +536,24 @@ func (o *Ops) SetBackupPolicy(ctx context.Context, tenant, actor string, k backu
 	if t, err := time.Parse("15:04", fallback); err != nil || t.Hour() < 18 {
 		return Settings{}, invalid("the fallback time must be HH:MM, 18:00 or later")
 	}
+	if fallbackCommodity == "" {
+		fallbackCommodity = "00:30"
+	}
+	if t, err := time.Parse("15:04", fallbackCommodity); err != nil || t.Hour() >= 9 {
+		return Settings{}, invalid("the commodity fallback time is the morning after: HH:MM before 09:00")
+	}
 	s, err := docs.Update(ctx, o.Docs, tenant, cSettings, "main", actor, func(s *Settings) error {
-		s.BackupKeep, s.BackupYearEnd, s.BackupFallback = k, yearEnd, fallback
+		s.BackupKeep, s.BackupYearEnd, s.BackupFallback, s.BackupFallbackCommodity = k, yearEnd, fallback, fallbackCommodity
 		return nil
 	})
 	if errors.Is(err, docs.ErrNotFound) {
 		s = DefaultSettings()
-		s.BackupKeep, s.BackupYearEnd, s.BackupFallback = k, yearEnd, fallback
+		s.BackupKeep, s.BackupYearEnd, s.BackupFallback, s.BackupFallbackCommodity = k, yearEnd, fallback, fallbackCommodity
 		err = docs.Upsert(ctx, o.Docs, tenant, cSettings, "main", s, actor)
 	}
 	if err != nil {
 		return s, err
 	}
-	o.log(ctx, tenant, actor, "backup.policy", "settings", map[string]any{"daily": k.Daily, "weekly": k.Weekly, "quarterly": k.Quarterly, "yearly": k.Yearly, "manual": k.Manual, "year_end": yearEnd, "fallback": fallback})
+	o.log(ctx, tenant, actor, "backup.policy", "settings", map[string]any{"daily": k.Daily, "weekly": k.Weekly, "quarterly": k.Quarterly, "yearly": k.Yearly, "manual": k.Manual, "year_end": yearEnd, "fallback": fallback, "fallback_commodity": fallbackCommodity})
 	return s, nil
 }

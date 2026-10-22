@@ -43,7 +43,7 @@ var JobKinds = []JobKind{
 	{"monthly_statements", "Monthly statements", "Emails every active client their statement of account for the previous month.", nil},
 	{"email_report", "Email a report", "Generates a regulatory or inspection report and emails it to the recipients.", []string{"report", "to"}},
 	{"kra_upload", "KRA upload file", "Builds the KRA upload file of clients opened or changed since the last run and keeps it with the files.", nil},
-	{"autopilot", "Autopilot stage", "Runs every automation of a stage (bod, intraday, preclose, eod, monthly) under the firm's autopilot settings.", []string{"stage"}},
+	{"autopilot", "Autopilot stage", "Runs every automation of a stage (bod, intraday, preclose, eod, commodity, monthly) under the firm's autopilot settings.", []string{"stage"}},
 }
 
 // RetiredJobKinds were scheduled jobs that Autopilot now does, with its
@@ -426,6 +426,11 @@ func (o *Ops) runJob(ctx context.Context, tenant string, j Job, date string) (st
 		}
 		return fmt.Sprintf("%s with %d clients", name, strings.Count(string(data), "\n")-1), nil
 	case "autopilot":
+		if j.Params["stage"] == "commodity" {
+			// The last MCX session before today, closing the morning after.
+			set, _ := o.Settings(ctx, tenant)
+			date = set.PrevTradingDay(PartCommodity, o.now().Format("2006-01-02"))
+		}
 		runs, err := o.RunStage(ctx, tenant, a, date, j.Params["stage"], "")
 		if err != nil {
 			return "", err
@@ -498,6 +503,7 @@ func (o *Ops) seedAutopilotJobs(ctx context.Context, tenant string) error {
 		{ID: "JOB-AP-MID", Name: "Autopilot: intraday", Kind: "autopilot", At: "12:30", When: "business", Params: map[string]string{"stage": "intraday"}},
 		{ID: "JOB-AP-PRE", Name: "Autopilot: pre-close", Kind: "autopilot", At: "15:00", When: "business", Params: map[string]string{"stage": "preclose"}},
 		{ID: "JOB-AP-EOD", Name: "Autopilot: end of day", Kind: "autopilot", At: "19:00", When: "business", Params: map[string]string{"stage": "eod"}, OnlyFailure: true},
+		{ID: "JOB-AP-COM", Name: "Autopilot: commodity close (last MCX session)", Kind: "autopilot", At: "07:00", When: "daily", Params: map[string]string{"stage": "commodity"}, OnlyFailure: true},
 		{ID: "JOB-AP-MON", Name: "Autopilot: month end", Kind: "autopilot", At: "07:30", When: "daily", Params: map[string]string{"stage": "monthly"}, OnlyFailure: true},
 	} {
 		if _, _, err := docs.Get[Job](ctx, o.Docs, tenant, cJob, j.ID); err == nil {
@@ -522,7 +528,7 @@ func (o *Ops) SetAutopilotSchedule(ctx context.Context, tenant, actor string, on
 		return 0, err
 	}
 	o.log(ctx, tenant, actor, "autopilot.schedule", "", map[string]any{"on": on})
-	return 5, nil
+	return 6, nil
 }
 
 func (o *Ops) setAutopilotJobs(ctx context.Context, tenant string, on bool) error {

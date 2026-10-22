@@ -15,7 +15,7 @@ V.backups = {
   html: d => {
     const adm = has('Admin'), k = d.keep;
     const lg = d.last_good;
-    const head = ph('Backups', 'After each day is closed, the whole firm is backed up: clients, ledgers, trades, files, settings and the audit trail, encrypted with the firm’s data keys and read back to check it before it counts. The backup of the last trading day of a week, quarter or year is also kept as a weekly, quarterly or yearly backup, so it outlives the dailies around it. A day not closed by the fallback time is backed up anyway, and again once it is closed.',
+    const head = ph('Backups', 'After each close (equity in the evening, commodity after the MCX session) the whole firm is backed up: clients, ledgers, trades, files, settings and the audit trail, encrypted with the firm’s data keys and read back to check it before it counts. The backup of the last trading day of a week, quarter or year is also kept as a weekly, quarterly or yearly backup, so it outlives the dailies around it. A part not closed by its fallback time is backed up anyway, and again once it is closed.',
       adm ? `${d.configured ? '<button class="btn" data-act="bkPolicy">Retention</button>' : ''}<button class="btn pri" data-act="bkNow" ${d.configured && !d.running ? '' : 'disabled'}>Back up now</button>` : '');
     const probs = d.problems.length ? `<div class="note ${d.configured ? 'bad' : 'warn'}">${d.problems.map(esc).join('<br>')}</div>` : '';
     if (!d.configured) return head + probs + bkRestoreHelp(d);
@@ -24,7 +24,7 @@ V.backups = {
       (d.running ? '<div class="note"><b>A backup is running.</b> This page updates when it finishes.</div>' : '') +
       `<div class="kpis">
         ${kpi('Last good backup', lg ? fmtDate(lg.date) : 'None', lg ? `taken ${fmtStamp(lg.created)} · ${fmtBytes(lg.size)} · ${nf(lg.total_rows)} rows` : 'not yet taken', lg ? 'good' : 'bad')}
-        ${kpi('Next backup', fmtDate(d.next.date), (d.next.tiers || []).join(', ') + ` · after close, or ${esc(d.fallback)} IST`)}
+        ${kpi('Next backup', fmtDate(d.next.date), (d.next.tiers || []).join(', ') + ` · after each close; if not closed, equity at ${esc(d.fallback)}, commodity at ${esc(d.fallback_commodity)} the next morning`)}
         ${kpi('Held', nf(d.backups.length), held)}
         ${kpi('Kept', `${k.daily}·${k.weekly}·${k.quarterly}·${k.yearly}`, `daily · weekly · quarterly · yearly; year ends ${d.year_end === 'march' ? '31 March' : '31 December'}`)}
       </div>
@@ -55,12 +55,13 @@ Object.assign(A, {
     modal(mhd('Backup retention', 'How many backups each kind keeps. A backup kept as several kinds stays while any of them keeps it.') + `<form class="bd" id="bkf"><div class="form">
       ${f('d', 'Daily', k.daily, 7, 'at least 7')}${f('w', 'Weekly', k.weekly, 4, 'at least 4')}${f('q', 'Quarterly', k.quarterly, 4, 'at least 4')}${f('y', 'Yearly', k.yearly, 5, 'at least 5; keep as many years as your records must be kept')}${f('m', 'Manual', k.manual, 1, 'backups taken by hand')}
       <div class="fld"><label for="bk-ye">Year ends</label><select class="in" id="bk-ye"><option value="march" ${d.year_end === 'march' ? 'selected' : ''}>31 March (financial year)</option><option value="december" ${d.year_end === 'december' ? 'selected' : ''}>31 December</option></select></div>
-      <div class="fld"><label for="bk-fb">Back up a day not closed by (IST)</label><input class="in mono" id="bk-fb" value="${esc(d.fallback)}" pattern="[0-2][0-9]:[0-5][0-9]"></div>
+      <div class="fld"><label for="bk-fb">Back up equity not closed by (IST)</label><input class="in mono" id="bk-fb" value="${esc(d.fallback)}" pattern="[0-2][0-9]:[0-5][0-9]"></div>
+      <div class="fld"><label for="bk-fc">Back up commodity not closed by (IST, next morning)</label><input class="in mono" id="bk-fc" value="${esc(d.fallback_commodity)}" pattern="0[0-8]:[0-5][0-9]"><div class="dim small">after MCX’s session, which ends 23:30 or 23:55</div></div>
     </div><div id="bk-err"></div></form><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" form="bkf">Save</button></div>`);
     $('bkf').onsubmit = async e => {
       e.preventDefault();
       const n = id => parseInt($('bk-' + id).value, 10) || 0;
-      try { await api('PUT', '/v1/backups/policy', { keep: { daily: n('d'), weekly: n('w'), quarterly: n('q'), yearly: n('y'), manual: n('m') }, year_end: $('bk-ye').value, fallback: $('bk-fb').value.trim() }); closeModal(); toast('Retention saved'); render({ keep: true }); }
+      try { await api('PUT', '/v1/backups/policy', { keep: { daily: n('d'), weekly: n('w'), quarterly: n('q'), yearly: n('y'), manual: n('m') }, year_end: $('bk-ye').value, fallback: $('bk-fb').value.trim(), fallback_commodity: $('bk-fc').value.trim() }); closeModal(); toast('Retention saved'); render({ keep: true }); }
       catch (err) { $('bk-err').innerHTML = errHTML(err); }
     };
   },

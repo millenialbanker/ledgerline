@@ -60,15 +60,19 @@ func TestBackupAfterCloseAndRestore(t *testing.T) {
 	if _, err := o.CloseDay(ctx, T, "farhan.khan", D, "test close"); err != nil {
 		t.Fatal(err)
 	}
+	// Closing the whole day closes equity, then commodity: one backup after each.
 	st, err := o.BackupsStatus(ctx, T, "vikram.shah")
-	if err != nil || len(st.Backups) != 1 {
+	if err != nil || len(st.Backups) != 2 {
 		t.Fatalf("status %+v %v", st, err)
 	}
 	b := st.Backups[0]
-	if b.Date != D || !reflect.DeepEqual(b.Tiers, []string{"daily", "weekly"}) || b.Verified == "" || b.Trigger != "after the day was closed" || b.Total == 0 {
+	if b.Date != D || b.Part != PartCommodity || !reflect.DeepEqual(b.Tiers, []string{"daily", "weekly"}) || b.Verified == "" || b.Trigger != "after the commodity close" || b.Total == 0 {
 		t.Fatalf("backup %+v", b)
 	}
-	if st.LastGood == nil || st.Counts["weekly"] != 1 || len(st.Runs) != 1 || st.Runs[0].Status != "Succeeded" {
+	if e := st.Backups[1]; e.Part != PartEquity || e.Trigger != "after the equity close" || e.Total >= b.Total {
+		t.Fatalf("equity backup %+v", e)
+	}
+	if st.LastGood == nil || st.Counts["weekly"] != 2 || len(st.Runs) != 2 || st.Runs[0].Status != "Succeeded" {
 		t.Fatalf("status %+v", st)
 	}
 	for _, p := range st.Problems {
@@ -173,7 +177,7 @@ func TestBackupFallbackRetryAndPrune(t *testing.T) {
 	at = at.Add(30 * time.Minute)
 	_ = o.backupTick(ctx, T, at)
 	es, _ := o.Backups.List(T)
-	if len(es) != 1 || es[0].Trigger != "end of day: the day was not closed" {
+	if len(es) != 1 || es[0].Trigger != "end of day: the equity part was not closed" || es[0].Part != PartEquity {
 		t.Fatalf("fallback %+v", es)
 	}
 	_ = o.backupTick(ctx, T, at.Add(time.Minute))
@@ -204,23 +208,23 @@ func TestBackupFallbackRetryAndPrune(t *testing.T) {
 			failed++
 		}
 	}
-	if failed != 4 || !strings.Contains(strings.Join(st.Problems, " "), "failed four times") {
+	if failed != 8 || !strings.Contains(strings.Join(st.Problems, " "), "failed four times") { // 4 for each part
 		t.Fatalf("failed runs %d, problems %v", failed, st.Problems)
 	}
 
 	// Pruning: run many days of backups; each tier keeps its own count.
-	_, err := o.SetBackupPolicy(ctx, T, "admin", backup.Keep{Daily: 7, Weekly: 4, Quarterly: 4, Yearly: 5, Manual: 1}, "march", "23:30")
+	_, err := o.SetBackupPolicy(ctx, T, "admin", backup.Keep{Daily: 7, Weekly: 4, Quarterly: 4, Yearly: 5, Manual: 1}, "march", "23:30", "00:30")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := o.SetBackupPolicy(ctx, T, "admin", backup.Keep{Daily: 2, Weekly: 4, Quarterly: 4, Yearly: 5, Manual: 1}, "march", "23:30"); err == nil {
+	if _, err := o.SetBackupPolicy(ctx, T, "admin", backup.Keep{Daily: 2, Weekly: 4, Quarterly: 4, Yearly: 5, Manual: 1}, "march", "23:30", "00:30"); err == nil {
 		t.Fatal("kept 2 dailies")
 	}
 	set, _ := o.Settings(ctx, T)
 	d := "2026-10-19"
 	for i := 0; i < 40; i++ {
 		at = at.Add(24 * time.Hour)
-		if _, err := o.RunBackup(ctx, T, SystemActor, d, "test", set.BackupTiers(d), true); err != nil {
+		if _, err := o.RunBackup(ctx, T, SystemActor, d, PartEquity, "test", set.BackupTiers(d), true); err != nil {
 			t.Fatal(err)
 		}
 		d = set.NextBusinessDay(d)

@@ -97,6 +97,15 @@ async function openDoc(path) {
   } catch (e) { if (w) w.close(); toast(e.message, true); }
 }
 
+// "Closed 07:00", or each needed part's state while the day is open.
+function eodStatus(e) {
+  if (!e) return 'open';
+  if (e.closed) return 'closed ' + esc(e.closed_at || '');
+  const ps = (e.parts || []).filter(p => p.needed);
+  if (ps.length < 2) return 'open';
+  return ps.map(p => `${esc(p.name)} ${p.closed ? '✓' : 'open'}`).join(' · ');
+}
+
 /* ============================== shell ============================== */
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard'], ['autopilot', 'Autopilot & work queue']]],
@@ -134,7 +143,7 @@ function renderTop() {
   const d = C.dashboard;
   const users = S.me?.users || [];
   $('top').innerHTML = `<div class="tdate"><small>Trade date</small><div class="dnav"><button class="btn sm" data-act="prevDay" aria-label="Previous trading day">‹</button><input class="in mono" type="date" id="date" value="${esc(S.date)}" aria-label="Trade date" style="height:30px"><button class="btn sm" data-act="nextDay" aria-label="Next trading day">›</button></div></div>
-  <div class="chips">${d?.extra?.pay_in ? `<span class="chip">Pay-in <b>${fmtDate(d.extra.pay_in)}</b></span>` : ''}${S.me ? `<span class="chip">EOD <b>${d?.eod?.closed ? 'closed ' + esc(d.eod.closed_at) : 'open'}</b></span>` : ''}</div>
+  <div class="chips">${d?.extra?.pay_in ? `<span class="chip">Pay-in <b>${fmtDate(d.extra.pay_in)}</b></span>` : ''}${S.me ? `<span class="chip">EOD <b>${eodStatus(d?.eod)}</b></span>` : ''}</div>
   ${clientUser() ? '<div style="flex:1"></div>' : `<div class="srch"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="gsearch" placeholder="Find client by name, UCC or PAN  ( / )" autocomplete="off" value="${esc(UI.search)}"><div class="res" id="gres" hidden></div></div>`}
   ${S.me ? `<div class="umenu"><button class="ubtn" data-act="umenu" aria-haspopup="menu"><span class="av">${esc(initials(meUser()?.name || S.me.actor))}</span><span><b>${esc(meUser()?.name || S.me.actor)}</b><small>${esc(S.me.role)}</small></span><span class="dim">▾</span></button><div class="umenu-pop" id="umenu" hidden role="menu">
     <button data-act="pwChange" role="menuitem">Change password</button>
@@ -896,7 +905,7 @@ function pHead(v, title, sub) {
   const sw = v.accounts.length > 1 ? `<div class="fld" style="min-width:240px"><label for="p-acct">Account</label><select class="in" id="p-acct">${v.accounts.map(a => `<option value="${a.ucc}" ${a.ucc === v.account.ucc ? 'selected' : ''}>${esc(a.name)} · ${a.ucc}</option>`).join('')}</select></div>` : `<span class="chip">${esc(v.account.name)} · <b>${v.account.ucc}</b></span>`;
   return ph(title, sub, sw);
 }
-const noteRow = n => `<tr><td class="n">${esc(n.no)}${n.revision ? ' ' + pill('Revised', 'acc') : ''}</td><td class="n">${fmtDate(n.date)}</td><td class="r">${n.trades}</td><td class="r ${sgn(n.net)}">${inr(n.net, 2)}</td><td>${pill(n.status === 'Sent' ? 'Emailed' : n.status === 'Bounced' ? 'Email bounced' : 'Ready', n.status === 'Sent' ? 'good' : n.status === 'Bounced' ? 'bad' : 'nt')}</td><td><button class="btn sm" data-act="pNote" data-id="${n.date}|${n.ucc}">Open</button></td></tr>`;
+const noteRow = n => `<tr><td class="n">${esc(n.no)}${n.revision ? ' ' + pill('Revised', 'acc') : ''}</td><td class="n">${fmtDate(n.date)}</td><td class="r">${n.trades}</td><td class="r ${sgn(n.net)}">${inr(n.net, 2)}</td><td>${pill(n.status === 'Sent' ? 'Emailed' : n.status === 'Bounced' ? 'Email bounced' : 'Ready', n.status === 'Sent' ? 'good' : n.status === 'Bounced' ? 'bad' : 'nt')}</td><td><button class="btn sm" data-act="pNote" data-id="${n.date}|${n.ucc}|${n.part || ''}">Open</button></td></tr>`;
 V.portal = {
   load: portalLoad,
   html: v => {
@@ -1346,13 +1355,13 @@ V.notes = {
   html: d => {
     const by = s => d.filter(n => n.status === s).length;
     const can = has('Ops maker', 'Ops checker');
-    return ph('Contract notes', 'One electronic contract note per client per trade date, with every trade and the full charge breakdown, to be delivered within 24 hours. Without a mail relay configured, messages go to the outbox; addresses that cannot receive mail show as bounced.',
+    return ph('Contract notes', 'One electronic contract note per client per trade date for equity (NSE and BSE), and a separate one for commodity trades (MCX), issued after the commodity close. Each has every trade and the full charge breakdown, and must be delivered within 24 hours. Without a mail relay configured, messages go to the outbox; addresses that cannot receive mail show as bounced.',
       can ? `<button class="btn" data-act="genNotes">Generate notes</button><button class="btn pri" data-act="sendNotes" ${by('Generated') + by('Bounced') ? '' : 'disabled'}>Send pending</button>` : '') +
     `<div class="kpis">${kpi('Generated', d.length, 'clients who traded')}${kpi('Delivered', by('Sent'), 'accepted by mail relay', 'good')}${kpi('Pending', by('Generated'), 'not yet sent', by('Generated') ? 'warn' : '')}${kpi('Bounced', by('Bounced'), 'fix email, then re-send', by('Bounced') ? 'bad' : '')}</div>
     <div class="panel"><div class="hd">${segBtns('noteF', ['All', 'Sent', 'Generated', 'Bounced'], 'notes-t')}<small>${d.length ? '' : 'Run billing, then generate'}</small></div><div id="notes-t">${P['notes-t'](d)}</div></div>`;
   }
 };
-P['notes-t'] = d => tbl([['Contract note'], ['UCC'], ['Client'], ['Email'], ['Trades', 'r'], ['Net (₹)', 'r'], ['Status'], ['Sent'], ['']], d.filter(n => UI.noteF === 'All' || n.status === UI.noteF).map(n => `<tr><td class="n">${esc(n.no)}${n.revision ? ` <span title="Revision ${n.revision}: replaces ${esc(n.replaces)}">${pill('Revised', 'acc')}</span>` : ''}</td><td class="n">${n.ucc}</td><td>${esc(n.name)}</td><td class="dim">${esc(n.email)}</td><td class="r">${n.trades}</td><td class="r ${sgn(n.net)}">${inr(n.net, 2)}</td><td>${pill(n.status, n.status === 'Sent' ? 'good' : n.status === 'Bounced' ? 'bad' : 'warn')}</td><td class="n dim">${esc(n.sent_at || '—')}</td><td><button class="btn sm" data-act="noteDoc" data-id="${n.ucc}">Open</button>${has('Ops maker', 'Ops checker') ? `<button class="btn sm" data-act="sendNote" data-id="${n.ucc}">${n.status === 'Generated' ? 'Send' : 'Resend'}</button>` : ''}</td></tr>`), { tall: true, empty: 'No contract notes for this date.' });
+P['notes-t'] = d => tbl([['Contract note'], ['UCC'], ['Client'], ['Email'], ['Trades', 'r'], ['Net (₹)', 'r'], ['Status'], ['Sent'], ['']], d.filter(n => UI.noteF === 'All' || n.status === UI.noteF).map(n => `<tr><td class="n">${esc(n.no)}${n.part === 'commodity' ? ' ' + pill('Commodity', 'warn') : ''}${n.revision ? ` <span title="Revision ${n.revision}: replaces ${esc(n.replaces)}">${pill('Revised', 'acc')}</span>` : ''}</td><td class="n">${n.ucc}</td><td>${esc(n.name)}</td><td class="dim">${esc(n.email)}</td><td class="r">${n.trades}</td><td class="r ${sgn(n.net)}">${inr(n.net, 2)}</td><td>${pill(n.status, n.status === 'Sent' ? 'good' : n.status === 'Bounced' ? 'bad' : 'warn')}</td><td class="n dim">${esc(n.sent_at || '—')}</td><td><button class="btn sm" data-act="noteDoc" data-id="${n.ucc}|${n.part || ''}">Open</button>${has('Ops maker', 'Ops checker') ? `<button class="btn sm" data-act="sendNote" data-id="${n.ucc}">${n.status === 'Generated' ? 'Send' : 'Resend'}</button>` : ''}</td></tr>`), { tall: true, empty: 'No contract notes for this date.' });
 
 /* ---------- clients ---------- */
 const STAGES = ['Application', 'KYC verification', 'In-person verification', 'UCC upload', 'Active'];
@@ -1993,7 +2002,7 @@ const A = {
   runJob: id => act(() => post(`/v1/jobs/${id}/run`, { date: S.date }), r => `${r.name}: ${r.status.toLowerCase()} · ${r.summary}`),
   pWhatsApp: (id, el) => act(() => post('/v1/portal/whatsapp', { ucc: UI.pAcct, on: el.dataset.on === '1' }), r => r.whatsapp ? 'WhatsApp alerts on' : 'WhatsApp alerts off'),
   pAcct: (id, el) => { UI.pAcct = el.value; render(); },
-  pNote: id => { const [d, u] = id.split('|'); openDoc(`/v1/notes/${d}/${u}/document`); },
+  pNote: id => { const [d, u, p] = id.split('|'); openDoc(`/v1/notes/${d}/${u}/document${p ? '?part=' + p : ''}`); },
   pChange: id => changeModal(id, UI.pAcct),
   pTicket: () => ticketModal(false),
   sTicket: () => ticketModal(true),
@@ -2213,7 +2222,7 @@ const A = {
   genNotes: () => act(() => post('/v1/notes/generate', { date: S.date }), r => `${r.generated} contract notes generated`),
   sendNotes: () => act(() => post('/v1/notes/send', { date: S.date }), r => `${r.sent} sent, ${r.bounced} bounced`),
   sendNote: id => act(() => post('/v1/notes/send', { date: S.date, ucc: id }), r => r.sent ? 'Sent' : 'Bounced: check the email address'),
-  noteDoc: id => openDoc(`/v1/notes/${S.date}/${id}/document`),
+  noteDoc: id => { const [u, p] = String(id).split('|'); openDoc(`/v1/notes/${S.date}/${u}/document${p ? '?part=' + p : ''}`); },
   newClient: () => { UI.ob = { step: 0, data: { type: 'Individual', kyc_route: 'KRA fetch (existing KYC)', depository: 'CDSL', segments: ['CM'], income: '5-10 L', ras: 'Quarterly', nominee: 'Opted in' }, err: {} }; obModal(); },
   obBack: () => { UI.ob.step--; UI.ob.err = {}; obModal(); },
   obNext: async () => {
@@ -2277,10 +2286,28 @@ const A = {
   },
   eod: async () => {
     let st; try { st = await get(`/v1/eod?date=${S.date}`); } catch (e) { toast(e.message, true); return; }
-    const okAll = st.checks.every(c => c.ok);
-    if (st.closed) { modal(mhd('EOD · ' + fmtDate(S.date), `Closed at ${esc(st.closed_at)} by ${esc(st.closed_by)}`) + `<div class="bd">${st.next_day ? `<div class="note"><b>${st.rolled_positions} open position${st.rolled_positions === 1 ? '' : 's'} carried to ${fmtDate(st.next_day)}.</b> Futures at today's settlement price; options at their average premium; expired contracts dropped.</div>` : ''}${(st.exceptions || []).length ? `<div class="note warn"><b>Closed with exceptions</b><ul style="margin:6px 0 0;padding-left:18px">${st.exceptions.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '<div class="note">Closed clean.</div>'}</div><div class="ft"><button class="btn" data-act="close">Close</button></div>`); return; }
-    confirmModal('EOD close · ' + fmtDate(S.date), okAll ? 'All checks passed' : 'Resolve what you can; closing with exceptions needs a note', `${st.previous_open ? `<div class="note warn">${esc(st.previous_open)}</div>` : ''}<div class="checks">${st.checks.map(c => `<div><span>${esc(c.name)}<br><span class="dim" style="font-size:12px">${esc(c.detail)}</span></span>${c.ok ? pill('Done', 'good') : `<button class="btn sm" data-act="go" data-id="${c.view}">Open</button>`}</div>`).join('')}</div>${okAll ? '' : '<div class="fld"><label for="eod-n">Note for closing with exceptions</label><textarea class="in" id="eod-n"></textarea></div>'}${has('Ops checker') ? '' : '<div class="note">Closing the day needs an Ops checker.</div>'}`,
-      okAll ? 'Close the day' : 'Close with exceptions', () => act(() => post('/v1/eod/close', { date: S.date, note: $('eod-n')?.value || '' }), r => `Day closed; ${r.rolled_positions} positions carried to ${fmtDate(r.next_day)}`), !okAll);
+    const chk = can => (p) => `<div class="checks">${p.checks.map(c => `<div><span>${esc(c.name)}<br><span class="dim" style="font-size:12px">${esc(c.detail)}</span></span>${c.ok ? pill('Done', 'good') : `<button class="btn sm" data-act="go" data-id="${c.view}">Open</button>`}</div>`).join('')}</div>`;
+    const checker = has('Ops checker');
+    const part = p => {
+      const ok = p.checks.every(c => c.ok);
+      const state = !p.needed ? pill('Nothing to close', 'nt') : p.closed ? pill('Closed ' + p.closed_at, 'good') : pill('Open', 'warn');
+      let body;
+      if (!p.needed) body = `<div class="dim small">No ${esc(p.name.toLowerCase())} trades and nothing carried on ${fmtDate(S.date)}.</div>`;
+      else if (p.closed) body = `<div class="small">Closed by ${esc(p.closed_by)}${p.next_day ? `; ${p.rolled_positions} open position${p.rolled_positions === 1 ? '' : 's'} carried to ${fmtDate(p.next_day)}` : ''}. A backup followed.</div>${(p.exceptions || []).length ? `<div class="note warn" style="margin-top:8px"><b>Closed with exceptions</b><ul style="margin:6px 0 0;padding-left:18px">${p.exceptions.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}`;
+      else body = `${p.previous_open ? `<div class="note warn">${esc(p.previous_open)}</div>` : ''}${chk()(p)}${checker ? `${ok ? '' : `<div class="fld"><label for="eod-n-${p.id}">Note for closing with exceptions</label><textarea class="in" id="eod-n-${p.id}"></textarea></div>`}<div class="tools" style="margin-top:8px"><button class="btn ${ok ? 'pri' : 'bad'}" data-act="eodPart" data-id="${p.id}">${ok ? 'Close ' : 'Close with exceptions: '}${esc(p.name.toLowerCase())}</button></div>` : ''}`;
+      return `<section class="eod-part ${p.needed && !p.closed ? 'open' : ''}"><div class="eod-ph"><div><b>${esc(p.name)}</b><span class="dim small"> · ${esc(p.about)}</span></div>${state}</div>${body}</section>`;
+    };
+    const sub = st.closed ? `Closed at ${esc(st.closed_at)} by ${esc(st.closed_by)}` : 'Equity closes in the evening; commodity after the MCX session, usually the next morning. Each close carries its own positions forward and is followed by a backup.';
+    modal(mhd('EOD · ' + fmtDate(S.date), sub) + `<div class="bd">${(st.parts || []).map(part).join('')}${checker || st.closed ? '' : '<div class="note">Closing needs an Ops checker.</div>'}</div><div class="ft"><button class="btn" data-act="close">Close</button></div>`, true);
+  },
+  eodPart: async id => {
+    const p = { equity: 'Equity', commodity: 'Commodity' }[id] || id;
+    try {
+      const r = await post('/v1/eod/close', { date: S.date, part: id, note: $('eod-n-' + id)?.value || '' });
+      const x = (r.parts || []).find(q => q.id === id) || {};
+      closeModal(); toast(`${p} closed${x.next_day ? `; ${x.rolled_positions} positions carried to ${fmtDate(x.next_day)}` : ''}${r.closed ? '. The day is closed.' : ''}`);
+      await render({ keep: true }); await refreshCounts?.();
+    } catch (e) { toast(e.message, true); }
   },
 };
 

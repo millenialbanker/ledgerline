@@ -163,10 +163,15 @@ type Settings struct {
 	BackupKeep     backup.Keep `json:"backup_keep"`
 	BackupYearEnd  string      `json:"backup_year_end"`
 	BackupFallback string      `json:"backup_fallback"`
+	// BackupFallbackCommodity is when, the morning after, a commodity part
+	// not yet closed is backed up anyway (MCX trades until 23:55).
+	BackupFallbackCommodity string `json:"backup_fallback_commodity"`
 	// From approved exchange holiday calendars (holidays.go), filled in
 	// when settings are loaded; never saved with them.
 	exTrading    map[string]string
 	exSettlement map[string]string
+	exMCX        map[string]string
+	exMCXYears   map[string]bool
 }
 
 // lockedUpTo is the last locked date given today.
@@ -354,7 +359,7 @@ func (o *Ops) Settings(ctx context.Context, tenant string) (Settings, error) {
 	s, _, err := docs.GetOr(ctx, o.Docs, tenant, cSettings, "main", DefaultSettings())
 	if err == nil {
 		c := o.exchangeDays(ctx, tenant)
-		s.exTrading, s.exSettlement = c.trading, c.settlement
+		s.exTrading, s.exSettlement, s.exMCX, s.exMCXYears = c.trading, c.settlement, c.mcx, c.mcxYears
 	}
 	return s, err
 }

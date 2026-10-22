@@ -58,27 +58,6 @@ func (o *Ops) hadActivity(ctx context.Context, tenant, date string) (bool, error
 	return len(cs) > 0, err
 }
 
-// DayOpenError explains why a day cannot be worked yet.
-func (o *Ops) DayOpenError(ctx context.Context, tenant, date string) error {
-	set, err := o.Settings(ctx, tenant)
-	if err != nil {
-		return err
-	}
-	prev := set.PrevBusinessDay(date)
-	act, err := o.hadActivity(ctx, tenant, prev)
-	if err != nil || !act {
-		return err
-	}
-	st, _, err := docs.GetOr(ctx, o.Docs, tenant, cEOD, prev, EODState{})
-	if err != nil {
-		return err
-	}
-	if !st.Closed {
-		return fmt.Errorf("%w: close %s first; its open positions carry into %s", ErrState, prev, date)
-	}
-	return nil
-}
-
 // DerivResult is what derivative settlement posted for a day.
 type DerivResult struct {
 	Date      string   `json:"date"`
@@ -202,16 +181,19 @@ var derivKinds = map[string]bool{"BILL": true, "MTM": true, "EXPIRY": true}
 // the next trading day. Futures carry at the day's settlement price (their
 // MTM is settled); options at their average premium. Contracts expiring on
 // or before the day are dropped.
-func (o *Ops) RollPositions(ctx context.Context, tenant, actor, date string) (string, int, error) {
+func (o *Ops) RollPositions(ctx context.Context, tenant, actor, date, part string) (string, int, error) {
 	in, err := o.riskInput(ctx, tenant, date)
 	if err != nil {
 		return "", 0, err
 	}
-	next := in.set.NextBusinessDay(date)
+	next := in.set.NextTradingDay(part, date)
 	pos, _ := in.positions("")
 	n := 0
 	for _, u := range sortedKeys(pos) {
 		for _, p := range pos[u] {
+			if part != "" && PartOf(p.Exchange, p.Segment) != part {
+				continue
+			}
 			parts := strings.Split(p.Instrument, "|")
 			if len(parts) >= 3 && parts[2] != "" && parts[2] <= date {
 				continue // expired
@@ -229,6 +211,6 @@ func (o *Ops) RollPositions(ctx context.Context, tenant, actor, date string) (st
 			n++
 		}
 	}
-	o.log(ctx, tenant, actor, "positions.rolled", date, map[string]any{"to": next, "positions": n})
+	o.log(ctx, tenant, actor, "positions.rolled", date, map[string]any{"to": next, "positions": n, "part": part})
 	return next, n, nil
 }

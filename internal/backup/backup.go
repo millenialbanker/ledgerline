@@ -73,8 +73,9 @@ type Manifest struct {
 	ID      string         `json:"id"`
 	Tenant  string         `json:"tenant"`
 	Firm    string         `json:"firm,omitempty"`
-	Date    string         `json:"date"`  // the business day backed up
-	Tiers   []string       `json:"tiers"` // daily, weekly, quarterly, yearly, manual
+	Date    string         `json:"date"`           // the business day backed up
+	Tiers   []string       `json:"tiers"`          // daily, weekly, quarterly, yearly, manual
+	Part    string         `json:"part,omitempty"` // the close it followed: equity, commodity; empty for a manual backup
 	Trigger string         `json:"trigger"`
 	By      string         `json:"by"`
 	Created string         `json:"created"`
@@ -547,7 +548,13 @@ func (d Dir) List(tenant string) ([]Entry, error) {
 		if out[i].Date != out[j].Date {
 			return out[i].Date > out[j].Date
 		}
-		return out[i].Created > out[j].Created
+		if out[i].Created != out[j].Created {
+			return out[i].Created > out[j].Created
+		}
+		if out[i].Part != out[j].Part { // the commodity close comes later
+			return out[i].Part < out[j].Part
+		}
+		return out[i].ID > out[j].ID
 	})
 	return out, nil
 }
@@ -597,10 +604,11 @@ func (k Keep) Of(t string) int {
 }
 
 // Prune decides which backups to delete. Of several good backups of the
-// same day only the newest counts. Each tier then keeps its newest days up
-// to its count; a backup in several tiers stays while any of them keeps
-// it. The newest good backup is never deleted, and nothing is deleted on
-// account of a newer backup that failed its check.
+// same day and part (equity close, commodity close) only the newest counts.
+// Each tier then keeps its newest days up to its count, with every part's
+// backup of those days; a backup in several tiers stays while any of them
+// keeps it. The newest good backup is never deleted, and nothing is
+// deleted on account of a newer backup that failed its check.
 func Prune(es []Entry, k Keep) (drop []Entry) {
 	good := func(e Entry) bool { return e.Verified != "" && e.VerifyError == "" }
 	sorted := append([]Entry(nil), es...)
@@ -618,7 +626,7 @@ func Prune(es []Entry, k Keep) (drop []Entry) {
 		if e.Has(Manual) && len(e.Tiers) == 1 {
 			kind = "manual"
 		}
-		key := e.Date + "|" + kind
+		key := e.Date + "|" + e.Part + "|" + kind
 		if !good(e) {
 			continue
 		}
@@ -629,15 +637,16 @@ func Prune(es []Entry, k Keep) (drop []Entry) {
 		newestOfDay[key] = true
 	}
 	for _, t := range []string{Daily, Weekly, Quarterly, Yearly, Manual} {
-		n := 0
+		days := map[string]bool{}
 		for _, e := range sorted {
 			if !good(e) || superseded[e.ID] || !e.Has(t) {
 				continue
 			}
-			if n < k.Of(t) {
-				keep[e.ID] = true
+			if !days[e.Date] && len(days) >= k.Of(t) {
+				continue
 			}
-			n++
+			days[e.Date] = true
+			keep[e.ID] = true
 		}
 	}
 	for _, e := range sorted {

@@ -164,25 +164,30 @@ On [[settlement|Settlement]]:
 - **CUSPA (client unpaid securities):** shares bought by clients who haven't paid are held in the CUSPA account. When the client pays, click **Release**. Shares unpaid beyond the allowed days are sold as per the rules.
 
 ## eod-close
-title: Close the day
+title: Close the day (equity and commodity)
 screen: dashboard
 roles: Ops checker
-ask: close the day; end of day; eod close; run eod; why can't i close the day; day close failed; eod not completing; close day with exceptions
+ask: close the day; end of day; eod close; run eod; why can't i close the day; day close failed; eod not completing; close day with exceptions; close commodity; mcx close; commodity close; close equity; mcx trades late; mcx closes at night
 check: eod
-related: previous-day-open, recon-breaks, contract-notes, margin-shortfall
+related: previous-day-open, recon-breaks, contract-notes, margin-shortfall, backups
 
-On the [[dashboard|Dashboard]], click **Run EOD close**. Ledgerline checks:
+The day closes in two parts, because MCX trades until 23:30 (23:55 from November to March) while NSE and BSE stop in the afternoon:
+
+- **Equity** (NSE and BSE: cash, F&O, currency) in the evening, once their files are in.
+- **Commodity** (MCX) after its session, usually the next morning when MCX's files arrive. Commodity trades get their own contract note.
+
+On the [[dashboard|Dashboard]], click **Run EOD close**. Each part shows its own checks, counting only its own trades:
 
 1. Exchange and OMS files loaded ([[files|Files]])
 2. Every reconciliation break resolved ([[recon|Trade reconciliation]])
 3. Bills posted, and carried futures marked to market ([[billing|Billing]])
 4. Contract notes delivered ([[notes|Contract notes]])
-5. No unaddressed margin breaches ([[rms|RMS & limits]])
+5. No unaddressed margin breaches for clients trading there ([[rms|RMS & limits]])
 6. Trial balance agrees and client funds are segregated ([[ledger|Ledger]])
 
-If a check fails and there's a genuine reason (say, a holiday segment with no file), close anyway with a note explaining why. The note is kept in the audit trail. Closing needs an **Ops checker**.
+Click **Close equity** or **Close commodity**. Each close carries that part's positions to its next trading day and is followed by a backup ([[backups|Backups]]). The day counts as closed once every part that traded is closed; the next day's work waits for both.
 
-Closing the day also starts the firm's backup (see [[backups|Backups]]).
+If a check fails for a genuine reason, close with a note explaining why; it is kept in the audit trail. Closing needs an **Ops checker**. On Autopilot, equity closes with the end-of-day stage and commodity at 07:00 the next morning.
 
 ## previous-day-open
 title: Fix "close the previous day first"

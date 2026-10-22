@@ -30,7 +30,8 @@ import (
 // should act, a due time and, where possible, the action already prepared.
 // Items close themselves when the condition clears.
 //
-// Stages run from the scheduler: BOD, intraday, pre-close, EOD, and monthly.
+// Stages run from the scheduler: BOD, intraday, pre-close, EOD (with the
+// equity close), commodity (the morning after an MCX session) and monthly.
 
 const (
 	cAutoPol  = "autopol"
@@ -87,7 +88,8 @@ var AutoDefs = []AutoDef{
 	{"change_otp", "Clients", "Contact changes verified by OTP", "Email and mobile changes from the portal are applied once the client enters the code sent to the new contact; bank, address and nomination changes need a person.", "event", ModeAuto, "", ModeAuto, nil, 10},
 	{"service", "Clients", "Service requests and complaints", "Fulfils 'contract note or statement not received' requests by resending them, assigns complaints in turn, and escalates complaints close to their due date.", "event", ModeAuto, "Complaints are resolved by a person; only service requests are closed automatically.", ModeAuto, nil, 25},
 	{"leads", "Clients", "Lead follow-ups", "Queues every lead whose follow-up is due, for its owner.", "bod", ModeAuto, "", ModeAuto, nil, 10},
-	{"day_close", "Operations", "Day close", "Closes the day and carries positions forward when every end-of-day check passes; otherwise queues what is blocking.", "eod", ModeAuto, "", ModeAuto, nil, 15},
+	{"day_close", "Operations", "Equity close", "Closes the day's equity part (NSE and BSE) and carries its positions forward when every check passes; otherwise queues what is blocking.", "eod", ModeAuto, "", ModeAuto, nil, 15},
+	{"commodity_close", "Operations", "Commodity close", "The morning after an MCX session: reconciles, bills and settles the commodity trades, sends their contract notes, then closes the commodity part when every check passes; otherwise queues what is blocking.", "commodity", ModeAuto, "", ModeAuto, nil, 20},
 	{"monthly", "Accounts", "Month-end postings", "Posts interest on debit balances, MTF interest, DP bills and AP payouts for the month just ended.", "monthly", ModeAuto, "", ModeSuggest, nil, 60},
 	{"ins_tax_harvest", "Client insights", "Tax-loss harvesting", "From mid-January to the last day that settles in the financial year: clients whose open losses would cut tax on gains already booked this year, or who can still book long-term gains within the ₹1.25 lakh exemption. A reminder goes a week before the last day.", "eod", ModeAuto, "", ModeAuto, map[string]string{"from": "01-15", "min_saving": "1000", "remind_days": "7"}, 20},
 	{"ins_buyback", "Client insights", "Buy-back eligibility", "Holders of shares in an open buy-back priced above the market who have not tendered, with their category and entitlement; a reminder two days before it closes.", "eod", ModeAuto, "", ModeAuto, nil, 15},
@@ -438,7 +440,7 @@ func init() {
 		"payouts": autoPayouts, "payout_batch": autoPayoutBatch, "recon": autoRecon, "billing": autoBilling, "settlement": autoSettlement,
 		"notes": autoNotes, "margin_calls": autoMarginCalls, "square_off": autoSquareOff, "mtf_liquidation": autoMTFLiquidation,
 		"penalties": autoPenalties, "reports": autoReports, "surveillance": autoSurveillance, "nri": autoNRI, "kyc": autoKYC,
-		"inactive": autoInactive, "service": autoService, "leads": autoLeads, "day_close": autoDayClose, "monthly": autoMonthly, "ras": autoRAS,
+		"inactive": autoInactive, "service": autoService, "leads": autoLeads, "day_close": autoDayClose, "commodity_close": autoCommodityClose, "monthly": autoMonthly, "ras": autoRAS,
 		"ins_tax_harvest": autoTaxHarvest, "ins_buyback": autoBuyBack, "ins_fo_expiry": autoFOExpiry, "ins_advance_tax": autoAdvanceTax,
 		"ins_corp_action": autoCorpAction, "ins_idle_funds": autoIdleFunds, "ins_pledge_margin": autoPledgeMargin, "ins_dormant": autoDormant,
 		"ins_outcomes": autoInsightOutcomes, "compliance": autoCompliance, "deposits": autoDeposits,
@@ -462,9 +464,19 @@ func (o *Ops) RunStage(ctx context.Context, tenant, actor, date, stage, only str
 	if date == "" {
 		date = o.businessDate(ctx, tenant)
 	}
+	// The commodity stage works on the last MCX session, whose trades
+	// arrive after midnight: it re-runs the trade pipeline for that date
+	// (each step is safe to repeat and picks up only what is new), then
+	// closes the commodity part.
+	also := map[string]bool{}
+	if stage == "commodity" && only == "" {
+		for _, id := range []string{"intake", "recon", "billing", "settlement", "notes"} {
+			also[id] = true
+		}
+	}
 	var out []AutoRun
 	for _, d := range AutoDefs {
-		if (only != "" && d.ID != only) || (only == "" && d.Stage != stage) {
+		if (only != "" && d.ID != only) || (only == "" && d.Stage != stage && !also[d.ID]) {
 			continue
 		}
 		fn := autoFns[d.ID]
@@ -564,7 +576,7 @@ func (o *Ops) Autopilot(ctx context.Context, tenant, date string) (AutopilotView
 	v.Scheduled = o.AutopilotScheduled(ctx, tenant)
 	v.Edition = o.EditionStatus(ctx, tenant)
 	js, _ := docs.List[Job](ctx, o.Docs, tenant, cJob, "")
-	for _, st := range []struct{ id, stage, name string }{{"JOB-AP-BOD", "bod", "Start of day"}, {"JOB-AP-MID", "intraday", "Intraday"}, {"JOB-AP-PRE", "preclose", "Pre-close"}, {"JOB-AP-EOD", "eod", "End of day"}, {"JOB-AP-MON", "monthly", "Month end"}} {
+	for _, st := range []struct{ id, stage, name string }{{"JOB-AP-BOD", "bod", "Start of day"}, {"JOB-AP-MID", "intraday", "Intraday"}, {"JOB-AP-PRE", "preclose", "Pre-close"}, {"JOB-AP-EOD", "eod", "End of day"}, {"JOB-AP-COM", "commodity", "Commodity close"}, {"JOB-AP-MON", "monthly", "Month end"}} {
 		row := map[string]string{"stage": st.stage, "name": st.name, "at": ""}
 		for _, j := range js {
 			if j.ID == st.id {
@@ -1266,33 +1278,44 @@ func autoLeads(r *runCtx) error {
 	return nil
 }
 
-func autoDayClose(r *runCtx) error {
+func autoDayClose(r *runCtx) error { return autoClosePart(r, PartEquity, r.date+" 23:00") }
+
+// autoCommodityClose runs on the morning after an MCX session, for that
+// session's date (see RunStage): the day's commodity files are in by now.
+func autoCommodityClose(r *runCtx) error { return autoClosePart(r, PartCommodity, r.date+" 11:00") }
+
+func autoClosePart(r *runCtx, part, due string) error {
 	st, err := r.o.EOD(r.ctx, r.tenant, r.date)
 	if err != nil {
 		return err
 	}
-	if st.Closed {
-		r.note("already closed")
+	p := st.part(part)
+	switch {
+	case p == nil || !p.Needed:
+		r.note("nothing to close in %s", part)
+		return nil
+	case p.Closed:
+		r.note("%s already closed", part)
 		return nil
 	}
 	var bad []string
-	for _, c := range st.Checks {
+	for _, c := range p.Checks {
 		if !c.OK {
 			bad = append(bad, c.Name+": "+c.Detail)
 		}
 	}
-	if len(bad) > 0 || st.Previous != "" {
-		if st.Previous != "" {
-			bad = append(bad, st.Previous)
+	if len(bad) > 0 || p.Previous != "" {
+		if p.Previous != "" {
+			bad = append(bad, p.Previous)
 		}
-		r.queue("close", "Day "+r.date+" cannot close yet", strings.Join(bad, "; "), "", RoleChecker, "dashboard", r.date+" 23:00", nil)
+		r.queue("close-"+part, fmt.Sprintf("%s close of %s cannot happen yet", p.Name, r.date), strings.Join(bad, "; "), "", RoleChecker, "dashboard", due, nil)
 		return nil
 	}
-	if _, err := r.o.CloseDay(r.ctx, r.tenant, SystemActor, r.date, ""); err != nil {
+	if _, err := r.o.ClosePart(r.ctx, r.tenant, SystemActor, r.date, part, ""); err != nil {
 		return err
 	}
 	r.done++
-	r.note("closed; positions carried forward")
+	r.note("%s closed; positions carried forward", part)
 	return nil
 }
 

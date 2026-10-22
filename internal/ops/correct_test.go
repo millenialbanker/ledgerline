@@ -57,7 +57,7 @@ func TestCorrectBillAndReviseNote(t *testing.T) {
 	if res.Note == nil || res.Note.Replaces != before.No || res.Note.No == before.No || res.Note.Revision != 1 || res.Sent != "Sent" {
 		t.Fatalf("note: %+v", res.Note)
 	}
-	html, _ := o.RenderNote(ctx, T, D, u)
+	html, _ := o.RenderNote(ctx, T, D, u, "")
 	if !strings.Contains(string(html), "REVISED CONTRACT NOTE") || !strings.Contains(string(html), before.No) {
 		t.Fatal("revised note does not say what it replaces")
 	}

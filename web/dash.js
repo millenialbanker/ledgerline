@@ -55,7 +55,7 @@ const DW = {
         <div class="${st(d.billed)}"><small>Billing</small><b>${d.billed ? 'Bills posted' : 'Not billed'}</b><span>${d.billed ? 'Ledger updated' : 'After reconciliation'}</span></div>
         <div class="${breach ? 'alert' : 'live'}"><small>RMS</small><b>${breach ? breach + ' breaches' : 'Limits live'}</b><span>${d.risk.WithMargin || 0} clients with margin</span></div>
         <div class="${st(d.notes.total && sent === d.notes.total, false)}"><small>Contract notes</small><b>${d.notes.total ? sent + ' of ' + d.notes.total + ' sent' : 'Not generated'}</b><span>${d.notes.Bounced ? d.notes.Bounced + ' bounced' : 'Within 24 hours'}</span></div>
-        <div class="${d.eod.closed ? 'done' : 'pend'}"><small>EOD</small><b>${d.eod.closed ? 'Closed ' + esc(d.eod.closed_at) : 'Open'}</b><span>Pay-in ${fmtDate(d.extra.pay_in)}</span></div></div>`;
+        <div class="${d.eod.closed ? 'done' : 'pend'}"><small>EOD</small><b>${eodStatus(d.eod).replace(/^./, c => c.toUpperCase())}</b><span>Pay-in ${fmtDate(d.extra.pay_in)}</span></div></div>`;
     } },
   'kpi-trades': { t: 'Exchange trades', about: 'Trades in today’s exchange files and the turnover.', w: 2, h: 2, mw: 2, mh: 2, go: 'files',
     kpi: d => ['Exchange trades', nf(d.trades), cmp(d.turnover) + ' turnover'] },
