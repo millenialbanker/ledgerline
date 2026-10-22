@@ -21,6 +21,8 @@ type SecurityStatus struct {
 	Covers      []string          `json:"covers"`
 	InClear     []string          `json:"in_clear"`
 	Audit       *vault.AuditCheck `json:"audit,omitempty"`
+	IndiaOnly   bool              `json:"india_only"`
+	Residency   []ResidencyLine   `json:"residency"`
 }
 
 func (o *Ops) vaultAudit() *vault.Audit {
@@ -34,7 +36,7 @@ func (o *Ops) Security(ctx context.Context, tenant, actor string, verify bool) (
 	if err := o.require(ctx, tenant, actor, "view data protection", RoleCompliance); err != nil {
 		return SecurityStatus{}, err
 	}
-	s := SecurityStatus{KeyVersions: []int{}, Covers: []string{}, InClear: []string{}}
+	s := SecurityStatus{KeyVersions: []int{}, Covers: []string{}, InClear: []string{}, IndiaOnly: o.Residency.IndiaOnly, Residency: o.ResidencyLines()}
 	va := o.vaultAudit()
 	if va == nil {
 		s.KeySource = "Not encrypted: the server was started without data keys."

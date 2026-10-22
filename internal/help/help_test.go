@@ -194,6 +194,9 @@ func TestQuestions(t *testing.T) {
 		{"enter a DIS slip", "", "dis"},
 		{"tender shares in buyback", "", "buyback"},
 		{"what is in my work queue", "", "work-queue"},
+		{"is our data stored in India", "", "data-in-india"},
+		{"why is the autopilot screen missing", "", "editions"},
+		{"what does full autopilot change", "", "editions"},
 	}
 	fails := 0
 	for _, c := range cases {

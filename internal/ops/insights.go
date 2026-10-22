@@ -937,6 +937,9 @@ func (o *Ops) Insights(ctx context.Context, tenant, date string, scope func(stri
 	v := InsightsView{Date: date, Kinds: InsightKinds, Items: []Insight{}, Counts: map[string]int{}, Policies: map[string]string{}}
 	for _, k := range InsightKinds {
 		_, mode, _ := o.policy(ctx, tenant, "ins_"+k.ID)
+		if o.manual(ctx, tenant) {
+			mode = "Manual"
+		}
 		v.Policies[k.ID] = mode
 	}
 	all, err := docs.List[Insight](ctx, o.Docs, tenant, cInsight, "INS-")
@@ -1065,6 +1068,9 @@ func (o *Ops) FindInsights(ctx context.Context, tenant, actor, date string) (int
 	n := 0
 	for _, k := range InsightKinds {
 		d, mode, params := o.policy(ctx, tenant, "ins_"+k.ID)
+		if o.manual(ctx, tenant) {
+			mode = ModeSuggest // Manual edition: found on request, every message waits for a person
+		}
 		if mode == ModeOff {
 			continue
 		}

@@ -180,3 +180,33 @@ ask: sample data; demo data; practice; test data; load sample day; sample week; 
 related: daily-routine
 
 On a development server, the [[dashboard|Dashboard]] offers **Load sample trading day** (20 sample files for one day) and **Run a sample week**. **Run a sample day on autopilot** on [[autopilot|Autopilot]] shows the automation end to end. Sample data never appears on a production server.
+
+## editions
+title: Which edition are we on, and what does it change?
+screen: settings
+roles: Admin
+ask: edition; manual edition; autopilot edition; full autopilot; upgrade edition; why is autopilot missing; no autopilot screen; automation not available
+related: autopilot, scheduled-jobs
+
+Your edition is shown under the firm name in the sidebar and on [[settings|Settings]]. Your Ledgerline provider sets it.
+
+- **Manual:** every step is a person's click. There's no Autopilot screen, no work queue and nothing runs on a timer; jobs can be run by hand with **Run now**.
+- **Autopilot:** routine work runs by itself where it's safe; people are asked whenever judgement or approval is needed.
+- **Full autopilot:** everything runs automatically at the most the rules allow. People still do what the regulations reserve for them: activating and reactivating clients, surveillance decisions and STRs, verifying physical slips, client code modifications, bill corrections and overrides, bank, address and nomination changes, MTF enrolment, PMLA risk categories and firm vouchers.
+
+Maker-checker and every rule are the same in all three. To change edition, ask your provider.
+
+## data-in-india
+title: Does our data stay in India?
+screen: audit
+roles: Compliance officer, Admin
+ask: data in india; data localisation; data residency; where is data stored; data sovereignty; cscrf cloud; is data sent abroad; india only mode
+related: audit-seals
+
+Open [[audit|Audit trail]] and click **Check seals**. The Data protection panel lists **where data is kept and sent**, line by line: hosting, keys, pages, Ledgy, account-opening checks, messaging. It also shows whether **India-only mode** is on.
+
+- Ledgerline keeps everything in its own database and serves its own pages and fonts. Browsers contact no other site.
+- Data leaves only through providers you connect. Each is listed with whether it is in India.
+- With India-only mode on, the server refuses to start with a hosting region outside India or with Ledgy's AI phrasing (which uses Anthropic's API in the USA).
+
+Hosting, backups and the standby copy must also be in an Indian region. That's set up by whoever runs the server.

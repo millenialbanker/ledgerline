@@ -1,3 +1,13 @@
+/* IBM Plex (SIL Open Font License, web/fonts/LICENSE.txt), served by Ledgerline itself */
+@font-face{font-family:'IBM Plex Sans';font-weight:400;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexSans-Regular.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Sans';font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexSans-Medium.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Sans';font-weight:600;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexSans-SemiBold.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Sans Condensed';font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexSansCondensed-Medium.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Sans Condensed';font-weight:600;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexSansCondensed-SemiBold.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Sans Condensed';font-weight:700;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexSansCondensed-Bold.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-weight:400;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexMono-Regular.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexMono-Medium.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-weight:600;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexMono-SemiBold.woff2) format('woff2')}
 /* Layout: one narrow column for a phone, firm header, step rail, one card per step */
 :root{
   --bg:#F2F3EF; --panel:#FFFFFF; --sunk:#EAECE6; --line:#DADDD5; --ink:#16201B; --ink2:#525D57;

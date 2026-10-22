@@ -145,16 +145,30 @@ func autoDef(id string) (AutoDef, bool) {
 func (o *Ops) policy(ctx context.Context, tenant, id string) (AutoDef, string, map[string]string) {
 	d, _ := autoDef(id)
 	p, _, err := docs.Get[AutoPolicy](ctx, o.Docs, tenant, cAutoPol, id)
+	edition, since := o.Edition(ctx, tenant)
 	mode := d.Default
+	if edition == EditionFull {
+		// Full autopilot: everything at the most the rules allow, unless
+		// the firm turned an automation down since the edition began.
+		mode = d.Cap
+		if mode == ModeHuman {
+			mode = ModeOff
+		}
+	}
 	params := map[string]string{}
 	for k, v := range d.Params {
 		params[k] = v
 	}
 	if err == nil {
-		mode = p.Mode
+		if edition != EditionFull || !savedBefore(p.At, since) {
+			mode = p.Mode
+		}
 		for k, v := range p.Params {
 			params[k] = v
 		}
+	}
+	if edition == EditionManual {
+		mode = ModeOff
 	}
 	if modeRank[mode] > modeRank[d.Cap] {
 		mode = d.Cap
@@ -167,6 +181,9 @@ func (o *Ops) policy(ctx context.Context, tenant, id string) (AutoDef, string, m
 func (o *Ops) SetAutoPolicy(ctx context.Context, tenant, actor string, p AutoPolicy) (AutoPolicy, error) {
 	if err := o.require(ctx, tenant, actor, "Changing automation", RoleAdmin, RoleCompliance); err != nil {
 		return p, err
+	}
+	if o.manual(ctx, tenant) {
+		return p, errManualEdition
 	}
 	d, ok := autoDef(p.ID)
 	if !ok {
@@ -202,7 +219,7 @@ func (o *Ops) SetAutoPolicy(ctx context.Context, tenant, actor string, p AutoPol
 			return p, invalid("time must be HH:MM")
 		}
 	}
-	p.By, p.At = actor, o.now().Format(time.RFC3339)
+	p.By, p.At = actor, o.now().Format(time.RFC3339Nano)
 	if err := docs.Upsert(ctx, o.Docs, tenant, cAutoPol, p.ID, p, actor); err != nil {
 		return p, err
 	}
@@ -436,6 +453,12 @@ func (o *Ops) RunStage(ctx context.Context, tenant, actor, date, stage, only str
 			return nil, err
 		}
 	}
+	if o.manual(ctx, tenant) {
+		if actor == SystemActor {
+			return nil, nil
+		}
+		return nil, errManualEdition
+	}
 	if date == "" {
 		date = o.businessDate(ctx, tenant)
 	}
@@ -479,6 +502,7 @@ func (o *Ops) RunStage(ctx context.Context, tenant, actor, date, stage, only str
 
 // AutopilotView is the autopilot screen.
 type AutopilotView struct {
+	Edition   EditionView         `json:"edition"`
 	Date      string              `json:"date"`
 	Policies  []AutoPolicyView    `json:"policies"`
 	Work      []WorkItem          `json:"work"`
@@ -538,6 +562,7 @@ func (o *Ops) Autopilot(ctx context.Context, tenant, date string) (AutopilotView
 		v.STP = float64(v.Done) * 100 / float64(v.Done+v.Queued)
 	}
 	v.Scheduled = o.AutopilotScheduled(ctx, tenant)
+	v.Edition = o.EditionStatus(ctx, tenant)
 	js, _ := docs.List[Job](ctx, o.Docs, tenant, cJob, "")
 	for _, st := range []struct{ id, stage, name string }{{"JOB-AP-BOD", "bod", "Start of day"}, {"JOB-AP-MID", "intraday", "Intraday"}, {"JOB-AP-PRE", "preclose", "Pre-close"}, {"JOB-AP-EOD", "eod", "End of day"}, {"JOB-AP-MON", "monthly", "Month end"}} {
 		row := map[string]string{"stage": st.stage, "name": st.name, "at": ""}

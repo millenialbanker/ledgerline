@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"ledgerline/internal/app"
@@ -209,6 +210,14 @@ type Ops struct {
 	KYC KYCProvider
 	// LedgyAI, when set, phrases Ledgy's answers (see Settings.LedgyAI).
 	LedgyAI LedgyWriter
+	// EditionOf is each firm's edition (manual, autopilot or full), set by
+	// the provider; DefaultEdition applies to firms not listed.
+	// Residency is where the server says it is hosted (see residency.go).
+	Residency      Residency
+	EditionOf      map[string]string
+	DefaultEdition string
+	edMu           sync.Mutex
+	edCache        editionCache
 }
 
 // New builds Ops and installs the client-code-modification hook on the app.

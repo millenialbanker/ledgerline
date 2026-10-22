@@ -1,3 +1,13 @@
+/* IBM Plex (SIL Open Font License, web/fonts/LICENSE.txt), served by Ledgerline itself */
+@font-face{font-family:'IBM Plex Sans';font-weight:400;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexSans-Regular.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Sans';font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexSans-Medium.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Sans';font-weight:600;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexSans-SemiBold.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Sans Condensed';font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexSansCondensed-Medium.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Sans Condensed';font-weight:600;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexSansCondensed-SemiBold.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Sans Condensed';font-weight:700;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexSansCondensed-Bold.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-weight:400;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexMono-Regular.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexMono-Medium.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-weight:600;font-style:normal;font-display:swap;src:url(/fonts/IBMPlexMono-SemiBold.woff2) format('woff2')}
 
 /* Layout: dark ink sidebar of grouped modules · sticky status bar carrying trade date and settlement · dense working canvas of tables and state chips */
 :root{
@@ -363,3 +373,9 @@ ul.notes{margin:12px 0 0;padding-left:18px;display:flex;flex-direction:column;ga
 .toast .lg-toastask{color:inherit;text-decoration:underline;margin-left:8px;font-weight:600}
 @media (max-width:640px){.lg-panel{right:0;bottom:0;width:100vw;height:min(100vh,100dvh);border-radius:0}.lg-fab span:last-child{display:none}.lg-fab{padding:8px}}
 @media print{#ledgy{display:none}}
+
+/* Editions */
+.ed-chip{display:inline-block;margin-top:4px;padding:1px 7px;border-radius:999px;font-size:10.5px!important;font-weight:600;letter-spacing:.02em;background:var(--side-hi);color:var(--side-fg)!important}
+.ed-chip.ed-full{background:color-mix(in srgb,var(--good) 30%,var(--side-hi))}
+.ed-chip.ed-manual{background:color-mix(in srgb,var(--warn) 30%,var(--side-hi))}
+.ed-note{margin-bottom:14px}

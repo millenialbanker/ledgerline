@@ -206,6 +206,11 @@ func (o *Ops) Ledgy(ctx context.Context, tenant, actor, q, view, date string) (L
 		ans.Facts = append(ans.Facts, o.ledgyWork(ctx, tenant, role))
 	}
 
+	// Manual edition: Autopilot and scheduled runs are not included.
+	if ans.Article != nil && (ans.Article.Screen == "autopilot" || ans.Article.Screen == "jobs") && o.manual(ctx, tenant) {
+		ans.Facts = append([]LedgyFacts{{Title: "Your edition: Manual", Lines: []LedgyLine{{Text: "Your firm's edition has no Autopilot, work queue or scheduled runs: do each step by hand from its own screen. Jobs can still be run by hand. Ask your provider about the Autopilot editions.", State: "info"}}}}, ans.Facts...)
+	}
+
 	// A live check that answers the question is an answer, with the
 	// article that goes with it.
 	if !ans.Confident && len(ans.Facts) > 0 {

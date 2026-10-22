@@ -257,6 +257,7 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/mf", s.mf, false)
 	R("GET /v1/ccm", s.ccm, false)
 	R("POST /v1/recon/breaks/{id}/ccm", s.raiseCCM, true)
+	R("GET /v1/edition", s.edition, false)
 	R("GET /v1/eod", s.eod, false)
 	R("POST /v1/eod/close", s.closeDay, true)
 	R("GET /v1/journal", s.journal, false)
@@ -265,6 +266,7 @@ func (s *Server) opsRoutes() {
 		R("POST /v1/dev/sample", s.loadSample, true)
 		R("GET /v1/dev/sample", s.sampleStatus, false)
 		R("POST /v1/dev/gateway-payment", s.devGatewayPayment, true)
+		R("POST /v1/dev/edition", s.devEdition, true)
 	}
 }
 
@@ -305,7 +307,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		}
 		us = mine
 	}
-	writeJSON(w, 200, map[string]any{"auth": auth, "tenant": tenant(r), "actor": actor(r), "role": role, "users": us, "roles": ops.Roles, "firm": set.Firm, "dev": s.dev, "member_codes": set.MemberCodes, "holidays": set.Holidays, "sample_rates": s.app.Schedule.Sample, "schedule": s.app.Schedule.Version, "ledgy_ai": s.ops.LedgyAI != nil})
+	writeJSON(w, 200, map[string]any{"auth": auth, "tenant": tenant(r), "actor": actor(r), "role": role, "users": us, "roles": ops.Roles, "firm": set.Firm, "dev": s.dev, "member_codes": set.MemberCodes, "holidays": set.Holidays, "sample_rates": s.app.Schedule.Sample, "schedule": s.app.Schedule.Version, "ledgy_ai": s.ops.LedgyAI != nil, "edition": s.ops.EditionStatus(r.Context(), tenant(r))})
 }
 
 func (s *Server) users(w http.ResponseWriter, r *http.Request) {
@@ -3155,4 +3157,26 @@ func (s *Server) ledgyFeedback(w http.ResponseWriter, r *http.Request) {
 func (s *Server) ledgyGaps(w http.ResponseWriter, r *http.Request) {
 	v, err := s.ops.LedgyGaps(r.Context(), tenant(r), actor(r))
 	ok(w, v, err)
+}
+
+func (s *Server) edition(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, s.ops.EditionStatus(r.Context(), tenant(r)))
+}
+
+// devEdition switches the firm's edition on a development server, to try
+// each one. In production the provider sets editions in configuration.
+func (s *Server) devEdition(w http.ResponseWriter, r *http.Request) {
+	var b struct{ Edition string }
+	if !decode(w, r, &b) {
+		return
+	}
+	if role, _ := s.ops.RoleOf(r.Context(), tenant(r), actor(r)); role != ops.RoleAdmin {
+		fail(w, fmt.Errorf("%w: only an Admin can switch the edition", ops.ErrForbidden), nil)
+		return
+	}
+	if err := s.ops.SetEdition(tenant(r), b.Edition); err != nil {
+		fail(w, err, nil)
+		return
+	}
+	writeJSON(w, 200, s.ops.EditionStatus(r.Context(), tenant(r)))
 }

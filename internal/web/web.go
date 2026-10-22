@@ -41,7 +41,7 @@ func Handler(cfg Config) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")
-		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'")
+		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'")
 	}
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		secure(w)
@@ -61,7 +61,7 @@ func Handler(cfg Config) http.Handler {
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")
 		h.Set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()")
-		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'")
+		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'")
 		h.Set("Content-Type", "text/html; charset=utf-8")
 		h.Set("Cache-Control", "no-cache")
 		w.Write(open)
@@ -79,6 +79,24 @@ func Handler(cfg Config) http.Handler {
 			w.Write(b)
 		})
 	}
+	// Fonts are served from here, not from a font service, so a browser
+	// using Ledgerline talks to no one but this server.
+	mux.HandleFunc("GET /fonts/{name}", func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		if name != path.Base(name) || !strings.HasSuffix(name, ".woff2") {
+			http.NotFound(w, r)
+			return
+		}
+		b, err := fs.ReadFile(ledgerline.FS, "web/fonts/"+name)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		secure(w)
+		w.Header().Set("Content-Type", "font/woff2")
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		w.Write(b)
+	})
 	mux.HandleFunc("GET /ui/config", func(w http.ResponseWriter, r *http.Request) {
 		secure(w)
 		w.Header().Set("Content-Type", "application/json")

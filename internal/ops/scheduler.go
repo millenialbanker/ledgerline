@@ -147,6 +147,12 @@ func (o *Ops) SaveJob(ctx context.Context, tenant, actor string, j Job) (Job, er
 	if err := o.require(ctx, tenant, actor, "Scheduling jobs", RoleAdmin); err != nil {
 		return j, err
 	}
+	if o.manual(ctx, tenant) {
+		if j.Kind == "autopilot" {
+			return j, errManualEdition
+		}
+		j.Active = false // Manual edition: jobs are run by hand only
+	}
 	known := false
 	for _, k := range JobKinds {
 		if k.Kind == j.Kind {
@@ -207,6 +213,16 @@ func (o *Ops) Jobs(ctx context.Context, tenant string) ([]Job, []JobRun, error) 
 		return nil, nil, err
 	}
 	js = liveJobs(js)
+	if o.manual(ctx, tenant) {
+		out := js[:0]
+		for _, j := range js {
+			if j.Kind != "autopilot" {
+				j.Active = false
+				out = append(out, j)
+			}
+		}
+		js = out
+	}
 	set, _ := o.Settings(ctx, tenant)
 	now := o.now()
 	for i := range js {
@@ -235,6 +251,9 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 		return 0, err
 	}
 	js = liveJobs(js)
+	if o.manual(ctx, tenant) {
+		return 0, nil // Manual edition: nothing runs on a timer
+	}
 	set, _ := o.Settings(ctx, tenant)
 	now = now.In(ist)
 	today, hm := now.Format("2006-01-02"), now.Format("15:04")
@@ -420,8 +439,11 @@ func (o *Ops) runJob(ctx context.Context, tenant string, j Job, date string) (st
 
 // SeedJobs installs the usual schedule, switched off, for a new firm.
 func (o *Ops) SeedJobs(ctx context.Context, tenant string) error {
-	if js, _ := docs.List[Job](ctx, o.Docs, tenant, cJob, ""); len(js) > 0 {
-		return nil
+	js, _ := docs.List[Job](ctx, o.Docs, tenant, cJob, "")
+	for _, j := range js {
+		if !strings.HasPrefix(j.ID, "JOB-AP-") {
+			return nil // the firm's schedule exists (the Autopilot jobs alone don't count)
+		}
 	}
 	seed := []Job{
 		{Name: "Debit reminders", Kind: "debit_reminders", At: "10:00", When: "business", Params: map[string]string{"min_days": "3"}},
@@ -484,22 +506,33 @@ func (o *Ops) SetAutopilotSchedule(ctx context.Context, tenant, actor string, on
 	if err := o.require(ctx, tenant, actor, "Switching the autopilot schedule", RoleAdmin); err != nil {
 		return 0, err
 	}
-	if err := o.seedAutopilotJobs(ctx, tenant); err != nil {
+	if o.manual(ctx, tenant) {
+		return 0, errManualEdition
+	}
+	if err := o.setAutopilotJobs(ctx, tenant, on); err != nil {
 		return 0, err
 	}
-	n := 0
-	for _, id := range []string{"JOB-AP-BOD", "JOB-AP-MID", "JOB-AP-PRE", "JOB-AP-EOD", "JOB-AP-MON"} {
-		if _, err := docs.Update(ctx, o.Docs, tenant, cJob, id, actor, func(j *Job) error { j.Active = on; return nil }); err != nil {
-			return n, err
-		}
-		n++
-	}
 	o.log(ctx, tenant, actor, "autopilot.schedule", "", map[string]any{"on": on})
-	return n, nil
+	return 5, nil
+}
+
+func (o *Ops) setAutopilotJobs(ctx context.Context, tenant string, on bool) error {
+	if err := o.seedAutopilotJobs(ctx, tenant); err != nil {
+		return err
+	}
+	for _, id := range []string{"JOB-AP-BOD", "JOB-AP-MID", "JOB-AP-PRE", "JOB-AP-EOD", "JOB-AP-MON"} {
+		if _, err := docs.Update(ctx, o.Docs, tenant, cJob, id, SystemActor, func(j *Job) error { j.Active = on; return nil }); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // AutopilotScheduled reports whether the autopilot jobs are on.
 func (o *Ops) AutopilotScheduled(ctx context.Context, tenant string) bool {
+	if o.manual(ctx, tenant) {
+		return false
+	}
 	j, _, err := docs.Get[Job](ctx, o.Docs, tenant, cJob, "JOB-AP-EOD")
 	return err == nil && j.Active
 }

@@ -15,6 +15,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -128,6 +129,34 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 
 	a := app.New(stores, reg, sched)
 	o := ops.New(a)
+	// Editions: how much runs by itself, per firm (manual, autopilot, full).
+	// Set by the provider: LEDGERLINE_EDITION for every firm, and
+	// LEDGERLINE_EDITIONS="firm:edition,..." for particular firms.
+	if e := strings.ToLower(strings.TrimSpace(os.Getenv("LEDGERLINE_EDITION"))); e != "" {
+		if _, err := ops.ParseEditions("x:" + e); err != nil {
+			return fmt.Errorf("LEDGERLINE_EDITION: %w", err)
+		}
+		o.DefaultEdition = e
+	}
+	if spec := os.Getenv("LEDGERLINE_EDITIONS"); spec != "" {
+		m, err := ops.ParseEditions(spec)
+		if err != nil {
+			return fmt.Errorf("LEDGERLINE_EDITIONS: %w", err)
+		}
+		o.EditionOf = m
+	}
+	// Where the server is hosted, and India-only mode, which refuses any
+	// connection known to send data outside India.
+	o.Residency = ops.Residency{IndiaOnly: os.Getenv("LEDGERLINE_INDIA_ONLY") == "1", Region: os.Getenv("LEDGERLINE_REGION"), Database: dbHost(dsn)}
+	if o.Residency.IndiaOnly {
+		if o.Residency.Region != "" && !ops.InIndia(o.Residency.Region) {
+			return fmt.Errorf("India-only mode: LEDGERLINE_REGION %q is not a region in India", o.Residency.Region)
+		}
+		if os.Getenv("LEDGERLINE_LEDGY_KEY") != "" {
+			return errors.New("India-only mode: Ledgy's AI phrasing uses Anthropic's API outside India; unset LEDGERLINE_LEDGY_KEY or LEDGERLINE_INDIA_ONLY")
+		}
+		log.Info("India-only mode: no connection outside India is allowed", "region", o.Residency.Region)
+	}
 	// Ledgy can phrase its answers with Claude when a key is configured and
 	// the firm switches it on in Settings. Only the masked question and the
 	// help articles are sent.
@@ -293,4 +322,16 @@ func secure(h http.Handler) http.Handler {
 		}
 		h.ServeHTTP(w, r)
 	})
+}
+
+// dbHost returns the host part of a database URL, without credentials.
+func dbHost(dsn string) string {
+	if dsn == "" {
+		return ""
+	}
+	u, err := url.Parse(dsn)
+	if err != nil || u.Host == "" {
+		return "configured"
+	}
+	return u.Hostname()
 }
