@@ -13,7 +13,7 @@ import (
 )
 
 // Onboarding stages, in order.
-var Stages = []string{"Application", "KYC verification", "In-person verification", "UCC upload", "Active"}
+var Stages = []string{"Application", "KYC verification", "UCC upload", "Active"}
 
 // Segment names.
 var SegmentNames = map[string]string{"CM": "Equity cash", "FO": "Equity F&O", "CD": "Currency", "COM": "Commodity"}
@@ -317,6 +317,9 @@ func (o *Ops) AdvanceStage(ctx context.Context, tenant, actor, ucc string) (Clie
 		if s == c.Status {
 			i = k
 		}
+	}
+	if c.Status == "In-person verification" { // a stage that no longer exists
+		i = 1
 	}
 	if i < 0 || i == len(Stages)-1 {
 		return Client{}, fmt.Errorf("%w: %s is %s and cannot be advanced", ErrState, ucc, c.Status)

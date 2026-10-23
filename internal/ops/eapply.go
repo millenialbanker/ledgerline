@@ -47,6 +47,8 @@ type Application struct {
 	IP      string `json:"ip,omitempty"`
 	Partner string `json:"partner,omitempty"` // authorised person code from the link
 	Lead    string `json:"lead,omitempty"`
+	// Activated is set when Autopilot opened the account on submission.
+	Activated bool `json:"activated,omitempty"`
 
 	Mobile   string             `json:"mobile"`
 	Email    string             `json:"email"`
@@ -85,10 +87,12 @@ type Application struct {
 	Declarations map[string]bool `json:"declarations,omitempty"`
 	WhatsApp     bool            `json:"whatsapp,omitempty"`
 
-	Docs    []AppDoc   `json:"docs"`
-	Checks  []AppCheck `json:"checks"`
-	Steps   []string   `json:"steps"` // steps completed
-	IPVCode string     `json:"ipv_code,omitempty"`
+	Docs   []AppDoc   `json:"docs"`
+	Checks []AppCheck `json:"checks"`
+	Steps  []string   `json:"steps"` // steps completed
+	// DLSession is the DigiLocker session at the KYC plugin, while the
+	// applicant is away giving consent.
+	DLSession string `json:"dl_session,omitempty"`
 
 	FormHash string `json:"form_hash,omitempty"`
 	ESigned  string `json:"esigned,omitempty"`
@@ -122,7 +126,12 @@ type AppCheck struct {
 }
 
 // Application steps in order.
-var AppSteps = []string{"contact", "identity", "address", "bank", "profile", "nominee", "photo", "ipv", "review"}
+// There is no in-person verification step: Aadhaar and PAN come from
+// DigiLocker with the applicant's consent, and SEBI's KYC circular
+// (SEBI/HO/MIRSD/DOP/CIR/P/2020/73) does not require IPV or VIPV when the
+// KYC is completed through Aadhaar authentication or documents fetched
+// from DigiLocker.
+var AppSteps = []string{"contact", "identity", "address", "bank", "profile", "nominee", "photo", "review"}
 
 // AppDeclarations must all be accepted before signing.
 var AppDeclarations = map[string]string{
@@ -156,7 +165,7 @@ func (manualKYC) manual(what string) AppCheck {
 func (m manualKYC) PAN(string, string, string) AppCheck { return m.manual("PAN") }
 func (m manualKYC) KRA(string) AppCheck                 { return m.manual("KRA search") }
 func (m manualKYC) DigiLocker(*Application) (AppCheck, bool) {
-	return m.manual("DigiLocker"), false
+	return m.manual("Aadhaar (DigiLocker)"), false
 }
 func (m manualKYC) PennyDrop(string, string, string) AppCheck { return m.manual("Bank account") }
 func (m manualKYC) FaceMatch([]byte, []byte) AppCheck         { return m.manual("Face match") }
@@ -185,7 +194,7 @@ func (simKYC) KRA(pan string) AppCheck {
 }
 func (simKYC) DigiLocker(a *Application) (AppCheck, bool) {
 	a.Address, a.City, a.State, a.PIN = "12, 4th Cross, Indiranagar", "Bengaluru", "Karnataka", "560038"
-	return AppCheck{Name: "DigiLocker", Status: "Passed", Detail: "Aadhaar XML fetched with consent: name and date of birth match; address taken from Aadhaar", Provider: "Simulated"}, true
+	return AppCheck{Name: "Aadhaar (DigiLocker)", Status: "Passed", Detail: "e-Aadhaar fetched with consent: name and date of birth match; address taken from Aadhaar; no in-person verification needed", Provider: "Simulated"}, true
 }
 func (simKYC) PennyDrop(account, ifsc, name string) AppCheck {
 	if strings.HasSuffix(account, "0000") {
@@ -226,14 +235,19 @@ type AppConfig struct {
 	Declare  map[string]string `json:"declarations"`
 	Steps    []string          `json:"steps"`
 	DocKinds []string          `json:"doc_kinds"`
+	// DigiLockerRedirect: the applicant is sent to DigiLocker and back
+	// (the KYC plugin is connected).
+	DigiLockerRedirect bool `json:"digilocker_redirect"`
 }
 
 // ApplyConfig describes the firm for the public page.
 func (o *Ops) ApplyConfig(ctx context.Context, tenant string) AppConfig {
 	set, _ := o.Settings(ctx, tenant)
 	return AppConfig{Firm: set.Firm, SEBIReg: set.SEBIReg, Email: set.ComplianceEmail, Provider: o.kyc().Name(), Dev: o.DevCodes, Segments: SegmentNames, Declare: AppDeclarations, Steps: AppSteps,
-		DocKinds: []string{"PAN card", "Address proof", "Photograph", "Signature", "Income proof", "IPV / VIPV record", "Bank proof"}}
+		DocKinds: []string{"PAN card", "Photograph", "Signature", "Income proof", "Bank proof"}, DigiLockerRedirect: isFlow(o.kyc())}
 }
+
+func isFlow(p KYCProvider) bool { _, ok := p.(DigiLockerFlow); return ok }
 
 func tokenHash(id, tok string) string {
 	h := sha256.Sum256([]byte(id + "|" + tok))
@@ -468,24 +482,29 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 			return a, &ValidationError{[]FieldError{{"pan", pc.Detail}}}
 		}
 	case "address":
-		if s.DigiLocker {
-			c, ok := p.DigiLocker(&a)
-			a.setCheck(c, now)
-			if ok {
-				a.AddrSource = "DigiLocker"
-				break
+		// Aadhaar (with the address) and the PAN record come from DigiLocker:
+		// through the KYC plugin when it is connected (the applicant has been
+		// there and back; see StartDigiLocker), or from the provider directly.
+		if fl, ok := p.(DigiLockerFlow); ok {
+			if a.DLSession == "" {
+				return a, invalid("open DigiLocker first: click Fetch from DigiLocker")
 			}
-			return a, invalid("DigiLocker is not connected yet: enter your address and upload a proof")
+			r, err := fl.DigiLockerResult(ctx, a.DLSession)
+			if err != nil {
+				return a, invalid("DigiLocker could not be read: %v", err)
+			}
+			if err := o.applyDigiLocker(ctx, tenant, &a, r, now); err != nil {
+				_ = docs.Upsert(ctx, o.Docs, tenant, cApplication, a.ID, a, "applicant")
+				return a, err
+			}
+			break
 		}
-		d.PIN = strings.TrimSpace(d.PIN)
-		if len(strings.TrimSpace(d.Address)) < 8 || strings.TrimSpace(d.City) == "" || strings.TrimSpace(d.State) == "" || !rePIN.MatchString(d.PIN) {
-			return a, invalid("enter the full address with city, state and a 6-digit PIN code")
+		c, ok := p.DigiLocker(&a)
+		a.setCheck(c, now)
+		if !ok {
+			return a, invalid("online account opening needs DigiLocker, which is not connected yet. Please contact us to open your account")
 		}
-		if !a.hasDoc("Address proof") {
-			return a, invalid("upload an address proof (Aadhaar, passport, voter ID or driving licence)")
-		}
-		a.Address, a.City, a.State, a.PIN, a.AddrSource = strings.TrimSpace(d.Address), strings.TrimSpace(d.City), strings.TrimSpace(d.State), d.PIN, "Uploaded proof"
-		a.setCheck(AppCheck{Name: "Address proof", Status: "Check manually", Detail: "Uploaded proof to be compared with the address given", Provider: "Staff"}, now)
+		a.AddrSource = "DigiLocker"
 	case "bank":
 		d.IFSC = strings.ToUpper(strings.TrimSpace(d.IFSC))
 		d.Account = strings.TrimSpace(d.Account)
@@ -546,30 +565,31 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 			a.NomineeName, a.NomineeRel = "", ""
 		}
 	case "photo":
-		if !a.hasDoc("Photograph") || !a.hasDoc("Signature") || !a.hasDoc("PAN card") {
+		panDL := a.hasDoc("PAN (DigiLocker)")
+		if !a.hasDoc("Photograph") || !a.hasDoc("Signature") || (!panDL && !a.hasDoc("PAN card")) {
+			if panDL {
+				return a, invalid("take a photograph and sign")
+			}
 			return a, invalid("take a photograph, sign, and upload your PAN card")
 		}
+		// The live photograph is compared with the Aadhaar photograph from
+		// DigiLocker (or the PAN card image).
 		ph, _ := o.appDocBytes(ctx, tenant, a, "Photograph")
-		pn, _ := o.appDocBytes(ctx, tenant, a, "PAN card")
-		a.setCheck(p.FaceMatch(ph, pn), now)
-	case "ipv":
-		if !a.hasDoc("IPV / VIPV record") {
-			return a, invalid("record the short video for in-person verification")
+		ref, _ := o.appDocBytes(ctx, tenant, a, "Aadhaar photo (DigiLocker)")
+		if len(ref) == 0 {
+			ref, _ = o.appDocBytes(ctx, tenant, a, "PAN card")
 		}
-		a.setCheck(AppCheck{Name: "In-person verification", Status: "Check manually", Detail: "Video recorded with code " + a.IPVCode + "; staff confirm the person, the code and the documents", Provider: "Staff"}, now)
+		a.setCheck(p.FaceMatch(ph, ref), now)
 	default:
 		return a, invalid("unknown step")
 	}
 	a.done(s.Step)
 	a.Updated = now
-	if s.Step == "identity" && a.IPVCode == "" {
-		a.IPVCode = otpCode()[:4]
-	}
 	return a, docs.Upsert(ctx, o.Docs, tenant, cApplication, a.ID, a, "applicant")
 }
 
 // Allowed file types for applicant uploads.
-var appDocTypes = map[string]bool{"application/pdf": true, "image/jpeg": true, "image/png": true, "video/webm": true, "video/mp4": true}
+var appDocTypes = map[string]bool{"application/pdf": true, "image/jpeg": true, "image/png": true}
 
 // AddAppDoc stores a file the applicant gives. A newer file of the same
 // kind replaces the earlier one.
@@ -586,12 +606,6 @@ func (o *Ops) AddAppDoc(ctx context.Context, tenant, secret, kind, name string, 
 	}
 	limit := MaxDocBytes
 	ct := http.DetectContentType(data)
-	if strings.HasPrefix(ct, "video/") || (kind == "IPV / VIPV record" && bytes.HasPrefix(data, []byte{0x1a, 0x45, 0xdf, 0xa3})) {
-		ct, limit = "video/webm", 12<<20
-		if bytes.Contains(data[:min(len(data), 64)], []byte("ftyp")) {
-			ct = "video/mp4"
-		}
-	}
 	if len(data) == 0 || len(data) > limit {
 		return a, invalid("files must be under %d MB", limit>>20)
 	}
@@ -729,8 +743,8 @@ func (o *Ops) submitApplication(ctx context.Context, tenant string, a Applicatio
 	}
 	c := Client{Name: a.Name, Type: "Individual", PAN: a.PAN, DOB: a.DOB, Mobile: a.Mobile, Email: a.Email, City: a.City, State: a.State, Segments: a.Segments,
 		Risk: "Low", Income: a.Income, RAS: a.RAS, Bank: BankAccount{a.Bank, a.IFSC, a.Account}, Demat: Demat{a.Depository, a.DematID},
-		Nominee: nom, NomineeName: a.NomineeName, KYCRoute: "Online (e-KYC)", IncomeProof: a.hasDoc("Income proof"), RiskDisclosure: true,
-		IPVScheduled: true, WhatsApp: a.WhatsApp, Partner: a.Partner, Tags: []string{"ONLINE"}}
+		Nominee: nom, NomineeName: a.NomineeName, KYCRoute: "Online (Aadhaar via DigiLocker)", IncomeProof: a.hasDoc("Income proof"), RiskDisclosure: true,
+		WhatsApp: a.WhatsApp, Partner: a.Partner, Tags: []string{"ONLINE"}}
 	if c.Demat.Depository == "" {
 		c.Demat.Depository = "CDSL"
 	}
@@ -756,11 +770,17 @@ func (o *Ops) submitApplication(ctx context.Context, tenant string, a Applicatio
 	if a.Lead != "" {
 		_, _ = docs.Update(ctx, o.Docs, tenant, cLead, a.Lead, actor, func(l *Lead) error { l.Stage, l.UCC = "Converted", nc.UCC; return nil })
 	}
-	r := &runCtx{o: o, ctx: ctx, tenant: tenant, date: o.businessDate(ctx, tenant), process: "eapply", keys: map[string]bool{}}
-	r.queue(a.ID, fmt.Sprintf("Online application %s · %s", a.ID, nc.UCC), fmt.Sprintf("%s applied online; %d checks passed, %d to check manually. Verify the documents and the video, then advance the stages.", a.Name, a.count("Passed"), a.count("Check manually")), nc.UCC, RoleChecker, "apps", "", nil)
+	activated := o.autoActivate(ctx, tenant, a, nc.UCC)
+	if activated {
+		a.Activated = true
+		_ = docs.Upsert(ctx, o.Docs, tenant, cApplication, a.ID, a, actor)
+	} else {
+		r := &runCtx{o: o, ctx: ctx, tenant: tenant, date: o.businessDate(ctx, tenant), process: "eapply", keys: map[string]bool{}}
+		r.queue(a.ID, fmt.Sprintf("Online application %s · %s", a.ID, nc.UCC), fmt.Sprintf("%s applied online; %d checks passed, %d to check manually, %d failed. %s", a.Name, a.count("Passed"), a.count("Check manually"), a.count("Failed"), strings.Join(a.blockers(), " ")), nc.UCC, RoleChecker, "apps", "", nil)
+	}
 	set, _ := o.Settings(ctx, tenant)
 	o.sendDirect(ctx, tenant, actor, ChEmail, a.Email, nc.UCC, "eapply.submitted", "Your account application "+a.ID,
-		fmt.Sprintf("Dear %s,\n\nWe have received your application %s to open a trading account. Your client code will be %s once we have verified your details; this usually takes one working day. We will write to you when the account is active.\n\nA copy of the form you signed is attached to your application.\n\n%s", strings.Fields(a.Name)[0], a.ID, nc.UCC, set.Firm))
+		appReceivedText(a, nc.UCC, set.Firm, activated))
 	o.log(ctx, tenant, actor, "eapply.submitted", a.ID, map[string]any{"ucc": nc.UCC})
 	return a, nil, nil
 }

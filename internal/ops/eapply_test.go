@@ -54,7 +54,7 @@ func TestOnlineAccountOpening(t *testing.T) {
 		t.Fatal("minor accepted")
 	}
 	a = step("identity", Application{PAN: "abcpi1234k", Name: "Kavya  Iyer", DOB: "1994-03-02", Gender: "Female", Father: "Ramesh Iyer", Marital: "Single"}, false)
-	if a.PAN != "ABCPI1234K" || a.Name != "Kavya Iyer" || len(a.Checks) != 2 || a.IPVCode == "" {
+	if a.PAN != "ABCPI1234K" || a.Name != "Kavya Iyer" || len(a.Checks) != 2 {
 		t.Fatalf("identity: %+v", a)
 	}
 	a = step("address", Application{}, true)
@@ -79,14 +79,13 @@ func TestOnlineAccountOpening(t *testing.T) {
 	step("profile", Application{Segments: []string{"CM", "FO"}, Income: "10-25 L", Occupation: "Salaried", Experience: "1–5 years", RAS: "Quarterly"}, false)
 	step("nominee", Application{NomineeName: "Ramesh Iyer", NomineeRel: "Father"}, false)
 	a = step("photo", Application{}, false)
+	// No in-person verification step, and no video kind to upload.
 	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "ipv"}); err == nil {
-		t.Fatal("IPV without video")
+		t.Fatal("an ipv step still exists")
 	}
-	webm := append([]byte{0x1a, 0x45, 0xdf, 0xa3}, []byte(strings.Repeat("webm", 50))...)
-	if _, err := o.AddAppDoc(ctx, T, secret, "IPV / VIPV record", "ipv.webm", webm); err != nil {
-		t.Fatal(err)
+	if _, err := o.AddAppDoc(ctx, T, secret, "IPV / VIPV record", "ipv.png", png1); err == nil {
+		t.Fatal("IPV video accepted")
 	}
-	step("ipv", Application{}, false)
 	all := map[string]bool{}
 	for k := range AppDeclarations {
 		all[k] = true
@@ -103,11 +102,12 @@ func TestOnlineAccountOpening(t *testing.T) {
 		t.Fatalf("submit: %+v %v", a, err)
 	}
 	c, _ := o.Client(ctx, T, a.UCC)
-	if c.Status != "KYC verification" || c.KYCRoute != "Online (e-KYC)" || c.Partner != "AP001" || !c.WhatsApp || c.WAConsent == nil || !c.IncomeProof {
+	// Autopilot edition: activation is on Suggest, so a person activates.
+	if c.Status != "KYC verification" || c.KYCRoute != "Online (Aadhaar via DigiLocker)" || c.Partner != "AP001" || !c.WhatsApp || c.WAConsent == nil || !c.IncomeProof {
 		t.Fatalf("client: %+v", c)
 	}
 	ds, _ := o.ClientDocs(ctx, T, a.UCC)
-	if len(ds) != 6 { // income, photo, signature, PAN, video, signed form
+	if len(ds) != 5 { // income, photo, signature, PAN, signed form
 		t.Fatalf("documents: %d", len(ds))
 	}
 	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "nominee", Application: Application{NomineeOptOut: true}}); err == nil {

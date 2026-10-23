@@ -63,3 +63,5 @@ canvas.sig{width:100%;height:150px;touch-action:none;background:#fff}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px}
 .kv dt{color:var(--ink2)}.kv dd{margin:0}
 .foot{font-size:12px;text-align:center}
+
+.m0{margin:0}.acts.start{justify-content:flex-start}

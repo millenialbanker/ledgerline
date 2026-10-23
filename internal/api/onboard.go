@@ -72,6 +72,12 @@ func (s *Server) onboardRoutes() {
 		a, err := s.ops.SaveAppStep(r.Context(), t, r.Header.Get(appHeader), b)
 		ok(w, a.Public(), err)
 	})
+	// The applicant leaves for DigiLocker (through the KYC plugin) and comes
+	// back to /open/<firm>?dl=back, where the page completes the address step.
+	h("POST /onboard/{tenant}/digilocker", func(w http.ResponseWriter, r *http.Request, t string) {
+		url, err := s.ops.StartDigiLocker(r.Context(), t, r.Header.Get(appHeader), s.publicURL(r)+"/open/"+t+"?dl=back")
+		ok(w, map[string]string{"url": url}, err)
+	})
 	h("POST /onboard/{tenant}/doc", func(w http.ResponseWriter, r *http.Request, t string) {
 		data, err := io.ReadAll(io.LimitReader(r.Body, 13<<20))
 		if err != nil {
@@ -151,4 +157,17 @@ func (s *Server) applicationDoc(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Security-Policy", csp)
 	w.Write(b)
+}
+
+// publicURL is where browsers reach this server: LEDGERLINE_PUBLIC_URL, or
+// the request's own host.
+func (s *Server) publicURL(r *http.Request) string {
+	if s.PublicURL != "" {
+		return strings.TrimRight(s.PublicURL, "/")
+	}
+	scheme := "http"
+	if r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host
 }

@@ -99,7 +99,7 @@ var (
 	banks   = [][2]string{{"HDFC Bank", "HDFC"}, {"ICICI Bank", "ICIC"}, {"State Bank of India", "SBIN"}, {"Axis Bank", "UTIB"}, {"Kotak Mahindra Bank", "KKBK"}, {"Bank of Baroda", "BARB"}}
 	corps   = []string{"Brightwater Capital LLP", "Sahyadri Agro Exports Pvt Ltd", "Northline Logistics Pvt Ltd"}
 	incomes = []string{"1-5 L", "5-10 L", "10-25 L", "25 L-1 Cr", ">1 Cr", "<1 L"}
-	stages  = []string{"Application", "KYC verification", "In-person verification", "UCC upload"}
+	stages  = []string{"Application", "KYC verification", "KYC verification", "UCC upload"}
 )
 
 type client struct {

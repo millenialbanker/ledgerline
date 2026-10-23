@@ -7,7 +7,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const KEY = 'll-apply-' + T;
 const store = { get() { try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; } }, set(v) { try { v ? localStorage.setItem(KEY, v) : localStorage.removeItem(KEY); } catch (e) {} } };
 let CFG = null, APP = null, SECRET = store.get(), DEV = {}, ERR = null, BUSY = false, STEP = null;
-const STEP_TITLES = { contact: 'Confirm your mobile and email', identity: 'Your PAN and identity', address: 'Your address', bank: 'Your bank account', profile: 'How you will trade', nominee: 'Nominee', photo: 'Photograph, signature and PAN card', ipv: 'In-person verification', review: 'Review and sign' };
+const STEP_TITLES = { contact: 'Confirm your mobile and email', identity: 'Your PAN and identity', address: 'Aadhaar and address from DigiLocker', bank: 'Your bank account', profile: 'How you will trade', nominee: 'Nominee', photo: 'Photograph and signature', review: 'Review and sign' };
 
 class ApiErr extends Error { constructor(b, st) { super(b?.error?.message || 'Something went wrong (' + st + ')'); this.fields = b?.error?.details?.fields || []; } }
 async function call(method, path, body, raw) {
@@ -63,11 +63,11 @@ const V = {
     <div class="row">${fld('dob', 'Date of birth', APP.dob, 'type="date"')}${sel('gender', 'Gender', ['Male', 'Female', 'Transgender'], APP.gender)}</div>
     <div class="row">${fld('father', "Father's or spouse's name", APP.father)}${sel('marital', 'Marital status', ['Single', 'Married', 'Other'], APP.marital)}</div>
     ${checks(['PAN', 'KRA search'])}<button class="btn pri" id="go">Check my PAN</button>`,
-  address: () => `<p class="dim">Fetch your address from DigiLocker with your Aadhaar, or type it and upload a proof.</p>${checks(['DigiLocker', 'Address proof'])}
-    <button class="btn pri" id="dl">Fetch from DigiLocker</button><p class="dim small" style="margin:0">Or enter it yourself</p>
-    ${fld('address', 'House, street and area', APP.address)}<div class="row">${fld('city', 'City', APP.city)}${fld('state', 'State', APP.state)}</div>${fld('pin', 'PIN code', APP.pin, 'inputmode="numeric" maxlength="6"')}
-    <div class="fld"><label for="f-addr">Address proof (Aadhaar, passport, voter ID or driving licence)</label><input class="in" type="file" id="f-addr" accept="image/*,application/pdf">${hasDoc('Address proof') ? '<span class="small dim">Uploaded ✓</span>' : ''}</div>
-    <button class="btn" id="go">Use this address</button>`,
+  address: () => `<p class="dim">Sign in to DigiLocker with your Aadhaar-linked mobile and allow ${esc(CFG.firm)} to read your Aadhaar and PAN. Your address is taken from Aadhaar, and no video call or office visit is needed.</p>${checks(['Aadhaar (DigiLocker)', 'PAN'])}
+    ${Q.get('dl') === 'back' && !(APP.steps || []).includes('address') ? '<div class="note">Back from DigiLocker: reading your documents…</div>' : ''}
+    <button class="btn pri" id="dl">${(APP.steps || []).includes('address') ? 'Fetch again from DigiLocker' : 'Continue to DigiLocker'}</button>
+    ${(APP.steps || []).includes('address') ? `<dl class="kv"><dt>Address</dt><dd>${esc([APP.address, APP.city, APP.state, APP.pin].filter(Boolean).join(', '))}</dd></dl>` : ''}
+    <p class="dim small m0">No DigiLocker? Create one at digilocker.gov.in with your Aadhaar in a few minutes, then come back here.</p>`,
   bank: () => `<p class="dim">Money is paid out only to this account, and only money from it is accepted. We check it by sending ₹1.</p>
     ${fld('bankname', 'Bank', APP.bank)}<div class="row">${fld('ifsc', 'IFSC', APP.ifsc, 'maxlength="11" autocapitalize="characters"')}${fld('account', 'Account number', APP.account, 'inputmode="numeric" maxlength="18"')}</div>
     ${checks(['Bank account'])}<button class="btn pri" id="go">Verify bank account</button>`,
@@ -81,14 +81,10 @@ const V = {
     <label class="check"><input type="checkbox" id="optout" ${APP.nominee_opt_out ? 'checked' : ''}> <span>I do not wish to nominate anyone</span></label>
     <div class="row">${fld('nname', "Nominee's full name", APP.nominee_name)}${sel('nrel', 'Relationship', ['Spouse', 'Son', 'Daughter', 'Father', 'Mother', 'Brother', 'Sister', 'Other'], APP.nominee_relation)}</div>
     <button class="btn pri" id="go">Continue</button>`,
-  photo: () => `<div class="media"><b>Your photograph</b><p class="dim small" style="margin:0">Face the camera in good light, without glasses or a cap.</p><video id="cam" autoplay playsinline muted width="320" hidden></video><div class="acts" style="justify-content:flex-start"><button class="btn" id="camon">Open camera</button><button class="btn" id="snap" hidden>Take photograph</button><label class="btn">Upload instead<input type="file" id="f-photo" accept="image/*" hidden></label></div>${hasDoc('Photograph') ? '<span class="small dim">Photograph saved ✓</span>' : ''}</div>
-    <div class="media"><b>Your signature</b><canvas class="sig" id="sig" width="600" height="180"></canvas><div class="acts" style="justify-content:flex-start"><button class="btn" id="sigclr">Clear</button><button class="btn" id="sigsave">Save signature</button></div>${hasDoc('Signature') ? '<span class="small dim">Signature saved ✓</span>' : ''}</div>
-    <div class="fld"><label for="f-pan">Photo of your PAN card</label><input class="in" type="file" id="f-pan" accept="image/*,application/pdf">${hasDoc('PAN card') ? '<span class="small dim">Uploaded ✓</span>' : ''}</div>
+  photo: () => `<div class="media"><b>Your photograph</b><p class="dim small m0">Face the camera in good light, without glasses or a cap.</p><video id="cam" autoplay playsinline muted width="320" hidden></video><div class="acts start"><button class="btn" id="camon">Open camera</button><button class="btn" id="snap" hidden>Take photograph</button><label class="btn">Upload instead<input type="file" id="f-photo" accept="image/*" hidden></label></div>${hasDoc('Photograph') ? '<span class="small dim">Photograph saved ✓</span>' : ''}</div>
+    <div class="media"><b>Your signature</b><canvas class="sig" id="sig" width="600" height="180"></canvas><div class="acts start"><button class="btn" id="sigclr">Clear</button><button class="btn" id="sigsave">Save signature</button></div>${hasDoc('Signature') ? '<span class="small dim">Signature saved ✓</span>' : ''}</div>
+    ${hasDoc('PAN (DigiLocker)') ? '' : `<div class="fld"><label for="f-pan">Photo of your PAN card (your DigiLocker had no PAN record)</label><input class="in" type="file" id="f-pan" accept="image/*,application/pdf">${hasDoc('PAN card') ? '<span class="small dim">Uploaded ✓</span>' : ''}</div>`}
     ${checks(['Face match'])}<button class="btn pri" id="go">Continue</button>`,
-  ipv: () => `<p class="dim">Record a short video: look at the camera, hold up your PAN card, and say this code aloud.</p><div class="code">${esc(APP.ipv_code || '----')}</div>
-    <video id="cam" autoplay playsinline muted width="320" hidden></video><div class="acts" style="justify-content:flex-start"><button class="btn pri" id="rec">Record 8 seconds</button><label class="btn">Upload a video<input type="file" id="f-vid" accept="video/*" hidden></label></div>
-    <span class="small dim" id="recst">${hasDoc('IPV / VIPV record') ? 'Video saved ✓' : ''}</span>
-    <button class="btn pri" id="go">Continue</button>`,
   review: () => `<dl class="kv"><dt>Name</dt><dd>${esc(APP.name)}</dd><dt>PAN</dt><dd>${esc(APP.pan)}</dd><dt>Mobile</dt><dd>${esc(APP.mobile)}</dd><dt>Email</dt><dd>${esc(APP.email)}</dd><dt>Address</dt><dd>${esc([APP.address, APP.city, APP.state, APP.pin].join(', '))}</dd><dt>Bank</dt><dd>${esc(APP.bank)} · ${esc(APP.ifsc)}</dd><dt>Segments</dt><dd>${esc((APP.segments || []).map(s => CFG.segments[s]).join(', '))}</dd><dt>Nominee</dt><dd>${APP.nominee_opt_out ? 'None' : esc(APP.nominee_name + ' (' + APP.nominee_relation + ')')}</dd></dl>
     <a class="small" href="/onboard/${encodeURIComponent(T)}/form?s=${encodeURIComponent(SECRET)}" target="_blank" rel="noopener">Read the account opening form you are signing</a>
     ${Object.entries(CFG.declarations).map(([k, v]) => `<label class="check"><input type="checkbox" data-decl="${k}"> <span>${esc(v)}</span></label>`).join('')}
@@ -96,7 +92,8 @@ const V = {
     ${DEV.esign ? `<div class="note warn small">Development server: signing code ${esc(DEV.esign)}.</div>` : ''}
     ${DEV.esign !== undefined ? `${fld('esc', 'Code sent to your mobile to sign', '', 'inputmode="numeric" maxlength="6"')}<button class="btn pri" id="sign">Sign and submit</button>` : '<button class="btn pri" id="go">Sign with a code to my mobile</button>'}`,
   done: () => APP.status === 'Rejected' ? `<h1>We could not open your account</h1><p>${esc(APP.reason)}</p><button class="btn" id="restart">Start a new application</button>` :
-    `<h1>Application received</h1><p>Thank you. Your application number is <b>${esc(APP.id)}</b>${APP.ucc ? ` and your client code will be <b>${esc(APP.ucc)}</b>` : ''}.</p><p class="dim">We are checking your documents and the video; this usually takes one working day. We will email ${esc(APP.email)} when your account is active.</p>${checks((APP.checks || []).map(c => c.name))}`,
+    APP.activated ? `<h1>Your account is open</h1><p>Your client code is <b>${esc(APP.ucc)}</b>. Your Aadhaar, PAN and bank account were verified, so nothing more is needed from you.</p><p class="dim">Your details are being registered with the exchanges; you can trade once that is done, usually by the next working day. We have emailed ${esc(APP.email)}.</p>` :
+    `<h1>Application received</h1><p>Thank you. Your application number is <b>${esc(APP.id)}</b>${APP.ucc ? ` and your client code will be <b>${esc(APP.ucc)}</b>` : ''}.</p><p class="dim">We are checking your details; this usually takes one working day. We will email ${esc(APP.email)} when your account is active.</p>${checks((APP.checks || []).map(c => c.name))}`,
 };
 
 let stream = null;
@@ -112,8 +109,10 @@ function bind(step) {
   if (step === 'contact') { $('resend').onclick = () => run(async () => { APP = await call('POST', '/verify', { channel: 'resend' }); });
     go.onclick = () => run(async () => { if (!APP.mobile_ok) APP = await call('POST', '/verify', { channel: 'mobile', code: v('cm') }); if (!APP.email_ok) APP = await call('POST', '/verify', { channel: 'email', code: v('ce') }); }); }
   if (step === 'identity') go.onclick = () => run(() => saveStep('identity', { pan: v('pan'), name: v('name'), dob: v('dob'), gender: v('gender'), father: v('father'), marital: v('marital') }));
-  if (step === 'address') { $('dl').onclick = () => run(() => saveStep('address', { digilocker: true })); fileUp('f-addr', 'Address proof');
-    go.onclick = () => run(() => saveStep('address', { address: v('address'), city: v('city'), state: v('state'), pin: v('pin') })); }
+  if (step === 'address') $('dl').onclick = () => run(async () => {
+    if (!CFG.digilocker_redirect) return saveStep('address', { digilocker: true });
+    const r = await call('POST', '/digilocker', {}); location.href = r.url; await new Promise(() => {}); // leaving the page
+  });
   if (step === 'bank') go.onclick = () => run(() => saveStep('bank', { bank: v('bankname'), ifsc: v('ifsc'), account: v('account') }));
   if (step === 'profile') { fileUp('f-inc', 'Income proof');
     go.onclick = () => run(() => saveStep('profile', { segments: [...document.querySelectorAll('[data-seg]:checked')].map(x => x.dataset.seg), income: v('income'), occupation: v('occupation'), experience: v('experience'), ras: v('ras'), demat_id: v('demat_id') })); }
@@ -132,19 +131,6 @@ function bind(step) {
     $('sigsave').onclick = () => { if (!drawn) return; cv.toBlob(b => run(() => upload('Signature', b, 'signature.png')), 'image/png'); };
     go.onclick = () => { stopCam(); run(() => saveStep('photo', {})); };
   }
-  if (step === 'ipv') {
-    fileUp('f-vid', 'IPV / VIPV record');
-    $('rec').onclick = async () => {
-      try {
-        await camera(true); const chunks = [], mr = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : '' });
-        mr.ondataavailable = e => e.data.size && chunks.push(e.data);
-        mr.onstop = () => { stopCam(); run(() => upload('IPV / VIPV record', new Blob(chunks, { type: 'video/webm' }), 'ipv.webm')); };
-        let left = 8; $('recst').textContent = 'Recording… 8'; mr.start();
-        const t = setInterval(() => { left--; $('recst').textContent = 'Recording… ' + left; if (left <= 0) { clearInterval(t); mr.stop(); } }, 1000);
-      } catch (e) { ERR = new ApiErr({ error: { message: 'The camera could not be opened; upload a short video instead.' } }); render(); }
-    };
-    go.onclick = () => run(() => saveStep('ipv', {}));
-  }
   if (step === 'review') {
     const decl = () => Object.fromEntries([...document.querySelectorAll('[data-decl]')].map(x => [x.dataset.decl, x.checked]));
     if (go) go.onclick = () => run(async () => { const r = await call('POST', '/sign', { declarations: decl(), whatsapp: $('wa').checked, code: '' }); APP = r.application; DEV.esign = (r.dev_codes || {}).esign || ''; STEP = 'review'; });
@@ -160,6 +146,12 @@ function bind(step) {
     $('firm').textContent = CFG.firm; $('reg').textContent = 'SEBI registration ' + CFG.sebi_reg;
     $('foot').textContent = (CFG.provider === 'Not connected' ? 'Your details are checked by our staff. ' : '') + 'Your information is used only to open and service your account.';
     if (SECRET) { try { APP = await call('GET', '/state'); if (APP.status === 'Draft' && !APP.mobile_ok) DEV = {}; } catch (e) { SECRET = ''; store.set(''); } }
+    // Back from DigiLocker: read what was shared, then carry on.
+    if (APP && Q.get('dl') === 'back' && APP.status === 'Draft' && !(APP.steps || []).includes('address')) {
+      history.replaceState(null, '', location.pathname); render();
+      await run(() => saveStep('address', { digilocker: true }));
+      return;
+    }
     render();
   } catch (e) { $('card').innerHTML = `<p>${esc(e.message)}</p>`; }
 })();

@@ -25,19 +25,19 @@ related: new-client, activate-client
 
 1. Share the link shown at the top of [[apps|Online applications]] (on your website, by WhatsApp, or with an AP code so the AP is credited).
 2. When an applicant submits, the application appears here and the client is created at **KYC verification**.
-3. Click **Open** to see every check (PAN, KRA, DigiLocker, bank account, face match, e-Sign) and the documents and video.
-4. Check anything marked **Check manually**. The in-person verification video always needs a person: confirm the face matches the photo and documents and that they said the code shown.
-5. All good: move the client through the stages on [[clients|Clients & onboarding]]. Not good: **Reject** with a reason, which is sent to the applicant.
+3. Click **Open** to see every check (PAN, KRA, Aadhaar from DigiLocker, bank account, face match, e-Sign) and the documents, including the e-Aadhaar and PAN records fetched from DigiLocker.
+4. There is no in-person verification: Aadhaar and PAN come from DigiLocker with the applicant's consent, which SEBI's KYC circular accepts without IPV or video.
+5. On Autopilot set to activate (always in Full autopilot), an application whose every check passed is activated by itself. Otherwise, or when something is marked **Check manually** or **Failed** (a name that differs from Aadhaar, say), check it, then move the client through the stages on [[clients|Clients & onboarding]], or **Reject** with a reason, which is sent to the applicant.
 
 ## activate-client
 title: Activate a client
 screen: clients
 roles: Ops maker, Ops checker
-ask: activate client; client stuck in kyc verification; advance onboarding; move client to next stage; client not active; ucc upload stage; in person verification stage; approve new client
+ask: activate client; client stuck in kyc verification; advance onboarding; move client to next stage; client not active; ucc upload stage; in person verification; ipv; approve new client
 check: client
 related: ucc-upload, new-client
 
-Stages: **Application → KYC verification → In-person verification → UCC upload → Active**.
+Stages: **Application → KYC verification → UCC upload → Active**. There is no in-person verification stage: online applications verify Aadhaar and PAN through DigiLocker, and branch clients are seen in person when their documents are checked.
 
 1. On [[clients|Clients & onboarding]], click **Advance** on the client's row at each stage once that stage's work is done.
 2. At **UCC upload**, download the **UCC upload file**, upload it on the exchange's UCC portal, and wait for acceptance.

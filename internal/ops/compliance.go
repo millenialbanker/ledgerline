@@ -516,7 +516,11 @@ func (o *Ops) KRAUploadFile(ctx context.Context, tenant, since string) ([]byte, 
 		default:
 			continue
 		}
-		rows = append(rows, []string{c.PAN, c.Name, c.DOB, c.Mobile, c.Email, c.City, c.State, c.KYCRoute, "Y", c.KYCDate, change, c.UCC})
+		ipv := "Y"
+		if strings.Contains(c.KYCRoute, "DigiLocker") {
+			ipv = "NA" // not required: Aadhaar via DigiLocker
+		}
+		rows = append(rows, []string{c.PAN, c.Name, c.DOB, c.Mobile, c.Email, c.City, c.State, c.KYCRoute, ipv, c.KYCDate, change, c.UCC})
 	}
 	return CSV(rows), nil
 }

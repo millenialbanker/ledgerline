@@ -188,6 +188,23 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 		}
 		log.Info("India-only mode: no connection outside India is allowed", "region", o.Residency.Region)
 	}
+	// Aadhaar and PAN from DigiLocker through the Ledgerline KYC plugin,
+	// under the firm's own DigiLocker registration.
+	if u := os.Getenv("LEDGERLINE_KYC_URL"); u != "" {
+		key := os.Getenv("LEDGERLINE_KYC_KEY")
+		if len(key) < 24 {
+			return errors.New("LEDGERLINE_KYC_URL is set: also set LEDGERLINE_KYC_KEY, the firm's API key for the KYC plugin")
+		}
+		if !dev && !strings.HasPrefix(u, "https://") {
+			return errors.New("LEDGERLINE_KYC_URL must be https")
+		}
+		pk := &ops.PluginKYC{URL: u, Key: key}
+		if dev {
+			pk.Base = ops.SimulatedKYC()
+		}
+		o.KYC = pk
+		log.Info("KYC plugin connected", "url", u)
+	}
 	// Ledgy can phrase its answers with an AI model when one is configured
 	// and the firm switches it on in Settings. Only the masked question and
 	// the help articles are sent. Every answer is metered and paid from the
@@ -244,6 +261,7 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	}
 	apiSrv := api.New(a, o, keys, log, dev)
 	apiSrv.ProviderKey = os.Getenv("LEDGERLINE_PROVIDER_KEY")
+	apiSrv.PublicURL = os.Getenv("LEDGERLINE_PUBLIC_URL")
 	cfg := web.Config{Dev: dev, Version: "2.1"}
 	if ts := apiSrv.Tenants(); len(ts) == 1 {
 		cfg.Tenant = ts[0]

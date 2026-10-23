@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"net/url"
 	"regexp"
 )
 
@@ -71,7 +72,13 @@ func (o *Ops) ResidencyLines() []ResidencyLine {
 	} else {
 		lines = append(lines, ResidencyLine{What: "Ledgy AI phrasing", Where: "Not connected", Status: "none"})
 	}
-	if o.KYC != nil {
+	if pk, ok := o.KYC.(*PluginKYC); ok {
+		lines = append(lines, ResidencyLine{What: "Aadhaar and PAN from DigiLocker", Where: "DigiLocker (Government of India), through Ledgerline KYC at " + hostOf(pk.URL), Status: "check",
+			Note: "Run the KYC plugin in an Indian region; it deletes each investor's documents once Ledgerline has read them."})
+		if pk.Base != nil && pk.Base.Name() != "Not connected" && pk.Base.Name() != "Simulated" {
+			lines = append(lines, ResidencyLine{What: "Other account opening checks", Where: pk.Base.Name(), Status: "check", Note: "Confirm in the contract that the vendor stores and processes data in India."})
+		}
+	} else if o.KYC != nil {
 		lines = append(lines, ResidencyLine{What: "Online account opening checks", Where: o.KYC.Name(), Status: "check", Note: "Confirm in the contract that the vendor stores and processes data in India."})
 	} else {
 		lines = append(lines, ResidencyLine{What: "Online account opening checks", Where: "Not connected (simulated or checked by staff)", Status: "none"})
@@ -87,4 +94,11 @@ func trimNote(s string) string {
 		s = s[1:]
 	}
 	return s
+}
+
+func hostOf(raw string) string {
+	if u, err := url.Parse(raw); err == nil && u.Host != "" {
+		return u.Host
+	}
+	return raw
 }

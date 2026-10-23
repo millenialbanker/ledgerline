@@ -56,6 +56,9 @@ type Server struct {
 	// ProviderKey authorises the software provider's own endpoints under
 	// /provider/ (adding AI credit, usage for invoicing). Empty disables them.
 	ProviderKey string
+	// PublicURL is the address browsers use (LEDGERLINE_PUBLIC_URL), for
+	// links back from DigiLocker; empty means the request's host.
+	PublicURL string
 }
 
 // New builds a server. keys maps API keys to tenant IDs.

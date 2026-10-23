@@ -273,3 +273,17 @@ Open [[circulars|Circulars & calendar]] → **Exchange holidays**.
 3. A new or changed list waits for approval. An **Ops checker or the compliance officer** checks it against the circulars and clicks **Approve**. Whoever uploaded a list can't approve it.
 
 Once approved, equity trading holidays decide business days, and settlement holidays also move the **pay-in** date (for example, a bank holiday that is a clearing holiday but a trading day). Holidays typed in Settings still count on top. The dashboard warns when a year has no approved list.
+
+## connect-digilocker
+title: Connect DigiLocker for online account opening
+screen: apps
+roles: Admin
+ask: connect digilocker; digilocker not connected; aadhaar kyc; ledgerline kyc; kyc plugin; api setu; digilocker registration; online opening needs digilocker; why no ipv; in person verification
+
+Online account opening reads the applicant's Aadhaar and PAN from DigiLocker, which is why there is no in-person or video verification (SEBI's KYC circular SEBI/HO/MIRSD/DOP/CIR/P/2020/73 does not need IPV for Aadhaar from DigiLocker).
+
+1. Register your firm as a DigiLocker requester on API Setu (partners.apisetu.gov.in): you need the firm's GSTN, a nodal officer and a server in India. Each firm uses its own registration.
+2. Set the redirect address in the API Setu partner account to your Ledgerline KYC address followed by `/callback`.
+3. Give the client ID and secret to whoever runs Ledgerline KYC for you; they add your firm and give you an API key.
+4. Your Ledgerline administrator sets `LEDGERLINE_KYC_URL` and `LEDGERLINE_KYC_KEY` and restarts. Applicants then see **Continue to DigiLocker** at the address step.
+5. Penny drop, face match and Aadhaar e-Sign still need their own vendors; until connected, those checks show **Check manually** and applications wait for a checker instead of activating by themselves.
