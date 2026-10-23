@@ -53,7 +53,7 @@ roles: Ops checker, Compliance officer
 ask: message template; edit sms; email template; dlt template id; whatsapp template; change message text; sms not sent; promotional sms
 related: whatsapp-consent, bulk-message
 
-On [[messages|Messages]]:
+On [[messages|Client messages]]:
 
 1. Click **Edit** on a template, or **New template** for an event and channel (email, SMS or WhatsApp).
 2. **SMS:** the text must match the DLT-registered template exactly, and the DLT template ID must be filled in, or the telecom operator blocks it.
@@ -69,7 +69,7 @@ roles: Ops checker, Compliance officer
 ask: bulk message; message all clients; send circular to clients; mass email; broadcast; notify clients
 related: message-templates, whatsapp-consent
 
-On [[messages|Messages]], click **Bulk message**, choose the clients (all, a group or a list), the channel and the text. WhatsApp goes only to clients who opted in; promotional SMS follows the time window.
+On [[messages|Client messages]], click **Bulk message**, choose the clients (all, a group or a list), the channel and the text. WhatsApp goes only to clients who opted in; promotional SMS follows the time window.
 
 ## client-insights
 title: Use client insights
@@ -288,3 +288,37 @@ Online account opening takes the applicant's Aadhaar from DigiLocker (with their
 4. For the offline e-KYC file, whoever runs Ledgerline KYC adds UIDAI's offline e-KYC certificate (from UIDAI's website); no registration with UIDAI is needed. Applicants then see both choices at the address step.
 5. Your Ledgerline administrator sets `LEDGERLINE_KYC_URL` and `LEDGERLINE_KYC_KEY` and restarts. Applicants then see **Continue to DigiLocker** at the address step.
 6. Penny drop, face match and Aadhaar e-Sign still need their own vendors; until connected, those checks show **Check manually** and applications wait for a checker instead of activating by themselves.
+
+## team-messages
+title: Message colleagues, branches and APs
+screen: chat
+roles: Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff, Authorised person, Admin
+ask: team messages; message a colleague; chat; send a message to; talk to head office; talk to risk desk; message the branch; message an ap; direct message; mention someone; @all; send a photo; send a file; attach screenshot; mute notifications; turn off notifications; new work notification; ledgy message
+related: manage-channels, work-queue
+
+On [[chat|Team messages]]:
+
+1. **Channels** (#name) are set up by the Admin; only their members can read them. Head office and each branch have their own.
+2. **New message** writes to one person: anyone at head office if you are at head office, anyone in your branch if you are at a branch.
+3. **Write to a desk** (branches and APs) opens your private thread with the Risk, DP or Compliance desk; head office desk staff use **Write as a desk** to start one with any branch or AP. Other branches and APs never see your thread.
+4. Type **@** to mention someone; **@all** tells everyone in a channel or desk thread. Mentions are highlighted for the person.
+5. Attach photos or files with the paper clip, by dragging them in, or by pasting a screenshot: photos, PDF, Excel, Word, PowerPoint, CSV, text and ZIP, up to 15 MB each.
+6. Every new message pops up in the corner of whatever screen you are on, with a sound, and shows on the Team messages badge and the browser tab. Notifications cannot be switched off. Allow desktop notifications when the browser asks, to get them even when Ledgerline is in the background.
+7. **Ledgy** writes to you when the work queue gives you something new, with a button to the right screen.
+
+Messages cannot be edited or deleted: they are kept as the firm's record.
+
+## manage-channels
+title: Create channels and staff the desks
+screen: chat
+roles: Admin
+ask: create channel; new channel; add member to channel; remove member from channel; archive channel; who can see channel; create desk; risk desk; dp desk; compliance desk; who answers the desk; add someone to desk
+related: team-messages
+
+On [[chat|Team messages]], click **Channels & desks**:
+
+1. **New channel**: give it a name, choose head office or a branch, and tick the members. Only they can read it; head office channels take head office staff, a branch's channels take that branch's staff.
+2. **Edit** a channel to change its members or archive it (members can still read an archived channel but not write). Someone removed can no longer read it.
+3. **Official desks** answer branches and APs: tick the head office staff who answer for each. The Risk, DP and Compliance desks start with the people in those roles; a desk with nobody on it is answered by the Admins. **New desk** adds another (Accounts, say).
+
+You manage channels without reading them; add yourself as a member to read one.

@@ -296,8 +296,11 @@ func (r *runCtx) queue(key, title, detail, ucc, role, view, due string, p *Propo
 	if err == nil && w.Status != "Open" && w.Status != "Cleared" {
 		return // a person already closed it
 	}
+	isNew := err != nil || w.Status == "Cleared"
 	w = WorkItem{ID: id, Key: k, Process: r.process, Title: title, Detail: detail, UCC: ucc, Role: role, View: view, Date: r.date, Due: due, Status: "Open", Proposed: p, Created: firstOf(w.Created, now)}
-	_ = docs.Upsert(r.ctx, r.o.Docs, r.tenant, cWorkItem, id, w, SystemActor)
+	if docs.Upsert(r.ctx, r.o.Docs, r.tenant, cWorkItem, id, w, SystemActor) == nil && isNew {
+		r.o.ledgyNotifyWork(r.ctx, r.tenant, w) // Ledgy tells the people who should act
+	}
 }
 
 // closeWork marks a process's item done when it was settled elsewhere.

@@ -63,6 +63,7 @@ Loading files | Ops maker, Ops checker, Risk manager, Compliance officer
 MTF enrolment | Ops checker, Risk manager
 MTF margin calls | Ops checker, Risk manager
 Managing branches | Ops checker, Admin
+Managing message channels and desks | Admin
 Managing partners | Ops checker, Admin
 Mapping clients | Ops checker, Admin
 Marking a report uploaded | Ops checker, Compliance officer

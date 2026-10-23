@@ -71,7 +71,7 @@ related: message-templates
 
 WhatsApp messages go only to clients who opted in, and every choice is recorded.
 
-1. On [[messages|Messages]] → WhatsApp consent, see who has opted in.
+1. On [[messages|Client messages]] → WhatsApp consent, see who has opted in.
 2. **Ask by email** or **Ask by SMS** sends a one-tap consent link to clients not yet asked.
 3. To record consent given another way (signed form, recorded call), open the client → WhatsApp → **Record consent** with a reference.
 4. Clients can reply STOP at any time; that's recorded too.

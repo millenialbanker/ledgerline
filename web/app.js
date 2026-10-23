@@ -108,21 +108,21 @@ function eodStatus(e) {
 
 /* ============================== shell ============================== */
 const NAV = [
-  ['Overview', [['dashboard', 'Dashboard'], ['autopilot', 'Autopilot & work queue']]],
+  ['Overview', [['dashboard', 'Dashboard'], ['chat', 'Team messages'], ['autopilot', 'Autopilot & work queue']]],
   ['Operations', [['files', 'Files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['apps', 'Online applications'], ['changes', 'Change requests'], ['corp', 'Corporate actions'], ['statements', 'Client reports'], ['yearend', 'Year-end packs']]],
   ['Risk', [['live', 'Live RMS'], ['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge'], ['debits', 'Debtors & interest'], ['mtf', 'Margin trading (MTF)']]],
   ['Accounts', [['ledger', 'Ledger'], ['deposits', 'Clearing deposits'], ['bank', 'Bank reconciliation'], ['money', 'Receipts & payouts'], ['books', 'Firm accounts & GST'], ['ras', 'Running account'], ['charges', 'Charges calculator'], ['brokerage', 'Brokerage plans']]],
   ['Compliance', [['circulars', 'Circulars & calendar'], ['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
   ['Depository', [['dp', 'Demat accounts & DIS']]],
   ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['partners', 'Branches & partners'], ['prepaid', 'Prepaid schemes']]],
-  ['Admin', [['messages', 'Messages'], ['jobs', 'Scheduled jobs'], ['backups', 'Backups'], ['settings', 'Settings']]]];
+  ['Admin', [['messages', 'Client messages'], ['jobs', 'Scheduled jobs'], ['backups', 'Backups'], ['settings', 'Settings']]]];
 const PORTAL_NAV = [['My account', [['portal', 'Overview'], ['pnotes', 'Contract notes'], ['statements', 'Reports & statements'], ['pinsights', 'Tax & insights'], ['pfunds', 'Funds & payouts'], ['pprofile', 'Profile & documents'], ['phelp', 'Help desk'], ['pext', 'Trades elsewhere']]]];
 const PORTAL_VIEWS = PORTAL_NAV[0][1].map(v => v[0]);
 const clientUser = () => S.me?.role === 'Client';
 const VIEWS = [...NAV.flatMap(g => g[1].map(v => v[0])), ...PORTAL_VIEWS];
 try { const h = location.hash.slice(1); if (VIEWS.includes(h)) S.view = h; } catch (e) {}
 
-const SCOPED_VIEWS = ['yearend', 'insights', 'clients', 'statements', 'notes', 'money', 'debits', 'rms', 'partners', 'prepaid', 'changes', 'helpdesk', 'crm'];
+const SCOPED_VIEWS = ['chat', 'yearend', 'insights', 'clients', 'statements', 'notes', 'money', 'debits', 'rms', 'partners', 'prepaid', 'changes', 'helpdesk', 'crm'];
 const scopedUser = () => ['Branch staff', 'Authorised person'].includes(S.me?.role);
 const edition = () => S.me?.edition?.id || 'autopilot';
 function editionNote(d) {
