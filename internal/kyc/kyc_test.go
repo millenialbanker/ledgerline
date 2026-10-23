@@ -20,10 +20,11 @@ const testKey = "test-key-0123456789abcdefghij"
 const provKey = "provider-key-0123456789abcdef"
 
 type rig struct {
-	t   *testing.T
-	srv *Server
-	ts  *httptest.Server
-	hc  *http.Client
+	t      *testing.T
+	srv    *Server
+	ts     *httptest.Server
+	hc     *http.Client
+	method string
 }
 
 func newRig(t *testing.T) *rig {
@@ -36,7 +37,7 @@ func newRig(t *testing.T) *rig {
 	t.Cleanup(ts.Close)
 	srv.Cfg.PublicURL = ts.URL
 	hc := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	return &rig{t, srv, ts, hc}
+	return &rig{t, srv, ts, hc, MethodDigiLocker}
 }
 
 func (r *rig) api(method, path, key string, body any) (int, map[string]any) {
@@ -62,7 +63,7 @@ func (r *rig) api(method, path, key string, body any) (int, map[string]any) {
 
 func (r *rig) create(hint Hint) (id, link string) {
 	r.t.Helper()
-	code, m := r.api("POST", "/v1/sessions", testKey, map[string]any{"reference": "APP-1", "return_url": "https://bo.acme.in/open/acme?dl=back", "hint": hint})
+	code, m := r.api("POST", "/v1/sessions", testKey, map[string]any{"reference": "APP-1", "return_url": "https://bo.acme.in/open/acme?dl=back", "hint": hint, "method": r.method})
 	if code != 201 {
 		r.t.Fatalf("create: %d %v", code, m)
 	}

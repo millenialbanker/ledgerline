@@ -1,5 +1,6 @@
-// Command ledgerline-kyc is Ledgerline KYC: Aadhaar and PAN from DigiLocker
-// for account opening, as a service for any back office.
+// Command ledgerline-kyc is Ledgerline KYC: Aadhaar (and PAN) for account
+// opening, from DigiLocker or from an Aadhaar offline e-KYC file the
+// investor uploads, as a service for any back office.
 //
 //	ledgerline-kyc -config kyc.json -data /var/lib/ledgerline-kyc
 //	ledgerline-kyc -simulate                  practice DigiLocker, demo customer
@@ -7,7 +8,9 @@
 //
 // Environment: LLKYC_ADDR (default :8090), LLKYC_CONFIG, LLKYC_DATA_DIR,
 // LLKYC_DATA_KEYS or LLKYC_DATA_KEYS_FILE (encryption keys, as for
-// Ledgerline: "ledgerctl keygen"), LLKYC_PUBLIC_URL (overrides the
+// Ledgerline: "ledgerctl keygen"), LLKYC_UIDAI_CERTS (UIDAI's offline e-KYC
+// certificate files, comma-separated; or "uidai_certificates" in the
+// config), LLKYC_PUBLIC_URL (overrides the
 // config's), LLKYC_DIGILOCKER_URL (a DigiLocker gateway; default
 // production).
 package main
@@ -105,12 +108,28 @@ func run(log *slog.Logger, addr, cfgPath, data string, simulate bool) error {
 			return fmt.Errorf("customer %q needs an id and api_key_sha256 (make one with: ledgerline-kyc key)", c.ID)
 		}
 	}
+	certFiles := cfg.UIDAICertificates
+	if v := os.Getenv("LLKYC_UIDAI_CERTS"); v != "" {
+		certFiles = strings.Split(v, ",")
+	}
+	certs, err := kyc.LoadCerts(certFiles)
+	if err != nil {
+		return fmt.Errorf("UIDAI certificate: %w", err)
+	}
+	for _, c := range certs {
+		if time.Now().After(c.NotAfter) {
+			log.Warn("UIDAI certificate has expired; download the current one from UIDAI", "subject", c.Subject.String(), "expired", c.NotAfter)
+		}
+	}
+	if len(certs) == 0 && !simulate {
+		log.Warn("no UIDAI offline e-KYC certificate (uidai_certificates or LLKYC_UIDAI_CERTS): investors can use DigiLocker only")
+	}
 	kr, err := keys(simulate)
 	if err != nil {
 		return err
 	}
 	st := &kyc.Store{Dir: data, V: vault.New(kr)}
-	srv := &kyc.Server{Cfg: cfg, Store: st, Base: os.Getenv("LLKYC_DIGILOCKER_URL"), Simulate: simulate, Log: log}
+	srv := &kyc.Server{Cfg: cfg, Store: st, Base: os.Getenv("LLKYC_DIGILOCKER_URL"), Simulate: simulate, Log: log, Certs: certs}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	// Personal data is not kept longer than needed.

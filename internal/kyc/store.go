@@ -19,7 +19,8 @@ import (
 type Session struct {
 	ID        string   `json:"id"`
 	Customer  string   `json:"customer"`
-	Reference string   `json:"reference"` // the customer's own ID for the application
+	Reference string   `json:"reference"`        // the customer's own ID for the application
+	Method    string   `json:"method,omitempty"` // digilocker, aadhaar_offline, or empty: the investor chooses
 	ReturnURL string   `json:"return_url"`
 	Hint      Hint     `json:"hint"`
 	Status    string   `json:"status"` // Created, Started, Completed, Failed, Expired
@@ -34,6 +35,7 @@ type Session struct {
 	TokenHash string `json:"token_hash,omitempty"` // the start link's one-time token
 	Nonce     string `json:"nonce,omitempty"`      // part of the OAuth state
 	Verifier  string `json:"verifier,omitempty"`   // PKCE, until the code is exchanged
+	Attempts  int    `json:"attempts,omitempty"`   // offline e-KYC uploads that failed
 }
 
 // Hint is what the investor told the customer, to compare with DigiLocker.
@@ -41,6 +43,10 @@ type Hint struct {
 	Name string `json:"name,omitempty"`
 	DOB  string `json:"dob,omitempty"` // YYYY-MM-DD
 	PAN  string `json:"pan,omitempty"`
+	// The mobile and email the investor confirmed with the customer, to
+	// check against those linked to the Aadhaar (offline e-KYC).
+	Mobile string `json:"mobile,omitempty"`
+	Email  string `json:"email,omitempty"`
 }
 
 // Check is one comparison.
@@ -52,7 +58,7 @@ type Check struct {
 
 // Public is the session as the customer's API sees it.
 func (s Session) Public() Session {
-	s.TokenHash, s.Nonce, s.Verifier = "", "", ""
+	s.TokenHash, s.Nonce, s.Verifier, s.Attempts = "", "", "", 0
 	switch s.Status {
 	case "Created", "Started":
 		s.Status = "Pending"
@@ -183,7 +189,8 @@ type Usage struct {
 	Customer  string `json:"customer"`
 	Month     string `json:"month"`
 	Started   int    `json:"started"`
-	Completed int    `json:"completed"` // billable: DigiLocker returned the documents
+	Completed int    `json:"completed"` // billable: the investor's documents were verified
+	Offline   int    `json:"offline"`   // of which through Aadhaar offline e-KYC
 	Failed    int    `json:"failed"`
 }
 
@@ -202,6 +209,9 @@ func (s *Store) Count(customer, kind string, at time.Time) error {
 		u.Started++
 	case "completed":
 		u.Completed++
+	case "completed_offline":
+		u.Completed++
+		u.Offline++
 	case "failed":
 		u.Failed++
 	default:

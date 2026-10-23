@@ -73,8 +73,8 @@ func (o *Ops) ResidencyLines() []ResidencyLine {
 		lines = append(lines, ResidencyLine{What: "Ledgy AI phrasing", Where: "Not connected", Status: "none"})
 	}
 	if pk, ok := o.KYC.(*PluginKYC); ok {
-		lines = append(lines, ResidencyLine{What: "Aadhaar and PAN from DigiLocker", Where: "DigiLocker (Government of India), through Ledgerline KYC at " + hostOf(pk.URL), Status: "check",
-			Note: "Run the KYC plugin in an Indian region; it deletes each investor's documents once Ledgerline has read them."})
+		lines = append(lines, ResidencyLine{What: "Aadhaar (DigiLocker or UIDAI offline e-KYC file) and PAN", Where: "DigiLocker (Government of India), through Ledgerline KYC at " + hostOf(pk.URL), Status: "check",
+			Note: "Run the KYC plugin in an Indian region; offline e-KYC files are checked there and never leave it except to Ledgerline; each investor's documents are deleted once Ledgerline has read them."})
 		if pk.Base != nil && pk.Base.Name() != "Not connected" && pk.Base.Name() != "Simulated" {
 			lines = append(lines, ResidencyLine{What: "Other account opening checks", Where: pk.Base.Name(), Status: "check", Note: "Confirm in the contract that the vendor stores and processes data in India."})
 		}

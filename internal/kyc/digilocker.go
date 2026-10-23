@@ -223,6 +223,17 @@ type Aadhaar struct {
 	Photo    []byte `json:"photo,omitempty"`
 	XML      []byte `json:"xml,omitempty"`
 	SHA256   string `json:"sha256"`
+
+	// Source is where it came from: "DigiLocker" or "Aadhaar offline e-KYC".
+	Source    string `json:"source"`
+	PhotoType string `json:"photo_type,omitempty"` // image/jpeg, or image/jp2 in offline e-KYC
+	// Generated is when an offline e-KYC file was downloaded from UIDAI.
+	Generated string `json:"generated,omitempty"`
+	// MobileMatch and EmailMatch say whether the mobile and email the
+	// investor confirmed are the ones linked to this Aadhaar (offline
+	// e-KYC carries their hashes): "Matches", "Does not match" or "".
+	MobileMatch string `json:"mobile_match,omitempty"`
+	EmailMatch  string `json:"email_match,omitempty"`
 }
 
 // PAN is what a PAN record (doctype PANCR) says.
@@ -326,7 +337,10 @@ func ParseEAadhaar(b []byte) (Aadhaar, error) {
 		}
 	}
 	h := sha256.Sum256(b)
-	a.XML, a.SHA256 = b, fmt.Sprintf("%x", h)
+	a.XML, a.SHA256, a.Source = b, fmt.Sprintf("%x", h), "DigiLocker"
+	if len(a.Photo) > 0 {
+		a.PhotoType = "image/jpeg"
+	}
 	return a, nil
 }
 

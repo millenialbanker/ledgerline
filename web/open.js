@@ -7,7 +7,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const KEY = 'll-apply-' + T;
 const store = { get() { try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; } }, set(v) { try { v ? localStorage.setItem(KEY, v) : localStorage.removeItem(KEY); } catch (e) {} } };
 let CFG = null, APP = null, SECRET = store.get(), DEV = {}, ERR = null, BUSY = false, STEP = null;
-const STEP_TITLES = { contact: 'Confirm your mobile and email', identity: 'Your PAN and identity', address: 'Aadhaar and address from DigiLocker', bank: 'Your bank account', profile: 'How you will trade', nominee: 'Nominee', photo: 'Photograph and signature', review: 'Review and sign' };
+const STEP_TITLES = { contact: 'Confirm your mobile and email', identity: 'Your PAN and identity', address: 'Your Aadhaar and address', bank: 'Your bank account', profile: 'How you will trade', nominee: 'Nominee', photo: 'Photograph and signature', review: 'Review and sign' };
 
 class ApiErr extends Error { constructor(b, st) { super(b?.error?.message || 'Something went wrong (' + st + ')'); this.fields = b?.error?.details?.fields || []; } }
 async function call(method, path, body, raw) {
@@ -63,11 +63,14 @@ const V = {
     <div class="row">${fld('dob', 'Date of birth', APP.dob, 'type="date"')}${sel('gender', 'Gender', ['Male', 'Female', 'Transgender'], APP.gender)}</div>
     <div class="row">${fld('father', "Father's or spouse's name", APP.father)}${sel('marital', 'Marital status', ['Single', 'Married', 'Other'], APP.marital)}</div>
     ${checks(['PAN', 'KRA search'])}<button class="btn pri" id="go">Check my PAN</button>`,
-  address: () => `<p class="dim">Sign in to DigiLocker with your Aadhaar-linked mobile and allow ${esc(CFG.firm)} to read your Aadhaar and PAN. Your address is taken from Aadhaar, and no video call or office visit is needed.</p>${checks(['Aadhaar (DigiLocker)', 'PAN'])}
-    ${Q.get('dl') === 'back' && !(APP.steps || []).includes('address') ? '<div class="note">Back from DigiLocker: reading your documents…</div>' : ''}
-    <button class="btn pri" id="dl">${(APP.steps || []).includes('address') ? 'Fetch again from DigiLocker' : 'Continue to DigiLocker'}</button>
-    ${(APP.steps || []).includes('address') ? `<dl class="kv"><dt>Address</dt><dd>${esc([APP.address, APP.city, APP.state, APP.pin].filter(Boolean).join(', '))}</dd></dl>` : ''}
-    <p class="dim small m0">No DigiLocker? Create one at digilocker.gov.in with your Aadhaar in a few minutes, then come back here.</p>`,
+  address: () => { const done = (APP.steps || []).includes('address'), off = (CFG.aadhaar_methods || []).includes('aadhaar_offline');
+    return `<p class="dim">Share your Aadhaar with ${esc(CFG.firm)}. Your address is taken from Aadhaar, and no video call or office visit is needed.</p>${checks(['Aadhaar (DigiLocker)', 'Aadhaar (offline e-KYC)', 'PAN'])}
+    ${Q.get('dl') === 'back' && !done ? '<div class="note">Back with your Aadhaar: reading it…</div>' : ''}
+    ${done ? `<dl class="kv"><dt>Address</dt><dd>${esc([APP.address, APP.city, APP.state, APP.pin].filter(Boolean).join(', '))}</dd><dt>From</dt><dd>${esc(APP.addr_source || '')}</dd></dl>` : ''}
+    <div class="choices">
+      <button class="choice" data-m="digilocker"><b>${done ? 'Share again through DigiLocker' : 'Use DigiLocker'}</b><span class="dim small">Quickest: sign in with Aadhaar and an OTP to your Aadhaar-linked mobile, then allow access. Your PAN record comes too. No DigiLocker account? You can create one in the same step.</span></button>
+      ${off ? `<button class="choice" data-m="aadhaar_offline"><b>${done ? 'Upload a new Aadhaar offline e-KYC file' : 'Upload an Aadhaar offline e-KYC file'}</b><span class="dim small">If you do not want to use DigiLocker: download a signed ZIP from UIDAI's myAadhaar site with a 4-digit share code of your choice, then upload it. You will add a photo of your PAN card later.</span></button>` : ''}
+    </div>`; },
   bank: () => `<p class="dim">Money is paid out only to this account, and only money from it is accepted. We check it by sending ₹1.</p>
     ${fld('bankname', 'Bank', APP.bank)}<div class="row">${fld('ifsc', 'IFSC', APP.ifsc, 'maxlength="11" autocapitalize="characters"')}${fld('account', 'Account number', APP.account, 'inputmode="numeric" maxlength="18"')}</div>
     ${checks(['Bank account'])}<button class="btn pri" id="go">Verify bank account</button>`,
@@ -83,7 +86,7 @@ const V = {
     <button class="btn pri" id="go">Continue</button>`,
   photo: () => `<div class="media"><b>Your photograph</b><p class="dim small m0">Face the camera in good light, without glasses or a cap.</p><video id="cam" autoplay playsinline muted width="320" hidden></video><div class="acts start"><button class="btn" id="camon">Open camera</button><button class="btn" id="snap" hidden>Take photograph</button><label class="btn">Upload instead<input type="file" id="f-photo" accept="image/*" hidden></label></div>${hasDoc('Photograph') ? '<span class="small dim">Photograph saved ✓</span>' : ''}</div>
     <div class="media"><b>Your signature</b><canvas class="sig" id="sig" width="600" height="180"></canvas><div class="acts start"><button class="btn" id="sigclr">Clear</button><button class="btn" id="sigsave">Save signature</button></div>${hasDoc('Signature') ? '<span class="small dim">Signature saved ✓</span>' : ''}</div>
-    ${hasDoc('PAN (DigiLocker)') ? '' : `<div class="fld"><label for="f-pan">Photo of your PAN card (your DigiLocker had no PAN record)</label><input class="in" type="file" id="f-pan" accept="image/*,application/pdf">${hasDoc('PAN card') ? '<span class="small dim">Uploaded ✓</span>' : ''}</div>`}
+    ${hasDoc('PAN (DigiLocker)') ? '' : `<div class="fld"><label for="f-pan">Photo of your PAN card (needed because your PAN record did not come from DigiLocker)</label><input class="in" type="file" id="f-pan" accept="image/*,application/pdf">${hasDoc('PAN card') ? '<span class="small dim">Uploaded ✓</span>' : ''}</div>`}
     ${checks(['Face match'])}<button class="btn pri" id="go">Continue</button>`,
   review: () => `<dl class="kv"><dt>Name</dt><dd>${esc(APP.name)}</dd><dt>PAN</dt><dd>${esc(APP.pan)}</dd><dt>Mobile</dt><dd>${esc(APP.mobile)}</dd><dt>Email</dt><dd>${esc(APP.email)}</dd><dt>Address</dt><dd>${esc([APP.address, APP.city, APP.state, APP.pin].join(', '))}</dd><dt>Bank</dt><dd>${esc(APP.bank)} · ${esc(APP.ifsc)}</dd><dt>Segments</dt><dd>${esc((APP.segments || []).map(s => CFG.segments[s]).join(', '))}</dd><dt>Nominee</dt><dd>${APP.nominee_opt_out ? 'None' : esc(APP.nominee_name + ' (' + APP.nominee_relation + ')')}</dd></dl>
     <a class="small" href="/onboard/${encodeURIComponent(T)}/form?s=${encodeURIComponent(SECRET)}" target="_blank" rel="noopener">Read the account opening form you are signing</a>
@@ -109,10 +112,10 @@ function bind(step) {
   if (step === 'contact') { $('resend').onclick = () => run(async () => { APP = await call('POST', '/verify', { channel: 'resend' }); });
     go.onclick = () => run(async () => { if (!APP.mobile_ok) APP = await call('POST', '/verify', { channel: 'mobile', code: v('cm') }); if (!APP.email_ok) APP = await call('POST', '/verify', { channel: 'email', code: v('ce') }); }); }
   if (step === 'identity') go.onclick = () => run(() => saveStep('identity', { pan: v('pan'), name: v('name'), dob: v('dob'), gender: v('gender'), father: v('father'), marital: v('marital') }));
-  if (step === 'address') $('dl').onclick = () => run(async () => {
+  if (step === 'address') document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => run(async () => {
     if (!CFG.digilocker_redirect) return saveStep('address', { digilocker: true });
-    const r = await call('POST', '/digilocker', {}); location.href = r.url; await new Promise(() => {}); // leaving the page
-  });
+    const r = await call('POST', '/digilocker', { method: b.dataset.m }); location.href = r.url; await new Promise(() => {}); // leaving the page
+  }));
   if (step === 'bank') go.onclick = () => run(() => saveStep('bank', { bank: v('bankname'), ifsc: v('ifsc'), account: v('account') }));
   if (step === 'profile') { fileUp('f-inc', 'Income proof');
     go.onclick = () => run(() => saveStep('profile', { segments: [...document.querySelectorAll('[data-seg]:checked')].map(x => x.dataset.seg), income: v('income'), occupation: v('occupation'), experience: v('experience'), ras: v('ras'), demat_id: v('demat_id') })); }
@@ -146,7 +149,7 @@ function bind(step) {
     $('firm').textContent = CFG.firm; $('reg').textContent = 'SEBI registration ' + CFG.sebi_reg;
     $('foot').textContent = (CFG.provider === 'Not connected' ? 'Your details are checked by our staff. ' : '') + 'Your information is used only to open and service your account.';
     if (SECRET) { try { APP = await call('GET', '/state'); if (APP.status === 'Draft' && !APP.mobile_ok) DEV = {}; } catch (e) { SECRET = ''; store.set(''); } }
-    // Back from DigiLocker: read what was shared, then carry on.
+    // Back from sharing Aadhaar (DigiLocker or the offline file): read it, then carry on.
     if (APP && Q.get('dl') === 'back' && APP.status === 'Draft' && !(APP.steps || []).includes('address')) {
       history.replaceState(null, '', location.pathname); render();
       await run(() => saveStep('address', { digilocker: true }));

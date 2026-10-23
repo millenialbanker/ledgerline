@@ -517,8 +517,8 @@ func (o *Ops) KRAUploadFile(ctx context.Context, tenant, since string) ([]byte, 
 			continue
 		}
 		ipv := "Y"
-		if strings.Contains(c.KYCRoute, "DigiLocker") {
-			ipv = "NA" // not required: Aadhaar via DigiLocker
+		if strings.Contains(c.KYCRoute, "DigiLocker") || strings.Contains(c.KYCRoute, "offline e-KYC") {
+			ipv = "NA" // not required: Aadhaar via DigiLocker or UIDAI's offline e-KYC
 		}
 		rows = append(rows, []string{c.PAN, c.Name, c.DOB, c.Mobile, c.Email, c.City, c.State, c.KYCRoute, ipv, c.KYCDate, change, c.UCC})
 	}

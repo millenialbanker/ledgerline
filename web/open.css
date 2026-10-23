@@ -65,3 +65,8 @@ canvas.sig{width:100%;height:150px;touch-action:none;background:#fff}
 .foot{font-size:12px;text-align:center}
 
 .m0{margin:0}.acts.start{justify-content:flex-start}
+.choices{display:grid;gap:10px;margin:12px 0 4px}
+.choice{display:flex;flex-direction:column;gap:4px;text-align:left;font:inherit;color:inherit;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;cursor:pointer}
+.choice:first-child{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.choice:hover,.choice:focus-visible{border-color:var(--accent);outline:none}
+.choice b{font-weight:600}

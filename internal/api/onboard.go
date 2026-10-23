@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -72,10 +73,15 @@ func (s *Server) onboardRoutes() {
 		a, err := s.ops.SaveAppStep(r.Context(), t, r.Header.Get(appHeader), b)
 		ok(w, a.Public(), err)
 	})
-	// The applicant leaves for DigiLocker (through the KYC plugin) and comes
-	// back to /open/<firm>?dl=back, where the page completes the address step.
+	// The applicant leaves to share Aadhaar through the KYC plugin
+	// ({"method": "digilocker" | "aadhaar_offline"}) and comes back to
+	// /open/<firm>?dl=back, where the page completes the address step.
 	h("POST /onboard/{tenant}/digilocker", func(w http.ResponseWriter, r *http.Request, t string) {
-		url, err := s.ops.StartDigiLocker(r.Context(), t, r.Header.Get(appHeader), s.publicURL(r)+"/open/"+t+"?dl=back")
+		var b struct {
+			Method string `json:"method"`
+		}
+		_ = json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&b)
+		url, err := s.ops.StartDigiLocker(r.Context(), t, r.Header.Get(appHeader), s.publicURL(r)+"/open/"+t+"?dl=back", b.Method)
 		ok(w, map[string]string{"url": url}, err)
 	})
 	h("POST /onboard/{tenant}/doc", func(w http.ResponseWriter, r *http.Request, t string) {

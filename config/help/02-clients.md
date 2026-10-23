@@ -25,9 +25,10 @@ related: new-client, activate-client
 
 1. Share the link shown at the top of [[apps|Online applications]] (on your website, by WhatsApp, or with an AP code so the AP is credited).
 2. When an applicant submits, the application appears here and the client is created at **KYC verification**.
-3. Click **Open** to see every check (PAN, KRA, Aadhaar from DigiLocker, bank account, face match, e-Sign) and the documents, including the e-Aadhaar and PAN records fetched from DigiLocker.
-4. There is no in-person verification: Aadhaar and PAN come from DigiLocker with the applicant's consent, which SEBI's KYC circular accepts without IPV or video.
-5. On Autopilot set to activate (always in Full autopilot), an application whose every check passed is activated by itself. Otherwise, or when something is marked **Check manually** or **Failed** (a name that differs from Aadhaar, say), check it, then move the client through the stages on [[clients|Clients & onboarding]], or **Reject** with a reason, which is sent to the applicant.
+3. Click **Open** to see every check (PAN, KRA, Aadhaar, bank account, face match, e-Sign) and the documents: the e-Aadhaar and PAN record from DigiLocker, or the UIDAI-signed offline e-KYC file.
+4. There is no in-person verification: Aadhaar comes from DigiLocker or from UIDAI's offline e-KYC file (not older than 3 days), which SEBI's KYC circular accepts without IPV or video.
+5. **Aadhaar (offline e-KYC): check manually** usually means the mobile and email the applicant confirmed are not the ones linked to that Aadhaar, so the file may be someone else's. Call the applicant, or ask them to use DigiLocker or download a fresh file themselves.
+6. On Autopilot set to activate (always in Full autopilot), an application whose every check passed is activated by itself. Otherwise, or when something is marked **Check manually** or **Failed** (a name that differs from Aadhaar, say), check it, then move the client through the stages on [[clients|Clients & onboarding]], or **Reject** with a reason, which is sent to the applicant.
 
 ## activate-client
 title: Activate a client

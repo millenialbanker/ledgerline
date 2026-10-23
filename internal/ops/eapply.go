@@ -238,13 +238,29 @@ type AppConfig struct {
 	// DigiLockerRedirect: the applicant is sent to DigiLocker and back
 	// (the KYC plugin is connected).
 	DigiLockerRedirect bool `json:"digilocker_redirect"`
+	// AadhaarMethods are the ways the applicant can share Aadhaar:
+	// "digilocker", and "aadhaar_offline" when the KYC plugin offers it.
+	AadhaarMethods []string `json:"aadhaar_methods"`
 }
 
 // ApplyConfig describes the firm for the public page.
 func (o *Ops) ApplyConfig(ctx context.Context, tenant string) AppConfig {
 	set, _ := o.Settings(ctx, tenant)
 	return AppConfig{Firm: set.Firm, SEBIReg: set.SEBIReg, Email: set.ComplianceEmail, Provider: o.kyc().Name(), Dev: o.DevCodes, Segments: SegmentNames, Declare: AppDeclarations, Steps: AppSteps,
-		DocKinds: []string{"PAN card", "Photograph", "Signature", "Income proof", "Bank proof"}, DigiLockerRedirect: isFlow(o.kyc())}
+		DocKinds: []string{"PAN card", "Photograph", "Signature", "Income proof", "Bank proof"}, DigiLockerRedirect: isFlow(o.kyc()), AadhaarMethods: o.aadhaarMethods(ctx)}
+}
+
+// aadhaarMethods asks the KYC plugin which ways it offers; other
+// providers have DigiLocker only.
+func (o *Ops) aadhaarMethods(ctx context.Context) []string {
+	if m, ok := o.kyc().(interface {
+		Methods(context.Context) []string
+	}); ok {
+		if ms := m.Methods(ctx); len(ms) > 0 {
+			return ms
+		}
+	}
+	return []string{AadhaarDigiLocker}
 }
 
 func isFlow(p KYCProvider) bool { _, ok := p.(DigiLockerFlow); return ok }
@@ -482,16 +498,17 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 			return a, &ValidationError{[]FieldError{{"pan", pc.Detail}}}
 		}
 	case "address":
-		// Aadhaar (with the address) and the PAN record come from DigiLocker:
-		// through the KYC plugin when it is connected (the applicant has been
-		// there and back; see StartDigiLocker), or from the provider directly.
+		// Aadhaar (with the address) comes from DigiLocker, with the PAN
+		// record, or from an Aadhaar offline e-KYC file: through the KYC
+		// plugin when it is connected (the applicant has been there and back;
+		// see StartDigiLocker), or from the provider directly.
 		if fl, ok := p.(DigiLockerFlow); ok {
 			if a.DLSession == "" {
-				return a, invalid("open DigiLocker first: click Fetch from DigiLocker")
+				return a, invalid("share your Aadhaar first: choose DigiLocker or the Aadhaar offline e-KYC file")
 			}
 			r, err := fl.DigiLockerResult(ctx, a.DLSession)
 			if err != nil {
-				return a, invalid("DigiLocker could not be read: %v", err)
+				return a, invalid("your Aadhaar could not be read: %v", err)
 			}
 			if err := o.applyDigiLocker(ctx, tenant, &a, r, now); err != nil {
 				_ = docs.Upsert(ctx, o.Docs, tenant, cApplication, a.ID, a, "applicant")
@@ -572,12 +589,14 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 			}
 			return a, invalid("take a photograph, sign, and upload your PAN card")
 		}
-		// The live photograph is compared with the Aadhaar photograph from
-		// DigiLocker (or the PAN card image).
+		// The live photograph is compared with the Aadhaar photograph (from
+		// DigiLocker or the offline e-KYC file), or the PAN card image.
 		ph, _ := o.appDocBytes(ctx, tenant, a, "Photograph")
-		ref, _ := o.appDocBytes(ctx, tenant, a, "Aadhaar photo (DigiLocker)")
-		if len(ref) == 0 {
-			ref, _ = o.appDocBytes(ctx, tenant, a, "PAN card")
+		var ref []byte
+		for _, k := range []string{"Aadhaar photo (DigiLocker)", "Aadhaar photo (offline e-KYC)", "PAN card"} {
+			if ref, _ = o.appDocBytes(ctx, tenant, a, k); len(ref) > 0 {
+				break
+			}
 		}
 		a.setCheck(p.FaceMatch(ph, ref), now)
 	default:
@@ -743,7 +762,7 @@ func (o *Ops) submitApplication(ctx context.Context, tenant string, a Applicatio
 	}
 	c := Client{Name: a.Name, Type: "Individual", PAN: a.PAN, DOB: a.DOB, Mobile: a.Mobile, Email: a.Email, City: a.City, State: a.State, Segments: a.Segments,
 		Risk: "Low", Income: a.Income, RAS: a.RAS, Bank: BankAccount{a.Bank, a.IFSC, a.Account}, Demat: Demat{a.Depository, a.DematID},
-		Nominee: nom, NomineeName: a.NomineeName, KYCRoute: "Online (Aadhaar via DigiLocker)", IncomeProof: a.hasDoc("Income proof"), RiskDisclosure: true,
+		Nominee: nom, NomineeName: a.NomineeName, KYCRoute: kycRoute(a), IncomeProof: a.hasDoc("Income proof"), RiskDisclosure: true,
 		WhatsApp: a.WhatsApp, Partner: a.Partner, Tags: []string{"ONLINE"}}
 	if c.Demat.Depository == "" {
 		c.Demat.Depository = "CDSL"
@@ -783,6 +802,15 @@ func (o *Ops) submitApplication(ctx context.Context, tenant string, a Applicatio
 		appReceivedText(a, nc.UCC, set.Firm, activated))
 	o.log(ctx, tenant, actor, "eapply.submitted", a.ID, map[string]any{"ucc": nc.UCC})
 	return a, nil, nil
+}
+
+// kycRoute records how Aadhaar was verified (the KRA upload marks IPV not
+// applicable for both).
+func kycRoute(a Application) string {
+	if a.AddrSource == "Aadhaar offline e-KYC" {
+		return "Online (Aadhaar offline e-KYC from UIDAI)"
+	}
+	return "Online (Aadhaar via DigiLocker)"
 }
 
 func (a Application) count(st string) int {

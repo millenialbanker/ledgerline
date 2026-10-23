@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -22,13 +23,37 @@ type PluginKYC struct {
 	Key  string // the firm's API key for the plugin
 	Base KYCProvider
 	HTTP *http.Client
+
+	mu        sync.Mutex
+	methods   []string
+	methodsAt time.Time
+}
+
+// Methods are the ways the plugin offers to share Aadhaar, asked at most
+// every five minutes.
+func (p *PluginKYC) Methods(ctx context.Context) []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.methods != nil && time.Since(p.methodsAt) < 5*time.Minute {
+		return p.methods
+	}
+	var r struct {
+		Methods []string `json:"methods"`
+	}
+	cctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	if err := p.call(cctx, http.MethodGet, "/v1/methods", nil, &r); err != nil {
+		return p.methods // the last answer, or nil (DigiLocker only)
+	}
+	p.methods, p.methodsAt = r.Methods, time.Now()
+	return p.methods
 }
 
 func (p *PluginKYC) Name() string {
 	if p.Base != nil && p.Base.Name() != "Not connected" {
-		return "Ledgerline KYC (DigiLocker) and " + p.Base.Name()
+		return "Ledgerline KYC (Aadhaar) and " + p.Base.Name()
 	}
-	return "Ledgerline KYC (DigiLocker)"
+	return "Ledgerline KYC (Aadhaar)"
 }
 
 func (p *PluginKYC) base() KYCProvider {
@@ -41,7 +66,7 @@ func (p *PluginKYC) base() KYCProvider {
 func (p *PluginKYC) PAN(pan, name, dob string) AppCheck { return p.base().PAN(pan, name, dob) }
 func (p *PluginKYC) KRA(pan string) AppCheck            { return p.base().KRA(pan) }
 func (p *PluginKYC) DigiLocker(a *Application) (AppCheck, bool) {
-	return AppCheck{Name: "Aadhaar (DigiLocker)", Status: "Check manually", Detail: "Continue to DigiLocker to share your Aadhaar.", Provider: p.Name()}, false
+	return AppCheck{Name: "Aadhaar (DigiLocker)", Status: "Check manually", Detail: "Share your Aadhaar through DigiLocker or the offline e-KYC file.", Provider: p.Name()}, false
 }
 func (p *PluginKYC) PennyDrop(account, ifsc, name string) AppCheck {
 	return p.base().PennyDrop(account, ifsc, name)
@@ -95,7 +120,7 @@ func (p *PluginKYC) call(ctx context.Context, method, path string, body, out any
 // StartDigiLocker opens a plugin session and returns the applicant's link.
 func (p *PluginKYC) StartDigiLocker(ctx context.Context, ref, returnURL string, hint DigiLockerHint) (string, string, error) {
 	var r struct{ ID, URL string }
-	err := p.call(ctx, http.MethodPost, "/v1/sessions", map[string]any{"reference": ref, "return_url": returnURL, "hint": hint}, &r)
+	err := p.call(ctx, http.MethodPost, "/v1/sessions", map[string]any{"reference": ref, "return_url": returnURL, "hint": hint, "method": hint.Method}, &r)
 	if err == nil && (r.ID == "" || r.URL == "") {
 		err = errors.New("KYC plugin: no session in the reply")
 	}

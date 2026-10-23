@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
+	"crypto/x509"
 	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
@@ -34,10 +35,14 @@ type Customer struct {
 
 // Config is the service's configuration (a JSON file, kept private).
 type Config struct {
-	PublicURL         string     `json:"public_url"` // how investors reach this service
-	ProviderKeySHA256 string     `json:"provider_key_sha256"`
-	RetentionHours    int        `json:"retention_hours"` // finished sessions are deleted after this (default 72)
-	SessionMinutes    int        `json:"session_minutes"` // an unfinished session expires (default 30)
+	PublicURL         string `json:"public_url"` // how investors reach this service
+	ProviderKeySHA256 string `json:"provider_key_sha256"`
+	RetentionHours    int    `json:"retention_hours"` // finished sessions are deleted after this (default 72)
+	SessionMinutes    int    `json:"session_minutes"` // an unfinished session expires (default 30)
+	// UIDAICertificates are the files of UIDAI's offline e-KYC signing
+	// certificate (from UIDAI's Data and Downloads page). Without one,
+	// investors can only use DigiLocker.
+	UIDAICertificates []string   `json:"uidai_certificates"`
 	Customers         []Customer `json:"customers"`
 }
 
@@ -50,8 +55,37 @@ type Server struct {
 	Now      func() time.Time
 	Log      *slog.Logger
 	HTTP     *http.Client
+	Certs    []*x509.Certificate // UIDAI's offline e-KYC certificates
 	mux      *http.ServeMux
 	sim      *Sim
+	practice *practiceSigner
+}
+
+// MaxOfflineAttempts is how many failed uploads a session allows (the
+// share code is only 4 digits).
+const MaxOfflineAttempts = 5
+
+const (
+	MethodDigiLocker = "digilocker"
+	MethodOffline    = "aadhaar_offline"
+)
+
+func (s *Server) certs() []*x509.Certificate {
+	if s.practice != nil {
+		return append(append([]*x509.Certificate(nil), s.Certs...), s.practice.cert)
+	}
+	return s.Certs
+}
+
+func (s *Server) methods(c Customer) []string {
+	var m []string
+	if c.DigiLocker.ClientID != "" && c.DigiLocker.ClientSecret != "" {
+		m = append(m, MethodDigiLocker)
+	}
+	if len(s.certs()) > 0 {
+		m = append(m, MethodOffline)
+	}
+	return m
 }
 
 func (s *Server) now() time.Time {
@@ -75,6 +109,8 @@ func (s *Server) customer(id string) (Customer, bool) {
 	return Customer{}, false
 }
 
+func (s *Server) pub(path string) string { return strings.TrimRight(s.Cfg.PublicURL, "/") + path }
+
 func (s *Server) dlBase() string {
 	if s.Simulate {
 		return strings.TrimRight(s.Cfg.PublicURL, "/") + "/sim/digilocker/public"
@@ -93,10 +129,19 @@ func (s *Server) Handler() http.Handler {
 	m.HandleFunc("GET /v1/sessions/{id}", s.auth(s.read))
 	m.HandleFunc("DELETE /v1/sessions/{id}", s.auth(s.remove))
 	m.HandleFunc("GET /v1/usage", s.auth(s.usage))
+	m.HandleFunc("GET /v1/methods", s.auth(func(w http.ResponseWriter, r *http.Request, c Customer) {
+		writeJSON(w, 200, map[string][]string{"methods": s.methods(c)})
+	}))
 	m.HandleFunc("GET /start/{customer}/{id}", s.start)
 	m.HandleFunc("GET /callback", s.callback)
 	m.HandleFunc("GET /provider/usage", s.providerUsage)
+	m.HandleFunc("GET /offline/{customer}/{id}", s.offlinePage)
+	m.HandleFunc("POST /offline/{customer}/{id}", s.offlineUpload)
 	if s.Simulate {
+		if p, err := newPracticeSigner(); err == nil {
+			s.practice = p
+		}
+		m.HandleFunc("GET /sim/okyc/{customer}/{id}", s.practiceFile)
 		secrets := map[string]string{}
 		for _, c := range s.Cfg.Customers {
 			secrets[c.DigiLocker.ClientID] = c.DigiLocker.ClientSecret
@@ -190,12 +235,14 @@ func (s *Server) returnAllowed(c Customer, raw string) bool {
 }
 
 // create starts a session: POST /v1/sessions
-// {"reference", "return_url", "hint": {"name", "dob", "pan"}}
+// {"reference", "return_url", "method", "hint": {"name", "dob", "pan", "mobile", "email"}}
+// method is "digilocker", "aadhaar_offline" or empty to let the investor choose.
 func (s *Server) create(w http.ResponseWriter, r *http.Request, c Customer) {
 	var b struct {
 		Reference string `json:"reference"`
 		ReturnURL string `json:"return_url"`
 		Hint      Hint   `json:"hint"`
+		Method    string `json:"method"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&b); err != nil {
 		writeErr(w, 400, "the request is not valid JSON")
@@ -205,13 +252,24 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request, c Customer) {
 		writeErr(w, 400, "return_url must be https on one of your registered hosts")
 		return
 	}
-	if c.DigiLocker.ClientID == "" || c.DigiLocker.ClientSecret == "" {
+	ms := s.methods(c)
+	switch {
+	case b.Method != "" && b.Method != MethodDigiLocker && b.Method != MethodOffline:
+		writeErr(w, 400, `method must be "digilocker", "aadhaar_offline" or empty`)
+		return
+	case b.Method == MethodDigiLocker && !contains(ms, MethodDigiLocker):
 		writeErr(w, 409, "your DigiLocker registration (client ID and secret) is not set up yet")
+		return
+	case b.Method == MethodOffline && !contains(ms, MethodOffline):
+		writeErr(w, 409, "Aadhaar offline e-KYC is not set up on this service (UIDAI's certificate is missing)")
+		return
+	case len(ms) == 0:
+		writeErr(w, 409, "neither DigiLocker nor Aadhaar offline e-KYC is set up for you yet")
 		return
 	}
 	now := s.now()
 	tok := randHex(24)
-	x := Session{ID: "s" + randHex(12), Customer: c.ID, Reference: strings.TrimSpace(b.Reference), ReturnURL: b.ReturnURL, Hint: b.Hint,
+	x := Session{ID: "s" + randHex(12), Customer: c.ID, Reference: strings.TrimSpace(b.Reference), ReturnURL: b.ReturnURL, Hint: b.Hint, Method: b.Method,
 		Status: "Created", Created: now.UTC().Format(time.RFC3339), Expires: now.Add(s.minutes()).UTC().Format(time.RFC3339), TokenHash: sha(tok)}
 	x.Hint.PAN = strings.ToUpper(strings.TrimSpace(x.Hint.PAN))
 	if err := s.Store.Put(x); err != nil {
@@ -272,9 +330,9 @@ func (s *Server) providerUsage(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("format") == "csv" {
 		var b bytes.Buffer
 		cw := csv.NewWriter(&b)
-		_ = cw.Write([]string{"Customer", "Name", "Month", "Started", "Completed (billable)", "Failed"})
+		_ = cw.Write([]string{"Customer", "Name", "Month", "Started", "Completed (billable)", "Of which offline e-KYC", "Failed"})
 		for _, u := range us {
-			_ = cw.Write([]string{u.Customer, names[u.Customer], u.Month, fmt.Sprint(u.Started), fmt.Sprint(u.Completed), fmt.Sprint(u.Failed)})
+			_ = cw.Write([]string{u.Customer, names[u.Customer], u.Month, fmt.Sprint(u.Started), fmt.Sprint(u.Completed), fmt.Sprint(u.Offline), fmt.Sprint(u.Failed)})
 		}
 		cw.Flush()
 		w.Header().Set("Content-Type", "text/csv")
@@ -299,7 +357,28 @@ func (s *Server) start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if x.Status == "Completed" || x.Status == "Failed" || s.expired(x) {
-		page(w, 410, "This link has been used or has expired", "Go back to the account opening page and start DigiLocker again.", x.ReturnURL)
+		page(w, 410, "This link has been used or has expired", "Go back to the account opening page and start again.", x.ReturnURL)
+		return
+	}
+	ms := s.methods(c)
+	via := x.Method
+	if v := r.URL.Query().Get("via"); x.Method == "" && contains(ms, v) {
+		via = v
+	}
+	if via == "" && len(ms) == 1 {
+		via = ms[0]
+	}
+	tok := url.QueryEscape(r.URL.Query().Get("t"))
+	switch via {
+	case "":
+		choosePage(w, x, s.pub("/start/"+c.ID+"/"+x.ID+"?t="+tok+"&via="+MethodDigiLocker), s.pub("/offline/"+c.ID+"/"+x.ID+"?t="+tok))
+		return
+	case MethodOffline:
+		http.Redirect(w, r, s.pub("/offline/"+c.ID+"/"+x.ID+"?t="+tok), http.StatusFound)
+		return
+	}
+	if !contains(ms, MethodDigiLocker) {
+		page(w, 409, "DigiLocker is not available", "Go back to the account opening page.", x.ReturnURL)
 		return
 	}
 	verifier, challenge := PKCE()
@@ -443,7 +522,17 @@ func compare(h Hint, a *Aadhaar, p *PAN) []Check {
 			add("Aadhaar name", NamesMatch(a.Name, h.Name), fmt.Sprintf("Aadhaar %q, given %q", a.Name, h.Name))
 		}
 		if h.DOB != "" {
-			add("Aadhaar date of birth", a.DOB == h.DOB, fmt.Sprintf("Aadhaar %s, given %s", a.DOB, h.DOB))
+			ok := a.DOB == h.DOB || (len(a.DOB) == 4 && strings.HasPrefix(h.DOB, a.DOB)) // offline e-KYC may carry only the year
+			add("Aadhaar date of birth", ok, fmt.Sprintf("Aadhaar %s, given %s", a.DOB, h.DOB))
+		}
+		if a.Source == "Aadhaar offline e-KYC" {
+			ok := a.MobileMatch == "Matches" || a.EmailMatch == "Matches"
+			d := "the mobile or email confirmed is linked to this Aadhaar"
+			if !ok {
+				d = "neither the mobile nor the email confirmed is linked to this Aadhaar (mobile: " + firstNonEmpty(a.MobileMatch, "not given") + ", email: " + firstNonEmpty(a.EmailMatch, "not given") + ")"
+			}
+			add("Aadhaar belongs to the applicant", ok, d)
+			return cs // offline e-KYC has no PAN record; PAN is checked separately
 		}
 	}
 	if p == nil {

@@ -41,6 +41,9 @@ func (f *dlFake) DigiLockerResult(context.Context, string) (DigiLockerResult, er
 	return f.res, nil
 }
 
+// applyMethod is how apply shares Aadhaar through the plugin.
+var applyMethod = AadhaarDigiLocker
+
 // walkDigiLocker, when set, takes the applicant through DigiLocker.
 var walkDigiLocker func(t *testing.T, url string)
 
@@ -65,7 +68,7 @@ func apply(t *testing.T, o *Ops, ctx context.Context, mobile, pan string, viaPlu
 		if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "address"}); err == nil {
 			t.Fatal("address before DigiLocker")
 		}
-		url, err := o.StartDigiLocker(ctx, T, secret, "https://broker.example/open/demo")
+		url, err := o.StartDigiLocker(ctx, T, secret, "https://broker.example/open/demo", applyMethod)
 		if err != nil || url == "" {
 			t.Fatalf("start digilocker %q %v", url, err)
 		}
@@ -82,7 +85,7 @@ func apply(t *testing.T, o *Ops, ctx context.Context, mobile, pan string, viaPlu
 	}
 	must(o.SaveAppStep(ctx, T, secret, AppStep{Step: "profile", Application: Application{Segments: []string{"CM"}, Income: "10-25 L", Occupation: "Salaried", Experience: "None", RAS: "Quarterly"}}))
 	must(o.SaveAppStep(ctx, T, secret, AppStep{Step: "nominee", Application: Application{NomineeOptOut: true}}))
-	if !viaPlugin {
+	if !viaPlugin || applyMethod == AadhaarOffline {
 		must(o.AddAppDoc(ctx, T, secret, "PAN card", "pan.png", png1))
 	}
 	must(o.SaveAppStep(ctx, T, secret, AppStep{Step: "photo"}))
@@ -117,27 +120,8 @@ func TestFullAutopilotActivatesCleanApplications(t *testing.T) {
 	// Through the plugin, with a name that does not match Aadhaar: a person checks it.
 	f := &dlFake{}
 	f.res.Status = "Completed"
-	f.res.Aadhaar = &struct {
-		Name     string `json:"name"`
-		DOB      string `json:"dob"`
-		Gender   string `json:"gender"`
-		Last4    string `json:"last4"`
-		CareOf   string `json:"care_of"`
-		Address  string `json:"address"`
-		District string `json:"district"`
-		State    string `json:"state"`
-		PIN      string `json:"pin"`
-		Photo    []byte `json:"photo,omitempty"`
-		XML      []byte `json:"xml,omitempty"`
-		SHA256   string `json:"sha256"`
-	}{Name: "Kavya R Iyengar", DOB: "1994-03-02", Gender: "Female", Last4: "4321", Address: "7 MG Road", District: "Pune", State: "Maharashtra", PIN: "411001", Photo: png1, XML: []byte("<Certificate/>")}
-	f.res.PAN = &struct {
-		Number string `json:"number"`
-		Name   string `json:"name"`
-		DOB    string `json:"dob"`
-		XML    []byte `json:"xml,omitempty"`
-		SHA256 string `json:"sha256"`
-	}{Number: "ABCPI1235K", Name: "Kavya Iyer", DOB: "1994-03-02", XML: []byte("<Certificate/>")}
+	f.res.Aadhaar = &DLAadhaar{Name: "Kavya R Iyengar", DOB: "1994-03-02", Gender: "Female", Last4: "4321", Address: "7 MG Road", District: "Pune", State: "Maharashtra", PIN: "411001", Photo: png1, XML: []byte("<Certificate/>")}
+	f.res.PAN = &DLPAN{Number: "ABCPI1235K", Name: "Kavya Iyer", DOB: "1994-03-02", XML: []byte("<Certificate/>")}
 	o.KYC = f
 	a, err = apply(t, o, ctx, "9876500032", "ABCPI1235K", true)
 	if err != nil {
@@ -178,6 +162,28 @@ func TestFullAutopilotActivatesCleanApplications(t *testing.T) {
 	if !queued {
 		t.Fatal("not queued with the reason")
 	}
+
+	// An offline e-KYC file whose linked mobile and email are not the
+	// applicant's (someone else's file): a person checks it.
+	f.res.Method, f.res.PAN = AadhaarOffline, nil
+	f.res.Aadhaar.Name, f.res.Aadhaar.Source, f.res.Aadhaar.MobileMatch, f.res.Aadhaar.EmailMatch = "Kavya Iyer", "Aadhaar offline e-KYC", "Does not match", "Does not match"
+	applyMethod = AadhaarOffline
+	a, err = apply(t, o, ctx, "9876500035", "ABCPI1238K", true)
+	applyMethod = AadhaarDigiLocker
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range a.Checks {
+		if c.Name == "Aadhaar (offline e-KYC)" && (c.Status != "Check manually" || !strings.Contains(c.Detail, "not the ones linked")) {
+			t.Fatalf("someone else's file: %+v", c)
+		}
+	}
+	if c, _ := o.Client(ctx, T, a.UCC); c.Status == "Active" {
+		t.Fatal("activated with someone else's Aadhaar file")
+	}
+	f.res.Method = AadhaarDigiLocker
+	f.res.Aadhaar.Source = "DigiLocker"
+	f.res.PAN = &DLPAN{Number: "ABCPI1236K", Name: "Kavya Iyer", DOB: "1994-03-02", XML: []byte("<Certificate/>")}
 
 	// A PAN in DigiLocker that is not the PAN given stops the application.
 	f.res.Aadhaar.Name = "Kavya Iyer"
