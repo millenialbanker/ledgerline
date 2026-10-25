@@ -16,7 +16,7 @@ run:             ## API server, in-memory stores, demo key
 	go run ./cmd/ledgerline -dev
 
 build:
-	go build -o bin/ledgerline ./cmd/ledgerline && go build -o bin/ledgerctl ./cmd/ledgerctl && go build -o bin/ledgerline-kyc ./cmd/ledgerline-kyc
+	go build -o bin/ledgerline ./cmd/ledgerline && go build -o bin/ledgerctl ./cmd/ledgerctl && go build -o bin/ledgerline-kyc ./cmd/ledgerline-kyc && go build -o bin/ledgerline-bot ./cmd/ledgerline-bot
 
 kyc:             ## the KYC plugin with its practice DigiLocker
 	go run ./cmd/ledgerline-kyc -simulate

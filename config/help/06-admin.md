@@ -322,3 +322,21 @@ On [[chat|Team messages]], click **Channels & desks**:
 3. **Official desks** answer branches and APs: tick the head office staff who answer for each. The Risk, DP and Compliance desks start with the people in those roles; a desk with nobody on it is answered by the Admins. **New desk** adds another (Accounts, say).
 
 You manage channels without reading them; add yourself as a member to read one.
+
+## automations
+title: Record and run an automation
+screen: rpa
+roles: Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff, Admin
+ask: automation; automate a task; record a task; rpa; robotic process automation; bot; ledgerline bot; download files automatically; exchange portal login automatically; run a workflow; schedule a workflow; workflow failed; workflow waiting for me; captcha; add this computer; pair computer; saved login; save password; password vault; authenticator code
+related: work-queue, team-messages
+
+On [[rpa|Automations]]:
+
+1. **Add this computer** once: get **ledgerline-bot** from your administrator, run the pair command shown (the code works once, for ten minutes), then start `ledgerline-bot` and leave it running. It needs Google Chrome or Microsoft Edge.
+2. Under **Saved logins**, add the portals the task logs in to (name, site, user name, password, and the authenticator key if the portal uses an authenticator app). Passwords are never shown again.
+3. **Record a task**: give the start address. The bot opens its own browser window; do the task there (log in, click, type, download). Each step appears in Ledgerline as you go. Password boxes are linked to your saved login for the site, never recorded; SMS one-time passwords and captchas become **Ask me** steps.
+4. **Stop and save**, then check the steps. Add steps such as **Load into Ledgerline** (load a downloaded file as trades, obligations, bhavcopy…), **Read text**, **Message me**, or dates such as the trade date in any format.
+5. **Run** it, or tick **Run by itself** with a time and days (trading days skip exchange holidays). The computer must be on with the bot running.
+6. A run that needs you pauses: Ledgy messages you; do the step in the bot's window and click **Continue**. A failed run shows the step, the reason and a picture of the screen.
+
+**Share** lets colleagues run a workflow on their own computers with their own saved logins. Admins can add firm logins (the firm's own portal accounts) and choose who may use them. Every use of a saved password is in the audit trail.

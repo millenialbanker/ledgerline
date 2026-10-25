@@ -108,7 +108,7 @@ function eodStatus(e) {
 
 /* ============================== shell ============================== */
 const NAV = [
-  ['Overview', [['dashboard', 'Dashboard'], ['chat', 'Team messages'], ['autopilot', 'Autopilot & work queue']]],
+  ['Overview', [['dashboard', 'Dashboard'], ['chat', 'Team messages'], ['rpa', 'Automations'], ['autopilot', 'Autopilot & work queue']]],
   ['Operations', [['files', 'Files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['apps', 'Online applications'], ['changes', 'Change requests'], ['corp', 'Corporate actions'], ['statements', 'Client reports'], ['yearend', 'Year-end packs']]],
   ['Risk', [['live', 'Live RMS'], ['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge'], ['debits', 'Debtors & interest'], ['mtf', 'Margin trading (MTF)']]],
   ['Accounts', [['ledger', 'Ledger'], ['deposits', 'Clearing deposits'], ['bank', 'Bank reconciliation'], ['money', 'Receipts & payouts'], ['books', 'Firm accounts & GST'], ['ras', 'Running account'], ['charges', 'Charges calculator'], ['brokerage', 'Brokerage plans']]],
@@ -122,7 +122,7 @@ const clientUser = () => S.me?.role === 'Client';
 const VIEWS = [...NAV.flatMap(g => g[1].map(v => v[0])), ...PORTAL_VIEWS];
 try { const h = location.hash.slice(1); if (VIEWS.includes(h)) S.view = h; } catch (e) {}
 
-const SCOPED_VIEWS = ['chat', 'yearend', 'insights', 'clients', 'statements', 'notes', 'money', 'debits', 'rms', 'partners', 'prepaid', 'changes', 'helpdesk', 'crm'];
+const SCOPED_VIEWS = ['chat', 'rpa', 'yearend', 'insights', 'clients', 'statements', 'notes', 'money', 'debits', 'rms', 'partners', 'prepaid', 'changes', 'helpdesk', 'crm'];
 const scopedUser = () => ['Branch staff', 'Authorised person'].includes(S.me?.role);
 const edition = () => S.me?.edition?.id || 'autopilot';
 function editionNote(d) {
@@ -134,6 +134,7 @@ function renderSide() {
   const ct = S.counts, q = { clients: 1, notes: 1, collateral: 1, reports: 1, autopilot: 1 };
   let nav = clientUser() ? PORTAL_NAV : scopedUser() ? NAV.map(([g, items]) => [g, items.filter(([k]) => SCOPED_VIEWS.includes(k))]).filter(([, items]) => items.length) : NAV;
   if (edition() === 'manual') nav = nav.map(([g, items]) => [g, items.filter(([k]) => k !== 'autopilot')]).filter(([, items]) => items.length);
+  if (role() === 'Authorised person') nav = nav.map(([g, items]) => [g, items.filter(([k]) => k !== 'rpa')]).filter(([, items]) => items.length); // automations are for the firm's own staff
   const codes = Object.entries(S.me?.member_codes || {}).map(([k, v]) => k + ' ' + v).join(' · ');
   $('side').innerHTML = `<div class="brand"><div class="mark"><i></i><i></i><i></i></div><div><b>Ledgerline</b><small>${esc(S.me?.firm || 'Back office')}</small>${!clientUser() && S.me?.edition ? `<small class="ed-chip ed-${S.me.edition.id}">${esc(S.me.edition.name)}</small>` : ''}</div></div>` +
     nav.map(([g, items]) => `<nav class="navg" aria-label="${g}"><h6>${g}</h6>${items.map(([k, l]) => `<button class="nav ${S.view === k ? 'on' : ''}" data-act="go" data-id="${k}"><span>${l}</span>${ct[k] ? `<span class="ct ${q[k] ? 'q' : ''}">${ct[k]}</span>` : ''}</button>`).join('')}</nav>`).join('') +

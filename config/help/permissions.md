@@ -65,6 +65,7 @@ MTF margin calls | Ops checker, Risk manager
 Managing branches | Ops checker, Admin
 Managing message channels and desks | Admin
 Managing partners | Ops checker, Admin
+Managing the firm's saved logins | Admin
 Mapping clients | Ops checker, Admin
 Marking a report uploaded | Ops checker, Compliance officer
 NRI registration | Ops checker, Compliance officer
@@ -116,6 +117,7 @@ The kill switch | Risk manager
 Updating KYC details | Ops maker, Ops checker
 Uploading delivery instructions | Ops maker, Ops checker
 Upstreaming funds | Ops checker
+Using automations | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Verifying delivery instructions | Ops checker
 View data protection | Compliance officer
 Viewing AI usage | Compliance officer

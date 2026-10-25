@@ -1,0 +1,21 @@
+/* Ledgerline console: automations */
+.rp-form{display:flex;flex-direction:column;gap:12px}
+.rp-steps{list-style:none;margin:0;padding:0;counter-reset:none}
+.rp-steps li{display:flex;gap:10px;align-items:flex-start;padding:9px 14px;border-bottom:1px solid var(--line);min-width:0}
+.rp-steps li:last-child{border-bottom:0}
+.rp-steps li.empty{justify-content:center;color:var(--ink3)}
+.rp-steps li.warn{background:var(--warn-soft)}
+.rp-steps li.ok .rp-n{background:var(--good-soft);color:var(--good)}
+.rp-steps li.bad{background:var(--bad-soft)}
+.rp-steps li.bad .rp-n{background:var(--bad);color:#fff}
+.rp-steps li.skip{opacity:.65}
+.rp-steps.live{max-height:46vh;overflow-y:auto;border:1px solid var(--line);border-radius:8px}
+.rp-n{flex:none;min-width:26px;height:26px;border-radius:13px;background:var(--sunk);color:var(--ink2);font-family:var(--f-mono);font-size:12px;display:flex;align-items:center;justify-content:center}
+.rp-st{flex:1;min-width:0;overflow-wrap:anywhere}
+.rp-st small{color:var(--ink3);font-size:11.5px;text-transform:uppercase;letter-spacing:.03em}
+.rp-acts{display:flex;gap:4px;flex:none}
+.rp-cmd{background:var(--sunk);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-family:var(--f-mono);font-size:12.5px;white-space:pre-wrap;word-break:break-all;margin:6px 0}
+.rp-howto{padding-left:20px;display:flex;flex-direction:column;gap:10px;margin:0}
+.rp-shot{max-width:100%;border:1px solid var(--line);border-radius:8px}
+.nowrap{white-space:nowrap}
+@media (max-width:700px){.rp-acts{flex-wrap:wrap;justify-content:flex-end}.rp-steps li{flex-wrap:wrap}}

@@ -260,6 +260,11 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	if err := o.holidayTick(ctx, tenant, now); err != nil {
 		return 0, fmt.Errorf("exchange holidays: %w", err)
 	}
+	// Automations: runs whose computer went quiet are closed in every
+	// edition; scheduled workflows start except in the Manual edition.
+	if err := o.rpaTick(ctx, tenant, now, !o.manual(ctx, tenant)); err != nil {
+		return 0, fmt.Errorf("automations: %w", err)
+	}
 	if o.manual(ctx, tenant) {
 		return 0, nil // Manual edition: none of the firm's jobs run on a timer
 	}
