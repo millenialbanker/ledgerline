@@ -23,6 +23,7 @@ import (
 
 	"ledgerline/internal/control"
 	"ledgerline/internal/docs"
+	"ledgerline/internal/mail"
 	"ledgerline/internal/vault"
 )
 
@@ -101,6 +102,34 @@ func run() error {
 			log.Info("owner login created", "user", envOr("LLCTL_OWNER", "owner"))
 		}
 	}
+
+	// Invoices, statements and payment reminders go out through the
+	// provider's mail server (STARTTLS or TLS only).
+	if u := os.Getenv("LLCTL_SMTP_URL"); u != "" {
+		m, err := mail.ParseSMTP(u)
+		if err != nil {
+			return fmt.Errorf("LLCTL_SMTP_URL: %w", err)
+		}
+		c.Mailer = m
+		log.Info("mail server set", "host", m.Host, "from", m.From)
+	}
+	// Control's own daily work (automatic payment reminders, when on).
+	go func() {
+		t := time.NewTicker(15 * time.Minute)
+		defer t.Stop()
+		for {
+			if n, err := c.Daily(ctx); err != nil {
+				log.Error("daily run", "err", err, "reminders", n)
+			} else if n > 0 {
+				log.Info("payment reminders sent", "count", n)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+			}
+		}
+	}()
 
 	s := control.NewServer(c, log)
 	cert, key := os.Getenv("LLCTL_TLS_CERT"), os.Getenv("LLCTL_TLS_KEY")

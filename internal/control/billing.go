@@ -49,11 +49,19 @@ func (c *Control) lines(ctx context.Context, cu Customer, month string, set Sett
 		}
 		name := firstOf(u.Report.Firm, f.Tenant)
 		ed := firstOf(u.Edition, u.Report.Edition, "manual")
-		if fee := p.Edition[ed]; fee > 0 {
+		fee := p.Edition[ed]
+		if agreed, ok := cu.EditionFee[ed]; ok {
+			fee = agreed // agreed with this customer
+		}
+		if fee > 0 {
 			out = append(out, InvoiceLine{Desc: fmt.Sprintf("Ledgerline %s edition, %s — %s", firstOf(editionName[ed], ed), monthName(month), name), SAC: p.SAC, Qty: 1, Rate: fee, Amount: fee, Kind: "edition", Firm: f.ID})
 		}
-		if extra := u.PeakStaff - p.IncludedUsers; extra > 0 && p.ExtraUser > 0 {
-			out = append(out, InvoiceLine{Desc: fmt.Sprintf("Staff logins above the %d included — %s", p.IncludedUsers, name), SAC: p.SAC, Qty: extra, Rate: p.ExtraUser, Amount: p.ExtraUser * money.Amount(extra), Kind: "users", Firm: f.ID})
+		included := p.IncludedUsers
+		if cu.IncludedUsers > 0 {
+			included = cu.IncludedUsers
+		}
+		if extra := u.PeakStaff - included; extra > 0 && p.ExtraUser > 0 {
+			out = append(out, InvoiceLine{Desc: fmt.Sprintf("Staff logins above the %d included — %s", included, name), SAC: p.SAC, Qty: extra, Rate: p.ExtraUser, Amount: p.ExtraUser * money.Amount(extra), Kind: "users", Firm: f.ID})
 		}
 		if u.PeakBots > 0 && p.BotComputer > 0 {
 			out = append(out, InvoiceLine{Desc: "Automation bot computers — " + name, SAC: p.SAC, Qty: u.PeakBots, Rate: p.BotComputer, Amount: p.BotComputer * money.Amount(u.PeakBots), Kind: "bots", Firm: f.ID})
@@ -84,6 +92,17 @@ func (c *Control) lines(ctx context.Context, cu Customer, month string, set Sett
 			break
 		}
 		lo = s.UpTo
+	}
+	// A minimum monthly commitment tops the usage up to the agreed amount.
+	if cu.MinMonthly > 0 && len(out) > 0 {
+		var usage money.Amount
+		for _, l := range out {
+			usage += l.Amount
+		}
+		if usage < cu.MinMonthly {
+			d := cu.MinMonthly - usage
+			out = append(out, InvoiceLine{Desc: fmt.Sprintf("Minimum monthly commitment (₹%s), %s", inr(cu.MinMonthly), monthName(month)), SAC: p.SAC, Qty: 1, Rate: d, Amount: d, Kind: "minimum"})
+		}
 	}
 	// AI credit topped up from Control in the month.
 	var cmds []string
@@ -269,6 +288,9 @@ func (c *Control) Invoices(ctx context.Context, by string) ([]Invoice, error) {
 		return nil, err
 	}
 	all, err := docs.List[Invoice](ctx, c.Docs, T, cInvoice, "")
+	for i := range all {
+		all[i].settle()
+	}
 	sort.Slice(all, func(i, j int) bool { return all[i].ID > all[j].ID })
 	return all, err
 }
@@ -282,6 +304,7 @@ func (c *Control) GetInvoice(ctx context.Context, by, id string) (Invoice, error
 	if err != nil {
 		return iv, ErrNotFound
 	}
+	iv.settle()
 	if iv.Status == "Draft" {
 		iv.Bill, _, _ = docs.Get[Customer](ctx, c.Docs, T, cCustomer, iv.Customer)
 		set, _ := c.Settings(ctx)
@@ -380,6 +403,7 @@ func (c *Control) IssueInvoice(ctx context.Context, by, id, date string) (Invoic
 		totals(x, cu, set)
 		x.Number, x.Status, x.Date, x.Due = num, "Issued", d.Format("2006-01-02"), d.AddDate(0, 0, set.Vendor.DueDays).Format("2006-01-02")
 		x.Bill, x.Vendor = cu, set.Vendor
+		x.settle()
 		x.Commands = nil
 		for _, l := range x.Lines {
 			if l.Kind == "ai" {
@@ -418,10 +442,10 @@ func (c *Control) VoidInvoice(ctx context.Context, by, id, why string) (Invoice,
 		if x.Status == "Void" {
 			return invalid("already void")
 		}
-		if x.Paid > 0 {
-			return invalid("money has been received against it; record a credit note instead")
+		if x.Paid > 0 || x.Credited > 0 {
+			return invalid("money or a credit note has been recorded against it; record a credit note instead")
 		}
-		x.Status = "Void"
+		x.Status, x.Balance = "Void", 0
 		x.Notes = strings.TrimSpace(x.Notes + "\nVoided: " + clean(why, 300))
 		return nil
 	})
@@ -447,38 +471,52 @@ func (c *Control) RecordPayment(ctx context.Context, by, id string, p Payment) (
 	if err := c.need(ctx, by, RoleBilling); err != nil {
 		return Invoice{}, err
 	}
-	if p.Amount <= 0 {
-		return Invoice{}, invalid("enter the amount received")
+	if p.Amount < 0 || p.TDS < 0 || p.Amount+p.TDS <= 0 {
+		return Invoice{}, invalid("enter the amount received (and any TDS deducted)")
 	}
 	if _, err := time.Parse("2006-01-02", p.Date); err != nil {
 		p.Date = c.today()
 	}
-	p.Mode, p.Ref, p.By = firstOf(clean(p.Mode, 30), "Bank transfer"), clean(p.Ref, 80), by
+	p.Mode, p.Ref, p.By, p.TDSCert = firstOf(clean(p.Mode, 30), "Bank transfer"), clean(p.Ref, 80), by, clean(p.TDSCert, 80)
 	iv, err := docs.Update(ctx, c.Docs, T, cInvoice, id, by, func(x *Invoice) error {
 		if x.Status != "Issued" && x.Status != "Part-paid" {
 			return invalid("payments go against an issued, unpaid invoice")
 		}
-		if x.Paid+p.Amount > x.Total {
-			return invalid("that is more than the ₹%s still due", (x.Total - x.Paid).String())
+		x.settle()
+		if p.Amount+p.TDS > x.Balance {
+			return invalid("that is more than the ₹%s still due", inr(x.Balance))
+		}
+		if p.TDS > 0 && p.TDS > x.Taxable.Dec().Mul(money.MustDec("0.2")).Round(money.UnitPaisa) {
+			return invalid("TDS of more than 20%% of the taxable value doesn't look right")
 		}
 		x.Payments = append(x.Payments, p)
-		x.Paid += p.Amount
-		x.Status = "Part-paid"
-		if x.Paid == x.Total {
-			x.Status = "Paid"
-		}
+		x.Paid += p.Amount + p.TDS
+		x.settle()
 		return nil
 	})
 	if err != nil {
 		return iv, err
 	}
-	c.log(ctx, by, "invoice.payment", iv.ID, p.Amount.String())
+	c.log(ctx, by, "invoice.payment", iv.ID, fmt.Sprintf("%s tds %s", p.Amount.String(), p.TDS.String()))
 	return iv, nil
 }
 
 // InvoiceOverdue says an issued invoice is past its due date and unpaid.
 func (c *Control) InvoiceOverdue(iv Invoice) bool {
 	return (iv.Status == "Issued" || iv.Status == "Part-paid") && iv.Due != "" && iv.Due < c.today()
+}
+
+// DaysOverdue is how many days past its due date an unpaid invoice is.
+func (c *Control) DaysOverdue(iv Invoice) int {
+	if !c.InvoiceOverdue(iv) {
+		return 0
+	}
+	d, err := time.ParseInLocation("2006-01-02", iv.Due, IST)
+	if err != nil {
+		return 0
+	}
+	t, _ := time.ParseInLocation("2006-01-02", c.today(), IST)
+	return int(t.Sub(d).Hours() / 24)
 }
 
 // ---- amounts in words (Indian numbering) ----

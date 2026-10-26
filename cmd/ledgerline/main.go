@@ -274,6 +274,8 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	apiSrv := api.New(a, o, keys, log, dev)
 	apiSrv.ProviderKey = os.Getenv("LEDGERLINE_PROVIDER_KEY")
 	apiSrv.PublicURL = os.Getenv("LEDGERLINE_PUBLIC_URL")
+	// Editions changed from Ledgerline Control win over the configured ones.
+	o.LoadControlEditions(context.Background(), apiSrv.Tenants())
 	cfg := web.Config{Dev: dev, Version: "2.1"}
 	if ts := apiSrv.Tenants(); len(ts) == 1 {
 		cfg.Tenant = ts[0]

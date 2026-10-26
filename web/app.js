@@ -179,6 +179,7 @@ async function render(opts = {}) {
     if (seq !== renderSeq) return;
     p.innerHTML = V[view].html(C[view]);
     bindPage();
+    showNotices();
   } catch (e) {
     if (seq !== renderSeq) return;
     if (e.status === 401 || e.code === 'setup_required') return;
@@ -2530,6 +2531,18 @@ document.addEventListener('change', e => {
   if (id === 'dsp-from' || id === 'dsp-to') { UI[id === 'dsp-from' ? 'dspFrom' : 'dspTo'] = e.target.value; render({ keep: true }); }
   if (id === 'dsp-bfile' && e.target.files.length) { e.target.files[0].text().then(t => api('POST', '/v1/dispatch/bounces', t, true)).then(r => { toast(`${r.bounced} bounce${r.bounced === 1 ? '' : 's'} recorded; printed copies queued`); render({ keep: true }); }).catch(x => toast(x.message, true)); }
 });
+
+/* ---------- notices from Ledgerline (maintenance, releases, billing) ---------- */
+let noticeCache = { at: 0, list: [] };
+function noticeHidden() { try { return JSON.parse(localStorage.getItem('ll-notices-hidden') || '[]'); } catch (e) { return []; } }
+async function showNotices() {
+  if (clientUser() || !S.me) return;
+  if (Date.now() - noticeCache.at > 300000) { try { noticeCache = { at: Date.now(), list: await get('/v1/notices') }; } catch (e) { noticeCache = { at: Date.now(), list: [] }; } }
+  const hid = noticeHidden(), ns = noticeCache.list.filter(n => !hid.includes(n.id)), p = $('page');
+  if (!ns.length || !p || $('ll-notices')) return;
+  p.insertAdjacentHTML('afterbegin', `<div id="ll-notices">${ns.map(n => `<div class="note ${n.level === 'info' ? '' : esc(n.level)}" style="display:flex;gap:12px;align-items:flex-start;margin-bottom:10px"><div style="flex:1"><b>${esc(n.title)}</b>${n.text ? `<div style="white-space:pre-line">${esc(n.text)}</div>` : ''}<div class="dim small">From Ledgerline${n.until ? ' · until ' + esc(new Date(n.until).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) : ''}</div></div><button class="linkish small" data-act="noticeHide" data-id="${esc(n.id)}">Hide</button></div>`).join('')}</div>`);
+}
+A.noticeHide = id => { const h = noticeHidden(); h.push(id); try { localStorage.setItem('ll-notices-hidden', JSON.stringify(h.slice(-50))); } catch (e) {} $('ll-notices')?.remove(); showNotices(); };
 
 /* ============================== start ============================== */
 async function loadMe() { S.me = await get('/v1/me'); document.body.classList.remove('signed-out'); persist(); }

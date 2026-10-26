@@ -193,6 +193,7 @@ func (o *Ops) FirmReport(ctx context.Context, tenant string) (control.FirmReport
 	if bs, err := o.App.Breaks.List(ctx, tenant, "", "OPEN"); err == nil {
 		r.Health.OpenBreaks = len(bs)
 	}
+	r.Setup = o.setupChecklist(ctx, tenant, set)
 	return r, nil
 }
 
@@ -214,6 +215,12 @@ func (o *Ops) ApplyCommand(ctx context.Context, c control.Command) error {
 		}
 		_, err = o.AddAICredit(ctx, c.Tenant, "system:control", money.Amount(c.Amount), "control:"+c.ID)
 		return err
+	case "notice":
+		return o.applyNotice(ctx, c.Tenant, c.Notice)
+	case "notice_withdraw":
+		return o.withdrawNotice(ctx, c.Tenant, c.Ref)
+	case "edition":
+		return o.applyEdition(ctx, c.Tenant, c.Edition)
 	}
 	return invalid("unknown command %q", c.Kind)
 }

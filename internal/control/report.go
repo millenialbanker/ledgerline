@@ -54,6 +54,18 @@ type FirmReport struct {
 	Features     map[string]int `json:"features"` // actions in the last 30 days, by area
 	Health       Health         `json:"health"`
 	LastActivity string         `json:"last_activity"`
+	// Setup is the firm's go-live checklist: what is configured and what
+	// is still missing (signing certificate, mail server, member codes...).
+	Setup []SetupItem `json:"setup,omitempty"`
+}
+
+// SetupItem is one go-live check.
+type SetupItem struct {
+	Key    string `json:"key"`
+	Label  string `json:"label"`
+	OK     bool   `json:"ok"`
+	Detail string `json:"detail,omitempty"`
+	Days   int    `json:"days,omitempty"` // days left, for something that expires (the signing certificate)
 }
 
 // UserInfo is one login of the firm (staff, branches, APs).
@@ -130,13 +142,31 @@ type TicketUpdate struct {
 	MsgID   string `json:"msg_id"`
 }
 
-// Command is something Control asks the installation to do.
+// Command is something Control asks the installation to do: ai_credit
+// (top up), notice (show a notice in Ledgerline), notice_withdraw, edition
+// (change the firm's edition).
 type Command struct {
 	ID     string `json:"id"`
-	Kind   string `json:"kind"` // ai_credit
+	Kind   string `json:"kind"`
 	Tenant string `json:"tenant"`
 	Amount int64  `json:"amount,omitempty"` // paise
 	Ref    string `json:"ref,omitempty"`
+	// Notices.
+	Notice *Notice `json:"notice,omitempty"`
+	// Edition change.
+	Edition string `json:"edition,omitempty"`
+}
+
+// Notice is a message from the provider shown in Ledgerline as a banner:
+// planned maintenance, a release, a payment reminder.
+type Notice struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Text     string `json:"text"`
+	Level    string `json:"level"`    // info, warn, bad
+	Audience string `json:"audience"` // all (every staff login) or admins
+	From     string `json:"from"`     // RFC3339; shown from then
+	Until    string `json:"until"`    // RFC3339; hidden after
 }
 
 // CommandAck reports a command done (or failed).

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"ledgerline/internal/docs"
+	"ledgerline/internal/mail"
 	"ledgerline/internal/money"
 )
 
@@ -32,6 +33,11 @@ const (
 	cSettings = "settings"
 	cSeq      = "seq"
 	cLog      = "log"
+	cCredit   = "credit"   // credit notes
+	cNotice   = "notice"   // notices sent to firms
+	cNote     = "cnote"    // notes on a customer (calls, meetings)
+	cCanned   = "canned"   // saved support replies
+	cAlertAck = "alertack" // alerts someone has looked at
 )
 
 var (
@@ -130,6 +136,21 @@ type Customer struct {
 	BillFrom    string       `json:"bill_from"` // YYYY-MM billing starts
 	Notes       string       `json:"notes"`
 	Created     string       `json:"created"`
+
+	// Who gets invoices and reminders (Email if empty), and copies.
+	BillingEmail string `json:"billing_email,omitempty"`
+	CCEmails     string `json:"cc_emails,omitempty"` // comma separated
+	TechContact  string `json:"tech_contact,omitempty"`
+	TechEmail    string `json:"tech_email,omitempty"`
+	// The contract: dates, and prices agreed with this customer that
+	// differ from the price book.
+	TrialEnds     string                  `json:"trial_ends,omitempty"`     // YYYY-MM-DD
+	ContractStart string                  `json:"contract_start,omitempty"` // YYYY-MM-DD
+	ContractEnd   string                  `json:"contract_end,omitempty"`   // YYYY-MM-DD, renewal due
+	EditionFee    map[string]money.Amount `json:"edition_fee,omitempty"`    // overrides the price book per edition
+	IncludedUsers int                     `json:"included_users,omitempty"` // overrides the price book (0 = price book)
+	MinMonthly    money.Amount            `json:"min_monthly,omitempty"`    // minimum monthly bill before GST (AI credit not counted)
+	TDSPct        string                  `json:"tds_pct,omitempty"`        // TDS the customer deducts, e.g. 10 (194J) or 2
 }
 
 var CustomerStatuses = []string{"Trial", "Active", "Suspended", "Left"}
@@ -177,6 +198,16 @@ type Vendor struct {
 type Settings struct {
 	Vendor Vendor    `json:"vendor"`
 	Prices PriceBook `json:"prices"`
+	Ops    Running   `json:"ops"`
+}
+
+// Running is how Control runs day to day.
+type Running struct {
+	LatestVersion string `json:"latest_version"` // installations below it are flagged
+	AutoRemind    bool   `json:"auto_remind"`    // email payment reminders by themselves
+	RemindEvery   int    `json:"remind_every"`   // days between reminders (default 7)
+	NoticeOverdue bool   `json:"notice_overdue"` // with reminders, also show a notice to the firm's Admins
+	SuspendAfter  int    `json:"suspend_after"`  // days overdue before an account is flagged for suspension (0 = never)
 }
 
 func defaultSettings() Settings {
@@ -202,13 +233,27 @@ type InvoiceLine struct {
 	Firm   string       `json:"firm,omitempty"`
 }
 
-// Payment is money received against an invoice.
+// Payment is money received against an invoice. TDS is tax the customer
+// deducted and paid to the government on our behalf (it settles the
+// invoice like money; claim it against the TDS certificate, Form 16A).
 type Payment struct {
-	Date   string       `json:"date"`
-	Amount money.Amount `json:"amount"`
-	Mode   string       `json:"mode"`
-	Ref    string       `json:"ref"`
-	By     string       `json:"by"`
+	Date    string       `json:"date"`
+	Amount  money.Amount `json:"amount"`
+	TDS     money.Amount `json:"tds,omitempty"`
+	TDSCert string       `json:"tds_cert,omitempty"` // Form 16A number or note once received
+	Mode    string       `json:"mode"`
+	Ref     string       `json:"ref"`
+	By      string       `json:"by"`
+}
+
+// Reminder is a payment reminder sent for an invoice.
+type Reminder struct {
+	At     string `json:"at"`
+	By     string `json:"by"`
+	To     string `json:"to"`
+	Via    string `json:"via"`  // email, notice, email+notice
+	Days   int    `json:"days"` // days past due when sent
+	Result string `json:"result,omitempty"`
 }
 
 // Invoice is a tax invoice to a customer.
@@ -227,8 +272,10 @@ type Invoice struct {
 	SGST      money.Amount  `json:"sgst"`
 	IGST      money.Amount  `json:"igst"`
 	Total     money.Amount  `json:"total"`
-	Paid      money.Amount  `json:"paid"`
-	Status    string        `json:"status"` // Draft, Issued, Part-paid, Paid, Void
+	Paid      money.Amount  `json:"paid"`     // money and TDS received
+	Credited  money.Amount  `json:"credited"` // credit notes against it
+	Balance   money.Amount  `json:"balance"`  // still due
+	Status    string        `json:"status"`   // Draft, Issued, Part-paid, Paid, Void
 	Payments  []Payment     `json:"payments"`
 	Bill      Customer      `json:"bill"`   // the customer as at issue
 	Vendor    Vendor        `json:"vendor"` // the provider as at issue
@@ -237,6 +284,26 @@ type Invoice struct {
 	Created   string        `json:"created"`
 	CreatedBy string        `json:"created_by"`
 	Commands  []string      `json:"commands,omitempty"` // AI credit top-ups billed
+	Emailed   string        `json:"emailed,omitempty"`  // last emailed to the customer
+	EmailedTo string        `json:"emailed_to,omitempty"`
+	Reminders []Reminder    `json:"reminders,omitempty"`
+}
+
+// settle works out what is still due and the status.
+func (iv *Invoice) settle() {
+	if iv.Status == "Draft" || iv.Status == "Void" {
+		iv.Balance = 0
+		return
+	}
+	iv.Balance = iv.Total - iv.Paid - iv.Credited
+	switch {
+	case iv.Balance <= 0:
+		iv.Balance, iv.Status = 0, "Paid"
+	case iv.Paid > 0 || iv.Credited > 0:
+		iv.Status = "Part-paid"
+	default:
+		iv.Status = "Issued"
+	}
 }
 
 // Ticket statuses at the provider.
@@ -321,7 +388,9 @@ type Control struct {
 	Now  func() time.Time
 	// OnlineWithin is how recent a report must be to count as online.
 	OnlineWithin time.Duration
-	seqMu        sync.Mutex
+	// Mailer sends invoices, statements and reminders (nil: not set up).
+	Mailer mail.Sender
+	seqMu  sync.Mutex
 }
 
 // New makes a Control over a store.
@@ -415,6 +484,10 @@ func (c *Control) SaveSettings(ctx context.Context, by string, s Settings) (Sett
 			return s, invalid("client slabs must rise, with only the last one open-ended")
 		}
 	}
+	if s.Ops.RemindEvery < 0 || s.Ops.RemindEvery > 60 || s.Ops.SuspendAfter < 0 || s.Ops.SuspendAfter > 365 {
+		return s, invalid("reminders every 1 to 60 days; suspension after 0 to 365 days")
+	}
+	s.Ops.LatestVersion = clean(s.Ops.LatestVersion, 30)
 	if s.Vendor.DueDays < 0 || s.Vendor.DueDays > 120 {
 		return s, invalid("payment terms must be 0 to 120 days")
 	}

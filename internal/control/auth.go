@@ -79,8 +79,14 @@ func (c *Control) staff(ctx context.Context, id string) (Staff, error) {
 	return s, nil
 }
 
+// SystemStaff is Control itself, for its own scheduled work.
+const SystemStaff = "system:control"
+
 // need checks the person is active and has one of the roles (Owner always does).
 func (c *Control) need(ctx context.Context, who string, roles ...string) error {
+	if who == SystemStaff {
+		return nil
+	}
 	s, err := c.staff(ctx, who)
 	if err != nil || !s.Active {
 		return ErrForbidden
@@ -231,7 +237,7 @@ func (c *Control) SaveStaff(ctx context.Context, by, id, name, role string, acti
 		return Staff{}, "", err
 	}
 	id = strings.ToLower(strings.TrimSpace(id))
-	if id == "" || len(id) > 60 || strings.ContainsAny(id, " /\\") {
+	if id == "" || len(id) > 60 || strings.ContainsAny(id, " /\\:") {
 		return Staff{}, "", invalid("give a user name without spaces")
 	}
 	if !has(Roles, role) {

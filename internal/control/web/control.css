@@ -112,3 +112,4 @@ textarea.in{height:auto;padding:8px 10px;resize:vertical} select.in{padding-righ
 .err{color:var(--bad);font-size:13px;min-height:18px;margin-bottom:8px}
 .feat{display:flex;flex-wrap:wrap;gap:6px}
 @media (max-width:900px){.app{grid-template-columns:1fr}.side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;gap:4px}.side .nav{width:auto}.side-foot{margin:0;flex-direction:row}.g2,.g3{grid-template-columns:1fr}.page{padding:16px}.bar{grid-template-columns:110px 1fr 50px}}
+.checks{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px} tr.dim td{opacity:.6}

@@ -52,6 +52,35 @@ func (c *Control) SaveCustomer(ctx context.Context, by string, cu Customer) (Cus
 			return cu, invalid("billing start must be a month (YYYY-MM)")
 		}
 	}
+	for _, d := range []struct{ v, what string }{{cu.TrialEnds, "trial end"}, {cu.ContractStart, "contract start"}, {cu.ContractEnd, "contract end"}} {
+		if d.v != "" {
+			if _, err := time.Parse("2006-01-02", d.v); err != nil {
+				return cu, invalid("%s must be a date (YYYY-MM-DD)", d.what)
+			}
+		}
+	}
+	if cu.ContractStart != "" && cu.ContractEnd != "" && cu.ContractEnd < cu.ContractStart {
+		return cu, invalid("the contract ends before it starts")
+	}
+	if cu.TDSPct != "" {
+		if d, err := money.ParseDec(cu.TDSPct); err != nil || d.Sign() < 0 || d.Cmp(money.DecInt(20)) > 0 {
+			return cu, invalid("TDS must be 0 to 20 %%")
+		}
+	}
+	if cu.MinMonthly < 0 || cu.IncludedUsers < 0 {
+		return cu, invalid("minimum bill and included logins can't be negative")
+	}
+	for e, a := range cu.EditionFee {
+		if _, ok := editionRank[e]; !ok || a < 0 {
+			return cu, invalid("agreed fees are per edition (manual, autopilot, full) and not negative")
+		}
+	}
+	for _, e := range []string{cu.BillingEmail, cu.TechEmail} {
+		if e != "" && !strings.Contains(e, "@") {
+			return cu, invalid("%q is not an email address", e)
+		}
+	}
+	cu.BillingEmail, cu.CCEmails, cu.TechContact, cu.TechEmail = clean(cu.BillingEmail, 120), clean(cu.CCEmails, 400), clean(cu.TechContact, 80), clean(cu.TechEmail, 120)
 	cu.LegalName, cu.Address, cu.Contact, cu.Email, cu.Phone, cu.Notes = clean(cu.LegalName, 150), clean(cu.Address, 400), clean(cu.Contact, 80), clean(cu.Email, 120), clean(cu.Phone, 30), clean(cu.Notes, 2000)
 	if cu.ID == "" {
 		n, err := c.next(ctx, "customer")
@@ -283,7 +312,8 @@ func (c *Control) GetOverview(ctx context.Context, by string) (Overview, error) 
 		if iv.Period == last {
 			o.LastBilled += iv.Taxable
 		}
-		due := iv.Total - iv.Paid
+		iv.settle()
+		due := iv.Balance
 		if due > 0 {
 			o.Outstanding += due
 			if c.InvoiceOverdue(iv) {

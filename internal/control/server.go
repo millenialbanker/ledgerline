@@ -95,6 +95,7 @@ func NewServer(c *Control, log *slog.Logger) *Server {
 	A("GET /api/staff", func(w http.ResponseWriter, r *http.Request, by string) { out(w)(s.C.StaffList(r.Context(), by)) })
 	A("POST /api/staff", s.saveStaff)
 	A("GET /api/log", func(w http.ResponseWriter, r *http.Request, by string) { out(w)(s.C.Log(r.Context(), by, 300)) })
+	s.extraRoutes(A)
 
 	sub, _ := fs.Sub(webFS, "web")
 	files := http.FileServer(http.FS(sub))
@@ -275,7 +276,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request, by string) {
 	st, _ := s.C.staff(r.Context(), by)
 	set, _ := s.C.Settings(r.Context())
 	writeJSON(w, 200, map[string]any{"csrf": ss.CSRF, "id": st.ID, "name": st.Name, "role": st.Role, "must_reset": st.MustReset,
-		"month": s.C.month(), "today": s.C.today(), "vendor": set.Vendor.Name, "roles": Roles, "statuses": TicketStatuses, "customer_statuses": CustomerStatuses, "setup_fee": set.Prices.SetupFee})
+		"month": s.C.month(), "today": s.C.today(), "vendor": set.Vendor.Name, "roles": Roles, "statuses": TicketStatuses, "customer_statuses": CustomerStatuses, "setup_fee": set.Prices.SetupFee, "mail": s.C.Mailer != nil})
 }
 
 func (s *Server) password(w http.ResponseWriter, r *http.Request, by string) {
@@ -477,7 +478,7 @@ func (s *Server) printInvoice(w http.ResponseWriter, r *http.Request, by string)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'")
 	_ = invTmpl.Execute(w, map[string]any{"I": iv, "Intra": iv.IGST == 0, "Draft": iv.Status == "Draft", "Void": iv.Status == "Void",
-		"Half": halfPct(iv.GSTPct), "Due": iv.Total - iv.Paid})
+		"Half": halfPct(iv.GSTPct), "Due": iv.Balance})
 }
 
 // inr formats paise in the Indian style: 12,34,567.89.
@@ -536,7 +537,7 @@ table{width:100%;border-collapse:collapse} th,td{padding:7px 8px;border-bottom:1
 <tr><td>Taxable value</td><td class="r mono">{{inr .I.Taxable}}</td></tr>
 {{if .Intra}}<tr><td>CGST {{.Half}}%</td><td class="r mono">{{inr .I.CGST}}</td></tr><tr><td>SGST {{.Half}}%</td><td class="r mono">{{inr .I.SGST}}</td></tr>{{else}}<tr><td>IGST {{.I.GSTPct}}%</td><td class="r mono">{{inr .I.IGST}}</td></tr>{{end}}
 <tr class="g"><td>Total</td><td class="r mono">₹ {{inr .I.Total}}</td></tr>
-{{if .I.Paid}}<tr><td>Received</td><td class="r mono">{{inr .I.Paid}}</td></tr><tr><td>Balance due</td><td class="r mono">{{inr .Due}}</td></tr>{{end}}
+{{if .I.Credited}}<tr><td>Credit notes</td><td class="r mono">−{{inr .I.Credited}}</td></tr>{{end}}{{if or .I.Paid .I.Credited}}{{if .I.Paid}}<tr><td>Received (incl. TDS)</td><td class="r mono">{{inr .I.Paid}}</td></tr>{{end}}<tr><td>Balance due</td><td class="r mono">{{inr .Due}}</td></tr>{{end}}
 </table>
 <p><b>{{words .I.Total}}</b></p>
 {{if .I.Notes}}<p class="muted">{{range nl .I.Notes}}{{.}}<br>{{end}}</p>{{end}}

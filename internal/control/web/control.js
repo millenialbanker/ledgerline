@@ -98,7 +98,7 @@ async function boot() {
 }
 
 // ---- navigation ----
-const NAV = [['overview', 'Overview'], ['customers', 'Customers'], ['installs', 'Installations'], ['usage', 'Usage & AI'], ['billing', 'Billing', 'Billing'], ['support', 'Support'], ['settings', 'Settings']];
+const NAV = [['overview', 'Overview'], ['alerts', 'Alerts'], ['customers', 'Customers'], ['installs', 'Installations'], ['usage', 'Usage & AI'], ['billing', 'Billing', 'Billing'], ['support', 'Support'], ['notices', 'Notices'], ['settings', 'Settings']];
 function renderSide(counts = {}) {
   $('side').innerHTML = `<div class="brand"><div class="mark"><i></i><i></i><i></i></div><div><b>Control</b><small>${esc(S.me.vendor || 'Ledgerline')}</small></div></div>
     <nav>${NAV.filter(n => !n[2] || can(n[2])).map(([k, l]) => `<button class="nav ${S.view === k || (S.view === 'customer' && k === 'customers') || (S.view === 'ticket' && k === 'support') || (S.view === 'invoice' && k === 'billing') ? 'on' : ''}" data-act="go" data-id="${k}"><span>${l}</span>${counts[k] ? `<span class="ct">${counts[k]}</span>` : ''}</button>`).join('')}</nav>
@@ -120,7 +120,7 @@ async function render() {
     $('page').innerHTML = v.html(S.data);
     bind();
   } catch (e) { $('page').innerHTML = `<div class="note bad">${esc(e.message)}</div>`; }
-  get('/api/tickets').then(ts => { const n = ts.filter(t => t.status === 'New').length; S.counts = { support: n }; renderSide(S.counts); }).catch(() => {});
+  Promise.all([get('/api/tickets'), get('/api/alerts').catch(() => [])]).then(([ts, al]) => { S.counts = { support: ts.filter(t => t.status === 'New').length, alerts: al.filter(a => !a.acked && a.severity !== 'info').length }; renderSide(S.counts); }).catch(() => {});
 }
 function bind() {
   document.querySelectorAll('[data-change]').forEach(el => { el.onchange = () => A[el.dataset.change](el.value, el); });
@@ -172,25 +172,26 @@ V.customers = {
 };
 
 V.customer = {
-  load: id => Promise.all([get('/api/customers/' + enc(id)), get('/api/customers')]).then(([d, all]) => ({ ...d, all })),
+  load: id => Promise.all([get('/api/customers/' + enc(id)), get('/api/customers'), get('/api/customers/' + enc(id) + '/notes').catch(() => []), can('Billing') && S.ui.ctab === 'statement' ? get('/api/customers/' + enc(id) + '/statement') : null]).then(([d, all, notes, st]) => ({ ...d, all, notes, st })),
   html: d => {
     const c = d.customer, tab = S.ui.ctab || 'firms';
     const money = can('Billing');
     return ph(esc(c.name), `${esc(c.id)} · ${custPill(c.status)}${c.gstin ? ' · GSTIN ' + esc(c.gstin) : ''}${c.contact ? ' · ' + esc(c.contact) : ''}${c.email ? ' · ' + esc(c.email) : ''}`,
       `<button class="btn" data-act="go" data-id="customers">All customers</button>${money ? `<button class="btn" data-act="custEdit" data-id="${esc(c.id)}">Edit details</button>` : ''}`) +
       (d.bill && money ? `<div class="kpis">${kpi('This month so far', inr(d.bill.invoice.taxable), `before GST${d.bill.billable ? '' : ' · not billed: ' + esc(d.bill.why)}`)}${kpi('Setup fee', c.setup_fee > 0 ? inr(c.setup_fee) : '—', c.setup_billed ? 'billed on ' + esc(c.setup_billed) : c.setup_fee > 0 ? 'not yet billed' : '')}${kpi('Discount', (c.discount_pct || '0') + '%', 'on everything except AI credit')}${kpi('Open requests', d.tickets.filter(t => !['Resolved', 'Closed'].includes(t.status)).length, d.tickets.length + ' in all')}</div>` : '') +
-      `<div class="tools">${seg('ctab', [['firms', `Firms (${d.firms.length})`], ['people', 'Who uses what'], ['usage', 'Usage by month'], ['support', `Support (${d.tickets.length})`], ...(money ? [['billing', `Invoices (${d.invoices.length})`]] : [])])}</div>` +
-      ({ firms: cFirms, people: cPeople, usage: cUsage, support: cSupport, billing: cBilling }[tab] || cFirms)(d);
+      contractLine(c) +
+      `<div class="tools">${seg('ctab', [['firms', `Firms (${d.firms.length})`], ['people', 'Who uses what'], ['usage', 'Usage by month'], ['support', `Support (${d.tickets.length})`], ['notes', `Notes (${d.notes.length})`], ...(money ? [['billing', `Invoices (${d.invoices.length})`], ['statement', 'Statement']] : [])])}</div>` +
+      ({ firms: cFirms, people: cPeople, usage: cUsage, support: cSupport, billing: cBilling, notes: cNotes, statement: cStatement }[tab] || cFirms)(d);
   }
 };
 function cFirms(d) {
   return d.firms.map(f => {
     const r = f.latest, h = r.health || {};
-    return `<div class="panel"><div class="hd"><h3>${esc(r.firm || f.tenant)} ${edPill(r.edition)}</h3><div class="acts">${can('Billing') ? `<button class="btn sm" data-act="aiCredit" data-id="${esc(f.id)}">Top up AI credit</button><button class="btn sm" data-act="linkFirm" data-id="${esc(f.id)}">Move to another customer</button>` : ''}</div></div>
+    return `<div class="panel"><div class="hd"><h3>${esc(r.firm || f.tenant)} ${edPill(r.edition)}</h3><div class="acts">${can('Billing') ? `<button class="btn sm" data-act="edChange" data-id="${esc(f.id)}">Change edition</button><button class="btn sm" data-act="aiCredit" data-id="${esc(f.id)}">Top up AI credit</button><button class="btn sm" data-act="linkFirm" data-id="${esc(f.id)}">Move to another customer</button>` : ''}</div></div>
       <div class="bd grid g3"><dl class="kv"><dt>Server</dt><dd>${esc(f.install_name)} <span class="dim">(${f.kind === 'hosted' ? 'hosted by us' : 'their own'})</span></dd><dt>Status</dt><dd>${onDot(f.online)} · reported ${ago(f.last_report)}</dd><dt>Version</dt><dd class="mono">${esc(f.version || '—')}</dd><dt>Firm ID</dt><dd class="mono">${esc(f.tenant)}</dd><dt>SEBI reg.</dt><dd class="mono">${esc(r.sebi_reg || '—')}</dd><dt>Business date</dt><dd>${fmtDate(r.business_date)} · day ${esc(h.eod || '—')}</dd></dl>
       <dl class="kv"><dt>Staff logins</dt><dd>${int(r.staff_active)} · ${int(r.active_today)} today · ${int(r.active_30d)} in 30 days</dd><dt>Clients</dt><dd>${int(r.clients)} (${Object.entries(r.clients_by_stage || {}).map(([k, n]) => `${n} ${esc(k.toLowerCase())}`).join(', ') || '—'})</dd><dt>Traded this month</dt><dd>${int(r.traded_month)} clients · ${int(r.trades_month)} trades</dd><dt>Online accounts</dt><dd>${int(r.kyc_month)} verified this month</dd><dt>Automations</dt><dd>${int(r.bots.computers)} computers · ${int(r.bots.workflows)} workflows · ${int(r.bots.runs_month)} runs${r.bots.failed_month ? ` (<span class="neg">${r.bots.failed_month} failed</span>)` : ''}</dd></dl>
-      <dl class="kv"><dt>Ledgy AI</dt><dd>${r.ai.on ? pill('On', 'good') : pill('Off')}</dd><dt>Answers this month</dt><dd>${int(r.ai.answers)}</dd><dt>Charged to firm</dt><dd>${paise(r.ai.charged)} <span class="dim">(our cost ${inr(r.ai.cost_inr)})</span></dd><dt>Credit left</dt><dd class="${r.ai.balance < 20000 ? 'neg' : ''}">${paise(r.ai.balance)}</dd><dt>Topped up this month</dt><dd>${paise(r.ai.topped_up)}</dd><dt>Backups</dt><dd>${h.last_backup ? ago(h.last_backup) : '<span class="neg">none</span>'}${h.backup_problem ? ` · <span class="neg">${esc(h.backup_problem)}</span>` : ''}</dd><dt>Open work · breaks</dt><dd>${int(h.open_work)} · ${int(h.open_breaks)}</dd></dl></div></div>`;
-  }).join('') + (d.commands.length ? `<div class="panel"><div class="hd"><h3>AI credit sent from Control</h3></div>${tbl([['Ref'], ['Firm'], ['Amount', 'r'], ['Status'], ['Sent'], ['Invoice'], ['']], d.commands.map(x => `<tr><td class="mono">${esc(x.id)}</td><td>${esc((d.firms.find(f => f.id === x.firm) || {}).latest?.firm || x.firm)}</td><td class="r mono">${paise(x.amount)}</td><td>${pill(x.status, { Done: 'good', Failed: 'bad', Queued: 'warn' }[x.status] || '')}${x.error ? `<div class="small neg">${esc(x.error)}</div>` : ''}</td><td class="small">${fmtStamp(x.created)} · ${esc(x.by)}</td><td class="small">${x.bill ? (x.invoice ? esc(x.invoice) : 'next invoice') : '<span class="dim">not billed</span>'}</td><td class="r">${x.status === 'Queued' && !x.sent && can('Billing') ? `<button class="btn sm" data-act="cancelCmd" data-id="${esc(x.id)}">Cancel</button>` : ''}</td></tr>`))}</div>` : '') || '<div class="note">No firms yet.</div>';
+      <dl class="kv"><dt>Ledgy AI</dt><dd>${r.ai.on ? pill('On', 'good') : pill('Off')}</dd><dt>Answers this month</dt><dd>${int(r.ai.answers)}</dd><dt>Charged to firm</dt><dd>${paise(r.ai.charged)} <span class="dim">(our cost ${inr(r.ai.cost_inr)})</span></dd><dt>Credit left</dt><dd class="${r.ai.balance < 20000 ? 'neg' : ''}">${paise(r.ai.balance)}</dd><dt>Topped up this month</dt><dd>${paise(r.ai.topped_up)}</dd><dt>Backups</dt><dd>${h.last_backup ? ago(h.last_backup) : '<span class="neg">none</span>'}${h.backup_problem ? ` · <span class="neg">${esc(h.backup_problem)}</span>` : ''}</dd><dt>Open work · breaks</dt><dd>${int(h.open_work)} · ${int(h.open_breaks)}</dd></dl></div>${setupList(r.setup)}</div>`;
+  }).join('') + (d.commands.length ? `<div class="panel"><div class="hd"><h3>Sent from Control</h3><span class="dim small">applied at the firm’s next report</span></div>${tbl([['Ref'], ['Firm'], ['What'], ['Amount', 'r'], ['Status'], ['Sent'], ['Invoice'], ['']], d.commands.map(x => `<tr><td class="mono">${esc(x.id)}</td><td>${esc((d.firms.find(f => f.id === x.firm) || {}).latest?.firm || x.firm)}</td><td class="small">${x.kind === 'ai_credit' ? 'AI credit top-up' : x.kind === 'edition' ? 'Edition → ' + esc(EDN[x.edition] || x.edition) : x.kind === 'notice' ? 'Notice: ' + esc(x.notice?.title || '') : x.kind === 'notice_withdraw' ? 'Notice withdrawn' : esc(x.kind)}</td><td class="r mono">${x.kind === 'ai_credit' ? paise(x.amount) : ''}</td><td>${pill(x.status, { Done: 'good', Failed: 'bad', Queued: 'warn' }[x.status] || '')}${x.error ? `<div class="small neg">${esc(x.error)}</div>` : ''}</td><td class="small">${fmtStamp(x.created)} · ${esc(x.by)}</td><td class="small">${x.kind !== 'ai_credit' ? '' : x.bill ? (x.invoice ? esc(x.invoice) : 'next invoice') : '<span class="dim">not billed</span>'}</td><td class="r">${x.status === 'Queued' && !x.sent && can('Billing') ? `<button class="btn sm" data-act="cancelCmd" data-id="${esc(x.id)}">Cancel</button>` : ''}</td></tr>`))}</div>` : '') || '<div class="note">No firms yet.</div>';
 }
 function cPeople(d) {
   return d.firms.map(f => {
@@ -240,14 +241,15 @@ function invTable(ivs) {
 }
 
 V.billing = {
-  load: () => get('/api/billing?month=' + enc(S.ui.bm || S.me.month)),
+  load: async () => { const b = await get('/api/billing?month=' + enc(S.ui.bm || S.me.month)); if (['recv', 'tds', 'cns'].includes(S.ui.btab)) b.rv = await get('/api/receivables'); return b; },
   html: b => {
     const tab = S.ui.btab || 'month', m = b.month;
+    if (b.rv) return billingHead(b) + ({ recv: recvTab, tds: tdsTab, cns: cnTab }[tab])(b.rv);
     const billable = b.preview.filter(x => x.billable && x.invoice.lines.length);
     const total = billable.reduce((a, x) => a + Number(x.invoice.taxable), 0);
     return ph('Billing', 'Monthly fee by edition, clients who traded (in slabs), extra staff logins, bot computers, online account opening, AI credit top-ups and setup fees, with GST. Make drafts at month end, check them, then issue.',
       `<button class="btn" data-act="go" data-id="settings">Prices</button>`) +
-      `<div class="tools">${seg('btab', [['month', 'Bills for a month'], ['invoices', `Invoices (${b.invoices.length})`]])}</div>` +
+      billTabs(b) +
       (tab === 'invoices' ? `<div class="tools">${seg('ivf', [['open', 'Unpaid'], ['all', 'All'], ['Draft', 'Drafts'], ['Paid', 'Paid']])}</div><div class="panel">${invTable(b.invoices.filter(i => { const f = S.ui.ivf || 'open'; return f === 'all' || (f === 'open' ? ['Issued', 'Part-paid'].includes(i.status) : i.status === f); }))}</div>` :
         `<div class="tools"><button class="btn" data-act="bm" data-id="-1">‹</button><span class="btn" style="cursor:default">${monthLabel(m)}</span><button class="btn" data-act="bm" data-id="1" ${m >= S.me.month ? 'disabled' : ''}>›</button><span class="dim small">${m === S.me.month ? 'Month to date: counts keep changing until the month ends.' : ''}</span><span style="flex:1"></span><button class="btn pri" data-act="genAll" ${billable.length ? '' : 'disabled'}>Make draft invoices (${billable.length})</button></div>
         <div class="panel">${tbl([['Customer'], ['Lines'], ['Taxable', 'r'], ['GST', 'r'], ['Total', 'r'], ['Invoice']], b.preview.map(x => `<tr class="click" data-act="go" data-id="customer/${enc(x.customer.id)}"><td><b>${esc(x.customer.name)}</b> ${custPill(x.customer.status)}</td><td class="small">${x.invoice.lines.map(l => esc(l.desc.split(' — ')[0])).filter((v, i, a) => a.indexOf(v) === i).join(' · ') || '<span class="dim">no usage</span>'}</td>
@@ -256,17 +258,23 @@ V.billing = {
 };
 
 V.invoice = {
-  load: id => get('/api/invoices/' + enc(id)),
+  load: async id => { const iv = await get('/api/invoices/' + enc(id)); iv.cns = await get('/api/invoices/' + enc(id) + '/credit-notes').catch(() => []); return iv; },
   html: iv => {
-    const due = Number(iv.total) - Number(iv.paid);
+    const due = Number(iv.balance), live = ['Issued', 'Part-paid'].includes(iv.status), issued = !['Draft', 'Void'].includes(iv.status);
     return ph(iv.number ? 'Invoice ' + esc(iv.number) : 'Draft invoice', `${esc(iv.id)} · ${esc(iv.bill.name)} · ${monthLabel(iv.period)} · ${invPill(iv.status)}${iv.due ? ' · due ' + fmtDate(iv.due) : ''}`,
-      `<button class="btn" data-act="go" data-id="billing">Billing</button><a class="btn" href="/api/invoices/${enc(iv.id)}/print" target="_blank" rel="noopener">${iv.status === 'Draft' ? 'Preview' : 'Print / PDF'}</a>
+      `<button class="btn" data-act="go" data-id="billing">Billing</button><a class="btn" href="/api/invoices/${enc(iv.id)}/print" target="_blank" rel="noopener">${iv.status === 'Draft' ? 'Preview' : 'Print'}</a>
       ${iv.status === 'Draft' ? `<button class="btn" data-act="addLine">Add a line</button><button class="btn pri" data-act="issue">Issue</button>` : ''}
-      ${['Issued', 'Part-paid'].includes(iv.status) ? `<button class="btn pri" data-act="payment">Record payment</button>` : ''}
-      ${iv.status !== 'Void' && !Number(iv.paid) ? `<button class="btn danger" data-act="void">Void</button>` : ''}`) +
+      ${issued ? `<a class="btn" href="/api/invoices/${enc(iv.id)}/pdf">PDF</a><button class="btn" data-act="ivEmail">${iv.emailed ? 'Email again' : 'Email to customer'}</button>` : ''}
+      ${live ? `<button class="btn" data-act="remind">Send reminder</button>` : ''}
+      ${issued ? `<button class="btn" data-act="creditNote">Credit note</button>` : ''}
+      ${live ? `<button class="btn pri" data-act="payment">Record payment</button>` : ''}
+      ${iv.status !== 'Void' && !Number(iv.paid) && !Number(iv.credited) ? `<button class="btn danger" data-act="void">Void</button>` : ''}`) +
+      (iv.emailed ? `<div class="note">Emailed to ${esc(iv.emailed_to)} ${ago(iv.emailed)}.</div>` : '') +
       (iv.status === 'Draft' && (!iv.bill.address || !(iv.bill.legal_name || iv.bill.name)) ? `<div class="note warn">Add ${esc(iv.bill.name)}’s legal name and billing address (Edit details on the customer) before issuing.</div>` : '') +
       `<div class="grid g2"><div class="panel"><div class="hd"><h3>Bill to</h3></div><div class="bd"><b>${esc(iv.bill.legal_name || iv.bill.name)}</b><div class="small" style="white-space:pre-line">${esc(iv.bill.address)}</div><div class="small">${iv.bill.gstin ? 'GSTIN ' + esc(iv.bill.gstin) : '<span class="dim">No GSTIN</span>'}</div></div></div>
-      <div class="panel"><div class="hd"><h3>Payments</h3>${due > 0 && iv.status !== 'Draft' && iv.status !== 'Void' ? `<span class="small">Due <b>${inr(due)}</b></span>` : ''}</div>${tbl([['Date'], ['Mode'], ['Reference'], ['Amount', 'r']], (iv.payments || []).map(p => `<tr><td>${fmtDate(p.date)}</td><td>${esc(p.mode)}</td><td class="mono small">${esc(p.ref)}</td><td class="r mono">${inr(p.amount)}</td></tr>`), { empty: 'None yet.' })}</div></div>
+      <div class="panel"><div class="hd"><h3>Payments</h3>${due > 0 && issued ? `<span class="small">Due <b>${inr(due)}</b>${Number(iv.credited) ? ` · credited ${inr(iv.credited)}` : ''}</span>` : ''}</div>${tbl([['Date'], ['Mode'], ['Reference'], ['Amount', 'r'], ['TDS', 'r'], ['TDS certificate']], (iv.payments || []).map((p, i) => `<tr><td>${fmtDate(p.date)}</td><td>${esc(p.mode)}</td><td class="mono small">${esc(p.ref)}</td><td class="r mono">${inr(p.amount)}</td><td class="r mono">${Number(p.tds) ? inr(p.tds) : '—'}</td><td class="small">${Number(p.tds) ? (p.tds_cert ? esc(p.tds_cert) : `<button class="btn sm" data-act="tdsCert" data-id="${iv.id}|${i}">Record Form 16A</button>`) : ''}</td></tr>`), { empty: 'None yet.' })}</div></div>
+      ${iv.cns.length ? `<div class="panel"><div class="hd"><h3>Credit notes</h3></div>${tbl([['Number'], ['Date'], ['Reason'], ['Before GST', 'r'], ['Total', 'r'], ['']], iv.cns.map(c => `<tr><td class="mono">${esc(c.number)}</td><td>${fmtDate(c.date)}</td><td class="small">${esc(c.reason)}</td><td class="r mono">${inr(c.taxable)}</td><td class="r mono">${inr(c.total)}</td><td class="r"><a class="btn sm" href="/api/credit-notes/${enc(c.id)}/pdf">PDF</a></td></tr>`))}</div>` : ''}
+      ${(iv.reminders || []).length ? `<div class="panel"><div class="hd"><h3>Reminders sent</h3></div>${tbl([['When'], ['By'], ['How'], ['To'], ['Days late', 'r']], iv.reminders.map(r => `<tr><td class="small">${fmtStamp(r.at)}</td><td>${esc(r.by)}</td><td>${esc(r.via)}${r.result ? `<div class="small neg">${esc(r.result)}</div>` : ''}</td><td class="small">${esc(r.to || '—')}</td><td class="r">${r.days}</td></tr>`))}</div>` : ''}
       <div class="panel"><div class="hd"><h3>Lines</h3></div>${linesTable(iv)}</div>
       <div class="panel"><div class="hd"><h3>Notes on the invoice</h3>${iv.status === 'Draft' ? '<button class="btn sm" data-act="saveNotes">Save</button>' : ''}</div><div class="bd">${iv.status === 'Draft' ? `<textarea class="in" id="iv-notes" rows="2" maxlength="1000">${esc(iv.notes)}</textarea>` : `<div style="white-space:pre-line">${esc(iv.notes) || '<span class="dim">None</span>'}</div>`}</div></div>`;
   }
@@ -281,12 +289,14 @@ function ticketTable(ts) {
 }
 
 V.support = {
-  load: () => get('/api/tickets'),
+  load: async () => { const st = S.ui.stt || 'req'; if (st === 'num') return { num: await get('/api/support/stats?month=' + enc(S.ui.sm || S.me.month)) }; if (st === 'can') return { can: await get('/api/canned') }; return get('/api/tickets'); },
   html: ts => {
+    if (ts.num) return supportHead() + supportNumbers(ts.num);
+    if (ts.can) return supportHead() + cannedList(ts.can);
     const f = S.ui.tf || 'open', mine = S.ui.tm === '1';
     const rows = ts.filter(t => (f === 'all' || (f === 'open' ? !['Resolved', 'Closed'].includes(t.status) : t.status === f)) && (!mine || t.assignee === S.me.id));
     const n = s => ts.filter(t => t.status === s).length;
-    return ph('Support', 'Requests sent from inside Ledgerline, with the firm, person, role, screen and version. Replies go back to Ledgerline, where Ledgy tells the person. First-reply targets: Urgent 1 h, High 4 h, Normal 1 day, Low 3 days.') +
+    return supportHead() +
       `<div class="kpis">${kpi('New', n('New'), 'not yet answered', { alert: n('New') > 0 })}${kpi('Open', n('Open'), '')}${kpi('Waiting on customer', n('Waiting on customer'), '')}${kpi('Resolved', n('Resolved'), 'customer can reopen by replying')}</div>
       <div class="tools">${seg('tf', [['open', 'Open'], ['New', 'New'], ['Waiting on customer', 'Waiting'], ['Resolved', 'Resolved'], ['Closed', 'Closed'], ['all', 'All']])}${seg('tm', [['0', 'Everyone’s'], ['1', 'Mine']])}</div>
       <div class="panel">${ticketTable(rows)}</div>`;
@@ -294,14 +304,14 @@ V.support = {
 };
 
 V.ticket = {
-  load: async id => { const [t, staff] = await Promise.all([get('/api/tickets/' + enc(id)), get('/api/staff')]); return { t, staff }; },
-  html: ({ t, staff }) => {
+  load: async id => { const [t, staff, canned] = await Promise.all([get('/api/tickets/' + enc(id)), get('/api/staff'), get('/api/canned').catch(() => [])]); return { t, staff, canned }; },
+  html: ({ t, staff, canned }) => {
     const done = t.status === 'Closed';
     return ph(esc(t.subject), `${tkNo(t)} · ${esc(t.firm_name)} · ${tkPill(t.status)} ${priPill(t.priority)}`, `<button class="btn" data-act="go" data-id="support">All requests</button><button class="btn" data-act="go" data-id="customer/${enc(t.customer)}">Customer</button>`) +
       `<div class="grid" style="grid-template-columns:minmax(0,1fr) 280px;align-items:start"><div><div class="panel"><div class="bd thread">${t.messages.map(m => m.from === 'status' ? `<div class="status-line">${esc(m.text)} · ${esc(m.who)} · ${fmtStamp(m.at)}</div>` :
         `<div class="msg ${m.from}"><div class="who"><b>${esc(m.who)}</b> ${m.from === 'note' ? pill('Internal note', 'warn') : m.from === 'support' ? pill('Ledgerline support', 'acc') : pill(t.firm_name)} <span class="dim">${fmtStamp(m.at)}</span></div><div class="tx">${esc(m.text)}</div></div>`).join('')}</div></div>
       ${done ? '<div class="note">Closed. The customer can write a new request from Ledgerline.</div>' : `<div class="panel"><div class="bd"><div class="fld"><label for="tk-text">Reply</label><textarea class="in" id="tk-text" rows="5" maxlength="8000" placeholder="Sent to ${esc(t.user_name)} in Ledgerline"></textarea></div>
-        <div class="tools" style="margin:0"><label class="check" style="margin:0"><input type="checkbox" id="tk-note"> Internal note (not sent)</label><span style="flex:1"></span><select class="in" id="tk-status" style="width:auto"><option value="">Status after reply: automatic</option>${S.me.statuses.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select><button class="btn pri" data-act="tkReply">Send</button></div></div></div>`}</div>
+        <div class="tools" style="margin:0">${canned.filter(x => x.text).length ? `<select class="in" style="width:auto" data-change="cannedPick"><option value="">Insert a saved reply…</option>${canned.filter(x => x.text).map(x => `<option value="${esc(x.id)}">${esc(x.title)}</option>`).join('')}</select>` : ''}<label class="check" style="margin:0"><input type="checkbox" id="tk-note"> Internal note (not sent)</label><span style="flex:1"></span><select class="in" id="tk-status" style="width:auto"><option value="">Status after reply: automatic</option>${S.me.statuses.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select><button class="btn pri" data-act="tkReply">Send</button></div></div></div>`}</div>
       <div><div class="panel"><div class="hd"><h3>Details</h3></div><div class="bd"><dl class="kv"><dt>From</dt><dd>${esc(t.user_name)}<div class="dim small">${esc(t.role)} · <span class="mono">${esc(t.user)}</span></div></dd><dt>Firm</dt><dd>${esc(t.firm_name)}</dd><dt>Screen</dt><dd>${esc(t.screen || '—')}</dd><dt>Version</dt><dd class="mono">${esc(t.version || '—')}</dd><dt>Category</dt><dd>${esc(t.category)}</dd><dt>Their ref.</dt><dd class="mono">${esc(t.local_id)}</dd><dt>Opened</dt><dd>${fmtStamp(t.created)}</dd><dt>First reply</dt><dd>${t.first_response ? fmtStamp(t.first_response) : 'due ' + fmtStamp(t.respond_by)}</dd>${t.resolved_at ? `<dt>Resolved</dt><dd>${fmtStamp(t.resolved_at)}</dd>` : ''}</dl></div></div>
       <div class="panel"><div class="bd"><div class="fld"><label for="tk-as">With</label><select class="in" id="tk-as" data-change="tkAssign"><option value="-">Nobody</option>${staff.filter(s => s.active).map(s => `<option value="${esc(s.id)}" ${t.assignee === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>
       <div class="fld"><label for="tk-pri">Priority</label><select class="in" id="tk-pri" data-change="tkPri">${['Low', 'Normal', 'High', 'Urgent'].map(p => `<option ${t.priority === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
@@ -321,9 +331,9 @@ V.settings = {
       ${F('v-bank', 'Bank', v.bank)}${F('v-acct', 'Account number', v.account, { mono: 1 })}${F('v-ifsc', 'IFSC', v.ifsc, { mono: 1 })}${F('v-upi', 'UPI ID', v.upi, { mono: 1 })}${F('v-prefix', 'Invoice number prefix', v.prefix, { mono: 1, hint: 'Numbers run per financial year, e.g. LL/26-27/0001.' })}${F('v-due', 'Payment terms (days)', v.due_days, { type: 'number' })}${F('v-footer', 'Footer note', v.footer)}${F('v-hours', 'Support hours', v.support_hours)}</div></div>`;
     const people = `<div class="panel"><div class="hd"><h3>People who sign in to Control</h3>${own ? '<button class="btn sm" data-act="staffEdit">Add person</button>' : ''}</div>${tbl([['Person'], ['Role'], ['Status'], ['Last sign-in'], ['']], staff.map(x => `<tr><td><b>${esc(x.name)}</b><div class="dim small mono">${esc(x.id)}</div></td><td>${esc(x.role)}</td><td>${x.active ? pill('Active', 'good') : pill('Off')}</td><td class="small">${ago(x.last_login)}</td><td class="r">${own ? `<button class="btn sm" data-act="staffEdit" data-id="${esc(x.id)}">Edit</button>` : ''}</td></tr>`))}<div class="bd dim small">Owner: everything. Billing: customers, prices, invoices, AI credit and installations. Support: support requests; sees customers and installations.</div></div>`;
     const logT = `<div class="panel">${tbl([['When'], ['Who'], ['What'], ['On']], log.map(l => `<tr><td class="small nowrap">${fmtStamp(l.at)}</td><td>${esc(l.staff)}</td><td class="mono small">${esc(l.action)}</td><td class="small">${esc(l.target)} <span class="dim">${esc(l.note || '')}</span></td></tr>`))}</div>`;
-    return ph('Settings', own ? '' : 'Only an Owner can change these.', own && (tab === 'prices' || tab === 'company') ? '<button class="btn pri" data-act="saveSettings">Save</button>' : '') +
-      `<div class="tools">${seg('stab', [['prices', 'Prices'], ['company', 'Company & bank'], ['people', 'People'], ...(own ? [['log', 'Activity']] : [])])}</div>` +
-      `<div ${tab === 'prices' ? '' : 'hidden'}>${prices}</div><div ${tab === 'company' ? '' : 'hidden'}>${company}</div>` + (tab === 'people' ? people : '') + (tab === 'log' ? logT : '');
+    return ph('Settings', own ? '' : 'Only an Owner can change these.', own && (tab === 'prices' || tab === 'company' || tab === 'running') ? '<button class="btn pri" data-act="saveSettings">Save</button>' : '') +
+      `<div class="tools">${seg('stab', [['prices', 'Prices'], ['company', 'Company & bank'], ['running', 'Reminders & versions'], ['people', 'People'], ...(own ? [['log', 'Activity']] : [])])}</div>` +
+      `<div ${tab === 'prices' ? '' : 'hidden'}>${prices}</div><div ${tab === 'company' ? '' : 'hidden'}>${company}</div><div ${tab === 'running' ? '' : 'hidden'}>${runningPanel(s.ops || {}, dis)}</div>` + (tab === 'people' ? people : '') + (tab === 'log' ? logT : '');
   }
 };
 const slabRow = (sl, i, dis) => `<div class="grid g3 slab" style="align-items:end"><div class="fld"><label>Clients up to</label><input class="in mono" data-slab-up value="${sl.up_to || ''}" placeholder="and above" ${dis}></div><div class="fld"><label>Rate per client</label><input class="in mono" data-slab-rate value="${esc(sl.rate)}" ${dis}></div><div class="fld">${dis ? '' : `<button class="btn sm" data-act="rmSlab" data-id="${i}">Remove</button>`}</div></div>`;
@@ -348,12 +358,20 @@ const A = {
       `<div class="bd"><div class="grid g2">${F('name', 'Name')}${F('legal_name', 'Legal name')}${F('gstin', 'GSTIN', { mono: 1 })}${F('state', 'State code (if no GSTIN)', { mono: 1, ph: 'e.g. 27' })}</div>${F('address', 'Billing address', { area: 1 })}
       <div class="grid g3">${F('contact', 'Contact person')}${F('email', 'Email')}${F('phone', 'Phone')}</div>
       <div class="grid g3"><div class="fld"><label for="cu-status">Status</label><select class="in" id="cu-status">${S.me.customer_statuses.map(s => `<option ${c.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>${F('bill_from', 'Billing starts (YYYY-MM)', { mono: 1, ph: S.me.month })}${F('discount_pct', 'Discount %', { mono: 1 })}</div>
-      <div class="grid g3">${F('setup_fee', 'Setup fee ₹ (0 for none)', { mono: 1 })}</div>${F('notes', 'Notes (not printed)', { area: 1 })}</div>
+      <div class="grid g3">${F('setup_fee', 'Setup fee ₹ (0 for none)', { mono: 1 })}${F('trial_ends', 'Trial ends', { ph: 'YYYY-MM-DD' })}${F('tds_pct', 'TDS they deduct %', { mono: 1, ph: 'e.g. 10' })}</div>
+      <h4 style="margin:14px 0 6px">Contract</h4><div class="grid g3">${F('contract_start', 'Starts', { ph: 'YYYY-MM-DD' })}${F('contract_end', 'Ends / renews', { ph: 'YYYY-MM-DD' })}${F('min_monthly', 'Minimum monthly bill ₹', { mono: 1, ph: '0 = none' })}</div>
+      <div class="grid g3">${['manual', 'autopilot', 'full'].map(e => `<div class="fld"><label for="cu-ef-${e}">Agreed ${EDN[e]} fee ₹</label><input class="in mono" id="cu-ef-${e}" value="${esc((c.edition_fee || {})[e] ?? '')}" placeholder="price book"></div>`).join('')}</div>
+      <div class="grid g3">${F('included_users', 'Staff logins included', { mono: 1, ph: 'price book' })}</div>
+      <h4 style="margin:14px 0 6px">Who to write to</h4><div class="grid g2">${F('billing_email', 'Billing email (invoices, reminders)', { ph: 'defaults to the email above' })}${F('cc_emails', 'Copy to (comma separated)')}${F('tech_contact', 'Technical contact')}${F('tech_email', 'Technical email')}</div>
+      ${F('notes', 'Notes (not printed)', { area: 1 })}</div>
       <div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="custSave" data-id="${esc(id || '')}">Save</button></div>`);
   },
   custSave: async id => {
     const v = k => $('cu-' + k).value.trim();
-    const b = { id: id || '', name: v('name'), legal_name: v('legal_name'), gstin: v('gstin'), state: v('state'), address: v('address'), contact: v('contact'), email: v('email'), phone: v('phone'), status: v('status'), bill_from: v('bill_from'), discount_pct: v('discount_pct') || '0', setup_fee: v('setup_fee') || '0', notes: v('notes') };
+    const b = { id: id || '', name: v('name'), legal_name: v('legal_name'), gstin: v('gstin'), state: v('state'), address: v('address'), contact: v('contact'), email: v('email'), phone: v('phone'), status: v('status'), bill_from: v('bill_from'), discount_pct: v('discount_pct') || '0', setup_fee: v('setup_fee') || '0', notes: v('notes'),
+      trial_ends: v('trial_ends'), tds_pct: v('tds_pct'), contract_start: v('contract_start'), contract_end: v('contract_end'), min_monthly: v('min_monthly') || '0', included_users: parseInt(v('included_users'), 10) || 0,
+      billing_email: v('billing_email'), cc_emails: v('cc_emails'), tech_contact: v('tech_contact'), tech_email: v('tech_email') };
+    const ef = {}; ['manual', 'autopilot', 'full'].forEach(e => { const x = $('cu-ef-' + e).value.trim(); if (x !== '') ef[e] = x; }); if (Object.keys(ef).length) b.edition_fee = ef;
     const r = await act(() => post('/api/customers', b), 'Saved', false).catch(() => null);
     if (r) go('customer/' + enc(r.id));
   },
@@ -389,8 +407,9 @@ const A = {
   issueGo: () => act(() => post('/api/invoices/' + enc(S.arg) + '/issue', { date: $('is-d').value }), r => 'Issued as ' + r.number),
   void: () => modal(mhd('Void invoice', 'An issued invoice keeps its number and stays on record as void. Anything it billed (setup fee, AI credit) can be billed again.') + `<div class="bd"><div class="fld"><label for="vd-r">Reason</label><input class="in" id="vd-r" maxlength="300"></div></div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn danger" data-act="voidGo">Void</button></div>`),
   voidGo: () => act(() => post('/api/invoices/' + enc(S.arg) + '/void', { reason: $('vd-r').value }), 'Voided'),
-  payment: () => { const iv = S.data, due = (Number(iv.total) - Number(iv.paid)).toFixed(2); modal(mhd('Record payment', `Due: ${inr(due)}`) + `<div class="bd"><div class="grid g2"><div class="fld"><label for="pm-a">Amount ₹</label><input class="in mono" id="pm-a" value="${due}"></div><div class="fld"><label for="pm-d">Date received</label><input class="in" type="date" id="pm-d" value="${esc(S.me.today)}"></div><div class="fld"><label for="pm-m">Mode</label><select class="in" id="pm-m"><option>Bank transfer</option><option>UPI</option><option>Cheque</option><option>TDS deducted</option><option>Other</option></select></div><div class="fld"><label for="pm-r">Reference (UTR, cheque no.)</label><input class="in mono" id="pm-r"></div></div></div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="payGo">Record</button></div>`); },
-  payGo: () => act(() => post('/api/invoices/' + enc(S.arg) + '/payment', { amount: $('pm-a').value.trim(), date: $('pm-d').value, mode: $('pm-m').value, ref: $('pm-r').value }), r => r.status === 'Paid' ? 'Paid in full' : 'Payment recorded'),
+  payment: () => { const iv = S.data, due = Number(iv.balance).toFixed(2); modal(mhd('Record payment', `Due: ${inr(due)}. If the customer deducted TDS (usually 10% or 2% of ${inr(iv.taxable)} under section 194J), enter it separately: it settles the invoice like money.`) + `<div class="bd"><div class="grid g2"><div class="fld"><label for="pm-a">Amount received ₹</label><input class="in mono" id="pm-a" value="${due}"></div><div class="fld"><label for="pm-t">TDS deducted ₹</label><input class="in mono" id="pm-t" value="0" data-taxable="${esc(iv.taxable)}"><span class="small"><button class="linkish" data-act="tdsFill" data-id="10">10%</button> · <button class="linkish" data-act="tdsFill" data-id="2">2%</button></span></div><div class="fld"><label for="pm-d">Date received</label><input class="in" type="date" id="pm-d" value="${esc(S.me.today)}"></div><div class="fld"><label for="pm-m">Mode</label><select class="in" id="pm-m"><option>Bank transfer</option><option>UPI</option><option>Cheque</option><option>TDS deducted</option><option>Other</option></select></div><div class="fld"><label for="pm-r">Reference (UTR, cheque no.)</label><input class="in mono" id="pm-r"></div></div></div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="payGo">Record</button></div>`); },
+  payGo: () => act(() => post('/api/invoices/' + enc(S.arg) + '/payment', { amount: $('pm-a').value.trim() || '0', tds: $('pm-t').value.trim() || '0', date: $('pm-d').value, mode: $('pm-m').value, ref: $('pm-r').value }), r => r.status === 'Paid' ? 'Paid in full' : 'Payment recorded'),
+  tdsFill: pc => { const t = (Number($('pm-t').dataset.taxable) * pc / 100).toFixed(2), due = Number(S.data.balance); $('pm-t').value = t; $('pm-a').value = (due - t).toFixed(2); },
 
   tkReply: () => act(() => post('/api/tickets/' + enc(S.arg) + '/reply', { text: $('tk-text').value, internal: $('tk-note').checked, status: $('tk-status').value }), () => $('tk-note').checked ? 'Note added' : 'Reply sent to Ledgerline'),
   tkStatus: s => act(() => post('/api/tickets/' + enc(S.arg) + '/reply', { status: s }), 'Status: ' + s),
@@ -404,6 +423,7 @@ const A = {
     const slabs = [...document.querySelectorAll('.slab')].map(r => ({ up_to: parseInt(r.querySelector('[data-slab-up]').value, 10) || 0, rate: r.querySelector('[data-slab-rate]').value.trim() || '0' }));
     const b = {
       vendor: { name: val('v-name'), gstin: val('v-gstin'), address: $('v-addr').value.trim(), pan: val('v-pan'), email: val('v-email'), phone: val('v-phone'), bank: val('v-bank'), account: val('v-acct'), ifsc: val('v-ifsc'), upi: val('v-upi'), prefix: val('v-prefix'), due_days: parseInt(val('v-due'), 10) || 0, footer: val('v-footer'), support_hours: val('v-hours') },
+      ops: { latest_version: val('o-ver'), auto_remind: $('o-auto').checked, remind_every: parseInt(val('o-every'), 10) || 7, notice_overdue: $('o-notice').checked, suspend_after: parseInt(val('o-susp'), 10) || 0 },
       prices: { edition: { manual: val('p-manual') || '0', autopilot: val('p-autopilot') || '0', full: val('p-full') || '0' }, slabs, included_users: parseInt(val('p-incl'), 10) || 0, extra_user: val('p-extra') || '0', bot_computer: val('p-bot') || '0', kyc: val('p-kyc') || '0', setup_fee: val('p-setup') || '0', gst_pct: val('p-gst') || '18', sac: val('p-sac') }
     };
     act(() => api('PUT', '/api/settings', b), 'Settings saved');
@@ -431,6 +451,135 @@ function showKey(inst, key) {
     `<div class="bd"><div class="secret">LEDGERLINE_CONTROL_URL=${esc(location.origin)}<br>LEDGERLINE_CONTROL_KEY=${esc(key)}</div><p class="small dim">The server reports what each firm uses every 15 minutes, and support requests at once. No client details, trades or money leave it: only counts and the firm’s staff logins.</p></div>
     <div class="ft"><button class="btn pri" data-act="doneReload">I’ve copied it</button></div>`);
 }
+
+// ---- billing: receivables, credit notes, TDS ----
+const billTabs = b => `<div class="tools">${seg('btab', [['month', 'Bills for a month'], ['invoices', `Invoices (${b.invoices.length})`], ['recv', 'Receivables'], ['cns', 'Credit notes'], ['tds', 'TDS']])}</div>`;
+const billingHead = b => ph('Billing', 'Monthly fee by edition, clients who traded (in slabs), extra staff logins, bot computers, online account opening, AI credit top-ups and setup fees, with GST. Make drafts at month end, check them, then issue.', `<button class="btn" data-act="go" data-id="settings">Prices</button>`) + billTabs(b);
+function recvTab(rv) {
+  const t = rv.total;
+  return (rv.mail ? '' : '<div class="note warn">No mail server is set up for Control (LLCTL_SMTP_URL), so invoices and reminders can’t be emailed from here. Notices to the firm’s Admins still work.</div>') +
+    `<div class="kpis">${kpi('Outstanding', inr(t.total), `${rv.ageing.length} customer${rv.ageing.length === 1 ? '' : 's'}`)}${kpi('Not yet due', inr(t.not_due), '')}${kpi('1–30 days late', inr(t.d1_30), '', { alert: Number(t.d1_30) > 0 })}${kpi('31–90 days late', inr(Number(t.d31_60) + Number(t.d61_90)), '', { alert: Number(t.d31_60) + Number(t.d61_90) > 0 })}${kpi('Over 90 days', inr(t.over_90), '', { alert: Number(t.over_90) > 0 })}</div>
+    <div class="panel"><div class="hd"><h3>Reminders due</h3><span class="dim small">${rv.ops.auto_remind ? `Sent by themselves each morning, every ${rv.ops.remind_every || 7} days` : 'Automatic reminders are off (Settings → Reminders & versions)'}</span></div>${tbl([['Invoice'], ['Customer'], ['Due', 'r'], ['Days late', 'r'], ['Reminders'], ['']], rv.reminders.map(d => `<tr><td class="mono"><button class="linkish" data-act="go" data-id="invoice/${enc(d.invoice)}">${esc(d.number)}</button></td><td>${esc(d.name)}${d.suspend ? ' ' + pill('Past suspension limit', 'bad') : ''}</td><td class="r mono">${inr(d.balance)}</td><td class="r">${d.days}</td><td class="small">${d.count ? `${d.count} sent · last ${ago(d.last)}` : 'none yet'}</td><td class="r"><button class="btn sm" data-act="remindRow" data-id="${esc(d.invoice)}">Send reminder</button></td></tr>`), { empty: 'Nothing needs a reminder.' })}</div>
+    <div class="panel"><div class="hd"><h3>By customer, by age</h3></div>${tbl([['Customer'], ['Not due', 'r'], ['1–30', 'r'], ['31–60', 'r'], ['61–90', 'r'], ['Over 90', 'r'], ['Total', 'r'], ['Last paid'], ['']], rv.ageing.map(a => `<tr><td><b>${esc(a.name)}</b> ${custPill(a.status)}</td><td class="r mono">${inr(a.not_due)}</td><td class="r mono">${inr(a.d1_30)}</td><td class="r mono">${inr(a.d31_60)}</td><td class="r mono">${inr(a.d61_90)}</td><td class="r mono ${Number(a.over_90) ? 'neg' : ''}">${inr(a.over_90)}</td><td class="r mono"><b>${inr(a.total)}</b></td><td class="small">${a.last_paid ? fmtDate(a.last_paid) : '<span class="dim">never</span>'}</td><td class="r"><a class="btn sm" href="/api/customers/${enc(a.customer)}/statement.pdf">Statement</a></td></tr>`), { empty: 'Nothing outstanding.' })}</div>`;
+}
+const cnTab = rv => `<div class="panel">${tbl([['Number'], ['Date'], ['Invoice'], ['Customer'], ['Reason'], ['Before GST', 'r'], ['Total', 'r'], ['']], rv.credit_notes.map(c => `<tr><td class="mono">${esc(c.number)}</td><td>${fmtDate(c.date)}</td><td class="mono"><button class="linkish" data-act="go" data-id="invoice/${enc(c.invoice)}">${esc(c.invoice_number)}</button></td><td>${esc(c.bill.name)}</td><td class="small">${esc(c.reason)}</td><td class="r mono">${inr(c.taxable)}</td><td class="r mono">${inr(c.total)}</td><td class="r"><a class="btn sm" href="/api/credit-notes/${enc(c.id)}/pdf">PDF</a></td></tr>`), { empty: 'No credit notes. Make one from an issued invoice.' })}<div class="bd dim small">A credit note lowers an issued invoice (GST section 34). Report it in GSTR-1 for the month it is issued.</div></div>`;
+function tdsTab(rv) {
+  const q = {}; rv.tds.forEach(r => { (q[r.quarter] ||= { amt: 0, n: 0, miss: 0 }); q[r.quarter].amt += Number(r.amount); q[r.quarter].n++; if (!r.cert) q[r.quarter].miss++; });
+  return `<div class="kpis">${Object.entries(q).slice(0, 4).map(([k, v]) => kpi(k, inr(v.amt), v.miss ? `<b class="neg">${v.miss} of ${v.n} certificates awaited</b>` : `${v.n} certificates in`, { alert: v.miss > 0 })).join('') || kpi('TDS', inr(0), 'none deducted yet')}</div>
+    <div class="panel">${tbl([['Date'], ['Quarter'], ['Customer'], ['Invoice'], ['TDS', 'r'], ['Form 16A']], rv.tds.map(r => `<tr><td>${fmtDate(r.date)}</td><td>${esc(r.quarter)}</td><td>${esc(r.name)}</td><td class="mono"><button class="linkish" data-act="go" data-id="invoice/${enc(r.invoice)}">${esc(r.invoice_number)}</button></td><td class="r mono">${inr(r.amount)}</td><td>${r.cert ? esc(r.cert) : `<button class="btn sm" data-act="tdsCert" data-id="${esc(r.invoice)}|${r.index}">Record</button>`}</td></tr>`), { empty: 'No TDS deducted yet.' })}<div class="bd dim small">Check each against Form 26AS before claiming it in your return. Ask customers for Form 16A after each quarter’s TDS return is filed.</div></div>`;
+}
+
+// ---- settings: reminders and versions ----
+const runningPanel = (o, dis) => `<div class="panel"><div class="hd"><h3>Payment reminders</h3></div><div class="bd grid g2">
+  <label class="check"><input type="checkbox" id="o-auto" ${o.auto_remind ? 'checked' : ''} ${dis}> Email reminders for overdue invoices by themselves (each morning after 10:00)</label>
+  <label class="check"><input type="checkbox" id="o-notice" ${o.notice_overdue ? 'checked' : ''} ${dis}> Also show the reminder to the firm’s Admins inside Ledgerline</label>
+  <div class="fld"><label for="o-every">Days between reminders</label><input class="in mono" id="o-every" type="number" min="1" max="60" value="${o.remind_every || 7}" ${dis}></div>
+  <div class="fld"><label for="o-susp">Flag for suspension after (days overdue, 0 = never)</label><input class="in mono" id="o-susp" type="number" min="0" max="365" value="${o.suspend_after || 0}" ${dis}></div></div></div>
+  <div class="panel"><div class="hd"><h3>Versions</h3></div><div class="bd grid g2"><div class="fld"><label for="o-ver">Latest Ledgerline version</label><input class="in mono" id="o-ver" value="${esc(o.latest_version || '')}" placeholder="e.g. 1.6.0" ${dis}><span class="dim small">Servers on an older version are listed in Alerts.</span></div></div></div>`;
+
+// ---- customer: contract, go-live checklist, notes, statement ----
+function contractLine(c) {
+  const bits = [];
+  if (c.trial_ends) bits.push('trial ends ' + fmtDate(c.trial_ends));
+  if (c.contract_end) bits.push(`contract ${c.contract_start ? fmtDate(c.contract_start) + ' – ' : 'to '}${fmtDate(c.contract_end)}`);
+  if (c.edition_fee && Object.keys(c.edition_fee).length) bits.push('agreed fees: ' + Object.entries(c.edition_fee).map(([e, a]) => `${EDN[e]} ${inr(a, 0)}`).join(', '));
+  if (Number(c.min_monthly)) bits.push('minimum ' + inr(c.min_monthly, 0) + '/month');
+  if (c.included_users) bits.push(c.included_users + ' logins included');
+  if (c.tds_pct) bits.push('deducts TDS ' + c.tds_pct + '%');
+  if (c.billing_email) bits.push('bills to ' + c.billing_email);
+  return bits.length ? `<div class="note">${bits.map(esc).join(' · ')}</div>` : '';
+}
+function setupList(items) {
+  if (!items || !items.length) return '';
+  const done = items.filter(x => x.ok).length;
+  return `<div class="bd" style="border-top:1px solid var(--line)"><b>Go-live checklist</b> <span class="dim small">${done} of ${items.length} done</span><div class="checks">${items.map(x => `<span class="pill ${x.ok ? (x.days && x.days <= 30 ? 'warn' : 'good') : 'bad'}" title="${esc(x.detail || '')}">${x.ok ? '✓' : '✗'} ${esc(x.label)}${x.days ? ` · ${x.days} d left` : ''}${!x.ok && x.detail ? ': ' + esc(x.detail) : ''}</span>`).join(' ')}</div></div>`;
+}
+function cNotes(d) {
+  return `<div class="panel"><div class="hd"><h3>Add a note</h3></div><div class="bd"><div class="grid g3"><div class="fld"><label for="nt-k">Kind</label><select class="in" id="nt-k">${['Note', 'Call', 'Meeting', 'Email', 'Follow-up'].map(k => `<option>${k}</option>`).join('')}</select></div><div class="fld"><label for="nt-due">Follow up on (for a follow-up)</label><input class="in" type="date" id="nt-due"></div></div><div class="fld"><label for="nt-t">Note</label><textarea class="in" id="nt-t" rows="3" maxlength="4000" placeholder="What was said or agreed"></textarea></div><button class="btn pri" data-act="noteAdd" data-id="${esc(d.customer.id)}">Save note</button></div></div>
+    <div class="panel">${tbl([['When'], ['Kind'], ['Note'], ['By'], ['']], d.notes.map(n => `<tr><td class="small nowrap">${fmtStamp(n.at)}</td><td>${n.kind === 'Follow-up' ? pill(n.done ? 'Follow-up done' : 'Follow-up ' + fmtDate(n.due), n.done ? 'good' : n.due && n.due < S.me.today ? 'bad' : 'warn') : esc(n.kind)}</td><td style="white-space:pre-line">${esc(n.text)}</td><td class="small">${esc(n.by)}</td><td class="r">${n.kind === 'Follow-up' && !n.done ? `<button class="btn sm" data-act="noteDone" data-id="${esc(n.id)}">Done</button>` : ''}</td></tr>`), { empty: 'No notes yet.' })}</div>`;
+}
+function cStatement(d) {
+  const st = d.st;
+  if (!st) return '<div class="note">Loading…</div>';
+  const a = st.ageing;
+  return `<div class="kpis">${kpi('Balance', inr(st.closing), Number(st.closing) < 0 ? 'in their favour' : '')}${kpi('Not yet due', inr(a.not_due), '')}${kpi('1–30 days late', inr(a.d1_30), '', { alert: Number(a.d1_30) > 0 })}${kpi('Over 30 days', inr(Number(a.d31_60) + Number(a.d61_90) + Number(a.over_90)), '', { alert: Number(a.d31_60) + Number(a.d61_90) + Number(a.over_90) > 0 })}</div>
+    <div class="panel"><div class="hd"><h3>Statement of account</h3><a class="btn sm" href="/api/customers/${enc(st.customer.id)}/statement.pdf">PDF</a></div>${tbl([['Date'], ['Entry'], ['Reference'], ['Details'], ['Debit', 'r'], ['Credit', 'r'], ['Balance', 'r']], st.lines.map(l => `<tr><td>${fmtDate(l.date)}</td><td>${esc(l.kind)}</td><td class="mono small">${esc(l.ref)}</td><td class="small">${esc(l.note || '')}</td><td class="r mono">${Number(l.debit) ? inr(l.debit) : ''}</td><td class="r mono">${Number(l.credit) ? inr(l.credit) : ''}</td><td class="r mono">${inr(l.balance)}</td></tr>`), { empty: 'No invoices yet.' })}</div>`;
+}
+
+// ---- support: numbers and saved replies ----
+const supportHead = () => ph('Support', 'Requests sent from inside Ledgerline, with the firm, person, role, screen and version. Replies go back to Ledgerline, where Ledgy tells the person. First-reply targets: Urgent 1 h, High 4 h, Normal 1 day, Low 3 days.') + `<div class="tools">${seg('stt', [['req', 'Requests'], ['num', 'Numbers'], ['can', 'Saved replies']])}</div>`;
+function supportNumbers(n) {
+  const bars = (rows) => { const mx = Math.max(1, ...rows.map(r => r.count)); return `<div class="bars">${rows.map(r => `<div class="bar"><span>${esc(r.label)}</span><span class="tr"><i style="width:${r.count / mx * 100}%"></i></span><span class="mono r">${r.count}</span></div>`).join('') || '<span class="dim">None.</span>'}</div>`; };
+  const obj = o => Object.entries(o).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+  const pctOn = n.answered ? Math.round(n.on_time / n.answered * 100) : 0;
+  return `<div class="tools"><button class="btn" data-act="sm" data-id="-1">‹</button><span class="btn" style="cursor:default">${monthLabel(n.month)}</span><button class="btn" data-act="sm" data-id="1" ${n.month >= S.me.month ? 'disabled' : ''}>›</button></div>
+    <div class="kpis">${kpi('Requests', n.opened, `${n.resolved} resolved this month`)}${kpi('First reply on time', n.answered ? pctOn + '%' : '—', `${n.on_time} of ${n.answered} answered`, { alert: n.answered && pctOn < 90 })}${kpi('Median first reply', n.median_first_hours + ' h', '')}${kpi('Median time to resolve', n.median_resolve_hours + ' h', '')}${kpi('Open now', n.open_now, n.open_now ? `oldest ${n.oldest_open_hours} h` : '', { go: 'support' })}</div>
+    <div class="grid g2"><div class="panel"><div class="hd"><h3>By category</h3></div><div class="bd">${bars(obj(n.by_category))}</div></div><div class="panel"><div class="hd"><h3>By firm</h3></div><div class="bd">${bars(n.by_firm)}</div></div>
+    <div class="panel"><div class="hd"><h3>By priority</h3></div><div class="bd">${bars(obj(n.by_priority))}</div></div><div class="panel"><div class="hd"><h3>Handled by</h3></div><div class="bd">${bars(n.by_staff)}</div></div></div>`;
+}
+const cannedList = cs => `<div class="tools"><span style="flex:1"></span>${can('Support') ? '<button class="btn pri" data-act="cannedEdit">Add a saved reply</button>' : ''}</div><div class="panel">${tbl([['Title'], ['Reply'], ['Changed'], ['']], cs.filter(c => c.text).map(c => `<tr><td><b>${esc(c.title)}</b></td><td class="small" style="white-space:pre-line;max-width:560px">${esc(c.text)}</td><td class="small">${esc(c.by)} · ${ago(c.updated)}</td><td class="r">${can('Support') ? `<button class="btn sm" data-act="cannedEdit" data-id="${esc(c.id)}">Edit</button>` : ''}</td></tr>`), { empty: 'No saved replies yet. Save the answers you give often; insert them when replying.' })}</div>`;
+
+// ---- alerts ----
+V.alerts = {
+  load: () => get('/api/alerts'),
+  html: as => {
+    const f = S.ui.af || 'open', areas = [...new Set(as.map(a => a.area))];
+    const rows = as.filter(a => (f === 'open' ? !a.acked : f === 'all' ? true : a.area === f));
+    const sev = s => pill({ bad: 'Act now', warn: 'Soon', info: 'Note' }[s], { bad: 'bad', warn: 'warn', info: '' }[s]);
+    return ph('Alerts', 'Everything that needs a look, worked out from the latest reports: servers not reporting or behind, firms without backups or with a day left open, go-live gaps (signing certificate, mail server, member codes), certificates expiring, trials and contracts ending, overdue invoices and requests past their first-reply target. Setting one aside hides it for 7 days.') +
+      `<div class="kpis">${kpi('Act now', as.filter(a => !a.acked && a.severity === 'bad').length, '', { alert: as.some(a => !a.acked && a.severity === 'bad') })}${kpi('Soon', as.filter(a => !a.acked && a.severity === 'warn').length, '')}${kpi('Notes', as.filter(a => !a.acked && a.severity === 'info').length, '')}${kpi('Set aside', as.filter(a => a.acked).length, 'for 7 days')}</div>
+      <div class="tools">${seg('af', [['open', 'Open'], ...areas.map(a => [a, a]), ['all', 'All']])}</div>
+      <div class="panel">${tbl([[''], ['Area'], ['Who'], ['What'], ['']], rows.map(a => `<tr class="${a.acked ? 'dim' : ''}"><td>${sev(a.severity)}</td><td class="small">${esc(a.area)}</td><td><button class="linkish" data-act="go" data-id="${esc(a.link)}"><b>${esc(a.subject)}</b></button></td><td class="small">${esc(a.detail)}</td><td class="r">${a.acked ? `<span class="small">set aside by ${esc(a.acked_by)}</span>` : `<button class="btn sm" data-act="alertAck" data-id="${esc(a.id)}">Set aside</button>`}</td></tr>`), { empty: 'Nothing needs attention.' })}</div>`;
+  }
+};
+
+// ---- notices ----
+V.notices = {
+  load: async () => { const [ns, cs, fs] = await Promise.all([get('/api/notices'), get('/api/customers'), get('/api/firms')]); return { ns, cs, fs }; },
+  html: ({ ns }) => ph('Notices', 'Banners shown inside Ledgerline: planned maintenance, a new release, a payment reminder. Pick who sees them (every staff login or Admins only) and for how long. Each firm gets it with its next report (within about 15 minutes).', can('Support', 'Billing') ? '<button class="btn pri" data-act="noticeNew">New notice</button>' : '') +
+    `<div class="panel">${tbl([['Notice'], ['To'], ['Shown'], ['Reached'], ['State'], ['']], ns.map(n => `<tr><td><b>${esc(n.title)}</b> ${pill(n.level === 'info' ? 'Info' : n.level === 'warn' ? 'Warning' : 'Urgent', n.level === 'bad' ? 'bad' : n.level === 'warn' ? 'warn' : '')}<div class="small" style="white-space:pre-line">${esc(n.text)}</div><div class="dim small">${esc(n.id)} · ${esc(n.by)} · ${fmtStamp(n.created)}</div></td><td class="small">${esc(noticeTarget(n.target))}<div class="dim">${n.audience === 'admins' ? 'Admins only' : 'every staff login'}</div></td><td class="small">${fmtStamp(n.from)}<br>to ${fmtStamp(n.until)}</td><td class="small">${n.delivered} of ${n.firms.length} firms</td><td>${n.withdrawn ? pill('Withdrawn') : n.live ? pill('Showing', 'good') : new Date(n.from) > new Date() ? pill('Scheduled', 'acc') : pill('Ended')}</td><td class="r">${!n.withdrawn && can('Support', 'Billing') && new Date(n.until) > new Date() ? `<button class="btn sm" data-act="noticeWithdraw" data-id="${esc(n.id)}">Withdraw</button>` : ''}</td></tr>`), { empty: 'No notices sent yet.' })}</div>`
+};
+function noticeTarget(t) {
+  if (!t || t === 'all') return 'Every firm';
+  const [k, id] = t.split(':');
+  if (k === 'customer') return 'Customer ' + ((S.data.cs || []).find(c => c.id === id)?.name || id);
+  if (k === 'firm') return 'Firm ' + ((S.data.fs || []).find(f => f.id === id)?.latest?.firm || id);
+  return 'Server ' + id;
+}
+const isoLocal = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+Object.assign(A, {
+  ivEmail: () => act(() => post('/api/invoices/' + enc(S.arg) + '/email'), r => 'Emailed to ' + r.emailed_to),
+  remind: () => modal(mhd('Send a payment reminder', 'By email to the billing contact, with the invoice attached.') + `<div class="bd"><label class="check"><input type="checkbox" id="rm-n"> Also show it to the firm’s Admins inside Ledgerline (for 14 days)</label>${S.me.mail ? '' : '<div class="note warn">No mail server is set up for Control, so only the notice can be sent.</div>'}</div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="remindGo">Send</button></div>`),
+  remindGo: () => act(() => post('/api/invoices/' + enc(S.arg) + '/remind', { notice: $('rm-n').checked }), 'Reminder sent'),
+  remindRow: id => act(() => post('/api/invoices/' + enc(id) + '/remind', { notice: !!(S.data.rv && S.data.rv.ops.notice_overdue) }), 'Reminder sent'),
+  creditNote: () => { const iv = S.data, done = (iv.cns || []).reduce((a, c) => a + Number(c.taxable), 0), left = (Number(iv.taxable) - done).toFixed(2);
+    modal(mhd('Credit note on ' + esc(iv.number), `Lowers the invoice; GST is credited at ${esc(iv.gst_pct)}% the same way as on the invoice. Up to ${inr(left)} before GST is left to credit.`) + `<div class="bd"><div class="fld"><label for="cn-a">Amount to credit, before GST ₹</label><input class="in mono" id="cn-a" value="${left}"></div><div class="fld"><label for="cn-r">Reason (printed on the credit note)</label><input class="in" id="cn-r" maxlength="300" placeholder="e.g. Service credit for the 12 Oct outage"></div></div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="cnGo">Issue credit note</button></div>`); },
+  cnGo: () => act(() => post('/api/invoices/' + enc(S.arg) + '/credit', { amount: $('cn-a').value.trim(), reason: $('cn-r').value }), r => 'Credit note ' + r.number + ' issued'),
+  tdsCert: id => { const [iv, i] = id.split('|'); modal(mhd('TDS certificate (Form 16A)', 'Record it once received; check it against Form 26AS.') + `<div class="bd"><div class="fld"><label for="tc-c">Certificate number</label><input class="in mono" id="tc-c"></div></div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="tdsCertGo" data-id="${esc(id)}">Save</button></div>`); },
+  tdsCertGo: id => { const [iv, i] = id.split('|'); act(() => post('/api/invoices/' + enc(iv) + '/tds', { index: +i, cert: $('tc-c').value }), 'Saved'); },
+  edChange: id => { const f = S.data.firms.find(x => x.id === id); modal(mhd('Change edition · ' + esc(f.latest.firm), 'Takes effect at the firm’s next report (within about 15 minutes). The highest edition used in a month is the one billed for that month.') + `<div class="bd"><div class="fld"><label for="ed-e">Edition</label><select class="in" id="ed-e">${['manual', 'autopilot', 'full'].map(e => `<option value="${e}" ${f.latest.edition === e ? 'selected' : ''}>${EDN[e]}</option>`).join('')}</select></div></div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="edGo" data-id="${esc(id)}">Change</button></div>`); },
+  edGo: id => act(() => post('/api/firms/' + enc(id) + '/edition', { edition: $('ed-e').value }), r => `Sent: ${EDN[r.edition]} from the next report`),
+  noteAdd: id => act(() => post('/api/notes', { customer: id, kind: $('nt-k').value, text: $('nt-t').value, due: $('nt-due').value }), 'Note saved'),
+  noteDone: id => act(() => post('/api/notes', { id, done: true }), 'Done'),
+  cannedPick: (v, el) => { const c = (S.data.canned || []).find(x => x.id === v); if (c) { const t = $('tk-text'); t.value = (t.value ? t.value + '\n\n' : '') + c.text; t.focus(); } el.value = ''; },
+  cannedEdit: id => { const c = id ? S.data.can.find(x => x.id === id) : { title: '', text: '' }; modal(mhd(id ? 'Edit saved reply' : 'Add a saved reply') + `<div class="bd"><div class="fld"><label for="cn-t">Title</label><input class="in" id="cn-t" value="${esc(c.title)}" maxlength="80"></div><div class="fld"><label for="cn-x">Reply</label><textarea class="in" id="cn-x" rows="8" maxlength="4000">${esc(c.text)}</textarea></div></div><div class="ft">${id ? `<button class="btn danger" data-act="cannedDel" data-id="${esc(id)}">Remove</button>` : ''}<span style="flex:1"></span><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="cannedSave" data-id="${esc(id || '')}">Save</button></div>`); },
+  cannedSave: id => act(() => post('/api/canned', { id: id || '', title: $('cn-t').value, text: $('cn-x').value }), 'Saved'),
+  cannedDel: id => act(() => post('/api/canned', { id, title: '', text: '' }), 'Removed'),
+  sm: k => { S.ui.sm = shiftMonth(S.ui.sm || S.me.month, +k); render(); },
+  alertAck: id => act(() => post('/api/alerts/ack', { id }), 'Set aside for 7 days'),
+  noticeNew: () => {
+    const now = new Date(), wk = new Date(now.getTime() + 7 * 864e5), d = S.data;
+    modal(mhd('New notice', 'Shown as a banner on every screen in Ledgerline. People can hide it for themselves.') + `<div class="bd"><div class="fld"><label for="no-t">Title</label><input class="in" id="no-t" maxlength="120" placeholder="e.g. Planned maintenance: Sunday 2 Nov, 22:00–23:00"></div><div class="fld"><label for="no-x">Message</label><textarea class="in" id="no-x" rows="4" maxlength="2000"></textarea></div>
+      <div class="grid g2"><div class="fld"><label for="no-to">Send to</label><select class="in" id="no-to"><option value="all">Every firm</option><optgroup label="Customer">${d.cs.map(c => `<option value="customer:${esc(c.id)}">${esc(c.name)}</option>`).join('')}</optgroup><optgroup label="One firm">${d.fs.map(f => `<option value="firm:${esc(f.id)}">${esc(f.latest.firm || f.tenant)}</option>`).join('')}</optgroup></select></div>
+      <div class="fld"><label for="no-au">Who sees it</label><select class="in" id="no-au"><option value="all">Every staff login</option><option value="admins">Admins only</option></select></div>
+      <div class="fld"><label for="no-l">Kind</label><select class="in" id="no-l"><option value="info">Information</option><option value="warn">Warning</option><option value="bad">Urgent</option></select></div><div></div>
+      <div class="fld"><label for="no-f">Show from</label><input class="in" type="datetime-local" id="no-f" value="${isoLocal(now)}"></div><div class="fld"><label for="no-u">Until</label><input class="in" type="datetime-local" id="no-u" value="${isoLocal(wk)}"></div></div></div>
+      <div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="noticeGo">Send</button></div>`);
+  },
+  noticeGo: () => act(() => post('/api/notices', { title: $('no-t').value, text: $('no-x').value, target: $('no-to').value, audience: $('no-au').value, level: $('no-l').value, from: $('no-f').value, until: $('no-u').value }), r => `Queued for ${r.firms.length} firm${r.firms.length === 1 ? '' : 's'}`),
+  noticeWithdraw: id => { if (window.confirm('Withdraw this notice from every firm?')) act(() => post('/api/notices/' + enc(id) + '/withdraw'), 'Withdrawn'); },
+});
 
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
