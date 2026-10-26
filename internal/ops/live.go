@@ -295,16 +295,20 @@ func (o *Ops) LimitFile(ctx context.Context, tenant, date string) ([]byte, error
 	if err != nil {
 		return nil, err
 	}
-	rows := [][]string{{"TradeDate", "ClientCode", "Cash", "CollateralAfterHaircut", "MarginBlocked", "Override", "NetLimit", "BuyAllowed", "Reason"}}
+	cs, _ := o.ClientMap(ctx, tenant)
+	rows := [][]string{{"TradeDate", "ClientCode", "Cash", "CollateralAfterHaircut", "MarginBlocked", "Override", "NetLimit", "BuyAllowed", "Reason", "SegmentsAllowed"}}
 	for _, r := range rv.Rows {
 		buy, why := "Y", ""
-		if r.Blocked {
+		open := cs[r.UCC].OpenSegments()
+		switch {
+		case r.Blocked && r.Inactive:
+			buy, why = "N", "inactive account"
+		case r.Blocked:
 			buy, why = "N", "blocked"
-			if r.Inactive {
-				why = "inactive account"
-			}
+		case len(open) == 0:
+			buy, why = "N", "no segment active ("+segStatusSummary(cs[r.UCC])+")"
 		}
-		rows = append(rows, []string{date, r.UCC, r.Cash.Fixed(2), r.CollUsable.Fixed(2), r.Required.Fixed(2), r.Overrides.Fixed(2), r.Limit.Fixed(2), buy, why})
+		rows = append(rows, []string{date, r.UCC, r.Cash.Fixed(2), r.CollUsable.Fixed(2), r.Required.Fixed(2), r.Overrides.Fixed(2), r.Limit.Fixed(2), buy, why, strings.Join(open, "/")})
 	}
 	return csvBytesOf(rows), nil
 }

@@ -18,6 +18,63 @@ On [[reports|Regulatory reports]]:
 
 Every step is recorded. Autopilot generates and validates daily reports; uploads still need a person until the exchange connection is set up.
 
+## dispatch-register
+title: Signed contract notes, statements and the dispatch register
+screen: dispatch
+roles: Compliance officer, Ops checker, Ops maker
+ask: dispatch register; proof of delivery; contract note bounced; email bounced; printed contract note; courier copy; signed pdf; digital signature certificate; documents held; statements not sent; margin statement; ras statement; dp statement; bounce report
+related: regulatory-reports
+
+Contract notes and statements go to clients as PDFs digitally signed with the firm's certificate. Every one is in the [[dispatch|Dispatch register]] with the file exactly as sent and its SHA-256 fingerprint: SEBI treats this log as proof of delivery.
+
+1. **Digital signature** (Admin): load the firm's Class 3 document signer certificate (.pfx with its password), or connect a signing service or HSM. Without one, documents are **held**, never sent unsigned.
+2. Contract notes are signed and sent from [[notes|Contract notes]]. Daily margin, running account settlement, DP and monthly statements go out by themselves (scheduled jobs and after each settlement), or with **Send statements**.
+3. A **bounced** email (from the mail server, **Mark bounced**, or **Load bounce report**) opens a work item: print the signed PDF, send it by courier and record the courier reference with **Printed copy sent**. Clients who chose paper (ECN = N) get a printed copy every time.
+4. **Check signature** re-verifies a stored PDF; **Download register** gives the log for inspection.
+
+The mail server is set with LEDGERLINE_SMTP_URL (STARTTLS or TLS only).
+
+## client-collateral
+title: Client-level collateral file (SEGMON, CC01)
+screen: reports
+roles: Ops maker, Ops checker, Compliance officer, Risk manager
+ask: segmon; cc01; cc02; client level collateral; collateral reporting to clearing corporation; ncl collateral file; client collateral upload
+related: regulatory-reports
+
+On [[reports|Regulatory reports]], **Client-level collateral (SEGMON: CC01 / CC02)**:
+
+1. **Review** downloads every segment with names and any shortage.
+2. The **FO**, **CD**, **COM** and **CM** buttons download each segment's upload file, gzip-compressed and named C_CC01_<member>_<DDMMYYYY>.csv.gz (CM is CC02, with the member code first). The firm's NSE member code must be set in Settings.
+3. Cash allocated and securities re-pledged follow the end-of-day client allocation, so the two always agree.
+
+Check the layout against NSE Clearing's current file specification before the first upload; it is revised from time to time.
+
+## nomination
+title: Nominees and opt-out declarations
+screen: clients
+roles: Ops maker, Ops checker, Compliance officer, Branch staff
+ask: nominee; add nominee; change nominee; multiple nominees; nominee share; minor nominee; guardian; opt out of nomination; nomination declaration; nominee identity
+related: regulatory-reports
+
+Under SEBI's 2025 nomination rules a client may name up to 10 nominees, each with a share (equal if not given), a relationship and one identity detail: PAN, driving licence, the last 4 digits of Aadhaar, or passport. A nominee under 18 needs a date of birth and a guardian. A sole holder must either nominate or declare that they do not wish to.
+
+1. Open the client and use **Change nomination** (or the client asks from the portal). A checker approves it like any other change.
+2. Records from the previous back office load with the **NOMINEES** file on [[files|Files]].
+3. The **Nomination status** report on [[reports|Regulatory reports]] lists clients with details missing or no declaration.
+
+## segment-status
+title: Client status in each segment
+screen: clients
+roles: Ops checker, Compliance officer
+ask: segment status; suspend derivatives; suspend segment; dormant segment; reactivate segment; close segment; fo suspended; segment history
+related: inactive
+
+Each segment (cash, F&O, currency, commodity) has its own status: Active, Reactivated, Suspended, Dormant or Closed, with every change kept with its effective date and reason.
+
+1. Open the client, find **Segments** and choose **Change**. Give the effective date and the reason.
+2. The front-office limit file allows only the open segments; the day's changes go into the UCC upload batch.
+3. History from the previous back office loads with the **SEGMENT-STATUS** file on [[files|Files]].
+
 ## surveillance
 title: Work a surveillance or AML alert
 screen: surv

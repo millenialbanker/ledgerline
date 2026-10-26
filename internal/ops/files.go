@@ -31,7 +31,9 @@ type MasterSource struct {
 // MasterSources lists the non-trade file types, with their CSV headers.
 func MasterSources() []MasterSource {
 	return []MasterSource{
-		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding). Optional columns: Branch, State (place of supply for GST), GSTIN; WhatsApp (Y), WAConsentDate and WAConsentRef for WhatsApp consent recorded in the previous system", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
+		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding). Optional columns: Branch, State (place of supply for GST), GSTIN; WhatsApp (Y), WAConsentDate and WAConsentRef for WhatsApp consent recorded in the previous system; ECN (N for a client who chose printed contract notes); NominationDate and NominationMode for the nomination or opt-out declaration", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
+		{"NOMINEES", "Nominees of each client, up to 10 (replaces the client's list). IDType is PAN, DL, AADHAAR (only the last 4 digits are kept) or PASSPORT; leave Share blank for equal shares; a minor needs DOB, Guardian and GuardianRelation. Optional: Mobile, Email, Address, DeclaredOn, Mode", []string{"UCC", "Name", "Relation", "Share", "IDType", "ID", "DOB", "Guardian", "GuardianRelation"}, false, "Once at go-live, then on change"},
+		{"SEGMENT-STATUS", "Each client's status in each segment with its history, oldest first: Active, Reactivated, Suspended, Dormant or Closed (Segment CM, FO, CD or COM). Optional column Reason", []string{"UCC", "Segment", "Status", "EffectiveDate"}, false, "Once at go-live, then on change"},
 		{"OPENING-BALANCES", "Opening trial balance (migration); must balance. Optional column Since: for a client debit, the date it became due, so ageing, interest and debit blocks carry over", []string{"Account", "Debit", "Credit"}, true, "Once at go-live"},
 		{"MARKET-DATA", "Contract master, prices and risk parameters (SPAN, VaR, haircuts)", []string{"Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "ISIN", "Company", "Lot", "LTP", "Close", "VaRPct", "ELMPct", "HaircutPct", "SPANPct", "ExposurePct", "Delta", "Underlying", "Index"}, true, "BOD and EOD"},
 		{"DP-HOLDINGS", "Client demat holdings and pledges from the depository", []string{"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost"}, false, "BOD"},
@@ -205,6 +207,10 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		return o.prepareCompliance(ctx, tenant, actor, source, date, rows)
 	case "NRI-CAUTION":
 		return o.loadNRICaution(ctx, tenant, actor, date, rows)
+	case "NOMINEES":
+		return o.prepareNominees(ctx, tenant, actor, rows)
+	case "SEGMENT-STATUS":
+		return o.prepareSegmentStatus(ctx, tenant, actor, rows)
 	case "CIRCULARS":
 		return o.prepareCirculars(ctx, tenant, actor, rows)
 	case "LTP-SNAPSHOT":
@@ -229,6 +235,7 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 	case "CLIENT-MASTER":
 		var cs []Client
 		seen := map[string]bool{}
+		ecnGiven := map[string]string{} // the ECN column as given, so a blank keeps the earlier choice
 		for _, r := range rows {
 			c := Client{UCC: r.get("UCC"), Name: r.get("Name"), Type: r.get("Type"), PAN: r.get("PAN"), DOB: r.get("DOB"), Mobile: r.get("Mobile"), Email: r.get("Email"),
 				City: r.get("City"), Segments: strings.Split(r.get("Segments"), ";"), Risk: r.get("Risk"), Income: r.get("Income"), RAS: r.get("RAS"),
@@ -247,6 +254,9 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 					c.setConsent(true, at, SrcMigrated, "import", firstOf(r.get("WAConsentRef"), "client master import"))
 				}
 			}
+			c.PhysicalNotes = strings.EqualFold(r.get("ECN"), "N")
+			ecnGiven[strings.ToUpper(strings.TrimSpace(r.get("UCC")))] = r.get("ECN")
+			c.NominationOn, c.NominationMode = pdate(r, "NominationDate", true), r.get("NominationMode")
 			if v := r.get("UPIBlock"); v != "" {
 				a, err := money.ParseAmount(v)
 				if err != nil {
@@ -290,6 +300,17 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 					}
 					c.Blocked, c.BlockedReason = old.Blocked, old.BlockedReason
 					c.Inactive, c.InactiveSince, c.ReactivatedOn, c.KYCUpdatedOn = old.Inactive, old.InactiveSince, old.ReactivatedOn, old.KYCUpdatedOn
+					c.SegStatus, c.SegHistory = old.SegStatus, old.SegHistory
+					if len(old.Nominees) > 0 && (c.Nominee == "" || c.Nominee == "Opted in") {
+						c.Nominees = old.Nominees
+						normaliseNominees(&c)
+					}
+					if c.NominationOn == "" {
+						c.NominationOn, c.NominationMode = old.NominationOn, old.NominationMode
+					}
+					if !c.PhysicalNotes && old.PhysicalNotes && ecnGiven[c.UCC] == "" {
+						c.PhysicalNotes = true
+					}
 					if c.Branch == "" {
 						c.Branch = old.Branch
 					}

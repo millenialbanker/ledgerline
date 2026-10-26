@@ -27,7 +27,7 @@ import (
 // copy, which is recorded here with its courier reference.
 
 const (
-	cDispatch = "dispatch"
+	cDispatch   = "dispatch"
 	srcDispatch = "DISPATCH"
 )
 
@@ -206,12 +206,12 @@ type DispatchFilter struct {
 
 // DispatchView is the register page.
 type DispatchView struct {
-	Rows     []Dispatch          `json:"rows"`
-	ByStatus map[string]int      `json:"by_status"`
-	ByKind   map[string]int      `json:"by_kind"`
-	Kinds    map[string]string   `json:"kinds"`
-	Signing  SigningView         `json:"signing"`
-	Mail     string              `json:"mail"` // smtp, simulated, none
+	Rows     []Dispatch        `json:"rows"`
+	ByStatus map[string]int    `json:"by_status"`
+	ByKind   map[string]int    `json:"by_kind"`
+	Kinds    map[string]string `json:"kinds"`
+	Signing  SigningView       `json:"signing"`
+	Mail     string            `json:"mail"` // smtp, simulated, none
 }
 
 func (o *Ops) canSeeDispatch(ctx context.Context, tenant, actor string) error {
@@ -230,7 +230,7 @@ func (o *Ops) DispatchRegister(ctx context.Context, tenant, actor string, f Disp
 	v := DispatchView{Rows: []Dispatch{}, ByStatus: map[string]int{}, ByKind: map[string]int{}, Kinds: DocKindNames}
 	f.UCC = strings.ToUpper(strings.TrimSpace(f.UCC))
 	for _, d := range all {
-		day := d.Created[:10]
+		day := firstOf(d.Date, d.Created[:10]) // the document's date, not when it was sent
 		if (f.From != "" && day < f.From) || (f.To != "" && day > f.To) || (f.Kind != "" && d.Kind != f.Kind) || (f.UCC != "" && d.UCC != f.UCC) {
 			continue
 		}
@@ -635,4 +635,3 @@ func (o *Ops) SendStatements(ctx context.Context, tenant, actor, kind, period st
 	o.log(ctx, tenant, actor, "statements.sent", kind+" "+period, map[string]any{"sent": res.Sent, "bounced": res.Bounced, "held": res.Held, "paper": res.Paper, "failed": res.Failed})
 	return res, nil
 }
-

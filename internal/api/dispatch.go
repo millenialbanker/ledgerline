@@ -26,6 +26,10 @@ func (s *Server) dispatchRoutes() {
 	R("POST /v1/dispatch/bounces", s.dispatchBounces, true)
 	R("POST /v1/dispatch/run", s.dispatchRun, true)
 	R("GET /v1/portal/documents/{id}", s.portalDocument, false)
+	R("GET /v1/collateral-file", s.collateralFile, false)
+	R("GET /v1/nominations", s.nominations, false)
+	R("GET /v1/segment-status", s.segmentStatus, false)
+	R("POST /v1/clients/{ucc}/segment-status", s.setSegmentStatus, true)
 	clientRoutes["GET /v1/portal/documents/{id}"] = true
 }
 
@@ -158,4 +162,41 @@ func (s *Server) dispatchRun(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := s.ops.SendStatements(r.Context(), tenant(r), actor(r), b.Kind, b.Period)
 	ok(w, v, err)
+}
+
+// collateralFile is the clearing corporation's client-level collateral file
+// for one segment: ?date=&segment=FO|CD|COM|CM&header=1.
+func (s *Server) collateralFile(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	q := r.URL.Query()
+	name, b, err := s.ops.ClientCollateralFile(r.Context(), tenant(r), actor(r), d, q.Get("segment"), q.Get("header") == "1")
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	w.Header().Set("Content-Type", "application/gzip")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+	w.Write(b)
+}
+
+func (s *Server) nominations(w http.ResponseWriter, r *http.Request) {
+	rows, by, err := s.ops.Nominations(r.Context(), tenant(r), actor(r))
+	ok(w, map[string]any{"rows": rows, "by_state": by, "id_types": ops.NomineeIDTypes, "modes": ops.NominationModes, "max": ops.MaxNominees}, err)
+}
+
+func (s *Server) segmentStatus(w http.ResponseWriter, r *http.Request) {
+	rows, counts, err := s.ops.SegmentStatusReport(r.Context(), tenant(r), actor(r))
+	ok(w, map[string]any{"rows": rows, "counts": counts, "statuses": ops.SegmentStatuses}, err)
+}
+
+func (s *Server) setSegmentStatus(w http.ResponseWriter, r *http.Request) {
+	var b struct{ Segment, Status, On, Reason string }
+	if !decode(w, r, &b) {
+		return
+	}
+	c, err := s.ops.SetSegmentStatus(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), b.Segment, b.Status, b.On, b.Reason)
+	ok(w, c, err)
 }

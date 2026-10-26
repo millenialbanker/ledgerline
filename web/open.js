@@ -20,6 +20,19 @@ async function call(method, path, body, raw) {
   return b;
 }
 const fieldErr = f => { const x = (ERR?.fields || []).find(e => e.field === f); return x ? `<span class="err">${esc(x.message)}</span>` : ''; };
+const NREL = ['Spouse', 'Son', 'Daughter', 'Father', 'Mother', 'Brother', 'Sister', 'Grandchild', 'Other'];
+const NID = [['PAN', 'PAN'], ['DL', 'Driving licence'], ['AADHAAR', 'Last 4 digits of Aadhaar'], ['PASSPORT', 'Passport']];
+const nomBlock = n => `<fieldset class="nom"><div class="row"><div class="fld"><label>Full name</label><input class="in n-name" value="${esc(n.name || '')}"></div><div class="fld"><label>Relationship</label><select class="in n-rel"><option value="">Choose</option>${NREL.map(o => `<option ${o === n.relation ? 'selected' : ''}>${o}</option>`).join('')}</select></div></div>
+  <div class="row"><div class="fld"><label>Identity</label><select class="in n-idt">${NID.map(([k, l]) => `<option value="${k}" ${k === n.id_type ? 'selected' : ''}>${l}</option>`).join('')}</select></div><div class="fld"><label>Number</label><input class="in n-id" value="${esc(n.id || '')}" autocapitalize="characters"></div></div>
+  <div class="row"><div class="fld"><label>Share % (optional)</label><input class="in n-share" inputmode="decimal" value="${esc(n.share || '')}"></div><div class="fld"><label>Date of birth (if under 18)</label><input class="in n-dob" type="date" value="${esc(n.dob || '')}"></div></div>
+  <div class="row"><div class="fld"><label>Guardian (if under 18)</label><input class="in n-g" value="${esc(n.guardian || '')}"></div><div class="fld"><label>Guardian's relationship</label><input class="in n-gr" value="${esc(n.guardian_relation || '')}"></div></div>
+  <button class="linkish small n-del" type="button">Remove this nominee</button></fieldset>`;
+const nomsRead = () => [...document.querySelectorAll('fieldset.nom')].map(f => { const g = c => f.querySelector('.n-' + c).value.trim(); return { name: g('name'), relation: g('rel'), id_type: g('idt'), id: g('id'), share: g('share'), dob: g('dob'), guardian: g('g'), guardian_relation: g('gr') }; });
+function nomsBind() {
+  $('nomadd').onclick = () => { if (document.querySelectorAll('fieldset.nom').length >= 10) return; $('nomadd').insertAdjacentHTML('beforebegin', nomBlock({})); nomsBind(); };
+  document.querySelectorAll('.n-del').forEach(b => { b.onclick = () => { if (document.querySelectorAll('fieldset.nom').length > 1) b.closest('fieldset').remove(); }; });
+  $('optout').onchange = e => { $('noms').hidden = e.target.checked; };
+}
 const fld = (id, label, val, attrs = '') => `<div class="fld"><label for="${id}">${label}</label><input class="in" id="${id}" value="${esc(val || '')}" ${attrs}>${fieldErr(id)}</div>`;
 const sel = (id, label, opts, val) => `<div class="fld"><label for="${id}">${label}</label><select class="in" id="${id}"><option value="">Choose</option>${opts.map(o => `<option ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>${fieldErr(id)}</div>`;
 const checks = names => { const cs = (APP?.checks || []).filter(c => names.includes(c.name)); return cs.length ? `<div class="res">${cs.map(c => `<div><span class="pill ${c.status.split(' ')[0]}">${esc(c.status)}</span><span>${esc(c.name)}: ${esc(c.detail)}</span></div>`).join('')}</div>` : ''; };
@@ -80,15 +93,15 @@ const V = {
     ${fld('demat_id', 'Existing demat account (leave blank to open one with us)', APP.demat_id, 'class="in mono" maxlength="16"')}
     <div class="fld"><label for="f-inc">Income proof (needed for futures, options, currency and commodities): salary slip, ITR or 6-month bank statement</label><input class="in" type="file" id="f-inc" accept="image/*,application/pdf">${hasDoc('Income proof') ? '<span class="small dim">Uploaded ✓</span>' : ''}${fieldErr('income_proof')}</div>
     <button class="btn pri" id="go">Continue</button>`; },
-  nominee: () => `<p class="dim">A nominee receives your holdings and funds if something happens to you.</p>
+  nominee: () => `<p class="dim">Your nominees receive your holdings and funds if something happens to you. You can name up to 10 and say what share each gets (equal shares if you leave them blank). For each, give one identity detail. A nominee under 18 needs a guardian.</p>
     <label class="check"><input type="checkbox" id="optout" ${APP.nominee_opt_out ? 'checked' : ''}> <span>I do not wish to nominate anyone</span></label>
-    <div class="row">${fld('nname', "Nominee's full name", APP.nominee_name)}${sel('nrel', 'Relationship', ['Spouse', 'Son', 'Daughter', 'Father', 'Mother', 'Brother', 'Sister', 'Other'], APP.nominee_relation)}</div>
+    <div id="noms" ${APP.nominee_opt_out ? 'hidden' : ''}>${(APP.nominees && APP.nominees.length ? APP.nominees : [{}]).map(nomBlock).join('')}<button class="btn" type="button" id="nomadd">Add another nominee</button></div>${fieldErr('nominees')}
     <button class="btn pri" id="go">Continue</button>`,
   photo: () => `<div class="media"><b>Your photograph</b><p class="dim small m0">Face the camera in good light, without glasses or a cap.</p><video id="cam" autoplay playsinline muted width="320" hidden></video><div class="acts start"><button class="btn" id="camon">Open camera</button><button class="btn" id="snap" hidden>Take photograph</button><label class="btn">Upload instead<input type="file" id="f-photo" accept="image/*" hidden></label></div>${hasDoc('Photograph') ? '<span class="small dim">Photograph saved ✓</span>' : ''}</div>
     <div class="media"><b>Your signature</b><canvas class="sig" id="sig" width="600" height="180"></canvas><div class="acts start"><button class="btn" id="sigclr">Clear</button><button class="btn" id="sigsave">Save signature</button></div>${hasDoc('Signature') ? '<span class="small dim">Signature saved ✓</span>' : ''}</div>
     ${hasDoc('PAN (DigiLocker)') ? '' : `<div class="fld"><label for="f-pan">Photo of your PAN card (needed because your PAN record did not come from DigiLocker)</label><input class="in" type="file" id="f-pan" accept="image/*,application/pdf">${hasDoc('PAN card') ? '<span class="small dim">Uploaded ✓</span>' : ''}</div>`}
     ${checks(['Face match'])}<button class="btn pri" id="go">Continue</button>`,
-  review: () => `<dl class="kv"><dt>Name</dt><dd>${esc(APP.name)}</dd><dt>PAN</dt><dd>${esc(APP.pan)}</dd><dt>Mobile</dt><dd>${esc(APP.mobile)}</dd><dt>Email</dt><dd>${esc(APP.email)}</dd><dt>Address</dt><dd>${esc([APP.address, APP.city, APP.state, APP.pin].join(', '))}</dd><dt>Bank</dt><dd>${esc(APP.bank)} · ${esc(APP.ifsc)}</dd><dt>Segments</dt><dd>${esc((APP.segments || []).map(s => CFG.segments[s]).join(', '))}</dd><dt>Nominee</dt><dd>${APP.nominee_opt_out ? 'None' : esc(APP.nominee_name + ' (' + APP.nominee_relation + ')')}</dd></dl>
+  review: () => `<dl class="kv"><dt>Name</dt><dd>${esc(APP.name)}</dd><dt>PAN</dt><dd>${esc(APP.pan)}</dd><dt>Mobile</dt><dd>${esc(APP.mobile)}</dd><dt>Email</dt><dd>${esc(APP.email)}</dd><dt>Address</dt><dd>${esc([APP.address, APP.city, APP.state, APP.pin].join(', '))}</dd><dt>Bank</dt><dd>${esc(APP.bank)} · ${esc(APP.ifsc)}</dd><dt>Segments</dt><dd>${esc((APP.segments || []).map(s => CFG.segments[s]).join(', '))}</dd><dt>Nominees</dt><dd>${APP.nominee_opt_out ? 'None (I chose not to nominate)' : (APP.nominees || []).map(n => esc(`${n.name} (${n.relation}), ${n.share}%`)).join('<br>')}</dd></dl>
     <a class="small" href="/onboard/${encodeURIComponent(T)}/form?s=${encodeURIComponent(SECRET)}" target="_blank" rel="noopener">Read the account opening form you are signing</a>
     ${Object.entries(CFG.declarations).map(([k, v]) => `<label class="check"><input type="checkbox" data-decl="${k}"> <span>${esc(v)}</span></label>`).join('')}
     <label class="check"><input type="checkbox" id="wa"> <span>Send me account messages on WhatsApp too (optional; reply STOP any time)</span></label>
@@ -119,7 +132,7 @@ function bind(step) {
   if (step === 'bank') go.onclick = () => run(() => saveStep('bank', { bank: v('bankname'), ifsc: v('ifsc'), account: v('account') }));
   if (step === 'profile') { fileUp('f-inc', 'Income proof');
     go.onclick = () => run(() => saveStep('profile', { segments: [...document.querySelectorAll('[data-seg]:checked')].map(x => x.dataset.seg), income: v('income'), occupation: v('occupation'), experience: v('experience'), ras: v('ras'), demat_id: v('demat_id') })); }
-  if (step === 'nominee') go.onclick = () => run(() => saveStep('nominee', { nominee_opt_out: $('optout').checked, nominee_name: v('nname'), nominee_relation: v('nrel') }));
+  if (step === 'nominee') { nomsBind(); go.onclick = () => run(() => saveStep('nominee', { nominee_opt_out: $('optout').checked, nominees: $('optout').checked ? [] : nomsRead() })); }
   if (step === 'photo') {
     fileUp('f-photo', 'Photograph'); fileUp('f-pan', 'PAN card');
     $('camon').onclick = async () => { try { await camera(false); $('snap').hidden = false; } catch (e) { ERR = new ApiErr({ error: { message: 'The camera could not be opened; upload a photograph instead.' } }); render(); } };

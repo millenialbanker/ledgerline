@@ -272,9 +272,9 @@ type attribute struct {
 
 // Verified is the result of checking a signature.
 type Verified struct {
-	Signer      Info      `json:"signer"`
-	SigningTime time.Time `json:"signing_time"`
-	Digest      string    `json:"digest_algorithm"`
+	Signer      Info              `json:"signer"`
+	SigningTime time.Time         `json:"signing_time"`
+	Digest      string            `json:"digest_algorithm"`
 	Cert        *x509.Certificate `json:"-"`
 }
 

@@ -18,6 +18,7 @@ Asking clients for WhatsApp consent | Ops checker, Compliance officer
 Assigning brokerage plans | Ops checker
 Blocking clients in continuous debit | Risk manager
 Buy-back offers | Ops maker, Ops checker
+Changing a segment's status | Ops checker, Compliance officer
 Changing automation | Compliance officer, Admin
 Changing backup settings | Admin
 Changing brokerage plans | Ops checker
@@ -44,6 +45,7 @@ Crediting dividends | Ops checker
 DP billing | Ops checker
 DP requests | Ops maker, Ops checker, Compliance officer, Branch staff
 Deciding a pledge request | Ops maker, Ops checker, Risk manager
+Downloading the collateral file | Ops maker, Ops checker, Risk manager, Compliance officer
 Editing message templates | Ops checker, Compliance officer
 Entering a payout request | Ops maker, Ops checker, Branch staff, Authorised person
 Entering delivery instructions | Ops maker, Ops checker, Branch staff
@@ -130,6 +132,8 @@ Verifying delivery instructions | Ops checker
 View data protection | Compliance officer
 Viewing AI usage | Compliance officer
 Viewing backups | Ops checker, Compliance officer
+Viewing nominations | Ops maker, Ops checker, Compliance officer
+Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 Viewing the signing certificate | Ops checker, Compliance officer, Admin
 Working client insights | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person

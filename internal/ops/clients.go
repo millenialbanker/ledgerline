@@ -96,6 +96,16 @@ type Client struct {
 	NoInsights bool `json:"no_insights,omitempty"`
 	// WAConsent records the client's WhatsApp choice: when, how and by whom.
 	WAConsent *WAConsent `json:"wa_consent,omitempty"`
+	// Nominees (up to 10, SEBI nomination rules of 2025) with each one's
+	// share and identity; NominationOn is when the choice (nominate or opt
+	// out) was made and NominationMode how it was declared.
+	Nominees       []Nominee `json:"nominees,omitempty"`
+	NominationOn   string    `json:"nomination_on,omitempty"`
+	NominationMode string    `json:"nomination_mode,omitempty"`
+	// SegStatus is each exchange segment's own status (Active, Suspended,
+	// Dormant, Reactivated, Closed) and SegHistory every change to it.
+	SegStatus  map[string]SegmentState `json:"seg_status,omitempty"`
+	SegHistory []SegmentChange         `json:"seg_history,omitempty"`
 }
 
 var (
@@ -145,6 +155,7 @@ func (c *Client) Normalise() {
 	if c.Risk == "" {
 		c.Risk = "Medium"
 	}
+	normaliseNominees(c)
 	if c.Nominee == "" {
 		c.Nominee = "Opted out"
 	}
@@ -222,6 +233,7 @@ func (c Client) Validate() error {
 	if c.Nominee == "Opted in" && strings.TrimSpace(c.NomineeName) == "" {
 		add("nominee_name", "Enter the nominee name")
 	}
+	fe = append(fe, validateNominees(c.Nominees, time.Now())...)
 	if len(fe) > 0 {
 		return &ValidationError{fe}
 	}
@@ -388,5 +400,6 @@ func (o *Ops) SetBlocked(ctx context.Context, tenant, actor, ucc string, blocked
 func (c Client) Public() Client {
 	c.Bank.Account = MaskAccount(c.Bank.Account)
 	c.PAN = MaskPAN(c.PAN)
+	c.Nominees = maskNominees(c.Nominees)
 	return c
 }

@@ -18,7 +18,7 @@ type Report struct {
 	Summary   [][2]string
 	Sections  []Table
 	Notes     []string
-	Footer    string // small print on every page
+	Footer    string   // small print on every page
 	Stamp     []string // signature block printed at the end
 }
 

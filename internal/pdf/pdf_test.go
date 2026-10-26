@@ -18,7 +18,7 @@ func sample() Report {
 	return Report{Firm: []string{"Bhairav Securities Pvt Ltd (sample)", "SEBI INZ000XXXXXX · NSE 12345 · BSE 6789"}, Title: "Contract note", Meta: []string{"CN/2026-27/000123", "Trade date 16-Oct-2026"},
 		Party: []string{"Asha Rao (A1001)", "PAN XXXXX1234F · Mumbai"}, Summary: [][2]string{{"Net payable", "₹1,23,456.78"}, {"Trades", "140"}},
 		Sections: []Table{{Title: "Trades", Cols: []Col{{Label: "Date"}, {Label: "Security", Weight: 2.5}, {Label: "B/S"}, {Label: "Qty", Right: true}, {Label: "Price", Right: true}, {Label: "Value", Right: true, Weight: 1.4}}, Rows: rows, Totals: []string{"Total", "", "", "1400", "", "₹39,68,300.00"}}},
-		Notes: []string{"This contract note is issued subject to the rules, bye-laws and regulations of the exchanges and SEBI."}, Footer: "Ledgerline", Stamp: []string{"Digitally signed by BHAIRAV SECURITIES", "16-Oct-2026 21:04 IST"}}
+		Notes:    []string{"This contract note is issued subject to the rules, bye-laws and regulations of the exchanges and SEBI."}, Footer: "Ledgerline", Stamp: []string{"Digitally signed by BHAIRAV SECURITIES", "16-Oct-2026 21:04 IST"}}
 }
 
 func TestRenderOpensInPoppler(t *testing.T) {

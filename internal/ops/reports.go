@@ -45,6 +45,7 @@ func ReportDefs() []ReportDef {
 		{"funds_balance", "Client funds and securities balance", "NSE, BSE, MCX", "Daily", "T 23:59", "CSV (sample layout)"},
 		{"margin", "Client-wise margin collection (peak and EOD)", "Clearing corporations", "Daily", "T+1 18:00", "CSV (sample layout)"},
 		{"holdings", "Weekly holding statement", "Clients", "Weekly", "Friday 23:59", "CSV"},
+		{"cc01", "Client-level collateral (SEGMON: CC01 / CC02)", "NSE Clearing", "Daily", "T 23:59", "CSV.gz per segment (check against the current NCL spec)"},
 		{"ucc", "UCC upload batch", "NSE, BSE, MCX", "On change", "Before first trade", "CSV (sample layout)"},
 		{"ccm", "Client code modification log", "Exchanges", "Daily", "T 16:00", "CSV (sample layout)"},
 		{"ras", "Running account settlement statement", "Clients", "Monthly / quarterly", "Settlement date", "CSV"},
@@ -55,6 +56,8 @@ func ReportDefs() []ReportDef {
 		{"client_register", "Client register in exchange format", "Inspection", "On demand", "—", "CSV"},
 		{"ledger_balances", "Client ledger balances with days in debit", "Inspection", "On demand", "—", "CSV"},
 		{"no_ras_auth", "Clients without a running account authorisation", "Inspection", "On demand", "—", "CSV"},
+		{"nomination", "Nomination status (nominees or opt-out declaration)", "Inspection / compliance", "On demand", "—", "CSV"},
+		{"segment_status", "Client status in each segment, with the latest change", "Inspection", "On demand", "—", "CSV"},
 		{"kyc_registry", "KRA, CKYC and periodic KYC status", "Inspection / compliance", "On demand", "—", "CSV"},
 	}
 }
@@ -150,6 +153,11 @@ func (o *Ops) ReportRows(ctx context.Context, tenant, date, code string) ([][]st
 				rows = append(rows, []string{c.UCC, c.Name, c.PAN, c.Type, strings.Join(c.Segments, "/"), c.Mobile, c.Email, "Inactive"})
 			case !c.Inactive && c.ReactivatedOn == date:
 				rows = append(rows, []string{c.UCC, c.Name, c.PAN, c.Type, strings.Join(c.Segments, "/"), c.Mobile, c.Email, "Active (reactivated)"})
+			default:
+				// A segment's own status changed that day: one row per segment.
+				for _, h := range segmentChangesOn(c, date) {
+					rows = append(rows, []string{c.UCC, c.Name, c.PAN, c.Type, h.Segment, c.Mobile, c.Email, h.To})
+				}
 			}
 		}
 		return rows, nil
@@ -269,6 +277,40 @@ func (o *Ops) ReportRows(ctx context.Context, tenant, date, code string) ([][]st
 			rows = append(rows, []string{date, u, clients[u].Name, amt.String(), dc, fmt.Sprint(days[u])})
 		}
 		return rows, nil
+	case "nomination":
+		rows := [][]string{{"UCC", "Name", "NominationState", "Nominees", "DeclaredOn", "Mode", "NomineeDetails"}}
+		for _, u := range sortedKeys(clients) {
+			c := clients[u]
+			if c.Status == "Closed" || c.Status == "Rejected" {
+				continue
+			}
+			var det []string
+			for _, n := range c.Nominees {
+				det = append(det, fmt.Sprintf("%s (%s) %s%% %s %s", n.Name, n.Relation, n.Share, n.IDType, n.MaskedID()))
+			}
+			rows = append(rows, []string{u, c.Name, c.NominationState(), fmt.Sprint(len(c.Nominees)), c.NominationOn, c.NominationMode, strings.Join(det, "; ")})
+		}
+		return rows, nil
+	case "segment_status":
+		rows := [][]string{{"UCC", "Name", "CM", "FO", "CD", "COM", "LastChange", "LastChangeOn", "Reason"}}
+		for _, u := range sortedKeys(clients) {
+			c := clients[u]
+			st := func(s string) string {
+				if x := c.SegmentStatus(s); x != "Not registered" {
+					return x
+				}
+				return ""
+			}
+			var last, on, why string
+			if n := len(c.SegHistory); n > 0 {
+				h := c.SegHistory[n-1]
+				last, on, why = h.Segment+" "+h.From+" → "+h.To, h.On, h.Reason
+			}
+			rows = append(rows, []string{u, c.Name, st("CM"), st("FO"), st("CD"), st("COM"), last, on, why})
+		}
+		return rows, nil
+	case "cc01":
+		return o.collateralReportRows(ctx, tenant, date)
 	case "no_ras_auth":
 		rows := [][]string{{"UCC", "Name", "PAN", "Status", "RunningAccountPreference"}}
 		for _, u := range sortedKeys(clients) {

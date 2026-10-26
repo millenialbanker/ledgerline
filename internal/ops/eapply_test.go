@@ -77,7 +77,16 @@ func TestOnlineAccountOpening(t *testing.T) {
 		t.Fatal("executable accepted")
 	}
 	step("profile", Application{Segments: []string{"CM", "FO"}, Income: "10-25 L", Occupation: "Salaried", Experience: "1–5 years", RAS: "Quarterly"}, false)
-	step("nominee", Application{NomineeName: "Ramesh Iyer", NomineeRel: "Father"}, false)
+	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "nominee", Application: Application{NomineeName: "Ramesh Iyer", NomineeRel: "Father"}}); err == nil {
+		t.Fatal("nominee without an identity detail accepted")
+	}
+	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "nominee", Application: Application{Nominees: []Nominee{{Name: "Ramesh Iyer", Relation: "Father", IDType: "PAN", ID: "ABCPI1234K"}, {Name: "Asha Iyer", Relation: "Daughter", IDType: "AADHAAR", ID: "1234 5678 9012", DOB: "2015-04-01"}}}}); err == nil || !strings.Contains(err.Error(), "guardian") {
+		t.Fatalf("minor without guardian: %v", err)
+	}
+	a = step("nominee", Application{Nominees: []Nominee{{Name: "Ramesh Iyer", Relation: "Father", IDType: "PAN", ID: "ABCPI1234K", Share: "60"}, {Name: "Asha Iyer", Relation: "Daughter", IDType: "AADHAAR", ID: "1234 5678 9012", DOB: "2015-04-01", Share: "40", Guardian: "Ramesh Iyer", GuardianRelation: "Father"}}}, false)
+	if len(a.Nominees) != 2 || a.Nominees[1].ID != "9012" {
+		t.Fatalf("nominees %+v", a.Nominees)
+	}
 	a = step("photo", Application{}, false)
 	// No in-person verification step, and no video kind to upload.
 	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "ipv"}); err == nil {

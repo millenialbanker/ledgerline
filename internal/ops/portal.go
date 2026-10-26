@@ -104,6 +104,7 @@ type PortalAccount struct {
 	Segments    []string          `json:"segments"`
 	Nominee     string            `json:"nominee"`
 	NomineeName string            `json:"nominee_name,omitempty"`
+	Nominees    []Nominee         `json:"nominees,omitempty"`
 	RAS         string            `json:"ras"`
 	Blocked     bool              `json:"blocked"`
 	Inactive    bool              `json:"inactive"`
@@ -147,7 +148,7 @@ func portalAccount(c Client) PortalAccount {
 	b := c.Bank
 	b.Account = MaskAccount(b.Account)
 	return PortalAccount{UCC: c.UCC, Name: c.Name, PAN: MaskPAN(c.PAN), Email: c.Email, Mobile: c.Mobile, City: c.City, Bank: b, Demat: c.Demat,
-		Segments: c.Segments, Nominee: c.Nominee, NomineeName: c.NomineeName, RAS: c.RAS, Blocked: c.Blocked, Inactive: c.Inactive, WhatsApp: c.WhatsApp, Names: SegmentNames}
+		Segments: c.Segments, Nominee: c.Nominee, NomineeName: c.NomineeName, Nominees: maskNominees(c.Nominees), RAS: c.RAS, Blocked: c.Blocked, Inactive: c.Inactive, WhatsApp: c.WhatsApp, Names: SegmentNames}
 }
 
 // PortalAccounts lists the accounts a user may see in the portal.
@@ -288,7 +289,7 @@ func changeOld(c Client, kind string) map[string]string {
 	case "Bank account":
 		return map[string]string{"bank": c.Bank.Bank, "ifsc": c.Bank.IFSC, "account": MaskAccount(c.Bank.Account)}
 	case "Nomination":
-		return map[string]string{"nominee": c.Nominee, "nominee_name": c.NomineeName}
+		return nominationOld(c)
 	}
 	return map[string]string{}
 }
@@ -309,15 +310,10 @@ func applyChange(c *Client, r ChangeRequest) error {
 	case "Bank account":
 		c.Bank = BankAccount{Bank: strings.TrimSpace(n["bank"]), IFSC: strings.ToUpper(strings.TrimSpace(n["ifsc"])), Account: strings.TrimSpace(n["account"])}
 	case "Nomination":
-		c.Nominee = n["nominee"]
-		c.NomineeName = strings.TrimSpace(n["nominee_name"])
-		if c.Nominee == "Opted out" {
-			c.NomineeName = ""
-		} else if c.Nominee != "Opted in" {
-			return invalid("nomination must be Opted in or Opted out")
-		} else if c.NomineeName == "" {
-			return invalid("enter the nominee's name")
+		if err := nominationChange(c, n); err != nil {
+			return err
 		}
+		c.NominationOn = time.Now().Format("2006-01-02")
 	default:
 		return invalid("change must be one of %s", strings.Join(ChangeKinds, ", "))
 	}

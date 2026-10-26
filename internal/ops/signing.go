@@ -44,17 +44,17 @@ const cSigning = "signing"
 
 // SigningConfig is the firm's signing set-up.
 type SigningConfig struct {
-	Mode       string    `json:"mode"` // file, remote, test, off
-	File       string    `json:"file,omitempty"`     // base64 of the uploaded file (never returned)
-	Password   string    `json:"password,omitempty"` // (never returned)
-	RemoteURL  string    `json:"remote_url,omitempty"`
-	RemoteKey  string    `json:"remote_key,omitempty"` // (never returned)
-	Expect     string    `json:"expect_sha256,omitempty"` // remote: certificate the service must sign with
-	Location   string    `json:"location"`
-	Info       sign.Info `json:"info"`
-	UpdatedBy  string    `json:"updated_by"`
-	UpdatedAt  string    `json:"updated_at"`
-	Version    int       `json:"version"`
+	Mode      string    `json:"mode"`               // file, remote, test, off
+	File      string    `json:"file,omitempty"`     // base64 of the uploaded file (never returned)
+	Password  string    `json:"password,omitempty"` // (never returned)
+	RemoteURL string    `json:"remote_url,omitempty"`
+	RemoteKey string    `json:"remote_key,omitempty"`    // (never returned)
+	Expect    string    `json:"expect_sha256,omitempty"` // remote: certificate the service must sign with
+	Location  string    `json:"location"`
+	Info      sign.Info `json:"info"`
+	UpdatedBy string    `json:"updated_by"`
+	UpdatedAt string    `json:"updated_at"`
+	Version   int       `json:"version"`
 }
 
 // SigningView is what the console shows.

@@ -83,6 +83,8 @@ type Application struct {
 	NomineeOptOut bool   `json:"nominee_opt_out,omitempty"`
 	NomineeName   string `json:"nominee_name,omitempty"`
 	NomineeRel    string `json:"nominee_relation,omitempty"`
+	// Nominees: up to 10, each with share and identity (SEBI 2025 rules).
+	Nominees []Nominee `json:"nominees,omitempty"`
 
 	Declarations map[string]bool `json:"declarations,omitempty"`
 	WhatsApp     bool            `json:"whatsapp,omitempty"`
@@ -574,13 +576,19 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 			a.Depository = "NSDL"
 		}
 	case "nominee":
-		if !d.NomineeOptOut && (len(strings.TrimSpace(d.NomineeName)) < 3 || strings.TrimSpace(d.NomineeRel) == "") {
-			return a, invalid("enter the nominee's name and relationship, or choose not to nominate")
+		if d.NomineeOptOut {
+			a.NomineeOptOut, a.NomineeName, a.NomineeRel, a.Nominees = true, "", "", nil
+			break
 		}
-		a.NomineeOptOut, a.NomineeName, a.NomineeRel = d.NomineeOptOut, strings.TrimSpace(d.NomineeName), strings.TrimSpace(d.NomineeRel)
-		if a.NomineeOptOut {
-			a.NomineeName, a.NomineeRel = "", ""
+		if len(d.Nominees) == 0 {
+			return a, invalid("add a nominee (name, relationship and one identity detail), or choose not to nominate")
 		}
+		c := Client{Nominees: d.Nominees}
+		normaliseNominees(&c)
+		if fe := validateNominees(c.Nominees, o.now()); len(fe) > 0 {
+			return a, &ValidationError{fe}
+		}
+		a.NomineeOptOut, a.Nominees, a.NomineeName, a.NomineeRel = false, c.Nominees, c.NomineeName, c.Nominees[0].Relation
 	case "photo":
 		panDL := a.hasDoc("PAN (DigiLocker)")
 		if !a.hasDoc("Photograph") || !a.hasDoc("Signature") || (!panDL && !a.hasDoc("PAN card")) {
@@ -684,7 +692,7 @@ var appFormTmpl = template.Must(template.New("form").Parse(`<!doctype html><html
 <h2>Contact and address</h2><table><tr><td>Mobile (verified)</td><td>{{.A.Mobile}}</td></tr><tr><td>Email (verified)</td><td>{{.A.Email}}</td></tr><tr><td>Address ({{.A.AddrSource}})</td><td>{{.A.Address}}, {{.A.City}}, {{.A.State}} {{.A.PIN}}</td></tr></table>
 <h2>Bank and demat</h2><table><tr><td>Bank</td><td>{{.A.Bank}} · {{.A.IFSC}} · {{.AcctMasked}}</td></tr><tr><td>Demat account</td><td>{{if .A.DematID}}{{.A.Depository}} {{.A.DematID}}{{else}}To be opened with us{{end}}</td></tr></table>
 <h2>Trading</h2><table><tr><td>Segments</td><td>{{.Segments}}</td></tr><tr><td>Annual income</td><td>{{.A.Income}}</td></tr><tr><td>Occupation</td><td>{{.A.Occupation}}</td></tr><tr><td>Trading experience</td><td>{{.A.Experience}}</td></tr><tr><td>Running account settlement</td><td>{{.A.RAS}}</td></tr></table>
-<h2>Nomination</h2><table><tr><td>Nominee</td><td>{{if .A.NomineeOptOut}}I do not wish to nominate{{else}}{{.A.NomineeName}} ({{.A.NomineeRel}}), 100%{{end}}</td></tr></table>
+<h2>Nomination</h2><table>{{if .A.NomineeOptOut}}<tr><td>Nominee</td><td>I do not wish to nominate</td></tr>{{else}}{{range $n := .A.Nominees}}<tr><td>Nominee</td><td>{{$n.Name}} ({{$n.Relation}}), {{$n.Share}}% · {{$n.IDType}} {{$n.MaskedID}}{{if $n.Guardian}} · minor, guardian {{$n.Guardian}} ({{$n.GuardianRelation}}){{end}}</td></tr>{{end}}{{end}}</table>
 <h2>Declarations</h2><ul>{{range .Decl}}<li>{{.}}</li>{{end}}</ul>
 <p class="small">Signed electronically by {{.A.Name}}. The document hash is recorded with the signature.</p></body></html>`))
 
@@ -762,7 +770,7 @@ func (o *Ops) submitApplication(ctx context.Context, tenant string, a Applicatio
 	}
 	c := Client{Name: a.Name, Type: "Individual", PAN: a.PAN, DOB: a.DOB, Mobile: a.Mobile, Email: a.Email, City: a.City, State: a.State, Segments: a.Segments,
 		Risk: "Low", Income: a.Income, RAS: a.RAS, Bank: BankAccount{a.Bank, a.IFSC, a.Account}, Demat: Demat{a.Depository, a.DematID},
-		Nominee: nom, NomineeName: a.NomineeName, KYCRoute: kycRoute(a), IncomeProof: a.hasDoc("Income proof"), RiskDisclosure: true,
+		Nominee: nom, NomineeName: a.NomineeName, Nominees: a.Nominees, NominationOn: o.now().Format("2006-01-02"), NominationMode: "Online with e-Sign", KYCRoute: kycRoute(a), IncomeProof: a.hasDoc("Income proof"), RiskDisclosure: true,
 		WhatsApp: a.WhatsApp, Partner: a.Partner, Tags: []string{"ONLINE"}}
 	if c.Demat.Depository == "" {
 		c.Demat.Depository = "CDSL"

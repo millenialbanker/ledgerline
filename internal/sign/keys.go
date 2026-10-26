@@ -136,23 +136,23 @@ func assemble(key crypto.Signer, certs []*x509.Certificate) (*Signer, error) {
 // ---- PKCS #12 ----
 
 var (
-	oidPKCS7Data          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 1}
-	oidPKCS7Encrypted     = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 6}
-	oidKeyBag             = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 12, 10, 1, 1}
-	oidShroudedKeyBag     = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 12, 10, 1, 2}
-	oidCertBag            = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 12, 10, 1, 3}
-	oidX509Cert           = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 22, 1}
-	oidPBEWithSHA3DES     = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 12, 1, 3}
-	oidPBEWithSHARC2_40   = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 12, 1, 6}
-	oidPBEWithSHARC2_128  = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 12, 1, 5}
-	oidPBES2              = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 5, 13}
-	oidPBKDF2             = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 5, 12}
-	oidHMACSHA1           = asn1.ObjectIdentifier{1, 2, 840, 113549, 2, 7}
-	oidHMACSHA256         = asn1.ObjectIdentifier{1, 2, 840, 113549, 2, 9}
-	oidAES128CBC          = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 1, 2}
-	oidAES192CBC          = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 1, 22}
-	oidAES256CBC          = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 1, 42}
-	oidDESEDE3CBC         = asn1.ObjectIdentifier{1, 2, 840, 113549, 3, 7}
+	oidPKCS7Data         = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 1}
+	oidPKCS7Encrypted    = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 6}
+	oidKeyBag            = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 12, 10, 1, 1}
+	oidShroudedKeyBag    = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 12, 10, 1, 2}
+	oidCertBag           = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 12, 10, 1, 3}
+	oidX509Cert          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 22, 1}
+	oidPBEWithSHA3DES    = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 12, 1, 3}
+	oidPBEWithSHARC2_40  = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 12, 1, 6}
+	oidPBEWithSHARC2_128 = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 12, 1, 5}
+	oidPBES2             = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 5, 13}
+	oidPBKDF2            = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 5, 12}
+	oidHMACSHA1          = asn1.ObjectIdentifier{1, 2, 840, 113549, 2, 7}
+	oidHMACSHA256        = asn1.ObjectIdentifier{1, 2, 840, 113549, 2, 9}
+	oidAES128CBC         = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 1, 2}
+	oidAES192CBC         = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 1, 22}
+	oidAES256CBC         = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 1, 42}
+	oidDESEDE3CBC        = asn1.ObjectIdentifier{1, 2, 840, 113549, 3, 7}
 )
 
 type pfxPdu struct {

@@ -26,7 +26,7 @@ type ContractNote struct {
 	Email     string    `json:"email"`
 	Trades    int       `json:"trades"`
 	Net       money.Dec `json:"net"`
-	Status    string    `json:"status"` // Generated, Sent, Bounced, Held, Paper, Failed
+	Status    string    `json:"status"`             // Generated, Sent, Bounced, Held, Paper, Failed
 	Dispatch  string    `json:"dispatch,omitempty"` // latest entry in the dispatch register
 	SentAt    string    `json:"sent_at,omitempty"`
 	Attempts  int       `json:"attempts"`

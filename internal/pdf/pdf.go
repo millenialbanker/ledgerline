@@ -189,7 +189,7 @@ func escape(s string) string {
 // Meta is the document information.
 type Meta struct {
 	Title, Author, Subject string
-	Created               time.Time
+	Created                time.Time
 }
 
 // SignatureSpec asks for a signature field and returns the signature to

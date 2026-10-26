@@ -32,7 +32,7 @@ type IntakeResult struct {
 }
 
 // intakeOrder loads masters before what depends on them.
-var intakeOrder = []string{"CLIENT-MASTER", "OPENING-BALANCES", "MARKET-DATA", "DP-HOLDINGS", "HOLDING-LOTS", "POSITIONS", "DEBARRED-LIST", "KRA-STATUS", "CKYC-NUMBERS", "NRI-CAUTION", "MTF-ELIGIBLE"}
+var intakeOrder = []string{"CLIENT-MASTER", "NOMINEES", "SEGMENT-STATUS", "OPENING-BALANCES", "MARKET-DATA", "DP-HOLDINGS", "HOLDING-LOTS", "POSITIONS", "DEBARRED-LIST", "KRA-STATUS", "CKYC-NUMBERS", "NRI-CAUTION", "MTF-ELIGIBLE"}
 
 var reDateInName = regexp.MustCompile(`(20\d\d)-?(\d\d)-?(\d\d)`)
 

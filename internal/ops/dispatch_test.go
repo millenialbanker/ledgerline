@@ -185,7 +185,9 @@ func TestDispatchRemoteSigner(t *testing.T) {
 			w.WriteHeader(401)
 			return
 		}
-		var b struct{ SHA256 string `json:"sha256"` }
+		var b struct {
+			SHA256 string `json:"sha256"`
+		}
 		json.NewDecoder(r.Body).Decode(&b)
 		dg, _ := hex.DecodeString(b.SHA256)
 		cms, err := s.SignDigest(dg, time.Now())
