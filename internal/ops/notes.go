@@ -26,7 +26,8 @@ type ContractNote struct {
 	Email     string    `json:"email"`
 	Trades    int       `json:"trades"`
 	Net       money.Dec `json:"net"`
-	Status    string    `json:"status"` // Generated, Sent, Bounced
+	Status    string    `json:"status"` // Generated, Sent, Bounced, Held, Paper, Failed
+	Dispatch  string    `json:"dispatch,omitempty"` // latest entry in the dispatch register
 	SentAt    string    `json:"sent_at,omitempty"`
 	Attempts  int       `json:"attempts"`
 	Generated string    `json:"generated_by"`
@@ -167,9 +168,8 @@ func (o *Ops) generateNotes(ctx context.Context, tenant, actor, date string, hel
 	return n, nil
 }
 
-// SendNotes emails generated or bounced notes. Without a configured mail
-// relay the messages go to the outbox only; addresses on reserved test
-// domains (.invalid) bounce, as a real relay would report.
+// SendNotes sends generated, held or bounced notes as signed PDFs and
+// records each in the dispatch register.
 func (o *Ops) SendNotes(ctx context.Context, tenant, actor, date, ucc string) (sent, bounced int, err error) {
 	if err := o.require(ctx, tenant, actor, "Sending contract notes", RoleMaker, RoleChecker); err != nil {
 		return 0, 0, err
@@ -178,32 +178,29 @@ func (o *Ops) SendNotes(ctx context.Context, tenant, actor, date, ucc string) (s
 	if err != nil {
 		return 0, 0, err
 	}
-	clients, err := o.ClientMap(ctx, tenant)
-	if err != nil {
-		return 0, 0, err
-	}
 	at := o.now().Format("15:04")
 	for _, n := range ns {
 		// A named client is sent their note even if it went before (a resend);
 		// a bulk send skips notes already delivered.
-		if (ucc != "" && n.UCC != ucc) || (ucc == "" && n.Status == "Sent") {
+		if (ucc != "" && n.UCC != ucc) || (ucc == "" && (n.Status == "Sent" || n.Status == "Paper")) {
 			continue
 		}
-		email := clients[n.UCC].Email
-		result := "Sent"
-		if strings.HasSuffix(email, ".invalid") || !reEmail.MatchString(email) {
-			result = "Bounced"
-		}
-		id, err := o.next(ctx, tenant, "outbox", actor)
+		d, err := o.sendNote(ctx, tenant, actor, n)
 		if err != nil {
 			return sent, bounced, err
 		}
-		_ = docs.Upsert(ctx, o.Docs, tenant, cOutbox, fmt.Sprintf("%08d", id), OutboxItem{ID: fmt.Sprintf("%08d", id), To: email, Subject: noteSubject(n), Ref: n.No, At: at, Result: result}, actor)
+		result := map[string]string{"Sent": "Sent", "Bounced": "Bounced", "Physical pending": "Paper", "Held": "Held"}[d.Status]
+		if result == "" {
+			result = "Failed"
+		}
+		if n2, err := o.next(ctx, tenant, "outbox", actor); err == nil {
+			_ = docs.Upsert(ctx, o.Docs, tenant, cOutbox, fmt.Sprintf("%08d", n2), OutboxItem{ID: fmt.Sprintf("%08d", n2), To: d.To, Subject: d.Subject, Ref: n.No, At: at, Result: result}, actor)
+		}
 		if result == "Sent" {
 			o.notify(ctx, tenant, actor, "contract_note.sent", n.UCC, map[string]string{"no": n.No, "date": date})
 		}
 		_, err = docs.Update(ctx, o.Docs, tenant, cNote, noteID(date, n.UCC, n.Part), actor, func(x *ContractNote) error {
-			x.Status, x.Email = result, email
+			x.Status, x.Email, x.Dispatch = result, d.To, d.ID
 			x.SentAt = ""
 			x.Attempts++
 			if result == "Sent" {
@@ -214,9 +211,10 @@ func (o *Ops) SendNotes(ctx context.Context, tenant, actor, date, ucc string) (s
 		if err != nil {
 			return sent, bounced, err
 		}
-		if result == "Sent" {
+		switch result {
+		case "Sent", "Paper":
 			sent++
-		} else {
+		default:
 			bounced++
 		}
 	}
@@ -253,7 +251,7 @@ td.n{font-family:ui-monospace,Menlo,monospace}tfoot td{font-weight:700;border-to
 <table><thead><tr><th>Segment</th><th class="r">Pay-in / pay-out (incl. MTM)</th><th class="r">Brokerage</th><th class="r">Exchange charges</th><th class="r">STT / CTT</th><th class="r">SEBI fee</th><th class="r">Stamp duty</th><th class="r">GST</th><th class="r">Net</th></tr></thead><tbody>
 {{range .Groups}}<tr><td>{{.Exchange}}-{{.Segment}}</td><td class="r n">{{amt .TradeNet}}</td><td class="r n">{{amt .Charges.Brokerage}}</td><td class="r n">{{amt .Charges.ExchTxn}}</td><td class="r n">{{amt .Charges.STT}}</td><td class="r n">{{amt .Charges.SEBIFee}}</td><td class="r n">{{amt .Charges.Stamp}}</td><td class="r n">{{amt .Charges.GST}}</td><td class="r n">{{amt .Net}}</td></tr>{{end}}
 </tbody><tfoot><tr><td colspan="8">Net amount {{if .Payable}}payable by{{else}}receivable by{{end}} client</td><td class="r n">{{inr .NetAbs}}</td></tr></tfoot></table>
-<p class="note">Positive amounts are payable to the client; negative amounts are payable by the client. Futures are marked to market at the day's settlement price. This contract note is issued subject to the rules, bye-laws and regulations of the exchanges and SEBI. Status: {{.Note.Status}}{{if .Note.SentAt}} at {{.Note.SentAt}}{{end}}. Digital signature: applied by the signing service on dispatch.</p>
+<p class="note">Positive amounts are payable to the client; negative amounts are payable by the client. Futures are marked to market at the day's settlement price. This contract note is issued subject to the rules, bye-laws and regulations of the exchanges and SEBI. Status: {{.Note.Status}}{{if .Note.SentAt}} at {{.Note.SentAt}}{{end}}. The copy sent to the client is a PDF digitally signed by the firm.</p>
 </body></html>`))
 
 type noteLine struct {
@@ -263,26 +261,37 @@ type noteLine struct {
 }
 
 // RenderNote returns a printable HTML contract note.
-func (o *Ops) RenderNote(ctx context.Context, tenant, date, ucc, part string) ([]byte, error) {
+// noteView is everything printed on a contract note.
+type noteView struct {
+	Note    ContractNote
+	Client  Client
+	Set     Settings
+	Lines   []noteLine
+	Groups  []billing.Group
+	Net     money.Dec
+	Members []string
+}
+
+func (o *Ops) noteView(ctx context.Context, tenant, date, ucc, part string) (noteView, error) {
 	n, _, err := docs.Get[ContractNote](ctx, o.Docs, tenant, cNote, noteID(date, strings.ToUpper(ucc), part))
 	if err != nil {
-		return nil, err
+		return noteView{}, err
 	}
 	c, err := o.Client(ctx, tenant, n.UCC)
 	if err != nil {
-		return nil, err
+		return noteView{}, err
 	}
 	set, _ := o.Settings(ctx, tenant)
 	trades, out, err := o.noteData(ctx, tenant, date, n.UCC, n.part())
 	if err != nil {
-		return nil, err
+		return noteView{}, err
 	}
 	var lines []noteLine
 	for _, t := range trades {
 		b, _ := charges.BucketFor(t.Segment, t.InstrumentType, t.Product)
 		bd, err := o.App.Schedule.Compute(charges.Leg{Bucket: b, Exchange: t.Exchange, Side: t.Side, Qty: t.Qty, Price: t.Price, Date: t.TradeDate})
 		if err != nil {
-			return nil, err
+			return noteView{}, err
 		}
 		if out.TradeBrokerage != nil {
 			bd.Brokerage = out.TradeBrokerage[billing.TradeKey(t)]
@@ -305,11 +314,20 @@ func (o *Ops) RenderNote(ctx context.Context, tenant, date, ucc, part string) ([
 	for _, k := range sortedKeys(set.MemberCodes) {
 		members = append(members, k+" "+set.MemberCodes[k])
 	}
+	return noteView{Note: n, Client: c, Set: set, Lines: lines, Groups: out.Groups, Net: net, Members: members}, nil
+}
+
+// RenderNote is the contract note as a web page (for the screen and print).
+func (o *Ops) RenderNote(ctx context.Context, tenant, date, ucc, part string) ([]byte, error) {
+	v, err := o.noteView(ctx, tenant, date, ucc, part)
+	if err != nil {
+		return nil, err
+	}
 	var buf bytes.Buffer
 	err = noteTmpl.Execute(&buf, map[string]any{
-		"Note": n, "Client": c, "PAN": MaskPAN(c.PAN), "Firm": set.Firm, "SEBIReg": set.SEBIReg, "Members": "Member codes " + strings.Join(members, " · "),
-		"Compliance": set.ComplianceEmail, "PayIn": set.NextSettlementDay(date), "Lines": lines, "Groups": out.Groups,
-		"Payable": net.Sign() < 0, "NetAbs": net.Abs(), "Sample": o.App.Schedule.Sample, "Schedule": o.App.Schedule.Version,
+		"Note": v.Note, "Client": v.Client, "PAN": MaskPAN(v.Client.PAN), "Firm": v.Set.Firm, "SEBIReg": v.Set.SEBIReg, "Members": "Member codes " + strings.Join(v.Members, " · "),
+		"Compliance": v.Set.ComplianceEmail, "PayIn": v.Set.NextSettlementDay(date), "Lines": v.Lines, "Groups": v.Groups,
+		"Payable": v.Net.Sign() < 0, "NetAbs": v.Net.Abs(), "Sample": o.App.Schedule.Sample, "Schedule": o.App.Schedule.Version,
 	})
 	return buf.Bytes(), err
 }

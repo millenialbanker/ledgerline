@@ -78,7 +78,10 @@ Prepaid schemes | Ops checker, Admin
 Recording DP responses | Ops maker, Ops checker
 Recording MTF pledges | Ops maker, Ops checker, Risk manager
 Recording WhatsApp consent | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
+Recording a bounce | Ops maker, Ops checker, Admin
+Recording a physical dispatch | Ops maker, Ops checker, Admin
 Recording a receipt | Ops maker, Ops checker, Branch staff
+Recording bounces | Ops maker, Ops checker, Admin
 Recording clearing deposits | Ops checker
 Recording complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Recording re-KYC | Ops maker, Ops checker, Compliance officer
@@ -86,6 +89,7 @@ Rejecting an application | Ops checker, Compliance officer
 Releasing CUSPA securities | Ops maker, Ops checker
 Releasing clearing deposits | Ops checker
 Releasing payouts | Ops checker
+Removing the signing certificate | Admin
 Requesting reactivation | Ops maker, Ops checker
 Resetting passwords | Admin
 Resetting two-factor sign-in | Admin
@@ -103,9 +107,13 @@ See full client identifiers | Ops checker, Compliance officer
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
 Sending bulk messages | Ops checker, Compliance officer
 Sending contract notes | Ops maker, Ops checker
+Sending documents | Ops maker, Ops checker
+Sending statements | Ops maker, Ops checker
 Sending year-end packs | Ops maker, Ops checker, Compliance officer
 Setting client risk | Compliance officer
 Setting the firm's default dashboard | Admin
+Setting the signing certificate | Admin
+Setting the signing service | Admin
 Settlement actions | Ops maker, Ops checker
 Settling a buy-back | Ops checker
 Square-off | Risk manager
@@ -122,5 +130,7 @@ Verifying delivery instructions | Ops checker
 View data protection | Compliance officer
 Viewing AI usage | Compliance officer
 Viewing backups | Ops checker, Compliance officer
+Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
+Viewing the signing certificate | Ops checker, Compliance officer, Admin
 Working client insights | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Working complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person

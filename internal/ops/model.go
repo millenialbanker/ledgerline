@@ -242,6 +242,9 @@ type Ops struct {
 	// Backups is where firm backups are written (backups.go); nil means
 	// backups are off. Sealer encrypts them with the firms' data keys.
 	Backups *backup.Dir
+	// Mailer sends email (contract notes, statements). Nil: development
+	// servers simulate delivery; production servers hold the mail.
+	Mailer Mailer
 	// ControlKick, when set, asks the Control reporter to report now (a new
 	// support request or reply).
 	ControlKick chan struct{}

@@ -207,6 +207,16 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 		o.KYC = pk
 		log.Info("KYC plugin connected", "url", u)
 	}
+	// Contract notes and statements go out by email through the firm's
+	// mail server (STARTTLS or TLS only).
+	if u := os.Getenv("LEDGERLINE_SMTP_URL"); u != "" {
+		m, err := ops.ParseSMTP(u)
+		if err != nil {
+			return fmt.Errorf("LEDGERLINE_SMTP_URL: %w", err)
+		}
+		o.Mailer = m
+		log.Info("mail server set", "host", m.Host, "from", m.From)
+	}
 	// Ledgy can phrase its answers with an AI model when one is configured
 	// and the firm switches it on in Settings. Only the masked question and
 	// the help articles are sent. Every answer is metered and paid from the

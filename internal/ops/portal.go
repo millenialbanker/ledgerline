@@ -127,6 +127,20 @@ type PortalView struct {
 	Tickets      []Ticket               `json:"tickets"`
 	Ledgerlines  []ledger.StatementLine `json:"ledger_lines"`
 	Firm         map[string]string      `json:"firm"`
+	// Documents are the signed contract notes and statements sent to the
+	// client, newest first, each downloadable from the portal.
+	Documents []PortalDocument `json:"documents"`
+}
+
+// PortalDocument is one signed document in the client's portal.
+type PortalDocument struct {
+	ID     string `json:"id"`
+	Kind   string `json:"kind"`
+	Title  string `json:"title"`
+	Ref    string `json:"ref"`
+	Date   string `json:"date"`
+	Status string `json:"status"`
+	Signed bool   `json:"signed"`
 }
 
 func portalAccount(c Client) PortalAccount {
@@ -217,6 +231,17 @@ func (o *Ops) Portal(ctx context.Context, tenant, actor, date, ucc string) (Port
 	sort.Slice(v.Tickets, func(i, j int) bool { return v.Tickets[i].ID > v.Tickets[j].ID })
 	set, _ := o.Settings(ctx, tenant)
 	v.Firm = map[string]string{"name": set.Firm, "sebi_reg": set.SEBIReg, "compliance_email": set.ComplianceEmail, "payin_account": set.PayoutDebitAccount}
+	v.Documents = []PortalDocument{}
+	ds, _ := docs.List[Dispatch](ctx, o.Docs, tenant, cDispatch, "")
+	seen := map[string]bool{}
+	sort.Slice(ds, func(i, j int) bool { return ds[i].ID > ds[j].ID })
+	for _, d := range ds {
+		if d.UCC != v.Account.UCC || len(d.Files) == 0 || seen[d.Key] {
+			continue
+		}
+		seen[d.Key] = true
+		v.Documents = append(v.Documents, PortalDocument{ID: d.ID, Kind: d.Kind, Title: DocKindNames[d.Kind], Ref: d.Ref, Date: d.Date, Status: d.Status, Signed: d.Files[0].Signed})
+	}
 	return v, nil
 }
 

@@ -44,6 +44,10 @@ type RASItem struct {
 	IFSC    string       `json:"ifsc"`
 	Account string       `json:"account"`
 	Amount  money.Amount `json:"amount"`
+	// Credit and Retained are the balance and the amount kept back at the
+	// time of settlement, for the client's statement.
+	Credit   money.Dec `json:"credit"`
+	Retained money.Dec `json:"retained"`
 }
 
 // RASView is the running account page.
@@ -174,7 +178,7 @@ func (o *Ops) RunRAS(ctx context.Context, tenant, actor, asOf, settleDate string
 		if err != nil {
 			return b, err
 		}
-		b.Items = append(b.Items, RASItem{UCC: r.UCC, Name: c.Name, Bank: c.Bank.Bank, IFSC: c.Bank.IFSC, Account: c.Bank.Account, Amount: amt})
+		b.Items = append(b.Items, RASItem{UCC: r.UCC, Name: c.Name, Bank: c.Bank.Bank, IFSC: c.Bank.IFSC, Account: c.Bank.Account, Amount: amt, Credit: r.Credit, Retained: r.Credit.Sub(amt.Dec())})
 		b.Total += amt
 		b.Entries = append(b.Entries, e.ID)
 	}
@@ -186,6 +190,10 @@ func (o *Ops) RunRAS(ctx context.Context, tenant, actor, asOf, settleDate string
 		return b, err
 	}
 	o.log(ctx, tenant, actor, "ras.run", settleDate, map[string]any{"clients": len(b.Items), "total": b.Total.String()})
+	// Each client gets the statement of the settlement (SEBI requires it).
+	if res, err := o.SendStatements(ctx, tenant, SystemActor, DocRAS, settleDate); err != nil || len(res.Errors) > 0 {
+		o.log(ctx, tenant, SystemActor, "statements.error", "ras "+settleDate, map[string]any{"error": fmt.Sprint(err, res.Errors)})
+	}
 	return b, nil
 }
 

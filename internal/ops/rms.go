@@ -545,6 +545,10 @@ type MarginRow struct {
 	ShortPct  float64   `json:"short_pct"`
 	SlabPct   money.Dec `json:"slab_pct"`
 	Penalty   money.Dec `json:"penalty"`
+	// Funds is the client's money counted (credit before the day's bills,
+	// plus UPI blocks); Collateral the pledged securities used, after haircut.
+	Funds      money.Dec `json:"funds"`
+	Collateral money.Dec `json:"collateral"`
 }
 
 // MarginReport is the client-wise margin collection report.
@@ -589,7 +593,7 @@ func (o *Ops) Margins(ctx context.Context, tenant, date string) (MarginReport, e
 		}
 		cash := money.Max(pre[u].Dec(), money.Dec{}).Add(c.UPIBlock.Dec())
 		collected := cash.Add(money.Min(coll[u], cash))
-		row := MarginRow{UCC: u, Name: c.Name, PAN: MaskPAN(c.PAN), Collected: collected}
+		row := MarginRow{UCC: u, Name: c.Name, PAN: MaskPAN(c.PAN), Collected: collected, Funds: cash, Collateral: money.Min(coll[u], cash)}
 		for _, p := range eod[u] {
 			row.EOD = row.EOD.Add(p.Margin)
 		}

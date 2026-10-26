@@ -89,6 +89,9 @@ type Client struct {
 	CKYC           string   `json:"ckyc,omitempty"`
 	ReKYCOn        string   `json:"rekyc_on,omitempty"`
 	ReKYCMode      string   `json:"rekyc_mode,omitempty"`
+	// PhysicalNotes: the client did not opt for electronic contract notes
+	// and statements; they are printed and sent by courier.
+	PhysicalNotes bool `json:"physical_notes,omitempty"`
 	// NoInsights: the client turned account insights off in the portal.
 	NoInsights bool `json:"no_insights,omitempty"`
 	// WAConsent records the client's WhatsApp choice: when, how and by whom.

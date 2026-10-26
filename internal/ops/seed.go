@@ -25,6 +25,10 @@ var DevUsers = []User{
 
 // SeedDev creates users and settings for a development tenant if absent.
 func (o *Ops) SeedDev(ctx context.Context, tenant string) error {
+	// A sample firm signs with a test certificate and simulates mail.
+	if err := docs.Upsert(ctx, o.Docs, tenant, cSigning, "devfirm", struct{}{}, "system"); err != nil {
+		return err
+	}
 	us, err := o.Users(ctx, tenant)
 	if err != nil {
 		return err

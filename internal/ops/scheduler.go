@@ -40,7 +40,9 @@ type JobKind struct {
 // JobKinds are the jobs the scheduler can run.
 var JobKinds = []JobKind{
 	{"debit_reminders", "Debit reminders", "Messages clients in debit for at least the given number of days.", []string{"min_days"}},
-	{"monthly_statements", "Monthly statements", "Emails every active client their statement of account for the previous month.", nil},
+	{"monthly_statements", "Monthly statements", "Emails every active client their statement of account for the previous month, as a signed PDF.", nil},
+	{"margin_statements", "Daily margin statements", "Emails every client with margin that day their signed margin statement (run after the day's margins are final).", nil},
+	{"dp_statements", "DP statements", "Emails every DP account its signed statement of transactions and holdings for the previous month.", nil},
 	{"email_report", "Email a report", "Generates a regulatory or inspection report and emails it to the recipients.", []string{"report", "to"}},
 	{"kra_upload", "KRA upload file", "Builds the KRA upload file of clients opened or changed since the last run and keeps it with the files.", nil},
 	{"autopilot", "Autopilot stage", "Runs every automation of a stage (bod, intraday, preclose, eod, commodity, monthly) under the firm's autopilot settings.", []string{"stage"}},
@@ -363,9 +365,27 @@ func (o *Ops) runJob(ctx context.Context, tenant string, j Job, date string) (st
 			}
 		}
 		return fmt.Sprintf("%d clients reminded (in debit %d days or more)", n, min), nil
+	case "margin_statements":
+		res, err := o.SendStatements(ctx, tenant, a, DocMargin, date)
+		if err != nil {
+			return "", err
+		}
+		return statementSummary(res), nil
+	case "dp_statements":
+		month := addDays(date[:8]+"01", -1)[:7]
+		res, err := o.SendStatements(ctx, tenant, a, DocDP, month)
+		if err != nil {
+			return "", err
+		}
+		return statementSummary(res), nil
 	case "monthly_statements":
 		to := addDays(date[:8]+"01", -1)
 		from := to[:8] + "01"
+		if res, err := o.SendStatements(ctx, tenant, a, DocLedger, to[:7]); err != nil {
+			return "", err
+		} else if len(res.Errors) > 0 {
+			return statementSummary(res), fmt.Errorf("%d statements failed: %s", len(res.Errors), res.Errors[0])
+		}
 		cs, err := o.ClientMap(ctx, tenant)
 		if err != nil {
 			return "", err
@@ -467,6 +487,8 @@ func (o *Ops) SeedJobs(ctx context.Context, tenant string) error {
 	seed := []Job{
 		{Name: "Debit reminders", Kind: "debit_reminders", At: "10:00", When: "business", Params: map[string]string{"min_days": "3"}},
 		{Name: "Monthly statements", Kind: "monthly_statements", At: "08:00", When: "monthly:2"},
+		{Name: "Daily margin statements", Kind: "margin_statements", At: "21:30", When: "business"},
+		{Name: "DP statements", Kind: "dp_statements", At: "09:00", When: "monthly:3"},
 		{Name: "KRA upload file", Kind: "kra_upload", At: "20:00", When: "business", OnlyFailure: true},
 		{Name: "Client ledger balances to management", Kind: "email_report", At: "21:00", When: "business", Params: map[string]string{"report": "ledger_balances", "to": "md@bhairav.example"}},
 	}
@@ -555,4 +577,8 @@ func (o *Ops) AutopilotScheduled(ctx context.Context, tenant string) bool {
 	}
 	j, _, err := docs.Get[Job](ctx, o.Docs, tenant, cJob, "JOB-AP-EOD")
 	return err == nil && j.Active
+}
+
+func statementSummary(r SendStatementsResult) string {
+	return fmt.Sprintf("%s %s: %d sent, %d bounced, %d on paper, %d held, %d failed, %d already sent", DocKindNames[r.Kind], r.Period, r.Sent, r.Bounced, r.Paper, r.Held, r.Failed, r.Skipped)
 }
