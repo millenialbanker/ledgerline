@@ -119,10 +119,10 @@ const NAV = [
 const PORTAL_NAV = [['My account', [['portal', 'Overview'], ['pnotes', 'Contract notes'], ['statements', 'Reports & statements'], ['pinsights', 'Tax & insights'], ['pfunds', 'Funds & payouts'], ['pprofile', 'Profile & documents'], ['phelp', 'Help desk'], ['pext', 'Trades elsewhere']]]];
 const PORTAL_VIEWS = PORTAL_NAV[0][1].map(v => v[0]);
 const clientUser = () => S.me?.role === 'Client';
-const VIEWS = [...NAV.flatMap(g => g[1].map(v => v[0])), ...PORTAL_VIEWS];
+const VIEWS = [...NAV.flatMap(g => g[1].map(v => v[0])), ...PORTAL_VIEWS, 'support'];
 try { const h = location.hash.slice(1); if (VIEWS.includes(h)) S.view = h; } catch (e) {}
 
-const SCOPED_VIEWS = ['chat', 'rpa', 'yearend', 'insights', 'clients', 'statements', 'notes', 'money', 'debits', 'rms', 'partners', 'prepaid', 'changes', 'helpdesk', 'crm'];
+const SCOPED_VIEWS = ['chat', 'rpa', 'support', 'yearend', 'insights', 'clients', 'statements', 'notes', 'money', 'debits', 'rms', 'partners', 'prepaid', 'changes', 'helpdesk', 'crm'];
 const scopedUser = () => ['Branch staff', 'Authorised person'].includes(S.me?.role);
 const edition = () => S.me?.edition?.id || 'autopilot';
 function editionNote(d) {
@@ -148,6 +148,7 @@ function renderTop() {
   ${clientUser() ? '<div style="flex:1"></div>' : `<div class="srch"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="gsearch" placeholder="Find client by name, UCC or PAN  ( / )" autocomplete="off" value="${esc(UI.search)}"><div class="res" id="gres" hidden></div></div>`}
   ${S.me ? `<div class="umenu"><button class="ubtn" data-act="umenu" aria-haspopup="menu"><span class="av">${esc(initials(meUser()?.name || S.me.actor))}</span><span><b>${esc(meUser()?.name || S.me.actor)}</b><small>${esc(S.me.role)}</small></span><span class="dim">▾</span></button><div class="umenu-pop" id="umenu" hidden role="menu">
     <button data-act="pwChange" role="menuitem">Change password</button>
+    ${clientUser() ? '' : '<button data-act="spMenu" role="menuitem">Contact support</button>'}
     <button data-act="totp" role="menuitem">Two-factor sign-in${S.me.auth?.totp_enabled ? ' · <span class="pos">On</span>' : ' · Off'}</button>
     ${S.me.dev ? `<div class="sep">Switch user (development)</div>${users.filter(u => u.id !== S.me.actor && u.active).map(u => `<button data-act="switchUser" data-id="${esc(u.id)}" role="menuitem">${esc(u.name)} <span class="dim">· ${esc(u.role)}</span></button>`).join('')}` : ''}
     <div class="sep"></div><button data-act="signOut" role="menuitem">Sign out</button></div></div>` : ''}`;

@@ -448,3 +448,12 @@ fieldset.fld{border:0;padding:0;margin:0}fieldset.fld legend{font-size:12.5px;co
 .eod-part{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px}
 .eod-part.open{border-color:var(--accent)}
 .eod-ph{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+
+/* support requests */
+.sp-thread { padding: 16px; }
+.sp-msg { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 0 0 10px; max-width: 760px; }
+.sp-msg.them { background: var(--sunk); }
+.sp-msg.me { margin-left: auto; }
+.sp-who { margin-bottom: 4px; }
+.sp-text { white-space: pre-wrap; word-break: break-word; }
+.sp-status { text-align: center; margin: 6px 0 12px; }

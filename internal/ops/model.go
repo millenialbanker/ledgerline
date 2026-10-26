@@ -242,7 +242,10 @@ type Ops struct {
 	// Backups is where firm backups are written (backups.go); nil means
 	// backups are off. Sealer encrypts them with the firms' data keys.
 	Backups *backup.Dir
-	Sealer  backup.Sealer
+	// ControlKick, when set, asks the Control reporter to report now (a new
+	// support request or reply).
+	ControlKick chan struct{}
+	Sealer      backup.Sealer
 	// BackupSync runs the backup after a day's close before replying
 	// (tests); otherwise it runs in the background.
 	BackupSync bool

@@ -217,6 +217,26 @@ In production give it a private config (`chmod 600`), encryption keys and an htt
 
 `LLKYC_CONFIG=kyc.json LLKYC_DATA_KEYS_FILE=keys LLKYC_DATA_DIR=/var/lib/ledgerline-kyc ledgerline-kyc`. Register `https://kyc.example.in/callback` as the redirect address in each broker's DigiLocker (API Setu) partner account. `uidai_certificates` (or `LLKYC_UIDAI_CERTS`, comma-separated) is UIDAI's offline e-KYC signing certificate, downloaded from UIDAI's website (Ecosystem → Aadhaar Paperless Offline e-KYC); check its fingerprint, and add the new one alongside when UIDAI rotates it. Without it only DigiLocker is offered; without a DigiLocker registration only the offline file is. Optional: `retention_hours` (72), `session_minutes` (30), per customer `webhook_url` and `webhook_secret`; `LLKYC_DIGILOCKER_URL` for a gateway.
 
+### Ledgerline Control (for the Ledgerline team)
+
+Your own console, separate from every broker's: which firms run Ledgerline and on which server, who uses what, Ledgy AI credit used against its cost, billing with GST invoices, and the support requests firms send from inside Ledgerline (user menu → Contact support) with their status.
+
+```sh
+go run ./cmd/ledgerline-control -dev                  # http://localhost:8070, sign in as owner / owner-password
+go run ./cmd/ledgerline-control keygen                # a data key for production
+LLCTL_DATA=/var/lib/llctl LLCTL_DATA_KEYS_FILE=/etc/llctl/keys ledgerline-control   # prints the owner's one-time password at first start
+```
+
+In Control, **Installations → Add installation** gives a key for each Ledgerline server (the one you host, or a broker's own). Put it in that server's environment and restart it:
+
+```sh
+LEDGERLINE_CONTROL_URL=https://control.example.in LEDGERLINE_CONTROL_KEY=llc_… ledgerline
+```
+
+The server then reports every 15 minutes (`LEDGERLINE_CONTROL_EVERY`), and at once when someone writes to support. A report holds counts only (clients, clients who traded this month, trades, online account openings, bot computers, AI answers and credit, which areas were used in the last 30 days, the day's health) and the firm's own staff logins with when they were last active: no client's name, PAN, trades or money. Replies and status changes go back with the answer to the next report, and Ledgy tells the person. AI credit top-ups made in Control are applied at the next report, once only, and can go on the next invoice. In India-only mode the server refuses to report unless `LEDGERLINE_CONTROL_IN_INDIA=1` confirms Control is hosted in India.
+
+Billing (Settings → Prices): a monthly fee per firm by edition; clients who traded in the month in graduated slabs; staff logins above those included; bot computers; online account openings verified; AI credit top-ups; a one-time setup fee per customer; a discount per customer; GST at 18 % as CGST + SGST within your state and IGST otherwise. Make drafts for a month, add any manual lines, then issue: numbers run per financial year (`LL/26-27/0001`), an issued invoice can only be voided, and payments are recorded against it. Customers on trial, suspended or left aren't billed. Roles: Owner, Billing, Support. Data is kept encrypted in a journal in `LLCTL_DATA`, compacted at each start; back up that folder and the key.
+
 ### Security settings
 
 | Variable | Purpose |

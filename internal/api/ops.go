@@ -43,6 +43,7 @@ func (s *Server) opsRoutes() {
 	}
 	R := func(p string, h http.HandlerFunc, m bool) { s.route(p, h, m) }
 	s.chatRoutes()
+	s.supportRoutes()
 	s.rpaRoutes()
 	R("GET /v1/me", s.me, false)
 	R("GET /v1/users", s.users, false)

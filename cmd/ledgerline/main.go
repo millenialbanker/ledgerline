@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"ledgerline/internal/api"
 	"ledgerline/internal/app"
 	"ledgerline/internal/charges"
+	"ledgerline/internal/control"
 	"ledgerline/internal/help"
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/ops"
@@ -304,6 +306,31 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 			}
 		}
 	}()
+	// Reporting to the provider's Ledgerline Control: what each firm runs and
+	// uses, and support requests written from inside Ledgerline.
+	if cu := strings.TrimRight(os.Getenv("LEDGERLINE_CONTROL_URL"), "/"); cu != "" {
+		ck := os.Getenv("LEDGERLINE_CONTROL_KEY")
+		if ck == "" {
+			return fmt.Errorf("LEDGERLINE_CONTROL_URL is set but LEDGERLINE_CONTROL_KEY is not (the installation key from Ledgerline Control)")
+		}
+		if o.Residency.IndiaOnly && os.Getenv("LEDGERLINE_CONTROL_IN_INDIA") != "1" {
+			return fmt.Errorf("India-only mode: set LEDGERLINE_CONTROL_IN_INDIA=1 to confirm Ledgerline Control is hosted in India, or unset LEDGERLINE_CONTROL_URL")
+		}
+		host, _ := os.Hostname()
+		db := "memory"
+		if dsn != "" {
+			db = "postgres"
+		}
+		o.ControlKick = make(chan struct{}, 1)
+		cc := &ops.ControlClient{Ops: o, URL: cu, Key: ck, Tenants: apiSrv.Tenants, Log: log,
+			Info: control.InstallInfo{Version: control.AppVersion, Region: o.Residency.Region, IndiaOnly: o.Residency.IndiaOnly, Database: db,
+				Started: time.Now().Format(time.RFC3339), Host: host, Go: runtime.Version(), OS: runtime.GOOS + "/" + runtime.GOARCH}}
+		if d, err := time.ParseDuration(os.Getenv("LEDGERLINE_CONTROL_EVERY")); err == nil && d >= 10*time.Second {
+			cc.Every = d
+		}
+		go cc.Run(ctx)
+		log.Info("reporting to Ledgerline Control", "url", cu)
+	}
 	errc := make(chan error, 1)
 	go func() {
 		log.Info("listening", "addr", addr, "adapters", len(reg.List()), "schedule", sched.Version)
