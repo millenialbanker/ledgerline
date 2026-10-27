@@ -1,0 +1,47 @@
+{
+ "id": "ncl-allocation-api",
+ "title": "Client collateral allocation (NSE Clearing API, JSON)",
+ "party": "NSE Clearing",
+ "direction": "out",
+ "when": "BOD, EOD and intraday",
+ "format": "json",
+ "purpose": "The same allocation sent through NSE Clearing's API.",
+ "names": [
+  "NSCCL_\\d+_\\d{8}_\\d+\\.json"
+ ],
+ "template": "NSCCL_{member}_{date:02012006}_{seq:7}.json",
+ "json_shape": {
+  "version": "str",
+  "data": {
+   "msgId": "str",
+   "requestType": "str",
+   "allocationRequest": [
+    {
+     "curDate": "DD-MON-YYYY",
+     "segment": "str",
+     "cmCode": "str",
+     "tmCode": "str",
+     "cpCode": "str",
+     "cliCode": "str",
+     "accType": "str",
+     "amt": "number",
+     "filler1": "str",
+     "filler2": "str",
+     "filler3": "str",
+     "filler4": "str",
+     "filler5": "str",
+     "filler6": "str",
+     "action": "str"
+    }
+   ]
+  }
+ },
+ "confirmed": true,
+ "linked": "Written from Ledgerline's end-of-day allocation",
+ "source": "Keys of the file",
+ "compress": "none",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true
+}

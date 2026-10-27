@@ -1,0 +1,255 @@
+{
+ "id": "cdsl-isin-master",
+ "title": "ISIN master (CDSL)",
+ "party": "CDSL",
+ "direction": "in",
+ "when": "BOD",
+ "purpose": "New and changed securities with issuer, registrar, status and face value.",
+ "names": [
+  "ISIN_MSTR_\\d+_\\d+_I_\\d+_\\d+\\.csv"
+ ],
+ "header": true,
+ "columns": [
+  {
+   "name": "Src",
+   "type": "str"
+  },
+  {
+   "name": "CntrlSctiesDpstryPtcpt",
+   "type": "str"
+  },
+  {
+   "name": "LineNb",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "ISINShrtNm",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "ISINDesc",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "IssrOrgId",
+   "type": "str"
+  },
+  {
+   "name": "IssrOrgNm",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "FinInstrmTp",
+   "type": "str"
+  },
+  {
+   "name": "SctySts",
+   "type": "str"
+  },
+  {
+   "name": "BookgBsis",
+   "type": "str"
+  },
+  {
+   "name": "IsseDt",
+   "type": "str"
+  },
+  {
+   "name": "Regar",
+   "type": "str"
+  },
+  {
+   "name": "RegarNm",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "SEBIRgnFrDt",
+   "type": "str"
+  },
+  {
+   "name": "SEBIRgnToDt",
+   "type": "str"
+  },
+  {
+   "name": "CntctNm",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "CntctDesg",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "ISINShrNm",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "ISINScndNm",
+   "type": "str"
+  },
+  {
+   "name": "ISINLastNm",
+   "type": "str"
+  },
+  {
+   "name": "ISINPstlAdr1",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "ISINPstlAdr2",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "ISINPstlAdr3",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "ISINCity",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "ISINCtrySubDvsn",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "ISINCtry",
+   "type": "str"
+  },
+  {
+   "name": "ISINPstCd",
+   "type": "str"
+  },
+  {
+   "name": "ISINPhneNb1",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "ISINPhneNb2",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "ISINFaxNb",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "ISINEmailAdr",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "MtrtyDt",
+   "type": "str"
+  },
+  {
+   "name": "ConvsDt",
+   "type": "str"
+  },
+  {
+   "name": "DcmlAllwd",
+   "type": "str"
+  },
+  {
+   "name": "DmtrlsdRegdScties",
+   "type": "str"
+  },
+  {
+   "name": "RmtrlsdRegdScties",
+   "type": "str"
+  },
+  {
+   "name": "ClssfctnFinInstrm",
+   "type": "str"
+  },
+  {
+   "name": "ParVal",
+   "type": "str"
+  },
+  {
+   "name": "PdAmt",
+   "type": "str"
+  },
+  {
+   "name": "RedPric",
+   "type": "str"
+  },
+  {
+   "name": "RedDt",
+   "type": "str"
+  },
+  {
+   "name": "ClsPric",
+   "type": "str"
+  },
+  {
+   "name": "ClsDt",
+   "type": "str"
+  },
+  {
+   "name": "DstnctRgExstg",
+   "type": "str"
+  },
+  {
+   "name": "ISINSspnsnFlg",
+   "type": "str"
+  },
+  {
+   "name": "DueDt",
+   "type": "str"
+  },
+  {
+   "name": "LqdtnSts",
+   "type": "str"
+  },
+  {
+   "name": "Rmks",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "ConvsAmt",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "final_eol": true,
+ "linked": ""
+}

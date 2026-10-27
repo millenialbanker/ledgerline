@@ -1,0 +1,533 @@
+{
+ "id": "nse-uci-mod",
+ "title": "UCC modification upload (NSE)",
+ "party": "NSE",
+ "direction": "out",
+ "when": "As needed",
+ "purpose": "Client code modifications for NSE (header + 119-field details).",
+ "delimiter": "|",
+ "names": [
+  "UCI_MOD_\\d{8}\\.T\\d+"
+ ],
+ "template": "UCI_MOD_{date:02012006}.T{seq:2}",
+ "records": [
+  {
+   "code": "",
+   "where": "first",
+   "columns": [
+    {
+     "name": "Field1",
+     "type": "str"
+    },
+    {
+     "name": "Field2",
+     "type": "str"
+    },
+    {
+     "name": "Field3",
+     "type": "str"
+    },
+    {
+     "name": "Field4",
+     "type": "str"
+    },
+    {
+     "name": "Field5",
+     "type": "str"
+    },
+    {
+     "name": "Field6",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "#119",
+   "columns": [
+    {
+     "name": "Field1",
+     "type": "str"
+    },
+    {
+     "name": "Field2",
+     "type": "str"
+    },
+    {
+     "name": "Field3",
+     "type": "str"
+    },
+    {
+     "name": "Field4",
+     "type": "str"
+    },
+    {
+     "name": "Field5",
+     "type": "str"
+    },
+    {
+     "name": "Field6",
+     "type": "str"
+    },
+    {
+     "name": "Field7",
+     "type": "str"
+    },
+    {
+     "name": "Field8",
+     "type": "str"
+    },
+    {
+     "name": "Field9",
+     "type": "str"
+    },
+    {
+     "name": "Field10",
+     "type": "str"
+    },
+    {
+     "name": "Field11",
+     "type": "str"
+    },
+    {
+     "name": "Field12",
+     "type": "str"
+    },
+    {
+     "name": "Field13",
+     "type": "str"
+    },
+    {
+     "name": "Field14",
+     "type": "str"
+    },
+    {
+     "name": "Field15",
+     "type": "str"
+    },
+    {
+     "name": "Field16",
+     "type": "str"
+    },
+    {
+     "name": "Field17",
+     "type": "str"
+    },
+    {
+     "name": "Field18",
+     "type": "str"
+    },
+    {
+     "name": "Field19",
+     "type": "str"
+    },
+    {
+     "name": "Field20",
+     "type": "str"
+    },
+    {
+     "name": "Field21",
+     "type": "str"
+    },
+    {
+     "name": "Field22",
+     "type": "str"
+    },
+    {
+     "name": "Field23",
+     "type": "str"
+    },
+    {
+     "name": "Field24",
+     "type": "str"
+    },
+    {
+     "name": "Field25",
+     "type": "str"
+    },
+    {
+     "name": "Field26",
+     "type": "str"
+    },
+    {
+     "name": "Field27",
+     "type": "str"
+    },
+    {
+     "name": "Field28",
+     "type": "str"
+    },
+    {
+     "name": "Field29",
+     "type": "str"
+    },
+    {
+     "name": "Field30",
+     "type": "str"
+    },
+    {
+     "name": "Field31",
+     "type": "str"
+    },
+    {
+     "name": "Field32",
+     "type": "str"
+    },
+    {
+     "name": "Field33",
+     "type": "str"
+    },
+    {
+     "name": "Field34",
+     "type": "str"
+    },
+    {
+     "name": "Field35",
+     "type": "str"
+    },
+    {
+     "name": "Field36",
+     "type": "str"
+    },
+    {
+     "name": "Field37",
+     "type": "str"
+    },
+    {
+     "name": "Field38",
+     "type": "str"
+    },
+    {
+     "name": "Field39",
+     "type": "str"
+    },
+    {
+     "name": "Field40",
+     "type": "str"
+    },
+    {
+     "name": "Field41",
+     "type": "str"
+    },
+    {
+     "name": "Field42",
+     "type": "str"
+    },
+    {
+     "name": "Field43",
+     "type": "str"
+    },
+    {
+     "name": "Field44",
+     "type": "str"
+    },
+    {
+     "name": "Field45",
+     "type": "str"
+    },
+    {
+     "name": "Field46",
+     "type": "str"
+    },
+    {
+     "name": "Field47",
+     "type": "str"
+    },
+    {
+     "name": "Field48",
+     "type": "str"
+    },
+    {
+     "name": "Field49",
+     "type": "str"
+    },
+    {
+     "name": "Field50",
+     "type": "str"
+    },
+    {
+     "name": "Field51",
+     "type": "str"
+    },
+    {
+     "name": "Field52",
+     "type": "str"
+    },
+    {
+     "name": "Field53",
+     "type": "str"
+    },
+    {
+     "name": "Field54",
+     "type": "str"
+    },
+    {
+     "name": "Field55",
+     "type": "str"
+    },
+    {
+     "name": "Field56",
+     "type": "str"
+    },
+    {
+     "name": "Field57",
+     "type": "str"
+    },
+    {
+     "name": "Field58",
+     "type": "str"
+    },
+    {
+     "name": "Field59",
+     "type": "str"
+    },
+    {
+     "name": "Field60",
+     "type": "str"
+    },
+    {
+     "name": "Field61",
+     "type": "str"
+    },
+    {
+     "name": "Field62",
+     "type": "str"
+    },
+    {
+     "name": "Field63",
+     "type": "str"
+    },
+    {
+     "name": "Field64",
+     "type": "str"
+    },
+    {
+     "name": "Field65",
+     "type": "str"
+    },
+    {
+     "name": "Field66",
+     "type": "str"
+    },
+    {
+     "name": "Field67",
+     "type": "str"
+    },
+    {
+     "name": "Field68",
+     "type": "str"
+    },
+    {
+     "name": "Field69",
+     "type": "str"
+    },
+    {
+     "name": "Field70",
+     "type": "str"
+    },
+    {
+     "name": "Field71",
+     "type": "str"
+    },
+    {
+     "name": "Field72",
+     "type": "str"
+    },
+    {
+     "name": "Field73",
+     "type": "str"
+    },
+    {
+     "name": "Field74",
+     "type": "str"
+    },
+    {
+     "name": "Field75",
+     "type": "str"
+    },
+    {
+     "name": "Field76",
+     "type": "str"
+    },
+    {
+     "name": "Field77",
+     "type": "str"
+    },
+    {
+     "name": "Field78",
+     "type": "str"
+    },
+    {
+     "name": "Field79",
+     "type": "str"
+    },
+    {
+     "name": "Field80",
+     "type": "str"
+    },
+    {
+     "name": "Field81",
+     "type": "str"
+    },
+    {
+     "name": "Field82",
+     "type": "str"
+    },
+    {
+     "name": "Field83",
+     "type": "str"
+    },
+    {
+     "name": "Field84",
+     "type": "str"
+    },
+    {
+     "name": "Field85",
+     "type": "str"
+    },
+    {
+     "name": "Field86",
+     "type": "str"
+    },
+    {
+     "name": "Field87",
+     "type": "str"
+    },
+    {
+     "name": "Field88",
+     "type": "str"
+    },
+    {
+     "name": "Field89",
+     "type": "str"
+    },
+    {
+     "name": "Field90",
+     "type": "str"
+    },
+    {
+     "name": "Field91",
+     "type": "str"
+    },
+    {
+     "name": "Field92",
+     "type": "str"
+    },
+    {
+     "name": "Field93",
+     "type": "str"
+    },
+    {
+     "name": "Field94",
+     "type": "str"
+    },
+    {
+     "name": "Field95",
+     "type": "str"
+    },
+    {
+     "name": "Field96",
+     "type": "str"
+    },
+    {
+     "name": "Field97",
+     "type": "str"
+    },
+    {
+     "name": "Field98",
+     "type": "str"
+    },
+    {
+     "name": "Field99",
+     "type": "str"
+    },
+    {
+     "name": "Field100",
+     "type": "str"
+    },
+    {
+     "name": "Field101",
+     "type": "str"
+    },
+    {
+     "name": "Field102",
+     "type": "str"
+    },
+    {
+     "name": "Field103",
+     "type": "str"
+    },
+    {
+     "name": "Field104",
+     "type": "str"
+    },
+    {
+     "name": "Field105",
+     "type": "str"
+    },
+    {
+     "name": "Field106",
+     "type": "str"
+    },
+    {
+     "name": "Field107",
+     "type": "str"
+    },
+    {
+     "name": "Field108",
+     "type": "str"
+    },
+    {
+     "name": "Field109",
+     "type": "str"
+    },
+    {
+     "name": "Field110",
+     "type": "str"
+    },
+    {
+     "name": "Field111",
+     "type": "str"
+    },
+    {
+     "name": "Field112",
+     "type": "str"
+    },
+    {
+     "name": "Field113",
+     "type": "str"
+    },
+    {
+     "name": "Field114",
+     "type": "str"
+    },
+    {
+     "name": "Field115",
+     "type": "str"
+    },
+    {
+     "name": "Field116",
+     "type": "str"
+    },
+    {
+     "name": "Field117",
+     "type": "str"
+    },
+    {
+     "name": "Field118",
+     "type": "str"
+    },
+    {
+     "name": "Field119",
+     "type": "str"
+    }
+   ]
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": ""
+}

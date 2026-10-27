@@ -1,0 +1,50 @@
+{
+ "id": "ncl-mf-var",
+ "title": "Mutual fund VaR and haircut (NSE Clearing)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "BOD",
+ "purpose": "Haircut and NAV of mutual fund units accepted as collateral.",
+ "names": [
+  "MF_VAR_\\d{8}\\.csv"
+ ],
+ "header": true,
+ "columns": [
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "SYMBOL",
+   "type": "str"
+  },
+  {
+   "name": "SERIES",
+   "type": "str"
+  },
+  {
+   "name": "TYPE",
+   "type": "str"
+  },
+  {
+   "name": "HAIRCUT",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "NAV",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "final_eol": true,
+ "linked": ""
+}

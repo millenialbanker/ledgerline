@@ -1,0 +1,131 @@
+{
+ "id": "ncl-direct-payout",
+ "title": "Direct pay-out file (NSE Clearing)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "Settlement day, afternoon",
+ "purpose": "Securities paid out by the clearing corporation straight to clients' demat accounts, and shortages.",
+ "names": [
+  "\\d+\\.txt"
+ ],
+ "header": true,
+ "crlf": false,
+ "final_eol": false,
+ "columns": [
+  {
+   "name": "DueDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "Src",
+   "type": "str"
+  },
+  {
+   "name": "ClrMmbId",
+   "type": "str"
+  },
+  {
+   "name": "BrkrOrCtdnPtcptId",
+   "type": "str"
+  },
+  {
+   "name": "Sgmt",
+   "type": "str"
+  },
+  {
+   "name": "SttlmTp",
+   "type": "str"
+  },
+  {
+   "name": "SctiesSttlmTxId",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "TckrSymb",
+   "type": "str"
+  },
+  {
+   "name": "SctySrs",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmId",
+   "type": "str"
+  },
+  {
+   "name": "ClntId",
+   "type": "str"
+  },
+  {
+   "name": "SrcDpstryAcct",
+   "type": "str"
+  },
+  {
+   "name": "TrgtDpstryAcct",
+   "type": "str"
+  },
+  {
+   "name": "TxInd",
+   "type": "str"
+  },
+  {
+   "name": "TxTp",
+   "type": "str"
+  },
+  {
+   "name": "QtyORShrtQty",
+   "type": "int"
+  },
+  {
+   "name": "SqrOffORValtnPric",
+   "type": "str"
+  },
+  {
+   "name": "SqrOffORValtnAmt",
+   "type": "str"
+  },
+  {
+   "name": "PnltyAmt",
+   "type": "str"
+  },
+  {
+   "name": "DpstryTxRefId",
+   "type": "str"
+  },
+  {
+   "name": "DpstryTxExctnDt",
+   "type": "str"
+  },
+  {
+   "name": "Rmks",
+   "type": "str"
+  },
+  {
+   "name": "UPIClntId",
+   "type": "str"
+  },
+  {
+   "name": "DpstryConfRjctnCd",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "linked": ""
+}

@@ -1,0 +1,970 @@
+{
+ "id": "cdsl-transactions",
+ "title": "Transaction file (CDSL DP)",
+ "party": "CDSL",
+ "direction": "in",
+ "when": "Several times a day",
+ "purpose": "Every demat transaction of the firm's DP clients: pay-ins, pay-outs, pledges, transfers, with status.",
+ "names": [
+  "COD_EXP_\\d+_\\d+_F_\\d+_\\d+_P\\d+\\.csv"
+ ],
+ "header": true,
+ "columns": [
+  {
+   "name": "Src",
+   "type": "str"
+  },
+  {
+   "name": "CntrlSctiesDpstryPtcpt",
+   "type": "str"
+  },
+  {
+   "name": "LineNb",
+   "type": "str"
+  },
+  {
+   "name": "BrnchId",
+   "type": "str"
+  },
+  {
+   "name": "TxnTyp",
+   "type": "str"
+  },
+  {
+   "name": "TxnID",
+   "type": "str"
+  },
+  {
+   "name": "SrcCntrlSctiesDpstryPtcpt",
+   "type": "str"
+  },
+  {
+   "name": "ClntId",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "ExecDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "Qty",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "BuySellInd",
+   "type": "str"
+  },
+  {
+   "name": "MktTpAndId",
+   "type": "str"
+  },
+  {
+   "name": "SctiesSttlmTxId",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryPtcpt",
+   "type": "str"
+  },
+  {
+   "name": "CntrBnfclOwnrId",
+   "type": "str"
+  },
+  {
+   "name": "OthrMktTpAndId",
+   "type": "str"
+  },
+  {
+   "name": "OthrSctiesSttlmTxId",
+   "type": "str"
+  },
+  {
+   "name": "Rsn",
+   "type": "str"
+  },
+  {
+   "name": "DISTpInd",
+   "type": "str"
+  },
+  {
+   "name": "DISSrlNb",
+   "type": "str"
+  },
+  {
+   "name": "PwrOfAttnyId",
+   "type": "str"
+  },
+  {
+   "name": "CustdlTxnFlg",
+   "type": "str"
+  },
+  {
+   "name": "UnqClntId",
+   "type": "str"
+  },
+  {
+   "name": "UnqClrMmbId",
+   "type": "str"
+  },
+  {
+   "name": "BrkrOrCtdnPtcptId",
+   "type": "str"
+  },
+  {
+   "name": "Sgmt",
+   "type": "str"
+  },
+  {
+   "name": "ClrSysId",
+   "type": "str"
+  },
+  {
+   "name": "Xchg",
+   "type": "str"
+  },
+  {
+   "name": "MkrChkrFlg",
+   "type": "str"
+  },
+  {
+   "name": "Rmks",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "MdOfPmt",
+   "type": "str"
+  },
+  {
+   "name": "PmtTxRefNb",
+   "type": "str"
+  },
+  {
+   "name": "PmtDt",
+   "type": "str"
+  },
+  {
+   "name": "TrfeeBkAcctNb",
+   "type": "str"
+  },
+  {
+   "name": "TrfeeBkNm",
+   "type": "str"
+  },
+  {
+   "name": "EPAcct",
+   "type": "str"
+  },
+  {
+   "name": "AgrmtId",
+   "type": "str"
+  },
+  {
+   "name": "AllUnitsOrAmtInd",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryId",
+   "type": "str"
+  },
+  {
+   "name": "AuthntcnRefNb",
+   "type": "str"
+  },
+  {
+   "name": "EarlyPayInFlg",
+   "type": "str"
+  },
+  {
+   "name": "BlkInd",
+   "type": "str"
+  },
+  {
+   "name": "FreeOrLckInFlg",
+   "type": "str"
+  },
+  {
+   "name": "ClsrDt",
+   "type": "str"
+  },
+  {
+   "name": "PldgTp",
+   "type": "str"
+  },
+  {
+   "name": "Cnsdrtn",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "CuspaTxnFlg",
+   "type": "str"
+  },
+  {
+   "name": "CuspaAcct",
+   "type": "str"
+  },
+  {
+   "name": "PldgeClntId",
+   "type": "str"
+  },
+  {
+   "name": "DISIssdToClntOrPwrOfAttnyHldr",
+   "type": "str"
+  },
+  {
+   "name": "NbOfSOA",
+   "type": "str"
+  },
+  {
+   "name": "FolioNb",
+   "type": "str"
+  },
+  {
+   "name": "DsptchDocId",
+   "type": "str"
+  },
+  {
+   "name": "DsptchNm",
+   "type": "str"
+  },
+  {
+   "name": "DsptchDt",
+   "type": "str"
+  },
+  {
+   "name": "DocRcvdDt",
+   "type": "str"
+  },
+  {
+   "name": "DocNb",
+   "type": "str"
+  },
+  {
+   "name": "NbOfInstrs",
+   "type": "str"
+  },
+  {
+   "name": "OrgnlOrdrRefNb",
+   "type": "str"
+  },
+  {
+   "name": "LckInId",
+   "type": "str"
+  },
+  {
+   "name": "LckInRsnCd",
+   "type": "str"
+  },
+  {
+   "name": "LckInXpryDt",
+   "type": "str"
+  },
+  {
+   "name": "IntlRefNb",
+   "type": "str",
+   "quote": "set"
+  },
+  {
+   "name": "TrfeeNm",
+   "type": "str"
+  },
+  {
+   "name": "PldgrIntlRef",
+   "type": "str"
+  },
+  {
+   "name": "PldgeeIntlRef",
+   "type": "str"
+  },
+  {
+   "name": "PldgIdr",
+   "type": "str"
+  },
+  {
+   "name": "MrgnPldgInstID",
+   "type": "str"
+  },
+  {
+   "name": "PartCntr",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryFlg",
+   "type": "str"
+  },
+  {
+   "name": "FrzTp",
+   "type": "str"
+  },
+  {
+   "name": "FrzLvl",
+   "type": "str"
+  },
+  {
+   "name": "FrzInittdBy",
+   "type": "str"
+  },
+  {
+   "name": "FrznFor",
+   "type": "str"
+  },
+  {
+   "name": "FrzXpryDt",
+   "type": "str"
+  },
+  {
+   "name": "FrzQtyTp",
+   "type": "str"
+  },
+  {
+   "name": "MtlFndInd",
+   "type": "str"
+  },
+  {
+   "name": "FlgOfLooseSlip",
+   "type": "str"
+  },
+  {
+   "name": "ChanlInd",
+   "type": "str"
+  },
+  {
+   "name": "IrrvsblRsnCd",
+   "type": "str"
+  },
+  {
+   "name": "Prty",
+   "type": "str"
+  },
+  {
+   "name": "RjctnRsnCd",
+   "type": "str"
+  },
+  {
+   "name": "SndrTxnRefNm",
+   "type": "str"
+  },
+  {
+   "name": "SndrRefNb1",
+   "type": "str"
+  },
+  {
+   "name": "SndrRefNb2",
+   "type": "str"
+  },
+  {
+   "name": "StmpDtyInd",
+   "type": "str"
+  },
+  {
+   "name": "UsrId",
+   "type": "str"
+  },
+  {
+   "name": "PANAndHldgPttrnMtcgh",
+   "type": "str"
+  },
+  {
+   "name": "WthtCnsdrtnFlg",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryClntCd",
+   "type": "str"
+  },
+  {
+   "name": "AcaInd",
+   "type": "str"
+  },
+  {
+   "name": "ACARmks",
+   "type": "str"
+  },
+  {
+   "name": "AccptdQty",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "ActlQty",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "AllQtyFlg",
+   "type": "str"
+  },
+  {
+   "name": "AMCCd",
+   "type": "str"
+  },
+  {
+   "name": "BckOffRefDtls",
+   "type": "str"
+  },
+  {
+   "name": "BnfcryAcctCtgy",
+   "type": "str"
+  },
+  {
+   "name": "BrrwrEmail",
+   "type": "str"
+  },
+  {
+   "name": "BrrwrFlg",
+   "type": "str"
+  },
+  {
+   "name": "BrrwrPAN",
+   "type": "str"
+  },
+  {
+   "name": "BizDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "CASeqNm",
+   "type": "str"
+  },
+  {
+   "name": "CATyp",
+   "type": "str"
+  },
+  {
+   "name": "CnclSttsFrm",
+   "type": "str"
+  },
+  {
+   "name": "CnclSttsTo",
+   "type": "str"
+  },
+  {
+   "name": "ChkrDt",
+   "type": "str"
+  },
+  {
+   "name": "PAN",
+   "type": "str"
+  },
+  {
+   "name": "ClrMmbId",
+   "type": "str"
+  },
+  {
+   "name": "ConfRejFlg",
+   "type": "str"
+  },
+  {
+   "name": "ConfDt",
+   "type": "str"
+  },
+  {
+   "name": "ConfRejQty",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "ConfCntr",
+   "type": "str"
+  },
+  {
+   "name": "CoolngPrd",
+   "type": "str"
+  },
+  {
+   "name": "CntrLckInId",
+   "type": "str"
+  },
+  {
+   "name": "CourierNm",
+   "type": "str"
+  },
+  {
+   "name": "CntrTxnRmks",
+   "type": "str",
+   "quote": "set"
+  },
+  {
+   "name": "DmatRejCd",
+   "type": "str"
+  },
+  {
+   "name": "DmatRejFlg",
+   "type": "str"
+  },
+  {
+   "name": "DmatReqNb",
+   "type": "str"
+  },
+  {
+   "name": "DstatRejCd",
+   "type": "str"
+  },
+  {
+   "name": "OrdrRef",
+   "type": "str"
+  },
+  {
+   "name": "EarmrkdQty",
+   "type": "dec",
+   "decimals": 6,
+   "fixed": false
+  },
+  {
+   "name": "EasiRefNb",
+   "type": "str"
+  },
+  {
+   "name": "EFTSCd",
+   "type": "str"
+  },
+  {
+   "name": "EPTxnIDCUSPA",
+   "type": "str"
+  },
+  {
+   "name": "FinFlg",
+   "type": "str"
+  },
+  {
+   "name": "HldRefNb",
+   "type": "str"
+  },
+  {
+   "name": "LndClntId",
+   "type": "str"
+  },
+  {
+   "name": "LndEmailId",
+   "type": "str"
+  },
+  {
+   "name": "LndFlg",
+   "type": "str"
+  },
+  {
+   "name": "LndPAN",
+   "type": "str"
+  },
+  {
+   "name": "LotSize",
+   "type": "str"
+  },
+  {
+   "name": "ModFlg",
+   "type": "str"
+  },
+  {
+   "name": "UltLndIssCd",
+   "type": "str"
+  },
+  {
+   "name": "NDUPrntId",
+   "type": "str"
+  },
+  {
+   "name": "OldOrNewDstRqstNm",
+   "type": "str"
+  },
+  {
+   "name": "OnMktTrdId4CuspaXfer",
+   "type": "str"
+  },
+  {
+   "name": "OrdrsttsFlg",
+   "type": "str"
+  },
+  {
+   "name": "OrdSttsFrm",
+   "type": "str"
+  },
+  {
+   "name": "OrdSttsTo",
+   "type": "str"
+  },
+  {
+   "name": "OrigDMOrdNm",
+   "type": "str"
+  },
+  {
+   "name": "NSDLCMClntId",
+   "type": "str"
+  },
+  {
+   "name": "CntrCMBPId",
+   "type": "str"
+  },
+  {
+   "name": "OTPVrfyDt",
+   "type": "str"
+  },
+  {
+   "name": "PrChldRmtReqNm",
+   "type": "str"
+  },
+  {
+   "name": "PrLckInId",
+   "type": "str"
+  },
+  {
+   "name": "PayInTypFlg",
+   "type": "str"
+  },
+  {
+   "name": "PldgdBal",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "PldgExpDt",
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05"
+  },
+  {
+   "name": "PldgSeqNb",
+   "type": "str"
+  },
+  {
+   "name": "PldgeCntrlSctiesDpstryPtcptRmks",
+   "type": "str"
+  },
+  {
+   "name": "PldgOthrClntCd",
+   "type": "str"
+  },
+  {
+   "name": "RsnCd",
+   "type": "str"
+  },
+  {
+   "name": "RejRmks",
+   "type": "str"
+  },
+  {
+   "name": "RevChkrDt",
+   "type": "str"
+  },
+  {
+   "name": "RevMkrDt",
+   "type": "str"
+  },
+  {
+   "name": "RevSrcDpId",
+   "type": "str"
+  },
+  {
+   "name": "RTAChkrDt",
+   "type": "str"
+  },
+  {
+   "name": "RTAId",
+   "type": "str"
+  },
+  {
+   "name": "RTAIntRefNm",
+   "type": "str"
+  },
+  {
+   "name": "RTAMkrDt",
+   "type": "str"
+  },
+  {
+   "name": "RTARmks",
+   "type": "str"
+  },
+  {
+   "name": "SelfBtchId",
+   "type": "str"
+  },
+  {
+   "name": "SeqNm",
+   "type": "str"
+  },
+  {
+   "name": "SetUpDt",
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05"
+  },
+  {
+   "name": "StmpDty",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "LstMdfDt",
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05"
+  },
+  {
+   "name": "SwtchInISIN",
+   "type": "str"
+  },
+  {
+   "name": "SwtchInISINSchm",
+   "type": "str"
+  },
+  {
+   "name": "SwtchOutISINNAV",
+   "type": "str"
+  },
+  {
+   "name": "SwtchOutISINSchm",
+   "type": "str"
+  },
+  {
+   "name": "SwtchOutRTADt",
+   "type": "str"
+  },
+  {
+   "name": "SwtchReqNb",
+   "type": "str"
+  },
+  {
+   "name": "SwtchTxnStts",
+   "type": "str"
+  },
+  {
+   "name": "PldgrClntNm",
+   "type": "str"
+  },
+  {
+   "name": "ScndPldgrClntNm",
+   "type": "str"
+  },
+  {
+   "name": "ThrdPldgrClntNm",
+   "type": "str"
+  },
+  {
+   "name": "TargClntNm",
+   "type": "str"
+  },
+  {
+   "name": "TrgtDPID",
+   "type": "str"
+  },
+  {
+   "name": "TermntDt",
+   "type": "str"
+  },
+  {
+   "name": "TrdId",
+   "type": "str"
+  },
+  {
+   "name": "TxnBalTyp",
+   "type": "str"
+  },
+  {
+   "name": "TxnCd",
+   "type": "str"
+  },
+  {
+   "name": "TxnCntr",
+   "type": "str"
+  },
+  {
+   "name": "TrdRsnCd",
+   "type": "str"
+  },
+  {
+   "name": "TxnRefNb",
+   "type": "str"
+  },
+  {
+   "name": "TxnValtn",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "XferTxnNb",
+   "type": "str"
+  },
+  {
+   "name": "XferId",
+   "type": "str"
+  },
+  {
+   "name": "XferRsnCd",
+   "type": "str"
+  },
+  {
+   "name": "XferSttsFlg",
+   "type": "str"
+  },
+  {
+   "name": "XferTyp",
+   "type": "str"
+  },
+  {
+   "name": "XferTypFlg",
+   "type": "str"
+  },
+  {
+   "name": "TrnsmssnRsn",
+   "type": "str"
+  },
+  {
+   "name": "DmsIndFlg",
+   "type": "str"
+  },
+  {
+   "name": "UnpldCntr",
+   "type": "str"
+  },
+  {
+   "name": "VerftnDt",
+   "type": "str"
+  },
+  {
+   "name": "TotNumBar",
+   "type": "str"
+  },
+  {
+   "name": "AutPrNm",
+   "type": "str"
+  },
+  {
+   "name": "PctgShrOfFrstNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryFlgOfFrstNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryPtcptIdOfFrstNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrClntIdOfFrstNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryClntCdOfFrstNmnee",
+   "type": "str"
+  },
+  {
+   "name": "PctgShrOfScndNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryFlgOfScndNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryPtcptIdOfScndNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrClntIdOfScndNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryClntCdOfScndNmnee",
+   "type": "str"
+  },
+  {
+   "name": "PctgShrOfThrdNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OtherDpstryFlgOfThrdNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryPtcptIdOfThrdNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrClntIdOfThrdNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryClntCdOfThrdNmnee",
+   "type": "str"
+  },
+  {
+   "name": "DepBy",
+   "type": "str"
+  },
+  {
+   "name": "ClsPric",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "ClsDt",
+   "type": "str"
+  },
+  {
+   "name": "FrzRsnCd",
+   "type": "str"
+  },
+  {
+   "name": "AutPrMblNb",
+   "type": "str"
+  },
+  {
+   "name": "RsnDlayPrsTxn",
+   "type": "str"
+  },
+  {
+   "name": "RegAuthDtls",
+   "type": "str"
+  },
+  {
+   "name": "OrdTyp",
+   "type": "str"
+  },
+  {
+   "name": "OrdDt",
+   "type": "str"
+  },
+  {
+   "name": "OgCATyp",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "final_eol": true,
+ "linked": ""
+}

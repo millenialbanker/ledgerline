@@ -1,0 +1,85 @@
+{
+ "id": "ncl-short-allocation-reporting",
+ "title": "Short allocation reporting (NSE Clearing)",
+ "party": "NSE Clearing",
+ "direction": "out",
+ "when": "Daily (2 days back)",
+ "purpose": "Reasons for clients' short allocation.",
+ "names": [
+  "C_SA_TM_\\d+_\\d+\\.csv"
+ ],
+ "template": "C_SA_TM_{date:02012006}_{seq:2}.CSV",
+ "columns": [
+  {
+   "name": "Date",
+   "type": "date",
+   "layout": "02-Jan-2006"
+  },
+  {
+   "name": "Field2",
+   "type": "str"
+  },
+  {
+   "name": "ClientCode",
+   "type": "str"
+  },
+  {
+   "name": "Field4",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field5",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field6",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field7",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field8",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field9",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field10",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field11",
+   "type": "str"
+  },
+  {
+   "name": "Field12",
+   "type": "str"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": ""
+}

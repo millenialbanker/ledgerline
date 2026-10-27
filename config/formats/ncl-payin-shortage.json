@@ -1,0 +1,61 @@
+{
+ "id": "ncl-payin-shortage",
+ "title": "Pay-in shortage (NSE Clearing)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "Settlement day",
+ "purpose": "Securities short delivered by the member.",
+ "names": [
+  "C_\\d+_T_DCSSHRT_D_\\d+_\\d{8}\\.csv"
+ ],
+ "columns": [
+  {
+   "name": "MemberCode",
+   "type": "str"
+  },
+  {
+   "name": "Field2",
+   "type": "str"
+  },
+  {
+   "name": "Field3",
+   "type": "str"
+  },
+  {
+   "name": "SettlementNo",
+   "type": "str"
+  },
+  {
+   "name": "Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Series",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "Field8",
+   "type": "str"
+  },
+  {
+   "name": "Field9",
+   "type": "str"
+  },
+  {
+   "name": "Field10",
+   "type": "str"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": ""
+}

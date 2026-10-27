@@ -1,0 +1,241 @@
+{
+ "id": "cdsl-holding",
+ "title": "Statement of holding (CDSL DP)",
+ "party": "CDSL",
+ "direction": "in",
+ "when": "BOD and several times a day",
+ "purpose": "Every client's demat balance per ISIN: free, pledged, earmarked, lock-in; the source for collateral and sell checks.",
+ "names": [
+  "SOH_EXP_\\d+_\\d+_F_\\d+_\\d+_C_\\d+_\\d+_P\\d+\\.csv"
+ ],
+ "header": true,
+ "columns": [
+  {
+   "name": "Src",
+   "type": "str"
+  },
+  {
+   "name": "CntrlSctiesDpstryPtcpt",
+   "type": "str"
+  },
+  {
+   "name": "BrnchId",
+   "type": "str"
+  },
+  {
+   "name": "LineNb",
+   "type": "str"
+  },
+  {
+   "name": "BnfcryAcctCtgy",
+   "type": "str"
+  },
+  {
+   "name": "BnfclOwnrId",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "MktTpAndId",
+   "type": "str"
+  },
+  {
+   "name": "SctiesSttlmTxId",
+   "type": "str"
+  },
+  {
+   "name": "RcrdTp",
+   "type": "str"
+  },
+  {
+   "name": "CurBal",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "BnfcryAcctPos",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "DmtrlstnPdgVrfctnBal",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "DmtrlstnPdgConfBal",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "LndBal",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "BrrwdBal",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "LckdInBalUdrRmtrlstn",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "ISINFrzForDbtOrCdtBoth",
+   "type": "str"
+  },
+  {
+   "name": "BOIdFrzForDbtOrCdtBoth",
+   "type": "str"
+  },
+  {
+   "name": "BOISINFrzForDbtOrCdtBoth",
+   "type": "str"
+  },
+  {
+   "name": "RpldgBal",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "ClrSysId",
+   "type": "str"
+  },
+  {
+   "name": "BlckOrLckFlg",
+   "type": "str"
+  },
+  {
+   "name": "BlckOrLckCd",
+   "type": "str"
+  },
+  {
+   "name": "LckdInBal",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "LckInRlsDt",
+   "type": "str"
+  },
+  {
+   "name": "PldgdBal",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "EarmrkdBal",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "SkfpBal",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "RmtrlstnPdgBal",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "AvlblForLndBal",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "CmDlry",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "CmRcpt",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "BeneficiaryHldTrnNHse",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "BeneficiaryHldNHse",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "CmPool",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "CmTrns",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "TrnsNHse",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": false
+  },
+  {
+   "name": "StmtDt",
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05"
+  },
+  {
+   "name": "Rmks",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "linked": "Loaded as client demat holdings and pledges (matched to clients by demat account)",
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "final_eol": true
+}

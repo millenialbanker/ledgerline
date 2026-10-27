@@ -1,0 +1,134 @@
+{
+ "id": "hdfc-enet-payout",
+ "title": "Payout file (HDFC Bank ENet)",
+ "party": "Bank (HDFC)",
+ "direction": "out",
+ "when": "Afternoon",
+ "purpose": "Client fund payouts to their bank accounts (NEFT/RTGS/IMPS).",
+ "names": [
+  "[A-Z]+\\d{8}\\.\\d{3}"
+ ],
+ "template": "{bank_prefix}{date:02012006}.{seq:3}",
+ "columns": [
+  {
+   "name": "TxnType",
+   "type": "str"
+  },
+  {
+   "name": "BeneficiaryCode",
+   "type": "str"
+  },
+  {
+   "name": "BeneficiaryAccount",
+   "type": "str"
+  },
+  {
+   "name": "Amount",
+   "type": "str"
+  },
+  {
+   "name": "BeneficiaryName",
+   "type": "str"
+  },
+  {
+   "name": "Field6",
+   "type": "str"
+  },
+  {
+   "name": "Field7",
+   "type": "str"
+  },
+  {
+   "name": "Field8",
+   "type": "str"
+  },
+  {
+   "name": "Field9",
+   "type": "str"
+  },
+  {
+   "name": "Field10",
+   "type": "str"
+  },
+  {
+   "name": "Field11",
+   "type": "str"
+  },
+  {
+   "name": "Field12",
+   "type": "str"
+  },
+  {
+   "name": "Field13",
+   "type": "str"
+  },
+  {
+   "name": "Field14",
+   "type": "str"
+  },
+  {
+   "name": "Field15",
+   "type": "str"
+  },
+  {
+   "name": "Field16",
+   "type": "str"
+  },
+  {
+   "name": "Field17",
+   "type": "str"
+  },
+  {
+   "name": "Field18",
+   "type": "str"
+  },
+  {
+   "name": "Field19",
+   "type": "str"
+  },
+  {
+   "name": "Field20",
+   "type": "str"
+  },
+  {
+   "name": "Field21",
+   "type": "str"
+  },
+  {
+   "name": "Field22",
+   "type": "str"
+  },
+  {
+   "name": "Field23",
+   "type": "str"
+  },
+  {
+   "name": "Field24",
+   "type": "str"
+  },
+  {
+   "name": "Field25",
+   "type": "str"
+  },
+  {
+   "name": "Field26",
+   "type": "str"
+  },
+  {
+   "name": "Field27",
+   "type": "str"
+  },
+  {
+   "name": "Field28",
+   "type": "str"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": ""
+}

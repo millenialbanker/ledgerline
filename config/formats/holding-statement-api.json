@@ -1,0 +1,43 @@
+{
+ "id": "holding-statement-api",
+ "title": "Client holding statement (NSE / BSE API, JSON)",
+ "party": "NSE / BSE",
+ "direction": "out",
+ "when": "Daily (previous day)",
+ "format": "json",
+ "purpose": "Each client's demat holdings (pledged, free, total) reported to the exchanges.",
+ "names": [
+  "[A-Z]{5}\\d{4}[A-Z]_HS_\\d{8}_\\d+\\.json"
+ ],
+ "template": "{member_pan}_HS_{date:02012006}_{seq:2}.json",
+ "json_shape": {
+  "memberPan": "str",
+  "filePeriodDate": "DD-MM-YYYY",
+  "date": "DD-MM-YYYY",
+  "holdingData": [
+   {
+    "recId": "str",
+    "dmat": "str",
+    "accountType": "str",
+    "ucc": "str",
+    "clientName": "str",
+    "pan": "str",
+    "isin": "str",
+    "securityType": "str",
+    "nameOfCommodity": "str",
+    "unitType": "str",
+    "totalPldgQty": "str 0.000",
+    "freeBalQty": "str 0.000",
+    "totalQty": "str 0.000"
+   }
+  ]
+ },
+ "confirmed": true,
+ "linked": "Written from Ledgerline's client holdings",
+ "source": "Keys of the file",
+ "compress": "none",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true
+}

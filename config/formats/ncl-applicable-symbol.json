@@ -1,0 +1,50 @@
+{
+ "id": "ncl-applicable-symbol",
+ "title": "Applicable symbol list (NSE Clearing)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "BOD",
+ "purpose": "The symbol each ISIN settles under across NSE, BSE and MSEI (interoperability).",
+ "names": [
+  "NCL_APPLICABLE_SYMBOL_\\d{8}\\.csv"
+ ],
+ "header": true,
+ "crlf": false,
+ "columns": [
+  {
+   "name": "Security ISIN",
+   "type": "str"
+  },
+  {
+   "name": "Security NSE Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Security BSE Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Security MSEI Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Security Applicable Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Security Description",
+   "type": "str"
+  },
+  {
+   "name": "Settlement Flag",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "final_eol": true,
+ "linked": ""
+}

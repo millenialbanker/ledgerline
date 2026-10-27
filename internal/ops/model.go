@@ -130,7 +130,12 @@ type Settings struct {
 
 	// GST registration of the firm (place of supply decides IGST vs CGST+SGST).
 	FirmGSTIN string `json:"firm_gstin"`
-	FirmState string `json:"firm_state"`
+	// FirmPAN is the trading member's PAN for regulatory files (default:
+	// from the GSTIN); ClearingMemberPAN the clearing member's when the
+	// firm does not clear its own trades.
+	FirmPAN           string `json:"firm_pan,omitempty"`
+	ClearingMemberPAN string `json:"clearing_member_pan,omitempty"`
+	FirmState         string `json:"firm_state"`
 
 	// Partners and referrals.
 	TDSCommissionPct string `json:"tds_commission_pct"` // section 194H, default 2
@@ -378,6 +383,11 @@ func (o *Ops) Settings(ctx context.Context, tenant string) (Settings, error) {
 func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings) error {
 	if err := o.require(ctx, tenant, actor, "Changing settings", RoleAdmin); err != nil {
 		return err
+	}
+	for _, p := range []string{s.FirmPAN, s.ClearingMemberPAN} {
+		if p != "" && !rePAN.MatchString(p) {
+			return invalid("PAN %s must be 5 letters, 4 digits, 1 letter", p)
+		}
 	}
 	if s.BillAI && o.Residency.IndiaOnly {
 		return invalid("reading bills with AI sends them outside India, which India-only mode does not allow")

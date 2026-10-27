@@ -1,0 +1,86 @@
+{
+ "id": "ncl-allocation",
+ "title": "Client collateral allocation upload (NSE Clearing / MCXCCL)",
+ "party": "NSE Clearing / MCXCCL",
+ "direction": "out",
+ "when": "BOD and EOD",
+ "purpose": "Cash and collateral allocated to each client and segment.",
+ "names": [
+  "M?\\d+_ALLOC_\\d{8}\\.T\\d+"
+ ],
+ "template": "{member}_ALLOC_{date:02012006}.T{seq:4}",
+ "columns": [
+  {
+   "name": "curDate",
+   "type": "date",
+   "layout": "02-Jan-2006"
+  },
+  {
+   "name": "segment",
+   "type": "str"
+  },
+  {
+   "name": "cmCode",
+   "type": "str"
+  },
+  {
+   "name": "tmCode",
+   "type": "str"
+  },
+  {
+   "name": "cpCode",
+   "type": "str"
+  },
+  {
+   "name": "cliCode",
+   "type": "str"
+  },
+  {
+   "name": "accType",
+   "type": "str"
+  },
+  {
+   "name": "amt",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "filler1",
+   "type": "str"
+  },
+  {
+   "name": "filler2",
+   "type": "str"
+  },
+  {
+   "name": "filler3",
+   "type": "str"
+  },
+  {
+   "name": "filler4",
+   "type": "str"
+  },
+  {
+   "name": "filler5",
+   "type": "str"
+  },
+  {
+   "name": "filler6",
+   "type": "str"
+  },
+  {
+   "name": "action",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "linked": "Written from Ledgerline's end-of-day allocation",
+ "source": "Same fields, in order, as NSE Clearing's allocation API (allocationRequest)",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true
+}

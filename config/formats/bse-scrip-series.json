@@ -1,0 +1,46 @@
+{
+ "id": "bse-scrip-series",
+ "title": "Scrip and series mapping (BSE)",
+ "party": "BSE",
+ "direction": "in",
+ "when": "BOD",
+ "purpose": "BSE scrip code, group and series for each ISIN.",
+ "names": [
+  "BSE_Scrip_Series_Mapping_\\d{8}\\.csv"
+ ],
+ "header": true,
+ "crlf": false,
+ "columns": [
+  {
+   "name": "Security ISIN",
+   "type": "str"
+  },
+  {
+   "name": "Security BSE Scrip Code",
+   "type": "str"
+  },
+  {
+   "name": "Security BSE Group",
+   "type": "str"
+  },
+  {
+   "name": "Security Description",
+   "type": "str"
+  },
+  {
+   "name": "Security Applicable Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Security Series",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "final_eol": true,
+ "linked": ""
+}

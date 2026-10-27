@@ -41,10 +41,10 @@ roles: Ops maker, Ops checker, Compliance officer, Risk manager
 ask: segmon; cc01; cc02; client level collateral; collateral reporting to clearing corporation; ncl collateral file; client collateral upload
 related: regulatory-reports
 
-On [[reports|Regulatory reports]], **Client-level collateral (SEGMON: CC01 / CC02)**:
+On [[reports|Regulatory reports]], **Client-level collateral (SEGMON: CC01)**:
 
 1. **Review** downloads every segment with names and any shortage.
-2. The **FO**, **CD**, **COM** and **CM** buttons download each segment's upload file, gzip-compressed and named C_CC01_<member>_<DDMMYYYY>.csv.gz (CM is CC02, with the member code first). The firm's NSE member code must be set in Settings.
+2. The **CM**, **FO** and **CD** buttons download each segment's upload file, gzip-compressed and named C_CC01_<member>_<DDMMYYYY>.csv.gz (the name starts C for cash, F for F&O, X for currency: C_CC01_<member>_<DDMMYYYY>.csv.gz; commodity collateral goes to MCXCCL). The firm's NSE member code must be set in Settings.
 3. Cash allocated and securities re-pledged follow the end-of-day client allocation, so the two always agree.
 
 Check the layout against NSE Clearing's current file specification before the first upload; it is revised from time to time.

@@ -1,0 +1,65 @@
+{
+ "id": "ncl-nmass-fo",
+ "title": "Client level collaterals (NSE Clearing, F&O)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "EOD",
+ "purpose": "Minimum margin, cash allocated, other cash and non-cash per client, and the short allocation.",
+ "names": [
+  "FO_ClientLevelCollaterals_\\d+\\.csv"
+ ],
+ "header": true,
+ "final_eol": false,
+ "header_line": "CM code,TM/CP code,Client Code,Minimum Margins (a),Cash allocated (b),Cash-others (c),Non-cash Securities (d),Short allocation Max [a-(b+c+d), 0]",
+ "columns": [
+  {
+   "name": "CM code",
+   "type": "str"
+  },
+  {
+   "name": "TM/CP code",
+   "type": "str"
+  },
+  {
+   "name": "Client Code",
+   "type": "str"
+  },
+  {
+   "name": "Minimum Margins (a)",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Cash allocated (b)",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Cash-others (c)",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Non-cash Securities (d)",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Short allocation",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "linked": ""
+}

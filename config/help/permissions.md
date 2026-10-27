@@ -49,6 +49,7 @@ DP billing | Ops checker
 DP requests | Ops maker, Ops checker, Compliance officer, Branch staff
 Deciding a pledge request | Ops maker, Ops checker, Risk manager
 Discarding scanned bills | Ops maker, Ops checker
+Downloading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
 Downloading the collateral file | Ops maker, Ops checker, Risk manager, Compliance officer
 Editing message templates | Ops checker, Compliance officer
 Entering a payout request | Ops maker, Ops checker, Branch staff, Authorised person
@@ -64,6 +65,7 @@ Generating reports | Ops maker, Ops checker, Risk manager, Compliance officer
 Giving clients portal access | Ops checker, Admin
 Identifying a bank credit | Ops checker
 Issuing DIS books | Ops maker, Ops checker
+Loading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
 Loading exchange holidays | Ops maker, Ops checker, Compliance officer
 Loading files | Ops maker, Ops checker, Risk manager, Compliance officer
 MTF enrolment | Ops checker, Risk manager

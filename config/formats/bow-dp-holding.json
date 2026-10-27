@@ -1,0 +1,86 @@
+{
+ "id": "bow-dp-holding",
+ "title": "Client holding upload (BOW front end)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "BOD, 07:55",
+ "purpose": "Demat holdings incl. the T1 pool, per client.",
+ "names": [
+  "BOW_DP_Holding_Combined_Upload_\\d{8}\\.txt"
+ ],
+ "template": "BOW_DP_Holding_Combined_Upload_{date:02012006}.TXT",
+ "columns": [
+  {
+   "name": "ClientCode",
+   "type": "str"
+  },
+  {
+   "name": "Field2",
+   "type": "str"
+  },
+  {
+   "name": "Field3",
+   "type": "str"
+  },
+  {
+   "name": "Field4",
+   "type": "str"
+  },
+  {
+   "name": "Field5",
+   "type": "str"
+  },
+  {
+   "name": "Field6",
+   "type": "str"
+  },
+  {
+   "name": "Field7",
+   "type": "str"
+  },
+  {
+   "name": "Field8",
+   "type": "str"
+  },
+  {
+   "name": "Field9",
+   "type": "str"
+  },
+  {
+   "name": "Field10",
+   "type": "str"
+  },
+  {
+   "name": "Field11",
+   "type": "str"
+  },
+  {
+   "name": "Field12",
+   "type": "str"
+  },
+  {
+   "name": "Field13",
+   "type": "str"
+  },
+  {
+   "name": "Field14",
+   "type": "str"
+  },
+  {
+   "name": "Field15",
+   "type": "str"
+  },
+  {
+   "name": "Field16",
+   "type": "str"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": ""
+}

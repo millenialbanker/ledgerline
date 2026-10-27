@@ -21,14 +21,14 @@ import (
 //	Cash Component-Value of Gsec/GMF/CMF repledged,
 //	Non-Cash Component-Value of Non-Cash repledged, Total Value, Margins
 //
-// and the cash-market file (CC02) has the trading member code first. The
-// layout is checked against the clearing corporation's current file
-// specification before the first upload (it is revised from time to time,
-// for example with retention reason codes); Settings carries the choices.
+// in every segment; the file name starts with the segment's letter (C cash,
+// F F&O, X currency): C_CC01_<member>_<DDMMYYYY>.csv, gzip-compressed, no
+// header row (checked against the files a broker actually uploads; layout
+// ncl-client-collateral in config/formats). Commodity collateral is
+// reported to MCXCCL, not here.
 
-// CCSegments are the segments reported, with the clearing corporation's
-// file code. CM is reported with the member code first.
-var CCSegments = map[string]string{"FO": "CC01", "CD": "CC01", "COM": "CC01", "CM": "CC02"}
+// CCSegments are the segments reported, with the file-name prefix.
+var CCSegments = map[string]string{"CM": "C", "FO": "F", "CD": "X"}
 
 // CollateralRow is one client's reported collateral in one segment.
 type CollateralRow struct {
@@ -72,39 +72,30 @@ func (o *Ops) ClientCollateral(ctx context.Context, tenant, date string) ([]Coll
 
 // collateralRows is a segment's file content in the clearing corporation's
 // column order.
-func collateralRows(rows []CollateralRow, segment, member string, header bool) [][]string {
-	tmFirst := CCSegments[segment] == "CC02"
+func collateralRows(rows []CollateralRow, segment string, header bool) [][]string {
 	var out [][]string
 	if header {
-		h := []string{"Client/UCC Code", "Cash Component-Allocated", "Cash Component-Value of Gsec/GMF/CMF repledged", "Non-Cash Component-Value of Non-Cash repledged", "Total Value", "Margins"}
-		if tmFirst {
-			h = append([]string{"TM Code"}, h...)
-		}
-		out = append(out, h)
+		out = append(out, []string{"Client/UCC Code", "Cash Component-Allocated", "Cash Component-Value of Gsec/GMF/CMF repledged", "Non-Cash Component-Value of Non-Cash repledged", "Total Value", "Margins"})
 	}
 	for _, r := range rows {
 		if r.Segment != segment {
 			continue
 		}
-		l := []string{r.UCC, r.Cash.Fixed(2), r.GSec.Fixed(2), r.NonCash.Fixed(2), r.Total.Fixed(2), r.Margins.Fixed(2)}
-		if tmFirst {
-			l = append([]string{member}, l...)
-		}
-		out = append(out, l)
+		out = append(out, []string{r.UCC, r.Cash.Fixed(2), r.GSec.Fixed(2), r.NonCash.Fixed(2), r.Total.Fixed(2), r.Margins.Fixed(2)})
 	}
 	return out
 }
 
 // ClientCollateralFile is one segment's upload file, gzip-compressed and
-// named as the clearing corporation expects: C_CC01_<member>_<DDMMYYYY>.csv.gz.
+// named as the clearing corporation expects: <C|F|X>_CC01_<member>_<DDMMYYYY>.csv.gz.
 func (o *Ops) ClientCollateralFile(ctx context.Context, tenant, actor, date, segment string, header bool) (string, []byte, error) {
 	if err := o.require(ctx, tenant, actor, "Downloading the collateral file", RoleMaker, RoleChecker, RoleCompliance, RoleRisk); err != nil {
 		return "", nil, err
 	}
 	segment = strings.ToUpper(strings.TrimSpace(segment))
-	code, ok := CCSegments[segment]
+	prefix, ok := CCSegments[segment]
 	if !ok {
-		return "", nil, invalid("segment must be one of CM, FO, CD or COM")
+		return "", nil, invalid("segment must be CM, FO or CD (commodity collateral is reported to MCXCCL)")
 	}
 	set, _ := o.Settings(ctx, tenant)
 	member := strings.TrimSpace(set.MemberCodes["NSE"])
@@ -116,15 +107,12 @@ func (o *Ops) ClientCollateralFile(ctx context.Context, tenant, actor, date, seg
 		return "", nil, err
 	}
 	d, _ := time.Parse("2006-01-02", date)
-	name := fmt.Sprintf("C_%s_%s_%s.csv.gz", code, member, d.Format("02012006"))
-	if segment != "FO" {
-		name = fmt.Sprintf("C_%s_%s_%s_%s.csv.gz", code, member, segment, d.Format("02012006"))
-	}
+	name := fmt.Sprintf("%s_CC01_%s_%s.csv.gz", prefix, member, d.Format("02012006"))
 	var b bytes.Buffer
 	z := gzip.NewWriter(&b)
 	z.Name = strings.TrimSuffix(name, ".gz")
 	z.ModTime = d
-	if _, err := z.Write(csvBytesOf(collateralRows(rows, segment, member, header))); err != nil {
+	if _, err := z.Write(csvBytesOf(collateralRows(rows, segment, header))); err != nil {
 		return "", nil, err
 	}
 	if err := z.Close(); err != nil {

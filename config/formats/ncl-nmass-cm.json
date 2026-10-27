@@ -1,0 +1,91 @@
+{
+ "id": "ncl-nmass-cm",
+ "title": "N-MASS client margin status (NSE Clearing, cash market)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "EOD",
+ "purpose": "Cash, non-cash and margins per client as NSE Clearing sees them; used to check Ledgerline's allocation.",
+ "names": [
+  "CMMrgnDtlsLevel\\d_CM_\\d{8}\\.csv"
+ ],
+ "header": true,
+ "final_eol": false,
+ "text_trailer": true,
+ "columns": [
+  {
+   "name": "CM CODE",
+   "type": "str"
+  },
+  {
+   "name": "MEMBER NAME",
+   "type": "str"
+  },
+  {
+   "name": "TM/CP CODE",
+   "type": "str"
+  },
+  {
+   "name": "TM/CP NAME",
+   "type": "str"
+  },
+  {
+   "name": "CLIENT CODE",
+   "type": "str"
+  },
+  {
+   "name": "CASH(A)",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "NON CASH(B)",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "MTM LOSS (C)",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "TRADE MARGINS (D)",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "ICMTM (E)",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "TOTAL MARGINS (F=C+D+E)",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Client Margins > 90%",
+   "type": "str"
+  },
+  {
+   "name": "90% of Client Excess Non-cash",
+   "type": "str"
+  },
+  {
+   "name": "Eligible Non-cash (Subject to the extent of TM Excess Cash/CM Excess Cash)",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "linked": ""
+}

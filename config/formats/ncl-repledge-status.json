@@ -1,0 +1,234 @@
+{
+ "id": "ncl-repledge-status",
+ "title": "Securities re-pledge status report (NSE Clearing)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "BOD",
+ "purpose": "Status of securities re-pledged to the clearing corporation (report with sections; read by section).",
+ "names": [
+  "[CF]_\\d+_SEC_PLEDGE_\\d{8}_\\d+\\.csv"
+ ],
+ "crlf": false,
+ "records": [
+  {
+   "code": "",
+   "columns": [
+    {
+     "name": "Field1",
+     "type": "str"
+    },
+    {
+     "name": "Field2",
+     "type": "str"
+    },
+    {
+     "name": "Field3",
+     "type": "str"
+    },
+    {
+     "name": "Field4",
+     "type": "str"
+    },
+    {
+     "name": "Field5",
+     "type": "str"
+    },
+    {
+     "name": "Field6",
+     "type": "str"
+    },
+    {
+     "name": "Field7",
+     "type": "str"
+    },
+    {
+     "name": "Field8",
+     "type": "str"
+    },
+    {
+     "name": "Field9",
+     "type": "str"
+    },
+    {
+     "name": "Field10",
+     "type": "str"
+    },
+    {
+     "name": "Field11",
+     "type": "str"
+    },
+    {
+     "name": "Field12",
+     "type": "str"
+    },
+    {
+     "name": "Field13",
+     "type": "str"
+    },
+    {
+     "name": "Field14",
+     "type": "str"
+    },
+    {
+     "name": "Field15",
+     "type": "str"
+    },
+    {
+     "name": "Field16",
+     "type": "str"
+    },
+    {
+     "name": "Field17",
+     "type": "str"
+    },
+    {
+     "name": "Field18",
+     "type": "str"
+    },
+    {
+     "name": "Field19",
+     "type": "str"
+    },
+    {
+     "name": "Field20",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "#19",
+   "columns": [
+    {
+     "name": "Field1",
+     "type": "str"
+    },
+    {
+     "name": "Field2",
+     "type": "str"
+    },
+    {
+     "name": "Field3",
+     "type": "str"
+    },
+    {
+     "name": "Field4",
+     "type": "str"
+    },
+    {
+     "name": "Field5",
+     "type": "str"
+    },
+    {
+     "name": "Field6",
+     "type": "str"
+    },
+    {
+     "name": "Field7",
+     "type": "str"
+    },
+    {
+     "name": "Field8",
+     "type": "str"
+    },
+    {
+     "name": "Field9",
+     "type": "str"
+    },
+    {
+     "name": "Field10",
+     "type": "str"
+    },
+    {
+     "name": "Field11",
+     "type": "str"
+    },
+    {
+     "name": "Field12",
+     "type": "str"
+    },
+    {
+     "name": "Field13",
+     "type": "str"
+    },
+    {
+     "name": "Field14",
+     "type": "str"
+    },
+    {
+     "name": "Field15",
+     "type": "str"
+    },
+    {
+     "name": "Field16",
+     "type": "str"
+    },
+    {
+     "name": "Field17",
+     "type": "str"
+    },
+    {
+     "name": "Field18",
+     "type": "str"
+    },
+    {
+     "name": "Field19",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "#5",
+   "columns": [
+    {
+     "name": "Field1",
+     "type": "str"
+    },
+    {
+     "name": "Field2",
+     "type": "str"
+    },
+    {
+     "name": "Field3",
+     "type": "str"
+    },
+    {
+     "name": "Field4",
+     "type": "str"
+    },
+    {
+     "name": "Field5",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "#2",
+   "columns": [
+    {
+     "name": "Field1",
+     "type": "str"
+    },
+    {
+     "name": "Field2",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "#1",
+   "columns": [
+    {
+     "name": "Field1",
+     "type": "str"
+    }
+   ]
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": ""
+}

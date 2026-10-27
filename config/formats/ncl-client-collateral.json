@@ -1,0 +1,57 @@
+{
+ "id": "ncl-client-collateral",
+ "title": "Client collateral report (NSE Clearing SEGMON CC file)",
+ "party": "NSE Clearing",
+ "direction": "out",
+ "when": "Daily",
+ "purpose": "Client-level collateral per segment: cash allocated, G-sec and non-cash re-pledged, total and margins.",
+ "names": [
+  "[CFX]_CC\\d+_\\d+_\\d{8}\\.csv(\\.gz)?"
+ ],
+ "template": "{prefix}_CC01_{member}_{date:02012006}.csv",
+ "compress": "gzip",
+ "columns": [
+  {
+   "name": "ClientCode",
+   "type": "str"
+  },
+  {
+   "name": "CashAllocated",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "GsecRepledged",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "NonCashRepledged",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "TotalValue",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Margins",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  }
+ ],
+ "confirmed": true,
+ "linked": "Written from Ledgerline's client collateral (Regulatory reports)",
+ "source": "NCL/CMPT/078/2022; 6 fields in every segment",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true
+}

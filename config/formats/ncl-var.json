@@ -1,0 +1,102 @@
+{
+ "id": "ncl-var",
+ "title": "VaR margin file (NSE Clearing, cash market)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "BOD and intraday",
+ "purpose": "VaR, extreme loss and applicable margin rate per security; also the haircut for securities pledged as collateral.",
+ "names": [
+  "C_VAR\\d_\\d{8}_\\d\\.dat"
+ ],
+ "records": [
+  {
+   "code": "10",
+   "where": "first",
+   "columns": [
+    {
+     "name": "RecordType",
+     "type": "str"
+    },
+    {
+     "name": "FileDate",
+     "type": "date",
+     "layout": "02012006"
+    },
+    {
+     "name": "Field3",
+     "type": "str"
+    },
+    {
+     "name": "RecordCount",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "20",
+   "columns": [
+    {
+     "name": "RecordType",
+     "type": "str"
+    },
+    {
+     "name": "Symbol",
+     "type": "str"
+    },
+    {
+     "name": "Series",
+     "type": "str"
+    },
+    {
+     "name": "ISIN",
+     "type": "str"
+    },
+    {
+     "name": "SecurityVaR",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "IndexVaR",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "VaRMargin",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "ExtremeLossRate",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "AdhocMargin",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "ApplicableMarginRate",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    }
+   ]
+  }
+ ],
+ "confirmed": true,
+ "source": "NSE Clearing VaR file format (record 10 header, record 20 detail)",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "linked": ""
+}

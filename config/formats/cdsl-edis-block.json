@@ -1,0 +1,164 @@
+{
+ "id": "cdsl-edis-block",
+ "title": "eDIS block mechanism export (CDSL)",
+ "party": "CDSL",
+ "direction": "in",
+ "when": "EOD",
+ "purpose": "Securities blocked for sale through eDIS.",
+ "names": [
+  "\\d+_eDIS_Block_Mechanism_DDT_Export_\\d+\\.txt"
+ ],
+ "delimiter": "|",
+ "records": [
+  {
+   "code": "",
+   "where": "first",
+   "columns": [
+    {
+     "name": "Field1",
+     "type": "str"
+    },
+    {
+     "name": "Field2",
+     "type": "str"
+    },
+    {
+     "name": "Field3",
+     "type": "str"
+    },
+    {
+     "name": "Field4",
+     "type": "str"
+    },
+    {
+     "name": "Field5",
+     "type": "str"
+    },
+    {
+     "name": "Field6",
+     "type": "str"
+    },
+    {
+     "name": "Field7",
+     "type": "str"
+    },
+    {
+     "name": "Field8",
+     "type": "str"
+    },
+    {
+     "name": "Field9",
+     "type": "str"
+    },
+    {
+     "name": "Field10",
+     "type": "str"
+    },
+    {
+     "name": "Field11",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "#22",
+   "columns": [
+    {
+     "name": "Field1",
+     "type": "str"
+    },
+    {
+     "name": "Field2",
+     "type": "str"
+    },
+    {
+     "name": "Field3",
+     "type": "str"
+    },
+    {
+     "name": "Field4",
+     "type": "str"
+    },
+    {
+     "name": "Field5",
+     "type": "str"
+    },
+    {
+     "name": "Field6",
+     "type": "str"
+    },
+    {
+     "name": "Field7",
+     "type": "str"
+    },
+    {
+     "name": "Field8",
+     "type": "str"
+    },
+    {
+     "name": "Field9",
+     "type": "str"
+    },
+    {
+     "name": "Field10",
+     "type": "str"
+    },
+    {
+     "name": "Field11",
+     "type": "str"
+    },
+    {
+     "name": "Field12",
+     "type": "str"
+    },
+    {
+     "name": "Field13",
+     "type": "str"
+    },
+    {
+     "name": "Field14",
+     "type": "str"
+    },
+    {
+     "name": "Field15",
+     "type": "str"
+    },
+    {
+     "name": "Field16",
+     "type": "str"
+    },
+    {
+     "name": "Field17",
+     "type": "str"
+    },
+    {
+     "name": "Field18",
+     "type": "str"
+    },
+    {
+     "name": "Field19",
+     "type": "str"
+    },
+    {
+     "name": "Field20",
+     "type": "str"
+    },
+    {
+     "name": "Field21",
+     "type": "str"
+    },
+    {
+     "name": "Field22",
+     "type": "str"
+    }
+   ]
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": ""
+}

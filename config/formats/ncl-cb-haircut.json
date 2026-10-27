@@ -1,0 +1,89 @@
+{
+ "id": "ncl-cb-haircut",
+ "title": "Collateral haircut file (NSE Clearing)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "BOD",
+ "purpose": "Haircut categories of securities accepted as collateral.",
+ "names": [
+  "CB_HAIRCUT_\\d{8}\\.csv"
+ ],
+ "crlf": false,
+ "final_eol": false,
+ "records": [
+  {
+   "code": "10",
+   "where": "first",
+   "columns": [
+    {
+     "name": "RecordType",
+     "type": "str"
+    },
+    {
+     "name": "FileDate",
+     "type": "date",
+     "layout": "02012006"
+    },
+    {
+     "name": "Field3",
+     "type": "str"
+    },
+    {
+     "name": "RecordCount",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "20",
+   "columns": [
+    {
+     "name": "RecordType",
+     "type": "str"
+    },
+    {
+     "name": "Symbol",
+     "type": "str"
+    },
+    {
+     "name": "Series",
+     "type": "str"
+    },
+    {
+     "name": "ISIN",
+     "type": "str"
+    },
+    {
+     "name": "Field5",
+     "type": "str"
+    },
+    {
+     "name": "Field6",
+     "type": "str"
+    },
+    {
+     "name": "Field7",
+     "type": "str"
+    },
+    {
+     "name": "Field8",
+     "type": "str"
+    },
+    {
+     "name": "Field9",
+     "type": "str"
+    },
+    {
+     "name": "Field10",
+     "type": "str"
+    }
+   ]
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "confirmed": false,
+ "linked": ""
+}

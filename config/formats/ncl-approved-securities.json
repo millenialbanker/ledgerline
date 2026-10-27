@@ -1,0 +1,45 @@
+{
+ "id": "ncl-approved-securities",
+ "title": "Approved securities collateral values (NSE Clearing)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "BOD",
+ "purpose": "Securities approved as collateral, with value and haircut.",
+ "names": [
+  "APPSEC_COLLVAL_\\d{8}\\.csv"
+ ],
+ "final_eol": false,
+ "columns": [
+  {
+   "name": "Field1",
+   "type": "str"
+  },
+  {
+   "name": "Symbol",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "Field4",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Field5",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "confirmed": false,
+ "linked": ""
+}

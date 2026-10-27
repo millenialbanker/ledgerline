@@ -1,0 +1,270 @@
+{
+ "id": "ncl-client-margin",
+ "title": "Client margin file, incl. intraday peak snapshots (NSE Clearing)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "Intraday (about 5 snapshots) and EOD",
+ "purpose": "Margin required per client (VaR, ELM, SPAN, exposure, premium, delivery margin), at each peak snapshot and at end of day; the basis of peak-margin reporting and penalties.",
+ "names": [
+  "MARGIN_NCL_(CM|FO|CD|CO)_\\d+_(CM|TM)_\\d+_\\d{8}_[PF]_\\d+\\.csv(\\.gz)?"
+ ],
+ "compress": "gzip",
+ "header": true,
+ "columns": [
+  {
+   "name": "Sgmt",
+   "type": "str"
+  },
+  {
+   "name": "Src",
+   "type": "str"
+  },
+  {
+   "name": "RptgDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "BizDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "TradRegnOrgn",
+   "type": "str"
+  },
+  {
+   "name": "Lvl",
+   "type": "str"
+  },
+  {
+   "name": "ClrMmbId",
+   "type": "str"
+  },
+  {
+   "name": "BrkrOrCtdnPtcptId",
+   "type": "str"
+  },
+  {
+   "name": "ClntTp",
+   "type": "str"
+  },
+  {
+   "name": "ClntId",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "TckrSymb",
+   "type": "str"
+  },
+  {
+   "name": "SttlmTp",
+   "type": "str"
+  },
+  {
+   "name": "SctiesSttlmTxId",
+   "type": "str"
+  },
+  {
+   "name": "SctySrs",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmId",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmTp",
+   "type": "str"
+  },
+  {
+   "name": "XpryDt",
+   "type": "str"
+  },
+  {
+   "name": "StrkPric",
+   "type": "str"
+  },
+  {
+   "name": "OptnTp",
+   "type": "str"
+  },
+  {
+   "name": "ValAtRskMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "SPANMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "LossMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "PrmAmt",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "CnsltdCrstllsdOblgtnMrg",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "DlvrySttlmtMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "SpclMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "SpclCshMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "TndrMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "AddtlMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "MrkToMktNetd",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "MinMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "SPANMrgnMin",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "XtrmLossMrgnMin",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "AggtPeakLbltyRptd",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "EndOfDayRqrmntRptd",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "TtlMrgnAsPerActlParams",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "TtlBuyTradgVol",
+   "type": "str"
+  },
+  {
+   "name": "TtlBuyTrfVal",
+   "type": "str"
+  },
+  {
+   "name": "TtlSellTradgVol",
+   "type": "str"
+  },
+  {
+   "name": "TtlSellTrfVal",
+   "type": "str"
+  },
+  {
+   "name": "NetOpnQty",
+   "type": "str"
+  },
+  {
+   "name": "NetOpnVal",
+   "type": "str"
+  },
+  {
+   "name": "CncntrtnMrgn",
+   "type": "str"
+  },
+  {
+   "name": "DvlmntMrgn",
+   "type": "str"
+  },
+  {
+   "name": "CrossMrgnBnftForSPAN",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "CrossMrgnBnftForELM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Rmks",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "final_eol": true,
+ "linked": ""
+}

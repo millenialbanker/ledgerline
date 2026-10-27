@@ -1,0 +1,102 @@
+{
+ "id": "bow-fund",
+ "title": "Client funds upload (BOW front end)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "BOD",
+ "purpose": "Funds per client for the front end.",
+ "names": [
+  "BOW_FUND_.*\\.csv"
+ ],
+ "template": "BOW_FUND_{date:02-01-06} {time}.csv",
+ "columns": [
+  {
+   "name": "ClientCode",
+   "type": "str"
+  },
+  {
+   "name": "Field2",
+   "type": "str"
+  },
+  {
+   "name": "Field3",
+   "type": "str"
+  },
+  {
+   "name": "Field4",
+   "type": "str"
+  },
+  {
+   "name": "Field5",
+   "type": "str"
+  },
+  {
+   "name": "Field6",
+   "type": "str"
+  },
+  {
+   "name": "Field7",
+   "type": "str"
+  },
+  {
+   "name": "Field8",
+   "type": "str"
+  },
+  {
+   "name": "Field9",
+   "type": "str"
+  },
+  {
+   "name": "Field10",
+   "type": "str"
+  },
+  {
+   "name": "Field11",
+   "type": "str"
+  },
+  {
+   "name": "Field12",
+   "type": "str"
+  },
+  {
+   "name": "Field13",
+   "type": "str"
+  },
+  {
+   "name": "Field14",
+   "type": "str"
+  },
+  {
+   "name": "Field15",
+   "type": "str"
+  },
+  {
+   "name": "Field16",
+   "type": "str"
+  },
+  {
+   "name": "Field17",
+   "type": "str"
+  },
+  {
+   "name": "Field18",
+   "type": "str"
+  },
+  {
+   "name": "Field19",
+   "type": "str"
+  },
+  {
+   "name": "Field20",
+   "type": "str"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": ""
+}

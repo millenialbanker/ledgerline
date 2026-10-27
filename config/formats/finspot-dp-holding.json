@@ -1,0 +1,91 @@
+{
+ "id": "finspot-dp-holding",
+ "title": "Client holding upload (Finspot OMS)",
+ "party": "Front end (Finspot)",
+ "direction": "out",
+ "when": "BOD, 08:54",
+ "purpose": "Demat holdings per client, for sell checks and collateral limits.",
+ "names": [
+  "FINSPOT_DP_Holding_Upload_\\d{8}\\.txt"
+ ],
+ "template": "FINSPOT_DP_Holding_Upload_{date:02012006}.txt",
+ "title_line": "ISIN Holding",
+ "delimiter": "|",
+ "columns": [
+  {
+   "name": "ClientSegment",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "Field3",
+   "type": "str"
+  },
+  {
+   "name": "Field4",
+   "type": "str"
+  },
+  {
+   "name": "Field5",
+   "type": "str"
+  },
+  {
+   "name": "Field6",
+   "type": "str"
+  },
+  {
+   "name": "Field7",
+   "type": "str"
+  },
+  {
+   "name": "Field8",
+   "type": "str"
+  },
+  {
+   "name": "Field9",
+   "type": "str"
+  },
+  {
+   "name": "Field10",
+   "type": "str"
+  },
+  {
+   "name": "Field11",
+   "type": "str"
+  },
+  {
+   "name": "Field12",
+   "type": "str"
+  },
+  {
+   "name": "Field13",
+   "type": "str"
+  },
+  {
+   "name": "Field14",
+   "type": "str"
+  },
+  {
+   "name": "Field15",
+   "type": "str"
+  },
+  {
+   "name": "Field16",
+   "type": "str"
+  },
+  {
+   "name": "Field17",
+   "type": "str"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": ""
+}

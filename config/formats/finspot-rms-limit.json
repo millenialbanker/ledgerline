@@ -1,0 +1,43 @@
+{
+ "id": "finspot-rms-limit",
+ "title": "Client limit file (Finspot OMS)",
+ "party": "Front end (Finspot)",
+ "direction": "out",
+ "when": "BOD, 08:50",
+ "purpose": "Trading limit per client and segment, before the market opens.",
+ "names": [
+  "FINSPOT_RMS_LIMIT_.*\\.txt"
+ ],
+ "template": "FINSPOT_RMS_LIMIT_{date:02-01-06} {time}.txt",
+ "title_line": "RMS Limits",
+ "delimiter": "|",
+ "columns": [
+  {
+   "name": "ClientSegment",
+   "type": "str"
+  },
+  {
+   "name": "Field2",
+   "type": "str"
+  },
+  {
+   "name": "Field3",
+   "type": "str"
+  },
+  {
+   "name": "Field4",
+   "type": "str"
+  },
+  {
+   "name": "Limit",
+   "type": "str"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": ""
+}

@@ -216,3 +216,18 @@ The books are locked up to a date so closed months can't change. An entry dated 
 2. If it must be back-dated, an **Admin** changes **Books locked up to** (Settings → Period locking) on [[settings|Settings]], posts it, and locks again.
 
 Every lock and unlock is in the audit trail. **Also lock automatically** in Settings (Period locking) keeps the lock a set number of business days behind today, so you don't have to remember.
+
+## exchange-files
+title: Load or download exchange, clearing and depository files
+screen: xfiles
+roles: Ops maker, Ops checker, Risk manager, Compliance officer
+ask: exchange file; trade file; ncl file; nse clearing file; cdsl file; soh file; holding file; position file; stt file; stamp duty file; var file; span file; allocation file; segmon file; holding statement; upload file format; file layout; finspot file; mcx file
+related: load-files, file-rejected
+
+On [[xfiles|Exchange files]]:
+
+1. **Check a file** or **Load files**: drop the files as downloaded from the exchange, NSE Clearing, MCXCCL or CDSL (zip or gz is fine, several at once). Ledgerline recognises each by its name and header and checks every field against the layout: a changed column, a wrong date or a number that isn't a number is listed by line.
+2. **Load files** also loads the ones Ledgerline uses: trade files (NSE Clearing, NSE, MCXCCL) as the day's exchange trades, CDSL statements of holding as client holdings (matched by demat account), the F&O position file as carried positions, and STT/CTT files for reconciliation. A file with any problem is not loaded.
+3. Under **Sent**, choose the date and **Download**: the client allocation file and API message (NSE Clearing, MCXCCL), the client holding statement for NSE/BSE, the 65-column client funds report (SEGMON) and the client collateral (CC01) files, named as the receiver expects.
+
+The firm's PAN is taken from the GSTIN unless set in Settings; set the clearing member's PAN there if another member clears for the firm. Check the first SEGMON files against the previous system before uploading: Ledgerline reports the ledger balance and pledged securities, and zero for collateral it does not hold (bank guarantees, FDRs).

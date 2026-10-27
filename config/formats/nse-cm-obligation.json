@@ -1,0 +1,111 @@
+{
+ "id": "nse-cm-obligation",
+ "title": "Cash market obligation (NSE)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "EOD",
+ "purpose": "The member's buy and sell obligation per security; checked against Ledgerline's settlement.",
+ "names": [
+  "\\d+\\.txt"
+ ],
+ "header": true,
+ "crlf": false,
+ "columns": [
+  {
+   "name": "Settlement Type",
+   "type": "str"
+  },
+  {
+   "name": "Settlement No",
+   "type": "str"
+  },
+  {
+   "name": "Member Code",
+   "type": "str"
+  },
+  {
+   "name": "Trading Member Branch Code",
+   "type": "str"
+  },
+  {
+   "name": "Custodian Participant Code",
+   "type": "str"
+  },
+  {
+   "name": "Custodian Code",
+   "type": "str"
+  },
+  {
+   "name": "Security Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Security Series",
+   "type": "str"
+  },
+  {
+   "name": "Security Code",
+   "type": "str"
+  },
+  {
+   "name": "Obligation Date",
+   "type": "date",
+   "layout": "02-Jan-2006"
+  },
+  {
+   "name": "No Delivery Security Flag",
+   "type": "str"
+  },
+  {
+   "name": "Daily Buy Volume",
+   "type": "int"
+  },
+  {
+   "name": "Daily Sell Volume",
+   "type": "int"
+  },
+  {
+   "name": "Daily Buy Amount",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Daily Sell Amount",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Cumulative Buy Volume",
+   "type": "int"
+  },
+  {
+   "name": "Cumulative Sell Volume",
+   "type": "int"
+  },
+  {
+   "name": "Cumulative Buy Amount",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Cumulative Sell Amount",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Final Obligation Flag",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "final_eol": true,
+ "linked": ""
+}

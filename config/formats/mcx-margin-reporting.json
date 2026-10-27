@@ -1,0 +1,119 @@
+{
+ "id": "mcx-margin-reporting",
+ "title": "Client margin reporting (MCXCCL)",
+ "party": "MCXCCL",
+ "direction": "out",
+ "when": "Daily (previous day)",
+ "purpose": "Margin required and collected per client, commodities.",
+ "names": [
+  "MCX_MARGIN_\\d+_\\.M\\d+"
+ ],
+ "template": "MCX_MARGIN_{date:02012006}_.M{seq:2}",
+ "columns": [
+  {
+   "name": "Date",
+   "type": "date",
+   "layout": "02Jan2006"
+  },
+  {
+   "name": "MemberCode",
+   "type": "str"
+  },
+  {
+   "name": "ClientCode",
+   "type": "str"
+  },
+  {
+   "name": "Field4",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field5",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field6",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field7",
+   "type": "str"
+  },
+  {
+   "name": "Field8",
+   "type": "str"
+  },
+  {
+   "name": "Field9",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field10",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field11",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field12",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field13",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field14",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field15",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field16",
+   "type": "str"
+  },
+  {
+   "name": "Field17",
+   "type": "str"
+  },
+  {
+   "name": "Field18",
+   "type": "str"
+  },
+  {
+   "name": "Field19",
+   "type": "str"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": ""
+}

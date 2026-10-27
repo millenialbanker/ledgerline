@@ -1,0 +1,720 @@
+{
+ "id": "cdsl-txn-upload",
+ "title": "Transaction upload (CDSL DP)",
+ "party": "CDSL",
+ "direction": "out",
+ "when": "As needed (DIS issue, delivery instructions)",
+ "purpose": "Batch upload of DP instructions (174 columns): DIS book issue, delivery instructions, pledges.",
+ "names": [
+  "TXN_UPLD_\\d+_\\d+_\\d+\\.csv"
+ ],
+ "template": "TXN_UPLD_{dp_id}_{date:020106150405}_{seq:5}.csv",
+ "header": true,
+ "columns": [
+  {
+   "name": "BtchId",
+   "type": "str"
+  },
+  {
+   "name": "SndrId",
+   "type": "str"
+  },
+  {
+   "name": "BrnchId",
+   "type": "str"
+  },
+  {
+   "name": "CntrlSctiesDpstryPtcptRole",
+   "type": "str"
+  },
+  {
+   "name": "TxnTyp",
+   "type": "str"
+  },
+  {
+   "name": "LineNb",
+   "type": "str"
+  },
+  {
+   "name": "SeqNm",
+   "type": "str"
+  },
+  {
+   "name": "SrcCntrlSctiesDpstryPtcpt",
+   "type": "str"
+  },
+  {
+   "name": "SrcClntIdOrBnfclOwnrId",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "Qty",
+   "type": "str"
+  },
+  {
+   "name": "BuySellInd",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryPtcpt",
+   "type": "str"
+  },
+  {
+   "name": "CntrBnfclOwnrId",
+   "type": "str"
+  },
+  {
+   "name": "CntrCMBPId",
+   "type": "str"
+  },
+  {
+   "name": "Xchg",
+   "type": "str"
+  },
+  {
+   "name": "ClrMmbId",
+   "type": "str"
+  },
+  {
+   "name": "MktTpAndId",
+   "type": "str"
+  },
+  {
+   "name": "SctiesSttlmTxId",
+   "type": "str"
+  },
+  {
+   "name": "OthrMktTpAndId",
+   "type": "str"
+  },
+  {
+   "name": "OthrSctiesSttlmTxId",
+   "type": "str"
+  },
+  {
+   "name": "ExecDt",
+   "type": "str"
+  },
+  {
+   "name": "TrdRsnCd",
+   "type": "str"
+  },
+  {
+   "name": "PlgRsnCd",
+   "type": "str"
+  },
+  {
+   "name": "FrzRsnCd",
+   "type": "str"
+  },
+  {
+   "name": "DISTpInd",
+   "type": "str"
+  },
+  {
+   "name": "DISSrlNb",
+   "type": "str"
+  },
+  {
+   "name": "MstrPwrOfAttnyId",
+   "type": "str"
+  },
+  {
+   "name": "CustdlTxnFlg",
+   "type": "str"
+  },
+  {
+   "name": "UnqClntId",
+   "type": "str"
+  },
+  {
+   "name": "UnqClrMmbId",
+   "type": "str"
+  },
+  {
+   "name": "BrkrId",
+   "type": "str"
+  },
+  {
+   "name": "CtdnPtcptId",
+   "type": "str"
+  },
+  {
+   "name": "Sgmt",
+   "type": "str"
+  },
+  {
+   "name": "ClrSysId",
+   "type": "str"
+  },
+  {
+   "name": "UnqEXId",
+   "type": "str"
+  },
+  {
+   "name": "MkrOprId",
+   "type": "str"
+  },
+  {
+   "name": "ChckrOprtrId",
+   "type": "str"
+  },
+  {
+   "name": "VrfrOprtId",
+   "type": "str"
+  },
+  {
+   "name": "ReqRcvdDtFrBO",
+   "type": "str"
+  },
+  {
+   "name": "Rmks",
+   "type": "str"
+  },
+  {
+   "name": "MdOfPmt",
+   "type": "str"
+  },
+  {
+   "name": "PmtTxRefNb",
+   "type": "str"
+  },
+  {
+   "name": "PmtDt",
+   "type": "str"
+  },
+  {
+   "name": "Acct",
+   "type": "str"
+  },
+  {
+   "name": "BkNm",
+   "type": "str"
+  },
+  {
+   "name": "Brnch",
+   "type": "str"
+  },
+  {
+   "name": "EPAcct",
+   "type": "str"
+  },
+  {
+   "name": "AgrmtId",
+   "type": "str"
+  },
+  {
+   "name": "AllUnitsOrAmtInd",
+   "type": "str"
+  },
+  {
+   "name": "DRFNb",
+   "type": "str"
+  },
+  {
+   "name": "AuthntcnRefNb",
+   "type": "str"
+  },
+  {
+   "name": "EarlyPayInFlg",
+   "type": "str"
+  },
+  {
+   "name": "BlkInd",
+   "type": "str"
+  },
+  {
+   "name": "ClsrDt",
+   "type": "str"
+  },
+  {
+   "name": "PldgTp",
+   "type": "str"
+  },
+  {
+   "name": "Cnsdrtn",
+   "type": "str"
+  },
+  {
+   "name": "DrctPyotFlg",
+   "type": "str"
+  },
+  {
+   "name": "CuspaTxnFlg",
+   "type": "str"
+  },
+  {
+   "name": "CuspaNSDLClntId",
+   "type": "str"
+  },
+  {
+   "name": "CuspaNSDLDPId",
+   "type": "str"
+  },
+  {
+   "name": "DmsIndFlg",
+   "type": "str"
+  },
+  {
+   "name": "DrctPayInFlg",
+   "type": "str"
+  },
+  {
+   "name": "DISIssncDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "DISAlphaPart",
+   "type": "str"
+  },
+  {
+   "name": "DISBookltNb",
+   "type": "str"
+  },
+  {
+   "name": "DISBookltTp",
+   "type": "str"
+  },
+  {
+   "name": "DISCxlFlg",
+   "type": "str"
+  },
+  {
+   "name": "DISIssdToClntOrPwrOfAttnyHldr",
+   "type": "str"
+  },
+  {
+   "name": "DISSrlNbFr",
+   "type": "str"
+  },
+  {
+   "name": "DISSrlNbTo",
+   "type": "str"
+  },
+  {
+   "name": "ISTxTp",
+   "type": "str"
+  },
+  {
+   "name": "DISTxTp",
+   "type": "str"
+  },
+  {
+   "name": "NbOfSOA",
+   "type": "str"
+  },
+  {
+   "name": "NbOfRgs",
+   "type": "str"
+  },
+  {
+   "name": "RcrdTp",
+   "type": "str"
+  },
+  {
+   "name": "RcrdNb",
+   "type": "str"
+  },
+  {
+   "name": "FolioNb",
+   "type": "str"
+  },
+  {
+   "name": "CertNbFr",
+   "type": "str"
+  },
+  {
+   "name": "CertNbTo",
+   "type": "str"
+  },
+  {
+   "name": "DNRFr",
+   "type": "str"
+  },
+  {
+   "name": "DNRTo",
+   "type": "str"
+  },
+  {
+   "name": "DsptchDt",
+   "type": "str"
+  },
+  {
+   "name": "DsptchDocId",
+   "type": "str"
+  },
+  {
+   "name": "DsptchNm",
+   "type": "str"
+  },
+  {
+   "name": "DocRcvdDt",
+   "type": "str"
+  },
+  {
+   "name": "DocTp",
+   "type": "str"
+  },
+  {
+   "name": "NbOfInstrs",
+   "type": "str"
+  },
+  {
+   "name": "NbOfDISLeavs",
+   "type": "str"
+  },
+  {
+   "name": "OrgnlOrdrRefNb",
+   "type": "str"
+  },
+  {
+   "name": "LckInRsnCd",
+   "type": "str"
+  },
+  {
+   "name": "LckInAddtlInf",
+   "type": "str"
+  },
+  {
+   "name": "LckInXpryDt",
+   "type": "str"
+  },
+  {
+   "name": "IntlRefNb",
+   "type": "str"
+  },
+  {
+   "name": "TrfeeNm",
+   "type": "str"
+  },
+  {
+   "name": "PldgSubTp",
+   "type": "str"
+  },
+  {
+   "name": "FreeOrLckInFlg",
+   "type": "str"
+  },
+  {
+   "name": "LckInId",
+   "type": "str"
+  },
+  {
+   "name": "PldgReqFormNb",
+   "type": "str"
+  },
+  {
+   "name": "Val",
+   "type": "str"
+  },
+  {
+   "name": "PldgrIntlRef",
+   "type": "str"
+  },
+  {
+   "name": "PldgeeIntlRef",
+   "type": "str"
+  },
+  {
+   "name": "PldgIdr",
+   "type": "str"
+  },
+  {
+   "name": "MrgnPldgSeqNb",
+   "type": "str"
+  },
+  {
+   "name": "PartCntr",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryFlg",
+   "type": "str"
+  },
+  {
+   "name": "FrzTp",
+   "type": "str"
+  },
+  {
+   "name": "FrzLvl",
+   "type": "str"
+  },
+  {
+   "name": "FrzInittdBy",
+   "type": "str"
+  },
+  {
+   "name": "FrzSubOptn",
+   "type": "str"
+  },
+  {
+   "name": "FrznFor",
+   "type": "str"
+  },
+  {
+   "name": "FrzActvtnTp",
+   "type": "str"
+  },
+  {
+   "name": "FrzActvtnDt",
+   "type": "str"
+  },
+  {
+   "name": "FrzXpryDt",
+   "type": "str"
+  },
+  {
+   "name": "FrzRsnDesc",
+   "type": "str"
+  },
+  {
+   "name": "FrzQtyTp",
+   "type": "str"
+  },
+  {
+   "name": "FrzInstrId",
+   "type": "str"
+  },
+  {
+   "name": "RmtFlg",
+   "type": "str"
+  },
+  {
+   "name": "RRFNb",
+   "type": "str"
+  },
+  {
+   "name": "MtlFndTp",
+   "type": "str"
+  },
+  {
+   "name": "MtlFndAmt",
+   "type": "str"
+  },
+  {
+   "name": "MtlFndInd",
+   "type": "str"
+  },
+  {
+   "name": "TxId",
+   "type": "str"
+  },
+  {
+   "name": "TtlNbOfTrfeeBnfclOwnrs",
+   "type": "str"
+  },
+  {
+   "name": "MltplQty",
+   "type": "str"
+  },
+  {
+   "name": "IsseFlg",
+   "type": "str"
+  },
+  {
+   "name": "FlgOfLooseSlip",
+   "type": "str"
+  },
+  {
+   "name": "AcctClsrFlg",
+   "type": "str"
+  },
+  {
+   "name": "ChanlInd",
+   "type": "str"
+  },
+  {
+   "name": "IrrvsblRsnCd1",
+   "type": "str"
+  },
+  {
+   "name": "IrrvsblRsnCd2",
+   "type": "str"
+  },
+  {
+   "name": "IrrvsblRsnCd3",
+   "type": "str"
+  },
+  {
+   "name": "IrrvsblRsnCd4",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryClntCdOfFrstNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryClntCdOfScndNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryClntCdOfThrdNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryFlgOfFrstNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryFlgOfScndNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OtherDpstryFlgOfThrdNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrClntIdOfFrstNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrClntIdOfScndNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrClntIdOfThrdNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryPtcptIdOfFrstNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryPtcptIdOfScndNmnee",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryPtcptIdOfThrdNmnee",
+   "type": "str"
+  },
+  {
+   "name": "PctgShrOfFrstNmnee",
+   "type": "str"
+  },
+  {
+   "name": "PctgShrOfScndNmnee",
+   "type": "str"
+  },
+  {
+   "name": "PctgShrOfThrdNmnee",
+   "type": "str"
+  },
+  {
+   "name": "Prty",
+   "type": "str"
+  },
+  {
+   "name": "RjctnRsnCd1",
+   "type": "str"
+  },
+  {
+   "name": "RjctnRsnCd2",
+   "type": "str"
+  },
+  {
+   "name": "RjctnRsnCd3",
+   "type": "str"
+  },
+  {
+   "name": "RjctnRsnCd4",
+   "type": "str"
+  },
+  {
+   "name": "SndrRefNb1",
+   "type": "str"
+  },
+  {
+   "name": "SndrRefNb2",
+   "type": "str"
+  },
+  {
+   "name": "StmpDtyInd",
+   "type": "str"
+  },
+  {
+   "name": "StsChngRsn",
+   "type": "str"
+  },
+  {
+   "name": "PANAndHldgPttrnMtcgh",
+   "type": "str"
+  },
+  {
+   "name": "WthtCnsdrtnFlg",
+   "type": "str"
+  },
+  {
+   "name": "TrnsmssnRsn",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryClntCd",
+   "type": "str"
+  },
+  {
+   "name": "OthrDpstryId",
+   "type": "str"
+  },
+  {
+   "name": "TxUnqId",
+   "type": "str"
+  },
+  {
+   "name": "BuyPrTrd",
+   "type": "str"
+  },
+  {
+   "name": "MstSrcCntrlSctiesDpstryPtcpt",
+   "type": "str"
+  },
+  {
+   "name": "Rsn",
+   "type": "str"
+  },
+  {
+   "name": "CrtDnm",
+   "type": "str"
+  },
+  {
+   "name": "ConfAmt",
+   "type": "str"
+  },
+  {
+   "name": "DISISDTxTp",
+   "type": "str"
+  },
+  {
+   "name": "RsnDlayPrsTxn",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "final_eol": true,
+ "linked": ""
+}

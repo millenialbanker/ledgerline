@@ -1,0 +1,76 @@
+{
+ "id": "ncl-span-client",
+ "title": "Client SPAN margin report (NSE Clearing)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "BOD (previous day) / EOD",
+ "purpose": "Margin per client for the day (cash: C_MG, F&O: F_MG).",
+ "names": [
+  "[CF]_MG\\d+_\\d+_\\d{8}\\.lis(\\.gz)?"
+ ],
+ "compress": "gzip",
+ "columns": [
+  {
+   "name": "Date",
+   "type": "date",
+   "layout": "02-Jan-2006"
+  },
+  {
+   "name": "ClientCode",
+   "type": "str"
+  },
+  {
+   "name": "Field3",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field4",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field5",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field6",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field7",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field8",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field9",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field10",
+   "type": "str"
+  }
+ ],
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": ""
+}

@@ -1,0 +1,93 @@
+{
+ "id": "ncl-shortage-reporting",
+ "title": "Shortage reporting (NSE Clearing)",
+ "party": "NSE Clearing",
+ "direction": "out",
+ "when": "Settlement day",
+ "purpose": "Clients responsible for pay-in shortages.",
+ "names": [
+  "Shortage_reporting_\\d{8}\\.T\\d+"
+ ],
+ "template": "Shortage_reporting_{date:02012006}.T{seq:2}",
+ "records": [
+  {
+   "code": "",
+   "where": "first",
+   "columns": [
+    {
+     "name": "RecordType",
+     "type": "str"
+    },
+    {
+     "name": "Date",
+     "type": "str"
+    },
+    {
+     "name": "RecordCount",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "#12",
+   "columns": [
+    {
+     "name": "Field1",
+     "type": "str"
+    },
+    {
+     "name": "Field2",
+     "type": "str"
+    },
+    {
+     "name": "Field3",
+     "type": "str"
+    },
+    {
+     "name": "Field4",
+     "type": "str"
+    },
+    {
+     "name": "Field5",
+     "type": "str"
+    },
+    {
+     "name": "Field6",
+     "type": "str"
+    },
+    {
+     "name": "Field7",
+     "type": "str"
+    },
+    {
+     "name": "Field8",
+     "type": "str"
+    },
+    {
+     "name": "Field9",
+     "type": "str"
+    },
+    {
+     "name": "Field10",
+     "type": "str"
+    },
+    {
+     "name": "Field11",
+     "type": "str"
+    },
+    {
+     "name": "Field12",
+     "type": "str"
+    }
+   ]
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": ""
+}

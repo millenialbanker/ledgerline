@@ -45,7 +45,7 @@ func ReportDefs() []ReportDef {
 		{"funds_balance", "Client funds and securities balance", "NSE, BSE, MCX", "Daily", "T 23:59", "CSV (sample layout)"},
 		{"margin", "Client-wise margin collection (peak and EOD)", "Clearing corporations", "Daily", "T+1 18:00", "CSV (sample layout)"},
 		{"holdings", "Weekly holding statement", "Clients", "Weekly", "Friday 23:59", "CSV"},
-		{"cc01", "Client-level collateral (SEGMON: CC01 / CC02)", "NSE Clearing", "Daily", "T 23:59", "CSV.gz per segment (check against the current NCL spec)"},
+		{"cc01", "Client-level collateral (SEGMON: CC01)", "NSE Clearing", "Daily", "T 23:59", "CSV.gz per segment (check against the current NCL spec)"},
 		{"ucc", "UCC upload batch", "NSE, BSE, MCX", "On change", "Before first trade", "CSV (sample layout)"},
 		{"ccm", "Client code modification log", "Exchanges", "Daily", "T 16:00", "CSV (sample layout)"},
 		{"ras", "Running account settlement statement", "Clients", "Monthly / quarterly", "Settlement date", "CSV"},

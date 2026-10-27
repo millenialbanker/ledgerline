@@ -1,0 +1,392 @@
+{
+ "id": "segmon-client-funds",
+ "title": "Client funds and collateral report (SEGMON / standardised reporting)",
+ "party": "NSE / BSE",
+ "direction": "out",
+ "when": "Daily, by noon (previous day)",
+ "purpose": "Every client's ledger balance, peak balance and collateral received, retained and placed with the clearing member and clearing corporation (65 columns).",
+ "names": [
+  "[A-Z]{5}\\d{4}[A-Z]_\\d{8}_\\d+\\.csv"
+ ],
+ "template": "{member_pan}_{date:02012006}_{seq:2}.CSV",
+ "header": true,
+ "columns": [
+  {
+   "name": "Date",
+   "type": "date",
+   "layout": "02-01-2006"
+  },
+  {
+   "name": "Clearing Member PAN",
+   "type": "str"
+  },
+  {
+   "name": "Trading member PAN",
+   "type": "str"
+  },
+  {
+   "name": "CP Code",
+   "type": "str"
+  },
+  {
+   "name": "CP PAN",
+   "type": "str"
+  },
+  {
+   "name": "Client PAN",
+   "type": "str"
+  },
+  {
+   "name": "Account Type",
+   "type": "str"
+  },
+  {
+   "name": "Segment Indicator",
+   "type": "str"
+  },
+  {
+   "name": "UCC Code",
+   "type": "str"
+  },
+  {
+   "name": "Financial Ledger balance-A in the books of TM for clients and in the books of CM for TM (Pro) and in the books of CM for CP",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Financial Ledger balance (clear)-B in the books of TM for clients and in the books of CM for TM (Pro) and in the books of CM for CP",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Peak Financial Ledger Balance (Clear)-C in the books of TM for clients and in the books of CM for TM (Pro) and in the books of CM for CP",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Bank Guarantee (BG) received by TM from clients and by CM from TM (Pro) and from CPs",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Fixed Deposit Receipt (FDR) received by TM from clients and by CM from TM(Pro) and from CPs",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Approved Securities Cash Component received by TM from clients and by CM from TM(Pro) and from CPs",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Approved Securities Non-cash component received by TM from clients and by CM from TM(Pro) and from CPs",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Non-Approved Securities received by TM from clients and by CM from TM(Pro) and from CPs",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Value of CC approved Commodities received by TM from clients and by CM from TM(Pro) and from CPs",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Other collaterals received by TM from clients and by CM from TM(Pro) and from CPs",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Credit entry in ledger in lieu of EPI for clients / TM Pro",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Pool Account for clients / TM Pro",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Cash Retained by TM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Bank Guarantee (BG) Retained by TM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Fixed Deposit Receipt (FDR) Retained by TM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Approved Securities Cash Component Retained by TM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Approved Securities Non-cash component Retained by TM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Non-Approved Securities Retained by TM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Value of CC approved Commodities Retained by TM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Other Collaterals Retained by TM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Cash placed with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Bank Guarantee (BG) placed with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Fixed deposit receipt (FDR) placed with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Approved Securities Cash Component placed with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Approved Securities Non-cash component placed with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Non-Approved Securities placed with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Value of CC approved Commodities placed with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Other Collaterals placed with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Cash Retained with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Bank Guarantee (BG) retained with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Fixed deposit receipt (FDR) retained with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Approved Securities Cash Component retained with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Approved Securities Non-cash component retained with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Non-Approved Securities retained with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Value of CC approved Commodities retained with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Other Collaterals Retained with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Cash placed with NCL",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Bank Guarantee (BG) placed with NCL",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Fixed deposit receipt (FDR) placed with NCL",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Approved Securities Cash Component placed with NCL",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Approved Securities Non-cash component placed with NCL",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Value of CC approved Commodities placed with NCL",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "MTF /Non MTF indicator/Reason Code",
+   "type": "str"
+  },
+  {
+   "name": "Uncleared Receipts",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Govt Securities / T-bills received by TM from clients and by CM from TM(Pro) and from CPs",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Govt Securities /T-bills Retained by TM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Govt Securities/T-bills placed with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Govt Securities/T bills retained with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Govt Securities/T bills placed with NCL",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Bank Guarantee (BG) Funded portion retained with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Bank Guarantee (BG) Non funded portion retained with CM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Bank Guarantee (BG) Funded portion placed with NCL",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Bank Guarantee (BG) Non funded portion placed with NCL",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Settlement Amount",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Unclaimed/Unsettled Client Funds",
+   "type": "str"
+  },
+  {
+   "name": "Cash Collateral for MTF positions",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "final_eol": true,
+ "linked": ""
+}

@@ -40,7 +40,7 @@ func TestClientCollateralFile(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if seg == "FO" && name != "C_CC01_90123_16102026.csv.gz" {
+		if want := CCSegments[seg] + "_CC01_90123_16102026.csv.gz"; name != want {
 			t.Fatalf("name %s", name)
 		}
 		z, err := gzip.NewReader(bytes.NewReader(gz))
@@ -54,8 +54,8 @@ func TestClientCollateralFile(t *testing.T) {
 		}
 		want, cols := n, 6
 		if seg == "CM" {
-			want, cols = n+1, 7 // header, member code first
-			if recs[0][0] != "TM Code" || recs[1][0] != "90123" {
+			want = n + 1 // with the header row asked for
+			if recs[0][0] != "Client/UCC Code" {
 				t.Fatalf("cm %v", recs[:2])
 			}
 		}

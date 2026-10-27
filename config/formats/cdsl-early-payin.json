@@ -1,0 +1,87 @@
+{
+ "id": "cdsl-early-payin",
+ "title": "Early pay-in confirmation (CDSL)",
+ "party": "CDSL",
+ "direction": "in",
+ "when": "Through the day",
+ "purpose": "Securities early-paid-in by clients against sales (no margin needed).",
+ "names": [
+  "\\d+_CEP\\d+\\.D\\d+"
+ ],
+ "records": [
+  {
+   "code": "",
+   "columns": [
+    {
+     "name": "Field1",
+     "type": "str"
+    },
+    {
+     "name": "Field2",
+     "type": "str"
+    },
+    {
+     "name": "Field3",
+     "type": "str"
+    },
+    {
+     "name": "Field4",
+     "type": "str"
+    },
+    {
+     "name": "Field5",
+     "type": "str"
+    },
+    {
+     "name": "Field6",
+     "type": "str"
+    },
+    {
+     "name": "Field7",
+     "type": "str"
+    },
+    {
+     "name": "Field8",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "#6",
+   "columns": [
+    {
+     "name": "Field1",
+     "type": "str"
+    },
+    {
+     "name": "Field2",
+     "type": "str"
+    },
+    {
+     "name": "Field3",
+     "type": "str"
+    },
+    {
+     "name": "Field4",
+     "type": "str"
+    },
+    {
+     "name": "Field5",
+     "type": "str"
+    },
+    {
+     "name": "Field6",
+     "type": "str"
+    }
+   ]
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": ""
+}

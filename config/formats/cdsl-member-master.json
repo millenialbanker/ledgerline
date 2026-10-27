@@ -1,0 +1,235 @@
+{
+ "id": "cdsl-member-master",
+ "title": "Business partner master (CDSL)",
+ "party": "CDSL",
+ "direction": "in",
+ "when": "BOD",
+ "purpose": "Depository participants and clearing members with their CDSL ids.",
+ "names": [
+  "MBR_MSTR_\\d+_\\d+_F_\\d+_\\d+\\.csv"
+ ],
+ "header": true,
+ "columns": [
+  {
+   "name": "Src",
+   "type": "str"
+  },
+  {
+   "name": "CntrlSctiesDpstryPtcpt",
+   "type": "str"
+  },
+  {
+   "name": "DPNm",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "SEBIRegNb",
+   "type": "str"
+  },
+  {
+   "name": "PrntDPId",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "PrntDPNm",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "CntrlSctiesDpstryPtcptRole",
+   "type": "str"
+  },
+  {
+   "name": "RegCtctNm",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "CmplOffcrNm",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "Addr1",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "Addr2",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "Addr3",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "City",
+   "type": "str"
+  },
+  {
+   "name": "State",
+   "type": "str"
+  },
+  {
+   "name": "Cntry",
+   "type": "str"
+  },
+  {
+   "name": "PstCd",
+   "type": "str"
+  },
+  {
+   "name": "PhneNb1",
+   "type": "str"
+  },
+  {
+   "name": "PhneNb2",
+   "type": "str"
+  },
+  {
+   "name": "FaxNb",
+   "type": "str"
+  },
+  {
+   "name": "Email",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "MbrStatus",
+   "type": "str"
+  },
+  {
+   "name": "SEBIRegFrmDt",
+   "type": "str"
+  },
+  {
+   "name": "SEBIRegToDt",
+   "type": "str"
+  },
+  {
+   "name": "OprtnlAddr1",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "OprtnlAddr2",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "OprtnlAddr3",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "OprtnlCity",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "OprtnlState",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "OprtnlCntry",
+   "type": "str"
+  },
+  {
+   "name": "OprtnlPstCd",
+   "type": "str"
+  },
+  {
+   "name": "OprtnlPhneNb1",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "OprtnlPhneNb2",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "OprtnlFaxNb",
+   "type": "str",
+   "quote": "always"
+  },
+  {
+   "name": "Rmks",
+   "type": "str"
+  },
+  {
+   "name": "DPAcctngTyp",
+   "type": "str"
+  },
+  {
+   "name": "SuspDt",
+   "type": "str"
+  },
+  {
+   "name": "ClrSysId",
+   "type": "str"
+  },
+  {
+   "name": "AssctdDPId",
+   "type": "str"
+  },
+  {
+   "name": "AssctdCCCMId",
+   "type": "str"
+  },
+  {
+   "name": "TMID",
+   "type": "str"
+  },
+  {
+   "name": "UnfSettAcct",
+   "type": "str"
+  },
+  {
+   "name": "CMCUSA",
+   "type": "str"
+  },
+  {
+   "name": "EPAcct",
+   "type": "str"
+  },
+  {
+   "name": "CmPoolTyp",
+   "type": "str"
+  },
+  {
+   "name": "Xchg",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "final_eol": true,
+ "linked": ""
+}

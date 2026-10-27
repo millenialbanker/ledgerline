@@ -1,0 +1,224 @@
+{
+ "id": "stt-ctt",
+ "title": "STT / CTT file (NSE Clearing, MCXCCL)",
+ "party": "NSE Clearing / MCXCCL",
+ "direction": "in",
+ "when": "EOD / next morning",
+ "purpose": "Securities (or commodities) transaction tax per client and contract, as the clearing corporation collects it; reconciled with the STT Ledgerline charged.",
+ "names": [
+  "\\d{8}\\.txt",
+  "CTT_MCXCCL_CO_\\d+_TM_\\d+_\\d{8}_F_\\d+\\.csv",
+  "STT_.*\\.(txt|csv)"
+ ],
+ "header": true,
+ "columns": [
+  {
+   "name": "RptHdr",
+   "type": "str"
+  },
+  {
+   "name": "Sgmt",
+   "type": "str"
+  },
+  {
+   "name": "Src",
+   "type": "str"
+  },
+  {
+   "name": "TradDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "ClctnDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "DueDt",
+   "type": "str"
+  },
+  {
+   "name": "SttlmTp",
+   "type": "str"
+  },
+  {
+   "name": "SctiesSttlmTxId",
+   "type": "str"
+  },
+  {
+   "name": "ClrMmbId",
+   "type": "str"
+  },
+  {
+   "name": "BrkrOrCtdnPtcptId",
+   "type": "str"
+  },
+  {
+   "name": "ClntId",
+   "type": "str"
+  },
+  {
+   "name": "TckrSymb",
+   "type": "str"
+  },
+  {
+   "name": "SctySrs",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmId",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmTp",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "XpryDt",
+   "type": "str"
+  },
+  {
+   "name": "OptnTp",
+   "type": "str"
+  },
+  {
+   "name": "StrkPric",
+   "type": "str"
+  },
+  {
+   "name": "SttlmPric",
+   "type": "str"
+  },
+  {
+   "name": "TtlBuyTradgVol",
+   "type": "str"
+  },
+  {
+   "name": "TtlBuyTrfVal",
+   "type": "str"
+  },
+  {
+   "name": "TtlSellTradgVol",
+   "type": "str"
+  },
+  {
+   "name": "TtlSellTrfVal",
+   "type": "str"
+  },
+  {
+   "name": "AvrgPric",
+   "type": "str"
+  },
+  {
+   "name": "BuyDlvrblQty",
+   "type": "str"
+  },
+  {
+   "name": "SellDlvrblQty",
+   "type": "str"
+  },
+  {
+   "name": "SellOthrThanDlvryQty",
+   "type": "str"
+  },
+  {
+   "name": "BuyDlvrblVal",
+   "type": "str"
+  },
+  {
+   "name": "SellDlvrblVal",
+   "type": "str"
+  },
+  {
+   "name": "SellOthrThanDlvryVal",
+   "type": "str"
+  },
+  {
+   "name": "BuyDelvryTtlTaxs",
+   "type": "str"
+  },
+  {
+   "name": "SellDelvryTtlTaxs",
+   "type": "str"
+  },
+  {
+   "name": "SellOthrThanDelvryTtlTaxs",
+   "type": "str"
+  },
+  {
+   "name": "TaxblSellFutrsVal",
+   "type": "str"
+  },
+  {
+   "name": "TaxblSellOptnVal",
+   "type": "str"
+  },
+  {
+   "name": "OptnExrcQty",
+   "type": "str"
+  },
+  {
+   "name": "OptnExrcVal",
+   "type": "str"
+  },
+  {
+   "name": "TaxblExrcVal",
+   "type": "str"
+  },
+  {
+   "name": "FutrsTtlTaxs",
+   "type": "str"
+  },
+  {
+   "name": "OptnTtlTaxs",
+   "type": "str"
+  },
+  {
+   "name": "TaxblBuyValCallAuctn",
+   "type": "str"
+  },
+  {
+   "name": "TaxblSellValCallAuctn",
+   "type": "str"
+  },
+  {
+   "name": "TtlTaxs",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Rmks",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "linked": "Totals by exchange and segment reconciled with the STT Ledgerline charged",
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "final_eol": true
+}

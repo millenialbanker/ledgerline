@@ -110,7 +110,7 @@ function eodStatus(e) {
 /* ============================== shell ============================== */
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard'], ['chat', 'Team messages'], ['rpa', 'Automations'], ['autopilot', 'Autopilot & work queue']]],
-  ['Operations', [['files', 'Files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['apps', 'Online applications'], ['changes', 'Change requests'], ['corp', 'Corporate actions'], ['statements', 'Client reports'], ['yearend', 'Year-end packs']]],
+  ['Operations', [['files', 'Files'], ['xfiles', 'Exchange files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['apps', 'Online applications'], ['changes', 'Change requests'], ['corp', 'Corporate actions'], ['statements', 'Client reports'], ['yearend', 'Year-end packs']]],
   ['Risk', [['live', 'Live RMS'], ['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge'], ['debits', 'Debtors & interest'], ['mtf', 'Margin trading (MTF)']]],
   ['Accounts', [['ledger', 'Ledger'], ['deposits', 'Clearing deposits'], ['bank', 'Bank reconciliation'], ['money', 'Receipts & payouts'], ['books', 'Firm accounts & GST'], ['ras', 'Running account'], ['charges', 'Charges calculator'], ['brokerage', 'Brokerage plans']]],
   ['Compliance', [['circulars', 'Circulars & calendar'], ['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['dispatch', 'Dispatch register'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
@@ -1819,7 +1819,7 @@ V.reports = {
     const canGen = has('Ops maker', 'Ops checker', 'Compliance officer', 'Risk manager'), canUp = has('Compliance officer', 'Ops checker');
     return ph('Regulatory reports', 'Each report is generated from the ledger and records, validated, downloaded for upload to the exchange portal, then marked uploaded with the acknowledgement number. Every step and download is in the audit trail. Column layouts follow sample formats until each exchange’s specification is loaded.') +
     `<div class="kpis">${kpi('Daily reports outstanding', rs.filter(r => r.frequency === 'Daily' && r.status !== 'Uploaded').length, 'for ' + fmtDate(S.date), 'warn')}${kpi('Uploaded', rs.filter(r => r.status === 'Uploaded').length, 'this date', 'good')}${kpi('Validated', rs.filter(r => r.status === 'Validated').length, 'ready to upload')}</div>
-    <div class="panel">${tbl([['Report'], ['Submitted to'], ['When due'], ['Rows', 'r'], ['Status'], ['Actions']], rs.map(r => `<tr><td><b style="font-weight:600">${esc(r.name)}</b><div class="dim" style="font-size:11.5px">${esc(r.format)}</div></td><td>${esc(r.to)}</td><td>${esc(r.frequency)}<div class="dim" style="font-size:11.5px">${esc(r.due)}</div></td><td class="r">${r.status !== 'Not generated' ? r.rows : '—'}</td><td>${pill(r.status, k[r.status])}${r.ack ? ` <span class="tag">ACK ${esc(r.ack)}</span>` : ''}${r.by ? `<div class="dim" style="font-size:11.5px">${esc(r.by)} · ${esc(r.at)}</div>` : ''}</td><td><div class="split"><button class="btn sm" data-act="dl" data-id="/v1/reports/${r.code}/download?date=${S.date}" data-name="${r.code}_${S.date}.csv">${r.code === 'cc01' ? 'Review' : 'Download'}</button>${r.code === 'cc01' && canGen ? ['FO', 'CD', 'COM', 'CM'].map(g => `<button class="btn sm" data-act="dl" data-id="/v1/collateral-file?date=${S.date}&segment=${g}" data-name="CC_${g}_${S.date}.csv.gz" title="Upload file for ${g}">${g}</button>`).join('') : ''}${canGen && r.status !== 'Uploaded' ? `<button class="btn sm" data-act="rstep" data-id="${r.code}" data-a="validate">Validate</button>` : ''}${canUp && r.status === 'Validated' ? `<button class="btn sm pri" data-act="rup" data-id="${r.code}">Mark uploaded</button>` : ''}</div></td></tr>`))}</div>
+    <div class="panel">${tbl([['Report'], ['Submitted to'], ['When due'], ['Rows', 'r'], ['Status'], ['Actions']], rs.map(r => `<tr><td><b style="font-weight:600">${esc(r.name)}</b><div class="dim" style="font-size:11.5px">${esc(r.format)}</div></td><td>${esc(r.to)}</td><td>${esc(r.frequency)}<div class="dim" style="font-size:11.5px">${esc(r.due)}</div></td><td class="r">${r.status !== 'Not generated' ? r.rows : '—'}</td><td>${pill(r.status, k[r.status])}${r.ack ? ` <span class="tag">ACK ${esc(r.ack)}</span>` : ''}${r.by ? `<div class="dim" style="font-size:11.5px">${esc(r.by)} · ${esc(r.at)}</div>` : ''}</td><td><div class="split"><button class="btn sm" data-act="dl" data-id="/v1/reports/${r.code}/download?date=${S.date}" data-name="${r.code}_${S.date}.csv">${r.code === 'cc01' ? 'Review' : 'Download'}</button>${r.code === 'cc01' && canGen ? ['CM', 'FO', 'CD'].map(g => `<button class="btn sm" data-act="dl" data-id="/v1/collateral-file?date=${S.date}&segment=${g}" data-name="CC_${g}_${S.date}.csv.gz" title="Upload file for ${g}">${g}</button>`).join('') : ''}${canGen && r.status !== 'Uploaded' ? `<button class="btn sm" data-act="rstep" data-id="${r.code}" data-a="validate">Validate</button>` : ''}${canUp && r.status === 'Validated' ? `<button class="btn sm pri" data-act="rup" data-id="${r.code}">Mark uploaded</button>` : ''}</div></td></tr>`))}</div>
     <div class="panel"><div class="hd"><h3>Compliance calendar</h3><small>Maintained in Settings</small></div>${tbl([['Date'], ['Obligation'], ['Owner']], (d.calendar || []).map(c => `<tr><td class="n">${fmtDate(c.date)}</td><td>${esc(c.obligation)}</td><td>${esc(c.owner)}</td></tr>`), { empty: 'No calendar items.' })}</div>`;
   }
 };
@@ -2015,6 +2015,8 @@ V.settings = {
       <div class="fld"><label for="st-sebi">SEBI registration</label><input class="in" id="st-sebi" value="${esc(s.sebi_reg)}" ${admin ? '' : 'disabled'}></div>
       <div class="fld"><label for="st-comp">Compliance officer email</label><input class="in" id="st-comp" value="${esc(s.compliance_email)}" ${admin ? '' : 'disabled'}></div>
       <div class="fld"><label for="st-gstin">GSTIN</label><input class="in mono" id="st-gstin" value="${esc(s.firm_gstin || '')}" ${admin ? '' : 'disabled'}></div>
+      <div class="fld"><label for="st-fpan">Firm PAN <span class="dim">(blank: from the GSTIN)</span></label><input class="in mono" id="st-fpan" value="${esc(s.firm_pan || '')}" ${admin ? '' : 'disabled'}></div>
+      <div class="fld"><label for="st-cmpan">Clearing member PAN <span class="dim">(blank: self-clearing)</span></label><input class="in mono" id="st-cmpan" value="${esc(s.clearing_member_pan || '')}" ${admin ? '' : 'disabled'}></div>
       <div class="fld"><label for="st-state">State of registration</label><input class="in" id="st-state" value="${esc(s.firm_state || '')}" ${admin ? '' : 'disabled'}></div>
     </div></div></div>
     <div class="panel"><div class="hd"><h3>Risk and settlement</h3></div><div class="bd"><div class="form">
@@ -2428,7 +2430,7 @@ const A = {
   saveSettings: () => {
     const s = { ...C.settings.settings, firm: $('st-firm').value, sebi_reg: $('st-sebi').value, compliance_email: $('st-comp').value, warn_util_pct: parseInt($('st-warn').value, 10), ras_buffer_pct: parseInt($('st-buf').value, 10), ras_monthly: $('st-rasm').value, ras_quarterly: $('st-rasq').value,
       two_factor: $('st-2fa').value, ledgy_ai: !!$('st-lai')?.checked, bill_ai: !!$('st-bai')?.checked, inactive_months: parseInt($('st-inm').value, 10) || 24, session_idle_minutes: parseInt($('st-idle').value, 10) || 30, snapshot_times: $('st-snap').value.split(',').map(x => x.trim()).filter(Boolean), holidays: $('st-hol').value.split(',').map(x => x.trim()).filter(Boolean), penalty_pass_through: $('st-pen').checked,
-      interest_pct_pa: $('st-int').value.trim(), interest_grace_days: parseInt($('st-grace').value, 10) || 0, interest_minimum: $('st-imin').value.trim(), gst_pct: $('st-gst').value.trim(), interest_exempt_tags: $('st-iex').value.split(',').map(x => x.trim().toUpperCase()).filter(Boolean), debit_block_days: parseInt($('st-dbd').value, 10) || 7, locked_up_to: $('st-lock').value, firm_gstin: $('st-gstin').value.trim().toUpperCase(), firm_state: $('st-state').value.trim(), cheque_bounce_charge: $('st-bnc').value.trim(), tds_commission_pct: $('st-tds').value.trim(), referral_pct: $('st-refp').value.trim(), referral_months: parseInt($('st-refm').value, 10) || 12, payout_debit_account: $('st-pda').value.trim(), gateway_secret: $('st-gws').value, whatsapp_secret: $('st-was').value, management_emails: $('st-mgmt').value.split(',').map(x => x.trim()).filter(Boolean), lead_incentive: $('st-linc').value.trim(), auto_lock_days: parseInt($('st-alock').value, 10) || 0 };
+      interest_pct_pa: $('st-int').value.trim(), interest_grace_days: parseInt($('st-grace').value, 10) || 0, interest_minimum: $('st-imin').value.trim(), gst_pct: $('st-gst').value.trim(), interest_exempt_tags: $('st-iex').value.split(',').map(x => x.trim().toUpperCase()).filter(Boolean), debit_block_days: parseInt($('st-dbd').value, 10) || 7, locked_up_to: $('st-lock').value, firm_pan: ($('st-fpan')?.value || '').trim().toUpperCase(), clearing_member_pan: ($('st-cmpan')?.value || '').trim().toUpperCase(), firm_gstin: $('st-gstin').value.trim().toUpperCase(), firm_state: $('st-state').value.trim(), cheque_bounce_charge: $('st-bnc').value.trim(), tds_commission_pct: $('st-tds').value.trim(), referral_pct: $('st-refp').value.trim(), referral_months: parseInt($('st-refm').value, 10) || 12, payout_debit_account: $('st-pda').value.trim(), gateway_secret: $('st-gws').value, whatsapp_secret: $('st-was').value, management_emails: $('st-mgmt').value.split(',').map(x => x.trim()).filter(Boolean), lead_incentive: $('st-linc').value.trim(), auto_lock_days: parseInt($('st-alock').value, 10) || 0 };
     act(() => api('PUT', '/v1/settings', s), 'Settings saved').then(loadMe);
   },
   eod: async () => {
@@ -2654,6 +2656,48 @@ async function showNotices() {
 }
 A.noticeHide = id => { const h = noticeHidden(); h.push(id); try { localStorage.setItem('ll-notices-hidden', JSON.stringify(h.slice(-50))); } catch (e) {} $('ll-notices')?.remove(); showNotices(); };
 
+/* ---------- exchange files: the exact files of exchanges, CCs, depositories, front end and bank ---------- */
+V.xfiles = {
+  load: () => get('/v1/exchange-files/formats'),
+  html: fs => {
+    const inn = fs.filter(f => f.direction === 'in'), out = fs.filter(f => f.direction === 'out'), mk = has('Ops maker', 'Ops checker', 'Risk manager', 'Compliance officer');
+    const res = UI.xfRes ? `<div class="panel"><div class="hd"><h3>Last upload</h3></div>${tbl([['File'], ['Recognised as'], ['Rows', 'r'], ['Check'], ['Result']], UI.xfRes.map(r => `<tr><td class="mono small wrap">${esc(r.name)}</td><td>${r.format ? `<b>${esc(r.title)}</b><div class="dim small mono">${esc(r.format)}</div>` : '<span class="dim">Not recognised</span>'}</td><td class="r">${r.rows || '—'}</td><td>${!r.format ? '' : r.problems ? pill(r.problems + ' problem' + (r.problems > 1 ? 's' : ''), 'bad') + `<div class="small wrap">${r.issues.slice(0, 5).map(i => `line ${i.line}${i.column ? ' · ' + esc(i.column) : ''}: ${esc(i.message)}`).join('<br>')}</div>` : pill('Matches the layout', 'good')}</td><td class="small wrap">${esc(r.loaded || '')}${r.added ? ` · ${r.added} added` : ''}${r.skipped ? ` · ${r.skipped} skipped` : ''}${r.note ? `<div class="dim">${esc(r.note)}</div>` : ''}</td></tr>`))}</div>` : '';
+    const st = f => f.writes ? pill('Ledgerline writes it', 'good') : f.linked ? pill('Read and used', 'good') : pill(f.confirmed ? 'Read and checked' : 'Layout known', f.confirmed ? 'acc' : 'nt');
+    const row = f => `<tr><td><b>${esc(f.title)}</b><div class="dim small wrap">${esc(f.purpose)}</div>${f.linked ? `<div class="small wrap">${esc(f.linked)}</div>` : ''}</td><td>${esc(f.party)}</td><td class="small">${esc(f.when)}</td><td class="r">${f.fields}</td><td>${st(f)}${f.confirmed ? '' : '<div class="dim small">meaning of some fields to confirm</div>'}</td>
+      <td>${f.writes && mk ? `<button class="btn sm" data-act="xfDl" data-id="${f.id}">Download</button>` : ''}</td></tr>`;
+    return ph('Exchange files', 'The files the firm receives from and sends to the exchanges, clearing corporations, CDSL, the trading front end and the bank, in their exact layouts. Drop a file as downloaded (zip or gz is fine): Ledgerline recognises it, checks every field against the layout, and loads the ones it uses.',
+      mk ? '<button class="btn" data-act="xfPick" data-load="0">Check a file</button><button class="btn pri" data-act="xfPick" data-load="1">Load files</button>' : '') +
+      `<div class="kpis">${kpi('Layouts', fs.length, `${inn.length} received · ${out.length} sent`)}${kpi('Used by Ledgerline', fs.filter(f => f.linked || f.writes).length, 'read into Ledgerline or written by it', 'good')}${kpi('Checked only', fs.filter(f => !f.linked && !f.writes).length, 'recognised and validated, not used yet')}</div>` + res +
+      `<div class="panel"><div class="hd"><h3>Received</h3></div>${tbl([['File'], ['From'], ['When'], ['Fields', 'r'], ['Status'], ['']], inn.map(row), { tall: true })}</div>
+      <div class="panel"><div class="hd"><h3>Sent</h3><div class="tools"><label class="dim small">For</label><input class="in sm" type="date" id="xf-date" value="${esc(UI.xfDate || S.date)}"></div></div>${tbl([['File'], ['To'], ['When'], ['Fields', 'r'], ['Status'], ['']], out.map(row), { tall: true })}</div>`;
+  }
+};
+Object.assign(A, {
+  xfPick: (id, el) => {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; const load = el.dataset.load === '1';
+    inp.onchange = async () => {
+      const all = [];
+      for (const f of inp.files) {
+        try { toast(`${load ? 'Loading' : 'Checking'} ${f.name}…`); all.push(...await api('POST', `/v1/exchange-files?name=${encodeURIComponent(f.name)}&load=${load ? 1 : 0}`, f, true)); }
+        catch (e) { all.push({ name: f.name, issues: [], note: e.message }); }
+      }
+      UI.xfRes = all; $('toast').hidden = true; render({ keep: true });
+    };
+    inp.click();
+  },
+  xfDl: id => {
+    const d = $('xf-date')?.value || S.date; UI.xfDate = d;
+    if (id === 'ncl-client-collateral') {
+      modal(mhd('Client collateral file', 'One file per segment for NSE Clearing.') + `<div class="bd"><div class="split">${['CM', 'FO', 'CD'].map(g => `<button class="btn" data-act="dl" data-id="/v1/exchange-files/${id}?date=${d}&segment=${g}" data-name="CC_${g}_${d}.csv.gz">${g}</button>`).join('')}</div></div>`);
+      return;
+    }
+    if (id === 'ncl-allocation' || id === 'ncl-allocation-api') {
+      modal(mhd(id === 'ncl-allocation' ? 'Client allocation file' : 'Client allocation (API message)', 'NSE Clearing for cash, F&O and currency; MCXCCL for commodities.') + `<div class="bd"><div class="split"><button class="btn" data-act="dl" data-id="/v1/exchange-files/${id}?date=${d}&exchange=NSE" data-name="allocation_${d}">NSE Clearing</button>${id === 'ncl-allocation' ? `<button class="btn" data-act="dl" data-id="/v1/exchange-files/${id}?date=${d}&exchange=MCX" data-name="allocation_mcx_${d}">MCXCCL</button>` : ''}</div></div>`);
+      return;
+    }
+    download(`/v1/exchange-files/${id}?date=${d}`, id + '_' + d);
+  },
+});
 /* ---------- connections: the firm's accounts with outside services ---------- */
 const CONN_ST = { Working: 'good', Saved: 'acc', Problem: 'bad', 'Not set': 'nt' };
 V.connections = {

@@ -1,0 +1,178 @@
+{
+ "id": "stamp-duty",
+ "title": "Stamp duty file (NSE Clearing, MCXCCL)",
+ "party": "NSE Clearing / MCXCCL",
+ "direction": "in",
+ "when": "EOD / next morning",
+ "purpose": "Stamp duty per client, state and contract as the clearing corporation collects it; reconciled with the stamp duty Ledgerline charged.",
+ "names": [
+  "\\d{8}\\.txt",
+  "StampDuty_MCXCCL_CO_\\d+_TM_\\d+_\\d{8}_F_\\d+\\.csv"
+ ],
+ "header": true,
+ "columns": [
+  {
+   "name": "RptHdr",
+   "type": "str"
+  },
+  {
+   "name": "Sgmt",
+   "type": "str"
+  },
+  {
+   "name": "Src",
+   "type": "str"
+  },
+  {
+   "name": "SttlmTp",
+   "type": "str"
+  },
+  {
+   "name": "SctiesSttlmTxId",
+   "type": "str"
+  },
+  {
+   "name": "ClrMmbId",
+   "type": "str"
+  },
+  {
+   "name": "BrkrOrCtdnPtcptId",
+   "type": "str"
+  },
+  {
+   "name": "ClctnDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "DueDt",
+   "type": "str"
+  },
+  {
+   "name": "ClntId",
+   "type": "str"
+  },
+  {
+   "name": "CtrySubDvsn",
+   "type": "str"
+  },
+  {
+   "name": "TckrSymb",
+   "type": "str"
+  },
+  {
+   "name": "SctySrs",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmId",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmTp",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "XpryDt",
+   "type": "str"
+  },
+  {
+   "name": "StrkPric",
+   "type": "str"
+  },
+  {
+   "name": "OptnTp",
+   "type": "str"
+  },
+  {
+   "name": "TtlBuyTradgVol",
+   "type": "str"
+  },
+  {
+   "name": "TtlBuyTrfVal",
+   "type": "str"
+  },
+  {
+   "name": "TtlSellTradgVol",
+   "type": "str"
+  },
+  {
+   "name": "TtlSellTrfVal",
+   "type": "str"
+  },
+  {
+   "name": "BuyDlvryQty",
+   "type": "str"
+  },
+  {
+   "name": "BuyDlvryVal",
+   "type": "str"
+  },
+  {
+   "name": "BuyOthrThanDlvryQty",
+   "type": "str"
+  },
+  {
+   "name": "BuyOthrThanDlvryVal",
+   "type": "str"
+  },
+  {
+   "name": "BuyStmpDty",
+   "type": "str"
+  },
+  {
+   "name": "SellStmpDty",
+   "type": "str"
+  },
+  {
+   "name": "SttlmPric",
+   "type": "str"
+  },
+  {
+   "name": "BuyDlvryStmpDty",
+   "type": "str"
+  },
+  {
+   "name": "BuyOthrThanDlvryStmpDty",
+   "type": "str"
+  },
+  {
+   "name": "StmpDtyAmt",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Rmks",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "final_eol": true,
+ "linked": ""
+}

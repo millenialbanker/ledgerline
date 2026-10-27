@@ -1,0 +1,46 @@
+{
+ "id": "nse-security-master",
+ "title": "Security master (NSE)",
+ "party": "NSE",
+ "direction": "in",
+ "when": "BOD",
+ "purpose": "Symbol, series, ISIN and settlement type of every NSE security.",
+ "names": [
+  "C_SEC_\\d+_NSE\\.csv"
+ ],
+ "header": true,
+ "crlf": false,
+ "columns": [
+  {
+   "name": "Security Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Security Series",
+   "type": "str"
+  },
+  {
+   "name": "Security Description",
+   "type": "str"
+  },
+  {
+   "name": "Security Code",
+   "type": "str"
+  },
+  {
+   "name": "Security ISIN",
+   "type": "str"
+  },
+  {
+   "name": "Settlement Type",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "final_eol": true,
+ "linked": ""
+}
