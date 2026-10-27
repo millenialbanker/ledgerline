@@ -37,11 +37,11 @@
      "type": "str"
     },
     {
-     "name": "Quantity",
+     "name": "QuantityRequested",
      "type": "str"
     },
     {
-     "name": "EPIAllocated",
+     "name": "QuantityAllocated",
      "type": "str"
     }
    ]
@@ -84,5 +84,5 @@
  "final_eol": true,
  "confirmed": false,
  "linked": "",
- "source": "NSE Clearing FAQ on early pay-in of securities (2025): record type 20's last column is the EPI allocated; other names follow NSE Clearing's CLNTEPI upload layout (inferred)"
+ "source": "NSE Clearing consolidated circular NCL/CMPT/67751, Part C: <member>_CEP<yyyymmdd>.Dnn, record 20 = settlement type, settlement no, symbol, series, client code, quantity requested, quantity allocated. The 6-field record in the files does not match the published control record (10, date, member code, records)"
 }

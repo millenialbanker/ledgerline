@@ -61,8 +61,10 @@
    "note": "01 excess collateral with another CC; 02 early pay-in of securities sold; 03 trades in wrong client code (intraday); 04 NRI trades; 05 allocation accepted late (intraday); 06 re-pledge not yet processed (intraday); 07 custodian early pay-in of funds (intraday)"
   },
   {
-   "name": "Filler",
-   "type": "blank"
+   "name": "CC Code",
+   "key": "CCCode",
+   "type": "str",
+   "note": "the other clearing corporation, only with reason code 01"
   }
  ],
  "compress": "none",
@@ -71,7 +73,7 @@
  "header": false,
  "crlf": true,
  "final_eol": true,
- "confirmed": false,
+ "confirmed": true,
  "linked": "",
- "source": "SA04 row + collateral available + reason code (reason codes: NCL/CMPT/55381, NCL/CMPT/56494; file name: NCL/CMPT/53935). The upload's field list itself was not found: inferred from the files"
+ "source": "NSE Clearing circular NCL/CMPT/53919 (30 Sep 2022): reporting of short allocation of collaterals; reason codes NCL/CMPT/55381 and 56494"
 }

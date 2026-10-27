@@ -4,7 +4,7 @@
  "party": "NSE Clearing",
  "direction": "in",
  "when": "BOD",
- "purpose": "Status of securities re-pledged to the clearing corporation (report with sections; read by section).",
+ "purpose": "Securities and mutual funds accepted by NSE Clearing as collateral through pledge/re-pledge, per TM and client, with valuation price, haircut, quantity limits and the effective value.",
  "names": [
   "[CF]_\\d+_SEC_PLEDGE_\\d{8}_\\d+\\.csv"
  ],
@@ -14,84 +14,104 @@
    "code": "",
    "columns": [
     {
-     "name": "Field1",
-     "type": "str"
+     "name": "TM Code",
+     "type": "str",
+     "key": "TmCode"
     },
     {
-     "name": "Field2",
-     "type": "str"
+     "name": "Client/CP Code",
+     "type": "str",
+     "key": "ClientCpCode"
     },
     {
-     "name": "Field3",
-     "type": "str"
+     "name": "Instrument Type",
+     "type": "str",
+     "key": "InstrumentType"
     },
     {
-     "name": "Field4",
-     "type": "str"
+     "name": "Symbol",
+     "type": "str",
+     "key": "Symbol"
     },
     {
-     "name": "Field5",
-     "type": "str"
+     "name": "ISIN",
+     "type": "str",
+     "key": "Isin"
     },
     {
-     "name": "Field6",
-     "type": "str"
+     "name": "Series",
+     "type": "str",
+     "key": "Series"
     },
     {
-     "name": "Field7",
-     "type": "str"
+     "name": "Qty",
+     "type": "str",
+     "key": "Qty"
     },
     {
-     "name": "Field8",
-     "type": "str"
+     "name": "Valuation Price",
+     "type": "str",
+     "key": "ValuationPrice"
     },
     {
-     "name": "Field9",
-     "type": "str"
+     "name": "Gross Value",
+     "type": "str",
+     "key": "GrossValue"
     },
     {
-     "name": "Field10",
-     "type": "str"
+     "name": "Haircut",
+     "type": "str",
+     "key": "Haircut"
     },
     {
-     "name": "Field11",
-     "type": "str"
+     "name": "Net Value",
+     "type": "str",
+     "key": "NetValue"
     },
     {
-     "name": "Field12",
-     "type": "str"
+     "name": "Overall Permitted Qty Across All Segments",
+     "type": "str",
+     "key": "OverallPermittedQtyAcrossAllSegments"
     },
     {
-     "name": "Field13",
-     "type": "str"
+     "name": "Memberwise Permitted Qty",
+     "type": "str",
+     "key": "MemberwisePermittedQty"
     },
     {
-     "name": "Field14",
-     "type": "str"
+     "name": "Net Effective Qty After Qty Limits",
+     "type": "str",
+     "key": "NetEffectiveQtyAfterQtyLimits"
     },
     {
-     "name": "Field15",
-     "type": "str"
+     "name": "Net Effective Value After Qty Limits",
+     "type": "str",
+     "key": "NetEffectiveValueAfterQtyLimits"
     },
     {
-     "name": "Field16",
-     "type": "str"
+     "name": "Excess Qty",
+     "type": "str",
+     "key": "ExcessQty"
     },
     {
-     "name": "Field17",
-     "type": "str"
+     "name": "Effective Cash",
+     "type": "str",
+     "key": "EffectiveCash"
     },
     {
-     "name": "Field18",
-     "type": "str"
+     "name": "Limit Based On Cash Component (%)",
+     "type": "str",
+     "key": "LimitBasedOnCashComponent"
     },
     {
-     "name": "Field19",
-     "type": "str"
+     "name": "Limit Based On Total Liquid Asset (%)",
+     "type": "str",
+     "key": "LimitBasedOnTotalLiquidAsset"
     },
     {
-     "name": "Field20",
-     "type": "str"
+     "name": "Final Effective Value",
+     "type": "str",
+     "key": "FinalEffectiveValue"
     }
    ]
   },
@@ -99,80 +119,99 @@
    "code": "#19",
    "columns": [
     {
-     "name": "Field1",
-     "type": "str"
+     "name": "TM Code",
+     "type": "str",
+     "key": "TmCode"
     },
     {
-     "name": "Field2",
-     "type": "str"
+     "name": "Client/CP Code",
+     "type": "str",
+     "key": "ClientCpCode"
     },
     {
-     "name": "Field3",
-     "type": "str"
+     "name": "Instrument Type",
+     "type": "str",
+     "key": "InstrumentType"
     },
     {
-     "name": "Field4",
-     "type": "str"
+     "name": "Symbol",
+     "type": "str",
+     "key": "Symbol"
     },
     {
-     "name": "Field5",
-     "type": "str"
+     "name": "ISIN",
+     "type": "str",
+     "key": "Isin"
     },
     {
-     "name": "Field6",
-     "type": "str"
+     "name": "Series",
+     "type": "str",
+     "key": "Series"
     },
     {
-     "name": "Field7",
-     "type": "str"
+     "name": "Qty",
+     "type": "str",
+     "key": "Qty"
     },
     {
-     "name": "Field8",
-     "type": "str"
+     "name": "Valuation Price",
+     "type": "str",
+     "key": "ValuationPrice"
     },
     {
-     "name": "Field9",
-     "type": "str"
+     "name": "Gross Value",
+     "type": "str",
+     "key": "GrossValue"
     },
     {
-     "name": "Field10",
-     "type": "str"
+     "name": "Haircut",
+     "type": "str",
+     "key": "Haircut"
     },
     {
-     "name": "Field11",
-     "type": "str"
+     "name": "Net Value",
+     "type": "str",
+     "key": "NetValue"
     },
     {
-     "name": "Field12",
-     "type": "str"
+     "name": "Overall Permitted Qty Across All Segments",
+     "type": "str",
+     "key": "OverallPermittedQtyAcrossAllSegments"
     },
     {
-     "name": "Field13",
-     "type": "str"
+     "name": "Memberwise Permitted Qty",
+     "type": "str",
+     "key": "MemberwisePermittedQty"
     },
     {
-     "name": "Field14",
-     "type": "str"
+     "name": "Net Effective Qty After Qty Limits",
+     "type": "str",
+     "key": "NetEffectiveQtyAfterQtyLimits"
     },
     {
-     "name": "Field15",
-     "type": "str"
+     "name": "Net Effective Value After Qty Limits",
+     "type": "str",
+     "key": "NetEffectiveValueAfterQtyLimits"
     },
     {
-     "name": "Field16",
-     "type": "str"
+     "name": "Excess Qty",
+     "type": "str",
+     "key": "ExcessQty"
     },
     {
-     "name": "Field17",
-     "type": "str"
+     "name": "Effective Cash",
+     "type": "str",
+     "key": "EffectiveCash"
     },
     {
-     "name": "Field18",
-     "type": "str"
+     "name": "Limit Based On Cash Component (%)",
+     "type": "str",
+     "key": "LimitBasedOnCashComponent"
     },
     {
-     "name": "Field19",
-     "type": "str"
+     "name": "Limit Based On Total Liquid Asset (%)",
+     "type": "str",
+     "key": "LimitBasedOnTotalLiquidAsset"
     }
    ]
   },
@@ -229,6 +268,7 @@
  "delimiter": ",",
  "header": false,
  "final_eol": true,
- "confirmed": false,
- "linked": ""
+ "confirmed": true,
+ "linked": "",
+ "source": "NSE Clearing circular NCL/CMPT/44899 (3 Jul 2020), Annexure 7: sections SEC, NMF, OMF, CB, CMF, GMF; OMF and CB rows have no final effective value"
 }

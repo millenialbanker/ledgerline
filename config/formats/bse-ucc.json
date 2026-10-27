@@ -4,7 +4,7 @@
  "party": "BSE",
  "direction": "out",
  "when": "As needed",
- "purpose": "New and modified client codes for BSE (136 fields).",
+ "purpose": "New and modified client codes for BSE: one pipe-delimited row of 136 fields per client (directors of non-individuals in a second row).",
  "delimiter": "|",
  "names": [
   "BSE_UCC_\\d{8}\\.txt"
@@ -12,547 +12,683 @@
  "template": "BSE_UCC_{date:02012006}.TXT",
  "columns": [
   {
-   "name": "Field1",
+   "name": "New/Modify",
+   "key": "NewModify",
    "type": "str"
   },
   {
-   "name": "Field2",
+   "name": "BAT User",
+   "key": "BatUser",
    "type": "str"
   },
   {
-   "name": "Field3",
+   "name": "Client Type",
+   "key": "ClientType",
    "type": "str"
   },
   {
-   "name": "Field4",
+   "name": "Client Status",
+   "key": "ClientStatus",
    "type": "str"
   },
   {
-   "name": "Field5",
+   "name": "Client Category",
+   "key": "ClientCategory",
    "type": "str"
   },
   {
-   "name": "Field6",
+   "name": "Client Code",
+   "key": "ClientCode",
    "type": "str"
   },
   {
-   "name": "Field7",
+   "name": "PAN",
+   "key": "Pan",
    "type": "str"
   },
   {
-   "name": "Field8",
+   "name": "Politically Exposed Person",
+   "key": "PoliticallyExposedPerson",
    "type": "str"
   },
   {
-   "name": "Field9",
+   "name": "Permanent Address",
+   "key": "PermanentAddress",
    "type": "str"
   },
   {
-   "name": "Field10",
+   "name": "Permanent same as Correspondence",
+   "key": "PermanentSameAsCorrespondence",
    "type": "str"
   },
   {
-   "name": "Field11",
+   "name": "Correspondence Address",
+   "key": "CorrespondenceAddress",
    "type": "str"
   },
   {
-   "name": "Field12",
+   "name": "Country",
+   "key": "Country",
    "type": "str"
   },
   {
-   "name": "Field13",
+   "name": "State",
+   "key": "State",
    "type": "str"
   },
   {
-   "name": "Field14",
+   "name": "City",
+   "key": "City",
    "type": "str"
   },
   {
-   "name": "Field15",
+   "name": "Pin code",
+   "key": "PinCode",
    "type": "str"
   },
   {
-   "name": "Field16",
+   "name": "Types of Service",
+   "key": "TypesOfService",
    "type": "str"
   },
   {
-   "name": "Field17",
+   "name": "Contact Details",
+   "key": "ContactDetails",
    "type": "str"
   },
   {
-   "name": "Field18",
+   "name": "Email",
+   "key": "Email",
    "type": "str"
   },
   {
-   "name": "Field19",
+   "name": "Mobile Number",
+   "key": "MobileNumber",
    "type": "str"
   },
   {
-   "name": "Field20",
+   "name": "STD/ISD code",
+   "key": "StdIsdCode",
    "type": "str"
   },
   {
-   "name": "Field21",
+   "name": "Phone No",
+   "key": "PhoneNo",
    "type": "str"
   },
   {
-   "name": "Field22",
+   "name": "Equity CP Code",
+   "key": "EquityCpCode",
    "type": "str"
   },
   {
-   "name": "Field23",
+   "name": "Equity CM ID",
+   "key": "EquityCmId",
    "type": "str"
   },
   {
-   "name": "Field24",
+   "name": "FNO CP Code",
+   "key": "FnoCpCode",
    "type": "str"
   },
   {
-   "name": "Field25",
+   "name": "FNO CM ID",
+   "key": "FnoCmId",
    "type": "str"
   },
   {
-   "name": "Field26",
+   "name": "Depository Name 1",
+   "key": "DepositoryName1",
    "type": "str"
   },
   {
-   "name": "Field27",
+   "name": "Depository ID 1",
+   "key": "DepositoryId1",
    "type": "str"
   },
   {
-   "name": "Field28",
+   "name": "Depository Participant 1",
+   "key": "DepositoryParticipant1",
    "type": "str"
   },
   {
-   "name": "Field29",
+   "name": "Depository Name 2",
+   "key": "DepositoryName2",
    "type": "str"
   },
   {
-   "name": "Field30",
+   "name": "Depository ID 2",
+   "key": "DepositoryId2",
    "type": "str"
   },
   {
-   "name": "Field31",
+   "name": "Depository Participant 2",
+   "key": "DepositoryParticipant2",
    "type": "str"
   },
   {
-   "name": "Field32",
+   "name": "Depository Name 3",
+   "key": "DepositoryName3",
    "type": "str"
   },
   {
-   "name": "Field33",
+   "name": "Depository ID 3",
+   "key": "DepositoryId3",
    "type": "str"
   },
   {
-   "name": "Field34",
+   "name": "Depository Participant 3",
+   "key": "DepositoryParticipant3",
    "type": "str"
   },
   {
-   "name": "Field35",
+   "name": "Bank Name 1",
+   "key": "BankName1",
    "type": "str"
   },
   {
-   "name": "Field36",
+   "name": "Account No 1",
+   "key": "AccountNo1",
    "type": "str"
   },
   {
-   "name": "Field37",
+   "name": "Bank Name 2",
+   "key": "BankName2",
    "type": "str"
   },
   {
-   "name": "Field38",
+   "name": "Account No 2",
+   "key": "AccountNo2",
    "type": "str"
   },
   {
-   "name": "Field39",
+   "name": "Bank Name 3",
+   "key": "BankName3",
    "type": "str"
   },
   {
-   "name": "Field40",
+   "name": "Account No 3",
+   "key": "AccountNo3",
    "type": "str"
   },
   {
-   "name": "Field41",
+   "name": "Client Agreement Date",
+   "key": "ClientAgreementDate",
    "type": "str"
   },
   {
-   "name": "Field42",
+   "name": "Provide Details For",
+   "key": "ProvideDetailsFor",
    "type": "str"
   },
   {
-   "name": "Field43",
+   "name": "Income",
+   "key": "Income",
    "type": "str"
   },
   {
-   "name": "Field44",
+   "name": "Income Date",
+   "key": "IncomeDate",
    "type": "str"
   },
   {
-   "name": "Field45",
+   "name": "Net Worth",
+   "key": "NetWorth",
    "type": "str"
   },
   {
-   "name": "Field46",
+   "name": "Net Worth Date",
+   "key": "NetWorthDate",
    "type": "str"
   },
   {
-   "name": "Field47",
+   "name": "Is Active",
+   "key": "IsActive",
    "type": "str"
   },
   {
-   "name": "Field48",
+   "name": "Reason for Modifying Status",
+   "key": "ReasonForModifyingStatus",
    "type": "str"
   },
   {
-   "name": "Field49",
+   "name": "First Name",
+   "key": "FirstName",
    "type": "str"
   },
   {
-   "name": "Field50",
+   "name": "Middle Name",
+   "key": "MiddleName",
    "type": "str"
   },
   {
-   "name": "Field51",
+   "name": "Last Name",
+   "key": "LastName",
    "type": "str"
   },
   {
-   "name": "Field52",
+   "name": "Aadhaar Card No",
+   "key": "AadhaarCardNo",
    "type": "str"
   },
   {
-   "name": "Field53",
+   "name": "Date of Birth",
+   "key": "DateOfBirth",
    "type": "str"
   },
   {
-   "name": "Field54",
+   "name": "Client Name",
+   "key": "ClientName",
    "type": "str"
   },
   {
-   "name": "Field55",
+   "name": "Registration No",
+   "key": "RegistrationNo",
    "type": "str"
   },
   {
-   "name": "Field56",
+   "name": "Registration Authority / DDP",
+   "key": "RegistrationAuthorityDdp",
    "type": "str"
   },
   {
-   "name": "Field57",
+   "name": "Date of Incorporation / Registration",
+   "key": "DateOfIncorporationRegistration",
    "type": "str"
   },
   {
-   "name": "Field58",
+   "name": "Place of Registration",
+   "key": "PlaceOfRegistration",
    "type": "str"
   },
   {
-   "name": "Field59",
+   "name": "Whether Corporate CIN",
+   "key": "WhetherCorporateCin",
    "type": "str"
   },
   {
-   "name": "Field60",
+   "name": "CIN No",
+   "key": "CinNo",
    "type": "str"
   },
   {
-   "name": "Field61",
+   "name": "No of Directors",
+   "key": "NoOfDirectors",
    "type": "str"
   },
   {
-   "name": "Field62",
+   "name": "Partners Karta UID",
+   "key": "PartnersKartaUid",
    "type": "str"
   },
   {
-   "name": "Field63",
+   "name": "Partners Co-Parcener UID",
+   "key": "PartnersCoParcenerUid",
    "type": "str"
   },
   {
-   "name": "Field64",
+   "name": "Contact Person 1 Name",
+   "key": "ContactPerson1Name",
    "type": "str"
   },
   {
-   "name": "Field65",
+   "name": "Contact Person 1 Designation",
+   "key": "ContactPerson1Designation",
    "type": "str"
   },
   {
-   "name": "Field66",
+   "name": "Contact Person 1 Address",
+   "key": "ContactPerson1Address",
    "type": "str"
   },
   {
-   "name": "Field67",
+   "name": "Contact Person 1 Email",
+   "key": "ContactPerson1Email",
    "type": "str"
   },
   {
-   "name": "Field68",
+   "name": "Contact Person 1 PAN",
+   "key": "ContactPerson1Pan",
    "type": "str"
   },
   {
-   "name": "Field69",
+   "name": "Contact Person 1 Tel/Mobile",
+   "key": "ContactPerson1TelMobile",
    "type": "str"
   },
   {
-   "name": "Field70",
+   "name": "Contact Person 2 Name",
+   "key": "ContactPerson2Name",
    "type": "str"
   },
   {
-   "name": "Field71",
+   "name": "Contact Person 2 Designation",
+   "key": "ContactPerson2Designation",
    "type": "str"
   },
   {
-   "name": "Field72",
+   "name": "Contact Person 2 Address",
+   "key": "ContactPerson2Address",
    "type": "str"
   },
   {
-   "name": "Field73",
+   "name": "Contact Person 2 Email",
+   "key": "ContactPerson2Email",
    "type": "str"
   },
   {
-   "name": "Field74",
+   "name": "Contact Person 2 PAN",
+   "key": "ContactPerson2Pan",
    "type": "str"
   },
   {
-   "name": "Field75",
+   "name": "Contact Person 2 Tel/Mobile",
+   "key": "ContactPerson2TelMobile",
    "type": "str"
   },
   {
-   "name": "Field76",
+   "name": "Cash",
+   "key": "Cash",
    "type": "str"
   },
   {
-   "name": "Field77",
+   "name": "Equity Derivatives",
+   "key": "EquityDerivatives",
    "type": "str"
   },
   {
-   "name": "Field78",
+   "name": "SLB",
+   "key": "Slb",
    "type": "str"
   },
   {
-   "name": "Field79",
+   "name": "Currency Derivatives",
+   "key": "CurrencyDerivatives",
    "type": "str"
   },
   {
-   "name": "Field80",
+   "name": "Debt",
+   "key": "Debt",
    "type": "str"
   },
   {
-   "name": "Field81",
+   "name": "POA",
+   "key": "Poa",
    "type": "str"
   },
   {
-   "name": "Field82",
+   "name": "POA for Funds",
+   "key": "PoaForFunds",
    "type": "str"
   },
   {
-   "name": "Field83",
+   "name": "POA for Securities",
+   "key": "PoaForSecurities",
    "type": "str"
   },
   {
-   "name": "Field84",
+   "name": "Date of POA for Funds",
+   "key": "DateOfPoaForFunds",
    "type": "str"
   },
   {
-   "name": "Field85",
+   "name": "Date of POA for Securities",
+   "key": "DateOfPoaForSecurities",
    "type": "str"
   },
   {
-   "name": "Field86",
+   "name": "Permanent Country",
+   "key": "PermanentCountry",
    "type": "str"
   },
   {
-   "name": "Field87",
+   "name": "Permanent State",
+   "key": "PermanentState",
    "type": "str"
   },
   {
-   "name": "Field88",
+   "name": "Permanent City",
+   "key": "PermanentCity",
    "type": "str"
   },
   {
-   "name": "Field89",
+   "name": "Permanent Pin code",
+   "key": "PermanentPinCode",
    "type": "str"
   },
   {
-   "name": "Field90",
+   "name": "Currency CP Code",
+   "key": "CurrencyCpCode",
    "type": "str"
   },
   {
-   "name": "Field91",
+   "name": "Currency CM ID",
+   "key": "CurrencyCmId",
    "type": "str"
   },
   {
-   "name": "Field92",
+   "name": "Enrollment No",
+   "key": "EnrollmentNo",
    "type": "str"
   },
   {
-   "name": "Field93",
+   "name": "Commodity",
+   "key": "Commodity",
    "type": "str"
   },
   {
-   "name": "Field94",
+   "name": "Nomination Detail",
+   "key": "NominationDetail",
    "type": "str"
   },
   {
-   "name": "Field95",
+   "name": "Custodian PAN",
+   "key": "CustodianPan",
    "type": "str"
   },
   {
-   "name": "Field96",
+   "name": "Custodian Name",
+   "key": "CustodianName",
    "type": "str"
   },
   {
-   "name": "Field97",
+   "name": "Custodian Address",
+   "key": "CustodianAddress",
    "type": "str"
   },
   {
-   "name": "Field98",
+   "name": "Custodian Country",
+   "key": "CustodianCountry",
    "type": "str"
   },
   {
-   "name": "Field99",
+   "name": "Custodian State",
+   "key": "CustodianState",
    "type": "str"
   },
   {
-   "name": "Field100",
+   "name": "Custodian City",
+   "key": "CustodianCity",
    "type": "str"
   },
   {
-   "name": "Field101",
+   "name": "Custodian Pin code",
+   "key": "CustodianPinCode",
    "type": "str"
   },
   {
-   "name": "Field102",
+   "name": "Custodian Mobile",
+   "key": "CustodianMobile",
    "type": "str"
   },
   {
-   "name": "Field103",
+   "name": "Custodian STD Code",
+   "key": "CustodianStdCode",
    "type": "str"
   },
   {
-   "name": "Field104",
+   "name": "Custodian Phone",
+   "key": "CustodianPhone",
    "type": "str"
   },
   {
-   "name": "Field105",
+   "name": "Custodian Email",
+   "key": "CustodianEmail",
    "type": "str"
   },
   {
-   "name": "Field106",
+   "name": "EGR (Electronic Gold Receipt)",
+   "key": "EgrElectronicGoldReceipt",
    "type": "str"
   },
   {
-   "name": "Field107",
+   "name": "BO Account No 1",
+   "key": "BoAccountNo1",
    "type": "str"
   },
   {
-   "name": "Field108",
+   "name": "BO Account No 2",
+   "key": "BoAccountNo2",
    "type": "str"
   },
   {
-   "name": "Field109",
+   "name": "BO Account No 3",
+   "key": "BoAccountNo3",
    "type": "str"
   },
   {
-   "name": "Field110",
+   "name": "Opt for UPI",
+   "key": "OptForUpi",
    "type": "str"
   },
   {
-   "name": "Field111",
+   "name": "IFSC Code 1",
+   "key": "IfscCode1",
    "type": "str"
   },
   {
-   "name": "Field112",
+   "name": "Primary / Secondary Bank 1",
+   "key": "PrimarySecondaryBank1",
    "type": "str"
   },
   {
-   "name": "Field113",
+   "name": "IFSC Code 2",
+   "key": "IfscCode2",
    "type": "str"
   },
   {
-   "name": "Field114",
+   "name": "Primary / Secondary Bank 2",
+   "key": "PrimarySecondaryBank2",
    "type": "str"
   },
   {
-   "name": "Field115",
+   "name": "IFSC Code 3",
+   "key": "IfscCode3",
    "type": "str"
   },
   {
-   "name": "Field116",
+   "name": "Primary / Secondary Bank 3",
+   "key": "PrimarySecondaryBank3",
    "type": "str"
   },
   {
-   "name": "Field117",
+   "name": "IFSC Code 4",
+   "key": "IfscCode4",
    "type": "str"
   },
   {
-   "name": "Field118",
+   "name": "Bank Name 4",
+   "key": "BankName4",
    "type": "str"
   },
   {
-   "name": "Field119",
+   "name": "Account No 4",
+   "key": "AccountNo4",
    "type": "str"
   },
   {
-   "name": "Field120",
+   "name": "Primary / Secondary Bank 4",
+   "key": "PrimarySecondaryBank4",
    "type": "str"
   },
   {
-   "name": "Field121",
+   "name": "IFSC Code 5",
+   "key": "IfscCode5",
    "type": "str"
   },
   {
-   "name": "Field122",
+   "name": "Bank Name 5",
+   "key": "BankName5",
    "type": "str"
   },
   {
-   "name": "Field123",
+   "name": "Account No 5",
+   "key": "AccountNo5",
    "type": "str"
   },
   {
-   "name": "Field124",
+   "name": "Primary / Secondary Bank 5",
+   "key": "PrimarySecondaryBank5",
    "type": "str"
   },
   {
-   "name": "Field125",
+   "name": "Primary / Secondary DP 1",
+   "key": "PrimarySecondaryDp1",
    "type": "str"
   },
   {
-   "name": "Field126",
+   "name": "Primary / Secondary DP 2",
+   "key": "PrimarySecondaryDp2",
    "type": "str"
   },
   {
-   "name": "Field127",
+   "name": "Primary / Secondary DP 3",
+   "key": "PrimarySecondaryDp3",
    "type": "str"
   },
   {
-   "name": "Field128",
+   "name": "Depository Name 4",
+   "key": "DepositoryName4",
    "type": "str"
   },
   {
-   "name": "Field129",
+   "name": "Depository ID 4",
+   "key": "DepositoryId4",
    "type": "str"
   },
   {
-   "name": "Field130",
+   "name": "BO Account No 4",
+   "key": "BoAccountNo4",
    "type": "str"
   },
   {
-   "name": "Field131",
+   "name": "Primary / Secondary DP 4",
+   "key": "PrimarySecondaryDp4",
    "type": "str"
   },
   {
-   "name": "Field132",
+   "name": "Depository Name 5",
+   "key": "DepositoryName5",
    "type": "str"
   },
   {
-   "name": "Field133",
+   "name": "Depository ID 5",
+   "key": "DepositoryId5",
    "type": "str"
   },
   {
-   "name": "Field134",
+   "name": "BO Account No 5",
+   "key": "BoAccountNo5",
    "type": "str"
   },
   {
-   "name": "Field135",
+   "name": "Primary / Secondary DP 5",
+   "key": "PrimarySecondaryDp5",
    "type": "str"
   },
   {
-   "name": "Field136",
+   "name": "Client Name Description",
+   "key": "ClientNameDescription",
    "type": "str"
   }
  ],
@@ -561,6 +697,7 @@
  "header": false,
  "crlf": true,
  "final_eol": true,
- "confirmed": false,
- "linked": ""
+ "confirmed": true,
+ "linked": "",
+ "source": "BSE notice 20240223-42 (23 Feb 2024), Revised file formats in the UCC system: UCC Batch Upload file format (136 fields)"
 }

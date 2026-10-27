@@ -15,15 +15,19 @@
    "where": "first",
    "columns": [
     {
-     "name": "RecordType",
+     "name": "Record Type",
+     "key": "RecordType",
      "type": "str"
     },
     {
-     "name": "Date",
-     "type": "str"
+     "name": "Settlement Date",
+     "key": "SettlementDate",
+     "type": "str",
+     "note": "DDMMYYYY"
     },
     {
-     "name": "RecordCount",
+     "name": "Total No. of Records",
+     "key": "TotalRecords",
      "type": "str"
     }
    ]
@@ -32,52 +36,69 @@
    "code": "#12",
    "columns": [
     {
-     "name": "Field1",
-     "type": "str"
+     "name": "Record Type",
+     "type": "str",
+     "key": "RecordType"
     },
     {
-     "name": "Field2",
-     "type": "str"
+     "name": "Market Type",
+     "type": "str",
+     "key": "MarketType",
+     "note": "01 normal T+1, 02 T2T, 03 auction, 04 SLBM, 05 T+0"
     },
     {
-     "name": "Field3",
-     "type": "str"
+     "name": "Settlement No",
+     "type": "str",
+     "key": "SettlementNo",
+     "note": "settlement type letter + 7-digit number, e.g. M2018100"
     },
     {
-     "name": "Field4",
-     "type": "str"
+     "name": "UCC",
+     "type": "str",
+     "key": "Ucc"
     },
     {
-     "name": "Field5",
-     "type": "str"
+     "name": "ISIN",
+     "type": "str",
+     "key": "Isin"
     },
     {
-     "name": "Field6",
-     "type": "str"
+     "name": "Symbol",
+     "type": "str",
+     "key": "Symbol"
     },
     {
-     "name": "Field7",
-     "type": "str"
+     "name": "Transaction Type",
+     "type": "str",
+     "key": "TransactionType",
+     "note": "B or S"
     },
     {
-     "name": "Field8",
-     "type": "str"
+     "name": "Quantity Short (A)",
+     "type": "str",
+     "key": "QuantityShortA"
     },
     {
-     "name": "Field9",
-     "type": "str"
+     "name": "Cleared in Auction (B)",
+     "type": "str",
+     "key": "ClearedInAuctionB"
     },
     {
-     "name": "Field10",
-     "type": "str"
+     "name": "Cleared by Close-out (C)",
+     "type": "str",
+     "key": "ClearedByCloseOutC"
     },
     {
-     "name": "Field11",
-     "type": "str"
+     "name": "Settled Internally (D)",
+     "type": "str",
+     "key": "SettledInternallyD",
+     "note": "D = A - (B + C)"
     },
     {
-     "name": "Field12",
-     "type": "str"
+     "name": "Reconciliation (E)",
+     "type": "str",
+     "key": "ReconciliationE",
+     "note": "1 bought by member in own account, 2 in client account, 0 nothing to reconcile"
     }
    ]
   }
@@ -88,6 +109,7 @@
  "header": false,
  "crlf": true,
  "final_eol": true,
- "confirmed": false,
- "linked": ""
+ "confirmed": true,
+ "linked": "",
+ "source": "NSE Clearing consolidated circular NCL/CMPT/67751 (29 Apr 2025), Part C: Format of uploading securities pay-in/pay-out shortages"
 }

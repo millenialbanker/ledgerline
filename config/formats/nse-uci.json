@@ -1,0 +1,892 @@
+{
+ "id": "nse-uci",
+ "title": "UCC upload, new clients (NSE)",
+ "party": "NSE",
+ "direction": "out",
+ "when": "As needed",
+ "purpose": "New client codes for NSE, all segments (pipe-delimited, control record + 165-field details).",
+ "delimiter": "|",
+ "names": [
+  "UCI_\\d{8}\\.T\\d+"
+ ],
+ "template": "UCI_{date:20060102}.T{seq:2}",
+ "records": [
+  {
+   "code": "",
+   "where": "first",
+   "columns": [
+    {
+     "name": "Record Type",
+     "key": "RecordType",
+     "type": "str",
+     "const": "10"
+    },
+    {
+     "name": "Member Type",
+     "key": "MemberType",
+     "type": "str",
+     "const": "M"
+    },
+    {
+     "name": "Member Code",
+     "key": "MemberCode",
+     "type": "str"
+    },
+    {
+     "name": "Date",
+     "key": "Date",
+     "type": "str",
+     "note": "DDMMYYYY, same as the file name"
+    },
+    {
+     "name": "Batch Number",
+     "key": "BatchNumber",
+     "type": "str"
+    },
+    {
+     "name": "Total No. of Records",
+     "key": "TotalRecords",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "#165",
+   "columns": [
+    {
+     "name": "Account Type (OWN ERROR CLIENT)",
+     "key": "AccountTypeOwnErrorClient",
+     "type": "str"
+    },
+    {
+     "name": "Opt for UPI",
+     "key": "OptForUpi",
+     "type": "str"
+    },
+    {
+     "name": "Segment",
+     "key": "Segment",
+     "type": "str"
+    },
+    {
+     "name": "Client Code",
+     "key": "ClientCode",
+     "type": "str"
+    },
+    {
+     "name": "Client Name",
+     "key": "ClientName",
+     "type": "str"
+    },
+    {
+     "name": "Category",
+     "key": "Category",
+     "type": "str"
+    },
+    {
+     "name": "PAN",
+     "key": "Pan",
+     "type": "str"
+    },
+    {
+     "name": "Gender",
+     "key": "Gender",
+     "type": "str"
+    },
+    {
+     "name": "Father's/Husband's/Guardian's Name",
+     "key": "FatherSHusbandSGuardianSName",
+     "type": "str"
+    },
+    {
+     "name": "Marital status",
+     "key": "MaritalStatus",
+     "type": "str"
+    },
+    {
+     "name": "Nationality",
+     "key": "Nationality",
+     "type": "str"
+    },
+    {
+     "name": "Nationality (Other)",
+     "key": "NationalityOther",
+     "type": "str"
+    },
+    {
+     "name": "Client Email Id",
+     "key": "ClientEmailId",
+     "type": "str"
+    },
+    {
+     "name": "Correspondence Address line 1",
+     "key": "CorrespondenceAddressLine1",
+     "type": "str"
+    },
+    {
+     "name": "Correspondence Address line 2",
+     "key": "CorrespondenceAddressLine2",
+     "type": "str"
+    },
+    {
+     "name": "Correspondence Address line 3",
+     "key": "CorrespondenceAddressLine3",
+     "type": "str"
+    },
+    {
+     "name": "Correspondence Address City",
+     "key": "CorrespondenceAddressCity",
+     "type": "str"
+    },
+    {
+     "name": "Correspondence Address State",
+     "key": "CorrespondenceAddressState",
+     "type": "str"
+    },
+    {
+     "name": "Correspondence Address State (Others)",
+     "key": "CorrespondenceAddressStateOthers",
+     "type": "str"
+    },
+    {
+     "name": "Correspondence Address Country",
+     "key": "CorrespondenceAddressCountry",
+     "type": "str"
+    },
+    {
+     "name": "Correspondence Address Pin code",
+     "key": "CorrespondenceAddressPinCode",
+     "type": "str"
+    },
+    {
+     "name": "Correspondence same as Permanent",
+     "key": "CorrespondenceSameAsPermanent",
+     "type": "str"
+    },
+    {
+     "name": "Permanent Address line 1",
+     "key": "PermanentAddressLine1",
+     "type": "str"
+    },
+    {
+     "name": "Permanent Address line 2",
+     "key": "PermanentAddressLine2",
+     "type": "str"
+    },
+    {
+     "name": "Permanent Address line 3",
+     "key": "PermanentAddressLine3",
+     "type": "str"
+    },
+    {
+     "name": "Permanent Address City",
+     "key": "PermanentAddressCity",
+     "type": "str"
+    },
+    {
+     "name": "Permanent Address State",
+     "key": "PermanentAddressState",
+     "type": "str"
+    },
+    {
+     "name": "Permanent Address State (Others)",
+     "key": "PermanentAddressStateOthers",
+     "type": "str"
+    },
+    {
+     "name": "Permanent Address Country",
+     "key": "PermanentAddressCountry",
+     "type": "str"
+    },
+    {
+     "name": "Permanent Address Pin code",
+     "key": "PermanentAddressPinCode",
+     "type": "str"
+    },
+    {
+     "name": "ISD code Residence",
+     "key": "IsdCodeResidence",
+     "type": "str"
+    },
+    {
+     "name": "STD code Residence",
+     "key": "StdCodeResidence",
+     "type": "str"
+    },
+    {
+     "name": "Telephone Residence",
+     "key": "TelephoneResidence",
+     "type": "str"
+    },
+    {
+     "name": "Mobile number",
+     "key": "MobileNumber",
+     "type": "str"
+    },
+    {
+     "name": "ISD code Office",
+     "key": "IsdCodeOffice",
+     "type": "str"
+    },
+    {
+     "name": "STD code Office",
+     "key": "StdCodeOffice",
+     "type": "str"
+    },
+    {
+     "name": "Telephone Office",
+     "key": "TelephoneOffice",
+     "type": "str"
+    },
+    {
+     "name": "Date of Birth / Incorporation",
+     "key": "DateOfBirthIncorporation",
+     "type": "str"
+    },
+    {
+     "name": "UID Number",
+     "key": "UidNumber",
+     "type": "str"
+    },
+    {
+     "name": "Bank Name 1",
+     "key": "BankName1",
+     "type": "str"
+    },
+    {
+     "name": "IFSC Code 1",
+     "key": "IfscCode1",
+     "type": "str"
+    },
+    {
+     "name": "Bank Account No 1",
+     "key": "BankAccountNo1",
+     "type": "str"
+    },
+    {
+     "name": "Primary / Secondary Bank 1",
+     "key": "PrimarySecondaryBank1",
+     "type": "str"
+    },
+    {
+     "name": "Bank Name 2",
+     "key": "BankName2",
+     "type": "str"
+    },
+    {
+     "name": "IFSC Code 2",
+     "key": "IfscCode2",
+     "type": "str"
+    },
+    {
+     "name": "Bank Account No 2",
+     "key": "BankAccountNo2",
+     "type": "str"
+    },
+    {
+     "name": "Primary / Secondary Bank 2",
+     "key": "PrimarySecondaryBank2",
+     "type": "str"
+    },
+    {
+     "name": "Bank Name 3",
+     "key": "BankName3",
+     "type": "str"
+    },
+    {
+     "name": "IFSC Code 3",
+     "key": "IfscCode3",
+     "type": "str"
+    },
+    {
+     "name": "Bank Account No 3",
+     "key": "BankAccountNo3",
+     "type": "str"
+    },
+    {
+     "name": "Primary / Secondary Bank 3",
+     "key": "PrimarySecondaryBank3",
+     "type": "str"
+    },
+    {
+     "name": "Bank Name 4",
+     "key": "BankName4",
+     "type": "str"
+    },
+    {
+     "name": "IFSC Code 4",
+     "key": "IfscCode4",
+     "type": "str"
+    },
+    {
+     "name": "Bank Account No 4",
+     "key": "BankAccountNo4",
+     "type": "str"
+    },
+    {
+     "name": "Primary / Secondary Bank 4",
+     "key": "PrimarySecondaryBank4",
+     "type": "str"
+    },
+    {
+     "name": "Bank Name 5",
+     "key": "BankName5",
+     "type": "str"
+    },
+    {
+     "name": "IFSC Code 5",
+     "key": "IfscCode5",
+     "type": "str"
+    },
+    {
+     "name": "Bank Account No 5",
+     "key": "BankAccountNo5",
+     "type": "str"
+    },
+    {
+     "name": "Primary / Secondary Bank 5",
+     "key": "PrimarySecondaryBank5",
+     "type": "str"
+    },
+    {
+     "name": "Depository Name 1",
+     "key": "DepositoryName1",
+     "type": "str"
+    },
+    {
+     "name": "DP ID 1",
+     "key": "DpId1",
+     "type": "str"
+    },
+    {
+     "name": "BO Account No 1",
+     "key": "BoAccountNo1",
+     "type": "str"
+    },
+    {
+     "name": "Primary / Secondary DP 1",
+     "key": "PrimarySecondaryDp1",
+     "type": "str"
+    },
+    {
+     "name": "Depository Name 2",
+     "key": "DepositoryName2",
+     "type": "str"
+    },
+    {
+     "name": "DP ID 2",
+     "key": "DpId2",
+     "type": "str"
+    },
+    {
+     "name": "BO Account No 2",
+     "key": "BoAccountNo2",
+     "type": "str"
+    },
+    {
+     "name": "Primary / Secondary DP 2",
+     "key": "PrimarySecondaryDp2",
+     "type": "str"
+    },
+    {
+     "name": "Depository Name 3",
+     "key": "DepositoryName3",
+     "type": "str"
+    },
+    {
+     "name": "DP ID 3",
+     "key": "DpId3",
+     "type": "str"
+    },
+    {
+     "name": "BO Account No 3",
+     "key": "BoAccountNo3",
+     "type": "str"
+    },
+    {
+     "name": "Primary / Secondary DP 3",
+     "key": "PrimarySecondaryDp3",
+     "type": "str"
+    },
+    {
+     "name": "Depository Name 4",
+     "key": "DepositoryName4",
+     "type": "str"
+    },
+    {
+     "name": "DP ID 4",
+     "key": "DpId4",
+     "type": "str"
+    },
+    {
+     "name": "BO Account No 4",
+     "key": "BoAccountNo4",
+     "type": "str"
+    },
+    {
+     "name": "Primary / Secondary DP 4",
+     "key": "PrimarySecondaryDp4",
+     "type": "str"
+    },
+    {
+     "name": "Depository Name 5",
+     "key": "DepositoryName5",
+     "type": "str"
+    },
+    {
+     "name": "DP ID 5",
+     "key": "DpId5",
+     "type": "str"
+    },
+    {
+     "name": "BO Account No 5",
+     "key": "BoAccountNo5",
+     "type": "str"
+    },
+    {
+     "name": "Primary / Secondary DP 5",
+     "key": "PrimarySecondaryDp5",
+     "type": "str"
+    },
+    {
+     "name": "CIN",
+     "key": "Cin",
+     "type": "str"
+    },
+    {
+     "name": "Gross Annual Income Range",
+     "key": "GrossAnnualIncomeRange",
+     "type": "str"
+    },
+    {
+     "name": "Gross Annual Income as on Date",
+     "key": "GrossAnnualIncomeAsOnDate",
+     "type": "str"
+    },
+    {
+     "name": "Net Worth",
+     "key": "NetWorth",
+     "type": "str"
+    },
+    {
+     "name": "Net Worth as on Date",
+     "key": "NetWorthAsOnDate",
+     "type": "str"
+    },
+    {
+     "name": "Politically Exposed Person",
+     "key": "PoliticallyExposedPerson",
+     "type": "str"
+    },
+    {
+     "name": "Place of Incorporation",
+     "key": "PlaceOfIncorporation",
+     "type": "str"
+    },
+    {
+     "name": "Occupation",
+     "key": "Occupation",
+     "type": "str"
+    },
+    {
+     "name": "Occupation Details (Others)",
+     "key": "OccupationDetailsOthers",
+     "type": "str"
+    },
+    {
+     "name": "Date of Commencement of Business",
+     "key": "DateOfCommencementOfBusiness",
+     "type": "str"
+    },
+    {
+     "name": "CP Code",
+     "key": "CpCode",
+     "type": "str"
+    },
+    {
+     "name": "Registration No",
+     "key": "RegistrationNo",
+     "type": "str"
+    },
+    {
+     "name": "Registering Authority",
+     "key": "RegisteringAuthority",
+     "type": "str"
+    },
+    {
+     "name": "Place of Registration",
+     "key": "PlaceOfRegistration",
+     "type": "str"
+    },
+    {
+     "name": "Date of Registration",
+     "key": "DateOfRegistration",
+     "type": "str"
+    },
+    {
+     "name": "In-person Verification",
+     "key": "InPersonVerification",
+     "type": "str"
+    },
+    {
+     "name": "Client Agreement Date",
+     "key": "ClientAgreementDate",
+     "type": "str"
+    },
+    {
+     "name": "UCC allotted by NSCCL/BSE",
+     "key": "UccAllottedByNscclBse",
+     "type": "str"
+    },
+    {
+     "name": "Updation Flag (SMS & Email)",
+     "key": "UpdationFlagSmsEmail",
+     "type": "str"
+    },
+    {
+     "name": "Relationship",
+     "key": "Relationship",
+     "type": "str"
+    },
+    {
+     "name": "Type of Facility (SMS & Email)",
+     "key": "TypeOfFacilitySmsEmail",
+     "type": "str"
+    },
+    {
+     "name": "Proof Type",
+     "key": "ProofType",
+     "type": "str"
+    },
+    {
+     "name": "Proof Number",
+     "key": "ProofNumber",
+     "type": "str"
+    },
+    {
+     "name": "Issue Place of Proof",
+     "key": "IssuePlaceOfProof",
+     "type": "str"
+    },
+    {
+     "name": "Issue Date of Proof",
+     "key": "IssueDateOfProof",
+     "type": "str"
+    },
+    {
+     "name": "Client Status",
+     "key": "ClientStatus",
+     "type": "str"
+    },
+    {
+     "name": "Remarks (active/inactive)",
+     "key": "RemarksActiveInactive",
+     "type": "str"
+    },
+    {
+     "name": "Client Type - Corporate",
+     "key": "ClientTypeCorporate",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 Name",
+     "key": "ContactPerson1Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 Designation",
+     "key": "ContactPerson1Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 PAN",
+     "key": "ContactPerson1Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 Address",
+     "key": "ContactPerson1Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 Contact Details",
+     "key": "ContactPerson1ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 DIN",
+     "key": "ContactPerson1Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 UID",
+     "key": "ContactPerson1Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 Email",
+     "key": "ContactPerson1Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 Name",
+     "key": "ContactPerson2Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 Designation",
+     "key": "ContactPerson2Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 PAN",
+     "key": "ContactPerson2Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 Address",
+     "key": "ContactPerson2Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 Contact Details",
+     "key": "ContactPerson2ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 DIN",
+     "key": "ContactPerson2Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 UID",
+     "key": "ContactPerson2Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 Email",
+     "key": "ContactPerson2Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 Name",
+     "key": "ContactPerson3Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 Designation",
+     "key": "ContactPerson3Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 PAN",
+     "key": "ContactPerson3Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 Address",
+     "key": "ContactPerson3Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 Contact Details",
+     "key": "ContactPerson3ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 DIN",
+     "key": "ContactPerson3Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 UID",
+     "key": "ContactPerson3Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 Email",
+     "key": "ContactPerson3Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 Name",
+     "key": "ContactPerson4Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 Designation",
+     "key": "ContactPerson4Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 PAN",
+     "key": "ContactPerson4Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 Address",
+     "key": "ContactPerson4Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 Contact Details",
+     "key": "ContactPerson4ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 DIN",
+     "key": "ContactPerson4Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 UID",
+     "key": "ContactPerson4Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 Email",
+     "key": "ContactPerson4Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 Name",
+     "key": "ContactPerson5Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 Designation",
+     "key": "ContactPerson5Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 PAN",
+     "key": "ContactPerson5Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 Address",
+     "key": "ContactPerson5Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 Contact Details",
+     "key": "ContactPerson5ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 DIN",
+     "key": "ContactPerson5Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 UID",
+     "key": "ContactPerson5Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 Email",
+     "key": "ContactPerson5Email",
+     "type": "str"
+    },
+    {
+     "name": "POA for Funds",
+     "key": "PoaForFunds",
+     "type": "str"
+    },
+    {
+     "name": "POA for Securities",
+     "key": "PoaForSecurities",
+     "type": "str"
+    },
+    {
+     "name": "Custodian Name",
+     "key": "CustodianName",
+     "type": "str"
+    },
+    {
+     "name": "Custodian PAN",
+     "key": "CustodianPan",
+     "type": "str"
+    },
+    {
+     "name": "Custodian Email",
+     "key": "CustodianEmail",
+     "type": "str"
+    },
+    {
+     "name": "Custodian Address line 1",
+     "key": "CustodianAddressLine1",
+     "type": "str"
+    },
+    {
+     "name": "Custodian Address City",
+     "key": "CustodianAddressCity",
+     "type": "str"
+    },
+    {
+     "name": "Custodian Address State",
+     "key": "CustodianAddressState",
+     "type": "str"
+    },
+    {
+     "name": "Custodian Address State (Others)",
+     "key": "CustodianAddressStateOthers",
+     "type": "str"
+    },
+    {
+     "name": "Custodian Address Country",
+     "key": "CustodianAddressCountry",
+     "type": "str"
+    },
+    {
+     "name": "Custodian Address Pin code",
+     "key": "CustodianAddressPinCode",
+     "type": "str"
+    },
+    {
+     "name": "Custodian Mobile",
+     "key": "CustodianMobile",
+     "type": "str"
+    },
+    {
+     "name": "Custodian ISD code Office",
+     "key": "CustodianIsdCodeOffice",
+     "type": "str"
+    },
+    {
+     "name": "Custodian STD code Office",
+     "key": "CustodianStdCodeOffice",
+     "type": "str"
+    },
+    {
+     "name": "Custodian Telephone Office",
+     "key": "CustodianTelephoneOffice",
+     "type": "str"
+    },
+    {
+     "name": "Nomination Option",
+     "key": "NominationOption",
+     "type": "str"
+    },
+    {
+     "name": "Client Name Description",
+     "key": "ClientNameDescription",
+     "type": "str"
+    },
+    {
+     "name": "Flag",
+     "key": "Flag",
+     "type": "str"
+    }
+   ]
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "",
+ "source": "NSE Master Circular for UCC, NSE/ISC/73973 (30 Apr 2026): Annexure A (new bulk upload) and Annexure B (bulk modification)"
+}

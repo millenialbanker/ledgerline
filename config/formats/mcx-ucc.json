@@ -1,0 +1,1267 @@
+{
+ "id": "mcx-ucc",
+ "title": "UCC upload (MCX)",
+ "party": "MCX",
+ "direction": "out",
+ "when": "As needed",
+ "purpose": "New and modified client codes for MCX: header record + 240-field details (comma-separated).",
+ "names": [
+  "MCX_\\d{8}_UCC\\d+\\.M\\d+"
+ ],
+ "template": "MCX_{date:02012006}_UCC{member}.M{seq:2}",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "records": [
+  {
+   "code": "",
+   "where": "first",
+   "columns": [
+    {
+     "name": "Record Type",
+     "key": "RecordType",
+     "type": "str",
+     "const": "10"
+    },
+    {
+     "name": "Member Type",
+     "key": "MemberType",
+     "type": "str",
+     "const": "M"
+    },
+    {
+     "name": "Member Code",
+     "key": "MemberCode",
+     "type": "str"
+    },
+    {
+     "name": "Date",
+     "key": "Date",
+     "type": "str",
+     "note": "DDMMYYYY, same as the file name"
+    },
+    {
+     "name": "Batch Number",
+     "key": "BatchNumber",
+     "type": "str"
+    },
+    {
+     "name": "Total No. of Records",
+     "key": "TotalRecords",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "#240",
+   "columns": [
+    {
+     "name": "Client Code",
+     "key": "ClientCode",
+     "type": "str"
+    },
+    {
+     "name": "Client Name",
+     "key": "ClientName",
+     "type": "str"
+    },
+    {
+     "name": "Category",
+     "key": "Category",
+     "type": "str"
+    },
+    {
+     "name": "PAN",
+     "key": "Pan",
+     "type": "str"
+    },
+    {
+     "name": "Gender",
+     "key": "Gender",
+     "type": "str"
+    },
+    {
+     "name": "Father's/Husband's/Guardian's Name",
+     "key": "FatherSHusbandSGuardianSName",
+     "type": "str"
+    },
+    {
+     "name": "Marital Status",
+     "key": "MaritalStatus",
+     "type": "str"
+    },
+    {
+     "name": "Nationality",
+     "key": "Nationality",
+     "type": "str"
+    },
+    {
+     "name": "Nationality (Other)",
+     "key": "NationalityOther",
+     "type": "str"
+    },
+    {
+     "name": "Client Email ID",
+     "key": "ClientEmailId",
+     "type": "str"
+    },
+    {
+     "name": "Address 1",
+     "key": "Address1",
+     "type": "str"
+    },
+    {
+     "name": "Address 2",
+     "key": "Address2",
+     "type": "str"
+    },
+    {
+     "name": "Address 3",
+     "key": "Address3",
+     "type": "str"
+    },
+    {
+     "name": "Country",
+     "key": "Country",
+     "type": "str"
+    },
+    {
+     "name": "State-City Code",
+     "key": "StateCityCode",
+     "type": "str"
+    },
+    {
+     "name": "Pin Code",
+     "key": "PinCode",
+     "type": "str"
+    },
+    {
+     "name": "Permanent same as Correspondence",
+     "key": "PermanentSameAsCorrespondence",
+     "type": "str"
+    },
+    {
+     "name": "Permanent Address 1",
+     "key": "PermanentAddress1",
+     "type": "str"
+    },
+    {
+     "name": "Permanent Address 2",
+     "key": "PermanentAddress2",
+     "type": "str"
+    },
+    {
+     "name": "Permanent Address 3",
+     "key": "PermanentAddress3",
+     "type": "str"
+    },
+    {
+     "name": "Permanent Country",
+     "key": "PermanentCountry",
+     "type": "str"
+    },
+    {
+     "name": "Permanent State-City Code",
+     "key": "PermanentStateCityCode",
+     "type": "str"
+    },
+    {
+     "name": "Permanent Pin Code",
+     "key": "PermanentPinCode",
+     "type": "str"
+    },
+    {
+     "name": "Telephone (Residence)",
+     "key": "TelephoneResidence",
+     "type": "str"
+    },
+    {
+     "name": "Mobile Number",
+     "key": "MobileNumber",
+     "type": "str"
+    },
+    {
+     "name": "Telephone (Office)",
+     "key": "TelephoneOffice",
+     "type": "str"
+    },
+    {
+     "name": "Date of Birth / Incorporation",
+     "key": "DateOfBirthIncorporation",
+     "type": "str"
+    },
+    {
+     "name": "UID Number",
+     "key": "UidNumber",
+     "type": "str"
+    },
+    {
+     "name": "Bank Name 1",
+     "key": "BankName1",
+     "type": "str"
+    },
+    {
+     "name": "Bank Branch 1",
+     "key": "BankBranch1",
+     "type": "str"
+    },
+    {
+     "name": "Bank Account Number 1",
+     "key": "BankAccountNumber1",
+     "type": "str"
+    },
+    {
+     "name": "Bank Account Type 1",
+     "key": "BankAccountType1",
+     "type": "str"
+    },
+    {
+     "name": "Bank Name 2",
+     "key": "BankName2",
+     "type": "str"
+    },
+    {
+     "name": "Bank Branch 2",
+     "key": "BankBranch2",
+     "type": "str"
+    },
+    {
+     "name": "Bank Account Number 2",
+     "key": "BankAccountNumber2",
+     "type": "str"
+    },
+    {
+     "name": "Bank Account Type 2",
+     "key": "BankAccountType2",
+     "type": "str"
+    },
+    {
+     "name": "Bank Name 3",
+     "key": "BankName3",
+     "type": "str"
+    },
+    {
+     "name": "Bank Branch 3",
+     "key": "BankBranch3",
+     "type": "str"
+    },
+    {
+     "name": "Bank Account Number 3",
+     "key": "BankAccountNumber3",
+     "type": "str"
+    },
+    {
+     "name": "Bank Account Type 3",
+     "key": "BankAccountType3",
+     "type": "str"
+    },
+    {
+     "name": "Depository 1",
+     "key": "Depository1",
+     "type": "str"
+    },
+    {
+     "name": "Depository ID 1",
+     "key": "DepositoryId1",
+     "type": "str"
+    },
+    {
+     "name": "Beneficiary Account ID 1",
+     "key": "BeneficiaryAccountId1",
+     "type": "str"
+    },
+    {
+     "name": "Depository 2",
+     "key": "Depository2",
+     "type": "str"
+    },
+    {
+     "name": "Depository ID 2",
+     "key": "DepositoryId2",
+     "type": "str"
+    },
+    {
+     "name": "Beneficiary Account ID 2",
+     "key": "BeneficiaryAccountId2",
+     "type": "str"
+    },
+    {
+     "name": "Depository 3",
+     "key": "Depository3",
+     "type": "str"
+    },
+    {
+     "name": "Depository ID 3",
+     "key": "DepositoryId3",
+     "type": "str"
+    },
+    {
+     "name": "Beneficiary Account ID 3",
+     "key": "BeneficiaryAccountId3",
+     "type": "str"
+    },
+    {
+     "name": "CIN/LEI",
+     "key": "CinLei",
+     "type": "str"
+    },
+    {
+     "name": "Place of Incorporation",
+     "key": "PlaceOfIncorporation",
+     "type": "str"
+    },
+    {
+     "name": "Occupation",
+     "key": "Occupation",
+     "type": "str"
+    },
+    {
+     "name": "Occupation Details",
+     "key": "OccupationDetails",
+     "type": "str"
+    },
+    {
+     "name": "Date of Commencement of Business",
+     "key": "DateOfCommencementOfBusiness",
+     "type": "str"
+    },
+    {
+     "name": "Income Range",
+     "key": "IncomeRange",
+     "type": "str"
+    },
+    {
+     "name": "Income as on Date",
+     "key": "IncomeAsOnDate",
+     "type": "str"
+    },
+    {
+     "name": "Net Worth",
+     "key": "NetWorth",
+     "type": "str"
+    },
+    {
+     "name": "Net Worth as on Date",
+     "key": "NetWorthAsOnDate",
+     "type": "str"
+    },
+    {
+     "name": "Politically Exposed Person",
+     "key": "PoliticallyExposedPerson",
+     "type": "str"
+    },
+    {
+     "name": "CP Code",
+     "key": "CpCode",
+     "type": "str"
+    },
+    {
+     "name": "Registration Number",
+     "key": "RegistrationNumber",
+     "type": "str"
+    },
+    {
+     "name": "Registering Authority",
+     "key": "RegisteringAuthority",
+     "type": "str"
+    },
+    {
+     "name": "Place of Registration",
+     "key": "PlaceOfRegistration",
+     "type": "str"
+    },
+    {
+     "name": "Date of Registration",
+     "key": "DateOfRegistration",
+     "type": "str"
+    },
+    {
+     "name": "In-person Verification",
+     "key": "InPersonVerification",
+     "type": "str"
+    },
+    {
+     "name": "Client Agreement Date",
+     "key": "ClientAgreementDate",
+     "type": "str"
+    },
+    {
+     "name": "Reserved",
+     "key": "Reserved",
+     "type": "str"
+    },
+    {
+     "name": "Relationship",
+     "key": "Relationship",
+     "type": "str"
+    },
+    {
+     "name": "Proof Type",
+     "key": "ProofType",
+     "type": "str"
+    },
+    {
+     "name": "Proof Number",
+     "key": "ProofNumber",
+     "type": "str"
+    },
+    {
+     "name": "Issue Place of Proof",
+     "key": "IssuePlaceOfProof",
+     "type": "str"
+    },
+    {
+     "name": "Issue Date of Proof",
+     "key": "IssueDateOfProof",
+     "type": "str"
+    },
+    {
+     "name": "Client Status",
+     "key": "ClientStatus",
+     "type": "str"
+    },
+    {
+     "name": "Remarks",
+     "key": "Remarks",
+     "type": "str"
+    },
+    {
+     "name": "Client Type - Corporate",
+     "key": "ClientTypeCorporate",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 Name",
+     "key": "ContactPerson1Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 Designation",
+     "key": "ContactPerson1Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 PAN",
+     "key": "ContactPerson1Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 Address",
+     "key": "ContactPerson1Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 Contact Details",
+     "key": "ContactPerson1ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 DIN",
+     "key": "ContactPerson1Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 UID",
+     "key": "ContactPerson1Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 1 Email",
+     "key": "ContactPerson1Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 Name",
+     "key": "ContactPerson2Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 Designation",
+     "key": "ContactPerson2Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 PAN",
+     "key": "ContactPerson2Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 Address",
+     "key": "ContactPerson2Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 Contact Details",
+     "key": "ContactPerson2ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 DIN",
+     "key": "ContactPerson2Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 UID",
+     "key": "ContactPerson2Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 2 Email",
+     "key": "ContactPerson2Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 Name",
+     "key": "ContactPerson3Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 Designation",
+     "key": "ContactPerson3Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 PAN",
+     "key": "ContactPerson3Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 Address",
+     "key": "ContactPerson3Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 Contact Details",
+     "key": "ContactPerson3ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 DIN",
+     "key": "ContactPerson3Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 UID",
+     "key": "ContactPerson3Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 3 Email",
+     "key": "ContactPerson3Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 Name",
+     "key": "ContactPerson4Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 Designation",
+     "key": "ContactPerson4Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 PAN",
+     "key": "ContactPerson4Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 Address",
+     "key": "ContactPerson4Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 Contact Details",
+     "key": "ContactPerson4ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 DIN",
+     "key": "ContactPerson4Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 UID",
+     "key": "ContactPerson4Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 4 Email",
+     "key": "ContactPerson4Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 Name",
+     "key": "ContactPerson5Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 Designation",
+     "key": "ContactPerson5Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 PAN",
+     "key": "ContactPerson5Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 Address",
+     "key": "ContactPerson5Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 Contact Details",
+     "key": "ContactPerson5ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 DIN",
+     "key": "ContactPerson5Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 UID",
+     "key": "ContactPerson5Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 5 Email",
+     "key": "ContactPerson5Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 6 Name",
+     "key": "ContactPerson6Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 6 Designation",
+     "key": "ContactPerson6Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 6 PAN",
+     "key": "ContactPerson6Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 6 Address",
+     "key": "ContactPerson6Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 6 Contact Details",
+     "key": "ContactPerson6ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 6 DIN",
+     "key": "ContactPerson6Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 6 UID",
+     "key": "ContactPerson6Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 6 Email",
+     "key": "ContactPerson6Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 7 Name",
+     "key": "ContactPerson7Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 7 Designation",
+     "key": "ContactPerson7Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 7 PAN",
+     "key": "ContactPerson7Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 7 Address",
+     "key": "ContactPerson7Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 7 Contact Details",
+     "key": "ContactPerson7ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 7 DIN",
+     "key": "ContactPerson7Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 7 UID",
+     "key": "ContactPerson7Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 7 Email",
+     "key": "ContactPerson7Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 8 Name",
+     "key": "ContactPerson8Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 8 Designation",
+     "key": "ContactPerson8Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 8 PAN",
+     "key": "ContactPerson8Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 8 Address",
+     "key": "ContactPerson8Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 8 Contact Details",
+     "key": "ContactPerson8ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 8 DIN",
+     "key": "ContactPerson8Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 8 UID",
+     "key": "ContactPerson8Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 8 Email",
+     "key": "ContactPerson8Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 9 Name",
+     "key": "ContactPerson9Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 9 Designation",
+     "key": "ContactPerson9Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 9 PAN",
+     "key": "ContactPerson9Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 9 Address",
+     "key": "ContactPerson9Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 9 Contact Details",
+     "key": "ContactPerson9ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 9 DIN",
+     "key": "ContactPerson9Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 9 UID",
+     "key": "ContactPerson9Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 9 Email",
+     "key": "ContactPerson9Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 10 Name",
+     "key": "ContactPerson10Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 10 Designation",
+     "key": "ContactPerson10Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 10 PAN",
+     "key": "ContactPerson10Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 10 Address",
+     "key": "ContactPerson10Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 10 Contact Details",
+     "key": "ContactPerson10ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 10 DIN",
+     "key": "ContactPerson10Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 10 UID",
+     "key": "ContactPerson10Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 10 Email",
+     "key": "ContactPerson10Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 11 Name",
+     "key": "ContactPerson11Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 11 Designation",
+     "key": "ContactPerson11Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 11 PAN",
+     "key": "ContactPerson11Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 11 Address",
+     "key": "ContactPerson11Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 11 Contact Details",
+     "key": "ContactPerson11ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 11 DIN",
+     "key": "ContactPerson11Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 11 UID",
+     "key": "ContactPerson11Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 11 Email",
+     "key": "ContactPerson11Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 12 Name",
+     "key": "ContactPerson12Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 12 Designation",
+     "key": "ContactPerson12Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 12 PAN",
+     "key": "ContactPerson12Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 12 Address",
+     "key": "ContactPerson12Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 12 Contact Details",
+     "key": "ContactPerson12ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 12 DIN",
+     "key": "ContactPerson12Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 12 UID",
+     "key": "ContactPerson12Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 12 Email",
+     "key": "ContactPerson12Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 13 Name",
+     "key": "ContactPerson13Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 13 Designation",
+     "key": "ContactPerson13Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 13 PAN",
+     "key": "ContactPerson13Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 13 Address",
+     "key": "ContactPerson13Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 13 Contact Details",
+     "key": "ContactPerson13ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 13 DIN",
+     "key": "ContactPerson13Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 13 UID",
+     "key": "ContactPerson13Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 13 Email",
+     "key": "ContactPerson13Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 14 Name",
+     "key": "ContactPerson14Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 14 Designation",
+     "key": "ContactPerson14Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 14 PAN",
+     "key": "ContactPerson14Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 14 Address",
+     "key": "ContactPerson14Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 14 Contact Details",
+     "key": "ContactPerson14ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 14 DIN",
+     "key": "ContactPerson14Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 14 UID",
+     "key": "ContactPerson14Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 14 Email",
+     "key": "ContactPerson14Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 15 Name",
+     "key": "ContactPerson15Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 15 Designation",
+     "key": "ContactPerson15Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 15 PAN",
+     "key": "ContactPerson15Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 15 Address",
+     "key": "ContactPerson15Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 15 Contact Details",
+     "key": "ContactPerson15ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 15 DIN",
+     "key": "ContactPerson15Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 15 UID",
+     "key": "ContactPerson15Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 15 Email",
+     "key": "ContactPerson15Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 16 Name",
+     "key": "ContactPerson16Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 16 Designation",
+     "key": "ContactPerson16Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 16 PAN",
+     "key": "ContactPerson16Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 16 Address",
+     "key": "ContactPerson16Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 16 Contact Details",
+     "key": "ContactPerson16ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 16 DIN",
+     "key": "ContactPerson16Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 16 UID",
+     "key": "ContactPerson16Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 16 Email",
+     "key": "ContactPerson16Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 17 Name",
+     "key": "ContactPerson17Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 17 Designation",
+     "key": "ContactPerson17Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 17 PAN",
+     "key": "ContactPerson17Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 17 Address",
+     "key": "ContactPerson17Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 17 Contact Details",
+     "key": "ContactPerson17ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 17 DIN",
+     "key": "ContactPerson17Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 17 UID",
+     "key": "ContactPerson17Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 17 Email",
+     "key": "ContactPerson17Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 18 Name",
+     "key": "ContactPerson18Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 18 Designation",
+     "key": "ContactPerson18Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 18 PAN",
+     "key": "ContactPerson18Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 18 Address",
+     "key": "ContactPerson18Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 18 Contact Details",
+     "key": "ContactPerson18ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 18 DIN",
+     "key": "ContactPerson18Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 18 UID",
+     "key": "ContactPerson18Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 18 Email",
+     "key": "ContactPerson18Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 19 Name",
+     "key": "ContactPerson19Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 19 Designation",
+     "key": "ContactPerson19Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 19 PAN",
+     "key": "ContactPerson19Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 19 Address",
+     "key": "ContactPerson19Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 19 Contact Details",
+     "key": "ContactPerson19ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 19 DIN",
+     "key": "ContactPerson19Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 19 UID",
+     "key": "ContactPerson19Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 19 Email",
+     "key": "ContactPerson19Email",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 20 Name",
+     "key": "ContactPerson20Name",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 20 Designation",
+     "key": "ContactPerson20Designation",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 20 PAN",
+     "key": "ContactPerson20Pan",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 20 Address",
+     "key": "ContactPerson20Address",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 20 Contact Details",
+     "key": "ContactPerson20ContactDetails",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 20 DIN",
+     "key": "ContactPerson20Din",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 20 UID",
+     "key": "ContactPerson20Uid",
+     "type": "str"
+    },
+    {
+     "name": "Contact Person 20 Email",
+     "key": "ContactPerson20Email",
+     "type": "str"
+    },
+    {
+     "name": "Relationship with Client (Email)",
+     "key": "RelationshipWithClientEmail",
+     "type": "str"
+    },
+    {
+     "name": "Name of Authorised/Contact Person (Email)",
+     "key": "NameOfAuthorisedContactPersonEmail",
+     "type": "str"
+    },
+    {
+     "name": "Relationship with Client (Mobile)",
+     "key": "RelationshipWithClientMobile",
+     "type": "str"
+    },
+    {
+     "name": "Name of Authorised/Contact Person (Mobile)",
+     "key": "NameOfAuthorisedContactPersonMobile",
+     "type": "str"
+    },
+    {
+     "name": "Flag",
+     "key": "Flag",
+     "type": "str"
+    }
+   ]
+  }
+ ],
+ "confirmed": true,
+ "linked": "",
+ "source": "MCX circular MCX/TECH/023/2022 (13 Jan 2022), MCX UCC File Formats (Version 1.0), section 1.1, with the email and mobile relationship fields added in 2024"
+}

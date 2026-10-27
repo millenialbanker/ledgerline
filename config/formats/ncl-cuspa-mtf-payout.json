@@ -10,9 +10,9 @@
  ],
  "template": "UNPAIDMTF_{stype}_{settno}.T{seq:2}",
  "header": false,
- "confirmed": false,
+ "confirmed": true,
  "linked": "Written from Ledgerline's CUSPA items and MTF positions of the settlement",
- "source": "Flags from NSE Clearing circular NCL/CMPT/63669 (30 Aug 2024) on pay-out of securities directly to client demat accounts; other fields from the files sent",
+ "source": "NSE Clearing consolidated circular NCL/CMPT/67751 (29 Apr 2025), Part C: Procedure for reporting of unpaid securities and funded stocks; flags from NCL/CMPT/63669",
  "compress": "none",
  "format": "delimited",
  "delimiter": ",",
@@ -21,7 +21,8 @@
  "columns": [
   {
    "name": "MemberCode",
-   "type": "str"
+   "type": "str",
+   "note": "TM code, or CP code (then the client code is blank)"
   },
   {
    "name": "ClientCode",
@@ -37,7 +38,8 @@
   },
   {
    "name": "Quantity",
-   "type": "int"
+   "type": "int",
+   "note": "Requested quantity, a multiple of the lot size; blank marks the whole pay-out"
   },
   {
    "name": "CTMFlag",
@@ -45,9 +47,10 @@
    "note": "C: paid out to the client's demat, pledged to the clearing member's CUSPA; T: pledged to the trading member's CUSPA; M: pledged to the trading member's MTF account (CSMFA)"
   },
   {
-   "name": "ActionFlag",
+   "name": "RemoveFlag",
    "type": "str",
-   "note": "Blank in every file seen"
+   "note": "N to remove an earlier request; blank for a new or changed request",
+   "key": "ActionFlag"
   }
  ]
 }
