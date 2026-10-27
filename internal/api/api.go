@@ -551,7 +551,7 @@ func (s *Server) trialBalance(w http.ResponseWriter, r *http.Request) {
 		// Restricted accounts are folded into one line for users who may
 		// not see them, so the totals still agree.
 		vis := s.ops.AccountVisible(r.Context(), tenant(r), actor(r))
-		var rows []ledger.TBRow
+		rows := []ledger.TBRow{}
 		var hidden ledger.TBRow
 		for _, row := range tb.Rows {
 			if vis(row.Account) {

@@ -12,7 +12,7 @@ related: load-files, run-recon, run-billing, contract-notes, eod-close, autopilo
 The usual order. With [[autopilot|Autopilot]] on, most of this runs by itself and you only work the queue.
 
 1. **Before the market opens:** Autopilot's start-of-day stage blocks clients in debit and builds the BOD limit and holdings files for the trading system ([[rms|RMS & limits]]).
-2. **Load the day's files** on [[files|Files]]: exchange trade files, OMS trade book, clearing obligations, bank statement, market data. Drop them all in the inbox; Ledgerline recognises each one.
+2. **Load the day's files** on [[xfiles|Files → Exchange files]]: exchange trade files, clearing and depository files, market data. The OMS trade book and bank statement go on [[files|Files → Other uploads]]. Drop them all in; Ledgerline recognises each one.
 3. **Reconcile** on [[recon|Trade reconciliation]] and clear every break.
 4. **Bill** on [[billing|Billing]].
 5. **Settle** on [[settlement|Settlement]]: obligations, short deliveries, CUSPA.
@@ -21,6 +21,27 @@ The usual order. With [[autopilot|Autopilot]] on, most of this runs by itself an
 8. **Close the day** with **Run EOD close** on the [[dashboard|Dashboard]].
 
 Ask me "why can't I close the day?" at any point and I'll check what's still open.
+
+## where-screens-are
+title: Where each screen is
+screen: dashboard
+roles: Admin, Ops maker, Ops checker, Risk manager, Compliance officer
+ask: where did the screen go; menu changed; cannot find screen; where is exchange files; where is scheduled jobs; where is periodic work; where is running account; where is dispatch register; where is charges calculator; new menu
+related: daily-routine, periodic-work
+
+Screens that do the same job sit together: the menu shows the group once and the screen opens with a tab for each part.
+
+- **Automation**: Autopilot & work queue, Scheduled jobs, Browser automations.
+- **Calendar & circulars**: [[periodic|Periodic work]] and Circulars & duties (the compliance calendar). Regulatory reports shows what falls due in the next month from both.
+- **Files**: Exchange files, Clearing data, Other uploads & migration.
+- **Clients & onboarding**: Clients, Online applications, Change requests.
+- **Client documents**: Client reports, Dispatch register, Client messages, Year-end packs.
+- **RMS & margin**: RMS & limits, Live (intraday), Margin reporting.
+- **Collateral**: client collateral & pledges, and the firm's clearing deposits.
+- **Receipts & payouts**: receipts and payouts, Bank reconciliation, Running account.
+- **Brokerage & charges**: Brokerage plans, Charges calculator, Prepaid schemes.
+
+Links and bookmarks to the old screens still open them, in their group.
 
 ## load-files
 title: Load the day's files

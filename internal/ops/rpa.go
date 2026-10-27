@@ -1461,3 +1461,29 @@ func totpCode(seed string, now time.Time) (string, error) {
 	n := binary.BigEndian.Uint32(s[off:off+4]) & 0x7fffffff
 	return fmt.Sprintf("%06d", n%1000000), nil
 }
+
+// ScheduledAutomation is a browser automation's schedule, listed with the
+// scheduled jobs so every timed run is in one place.
+type ScheduledAutomation struct {
+	Flow       string `json:"flow"`
+	Name       string `json:"name"`
+	Owner      string `json:"owner"`
+	At         string `json:"at"`
+	When       string `json:"when"`
+	Active     bool   `json:"active"`
+	LastDate   string `json:"last_date,omitempty"`
+	LastStatus string `json:"last_status,omitempty"`
+}
+
+// ScheduledAutomations lists the browser automations that run on a schedule.
+func (o *Ops) ScheduledAutomations(ctx context.Context, tenant string) []ScheduledAutomation {
+	fs, _ := docs.List[RPAFlow](ctx, o.Docs, tenant, cRPAFlow, "")
+	out := []ScheduledAutomation{}
+	for _, f := range fs {
+		if f.Schedule == nil {
+			continue
+		}
+		out = append(out, ScheduledAutomation{Flow: f.ID, Name: f.Name, Owner: f.Owner, At: f.Schedule.At, When: f.Schedule.When, Active: f.Schedule.Active, LastDate: f.LastDate, LastStatus: f.LastStatus})
+	}
+	return out
+}

@@ -108,19 +108,36 @@ function eodStatus(e) {
 }
 
 /* ============================== shell ============================== */
+// Screens that do one job are grouped: the sidebar shows the group once and
+// the screen opens with a tab for each of its parts. Every screen keeps its
+// own name (links, help articles and bookmarks to it still work).
+const GROUPS = {
+  automation: ['Automation', [['autopilot', 'Autopilot & work queue'], ['jobs', 'Scheduled jobs'], ['rpa', 'Browser automations']]],
+  calendar: ['Calendar & circulars', [['periodic', 'Periodic work'], ['circulars', 'Circulars & duties']]],
+  filesg: ['Files', [['xfiles', 'Exchange files'], ['ccdata', 'Clearing data'], ['files', 'Other uploads & migration']]],
+  clientsg: ['Clients & onboarding', [['clients', 'Clients'], ['apps', 'Online applications'], ['changes', 'Change requests']]],
+  docsg: ['Client documents', [['statements', 'Client reports'], ['dispatch', 'Dispatch register'], ['messages', 'Client messages'], ['yearend', 'Year-end packs']]],
+  riskg: ['RMS & margin', [['rms', 'RMS & limits'], ['live', 'Live (intraday)'], ['margin', 'Margin reporting']]],
+  collg: ['Collateral', [['collateral', 'Client collateral & pledge'], ['deposits', 'Clearing deposits']]],
+  moneyg: ['Receipts & payouts', [['money', 'Receipts & payouts'], ['bank', 'Bank reconciliation'], ['ras', 'Running account']]],
+  brokg: ['Brokerage & charges', [['brokerage', 'Brokerage plans'], ['charges', 'Charges calculator'], ['prepaid', 'Prepaid schemes']]],
+};
 const NAV = [
-  ['Overview', [['dashboard', 'Dashboard'], ['chat', 'Team messages'], ['rpa', 'Automations'], ['autopilot', 'Autopilot & work queue'], ['periodic', 'Periodic work']]],
-  ['Operations', [['files', 'Files'], ['xfiles', 'Exchange files'], ['ccdata', 'Clearing data'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['apps', 'Online applications'], ['changes', 'Change requests'], ['corp', 'Corporate actions'], ['statements', 'Client reports'], ['yearend', 'Year-end packs']]],
-  ['Risk', [['live', 'Live RMS'], ['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge'], ['debits', 'Debtors & interest'], ['mtf', 'Margin trading (MTF)']]],
-  ['Accounts', [['ledger', 'Ledger'], ['deposits', 'Clearing deposits'], ['bank', 'Bank reconciliation'], ['money', 'Receipts & payouts'], ['books', 'Firm accounts & GST'], ['ras', 'Running account'], ['charges', 'Charges calculator'], ['brokerage', 'Brokerage plans']]],
-  ['Compliance', [['circulars', 'Circulars & calendar'], ['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['dispatch', 'Dispatch register'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
+  ['Overview', [['dashboard', 'Dashboard'], ['chat', 'Team messages'], ['@automation'], ['@calendar']]],
+  ['Operations', [['@filesg'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['@clientsg'], ['corp', 'Corporate actions'], ['@docsg']]],
+  ['Risk', [['@riskg'], ['@collg'], ['debits', 'Debtors & interest'], ['mtf', 'Margin trading (MTF)']]],
+  ['Accounts', [['ledger', 'Ledger'], ['@moneyg'], ['books', 'Firm accounts & GST'], ['@brokg']]],
+  ['Compliance', [['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
   ['Depository', [['dp', 'Demat accounts & DIS']]],
-  ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['partners', 'Branches & partners'], ['prepaid', 'Prepaid schemes']]],
-  ['Admin', [['connections', 'Connections'], ['messages', 'Client messages'], ['jobs', 'Scheduled jobs'], ['backups', 'Backups'], ['settings', 'Settings']]]];
+  ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['partners', 'Branches & partners']]],
+  ['Admin', [['connections', 'Connections'], ['backups', 'Backups'], ['settings', 'Settings']]]];
+// Every staff screen with its name, groups opened up.
+const NAV_VIEWS = NAV.flatMap(g => g[1].flatMap(([k, l]) => k[0] === '@' ? GROUPS[k.slice(1)][1] : [[k, l]]));
+const groupOf = v => Object.keys(GROUPS).find(g => GROUPS[g][1].some(([k]) => k === v));
 const PORTAL_NAV = [['My account', [['portal', 'Overview'], ['pnotes', 'Contract notes'], ['pdocs', 'Signed statements'], ['statements', 'Reports & statements'], ['pinsights', 'Tax & insights'], ['pfunds', 'Funds & payouts'], ['pprofile', 'Profile & documents'], ['phelp', 'Help desk'], ['pext', 'Trades elsewhere']]]];
 const PORTAL_VIEWS = PORTAL_NAV[0][1].map(v => v[0]);
 const clientUser = () => S.me?.role === 'Client';
-const VIEWS = [...NAV.flatMap(g => g[1].map(v => v[0])), ...PORTAL_VIEWS, 'support'];
+const VIEWS = [...NAV_VIEWS.map(v => v[0]), ...PORTAL_VIEWS, 'support'];
 try { const h = location.hash.slice(1); if (VIEWS.includes(h)) S.view = h; } catch (e) {}
 
 const SCOPED_VIEWS = ['chat', 'rpa', 'support', 'yearend', 'insights', 'clients', 'statements', 'notes', 'money', 'debits', 'rms', 'partners', 'prepaid', 'changes', 'helpdesk', 'crm'];
@@ -131,14 +148,30 @@ function editionNote(d) {
   const hu = e.id === 'full' && e.human_only?.length ? `<div class="small" style="margin-top:6px">Still done by people, because the rules require it: ${e.human_only.map(esc).join(' · ')}.</div>` : '';
   return `<div class="note ed-note"><b>${esc(e.name)} edition.</b> ${esc(e.about)}${hu}</div>`;
 }
+// viewAllowed: whether this user sees a screen at all.
+function viewAllowed(k) {
+  if (scopedUser() && !SCOPED_VIEWS.includes(k)) return false;
+  if (edition() === 'manual' && k === 'autopilot') return false;
+  if (role() === 'Authorised person' && k === 'rpa') return false; // automations are for the firm's own staff
+  return true;
+}
+// groupTabs: the group's tabs this user may open.
+const groupTabs = g => GROUPS[g][1].filter(([k]) => viewAllowed(k));
 function renderSide() {
   const ct = S.counts, q = { clients: 1, notes: 1, collateral: 1, reports: 1, autopilot: 1 };
-  let nav = clientUser() ? PORTAL_NAV : scopedUser() ? NAV.map(([g, items]) => [g, items.filter(([k]) => SCOPED_VIEWS.includes(k))]).filter(([, items]) => items.length) : NAV;
-  if (edition() === 'manual') nav = nav.map(([g, items]) => [g, items.filter(([k]) => k !== 'autopilot')]).filter(([, items]) => items.length);
-  if (role() === 'Authorised person') nav = nav.map(([g, items]) => [g, items.filter(([k]) => k !== 'rpa')]).filter(([, items]) => items.length); // automations are for the firm's own staff
+  // A group shows as one entry (its count the sum of its tabs'); with a
+  // single tab left for this user it shows as that screen.
+  const expand = ([k, l]) => {
+    if (k[0] !== '@') return viewAllowed(k) ? [[k, l, [k]]] : [];
+    const g = k.slice(1), tabs = groupTabs(g);
+    if (!tabs.length) return [];
+    if (tabs.length === 1) return [[tabs[0][0], tabs[0][1], [tabs[0][0]]]];
+    return [[(UI.lastTab || {})[g] && tabs.some(t => t[0] === UI.lastTab[g]) ? UI.lastTab[g] : tabs[0][0], GROUPS[g][0], tabs.map(t => t[0])]];
+  };
+  let nav = clientUser() ? PORTAL_NAV.map(([g, items]) => [g, items.map(([k, l]) => [k, l, [k]])]) : NAV.map(([g, items]) => [g, items.flatMap(expand)]).filter(([, items]) => items.length);
   const codes = Object.entries(S.me?.member_codes || {}).map(([k, v]) => k + ' ' + v).join(' · ');
   $('side').innerHTML = `<div class="brand"><div class="mark"><i></i><i></i><i></i></div><div><b>Ledgerline</b><small>${esc(S.me?.firm || 'Back office')}</small>${!clientUser() && S.me?.edition ? `<small class="ed-chip ed-${S.me.edition.id}">${esc(S.me.edition.name)}</small>` : ''}</div></div>` +
-    nav.map(([g, items]) => `<nav class="navg" aria-label="${g}"><h6>${g}</h6>${items.map(([k, l]) => `<button class="nav ${S.view === k ? 'on' : ''}" data-act="go" data-id="${k}"><span>${l}</span>${ct[k] ? `<span class="ct ${q[k] ? 'q' : ''}">${ct[k]}</span>` : ''}</button>`).join('')}</nav>`).join('') +
+    nav.map(([g, items]) => `<nav class="navg" aria-label="${g}"><h6>${g}</h6>${items.map(([k, l, vs]) => { const n = vs.reduce((a, v) => a + (+ct[v] || 0), 0), qq = vs.some(v => q[v] && ct[v]); return `<button class="nav ${vs.includes(S.view) ? 'on' : ''}" data-act="go" data-id="${k}"><span>${l}</span>${n ? `<span class="ct ${qq ? 'q' : ''}">${n}</span>` : ''}</button>`; }).join('')}</nav>`).join('') +
     `<div class="side-foot">${codes ? 'Member codes ' + esc(codes) + '<br>' : ''}${S.me?.dev ? 'Development server. Data is held in memory and is lost when the server stops.' : 'Connected to ' + esc(location.host)}${S.me?.sample_rates ? '<br>Charges use the sample rate schedule.' : ''}</div>`;
 }
 function renderTop() {
@@ -177,7 +210,7 @@ async function render(opts = {}) {
   try {
     C[view] = await V[view].load();
     if (seq !== renderSeq) return;
-    p.innerHTML = V[view].html(C[view]);
+    p.innerHTML = groupBar(view) + V[view].html(C[view]);
     bindPage();
     showNotices();
   } catch (e) {
@@ -186,6 +219,15 @@ async function render(opts = {}) {
     p.innerHTML = ph('Something went wrong', '') + errHTML(e);
   }
   refreshCounts();
+}
+// groupBar: the tabs above a screen that is part of a group.
+function groupBar(view) {
+  const g = groupOf(view);
+  if (!g || clientUser()) return '';
+  UI.lastTab = { ...(UI.lastTab || {}), [g]: view };
+  const tabs = groupTabs(g);
+  if (tabs.length < 2) return '';
+  return `<div class="gtabs" role="tablist" aria-label="${esc(GROUPS[g][0])}">${tabs.map(([k, l]) => `<button role="tab" aria-selected="${k === view}" class="${k === view ? 'on' : ''}" data-act="go" data-id="${k}">${esc(l)}${+S.counts?.[k] ? ` <span class="ct">${S.counts[k]}</span>` : ''}</button>`).join('')}</div>`;
 }
 function rerenderPart(part) { const el = $(part); if (el && P[part]) el.innerHTML = P[part](C[S.view]); bindPage(); }
 
@@ -1272,6 +1314,7 @@ V.jobs = {
     const when = w => w === 'business' ? 'Business days' : w === 'daily' ? 'Every day' : w.startsWith('weekly:') ? 'Every ' + w.slice(7) : 'Monthly on day ' + w.slice(8);
     return ph('Scheduled jobs', 'Routine work run automatically at a set time (IST): the Autopilot stages, Periodic work (weekly, monthly and DP statements and the rest), debit reminders, daily margin statements, KRA files and reports to management. Contract notes, margin calls, KYC reminders, inactive flagging and interest are run by Autopilot (set them on the Autopilot screen), so they are not separate jobs. Each run is recorded, and management is emailed when a job succeeds or fails. Jobs run as the system, with every action in the audit trail.', adm ? '<button class="btn pri" data-act="editJob" data-id="">New job</button>' : '') +
     (edition() === 'manual' ? '<div class="note"><b>Manual edition.</b> Nothing runs on a timer: use <b>Run now</b> when you want a job done.</div>' : '') + `<div class="panel">${tbl([['Job'], ['Schedule'], ['Next run'], ['Last run'], ['']], d.jobs.map(j => `<tr><td><b>${esc(j.name)}</b> ${pill(j.active ? 'On' : 'Off', j.active ? 'good' : 'nt')}<div class="dim small">${Object.keys(j.params || {}).length ? Object.entries(j.params).map(([k, v]) => esc(k + ': ' + v)).join(', ') : esc(kn[j.kind]?.name || j.kind)}</div></td><td>${when(j.when)} at ${esc(j.at)}${j.only_failure ? '<div class="dim small">management told only on failure</div>' : ''}</td><td class="n">${j.active && j.next ? esc(j.next) : '—'}</td><td class="wrap small">${j.last_status ? pill(j.last_status, j.last_status === 'Succeeded' ? 'good' : 'bad') + ' ' + esc(j.last_summary) + `<div class="dim">${esc(j.last_run.slice(0, 16).replace('T', ' '))}</div>` : '<span class="dim">never</span>'}</td><td>${run ? `<button class="btn sm" data-act="runJob" data-id="${j.id}">Run now</button>` : ''}${adm ? `<button class="btn sm" data-act="editJob" data-id="${j.id}">Edit</button>` : ''}</td></tr>`), { empty: 'No jobs.' })}</div>
+    ${(d.automations || []).length ? `<div class="panel"><div class="hd"><h3>Browser automations on a schedule</h3><small>set on <a href="#rpa" data-act="go" data-id="rpa">Browser automations</a>; they run on the owner's computer</small></div>${tbl([['Automation'], ['Schedule'], ['Owner'], ['Last run']], d.automations.map(a => `<tr><td><b>${esc(a.name)}</b> ${pill(a.active ? 'On' : 'Off', a.active ? 'good' : 'nt')}</td><td>${when(a.when)} at ${esc(a.at)}</td><td>${esc(a.owner)}</td><td class="small">${a.last_status ? pill(a.last_status, /Succe|Done/.test(a.last_status) ? 'good' : 'bad') + ' ' + esc(fmtDate(a.last_date)) : '<span class="dim">never</span>'}</td></tr>`))}</div>` : ''}
     <div class="panel"><div class="hd"><h3>Recent runs</h3></div>${tbl([['Run'], ['Job'], ['For date'], ['Started'], ['Took', 'r'], ['Result'], ['Told']], d.runs.map(r => `<tr><td class="n dim">${r.id}</td><td>${esc(r.name)}</td><td class="n">${fmtDate(r.date)}</td><td class="n">${esc(r.started.slice(0, 16).replace('T', ' '))}<div class="dim small">${esc(r.by)}</div></td><td class="r">${r.ms} ms</td><td class="wrap small">${pill(r.status, r.status === 'Succeeded' ? 'good' : 'bad')} ${esc(r.summary)}</td><td class="small dim">${esc(r.notified || '—')}</td></tr>`), { tall: true, empty: 'No runs yet.' })}</div>
     ${(d.mail || []).length ? `<div class="panel"><div class="hd"><h3>Mail to staff</h3><small>job results, backup alerts and emailed reports</small></div>${tbl([['When'], ['To'], ['Subject'], ['Result']], d.mail.slice(0, 50).map(m => `<tr><td class="n small">${esc((m.at || '').slice(0, 16).replace('T', ' '))}</td><td class="small">${esc(m.to)}</td><td class="wrap small">${esc(m.subject)}</td><td class="small">${pill(m.result, m.result.startsWith('Sent') ? 'good' : 'bad')}</td></tr>`), { tall: true })}</div>` : ''}`;
   }

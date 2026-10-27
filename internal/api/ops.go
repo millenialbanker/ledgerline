@@ -1861,6 +1861,9 @@ func (s *Server) clientPrivacy(w http.ResponseWriter, r *http.Request) {
 func (s *Server) apPayouts(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	v, err := s.ops.APPayouts(r.Context(), tenant(r), q.Get("from"), q.Get("to"))
+	if v == nil {
+		v = []ops.APPayout{}
+	}
 	ok(w, v, err)
 }
 
@@ -1876,6 +1879,9 @@ func (s *Server) postAPPayouts(w http.ResponseWriter, r *http.Request) {
 func (s *Server) referrals(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	v, err := s.ops.Referrals(r.Context(), tenant(r), q.Get("from"), q.Get("to"))
+	if v == nil {
+		v = []ops.ReferralRow{}
+	}
 	ok(w, v, err)
 }
 
@@ -2368,7 +2374,7 @@ func (s *Server) portalWhatsApp(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) jobs(w http.ResponseWriter, r *http.Request) {
 	js, rs, err := s.ops.Jobs(r.Context(), tenant(r))
-	ok(w, map[string]any{"jobs": js, "runs": rs, "kinds": ops.JobKinds}, err)
+	ok(w, map[string]any{"jobs": js, "runs": rs, "kinds": ops.JobKinds, "automations": s.ops.ScheduledAutomations(r.Context(), tenant(r))}, err)
 }
 
 func (s *Server) outbox(w http.ResponseWriter, r *http.Request) {

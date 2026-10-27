@@ -54,7 +54,7 @@ Object.assign(A, {
   spBack: () => { SP.open = ''; render({ keep: true }); },
   spReply: () => act(() => post('/v1/support/' + encodeURIComponent(SP.open), { text: $('sp-reply').value }), 'Reply sent'),
   spClose: () => act(() => post('/v1/support/' + encodeURIComponent(SP.open), { close: true }), 'Request closed'),
-  spMenu: () => { SP.from = (NAV.flatMap(g => g[1]).find(v => v[0] === S.view) || [, S.view])[1]; SP.open = ''; S.view = 'support'; closeModal(); render(); window.scrollTo(0, 0); },
+  spMenu: () => { SP.from = (NAV_VIEWS.find(v => v[0] === S.view) || [, S.view])[1]; SP.open = ''; S.view = 'support'; closeModal(); render(); window.scrollTo(0, 0); },
 });
 // Ledgy's links to a request ("support:SR-0004") open it.
 const _spGo = A.go;

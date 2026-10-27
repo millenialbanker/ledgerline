@@ -32,7 +32,7 @@ func consoleViews(t *testing.T) map[string]bool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	nav := string(b)[strings.Index(string(b), "const NAV = ["):]
+	nav := string(b)[strings.Index(string(b), "const GROUPS = {"):]
 	nav = nav[:strings.Index(nav, "const clientUser")]
 	out := map[string]bool{}
 	for _, m := range regexp.MustCompile(`\['([a-z]+)', '`).FindAllStringSubmatch(nav, -1) {

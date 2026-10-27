@@ -44,7 +44,7 @@ function lgMD(src) {
 }
 
 const lgName = () => ((S.me?.users || []).find(u => u.id === S.me.actor)?.name || '').split(' ')[0];
-const LG_VIEW_NAMES = () => Object.fromEntries(NAV.flatMap(g => g[1]));
+const LG_VIEW_NAMES = () => Object.fromEntries(NAV_VIEWS);
 
 function lgArticle(a, opts = {}) {
   const names = LG_VIEW_NAMES();

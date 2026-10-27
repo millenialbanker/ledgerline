@@ -111,7 +111,7 @@ func newLookup(m Market) Lookup {
 }
 
 // ErrNoMarketData means the day's market data file has not been loaded.
-var ErrNoMarketData = errors.New("market data not loaded for this date; upload the MARKET-DATA file")
+var ErrNoMarketData = errors.New("market data not loaded for this date; load the security master, VaR and closing price files on Exchange files (or a MARKET-DATA file from another back office)")
 
 // Market returns a date's market data, falling back to the latest earlier day.
 func (o *Ops) Market(ctx context.Context, tenant, date string) (Market, Lookup, error) {

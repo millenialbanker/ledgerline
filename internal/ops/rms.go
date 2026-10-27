@@ -315,6 +315,9 @@ func (o *Ops) Risk(ctx context.Context, tenant, date string) (RiskView, error) {
 		fillRisk(&r, in.set)
 		v.Rows = append(v.Rows, r)
 	}
+	if v.Rows == nil {
+		v.Rows = []RiskRow{}
+	}
 	return v, nil
 }
 
