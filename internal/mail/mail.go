@@ -128,13 +128,21 @@ func (m Message) Build(id string) []byte {
 	return b.Bytes()
 }
 
-// Send delivers one message.
-func (s *SMTP) Send(ctx context.Context, m Message) (string, error) {
-	if m.From == "" {
-		m.From = s.From
+// Check connects, starts TLS and signs in without sending anything: it
+// proves the address, the certificate and the login.
+func (s *SMTP) Check(ctx context.Context) error {
+	c, conn, err := s.dial(ctx)
+	if err != nil {
+		return err
 	}
+	defer conn.Close()
+	defer c.Close()
+	return c.Quit()
+}
+
+func (s *SMTP) dial(ctx context.Context) (*smtp.Client, net.Conn, error) {
 	addr := net.JoinHostPort(s.Host, s.Port)
-	d := net.Dialer{Timeout: s.Timeout}
+	d := net.Dialer{Timeout: s.timeout()}
 	tlsCfg := &tls.Config{ServerName: s.Host, MinVersion: tls.VersionTLS12, InsecureSkipVerify: s.InsecureSkipVerify}
 	var conn net.Conn
 	var err error
@@ -144,28 +152,51 @@ func (s *SMTP) Send(ctx context.Context, m Message) (string, error) {
 		conn, err = d.DialContext(ctx, "tcp", addr)
 	}
 	if err != nil {
-		return "", fmt.Errorf("mail server: %w", err)
+		return nil, nil, fmt.Errorf("mail server: %w", err)
 	}
-	_ = conn.SetDeadline(time.Now().Add(s.Timeout))
+	_ = conn.SetDeadline(time.Now().Add(s.timeout()))
 	c, err := smtp.NewClient(conn, s.Host)
 	if err != nil {
 		conn.Close()
-		return "", fmt.Errorf("mail server: %w", err)
+		return nil, nil, fmt.Errorf("mail server: %w", err)
 	}
-	defer c.Close()
 	if !s.Implicit {
 		if ok, _ := c.Extension("STARTTLS"); !ok {
-			return "", errors.New("mail server does not offer STARTTLS; refusing to send in clear")
+			c.Close()
+			return nil, nil, errors.New("mail server does not offer STARTTLS; refusing to send in clear")
 		}
 		if err := c.StartTLS(tlsCfg); err != nil {
-			return "", fmt.Errorf("mail server TLS: %w", err)
+			c.Close()
+			return nil, nil, fmt.Errorf("mail server TLS: %w", err)
 		}
 	}
 	if s.User != "" {
 		if err := c.Auth(smtp.PlainAuth("", s.User, s.Pass, s.Host)); err != nil {
-			return "", fmt.Errorf("mail server login: %w", err)
+			c.Close()
+			return nil, nil, fmt.Errorf("mail server login: %w", err)
 		}
 	}
+	return c, conn, nil
+}
+
+func (s *SMTP) timeout() time.Duration {
+	if s.Timeout <= 0 {
+		return 60 * time.Second
+	}
+	return s.Timeout
+}
+
+// Send delivers one message.
+func (s *SMTP) Send(ctx context.Context, m Message) (string, error) {
+	if m.From == "" {
+		m.From = s.From
+	}
+	c, conn, err := s.dial(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+	defer c.Close()
 	if err := c.Mail(m.From); err != nil {
 		return "", classify(err)
 	}

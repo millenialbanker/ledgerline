@@ -143,7 +143,29 @@ func (o *Ops) setupChecklist(ctx context.Context, tenant string, set Settings) [
 		}
 		out = append(out, it)
 	}
-	add("mail", "Mail server for contract notes", o.Mailer != nil, map[bool]string{true: "", false: "LEDGERLINE_SMTP_URL not set"}[o.Mailer != nil])
+	hasMail := o.mailerFor(ctx, tenant) != nil
+	add("mail", "Mail server for contract notes", hasMail, map[bool]string{true: "", false: "not set (Settings → Connections)"}[hasMail])
+	// The other connections a firm needs before it goes live.
+	if cs, err := docs.List[Connection](ctx, o.Docs, tenant, cConn, ""); err == nil {
+		got := map[string]Connection{}
+		for _, c := range cs {
+			got[c.Provider] = c
+		}
+		for _, p := range ConnProviders {
+			if !p.Required || p.ID == "mail" {
+				continue
+			}
+			c, ok := got[p.ID]
+			st := "not set"
+			if ok && c.Status != "Not set" {
+				st = strings.ToLower(c.Status)
+				if c.Problem != "" && c.Status == "Problem" {
+					st += ": " + c.Problem
+				}
+			}
+			add("conn_"+p.ID, p.Name, ok && (c.Status == "Working" || c.Status == "Saved"), map[bool]string{true: "", false: st}[ok && (c.Status == "Working" || c.Status == "Saved")])
+		}
+	}
 	if bv, err := o.BackupsStatus(ctx, tenant, SystemActor); err == nil {
 		d := ""
 		if len(bv.Problems) > 0 {

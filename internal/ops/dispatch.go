@@ -93,9 +93,9 @@ type docRequest struct {
 	Text                 string // email body
 }
 
-func (o *Ops) mailFrom(set Settings) string {
-	if m, ok := o.Mailer.(*SMTPMailer); ok {
-		return m.From
+func mailFrom(m Mailer, set Settings) string {
+	if s, ok := m.(*SMTPMailer); ok {
+		return s.From
 	}
 	return firstOf(set.ComplianceEmail, "noreply@ledgerline.invalid")
 }
@@ -146,11 +146,12 @@ func (o *Ops) dispatchDoc(ctx context.Context, tenant, actor string, r docReques
 		o.bounceWork(ctx, tenant, d)
 		return save()
 	}
-	mail := Mail{From: o.mailFrom(set), To: c.Email, Subject: d.Subject, Text: r.Text + "\n\n" + set.Firm + "\nThe attached PDF is digitally signed. If you did not expect this message, write to " + firstOf(set.ComplianceEmail, "the firm") + ".",
+	mailer := o.mailerFor(ctx, tenant)
+	mail := Mail{From: mailFrom(mailer, set), To: c.Email, Subject: d.Subject, Text: r.Text + "\n\n" + set.Firm + "\nThe attached PDF is digitally signed. If you did not expect this message, write to " + firstOf(set.ComplianceEmail, "the firm") + ".",
 		Attach: []MailFile{{Name: r.FileName, Type: "application/pdf", Data: data}}}
 	switch {
-	case o.Mailer != nil:
-		id, err := o.Mailer.Send(ctx, mail)
+	case mailer != nil:
+		id, err := mailer.Send(ctx, mail)
 		var rej *Rejected
 		switch {
 		case err == nil:
@@ -171,7 +172,7 @@ func (o *Ops) dispatchDoc(ctx context.Context, tenant, actor string, r docReques
 			d.Status, d.SentAt, d.MessageID = "Sent", now.Format(time.RFC3339), newMessageID("ledgerline.invalid")
 		}
 	default:
-		d.Status, d.Reason = "Held", "no mail server is set up (LEDGERLINE_SMTP_URL)"
+		d.Status, d.Reason = "Held", "no mail server is set up (Settings → Connections → Mail server)"
 	}
 	return save()
 }
@@ -247,7 +248,7 @@ func (o *Ops) DispatchRegister(ctx context.Context, tenant, actor string, f Disp
 	}
 	v.Signing, _ = o.Signing(ctx, tenant, SystemActor)
 	switch {
-	case o.Mailer != nil:
+	case o.mailerFor(ctx, tenant) != nil:
 		v.Mail = "smtp"
 	case o.DevCodes || o.devFirm(ctx, tenant):
 		v.Mail = "simulated"

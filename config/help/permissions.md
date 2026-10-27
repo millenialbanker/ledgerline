@@ -23,6 +23,7 @@ Changing automation | Compliance officer, Admin
 Changing backup settings | Admin
 Changing brokerage plans | Ops checker
 Changing client groups | Ops maker, Ops checker
+Changing connections | Admin
 Changing settings | Admin
 Changing the DP tariff | Ops checker, Admin
 Changing the MTF policy | Risk manager, Admin
@@ -122,6 +123,7 @@ Square-off | Risk manager
 Switching the autopilot schedule | Admin
 Taking a backup | Admin
 Tendering for a client | Ops maker, Ops checker
+Testing connections | Admin
 Testing templates | Ops checker, Compliance officer
 The kill switch | Risk manager
 Updating KYC details | Ops maker, Ops checker
@@ -132,6 +134,7 @@ Verifying delivery instructions | Ops checker
 View data protection | Compliance officer
 Viewing AI usage | Compliance officer
 Viewing backups | Ops checker, Compliance officer
+Viewing connections | Compliance officer, Admin
 Viewing nominations | Ops maker, Ops checker, Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin

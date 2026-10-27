@@ -340,3 +340,18 @@ On [[rpa|Automations]]:
 6. A run that needs you pauses: Ledgy messages you; do the step in the bot's window and click **Continue**. A failed run shows the step, the reason and a picture of the screen.
 
 **Share** lets colleagues run a workflow on their own computers with their own saved logins. Admins can add firm logins (the firm's own portal accounts) and choose who may use them. Every use of a saved password is in the audit trail.
+
+## connections
+title: Connect KRA, the OMS, the bank, SMS and the mail server
+screen: connections
+roles: Admin
+ask: connections; api key; kra login; oms api; mail server; smtp; sms gateway; whatsapp api; bank api; e-sign provider; penny drop; where do i put the password; ip whitelist; server ip; test connection
+related: dispatch-register
+
+On [[connections|Connections]] (Admin) enter the firm's own account for each service: KRA, CKYC, the trading front end (OMS), the exchange and depository portals, the client money bank account, SMS, WhatsApp, e-Sign, penny drop and the mail server.
+
+1. **Set up** opens the fields that service needs. Passwords and keys are saved encrypted with the firm's keys and never shown again; leave them blank later to keep them.
+2. **Save and test** checks that the address answers securely and, for the mail server, that the login works. Nothing is sent or changed at the provider.
+3. Providers that accept only listed addresses need this server's address, shown at the top of the page.
+
+The services marked "Needed to go live" are part of the go-live checklist. Contract notes and statements go out through the firm's own mail server once it is set here.

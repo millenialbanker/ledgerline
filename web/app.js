@@ -116,7 +116,7 @@ const NAV = [
   ['Compliance', [['circulars', 'Circulars & calendar'], ['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['dispatch', 'Dispatch register'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
   ['Depository', [['dp', 'Demat accounts & DIS']]],
   ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['partners', 'Branches & partners'], ['prepaid', 'Prepaid schemes']]],
-  ['Admin', [['messages', 'Client messages'], ['jobs', 'Scheduled jobs'], ['backups', 'Backups'], ['settings', 'Settings']]]];
+  ['Admin', [['connections', 'Connections'], ['messages', 'Client messages'], ['jobs', 'Scheduled jobs'], ['backups', 'Backups'], ['settings', 'Settings']]]];
 const PORTAL_NAV = [['My account', [['portal', 'Overview'], ['pnotes', 'Contract notes'], ['pdocs', 'Signed statements'], ['statements', 'Reports & statements'], ['pinsights', 'Tax & insights'], ['pfunds', 'Funds & payouts'], ['pprofile', 'Profile & documents'], ['phelp', 'Help desk'], ['pext', 'Trades elsewhere']]]];
 const PORTAL_VIEWS = PORTAL_NAV[0][1].map(v => v[0]);
 const clientUser = () => S.me?.role === 'Client';
@@ -2446,7 +2446,7 @@ V.dispatch = {
     return ph('Dispatch register', 'Every contract note and statement sent to clients: the signed PDF exactly as sent with its SHA-256 fingerprint, where and when it went, and what happened to it. SEBI treats this log as proof of delivery. A bounced email needs a printed copy by courier; clients who chose paper get one every time. Keep the register and the documents for the retention period.',
       `${mk ? '<button class="btn" data-act="dspRun">Send statements</button><input type="file" id="dsp-bfile" accept=".csv,text/csv" hidden><button class="btn" data-act="dspBounces">Load bounce report</button>' : ''}<button class="btn" data-act="dspCSV">Download register</button>${has('Compliance officer', 'Ops checker') ? '<button class="btn" data-act="sigOpen">Digital signature</button>' : ''}`) +
     (!sg.ready || sg.test ? `<div class="note ${sg.test ? 'warn' : 'bad'}">${sg.test ? 'This development server signs with a <b>test certificate</b>. Documents are marked as test copies and are not valid for clients.' : `<b>Documents are being held:</b> ${esc(sg.problem || 'no digital signature is set up')}. Contract notes and statements are never sent unsigned.`} ${has('Admin') ? '<button class="linkish" data-act="sigOpen">Set up the firm’s certificate</button>' : 'Ask an Admin to set up the firm’s certificate.'}</div>` : '') +
-    (d.mail === 'none' ? '<div class="note bad"><b>No mail server is set up</b> (LEDGERLINE_SMTP_URL): emailed documents are held until one is.</div>' : d.mail === 'simulated' ? '<div class="note">Development server: emails are simulated; addresses ending in .invalid bounce.</div>' : '') +
+    (d.mail === 'none' ? `<div class="note bad"><b>No mail server is set up:</b> emailed documents are held until one is. ${has('Admin') ? '<button class="linkish" data-act="go" data-id="connections">Set it up in Connections</button>' : 'Ask an Admin to set it up in Connections.'}</div>` : d.mail === 'simulated' ? '<div class="note">Development server: emails are simulated; addresses ending in .invalid bounce.</div>' : '') +
     `<div class="kpis">${kpi('Delivered', nf((c.Sent || 0) + (c['Physical sent'] || 0)), 'email and courier', 'good')}${kpi('Bounced', nf(c.Bounced || 0), 'printed copy needed', c.Bounced ? 'bad' : '')}${kpi('Paper due', nf(c['Physical pending'] || 0), 'clients who chose paper', c['Physical pending'] ? 'warn' : '')}${kpi('Held', nf((c.Held || 0) + (c.Failed || 0)), 'not signed or not sent', c.Held || c.Failed ? 'bad' : '')}${kpi('Signature', sg.mode === 'off' ? 'None' : sg.test ? 'Test' : sg.ready ? 'Ready' : 'Problem', sg.ready && !sg.test ? `${esc(sg.info.name)} · ${sg.expires_in_days} days left` : sigTxt, !sg.ready ? 'bad' : sg.test || sg.expires_in_days < 30 ? 'warn' : 'good')}</div>
     <div class="panel"><div class="hd"><div class="tools">${segBtns('dspTab', [['', 'All'], ['Sent', 'Emailed'], ['Bounced', `Bounced · ${c.Bounced || 0}`], ['Physical pending', `Paper due · ${c['Physical pending'] || 0}`], ['Held', `Held · ${c.Held || 0}`], ['Failed', `Failed · ${c.Failed || 0}`], ['Physical sent', 'By courier']], 'dsp-t')}
       <select class="in" id="dsp-kind"><option value="">Every document</option>${Object.entries(d.kinds).map(([k, v]) => `<option value="${k}" ${UI.dspKind === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
@@ -2543,6 +2543,47 @@ async function showNotices() {
   p.insertAdjacentHTML('afterbegin', `<div id="ll-notices">${ns.map(n => `<div class="note ${n.level === 'info' ? '' : esc(n.level)}" style="display:flex;gap:12px;align-items:flex-start;margin-bottom:10px"><div style="flex:1"><b>${esc(n.title)}</b>${n.text ? `<div style="white-space:pre-line">${esc(n.text)}</div>` : ''}<div class="dim small">From Ledgerline${n.until ? ' · until ' + esc(new Date(n.until).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) : ''}</div></div><button class="linkish small" data-act="noticeHide" data-id="${esc(n.id)}">Hide</button></div>`).join('')}</div>`);
 }
 A.noticeHide = id => { const h = noticeHidden(); h.push(id); try { localStorage.setItem('ll-notices-hidden', JSON.stringify(h.slice(-50))); } catch (e) {} $('ll-notices')?.remove(); showNotices(); };
+
+/* ---------- connections: the firm's accounts with outside services ---------- */
+const CONN_ST = { Working: 'good', Saved: 'acc', Problem: 'bad', 'Not set': 'nt' };
+V.connections = {
+  load: () => get('/v1/connections'),
+  html: d => {
+    const admin = has('Admin'), groups = [...new Set(d.connections.map(c => c.group))];
+    return ph('Connections', 'The firm’s own accounts with the services Ledgerline works with: KRA and CKYC, the trading front end, exchanges, the depository, the bank, SMS, WhatsApp, e-Sign and the mail server. Passwords and keys are kept encrypted with the firm’s keys, never shown again and never sent to anyone; every use is recorded. A test checks what can be checked without side effects: that the address answers securely, and for the mail server that the login works.') +
+      `<div class="kpis">${kpi('Needed to go live', `${d.ready} of ${d.required}`, 'set up', d.ready < d.required ? 'warn' : 'good')}${kpi('Working', d.connections.filter(c => c.status === 'Working').length, 'tested and answering', 'good')}${kpi('Problems', d.connections.filter(c => c.status === 'Problem').length, '', d.connections.some(c => c.status === 'Problem') ? 'bad' : '')}</div>` +
+      (d.server_ip ? `<div class="note">Providers that only accept listed addresses (KRA, OMS vendors, banks) need this server’s address: <b class="mono">${esc(d.server_ip)}</b></div>` : '<div class="note">Some providers only accept listed addresses. Ask your Ledgerline contact for this server’s address (set LEDGERLINE_SERVER_IP to show it here).</div>') +
+      groups.map(g => `<div class="panel"><div class="hd"><h3>${esc(g)}</h3></div>${tbl([['Service'], ['Account'], ['State'], ['Last checked'], ['']], d.connections.filter(c => c.group === g).map(c => {
+        const acct = [c.values.provider, c.values.code && 'code ' + c.values.code, c.values.member && 'member ' + c.values.member, c.values.dp_id && 'DP ' + c.values.dp_id, c.values.bank, c.values.account && '…' + c.values.account, c.values.user, c.values.host, c.values.sender && 'sender ' + c.values.sender, c.values.number].filter(Boolean).map(esc).join(' · ');
+        return `<tr><td><b>${esc(c.name)}</b>${c.required ? ' ' + pill('Needed to go live', 'acc') : ''}<div class="dim small">${esc(c.purpose)}</div></td><td class="small wrap" style="max-width:260px">${c.system ? `<span class="dim">${esc(c.system)}</span>` : acct || '<span class="dim">—</span>'}</td><td>${pill(c.status, CONN_ST[c.status] || 'nt')}${c.problem ? `<div class="small ${c.status === 'Problem' ? 'neg' : 'dim'} wrap">${esc(c.problem)}</div>` : ''}</td><td class="small">${c.tested_at ? `${fmtDate(c.tested_at.slice(0, 10))} ${c.tested_at.slice(11, 16)}<div class="dim">${esc(c.tested_by)}</div>` : '—'}</td>
+          <td class="r"><div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">${c.system ? (c.id === 'signing' ? '<button class="btn sm" data-act="go" data-id="dispatch">Open</button>' : '') : admin ? `${c.status !== 'Not set' && c.test !== 'none' ? `<button class="btn sm" data-act="connTest" data-id="${c.id}">Test</button>` : ''}<button class="btn sm ${c.status === 'Not set' ? 'pri' : ''}" data-act="connEdit" data-id="${c.id}">${c.status === 'Not set' ? 'Set up' : 'Change'}</button>` : ''}</div></td></tr>`;
+      }))}</div>`).join('');
+  }
+};
+Object.assign(A, {
+  connEdit: id => {
+    const c = C.connections.connections.find(x => x.id === id);
+    const fld = f => {
+      const v = c.values[f.key] || '', lab = `<label for="cn-${f.key}">${esc(f.label)}${f.optional ? ' <span class="dim">(optional)</span>' : ''}</label>`;
+      if (f.options) return `<div class="fld">${lab}<select class="in" id="cn-${f.key}"><option value="">Choose</option>${f.options.map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
+      if (f.secret) return `<div class="fld">${lab}<input class="in" type="password" id="cn-${f.key}" autocomplete="new-password" placeholder="${c.secret_set[f.key] ? 'Saved: leave blank to keep' : ''}"></div>`;
+      return `<div class="fld ${f.key === 'notes' || f.key === 'url' ? 'full' : ''}">${lab}<input class="in ${f.key === 'url' || f.key === 'host' ? 'mono' : ''}" id="cn-${f.key}" value="${esc(v)}" placeholder="${esc(f.placeholder || '')}"></div>`;
+    };
+    modal(mhd(esc(c.name), esc(c.purpose) + '. Saved encrypted; passwords and keys are never shown again.') + `<div class="bd"><div class="form">${c.fields.map(fld).join('')}</div><div id="cn-err"></div></div>
+      <div class="ft">${c.status !== 'Not set' ? `<button class="btn danger" data-act="connRemove" data-id="${id}">Remove</button>` : ''}<span style="flex:1"></span><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="connSave" data-id="${id}">Save${c.test !== 'none' ? ' and test' : ''}</button></div>`);
+  },
+  connSave: async id => {
+    const c = C.connections.connections.find(x => x.id === id), values = {}, secrets = {};
+    c.fields.forEach(f => { const v = $('cn-' + f.key).value; if (f.secret) { if (v) secrets[f.key] = v; } else values[f.key] = v.trim(); });
+    try {
+      await api('PUT', '/v1/connections/' + id, { values, secrets });
+      const r = c.test !== 'none' ? await post('/v1/connections/' + id + '/test') : null;
+      closeModal(); toast(r ? `${c.name}: ${r.status}${r.problem ? ' · ' + r.problem : ''}` : 'Saved', r && r.status === 'Problem'); render({ keep: true });
+    } catch (e) { $('cn-err').innerHTML = errHTML(e); }
+  },
+  connTest: id => act(() => post('/v1/connections/' + id + '/test'), r => `${r.name}: ${r.status}${r.problem ? ' · ' + r.problem : ''}`),
+  connRemove: id => { if (window.confirm('Remove this connection and its saved password or key?')) act(() => post('/v1/connections/' + id + '/remove'), 'Removed'); },
+});
 
 /* ============================== start ============================== */
 async function loadMe() { S.me = await get('/v1/me'); document.body.classList.remove('signed-out'); persist(); }
