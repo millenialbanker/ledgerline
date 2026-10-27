@@ -22,7 +22,15 @@ jobs:
       - name: Format and vet
         run: make vet
       - name: Unit and end-to-end tests
-        run: make test
+        # The output is kept so a failure can be named in an annotation
+        # (annotations are readable where the raw log is not).
+        run: |
+          set -o pipefail
+          go test -race -count=1 -shuffle=on ./... 2>&1 | tee unit.txt
+      - name: Name failing tests
+        if: failure()
+        run: |
+          grep -E -- '-test.shuffle|--- FAIL|^FAIL|panic:|WARNING: DATA RACE|_test.go:[0-9]+:|\.go:[0-9]+ \+0x' unit.txt | head -40 | sed 's/^/::error::/' || true
       - name: SQL schema and store tests
         run: make sqltest
       - name: Integration test against PostgreSQL
