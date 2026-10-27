@@ -211,3 +211,110 @@ func TestCorporateActionsAndBuyBack(t *testing.T) {
 	}
 	_ = ledger.BankClient
 }
+
+func TestMergerSymbolChangeRightsAndIPO(t *testing.T) {
+	o, ctx := setup(t)
+	hs, _ := o.Holdings(ctx, T, "BH1001")
+	var h Holding
+	for _, x := range hs {
+		if x.Qty >= 10 {
+			h = x
+			break
+		}
+	}
+	if h.ISIN == "" {
+		t.Fatal("no holding")
+	}
+	lots0, _, _, _ := o.equityBook(ctx, T, "BH1001", D)
+	var cost0 money.Dec
+	var q0 int64
+	for _, l := range lots0 {
+		if l.ISIN == h.ISIN {
+			cost0, q0 = cost0.Add(l.Price.MulInt(l.Qty)), q0+l.Qty
+		}
+	}
+	// Merger: 1 new share for every 2 held; ex-date the next day.
+	ex := addDays(D, 1)
+	newISIN := "INE999Z01011"
+	m, err := o.SaveCorpAction(ctx, T, "priya.nair", CorpAction{ISIN: h.ISIN, Symbol: h.Symbol, Type: "Merger", NewISIN: newISIN, NewSymbol: "NEWCO", ExDate: ex, RecordDate: ex, RatioNew: 1, RatioOld: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.SaveCorpAction(ctx, T, "priya.nair", CorpAction{ISIN: h.ISIN, Type: "Merger", NewISIN: h.ISIN, ExDate: ex, RecordDate: ex, RatioNew: 1, RatioOld: 1}); err == nil {
+		t.Fatal("merger into the same ISIN accepted")
+	}
+	if _, err := o.ApplyCorpAction(ctx, T, "farhan.khan", m.ID); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := o.Holdings(ctx, T, "BH1001")
+	var old, nw Holding
+	for _, x := range after {
+		if x.ISIN == h.ISIN {
+			old = x
+		}
+		if x.ISIN == newISIN {
+			nw = x
+		}
+	}
+	if old.Qty != 0 || nw.Qty != h.Qty/2 || nw.Symbol != "NEWCO" {
+		t.Fatalf("holdings old %+v new %+v", old, nw)
+	}
+	// Lots: same total cost, half the shares, under the new ISIN, original dates.
+	lots1, _, _, _ := o.equityBook(ctx, T, "BH1001", ex)
+	var cost1 money.Dec
+	var q1 int64
+	for _, l := range lots1 {
+		if l.ISIN == h.ISIN && l.Qty > 0 {
+			t.Fatalf("old ISIN lot left: %+v", l)
+		}
+		if l.ISIN == newISIN {
+			cost1, q1 = cost1.Add(l.Price.MulInt(l.Qty)), q1+l.Qty
+		}
+	}
+	if q1 != q0/2 || cost1.Sub(cost0).Abs().Cmp(money.MustDec("1")) > 0 {
+		t.Fatalf("lots %d cost %s want %s", q1, cost1, cost0)
+	}
+	// Symbol change, one for one.
+	sc, err := o.SaveCorpAction(ctx, T, "priya.nair", CorpAction{ISIN: newISIN, Symbol: "NEWCO", Type: "Symbol change", NewSymbol: "NEWCOLTD", ExDate: addDays(ex, 1), RecordDate: addDays(ex, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.ApplyCorpAction(ctx, T, "farhan.khan", sc.ID); err != nil {
+		t.Fatal(err)
+	}
+	after, _ = o.Holdings(ctx, T, "BH1001")
+	for _, x := range after {
+		if x.ISIN == newISIN && (x.Symbol != "NEWCOLTD" || x.Qty != h.Qty/2) {
+			t.Fatalf("symbol change %+v", x)
+		}
+	}
+	// Rights: 1 entitlement for every 5 held.
+	rt, err := o.SaveCorpAction(ctx, T, "priya.nair", CorpAction{ISIN: newISIN, Symbol: "NEWCOLTD", Type: "Rights", NewISIN: "INE999Z20012", ExDate: addDays(ex, 2), RecordDate: addDays(ex, 2), RatioNew: 1, RatioOld: 5})
+	if err != nil || rt.NewSymbol != "NEWCOLTD-RE" {
+		t.Fatalf("%+v %v", rt, err)
+	}
+	if _, err := o.ApplyCorpAction(ctx, T, "farhan.khan", rt.ID); err != nil {
+		t.Fatal(err)
+	}
+	after, _ = o.Holdings(ctx, T, "BH1001")
+	found := false
+	for _, x := range after {
+		found = found || (x.ISIN == "INE999Z20012" && x.Qty == h.Qty/2/5)
+	}
+	if !found && h.Qty/2/5 > 0 {
+		t.Fatalf("rights entitlements not credited: %+v", after)
+	}
+	// IPO allotment posted as a purchase at the issue price.
+	_ = docs.Upsert(ctx, o.Docs, T, cIPO, "IPO-T1", IPOApp{ID: "IPO-T1", UCC: "BH1002", Issue: "FICTCO IPO", Lots: 2, Allotment: "Allotted", Allotted: 1}, "test")
+	r, err := o.PostIPOAllotments(ctx, T, "priya.nair", "FICTCO IPO", "INE999Y01019", "FICTCO", D, money.MustDec("250"), 60)
+	if err != nil || r.Posted != 1 || r.Shares != 60 {
+		t.Fatalf("ipo %+v %v", r, err)
+	}
+	if r2, _ := o.PostIPOAllotments(ctx, T, "priya.nair", "FICTCO IPO", "INE999Y01019", "FICTCO", D, money.MustDec("250"), 60); r2.Posted != 0 || r2.Skipped != 1 {
+		t.Fatalf("ipo again %+v", r2)
+	}
+	ext, _ := o.ExternalTrades(ctx, T, "BH1002")
+	if len(ext) == 0 || ext[len(ext)-1].Price.String() != "250" {
+		t.Fatalf("ipo purchase %+v", ext)
+	}
+}

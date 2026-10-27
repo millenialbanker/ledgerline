@@ -38,12 +38,13 @@ const (
 	DocRAS          = "ras_statement"
 	DocDP           = "dp_statement"
 	DocLedger       = "ledger_statement"
+	DocFundsSec     = "funds_securities_statement"
 )
 
 // DocKindNames name the kinds for people.
 var DocKindNames = map[string]string{
 	DocContractNote: "Contract note", DocMargin: "Daily margin statement", DocRAS: "Running account settlement statement",
-	DocDP: "DP transaction and holding statement", DocLedger: "Statement of account",
+	DocDP: "DP transaction and holding statement", DocLedger: "Statement of account", DocFundsSec: "Weekly statement of funds and securities",
 }
 
 // DispatchFile is a document as sent.
@@ -445,6 +446,8 @@ func (o *Ops) sendAgain(ctx context.Context, tenant, actor string, d Dispatch) (
 		return o.sendDPStatement(ctx, tenant, actor, d.Date[:7], d.UCC)
 	case DocLedger:
 		return o.sendLedgerStatement(ctx, tenant, actor, d.Ref[:10], d.Date, d.UCC)
+	case DocFundsSec:
+		return o.sendFundsSecStatement(ctx, tenant, actor, d.Ref[:10], d.Date, d.UCC)
 	}
 	return d, invalid("cannot resend a %s", d.Kind)
 }
@@ -511,6 +514,16 @@ func (o *Ops) sendLedgerStatement(ctx context.Context, tenant, actor, from, to, 
 		FileName: "StatementOfAccount_" + rep.UCC + "_" + to + ".pdf", Text: fmt.Sprintf("Dear %s,\n\nPlease find attached your statement of account for %s to %s.", rep.Name, from, to)})
 }
 
+func (o *Ops) sendFundsSecStatement(ctx context.Context, tenant, actor, from, to, ucc string) (Dispatch, error) {
+	rep, err := o.ClientReportFor(ctx, tenant, "funds_securities", ucc, from, to)
+	if err != nil {
+		return Dispatch{}, err
+	}
+	set, _ := o.Settings(ctx, tenant)
+	return o.dispatchDoc(ctx, tenant, actor, docRequest{Kind: DocFundsSec, Ref: from + " to " + to, Date: to, UCC: ucc, Report: reportPDF(rep, set), Title: "Statement of funds and securities " + from + " to " + to,
+		FileName: "FundsSecurities_" + rep.UCC + "_" + to + ".pdf", Text: fmt.Sprintf("Dear %s,\n\nPlease find attached the statement of your funds and securities with us for %s to %s. Please check it and tell us within 7 days if anything is wrong.", rep.Name, fmtDay(from), fmtDay(to))})
+}
+
 // SendStatementsResult reports a bulk send.
 type SendStatementsResult struct {
 	Kind    string   `json:"kind"`
@@ -555,7 +568,8 @@ func (o *Ops) delivered(ctx context.Context, tenant, kind, ref, ucc string) bool
 
 // SendStatements sends one kind of statement to every client it applies
 // to: margin (date: clients with margin that day), ras (date: the
-// settlement batch), dp (month YYYY-MM: every DP account), ledger (month).
+// settlement batch), dp (month YYYY-MM: every DP account), ledger (month),
+// funds and securities (the last day of the week: the seven days to it).
 // Clients already sent the same document are skipped.
 func (o *Ops) SendStatements(ctx context.Context, tenant, actor, kind, period string) (SendStatementsResult, error) {
 	if actor != SystemActor {
@@ -629,6 +643,36 @@ func (o *Ops) SendStatements(ctx context.Context, tenant, actor, kind, period st
 				continue
 			}
 			res.add(o.sendLedgerStatement(ctx, tenant, actor, from, to, c.UCC))
+		}
+	case DocFundsSec:
+		if !validDate(period) {
+			return res, invalid("give the last day of the week (YYYY-MM-DD)")
+		}
+		from := addDays(period, -6)
+		cs, err := o.Clients(ctx, tenant)
+		if err != nil {
+			return res, err
+		}
+		cuspa := map[string]bool{}
+		cu, _ := docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
+		for _, it := range cu {
+			if it.Status == "Held in CUSPA" && it.Date <= period {
+				cuspa[it.UCC] = true
+			}
+		}
+		ref := from + " to " + period
+		for _, c := range cs {
+			if c.Status != "Active" {
+				continue
+			}
+			if due, err := o.fundsSecuritiesDue(ctx, tenant, c.UCC, from, period, cuspa); err != nil || !due {
+				continue
+			}
+			if o.delivered(ctx, tenant, kind, ref, c.UCC) {
+				res.Skipped++
+				continue
+			}
+			res.add(o.sendFundsSecStatement(ctx, tenant, actor, from, period, c.UCC))
 		}
 	default:
 		return res, invalid("unknown statement %q", kind)

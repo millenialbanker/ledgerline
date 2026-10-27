@@ -1,0 +1,50 @@
+{
+ "id": "ccil-gsec-price",
+ "title": "G-sec and T-bill prices (CCIL)",
+ "party": "CCIL",
+ "direction": "in",
+ "when": "Daily (used at month end and for collateral)",
+ "purpose": "CCIL's valuation price of every Treasury bill, government security and state development loan, by ISIN.",
+ "names": [
+  "MTMPRICE\\d{8}\\.xlsx?"
+ ],
+ "header": true,
+ "confirmed": true,
+ "linked": "Loaded as closing prices of G-secs and T-bills (valuing them as holdings and collateral)",
+ "source": "Column headings of CCIL's workbook",
+ "compress": "none",
+ "format": "workbook",
+ "columns": [
+  {
+   "name": "Sr. No.",
+   "key": "sr",
+   "type": "str"
+  },
+  {
+   "name": "ISIN No.",
+   "key": "isin",
+   "type": "str"
+  },
+  {
+   "name": "Description",
+   "key": "description",
+   "type": "str"
+  },
+  {
+   "name": "Coupon",
+   "key": "coupon",
+   "type": "str"
+  },
+  {
+   "name": "Maturity Date",
+   "key": "maturity",
+   "type": "date",
+   "layout": "excel"
+  },
+  {
+   "name": "Price * (Rs.)",
+   "key": "price",
+   "type": "dec"
+  }
+ ]
+}

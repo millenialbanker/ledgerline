@@ -1,0 +1,123 @@
+{
+ "id": "ncl-settlement-master",
+ "title": "Settlement master (NSE Clearing)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "Month end, and when the calendar changes",
+ "purpose": "Every settlement of the period: settlement type and number, the trade date, and the funds and securities pay-in and pay-out dates and times.",
+ "names": [
+  "SettlementMaster_NCL_(CM|FO|CD)_.*\\.csv",
+  "\\d{8}\\.TXT"
+ ],
+ "header": true,
+ "confirmed": true,
+ "linked": "Loaded as the settlement calendar: settlement numbers and pay-in and pay-out dates for each trade date",
+ "source": "Header row of the file",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": false,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "Sgmt",
+   "type": "str"
+  },
+  {
+   "name": "Src",
+   "type": "str"
+  },
+  {
+   "name": "TradRegnOrgn",
+   "type": "str"
+  },
+  {
+   "name": "NSDLMktTpAndId",
+   "type": "str"
+  },
+  {
+   "name": "CSDLMktTpAndId",
+   "type": "str"
+  },
+  {
+   "name": "SttlmTp",
+   "type": "str"
+  },
+  {
+   "name": "SctiesSttlmTxId",
+   "type": "str"
+  },
+  {
+   "name": "SpclSctiesSttlmTxId",
+   "type": "str"
+  },
+  {
+   "name": "OrgnlTradDtTm",
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05"
+  },
+  {
+   "name": "TradEndDtTm",
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05"
+  },
+  {
+   "name": "CtdnConfDtTm",
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05"
+  },
+  {
+   "name": "OblgtnDtTm",
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05"
+  },
+  {
+   "name": "FndsPayInDtAndTm",
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05"
+  },
+  {
+   "name": "FndsPayOutDtAndTm",
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05"
+  },
+  {
+   "name": "SctiesPayInDtAndTm",
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05"
+  },
+  {
+   "name": "SctiesPayOutDtAndTm",
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05"
+  },
+  {
+   "name": "AuctnSttlmtTp",
+   "type": "str"
+  },
+  {
+   "name": "AuctnSttlmtNb",
+   "type": "str"
+  },
+  {
+   "name": "Rmks",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "str"
+  }
+ ]
+}

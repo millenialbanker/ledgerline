@@ -26,6 +26,15 @@ import (
 //     record date (held in CUSPA, or not yet paid out) earn a dividend the
 //     broker receives and must pass on.
 //
+//   - A merger (scheme of amalgamation or arrangement) replaces shares of
+//     the old ISIN with N shares of the new company's ISIN for every M
+//     held. The cost and the acquisition date carry over (the new shares
+//     are held from when the old ones were bought).
+//   - A symbol or ISIN change renames the security one for one.
+//   - A rights issue credits rights entitlements (a separate ISIN, at nil
+//     cost) of N for every M held; the shares allotted later arrive through
+//     the depository's holding file.
+//
 // Purchase lots used for capital gains replay corporate actions on their
 // ex-date, so P&L and portfolio reports stay right across them.
 
@@ -39,7 +48,9 @@ type CorpAction struct {
 	ID         string         `json:"id"`
 	ISIN       string         `json:"isin"`
 	Symbol     string         `json:"symbol"`
-	Type       string         `json:"type"` // Dividend, Bonus, Split
+	Type       string         `json:"type"`                 // Dividend, Bonus, Split, Merger, Symbol change, Rights
+	NewISIN    string         `json:"new_isin,omitempty"`   // merger, symbol change: the new ISIN; rights: the entitlement's ISIN
+	NewSymbol  string         `json:"new_symbol,omitempty"` // merger, symbol change, rights
 	ExDate     string         `json:"ex_date"`
 	RecordDate string         `json:"record_date"`
 	PayDate    string         `json:"pay_date,omitempty"` // dividend payment or bonus allotment
@@ -143,8 +154,34 @@ func (o *Ops) SaveCorpAction(ctx context.Context, tenant, actor string, c CorpAc
 		if c.Type == "Split" && c.RatioNew >= c.RatioOld {
 			return c, invalid("a split goes to a lower face value (e.g. 10 to 2)")
 		}
+	case "Merger", "Symbol change", "Rights":
+		c.NewISIN, c.NewSymbol = strings.ToUpper(strings.TrimSpace(c.NewISIN)), strings.ToUpper(strings.TrimSpace(c.NewSymbol))
+		if c.Type == "Symbol change" {
+			c.RatioNew, c.RatioOld = 1, 1
+			if c.NewISIN == "" {
+				c.NewISIN = c.ISIN
+			}
+			if c.NewSymbol == "" && c.NewISIN == c.ISIN {
+				return c, invalid("give the new symbol or the new ISIN")
+			}
+		}
+		if _, err := c.factor(); err != nil {
+			return c, err
+		}
+		if len(c.NewISIN) != 12 {
+			return c, invalid("give the %s ISIN (12 characters)", map[string]string{"Rights": "rights entitlement's", "Merger": "new company's", "Symbol change": "new"}[c.Type])
+		}
+		if c.Type != "Symbol change" && c.NewISIN == c.ISIN {
+			return c, invalid("the new ISIN must differ from the old one")
+		}
+		if c.NewSymbol == "" {
+			c.NewSymbol = c.Symbol
+			if c.Type == "Rights" {
+				c.NewSymbol = c.Symbol + "-RE"
+			}
+		}
 	default:
-		return c, invalid("type must be Dividend, Bonus or Split")
+		return c, invalid("type must be Dividend, Bonus, Split, Merger, Symbol change or Rights")
 	}
 	all, _ := docs.List[CorpAction](ctx, o.Docs, tenant, cCorpAction, "")
 	for _, x := range all {
@@ -204,6 +241,8 @@ func (o *Ops) entitlements(ctx context.Context, tenant string, c CorpAction) ([]
 			e.NewShares = tot * c.RatioNew / c.RatioOld
 		case "Split":
 			e.NewShares = money.DecInt(tot).Mul(f).Round(money.UnitRupee).Paise()/100 - tot
+		case "Merger", "Symbol change", "Rights":
+			e.NewShares = tot * c.RatioNew / c.RatioOld // shares of the new ISIN (rights: entitlements)
 		}
 		out = append(out, *e)
 	}
@@ -228,7 +267,11 @@ func (o *Ops) ApplyCorpAction(ctx context.Context, tenant, actor, id string) (Co
 		return c, err
 	}
 	f, _ := c.factor()
-	if c.Type != "Dividend" {
+	if c.Type == "Merger" || c.Type == "Symbol change" || c.Type == "Rights" {
+		if err := o.applyISINChange(ctx, tenant, actor, c); err != nil {
+			return c, err
+		}
+	} else if c.Type != "Dividend" {
 		hs, _ := o.Holdings(ctx, tenant, "")
 		for _, h := range hs {
 			if h.ISIN != c.ISIN || h.Qty <= 0 {
@@ -335,6 +378,10 @@ func applyCorpLots(open []Lot, cas []CorpAction, d string) []Lot {
 		if c.ExDate != d || c.Type == "Dividend" {
 			continue
 		}
+		if c.Type == "Merger" || c.Type == "Symbol change" || c.Type == "Rights" {
+			open = isinChangeLots(open, c)
+			continue
+		}
 		f, err := c.factor()
 		if err != nil {
 			continue
@@ -361,6 +408,164 @@ func applyCorpLots(open []Lot, cas []CorpAction, d string) []Lot {
 		}
 	}
 	return open
+}
+
+// isinChangeLots replays a merger, symbol change or rights issue on lots.
+func isinChangeLots(open []Lot, c CorpAction) []Lot {
+	var held, given int64
+	var idx []int
+	for i := range open {
+		if open[i].ISIN == c.ISIN && open[i].Qty > 0 {
+			held += open[i].Qty
+			idx = append(idx, i)
+		}
+	}
+	if c.Type == "Rights" {
+		if n := held * c.RatioNew / c.RatioOld; n > 0 {
+			open = append(open, Lot{ISIN: c.NewISIN, Symbol: c.NewSymbol, Qty: n, Date: c.RecordDate})
+		}
+		return open
+	}
+	// New shares on the whole holding (as the company allots them), spread
+	// over the lots; each lot's cost and date carry over.
+	total := held * c.RatioNew / c.RatioOld
+	newQ := make([]int64, len(idx))
+	for k, i := range idx {
+		newQ[k] = open[i].Qty * c.RatioNew / c.RatioOld
+		given += newQ[k]
+	}
+	for k := 0; given < total && k < len(idx); k++ {
+		newQ[k]++
+		given++
+	}
+	for k, i := range idx {
+		l := &open[i]
+		cost := l.Price.MulInt(l.Qty)
+		l.ISIN, l.Symbol, l.Qty = c.NewISIN, c.NewSymbol, newQ[k]
+		if newQ[k] > 0 {
+			l.Price, _ = cost.Quo(money.DecInt(newQ[k]))
+		}
+	}
+	return open
+}
+
+// applyISINChange moves demat holdings and CUSPA items to the new ISIN
+// (merger, symbol change) or credits rights entitlements.
+func (o *Ops) applyISINChange(ctx context.Context, tenant, actor string, c CorpAction) error {
+	hs, err := o.Holdings(ctx, tenant, "")
+	if err != nil {
+		return err
+	}
+	for _, h := range hs {
+		if h.ISIN != c.ISIN || h.Qty <= 0 {
+			continue
+		}
+		q := h.Qty * c.RatioNew / c.RatioOld
+		pl := h.Pledged * c.RatioNew / c.RatioOld
+		if c.Type == "Rights" {
+			if q > 0 {
+				if _, err := o.adjustHolding(ctx, tenant, actor, h.UCC, c.NewISIN, c.NewSymbol, q, 0); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+		cost := h.AvgCost.MulInt(h.Qty)
+		if _, err := docs.Update(ctx, o.Docs, tenant, cHolding, holdingID(h.UCC, h.ISIN), actor, func(x *Holding) error {
+			x.Qty, x.Pledged = 0, 0 // the old ISIN is extinguished
+			return nil
+		}); err != nil {
+			return err
+		}
+		if q <= 0 {
+			continue
+		}
+		nh, _, gerr := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingID(h.UCC, c.NewISIN))
+		if gerr != nil {
+			nh = Holding{UCC: h.UCC, ISIN: c.NewISIN, Symbol: c.NewSymbol}
+		}
+		tc := nh.AvgCost.MulInt(nh.Qty).Add(cost)
+		nh.Qty += q
+		nh.Pledged += pl
+		nh.Symbol = c.NewSymbol
+		nh.AvgCost, _ = tc.Quo(money.DecInt(nh.Qty))
+		if err := docs.Upsert(ctx, o.Docs, tenant, cHolding, holdingID(h.UCC, c.NewISIN), nh, actor); err != nil {
+			return err
+		}
+	}
+	if c.Type == "Rights" {
+		return nil
+	}
+	cu, _ := docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
+	for _, it := range cu {
+		if it.ISIN != c.ISIN || it.Status != "Held in CUSPA" {
+			continue
+		}
+		_, _ = docs.Update(ctx, o.Docs, tenant, cCUSPA, it.ID, actor, func(x *CUSPAItem) error {
+			x.ISIN, x.Symbol, x.Qty = c.NewISIN, c.NewSymbol, x.Qty*c.RatioNew/c.RatioOld
+			return nil
+		})
+	}
+	return nil
+}
+
+// ---- IPO allotments ----
+
+// IPOAllotmentResult reports posted allotments.
+type IPOAllotmentResult struct {
+	Issue   string `json:"issue"`
+	Posted  int    `json:"posted"`
+	Shares  int64  `json:"shares"`
+	Skipped int    `json:"skipped"` // already posted
+}
+
+// PostIPOAllotments records the shares allotted in an IPO as purchases at
+// the issue price on the allotment date, so the clients' holdings have a
+// cost and an acquisition date for capital gains. The shares themselves
+// arrive in the demat account through the depository's holding file.
+func (o *Ops) PostIPOAllotments(ctx context.Context, tenant, actor, issue, isin, symbol, date string, price money.Dec, lotSize int64) (IPOAllotmentResult, error) {
+	res := IPOAllotmentResult{Issue: issue}
+	if err := o.require(ctx, tenant, actor, "Posting IPO allotments", RoleMaker, RoleChecker); err != nil {
+		return res, err
+	}
+	isin, symbol = strings.ToUpper(strings.TrimSpace(isin)), strings.ToUpper(strings.TrimSpace(symbol))
+	switch {
+	case strings.TrimSpace(issue) == "":
+		return res, invalid("choose the issue")
+	case len(isin) != 12:
+		return res, invalid("give the ISIN of the shares allotted")
+	case !ledger.ValidDate(date):
+		return res, invalid("give the allotment date (YYYY-MM-DD)")
+	case price.Sign() <= 0:
+		return res, invalid("give the issue price")
+	case lotSize <= 0:
+		return res, invalid("give the number of shares in a lot")
+	}
+	apps, err := o.IPOApps(ctx, tenant)
+	if err != nil {
+		return res, err
+	}
+	for _, a := range apps {
+		if a.Issue != issue || a.Allotted <= 0 {
+			continue
+		}
+		key := strings.ToUpper(a.UCC) + "|IPO-" + a.ID
+		if _, err := o.Docs.Get(ctx, tenant, cExtTrd, key); err == nil {
+			res.Skipped++
+			continue
+		}
+		t := ExternalTrade{ID: "IPO-" + a.ID, UCC: strings.ToUpper(a.UCC), Date: date, ISIN: isin, Symbol: symbol, Side: "B", Qty: a.Allotted * lotSize, Price: price, Broker: "IPO allotment: " + issue, By: actor}
+		if _, err := docs.Put(ctx, o.Docs, tenant, cExtTrd, key, t, 0, actor); err != nil {
+			return res, err
+		}
+		res.Posted++
+		res.Shares += t.Qty
+	}
+	if res.Posted == 0 && res.Skipped == 0 {
+		return res, invalid("no allotment is recorded for %s: load the allotment file first", issue)
+	}
+	o.log(ctx, tenant, actor, "ipo.allotment_posted", issue, map[string]any{"posted": res.Posted, "shares": res.Shares, "isin": isin})
+	return res, nil
 }
 
 // ---- buy-back tender offers ----

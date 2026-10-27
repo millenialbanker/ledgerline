@@ -7,6 +7,7 @@ Adding client documents | Ops maker, Ops checker, Compliance officer, Branch sta
 Adding users | Admin
 Advancing onboarding | Ops maker, Ops checker
 Applying corporate actions | Ops checker
+Applying the BSDA review | Ops checker
 Approving a receipt | Ops checker
 Approving an override | Ops checker, Risk manager
 Approving client changes | Ops checker
@@ -50,6 +51,7 @@ DP requests | Ops maker, Ops checker, Compliance officer, Branch staff
 Deciding a pledge request | Ops maker, Ops checker, Risk manager
 Discarding scanned bills | Ops maker, Ops checker
 Downloading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
+Downloading periodic files | Ops maker, Ops checker, Compliance officer
 Downloading the collateral file | Ops maker, Ops checker, Risk manager, Compliance officer
 Editing message templates | Ops checker, Compliance officer
 Entering a payout request | Ops maker, Ops checker, Branch staff, Authorised person
@@ -79,6 +81,7 @@ Marking a report uploaded | Ops checker, Compliance officer
 NRI registration | Ops checker, Compliance officer
 Paying vendor bills | Ops maker, Ops checker
 Posting AP payouts | Ops checker
+Posting IPO allotments | Ops maker, Ops checker
 Posting MTF interest | Ops checker, Risk manager
 Posting interest | Ops checker, Risk manager
 Posting margin penalties | Ops checker, Risk manager
@@ -94,6 +97,7 @@ Recording bounces | Ops maker, Ops checker, Admin
 Recording clearing deposits | Ops checker
 Recording complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Recording re-KYC | Ops maker, Ops checker, Compliance officer
+Recording the BSDA choice | Ops maker, Ops checker
 Rejecting an application | Ops checker, Compliance officer
 Releasing CUSPA securities | Ops maker, Ops checker
 Releasing clearing deposits | Ops checker
@@ -104,11 +108,13 @@ Resetting passwords | Admin
 Resetting two-factor sign-in | Admin
 Restricting client data | Compliance officer, Admin
 Returning a bank credit | Ops maker, Ops checker
+Reviewing BSDA eligibility | Ops maker, Ops checker
 Reviewing Ledgy's unanswered questions | Compliance officer
 Running a sample day | Admin
 Running account settlement | Ops checker
 Running automations | Ops checker, Admin
 Running jobs | Ops checker, Admin
+Running periodic work | Ops maker, Ops checker
 Running prepaid adjustments | Ops checker
 Running surveillance rules | Ops checker, Compliance officer
 Scanning vendor bills | Ops maker, Ops checker

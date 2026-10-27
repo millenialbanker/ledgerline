@@ -53,6 +53,10 @@ type BOAccount struct {
 	Freeze     string `json:"freeze,omitempty"` // Debit, Credit, Both
 	FreezeWhy  string `json:"freeze_reason,omitempty"`
 	BSDA       bool   `json:"bsda"`
+	// BSDAOptOut: the client chose a regular account although eligible;
+	// OtherDemat: the client has a demat account with another DP.
+	BSDAOptOut bool   `json:"bsda_opt_out,omitempty"`
+	OtherDemat bool   `json:"other_demat,omitempty"`
 	DDPI       bool   `json:"ddpi"`
 	Opened     string `json:"opened"`
 	ClosedOn   string `json:"closed_on,omitempty"`

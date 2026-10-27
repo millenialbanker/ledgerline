@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"ledgerline/internal/sheet"
 	"math/big"
 	"path"
 	"regexp"
@@ -140,7 +141,20 @@ func (s *Spec) compile() error {
 	if s.Format == "" {
 		s.Format = "delimited"
 	}
-	if s.Format == "delimited" {
+	if s.Format == "workbook" {
+		if len(s.Columns) == 0 {
+			return fmt.Errorf("%s: a workbook layout needs the table's columns", s.ID)
+		}
+		for i := range s.Columns {
+			c := &s.Columns[i]
+			if c.Key == "" {
+				c.Key = c.Name
+			}
+			if !validTypes[c.Type] {
+				return fmt.Errorf("%s: column %s: unknown type %q", s.ID, c.Name, c.Type)
+			}
+		}
+	} else if s.Format == "delimited" {
 		if len([]rune(s.Delimiter)) != 1 {
 			return fmt.Errorf("%s: delimiter must be one character", s.ID)
 		}
@@ -173,7 +187,7 @@ func (s *Spec) compile() error {
 			}
 		}
 	} else if s.Format != "json" {
-		return fmt.Errorf("%s: format must be delimited or json", s.ID)
+		return fmt.Errorf("%s: format must be delimited, json or workbook", s.ID)
 	}
 	for _, n := range s.Names {
 		rx, err := regexp.Compile("(?i)^(?:" + n + ")$")
@@ -426,6 +440,9 @@ type Table struct {
 // problems are listed in Issues (the rows are still returned).
 func (s *Spec) Read(name string, data []byte) (*Table, error) {
 	t := &Table{Spec: s, Name: name}
+	if s.Format == "workbook" {
+		return s.readWorkbook(t, data)
+	}
 	if s.Format == "json" {
 		var v any
 		if err := json.Unmarshal(data, &v); err != nil {
@@ -786,8 +803,8 @@ func (s *Spec) RoundTrip(name string, data []byte) (same bool, diff string, err 
 	if err != nil {
 		return false, "", err
 	}
-	if s.Format == "json" {
-		return true, "", nil
+	if s.Format == "json" || s.Format == "workbook" {
+		return true, "", nil // structure only: these are read, never rewritten byte for byte
 	}
 	cp := *s
 	cp.CRLF, cp.CROnly = t.CRLF, t.CROnly
@@ -870,4 +887,85 @@ func Mask(v string) string {
 		}
 		return r
 	}, v)
+}
+
+// ---- workbooks ----
+
+// readWorkbook reads an Excel workbook whose data sits in one or more
+// tables, each under a header row with the spec's column names, optionally
+// after a title row (a single filled cell, such as "T-BILL") that names
+// the section. Rows carry the section title as their Record; a blank row
+// or a new title ends a table. Titles, notes and anything outside a table
+// are skipped.
+func (s *Spec) readWorkbook(t *Table, data []byte) (*Table, error) {
+	books, err := sheet.Read(data)
+	if err != nil {
+		return nil, fmt.Errorf("xfile: %s: %w", t.Name, err)
+	}
+	cols := s.Columns
+	norm := func(v string) string { return strings.ToLower(strings.Join(strings.Fields(v), " ")) }
+	isHeader := func(r []string) bool {
+		if len(r) < len(cols) {
+			return false
+		}
+		for i, c := range cols {
+			if norm(r[i]) != norm(c.Name) {
+				return false
+			}
+		}
+		return true
+	}
+	filled := func(r []string) (n int, first string) {
+		for _, v := range r {
+			if strings.TrimSpace(v) != "" {
+				if n == 0 {
+					first = strings.TrimSpace(v)
+				}
+				n++
+			}
+		}
+		return
+	}
+	found := false
+	for _, sh := range books {
+		title, in := "", false
+		for i, r := range sh.Rows {
+			n, first := filled(r)
+			switch {
+			case isHeader(r):
+				in, found = true, true
+				t.Header = r[:len(cols)]
+				continue
+			case n == 0:
+				in = false
+				continue
+			case n == 1 && (len(r) < 2 || strings.TrimSpace(strings.Join(r[1:], "")) == ""):
+				title, in = first, false
+				continue
+			case !in:
+				continue
+			}
+			row := Row{Line: i + 1, Record: title, Values: map[string]string{}}
+			for j, c := range cols {
+				v := ""
+				if j < len(r) {
+					v = strings.TrimSpace(r[j])
+				}
+				if c.Type == "date" && c.Layout == "excel" {
+					if d, ok := sheet.Date(v); ok {
+						v = d
+					}
+				}
+				row.Values[c.Key] = v
+				if msg := c.check(v); msg != "" && !(c.Type == "date" && c.Layout == "excel") {
+					t.Issues = append(t.Issues, Issue{Line: i + 1, Column: c.Name, Msg: msg})
+				}
+			}
+			t.Rows = append(t.Rows, row)
+		}
+	}
+	if !found {
+		t.Issues = append(t.Issues, Issue{Msg: "no table with the expected columns (" + cols[0].Name + " …) in the workbook"})
+	}
+	return t, nil
 }

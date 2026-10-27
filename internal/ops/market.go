@@ -135,7 +135,9 @@ func (o *Ops) Market(ctx context.Context, tenant, date string) (Market, Lookup, 
 	if err != nil {
 		return Market{}, Lookup{}, err
 	}
-	return m, newLookup(m), nil
+	l := newLookup(m)
+	o.addGSecPrices(ctx, tenant, date, &l)
+	return m, l, nil
 }
 
 // SettlementPrices returns closing prices for futures, keyed like trades.

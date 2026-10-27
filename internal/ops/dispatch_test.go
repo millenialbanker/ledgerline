@@ -366,7 +366,14 @@ func TestStatementsSent(t *testing.T) {
 	if err != nil || len(dp.Errors) > 0 {
 		t.Fatalf("dp %+v %v", dp, err)
 	}
-	t.Logf("margin %+v ledger %+v dp %+v", r, l, dp)
+	wk, err := o.SendStatements(ctx, T, "priya.nair", DocFundsSec, lastFriday(addDays(D, 3)))
+	if err != nil || wk.Sent == 0 || len(wk.Errors) > 0 {
+		t.Fatalf("weekly %+v %v", wk, err)
+	}
+	if wk2, _ := o.SendStatements(ctx, T, "priya.nair", DocFundsSec, lastFriday(addDays(D, 3))); wk2.Sent != 0 || wk2.Skipped < wk.Sent {
+		t.Fatalf("weekly again %+v", wk2)
+	}
+	t.Logf("margin %+v ledger %+v dp %+v weekly %+v", r, l, dp, wk)
 	if _, err := o.SendStatements(ctx, T, "meera.iyer", DocMargin, D); err == nil {
 		t.Fatal("branch user sent statements")
 	}

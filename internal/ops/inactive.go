@@ -366,6 +366,7 @@ func (o *Ops) DecideReactivation(ctx context.Context, tenant, actor, date, id st
 	if err != nil || !approve {
 		if err == nil {
 			o.log(ctx, tenant, actor, "reactivation.rejected", r.UCC, map[string]any{"id": id, "reason": reason})
+			o.reactivationLetter(ctx, tenant, actor, r)
 		}
 		return r, err
 	}
@@ -388,6 +389,7 @@ func (o *Ops) DecideReactivation(ctx context.Context, tenant, actor, date, id st
 		return r, err
 	}
 	o.log(ctx, tenant, actor, "reactivation.approved", r.UCC, map[string]any{"id": id})
+	o.reactivationLetter(ctx, tenant, actor, r)
 	return r, nil
 }
 

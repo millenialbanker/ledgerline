@@ -65,6 +65,9 @@ func TestInactiveAccounts(t *testing.T) {
 	if _, err := o.DecideReactivation(ctx, T, "farhan.khan", D, r.ID, true, ""); err != nil {
 		t.Fatal(err)
 	}
+	if ds, _ := o.dispatchesFor(ctx, T, DocLetter+"|"+r.ID+"|"+due); len(ds) != 1 || ds[0].Kind != DocLetter {
+		t.Fatalf("no reactivation letter: %+v", ds)
+	}
 	c, _, _ := docs.Get[Client](ctx, o.Docs, T, cClient, due)
 	if c.Inactive || c.ReactivatedOn != D || c.Mobile != "9811122233" {
 		t.Fatalf("after reactivation: %+v", c)

@@ -72,6 +72,7 @@ var EventVars = map[string][]string{
 	"change.rejected":       {"kind", "id", "reason"},
 	"portal.granted":        {"user"},
 	"statement.monthly":     {"from", "to", "closing"},
+	"dp.bsda":               {"what", "value", "limit", "date"},
 	"bulk":                  {},
 	"whatsapp.consent":      {"link", "mobile"},
 	"yearend.pack":          {"fy", "stt"},
@@ -97,6 +98,7 @@ func DefaultTemplates() []Template {
 		return Template{Event: ev, Channel: ch, Category: cat, Subject: subj, Body: body, DLT: dlt, Active: true}
 	}
 	ts := []Template{
+		t("dp.bsda", ChEmail, "Service", "Your demat account type has changed", "Dear {name},\n\nIn our quarterly review on {date}, your demat account was {what}. The value of your holdings was ₹{value}; the BSDA limit is ₹{limit}. If you would rather keep your earlier account type, reply to this email.\n\n{firm}", ""),
 		t("receipt.credited", ChSMS, "Transactional", "", "Dear {name}, Rs {amount} received by {mode} is {status} in your account {ucc} on {date}. -{firm}", "1107166000000000001"),
 		t("receipt.credited", ChWhatsApp, "Transactional", "", "Hi {name}, we have received ₹{amount} ({mode}) for account {ucc}. Status: {status}.", ""),
 		t("payout.paid", ChSMS, "Transactional", "", "Dear {name}, Rs {amount} has been paid to your registered bank account. UTR {utr}. -{firm}", "1107166000000000002"),

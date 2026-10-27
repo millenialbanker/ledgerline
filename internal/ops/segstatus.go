@@ -148,6 +148,7 @@ func (o *Ops) SetSegmentStatus(ctx context.Context, tenant, actor, ucc, seg, sta
 		return c, err
 	}
 	o.log(ctx, tenant, actor, "client.segment_status", c.UCC, map[string]any{"segment": change.Segment, "from": change.From, "to": change.To, "on": change.On, "reason": reason})
+	o.closureLetter(ctx, tenant, actor, c, change)
 	return c, nil
 }
 

@@ -57,7 +57,7 @@ type XFormat struct {
 }
 
 // xWriters are the outgoing files Ledgerline writes.
-var xWriters = map[string]bool{"ncl-allocation": true, "ncl-allocation-api": true, "holding-statement-api": true, "segmon-client-funds": true, "ncl-client-collateral": true}
+var xWriters = map[string]bool{"ncl-allocation": true, "ncl-allocation-api": true, "holding-statement-api": true, "segmon-client-funds": true, "ncl-client-collateral": true, "ncl-cuspa-mtf-payout": true}
 
 // ExchangeFormats lists every known layout.
 func (o *Ops) ExchangeFormats() ([]XFormat, error) {
@@ -248,6 +248,20 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 			return
 		}
 		r.Loaded, r.Added = "Loaded for STT reconciliation", res.Added
+	case "ncl-settlement-master":
+		n, err := o.loadSettlementMaster(ctx, tenant, actor, f.Name, rows)
+		if err != nil {
+			fail(err)
+			return
+		}
+		r.Loaded, r.Added = "Loaded as the settlement calendar", n
+	case "ccil-gsec-price":
+		date, n, err := o.loadGSecPrices(ctx, tenant, actor, f.Name, rows)
+		if err != nil {
+			fail(err)
+			return
+		}
+		r.Loaded, r.Added = "Loaded as G-sec and T-bill prices of "+date, n
 	default:
 		r.Loaded = "Checked and kept; Ledgerline does not use this file yet"
 	}
@@ -469,6 +483,8 @@ func (o *Ops) ExchangeFile(ctx context.Context, tenant, actor, id, date string, 
 		name, content, err = o.segmonFile(ctx, tenant, s, set, date, vars)
 	case "ncl-client-collateral":
 		return o.ClientCollateralFile(ctx, tenant, actor, date, opt.Segment, false)
+	case "ncl-cuspa-mtf-payout":
+		name, content, err = o.cuspaMTFFile(ctx, tenant, s, set, date, vars)
 	}
 	if err != nil {
 		return "", nil, err

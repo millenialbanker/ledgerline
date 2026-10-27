@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"ledgerline/internal/docs"
+	"ledgerline/internal/sheet"
 )
 
 // header returns a layout's header row.
@@ -196,5 +199,49 @@ func TestOutgoingExchangeFiles(t *testing.T) {
 		if err != nil || len(tb.Issues) != 0 {
 			t.Fatalf("%s reads back with %v %v", id, tb.Issues, err)
 		}
+	}
+}
+
+func TestSettlementMasterCCILAndCUSPAFile(t *testing.T) {
+	o, ctx := setup(t)
+	h := xheader(t, "ncl-settlement-master")
+	line := func(tp, no, td, out string) string {
+		return xline(h, map[string]string{"Sgmt": "CM", "Src": "NCL", "TradRegnOrgn": "1", "SttlmTp": tp, "SctiesSttlmTxId": no, "OrgnlTradDtTm": td + "T09:00:00",
+			"TradEndDtTm": td + "T15:30:00", "CtdnConfDtTm": td + "T17:00:00", "OblgtnDtTm": td + "T18:00:00", "FndsPayInDtAndTm": out + "T10:30:00",
+			"FndsPayOutDtAndTm": out + "T13:30:00", "SctiesPayInDtAndTm": out + "T10:30:00", "SctiesPayOutDtAndTm": out + "T13:30:00"})
+	}
+	file := strings.Join([]string{strings.Join(h, ","), line("NORMAL1", "2026199", D, "2026-10-19"), line("NORMAL0", "2026299", D, D)}, "\n") + "\n"
+	res, err := o.LoadExchangeFile(ctx, T, "priya.nair", "SettlementMaster_NCL_CM_0_0_0_20261000_0_0000.csv", []byte(file), true)
+	if err != nil || res[0].Format != "ncl-settlement-master" || res[0].Added != 2 {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if st, ok := o.SettlementFor(ctx, T, "CM", "NORMAL1", D); !ok || st.No != "2026199" || st.SecOut != "2026-10-19T13:30:00" {
+		t.Fatalf("calendar %+v", st)
+	}
+
+	// CCIL prices, as an Excel workbook with section titles.
+	wb, _ := sheet.WriteXLSX([]sheet.Sheet{{Name: "Sheet2", Rows: [][]string{{"", "Fictional clearing house"}, {}, {"T-BILL"},
+		{"Sr. No.", "ISIN No.", "Description", "Coupon", "Maturity Date", "Price * (Rs.)"},
+		{"1", "IN002026X011", "91 DTB 05112026", "-", "46331", "99.1234"}, {}, {"G-SEC"},
+		{"Sr. No.", "ISIN No.", "Description", "Coupon", "Maturity Date", "Price * (Rs.)"},
+		{"1", "IN0020990011", "7.10% GS 2034", "7.1", "49000", "101.25"}, {"* Prices are indicative"}}}})
+	res, err = o.LoadExchangeFile(ctx, T, "priya.nair", "MTMPRICE16102026.xlsx", wb, true)
+	if err != nil || res[0].Format != "ccil-gsec-price" || res[0].Added != 2 || res[0].Problems != 0 {
+		t.Fatalf("ccil %+v %v", res, err)
+	}
+	_, look, _ := o.Market(ctx, T, D)
+	if i, ok := look.ByISIN("IN0020990011"); !ok || i.LTP.String() != "101.25" {
+		t.Fatalf("g-sec price %+v", i)
+	}
+
+	// CUSPA / MTF pay-out reporting.
+	if _, _, err := o.ExchangeFile(ctx, T, "priya.nair", "ncl-cuspa-mtf-payout", D, XFileOptions{}); err == nil {
+		t.Fatal("file written with nothing to report")
+	}
+	cs, _ := o.Clients(ctx, T)
+	_ = docs.Upsert(ctx, o.Docs, T, cCUSPA, "CU-T1", CUSPAItem{ID: "CU-T1", Date: D, UCC: cs[0].UCC, ISIN: "INE000X01010", Symbol: "XTEST", Qty: 40, Status: "Held in CUSPA"}, "test")
+	name, b, err := o.ExchangeFile(ctx, T, "priya.nair", "ncl-cuspa-mtf-payout", D, XFileOptions{})
+	if err != nil || name != "UNPAIDMTF_M_2026199.T01" || !strings.HasSuffix(string(b), ","+cs[0].UCC+",XTEST,EQ,40,T,\r\n") {
+		t.Fatalf("%s %q %v", name, b, err)
 	}
 }

@@ -339,6 +339,7 @@ var ClientReportDefs = []ClientReportDef{
 	{"pnl", "Profit & loss / capital gains", "Realised equity gains lot by lot (speculative, short-term, long-term), derivatives P&L and charges, for tax filing.", true, false, "fy"},
 	{"tradebook", "Trade book", "Every trade across exchanges and segments in the period.", true, true, "month"},
 	{"positions", "Open positions", "Open futures and options with average price, last price, MTM and margin.", false, false, ""},
+	{"funds_securities", "Statement of funds and securities", "The week's (or any period's) funds movement and balance, securities with the broker (margin pledges, unpaid purchases held in CUSPA) and demat holdings.", true, false, "week"},
 }
 
 // ClientReportFor builds a report. ucc may be "ALL" for kinds that allow it.
@@ -403,6 +404,8 @@ func (o *Ops) ClientReportFor(ctx context.Context, tenant, kind, ucc, from, to s
 		err = o.repTradebook(ctx, tenant, &r)
 	case "positions":
 		err = o.repPositions(ctx, tenant, &r)
+	case "funds_securities":
+		err = o.repFundsSecurities(ctx, tenant, &r)
 	}
 	r.normalise()
 	return r, err
@@ -1135,4 +1138,100 @@ func (r ClientReport) has(c Client) bool {
 		}
 	}
 	return false
+}
+
+// ---- statement of funds and securities ----
+
+// repFundsSecurities is the periodic statement of funds and securities:
+// what the client's money did in the period and where it stands, the
+// securities the broker holds for the client (pledged as margin, or bought
+// and not yet paid for, in the client unpaid securities pledgee account),
+// and the client's demat holdings.
+func (o *Ops) repFundsSecurities(ctx context.Context, tenant string, r *ClientReport) error {
+	st, err := o.App.Ledger.Statement(ctx, tenant, ledger.ClientAccount(r.UCC), r.From, r.To)
+	if err != nil {
+		return err
+	}
+	var d, c money.Amount
+	for _, l := range st.Lines {
+		d, c = d+l.Debit, c+l.Credit
+	}
+	funds := Section{Title: "Funds", Columns: []Column{{"item", "", ColText}, {"amount", "Amount", ColDrCr}},
+		Rows: [][]string{{"Opening balance on " + fmtDay(r.From), amt(st.Opening)}, {"Debits in the period", amt(d)}, {"Credits in the period", amt(-c)}, {"Closing balance on " + fmtDay(r.To), amt(st.Closing)}}}
+	mv := Section{Title: "Funds movement", Columns: []Column{{"date", "Date", ColDate}, {"particulars", "Particulars", ColText}, {"debit", "Debit", ColMoney}, {"credit", "Credit", ColMoney}, {"balance", "Balance", ColDrCr}},
+		Empty: "No funds movement in this period."}
+	for _, l := range st.Lines {
+		db, cr := "", ""
+		if l.Debit != 0 {
+			db = amt(l.Debit)
+		}
+		if l.Credit != 0 {
+			cr = amt(l.Credit)
+		}
+		mv.Rows = append(mv.Rows, []string{l.ValueDate, l.Narration, db, cr, amt(l.Balance)})
+	}
+	hs, _, err := o.holdLines(ctx, tenant, r.UCC, r.To)
+	if err != nil {
+		return err
+	}
+	price := map[string]money.Dec{}
+	for _, h := range hs {
+		if h.qty > 0 && h.priced {
+			p, _ := h.value.Quo(money.DecInt(h.qty))
+			price[h.isin] = p
+		}
+	}
+	withBroker := Section{Title: "Securities with the broker", Columns: []Column{{"isin", "ISIN", ColText}, {"symbol", "Security", ColText}, {"how", "Held as", ColText}, {"since", "Since", ColDate}, {"qty", "Quantity", ColQty}, {"value", "Value", ColMoney}},
+		Empty: "The broker holds none of your securities: nothing is pledged as margin or held for unpaid purchases.",
+		Note:  "Pledged securities stay in your demat account, pledged to the broker for margin. Securities bought and not fully paid for are held in the client unpaid securities pledgee account (CUSPA) and released when paid for, or sold after the period the rules allow."}
+	var bv money.Dec
+	for _, h := range hs {
+		if h.pledged > 0 {
+			v := price[h.isin].MulInt(h.pledged)
+			withBroker.Rows = append(withBroker.Rows, []string{h.isin, h.sym, "Margin pledge", "", qty(h.pledged), d2s(v)})
+			bv = bv.Add(v)
+		}
+	}
+	cu, _ := docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
+	sort.Slice(cu, func(i, j int) bool { return cu[i].Date < cu[j].Date })
+	for _, it := range cu {
+		if it.UCC != r.UCC || it.Status != "Held in CUSPA" || it.Date > r.To {
+			continue
+		}
+		v := it.Value
+		if p, ok := price[it.ISIN]; ok {
+			v = p.MulInt(it.Qty)
+		}
+		withBroker.Rows = append(withBroker.Rows, []string{it.ISIN, it.Symbol, "Unpaid purchase (CUSPA)", it.Date, qty(it.Qty), d2s(v)})
+		bv = bv.Add(v)
+	}
+	if len(withBroker.Rows) > 0 {
+		withBroker.Totals = []string{"Total", "", "", "", "", d2s(bv)}
+	}
+	hsec, _, hv := holdingSection(hs)
+	hsec.Title = "Demat holdings"
+	r.Sections = append(r.Sections, funds, withBroker, hsec, mv)
+	r.Summary = []SummaryItem{{"Funds balance", amt(st.Closing), ColDrCr, ""}, {"Securities with the broker", d2s(bv), ColMoney, ""}, {"Demat holdings at market", d2s(hv), ColMoney, ""}}
+	r.Notes = append(r.Notes, "Dr = amount payable by you; Cr = amount held by us on your behalf.",
+		"Please check this statement. If anything is wrong, write to us within 7 days; if it is not resolved you can raise it with the exchange or SEBI (SCORES).")
+	return nil
+}
+
+// fundsSecuritiesDue reports whether a client should get the statement for
+// the period: a balance, any movement, or securities with the broker.
+func (o *Ops) fundsSecuritiesDue(ctx context.Context, tenant, ucc, from, to string, cuspa map[string]bool) (bool, error) {
+	st, err := o.App.Ledger.Statement(ctx, tenant, ledger.ClientAccount(ucc), from, to)
+	if err != nil {
+		return false, err
+	}
+	if st.Closing != 0 || len(st.Lines) > 0 || cuspa[ucc] {
+		return true, nil
+	}
+	hs, _ := o.Holdings(ctx, tenant, ucc)
+	for _, h := range hs {
+		if h.Pledged > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }

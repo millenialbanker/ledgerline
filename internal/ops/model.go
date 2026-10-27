@@ -101,11 +101,14 @@ type Settings struct {
 	PenaltyPassThrough bool              `json:"penalty_pass_through"`
 	RASMonthly         string            `json:"ras_monthly"`
 	RASQuarterly       string            `json:"ras_quarterly"`
-	Holidays           []string          `json:"holidays"` // typed in by the firm; exchange calendars add to these
-	SnapshotTimes      []string          `json:"snapshot_times"`
-	IndexNetLimitCr    int64             `json:"index_net_limit_cr"`
-	InactiveDays       int64             `json:"inactive_days"`
-	Calendar           []CalendarItem    `json:"calendar"`
+	// CUSPADays: trading days after pay-out within which unpaid purchases
+	// held in CUSPA must be paid for before they are sold (default 7).
+	CUSPADays       int            `json:"cuspa_days,omitempty"`
+	Holidays        []string       `json:"holidays"` // typed in by the firm; exchange calendars add to these
+	SnapshotTimes   []string       `json:"snapshot_times"`
+	IndexNetLimitCr int64          `json:"index_net_limit_cr"`
+	InactiveDays    int64          `json:"inactive_days"`
+	Calendar        []CalendarItem `json:"calendar"`
 	// TwoFactor is "required" (the default when empty) or "optional".
 	TwoFactor          string `json:"two_factor"`
 	SessionIdleMinutes int64  `json:"session_idle_minutes"`

@@ -40,11 +40,13 @@ type JobKind struct {
 // JobKinds are the jobs the scheduler can run.
 var JobKinds = []JobKind{
 	{"debit_reminders", "Debit reminders", "Messages clients in debit for at least the given number of days.", []string{"min_days"}},
+	{"weekly_statements", "Weekly statements of funds and securities", "Emails every client with a balance, a movement or securities with the broker their statement of funds and securities for the week to the last Friday, as a signed PDF.", nil},
 	{"monthly_statements", "Monthly statements", "Emails every active client their statement of account for the previous month, as a signed PDF.", nil},
 	{"margin_statements", "Daily margin statements", "Emails every client with margin that day their signed margin statement (run after the day's margins are final).", nil},
 	{"dp_statements", "DP statements", "Emails every DP account its signed statement of transactions and holdings for the previous month.", nil},
 	{"email_report", "Email a report", "Generates a regulatory or inspection report and emails it to the recipients.", []string{"report", "to"}},
 	{"kra_upload", "KRA upload file", "Builds the KRA upload file of clients opened or changed since the last run and keeps it with the files.", nil},
+	{"periodic", "Periodic work", "Runs the weekly, monthly and quarterly work that is due and not done (statements, month-end postings, running account settlement, disclosures) and queues what needs a person (such as the BSDA review).", nil},
 	{"autopilot", "Autopilot stage", "Runs every automation of a stage (bod, intraday, preclose, eod, commodity, monthly) under the firm's autopilot settings.", []string{"stage"}},
 }
 
@@ -378,6 +380,14 @@ func (o *Ops) runJob(ctx context.Context, tenant string, j Job, date string) (st
 			return "", err
 		}
 		return statementSummary(res), nil
+	case "periodic":
+		return o.RunDuePeriodic(ctx, tenant, date)
+	case "weekly_statements":
+		res, err := o.SendStatements(ctx, tenant, a, DocFundsSec, lastFriday(date))
+		if err != nil {
+			return "", err
+		}
+		return statementSummary(res), nil
 	case "monthly_statements":
 		to := addDays(date[:8]+"01", -1)
 		from := to[:8] + "01"
@@ -491,6 +501,7 @@ func (o *Ops) SeedJobs(ctx context.Context, tenant string) error {
 		{Name: "DP statements", Kind: "dp_statements", At: "09:00", When: "monthly:3"},
 		{Name: "KRA upload file", Kind: "kra_upload", At: "20:00", When: "business", OnlyFailure: true},
 		{Name: "Client ledger balances to management", Kind: "email_report", At: "21:00", When: "business", Params: map[string]string{"report": "ledger_balances", "to": "md@bhairav.example"}},
+		{Name: "Periodic work (weekly, monthly, quarterly)", Kind: "periodic", At: "07:45", When: "daily"},
 	}
 	for i, j := range seed {
 		j.ID = fmt.Sprintf("JOB-%03d", i+1)
@@ -581,4 +592,16 @@ func (o *Ops) AutopilotScheduled(ctx context.Context, tenant string) bool {
 
 func statementSummary(r SendStatementsResult) string {
 	return fmt.Sprintf("%s %s: %d sent, %d bounced, %d on paper, %d held, %d failed, %d already sent", DocKindNames[r.Kind], r.Period, r.Sent, r.Bounced, r.Paper, r.Held, r.Failed, r.Skipped)
+}
+
+// lastFriday is the latest Friday on or before date.
+func lastFriday(date string) string {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return date
+	}
+	for t.Weekday() != time.Friday {
+		t = t.AddDate(0, 0, -1)
+	}
+	return t.Format("2006-01-02")
 }

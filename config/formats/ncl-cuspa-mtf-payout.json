@@ -1,0 +1,53 @@
+{
+ "id": "ncl-cuspa-mtf-payout",
+ "title": "Delivery pay-out reporting of CUSPA and MTF securities (NSE Clearing)",
+ "party": "NSE Clearing",
+ "direction": "out",
+ "when": "Settlement day, before pay-out",
+ "purpose": "Clients' purchases that are not to be paid out to their demat accounts: unpaid purchases kept in the client unpaid securities pledgee account (CUSPA) and MTF purchases kept for the MTF pledge.",
+ "names": [
+  "UNPAIDMTF_[A-Z]_\\d+\\.T\\d+"
+ ],
+ "template": "UNPAIDMTF_{stype}_{settno}.T{seq:2}",
+ "header": false,
+ "confirmed": false,
+ "linked": "Written from Ledgerline's CUSPA items and MTF positions of the settlement",
+ "source": "Files sent by a member; field meanings from its working sheet (UCC, scrip, series, request quantity, CTM flag, action flag)",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "MemberCode",
+   "type": "str"
+  },
+  {
+   "name": "ClientCode",
+   "type": "str"
+  },
+  {
+   "name": "Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Series",
+   "type": "str"
+  },
+  {
+   "name": "Quantity",
+   "type": "int"
+  },
+  {
+   "name": "CTMFlag",
+   "type": "str",
+   "note": "T in every file seen"
+  },
+  {
+   "name": "ActionFlag",
+   "type": "str",
+   "note": "Blank in every file seen"
+  }
+ ]
+}
