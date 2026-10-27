@@ -157,6 +157,10 @@ type Settings struct {
 	// server). Only the question, with identifiers masked, and the help
 	// articles are sent; never client data.
 	LedgyAI bool `json:"ledgy_ai,omitempty"`
+	// BillAI lets bill scanning send a bill the server cannot read (a scan
+	// or photo) to the AI model to read its details. Off by default; the
+	// bill leaves the server, so not allowed in India-only mode.
+	BillAI bool `json:"bill_ai,omitempty"`
 	// Backups (backups.go): how many each tier keeps, whether the year
 	// for yearly backups ends in March or December, and when a day that
 	// was not closed is backed up anyway.
@@ -374,6 +378,9 @@ func (o *Ops) Settings(ctx context.Context, tenant string) (Settings, error) {
 func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings) error {
 	if err := o.require(ctx, tenant, actor, "Changing settings", RoleAdmin); err != nil {
 		return err
+	}
+	if s.BillAI && o.Residency.IndiaOnly {
+		return invalid("reading bills with AI sends them outside India, which India-only mode does not allow")
 	}
 	if s.WarnUtilPct < 1 || s.WarnUtilPct > 100 {
 		return invalid("watch threshold must be between 1 and 100")

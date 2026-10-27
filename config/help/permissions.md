@@ -17,6 +17,7 @@ Approving vouchers | Ops checker
 Asking clients for WhatsApp consent | Ops checker, Compliance officer
 Assigning brokerage plans | Ops checker
 Blocking clients in continuous debit | Risk manager
+Booking vendor bills | Ops maker, Ops checker
 Buy-back offers | Ops maker, Ops checker
 Changing a segment's status | Ops checker, Compliance officer
 Changing automation | Compliance officer, Admin
@@ -30,6 +31,7 @@ Changing the MTF policy | Risk manager, Admin
 Changing the account type | Ops checker
 Changing the chart of accounts | Ops checker
 Changing the compliance calendar | Compliance officer
+Changing vendors | Ops maker, Ops checker
 Checking a backup | Ops checker, Compliance officer
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
 Clearing cheques | Ops maker, Ops checker
@@ -46,6 +48,7 @@ Crediting dividends | Ops checker
 DP billing | Ops checker
 DP requests | Ops maker, Ops checker, Compliance officer, Branch staff
 Deciding a pledge request | Ops maker, Ops checker, Risk manager
+Discarding scanned bills | Ops maker, Ops checker
 Downloading the collateral file | Ops maker, Ops checker, Risk manager, Compliance officer
 Editing message templates | Ops checker, Compliance officer
 Entering a payout request | Ops maker, Ops checker, Branch staff, Authorised person
@@ -72,6 +75,7 @@ Managing the firm's saved logins | Admin
 Mapping clients | Ops checker, Admin
 Marking a report uploaded | Ops checker, Compliance officer
 NRI registration | Ops checker, Compliance officer
+Paying vendor bills | Ops maker, Ops checker
 Posting AP payouts | Ops checker
 Posting MTF interest | Ops checker, Risk manager
 Posting interest | Ops checker, Risk manager
@@ -105,6 +109,7 @@ Running automations | Ops checker, Admin
 Running jobs | Ops checker, Admin
 Running prepaid adjustments | Ops checker
 Running surveillance rules | Ops checker, Compliance officer
+Scanning vendor bills | Ops maker, Ops checker
 Scheduling jobs | Admin
 See full client identifiers | Ops checker, Compliance officer
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
@@ -139,5 +144,7 @@ Viewing nominations | Ops maker, Ops checker, Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 Viewing the signing certificate | Ops checker, Compliance officer, Admin
+Viewing vendor bills | Ops maker, Ops checker, Compliance officer
+Viewing vendors | Ops maker, Ops checker, Compliance officer
 Working client insights | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Working complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person

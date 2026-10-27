@@ -111,7 +111,7 @@ title: Post a voucher or file GST
 screen: books
 roles: Ops maker, Ops checker
 ask: voucher; journal entry; expense entry; payment voucher; firm accounts; gst return; gstr-1; gstr-3b; profit and loss; balance sheet; chart of accounts
-related: period-locked
+related: period-locked, vendor-bills
 
 On [[books|Firm accounts & GST]]:
 
@@ -119,6 +119,23 @@ On [[books|Firm accounts & GST]]:
 2. **New account** adds to the chart of accounts. Accounts can be restricted to named users (salaries, for example).
 3. **GST:** choose the period for GSTR-1 tables and the GSTR-3B summary from everything billed to clients.
 4. **P&L and balance sheet** for the firm or a branch.
+
+## vendor-bills
+title: Add a vendor or book and pay a vendor bill
+screen: books
+roles: Ops maker, Ops checker
+ask: vendor bill; purchase bill; book a bill; scan a bill; upload bill; read bill; vendor master; add vendor; supplier; pay vendor; tds on vendor; msme payment; 43b(h); bill register; input tax credit; reverse charge
+related: vouchers-gst
+
+On [[books|Firm accounts & GST]] → **Vendor bills**:
+
+1. **Scan a bill:** upload the PDF, JPEG or PNG. A PDF made by the vendor's software is read on the server: vendor, GSTIN (check digit verified), PAN, address, bank account and IFSC, bill number and date, taxable value, CGST, SGST, IGST and total fill the form. A scanned or photographed bill has no text: type the details, or use **Read with AI** if an admin has switched on *Read bills with AI* in Settings (the bill is then sent to the AI provider and charged from the AI credit; not available in India-only mode).
+2. **Check every figure against the bill.** Warnings show what doesn't add up: a wrong GSTIN check digit, totals that don't match, IGST from a vendor in your own state, a bill not made out to the firm's GSTIN.
+3. A new vendor is added from the bill in one click (**Add vendor**). Set the **TDS section**, payment terms, and the **Udyam number** for a micro or small enterprise: their bills must be paid within the agreed days, at most 45 (15 without an agreement), or the expense is disallowed until paid (section 43B(h)).
+4. **Book bill** makes a journal voucher: expense and input GST debited, TDS and the vendor credited (reverse charge credits GST payable instead). An Ops checker who didn't make it posts it.
+5. **Pay** makes a payment voucher from the firm's own bank account; a checker posts it. Part payments are allowed.
+
+If the bank account on a bill differs from the vendor master, Ledgerline warns you: confirm with the vendor on a number you already know before paying. The same file uploaded twice, or the same bill number from the same vendor, is caught. **Download CSV** gives the register with PAN and TDS columns for the TDS return.
 
 ## clearing-deposits
 title: Record clearing deposits and base capital

@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"ledgerline/internal/help"
 	"net/url"
 	"regexp"
 )
@@ -69,6 +70,9 @@ func (o *Ops) ResidencyLines() []ResidencyLine {
 	if o.LedgyAI != nil {
 		where := map[string]string{"anthropic": "Anthropic (USA)", "openai": "OpenAI (USA)", "gemini": "Google Gemini API (outside India)"}[o.LedgyAI.Provider()]
 		lines = append(lines, ResidencyLine{What: "Ledgy AI phrasing", Where: where, Status: "outside", Note: "Only when a firm switches it on: the masked question and help articles, never client data. Not allowed in India-only mode."})
+		if _, ok := o.LedgyAI.(help.DocumentReader); ok {
+			lines = append(lines, ResidencyLine{What: "Reading scanned vendor bills with AI", Where: where, Status: "outside", Note: "Only when a firm switches it on, and only for a bill the server cannot read itself: the image of the firm's own purchase bill, never client data. Not allowed in India-only mode."})
+		}
 	} else {
 		lines = append(lines, ResidencyLine{What: "Ledgy AI phrasing", Where: "Not connected", Status: "none"})
 	}

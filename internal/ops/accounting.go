@@ -208,6 +208,7 @@ type Voucher struct {
 	Checker   string        `json:"checker,omitempty"`
 	Entry     string        `json:"entry,omitempty"`
 	Reason    string        `json:"reason,omitempty"`
+	Bill      string        `json:"bill,omitempty"` // vendor bill booked or paid by it
 }
 
 var voucherSeries = map[string]string{"Payment": "PV", "Receipt": "RV", "Journal": "JV", "Contra": "CV"}

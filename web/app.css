@@ -457,3 +457,12 @@ fieldset.fld{border:0;padding:0;margin:0}fieldset.fld legend{font-size:12.5px;co
 .sp-who { margin-bottom: 4px; }
 .sp-text { white-space: pre-wrap; word-break: break-word; }
 .sp-status { text-align: center; margin: 6px 0 12px; }
+/* vendor bills */
+.md.wide{max-width:1180px}
+.billgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+.billprev{border:1px solid var(--line2);border-radius:8px;background:var(--bg);height:72vh;overflow:auto;position:sticky;top:0}
+.billprev iframe{width:100%;height:100%;border:0;display:block}.billprev img{width:100%;display:block}
+.readbox{border:1px solid var(--line2);border-radius:8px;padding:10px 12px;margin-bottom:12px;background:var(--bg)}
+.billsum{margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--bg);border:1px solid var(--line2)}
+.in.read{border-color:var(--good);box-shadow:inset 3px 0 0 var(--good)}
+@media (max-width:900px){.billgrid{grid-template-columns:1fr}.billprev{position:static;height:50vh}}

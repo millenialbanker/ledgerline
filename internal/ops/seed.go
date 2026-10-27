@@ -55,7 +55,7 @@ func (o *Ops) SeedDev(ctx context.Context, tenant string) error {
 		s.GatewaySecret = "dev-gateway-secret" // sample only
 		s.WhatsAppSecret = "dev-whatsapp-secret"
 		s.ManagementEmails = []string{"md@bhairav.example", "compliance@bhairav.example"}
-		s.FirmState, s.FirmGSTIN = "Maharashtra", "27AAACB1234C1Z5"
+		s.FirmState, s.FirmGSTIN = "Maharashtra", "27AAACB1234C1ZF"
 		s.PayoutDebitAccount = "50200012345678"
 		s.Calendar = []CalendarItem{
 			{"2026-10-16", "Client funds and securities balance upload", "Accounts"},
