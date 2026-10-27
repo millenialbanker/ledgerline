@@ -12,7 +12,7 @@
  "header": false,
  "confirmed": false,
  "linked": "Written from Ledgerline's CUSPA items and MTF positions of the settlement",
- "source": "Files sent by a member; field meanings from its working sheet (UCC, scrip, series, request quantity, CTM flag, action flag)",
+ "source": "Flags from NSE Clearing circular NCL/CMPT/63669 (30 Aug 2024) on pay-out of securities directly to client demat accounts; other fields from the files sent",
  "compress": "none",
  "format": "delimited",
  "delimiter": ",",
@@ -42,7 +42,7 @@
   {
    "name": "CTMFlag",
    "type": "str",
-   "note": "T in every file seen"
+   "note": "C: paid out to the client's demat, pledged to the clearing member's CUSPA; T: pledged to the trading member's CUSPA; M: pledged to the trading member's MTF account (CSMFA)"
   },
   {
    "name": "ActionFlag",

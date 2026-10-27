@@ -16,62 +16,53 @@
    "layout": "02-Jan-2006"
   },
   {
-   "name": "Field2",
-   "type": "str"
+   "name": "Indicator",
+   "type": "str",
+   "note": "Snapshot number (1-n) or E that gave the highest short allocation"
   },
   {
    "name": "ClientCode",
    "type": "str"
   },
   {
-   "name": "Field4",
+   "name": "MinimumMarginRequired",
+   "type": "dec"
+  },
+  {
+   "name": "CashCollateral",
+   "type": "dec"
+  },
+  {
+   "name": "NonCashCollateral",
+   "type": "dec"
+  },
+  {
+   "name": "ExcessCollateralOtherSegment",
+   "type": "dec"
+  },
+  {
+   "name": "TotalCollateral",
    "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "note": "cash + non-cash + excess of other segment"
   },
   {
-   "name": "Field5",
+   "name": "ShortAllocation",
    "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "note": "minimum margin required - total collateral"
   },
   {
-   "name": "Field6",
+   "name": "CollateralAvailable",
    "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "note": "amount available under the reason"
   },
   {
-   "name": "Field7",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "name": "ReasonCode",
+   "type": "str",
+   "note": "01 excess collateral with another CC; 02 early pay-in of securities sold; 03 trades in wrong client code (intraday); 04 NRI trades; 05 allocation accepted late (intraday); 06 re-pledge not yet processed (intraday); 07 custodian early pay-in of funds (intraday)"
   },
   {
-   "name": "Field8",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
-  },
-  {
-   "name": "Field9",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
-  },
-  {
-   "name": "Field10",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
-  },
-  {
-   "name": "Field11",
-   "type": "str"
-  },
-  {
-   "name": "Field12",
-   "type": "str"
+   "name": "Filler",
+   "type": "blank"
   }
  ],
  "compress": "none",
@@ -81,5 +72,6 @@
  "crlf": true,
  "final_eol": true,
  "confirmed": false,
- "linked": ""
+ "linked": "",
+ "source": "SA04 row + collateral available + reason code (reason codes: NCL/CMPT/55381, NCL/CMPT/56494; file name: NCL/CMPT/53935). The upload's field list itself was not found: inferred from the files"
 }

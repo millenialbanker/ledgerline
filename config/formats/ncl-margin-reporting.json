@@ -1,14 +1,15 @@
 {
  "id": "ncl-margin-reporting",
- "title": "Client margin reporting (NSE Clearing, cash and F&O)",
+ "title": "Client margin reporting upload (NSE Clearing, cash)",
  "party": "NSE Clearing",
  "direction": "out",
  "when": "Daily (previous day)",
  "purpose": "Margin required and collected per client.",
  "names": [
-  "[CF]_MRG_TM_\\d+_\\d+\\.csv"
+  "C_MRG_TM_\\d{8}_\\d+\\.csv",
+  "C_MRG_TM_\\d+_\\d+\\.csv"
  ],
- "template": "{prefix}_MRG_TM_{member}_{seq:2}.csv",
+ "template": "C_MRG_TM_{date:02012006}_{seq:2}.csv",
  "columns": [
   {
    "name": "Date",
@@ -20,62 +21,48 @@
    "type": "str"
   },
   {
-   "name": "Field3",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "name": "VaRPlusELM",
+   "type": "dec"
   },
   {
-   "name": "Field4",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "name": "MinimumMargin",
+   "type": "dec"
   },
   {
-   "name": "Field5",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "name": "AdditionalMargin",
+   "type": "dec"
   },
   {
-   "name": "Field6",
+   "name": "MTMLoss",
    "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "note": "MTM profit is shown as 0"
   },
   {
-   "name": "Field7",
+   "name": "EODTotalActualMargin",
    "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "note": "VaR + ELM + additional + MTM"
   },
   {
-   "name": "Field8",
+   "name": "EODMarginToCollect",
    "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "note": "Minimum margin + additional + MTM"
   },
   {
-   "name": "Field9",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "name": "PeakMarginToCollect",
+   "type": "dec"
   },
   {
-   "name": "Field10",
-   "type": "str"
+   "name": "ClientProFlag",
+   "type": "str",
+   "note": "C client, P proprietary"
   },
   {
-   "name": "Field11",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "name": "EODMarginCollected",
+   "type": "dec"
   },
   {
-   "name": "Field12",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "name": "PeakMarginCollected",
+   "type": "dec"
   }
  ],
  "compress": "none",
@@ -84,6 +71,7 @@
  "header": false,
  "crlf": true,
  "final_eol": true,
- "confirmed": false,
- "linked": ""
+ "confirmed": true,
+ "linked": "",
+ "source": "NSE Clearing circular NCL/CMPT/45627 (8 Sep 2020), client margin file MG13 and margin reporting: the MG13 row unaltered, then the margin collected at end of day and at peak (both not negative)"
 }

@@ -1,10 +1,10 @@
 {
  "id": "cdsl-early-payin",
- "title": "Early pay-in confirmation (CDSL)",
- "party": "CDSL",
+ "title": "Early pay-in allocation (NSE Clearing, CEP)",
+ "party": "NSE Clearing",
  "direction": "in",
  "when": "Through the day",
- "purpose": "Securities early-paid-in by clients against sales (no margin needed).",
+ "purpose": "Early pay-in of securities allocated to each client and security (record 20; the last field is the quantity allocated).",
  "names": [
   "\\d+_CEP\\d+\\.D\\d+"
  ],
@@ -13,35 +13,35 @@
    "code": "",
    "columns": [
     {
-     "name": "Field1",
+     "name": "RecordType",
      "type": "str"
     },
     {
-     "name": "Field2",
+     "name": "SettlementType",
      "type": "str"
     },
     {
-     "name": "Field3",
+     "name": "SettlementNo",
      "type": "str"
     },
     {
-     "name": "Field4",
+     "name": "Symbol",
      "type": "str"
     },
     {
-     "name": "Field5",
+     "name": "Series",
      "type": "str"
     },
     {
-     "name": "Field6",
+     "name": "ClientCode",
      "type": "str"
     },
     {
-     "name": "Field7",
+     "name": "Quantity",
      "type": "str"
     },
     {
-     "name": "Field8",
+     "name": "EPIAllocated",
      "type": "str"
     }
    ]
@@ -50,15 +50,15 @@
    "code": "#6",
    "columns": [
     {
-     "name": "Field1",
+     "name": "RecordType",
      "type": "str"
     },
     {
-     "name": "Field2",
+     "name": "FileType",
      "type": "str"
     },
     {
-     "name": "Field3",
+     "name": "Date",
      "type": "str"
     },
     {
@@ -66,11 +66,11 @@
      "type": "str"
     },
     {
-     "name": "Field5",
+     "name": "MemberCode",
      "type": "str"
     },
     {
-     "name": "Field6",
+     "name": "RecordCount",
      "type": "str"
     }
    ]
@@ -83,5 +83,6 @@
  "crlf": true,
  "final_eol": true,
  "confirmed": false,
- "linked": ""
+ "linked": "",
+ "source": "NSE Clearing FAQ on early pay-in of securities (2025): record type 20's last column is the EPI allocated; other names follow NSE Clearing's CLNTEPI upload layout (inferred)"
 }

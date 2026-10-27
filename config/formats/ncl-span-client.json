@@ -1,12 +1,12 @@
 {
  "id": "ncl-span-client",
- "title": "Client SPAN margin report (NSE Clearing)",
+ "title": "Client margin file MG13 (NSE Clearing, cash)",
  "party": "NSE Clearing",
  "direction": "in",
  "when": "BOD (previous day) / EOD",
  "purpose": "Margin per client for the day (cash: C_MG, F&O: F_MG).",
  "names": [
-  "[CF]_MG\\d+_\\d+_\\d{8}\\.lis(\\.gz)?"
+  "C_MG\\d+_\\d+_\\d{8}\\.lis(\\.gz)?"
  ],
  "compress": "gzip",
  "columns": [
@@ -20,50 +20,40 @@
    "type": "str"
   },
   {
-   "name": "Field3",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "name": "VaRPlusELM",
+   "type": "dec"
   },
   {
-   "name": "Field4",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "name": "MinimumMargin",
+   "type": "dec"
   },
   {
-   "name": "Field5",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "name": "AdditionalMargin",
+   "type": "dec"
   },
   {
-   "name": "Field6",
+   "name": "MTMLoss",
    "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "note": "MTM profit is shown as 0"
   },
   {
-   "name": "Field7",
+   "name": "EODTotalActualMargin",
    "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "note": "VaR + ELM + additional + MTM"
   },
   {
-   "name": "Field8",
+   "name": "EODMarginToCollect",
    "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "note": "Minimum margin + additional + MTM"
   },
   {
-   "name": "Field9",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
+   "name": "PeakMarginToCollect",
+   "type": "dec"
   },
   {
-   "name": "Field10",
-   "type": "str"
+   "name": "ClientProFlag",
+   "type": "str",
+   "note": "C client, P proprietary"
   }
  ],
  "format": "delimited",
@@ -71,6 +61,7 @@
  "header": false,
  "crlf": true,
  "final_eol": true,
- "confirmed": false,
- "linked": ""
+ "confirmed": true,
+ "linked": "",
+ "source": "NSE Clearing circular NCL/CMPT/45627 (8 Sep 2020), client margin file MG13 and margin reporting"
 }

@@ -21,90 +21,95 @@
   },
   {
    "name": "ClientCode",
+   "type": "str",
+   "note": "*OWN* for proprietary"
+  },
+  {
+   "name": "InitialMargin",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true,
+   "note": "IM + ELM + net buy premium"
+  },
+  {
+   "name": "OtherMargin",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "MTM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true,
+   "note": "net pay-in (0.00 when a pay-out)"
+  },
+  {
+   "name": "ShortageReported",
+   "type": "str",
+   "note": "reserved"
+  },
+  {
+   "name": "PenaltyLevied",
+   "type": "str",
+   "note": "reserved"
+  },
+  {
+   "name": "MTMCollected",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "IMCollected",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "OtherMarginCollected",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "PeakMarginThresholdPct",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "PeakMargin",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "PeakMarginCollected",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "PeakMarginShortfall",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "IntradayShortAllocation",
    "type": "str"
   },
   {
-   "name": "Field4",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
-  },
-  {
-   "name": "Field5",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
-  },
-  {
-   "name": "Field6",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
-  },
-  {
-   "name": "Field7",
+   "name": "EODShortAllocation",
    "type": "str"
   },
   {
-   "name": "Field8",
+   "name": "PeakSnapshotRef",
    "type": "str"
   },
   {
-   "name": "Field9",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
-  },
-  {
-   "name": "Field10",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
-  },
-  {
-   "name": "Field11",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
-  },
-  {
-   "name": "Field12",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
-  },
-  {
-   "name": "Field13",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
-  },
-  {
-   "name": "Field14",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
-  },
-  {
-   "name": "Field15",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": true
-  },
-  {
-   "name": "Field16",
-   "type": "str"
-  },
-  {
-   "name": "Field17",
-   "type": "str"
-  },
-  {
-   "name": "Field18",
-   "type": "str"
-  },
-  {
-   "name": "Field19",
+   "name": "IntrasarSnapshotRef",
    "type": "str"
   }
  ],
@@ -114,6 +119,7 @@
  "header": false,
  "crlf": true,
  "final_eol": true,
- "confirmed": false,
- "linked": ""
+ "confirmed": true,
+ "linked": "",
+ "source": "MCXCCL circular MCX/MCXCCL/327/2026 (MCXCCL/TECH/121/2026, 1 Jun 2026), Revision in Client Margin Reporting File Formats, section 1.8 (the margin file with the member's collected amounts in fields 9 to 11 and 14)"
 }

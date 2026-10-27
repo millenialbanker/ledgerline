@@ -1,0 +1,87 @@
+{
+ "id": "ncl-margin-reporting-fo",
+ "title": "Client margin reporting upload (NSE Clearing, F&O)",
+ "party": "NSE Clearing",
+ "direction": "out",
+ "when": "Daily (previous day)",
+ "purpose": "Margin required and collected per client.",
+ "names": [
+  "F_MRG_TM_\\d{8}_\\d+\\.csv",
+  "F_MRG_TM_\\d+_\\d+\\.csv"
+ ],
+ "template": "F_MRG_TM_{date:02012006}_{seq:2}.csv",
+ "columns": [
+  {
+   "name": "Date",
+   "type": "date",
+   "layout": "02-Jan-2006"
+  },
+  {
+   "name": "ClientCode",
+   "type": "str"
+  },
+  {
+   "name": "Field3",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field4",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field5",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field6",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field7",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field8",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field9",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "ClientProFlag",
+   "type": "str"
+  },
+  {
+   "name": "EODMarginCollected",
+   "type": "dec"
+  },
+  {
+   "name": "PeakMarginCollected",
+   "type": "dec"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": "",
+ "source": "The F&O MG13 row unaltered, then margin collected at end of day and at peak (as for cash); MG13 F&O components unconfirmed"
+}

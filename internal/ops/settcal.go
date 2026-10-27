@@ -192,12 +192,13 @@ func (o *Ops) cuspaMTFFile(ctx context.Context, tenant string, s *xfile.Spec, se
 		}
 		return sym, "EQ"
 	}
-	type key struct{ ucc, isin string }
+	type key struct{ ucc, isin, flag string }
 	qty := map[key]int64{}
 	sym := map[key]string{}
 	var order []key
-	add := func(ucc, isin, symbol string, q int64) {
-		k := key{ucc, isin}
+	// T: kept in the trading member's CUSPA; M: kept for the MTF pledge.
+	add := func(ucc, isin, symbol, flag string, q int64) {
+		k := key{ucc, isin, flag}
 		if _, ok := qty[k]; !ok {
 			order = append(order, k)
 		}
@@ -207,13 +208,13 @@ func (o *Ops) cuspaMTFFile(ctx context.Context, tenant string, s *xfile.Spec, se
 	cu, _ := docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
 	for _, it := range cu {
 		if it.Date == date && it.Status == "Held in CUSPA" {
-			add(it.UCC, it.ISIN, it.Symbol, it.Qty)
+			add(it.UCC, it.ISIN, it.Symbol, "T", it.Qty)
 		}
 	}
 	ms, _ := docs.List[MTFPosition](ctx, o.Docs, tenant, cMTFPos, "")
 	for _, m := range ms {
 		if m.BuyDate == date && m.Status == "Open" {
-			add(m.UCC, m.ISIN, m.Symbol, m.Qty)
+			add(m.UCC, m.ISIN, m.Symbol, "M", m.Qty)
 		}
 	}
 	if len(order) == 0 {
@@ -227,7 +228,7 @@ func (o *Ops) cuspaMTFFile(ctx context.Context, tenant string, s *xfile.Spec, se
 	var rows []xfile.Row
 	for _, k := range order {
 		sy, se := series(k.isin, sym[k])
-		rows = append(rows, xfile.Row{Values: map[string]string{"MemberCode": member, "ClientCode": k.ucc, "Symbol": sy, "Series": se, "Quantity": fmt.Sprint(qty[k]), "CTMFlag": "T", "ActionFlag": ""}})
+		rows = append(rows, xfile.Row{Values: map[string]string{"MemberCode": member, "ClientCode": k.ucc, "Symbol": sy, "Series": se, "Quantity": fmt.Sprint(qty[k]), "CTMFlag": k.flag, "ActionFlag": ""}})
 	}
 	content, err := s.Write(rows)
 	if err != nil {

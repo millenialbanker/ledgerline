@@ -11,7 +11,7 @@
  "final_eol": false,
  "columns": [
   {
-   "name": "Field1",
+   "name": "SrNo",
    "type": "str"
   },
   {
@@ -23,16 +23,13 @@
    "type": "str"
   },
   {
-   "name": "Field4",
-   "type": "dec",
-   "decimals": 2,
-   "fixed": false
+   "name": "ValuationPrice",
+   "type": "dec"
   },
   {
-   "name": "Field5",
+   "name": "Haircut",
    "type": "dec",
-   "decimals": 2,
-   "fixed": false
+   "note": "per cent, inferred"
   }
  ],
  "compress": "none",
@@ -41,5 +38,6 @@
  "header": false,
  "crlf": true,
  "confirmed": false,
- "linked": ""
+ "linked": "",
+ "source": "Matches the columns of NSE Clearing's APPSEC_ALL file (NCL/CMPT/76248, 9 Sep 2026): Sr. No., Symbol, ISIN, Valuation Price, Applicable Haircut. Not stated to be the same file"
 }

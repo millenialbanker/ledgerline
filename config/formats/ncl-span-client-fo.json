@@ -1,0 +1,77 @@
+{
+ "id": "ncl-span-client-fo",
+ "title": "Client margin file MG13 (NSE Clearing, F&O)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "BOD (previous day) / EOD",
+ "purpose": "Margin per client for the day (cash: C_MG, F&O: F_MG).",
+ "names": [
+  "F_MG\\d+_\\d+_\\d{8}\\.lis(\\.gz)?"
+ ],
+ "compress": "gzip",
+ "columns": [
+  {
+   "name": "Date",
+   "type": "date",
+   "layout": "02-Jan-2006"
+  },
+  {
+   "name": "ClientCode",
+   "type": "str"
+  },
+  {
+   "name": "Field3",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field4",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field5",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field6",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field7",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field8",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Field9",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "ClientProFlag",
+   "type": "str"
+  }
+ ],
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": "",
+ "source": "Layout from the files; the F&O margin components (fields 3 to 9) are not in the published circulars found"
+}

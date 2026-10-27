@@ -1,339 +1,103 @@
 {
  "id": "mcx-client-margin",
- "title": "Client margin files (MCXCCL)",
+ "title": "Client margin file (MCXCCL)",
  "party": "MCXCCL",
  "direction": "in",
  "when": "BOD",
- "purpose": "MCX margin and peak margin per client.",
+ "purpose": "MCX margin, MTM and peak margin per client, with what was collected and short allocations.",
  "names": [
-  "MCX_MARGIN_\\d+_\\d{8}\\.csv",
-  "MCX_MRG_\\d+_\\d{8}\\.csv",
-  "MCX_PeakMargin\\d+_\\d{8}_\\d+\\.csv"
+  "MCX_MARGIN_\\d+_\\d{8}\\.csv"
  ],
  "crlf": false,
- "records": [
-  {
-   "code": "",
-   "columns": [
-    {
-     "name": "Field1",
-     "type": "str"
-    },
-    {
-     "name": "Field2",
-     "type": "str"
-    },
-    {
-     "name": "Field3",
-     "type": "str"
-    },
-    {
-     "name": "Field4",
-     "type": "str"
-    },
-    {
-     "name": "Field5",
-     "type": "str"
-    },
-    {
-     "name": "Field6",
-     "type": "str"
-    },
-    {
-     "name": "Field7",
-     "type": "str"
-    },
-    {
-     "name": "Field8",
-     "type": "str"
-    },
-    {
-     "name": "Field9",
-     "type": "str"
-    },
-    {
-     "name": "Field10",
-     "type": "str"
-    },
-    {
-     "name": "Field11",
-     "type": "str"
-    },
-    {
-     "name": "Field12",
-     "type": "str"
-    },
-    {
-     "name": "Field13",
-     "type": "str"
-    },
-    {
-     "name": "Field14",
-     "type": "str"
-    },
-    {
-     "name": "Field15",
-     "type": "str"
-    },
-    {
-     "name": "Field16",
-     "type": "str"
-    },
-    {
-     "name": "Field17",
-     "type": "str"
-    },
-    {
-     "name": "Field18",
-     "type": "str"
-    },
-    {
-     "name": "Field19",
-     "type": "str"
-    }
-   ]
-  },
-  {
-   "code": "#12",
-   "columns": [
-    {
-     "name": "Field1",
-     "type": "str"
-    },
-    {
-     "name": "Field2",
-     "type": "str"
-    },
-    {
-     "name": "Field3",
-     "type": "str"
-    },
-    {
-     "name": "Field4",
-     "type": "str"
-    },
-    {
-     "name": "Field5",
-     "type": "str"
-    },
-    {
-     "name": "Field6",
-     "type": "str"
-    },
-    {
-     "name": "Field7",
-     "type": "str"
-    },
-    {
-     "name": "Field8",
-     "type": "str"
-    },
-    {
-     "name": "Field9",
-     "type": "str"
-    },
-    {
-     "name": "Field10",
-     "type": "str"
-    },
-    {
-     "name": "Field11",
-     "type": "str"
-    },
-    {
-     "name": "Field12",
-     "type": "str"
-    }
-   ]
-  },
-  {
-   "code": "#20",
-   "columns": [
-    {
-     "name": "Field1",
-     "type": "str"
-    },
-    {
-     "name": "Field2",
-     "type": "str"
-    },
-    {
-     "name": "Field3",
-     "type": "str"
-    },
-    {
-     "name": "Field4",
-     "type": "str"
-    },
-    {
-     "name": "Field5",
-     "type": "str"
-    },
-    {
-     "name": "Field6",
-     "type": "str"
-    },
-    {
-     "name": "Field7",
-     "type": "str"
-    },
-    {
-     "name": "Field8",
-     "type": "str"
-    },
-    {
-     "name": "Field9",
-     "type": "str"
-    },
-    {
-     "name": "Field10",
-     "type": "str"
-    },
-    {
-     "name": "Field11",
-     "type": "str"
-    },
-    {
-     "name": "Field12",
-     "type": "str"
-    },
-    {
-     "name": "Field13",
-     "type": "str"
-    },
-    {
-     "name": "Field14",
-     "type": "str"
-    },
-    {
-     "name": "Field15",
-     "type": "str"
-    },
-    {
-     "name": "Field16",
-     "type": "str"
-    },
-    {
-     "name": "Field17",
-     "type": "str"
-    },
-    {
-     "name": "Field18",
-     "type": "str"
-    },
-    {
-     "name": "Field19",
-     "type": "str"
-    },
-    {
-     "name": "Field20",
-     "type": "str"
-    }
-   ]
-  },
-  {
-   "code": "#23",
-   "columns": [
-    {
-     "name": "Field1",
-     "type": "str"
-    },
-    {
-     "name": "Field2",
-     "type": "str"
-    },
-    {
-     "name": "Field3",
-     "type": "str"
-    },
-    {
-     "name": "Field4",
-     "type": "str"
-    },
-    {
-     "name": "Field5",
-     "type": "str"
-    },
-    {
-     "name": "Field6",
-     "type": "str"
-    },
-    {
-     "name": "Field7",
-     "type": "str"
-    },
-    {
-     "name": "Field8",
-     "type": "str"
-    },
-    {
-     "name": "Field9",
-     "type": "str"
-    },
-    {
-     "name": "Field10",
-     "type": "str"
-    },
-    {
-     "name": "Field11",
-     "type": "str"
-    },
-    {
-     "name": "Field12",
-     "type": "str"
-    },
-    {
-     "name": "Field13",
-     "type": "str"
-    },
-    {
-     "name": "Field14",
-     "type": "str"
-    },
-    {
-     "name": "Field15",
-     "type": "str"
-    },
-    {
-     "name": "Field16",
-     "type": "str"
-    },
-    {
-     "name": "Field17",
-     "type": "str"
-    },
-    {
-     "name": "Field18",
-     "type": "str"
-    },
-    {
-     "name": "Field19",
-     "type": "str"
-    },
-    {
-     "name": "Field20",
-     "type": "str"
-    },
-    {
-     "name": "Field21",
-     "type": "str"
-    },
-    {
-     "name": "Field22",
-     "type": "str"
-    },
-    {
-     "name": "Field23",
-     "type": "str"
-    }
-   ]
-  }
- ],
  "compress": "none",
  "format": "delimited",
  "delimiter": ",",
  "header": false,
  "final_eol": true,
- "confirmed": false,
- "linked": ""
+ "confirmed": true,
+ "linked": "",
+ "columns": [
+  {
+   "name": "Date",
+   "type": "str"
+  },
+  {
+   "name": "MemberCode",
+   "type": "str"
+  },
+  {
+   "name": "ClientCode",
+   "type": "str",
+   "note": "*OWN* for proprietary"
+  },
+  {
+   "name": "InitialMargin",
+   "type": "str",
+   "note": "IM + ELM + net buy premium"
+  },
+  {
+   "name": "OtherMargin",
+   "type": "str"
+  },
+  {
+   "name": "MTM",
+   "type": "str",
+   "note": "net pay-in (0.00 when a pay-out)"
+  },
+  {
+   "name": "ShortageReported",
+   "type": "str",
+   "note": "reserved"
+  },
+  {
+   "name": "PenaltyLevied",
+   "type": "str",
+   "note": "reserved"
+  },
+  {
+   "name": "MTMCollected",
+   "type": "str"
+  },
+  {
+   "name": "IMCollected",
+   "type": "str"
+  },
+  {
+   "name": "OtherMarginCollected",
+   "type": "str"
+  },
+  {
+   "name": "PeakMarginThresholdPct",
+   "type": "str"
+  },
+  {
+   "name": "PeakMargin",
+   "type": "str"
+  },
+  {
+   "name": "PeakMarginCollected",
+   "type": "str"
+  },
+  {
+   "name": "PeakMarginShortfall",
+   "type": "str"
+  },
+  {
+   "name": "IntradayShortAllocation",
+   "type": "str"
+  },
+  {
+   "name": "EODShortAllocation",
+   "type": "str"
+  },
+  {
+   "name": "PeakSnapshotRef",
+   "type": "str"
+  },
+  {
+   "name": "IntrasarSnapshotRef",
+   "type": "str"
+  }
+ ],
+ "source": "MCXCCL circular MCX/MCXCCL/327/2026 (MCXCCL/TECH/121/2026, 1 Jun 2026), Revision in Client Margin Reporting File Formats, section 1.7"
 }
