@@ -35,11 +35,11 @@ import (
 //     calendar.
 
 const (
-	cCCData   = "ccdata"   // kind|date|segment: rows of a day's file
-	cSecRef   = "secref"   // ISIN: names and codes
+	cCCData   = "ccdata"    // kind|date|segment: rows of a day's file
+	cSecRef   = "secref"    // ISIN: names and codes
 	cISINPx   = "isinprice" // date: ISIN -> price
-	cSecVaR   = "secvar"   // date: ISIN -> VaR, ELM, haircut
-	cSAReason = "sareason" // date|segment|ucc|code: reported short-allocation reasons
+	cSecVaR   = "secvar"    // date: ISIN -> VaR, ELM, haircut
+	cSAReason = "sareason"  // date|segment|ucc|code: reported short-allocation reasons
 )
 
 // CCData is one day's rows of a clearing or depository file, kept as loaded.
@@ -915,4 +915,3 @@ func (o *Ops) disMasterFile(ctx context.Context, tenant string, s *xfile.Spec, s
 	name, err := s.FileName(vars)
 	return name, content, err
 }
-
