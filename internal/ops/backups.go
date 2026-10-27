@@ -217,13 +217,8 @@ func (o *Ops) RunBackup(ctx context.Context, tenant, actor, date, part, trigger 
 }
 
 func (o *Ops) tellManagement(ctx context.Context, tenant string, set Settings, subject, ref string) {
-	at := o.now().Format("15:04")
 	for _, e := range set.ManagementEmails {
-		n, err := o.next(ctx, tenant, "outbox", SystemActor)
-		if err != nil {
-			return
-		}
-		_ = docs.Upsert(ctx, o.Docs, tenant, cOutbox, fmt.Sprintf("%08d", n), OutboxItem{ID: fmt.Sprintf("%08d", n), To: e, Subject: subject, Ref: ref, At: at, Result: "Sent"}, SystemActor)
+		o.mailStaff(ctx, tenant, e, subject, subject+"\n\nSee Backups in Ledgerline for the details.", ref, nil)
 	}
 }
 

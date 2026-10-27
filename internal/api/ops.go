@@ -247,6 +247,7 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/inbox", s.inbox, true)
 	R("POST /v1/changes/{id}/verify", s.verifyChange, true)
 	R("GET /v1/jobs", s.jobs, false)
+	R("GET /v1/outbox", s.outbox, false)
 	R("POST /v1/jobs", s.saveJob, true)
 	R("POST /v1/jobs/{id}/run", s.runJob, true)
 	R("POST /v1/leads", s.saveLead, true)
@@ -388,6 +389,7 @@ func (s *Server) fileTypes(w http.ResponseWriter, r *http.Request) {
 		NeedDate bool     `json:"needs_date"`
 		When     string   `json:"when"`
 		Sample   bool     `json:"sample_layout"`
+		Instead  []string `json:"instead,omitempty"`
 	}
 	var out []ft
 	for _, sp := range s.app.Ingest.Registry.List() {
@@ -395,10 +397,13 @@ func (s *Server) fileTypes(w http.ResponseWriter, r *http.Request) {
 		if sp.Origin == ingest.FromOMS {
 			p = "OMS trade book export"
 		}
-		out = append(out, ft{sp.Name, "trades", p, sp.Version, nil, false, "EOD (or intraday drop copy)", strings.Contains(sp.Note, "PLACEHOLDER")})
+		// Demo layouts (version …-sample) carry product and algo fields the
+		// exchange files lack; they feed the sample data. Real files are
+		// loaded by name on Exchange files.
+		out = append(out, ft{sp.Name, "trades", p, sp.Version, nil, false, "EOD (or intraday drop copy)", strings.Contains(sp.Note, "PLACEHOLDER") || strings.HasSuffix(sp.Version, "-sample"), nil})
 	}
 	for _, m := range ops.MasterSources() {
-		out = append(out, ft{m.Name, "master", m.Purpose, "1.0", m.Columns, m.NeedDate, m.When, false})
+		out = append(out, ft{m.Name, "master", m.Purpose, "1.0", m.Columns, m.NeedDate, m.When, false, m.Instead})
 	}
 	writeJSON(w, 200, out)
 }
@@ -822,8 +827,8 @@ func (s *Server) reports(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.Reports(r.Context(), tenant(r), d)
-	set, _ := s.ops.Settings(r.Context(), tenant(r))
-	ok(w, map[string]any{"reports": v, "calendar": set.Calendar}, err)
+	cal, _ := s.ops.Upcoming(r.Context(), tenant(r), d, 31)
+	ok(w, map[string]any{"reports": v, "calendar": cal}, err)
 }
 
 func (s *Server) reportStep(w http.ResponseWriter, r *http.Request) {
@@ -2364,6 +2369,11 @@ func (s *Server) portalWhatsApp(w http.ResponseWriter, r *http.Request) {
 func (s *Server) jobs(w http.ResponseWriter, r *http.Request) {
 	js, rs, err := s.ops.Jobs(r.Context(), tenant(r))
 	ok(w, map[string]any{"jobs": js, "runs": rs, "kinds": ops.JobKinds}, err)
+}
+
+func (s *Server) outbox(w http.ResponseWriter, r *http.Request) {
+	xs, err := s.ops.Outbox(r.Context(), tenant(r), actor(r))
+	ok(w, xs, err)
 }
 
 func (s *Server) saveJob(w http.ResponseWriter, r *http.Request) {

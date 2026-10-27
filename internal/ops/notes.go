@@ -54,7 +54,8 @@ func noteID(date, ucc, part string) string {
 	return date + "|" + ucc + "|" + part
 }
 
-// OutboxItem is a message handed to the mail relay.
+// OutboxItem is one email to the firm's own people (clients' documents
+// are in the dispatch register, their messages in Messages).
 type OutboxItem struct {
 	ID      string `json:"id"`
 	To      string `json:"to"`
@@ -192,9 +193,6 @@ func (o *Ops) SendNotes(ctx context.Context, tenant, actor, date, ucc string) (s
 		result := map[string]string{"Sent": "Sent", "Bounced": "Bounced", "Physical pending": "Paper", "Held": "Held"}[d.Status]
 		if result == "" {
 			result = "Failed"
-		}
-		if n2, err := o.next(ctx, tenant, "outbox", actor); err == nil {
-			_ = docs.Upsert(ctx, o.Docs, tenant, cOutbox, fmt.Sprintf("%08d", n2), OutboxItem{ID: fmt.Sprintf("%08d", n2), To: d.To, Subject: d.Subject, Ref: n.No, At: at, Result: result}, actor)
 		}
 		if result == "Sent" {
 			o.notify(ctx, tenant, actor, "contract_note.sent", n.UCC, map[string]string{"no": n.No, "date": date})

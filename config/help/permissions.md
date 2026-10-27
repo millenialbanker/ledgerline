@@ -122,6 +122,7 @@ Running surveillance rules | Ops checker, Compliance officer
 Scanning vendor bills | Ops maker, Ops checker
 Scheduling jobs | Admin
 See full client identifiers | Ops checker, Compliance officer
+Seeing mail sent to staff | Compliance officer, Admin
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
 Sending bulk messages | Ops checker, Compliance officer
 Sending contract notes | Ops maker, Ops checker

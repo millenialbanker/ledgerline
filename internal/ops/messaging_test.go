@@ -194,3 +194,28 @@ func TestRetiredJobsNeverRun(t *testing.T) {
 		t.Fatal("new job of a retired kind accepted")
 	}
 }
+
+func TestStaffMailIsRecordedAsItWent(t *testing.T) {
+	o, ctx := setup(t)
+	sent := &fakeMailer{}
+	o.Mailer = sent
+	if res := o.mailStaff(ctx, T, "md@bhairav.example", "Backup FAILED", "text", "B-1", nil); res != "Sent" || len(sent.got) != 1 {
+		t.Fatalf("%s %d", res, len(sent.got))
+	}
+	o.Mailer = nil
+	o.DevCodes = false
+	xs, err := o.Outbox(ctx, T, "admin")
+	if err != nil || len(xs) == 0 || xs[0].Result != "Sent" || xs[0].To != "md@bhairav.example" {
+		t.Fatalf("%+v %v", xs, err)
+	}
+	if _, err := o.Outbox(ctx, T, "priya.nair"); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("maker read staff mail: %v", err)
+	}
+}
+
+type fakeMailer struct{ got []Mail }
+
+func (f *fakeMailer) Send(_ context.Context, m Mail) (string, error) {
+	f.got = append(f.got, m)
+	return "<id@test>", nil
+}

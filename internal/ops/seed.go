@@ -57,16 +57,6 @@ func (o *Ops) SeedDev(ctx context.Context, tenant string) error {
 		s.ManagementEmails = []string{"md@bhairav.example", "compliance@bhairav.example"}
 		s.FirmState, s.FirmGSTIN = "Maharashtra", "27AAACB1234C1ZF"
 		s.PayoutDebitAccount = "50200012345678"
-		s.Calendar = []CalendarItem{
-			{"2026-10-16", "Client funds and securities balance upload", "Accounts"},
-			{"2026-10-16", "Weekly holding statements to clients", "Operations"},
-			{"2026-10-19", "Margin collection file for 16-Oct", "Risk"},
-			{"2026-10-31", "Half-yearly net worth certificate", "Compliance"},
-			{"2026-11-06", "Monthly running account settlement", "Accounts"},
-			{"2026-11-07", "Investor grievance summary", "Compliance"},
-			{"2026-11-30", "CSCRF compliance evidence", "Technology"},
-			{"2027-01-01", "Quarterly running account settlement", "Accounts"},
-		}
 		if err := docs.Upsert(ctx, o.Docs, tenant, cSettings, "main", s, "system"); err != nil {
 			return err
 		}

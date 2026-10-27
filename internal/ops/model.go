@@ -207,11 +207,15 @@ const SecretMask = "********"
 // Require2FA reports whether every user must use two-factor sign-in.
 func (s Settings) Require2FA() bool { return s.TwoFactor != "optional" }
 
-// CalendarItem is one compliance obligation.
+// CalendarItem is one compliance obligation as the calendar shows it.
+// (Settings.Calendar, a fixed list of dates, is no longer used: the
+// calendar comes from Periodic work and the duties.)
 type CalendarItem struct {
 	Date       string `json:"date"`
 	Obligation string `json:"obligation"`
 	Owner      string `json:"owner"`
+	Status     string `json:"status,omitempty"`
+	View       string `json:"view,omitempty"`
 }
 
 // DefaultSettings are used until a tenant saves its own.

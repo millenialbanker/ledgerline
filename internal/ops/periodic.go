@@ -565,3 +565,37 @@ func (o *Ops) PeriodicFileData(ctx context.Context, tenant, actor, id string) (i
 	o.log(ctx, tenant, actor, "periodic.file", id, map[string]any{"name": f.Name})
 	return f, nil
 }
+
+// Upcoming is the one compliance calendar: Periodic work and the firm's
+// duties (Circulars & calendar), each once, with the next due date, for
+// the coming days and anything overdue. Done items are left out.
+func (o *Ops) Upcoming(ctx context.Context, tenant, date string, days int) ([]CalendarItem, error) {
+	var out []CalendarItem
+	until := addDays(date, days)
+	ps, err := o.Periodic(ctx, tenant, date)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range ps {
+		if p.DueOn == "" || p.DueOn > until || p.Status == "Done" || p.Status == "Nothing to do" {
+			continue
+		}
+		out = append(out, CalendarItem{Date: p.DueOn, Obligation: p.Name + " · " + p.Label, Owner: p.Area, Status: p.Status, View: "periodic"})
+	}
+	ds, err := o.Duties(ctx, tenant, date)
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range ds {
+		if !d.Active || d.Task != "" || d.NextDue == "" || d.NextDue > until {
+			continue
+		}
+		st := "Due"
+		if d.Overdue {
+			st = "Overdue"
+		}
+		out = append(out, CalendarItem{Date: d.NextDue, Obligation: d.Title, Owner: d.Role, Status: st, View: "circulars"})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Date < out[j].Date })
+	return out, nil
+}

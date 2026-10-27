@@ -26,11 +26,38 @@ type MasterSource struct {
 	Columns  []string `json:"columns"`
 	NeedDate bool     `json:"needs_date"`
 	When     string   `json:"when"`
+	// Instead names the exchange's or depository's own files (on Exchange
+	// files) that carry the same data: this CSV is for other back offices
+	// and migration.
+	Instead []string `json:"instead,omitempty"`
+}
+
+// masterInstead maps generic imports to the real files with the same data.
+var masterInstead = map[string][]string{
+	"MARKET-DATA":   {"nse-security-master", "ncl-var", "ncl-span-client", "cdsl-closing-price", "ccil-gsec-price"},
+	"DP-HOLDINGS":   {"cdsl-holding", "bow-dp-holding", "finspot-dp-holding"},
+	"POSITIONS":     {"ncl-position"},
+	"STT-STATEMENT": {"stt-ctt"},
 }
 
 // MasterSources lists the non-trade file types, with their CSV headers.
 func MasterSources() []MasterSource {
-	return []MasterSource{
+	var out []MasterSource
+	for _, m := range masterSources() {
+		out = append(out, MasterSource{Name: m.Name, Purpose: m.Purpose, Columns: m.Columns, NeedDate: m.NeedDate, When: m.When, Instead: masterInstead[m.Name]})
+	}
+	return out
+}
+
+type masterSrc struct {
+	Name, Purpose string
+	Columns       []string
+	NeedDate      bool
+	When          string
+}
+
+func masterSources() []masterSrc {
+	return []masterSrc{
 		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding). Optional columns: Branch, State (place of supply for GST), GSTIN; WhatsApp (Y), WAConsentDate and WAConsentRef for WhatsApp consent recorded in the previous system; ECN (N for a client who chose printed contract notes); NominationDate and NominationMode for the nomination or opt-out declaration", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
 		{"NOMINEES", "Nominees of each client, up to 10 (replaces the client's list). IDType is PAN, DL, AADHAAR (only the last 4 digits are kept) or PASSPORT; leave Share blank for equal shares; a minor needs DOB, Guardian and GuardianRelation. Optional: Mobile, Email, Address, DeclaredOn, Mode", []string{"UCC", "Name", "Relation", "Share", "IDType", "ID", "DOB", "Guardian", "GuardianRelation"}, false, "Once at go-live, then on change"},
 		{"SEGMENT-STATUS", "Each client's status in each segment with its history, oldest first: Active, Reactivated, Suspended, Dormant or Closed (Segment CM, FO, CD or COM). Optional column Reason", []string{"UCC", "Segment", "Status", "EffectiveDate"}, false, "Once at go-live, then on change"},

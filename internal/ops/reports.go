@@ -23,6 +23,18 @@ type ReportDef struct {
 	Freq   string `json:"frequency"`
 	Due    string `json:"due"`
 	Format string `json:"format"`
+	// Upload names the exchange-file layouts (on Exchange files) that make
+	// the exact file the exchange takes; this report is then the firm's
+	// own register of the same figures.
+	Upload []string `json:"upload,omitempty"`
+}
+
+var reportUpload = map[string][]string{
+	"margin":        {"ncl-margin-reporting", "ncl-margin-reporting-fo", "mcx-margin-reporting"},
+	"cc01":          {"ncl-client-collateral"},
+	"funds_balance": {"segmon-client-funds"},
+	"ucc":           {"nse-uci", "bse-ucc", "mcx-ucc"},
+	"holdings":      {"holding-statement-api"},
 }
 
 // ReportStatus is a report's state for a date.
@@ -41,24 +53,32 @@ type ReportStatus struct {
 // ReportDefs lists the reports the system generates. Column layouts are
 // placeholders until each exchange's current specification is loaded.
 func ReportDefs() []ReportDef {
+	ds := reportDefs()
+	for i := range ds {
+		ds[i].Upload = reportUpload[ds[i].Code]
+	}
+	return ds
+}
+
+func reportDefs() []ReportDef {
 	return []ReportDef{
-		{"funds_balance", "Client funds and securities balance", "NSE, BSE, MCX", "Daily", "T 23:59", "CSV (sample layout)"},
-		{"margin", "Client-wise margin collection (peak and EOD)", "Clearing corporations", "Daily", "T+1 18:00", "CSV (sample layout)"},
-		{"holdings", "Weekly holding statement", "Clients", "Weekly", "Friday 23:59", "CSV"},
-		{"cc01", "Client-level collateral (SEGMON: CC01)", "NSE Clearing", "Daily", "T 23:59", "CSV.gz per segment (check against the current NCL spec)"},
-		{"ucc", "UCC upload batch", "NSE, BSE, MCX", "On change", "Before first trade", "CSV (sample layout)"},
-		{"ccm", "Client code modification log", "Exchanges", "Daily", "T 16:00", "CSV (sample layout)"},
-		{"ras", "Running account settlement statement", "Clients", "Monthly / quarterly", "Settlement date", "CSV"},
-		{"bills", "Bills and charges register", "Internal audit", "Daily", "T", "CSV"},
-		{"trades", "Trade register", "Internal audit", "Daily", "T", "CSV"},
-		{"alerts", "Surveillance alert register", "Exchanges / FIU-IND", "Monthly", "7th of next month", "CSV"},
-		{"register_securities", "Register of securities (client-wise, with the firm and in demat)", "Inspection", "On demand", "—", "CSV"},
-		{"client_register", "Client register in exchange format", "Inspection", "On demand", "—", "CSV"},
-		{"ledger_balances", "Client ledger balances with days in debit", "Inspection", "On demand", "—", "CSV"},
-		{"no_ras_auth", "Clients without a running account authorisation", "Inspection", "On demand", "—", "CSV"},
-		{"nomination", "Nomination status (nominees or opt-out declaration)", "Inspection / compliance", "On demand", "—", "CSV"},
-		{"segment_status", "Client status in each segment, with the latest change", "Inspection", "On demand", "—", "CSV"},
-		{"kyc_registry", "KRA, CKYC and periodic KYC status", "Inspection / compliance", "On demand", "—", "CSV"},
+		{"funds_balance", "Client funds and securities balance", "NSE, BSE, MCX", "Daily", "T 23:59", "CSV (sample layout)", nil},
+		{"margin", "Client-wise margin collection (peak and EOD)", "Clearing corporations", "Daily", "T+1 18:00", "CSV (sample layout)", nil},
+		{"holdings", "Weekly holding statement", "Clients", "Weekly", "Friday 23:59", "CSV", nil},
+		{"cc01", "Client-level collateral (SEGMON: CC01)", "NSE Clearing", "Daily", "T 23:59", "CSV.gz per segment (check against the current NCL spec)", nil},
+		{"ucc", "UCC upload batch", "NSE, BSE, MCX", "On change", "Before first trade", "CSV (sample layout)", nil},
+		{"ccm", "Client code modification log", "Exchanges", "Daily", "T 16:00", "CSV (sample layout)", nil},
+		{"ras", "Running account settlement statement", "Clients", "Monthly / quarterly", "Settlement date", "CSV", nil},
+		{"bills", "Bills and charges register", "Internal audit", "Daily", "T", "CSV", nil},
+		{"trades", "Trade register", "Internal audit", "Daily", "T", "CSV", nil},
+		{"alerts", "Surveillance alert register", "Exchanges / FIU-IND", "Monthly", "7th of next month", "CSV", nil},
+		{"register_securities", "Register of securities (client-wise, with the firm and in demat)", "Inspection", "On demand", "—", "CSV", nil},
+		{"client_register", "Client register in exchange format", "Inspection", "On demand", "—", "CSV", nil},
+		{"ledger_balances", "Client ledger balances with days in debit", "Inspection", "On demand", "—", "CSV", nil},
+		{"no_ras_auth", "Clients without a running account authorisation", "Inspection", "On demand", "—", "CSV", nil},
+		{"nomination", "Nomination status (nominees or opt-out declaration)", "Inspection / compliance", "On demand", "—", "CSV", nil},
+		{"segment_status", "Client status in each segment, with the latest change", "Inspection", "On demand", "—", "CSV", nil},
+		{"kyc_registry", "KRA, CKYC and periodic KYC status", "Inspection / compliance", "On demand", "—", "CSV", nil},
 	}
 }
 

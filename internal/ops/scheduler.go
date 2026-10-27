@@ -319,15 +319,16 @@ func (o *Ops) RunJob(ctx context.Context, tenant, actor, id, date string) (JobRu
 		to = set.ManagementEmails
 	}
 	if len(to) > 0 && (run.Status == "Failed" || !j.OnlyFailure) {
-		at := o.now().Format("15:04")
+		subject := fmt.Sprintf("[%s] %s %s for %s: %s", set.Firm, j.Name, strings.ToLower(run.Status), date, run.Summary)
+		var told []string
 		for _, e := range to {
-			n, err := o.next(ctx, tenant, "outbox", SystemActor)
-			if err != nil {
-				break
+			if res := o.mailStaff(ctx, tenant, e, subject, subject+"\n\nSee Scheduled jobs in Ledgerline for the run.", j.ID, nil); !strings.HasPrefix(res, "Sent") {
+				told = append(told, e+" ("+res+")")
+			} else {
+				told = append(told, e)
 			}
-			_ = docs.Upsert(ctx, o.Docs, tenant, cOutbox, fmt.Sprintf("%08d", n), OutboxItem{ID: fmt.Sprintf("%08d", n), To: e,
-				Subject: fmt.Sprintf("[%s] %s %s for %s: %s", set.Firm, j.Name, strings.ToLower(run.Status), date, run.Summary), Ref: j.ID, At: at, Result: "Sent"}, SystemActor)
 		}
+		to = told
 		run.Notified = strings.Join(to, ", ")
 	}
 	n, err := o.next(ctx, tenant, "jobrun", SystemActor)
@@ -386,19 +387,21 @@ func (o *Ops) runJob(ctx context.Context, tenant string, j Job, date string) (st
 		if err != nil {
 			return "", err
 		}
-		at := o.now().Format("15:04")
-		var sent []string
+		var sent, failed []string
 		for _, e := range strings.Split(j.Params["to"], ",") {
 			e = strings.TrimSpace(e)
 			if !reEmail.MatchString(e) {
 				continue
 			}
-			n, err := o.next(ctx, tenant, "outbox", a)
-			if err != nil {
-				return "", err
+			res := o.mailStaff(ctx, tenant, e, "Report "+name, fmt.Sprintf("%s for %s is attached (%d rows).", j.Params["report"], date, len(rows)-1), rf.ID, []MailFile{{Name: name, Type: "text/csv", Data: data}})
+			if strings.HasPrefix(res, "Sent") {
+				sent = append(sent, e)
+			} else {
+				failed = append(failed, e+": "+res)
 			}
-			_ = docs.Upsert(ctx, o.Docs, tenant, cOutbox, fmt.Sprintf("%08d", n), OutboxItem{ID: fmt.Sprintf("%08d", n), To: e, Subject: "Report " + name, Ref: rf.ID, At: at, Result: "Sent"}, a)
-			sent = append(sent, e)
+		}
+		if len(failed) > 0 {
+			return "", fmt.Errorf("%s not emailed to %s", name, strings.Join(failed, "; "))
 		}
 		return fmt.Sprintf("%s: %d rows emailed to %s", name, len(rows)-1, strings.Join(sent, ", ")), nil
 	case "kra_upload":
