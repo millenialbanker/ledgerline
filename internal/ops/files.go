@@ -61,7 +61,7 @@ func masterSources() []masterSrc {
 		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding). Optional columns: Branch, State (place of supply for GST), GSTIN; WhatsApp (Y), WAConsentDate and WAConsentRef for WhatsApp consent recorded in the previous system; ECN (N for a client who chose printed contract notes); NominationDate and NominationMode for the nomination or opt-out declaration", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
 		{"NOMINEES", "Nominees of each client, up to 10 (replaces the client's list). IDType is PAN, DL, AADHAAR (only the last 4 digits are kept) or PASSPORT; leave Share blank for equal shares; a minor needs DOB, Guardian and GuardianRelation. Optional: Mobile, Email, Address, DeclaredOn, Mode", []string{"UCC", "Name", "Relation", "Share", "IDType", "ID", "DOB", "Guardian", "GuardianRelation"}, false, "Once at go-live, then on change"},
 		{"SEGMENT-STATUS", "Each client's status in each segment with its history, oldest first: Active, Reactivated, Suspended, Dormant or Closed (Segment CM, FO, CD or COM). Optional column Reason", []string{"UCC", "Segment", "Status", "EffectiveDate"}, false, "Once at go-live, then on change"},
-		{"OPENING-BALANCES", "Opening trial balance (migration); must balance. Optional column Since: for a client debit, the date it became due, so ageing, interest and debit blocks carry over", []string{"Account", "Debit", "Credit"}, true, "Once at go-live"},
+		{"OPENING-BALANCES", "Opening trial balance (migration); must balance. Optional column Since: for a client debit, the date it became due, so ageing, interest and debit blocks carry over. Optional column Legacy (Y): an old client debit to keep apart as a legacy debt (no interest, out of the daily debit work); a second person approves it on Legacy debts", []string{"Account", "Debit", "Credit"}, true, "Once at go-live"},
 		{"MARKET-DATA", "Contract master, prices and risk parameters (SPAN, VaR, haircuts)", []string{"Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "ISIN", "Company", "Lot", "LTP", "Close", "VaRPct", "ELMPct", "HaircutPct", "SPANPct", "ExposurePct", "Delta", "Underlying", "Index"}, true, "BOD and EOD"},
 		{"DP-HOLDINGS", "Client demat holdings and pledges from the depository", []string{"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost"}, false, "BOD"},
 		{"HOLDING-LOTS", "Purchase lots behind client holdings (quantity, buy date, buy price) for P&L and capital gains; from the previous back office", []string{"UCC", "ISIN", "Symbol", "Qty", "BuyDate", "BuyPrice"}, true, "Once at go-live (as at the day before)"},
@@ -363,6 +363,7 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 			since string
 		}
 		var aged []agedDebit
+		var legacy []string
 		for _, r := range rows {
 			acct := strings.ToUpper(r.get("Account"))
 			if _, err := ledger.TypeOf(acct); err != nil {
@@ -387,6 +388,17 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 				bad(r.line, "Debit", "exactly one of Debit or Credit must be above zero")
 			}
 			ps = append(ps, ledger.Posting{Account: acct, Debit: dr, Credit: cr, Memo: "Opening balance"})
+			if v := strings.ToUpper(r.get("Legacy")); v != "" && v != "N" {
+				u, isClient := strings.CutPrefix(acct, "CLIENT:")
+				switch {
+				case v != "Y":
+					bad(r.line, "Legacy", "must be Y or N")
+				case !isClient || dr == 0:
+					bad(r.line, "Legacy", "only a client debit balance can be a legacy debt")
+				default:
+					legacy = append(legacy, u)
+				}
+			}
 			if v := r.get("Since"); v != "" {
 				switch {
 				case !ledger.ValidDate(v) || v > date:
@@ -435,6 +447,11 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 			}
 			if !created {
 				return 0, len(ps), nil
+			}
+			if len(legacy) > 0 {
+				if _, err := o.proposeLegacy(ctx, tenant, actor, date, legacy, "Marked as legacy in the opening balances"); err != nil {
+					return len(ps), 0, fmt.Errorf("opening balances loaded, but the legacy debts could not be proposed: %w", err)
+				}
 			}
 			return len(ps), 0, nil
 		}, errs

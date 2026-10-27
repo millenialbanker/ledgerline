@@ -263,6 +263,14 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/debits", s.debits, false)
 	R("POST /v1/debits/block", s.debitBlock, true)
 	R("GET /v1/debits/block-file", s.debitBlockFile, false)
+	R("GET /v1/legacy-debts", s.legacyDebts, false)
+	R("GET /v1/legacy-debts/candidates", s.legacyCandidates, false)
+	R("POST /v1/legacy-debts/propose", s.legacyPropose, true)
+	R("POST /v1/legacy-debts/decide", s.legacyDecide, true)
+	R("POST /v1/legacy-debts/remind", s.legacyRemind, true)
+	R("POST /v1/legacy-debts/{ucc}/note", s.legacyNote, true)
+	R("POST /v1/legacy-debts/{ucc}/write-off", s.legacyWriteOff, true)
+	R("POST /v1/legacy-debts/{ucc}/unmark", s.legacyUnmark, true)
 	R("GET /v1/interest", s.interest, false)
 	R("POST /v1/interest/post", s.postInterest, true)
 	R("GET /v1/invoices", s.invoices, false)
@@ -1276,6 +1284,112 @@ func (s *Server) correctBill(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---- debits and interest ----
+
+// ---- legacy debts ----
+
+func (s *Server) legacyDebts(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.LegacyDebts(r.Context(), tenant(r), d)
+	if f := s.scope(r); f != nil && err == nil {
+		rows := v.Rows[:0]
+		for _, x := range v.Rows {
+			if f(x.UCC) {
+				rows = append(rows, x)
+			}
+		}
+		v.Rows = rows
+	}
+	ok(w, v, err)
+}
+
+func (s *Server) legacyCandidates(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	days := 180
+	if v := r.URL.Query().Get("days"); v != "" {
+		fmt.Sscanf(v, "%d", &days)
+	}
+	if s.scope(r) != nil {
+		ok(w, nil, ops.ErrForbidden)
+		return
+	}
+	v, err := s.ops.FrozenDebits(r.Context(), tenant(r), d, days)
+	ok(w, v, err)
+}
+
+type legacyBody struct {
+	Date    string   `json:"date"`
+	UCCs    []string `json:"uccs"`
+	Reason  string   `json:"reason"`
+	Approve bool     `json:"approve"`
+	Kind    string   `json:"kind"`
+	Text    string   `json:"text"`
+	Amount  string   `json:"amount"`
+}
+
+func (s *Server) legacyPropose(w http.ResponseWriter, r *http.Request) {
+	var b legacyBody
+	if !decode(w, r, &b) {
+		return
+	}
+	n, err := s.ops.ProposeLegacy(r.Context(), tenant(r), actor(r), b.Date, b.UCCs, b.Reason)
+	ok(w, map[string]any{"proposed": n}, err)
+}
+
+func (s *Server) legacyDecide(w http.ResponseWriter, r *http.Request) {
+	var b legacyBody
+	if !decode(w, r, &b) {
+		return
+	}
+	n, err := s.ops.DecideLegacy(r.Context(), tenant(r), actor(r), b.Date, b.UCCs, b.Approve, b.Reason)
+	ok(w, map[string]any{"decided": n}, err)
+}
+
+func (s *Server) legacyRemind(w http.ResponseWriter, r *http.Request) {
+	var b legacyBody
+	if !decode(w, r, &b) {
+		return
+	}
+	n, err := s.ops.RemindLegacy(r.Context(), tenant(r), actor(r), b.Date, b.UCCs)
+	ok(w, map[string]any{"reminded": n}, err)
+}
+
+func (s *Server) legacyNote(w http.ResponseWriter, r *http.Request) {
+	var b legacyBody
+	if !decode(w, r, &b) {
+		return
+	}
+	l, err := s.ops.NoteLegacy(r.Context(), tenant(r), actor(r), b.Date, r.PathValue("ucc"), b.Kind, b.Text)
+	ok(w, l, err)
+}
+
+func (s *Server) legacyWriteOff(w http.ResponseWriter, r *http.Request) {
+	var b legacyBody
+	if !decode(w, r, &b) {
+		return
+	}
+	a, perr := money.ParseAmount(strings.TrimSpace(strings.ReplaceAll(b.Amount, ",", "")))
+	if perr != nil {
+		ok(w, nil, fmt.Errorf("%w: the amount must be rupees with at most 2 decimals", ops.ErrInvalid))
+		return
+	}
+	l, err := s.ops.WriteOffLegacy(r.Context(), tenant(r), actor(r), b.Date, r.PathValue("ucc"), a, b.Reason)
+	ok(w, l, err)
+}
+
+func (s *Server) legacyUnmark(w http.ResponseWriter, r *http.Request) {
+	var b legacyBody
+	if !decode(w, r, &b) {
+		return
+	}
+	l, err := s.ops.UnmarkLegacy(r.Context(), tenant(r), actor(r), b.Date, r.PathValue("ucc"), b.Reason)
+	ok(w, l, err)
+}
 
 func (s *Server) debits(w http.ResponseWriter, r *http.Request) {
 	d, okd := qdate(w, r)

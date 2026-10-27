@@ -57,7 +57,7 @@ var systemNames = map[string]string{
 	ledger.PayableGST: "GST payable (output tax)", ledger.SuspenseBank: "Bank suspense (unidentified credits)", ledger.OpeningEquity: "Opening balance equity",
 	ledger.CCCollateral: "Cash collateral with clearing corporation", ledger.PayablePenalty: "Margin penalty payable", IncomeInterest: "Interest and delayed payment charges",
 	IncomeCharges: "Other charges recovered", ReceivableGateway: "Payment gateway receivable", InputIGST: "Input IGST", InputCGST: "Input CGST", InputSGST: "Input SGST",
-	"EXPENSE:GATEWAY_FEES": "Payment gateway fees", IncomeDP: "Depository (DP) charges", IncomeMTFInterest: "Interest on margin trading funding", PayableDepository: "Payable to depository (CDSL / NSDL)",
+	"EXPENSE:GATEWAY_FEES": "Payment gateway fees", ExpenseBadDebts: "Bad debts written off", IncomeDP: "Depository (DP) charges", IncomeMTFInterest: "Interest on margin trading funding", PayableDepository: "Payable to depository (CDSL / NSDL)",
 }
 
 func accountType(code string) string {

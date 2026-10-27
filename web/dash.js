@@ -201,7 +201,7 @@ V.dashboard = {
 };
 
 /* ============================== actions ============================== */
-function dashRerender() { $('page').innerHTML = V.dashboard.html(C.dashboard); bindPage(); }
+function dashRerender() { $('page').innerHTML = groupBar('dashboard') + V.dashboard.html(C.dashboard); bindPage(); }
 Object.assign(A, {
   dashEdit: () => { UI.dashEdit = true; DL = dashLayout(); dashRerender(); },
   dashDone: async () => { UI.dashEdit = false; if (dashDirty) await dashSave(true); toast('Dashboard saved'); dashRerender(); },

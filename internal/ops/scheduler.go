@@ -362,7 +362,7 @@ func (o *Ops) runJob(ctx context.Context, tenant string, j Job, date string) (st
 		}
 		n := 0
 		for _, r := range dv.Rows {
-			if r.Days >= min && r.Debit > 0 {
+			if r.Days >= min && r.Debit > 0 && !r.Legacy { // legacy debts get their own reminders
 				o.notify(ctx, tenant, a, "debit.reminder", r.UCC, map[string]string{"debit": formatINR(r.Debit.Dec()), "days": fmt.Sprint(r.Days), "date": date})
 				n++
 			}

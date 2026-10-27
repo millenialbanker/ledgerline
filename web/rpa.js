@@ -197,10 +197,10 @@ Object.assign(A, {
     if (s.needs_secret === 'username') delete s.needs_secret;
     const f = RP.edit; f.steps = f.steps || [];
     if (i === -1) f.steps.push(s); else f.steps[i] = s;
-    closeModal(); $('page').innerHTML = rpEditor(); bindPage();
+    closeModal(); $('page').innerHTML = groupBar('rpa') + rpEditor(); bindPage();
   },
-  rpMove: id => { rpCollect(); const [i, d] = id.split(':').map(Number), st = RP.edit.steps; [st[i], st[i + d]] = [st[i + d], st[i]]; $('page').innerHTML = rpEditor(); },
-  rpDelStep: i => { rpCollect(); RP.edit.steps.splice(+i, 1); $('page').innerHTML = rpEditor(); },
+  rpMove: id => { rpCollect(); const [i, d] = id.split(':').map(Number), st = RP.edit.steps; [st[i], st[i + d]] = [st[i + d], st[i]]; $('page').innerHTML = groupBar('rpa') + rpEditor(); },
+  rpDelStep: i => { rpCollect(); RP.edit.steps.splice(+i, 1); $('page').innerHTML = groupBar('rpa') + rpEditor(); },
   rpRecord: id => {
     const flow = id ? RP.edit : null;
     if (flow) rpCollect();

@@ -105,6 +105,36 @@ On [[debits|Debtors & interest]]:
 - **Debit block:** after the days set in Settings, buying is blocked until they pay. Autopilot does this before the market opens; download the **Block / unblock file** for the trading system if it isn't connected.
 - **Interest (delayed payment charges):** worked out daily at the Settings rate after the grace days, and posted monthly with the month-end postings (a checker approves), with a GST invoice.
 - Clients in debit get reminders (Scheduled jobs → Debit reminders).
+- Old debits that no longer move can be kept apart as [[legacy|Legacy debts]]: no interest, no daily reminders, still blocked.
+
+## legacy-debts
+title: Keep old client debits apart (legacy debts)
+screen: legacy
+roles: Ops checker, Risk manager, Compliance officer, Ops maker
+ask: legacy debt; old debit; old dues; stale debit balance; dormant account in debit; write off debit; bad debt; frozen debit; sundry debtors; recover old dues; balance confirmation; limitation
+related: debit-interest, client-cant-trade
+
+On [[legacy|Debtors → Legacy debts]]:
+
+1. **Find frozen debits:** client debits that have not moved for 90, 180, 365 or 730 days, largest first.
+2. **Propose** the ones that are old dues rather than today's trading, with the reason. Debits marked **Legacy = Y** in the opening balances at go-live arrive here as proposals.
+3. **A second person approves** (Ops checker or Compliance officer). The person who proposed cannot approve.
+
+Once approved, a legacy debt:
+
+- is not charged interest;
+- is left out of debit reminders, the debit totals and the ageing on [[debits|Debtors & interest]];
+- still blocks the client from buying and from payouts, as any debit does;
+- blocks reactivating an inactive account until it is paid or written off.
+
+To recover it:
+
+- **Send reminder** emails the client the amount (message "legacy_debt.reminder").
+- **Note** records calls, notices, settlements and a **Balance confirmed** from the client.
+- **3 years from that** counts from the last payment or confirmation. Have a lawyer look at the large debts before that date: recovery claims are generally time-barred three years after the money fell due unless the client has paid or acknowledged the debt since. This is a reminder, not legal advice.
+- **Write off** (Ops checker) credits the client and debits Bad debts written off, with the reason. Part write-offs are allowed. Ask your CA about the tax treatment.
+
+A legacy debt closes by itself when the client is no longer in debit. **Unmark** returns it to the daily debit work.
 
 ## vouchers-gst
 title: Post a voucher or file GST

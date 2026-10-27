@@ -346,6 +346,13 @@ func (o *Ops) DecideReactivation(ctx context.Context, tenant, actor, date, id st
 	if err := o.require(ctx, tenant, actor, "Approving reactivation", RoleChecker, RoleCompliance); err != nil {
 		return Reactivation{}, err
 	}
+	if approve {
+		if cur, _, err := docs.Get[Reactivation](ctx, o.Docs, tenant, cReactivation, id); err == nil {
+			if err := o.legacyBlocksReactivation(ctx, tenant, cur.UCC, date); err != nil {
+				return Reactivation{}, err
+			}
+		}
+	}
 	r, err := docs.Update(ctx, o.Docs, tenant, cReactivation, id, actor, func(r *Reactivation) error {
 		if r.Status != "Pending" {
 			return fmt.Errorf("%w: %s is already %s", ErrState, r.ID, strings.ToLower(r.Status))

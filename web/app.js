@@ -7,7 +7,7 @@ const LS = 'ledgerline-console-v2';
 const S = { tenant: '', date: '2026-10-16', view: 'dashboard', me: null, counts: {} };
 try { Object.assign(S, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e) {}
 const persist = () => { try { localStorage.setItem(LS, JSON.stringify({ tenant: S.tenant, date: S.date, view: S.view })); } catch (e) {} };
-const UI = { inTab: 'due', inSel: new Set(), inQ: '', clientTag: '', clientSel: new Set(), bkQ: '', bkPlan: '', cr: { kind: 'ledger', ucc: '', preset: 'fy', from: '', to: '' }, crRes: null, crErr: null, crBusy: false, reconF: 'OPEN', reconX: 'All', reconQ: '', clientStage: 'All', clientQ: '', rmsF: 'All', rmsQ: '', settleTab: 'cm', noteF: 'All',
+const UI = { lgTab: 'open', lgSel: new Set(), lgDays: 180, lgQ: '', inTab: 'due', inSel: new Set(), inQ: '', clientTag: '', clientSel: new Set(), bkQ: '', bkPlan: '', cr: { kind: 'ledger', ucc: '', preset: 'fy', from: '', to: '' }, crRes: null, crErr: null, crBusy: false, reconF: 'OPEN', reconX: 'All', reconQ: '', clientStage: 'All', clientQ: '', rmsF: 'All', rmsQ: '', settleTab: 'cm', noteF: 'All',
   bankF: 'All', rasF: 'due', auditQ: '', ledgerU: '', ledgerTab: 'statement', calc: { bucket: 'CM-DEL', exchange: 'NSE', side: 'B', qty: 100, price: '1412' },
   debTab: 'cd', apF: 'Submitted', ciTab: 'circ', ciF: 'Open', ciQ: '', yeFY: '', yeQ: '', insKind: 'All', insSt: 'live', insQ: '', apTab: 'work', apMine: 'mine', nriTab: 'cl', nriFrom: '', nriTo: '', liveAt: '', liveF: 'All', liveQ: '', liveAuto: false, mtfTab: 'pos', dpTab: 'acc', dpQ: '', msgTab: 'log', msgQ: '', pAcct: '', hdTab: 'open', hdMonth: '', chTab: 'pending', crmTab: 'pipe', crmStage: 'All', crmQ: '', crmFrom: '', crmTo: '', kycTab: 'risk', kycQ: '', kycF: 'All', ptTab: 'pt', ptFrom: '', ptTo: '', bkTab: 'vch', finFrom: '', finTo: '', finBranch: '', gstFrom: '', gstTo: '', caTab: 'ca', monTab: 'rcpt', monQ: '', debQ: '', intFrom: '', intTo: '', fileType: 'NSE-CM-TRADE', lastUpload: null, ob: null, search: '' };
 const C = {}; // per-view data from the server
@@ -120,12 +120,13 @@ const GROUPS = {
   riskg: ['RMS & margin', [['rms', 'RMS & limits'], ['live', 'Live (intraday)'], ['margin', 'Margin reporting']]],
   collg: ['Collateral', [['collateral', 'Client collateral & pledge'], ['deposits', 'Clearing deposits']]],
   moneyg: ['Receipts & payouts', [['money', 'Receipts & payouts'], ['bank', 'Bank reconciliation'], ['ras', 'Running account']]],
+  debtg: ['Debtors', [['debits', 'Debtors & interest'], ['legacy', 'Legacy debts']]],
   brokg: ['Brokerage & charges', [['brokerage', 'Brokerage plans'], ['charges', 'Charges calculator'], ['prepaid', 'Prepaid schemes']]],
 };
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard'], ['chat', 'Team messages'], ['@automation'], ['@calendar']]],
   ['Operations', [['@filesg'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['@clientsg'], ['corp', 'Corporate actions'], ['@docsg']]],
-  ['Risk', [['@riskg'], ['@collg'], ['debits', 'Debtors & interest'], ['mtf', 'Margin trading (MTF)']]],
+  ['Risk', [['@riskg'], ['@collg'], ['@debtg'], ['mtf', 'Margin trading (MTF)']]],
   ['Accounts', [['ledger', 'Ledger'], ['@moneyg'], ['books', 'Firm accounts & GST'], ['@brokg']]],
   ['Compliance', [['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
   ['Depository', [['dp', 'Demat accounts & DIS']]],
@@ -783,17 +784,18 @@ V.debits = {
     return { deb, intr };
   },
   html: d => {
-    const v = d.deb, risk = has('Risk manager'), long = v.rows.filter(r => r.days >= v.block_days).length;
+    const v = d.deb, risk = has('Risk manager'), long = v.rows.filter(r => r.days >= v.block_days && !r.legacy).length;
     return ph('Debtors & interest', `Clients whose ledger is in debit after the pay-in date. A bill dated T is due on T+1, so it counts against the client from the next day. Clients in debit for ${v.block_days} days or more are blocked from buying in the trading front end until they clear the debit; interest (delayed payment charges) is charged on the overdue debit at the firm’s rate.`,
       `<button class="btn" data-act="dl" data-id="/v1/debits/block-file?date=${S.date}" data-name="debit_block_${S.date}.csv">Block / unblock file</button>${risk ? `<button class="btn pri" data-act="debitBlock" ${v.to_block + v.to_unblock ? '' : 'disabled'}>Apply blocks (${v.to_block} block · ${v.to_unblock} unblock)</button>` : ''}`) +
-    `<div class="kpis">${kpi('Clients in debit', v.rows.filter(r => num(r.debit) > 0).length, inr(v.debit) + ' overdue', v.rows.length ? 'warn' : 'good')}${kpi(`In debit ≥ ${v.block_days} days`, long, 'continuous debit', long ? 'bad' : 'good')}${kpi('To block / unblock', `${v.to_block} / ${v.to_unblock}`, 'front-end buying', v.to_block ? 'bad' : '')}${kpi('Not covered by securities', inr(v.shortfall), 'debit above holdings after haircut', num(v.shortfall) ? 'bad' : 'good')}${kpi('Interest accrued', inr(v.accrued, 2), 'this month, not yet posted')}</div>
+    `<div class="kpis">${kpi('Clients in debit', v.rows.filter(r => num(r.debit) > 0 && !r.legacy).length, inr(v.debit) + ' overdue', v.rows.length ? 'warn' : 'good')}${kpi(`In debit ≥ ${v.block_days} days`, long, 'continuous debit', long ? 'bad' : 'good')}${kpi('To block / unblock', `${v.to_block} / ${v.to_unblock}`, 'front-end buying', v.to_block ? 'bad' : '')}${kpi('Not covered by securities', inr(v.shortfall), 'debit above holdings after haircut', num(v.shortfall) ? 'bad' : 'good')}${kpi('Interest accrued', inr(v.accrued, 2), 'this month, not yet posted')}</div>
+    ${v.legacy_count ? `<div class="note">${v.legacy_count} legacy debt${v.legacy_count === 1 ? '' : 's'} (${inr(v.legacy_debit)}) are kept out of these figures, the interest and the reminders, and stay blocked for buying: see <a href="#legacy" data-act="go" data-id="legacy">Legacy debts</a>.</div>` : ''}
     <div class="panel"><div class="hd"><div class="tools">${segBtns('debTab', [['cd', 'Continuous debit'], ['age', 'Debit ageing'], ['stock', 'Debtors’ stock'], ['int', 'Interest']])}${UI.debTab !== 'int' ? `<input class="in" data-ui="debQ" data-part="deb-t" placeholder="Filter name, UCC or group" value="${esc(UI.debQ)}">` : ''}</div></div><div id="deb-t">${P['deb-t'](d)}</div></div>`;
   }
 };
 P['deb-t'] = d => {
   const v = d.deb, q = UI.debQ.trim().toLowerCase(), f = r => !q || (r.ucc + ' ' + r.name + ' ' + r.tags.join(' ')).toLowerCase().includes(q);
   const who = r => `<button class="linkish mono" data-act="client" data-id="${r.ucc}">${r.ucc}</button> ${esc(r.name)}${r.tags.length ? ' ' + r.tags.map(t => `<span class="gtag">${esc(t)}</span>`).join('') : ''}`;
-  const rows = v.rows.filter(f);
+  const rows = v.rows.filter(r => !r.legacy).filter(f);
   if (UI.debTab === 'age') return tbl([['Client'], ['Overdue debit', 'r'], ...v.buckets.map(b => [b, 'r'])], rows.filter(r => num(r.debit) > 0).map(r => `<tr><td>${who(r)}</td><td class="r">${nf(r.debit, 2)}</td>${r.ageing.map((a, i) => `<td class="r ${num(a) && i >= 2 ? 'neg' : ''}">${num(a) ? nf(a, 2) : '<span class="dim">—</span>'}</td>`).join('')}</tr>`),
     { tall: true, empty: 'No client is in debit.', foot: rows.length ? `<tfoot><tr><td>Total</td><td class="r">${nf(v.debit, 2)}</td>${v.totals.map(a => `<td class="r">${nf(a, 2)}</td>`).join('')}</tr></tfoot>` : '' }) + '<div class="pad"><span class="dim small">Ageing is first in, first out: each receipt clears the oldest debit first, so the buckets show how old the money still owed is.</span></div>';
   if (UI.debTab === 'stock') return tbl([['Client'], ['Overdue debit', 'r'], ['Pledged', 'r'], ['Other holdings', 'r'], ['Value after haircut', 'r'], ['Cover', 'r'], ['Not covered', 'r'], ['Days', 'r']], rows.filter(r => num(r.debit) > 0).sort((a, b) => num(b.shortfall) - num(a.shortfall)).map(r => `<tr><td>${who(r)}</td><td class="r">${nf(r.debit, 2)}</td><td class="r">${nf(r.pledged)}</td><td class="r">${nf(r.unpledged)}</td><td class="r">${nf(r.collateral)}</td><td class="r ${num(r.cover_pct) < 100 ? 'neg' : 'pos'}">${nf(r.cover_pct)}%</td><td class="r ${num(r.shortfall) ? 'neg' : ''}">${num(r.shortfall) ? nf(r.shortfall, 2) : '—'}</td><td class="r">${r.days}</td></tr>`),
@@ -1241,7 +1243,7 @@ function leadDrawer(id) {
     <div><h3 style="margin:0 0 8px;font-size:15px">Activity</h3>${l.notes.slice().reverse().map(n => `<div class="msg"><small class="dim">${esc(n.kind)} · ${esc(n.by)} · ${esc(n.at.slice(0, 16).replace('T', ' '))}${n.outcome ? ' · ' + esc(n.outcome) : ''}</small><div>${esc(n.text || '')}</div></div>`).join('')}</div>
   </div>`, true);
 }
-const leadAct = async (id, body, msg) => { try { const r = await post(`/v1/leads/${id}/act`, body); toast(r.message || msg); C.crm.leads = C.crm.leads.map(x => x.id === id ? r.lead : x); if (document.querySelector('.drawer') || body.kind === 'appointment') leadDrawer(id); $('page').innerHTML = V.crm.html(C.crm); bindPage(); } catch (e) { toast(e.message, true); } };
+const leadAct = async (id, body, msg) => { try { const r = await post(`/v1/leads/${id}/act`, body); toast(r.message || msg); C.crm.leads = C.crm.leads.map(x => x.id === id ? r.lead : x); if (document.querySelector('.drawer') || body.kind === 'appointment') leadDrawer(id); $('page').innerHTML = groupBar('crm') + V.crm.html(C.crm); bindPage(); } catch (e) { toast(e.message, true); } };
 function portalModal(ucc) {
   modal(mhd('Client portal access · ' + ucc, 'The client signs in with their own user ID and a one-time password, then sets a password and two-factor sign-in. They see only their own accounts.') + `<form class="bd" id="pgf">
     <div class="fld"><label for="pg-f">Family accounts on the same login (UCCs, comma separated)</label><input class="in mono" id="pg-f" placeholder="e.g. BH1002, BH1007"></div>
@@ -2127,6 +2129,47 @@ V.settings = {
   }
 };
 
+/* ---------- legacy debts ---------- */
+V.legacy = {
+  load: async () => {
+    const [v, cand] = await Promise.all([get(`/v1/legacy-debts?date=${S.date}`), UI.lgTab === 'find' && !scopedUser() ? get(`/v1/legacy-debts/candidates?date=${S.date}&days=${UI.lgDays}`) : Promise.resolve(null)]);
+    return { v, cand };
+  },
+  html: d => {
+    const v = d.v;
+    return ph('Legacy debts', 'Old client debits kept apart from the daily debit work: no interest is charged on them, they are left out of debit reminders and ageing, and the client stays blocked for buying and payouts. An inactive account with one cannot be reactivated until it is paid or written off. One person proposes a debit as legacy and another approves it (debits marked Legacy in the opening balances arrive as proposals). Record each recovery step here; a checker writes off what will not be recovered, to bad debts.') +
+    `<div class="kpis">${kpi('Open', v.open, inr(v.owed) + ' owed', v.open ? 'warn' : 'good')}${kpi('Recovered', inr(v.recovered), 'paid since marked', num(v.recovered) ? 'good' : '')}${kpi('Written off', inr(v.written_off), 'to bad debts')}${kpi('Waiting for approval', v.proposed, 'proposed as legacy', v.proposed ? 'warn' : '')}</div>
+    ${v.open ? `<div class="panel"><div class="hd"><h3>Open legacy debts by size</h3><small>large ones first: most of the money is usually in a few accounts</small></div>${tbl([['Size'], ['Accounts', 'r'], ['Owed', 'r']], v.bands.map(b => `<tr><td>${esc(b.label)}</td><td class="r">${b.count}</td><td class="r">${nf(b.amount, 2)}</td></tr>`))}</div>` : ''}
+    <div class="panel"><div class="hd"><div class="tools">${segBtns('lgTab', [['open', `Open · ${v.open}`], ['prop', `Proposed · ${v.proposed}`], ['closed', 'Cleared and closed'], ...(scopedUser() ? [] : [['find', 'Find frozen debits']])])}<input class="in" data-ui="lgQ" data-part="lg-t" placeholder="Filter name or UCC" value="${esc(UI.lgQ)}"></div></div><div id="lg-t">${P['lg-t'](d)}</div></div>`;
+  }
+};
+P['lg-t'] = d => {
+  const v = d.v, q = UI.lgQ.trim().toLowerCase(), f = r => !q || (r.ucc + ' ' + r.name).toLowerCase().includes(q);
+  const who = r => `<button class="linkish mono" data-act="client" data-id="${r.ucc}">${r.ucc}</button> ${esc(r.name)}`;
+  const sel = r => `<input type="checkbox" data-act="lgSel" data-id="${esc(r.ucc)}" ${UI.lgSel.has(r.ucc) ? 'checked' : ''} aria-label="Select ${esc(r.ucc)}">`;
+  const last = r => { const n = (r.notes || []).filter(x => !['Proposed', 'Approved'].includes(x.kind)).slice(-1)[0]; return n ? `${esc(n.kind)} <span class="dim">${fmtDate(n.date)}</span>` : '<span class="dim">—</span>'; };
+  const work = has('Ops maker', 'Ops checker', 'Risk manager', 'Compliance officer'), chk = has('Ops checker'), dec = has('Ops checker', 'Compliance officer');
+  if (UI.lgTab === 'find') {
+    const c = (d.cand || []).filter(f);
+    return `<div class="pad tools"><label class="dim small" for="lg-days">Debit not moved for at least</label><select class="in sm" id="lg-days">${[90, 180, 365, 730].map(n => `<option value="${n}" ${UI.lgDays === n ? 'selected' : ''}>${n} days</option>`).join('')}</select>${work ? `<button class="btn pri sm" data-act="lgPropose" ${UI.lgSel.size ? '' : 'disabled'}>Propose selected as legacy (${UI.lgSel.size})</button>` : ''}<span class="dim small">${c.length} clients · ${inr(sum(c, x => num(x.debit)))}</span></div>` +
+      tbl([[`<input type="checkbox" data-act="lgSelAll" aria-label="Select all shown">`], ['Client'], ['Debit', 'r'], ['In debit since'], ['Last movement'], ['Idle days', 'r'], ['Account']], c.map(r => `<tr><td>${sel(r)}</td><td>${who(r)}</td><td class="r">${nf(r.debit, 2)}</td><td class="n">${fmtDate(r.since)}</td><td class="n">${fmtDate(r.last_move)}</td><td class="r">${r.idle_days}</td><td class="small">${esc(r.client_status || '')}${r.inactive ? ' · inactive' : ''}</td></tr>`), { tall: true, empty: 'No client debit has been idle that long.' });
+  }
+  if (UI.lgTab === 'prop') {
+    const rs = v.rows.filter(r => r.state === 'Proposed').filter(f);
+    return (dec ? `<div class="pad tools"><button class="btn pri sm" data-act="lgDecide" data-id="1" ${UI.lgSel.size ? '' : 'disabled'}>Approve selected (${UI.lgSel.size})</button><button class="btn sm" data-act="lgDecide" data-id="0" ${UI.lgSel.size ? '' : 'disabled'}>Reject selected</button><span class="dim small">The person who proposed a debit cannot approve it.</span></div>` : '') +
+      tbl([[`<input type="checkbox" data-act="lgSelAll" aria-label="Select all shown">`], ['Client'], ['Owed now', 'r'], ['Debit when proposed', 'r'], ['In debit since'], ['Why'], ['Proposed by']], rs.map(r => `<tr><td>${sel(r)}</td><td>${who(r)}</td><td class="r">${nf(r.debit, 2)}</td><td class="r">${nf(r.amount, 2)}</td><td class="n">${r.debit_since ? fmtDate(r.debit_since) : '—'}</td><td class="wrap small">${esc(r.reason)}</td><td class="small">${esc(r.proposed_by)} <span class="dim">${fmtDate(r.proposed_on)}</span></td></tr>`), { tall: true, empty: 'Nothing waiting for approval.' });
+  }
+  if (UI.lgTab === 'closed') {
+    const rs = v.rows.filter(r => !['Open', 'Proposed'].includes(r.state)).filter(f);
+    return tbl([['Client'], ['State'], ['When marked', 'r'], ['Recovered', 'r'], ['Written off', 'r'], ['History']], rs.map(r => `<tr><td>${who(r)}</td><td>${pill(r.state, r.state === 'Cleared' ? 'good' : 'nt')}</td><td class="r">${nf(r.amount, 2)}</td><td class="r">${nf(r.recovered, 2)}</td><td class="r">${nf(r.written_off, 2)}</td><td><button class="btn sm" data-act="lgHist" data-id="${esc(r.ucc)}">History</button></td></tr>`), { tall: true, empty: 'None yet.' });
+  }
+  const rs = v.rows.filter(r => r.state === 'Open').filter(f);
+  return (work ? `<div class="pad tools"><button class="btn sm" data-act="lgRemind" ${rs.length ? '' : 'disabled'}>Send reminder to ${UI.lgSel.size ? `selected (${UI.lgSel.size})` : 'all open'}</button><span class="dim small">Reminders go through Client messages (template “legacy_debt.reminder”). A balance confirmation from the client acknowledges the debt: record it with <b>Note</b>.</span></div>` : '') +
+    tbl([[`<input type="checkbox" data-act="lgSelAll" aria-label="Select all shown">`], ['Client'], ['Owed now', 'r'], ['When marked', 'r'], ['Recovered', 'r'], ['In debit since'], ['Last payment or confirmation'], ['3 years from that'], ['Last step'], ['']],
+      rs.map(r => `<tr><td>${sel(r)}</td><td>${who(r)}</td><td class="r">${nf(r.debit, 2)}</td><td class="r">${nf(r.amount, 2)}</td><td class="r">${num(r.recovered) ? nf(r.recovered, 2) : '—'}</td><td class="n">${r.debit_since ? fmtDate(r.debit_since) : '—'}</td><td class="n">${r.last_ack ? fmtDate(r.last_ack) : '—'}</td><td class="n ${r.three_years && r.three_years < S.date ? 'neg' : ''}">${r.three_years ? fmtDate(r.three_years) : '—'}</td><td class="small">${last(r)}</td><td><div class="split">${work ? `<button class="btn sm" data-act="lgNote" data-id="${esc(r.ucc)}">Note</button>` : ''}${chk ? `<button class="btn sm" data-act="lgWriteOff" data-id="${esc(r.ucc)}">Write off</button><button class="btn sm" data-act="lgUnmark" data-id="${esc(r.ucc)}">Unmark</button>` : ''}<button class="btn sm" data-act="lgHist" data-id="${esc(r.ucc)}">History</button></div></td></tr>`),
+      { tall: true, empty: 'No open legacy debts.' }) + '<div class="pad"><span class="dim small">“3 years from that” is a reminder to have a lawyer look at the larger debts before then: recovery claims are generally time-barred three years after the money fell due unless the client has since paid or acknowledged the debt. It is not legal advice.</span></div>';
+};
+
 /* ============================== modals ============================== */
 function modal(html, drawer) { $('mroot').innerHTML = `<div class="ov ${drawer ? 'drawer' : ''}" data-act="ovclose"><div class="md" role="dialog" aria-modal="true">${html}</div></div>`; const f = !drawer && document.querySelector('.md textarea,.md input:not([type=checkbox]),.md select'); if (f) setTimeout(() => f.focus(), 10); }
 let modalLocked = false;
@@ -2216,7 +2259,7 @@ const A = {
   leadAppt: id => { modal(mhd('Book appointment', '') + `<form class="bd" id="apf"><div class="form"><div class="fld"><label for="ap-at">When</label><input class="in" type="datetime-local" id="ap-at" required></div><div class="fld"><label for="ap-w">With</label><input class="in" id="ap-w" value="${esc(S.me.actor)}"></div><div class="fld"><label for="ap-p">Purpose</label><input class="in" id="ap-p" value="Account opening"></div><div class="fld"><label for="ap-pl">Place</label><input class="in" id="ap-pl" placeholder="Branch, video call…"></div></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Book</button></div></form>`); $('apf').onsubmit = e => { e.preventDefault(); leadAct(id, { kind: 'appointment', at: $('ap-at').value, with: $('ap-w').value, text: $('ap-p').value, place: $('ap-pl').value }, 'Appointment booked'); }; },
   apptSet: (id, el) => leadAct(id, { kind: 'appointment_status', appointment: el.dataset.ap, status: el.dataset.st }, 'Updated'),
   leadConvert: id => { const l = C.crm.leads.find(x => x.id === id); A.newClient(); Object.assign(UI.ob.data, { name: l.name, email: l.email || '', city: l.city || '' }); UI.ob.lead = id; UI.ob.leadMasked = l.masked; if (!l.masked) UI.ob.data.mobile = l.mobile; obModal(); },
-  crmStage: (id, el) => { UI.crmStage = el.value; $('page').innerHTML = V.crm.html(C.crm); bindPage(); },
+  crmStage: (id, el) => { UI.crmStage = el.value; $('page').innerHTML = groupBar('crm') + V.crm.html(C.crm); bindPage(); },
   crmPeriod: () => { UI.crmFrom = $('crm-from').value; UI.crmTo = $('crm-to').value; render({ keep: true }); },
   portalAccess: id => portalModal(id),
   openBlob: id => openBlob(id),
@@ -2307,6 +2350,15 @@ const A = {
   },
   cpPick: (id, el) => cpSet(id, el.dataset.v),
   selOne: (u, el) => { el.checked ? UI.clientSel.add(u) : UI.clientSel.delete(u); rerenderPart('clients-t'); },
+  lgSel: (id, el) => { el.checked ? UI.lgSel.add(id) : UI.lgSel.delete(id); rerenderPart('lg-t'); },
+  lgSelAll: (id, el) => { const on = el.checked; document.querySelectorAll('[data-act=lgSel]').forEach(x => on ? UI.lgSel.add(x.dataset.id) : UI.lgSel.delete(x.dataset.id)); rerenderPart('lg-t'); },
+  lgPropose: () => confirmModal('Propose as legacy debts', `${UI.lgSel.size} client${UI.lgSel.size === 1 ? '' : 's'}`, '<div class="fld full"><label for="lg-why">Why these debits are legacy</label><input class="in" id="lg-why" placeholder="For example: no movement for over six months, accounts dormant"></div><div class="note">A different person approves them. Until then nothing changes.</div>', 'Propose', () => act(() => post('/v1/legacy-debts/propose', { date: S.date, uccs: [...UI.lgSel], reason: $('lg-why').value }), r => { UI.lgSel.clear(); return `${r.proposed} proposed`; })),
+  lgDecide: id => { const ok = id === '1'; confirmModal(ok ? 'Approve legacy debts' : 'Reject legacy debts', `${UI.lgSel.size} selected`, `<div class="fld full"><label for="lg-why">${ok ? 'Note (optional)' : 'Reason for rejecting'}</label><input class="in" id="lg-why"></div>${ok ? '<div class="note">From now on no interest is charged on them and they leave the daily debit work. The clients stay blocked for buying.</div>' : ''}`, ok ? 'Approve' : 'Reject', () => act(() => post('/v1/legacy-debts/decide', { date: S.date, uccs: [...UI.lgSel], approve: ok, reason: $('lg-why').value }), r => { UI.lgSel.clear(); return `${r.decided} ${ok ? 'approved' : 'rejected'}`; }), !ok); },
+  lgRemind: () => { const n = UI.lgSel.size; confirmModal('Send reminders', n ? `${n} selected` : 'every open legacy debt', '<div class="note">Each client gets the “legacy_debt.reminder” message with the amount due, and the reminder is recorded against the debt.</div>', 'Send', () => act(() => post('/v1/legacy-debts/remind', { date: S.date, uccs: [...UI.lgSel] }), r => { UI.lgSel.clear(); return `${r.reminded} reminded`; })); },
+  lgNote: id => confirmModal('Record a recovery step', id, `<div class="form"><div class="fld"><label for="lg-kind">What</label><select class="in" id="lg-kind">${C.legacy.v.note_kinds.map(k => `<option>${esc(k)}</option>`).join('')}</select></div><div class="fld"><label for="lg-date">Date</label><input class="in mono" type="date" id="lg-date" value="${esc(S.date)}"></div><div class="fld full"><label for="lg-text">Details</label><input class="in" id="lg-text" placeholder="Who, what was said or sent, the reference"></div></div>`, 'Record', () => act(() => post(`/v1/legacy-debts/${encodeURIComponent(id)}/note`, { date: $('lg-date').value, kind: $('lg-kind').value, text: $('lg-text').value }), 'Recorded')),
+  lgWriteOff: id => { const r = C.legacy.v.rows.find(x => x.ucc === id); confirmModal('Write off', `${id} · ${inr(r.debit, 2)} owed`, `<div class="form"><div class="fld"><label for="lg-amt">Amount (₹)</label><input class="in mono" id="lg-amt" value="${esc(String(r.debit))}"></div><div class="fld"><label for="lg-date">Date</label><input class="in mono" type="date" id="lg-date" value="${esc(S.date)}"></div><div class="fld full"><label for="lg-why">Reason and approval</label><input class="in" id="lg-why" placeholder="For example: not recoverable; written off as approved by the directors on …"></div></div><div class="note">Credits the client and debits Bad debts written off. Take your CA’s advice on the tax treatment.</div>`, 'Write off', () => act(() => post(`/v1/legacy-debts/${encodeURIComponent(id)}/write-off`, { date: $('lg-date').value, amount: $('lg-amt').value, reason: $('lg-why').value }), 'Written off'), true); },
+  lgUnmark: id => confirmModal('Return to the daily debit work', id, '<div class="fld full"><label for="lg-why">Why</label><input class="in" id="lg-why"></div><div class="note">Interest, reminders and ageing apply to this debit again from the next run.</div>', 'Unmark', () => act(() => post(`/v1/legacy-debts/${encodeURIComponent(id)}/unmark`, { date: S.date, reason: $('lg-why').value }), 'Unmarked')),
+  lgHist: id => { const r = C.legacy.v.rows.find(x => x.ucc === id); modal(mhd('History', `${id} · ${esc(r.name)}`) + `<div class="bd">${tbl([['Date'], ['Step'], ['Details'], ['By']], (r.notes || []).map(n => `<tr><td class="n">${fmtDate(n.date)}</td><td>${esc(n.kind)}${num(n.amount) ? ' ' + inr(n.amount, 2) : ''}</td><td class="wrap small">${esc(n.text || '')}</td><td class="small">${esc(n.by)}</td></tr>`), { empty: 'Nothing recorded.' })}</div><div class="ft"><button class="btn" data-act="close">Close</button></div>`); },
   selAll: (id, el) => { const on = el.checked; document.querySelectorAll('[data-act=selOne]').forEach(x => on ? UI.clientSel.add(x.dataset.id) : UI.clientSel.delete(x.dataset.id)); rerenderPart('clients-t'); },
   bulkClear: () => { UI.clientSel.clear(); rerenderPart('clients-t'); },
   filterTag: t => { UI.clientTag = t; if (S.view !== 'clients') { A.go('clients'); return; } closeModal(); render({ keep: true }); },
@@ -2354,8 +2406,8 @@ const A = {
   resetPw: id => confirmModal('Reset password · ' + id, 'Gives a new one-time password and signs them out everywhere.', '', 'Reset password', async () => { const r = await post(`/v1/users/${encodeURIComponent(id)}/reset-password`); showTempPw(id, r.temp_password, 'reset'); }, true),
   reset2fa: id => confirmModal('Reset two-factor · ' + id, 'For a lost phone. Signs them out; they set it up again at next sign-in.', '', 'Reset 2FA', () => act(() => post(`/v1/users/${encodeURIComponent(id)}/reset-2fa`), 'Two-factor sign-in reset'), true),
   toggleUser: id => { const u = C.settings.users.find(x => x.id === id); act(() => api('PUT', `/v1/users/${encodeURIComponent(id)}`, { id, name: u.name, role: u.role, active: !u.active }), u.active ? id + ' deactivated' : id + ' activated'); },
-  crKind: id => { crSync(); UI.cr.kind = id; { const df = (C.statements?.defs || []).find(x => x.kind === id)?.default; if (df) UI.cr.preset = df; } UI.crRes = null; UI.crErr = null; $('page').innerHTML = V.statements.html(C.statements); bindPage(); },
-  crPreset: id => { crSync(); UI.cr.preset = id; $('page').innerHTML = V.statements.html(C.statements); bindPage(); },
+  crKind: id => { crSync(); UI.cr.kind = id; { const df = (C.statements?.defs || []).find(x => x.kind === id)?.default; if (df) UI.cr.preset = df; } UI.crRes = null; UI.crErr = null; $('page').innerHTML = groupBar('statements') + V.statements.html(C.statements); bindPage(); },
+  crPreset: id => { crSync(); UI.cr.preset = id; $('page').innerHTML = groupBar('statements') + V.statements.html(C.statements); bindPage(); },
   crRun: () => { crSync(); crRun(); },
   crPrint: () => { crSync(); openDoc(crURL('html')); },
   crCSV: () => { crSync(); const r = UI.cr; download(crURL('csv'), `${r.kind}_${r.ucc}_${r.from ? r.from + '_' : ''}${r.to}.csv`); },
@@ -2369,7 +2421,7 @@ const A = {
   go: id => { const [v, tab] = String(id).split(':'); if (v === 'circulars' && tab) UI.ciTab = tab; S.view = v; UI.dashEdit = false; closeModal(); render(); window.scrollTo(0, 0); },
   close: () => closeModal(),
   ovclose: (id, el, e) => { if (e.target === el && !modalLocked) closeModal(); },
-  ui: (id, el) => { UI[el.dataset.k] = el.dataset.v; const part = el.dataset.part; if (part && $(part)) { rerenderPart(part); el.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === el)); } else { $('page').innerHTML = V[S.view].html(C[S.view]); bindPage(); } },
+  ui: (id, el) => { UI[el.dataset.k] = el.dataset.v; if (el.dataset.k === 'lgTab') { UI.lgSel.clear(); render({ keep: true }); return; } const part = el.dataset.part; if (part && $(part)) { rerenderPart(part); el.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === el)); } else { $('page').innerHTML = groupBar(S.view) + V[S.view].html(C[S.view]); bindPage(); } },
   dl: (path, el) => download(path, el.dataset.name),
   client: id => clientDrawer(id),
   nomChange: async id => { try { const d = await get(`/v1/clients/${encodeURIComponent(id)}?date=${S.date}`); UI.chNoms = d.client.nominees || []; changeModal('Nomination', id, true); } catch (e) { toast(e.message, true); } },
@@ -2569,18 +2621,19 @@ document.addEventListener('change', e => {
     if (role === 'Branch staff' && !branch) branch = (prompt('Branch for ' + id) || '').trim();
     if (role === 'Authorised person' && !partner) partner = (prompt('Partner code for ' + id) || '').trim().toUpperCase();
     act(() => api('PUT', `/v1/users/${encodeURIComponent(id)}`, { id, name: u.name, role, active: u.active, branch, partner }), `${id} is now ${role}`).catch(() => render({ keep: true })); return; }
+  if (el.id === 'lg-days') { UI.lgDays = +el.value; UI.lgSel.clear(); render({ keep: true }); return; }
   if (el.id === 'live-auto') { UI.liveAuto = el.checked; return; }
   if (el.id === 'p-acct') { UI.pAcct = el.value; render(); return; }
   if (el.id === 'ye-fy') { UI.yeFY = el.value; render({ keep: true }); return; }
   if (el.id === 'ci-file') { const f = el; if (!f.files.length) return; const fd = new FormData(); fd.append('files', f.files[0]); api('POST', `/v1/inbox?date=${S.date}`, fd, true).then(r => { const x = r.files[0] || {}; toast(x.status === 'Loaded' ? `${x.rows} circular${x.rows === 1 ? '' : 's'} loaded and sorted` : `${x.status}: ${x.message || ''}`); render({ keep: true }); }).catch(e => toast(e.message, true)); return; }
   if (el.id === 'pins-off') { act(() => post('/v1/portal/insights/prefs', { ucc: UI.pAcct, off: !el.checked }), el.checked ? 'Insights turned on' : 'Insights turned off').catch(() => render({ keep: true })); return; }
-  if (el.id === 'crm-stage') { UI.crmStage = el.value; $('page').innerHTML = V.crm.html(C.crm); bindPage(); return; }
-  if (el.id === 'ftype') { UI.fileType = el.value; $('page').innerHTML = V.files.html(C.files); bindPage(); return; }
+  if (el.id === 'crm-stage') { UI.crmStage = el.value; $('page').innerHTML = groupBar('crm') + V.crm.html(C.crm); bindPage(); return; }
+  if (el.id === 'ftype') { UI.fileType = el.value; $('page').innerHTML = groupBar('files') + V.files.html(C.files); bindPage(); return; }
   if (el.id === 'cr-from' || el.id === 'cr-to') { UI.cr.preset = 'custom'; crSync(); document.querySelectorAll('[data-act=crPreset]').forEach(b => b.classList.toggle('on', b.dataset.id === 'custom')); return; }
   if (el.id === 'bkPlan') { UI.bkPlan = el.value; rerenderPart('bk-t'); return; }
   if (el.id === 'clientTag') { UI.clientTag = el.value; rerenderPart('clients-t'); return; }
   if (el.id === 'ledgerU') { UI.ledgerU = el.value; render({ keep: true }); return; }
-  if (el.dataset.calc) { UI.calc[el.dataset.calc] = el.value; if (el.dataset.calc === 'bucket') { $('page').innerHTML = V.charges.html(); bindPage(); } else calc(); return; }
+  if (el.dataset.calc) { UI.calc[el.dataset.calc] = el.value; if (el.dataset.calc === 'bucket') { $('page').innerHTML = groupBar('charges') + V.charges.html(); bindPage(); } else calc(); return; }
   if (el.dataset.ob && el.tagName === 'SELECT') { UI.ob.data[el.dataset.ob] = el.value; if (el.dataset.ob === 'nominee') obModal(); return; }
   if (el.dataset.obseg) { const d = UI.ob.data; d.segments = el.checked ? [...new Set([...d.segments, el.dataset.obseg])] : d.segments.filter(s => s !== el.dataset.obseg); return; }
   if (el.dataset.obchk) { UI.ob.data[el.dataset.obchk] = el.checked; }

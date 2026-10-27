@@ -50,7 +50,7 @@ Object.assign(A, {
     const r = await act(() => post('/v1/support', b), r => `${r.id} sent to Ledgerline support`, false).catch(() => null);
     if (r) { SP.open = r.id; if (S.view !== 'support') S.view = 'support'; render(); }
   },
-  spOpen: id => { SP.open = id; $('page').innerHTML = V.support.html(C.support); bindPage(); window.scrollTo(0, 0); },
+  spOpen: id => { SP.open = id; $('page').innerHTML = groupBar('support') + V.support.html(C.support); bindPage(); window.scrollTo(0, 0); },
   spBack: () => { SP.open = ''; render({ keep: true }); },
   spReply: () => act(() => post('/v1/support/' + encodeURIComponent(SP.open), { text: $('sp-reply').value }), 'Reply sent'),
   spClose: () => act(() => post('/v1/support/' + encodeURIComponent(SP.open), { close: true }), 'Request closed'),

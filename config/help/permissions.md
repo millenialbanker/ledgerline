@@ -12,6 +12,7 @@ Approving a receipt | Ops checker
 Approving an override | Ops checker, Risk manager
 Approving client changes | Ops checker
 Approving exchange holidays | Ops checker, Compliance officer
+Approving legacy debts | Ops checker, Compliance officer
 Approving payouts | Ops checker, Risk manager
 Approving reactivation | Ops checker, Compliance officer
 Approving vouchers | Ops checker
@@ -88,6 +89,7 @@ Posting interest | Ops checker, Risk manager
 Posting margin penalties | Ops checker, Risk manager
 Posting referral rewards | Ops checker
 Prepaid schemes | Ops checker, Admin
+Proposing legacy debts | Ops maker, Ops checker, Risk manager, Compliance officer
 Recording DP responses | Ops maker, Ops checker
 Recording MTF pledges | Ops maker, Ops checker, Risk manager
 Recording WhatsApp consent | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
@@ -98,6 +100,7 @@ Recording bounces | Ops maker, Ops checker, Admin
 Recording clearing deposits | Ops checker
 Recording complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Recording re-KYC | Ops maker, Ops checker, Compliance officer
+Recording recovery of a legacy debt | Ops maker, Ops checker, Risk manager, Compliance officer
 Recording the BSDA choice | Ops maker, Ops checker
 Rejecting an application | Ops checker, Compliance officer
 Releasing CUSPA securities | Ops maker, Ops checker
@@ -127,6 +130,7 @@ Selling prepaid schemes | Ops maker, Ops checker, Branch staff
 Sending bulk messages | Ops checker, Compliance officer
 Sending contract notes | Ops maker, Ops checker
 Sending documents | Ops maker, Ops checker
+Sending legacy debt reminders | Ops maker, Ops checker, Risk manager, Compliance officer
 Sending statements | Ops maker, Ops checker
 Sending year-end packs | Ops maker, Ops checker, Compliance officer
 Setting client risk | Compliance officer
@@ -142,6 +146,7 @@ Tendering for a client | Ops maker, Ops checker
 Testing connections | Admin
 Testing templates | Ops checker, Compliance officer
 The kill switch | Risk manager
+Unmarking a legacy debt | Ops checker, Compliance officer
 Updating KYC details | Ops maker, Ops checker
 Uploading delivery instructions | Ops maker, Ops checker
 Upstreaming funds | Ops checker
@@ -159,3 +164,4 @@ Viewing vendor bills | Ops maker, Ops checker, Compliance officer
 Viewing vendors | Ops maker, Ops checker, Compliance officer
 Working client insights | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Working complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
+Writing off a debt | Ops checker

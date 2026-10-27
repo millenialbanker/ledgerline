@@ -157,7 +157,7 @@ type InterestRow struct {
 	Interest  money.Amount `json:"interest"`
 	GST       money.Amount `json:"gst"`
 	Total     money.Amount `json:"total"`
-	Status    string       `json:"status"` // To post, Posted, Exempt, Below minimum
+	Status    string       `json:"status"` // To post, Posted, Exempt, Below minimum, Legacy debt
 	Entry     string       `json:"entry,omitempty"`
 	Invoice   string       `json:"invoice,omitempty"`
 }
@@ -265,6 +265,7 @@ func (o *Ops) Interest(ctx context.Context, tenant, from, to string) (InterestVi
 	if err != nil {
 		return v, err
 	}
+	legacy := o.legacyOpen(ctx, tenant)
 	invs, _ := docs.List[Invoice](ctx, o.Docs, tenant, cInvoice, "")
 	invByEntry := map[string]string{}
 	for _, i := range invs {
@@ -319,6 +320,8 @@ func (o *Ops) Interest(ctx context.Context, tenant, from, to string) (InterestVi
 			if r.Entry != "" {
 				v.Posted += r.Total
 			}
+		case legacy[u]:
+			r.Status = "Legacy debt" // not charged: see legacy.go
 		case hasAnyTag(r.Tags, v.Exempt):
 			r.Status = "Exempt"
 		case r.Interest < v.Minimum:
@@ -439,7 +442,8 @@ type DebitRow struct {
 	Accrued    money.Amount   `json:"accrued"` // interest this month, not yet posted
 	Blocked    bool           `json:"blocked"`
 	BlockedBy  string         `json:"blocked_by,omitempty"`
-	Action     string         `json:"action"` // Block, Unblock or ""
+	Action     string         `json:"action"`           // Block, Unblock or ""
+	Legacy     bool           `json:"legacy,omitempty"` // an open legacy debt: kept out of the totals and reminders, still blocked
 }
 
 // DebitView is the debtors screen.
@@ -454,6 +458,10 @@ type DebitView struct {
 	ToBlock   int            `json:"to_block"`
 	ToUnblock int            `json:"to_unblock"`
 	Accrued   money.Amount   `json:"accrued"`
+	// Legacy debts (old debits marked on Legacy debts) are listed with
+	// Legacy set but left out of Debit, Totals and Shortfall.
+	LegacyCount int          `json:"legacy_count"`
+	LegacyDebit money.Amount `json:"legacy_debit"`
 }
 
 // Debits lists clients with overdue debit balances on date: how long
@@ -511,6 +519,7 @@ func (o *Ops) Debits(ctx context.Context, tenant, date string) (DebitView, error
 			}
 		}
 	}
+	legacy := o.legacyOpen(ctx, tenant)
 	for _, u := range sortedKeys(cs) {
 		c := cs[u]
 		ms := moves[u]
@@ -522,7 +531,11 @@ func (o *Ops) Debits(ctx context.Context, tenant, date string) (DebitView, error
 		if bal >= 0 && !blockedByUs {
 			continue
 		}
-		r := DebitRow{UCC: u, Name: c.Name, Tags: c.Tags, Ledger: funds[u], Blocked: c.Blocked, Ageing: make([]money.Amount, len(AgeBuckets))}
+		r := DebitRow{UCC: u, Name: c.Name, Tags: c.Tags, Ledger: funds[u], Blocked: c.Blocked, Ageing: make([]money.Amount, len(AgeBuckets)), Legacy: legacy[u] && bal < 0}
+		totals := v.Totals
+		if r.Legacy {
+			totals = make([]money.Amount, len(AgeBuckets)) // not in the firm's ageing
+		}
 		if r.Tags == nil {
 			r.Tags = []string{}
 		}
@@ -577,7 +590,7 @@ func (o *Ops) Debits(ctx context.Context, tenant, date string) (DebitView, error
 				for b, bk := range AgeBuckets {
 					if age <= bk.MaxDay {
 						r.Ageing[b] += l.a
-						v.Totals[b] += l.a
+						totals[b] += l.a
 						break
 					}
 				}
@@ -592,7 +605,9 @@ func (o *Ops) Debits(ctx context.Context, tenant, date string) (DebitView, error
 			}
 			if sf := r.Debit.Dec().Sub(r.Collateral); sf.Sign() > 0 {
 				r.Shortfall = sf
-				v.Shortfall = v.Shortfall.Add(sf)
+				if !r.Legacy {
+					v.Shortfall = v.Shortfall.Add(sf)
+				}
 			}
 		}
 		r.Accrued = accrued[u]
@@ -605,7 +620,12 @@ func (o *Ops) Debits(ctx context.Context, tenant, date string) (DebitView, error
 			r.Action = "Unblock"
 			v.ToUnblock++
 		}
-		v.Debit += r.Debit
+		if r.Legacy {
+			v.LegacyCount++
+			v.LegacyDebit += r.Debit
+		} else {
+			v.Debit += r.Debit
+		}
 		v.Rows = append(v.Rows, r)
 	}
 	sort.SliceStable(v.Rows, func(i, j int) bool {
