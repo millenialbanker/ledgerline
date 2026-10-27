@@ -30,7 +30,7 @@ func (o *Ops) sendLetter(ctx context.Context, tenant, actor, date, ucc, ref, tit
 	rep.normalise()
 	return o.dispatchDoc(ctx, tenant, actor, docRequest{Kind: DocLetter, Ref: ref, Date: date, UCC: c.UCC, Report: reportPDF(rep, set), Title: title,
 		FileName: strings.NewReplacer(" ", "", "/", "-").Replace(title) + "_" + c.UCC + "_" + date + ".pdf",
-		Text: fmt.Sprintf("Dear %s,\n\n%s\n\nThe signed letter is attached.", c.Name, strings.Join(paras, "\n\n"))})
+		Text:     fmt.Sprintf("Dear %s,\n\n%s\n\nThe signed letter is attached.", c.Name, strings.Join(paras, "\n\n"))})
 }
 
 func (o *Ops) reactivationLetter(ctx context.Context, tenant, actor string, r Reactivation) {
