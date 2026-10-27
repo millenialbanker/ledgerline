@@ -127,5 +127,5 @@
  "compress": "none",
  "format": "delimited",
  "delimiter": ",",
- "linked": ""
+ "linked": "Loaded as securities paid out straight to clients' demat accounts (Clearing data)"
 }

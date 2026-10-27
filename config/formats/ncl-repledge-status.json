@@ -269,6 +269,6 @@
  "header": false,
  "final_eol": true,
  "confirmed": true,
- "linked": "",
+ "linked": "Loaded and reconciled with clients' pledges (Clearing data)",
  "source": "NSE Clearing circular NCL/CMPT/44899 (3 Jul 2020), Annexure 7: sections SEC, NMF, OMF, CB, CMF, GMF; OMF and CB rows have no final effective value"
 }

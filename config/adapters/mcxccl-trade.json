@@ -43,7 +43,11 @@
     "FUTCOM": "FUT",
     "OPTFUT": "OPT",
     "FUTCUR": "FUT",
-    "OPTCUR": "OPT"
+    "OPTCUR": "OPT",
+    "COF": "FUT",
+    "COO": "OPT",
+    "FUTIRC": "FUT",
+    "OPTIRC": "OPT"
   },
   "date_layout": "2006-01-02",
   "expiry_layout": "2006-01-02",

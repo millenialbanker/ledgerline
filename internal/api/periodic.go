@@ -19,6 +19,34 @@ func (s *Server) periodicRoutes() {
 	s.route("POST /v1/dp/bsda-reviews/{id}/apply", s.bsdaApply, true)
 	s.route("POST /v1/dp/accounts/{ucc}/bsda-choice", s.bsdaChoice, true)
 	s.route("POST /v1/ipo/allotments", s.ipoAllotments, true)
+	s.route("GET /v1/clearing-data", s.clearingData, false)
+	s.route("POST /v1/clearing-data/short-allocation-reasons", s.saReason, true)
+}
+
+func (s *Server) clearingData(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.ClearingData(r.Context(), tenant(r), r.URL.Query().Get("date"))
+	ok(w, map[string]any{"sections": v, "reason_codes": ops.SAReasonCodes}, err)
+}
+
+func (s *Server) saReason(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date    string `json:"date"`
+		Segment string `json:"segment"`
+		UCC     string `json:"ucc"`
+		Code    string `json:"code"`
+		Amount  string `json:"amount"`
+		CC      string `json:"cc_code"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	amt, err := money.ParseDec(strings.TrimSpace(b.Amount))
+	if err != nil {
+		fail(w, fmt.Errorf("%w: give the collateral available", ops.ErrInvalid), nil)
+		return
+	}
+	v, err := s.ops.SaveSAReason(r.Context(), tenant(r), actor(r), ops.SAReason{Date: b.Date, Seg: b.Segment, UCC: b.UCC, Code: b.Code, Amount: amt, CC: b.CC})
+	ok(w, v, err)
 }
 
 func (s *Server) ipoAllotments(w http.ResponseWriter, r *http.Request) {

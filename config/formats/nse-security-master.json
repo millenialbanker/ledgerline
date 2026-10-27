@@ -42,5 +42,5 @@
  "format": "delimited",
  "delimiter": ",",
  "final_eol": true,
- "linked": ""
+ "linked": "Loaded into the security master: symbol, series and name by ISIN"
 }

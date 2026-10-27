@@ -72,6 +72,6 @@
  "crlf": true,
  "final_eol": true,
  "confirmed": true,
- "linked": "",
+ "linked": "Written from NSE Clearing's MG13 rows with the margin collected from Ledgerline's allocation",
  "source": "NSE Clearing circular NCL/CMPT/45627 (8 Sep 2020), client margin file MG13 and margin reporting: the MG13 row unaltered, then the margin collected at end of day and at peak (both not negative)"
 }

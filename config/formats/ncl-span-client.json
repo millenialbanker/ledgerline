@@ -62,6 +62,6 @@
  "crlf": true,
  "final_eol": true,
  "confirmed": true,
- "linked": "",
+ "linked": "Loaded as NSE Clearing's client margins: the basis of the margin reporting file, and checked against Ledgerline on Clearing data",
  "source": "NSE Clearing circular NCL/CMPT/45627 (8 Sep 2020), client margin file MG13 and margin reporting"
 }

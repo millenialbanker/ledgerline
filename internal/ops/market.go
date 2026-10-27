@@ -137,6 +137,7 @@ func (o *Ops) Market(ctx context.Context, tenant, date string) (Market, Lookup, 
 	}
 	l := newLookup(m)
 	o.addGSecPrices(ctx, tenant, date, &l)
+	o.addRefData(ctx, tenant, date, &l)
 	return m, l, nil
 }
 

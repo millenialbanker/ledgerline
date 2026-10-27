@@ -107,5 +107,5 @@
  "format": "delimited",
  "delimiter": ",",
  "final_eol": true,
- "linked": ""
+ "linked": "Loaded and reconciled with the firm's trades by security (Clearing data)"
 }

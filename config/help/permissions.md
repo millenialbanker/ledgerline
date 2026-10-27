@@ -103,6 +103,7 @@ Releasing CUSPA securities | Ops maker, Ops checker
 Releasing clearing deposits | Ops checker
 Releasing payouts | Ops checker
 Removing the signing certificate | Admin
+Reporting short allocation | Ops maker, Ops checker, Risk manager
 Requesting reactivation | Ops maker, Ops checker
 Resetting passwords | Admin
 Resetting two-factor sign-in | Admin

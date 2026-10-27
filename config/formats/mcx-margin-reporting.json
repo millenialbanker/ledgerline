@@ -8,7 +8,7 @@
  "names": [
   "MCX_MARGIN_\\d+_\\.M\\d+"
  ],
- "template": "MCX_MARGIN_{date:02012006}_.M{seq:2}",
+ "template": "MCX_MARGIN_{date:20060102}_.M{seq:2}",
  "columns": [
   {
    "name": "Date",
@@ -120,6 +120,6 @@
  "crlf": true,
  "final_eol": true,
  "confirmed": true,
- "linked": "",
+ "linked": "Written from MCXCCL's margin file with the margin collected from Ledgerline's allocation",
  "source": "MCXCCL circular MCX/MCXCCL/327/2026 (MCXCCL/TECH/121/2026, 1 Jun 2026), Revision in Client Margin Reporting File Formats, section 1.8 (the margin file with the member's collected amounts in fields 9 to 11 and 14)"
 }

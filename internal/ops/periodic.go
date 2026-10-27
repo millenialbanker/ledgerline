@@ -43,6 +43,7 @@ var PeriodicTasks = []PeriodicTask{
 	{"funds_securities", "Weekly statement of funds and securities", "Clients", "Weekly", "Emails every client with a balance, a movement or securities with the broker a signed statement of the week's funds and securities.", "Saturday, for the week to Friday", "Exchange and SEBI rules on statements of accounts to clients", true, "dispatch", ""},
 	{"cuspa_review", "Unpaid securities (CUSPA): release or sell", "Settlement", "Weekly", "Releases unpaid purchases held in the client unpaid securities pledgee account to clients who have since paid, and queues for sale those still unpaid after the allowed days.", "Monday", "SEBI rules on unpaid securities (CUSPA)", true, "settle", ""},
 	{"es_return", "Client funds monitoring return (enhanced supervision)", "Compliance", "Weekly", "Builds the weekly statement of client money held and where (client bank balances, collateral with clearing corporations, client credit and debit balances, own collateral, bank guarantees, margin used by credit-balance clients) with the client-wise workbook, for upload to the exchanges.", "Tuesday, for the week to Friday", "SEBI and exchange circulars on enhanced supervision of stock brokers", true, "periodic", ""},
+	{"dis_master", "DIS master upload to CDSL", "Depository", "Weekly", "Builds CDSL's transaction upload (DIS issue) for the delivery instruction slip books issued in the week, for upload on CDSL's system.", "Monday, for the week to Friday", "CDSL operating instructions on DIS issuance", true, "dp", "cdsl-txn-upload"},
 	{"cuspa_mtf_payout", "CUSPA and MTF pay-out reporting", "Settlement", "Settlement day", "Reports to NSE Clearing the settlement's purchases that are not paid out to clients' demat accounts: unpaid purchases kept in CUSPA and MTF purchases kept for the pledge.", "Settlement day, before pay-out", "SEBI and NSE Clearing rules on pay-out of securities to clients", true, "settle", "ncl-cuspa-mtf-payout"},
 	{"settlement_master", "Settlement calendar for the coming month", "Settlement", "Monthly", "Checks that NSE Clearing's settlement master for the coming month is loaded: settlement numbers and pay-in and pay-out dates used by the pay-out reporting and the settlement screen.", "Before the month starts", "", true, "xfiles", "ncl-settlement-master"},
 	{"ccil_prices", "CCIL prices of G-secs and T-bills", "Risk", "Monthly", "Checks that CCIL's month-end valuation prices are loaded, so G-secs and T-bills held or given as collateral are valued at month end.", "By the 5th", "", true, "xfiles", "ccil-gsec-price"},
@@ -108,7 +109,7 @@ func (o *Ops) periodFor(ctx context.Context, tenant string, t PeriodicTask, date
 	case "funds_securities":
 		fri := lastFriday(date)
 		return fri, fmtDay(addDays(fri, -6)) + " to " + fmtDay(fri), addDays(fri, 1)
-	case "cuspa_review":
+	case "cuspa_review", "dis_master":
 		fri := lastFriday(date)
 		return fri, "Week to " + fmtDay(fri), addDays(fri, 3)
 	case "month_end", "ccil_prices":
@@ -361,6 +362,26 @@ func (o *Ops) runPeriodic(ctx context.Context, tenant, actor string, t PeriodicT
 		msg := fmt.Sprintf("CCIL's prices for the end of %s are not loaded: download MTMPRICE for the last business day from CCIL and load it on Exchange files", monthLabel(period))
 		o.raiseWork(ctx, tenant, "periodic", "ccil:"+period, "Load CCIL's G-sec prices for "+monthLabel(period), msg, "", RoleMaker, "xfiles", date)
 		return "", nil, &pendingErr{msg, "Waiting for a file"}
+	case "dis_master":
+		lib, err := XFiles()
+		if err != nil {
+			return "", nil, err
+		}
+		s, _ := lib.Get("cdsl-txn-upload")
+		set, _ := o.Settings(ctx, tenant)
+		name, content, err := o.disMasterFile(ctx, tenant, s, set, period, map[string]string{"date": period, "seq": "1"})
+		if errors.Is(err, ErrState) {
+			return "No DIS books issued in the week", nil, nil
+		}
+		if err != nil {
+			return "", nil, err
+		}
+		f, err := o.keepFile(ctx, tenant, name, content)
+		if err != nil {
+			return "", nil, err
+		}
+		o.raiseWork(ctx, tenant, "periodic", "dismaster:"+period, "Upload "+name+" to CDSL", "The DIS master upload for books issued in the week to "+fmtDay(period)+" is on Periodic work.", "", RoleMaker, "periodic", date)
+		return name + " written", []PeriodicFile{f}, nil
 	case "cuspa_mtf_payout":
 		lib, err := XFiles()
 		if err != nil {

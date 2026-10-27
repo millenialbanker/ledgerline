@@ -61,5 +61,5 @@
  "format": "delimited",
  "delimiter": ",",
  "final_eol": true,
- "linked": ""
+ "linked": "Loaded as closing prices: values holdings and collateral that have no exchange price"
 }

@@ -61,5 +61,5 @@
  "format": "delimited",
  "delimiter": ",",
  "crlf": true,
- "linked": ""
+ "linked": "Loaded and reconciled with Ledgerline's collateral allocation (Clearing data)"
 }

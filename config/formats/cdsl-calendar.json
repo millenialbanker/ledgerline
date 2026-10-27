@@ -91,5 +91,5 @@
  "format": "delimited",
  "delimiter": ",",
  "crlf": true,
- "linked": ""
+ "linked": "Loaded as CDSL's settlement calendar"
 }

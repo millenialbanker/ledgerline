@@ -251,5 +251,5 @@
  "delimiter": ",",
  "crlf": true,
  "final_eol": true,
- "linked": ""
+ "linked": "Loaded into the security master: name, type, face value and status by ISIN"
 }

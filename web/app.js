@@ -110,7 +110,7 @@ function eodStatus(e) {
 /* ============================== shell ============================== */
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard'], ['chat', 'Team messages'], ['rpa', 'Automations'], ['autopilot', 'Autopilot & work queue'], ['periodic', 'Periodic work']]],
-  ['Operations', [['files', 'Files'], ['xfiles', 'Exchange files'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['apps', 'Online applications'], ['changes', 'Change requests'], ['corp', 'Corporate actions'], ['statements', 'Client reports'], ['yearend', 'Year-end packs']]],
+  ['Operations', [['files', 'Files'], ['xfiles', 'Exchange files'], ['ccdata', 'Clearing data'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['clients', 'Clients & onboarding'], ['apps', 'Online applications'], ['changes', 'Change requests'], ['corp', 'Corporate actions'], ['statements', 'Client reports'], ['yearend', 'Year-end packs']]],
   ['Risk', [['live', 'Live RMS'], ['rms', 'RMS & limits'], ['margin', 'Margin reporting'], ['collateral', 'Collateral & pledge'], ['debits', 'Debtors & interest'], ['mtf', 'Margin trading (MTF)']]],
   ['Accounts', [['ledger', 'Ledger'], ['deposits', 'Clearing deposits'], ['bank', 'Bank reconciliation'], ['money', 'Receipts & payouts'], ['books', 'Firm accounts & GST'], ['ras', 'Running account'], ['charges', 'Charges calculator'], ['brokerage', 'Brokerage plans']]],
   ['Compliance', [['circulars', 'Circulars & calendar'], ['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['dispatch', 'Dispatch register'], ['ipo', 'IPO & mutual funds'], ['audit', 'Audit trail']]],
@@ -2674,6 +2674,29 @@ async function showNotices() {
 A.noticeHide = id => { const h = noticeHidden(); h.push(id); try { localStorage.setItem('ll-notices-hidden', JSON.stringify(h.slice(-50))); } catch (e) {} $('ll-notices')?.remove(); showNotices(); };
 
 /* ---------- exchange files: the exact files of exchanges, CCs, depositories, front end and bank ---------- */
+/* ---------- clearing data: the day's clearing and depository files at work ---------- */
+V.ccdata = {
+  load: () => get(`/v1/clearing-data?date=${S.date}`),
+  html: d => {
+    const secs = d.sections, mk = has('Ops maker', 'Ops checker', 'Risk manager');
+    const panel = s => {
+      const sa = s.id === 'short_allocation';
+      const cols = s.columns.map(c => [esc(c), /Difference|margin|Cash|cash|Clearing|Ledgerline|Short|Collateral|Buy|Sell|Quantity|Accepted|Pledged|value|%/.test(c) ? 'r' : '']);
+      const rows = s.rows.map(r => `<tr>${r.map((v, i) => `<td class="${cols[i][1]} ${/Difference/.test(s.columns[i]) && v && !/^-?0(\.0+)?$/.test(v) ? 'neg' : ''}">${esc(v)}</td>`).join('')}${sa && mk ? `<td><button class="btn sm" data-act="saWhy" data-seg="${esc(r[0])}" data-id="${esc(r[2])}" data-short="${esc(r[6])}">Reason</button></td>` : ''}</tr>`);
+      return `<div class="panel"><div class="hd"><h3>${esc(s.title)}</h3><div class="tools">${s.loaded ? (s.differences ? pill(s.differences + (sa ? ' without a reason' : ' differences'), 'warn') : pill(sa ? 'All reported' : 'Matches', 'good')) : pill('File not loaded for this date', 'nt')}</div></div>
+        <div class="pad dim small">${esc(s.about)}${s.file ? ` <span class="mono">${esc(s.file)}</span>` : ''}</div>${s.loaded ? tbl(sa && mk ? [...cols, ['']] : cols, rows, { empty: 'Nothing in the file.' }) : ''}</div>`;
+    };
+    return ph('Clearing data', 'The clearing corporations’ and CDSL’s daily files at work: their client margins, collateral, short allocations, stamp duty, obligations, re-pledged securities and direct pay-outs, set against Ledgerline’s own figures. Load the files on Exchange files; the reporting files built from them (margin reporting, short allocation) are downloaded there.', '<button class="btn" data-act="go" data-id="xfiles">Exchange files</button>') +
+      `<div class="kpis">${kpi('Files loaded', secs.filter(s => s.loaded).length + ' of ' + secs.length, 'for ' + fmtDate(S.date))}${kpi('Differences', secs.reduce((a, s) => a + s.differences, 0), 'to look into', secs.some(s => s.differences) ? 'warn' : 'good')}</div>` + secs.map(panel).join('');
+  }
+};
+Object.assign(A, {
+  saWhy: (id, el) => {
+    const codes = C.ccdata.reason_codes;
+    confirmModal('Short allocation reason · ' + id, `${el.dataset.seg} short ₹${esc(el.dataset.short)}. One line per reason; recording the same reason again replaces it.`, `<div class="form"><div class="fld full"><label for="sa-c">Reason</label><select class="in" id="sa-c">${Object.keys(codes).sort().map(k => `<option value="${k}">${k} · ${esc(codes[k])}</option>`).join('')}</select></div><div class="fld"><label for="sa-a">Collateral available (₹)</label><input class="in" id="sa-a" value="${esc(el.dataset.short)}"></div><div class="fld"><label for="sa-cc">Other clearing corporation code (reason 01)</label><input class="in mono" id="sa-cc"></div></div>`,
+      'Record', () => act(() => post('/v1/clearing-data/short-allocation-reasons', { date: S.date, segment: el.dataset.seg, ucc: id, code: $('sa-c').value, amount: $('sa-a').value.trim(), cc_code: $('sa-cc').value.trim() }), 'Reason recorded'));
+  },
+});
 /* ---------- periodic work: weekly, monthly, quarterly ---------- */
 const PER_ST = { Done: 'good', Due: 'warn', Overdue: 'bad', Failed: 'bad', Upcoming: 'nt', 'Waiting for approval': 'acc', 'Waiting for a file': 'warn', 'Nothing to do': 'nt' };
 V.periodic = {

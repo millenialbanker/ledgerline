@@ -966,5 +966,5 @@
  "delimiter": ",",
  "crlf": true,
  "final_eol": true,
- "linked": ""
+ "linked": "Loaded into the DP transaction register (credits and debits by demat account; debits billable)"
 }

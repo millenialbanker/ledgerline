@@ -248,3 +248,20 @@ On [[periodic|Periodic work]] every task that is not daily is listed with the pe
 5. **Quarterly BSDA review**: proposes conversions on the [[dp|Depository]] screen (BSDA review tab); a different checker applies it, the depository modification file is kept and clients are emailed. Record a client's choice to stay regular, or a demat account with another DP, so the review leaves them out.
 
 **Run now** runs a task by hand. The **Periodic work** scheduled job (on [[jobs|Scheduled jobs]], every morning) runs the ones that can run by themselves and puts the rest in the work queue: a review to approve, a file to load, a return to upload.
+
+## clearing-data
+title: Use the clearing corporation's and CDSL's daily files
+screen: ccdata
+roles: Ops maker, Ops checker, Risk manager, Compliance officer
+ask: clearing data; mg13; client margin file; margin reporting file; short allocation; sa04; reason code; n-mass; nmass; stamp duty reconciliation; obligation file; direct payout; re-pledge; repledge; var file; haircut; cdsl closing price; isin master; security master; cdsl transaction file; dis master; txn_upld
+related: exchange-files, periodic-work
+
+Load the day's files on [[xfiles|Exchange files]]. What each one does:
+
+- **Security masters** (NSE, BSE scrip series, NSE Clearing applicable symbols, CDSL ISIN master): name every ISIN clients hold.
+- **CDSL closing prices, mutual fund VaR (NAV), NSE Clearing VaR file**: value holdings and collateral that have no exchange price, and give VaR, extreme loss and haircut where the day's market data has none.
+- **Client margin files** (NSE Clearing MG13, MCXCCL): download the **margin reporting** files from Exchange files: the clearing corporation's row unaltered, with the margin collected from Ledgerline's allocation for the segment.
+- **Short allocation (SA04)**: on [[ccdata|Clearing data]] record a reason (01–07) and the collateral available for each client, then download the **short allocation reporting** file.
+- **N-MASS collateral, stamp duty, cash market obligation, re-pledge report, direct pay-out**: reconciled on Clearing data against Ledgerline's allocation, bills, trades and pledges; differences are counted.
+- **CDSL transaction file**: credits and debits go to the DP transaction register (DP statements and billing; debits are billable).
+- **Shortage reporting** and the **DIS master upload** (CDSL, weekly on Periodic work) are written from Ledgerline's settled short deliveries and the DIS books issued. Set the CDSL sender ID as member code **CDSL-SENDER** in Settings.
