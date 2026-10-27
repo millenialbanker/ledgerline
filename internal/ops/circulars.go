@@ -358,6 +358,7 @@ type Duty struct {
 	Active    bool      `json:"active"`
 	Since     string    `json:"since,omitempty"` // first date it applies from
 	Done      []DutyRun `json:"done"`
+	Task      string    `json:"task,omitempty"` // a Periodic work task that does it: its due date and records count
 	NextDue   string    `json:"next_due,omitempty"`
 	Period    string    `json:"period,omitempty"`
 	Overdue   bool      `json:"overdue,omitempty"`
@@ -380,9 +381,9 @@ func DefaultDuties() []Duty {
 		return Duty{ID: id, Title: title, Authority: auth, Frequency: freq, Rule: rule, Role: role, Evidence: ev, Active: true, Done: []DutyRun{}}
 	}
 	return []Duty{
-		ob("OB-COMPLAINTS", "Publish the monthly investor complaints disclosure on the website", "SEBI", "Monthly", "D07", RoleCompliance, "Screenshot or link of the published table"),
+		ob("OB-COMPLAINTS", "Publish the monthly investor complaints disclosure on the website", "SEBI", "Monthly", "D07", RoleCompliance, "Screenshot or link of the published table (Periodic work builds the table)"),
 		ob("OB-CTR", "Cash transaction report to FIU-IND (or nil confirmation per firm policy)", "PMLA rules", "Monthly", "D15", RoleCompliance, "FINnet acknowledgement"),
-		ob("OB-RAS", "Quarterly running account settlement of client funds and securities", "SEBI / exchanges", "Quarterly", "FRI1Q", RoleChecker, "Settlement run and statements sent"),
+		withTask(ob("OB-RAS", "Quarterly running account settlement of client funds and securities", "SEBI / exchanges", "Quarterly", "FRI1Q", RoleChecker, "Settlement run and statements sent"), "ras"),
 		ob("OB-INTAUDIT", "Half-yearly internal audit report submitted to the exchanges", "Exchanges", "Half-yearly", "05-15,11-15", RoleCompliance, "Audit report and exchange acknowledgement"),
 		ob("OB-NETWORTH", "Half-yearly net worth certificate to the exchanges", "Exchanges", "Half-yearly", "04-30,10-31", RoleCompliance, "CA certificate and upload acknowledgement"),
 		ob("OB-SYSAUDIT", "Annual system audit by an empanelled auditor", "Exchanges", "Yearly", "06-30", RoleAdmin, "System audit report and submission"),
@@ -392,6 +393,12 @@ func DefaultDuties() []Duty {
 		ob("OB-CHARTER", "Review the investor charter and the website disclosures", "SEBI", "Yearly", "04-30", RoleCompliance, "Updated pages"),
 	}
 }
+
+func withTask(d Duty, task string) Duty { d.Task = task; return d }
+
+// dutyTasks links duties saved before the link existed to the Periodic
+// work task that does them, so a duty is not dated and chased twice.
+var dutyTasks = map[string]string{"OB-RAS": "ras"}
 
 // nextDue is the first due date on or after `from` for a rule, and the
 // period it belongs to.
@@ -480,6 +487,17 @@ func (o *Ops) Duties(ctx context.Context, tenant, date string) ([]Duty, error) {
 			from = addDays(d, 1)
 		}
 		x.Overdue = x.Active && x.NextDue != "" && x.NextDue < date
+		if x.Task == "" {
+			x.Task = dutyTasks[x.ID]
+		}
+		if t, ok := periodicTask(x.Task); ok {
+			// Periodic work does it: its period, due date and records decide.
+			st := o.periodicStatus(ctx, tenant, t, date)
+			x.Period, x.NextDue, x.Overdue = st.Period, st.DueOn, x.Active && st.Status == "Overdue"
+			if st.Status == "Done" || st.Status == "Nothing to do" {
+				x.NextDue, x.Overdue = "", false
+			}
+		}
 	}
 	sort.SliceStable(obs, func(i, j int) bool { return obs[i].NextDue < obs[j].NextDue })
 	return obs, nil
@@ -561,7 +579,7 @@ func autoCompliance(r *runCtx) error {
 		return err
 	}
 	for _, x := range obs {
-		if !x.Active || x.NextDue == "" || daysBetween(r.date, x.NextDue) > 7 {
+		if !x.Active || x.NextDue == "" || daysBetween(r.date, x.NextDue) > 7 || x.Task != "" { // Periodic work chases its own
 			continue
 		}
 		r.queue(x.ID+"|"+x.Period, x.Title+" · due "+fmtDay(x.NextDue), "Keep: "+x.Evidence+". Mark it done on Circulars & calendar.", "", x.Role, "circulars", x.NextDue+" 18:00", nil)

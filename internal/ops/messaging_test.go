@@ -108,13 +108,13 @@ func TestScheduler(t *testing.T) {
 	if err != nil || len(js) < 8 || js[0].Active {
 		t.Fatalf("seeded jobs: %d %v", len(js), err)
 	}
-	if _, err := o.SaveJob(ctx, T, "farhan.khan", Job{Name: "x", Kind: "monthly_statements", At: "10:00", When: "business"}); !errors.Is(err, ErrForbidden) {
+	if _, err := o.SaveJob(ctx, T, "farhan.khan", Job{Name: "x", Kind: "margin_statements", At: "10:00", When: "business"}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("checker scheduled a job: %v", err)
 	}
 	if _, err := o.SaveJob(ctx, T, "admin", Job{Name: "x", Kind: "email_report", At: "10:00", When: "business"}); err == nil {
 		t.Fatal("email_report without params")
 	}
-	if _, err := o.SaveJob(ctx, T, "admin", Job{Name: "x", Kind: "monthly_statements", At: "25:00", When: "business"}); err == nil {
+	if _, err := o.SaveJob(ctx, T, "admin", Job{Name: "x", Kind: "margin_statements", At: "25:00", When: "business"}); err == nil {
 		t.Fatal("bad time")
 	}
 	notes := js[0]

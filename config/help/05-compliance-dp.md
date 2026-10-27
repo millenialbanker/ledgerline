@@ -28,7 +28,7 @@ related: regulatory-reports
 Contract notes and statements go to clients as PDFs digitally signed with the firm's certificate. Every one is in the [[dispatch|Dispatch register]] with the file exactly as sent and its SHA-256 fingerprint: SEBI treats this log as proof of delivery.
 
 1. **Digital signature** (Admin): load the firm's Class 3 document signer certificate (.pfx with its password), or connect a signing service or HSM. Without one, documents are **held**, never sent unsigned.
-2. Contract notes are signed and sent from [[notes|Contract notes]]. Daily margin, running account settlement, DP and monthly statements go out by themselves (scheduled jobs and after each settlement), or with **Send statements**.
+2. Contract notes are signed and sent from [[notes|Contract notes]]. Daily margin statements go out by a scheduled job; the weekly funds and securities, monthly account, DP and running account statements are [[periodic|Periodic work]], each with its due date. **Send statements** sends any of them by hand.
 3. A **bounced** email (from the mail server, **Mark bounced**, or **Load bounce report**) opens a work item: print the signed PDF, send it by courier and record the courier reference with **Printed copy sent**. Clients who chose paper (ECN = N) get a printed copy every time.
 4. **Check signature** re-verifies a stored PDF; **Download register** gives the log for inspection.
 

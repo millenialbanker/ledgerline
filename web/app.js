@@ -1276,7 +1276,7 @@ V.jobs = {
   }
 };
 function jobModal(id) {
-  const d = C.jobs, j = d.jobs.find(x => x.id === id) || { name: '', kind: 'monthly_statements', at: '08:00', when: 'business', params: {}, notify: [], active: true }, kinds = d.kinds;
+  const d = C.jobs, j = d.jobs.find(x => x.id === id) || { name: '', kind: 'margin_statements', at: '21:30', when: 'business', params: {}, notify: [], active: true }, kinds = d.kinds;
   const params = k => (kinds.find(x => x.kind === k)?.params || []).map(p => `<div class="fld"><label for="jp-${p}">${p === 'to' ? 'Email to (comma separated)' : p === 'report' ? 'Report code (e.g. ledger_balances)' : p === 'min_days' ? 'Minimum days in debit' : p}</label><input class="in" id="jp-${p}" data-jp="${p}" value="${esc(j.params?.[p] || '')}"></div>`).join('');
   modal(mhd(id ? 'Edit job' : 'New job', '') + `<form class="bd" id="jbf"><div class="form">
     <div class="fld full"><label for="jb-n">Name</label><input class="in" id="jb-n" value="${esc(j.name)}" required></div>

@@ -40,11 +40,11 @@ related: autopilot
 
 On [[jobs|Scheduled jobs]]:
 
-- Jobs: the Autopilot stages, debit reminders, monthly statements, the KRA upload file and emailed reports to management.
+- Jobs: the Autopilot stages, debit reminders, daily margin statements, Periodic work, the KRA upload file and emailed reports to management.
 - **New job** (Admin) or **Edit**: time (IST), which days, and who is emailed on success or failure.
 - **Run now** to run one immediately. Each run is recorded with its result.
 
-Contract notes, margin calls, KYC reminders, inactive flagging and interest are Autopilot steps, not jobs.
+Contract notes, margin calls, KYC reminders, inactive flagging and interest are Autopilot steps, not jobs. The weekly, monthly and DP statements are Periodic work (one job runs it every morning); old statement jobs are hidden and never run, so nothing goes twice.
 
 ## message-templates
 title: Change a message template

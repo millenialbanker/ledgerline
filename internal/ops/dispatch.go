@@ -511,7 +511,22 @@ func (o *Ops) sendLedgerStatement(ctx context.Context, tenant, actor, from, to, 
 	}
 	set, _ := o.Settings(ctx, tenant)
 	return o.dispatchDoc(ctx, tenant, actor, docRequest{Kind: DocLedger, Ref: from + " to " + to, Date: to, UCC: ucc, Report: reportPDF(rep, set), Title: "Statement of account " + from + " to " + to,
-		FileName: "StatementOfAccount_" + rep.UCC + "_" + to + ".pdf", Text: fmt.Sprintf("Dear %s,\n\nPlease find attached your statement of account for %s to %s.", rep.Name, from, to)})
+		FileName: "StatementOfAccount_" + rep.UCC + "_" + to + ".pdf", Text: fmt.Sprintf("Dear %s,\n\nPlease find attached your statement of account for %s to %s.%s", rep.Name, from, to, o.closingLine(ctx, tenant, ucc, from, to))})
+}
+
+// closingLine is the closing balance, said in the statement's email.
+func (o *Ops) closingLine(ctx context.Context, tenant, ucc, from, to string) string {
+	st, err := o.App.Ledger.Statement(ctx, tenant, ledgerClient(ucc), from, to)
+	if err != nil {
+		return ""
+	}
+	cl, dc := st.Closing, "Cr"
+	if cl > 0 {
+		dc = "Dr"
+	} else {
+		cl = -cl
+	}
+	return " Closing balance: ₹" + formatINR(cl.Dec()) + " " + dc + "."
 }
 
 func (o *Ops) sendFundsSecStatement(ctx context.Context, tenant, actor, from, to, ucc string) (Dispatch, error) {

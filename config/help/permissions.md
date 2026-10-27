@@ -78,6 +78,7 @@ Managing partners | Ops checker, Admin
 Managing the firm's saved logins | Admin
 Mapping clients | Ops checker, Admin
 Marking a report uploaded | Ops checker, Compliance officer
+Month-end postings | Ops checker
 NRI registration | Ops checker, Compliance officer
 Paying vendor bills | Ops maker, Ops checker
 Posting AP payouts | Ops checker

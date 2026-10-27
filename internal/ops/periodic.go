@@ -179,7 +179,7 @@ func (o *Ops) periodicStatus(ctx context.Context, tenant string, t PeriodicTask,
 		s.Status, s.Note = "Nothing to do", "No settlement date is set in Settings."
 	case done:
 		s.Status, s.Note = "Done", note
-	case s.Run != nil && s.Run.Status != "Done":
+	case s.Run != nil && s.Run.Status != "Done" && s.Run.Status != "Due":
 		s.Status, s.Note = s.Run.Status, s.Run.Summary
 	case date > due:
 		s.Status, s.Note = "Overdue", note
@@ -289,6 +289,25 @@ func (o *Ops) RunPeriodic(ctx context.Context, tenant, actor, id, period, date s
 	return run, err
 }
 
+// unattended says whether a scheduled run may do an Autopilot process
+// itself: only when its policy is Auto. Otherwise the approval is queued
+// (Suggest) or the work is left to a person (Off, or the Manual edition).
+func (o *Ops) unattended(ctx context.Context, tenant, process, date string, queue func(*runCtx)) (bool, error) {
+	if o.manual(ctx, tenant) {
+		return false, &pendingErr{"Nothing runs by itself in the Manual edition: run it here when ready", "Due"}
+	}
+	_, mode, params := o.policy(ctx, tenant, process)
+	switch mode {
+	case ModeAuto:
+		return true, nil
+	case ModeSuggest:
+		r := &runCtx{o: o, ctx: ctx, tenant: tenant, date: date, mode: mode, params: params, process: process, keys: map[string]bool{}}
+		queue(r)
+		return false, &pendingErr{"Waiting for a checker to approve it in the Autopilot work queue", "Waiting for approval"}
+	}
+	return false, &pendingErr{"Switched off in Autopilot: run it here by hand", "Due"}
+}
+
 // pendingErr: the task did its part and waits for a person.
 type pendingErr struct{ msg, status string }
 
@@ -321,6 +340,16 @@ func (o *Ops) runPeriodic(ctx context.Context, tenant, actor string, t PeriodicT
 		}
 		return statementSummary(res), nil, nil
 	case "month_end":
+		// Autopilot's month-end policy decides, however the work is started:
+		// unattended it posts only on Auto and otherwise asks a checker in
+		// the work queue; a person running it must be a checker.
+		if actor == SystemActor {
+			if ok, why := o.unattended(ctx, tenant, "monthly", date, func(r *runCtx) { r.queueMonthly(period) }); !ok {
+				return "", nil, why
+			}
+		} else if err := o.require(ctx, tenant, actor, "Month-end postings", RoleChecker); err != nil {
+			return "", nil, err
+		}
 		s, err := o.runMonthly(ctx, tenant, actor, period)
 		return s, nil, err
 	case "complaints_disclosure":
@@ -341,15 +370,21 @@ func (o *Ops) runPeriodic(ctx context.Context, tenant, actor string, t PeriodicT
 		if date < period {
 			return "", nil, invalid("the settlement date %s has not come", period)
 		}
-		b, err := o.RunRAS(ctx, tenant, actor, period, period)
-		if err != nil && !errors.Is(err, ErrState) {
-			return "", nil, err
+		if actor == SystemActor {
+			if ok, why := o.unattended(ctx, tenant, "ras", date, func(r *runCtx) { r.queueRAS(period) }); !ok {
+				return "", nil, why
+			}
 		}
-		res, serr := o.SendStatements(ctx, tenant, actor, DocRAS, period)
-		if serr != nil {
-			return "", nil, serr
+		s, err := o.settleRAS(ctx, tenant, actor, period)
+		if errors.Is(err, ErrState) {
+			// Settled already (by Autopilot or by hand): send any statements not sent.
+			res, serr := o.SendStatements(ctx, tenant, actor, DocRAS, period)
+			if serr != nil {
+				return "", nil, serr
+			}
+			return "Settled already; statements: " + statementSummary(res), nil, nil
 		}
-		return fmt.Sprintf("%d clients settled; statements: %s", len(b.Items), statementSummary(res)), nil, nil
+		return s, nil, err
 	case "cuspa_review":
 		return o.cuspaReview(ctx, tenant, actor, date)
 	case "es_return":

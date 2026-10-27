@@ -115,6 +115,11 @@ func TestPeriodicCalendar(t *testing.T) {
 	if _, err := o.RunPeriodic(ctx, T, "meera.iyer", "funds_securities", "", date); err == nil {
 		t.Fatal("branch user ran periodic work")
 	}
+	// Month-end postings follow Autopilot's policy whoever starts them: a
+	// maker cannot post them, and the unattended run asks a checker.
+	if _, err := o.RunPeriodic(ctx, T, "priya.nair", "month_end", "", date); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("maker posted month end: %v", err)
+	}
 	sum, err := o.RunDuePeriodic(ctx, T, date)
 	t.Logf("due: %s %v", sum, err)
 	ps, _ = o.Periodic(ctx, T, date)
@@ -123,8 +128,33 @@ func TestPeriodicCalendar(t *testing.T) {
 		if p.ID == "funds_securities" && p.Status != "Done" {
 			t.Fatalf("weekly not done: %+v", p)
 		}
+		if p.ID == "month_end" && p.Status != "Waiting for approval" {
+			t.Fatalf("month end did not wait for a checker: %+v", p)
+		}
 		if p.ID == "bsda_review" && p.Status != "Waiting for approval" && !strings.Contains(p.Note, "market data") {
 			t.Fatalf("bsda not proposed: %+v", p)
+		}
+	}
+}
+
+func TestMonthEndApprovalQueued(t *testing.T) {
+	o, ctx := notesReady(t)
+	if _, err := o.RunPeriodic(ctx, T, SystemActor, "month_end", "", "2026-10-19"); err != nil {
+		t.Fatal(err)
+	}
+	ws, _ := o.WorkItems(ctx, T, "")
+	found := false
+	for _, w := range ws {
+		found = found || (w.Proposed != nil && w.Proposed.Kind == "monthly.post" && w.Proposed.Args["month"] == "2026-09")
+	}
+	if !found {
+		t.Fatal("no approval in the work queue")
+	}
+	// The RAS duty in the compliance calendar is dated by Periodic work.
+	ds, _ := o.Duties(ctx, T, "2026-10-19")
+	for _, d := range ds {
+		if d.ID == "OB-RAS" && d.Task != "ras" {
+			t.Fatalf("RAS duty not linked: %+v", d)
 		}
 	}
 }

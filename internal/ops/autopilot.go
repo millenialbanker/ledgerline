@@ -411,6 +411,8 @@ func (o *Ops) carryOut(ctx context.Context, tenant, actor, date string, p Propos
 		_, err = o.SetClientRisk(ctx, tenant, actor, a["ucc"], a["risk"], nil, "Raised on the rules' suggestion: "+a["why"])
 	case "monthly.post":
 		_, err = o.runMonthly(ctx, tenant, actor, a["month"])
+	case "ras.settle":
+		_, err = o.settleRAS(ctx, tenant, actor, a["date"])
 	default:
 		err = invalid("unknown action %q", p.Kind)
 	}
@@ -1328,7 +1330,11 @@ func autoRAS(r *runCtx) error {
 	if r.date != set.RASMonthly && r.date != set.RASQuarterly {
 		return nil
 	}
-	b, err := r.o.RunRAS(r.ctx, r.tenant, SystemActor, r.date, r.date)
+	if !r.auto() {
+		r.queueRAS(r.date)
+		return nil
+	}
+	s, err := r.o.settleRAS(r.ctx, r.tenant, SystemActor, r.date)
 	if err != nil {
 		if errors.Is(err, ErrState) {
 			r.note("already settled")
@@ -1336,9 +1342,33 @@ func autoRAS(r *runCtx) error {
 		}
 		return err
 	}
-	r.done += len(b.Items)
-	r.note("%d clients settled", len(b.Items))
+	r.done++
+	r.note("%s", s)
 	return nil
+}
+
+func (r *runCtx) queueRAS(date string) {
+	r.queue("ras:"+date, "Running account settlement of "+fmtDay(date), "Settles running accounts, pays out the funds and sends each client the settlement statement.", "", RoleChecker, "ras", "",
+		&Proposal{Kind: "ras.settle", Label: "Settle and pay out", Args: map[string]string{"date": date}})
+}
+
+func (r *runCtx) queueMonthly(month string) {
+	r.queue(month, "Month-end postings for "+month, "Interest on debit balances, MTF interest, DP bills and AP payouts.", "", RoleChecker, "autopilot", "", &Proposal{Kind: "monthly.post", Label: "Post all", Args: map[string]string{"month": month}})
+}
+
+// settleRAS settles running accounts on a settlement date and sends the
+// settlement statements: the one way Autopilot, Periodic work and the
+// work queue do it.
+func (o *Ops) settleRAS(ctx context.Context, tenant, actor, date string) (string, error) {
+	b, err := o.RunRAS(ctx, tenant, actor, date, date)
+	if err != nil {
+		return "", err
+	}
+	res, err := o.SendStatements(ctx, tenant, actor, DocRAS, date)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%d clients settled; statements: %s", len(b.Items), statementSummary(res)), nil
 }
 
 func autoMonthly(r *runCtx) error {
@@ -1351,7 +1381,7 @@ func autoMonthly(r *runCtx) error {
 		return nil
 	}
 	if !r.auto() {
-		r.queue(prev, "Month-end postings for "+prev, "Interest on debit balances, MTF interest, DP bills and AP payouts.", "", RoleChecker, "autopilot", "", &Proposal{Kind: "monthly.post", Label: "Post all", Args: map[string]string{"month": prev}})
+		r.queueMonthly(prev)
 		return nil
 	}
 	s, err := r.o.runMonthly(r.ctx, r.tenant, SystemActor, prev)

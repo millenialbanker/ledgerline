@@ -14,7 +14,6 @@ import (
 
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
-	"ledgerline/internal/ledger"
 	"ledgerline/internal/money"
 )
 
@@ -40,10 +39,7 @@ type JobKind struct {
 // JobKinds are the jobs the scheduler can run.
 var JobKinds = []JobKind{
 	{"debit_reminders", "Debit reminders", "Messages clients in debit for at least the given number of days.", []string{"min_days"}},
-	{"weekly_statements", "Weekly statements of funds and securities", "Emails every client with a balance, a movement or securities with the broker their statement of funds and securities for the week to the last Friday, as a signed PDF.", nil},
-	{"monthly_statements", "Monthly statements", "Emails every active client their statement of account for the previous month, as a signed PDF.", nil},
 	{"margin_statements", "Daily margin statements", "Emails every client with margin that day their signed margin statement (run after the day's margins are final).", nil},
-	{"dp_statements", "DP statements", "Emails every DP account its signed statement of transactions and holdings for the previous month.", nil},
 	{"email_report", "Email a report", "Generates a regulatory or inspection report and emails it to the recipients.", []string{"report", "to"}},
 	{"kra_upload", "KRA upload file", "Builds the KRA upload file of clients opened or changed since the last run and keeps it with the files.", nil},
 	{"periodic", "Periodic work", "Runs the weekly, monthly and quarterly work that is due and not done (statements, month-end postings, running account settlement, disclosures) and queues what needs a person (such as the BSDA review).", nil},
@@ -59,6 +55,10 @@ var RetiredJobKinds = map[string]string{
 	"rekyc_reminders": "Autopilot: KYC registries and reminders",
 	"post_interest":   "Autopilot: Month-end postings (a checker approves before posting)",
 	"inactive_scan":   "Autopilot: Inactive account flagging",
+	// The statements below are Periodic work (one place, with due dates).
+	"weekly_statements":  "Periodic work: Weekly statement of funds and securities",
+	"monthly_statements": "Periodic work: Monthly statement of account (the closing balance is in the email)",
+	"dp_statements":      "Periodic work: DP transaction and holding statements",
 }
 
 func liveJobs(js []Job) []Job {
@@ -373,53 +373,8 @@ func (o *Ops) runJob(ctx context.Context, tenant string, j Job, date string) (st
 			return "", err
 		}
 		return statementSummary(res), nil
-	case "dp_statements":
-		month := addDays(date[:8]+"01", -1)[:7]
-		res, err := o.SendStatements(ctx, tenant, a, DocDP, month)
-		if err != nil {
-			return "", err
-		}
-		return statementSummary(res), nil
 	case "periodic":
 		return o.RunDuePeriodic(ctx, tenant, date)
-	case "weekly_statements":
-		res, err := o.SendStatements(ctx, tenant, a, DocFundsSec, lastFriday(date))
-		if err != nil {
-			return "", err
-		}
-		return statementSummary(res), nil
-	case "monthly_statements":
-		to := addDays(date[:8]+"01", -1)
-		from := to[:8] + "01"
-		if res, err := o.SendStatements(ctx, tenant, a, DocLedger, to[:7]); err != nil {
-			return "", err
-		} else if len(res.Errors) > 0 {
-			return statementSummary(res), fmt.Errorf("%d statements failed: %s", len(res.Errors), res.Errors[0])
-		}
-		cs, err := o.ClientMap(ctx, tenant)
-		if err != nil {
-			return "", err
-		}
-		n := 0
-		for _, u := range sortedKeys(cs) {
-			if cs[u].Status != "Active" {
-				continue
-			}
-			st, err := o.App.Ledger.Statement(ctx, tenant, ledger.ClientAccount(u), from, to)
-			if err != nil {
-				return "", err
-			}
-			cl := st.Closing
-			dc := "Cr"
-			if cl > 0 {
-				dc = "Dr"
-			} else {
-				cl = -cl
-			}
-			o.notify(ctx, tenant, a, "statement.monthly", u, map[string]string{"from": from, "to": to, "closing": "₹" + formatINR(cl.Dec()) + " " + dc})
-			n++
-		}
-		return fmt.Sprintf("%d statements for %s to %s", n, from, to), nil
 	case "email_report":
 		rows, err := o.ReportRows(ctx, tenant, date, j.Params["report"])
 		if err != nil {
@@ -494,17 +449,16 @@ func (o *Ops) SeedJobs(ctx context.Context, tenant string) error {
 			return nil // the firm's schedule exists (the Autopilot jobs alone don't count)
 		}
 	}
+	// IDs stay as first issued: JOB-002 and JOB-004 were the monthly and DP
+	// statement jobs, now Periodic work.
 	seed := []Job{
-		{Name: "Debit reminders", Kind: "debit_reminders", At: "10:00", When: "business", Params: map[string]string{"min_days": "3"}},
-		{Name: "Monthly statements", Kind: "monthly_statements", At: "08:00", When: "monthly:2"},
-		{Name: "Daily margin statements", Kind: "margin_statements", At: "21:30", When: "business"},
-		{Name: "DP statements", Kind: "dp_statements", At: "09:00", When: "monthly:3"},
-		{Name: "KRA upload file", Kind: "kra_upload", At: "20:00", When: "business", OnlyFailure: true},
-		{Name: "Client ledger balances to management", Kind: "email_report", At: "21:00", When: "business", Params: map[string]string{"report": "ledger_balances", "to": "md@bhairav.example"}},
-		{Name: "Periodic work (weekly, monthly, quarterly)", Kind: "periodic", At: "07:45", When: "daily"},
+		{ID: "JOB-001", Name: "Debit reminders", Kind: "debit_reminders", At: "10:00", When: "business", Params: map[string]string{"min_days": "3"}},
+		{ID: "JOB-003", Name: "Daily margin statements", Kind: "margin_statements", At: "21:30", When: "business"},
+		{ID: "JOB-005", Name: "KRA upload file", Kind: "kra_upload", At: "20:00", When: "business", OnlyFailure: true},
+		{ID: "JOB-006", Name: "Client ledger balances to management", Kind: "email_report", At: "21:00", When: "business", Params: map[string]string{"report": "ledger_balances", "to": "md@bhairav.example"}},
+		{ID: "JOB-007", Name: "Periodic work (weekly, monthly, quarterly)", Kind: "periodic", At: "07:45", When: "daily"},
 	}
-	for i, j := range seed {
-		j.ID = fmt.Sprintf("JOB-%03d", i+1)
+	for _, j := range seed {
 		if j.Params == nil {
 			j.Params = map[string]string{}
 		}
@@ -512,8 +466,8 @@ func (o *Ops) SeedJobs(ctx context.Context, tenant string) error {
 			return err
 		}
 	}
-	_, err := o.next(ctx, tenant, "job", "system")
-	for i := 1; i < len(seed) && err == nil; i++ {
+	var err error
+	for i := 0; i < 7 && err == nil; i++ { // the counter as if all seven were issued
 		_, err = o.next(ctx, tenant, "job", "system")
 	}
 	return err
