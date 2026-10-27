@@ -83,7 +83,7 @@ var AutoDefs = []AutoDef{
 	{"reports", "Compliance", "Regulatory reports", "Generates and validates every daily report; the upload to the exchange portal is queued until a connection is set up.", "eod", ModeAuto, "", ModeAuto, nil, 40},
 	{"surveillance", "Compliance", "Surveillance triage", "Runs the alert rules and gathers evidence on each alert; a compliance officer decides it.", "eod", ModeSuggest, "Alerts are decided, and suspicious transactions reported, by the principal officer under the PMLA rules.", ModeSuggest, nil, 30},
 	{"nri", "Compliance", "NRI checks", "Checks NRI trades against the PIS rules and raises alerts.", "eod", ModeAuto, "", ModeAuto, nil, 10},
-	{"kyc", "Compliance", "KYC registries and reminders", "Sends periodic-KYC reminders and keeps the KRA upload file; PMLA risk changes the rules suggest go to the queue.", "eod", ModeAuto, "Risk categories are set by the compliance officer.", ModeAuto, nil, 20},
+	{"kyc", "Compliance", "KYC registries and reminders", "Sends periodic-KYC reminders once a week to clients due within 30 days; PMLA risk changes and possible debarred entities the rules find go to the queue. (The KRA upload file is a scheduled job.)", "eod", ModeAuto, "Risk categories are set by the compliance officer.", ModeAuto, nil, 20},
 	{"inactive", "Compliance", "Inactive account flagging", "Flags accounts with no activity for the period set by the exchanges and adds them to the UCC upload.", "eod", ModeAuto, "", ModeSuggest, nil, 15},
 	{"change_otp", "Clients", "Contact changes verified by OTP", "Email and mobile changes from the portal are applied once the client enters the code sent to the new contact; bank, address and nomination changes need a person.", "event", ModeAuto, "", ModeAuto, nil, 10},
 	{"service", "Clients", "Service requests and complaints", "Fulfils 'contract note or statement not received' requests by resending them, assigns complaints in turn, and escalates complaints close to their due date.", "event", ModeAuto, "Complaints are resolved by a person; only service requests are closed automatically.", ModeAuto, nil, 25},
@@ -1152,7 +1152,9 @@ func autoKYC(r *runCtx) error {
 		}
 	}
 	// Reminders once a week per client.
-	key := "kyc-reminders:" + r.date[:8]
+	day, _ := time.Parse("2006-01-02", r.date)
+	y, w := day.ISOWeek()
+	key := fmt.Sprintf("kyc-reminders:%d-W%02d", y, w)
 	if _, _, err := docs.Get[AutoRun](r.ctx, r.o.Docs, r.tenant, cAutoRun, key); err != nil {
 		for _, x := range v.Rows {
 			if x.ReKYCDue != "" && x.ReKYCDue <= addDays(r.date, 30) {
