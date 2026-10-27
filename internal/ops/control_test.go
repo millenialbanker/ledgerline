@@ -5,7 +5,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"ledgerline/internal/control"
 	"ledgerline/internal/docs"
@@ -169,7 +168,7 @@ func TestControlRoundTrip(t *testing.T) {
 	if _, err := c.SaveCustomer(ctx, "owner", cu); err != nil {
 		t.Fatal(err)
 	}
-	pv, _ := c.Preview(ctx, "owner", time.Now().In(control.IST).Format("2006-01"))
+	pv, _ := c.Preview(ctx, "owner", c.Now().In(control.IST).Format("2006-01"))
 	ai := false
 	for _, l := range pv[0].Invoice.Lines {
 		if l.Kind == "ai" && l.Amount == money.MustAmount("5000") {

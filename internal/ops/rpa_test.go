@@ -47,11 +47,12 @@ func TestRPAPairingAndAccess(t *testing.T) {
 	}
 	// Expired codes do not work.
 	code2, _, _ := o.RPAPairCode(ctx, T, "priya.nair")
-	o.Now = func() time.Time { return time.Now().Add(11 * time.Minute) }
+	base := o.Now
+	o.Now = func() time.Time { return base().Add(11 * time.Minute) }
 	if _, _, err := o.RPAPair(ctx, T, code2, "late", "", ""); err == nil {
 		t.Fatal("expired code accepted")
 	}
-	o.Now = time.Now
+	o.Now = base
 	// Someone else cannot remove it; the owner can, and the token stops working.
 	if err := o.RevokeRPAAgent(ctx, T, "farhan.khan", a.ID); err == nil {
 		t.Fatal("other user revoked")
@@ -259,9 +260,10 @@ func TestRPAScheduleAndStall(t *testing.T) {
 		t.Fatalf("scheduled runs %d", len(rs))
 	}
 	o.RPANextJob(ctx, T, a)
-	o.Now = func() time.Time { return time.Now().Add(20 * time.Minute) }
+	base := o.Now
+	o.Now = func() time.Time { return base().Add(20 * time.Minute) }
 	o.rpaTick(ctx, T, o.Now(), false)
-	o.Now = time.Now
+	o.Now = base
 	r, _ := o.RPARunGet(ctx, T, "priya.nair", rs[0].ID)
 	if r.Status != "Failed" || !strings.Contains(r.Error, "stopped responding") {
 		t.Fatalf("stalled run %s %s", r.Status, r.Error)

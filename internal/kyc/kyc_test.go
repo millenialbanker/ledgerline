@@ -195,7 +195,16 @@ func TestDenyAndBadPKCE(t *testing.T) {
 	}
 	// A code issued for a different PKCE challenge cannot be exchanged.
 	id, link = r.create(Hint{Name: "A B"})
-	r.walk(link, true, func(q *url.Values) { q.Set("code_challenge", "x"+q.Get("code_challenge")[1:]) })
+	// Change the first character to a different one: a fixed "x" would
+	// leave a challenge that already starts with x unchanged (1 in 64).
+	r.walk(link, true, func(q *url.Values) {
+		c := q.Get("code_challenge")
+		first := "x"
+		if c[0] == 'x' {
+			first = "y"
+		}
+		q.Set("code_challenge", first+c[1:])
+	})
 	if _, m := r.api("GET", "/v1/sessions/"+id, testKey, nil); m["status"] != "Failed" || !strings.Contains(m["error"].(string), "refused the code") {
 		t.Errorf("pkce: %v", m)
 	}
