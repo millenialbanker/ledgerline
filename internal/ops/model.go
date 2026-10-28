@@ -174,6 +174,13 @@ type Settings struct {
 	// or photo) to the AI model to read its details. Off by default; the
 	// bill leaves the server, so not allowed in India-only mode.
 	BillAI bool `json:"bill_ai,omitempty"`
+	// Client allocation to NSE Clearing through its API (nclalloc.go): the
+	// key and secret are in Connections. AllocAPILive sends requests;
+	// AllocAutoPush sends money that comes in during the day as it is
+	// credited, to AllocPushSegment (CM by default).
+	AllocAPILive     bool   `json:"alloc_api_live,omitempty"`
+	AllocAutoPush    bool   `json:"alloc_auto_push,omitempty"`
+	AllocPushSegment string `json:"alloc_push_segment,omitempty"`
 	// Backups (backups.go): how many each tier keeps, whether the year
 	// for yearly backups ends in March or December, and when a day that
 	// was not closed is backed up anyway.
@@ -263,6 +270,9 @@ type Ops struct {
 	// Backups is where firm backups are written (backups.go); nil means
 	// backups are off. Sealer encrypts them with the firms' data keys.
 	Backups *backup.Dir
+	// NCL talks to NSE Clearing's allocation API (nclalloc.go); nil uses
+	// the real service.
+	NCL NCLAllocAPI
 	// Mailer sends email (contract notes, statements). Nil: development
 	// servers simulate delivery; production servers hold the mail.
 	Mailer Mailer
@@ -403,6 +413,18 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	}
 	if s.BillAI && o.Residency.IndiaOnly {
 		return invalid("reading bills with AI sends them outside India, which India-only mode does not allow")
+	}
+	s.AllocPushSegment = strings.ToUpper(strings.TrimSpace(s.AllocPushSegment))
+	if s.AllocPushSegment != "" && s.AllocPushSegment != "CM" && s.AllocPushSegment != "FO" && s.AllocPushSegment != "CD" {
+		return invalid("money coming in is allocated to CM, FO or CD")
+	}
+	if s.AllocAPILive {
+		if _, _, err := o.allocCodes(s); err != nil {
+			return err
+		}
+		if _, ok := o.nclConn(ctx, tenant); !ok {
+			return invalid("enter NSE Clearing's consumer key and secret in Settings → Connections (NSE Clearing allocation API) before switching sending on")
+		}
 	}
 	if s.WarnUtilPct < 1 || s.WarnUtilPct > 100 {
 		return invalid("watch threshold must be between 1 and 100")

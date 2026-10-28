@@ -330,6 +330,13 @@ func (o *Ops) loadCCFile(ctx context.Context, tenant, actor string, s *xfile.Spe
 			fail(err)
 			return true
 		}
+		if kind == "nmass" {
+			ms := make([]map[string]string, 0, len(rows))
+			for _, x := range rows {
+				ms = append(ms, x.Values)
+			}
+			o.levelsFromNMASS(ctx, tenant, actor, date, seg, ms)
+		}
 		r.Loaded, r.Added = map[string]string{
 			"mg13": "Loaded as the clearing corporation's client margins (used for the margin reporting file and checked on Clearing data)", "mcxmargin": "Loaded as MCXCCL's client margins (used for the margin reporting file)",
 			"sa04": "Loaded as short allocations, to report back with reasons on Clearing data", "nmass": "Loaded and reconciled with Ledgerline's collateral allocation on Clearing data",

@@ -78,6 +78,8 @@ var ConnProviders = []ConnProvider{
 		Fields: []ConnField{{Key: "member", Label: "Member code"}, fUser, fPass, fURL, fNotes}},
 	{ID: "bse", Name: "BSE member portal", Group: "Exchanges", Purpose: "UCC, reports and file downloads", Test: "https",
 		Fields: []ConnField{{Key: "member", Label: "Member code"}, fUser, fPass, fURL, fNotes}},
+	{ID: connNCLAlloc, Name: "NSE Clearing allocation API", Group: "Exchanges", Purpose: "Client collateral allocation to NSE Clearing (CIM Allocation Service): the consumer key and secret NSE Clearing emails after registration", Test: "https",
+		Fields: []ConnField{{Key: "member", Label: "Clearing member code"}, {Key: "api_key", Label: "Consumer key", Secret: true}, {Key: "secret", Label: "Consumer secret", Secret: true}, {Key: "url", Label: "Address", Optional: true, Placeholder: nclAllocBase}, {Key: "notes", Label: "Notes (IP addresses registered, contact)", Optional: true}}},
 	{ID: "mcx", Name: "MCX member portal", Group: "Exchanges", Purpose: "UCC, reports and file downloads", Test: "https",
 		Fields: []ConnField{{Key: "member", Label: "Member code"}, fUser, fPass, fURL, fNotes}},
 	{ID: "depository", Name: "Depository (CDSL / NSDL)", Group: "Depository", Purpose: "DP back office files, pledges, DIS", Test: "https",

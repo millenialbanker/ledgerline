@@ -181,6 +181,31 @@ On [[deposits|Clearing deposits]], **Record a deposit** for each item with the c
 - Ledgerline checks base minimum capital (**Base capital required**) and that at least half is cash or cash equivalents.
 - Maturities are queued 30 days ahead; when renewed or released, click **Renewed / released**.
 
+## clearing-allocation
+title: Allocate client collateral to NSE Clearing
+screen: allocation
+roles: Ops checker, Risk manager
+ask: allocation; client allocation; collateral allocation; NSE Clearing API; CIM allocation; allocate funds to client; short allocation; push allocation; money came in allocate; N-MASS allocation; allocation overwritten; consumer key; allocation API key
+related: clearing-deposits, margin-shortfall, record-receipt
+
+NSE Clearing holds each client's collateral as the firm allocates it. The amount sent is the client's **final** allocation, not an addition: a request built on an old figure cuts the client's allocation and can cause short allocation. Ledgerline therefore builds every request on the level NSE Clearing last confirmed.
+
+**Set up (Admin), once:**
+1. The clearing member registers for the API: email collaterals_ops@nsccl.co.in with the member code, name, email, phone and this server's IP addresses (circular NCL/CMPT/52129, Annexure 1).
+2. Enter the consumer key and secret NSE Clearing emails back in [[connections|Connections]] → NSE Clearing allocation API.
+3. In [[settings|Settings]] → NSE Clearing allocation, switch on sending, and choose whether money that comes in is allocated at once and to which segment. There is no test system: the first request is live.
+
+**During the day:**
+- When money is credited (receipt approved, cheque cleared, bank credit matched, online payment), it is added to the client's confirmed level and sent as an upward request.
+- Only one request per client is out at a time; more money waits for the result.
+- A money-in request never lowers a level.
+- Results are fetched every minute. A partly accepted request leaves the level **unconfirmed**: nothing more is sent for that client until a checker uses **Confirm a level** with the figure from N-MASS.
+- Requests that fail because NSE Clearing is unavailable are resent under a new message ID; no result after 5 minutes raises a work item.
+
+**Start and end of day:** on [[allocation|Clearing allocation]], **Prepare start-of-day batch** or **Prepare end-of-day batch** brings every client to Ledgerline's figure (cash allocated), only where it differs, reductions first. A second person approves it before it is sent. The end-of-day batch goes as type E, applied at NSE Clearing's end-of-day release. Allocation closes at 20:00.
+
+Confirmed levels come from NSE Clearing's results and from the N-MASS file loaded on Exchange files. Every request and reply is kept by message ID, as evidence when reporting short allocation (reason 05, allocation accepted later).
+
 ## upstream
 title: Upstream client funds to the clearing corporation
 screen: ledger

@@ -269,6 +269,14 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	if err := o.rpaTick(ctx, tenant, now, !o.manual(ctx, tenant)); err != nil {
 		return 0, fmt.Errorf("automations: %w", err)
 	}
+	// Client allocation: results of requests sent to NSE Clearing are
+	// fetched and applied, and money in is sent, while the allocation
+	// window is open. Runs only when the firm switched sending on.
+	if hm := now.In(ist).Format("15:04"); hm >= "07:00" && hm <= "21:00" {
+		if set, _ := o.Settings(ctx, tenant); set.AllocAPILive {
+			_, _ = o.AllocationCheck(ctx, tenant, SystemActor)
+		}
+	}
 	if o.manual(ctx, tenant) {
 		return 0, nil // Manual edition: none of the firm's jobs run on a timer
 	}

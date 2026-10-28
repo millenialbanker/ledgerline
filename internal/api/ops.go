@@ -84,6 +84,12 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/clients/{ucc}/block", s.block, true)
 	R("GET /v1/market", s.market, false)
 	R("GET /v1/collateral", s.collateral, false)
+	R("GET /v1/allocation", s.allocation, false)
+	R("POST /v1/allocation/batch", s.allocationBatch, true)
+	R("POST /v1/allocation/check", s.allocationCheck, true)
+	R("POST /v1/allocation/level", s.allocationLevel, true)
+	R("POST /v1/allocation/{id}/decide", s.allocationDecide, true)
+	R("GET /v1/allocation/{id}/file", s.allocationFile, false)
 	R("GET /v1/pledges", s.pledges, false)
 	R("POST /v1/pledges/{id}/decide", s.decidePledge, true)
 	R("GET /v1/rms", s.rms, false)
@@ -523,6 +529,64 @@ func (s *Server) collateral(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := s.ops.Collateral(r.Context(), tenant(r), d)
 	ok(w, v, err)
+}
+
+func (s *Server) allocation(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.AllocationScreen(r.Context(), tenant(r), d)
+	ok(w, v, err)
+}
+
+func (s *Server) allocationBatch(w http.ResponseWriter, r *http.Request) {
+	var b struct{ Date, Kind string }
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.PrepareAllocationBatch(r.Context(), tenant(r), actor(r), b.Date, b.Kind)
+	ok(w, v, err)
+}
+
+func (s *Server) allocationCheck(w http.ResponseWriter, r *http.Request) {
+	n, err := s.ops.AllocationCheck(r.Context(), tenant(r), actor(r))
+	ok(w, map[string]int{"results": n}, err)
+}
+
+func (s *Server) allocationLevel(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Segment, UCC, Note string
+		Amount             money.Dec
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.ConfirmAllocationLevel(r.Context(), tenant(r), actor(r), b.Segment, b.UCC, b.Amount, b.Note)
+	ok(w, v, err)
+}
+
+func (s *Server) allocationDecide(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Approve bool
+		Note    string
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.DecideAllocation(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Approve, b.Note)
+	ok(w, v, err)
+}
+
+func (s *Server) allocationFile(w http.ResponseWriter, r *http.Request) {
+	name, b, err := s.ops.AllocationRequestFile(r.Context(), tenant(r), r.PathValue("id"))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+	w.Write(b)
 }
 
 func (s *Server) pledges(w http.ResponseWriter, r *http.Request) {

@@ -2,12 +2,10 @@ package ops
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"sort"
 	"strings"
 	"sync"
@@ -530,7 +528,9 @@ func (o *Ops) allocationRows(ctx context.Context, tenant string, set Settings, d
 		if seg == "COM" {
 			seg = "CO"
 		}
-		amt := a.Cash.Add(a.NonCash)
+		// The API and file allocate cash, FDs and BGs; securities reach the
+		// clearing corporation by re-pledge, not by allocation.
+		amt := a.Cash
 		out = append(out, map[string]string{"curDate": date, "segment": seg, "cmCode": cm, "tmCode": tm, "cpCode": "", "cliCode": a.UCC, "accType": "C", "amt": amt.Fixed(2), "action": "U"})
 	}
 	return out, nil
@@ -595,7 +595,11 @@ func (o *Ops) allocationFile(ctx context.Context, tenant string, s *xfile.Spec, 
 	if list == nil {
 		list = []req{}
 	}
-	msg := map[string]any{"version": "1.0", "data": map[string]any{"msgId": msgID(), "requestType": "I", "allocationRequest": list}}
+	mid, err := o.newAllocMsgID(ctx, tenant, SystemActor, rows0(rows, "cmCode", set.MemberCodes["NCL"]), date)
+	if err != nil {
+		return "", nil, err
+	}
+	msg := map[string]any{"version": "1.0", "data": map[string]any{"msgId": mid, "requestType": "I", "allocationRequest": list}}
 	b, err := json.Marshal(msg)
 	if err != nil {
 		return "", nil, err
@@ -612,12 +616,6 @@ func rows0(rows []map[string]string, k, def string) string {
 		return rows[0][k]
 	}
 	return strings.TrimSpace(def)
-}
-
-// msgID is a 20-digit message id.
-func msgID() string {
-	n, _ := rand.Int(rand.Reader, new(big.Int).Exp(big.NewInt(10), big.NewInt(12), nil))
-	return time.Now().Format("20060102") + fmt.Sprintf("%012d", n)
 }
 
 // holdingStatementFile is the daily client holding report sent to the

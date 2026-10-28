@@ -6,9 +6,11 @@ Activating a client | Ops checker
 Adding client documents | Ops maker, Ops checker, Compliance officer, Branch staff
 Adding users | Admin
 Advancing onboarding | Ops maker, Ops checker
+Allocating collateral | Ops maker, Ops checker, Risk manager
 Applying corporate actions | Ops checker
 Applying the BSDA review | Ops checker
 Approving a receipt | Ops checker
+Approving allocation | Ops checker, Risk manager
 Approving an override | Ops checker, Risk manager
 Approving client changes | Ops checker
 Approving exchange holidays | Ops checker, Compliance officer
@@ -43,6 +45,7 @@ Client code modification | Ops maker, Ops checker
 Closing MTF positions | Ops checker, Risk manager
 Closing out a short delivery | Ops checker
 Closing the day | Ops checker
+Confirming allocation | Ops checker, Risk manager
 Confirming payouts | Ops maker, Ops checker
 Corporate actions | Ops maker, Ops checker
 Correcting a bill | Ops checker

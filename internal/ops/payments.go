@@ -189,6 +189,9 @@ func (o *Ops) DecideReceipt(ctx context.Context, tenant, actor, id string, appro
 	})
 	if err == nil {
 		o.log(ctx, tenant, actor, "receipt."+strings.ToLower(status), id, map[string]any{"ucc": r.UCC, "amount": r.Amount.String()})
+		if approve && status == "Credited" {
+			o.AllocationMoneyIn(ctx, tenant, r.UCC, r.Amount, r.ID)
+		}
 		if approve {
 			o.notify(ctx, tenant, actor, "receipt.credited", r.UCC, map[string]string{"amount": formatINR(r.Amount.Dec()), "mode": r.Mode, "date": r.Date, "status": map[string]string{"Credited": "credited", "Uncleared": "credited subject to clearing"}[status]})
 		}
@@ -250,6 +253,9 @@ func (o *Ops) ClearCheque(ctx context.Context, tenant, actor, id, date string, b
 	})
 	if err == nil {
 		o.log(ctx, tenant, actor, "cheque."+strings.ToLower(status), id, map[string]any{"ucc": r.UCC, "amount": r.Amount.String()})
+		if status == "Credited" {
+			o.AllocationMoneyIn(ctx, tenant, r.UCC, r.Amount, r.ID)
+		}
 	}
 	return r.Public(), err
 }
@@ -343,6 +349,7 @@ func (o *Ops) GatewayWebhook(ctx context.Context, tenant string, body []byte, si
 		return r, false, err
 	}
 	o.log(ctx, tenant, "gateway", "receipt.gateway", r.ID, map[string]any{"ucc": r.UCC, "amount": r.Amount.String()})
+	o.AllocationMoneyIn(ctx, tenant, r.UCC, r.Amount, r.ID)
 	o.notify(ctx, tenant, "gateway", "receipt.credited", r.UCC, map[string]string{"amount": formatINR(r.Amount.Dec()), "mode": "online payment", "date": r.Date, "status": "credited"})
 	return r.Public(), true, nil
 }

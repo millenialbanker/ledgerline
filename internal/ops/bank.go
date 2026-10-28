@@ -84,6 +84,9 @@ func (o *Ops) matchCredit(ctx context.Context, tenant, actor string, t BankTxn, 
 		return t, err
 	}
 	t.EntryID = e.ID
+	if t.Status == "Matched" {
+		o.AllocationMoneyIn(ctx, tenant, t.UCC, t.Amount, "BANK:"+t.Ref)
+	}
 	if t.Status == "Third-party" {
 		o.raiseAlert(ctx, tenant, actor, Alert{Source: "Internal", Type: "Third-party funds attempt", UCC: t.UCC, Severity: "Medium",
 			Detail: fmt.Sprintf("%s credit of ₹%s from an unregistered account (%s, %s)", t.Mode, formatINR(t.Amount.Dec()), t.Remitter, MaskAccount(t.Account))}, "TPF:"+t.Ref)
@@ -164,6 +167,7 @@ func (o *Ops) IdentifyCredit(ctx context.Context, tenant, actor, id, ucc string,
 	})
 	if err == nil {
 		o.log(ctx, tenant, actor, "bank.credit.identified", t.Ref, map[string]any{"ucc": c.UCC, "amount": t.Amount.String()})
+		o.AllocationMoneyIn(ctx, tenant, c.UCC, t.Amount, "BANK:"+t.Ref)
 	}
 	return t, err
 }
