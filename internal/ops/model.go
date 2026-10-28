@@ -127,7 +127,12 @@ type Settings struct {
 	InterestGraceDays  int64    `json:"interest_grace_days"`  // free days at the start of a debit spell
 	InterestMinimum    string   `json:"interest_minimum"`     // ₹; smaller amounts are not charged
 	InterestExemptTags []string `json:"interest_exempt_tags"` // client groups not charged
-	GSTPct             string   `json:"gst_pct"`              // default 18
+	// InterestPosting: "monthly" (default: simple interest posted at month
+	// end) or "daily" (posted every day from InterestDailyFrom, so it earns
+	// interest itself; one invoice a month). See interestdaily.go.
+	InterestPosting   string `json:"interest_posting,omitempty"`
+	InterestDailyFrom string `json:"interest_daily_from,omitempty"`
+	GSTPct            string `json:"gst_pct"` // default 18
 	// DebitBlockDays: clients in debit this many days are blocked from buying.
 	DebitBlockDays int64 `json:"debit_block_days"`
 
@@ -429,6 +434,15 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	}
 	if s.InterestGraceDays < 0 || s.DebitBlockDays < 0 || s.AutoLockDays < 0 || s.AutoLockDays > 30 {
 		return invalid("day counts must be zero or more (auto lock at most 30)")
+	}
+	switch s.InterestPosting {
+	case "", InterestMonthly:
+	case InterestDaily:
+		if !ledger.ValidDate(s.InterestDailyFrom) {
+			return invalid("give the date daily interest posting starts (YYYY-MM-DD); days before it are left to the monthly posting")
+		}
+	default:
+		return invalid("interest posting must be monthly or daily")
 	}
 	for i, t := range s.InterestExemptTags {
 		s.InterestExemptTags[i] = NormaliseTag(t)

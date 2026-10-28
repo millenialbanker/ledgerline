@@ -91,6 +91,7 @@ var AutoDefs = []AutoDef{
 	{"activation", "Clients", "Activate online applications", "Activates an online account application the moment it is signed, when every check passed: Aadhaar (from DigiLocker or UIDAI's offline e-KYC file), PAN, KRA, the bank account and the e-Sign. Anything that failed or needs checking goes to the queue.", "event", ModeAuto, "", ModeSuggest, nil, 20},
 	{"day_close", "Operations", "Equity close", "Closes the day's equity part (NSE and BSE) and carries its positions forward when every check passes; otherwise queues what is blocking.", "eod", ModeAuto, "", ModeAuto, nil, 15},
 	{"commodity_close", "Operations", "Commodity close", "The morning after an MCX session: reconciles, bills and settles the commodity trades, sends their contract notes, then closes the commodity part when every check passes; otherwise queues what is blocking.", "commodity", ModeAuto, "", ModeAuto, nil, 20},
+	{"interest_daily", "Accounts", "Daily interest", "When Settings choose daily posting: posts each day's interest on overdue debits, on the balance including interest already charged.", "eod", ModeAuto, "", ModeAuto, nil, 10},
 	{"monthly", "Accounts", "Month-end postings", "Posts interest on debit balances, MTF interest, DP bills and AP payouts for the month just ended.", "monthly", ModeAuto, "", ModeSuggest, nil, 60},
 	{"ins_tax_harvest", "Client insights", "Tax-loss harvesting", "From mid-January to the last day that settles in the financial year: clients whose open losses would cut tax on gains already booked this year, or who can still book long-term gains within the ₹1.25 lakh exemption. A reminder goes a week before the last day.", "eod", ModeAuto, "", ModeAuto, map[string]string{"from": "01-15", "min_saving": "1000", "remind_days": "7"}, 20},
 	{"ins_buyback", "Client insights", "Buy-back eligibility", "Holders of shares in an open buy-back priced above the market who have not tendered, with their category and entitlement; a reminder two days before it closes.", "eod", ModeAuto, "", ModeAuto, nil, 15},
@@ -411,6 +412,8 @@ func (o *Ops) carryOut(ctx context.Context, tenant, actor, date string, p Propos
 		_, err = o.SetClientRisk(ctx, tenant, actor, a["ucc"], a["risk"], nil, "Raised on the rules' suggestion: "+a["why"])
 	case "monthly.post":
 		_, err = o.runMonthly(ctx, tenant, actor, a["month"])
+	case "interest.daily":
+		_, err = o.PostDailyInterest(ctx, tenant, actor, a["date"])
 	case "ras.settle":
 		_, err = o.settleRAS(ctx, tenant, actor, a["date"])
 	default:
@@ -446,7 +449,7 @@ func init() {
 		"payouts": autoPayouts, "payout_batch": autoPayoutBatch, "recon": autoRecon, "billing": autoBilling, "settlement": autoSettlement,
 		"notes": autoNotes, "margin_calls": autoMarginCalls, "square_off": autoSquareOff, "mtf_liquidation": autoMTFLiquidation,
 		"penalties": autoPenalties, "reports": autoReports, "surveillance": autoSurveillance, "nri": autoNRI, "kyc": autoKYC,
-		"inactive": autoInactive, "service": autoService, "leads": autoLeads, "day_close": autoDayClose, "commodity_close": autoCommodityClose, "monthly": autoMonthly, "ras": autoRAS,
+		"inactive": autoInactive, "service": autoService, "leads": autoLeads, "day_close": autoDayClose, "commodity_close": autoCommodityClose, "monthly": autoMonthly, "ras": autoRAS, "interest_daily": autoInterestDaily,
 		"ins_tax_harvest": autoTaxHarvest, "ins_buyback": autoBuyBack, "ins_fo_expiry": autoFOExpiry, "ins_advance_tax": autoAdvanceTax,
 		"ins_corp_action": autoCorpAction, "ins_idle_funds": autoIdleFunds, "ins_pledge_margin": autoPledgeMargin, "ins_dormant": autoDormant,
 		"ins_outcomes": autoInsightOutcomes, "compliance": autoCompliance, "deposits": autoDeposits,
@@ -1397,8 +1400,17 @@ func autoMonthly(r *runCtx) error {
 
 func (o *Ops) runMonthly(ctx context.Context, tenant, actor, month string) (string, error) {
 	from, to := month+"-01", monthEnd(month)
-	_, n1, err := o.PostInterest(ctx, tenant, actor, from, to)
-	if err != nil && !errors.Is(err, ErrInvalid) {
+	var n1 int
+	var err error
+	if set, _ := o.Settings(ctx, tenant); set.dailyInterest() {
+		// Posted every day already: bring it up to month end, then invoice.
+		if _, err := o.PostDailyInterest(ctx, tenant, actor, to); err != nil {
+			return "", err
+		}
+		if n1, err = o.IssueDailyInterestInvoices(ctx, tenant, actor, month); err != nil {
+			return "", err
+		}
+	} else if _, n1, err = o.PostInterest(ctx, tenant, actor, from, to); err != nil && !errors.Is(err, ErrInvalid) {
 		return "", err
 	}
 	mi, err := o.PostMTFInterest(ctx, tenant, actor, to, "")

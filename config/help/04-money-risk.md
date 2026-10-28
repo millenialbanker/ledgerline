@@ -96,14 +96,16 @@ SEBI requires unused client funds to be returned monthly or quarterly, as each c
 title: Handle clients in debit and interest
 screen: debits
 roles: Risk manager, Ops checker
-ask: client in debit; debit balance; interest on debit; dpc; delayed payment charges; debit block; debit ageing; recover dues; client owes money
+ask: client in debit; debit balance; interest on debit; dpc; delayed payment charges; daily interest; interest on interest; compound interest; debit block; debit ageing; recover dues; client owes money
 related: client-cant-trade, margin-shortfall
 
 On [[debits|Debtors & interest]]:
 
 - **Ageing:** how long each client has been in debit.
 - **Debit block:** after the days set in Settings, buying is blocked until they pay. Autopilot does this before the market opens; download the **Block / unblock file** for the trading system if it isn't connected.
-- **Interest (delayed payment charges):** worked out daily at the Settings rate after the grace days, and posted monthly with the month-end postings (a checker approves), with a GST invoice.
+- **Interest (delayed payment charges):** charged on each day's debit from the pay-in date, at the Settings rate after the grace days. Settings → Debit balances and interest → **Interest posting** decides how:
+  - **Monthly** (the default): simple interest, posted with the month-end postings (a checker approves), with a GST invoice.
+  - **Daily**: posted every day from the start date you set, on that day's debit including the interest and GST already posted, so interest earns interest from the second day. Autopilot posts it at the end of each day (weekends with the next run), or use **Post daily interest** on the Interest tab. Month end issues each client one tax invoice for the month.
 - Clients in debit get reminders (Scheduled jobs → Debit reminders).
 - Old debits that no longer move can be kept apart as [[legacy|Legacy debts]]: no interest, no daily reminders, still blocked.
 

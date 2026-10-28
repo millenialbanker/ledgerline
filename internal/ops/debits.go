@@ -174,6 +174,7 @@ type InterestView struct {
 	Rows      []InterestRow `json:"rows"`
 	ToPost    money.Amount  `json:"to_post"`
 	Posted    money.Amount  `json:"posted"`
+	Posting   string        `json:"posting"` // monthly or daily (Settings)
 }
 
 // Invoice is a tax invoice for a charge outside the contract note
@@ -251,6 +252,10 @@ func (o *Ops) Interest(ctx context.Context, tenant, from, to string) (InterestVi
 	v := InterestView{From: from, To: to, RatePct: set.interestRate(), GSTPct: set.gstRate(), GraceDays: set.InterestGraceDays, Minimum: set.interestMinimum(), Exempt: set.InterestExemptTags, Rows: []InterestRow{}}
 	if v.Exempt == nil {
 		v.Exempt = []string{}
+	}
+	v.Posting = firstOf(set.InterestPosting, InterestMonthly)
+	if set.dailyInterest() {
+		return o.interestDailyView(ctx, tenant, v)
 	}
 	cs, err := o.ClientMap(ctx, tenant)
 	if err != nil {
@@ -353,6 +358,9 @@ func (o *Ops) PostInterest(ctx context.Context, tenant, actor, from, to string) 
 	}
 	if err := o.checkLock(ctx, tenant, to); err != nil {
 		return InterestView{}, 0, err
+	}
+	if set, _ := o.Settings(ctx, tenant); set.dailyInterest() {
+		return InterestView{}, 0, invalid("interest is posted daily (Settings → Debit balances and interest); month end issues each client's invoice")
 	}
 	v, err := o.Interest(ctx, tenant, from, to)
 	if err != nil {

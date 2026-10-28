@@ -273,6 +273,7 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/legacy-debts/{ucc}/unmark", s.legacyUnmark, true)
 	R("GET /v1/interest", s.interest, false)
 	R("POST /v1/interest/post", s.postInterest, true)
+	R("POST /v1/interest/daily", s.postDailyInterest, true)
 	R("GET /v1/invoices", s.invoices, false)
 	R("GET /v1/inactive", s.inactive, false)
 	R("POST /v1/inactive/flag", s.flagInactive, true)
@@ -1454,6 +1455,17 @@ func (s *Server) postInterest(w http.ResponseWriter, r *http.Request) {
 	}
 	v, n, err := s.ops.PostInterest(r.Context(), tenant(r), actor(r), b.From, b.To)
 	ok(w, map[string]any{"posted": n, "view": v}, err)
+}
+
+func (s *Server) postDailyInterest(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string `json:"date"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.PostDailyInterest(r.Context(), tenant(r), actor(r), b.Date)
+	ok(w, v, err)
 }
 
 func (s *Server) invoices(w http.ResponseWriter, r *http.Request) {
