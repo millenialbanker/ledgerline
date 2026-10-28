@@ -3,6 +3,7 @@ package ops
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -74,7 +75,50 @@ type DPTariff struct {
 	DematCharge     money.Amount `json:"demat_per_cert"`   // per certificate
 	OffMarketPct    money.Dec    `json:"offmarket_pct"`    // % of value for off-market transfers
 	OffMarketMin    money.Amount `json:"offmarket_min"`
-	From            string       `json:"from"`
+	// CreditCharge is per credit (receipt) per ISIN; usually nil.
+	CreditCharge money.Amount `json:"credit_charge"`
+	// ChargeFree are accounts, such as the firm's own pool (CM) accounts
+	// at each depository, to or from which transfers carry no debit or
+	// credit charge: deliveries for trades done through the firm.
+	ChargeFree []ChargeFreeAccount `json:"charge_free"`
+	From       string              `json:"from"`
+}
+
+// ChargeFreeAccount is a demat account whose transfers are not charged.
+type ChargeFreeAccount struct {
+	Depository string `json:"depository"` // CDSL or NSDL
+	ID         string `json:"id"`         // CDSL BO ID, or NSDL DP ID + client ID
+	Label      string `json:"label,omitempty"`
+}
+
+// normDematID strips spaces and dashes and upper-cases a demat account ID.
+func normDematID(s string) string {
+	return strings.ToUpper(strings.NewReplacer(" ", "", "-", "", "/", "").Replace(strings.TrimSpace(s)))
+}
+
+var (
+	reCDSLBO = regexp.MustCompile(`^[0-9]{16}$`)
+	reNSDLBO = regexp.MustCompile(`^IN[0-9]{14}$`)
+)
+
+// freeSet is the charge-free accounts by normalised ID.
+func (t DPTariff) freeSet() map[string]string {
+	m := map[string]string{}
+	for _, a := range t.ChargeFree {
+		m[normDematID(a.ID)] = firstOf(a.Label, a.Depository+" "+a.ID)
+	}
+	return m
+}
+
+// freeFor says whether a transfer went to or came from a charge-free
+// account, and which.
+func (t DPTariff) freeFor(free map[string]string, x DPTxn) (string, bool) {
+	for _, c := range x.Counterparty {
+		if l, ok := free[normDematID(c)]; ok {
+			return l, true
+		}
+	}
+	return "", false
 }
 
 // DefaultDPTariff is a typical discount-broker DP tariff.
@@ -86,6 +130,9 @@ func DefaultDPTariff() DPTariff {
 // DPTariffNow returns the tariff in force.
 func (o *Ops) DPTariffNow(ctx context.Context, tenant string) (DPTariff, error) {
 	t, _, err := docs.GetOr(ctx, o.Docs, tenant, cDPTariff, "main", DefaultDPTariff())
+	if t.ChargeFree == nil {
+		t.ChargeFree = []ChargeFreeAccount{}
+	}
 	return t, err
 }
 
@@ -105,6 +152,41 @@ func (o *Ops) SaveDPTariff(ctx context.Context, tenant, actor string, t DPTariff
 	}
 	if !ledger.ValidDate(t.From) {
 		return t, invalid("give the date the tariff applies from")
+	}
+	if t.CreditCharge < 0 {
+		return t, invalid("charges cannot be negative")
+	}
+	seen := map[string]bool{}
+	var free []ChargeFreeAccount
+	for _, a := range t.ChargeFree {
+		a.Depository, a.ID, a.Label = strings.ToUpper(strings.TrimSpace(a.Depository)), normDematID(a.ID), strings.TrimSpace(a.Label)
+		if a.ID == "" {
+			continue
+		}
+		if a.Depository == "" {
+			a.Depository = map[bool]string{true: "NSDL", false: "CDSL"}[strings.HasPrefix(a.ID, "IN")]
+		}
+		switch a.Depository {
+		case "CDSL":
+			if !reCDSLBO.MatchString(a.ID) {
+				return t, invalid("CDSL account %s: a CDSL BO ID is 16 digits", a.ID)
+			}
+		case "NSDL":
+			if !reNSDLBO.MatchString(a.ID) {
+				return t, invalid("NSDL account %s: give the DP ID and client ID together, IN followed by 14 digits", a.ID)
+			}
+		default:
+			return t, invalid("depository %q: use CDSL or NSDL", a.Depository)
+		}
+		if seen[a.ID] {
+			continue
+		}
+		seen[a.ID] = true
+		free = append(free, a)
+	}
+	t.ChargeFree = free
+	if t.ChargeFree == nil {
+		t.ChargeFree = []ChargeFreeAccount{}
 	}
 	if err := docs.Upsert(ctx, o.Docs, tenant, cDPTariff, "main", t, actor); err != nil {
 		return t, err
@@ -589,7 +671,7 @@ func (o *Ops) ExecuteDIS(ctx context.Context, tenant, actor, id string, ok bool,
 			}); err != nil {
 				return d, err
 			}
-			if err := o.dpTxn(ctx, tenant, actor, DPTxn{Date: date, UCC: d.UCC, ISIN: l.ISIN, Symbol: l.Symbol, Qty: -l.Qty, Kind: d.Kind + " transfer", Ref: d.ID, Value: l.Value, Billable: true}); err != nil {
+			if err := o.dpTxn(ctx, tenant, actor, DPTxn{Date: date, UCC: d.UCC, ISIN: l.ISIN, Symbol: l.Symbol, Qty: -l.Qty, Kind: d.Kind + " transfer", Ref: d.ID, Value: l.Value, Billable: true, Counterparty: []string{d.ToBO}}); err != nil {
 				return d, err
 			}
 		}
@@ -624,6 +706,9 @@ type DPTxn struct {
 	Value    money.Dec `json:"value"`
 	Billable bool      `json:"billable"`
 	Certs    int       `json:"certificates,omitempty"`
+	// Counterparty lists the other side's account IDs as the depository
+	// reports them (BO ID, DP ID + client ID, pool or early pay-in account).
+	Counterparty []string `json:"counterparty,omitempty"`
 }
 
 func (o *Ops) dpTxn(ctx context.Context, tenant, actor string, t DPTxn) error {
@@ -664,10 +749,14 @@ type DPBill struct {
 	Total   money.Amount `json:"total"`
 	Invoice string       `json:"invoice"`
 	Entry   string       `json:"entry"`
+	// Free counts transfers to or from charge-free accounts, not charged.
+	Free int64 `json:"free,omitempty"`
 }
 
 // RunDPBilling bills every active BO for a month (YYYY-MM): a twelfth of
-// the annual maintenance, debit instructions, pledges and demat requests.
+// the annual maintenance, debit and credit instructions, pledges and demat
+// requests. Transfers to or from the tariff's charge-free accounts (the
+// firm's own pool accounts) carry no debit or credit charge.
 // Bills are posted to the trading ledger with GST and an invoice. A month
 // is billed once.
 func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]DPBill, error) {
@@ -687,6 +776,7 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 		return nil, err
 	}
 	set, _ := o.Settings(ctx, tenant)
+	free := t.freeSet()
 	var out []DPBill
 	for _, r := range v.Rows {
 		if r.Status == "Closed" || r.Status == "Not opened" {
@@ -700,12 +790,19 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 			b.Lines = append(b.Lines, DPBillLine{What: map[bool]string{true: "Annual maintenance (BSDA), one month", false: "Annual maintenance, one month"}[r.BSDA], Count: 1, Amount: amc})
 		}
 		ts, _ := o.DPTransactions(ctx, tenant, r.UCC)
-		var debits, offmkt int64
+		var debits, credits, offmkt int64
 		var omCharge money.Amount
 		var certs int64
 		for _, x := range ts {
 			if x.Date < month+"-01" || x.Date > end || !x.Billable {
 				continue
+			}
+			if _, ok := t.freeFor(free, x); ok && x.Certs == 0 {
+				b.Free++
+				continue
+			}
+			if x.Qty > 0 && x.Certs == 0 && !strings.HasPrefix(x.Kind, "IPO") {
+				credits++
 			}
 			if x.Qty < 0 {
 				debits++
@@ -722,6 +819,9 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 		}
 		if debits > 0 {
 			b.Lines = append(b.Lines, DPBillLine{What: "Debit instructions (per ISIN)", Count: debits, Amount: t.DebitCharge * money.Amount(debits), Share: t.DepositoryShare * money.Amount(debits)})
+		}
+		if credits > 0 && t.CreditCharge > 0 {
+			b.Lines = append(b.Lines, DPBillLine{What: "Credit instructions (per ISIN)", Count: credits, Amount: t.CreditCharge * money.Amount(credits)})
 		}
 		if offmkt > 0 {
 			b.Lines = append(b.Lines, DPBillLine{What: "Off-market transfer charge", Count: offmkt, Amount: omCharge})

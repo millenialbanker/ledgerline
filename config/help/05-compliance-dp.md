@@ -178,10 +178,16 @@ On [[dp|Demat accounts & DIS]], **New request** and choose the type. Demat reque
 title: Run DP billing
 screen: dp
 roles: Ops checker
-ask: dp charges; dp bill; amc charges; dp tariff; depository charges
+ask: dp charges; dp bill; amc charges; dp tariff; depository charges; pool account; free dp charges for trades through us; no dp charge on pay-in; credit charges; debit charges
 related: dis
 
 On [[dp|Demat accounts & DIS]]: set the tariff (**Save tariff**), then **Run DP billing** each month. Charges are debited to the trading ledger with GST.
+
+**Charge-free accounts.** List the firm's own pool (CM) accounts, one per line, as CDSL or NSDL, then the account ID, then a label:
+- **CDSL:** the 16-digit BO ID.
+- **NSDL:** the DP ID and client ID together (IN followed by 14 digits).
+
+You can list as many as you need. Transfers to or from these accounts carry no debit or credit charge, so deliveries for trades done through the firm are free. Every other debit is charged the debit charge per ISIN, and every other credit the credit charge per ISIN (0 for none). The bill shows how many pool transfers were not charged. The counterparty is read from the CDSL transaction file.
 
 # Corporate actions and IPO
 

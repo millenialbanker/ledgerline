@@ -428,8 +428,9 @@ func (o *Ops) addRefData(ctx context.Context, tenant, date string, l *Lookup) {
 
 // loadCDSLTxns adds CDSL's transactions of the firm's DP clients to the DP
 // transaction register: credits and debits (TxnCd CRD/DBT) by demat
-// account; earmarks and other non-balance records are left out. Debits are
-// billable as DP debit instructions.
+// account, with the counterparty accounts; earmarks and other non-balance
+// records are left out. Debits and credits are billable (pledges are not);
+// those to or from the firm's charge-free pool accounts are not charged.
 func (o *Ops) loadCDSLTxns(ctx context.Context, tenant, actor string, rows []xfile.Row) (int, int, error) {
 	cs, err := o.ClientMap(ctx, tenant)
 	if err != nil {
@@ -468,7 +469,12 @@ func (o *Ops) loadCDSLTxns(ctx context.Context, tenant, actor string, rows []xfi
 			qty = -qty
 		}
 		t := DPTxn{Date: firstOf(anyDate(r.Get("ExecDt")), anyDate(r.Get("BizDt"))), UCC: ucc, ISIN: strings.ToUpper(r.Get("ISIN")), Qty: qty,
-			Kind: cdslTxnKind(r.Get("TxnTyp")), Ref: ref, Billable: cd == "DBT" && r.Get("TxnTyp") != "PLG"}
+			Kind: cdslTxnKind(r.Get("TxnTyp")), Ref: ref, Billable: !pledgeTxn[strings.ToUpper(r.Get("TxnTyp"))]}
+		for _, c := range []string{r.Get("CntrBnfclOwnrId"), r.Get("OthrDpstryPtcpt") + r.Get("OthrDpstryClntCd"), r.Get("CuspaAcct"), r.Get("EPAcct")} {
+			if c = normDematID(c); len(c) >= 8 {
+				t.Counterparty = append(t.Counterparty, c)
+			}
+		}
 		if ref, _, err := docs.Get[SecRef](ctx, o.Docs, tenant, cSecRef, t.ISIN); err == nil {
 			t.Symbol = firstOf(ref.Symbol, ref.Name)
 		}
@@ -479,6 +485,9 @@ func (o *Ops) loadCDSLTxns(ctx context.Context, tenant, actor string, rows []xfi
 	}
 	return n, skipped, nil
 }
+
+// pledgeTxn are CDSL transaction types charged as pledges, not transfers.
+var pledgeTxn = map[string]bool{"PLG": true, "PCC": true}
 
 func cdslTxnKind(tp string) string {
 	if k, ok := map[string]string{"NPY": "Pay-out from clearing", "IDO": "Delivery to clearing (on-market)", "IDD": "Inter-depository transfer", "IPO": "IPO / corporate action credit",
