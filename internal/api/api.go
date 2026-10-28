@@ -445,8 +445,10 @@ func (s *Server) billingRun(w http.ResponseWriter, r *http.Request) {
 func (s *Server) quote(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		charges.Leg
-		UCC string `json:"ucc"`
-		Lot int64  `json:"lot"`
+		UCC     string   `json:"ucc"`
+		Lot     int64    `json:"lot"`
+		Channel string   `json:"channel"`
+		Cases   []string `json:"cases"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -458,7 +460,7 @@ func (s *Server) quote(w http.ResponseWriter, r *http.Request) {
 	plan := ""
 	var rule charges.BrokerageRule
 	if body.UCC != "" && s.ops != nil {
-		rl, name, ok, err := s.ops.QuoteRule(r.Context(), tenant(r), body.UCC, leg.Bucket, leg.Date)
+		rl, name, ok, err := s.ops.QuoteRule(r.Context(), tenant(r), body.UCC, charges.RateQuery{Bucket: leg.Bucket, Exchange: leg.Exchange, Channel: body.Channel, Cases: body.Cases}, leg.Date)
 		if err != nil {
 			fail(w, err, nil)
 			return

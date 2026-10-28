@@ -97,3 +97,69 @@ func TestIntradayNetsOut(t *testing.T) {
 		t.Fatalf("intraday group %+v", g)
 	}
 }
+
+// Rollover and auction orders are priced by their own lines; a rollover is
+// both legs of a move to a later expiry on the same day.
+func TestCasesPriceOrders(t *testing.T) {
+	d := money.MustDec
+	rules := map[string]charges.BrokerageRule{
+		"FO-FUT":              {Mode: charges.PlanFlat, Flat: d("20")},
+		"FO-FUT|*|*|rollover": {Mode: charges.PlanFlat, Flat: d("10")},
+		"CM-DEL":              {Mode: charges.PlanPct, Pct: d("0.3")},
+		"CM-DEL|*|*|auction":  {Mode: charges.PlanPct, Pct: d("0.5")},
+		"CM-DEL|*|online|*":   {Mode: charges.PlanPct, Pct: d("0.1")},
+	}
+	trade := func(no, ucc, side, expiry, px string, qty int64) ingest.TradeEvent {
+		e := ev(ucc, "FO", "FUT", side, qty, px, "NRML")
+		e.TradeNo, e.OrderNo, e.Expiry = no, "O"+no, expiry
+		return e
+	}
+	near, far := "2026-10-27", "2026-11-24"
+	cash := func(no, settle, term string) ingest.TradeEvent {
+		e := ev("R2", "CM", "EQ", "B", 100, "100", "CNC")
+		e.TradeNo, e.OrderNo, e.Settlement, e.Terminal = no, "O"+no, settle, term
+		return e
+	}
+	in := Input{Tenant: "t1", Date: "2026-10-16", Actor: "eod", Schedule: schedule(t),
+		SettlementPrices: map[string]money.Dec{"NIFTY|FUT|" + near + "|": d("25800"), "NIFTY|FUT|" + far + "|": d("25900")},
+		Trades: []ingest.TradeEvent{
+			trade("1", "R1", "S", near, "25800", 75), // roll: sell near, buy far
+			trade("2", "R1", "B", far, "25900", 75),
+			trade("3", "R3", "B", near, "25800", 75), // a plain buy
+			cash("4", "N", "1001"),
+			cash("5", "A", "1001"),
+			cash("6", "N", "9001"),
+		},
+		Brokerage: func(ucc string, q charges.RateQuery, date string) (charges.BrokerageRule, string, bool) {
+			r, _, ok := charges.Lookup(rules, q)
+			return r, "card", ok
+		},
+		Classify: func(t ingest.TradeEvent) (string, []string) {
+			ch := "dealer"
+			if t.Terminal == "9001" {
+				ch = "online"
+			}
+			if t.Settlement == "A" {
+				return ch, []string{charges.CaseAuction}
+			}
+			return ch, nil
+		},
+	}
+	out, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, g := range out.Groups {
+		got[g.UCC+"-"+g.Segment] = g.Charges.Brokerage.String()
+	}
+	// R1: two rollover legs at ₹10. R3: ₹20. R2: 0.3% + 0.5% + 0.1% of ₹10,000 = 30 + 50 + 10.
+	for k, w := range map[string]string{"R1-FO": "20.00", "R3-FO": "20.00", "R2-CM": "90.00"} {
+		if got[k] != w {
+			t.Errorf("%s brokerage %s, want %s (%v)", k, got[k], w, got)
+		}
+	}
+	if r := Rollovers(in.Trades); !r[TradeKey(in.Trades[0])] || !r[TradeKey(in.Trades[1])] || r[TradeKey(in.Trades[2])] {
+		t.Errorf("rollovers %v", r)
+	}
+}

@@ -28,11 +28,61 @@ type Input struct {
 	SettlementPrices map[string]money.Dec // keyed by TradeEvent.Instrument()
 	Schedule         charges.Schedule
 	// Brokerage, when set, charges brokerage per executed order from the
-	// client's plan instead of per trade from the schedule. It returns the
-	// rule and a plan label; ok=false falls back to the schedule's rate.
-	Brokerage func(ucc string, b charges.Bucket, exchange, date string) (rule charges.BrokerageRule, plan string, ok bool)
+	// client's card instead of per trade from the schedule. It returns the
+	// rule and a card label; ok=false falls back to the schedule's rate.
+	Brokerage BrokerageFunc
 	// LotSize gives a derivative trade's lot size for per-lot brokerage.
 	LotSize func(t ingest.TradeEvent) int64
+	// Classify gives a trade's channel and cases (auction, index, stock),
+	// most specific first. Billing adds rollover itself.
+	Classify func(t ingest.TradeEvent) (channel string, cases []string)
+}
+
+// BrokerageFunc resolves a client's brokerage rule for an order.
+type BrokerageFunc = func(ucc string, q charges.RateQuery, date string) (rule charges.BrokerageRule, plan string, ok bool)
+
+// Rollovers finds futures trades that move a position to a later expiry:
+// on the same day, the same client trades one expiry of an underlying on
+// one side and a later expiry on the other. Both legs are the rollover.
+func Rollovers(ts []ingest.TradeEvent) map[string]bool {
+	type key struct{ ucc, exch, seg, sym string }
+	sides := map[key]map[string]map[string]bool{} // expiry -> side
+	for _, t := range ts {
+		if t.InstrumentType != "FUT" || t.Expiry == "" {
+			continue
+		}
+		k := key{t.UCC, t.Exchange, t.Segment, t.Symbol}
+		if sides[k] == nil {
+			sides[k] = map[string]map[string]bool{}
+		}
+		if sides[k][t.Expiry] == nil {
+			sides[k][t.Expiry] = map[string]bool{}
+		}
+		sides[k][t.Expiry][t.Side] = true
+	}
+	roll := map[key]map[string]bool{} // expiries that are legs of a roll
+	for k, ex := range sides {
+		for e1, s1 := range ex {
+			for e2, s2 := range ex {
+				if e1 >= e2 {
+					continue
+				}
+				if (s1["S"] && s2["B"]) || (s1["B"] && s2["S"]) {
+					if roll[k] == nil {
+						roll[k] = map[string]bool{}
+					}
+					roll[k][e1], roll[k][e2] = true, true
+				}
+			}
+		}
+	}
+	out := map[string]bool{}
+	for _, t := range ts {
+		if roll[key{t.UCC, t.Exchange, t.Segment, t.Symbol}][t.Expiry] && t.InstrumentType == "FUT" {
+			out[TradeKey(t)] = true
+		}
+	}
+	return out
 }
 
 // Group summarises one client × exchange segment bill.
@@ -90,6 +140,8 @@ func Build(in Input) (Output, error) {
 		group    string
 		bucket   charges.Bucket
 		exch     string
+		channel  string
+		cases    []string
 		turnover money.Dec
 		qty, lot int64
 		trades   []ingest.TradeEvent
@@ -97,6 +149,16 @@ func Build(in Input) (Output, error) {
 	orders := map[string]*order{}
 	var orderKeys []string
 	missing := map[string]bool{}
+	var rolls map[string]bool
+	if in.Brokerage != nil {
+		var today []ingest.TradeEvent
+		for _, t := range in.Trades {
+			if t.TradeDate == in.Date && t.Tenant == in.Tenant {
+				today = append(today, t)
+			}
+		}
+		rolls = Rollovers(today)
+	}
 	for _, t := range in.Trades {
 		if t.Origin != ingest.FromExchange {
 			return Output{}, fmt.Errorf("billing: trade %s is from %s; bills use exchange trades only", t.TradeNo, t.Origin)
@@ -125,14 +187,21 @@ func Build(in Input) (Output, error) {
 			if ok == "" {
 				ok = "T" + t.TradeNo
 			}
-			ok = k + "|" + string(b) + "|" + ok
+			channel, cases := "", []string(nil)
+			if in.Classify != nil {
+				channel, cases = in.Classify(t)
+			}
+			if rolls[TradeKey(t)] {
+				cases = append([]string{charges.CaseRollover}, cases...)
+			}
+			ok = k + "|" + string(b) + "|" + channel + "|" + strings.Join(cases, ",") + "|" + ok
 			o := orders[ok]
 			if o == nil {
 				lot := int64(1)
 				if in.LotSize != nil {
 					lot = in.LotSize(t)
 				}
-				o = &order{group: k, bucket: b, exch: t.Exchange, lot: lot}
+				o = &order{group: k, bucket: b, exch: t.Exchange, channel: channel, cases: cases, lot: lot}
 				orders[ok] = o
 				orderKeys = append(orderKeys, ok)
 			}
@@ -172,7 +241,7 @@ func Build(in Input) (Output, error) {
 		for _, ok := range orderKeys {
 			o := orders[ok]
 			g := groups[o.group]
-			rule, plan, found := in.Brokerage(g.ucc, o.bucket, o.exch, in.Date)
+			rule, plan, found := in.Brokerage(g.ucc, charges.RateQuery{Bucket: o.bucket, Exchange: o.exch, Channel: o.channel, Cases: o.cases}, in.Date)
 			if !found {
 				r, err := in.Schedule.Rule(o.bucket, o.exch, in.Date)
 				if err != nil {

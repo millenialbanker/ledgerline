@@ -45,6 +45,7 @@ type TradeEvent struct {
 	Product        string    `json:"product,omitempty"`
 	AlgoID         string    `json:"algo_id,omitempty"`
 	Terminal       string    `json:"terminal,omitempty"`
+	Settlement     string    `json:"settlement,omitempty"` // settlement type as the exchange sends it
 	FileID         string    `json:"file_id,omitempty"`
 	Line           int       `json:"line,omitempty"`
 }

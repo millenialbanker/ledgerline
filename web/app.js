@@ -1630,7 +1630,7 @@ async function clientDrawer(ucc) {
     ${c.status === 'Active' ? `<div><small class="dim">Account activity</small><div>${c.inactive ? `${pill('Inactive', 'nt')} since ${fmtDate(c.inactive_since)}${has('Ops maker', 'Ops checker') ? ` <button class="btn sm" data-act="reactivate" data-id="${c.ucc}">Request reactivation</button>` : ''}` : `Active${c.reactivated_on ? ` · reactivated ${fmtDate(c.reactivated_on)}` : ''} <button class="linkish" data-act="go" data-id="inactive">Inactivity rules</button>`}${has('Ops maker', 'Ops checker') ? ` <button class="linkish" data-act="contact" data-id="${c.ucc}">Update contact details</button>` : ''}</div></div>` : ''}
     <div><small class="dim">Branch and partner</small><div>${esc(c.branch || 'No branch')}${c.partner ? ' · AP ' + esc(c.partner) : ''}${c.rm ? ' · RM ' + esc(c.rm) : ''}${c.referred_by ? ` · referred by <button class="linkish mono" data-act="client" data-id="${c.referred_by}">${c.referred_by}</button>` : ''}${has('Ops checker', 'Admin') ? ` <button class="btn sm" data-act="mapClient" data-id="${c.ucc}">Change</button>` : ''}${c.private ? ' ' + pill('Private', 'warn') : ''}${has('Admin', 'Compliance officer') ? ` <button class="linkish" data-act="privacy" data-id="${c.ucc}" data-p="${c.private ? 0 : 1}">${c.private ? 'Make visible to all' : 'Make private'}</button>` : ''}</div></div>
     <div><small class="dim">WhatsApp</small><div>${waConsentLine(c)}${has('Ops maker', 'Ops checker', 'Compliance officer', 'Branch staff', 'Authorised person') ? ` <button class="btn sm" data-act="waConsent" data-id="${c.ucc}" data-on="${c.whatsapp ? 0 : 1}">${c.whatsapp ? 'Record opt-out' : 'Record consent'}</button>` : ''}</div></div>
-    ${bp ? `<div><small class="dim">Brokerage plan</small><div><b>${esc(bp.plan.plan_name)}</b> <span class="dim">· ${esc(bp.plan.source)}${bp.plan.from ? ' since ' + fmtDate(bp.plan.from) : ''}</span> <button class="linkish" data-act="go" data-id="brokerage">Plans</button></div><div class="dim small">${['CM-DEL', 'CM-INTRA', 'FO-FUT', 'FO-OPT'].map(k => `${{ 'CM-DEL': 'Delivery', 'CM-INTRA': 'Intraday', 'FO-FUT': 'Futures', 'FO-OPT': 'Options' }[k]}: ${esc(bp.rates[k] || '—')}`).join(' · ')}</div></div>` : ''}</div>
+    ${bp ? `<div><small class="dim">Brokerage plan</small><div><b>${esc(bp.plan.plan_name)}</b> <span class="dim">· ${esc(bp.plan.source)}${bp.plan.from ? ' since ' + fmtDate(bp.plan.from) : ''}</span>${(bp.plan.segments || []).map(x => ` <span class="tag">${esc(scopeLabel(x.scope))}: ${esc(x.plan_name)}</span>`).join('')}${bp.plan.override ? ' <span class="tag">own rates</span>' : ''} <button class="linkish" data-act="go" data-id="brokerage">Plans</button></div><div class="dim small">${['CM-DEL', 'CM-INTRA', 'FO-FUT', 'FO-OPT'].map(k => `${{ 'CM-DEL': 'Delivery', 'CM-INTRA': 'Intraday', 'FO-FUT': 'Futures', 'FO-OPT': 'Options' }[k]}: ${esc(bp.rates[k] || '—')}`).join(' · ')}</div></div>` : ''}</div>
     ${r ? `<div class="kv"><div><small>Ledger</small><b class="mono ${sgn(r.funds)}">${inr(r.funds, 2)}</b></div><div><small>UPI blocked</small><b class="mono">${inr(r.upi)}</b></div><div><small>Collateral (usable)</small><b class="mono">${inr(r.collateral_usable)}</b></div><div><small>Margin required</small><b class="mono">${inr(r.required)}</b></div><div><small>Free</small><b class="mono ${sgn(r.free)}">${inr(r.free)}</b></div><div><small>OMS limit</small><b class="mono">${inr(r.limit)}</b></div></div>` : '<div class="note">Not active yet. Limits and the ledger start at activation.</div>'}
     <div class="kv"><div><small>PAN</small><b class="mono"><span id="rv-pan">${esc(c.pan)}</span>${revealBtn(c.ucc, 'pan')}</b></div><div><small>Bank</small><b>${esc(c.bank.bank)} · <span id="rv-account">${esc(c.bank.account)}</span>${revealBtn(c.ucc, 'account')}</b></div><div><small>IFSC</small><b class="mono">${esc(c.bank.ifsc)}</b></div><div><small>Demat</small><b class="mono">${esc(c.demat.depository)} ${esc(c.demat.id)}</b></div><div><small>Income</small><b>${esc(c.income)}</b></div><div><small>RAS</small><b>${esc(c.ras)}</b></div><div><small>Contract notes</small><b>${c.physical_notes ? 'Printed, by courier' : 'Electronic (signed PDF)'}</b></div><div><small>KYC date</small><b>${fmtDate(c.kyc_date)}</b></div><div><small>Email</small><b>${esc(c.email)}</b></div><div><small>Last trade</small><b>${fmtDate(c.last_trade) || '—'}</b></div></div>
     <div>${h3('Segments')}${tbl([['Segment'], ['Status'], ['Since'], ['Reason'], ['']], ['CM', 'FO', 'CD', 'COM'].filter(g => (c.segments || []).includes(g) || (c.seg_status || {})[g]).map(g => { const x = (c.seg_status || {})[g] || { status: 'Active' }; return `<tr><td>${esc(d.segment_names[g] || g)}</td><td>${pill(x.status, { Active: 'good', Reactivated: 'good', Suspended: 'bad', Dormant: 'warn', Closed: 'nt' }[x.status])}</td><td class="n">${x.since ? fmtDate(x.since) : '—'}</td><td class="small wrap">${esc(x.reason || '')}</td><td>${has('Ops checker', 'Compliance officer') ? `<button class="btn sm" data-act="segSet" data-id="${c.ucc}" data-seg="${g}">Change</button>` : ''}</td></tr>`; }))}${(c.seg_history || []).length ? `<details style="margin-top:6px"><summary class="dim small">History · ${c.seg_history.length} change${c.seg_history.length === 1 ? "" : "s"}</summary>${tbl([['Effective'], ['Segment'], ['Change'], ['Reason'], ['By']], c.seg_history.slice().reverse().map(h => `<tr><td class="n">${fmtDate(h.on)}</td><td>${h.segment}</td><td>${esc(h.from)} → <b>${esc(h.to)}</b></td><td class="small wrap">${esc(h.reason || '')}</td><td class="small">${esc(h.by)}${h.source === 'Import' ? ' <span class="dim">(import)</span>' : ''}</td></tr>`))}</details>` : ''}</div>
@@ -1795,65 +1795,138 @@ async function calc() {
 }
 
 /* ---------- brokerage plans ---------- */
-const MODES = [['inherit', 'Use the charge schedule'], ['pct', '% of turnover'], ['flat', '₹ per order'], ['lower_of', 'Lower of ₹ per order or %'], ['per_lot', '₹ per lot'], ['zero', 'Free']];
+const MODES = [['pct', '% of turnover'], ['flat', '₹ per order'], ['lower_of', 'Lower of ₹ per order or %'], ['per_lot', '₹ per lot'], ['per_unit', '₹ per share'], ['zero', 'Free']];
+const RATE_FIELDS = [['pct', '%'], ['flat', '₹ / order'], ['per_lot', '₹ / lot'], ['per_unit', '₹ / share'], ['min_per_unit', 'Min ₹ / share'], ['min_per_lot', 'Min ₹ / lot'], ['min', 'Min ₹ / order'], ['max', 'Max ₹ / order']];
+const BK_EXCH = ['NSE', 'BSE', 'MCX', 'NCDEX'];
+// A rate key is PRODUCT or PRODUCT|EXCHANGE|CHANNEL|CASE ("*" = all).
+const rk = k => { const p = k.split('|'); return { b: p[0], x: p[1] || '*', ch: p[2] || '*', cs: p[3] || '*' }; };
+const rkJoin = (b, x, ch, cs) => (x === '*' && ch === '*' && cs === '*') ? b : [b, x, ch, cs].join('|');
+function rkLabel(d, k) {
+  const r = rk(k), name = d.products.find(p => p.bucket === r.b)?.name || r.b, bits = [];
+  if (r.x !== '*') bits.push(r.x);
+  if (r.ch !== '*') bits.push(r.ch);
+  if (r.cs !== '*') bits.push(d.cases.find(c => c.case === r.cs)?.name || r.cs);
+  return `${esc(name)}${bits.length ? ` <span class="dim">· ${bits.map(esc).join(' · ')}</span>` : ''}`;
+}
+function rkSort(d, keys) { const o = b => d.products.findIndex(p => p.bucket === b); return keys.slice().sort((a, b) => { const x = rk(a), y = rk(b); return o(x.b) - o(y.b) || (x.cs + x.ch + x.x).localeCompare(y.cs + y.ch + y.x); }); }
+const scopeLabel = s => !s ? 'All segments' : s.replace('-', ' on ');
 V.brokerage = {
   load: async () => { const [d] = await Promise.all([get(`/v1/brokerage?date=${S.date}`), clientCache()]); return d; },
   html: d => {
-    const can = has('Ops checker'), plan = id => d.plans.find(p => p.id === id);
-    const def = d.current.default, groups = d.tags.map(t => ({ ...t, cur: d.current['tag:' + t.tag] }));
-    const overrides = Object.entries(d.current).filter(([k, v]) => k.startsWith('ucc:') && v.plan).map(([k, v]) => ({ ucc: k.slice(4), ...v }));
-    const onSched = d.effective.filter(e => !e.plan).length;
+    const can = has('Ops checker'), plan = id => d.plans.find(p => p.id === id), cur = (t, s) => d.current[t + '#' + (s || '')];
+    const def = cur('default'), groups = d.tags.map(t => ({ ...t, cur: cur('tag:' + t.tag) }));
+    const scoped = Object.entries(d.current).filter(([k, v]) => v.plan).map(([k, v]) => { const [t, s] = k.split('#'); return { target: t, scope: s, ...v }; });
+    const clientCards = scoped.filter(x => x.target.startsWith('ucc:')), segCards = scoped.filter(x => x.scope && !x.target.startsWith('ucc:'));
+    const onSched = d.effective.filter(e => !e.plan).length, who = t => t === 'default' ? 'Firm default' : t.startsWith('tag:') ? 'Group ' + esc(t.slice(4)) : 'Client ' + esc(t.slice(4));
     const sched = b => { const r = d.schedule.filter(x => x.bucket === b); return r.length ? r.map(x => (x.exchange === '*' ? '' : x.exchange + ': ') + x.describe).join('; ') : '—'; };
-    return ph('Brokerage plans', 'Each client pays brokerage from their own plan if one is set, else from their group’s plan (the most recently assigned, if they are in several groups), else the firm default, else the charge schedule. Brokerage is charged per executed order, from the effective date; days already billed change only if rebilled. Statutory charges always come from the schedule.',
-      can ? '<button class="btn" data-act="planNew">New plan</button><button class="btn pri" data-act="assign">Assign a plan</button>' : '') +
-    `<div class="kpis">${kpi('Plans', d.plans.length, 'with dated versions')}${kpi('Firm default', def?.plan ? esc(plan(def.plan)?.name || def.plan) : 'Schedule', def?.from ? 'since ' + fmtDate(def.from) : 'no default plan')}${kpi('Groups on a plan', groups.filter(g => g.cur?.plan).length, d.tags.length + ' groups in use')}${kpi('Client overrides', overrides.length, 'set per client')}${kpi('On the schedule', onSched, 'no plan applies', onSched ? 'warn' : '')}</div>
-    <div class="plans">${d.plans.map(p => `<div class="panel plan"><div class="hd"><div><h3>${esc(p.name)}</h3><small>${esc(p.note || '')}</small></div><div class="split"><span class="pill acc">${p.clients} client${p.clients === 1 ? '' : 's'}</span>${can ? `<button class="btn sm" data-act="planEdit" data-id="${esc(p.id)}">Edit rates</button>` : ''}</div></div>
-      ${tbl([['Product'], ['Brokerage']], d.products.map(x => `<tr><td>${esc(x.name)}</td><td>${p.describe[x.bucket] ? esc(p.describe[x.bucket]) : `<span class="dim">Schedule: ${esc(sched(x.bucket))}</span>`}</td></tr>`))}
-      <div class="bd small dim">${p.current ? `In force since ${fmtDate(p.current.from)} · set by ${esc(p.current.by)}` : 'Not yet in force'}${p.upcoming ? ` · <b>new rates from ${fmtDate(p.upcoming.from)}</b>` : ''} · ${p.versions.length} version${p.versions.length === 1 ? '' : 's'}</div></div>`).join('') || '<div class="panel"><div class="empty">No plans yet. Create one, then assign it to the firm, a group or a client.</div></div>'}</div>
+    const lines = (desc, empty) => { const ks = rkSort(d, Object.keys(desc || {})); return tbl([['Rate line'], ['Brokerage']], ks.map(k => `<tr><td>${rkLabel(d, k)}</td><td>${esc(desc[k])}</td></tr>`), { empty }); };
+    const cl = u => `<button class="linkish mono" data-act="client" data-id="${u}">${u}</button> <span class="dim">${esc(CL.rows.find(c => c.ucc === u)?.name || '')}</span>`;
+    return ph('Brokerage plans', 'A plan (rate card) holds rate lines: a rate for a product, optionally only on one exchange, one trading channel, or one case (auction, rollover, futures expiry, option exercise or assignment, index or stock derivatives). For an order the most specific line wins: case, then channel, then exchange. Each client pays from their own card if one is set, else their group’s (the most recently assigned), else the firm default, else the charge schedule; a card can be set for one segment or one exchange only, and a client’s own rate lines win over their card. Brokerage is charged per executed order from the effective date; days already billed change only if rebilled. Statutory charges always come from the schedule.',
+      can ? '<button class="btn" data-act="bkSetup">Channels</button><button class="btn" data-act="clientRates">Client rates</button><button class="btn" data-act="planNew">New plan</button><button class="btn pri" data-act="assign">Assign a plan</button>' : '') +
+    `<div class="kpis">${kpi('Plans', d.plans.length, 'with dated versions')}${kpi('Firm default', def?.plan ? esc(plan(def.plan)?.name || def.plan) : 'Schedule', def?.from ? 'since ' + fmtDate(def.from) : 'no default plan')}${kpi('Groups on a plan', groups.filter(g => g.cur?.plan).length, d.tags.length + ' groups in use')}${kpi('Client cards', clientCards.length, 'set per client or segment')}${kpi('Client rates', d.overrides.filter(o => o.current && Object.keys(o.current.rules).length).length, 'clients with their own lines')}${kpi('On the schedule', onSched, 'no plan applies', onSched ? 'warn' : '')}</div>
+    <div class="plans">${d.plans.map(p => `<div class="panel plan"><div class="hd"><div><h3>${esc(p.name)}</h3><small>${esc(p.note || '')}${p.note ? ' · ' : ''}<span class="mono">${esc(p.id)}</span></small></div><div class="split"><span class="pill acc">${p.clients} client${p.clients === 1 ? '' : 's'}</span>${can ? `<button class="btn sm" data-act="planEdit" data-id="${esc(p.id)}">Edit rates</button>` : ''}</div></div>
+      ${lines(p.describe, 'No rate lines: every product uses the charge schedule')}
+      ${d.products.filter(x => !Object.keys(p.describe).some(k => rk(k).b === x.bucket)).length ? `<div class="bd small dim">Charge schedule for ${d.products.filter(x => !Object.keys(p.describe).some(k => rk(k).b === x.bucket)).map(x => esc(x.name) + ' (' + esc(sched(x.bucket)) + ')').join(', ')}</div>` : ''}
+      <div class="bd small dim">${p.current ? `In force since ${fmtDate(p.current.from)} · set by ${esc(p.current.by)}` : 'Not yet in force'}${p.upcoming ? ` · <b>new rates from ${fmtDate(p.upcoming.from)}</b>` : ''} · ${p.versions.length} version${p.versions.length === 1 ? '' : 's'}</div></div>`).join('') || '<div class="panel"><div class="empty">No plans yet. Create one, or load BROKERAGE-CARDS on Files, then assign it to the firm, a group or a client.</div></div>'}</div>
     <div class="grid g2">
       <div class="panel"><div class="hd"><h3>Firm default and groups</h3><small>Plan in force on ${fmtDate(S.date)}</small></div>${tbl([['Applies to'], ['Clients', 'r'], ['Plan'], ['Since'], ['']],
-        [`<tr><td><b>Firm default</b></td><td class="r">${d.effective.length}</td><td>${def?.plan ? esc(plan(def.plan)?.name || def.plan) : '<span class="dim">Charge schedule</span>'}</td><td class="n dim">${def ? fmtDate(def.from) : ''}</td><td>${can ? `<button class="btn sm" data-act="assign" data-id="default">Change</button>` : ''}</td></tr>`].concat(groups.map(g => `<tr><td><button class="gtag" data-act="filterTag" data-id="${esc(g.tag)}">${esc(g.tag)}</button></td><td class="r">${g.clients}</td><td>${g.cur?.plan ? esc(plan(g.cur.plan)?.name || g.cur.plan) : '<span class="dim">Firm default</span>'}</td><td class="n dim">${g.cur?.plan ? fmtDate(g.cur.from) : ''}</td><td><div class="split">${can ? `<button class="btn sm" data-act="assign" data-id="tag:${esc(g.tag)}">${g.cur?.plan ? 'Change' : 'Set plan'}</button>${g.cur?.plan ? `<button class="btn sm" data-act="unassign" data-id="tag:${esc(g.tag)}">Remove</button>` : ''}` : ''}</div></td></tr>`)), { empty: 'No groups' })}</div>
-      <div class="panel"><div class="hd"><h3>Client overrides</h3>${can ? '<button class="btn sm" data-act="assign" data-id="ucc:">Set for a client</button>' : ''}</div>${tbl([['Client'], ['Plan'], ['Since'], ['']], overrides.map(o => `<tr><td><button class="linkish mono" data-act="client" data-id="${o.ucc}">${o.ucc}</button> <span class="dim">${esc(CL.rows.find(c => c.ucc === o.ucc)?.name || '')}</span></td><td>${esc(plan(o.plan)?.name || o.plan)}</td><td class="n dim">${fmtDate(o.from)}</td><td>${can ? `<div class="split"><button class="btn sm" data-act="assign" data-id="ucc:${o.ucc}">Change</button><button class="btn sm" data-act="unassign" data-id="ucc:${o.ucc}">Remove</button></div>` : ''}</td></tr>`), { empty: 'No client-specific plans. Clients follow their group or the firm default.' })}</div>
+        [`<tr><td><b>Firm default</b></td><td class="r">${d.effective.length}</td><td>${def?.plan ? esc(plan(def.plan)?.name || def.plan) : '<span class="dim">Charge schedule</span>'}</td><td class="n dim">${def ? fmtDate(def.from) : ''}</td><td>${can ? `<button class="btn sm" data-act="assign" data-id="default">Change</button>` : ''}</td></tr>`].concat(groups.map(g => `<tr><td><button class="gtag" data-act="filterTag" data-id="${esc(g.tag)}">${esc(g.tag)}</button></td><td class="r">${g.clients}</td><td>${g.cur?.plan ? esc(plan(g.cur.plan)?.name || g.cur.plan) : '<span class="dim">Firm default</span>'}</td><td class="n dim">${g.cur?.plan ? fmtDate(g.cur.from) : ''}</td><td><div class="split">${can ? `<button class="btn sm" data-act="assign" data-id="tag:${esc(g.tag)}">${g.cur?.plan ? 'Change' : 'Set plan'}</button>${g.cur?.plan ? `<button class="btn sm" data-act="unassign" data-id="tag:${esc(g.tag)}">Remove</button>` : ''}` : ''}</div></td></tr>`)).concat(segCards.map(x => `<tr><td>${who(x.target)} <span class="tag">${esc(scopeLabel(x.scope))}</span></td><td class="r"></td><td>${esc(plan(x.plan)?.name || x.plan)}</td><td class="n dim">${fmtDate(x.from)}</td><td>${can ? `<button class="btn sm" data-act="unassign" data-id="${esc(x.target)}" data-scope="${esc(x.scope)}">Remove</button>` : ''}</td></tr>`)), { empty: 'No groups' })}</div>
+      <div class="panel"><div class="hd"><h3>Client cards</h3>${can ? '<button class="btn sm" data-act="assign" data-id="ucc:">Set for a client</button>' : ''}</div>${tbl([['Client'], ['Segment'], ['Plan'], ['Since'], ['']], clientCards.map(o => `<tr><td>${cl(o.target.slice(4))}</td><td>${esc(scopeLabel(o.scope))}</td><td>${esc(plan(o.plan)?.name || o.plan)}</td><td class="n dim">${fmtDate(o.from)}</td><td>${can ? `<div class="split"><button class="btn sm" data-act="assign" data-id="${esc(o.target)}" data-scope="${esc(o.scope)}">Change</button><button class="btn sm" data-act="unassign" data-id="${esc(o.target)}" data-scope="${esc(o.scope)}">Remove</button></div>` : ''}</td></tr>`), { tall: true, empty: 'No client-specific plans. Clients follow their group or the firm default.' })}</div>
     </div>
+    <div class="panel"><div class="hd"><h3>Client rates</h3><small>A client’s own rate lines win over their card for the orders they fit</small>${can ? '<button class="btn sm" data-act="clientRates">Set for a client</button>' : ''}</div>${tbl([['Client'], ['Status'], ['Rate lines'], ['Since'], ['']], d.overrides.filter(o => o.current && Object.keys(o.current.rules).length).map(o => `<tr><td>${cl(o.ucc)}</td><td>${pill(o.status || '—', o.status === 'Active' ? 'good' : 'nt')}</td><td class="wrap">${rkSort(d, Object.keys(o.describe)).map(k => `${rkLabel(d, k)}: ${esc(o.describe[k])}`).join('<br>')}${o.current.note ? `<div class="dim small">${esc(o.current.note)}</div>` : ''}</td><td class="n dim">${fmtDate(o.current.from)}</td><td>${can ? `<button class="btn sm" data-act="clientRates" data-id="${o.ucc}">Change</button>` : ''}</td></tr>`), { tall: true, empty: 'No client has their own rates.' })}</div>
+    <div class="panel"><div class="hd"><h3>Trading channels</h3><small>Default ${esc(d.setup.default_channel)} · ${d.setup.terminals.length} terminal rule${d.setup.terminals.length === 1 ? '' : 's'}</small>${can ? '<button class="btn sm" data-act="bkSetup">Change</button>' : ''}</div><div class="bd small">Channels: ${d.setup.channels.map(c => `<span class="tag">${esc(c)}</span>`).join(' ')}. Trades are given a channel from their terminal (CTCL) ID in the exchange trade file; no match means ${esc(d.setup.default_channel)}. Auction trades are those with settlement type ${d.setup.auction_settlements.map(esc).join(', ') || '—'}.${d.setup.terminals.length ? '<br>' + d.setup.terminals.slice(0, 12).map(t => `<span class="mono">${esc(t.terminal)}</span> → ${esc(t.channel)}`).join(' · ') + (d.setup.terminals.length > 12 ? ` · and ${d.setup.terminals.length - 12} more` : '') : ''}</div></div>
     <div class="panel"><div class="hd"><div class="tools"><h3 style="margin-right:8px">Who pays what</h3><input class="in" data-ui="bkQ" data-part="bk-t" placeholder="Filter by name, UCC or group" value="${esc(UI.bkQ)}"><select class="in" id="bkPlan"><option value="">All plans</option>${d.plans.map(p => `<option value="${esc(p.id)}" ${UI.bkPlan === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}<option value="-" ${UI.bkPlan === '-' ? 'selected' : ''}>Charge schedule</option></select></div><small>${d.effective.length} active clients on ${fmtDate(S.date)}</small></div><div id="bk-t">${P['bk-t'](d)}</div></div>
-    <div class="panel"><div class="hd"><h3>Change history</h3><small>Every assignment is kept; the latest one on or before a date applies</small></div>${tbl([['ID'], ['Applies to'], ['Plan'], ['From'], ['By'], ['At']], d.assignments.slice().reverse().map(a => `<tr><td class="n dim">${a.id}</td><td>${a.target === 'default' ? 'Firm default' : a.target.startsWith('tag:') ? 'Group ' + esc(a.target.slice(4)) : 'Client ' + esc(a.target.slice(4))}</td><td>${a.plan ? esc(plan(a.plan)?.name || a.plan) : '<span class="dim">Removed</span>'}</td><td class="n">${fmtDate(a.from)}</td><td>${esc(a.by)}</td><td class="n dim">${esc(a.at)}</td></tr>`), { tall: true, empty: 'No assignments yet' })}</div>`;
+    <div class="panel"><div class="hd"><h3>Change history</h3><small>Every assignment is kept; the latest one on or before a date applies</small></div>${tbl([['ID'], ['Applies to'], ['Segment'], ['Plan'], ['From'], ['By'], ['At']], d.assignments.slice().reverse().map(a => `<tr><td class="n dim">${a.id}</td><td>${who(a.target)}</td><td>${esc(scopeLabel(a.scope))}${a.exclusive ? ' <span class="tag">scheme</span>' : ''}</td><td>${a.plan ? esc(plan(a.plan)?.name || a.plan) : '<span class="dim">Removed</span>'}</td><td class="n">${fmtDate(a.from)}</td><td>${esc(a.by)}</td><td class="n dim">${esc(a.at)}</td></tr>`), { tall: true, empty: 'No assignments yet' })}</div>`;
   }
 };
 P['bk-t'] = d => {
   const q = UI.bkQ.trim().toLowerCase();
   const rows = d.effective.filter(e => (!q || (e.ucc + ' ' + e.name + ' ' + e.tags.join(' ')).toLowerCase().includes(q)) && (!UI.bkPlan || (UI.bkPlan === '-' ? !e.plan : e.plan === UI.bkPlan)));
-  return tbl([['Client'], ['Groups'], ['Plan'], ['Because'], ['Since']], rows.map(e => `<tr><td><button class="linkish mono" data-act="client" data-id="${e.ucc}">${e.ucc}</button> ${esc(e.name)}</td><td>${e.tags.map(t => `<span class="gtag">${esc(t)}</span>`).join(' ') || '<span class="dim">—</span>'}</td><td><b style="font-weight:600">${esc(e.plan_name)}</b></td><td>${esc(e.source)}</td><td class="n dim">${e.from ? fmtDate(e.from) : ''}</td></tr>`), { tall: true, empty: 'No clients match' });
+  return tbl([['Client'], ['Groups'], ['Plan'], ['Because'], ['Since'], ['Segment cards']], rows.map(e => `<tr><td><button class="linkish mono" data-act="client" data-id="${e.ucc}">${e.ucc}</button> ${esc(e.name)}</td><td>${e.tags.map(t => `<span class="gtag">${esc(t)}</span>`).join(' ') || '<span class="dim">—</span>'}</td><td><b style="font-weight:600">${esc(e.plan_name)}</b>${e.override ? ' <span class="tag">own rates</span>' : ''}</td><td>${esc(e.source)}</td><td class="n dim">${e.from ? fmtDate(e.from) : ''}</td><td class="small">${(e.segments || []).map(s => `${esc(scopeLabel(s.scope))}: ${esc(s.plan_name)}`).join('<br>') || '<span class="dim">—</span>'}</td></tr>`), { tall: true, empty: 'No clients match' });
 };
+// rateEditor is the rate-line table used for plans and client rates.
+function rateEditor(d, rules) {
+  const opts = (xs, v) => xs.map(([k, l]) => `<option value="${esc(k)}" ${v === k ? 'selected' : ''}>${esc(l)}</option>`).join('');
+  const row = (k, r) => { const x = rk(k || (d.products[0].bucket));
+    return `<tr><td><select class="in sm re-b">${opts(d.products.map(p => [p.bucket, p.name]), x.b)}</select></td><td><select class="in sm re-x">${opts([['*', 'All']].concat(BK_EXCH.map(e => [e, e])), x.x)}</select></td><td><select class="in sm re-ch">${opts([['*', 'All']].concat(d.setup.channels.map(c => [c, c])), x.ch)}</select></td><td><select class="in sm re-cs">${opts([['*', 'All']].concat(d.cases.map(c => [c.case, c.name])), x.cs)}</select></td><td><select class="in sm re-mode">${opts(MODES, r.mode)}</select></td>${RATE_FIELDS.map(([f]) => `<td><input class="in sm re-${f}" inputmode="decimal" value="${esc(r[f] && r[f] !== '0' ? r[f] : '')}" aria-label="${f}"></td>`).join('')}<td><button class="btn sm" type="button" data-re="del" aria-label="Remove line">×</button></td></tr>`; };
+  const ks = rkSort(d, Object.keys(rules || {}));
+  return `<div class="tw"><table class="tbl ret"><thead><tr><th>Product</th><th>Exchange</th><th>Channel</th><th>Case</th><th>Charge</th>${RATE_FIELDS.map(([, l]) => `<th class="r">${l}</th>`).join('')}<th></th></tr></thead><tbody>${ks.map(k => row(k, rules[k])).join('')}</tbody></table></div>
+    <div class="split" style="margin:8px 0"><button class="btn sm" type="button" data-re="add">Add a rate line</button></div><template id="re-blank">${row('', { mode: 'pct' })}</template>
+    <p class="dim small">Fill only what the charge uses: % for “% of turnover”, ₹/order for flat, both for “lower of”, ₹/lot or ₹/share for those. Minimums per share and per lot grow with the order; min and max per order bound it. For an order the most specific line wins: case, then channel, then exchange. Expiry, exercise and assignment are charged only where a line for them exists. Products with no line use the charge schedule. Cash-market brokerage never exceeds 2.5% of the order value.</p>`;
+}
+function rateEditorWire(form) {
+  form.addEventListener('click', e => { const b = e.target.closest('[data-re]'); if (!b) return;
+    if (b.dataset.re === 'del') b.closest('tr').remove();
+    if (b.dataset.re === 'add') form.querySelector('.ret tbody').insertAdjacentHTML('beforeend', $('re-blank').innerHTML); });
+}
+function rateEditorRead(form) {
+  const rules = {};
+  for (const tr of form.querySelectorAll('.ret tbody tr')) {
+    const k = rkJoin(tr.querySelector('.re-b').value, tr.querySelector('.re-x').value, tr.querySelector('.re-ch').value, tr.querySelector('.re-cs').value);
+    if (rules[k]) throw { message: 'Two lines are for the same product, exchange, channel and case' };
+    const r = { mode: tr.querySelector('.re-mode').value };
+    RATE_FIELDS.forEach(([f]) => { const v = tr.querySelector('.re-' + f).value.trim(); if (v) r[f] = v; });
+    rules[k] = r;
+  }
+  return rules;
+}
 function planModal(id) {
   const d = C.brokerage, p = d.plans.find(x => x.id === id);
-  const cur = p ? (p.upcoming && !p.current ? p.upcoming : p.current) : null, rules = cur?.rules || {};
-  const row = x => { const r = rules[x.bucket] || { mode: 'inherit' }, deriv = !x.bucket.startsWith('CM');
-    return `<tr data-b="${x.bucket}"><td>${esc(x.name)}</td><td><select class="in sm pm-mode">${MODES.filter(m => deriv || m[0] !== 'per_lot').map(([k, l]) => `<option value="${k}" ${r.mode === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td>${['pct', 'flat', 'per_lot', 'min', 'max'].map(f => `<td><input class="in sm pm-${f}" inputmode="decimal" value="${esc(r[f] && r[f] !== '0' ? r[f] : '')}" aria-label="${f}"></td>`).join('')}</tr>`; };
-  modal(mhd(p ? 'Edit plan · ' + esc(p.name) : 'New brokerage plan', 'Rates apply to orders from the effective date. Earlier versions stay on record; a version on the same date is replaced.') + `<form class="bd" id="planf">
+  const cur = p ? (p.upcoming && !p.current ? p.upcoming : p.current) : null;
+  wideModal(mhd(p ? 'Edit plan · ' + esc(p.name) : 'New brokerage plan', 'Rates apply to orders from the effective date. Earlier versions stay on record; a version on the same date is replaced.') + `<form class="bd" id="planf">
     <div class="form"><div class="fld"><label for="pm-name">Name</label><input class="in" id="pm-name" value="${esc(p?.name || '')}" required placeholder="e.g. Active trader"></div><div class="fld"><label for="pm-from">Effective from</label><input class="in" type="date" id="pm-from" value="${esc(p ? S.date : '2026-04-01')}" required></div>
     <div class="fld full"><label for="pm-note">Note</label><input class="in" id="pm-note" value="${esc(p?.note || '')}" placeholder="Who this plan is for"></div></div>
-    <div class="tw"><table class="tbl pmt"><thead><tr><th>Product</th><th>Charge</th><th class="r">%</th><th class="r">₹ / order</th><th class="r">₹ / lot</th><th class="r">Min ₹</th><th class="r">Max ₹</th></tr></thead><tbody>${d.products.map(row).join('')}</tbody></table></div>
-    <p class="dim small">Fill only what the charge uses: % for “% of turnover”; ₹/order for flat; both for “lower of”; ₹/lot for per lot. Min and max bound each order. Cash-market brokerage never exceeds 2.5% of the order value.</p>
+    ${rateEditor(d, cur?.rules || {})}
     <div id="pm-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Save plan</button></div></form>`);
+  rateEditorWire($('planf'));
   $('planf').onsubmit = async e => {
     e.preventDefault();
-    const rules = {};
-    document.querySelectorAll('.pmt tbody tr').forEach(tr => { const m = tr.querySelector('.pm-mode').value; if (m === 'inherit') return; const r = { mode: m };
-      ['pct', 'flat', 'per_lot', 'min', 'max'].forEach(f => { const v = tr.querySelector('.pm-' + f).value.trim(); if (v) r[f] = v; }); rules[tr.dataset.b] = r; });
-    try { await post('/v1/brokerage/plans', { id: id || '', name: $('pm-name').value, note: $('pm-note').value, from: $('pm-from').value, rules }); closeModal(); toast('Plan saved'); render({ keep: true }); }
+    try { await post('/v1/brokerage/plans', { id: id || '', name: $('pm-name').value, note: $('pm-note').value, from: $('pm-from').value, rules: rateEditorRead($('planf')) }); closeModal(); toast('Plan saved'); render({ keep: true }); }
     catch (err) { $('pm-err').innerHTML = errHTML(err); }
   };
 }
-function assignModal(target) {
+function clientRatesModal(ucc) {
+  const d = C.brokerage, ov = d.overrides.find(o => o.ucc === ucc), cur = ov?.current;
+  wideModal(mhd('Client rates' + (ucc ? ' · ' + esc(ucc) : ''), 'A client’s own rate lines win over their card for the orders they fit; anything else follows the card. From the effective date; remove every line to end them.') + `<form class="bd" id="crf">
+    <div class="form"><div class="fld"><label for="cr-ucc-q">Client</label>${cpick('cr-ucc', ucc || '')}</div><div class="fld"><label for="cr-from">Effective from</label><input class="in" type="date" id="cr-from" value="${esc(S.date)}" required></div>
+    <div class="fld full"><label for="cr-note">Note</label><input class="in" id="cr-note" value="${esc(cur?.note || '')}" placeholder="Why this client has their own rates"></div></div>
+    ${rateEditor(d, cur?.rules || {})}
+    <div id="cr-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Save client rates</button></div></form>`);
+  rateEditorWire($('crf'));
+  $('crf').onsubmit = async e => {
+    e.preventDefault();
+    if (!$('cr-ucc').value) { $('cr-err').innerHTML = errHTML({ message: 'Choose the client' }); return; }
+    try { await post('/v1/brokerage/client-rates', { ucc: $('cr-ucc').value, from: $('cr-from').value, note: $('cr-note').value, rules: rateEditorRead($('crf')) }); closeModal(); toast('Client rates saved'); render({ keep: true }); }
+    catch (err) { $('cr-err').innerHTML = errHTML(err); }
+  };
+}
+function bkSetupModal() {
+  const s = C.brokerage.setup;
+  modal(mhd('Trading channels', 'Name the channels you price separately. Each trade gets a channel from its terminal (CTCL) ID: the first rule that matches, else the default. * matches any run of characters. Terminal rules can also be loaded as TERMINAL-CHANNELS on Files.') + `<form class="bd" id="bsf">
+    <div class="form"><div class="fld"><label for="bs-ch">Channels</label><input class="in" id="bs-ch" value="${esc(s.channels.join(', '))}" placeholder="dealer, online, mobile"></div><div class="fld"><label for="bs-def">Default channel</label><input class="in" id="bs-def" value="${esc(s.default_channel)}"></div>
+    <div class="fld full"><label for="bs-t">Terminal rules, one per line: terminal = channel</label><textarea class="in mono" id="bs-t" rows="6" placeholder="1234567*=online">${esc(s.terminals.map(t => t.terminal + ' = ' + t.channel).join('\n'))}</textarea></div>
+    <div class="fld"><label for="bs-auc">Auction settlement types</label><input class="in" id="bs-auc" value="${esc(s.auction_settlements.join(', '))}"></div><div class="fld"><label for="bs-idx">More index underlyings</label><input class="in" id="bs-idx" value="${esc(s.index_underlyings.join(', '))}" placeholder="NIFTY, BANKNIFTY, SENSEX and others are built in"></div></div>
+    <div id="bs-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Save</button></div></form>`);
+  const list = v => v.split(',').map(x => x.trim()).filter(Boolean);
+  $('bsf').onsubmit = async e => {
+    e.preventDefault();
+    const terminals = $('bs-t').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const [t, c] = l.split('='); return { terminal: (t || '').trim(), channel: (c || '').trim() }; });
+    try { await post('/v1/brokerage/setup', { channels: list($('bs-ch').value), default_channel: $('bs-def').value, terminals, auction_settlements: list($('bs-auc').value), index_underlyings: list($('bs-idx').value) }); closeModal(); toast('Channels saved'); render({ keep: true }); }
+    catch (err) { $('bs-err').innerHTML = errHTML(err); }
+  };
+}
+function assignModal(target, scope) {
   const d = C.brokerage; let kind = target === 'default' ? 'default' : target.startsWith('tag:') ? 'tag' : target.startsWith('ucc:') ? 'ucc' : 'tag';
   const tagV = target.startsWith('tag:') ? target.slice(4) : '', uccV = target.startsWith('ucc:') ? target.slice(4) : '';
-  const cur = d.current[target]?.plan || '';
-  modal(mhd('Assign a brokerage plan', 'Applies from the effective date. Earlier bills keep their brokerage unless the day is rebilled.') + `<form class="bd" id="asf">
+  const cur = d.current[target + '#' + (scope || '')]?.plan || '', [seg0, ex0] = (scope || '').split('-');
+  modal(mhd('Assign a brokerage plan', 'Applies from the effective date. Earlier bills keep their brokerage unless the day is rebilled. A plan for one segment or exchange is tried before the all-segments plan of the same client, group or firm.') + `<form class="bd" id="asf">
     <div class="fld"><label>Apply to</label><div class="seg" id="as-kind">${[['default', 'Firm default'], ['tag', 'A group'], ['ucc', 'A client']].map(([k, l]) => `<button type="button" class="${kind === k ? 'on' : ''}" data-k="${k}">${l}</button>`).join('')}</div></div>
     <div class="fld as-tag" ${kind === 'tag' ? '' : 'hidden'}><label for="as-tag">Group</label><input class="in" id="as-tag" list="as-tags" value="${esc(tagV)}" placeholder="e.g. HNI"><datalist id="as-tags">${d.tags.map(t => `<option value="${esc(t.tag)}">${t.clients} clients</option>`).join('')}</datalist></div>
     <div class="fld as-ucc" ${kind === 'ucc' ? '' : 'hidden'}><label for="as-ucc-q">Client</label>${cpick('as-ucc', uccV)}</div>
     <div class="form"><div class="fld"><label for="as-plan">Plan</label><select class="in" id="as-plan">${d.plans.map(p => `<option value="${esc(p.id)}" ${cur === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>
-    <div class="fld"><label for="as-from">Effective from</label><input class="in" type="date" id="as-from" value="${esc(S.date)}"></div></div>
+    <div class="fld"><label for="as-from">Effective from</label><input class="in" type="date" id="as-from" value="${esc(S.date)}"></div>
+    <div class="fld"><label for="as-seg">Segment</label><select class="in" id="as-seg"><option value="">All segments</option>${d.segments.map(s => `<option ${seg0 === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+    <div class="fld"><label for="as-ex">Exchange</label><select class="in" id="as-ex"><option value="">All exchanges</option>${BK_EXCH.map(x => `<option ${ex0 === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div></div>
     <div id="as-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Assign</button></div></form>`);
   $('as-kind').onclick = e => { const b = e.target.closest('button'); if (!b) return; kind = b.dataset.k; $('as-kind').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
     document.querySelector('.as-tag').hidden = kind !== 'tag'; document.querySelector('.as-ucc').hidden = kind !== 'ucc'; };
@@ -1861,7 +1934,9 @@ function assignModal(target) {
     e.preventDefault();
     const t = kind === 'default' ? 'default' : kind === 'tag' ? 'tag:' + $('as-tag').value.trim() : 'ucc:' + $('as-ucc').value;
     if (t === 'tag:' || t === 'ucc:') { $('as-err').innerHTML = errHTML({ message: kind === 'tag' ? 'Choose the group' : 'Choose the client' }); return; }
-    try { await post('/v1/brokerage/assignments', { target: t, plan: $('as-plan').value, from: $('as-from').value }); closeModal(); toast('Plan assigned'); render({ keep: true }); }
+    const seg = $('as-seg').value, ex = $('as-ex').value;
+    if (ex && !seg) { $('as-err').innerHTML = errHTML({ message: 'Choose the segment for the exchange' }); return; }
+    try { await post('/v1/brokerage/assignments', { target: t, scope: seg ? seg + (ex ? '-' + ex : '') : '', plan: $('as-plan').value, from: $('as-from').value }); closeModal(); toast('Plan assigned'); render({ keep: true }); }
     catch (err) { $('as-err').innerHTML = errHTML(err); }
   };
 }
@@ -2393,9 +2468,11 @@ const A = {
   tagAppend: t => { const i = $('tg-in'); const cur = i.value.split(',').map(x => x.trim()).filter(Boolean); if (!cur.map(x => x.toUpperCase()).includes(t)) cur.push(t); i.value = cur.join(', '); },
   planEdit: id => planModal(id),
   planNew: () => planModal(''),
-  assign: (target, el) => assignModal(target || '', el?.dataset.plan || ''),
-  unassign: target => confirmModal('Remove plan · ' + target.replace(/^(ucc|tag):/, ''), 'From the date below this ' + (target.startsWith('ucc:') ? 'client' : 'group') + ' falls back to the next rule (group, then firm default).', `<div class="fld"><label for="un-from">Effective from</label><input class="in" type="date" id="un-from" value="${esc(S.date)}"></div>`,
-    'Remove', () => act(() => post('/v1/brokerage/assignments', { target, plan: '', from: $('un-from').value }), 'Plan removed'), true),
+  assign: (target, el) => assignModal(target || '', el?.dataset.scope || ''),
+  clientRates: ucc => clientRatesModal(ucc || ''),
+  bkSetup: () => bkSetupModal(),
+  unassign: (target, el) => { const scope = el?.dataset.scope || ''; confirmModal('Remove plan · ' + target.replace(/^(ucc|tag):/, '') + (scope ? ' · ' + scopeLabel(scope) : ''), 'From the date below this ' + (target === 'default' ? 'firm-wide card' : target.startsWith('ucc:') ? 'client' : 'group') + ' falls back to the next rule' + (scope ? ' (the all-segments plan, then group, then firm default).' : ' (group, then firm default).'), `<div class="fld"><label for="un-from">Effective from</label><input class="in" type="date" id="un-from" value="${esc(S.date)}"></div>`,
+    'Remove', () => act(() => post('/v1/brokerage/assignments', { target, scope, plan: '', from: $('un-from').value }), 'Plan removed'), true); },
   umenu: (id, el, e) => { const m = $('umenu'); m.hidden = !m.hidden; },
   signOut: async () => { try { await api('POST', '/v1/auth/logout', {}); } catch (e) {} showLogin('You have signed out.'); },
   switchUser: async id => { try { await api('POST', '/v1/auth/logout', {}); } catch (e) {} await doLogin(id, CFG.dev_password, ''); },

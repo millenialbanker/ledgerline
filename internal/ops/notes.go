@@ -433,17 +433,18 @@ func (o *Ops) CorrectBill(ctx context.Context, tenant, actor, date, ucc, reason,
 		prev := ""
 		if as, err := o.Assignments(ctx, tenant); err == nil {
 			for _, a := range as {
-				if a.Target == "ucc:"+ucc && a.From <= date {
+				if a.Target == "ucc:"+ucc && a.Scope == "" && a.From <= date {
 					prev = a.PlanID
 				}
 			}
 		}
-		if _, err := o.Assign(ctx, tenant, actor, "ucc:"+ucc, planID, date); err != nil {
+		// For every segment, setting aside the client's segment cards.
+		if _, err := o.assignAs(ctx, tenant, actor, PlanAssignment{Target: "ucc:" + ucc, PlanID: planID, From: date, Exclusive: true}); err != nil {
 			return res, err
 		}
 		if scope == "day" {
 			set, _ := o.Settings(ctx, tenant)
-			if _, err := o.Assign(ctx, tenant, actor, "ucc:"+ucc, prev, set.NextBusinessDay(date)); err != nil {
+			if _, err := o.assignAs(ctx, tenant, actor, PlanAssignment{Target: "ucc:" + ucc, PlanID: prev, From: set.NextBusinessDay(date)}); err != nil {
 				return res, err
 			}
 		}

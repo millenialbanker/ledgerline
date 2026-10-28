@@ -124,7 +124,7 @@ type App struct {
 	Adjust func(ctx context.Context, tenant string, evs []ingest.TradeEvent) ([]ingest.TradeEvent, error)
 	// BillingHooks, when set, supplies per-client brokerage plans and lot
 	// sizes for a billing run.
-	BillingHooks func(ctx context.Context, tenant, date string) (BrokerageFunc, func(ingest.TradeEvent) int64, error)
+	BillingHooks func(ctx context.Context, tenant, date string) (Pricing, error)
 	runSeq       int64
 	mu           sync.Mutex
 }
@@ -641,18 +641,25 @@ func (s *MemAuditStore) List(_ context.Context, tenant string, limit int) ([]Aud
 	return out, nil
 }
 
-// BrokerageFunc resolves a client's brokerage rule for a product.
-type BrokerageFunc = func(ucc string, b charges.Bucket, exchange, date string) (charges.BrokerageRule, string, bool)
+// BrokerageFunc resolves a client's brokerage rule for an order.
+type BrokerageFunc = billing.BrokerageFunc
+
+// Pricing is what BillingHooks supplies to billing and contract notes.
+type Pricing struct {
+	Brokerage BrokerageFunc
+	LotSize   func(ingest.TradeEvent) int64
+	Classify  func(ingest.TradeEvent) (string, []string)
+}
 
 // BuildBills runs billing.Build with the brokerage plans and lot sizes from
 // BillingHooks, so bills and contract notes price brokerage the same way.
 func (a *App) BuildBills(ctx context.Context, in billing.Input) (billing.Output, error) {
 	if a.BillingHooks != nil {
-		b, lot, err := a.BillingHooks(ctx, in.Tenant, in.Date)
+		p, err := a.BillingHooks(ctx, in.Tenant, in.Date)
 		if err != nil {
 			return billing.Output{}, err
 		}
-		in.Brokerage, in.LotSize = b, lot
+		in.Brokerage, in.LotSize, in.Classify = p.Brokerage, p.LotSize, p.Classify
 	}
 	return billing.Build(in)
 }

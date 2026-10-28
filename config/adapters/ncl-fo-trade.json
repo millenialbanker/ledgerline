@@ -19,6 +19,7 @@
     "trade_date": "TradDt",
     "trade_datetime": "TradDtTm",
     "terminal": "CtclId",
+    "settlement": "SttlmTp",
     "exchange": "Xchg"
   },
   "side_map": {

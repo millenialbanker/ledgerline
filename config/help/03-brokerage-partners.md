@@ -6,8 +6,8 @@ Ledgy help articles: brokerage, charges, branches and partners.
 title: Change a client's brokerage
 screen: brokerage
 roles: Ops checker
-ask: change brokerage; reduce brokerage; client wants lower brokerage; brokerage on delivery; brokerage concession; increase brokerage; brokerage rate; set brokerage for a client; special brokerage; change brokerage plan; brokerage for a group; new brokerage slab; flat brokerage
-related: brokerage-plans, correct-bill, client-groups, run-billing
+ask: change brokerage; reduce brokerage; client wants lower brokerage; brokerage on delivery; brokerage concession; increase brokerage; brokerage rate; set brokerage for a client; special brokerage; change brokerage plan; brokerage for a group; new brokerage slab; flat brokerage; client override; client specific rate; different rate on BSE; card for one segment
+related: brokerage-plans, client-rates, brokerage-import, correct-bill, client-groups, run-billing
 
 1. Open [[brokerage|Brokerage plans]].
 2. If no plan has the rates you need, click **New plan** (see "create a brokerage plan").
@@ -15,9 +15,12 @@ related: brokerage-plans, correct-bill, client-groups, run-billing
    - **A client:** only that client.
    - **A group:** everyone tagged with that group (HNI, STAFF and so on).
    - **Firm default:** everyone without their own or a group plan.
-4. Choose the **effective from** date and save. Assigning needs an **Ops checker**.
+4. Optionally choose a **Segment** (CM, FO, CD or COM) and an **Exchange**, to put the plan on that segment or exchange only. For example, a client can have one card for NSE cash and another for everything else.
+5. Choose the **effective from** date and save. Assigning needs an **Ops checker**.
 
-**Which plan applies:** the client's own plan, else their group's (the most recently assigned group if several), else the firm default, else the charge schedule.
+**Which plan applies:**
+- **The plan:** the client's own plan, else their group's (the most recently assigned group if several), else the firm default, else the charge schedule. At each of these levels, a plan for the order's segment on that exchange is tried first, then one for the segment, then one for all segments. A plan with no line for the order passes it on to the next.
+- **The client's own rate lines:** set with **Client rates**, these win over the plan for the orders they fit.
 
 **Days already billed don't change by themselves.** To change them, use **Rebill changed trades** on [[billing|Billing]], or **Correct** for one client's past bill (it sends a revised contract note).
 
@@ -27,16 +30,79 @@ Statutory charges (STT, exchange, SEBI, stamp duty, GST) never come from a plan.
 title: Create a brokerage plan
 screen: brokerage
 roles: Ops checker
-ask: new brokerage plan; create plan; brokerage per order; per lot brokerage; percentage brokerage; minimum brokerage; maximum brokerage; zero brokerage; free delivery
-related: change-brokerage
+ask: new brokerage plan; create plan; rate card; brokerage per order; per lot brokerage; per share brokerage; percentage brokerage; minimum brokerage; minimum per share; minimum paise per share; minimum per lot; maximum brokerage; zero brokerage; free delivery; online brokerage; mobile brokerage; dealer brokerage; NSE and BSE rates; auction brokerage; rollover brokerage; expiry brokerage; exercise brokerage; assignment brokerage; index options brokerage
+related: change-brokerage, client-rates, trading-channels
 
-1. On [[brokerage|Brokerage plans]], click **New plan**, give it an ID and name.
-2. For each product (delivery, intraday, futures, options; per exchange if needed) choose the rule:
-   - **% of turnover**, **₹ per order**, **lower of % or ₹ per order**, **₹ per lot** (derivatives only) or **free**
-   - optional minimum and maximum per order
-3. Save, then assign it.
+1. On [[brokerage|Brokerage plans]], click **New plan** and give it a name.
+2. Add a **rate line** for each rate. A line is a product (delivery, intraday, futures or options in equity, currency or commodity), optionally narrowed to:
+   - **Exchange:** for example a lower delivery rate on BSE.
+   - **Channel:** dealer, online, mobile, or your own channels (see "trading channels").
+   - **Case:**
+     - **auction** (cash market)
+     - **rollover** (both legs of a futures position moved to a later expiry the same day)
+     - **futures expiry**
+     - **option exercise** (long) or **option assignment** (short)
+     - **index** or **stock** derivatives
+3. Choose the charge:
+   - **% of turnover**, **₹ per order**, **lower of % or ₹ per order**, **₹ per lot** (derivatives) or **₹ per share**, or **free**.
+   - Optional **minimum per share** (for example 3 paise) or **minimum per lot**. These grow with the order.
+   - Optional **minimum** and **maximum per order**.
+4. Save, then assign it.
+
+**Which line applies to an order:** the most specific one that fits. A matching case comes first, then a matching channel, then a matching exchange; the plain product line comes last. A product with no line uses the charge schedule.
+
+**At expiry:** brokerage on futures expiry, exercise and assignment is charged only where the plan has a line for that case. It is posted when derivatives are settled. A % rate applies to the settlement value (settlement price, or the underlying's price for options, times the quantity).
 
 To change rates later, **Edit rates** with an effective date. Earlier days keep the old rates, so history stays correct.
+
+## client-rates
+title: Give a client their own rates
+screen: brokerage
+roles: Ops checker
+ask: client override; client specific brokerage; override brokerage for one client; client's own rate; special rate for one client on options; negotiated rate
+related: brokerage-plans, change-brokerage
+
+1. On [[brokerage|Brokerage plans]], click **Client rates** and choose the client.
+2. Add only the lines that differ from the client's plan. For example, options at ₹15 per lot online.
+3. Choose the effective date and save.
+
+The client's own lines win over their plan for the orders they fit. At equal detail, the client's line wins; a more detailed plan line (for a case, a channel or an exchange) still applies where the client has no line that detailed. To end them, open **Client rates**, remove every line and save with the date they end.
+
+## trading-channels
+title: Set up trading channels
+screen: brokerage
+roles: Ops checker
+ask: trading channel; online rate; mobile rate; dealer rate; terminal; CTCL ID; which trades are online; channel brokerage
+related: brokerage-plans, brokerage-import
+
+1. On [[brokerage|Brokerage plans]], click **Channels**.
+2. Name the channels you price separately (for example dealer, online, mobile, algo) and choose the default.
+3. Add terminal rules, one per line, as `terminal = channel`, using `*` for any run of characters (for example `1234567*=online`).
+
+Each trade gets its channel from the terminal (CTCL) ID in the exchange trade file: the first rule that matches, else the default. Auction trades are recognised by the settlement type in the trade file. Index derivatives are recognised by the underlying; NIFTY, BANKNIFTY, SENSEX and the other main indices are built in, and you can add more.
+
+## brokerage-import
+title: Bring brokerage rates across from another back office
+screen: files
+roles: Ops checker
+ask: import brokerage; import rate cards; migrate brokerage; load brokerage rates; import client brokerage; brokerage for inactive clients; brokerage for suspended clients
+related: brokerage-plans, client-rates, trading-channels, load-files
+
+Load these files on [[files|Files]], in this order. A converter for the old system writes them; loading a file twice changes nothing. Loading needs an **Ops checker**.
+
+1. **BROKERAGE-CARDS:** every rate card with its history, one row per rate line. Columns:
+   - Card, From, Product and Mode.
+   - Optional Name, Exchange, Channel, Case, Pct, Flat, PerLot, PerShare, MinPerShare, MinPerLot, Min and Max.
+   - All the lines of a card with the same From make that version.
+2. **BROKERAGE-CLIENTS:** which card each client is on, with history. It covers every client whatever their status: active, inactive, suspended or closed. Columns:
+   - UCC, Card and From.
+   - Optional Segment and Exchange, for a card on one segment or exchange.
+   - UCC can also be DEFAULT for the firm default, or GROUP:<name>.
+   - A blank Card ends the earlier card from the date.
+3. **BROKERAGE-CLIENT-RATES:** clients' own rate lines, in the same columns as the cards, keyed by UCC.
+4. **TERMINAL-CHANNELS:** Terminal and Channel.
+
+Load the client master first: rows for unknown clients are refused, and so is the whole file.
 
 ## charges-check
 title: Check a charge a client disputes

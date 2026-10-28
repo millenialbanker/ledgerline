@@ -50,7 +50,7 @@ type Spec struct {
 var knownFields = map[string]bool{
 	"trade_no": true, "order_no": true, "ucc": true, "symbol": true, "instrument_type": true, "option_type": true,
 	"expiry": true, "strike": true, "side": true, "qty": true, "price": true, "trade_date": true, "trade_time": true,
-	"trade_datetime": true, "product": true, "algo_id": true, "terminal": true, "exchange": true, "segment": true,
+	"trade_datetime": true, "product": true, "algo_id": true, "terminal": true, "settlement": true, "exchange": true, "segment": true,
 }
 
 // ParseError is a row-level problem.
@@ -202,7 +202,7 @@ func (s Spec) row(rec []string, col map[string]int, line int) (TradeEvent, []Par
 		Origin: s.Origin, Exchange: strings.ToUpper(firstNonEmpty(get("exchange"), s.Exchange)),
 		Segment: strings.ToUpper(firstNonEmpty(get("segment"), s.Segment)),
 		TradeNo: get("trade_no"), OrderNo: get("order_no"), UCC: strings.ToUpper(get("ucc")),
-		Symbol: strings.ToUpper(get("symbol")), AlgoID: get("algo_id"), Terminal: get("terminal"), Line: line,
+		Symbol: strings.ToUpper(get("symbol")), AlgoID: get("algo_id"), Terminal: get("terminal"), Settlement: strings.ToUpper(get("settlement")), Line: line,
 	}
 	for f, v := range map[string]string{"trade_no": ev.TradeNo, "ucc": ev.UCC, "symbol": ev.Symbol, "exchange": ev.Exchange, "segment": ev.Segment} {
 		if v == "" {

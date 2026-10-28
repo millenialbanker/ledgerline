@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"ledgerline/internal/charges"
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/ledger"
@@ -61,8 +62,9 @@ func (o *Ops) hadActivity(ctx context.Context, tenant, date string) (bool, error
 // DerivResult is what derivative settlement posted for a day.
 type DerivResult struct {
 	Date      string   `json:"date"`
-	MTM       []string `json:"mtm"`    // carried-futures MTM entries posted
-	Expiry    []string `json:"expiry"` // exercise / assignment entries posted
+	MTM       []string `json:"mtm"`     // carried-futures MTM entries posted
+	Expiry    []string `json:"expiry"`  // exercise / assignment entries posted
+	Charges   []string `json:"charges"` // expiry, exercise and assignment brokerage entries posted
 	Existing  int      `json:"existing"`
 	Warnings  []string `json:"warnings"`
 	Positions int      `json:"carried_futures"`
@@ -74,7 +76,7 @@ type DerivResult struct {
 // × intrinsic value at the underlying's closing price). Each client and
 // exchange segment gets one entry per kind; re-running is idempotent.
 func (o *Ops) SettleDerivatives(ctx context.Context, tenant, actor, date string) (DerivResult, error) {
-	res := DerivResult{Date: date, MTM: []string{}, Expiry: []string{}, Warnings: []string{}}
+	res := DerivResult{Date: date, MTM: []string{}, Expiry: []string{}, Charges: []string{}, Warnings: []string{}}
 	in, err := o.riskInput(ctx, tenant, date)
 	if err != nil {
 		return res, err
@@ -104,10 +106,53 @@ func (o *Ops) SettleDerivatives(ctx context.Context, tenant, actor, date string)
 		return res, fmt.Errorf("%w: no settlement price for carried futures %s; load the day's market data", ErrInvalid, strings.Join(missing, ", "))
 	}
 	exp := map[string]*grp{}
+	// Brokerage at expiry, where the client's card has a line for it:
+	// futures settled at expiry, options exercised (long) or assigned
+	// (short). Percent rates apply to the settlement value (settlement price,
+	// or the underlying's price for options, times the quantity).
+	bb, err := o.brokerageBook(ctx, tenant, date)
+	if err != nil {
+		return res, err
+	}
+	type fee struct {
+		brok  money.Amount
+		lines []string
+	}
+	fees := map[string]*fee{}
+	charge := func(p PositionView, inst Instrument, kase string, px money.Dec) {
+		b, err := charges.BucketFor(p.Segment, strings.Split(p.Instrument, "|")[1], "")
+		if err != nil {
+			return
+		}
+		qty := p.Qty
+		if qty < 0 {
+			qty = -qty
+		}
+		rule, card, ok := bb.rule(p.UCC, charges.RateQuery{Bucket: b, Exchange: p.Exchange, Cases: []string{kase}, Strict: true})
+		if !ok {
+			return
+		}
+		amt := rule.Compute(b, px.MulInt(qty), qty, max(inst.Lot, 1)).Round(money.UnitPaisa)
+		if amt <= 0 {
+			return
+		}
+		k := p.UCC + "|" + p.Exchange + "-" + p.Segment
+		if fees[k] == nil {
+			fees[k] = &fee{}
+		}
+		fees[k].brok += amt
+		fees[k].lines = append(fees[k].lines, fmt.Sprintf("%s %s %s ₹%s (%s)", kase, p.Name, rule.Describe(), amt, card))
+	}
 	pos, _ := in.positions("")
 	for _, ps := range pos {
 		for _, p := range ps {
 			parts := strings.Split(p.Instrument, "|")
+			if len(parts) >= 3 && parts[1] == "FUT" && parts[2] == date && p.Qty != 0 {
+				if inst, ok := in.look.Get(p.Exchange, p.Segment, p.Instrument); ok && !inst.Close.IsZero() {
+					charge(p, inst, charges.CaseExpiry, inst.Close)
+				}
+				continue
+			}
 			if len(parts) < 4 || (parts[1] != "CE" && parts[1] != "PE") || parts[2] != date {
 				continue
 			}
@@ -132,6 +177,11 @@ func (o *Ops) SettleDerivatives(ctx context.Context, tenant, actor, date string)
 				exp[k] = &grp{}
 			}
 			exp[k].amt = exp[k].amt.Add(intrinsic.MulInt(p.Qty))
+			kase := charges.CaseExercise
+			if p.Qty < 0 {
+				kase = charges.CaseAssignment
+			}
+			charge(p, inst, kase, inst.Underlying)
 		}
 	}
 	post := func(kind, label string, m map[string]*grp, out *[]string) error {
@@ -168,14 +218,31 @@ func (o *Ops) SettleDerivatives(ctx context.Context, tenant, actor, date string)
 	if err := post("EXPIRY", "Option exercise / assignment", exp, &res.Expiry); err != nil {
 		return res, err
 	}
-	if len(res.MTM)+len(res.Expiry) > 0 {
-		o.log(ctx, tenant, actor, "derivatives.settled", date, map[string]any{"mtm": len(res.MTM), "expiry": len(res.Expiry)})
+	for _, k := range sortedKeys(fees) {
+		ucc, seg, _ := strings.Cut(k, "|")
+		f := fees[k]
+		gst := f.brok.Dec().Pct(o.App.Schedule.GSTPct).Round(money.UnitPaisa)
+		e, created, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "EXPBRK:" + date + ":" + ucc + ":" + seg, ValueDate: date,
+			Narration: fmt.Sprintf("Expiry brokerage %s %s: %s", seg, date, strings.Join(f.lines, "; ")), Source: ledger.SourceRef{Kind: "EXPBRK", ID: date + "/" + ucc + "/" + seg}, CreatedBy: actor,
+			Postings: []ledger.Posting{{Account: ledger.ClientAccount(ucc), Debit: f.brok + gst, Memo: "Brokerage, taxes and charges"},
+				{Account: ledger.IncomeBrokerage, Credit: f.brok, Memo: "Brokerage"}, {Account: ledger.PayableGST, Credit: gst, Memo: "GST"}}})
+		if err != nil {
+			return res, fmt.Errorf("%s %s: %w", ucc, seg, err)
+		}
+		if created {
+			res.Charges = append(res.Charges, e.ID)
+		} else {
+			res.Existing++
+		}
+	}
+	if len(res.MTM)+len(res.Expiry)+len(res.Charges) > 0 {
+		o.log(ctx, tenant, actor, "derivatives.settled", date, map[string]any{"mtm": len(res.MTM), "expiry": len(res.Expiry), "charges": len(res.Charges)})
 	}
 	return res, nil
 }
 
 // derivKinds are the ledger entry kinds that settle derivatives money.
-var derivKinds = map[string]bool{"BILL": true, "MTM": true, "EXPIRY": true}
+var derivKinds = map[string]bool{"BILL": true, "MTM": true, "EXPIRY": true, "EXPBRK": true}
 
 // RollPositions carries a closed day's end-of-day derivatives positions into
 // the next trading day. Futures carry at the day's settlement price (their

@@ -57,6 +57,10 @@ type masterSrc struct {
 }
 
 func masterSources() []masterSrc {
+	return append(baseSources(), brokerageSources()...)
+}
+
+func baseSources() []masterSrc {
 	return []masterSrc{
 		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding). Optional columns: Branch, State (place of supply for GST), GSTIN; WhatsApp (Y), WAConsentDate and WAConsentRef for WhatsApp consent recorded in the previous system; ECN (N for a client who chose printed contract notes); NominationDate and NominationMode for the nomination or opt-out declaration", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
 		{"NOMINEES", "Nominees of each client, up to 10 (replaces the client's list). IDType is PAN, DL, AADHAAR (only the last 4 digits are kept) or PASSPORT; leave Share blank for equal shares; a minor needs DOB, Guardian and GuardianRelation. Optional: Mobile, Email, Address, DeclaredOn, Mode", []string{"UCC", "Name", "Relation", "Share", "IDType", "ID", "DOB", "Guardian", "GuardianRelation"}, false, "Once at go-live, then on change"},
@@ -232,6 +236,8 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 	switch source {
 	case "DEBARRED-LIST", "KRA-STATUS", "CKYC-NUMBERS", "STT-STATEMENT":
 		return o.prepareCompliance(ctx, tenant, actor, source, date, rows)
+	case "BROKERAGE-CARDS", "BROKERAGE-CLIENTS", "BROKERAGE-CLIENT-RATES", "TERMINAL-CHANNELS":
+		return o.prepareBrokerage(ctx, tenant, actor, source, rows)
 	case "NRI-CAUTION":
 		return o.loadNRICaution(ctx, tenant, actor, date, rows)
 	case "NOMINEES":

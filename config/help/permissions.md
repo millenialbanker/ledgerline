@@ -24,7 +24,9 @@ Buy-back offers | Ops maker, Ops checker
 Changing a segment's status | Ops checker, Compliance officer
 Changing automation | Compliance officer, Admin
 Changing backup settings | Admin
+Changing brokerage channels | Ops checker
 Changing brokerage plans | Ops checker
+Changing client brokerage rates | Ops checker
 Changing client groups | Ops maker, Ops checker
 Changing connections | Admin
 Changing settings | Admin
@@ -68,6 +70,7 @@ Generating reports | Ops maker, Ops checker, Risk manager, Compliance officer
 Giving clients portal access | Ops checker, Admin
 Identifying a bank credit | Ops checker
 Issuing DIS books | Ops maker, Ops checker
+Loading brokerage rates | Ops checker
 Loading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
 Loading exchange holidays | Ops maker, Ops checker, Compliance officer
 Loading files | Ops maker, Ops checker, Risk manager, Compliance officer

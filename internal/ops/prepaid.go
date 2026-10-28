@@ -167,7 +167,7 @@ func (o *Ops) BuyPrepaid(ctx context.Context, tenant, actor, date, ucc, scheme s
 	if sc.Kind == "Plan" {
 		if as, err := o.Assignments(ctx, tenant); err == nil {
 			for _, a := range as {
-				if a.Target == "ucc:"+ucc && a.From <= date {
+				if a.Target == "ucc:"+ucc && a.Scope == "" && a.From <= date {
 					sub.PrevPlan = a.PlanID
 				}
 			}
@@ -239,7 +239,7 @@ func (o *Ops) RunPrepaid(ctx context.Context, tenant, actor, date string) (adjus
 			}
 		}
 		if sub.Kind == "Plan" {
-			if _, err := o.assign(ctx, tenant, actor, "ucc:"+sub.UCC, sub.PrevPlan, addDays(sub.Expiry, 1)); err != nil {
+			if _, err := o.assignAs(ctx, tenant, actor, PlanAssignment{Target: "ucc:" + sub.UCC, PlanID: sub.PrevPlan, From: addDays(sub.Expiry, 1)}); err != nil {
 				return adjusted, expired, renewed, err
 			}
 		}

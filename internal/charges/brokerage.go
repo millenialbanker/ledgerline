@@ -12,20 +12,25 @@ const (
 	PlanFlat    = "flat"     // fixed rupees per executed order
 	PlanLowerOf = "lower_of" // lower of the flat amount and the percent
 	PlanPerLot  = "per_lot"  // rupees per lot (derivatives)
+	PlanPerUnit = "per_unit" // rupees per share or unit traded
 	PlanZero    = "zero"     // no brokerage
 )
 
 // BrokerageRule is how a brokerage plan charges one product. It applies to
-// an executed order (all its trades together). Min and Max, when set, bound
-// the amount per order. On the cash market brokerage never exceeds 2.5% of
-// the order's value, the exchange limit.
+// an executed order (all its trades together). MinPerUnit and MinPerLot are
+// floors that grow with the order (paise per share, rupees per lot); Min and
+// Max, when set, bound the amount per order. On the cash market brokerage
+// never exceeds 2.5% of the order's value, the exchange limit.
 type BrokerageRule struct {
-	Mode   string    `json:"mode"`
-	Pct    money.Dec `json:"pct,omitempty"`
-	Flat   money.Dec `json:"flat,omitempty"`
-	PerLot money.Dec `json:"per_lot,omitempty"`
-	Min    money.Dec `json:"min,omitempty"`
-	Max    money.Dec `json:"max,omitempty"`
+	Mode       string    `json:"mode"`
+	Pct        money.Dec `json:"pct,omitempty"`
+	Flat       money.Dec `json:"flat,omitempty"`
+	PerLot     money.Dec `json:"per_lot,omitempty"`
+	PerUnit    money.Dec `json:"per_unit,omitempty"`
+	MinPerUnit money.Dec `json:"min_per_unit,omitempty"`
+	MinPerLot  money.Dec `json:"min_per_lot,omitempty"`
+	Min        money.Dec `json:"min,omitempty"`
+	Max        money.Dec `json:"max,omitempty"`
 }
 
 // CMBrokerageCapPct is the cash-market ceiling on brokerage.
@@ -42,7 +47,8 @@ func (r BrokerageRule) Validate() error {
 	for _, c := range []struct {
 		n string
 		d money.Dec
-	}{{"percent", r.Pct}, {"flat amount", r.Flat}, {"per-lot amount", r.PerLot}, {"minimum", r.Min}, {"maximum", r.Max}} {
+	}{{"percent", r.Pct}, {"flat amount", r.Flat}, {"per-lot amount", r.PerLot}, {"per-share amount", r.PerUnit},
+		{"minimum per share", r.MinPerUnit}, {"minimum per lot", r.MinPerLot}, {"minimum", r.Min}, {"maximum", r.Max}} {
 		if err := neg(c.n, c.d); err != nil {
 			return err
 		}
@@ -65,6 +71,10 @@ func (r BrokerageRule) Validate() error {
 		if r.PerLot.Sign() == 0 {
 			return fmt.Errorf("the amount per lot is required")
 		}
+	case PlanPerUnit:
+		if r.PerUnit.Sign() == 0 {
+			return fmt.Errorf("the amount per share is required")
+		}
 	default:
 		return fmt.Errorf("unknown brokerage mode %q", r.Mode)
 	}
@@ -80,6 +90,10 @@ func (r BrokerageRule) Validate() error {
 // Compute is the brokerage for an order of turnover v, quantity qty and lot
 // size lot (1 for equities).
 func (r BrokerageRule) Compute(b Bucket, v money.Dec, qty, lot int64) money.Dec {
+	if lot <= 0 {
+		lot = 1
+	}
+	lots := (qty + lot - 1) / lot
 	var x money.Dec
 	switch r.Mode {
 	case PlanPct:
@@ -89,13 +103,17 @@ func (r BrokerageRule) Compute(b Bucket, v money.Dec, qty, lot int64) money.Dec 
 	case PlanLowerOf:
 		x = money.Min(r.Flat, v.Pct(r.Pct))
 	case PlanPerLot:
-		if lot <= 0 {
-			lot = 1
-		}
-		lots := (qty + lot - 1) / lot
 		x = r.PerLot.MulInt(lots)
+	case PlanPerUnit:
+		x = r.PerUnit.MulInt(qty)
 	case PlanZero:
 		return money.Dec{}
+	}
+	if r.MinPerUnit.Sign() > 0 {
+		x = money.Max(x, r.MinPerUnit.MulInt(qty))
+	}
+	if r.MinPerLot.Sign() > 0 {
+		x = money.Max(x, r.MinPerLot.MulInt(lots))
 	}
 	if r.Min.Sign() > 0 {
 		x = money.Max(x, r.Min)
@@ -123,12 +141,20 @@ func (r BrokerageRule) Describe() string {
 		s = "lower of ₹" + r.Flat.String() + " or " + r.Pct.String() + "%"
 	case PlanPerLot:
 		s = "₹" + r.PerLot.String() + " per lot"
+	case PlanPerUnit:
+		s = "₹" + r.PerUnit.String() + " per share"
+	}
+	if r.MinPerUnit.Sign() > 0 {
+		s += ", min ₹" + r.MinPerUnit.String() + " per share"
+	}
+	if r.MinPerLot.Sign() > 0 {
+		s += ", min ₹" + r.MinPerLot.String() + " per lot"
 	}
 	if r.Min.Sign() > 0 {
-		s += ", min ₹" + r.Min.String()
+		s += ", min ₹" + r.Min.String() + " per order"
 	}
 	if r.Max.Sign() > 0 {
-		s += ", max ₹" + r.Max.String()
+		s += ", max ₹" + r.Max.String() + " per order"
 	}
 	return s
 }

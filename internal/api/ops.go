@@ -286,6 +286,8 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/brokerage/plans", s.savePlan, true)
 	R("POST /v1/brokerage/assignments", s.assignPlan, true)
 	R("GET /v1/brokerage/client/{ucc}", s.clientPlan, false)
+	R("POST /v1/brokerage/client-rates", s.saveClientRates, true)
+	R("POST /v1/brokerage/setup", s.saveBrokerageSetup, true)
 	R("GET /v1/alerts", s.alerts, false)
 	R("POST /v1/alerts/{id}/{action}", s.alertAction, true)
 	R("POST /v1/surveillance/run", s.runRules, true)
@@ -1170,12 +1172,33 @@ func (s *Server) savePlan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) assignPlan(w http.ResponseWriter, r *http.Request) {
-	var b struct{ Target, Plan, From string }
+	var b struct{ Target, Scope, Plan, From string }
 	if !decode(w, r, &b) {
 		return
 	}
-	a, err := s.ops.Assign(r.Context(), tenant(r), actor(r), b.Target, b.Plan, b.From)
+	a, err := s.ops.AssignScoped(r.Context(), tenant(r), actor(r), b.Target, b.Scope, b.Plan, b.From)
 	ok(w, a, err)
+}
+
+func (s *Server) saveClientRates(w http.ResponseWriter, r *http.Request) {
+	var in ops.OverrideInput
+	if !decode(w, r, &in) {
+		return
+	}
+	if !s.canSee(w, r, in.UCC) {
+		return
+	}
+	c, err := s.ops.SaveOverride(r.Context(), tenant(r), actor(r), in)
+	ok(w, c, err)
+}
+
+func (s *Server) saveBrokerageSetup(w http.ResponseWriter, r *http.Request) {
+	var in ops.BrokerageSetup
+	if !decode(w, r, &in) {
+		return
+	}
+	v, err := s.ops.SaveBrokerageSetup(r.Context(), tenant(r), actor(r), in)
+	ok(w, v, err)
 }
 
 func (s *Server) clientPlan(w http.ResponseWriter, r *http.Request) {
