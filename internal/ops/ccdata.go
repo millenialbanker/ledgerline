@@ -470,6 +470,12 @@ func (o *Ops) loadCDSLTxns(ctx context.Context, tenant, actor string, rows []xfi
 		}
 		t := DPTxn{Date: firstOf(anyDate(r.Get("ExecDt")), anyDate(r.Get("BizDt"))), UCC: ucc, ISIN: strings.ToUpper(r.Get("ISIN")), Qty: qty,
 			Kind: cdslTxnKind(r.Get("TxnTyp")), Ref: ref, Billable: !pledgeTxn[strings.ToUpper(r.Get("TxnTyp"))]}
+		// Only on-market settlement (pay-in IDO, pay-out NPY) carries the
+		// clearing member that marks the firm's own trades; off-market
+		// transfers never do.
+		if tp := strings.ToUpper(r.Get("TxnTyp")); (tp == "IDO" || tp == "NPY") && strings.TrimSpace(r.Get("SctiesSttlmTxId")) != "" {
+			t.ClearingMember = strings.ToUpper(firstOf(strings.TrimSpace(r.Get("UnqClrMmbId")), strings.TrimSpace(r.Get("ClrMmbId"))))
+		}
 		for _, c := range []string{r.Get("CntrBnfclOwnrId"), r.Get("OthrDpstryPtcpt") + r.Get("OthrDpstryClntCd"), r.Get("CuspaAcct"), r.Get("EPAcct")} {
 			if c = normDematID(c); len(c) >= 8 {
 				t.Counterparty = append(t.Counterparty, c)

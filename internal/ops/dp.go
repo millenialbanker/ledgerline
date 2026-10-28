@@ -81,7 +81,12 @@ type DPTariff struct {
 	// at each depository, to or from which transfers carry no debit or
 	// credit charge: deliveries for trades done through the firm.
 	ChargeFree []ChargeFreeAccount `json:"charge_free"`
-	From       string              `json:"from"`
+	// ChargeFreeCMs are the firm's own clearing member codes as the
+	// depository reports them on settlement transactions: on-market pay-ins
+	// go straight from the client to the clearing corporation, so they are
+	// recognised by the clearing member, not by a pool account.
+	ChargeFreeCMs []string `json:"charge_free_cms"`
+	From          string   `json:"from"`
 }
 
 // ChargeFreeAccount is a demat account whose transfers are not charged.
@@ -111,14 +116,30 @@ func (t DPTariff) freeSet() map[string]string {
 }
 
 // freeFor says whether a transfer went to or came from a charge-free
-// account, and which.
+// account, or settled trades of the firm's own clearing member, and which.
 func (t DPTariff) freeFor(free map[string]string, x DPTxn) (string, bool) {
 	for _, c := range x.Counterparty {
 		if l, ok := free[normDematID(c)]; ok {
 			return l, true
 		}
 	}
+	if cm := strings.ToUpper(strings.TrimSpace(x.ClearingMember)); cm != "" {
+		for _, c := range t.ChargeFreeCMs {
+			if c == cm {
+				return "Clearing member " + c, true
+			}
+		}
+	}
 	return "", false
+}
+
+// CMSeen is a clearing member code found on DP transactions, to help the
+// firm pick its own.
+type CMSeen struct {
+	Code  string   `json:"code"`
+	Txns  int      `json:"txns"`
+	Kinds []string `json:"kinds"`
+	Free  bool     `json:"free"`
 }
 
 // DefaultDPTariff is a typical discount-broker DP tariff.
@@ -132,6 +153,9 @@ func (o *Ops) DPTariffNow(ctx context.Context, tenant string) (DPTariff, error) 
 	t, _, err := docs.GetOr(ctx, o.Docs, tenant, cDPTariff, "main", DefaultDPTariff())
 	if t.ChargeFree == nil {
 		t.ChargeFree = []ChargeFreeAccount{}
+	}
+	if t.ChargeFreeCMs == nil {
+		t.ChargeFreeCMs = []string{}
 	}
 	return t, err
 }
@@ -188,6 +212,20 @@ func (o *Ops) SaveDPTariff(ctx context.Context, tenant, actor string, t DPTariff
 	if t.ChargeFree == nil {
 		t.ChargeFree = []ChargeFreeAccount{}
 	}
+	cms := []string{}
+	seenCM := map[string]bool{}
+	for _, c := range t.ChargeFreeCMs {
+		c = strings.ToUpper(strings.TrimSpace(c))
+		if c == "" || seenCM[c] {
+			continue
+		}
+		if len(c) > 16 {
+			return t, invalid("clearing member code %q is too long", c)
+		}
+		seenCM[c] = true
+		cms = append(cms, c)
+	}
+	t.ChargeFreeCMs = cms
 	if err := docs.Upsert(ctx, o.Docs, tenant, cDPTariff, "main", t, actor); err != nil {
 		return t, err
 	}
@@ -230,6 +268,8 @@ type DPView struct {
 	Bills   []DPBill       `json:"bills"`
 	Reqs    []DPRequest    `json:"requests"`
 	Reasons []string       `json:"reasons"`
+	// CMs are the clearing member codes on loaded DP transactions.
+	CMs []CMSeen `json:"clearing_members"`
 }
 
 func amcFor(t DPTariff, bsda bool, value money.Dec) money.Amount {
@@ -305,6 +345,30 @@ func (o *Ops) DP(ctx context.Context, tenant, date string) (DPView, error) {
 	v.DIS, _ = docs.List[DIS](ctx, o.Docs, tenant, cDIS, "")
 	sort.Slice(v.DIS, func(i, j int) bool { return v.DIS[i].ID > v.DIS[j].ID })
 	v.Books, _ = docs.List[DISBook](ctx, o.Docs, tenant, cDISBook, "")
+	v.CMs = []CMSeen{}
+	if ts, err := docs.List[DPTxn](ctx, o.Docs, tenant, cDPTxn, ""); err == nil {
+		by := map[string]*CMSeen{}
+		kinds := map[string]map[string]bool{}
+		for _, x := range ts {
+			cm := strings.ToUpper(strings.TrimSpace(x.ClearingMember))
+			if cm == "" {
+				continue
+			}
+			if by[cm] == nil {
+				by[cm], kinds[cm] = &CMSeen{Code: cm}, map[string]bool{}
+			}
+			by[cm].Txns++
+			kinds[cm][x.Kind] = true
+		}
+		for _, c := range sortedKeys(by) {
+			x := by[c]
+			x.Kinds = sortedKeys(kinds[c])
+			for _, f := range v.Tariff.ChargeFreeCMs {
+				x.Free = x.Free || f == c
+			}
+			v.CMs = append(v.CMs, *x)
+		}
+	}
 	v.Bills, _ = docs.List[DPBill](ctx, o.Docs, tenant, cDPBill, "")
 	sort.Slice(v.Bills, func(i, j int) bool { return v.Bills[i].ID > v.Bills[j].ID })
 	v.Reqs, _ = docs.List[DPRequest](ctx, o.Docs, tenant, cDPReq, "")
@@ -709,6 +773,9 @@ type DPTxn struct {
 	// Counterparty lists the other side's account IDs as the depository
 	// reports them (BO ID, DP ID + client ID, pool or early pay-in account).
 	Counterparty []string `json:"counterparty,omitempty"`
+	// ClearingMember is the clearing member of an on-market settlement
+	// transaction (pay-in or pay-out), as the depository reports it.
+	ClearingMember string `json:"clearing_member,omitempty"`
 }
 
 func (o *Ops) dpTxn(ctx context.Context, tenant, actor string, t DPTxn) error {

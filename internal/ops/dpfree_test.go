@@ -24,6 +24,7 @@ func TestDPChargeFreePools(t *testing.T) {
 	tf, _ := o.DPTariffNow(ctx, T)
 	tf.DebitCharge, tf.DepositoryShare, tf.CreditCharge = 1000, 0, 500
 	tf.ChargeFree = []ChargeFreeAccount{{ID: "1203320000000001", Label: "Pool CDSL"}, {Depository: "nsdl", ID: "IN300123 10000001", Label: "Pool NSDL"}}
+	tf.ChargeFreeCMs = []string{" m12345 "}
 	bad := tf
 	bad.ChargeFree = []ChargeFreeAccount{{Depository: "CDSL", ID: "12345"}}
 	if _, err := o.SaveDPTariff(ctx, T, "farhan.khan", bad); err == nil {
@@ -33,6 +34,9 @@ func TestDPChargeFreePools(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(saved.ChargeFreeCMs) != 1 || saved.ChargeFreeCMs[0] != "M12345" {
+		t.Fatalf("clearing members %v", saved.ChargeFreeCMs)
+	}
 	if len(saved.ChargeFree) != 2 || saved.ChargeFree[1].ID != "IN30012310000001" || saved.ChargeFree[1].Depository != "NSDL" || saved.ChargeFree[0].Depository != "CDSL" {
 		t.Fatalf("pools %+v", saved.ChargeFree)
 	}
@@ -40,12 +44,19 @@ func TestDPChargeFreePools(t *testing.T) {
 	f := xwrite(t, "cdsl-transactions",
 		// Pay-in to the CDSL pool for a sale through the firm: free.
 		xr("", "Src", "CDSL", "TxnTyp", "IDO", "TxnID", "91", "LineNb", "1", "ClntId", dm.Demat.ID, "ISIN", "INE999Q01017", "ExecDt", day, "Qty", "10.000", "TxnCd", "DBT", "CntrBnfclOwnrId", "1203320000000001"),
+		// Direct pay-in to the clearing corporation for the firm's trades:
+		// recognised by the firm's clearing member code, free.
+		xr("", "Src", "CDSL", "TxnTyp", "IDO", "TxnID", "95", "LineNb", "1", "ClntId", dm.Demat.ID, "ISIN", "INE999Q01017", "ExecDt", day, "Qty", "4.000", "TxnCd", "DBT", "CntrBnfclOwnrId", "1100001100099999", "ClrMmbId", "M12345", "SctiesSttlmTxId", "2026190"),
 		// Pay-out from the NSDL pool: free.
 		xr("", "Src", "CDSL", "TxnTyp", "IDD", "TxnID", "92", "LineNb", "1", "ClntId", dm.Demat.ID, "ISIN", "INE999Q01017", "ExecDt", day, "Qty", "5.000", "TxnCd", "CRD", "OthrDpstryPtcpt", "IN300123", "OthrDpstryClntCd", "10000001"),
 		// Delivery to another broker's account and a receipt from one: charged.
 		xr("", "Src", "CDSL", "TxnTyp", "WTR", "TxnID", "93", "LineNb", "1", "ClntId", dm.Demat.ID, "ISIN", "INE999Q01017", "ExecDt", day, "Qty", "3.000", "TxnCd", "DBT", "CntrBnfclOwnrId", "1208870000000099"),
 		xr("", "Src", "CDSL", "TxnTyp", "WTR", "TxnID", "94", "LineNb", "1", "ClntId", dm.Demat.ID, "ISIN", "INE999Q01017", "ExecDt", day, "Qty", "2.000", "TxnCd", "CRD", "CntrBnfclOwnrId", "1208870000000099"))
 	loadX(t, o, "COD_EXP_12345_123456_F_202611051830_001_P1.csv", f)
+	dv, _ := o.DP(ctx, T, day)
+	if len(dv.CMs) != 1 || dv.CMs[0].Code != "M12345" || !dv.CMs[0].Free {
+		t.Fatalf("clearing members seen %+v", dv.CMs)
+	}
 	bills, err := o.RunDPBilling(ctx, T, "farhan.khan", "2026-11")
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +72,7 @@ func TestDPChargeFreePools(t *testing.T) {
 		got[l.What] = l
 	}
 	d, c := got["Debit instructions (per ISIN)"], got["Credit instructions (per ISIN)"]
-	if b.Free != 2 || d.Count != 1 || d.Amount != money.Amount(1000) || c.Count != 1 || c.Amount != money.Amount(500) {
+	if b.Free != 3 || d.Count != 1 || d.Amount != money.Amount(1000) || c.Count != 1 || c.Amount != money.Amount(500) {
 		t.Fatalf("bill %+v", b)
 	}
 }

@@ -187,7 +187,9 @@ On [[dp|Demat accounts & DIS]]: set the tariff (**Save tariff**), then **Run DP 
 - **CDSL:** the 16-digit BO ID.
 - **NSDL:** the DP ID and client ID together (IN followed by 14 digits).
 
-You can list as many as you need. Transfers to or from these accounts carry no debit or credit charge, so deliveries for trades done through the firm are free. Every other debit is charged the debit charge per ISIN, and every other credit the credit charge per ISIN (0 for none). The bill shows how many pool transfers were not charged. The counterparty is read from the CDSL transaction file.
+You can list as many as you need. Transfers to or from these accounts carry no debit or credit charge, so deliveries for trades done through the firm are free.
+
+**The firm's clearing member codes.** On-market pay-ins go straight from the client's account to the clearing corporation, not through the pool. So also enter the firm's clearing member code(s) as the CDSL transaction file shows them. The screen lists the codes found in loaded transactions to choose from. Pay-ins and pay-outs settled under these codes are not charged. Every other debit is charged the debit charge per ISIN, and every other credit the credit charge per ISIN (0 for none). The bill shows how many pool transfers were not charged. The counterparty is read from the CDSL transaction file.
 
 # Corporate actions and IPO
 
