@@ -93,6 +93,9 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/ncl-margins/positions/{ucc}", s.nclMarginsPositions, false)
 	R("POST /v1/ncl-margins/fetch", s.nclMarginsFetch, true)
 	R("POST /v1/ncl-margins/key", s.nclMarginsKey, true)
+	R("GET /v1/nse-extranet", s.extranetStatus, false)
+	R("GET /v1/nse-extranet/browse", s.extranetBrowse, false)
+	R("POST /v1/nse-extranet/fetch", s.extranetFetch, true)
 	R("POST /v1/allocation/level", s.allocationLevel, true)
 	R("POST /v1/allocation/{id}/decide", s.allocationDecide, true)
 	R("GET /v1/allocation/{id}/file", s.allocationFile, false)
@@ -612,6 +615,27 @@ func (s *Server) nclMarginsKey(w http.ResponseWriter, r *http.Request) {
 	}
 	k, err := s.ops.NCLMarginsMakeKey(r.Context(), tenant(r), actor(r), b)
 	ok(w, k, err)
+}
+
+func (s *Server) extranetStatus(w http.ResponseWriter, r *http.Request) {
+	ok(w, s.ops.ExtranetStatus(r.Context(), tenant(r)), nil)
+}
+
+func (s *Server) extranetBrowse(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	es, err := s.ops.ExtranetBrowse(r.Context(), tenant(r), actor(r), q.Get("segment"), q.Get("kind"), q.Get("folder"))
+	ok(w, map[string]any{"entries": es}, err)
+}
+
+func (s *Server) extranetFetch(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string `json:"date"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	run, err := s.ops.ExtranetFetch(r.Context(), tenant(r), actor(r), b.Date)
+	ok(w, run, err)
 }
 
 func (s *Server) allocationLevel(w http.ResponseWriter, r *http.Request) {

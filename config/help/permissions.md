@@ -64,6 +64,7 @@ Entering a payout request | Ops maker, Ops checker, Branch staff, Authorised per
 Entering delivery instructions | Ops maker, Ops checker, Branch staff
 Entering outside trades | Ops maker, Ops checker, Branch staff
 Entering vouchers | Ops maker, Ops checker
+Fetching files from NSE's extranet | Ops maker, Ops checker, Risk manager
 Fetching margins from NSE Clearing | Ops maker, Ops checker, Risk manager
 Fetching trades from NSE | Ops maker, Ops checker, Risk manager
 Finding client insights | Ops maker, Ops checker, Compliance officer, Admin
@@ -79,6 +80,7 @@ Loading brokerage rates | Ops checker
 Loading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
 Loading exchange holidays | Ops maker, Ops checker, Compliance officer
 Loading files | Ops maker, Ops checker, Risk manager, Compliance officer
+Looking at NSE's extranet | Ops maker, Ops checker, Risk manager, Compliance officer
 MTF enrolment | Ops checker, Risk manager
 MTF margin calls | Ops checker, Risk manager
 Making the NSE Clearing key | Admin
