@@ -1,0 +1,121 @@
+{
+ "id": "stocksip-basket",
+ "title": "Stock SIP basket order file (generic)",
+ "party": "Front end (any OMS)",
+ "direction": "out",
+ "when": "Intraday, at the SIP placement time",
+ "purpose": "The day's stock SIP orders for the dealer to upload in the trading front end as a basket (bulk) order file. OMS basket layouts differ (ODIN, NEST and others each have their own): copy this file as stocksip-basket-<oms>.json with the OMS's column names and order, keeping each column's key.",
+ "names": [
+  "SIP_BASKET_\\d{8}_\\d{2}\\.csv"
+ ],
+ "template": "SIP_BASKET_{date:20060102}_{seq:2}.csv",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "crlf": true,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "TradeDate",
+   "key": "date",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "ClientCode",
+   "key": "ucc",
+   "type": "str",
+   "required": true
+  },
+  {
+   "name": "Exchange",
+   "key": "exchange",
+   "type": "str",
+   "required": true
+  },
+  {
+   "name": "Segment",
+   "key": "segment",
+   "type": "str"
+  },
+  {
+   "name": "Symbol",
+   "key": "symbol",
+   "type": "str",
+   "required": true
+  },
+  {
+   "name": "Series",
+   "key": "series",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "key": "isin",
+   "type": "str"
+  },
+  {
+   "name": "BuySell",
+   "key": "side",
+   "type": "str",
+   "required": true
+  },
+  {
+   "name": "Quantity",
+   "key": "qty",
+   "type": "int",
+   "required": true
+  },
+  {
+   "name": "OrderType",
+   "key": "order_type",
+   "type": "str",
+   "required": true
+  },
+  {
+   "name": "Price",
+   "key": "price",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true,
+   "note": "Limit price; empty for a market order"
+  },
+  {
+   "name": "MarketProtectionPct",
+   "key": "protection_pct",
+   "type": "dec"
+  },
+  {
+   "name": "ProductType",
+   "key": "product",
+   "type": "str"
+  },
+  {
+   "name": "Validity",
+   "key": "validity",
+   "type": "str"
+  },
+  {
+   "name": "DisclosedQuantity",
+   "key": "disclosed_qty",
+   "type": "int"
+  },
+  {
+   "name": "AlgoID",
+   "key": "algo_id",
+   "type": "str",
+   "note": "Set when the firm tags SIP orders as algo orders"
+  },
+  {
+   "name": "Reference",
+   "key": "ref",
+   "type": "str",
+   "required": true,
+   "note": "The SIP order's reference, for matching the trades back"
+  }
+ ],
+ "confirmed": false,
+ "source": "Ledgerline's own generic layout; no OMS vendor's published basket specification was used",
+ "linked": "Written by Stock SIPs (basket file) for the dealer to upload"
+}
