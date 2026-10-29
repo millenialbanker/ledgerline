@@ -78,6 +78,17 @@ func Handler(cfg Config) http.Handler {
 			w.Write(b)
 		})
 	}
+	// The mutual fund screens, loaded after app.js.
+	mfJS, err := fs.ReadFile(ledgerline.FS, "web/mf.js")
+	if err != nil {
+		panic("web: mf.js missing from build: " + err.Error())
+	}
+	mux.HandleFunc("GET /mf.js", func(w http.ResponseWriter, r *http.Request) {
+		secure(w)
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Write(mfJS)
+	})
 	// Fonts are served from here, not from a font service, so a browser
 	// using Ledgerline talks to no one but this server.
 	mux.HandleFunc("GET /fonts/{name}", func(w http.ResponseWriter, r *http.Request) {

@@ -182,25 +182,7 @@ type IPOApp struct {
 	Date      string       `json:"date,omitempty"` // bid date (the upload's business date)
 }
 
-// MFOrder is a mutual fund order through an exchange platform.
-type MFOrder struct {
-	ID       string       `json:"id"`
-	UCC      string       `json:"ucc"`
-	Name     string       `json:"name,omitempty"`
-	Scheme   string       `json:"scheme"`
-	Type     string       `json:"type"`
-	Amount   money.Amount `json:"amount"`
-	Platform string       `json:"platform"`
-	Status   string       `json:"status"`
-	Date     string       `json:"date,omitempty"`
-}
-
 // IPOApps lists IPO applications.
 func (o *Ops) IPOApps(ctx context.Context, tenant string) ([]IPOApp, error) {
 	return docs.List[IPOApp](ctx, o.Docs, tenant, cIPO, "")
-}
-
-// MFOrders lists mutual fund orders.
-func (o *Ops) MFOrders(ctx context.Context, tenant string) ([]MFOrder, error) {
-	return docs.List[MFOrder](ctx, o.Docs, tenant, cMF, "")
 }
