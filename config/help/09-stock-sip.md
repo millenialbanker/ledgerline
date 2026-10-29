@@ -4,6 +4,7 @@ Ledgy help articles: stock SIPs.
 
 ## stock-sip-overview
 title: How stock SIPs work
+screen: stocksip
 roles: Ops maker, Ops checker, Risk manager, Compliance officer
 ask: stock sip; equity sip; sip in shares; sip in stocks; share sip; etf sip; buy shares every month; monthly share purchase; how do stock sips work; systematic investment in shares
 related: stock-sip-rules, stock-sip-register, stock-sip-orders, stock-sip-failures, stock-sip-topups
@@ -20,6 +21,7 @@ The client gets a message when an order is placed, bought, not bought, or when t
 
 ## stock-sip-rules
 title: Decide the rules for stock SIPs
+screen: stocksip
 roles: Compliance officer
 ask: stock sip settings; sip order type; is a sip order an algo order; sip algo tagging; sip placement time; sip market protection; sip limit order; sip consent wording; switch on stock sips; sip brokerage
 related: stock-sip-overview, stock-sip-lists
@@ -37,6 +39,7 @@ Changes are recorded with who decided the order type, time and algo tagging.
 
 ## stock-sip-register
 title: Register, pause or cancel a client's stock SIP
+screen: stocksip
 roles: Ops maker, Ops checker
 ask: register stock sip; start a stock sip for a client; client wants a stock sip; stock sip standing instruction form; pause stock sip; resume stock sip; cancel stock sip; skip stock sip instalment; stop stock sip
 related: stock-sip-overview, stock-sip-failures
@@ -53,6 +56,7 @@ The account must be active, not blocked or inactive, with the cash segment open.
 
 ## stock-sip-orders
 title: Send the day's SIP orders to the OMS
+screen: stocksip
 roles: Ops maker, Ops checker, Risk manager
 ask: sip basket file; send sip orders to the oms; upload sip orders in odin; sip bulk order file; sip orders in nest; xts sip orders; sip orders not sent; basket file layout for our oms; sip order reference
 related: stock-sip-failures, stock-sip-xts
@@ -82,6 +86,7 @@ Each order carries its SIP reference as the order's unique identifier, so the de
 
 ## stock-sip-failures
 title: Why a SIP instalment was not bought
+screen: stocksip
 roles: Ops maker, Ops checker
 ask: sip instalment failed; stock sip not bought; sip lapsed; sip insufficient funds; sip stopped after failures; sip check fills; record sip fill; sip order not executed; sip not sent
 related: stock-sip-orders, stock-sip-overview
@@ -97,6 +102,7 @@ Trades are matched by the OMS order ID when the trade file carries it, then by t
 
 ## stock-sip-lists
 title: Keep the scrip lists for stock SIPs
+screen: stocksip
 roles: Compliance officer, Risk manager
 ask: scrips allowed for sip; asm list for sip; restricted scrips for sip; top 250 list for sip; t2t scrips in sip; trade for trade sip; etf list for sip
 related: stock-sip-rules

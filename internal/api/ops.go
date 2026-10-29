@@ -51,6 +51,7 @@ func (s *Server) opsRoutes() {
 	s.vendorRoutes()
 	s.xfileRoutes()
 	s.periodicRoutes()
+	s.stockSIPRoutes()
 	R("GET /v1/me", s.me, false)
 	R("GET /v1/users", s.users, false)
 	R("PUT /v1/users/{id}", s.putUser, true)
