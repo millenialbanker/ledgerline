@@ -20,7 +20,7 @@ import (
 )
 
 // at sets the clock to a date and time in IST.
-func at(o *Ops, date, hm string) {
+func sipAt(o *Ops, date, hm string) {
 	t, err := time.ParseInLocation("2006-01-02 15:04", date+" "+hm, ist)
 	if err != nil {
 		panic(err)
@@ -32,7 +32,7 @@ func at(o *Ops, date, hm string) {
 func sipSetup(t *testing.T, mut func(*SIPSettings)) (*Ops, context.Context) {
 	t.Helper()
 	o, ctx := setup(t)
-	at(o, D, "10:00")
+	sipAt(o, D, "10:00")
 	if _, err := o.UploadStockSIPList(ctx, T, "vikram.shah", "eligible", "top250.csv", []byte("Symbol,ISIN,Category\nRELIANCE,INE002A01018,Top 250\nHDFCBANK,INE040A01034,Top 250\nINFY,,Top 250\nTCS,INE467B01029,Top 250\nSBIN,INE062A01020,Top 250\nMARUTI,,Top 250\nITC,,Top 250\n")); err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +242,7 @@ func TestStockSIPInstalmentsBasketAndFills(t *testing.T) {
 	if _, err := o.RunStockSIPs(ctx, T, "priya.nair", "2026-10-19"); err == nil {
 		t.Fatal("instalments worked out for another day")
 	}
-	at(o, D, "11:00")
+	sipAt(o, D, "11:00")
 	res, err := o.RunStockSIPs(ctx, T, "priya.nair", D)
 	if err != nil {
 		t.Fatal(err)
@@ -308,7 +308,7 @@ func TestStockSIPInstalmentsBasketAndFills(t *testing.T) {
 		t.Fatal("no filled message")
 	}
 	// The next day: BH1003 fails again and the SIP stops (limit 2).
-	at(o, "2026-10-19", "11:00")
+	sipAt(o, "2026-10-19", "11:00")
 	if _, err := o.RunStockSIPs(ctx, T, "priya.nair", "2026-10-19"); err != nil {
 		t.Fatal(err)
 	}
@@ -442,7 +442,7 @@ func TestStockSIPXTS(t *testing.T) {
 	}
 	a := staffSIP(t, o, ctx, SIPRequest{UCC: "BH1001", Symbol: "RELIANCE", Basis: SIPQty, Qty: 3, Frequency: SIPDaily})
 	b := staffSIP(t, o, ctx, SIPRequest{UCC: "BH1002", Symbol: "SBIN", Basis: SIPQty, Qty: 3, Frequency: SIPDaily})
-	at(o, D, "11:00")
+	sipAt(o, D, "11:00")
 	res, err := o.RunStockSIPs(ctx, T, "priya.nair", D)
 	if err != nil || res.Sent == nil || res.Sent.Placed != 1 || res.Sent.Refused != 1 {
 		t.Fatalf("run %+v %v", res, err)
@@ -570,12 +570,12 @@ func TestStockSIPTopups(t *testing.T) {
 	if _, err := docs.Put(ctx, o.Docs, T, cSIPMandate, "BH1006", SIPMandate{UCC: "BH1006", SubscriptionID: "LLSIP-BH1006-9", Status: "Active", MaxAmount: sipTopupLimit}, 0, "test"); err != nil {
 		t.Fatal(err)
 	}
-	at(o, "2026-10-19", "10:00")
+	sipAt(o, "2026-10-19", "10:00")
 	if _, err := o.RaiseStockSIPTopups(ctx, T, "priya.nair", "2026-10-20"); err == nil || !strings.Contains(err.Error(), "24 hours") {
 		t.Fatalf("debit tomorrow without a day's notice: %v", err)
 	}
 	// Sunday 18 Oct, 10:00: the scheduler raises Monday's debits for Tuesday.
-	at(o, "2026-10-18", "10:00")
+	sipAt(o, "2026-10-18", "10:00")
 	o.stockSIPTick(ctx, T, o.Now())
 	tops := o.StockSIPTopups(ctx, T, 0)
 	if len(tops) != 2 {
@@ -603,7 +603,7 @@ func TestStockSIPTopups(t *testing.T) {
 		t.Fatal("no pre-debit notice")
 	}
 	// Tuesday 11:00, before Cashfree reports: the debit on its way counts.
-	at(o, "2026-10-20", "11:00")
+	sipAt(o, "2026-10-20", "11:00")
 	if _, err := o.RunStockSIPs(ctx, T, "priya.nair", "2026-10-20"); err != nil {
 		t.Fatal(err)
 	}
@@ -646,12 +646,12 @@ func TestStockSIPTopups(t *testing.T) {
 func TestStockSIPTick(t *testing.T) {
 	o, ctx := sipSetup(t, nil)
 	staffSIP(t, o, ctx, SIPRequest{UCC: "BH1001", Symbol: "RELIANCE", Basis: SIPQty, Qty: 36, Frequency: SIPDaily})
-	at(o, D, "10:59")
+	sipAt(o, D, "10:59")
 	o.stockSIPTick(ctx, T, o.Now())
 	if len(sipOrders(t, o, ctx, D)) != 0 {
 		t.Fatal("orders before the placement time")
 	}
-	at(o, D, "11:01")
+	sipAt(o, D, "11:01")
 	o.stockSIPTick(ctx, T, o.Now())
 	o.stockSIPTick(ctx, T, o.Now())
 	xs := sipOrders(t, o, ctx, D)
@@ -661,7 +661,7 @@ func TestStockSIPTick(t *testing.T) {
 	if _, err := o.SendStockSIPOrders(ctx, T, "farhan.khan", D); err != nil {
 		t.Fatal(err)
 	}
-	at(o, D, "17:30")
+	sipAt(o, D, "17:30")
 	o.stockSIPTick(ctx, T, o.Now())
 	for _, x := range sipOrders(t, o, ctx, D) {
 		if x.Status != SIPOrdFilled {
@@ -676,7 +676,7 @@ func TestStockSIPTick(t *testing.T) {
 	cfg := o.sipSettings(ctx, T)
 	cfg.Enabled = false
 	_, _ = o.SaveStockSIPSettings(ctx, T, "vikram.shah", cfg)
-	at(o, "2026-10-19", "11:30")
+	sipAt(o, "2026-10-19", "11:30")
 	o.stockSIPTick(ctx, T, o.Now())
 	if len(sipOrders(t, o, ctx, "2026-10-19")) != 0 {
 		t.Fatal("orders while switched off")
@@ -687,7 +687,7 @@ func TestStockSIPWithdrawAndRecordFill(t *testing.T) {
 	o, ctx := sipSetup(t, nil)
 	a := staffSIP(t, o, ctx, SIPRequest{UCC: "BH1002", Symbol: "INFY", Basis: SIPQty, Qty: 5, Frequency: SIPDaily})
 	b := staffSIP(t, o, ctx, SIPRequest{UCC: "BH1004", Symbol: "ITC", Basis: SIPQty, Qty: 50, Frequency: SIPDaily})
-	at(o, D, "11:00")
+	sipAt(o, D, "11:00")
 	if _, err := o.RunStockSIPs(ctx, T, "priya.nair", D); err != nil {
 		t.Fatal(err)
 	}

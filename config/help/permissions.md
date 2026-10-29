@@ -25,6 +25,7 @@ Booking vendor bills | Ops maker, Ops checker
 Buy-back offers | Ops maker, Ops checker
 Changing a segment's status | Ops checker, Compliance officer
 Changing a stock SIP | Ops maker, Ops checker
+Changing an investor's MF route | Compliance officer
 Changing automation | Compliance officer, Admin
 Changing backup settings | Admin
 Changing brokerage channels | Ops checker
@@ -32,6 +33,7 @@ Changing brokerage plans | Ops checker
 Changing client brokerage rates | Ops checker
 Changing client groups | Ops maker, Ops checker
 Changing connections | Admin
+Changing mutual fund settings | Compliance officer
 Changing settings | Admin
 Changing the DP tariff | Ops checker, Admin
 Changing the MTF policy | Risk manager, Admin
@@ -78,6 +80,7 @@ Generating reports | Ops maker, Ops checker, Risk manager, Compliance officer
 Giving clients portal access | Ops checker, Admin
 Identifying a bank credit | Ops checker
 Issuing DIS books | Ops maker, Ops checker
+Loading MF files | Ops maker, Ops checker
 Loading brokerage rates | Ops checker
 Loading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
 Loading exchange holidays | Ops maker, Ops checker, Compliance officer
@@ -86,6 +89,7 @@ Looking at NSE's extranet | Ops maker, Ops checker, Risk manager, Compliance off
 MTF enrolment | Ops checker, Risk manager
 MTF margin calls | Ops checker, Risk manager
 Making the NSE Clearing key | Admin
+Managing SIPs | Ops maker, Ops checker
 Managing branches | Ops checker, Admin
 Managing message channels and desks | Admin
 Managing partners | Ops checker, Admin
@@ -96,6 +100,7 @@ Matching stock SIP orders to trades | Ops maker, Ops checker, Risk manager
 Month-end postings | Ops checker
 NRI registration | Ops checker, Compliance officer
 Paying vendor bills | Ops maker, Ops checker
+Placing mutual fund orders | Ops maker, Ops checker
 Posting AP payouts | Ops checker
 Posting IPO allotments | Ops maker, Ops checker
 Posting MTF interest | Ops checker, Risk manager
@@ -106,6 +111,8 @@ Prepaid schemes | Ops checker, Admin
 Proposing legacy debts | Ops maker, Ops checker, Risk manager, Compliance officer
 Raising stock SIP top-up debits | Ops maker, Ops checker
 Recording DP responses | Ops maker, Ops checker
+Recording MF allotments | Ops maker, Ops checker
+Recording MF mandates | Ops maker, Ops checker
 Recording MTF pledges | Ops maker, Ops checker, Risk manager
 Recording WhatsApp consent | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Recording a bounce | Ops maker, Ops checker, Admin
@@ -119,6 +126,7 @@ Recording re-KYC | Ops maker, Ops checker, Compliance officer
 Recording recovery of a legacy debt | Ops maker, Ops checker, Risk manager, Compliance officer
 Recording the BSDA choice | Ops maker, Ops checker
 Registering a stock SIP for a client | Ops maker, Ops checker
+Registering clients on MF platforms | Ops maker, Ops checker
 Rejecting an application | Ops checker, Compliance officer
 Releasing CUSPA securities | Ops maker, Ops checker
 Releasing clearing deposits | Ops checker
@@ -169,6 +177,7 @@ Testing templates | Ops checker, Compliance officer
 The kill switch | Risk manager
 Unmarking a legacy debt | Ops checker, Compliance officer
 Updating KYC details | Ops maker, Ops checker
+Updating MF profiles | Ops maker, Ops checker, Compliance officer
 Uploading delivery instructions | Ops maker, Ops checker
 Uploading stock SIP scrip lists | Risk manager, Compliance officer
 Upstreaming funds | Ops checker
@@ -187,4 +196,5 @@ Viewing vendors | Ops maker, Ops checker, Compliance officer
 Withdrawing a stock SIP basket file | Ops maker, Ops checker, Risk manager
 Working client insights | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Working complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
+Working out MF commission | Ops checker, Compliance officer
 Writing off a debt | Ops checker

@@ -6,7 +6,6 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -165,7 +164,7 @@ func (o *Ops) StockSIPSettings(ctx context.Context, tenant string) SIPSettings {
 	return o.sipSettings(ctx, tenant)
 }
 
-var reHHMM = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
+// reHHMM (HH:MM) is declared in mf.go.
 
 // SaveStockSIPSettings checks and stores the firm's SIP rules. The order
 // type, placement time and algo tagging are a compliance decision.
