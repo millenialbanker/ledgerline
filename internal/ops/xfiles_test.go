@@ -245,3 +245,36 @@ func TestSettlementMasterCCILAndCUSPAFile(t *testing.T) {
 		t.Fatalf("%s %q %v", name, b, err)
 	}
 }
+
+// BSE's trade file is the same standardised layout, with CRLF line endings;
+// its trades come in as BSE trades.
+func TestLoadBSETradeFile(t *testing.T) {
+	o, ctx := setup(t)
+	cs, _ := o.Clients(ctx, T)
+	ucc := cs[0].UCC
+	h := xheader(t, "bse-trade")
+	row := func(no, side, qty, px string) string {
+		return xline(h, map[string]string{"TradDt": D, "BizDt": D, "Sgmt": "CM", "Src": "BSE", "Xchg": "BSE", "FinInstrmTp": "STK", "TckrSymb": "XTEST", "SctySrs": "A",
+			"ClntId": ucc, "BuySellInd": side, "TradQty": qty, "Pric": px, "UnqTradIdr": no, "OrdrRef": "2" + no, "TradDtTm": D + "T11:05:00", "CtclId": "222222222222222", "SttlmTp": "DEBT"})
+	}
+	file := strings.Join([]string{strings.Join(h, ","), row("880001", "B", "5", "250.25"), row("880002", "S", "5", "251.00")}, "\r\n") + "\r\n"
+	name := "TRADE_BSE_CM_0_TM_923_" + strings.ReplaceAll(D, "-", "") + "_F_00001.CSV"
+	before, _ := o.App.ExchangeTrades(ctx, T, D)
+	res, err := o.LoadExchangeFile(ctx, T, "priya.nair", name, []byte(file), true)
+	if err != nil || len(res) != 1 || res[0].Format != "bse-trade" || res[0].Problems != 0 || res[0].Added != 2 {
+		t.Fatalf("load %+v %v", res, err)
+	}
+	after, _ := o.App.ExchangeTrades(ctx, T, D)
+	if len(after) != len(before)+2 {
+		t.Fatalf("trades %d -> %d", len(before), len(after))
+	}
+	n := 0
+	for _, tr := range after {
+		if tr.Exchange == "BSE" && strings.HasPrefix(tr.TradeNo, "88000") {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Fatalf("%d BSE trades", n)
+	}
+}

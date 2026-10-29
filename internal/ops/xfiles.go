@@ -178,9 +178,11 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 	rows := dataRows(t)
 	fail := func(err error) { r.Loaded = "Not loaded: " + strings.TrimPrefix(err.Error(), "invalid: ") }
 	switch s.ID {
-	case "ncl-trade", "mcx-trade":
+	case "ncl-trade", "bse-trade", "mcx-trade":
+		// BSE writes the same SEBI standardised layout; the exchange comes
+		// from the file's Xchg column, so the standard adapters serve both.
 		src := "MCXCCL-TRADE"
-		if s.ID == "ncl-trade" {
+		if s.ID != "mcx-trade" {
 			seg := ""
 			if len(rows) > 0 {
 				seg = strings.ToUpper(rows[0].Get("Sgmt"))
