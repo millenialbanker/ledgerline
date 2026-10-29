@@ -64,6 +64,7 @@ Entering a payout request | Ops maker, Ops checker, Branch staff, Authorised per
 Entering delivery instructions | Ops maker, Ops checker, Branch staff
 Entering outside trades | Ops maker, Ops checker, Branch staff
 Entering vouchers | Ops maker, Ops checker
+Fetching trades from NSE | Ops maker, Ops checker, Risk manager
 Finding client insights | Ops maker, Ops checker, Compliance officer, Admin
 Flagging accounts inactive | Ops checker, Compliance officer
 Funding under MTF | Ops checker, Risk manager

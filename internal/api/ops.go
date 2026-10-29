@@ -87,6 +87,8 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/allocation", s.allocation, false)
 	R("POST /v1/allocation/batch", s.allocationBatch, true)
 	R("POST /v1/allocation/check", s.allocationCheck, true)
+	R("GET /v1/notis", s.notisStatus, false)
+	R("POST /v1/notis/fetch", s.notisFetch, true)
 	R("POST /v1/allocation/level", s.allocationLevel, true)
 	R("POST /v1/allocation/{id}/decide", s.allocationDecide, true)
 	R("GET /v1/allocation/{id}/file", s.allocationFile, false)
@@ -553,6 +555,23 @@ func (s *Server) allocationBatch(w http.ResponseWriter, r *http.Request) {
 func (s *Server) allocationCheck(w http.ResponseWriter, r *http.Request) {
 	n, err := s.ops.AllocationCheck(r.Context(), tenant(r), actor(r))
 	ok(w, map[string]int{"results": n}, err)
+}
+
+func (s *Server) notisStatus(w http.ResponseWriter, r *http.Request) {
+	ok(w, s.ops.NotisStatus(r.Context(), tenant(r)), nil)
+}
+
+func (s *Server) notisFetch(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Segment string `json:"segment"`
+		Kind    string `json:"kind"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	st, n, err := s.ops.NotisFetch(r.Context(), tenant(r), actor(r), b.Segment, b.Kind)
+	st.Token = ""
+	ok(w, map[string]any{"state": st, "rows": n}, err)
 }
 
 func (s *Server) allocationLevel(w http.ResponseWriter, r *http.Request) {

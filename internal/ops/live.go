@@ -120,6 +120,13 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 	in.look, v.PricesAt = look, asAt
 	v.Source = "Exchange"
 	if len(in.trades) == 0 {
+		// During the day: trades from NSE's trade API, confirmed by the
+		// exchange, before falling back to the trading front end's book.
+		if nt, err := o.NotisTrades(ctx, tenant, date); err == nil && len(nt) > 0 {
+			in.trades, v.Source = nt, "Exchange (NSE trade API, intraday)"
+		}
+	}
+	if len(in.trades) == 0 {
 		oms, err := o.App.Trades.List(ctx, tenant, ingest.FromOMS, date)
 		if err != nil {
 			return v, err

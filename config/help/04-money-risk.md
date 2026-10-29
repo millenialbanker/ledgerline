@@ -239,6 +239,21 @@ The day-close check "Client funds segregation" shows whether client money is cov
 
 # Risk
 
+## nse-trade-api
+title: See today's NSE trades during the day
+screen: live
+roles: Admin, Risk manager
+ask: notis; nse trade api; trade inquiry; intraday trades; online trade file; trades during the day; connect2nse; trade api key; actions inquiry; trade modification; client code modification
+related: margin-shortfall, peak-margin
+
+NSE's trade API (NOTIS) gives each trade a few seconds after it happens, including client code changes and cancellations. Ledgerline uses it for [[live|Live RMS]] until the end-of-day trade file arrives.
+
+1. Ask NSE (through the member portal) for trade API access for the cash and F&O segments. NSE gives a consumer key and secret for each, and allows only your registered server IPs.
+2. On [[connections|Connections]] (Admin), open **NSE trade API (NOTIS), cash market** and **NSE trade API (NOTIS), F&O**: enter the member code, key and secret, choose UAT or Live, and turn **Fetch during the day** on.
+3. Ledgerline asks for new trades every 15 seconds or more, as NSE requires, between 09:00 and 16:30, and never between 05:00 and 06:30 when NSE refuses calls.
+
+A trade whose client code was changed shows under the new code. Cancelled trades are left out. Once the end-of-day trade file is loaded, it replaces these trades.
+
 ## margin-shortfall
 title: Handle a client's margin shortfall
 screen: rms
