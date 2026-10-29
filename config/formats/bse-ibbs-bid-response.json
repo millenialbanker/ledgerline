@@ -1,0 +1,41 @@
+{
+ "id": "bse-ibbs-bid-response",
+ "title": "IPO bid response (BSE iBBS) - PROVISIONAL layout",
+ "party": "BSE",
+ "direction": "in",
+ "when": "After each upload; bid inquiry during and after the issue",
+ "purpose": "The result of each bid uploaded to iBBS: accepted or rejected with the reason, the application number, the depository validation and the UPI mandate status. PROVISIONAL: correct the columns from BSE notice 20230110-44 Annexure A before relying on it.",
+ "names": [
+  "BSE_IBBS_(RESP|RESPONSE|SUCCESS|ERROR|INQ)_.*\\.csv"
+ ],
+ "header": true,
+ "columns": [
+  {"name": "symbol", "type": "str"},
+  {"name": "applicationNumber", "type": "str"},
+  {"name": "referenceNumber", "type": "str", "note": "the member's reference: Ledgerline's bid number"},
+  {"name": "pan", "type": "str"},
+  {"name": "dpId", "type": "str"},
+  {"name": "clientBenId", "type": "str"},
+  {"name": "category", "type": "str"},
+  {"name": "bidId", "type": "str"},
+  {"name": "quantity", "type": "str"},
+  {"name": "price", "type": "str"},
+  {"name": "activityType", "type": "str"},
+  {"name": "status", "type": "str"},
+  {"name": "errorCode", "type": "str"},
+  {"name": "reason", "type": "str"},
+  {"name": "upiStatus", "type": "str", "note": "sponsor bank pay status (10, 11, 12, 13, 21, 22, 31, 100, 110) or its words"},
+  {"name": "umn", "type": "str"},
+  {"name": "dpVerStatus", "type": "str"},
+  {"name": "dpVerReason", "type": "str"},
+  {"name": "timestamp", "type": "str"}
+ ],
+ "confirmed": false,
+ "linked": "Updates IPO bids: exchange status, application number, UPI mandate, depository check, unblocking",
+ "source": "PROVISIONAL. Official layout: BSE notice 20230110-44 of 10 Jan 2023, Annexure A.xls (standardised across exchanges with ISO tags), not publicly retrievable. Mirrors Ledgerline's provisional NSE response layout until it is in hand.",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "final_eol": true
+}

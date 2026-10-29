@@ -1,0 +1,41 @@
+{
+ "id": "nse-eipo-bid-response",
+ "title": "IPO bid response (NSE eIPO success, error or bid inquiry file) - PROVISIONAL layout",
+ "party": "NSE",
+ "direction": "in",
+ "when": "After each upload; bid inquiry during and after the issue",
+ "purpose": "The result of each uploaded bid: accepted or rejected with the reason, the application number, the depository (PAN, DP) validation and the UPI mandate status. PROVISIONAL: correct the columns from eIPO (Misc > File Format) before relying on it.",
+ "names": [
+  "NSE_EIPO_(RESP|RESPONSE|SUCCESS|ERROR|INQ)_.*\\.csv"
+ ],
+ "header": true,
+ "columns": [
+  {"name": "symbol", "type": "str"},
+  {"name": "applicationNumber", "type": "str", "note": "the platform's application number"},
+  {"name": "referenceNumber", "type": "str", "note": "the member's reference: Ledgerline's bid number"},
+  {"name": "pan", "type": "str"},
+  {"name": "dpId", "type": "str"},
+  {"name": "clientBenId", "type": "str"},
+  {"name": "category", "type": "str"},
+  {"name": "bidId", "type": "str"},
+  {"name": "quantity", "type": "str"},
+  {"name": "price", "type": "str"},
+  {"name": "activityType", "type": "str", "note": "N, M or C as uploaded"},
+  {"name": "status", "type": "str", "note": "Success or Error (also Accepted, Rejected, Cancelled)"},
+  {"name": "errorCode", "type": "str"},
+  {"name": "reason", "type": "str", "note": "rejection reason"},
+  {"name": "upiStatus", "type": "str", "note": "sponsor bank pay status: 10 request accepted, 11 invalid UPI handle, 12 rejected by sponsor bank, 13 UPI 2.0 not supported, 21 and 22 rejected by the client's bank, 31 declined by the client, 100 blocked, 110 released"},
+  {"name": "umn", "type": "str", "note": "unique mandate number"},
+  {"name": "dpVerStatus", "type": "str", "note": "Y verified, N failed, P pending"},
+  {"name": "dpVerReason", "type": "str"},
+  {"name": "timestamp", "type": "str"}
+ ],
+ "confirmed": false,
+ "linked": "Updates IPO bids: exchange status, application number, UPI mandate, depository check, unblocking",
+ "source": "PROVISIONAL. Official layout: NSE circular NSE/IPO/58442 of 18 Sep 2023, Annexure 2 (https://nsearchives.nseindia.com/content/circulars/IPO58442.pdf) and eIPO Misc > File Format, not publicly retrievable. Pay status codes from NSE's IPO Sponsor Bank API Protocol v0.14.0 (https://nsearchives.nseindia.com/web/sites/default/files/inline-files/NSE-IPO-Sponsor%20Bank%20API%20Protocol-Ver%200.14.0.pdf); dpVerStatus from NSE's eIPO API as relayed in public broker documentation.",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "final_eol": true
+}
