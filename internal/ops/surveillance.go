@@ -167,20 +167,7 @@ func (o *Ops) ActOnAlert(ctx context.Context, tenant, actor, id, action, note st
 	return a, err
 }
 
-// IPOApp is an IPO application through the UPI mandate (ASBA) route.
-type IPOApp struct {
-	ID        string       `json:"id"`
-	UCC       string       `json:"ucc"`
-	Name      string       `json:"name,omitempty"`
-	Issue     string       `json:"issue"`
-	Lots      int64        `json:"lots"`
-	Amount    money.Amount `json:"amount"`
-	UPI       string       `json:"upi"`
-	Mandate   string       `json:"mandate"` // Accepted, Pending, Declined
-	Allotment string       `json:"allotment"`
-	Allotted  int64        `json:"allotted_lots"`
-	Date      string       `json:"date,omitempty"` // bid date (the upload's business date)
-}
+// IPOApp and IPOApps are in ipo.go.
 
 // MFOrder is a mutual fund order through an exchange platform.
 type MFOrder struct {
@@ -193,11 +180,6 @@ type MFOrder struct {
 	Platform string       `json:"platform"`
 	Status   string       `json:"status"`
 	Date     string       `json:"date,omitempty"`
-}
-
-// IPOApps lists IPO applications.
-func (o *Ops) IPOApps(ctx context.Context, tenant string) ([]IPOApp, error) {
-	return docs.List[IPOApp](ctx, o.Docs, tenant, cIPO, "")
 }
 
 // MFOrders lists mutual fund orders.

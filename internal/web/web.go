@@ -78,6 +78,17 @@ func Handler(cfg Config) http.Handler {
 			w.Write(b)
 		})
 	}
+	// Public issues screens (IPO, NCD, OFS bids), loaded after app.js.
+	ipoJS, err := fs.ReadFile(ledgerline.FS, "web/ipo.js")
+	if err != nil {
+		panic("web: ipo.js missing from build: " + err.Error())
+	}
+	mux.HandleFunc("GET /ipo.js", func(w http.ResponseWriter, r *http.Request) {
+		secure(w)
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Write(ipoJS)
+	})
 	// Fonts are served from here, not from a font service, so a browser
 	// using Ledgerline talks to no one but this server.
 	mux.HandleFunc("GET /fonts/{name}", func(w http.ResponseWriter, r *http.Request) {

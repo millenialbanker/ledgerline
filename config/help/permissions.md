@@ -40,6 +40,7 @@ Changing the compliance calendar | Compliance officer
 Changing vendors | Ops maker, Ops checker
 Checking a backup | Ops checker, Compliance officer
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
+Claiming IPO commission | Ops checker
 Clearing cheques | Ops maker, Ops checker
 Client code modification | Ops maker, Ops checker
 Closing MTF positions | Ops checker, Risk manager
@@ -93,6 +94,7 @@ Marking a report uploaded | Ops checker, Compliance officer
 Month-end postings | Ops checker
 NRI registration | Ops checker, Compliance officer
 Paying vendor bills | Ops maker, Ops checker
+Placing IPO bids for clients | Ops maker, Ops checker, Branch staff, Authorised person
 Posting AP payouts | Ops checker
 Posting IPO allotments | Ops maker, Ops checker
 Posting MTF interest | Ops checker, Risk manager
@@ -102,13 +104,17 @@ Posting referral rewards | Ops checker
 Prepaid schemes | Ops checker, Admin
 Proposing legacy debts | Ops maker, Ops checker, Risk manager, Compliance officer
 Recording DP responses | Ops maker, Ops checker
+Recording IPO bid status | Ops maker, Ops checker
+Recording IPO compensation | Ops checker, Compliance officer
 Recording MTF pledges | Ops maker, Ops checker, Risk manager
 Recording WhatsApp consent | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Recording a bounce | Ops maker, Ops checker, Admin
 Recording a physical dispatch | Ops maker, Ops checker, Admin
 Recording a receipt | Ops maker, Ops checker, Branch staff
+Recording allotments | Ops maker, Ops checker
 Recording bounces | Ops maker, Ops checker, Admin
 Recording clearing deposits | Ops checker
+Recording clients' UPI IDs | Ops maker, Ops checker, Branch staff, Authorised person
 Recording complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Recording re-KYC | Ops maker, Ops checker, Compliance officer
 Recording recovery of a legacy debt | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -138,6 +144,7 @@ Scheduling jobs | Admin
 See full client identifiers | Ops checker, Compliance officer
 Seeing mail sent to staff | Compliance officer, Admin
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
+Sending IPO bids to the exchange | Ops maker, Ops checker
 Sending bulk messages | Ops checker, Compliance officer
 Sending contract notes | Ops maker, Ops checker
 Sending documents | Ops maker, Ops checker
@@ -148,6 +155,7 @@ Setting client risk | Compliance officer
 Setting the firm's default dashboard | Admin
 Setting the signing certificate | Admin
 Setting the signing service | Admin
+Setting up public issues | Ops maker, Ops checker
 Settlement actions | Ops maker, Ops checker
 Settling a buy-back | Ops checker
 Square-off | Risk manager
@@ -169,6 +177,7 @@ Viewing backups | Ops checker, Compliance officer
 Viewing connections | Compliance officer, Admin
 Viewing nominations | Ops maker, Ops checker, Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 Viewing the signing certificate | Ops checker, Compliance officer, Admin
 Viewing vendor bills | Ops maker, Ops checker, Compliance officer

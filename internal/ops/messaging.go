@@ -87,6 +87,10 @@ var EventVars = map[string][]string{
 	"insight.dormant":       {"date", "last"},
 }
 
+// extraTemplates are default templates that feature files add in init(),
+// with their events in EventVars.
+var extraTemplates []Template
+
 // Events lists the events in display order.
 func Events() []string {
 	ks := sortedKeys(EventVars)
@@ -139,6 +143,7 @@ func DefaultTemplates() []Template {
 		t("yearend.pack", ChEmail, "Service", "Your year-end statement for FY {fy}", "Dear {name},\n\nYour year-end statement for the financial year {fy} is ready in the client portal (Tax & insights → Year-end statements). It has your capital gains, futures and options result, charges paid, the closing balance and holdings, and the securities transaction tax particulars for Form No. 10DB (STT paid: ₹{stt}).\n\nPlease check it and tell us of any discrepancy within 30 days.\n\n{firm}", ""),
 		t("statement.monthly", ChEmail, "Transactional", "Statement of account {from} to {to}", "Dear {name},\n\nPlease find your statement of account for {from} to {to}. Closing balance: {closing}. Please report any discrepancy within 30 days.\n\n{firm}", ""),
 	}
+	ts = append(ts, extraTemplates...)
 	// WhatsApp messages a business starts must use a template approved by
 	// Meta under this name (utility for account information, marketing for
 	// promotional ones).

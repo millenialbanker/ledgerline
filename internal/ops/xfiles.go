@@ -266,6 +266,9 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 		if o.loadCCFile(ctx, tenant, actor, s, f, rows, r) {
 			return
 		}
+		if o.loadIPOXFile(ctx, tenant, actor, s, f, rows, r) { // IPO bid responses (ipoexchange.go)
+			return
+		}
 		r.Loaded = "Checked and kept; Ledgerline does not use this file yet"
 	}
 }
