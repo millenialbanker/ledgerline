@@ -344,6 +344,9 @@ func (o *Ops) loadCCFile(ctx context.Context, tenant, actor string, s *xfile.Spe
 			"directpayout": "Loaded as securities paid out directly to clients (shown on Clearing data)", "repledge": "Loaded and reconciled with clients' pledges on Clearing data",
 			"nclmargin": "Loaded as the clearing corporation's client margins with peak (checked on Clearing data)", "cdslcal": "Loaded as CDSL's settlement calendar", "cdslmembers": "Loaded as CDSL's participant master",
 		}[kind], n
+	case "cdsl-dormant-txn", "cdsl-high-value", "cdsl-bo-modification":
+		n, dup := o.loadCDSLReport(ctx, tenant, actor, s, rows)
+		r.Loaded, r.Added, r.Skipped = "Raised as alerts for review on Compliance → Alerts", n, dup
 	case "cdsl-transactions":
 		n, skipped, err := o.loadCDSLTxns(ctx, tenant, actor, rows)
 		if err != nil {

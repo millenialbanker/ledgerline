@@ -1,0 +1,58 @@
+{
+ "id": "cdsl-dormant-txn",
+ "title": "Transactions in dormant accounts (CDSL DPF7)",
+ "party": "CDSL",
+ "direction": "in",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": "~",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "when": "Daily (start of day)",
+ "purpose": "Debits in demat accounts CDSL treats as dormant: each one is reviewed as a possible anti-money-laundering red flag.",
+ "names": [
+  "\\d{2}DPF7U.*"
+ ],
+ "columns": [
+  {
+   "name": "BOID",
+   "type": "str"
+  },
+  {
+   "name": "BOName",
+   "type": "str"
+  },
+  {
+   "name": "DPID",
+   "type": "str"
+  },
+  {
+   "name": "DPName",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "Security",
+   "type": "str"
+  },
+  {
+   "name": "Quantity",
+   "type": "str"
+  },
+  {
+   "name": "Narration",
+   "type": "str"
+  },
+  {
+   "name": "TxnDate",
+   "type": "str"
+  }
+ ],
+ "linked": "Raised as alerts for review (Compliance → Alerts)",
+ "source": "Layout read from the DP's own files (no published CDSL format note found); field meanings inferred where the file has no headings"
+}

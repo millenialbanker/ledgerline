@@ -1,0 +1,122 @@
+{
+ "id": "cdsl-high-value",
+ "title": "High-value transactions (CDSL DPG1)",
+ "party": "CDSL",
+ "direction": "in",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": "~",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "when": "Daily",
+ "purpose": "Demat transactions above CDSL's value threshold, grouped by transaction type, for review.",
+ "names": [
+  "\\d{2}DPG1U.*"
+ ],
+ "records": [
+  {
+   "code": "01",
+   "columns": [
+    {
+     "name": "RecordType",
+     "type": "str"
+    },
+    {
+     "name": "DPID",
+     "type": "str"
+    },
+    {
+     "name": "DPName",
+     "type": "str"
+    },
+    {
+     "name": "ReportDate",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "02",
+   "columns": [
+    {
+     "name": "RecordType",
+     "type": "str"
+    },
+    {
+     "name": "Category",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "03",
+   "columns": [
+    {
+     "name": "RecordType",
+     "type": "str"
+    },
+    {
+     "name": "Field2",
+     "type": "str"
+    },
+    {
+     "name": "Field3",
+     "type": "str"
+    },
+    {
+     "name": "BOName",
+     "type": "str"
+    },
+    {
+     "name": "DPID",
+     "type": "str"
+    },
+    {
+     "name": "ClientID",
+     "type": "str"
+    },
+    {
+     "name": "ISIN",
+     "type": "str"
+    },
+    {
+     "name": "Security",
+     "type": "str"
+    },
+    {
+     "name": "Field9",
+     "type": "str"
+    },
+    {
+     "name": "Field10",
+     "type": "str"
+    },
+    {
+     "name": "Quantity",
+     "type": "str"
+    },
+    {
+     "name": "BOID",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "04",
+   "columns": [
+    {
+     "name": "RecordType",
+     "type": "str"
+    },
+    {
+     "name": "TotalQuantity",
+     "type": "str"
+    }
+   ]
+  }
+ ],
+ "linked": "Raised as alerts for review (Compliance → Alerts)",
+ "source": "Layout read from the DP's own files (no published CDSL format note found); field meanings inferred where the file has no headings"
+}

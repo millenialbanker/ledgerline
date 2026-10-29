@@ -1,0 +1,60 @@
+{
+ "id": "cdsl-bo-modification",
+ "title": "BO account modifications (CDSL DPD1)",
+ "party": "CDSL",
+ "direction": "in",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": "~",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": false,
+ "when": "Daily",
+ "purpose": "Changes CDSL recorded on the DP's demat accounts (for example an account frozen), one block per account.",
+ "names": [
+  "\\d{2}DPD1U.*"
+ ],
+ "records": [
+  {
+   "code": "#1",
+   "columns": [
+    {
+     "name": "BOLine",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "",
+   "columns": [
+    {
+     "name": "Seq",
+     "type": "str"
+    },
+    {
+     "name": "Blank",
+     "type": "str"
+    },
+    {
+     "name": "FieldCode",
+     "type": "str"
+    },
+    {
+     "name": "Description",
+     "type": "str"
+    },
+    {
+     "name": "OldValue",
+     "type": "str"
+    },
+    {
+     "name": "NewValue",
+     "type": "str"
+    }
+   ]
+  }
+ ],
+ "linked": "Recorded on the account and raised as alerts (freezes as high severity)",
+ "source": "Layout read from the DP's own files (no published CDSL format note found); field meanings inferred where the file has no headings"
+}
