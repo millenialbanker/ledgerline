@@ -280,6 +280,7 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	// Trades from NSE's trade API, for live risk, when the firm switched
 	// fetching on in Connections.
 	o.notisTick(ctx, tenant, now)
+	o.nclMarginsTick(ctx, tenant, now)
 	if o.manual(ctx, tenant) {
 		return 0, nil // Manual edition: none of the firm's jobs run on a timer
 	}

@@ -254,6 +254,22 @@ NSE's trade API (NOTIS) gives each trade a few seconds after it happens, includi
 
 A trade whose client code was changed shows under the new code. Cancelled trades are left out. Once the end-of-day trade file is loaded, it replaces these trades.
 
+## ncl-margins-api
+title: Get NSE Clearing's own margin figures during the day
+screen: live
+roles: Admin, Risk manager
+ask: ncl margin api; nsccl margin api; nmass api; margins api; exchange margin; clearing margin during the day; client margin from nse clearing; cli margins; tm margins; cm margins; mwpl api; open interest api; rsa certificate; api access management
+related: nse-trade-api, margin-shortfall, peak-margin
+
+NSE Clearing can give the margins it is actually charging, during market hours, for F&O, currency and commodity: for the clearing member, for each trading member, and for each client, with client positions, member open interest and market-wide position limits. [[live|Live RMS]] then uses NSE Clearing's margin for a client whenever it is higher than Ledgerline's own estimate, so a shortfall shows before the end-of-day file.
+
+1. Email risk_ops@nsccl.co.in, subject "API Facility in NMASS-Margins", with your NMASS super admin's details.
+2. On [[connections|Connections]] (Admin), open **NSE Clearing margins API**, enter the clearing member code and save. Then press **Make key**: Ledgerline makes the key pair, keeps the private key in its vault and gives you the certificate file `RSA_<member code>.pem`. (Or paste the private key of a certificate you already have.)
+3. On NMASS, under **API Access Management**, choose the margins service, enter your server's IP addresses (up to 25) and upload the `.pem` file. After NSE Clearing approves, the super admin gets the consumer key and secret by email.
+4. Enter the key and secret, the segments, UAT or Live, and turn **Fetch during the day** on.
+
+Ledgerline then asks for client margins every 5 minutes, and for the clearing and trading member figures every 15, from 09:15 to 15:45 (commodity until 23:30), keeping to NSE Clearing's limits. With more than 50,000 clients it asks for the whole-book file instead. The certificate lasts a year: make a new key and upload it again before it runs out.
+
 ## margin-shortfall
 title: Handle a client's margin shortfall
 screen: rms

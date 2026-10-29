@@ -2979,7 +2979,7 @@ V.connections = {
       groups.map(g => `<div class="panel"><div class="hd"><h3>${esc(g)}</h3></div>${tbl([['Service'], ['Account'], ['State'], ['Last checked'], ['']], d.connections.filter(c => c.group === g).map(c => {
         const acct = [c.values.provider, c.values.code && 'code ' + c.values.code, c.values.member && 'member ' + c.values.member, c.values.dp_id && 'DP ' + c.values.dp_id, c.values.bank, c.values.account && '…' + c.values.account, c.values.user, c.values.host, c.values.sender && 'sender ' + c.values.sender, c.values.number].filter(Boolean).map(esc).join(' · ');
         return `<tr><td><b>${esc(c.name)}</b>${c.required ? ' ' + pill('Needed to go live', 'acc') : ''}<div class="dim small">${esc(c.purpose)}</div></td><td class="small wrap" style="max-width:260px">${c.system ? `<span class="dim">${esc(c.system)}</span>` : acct || '<span class="dim">—</span>'}</td><td>${pill(c.status, CONN_ST[c.status] || 'nt')}${c.problem ? `<div class="small ${c.status === 'Problem' ? 'neg' : 'dim'} wrap">${esc(c.problem)}</div>` : ''}</td><td class="small">${c.tested_at ? `${fmtDate(c.tested_at.slice(0, 10))} ${c.tested_at.slice(11, 16)}<div class="dim">${esc(c.tested_by)}</div>` : '—'}</td>
-          <td class="r"><div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">${c.system ? (c.id === 'signing' ? '<button class="btn sm" data-act="go" data-id="dispatch">Open</button>' : '') : admin ? `${c.status !== 'Not set' && c.test !== 'none' ? `<button class="btn sm" data-act="connTest" data-id="${c.id}">Test</button>` : ''}<button class="btn sm ${c.status === 'Not set' ? 'pri' : ''}" data-act="connEdit" data-id="${c.id}">${c.status === 'Not set' ? 'Set up' : 'Change'}</button>` : ''}</div></td></tr>`;
+          <td class="r"><div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">${c.system ? (c.id === 'signing' ? '<button class="btn sm" data-act="go" data-id="dispatch">Open</button>' : '') : admin ? `${c.status !== 'Not set' && c.test !== 'none' ? `<button class="btn sm" data-act="connTest" data-id="${c.id}">Test</button>` : ''}${c.id === 'ncl-margins' && c.status !== 'Not set' ? `<button class="btn sm" data-act="nclmKey" title="Make the RSA key pair and the certificate to upload on NMASS">Make key</button>` : ''}<button class="btn sm ${c.status === 'Not set' ? 'pri' : ''}" data-act="connEdit" data-id="${c.id}">${c.status === 'Not set' ? 'Set up' : 'Change'}</button>` : ''}</div></td></tr>`;
       }))}</div>`).join('');
   }
 };
@@ -2989,6 +2989,7 @@ Object.assign(A, {
     const fld = f => {
       const v = c.values[f.key] || '', lab = `<label for="cn-${f.key}">${esc(f.label)}${f.optional ? ' <span class="dim">(optional)</span>' : ''}</label>`;
       if (f.options) return `<div class="fld">${lab}<select class="in" id="cn-${f.key}"><option value="">Choose</option>${f.options.map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
+      if (f.secret && f.key === 'private_key') return `<div class="fld full">${lab}<textarea class="in mono" rows="4" id="cn-${f.key}" autocomplete="off" spellcheck="false" placeholder="${c.secret_set[f.key] ? 'Saved: leave blank to keep' : '-----BEGIN PRIVATE KEY-----'}"></textarea></div>`;
       if (f.secret) return `<div class="fld">${lab}<input class="in" type="password" id="cn-${f.key}" autocomplete="new-password" placeholder="${c.secret_set[f.key] ? 'Saved: leave blank to keep' : ''}"></div>`;
       return `<div class="fld ${f.key === 'notes' || f.key === 'url' ? 'full' : ''}">${lab}<input class="in ${f.key === 'url' || f.key === 'host' ? 'mono' : ''}" id="cn-${f.key}" value="${esc(v)}" placeholder="${esc(f.placeholder || '')}"></div>`;
     };
@@ -3003,6 +3004,26 @@ Object.assign(A, {
       const r = c.test !== 'none' ? await post('/v1/connections/' + id + '/test') : null;
       closeModal(); toast(r ? `${c.name}: ${r.status}${r.problem ? ' · ' + r.problem : ''}` : 'Saved', r && r.status === 'Problem'); render({ keep: true });
     } catch (e) { $('cn-err').innerHTML = errHTML(e); }
+  },
+  nclmKey: () => {
+    modal(mhd('Make the NSE Clearing key', 'Ledgerline makes a 2048-bit RSA key pair, keeps the private key in its vault, and gives you the certificate to upload on NMASS → API Access Management. A new key replaces the old one: upload the new certificate before the next login.') + `<div class="bd"><div class="form">
+      <div class="fld"><label for="nk-org">Organisation</label><input class="in" id="nk-org" placeholder="Firm's registered name"></div>
+      <div class="fld"><label for="nk-unit">Department <span class="dim">(optional)</span></label><input class="in" id="nk-unit" placeholder="Risk"></div>
+      <div class="fld"><label for="nk-city">City</label><input class="in" id="nk-city"></div>
+      <div class="fld"><label for="nk-state">State</label><input class="in" id="nk-state"></div>
+      <div class="fld full"><label for="nk-cn">Server name (common name)</label><input class="in mono" id="nk-cn" placeholder="backoffice.firm.in"></div></div><div id="nk-err"></div></div>
+      <div class="ft"><span style="flex:1"></span><button class="btn" data-act="close">Cancel</button><button class="btn pri" id="nk-go">Make key</button></div>`);
+    $('nk-go').onclick = async () => {
+      try {
+        const r = await post('/v1/ncl-margins/key', { organisation: $('nk-org').value.trim(), department: $('nk-unit').value.trim(), city: $('nk-city').value.trim(), state: $('nk-state').value.trim(), country: 'IN', common_name: $('nk-cn').value.trim() });
+        const save = (text, name) => { const url = URL.createObjectURL(new Blob([text], { type: 'application/x-pem-file' })); const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); };
+        modal(mhd('Upload this certificate to NMASS', `Valid until ${esc(fmtDate(r.expires))}. Upload it on NMASS → API Access Management with your server IPs. The private key stays in Ledgerline.`) + `<div class="bd"><div class="fld full"><label for="nk-pem">${esc(r.file_name)}</label><textarea class="in mono" rows="8" id="nk-pem" readonly>${esc(r.certificate)}</textarea></div>
+          <div class="dim small">NSE Clearing recommends a certificate signed by a certificate authority. To get one, give the authority the signing request and upload the certificate it returns instead.</div></div>
+          <div class="ft"><button class="btn" id="nk-csr">Download signing request</button><span style="flex:1"></span><button class="btn pri" id="nk-dl">Download ${esc(r.file_name)}</button></div>`);
+        $('nk-dl').onclick = () => save(r.certificate, r.file_name);
+        $('nk-csr').onclick = () => save(r.signing_request, r.file_name.replace(/\.pem$/, '.csr'));
+      } catch (e) { $('nk-err').innerHTML = errHTML(e); }
+    };
   },
   connTest: id => act(() => post('/v1/connections/' + id + '/test'), r => `${r.name}: ${r.status}${r.problem ? ' · ' + r.problem : ''}`),
   connRemove: id => { if (window.confirm('Remove this connection and its saved password or key?')) act(() => post('/v1/connections/' + id + '/remove'), 'Removed'); },

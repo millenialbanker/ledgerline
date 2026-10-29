@@ -81,16 +81,20 @@ type LiveRow struct {
 	Name       string    `json:"name"`
 	Funds      money.Dec `json:"funds"` // ledger before today's bills
 	Collateral money.Dec `json:"collateral"`
-	Margin     money.Dec `json:"margin"`   // derivatives and open intraday
-	MTM        money.Dec `json:"mtm"`      // derivatives and intraday, at live prices
-	Unbilled   money.Dec `json:"unbilled"` // charges on today's trades
-	Auction    money.Dec `json:"auction"`  // short delivery reserve
-	Turnover   money.Dec `json:"turnover"`
-	Free       money.Dec `json:"free"`
-	Status     string    `json:"status"`
-	Blocked    bool      `json:"blocked"`
-	Short      []string  `json:"short_delivery"`
-	Trades     int       `json:"trades"`
+	Margin     money.Dec `json:"margin"` // derivatives and open intraday
+	// ExchangeMargin is NSE Clearing's own margin for the client's
+	// derivatives (margins API), when fetched today; Margin uses it when it
+	// is higher than Ledgerline's estimate.
+	ExchangeMargin *money.Dec `json:"exchange_margin,omitempty"`
+	MTM            money.Dec  `json:"mtm"`      // derivatives and intraday, at live prices
+	Unbilled       money.Dec  `json:"unbilled"` // charges on today's trades
+	Auction        money.Dec  `json:"auction"`  // short delivery reserve
+	Turnover       money.Dec  `json:"turnover"`
+	Free           money.Dec  `json:"free"`
+	Status         string     `json:"status"`
+	Blocked        bool       `json:"blocked"`
+	Short          []string   `json:"short_delivery"`
+	Trades         int        `json:"trades"`
 }
 
 // LiveView is the live risk screen.
@@ -104,6 +108,8 @@ type LiveView struct {
 	Rows      []LiveRow                 `json:"rows"`
 	Breaches  int                       `json:"breaches"`
 	Positions map[string][]PositionView `json:"positions"`
+	// ExchangeMarginAt is when NSE Clearing's client margins were fetched.
+	ExchangeMarginAt string `json:"exchange_margin_at,omitempty"`
 }
 
 // LiveRisk values every client as at until (HH:MM:SS; "" for now).
@@ -208,16 +214,27 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 	for _, h := range in.holdings {
 		held[h.UCC+"|"+h.Symbol] += h.Qty
 	}
+	exMargin, exAt, _ := o.NCLMClientMargins(ctx, tenant, date)
+	if len(exMargin) > 0 {
+		v.ExchangeMarginAt = exAt
+	}
 	for _, u := range sortedKeys(in.clients) {
 		c := in.clients[u]
 		if c.Status != "Active" {
 			continue
 		}
-		r := LiveRow{UCC: u, Name: c.Name, Funds: funds[u].Dec(), Collateral: coll[u], Margin: cm[u], Unbilled: unbilled[u], Turnover: turnover[u], Trades: count[u], Blocked: c.Blocked || c.Inactive, Short: []string{}}
+		r := LiveRow{UCC: u, Name: c.Name, Funds: funds[u].Dec(), Collateral: coll[u], Unbilled: unbilled[u], Turnover: turnover[u], Trades: count[u], Blocked: c.Blocked || c.Inactive, Short: []string{}}
+		deriv := money.Dec{}
 		for _, p := range pos[u] {
-			r.Margin = r.Margin.Add(p.Margin)
+			deriv = deriv.Add(p.Margin)
 			r.MTM = r.MTM.Add(p.MTM)
 		}
+		// NSE Clearing's figure, when there is one, wins if it is higher.
+		if ex, ok := exMargin[strings.ToUpper(u)]; ok {
+			r.ExchangeMargin = &ex
+			deriv = money.Max(deriv, ex)
+		}
+		r.Margin = cm[u].Add(deriv)
 		for _, l := range cmLegs[u] {
 			inst, ok := look.Get(l.ex, "CM", l.key)
 			ltp := money.Dec{}

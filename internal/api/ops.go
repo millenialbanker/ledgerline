@@ -89,6 +89,10 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/allocation/check", s.allocationCheck, true)
 	R("GET /v1/notis", s.notisStatus, false)
 	R("POST /v1/notis/fetch", s.notisFetch, true)
+	R("GET /v1/ncl-margins", s.nclMarginsStatus, false)
+	R("GET /v1/ncl-margins/positions/{ucc}", s.nclMarginsPositions, false)
+	R("POST /v1/ncl-margins/fetch", s.nclMarginsFetch, true)
+	R("POST /v1/ncl-margins/key", s.nclMarginsKey, true)
 	R("POST /v1/allocation/level", s.allocationLevel, true)
 	R("POST /v1/allocation/{id}/decide", s.allocationDecide, true)
 	R("GET /v1/allocation/{id}/file", s.allocationFile, false)
@@ -572,6 +576,41 @@ func (s *Server) notisFetch(w http.ResponseWriter, r *http.Request) {
 	st, n, err := s.ops.NotisFetch(r.Context(), tenant(r), actor(r), b.Segment, b.Kind)
 	st.Token = ""
 	ok(w, map[string]any{"state": st, "rows": n}, err)
+}
+
+func (s *Server) nclMarginsStatus(w http.ResponseWriter, r *http.Request) {
+	ok(w, s.ops.NCLMarginsStatus(r.Context(), tenant(r), r.URL.Query().Get("date")), nil)
+}
+
+func (s *Server) nclMarginsPositions(w http.ResponseWriter, r *http.Request) {
+	date := r.URL.Query().Get("date")
+	if date == "" {
+		date = s.ops.NCLMarginsStatus(r.Context(), tenant(r), "").Date
+	}
+	ps, err := s.ops.NCLMClientPositions(r.Context(), tenant(r), date, r.PathValue("ucc"))
+	ok(w, map[string]any{"date": date, "positions": ps}, err)
+}
+
+func (s *Server) nclMarginsFetch(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Segment string   `json:"segment"`
+		Kind    string   `json:"kind"`
+		Clients []string `json:"clients"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	res, err := s.ops.NCLMarginsFetch(r.Context(), tenant(r), actor(r), b.Segment, b.Kind, b.Clients)
+	ok(w, res, err)
+}
+
+func (s *Server) nclMarginsKey(w http.ResponseWriter, r *http.Request) {
+	var b ops.NCLMSubject
+	if !decode(w, r, &b) {
+		return
+	}
+	k, err := s.ops.NCLMarginsMakeKey(r.Context(), tenant(r), actor(r), b)
+	ok(w, k, err)
 }
 
 func (s *Server) allocationLevel(w http.ResponseWriter, r *http.Request) {
