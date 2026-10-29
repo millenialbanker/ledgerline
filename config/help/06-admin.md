@@ -348,7 +348,7 @@ roles: Admin
 ask: connections; api key; kra login; oms api; mail server; smtp; sms gateway; whatsapp api; bank api; e-sign provider; penny drop; where do i put the password; ip whitelist; server ip; test connection
 related: dispatch-register
 
-On [[connections|Connections]] (Admin) enter the firm's own account for each service: KRA, CKYC, the trading front end (OMS), the exchange and depository portals, the client money bank account, SMS, WhatsApp, e-Sign, penny drop and the mail server.
+On [[connections|Connections]] (Admin) enter the firm's own account for each service: KRA, CKYC, the trading front end (OMS), the exchange and depository portals, the client money bank account, live bank credit notifications (your bank, Razorpay Smart Collect or Cashfree virtual accounts), SMS, WhatsApp, e-Sign, penny drop and the mail server.
 
 1. **Set up** opens the fields that service needs. Passwords and keys are saved encrypted with the firm's keys and never shown again; leave them blank later to keep them.
 2. **Save and test** checks that the address answers securely and, for the mail server, that the login works. Nothing is sent or changed at the provider.

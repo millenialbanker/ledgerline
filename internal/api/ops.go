@@ -126,6 +126,7 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/receipts/{id}/clear", s.clearCheque, true)
 	R("POST /v1/gateway/settle", s.settleGateway, true)
 	s.mux.HandleFunc("POST /hooks/{tenant}/gateway", s.gatewayHook)
+	s.mux.HandleFunc("POST /hooks/{tenant}/bank/{provider}", s.bankCreditHook)
 	R("GET /v1/payouts", s.payouts, false)
 	R("GET /v1/payouts/withdrawable", s.withdrawable, false)
 	R("POST /v1/payouts", s.requestPayout, true)
@@ -1645,6 +1646,25 @@ func (s *Server) gatewayHook(w http.ResponseWriter, r *http.Request) {
 	}
 	rc, created, err := s.ops.GatewayWebhook(r.Context(), r.PathValue("tenant"), body, sig)
 	ok(w, map[string]any{"receipt": rc.ID, "created": created}, err)
+}
+
+// bankCreditHook receives live credit notices from the firm's bank or a
+// collections provider. Not signed in: each notice must carry the signature
+// or token set in Connections.
+func (s *Server) bankCreditHook(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeErr(w, 400, "bad_request", "cannot read the body", nil)
+		return
+	}
+	res, err := s.ops.BankCreditHook(r.Context(), r.PathValue("tenant"), r.PathValue("provider"), r.Header, body)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, _ = w.Write([]byte(res.Ack))
 }
 
 func (s *Server) devGatewayPayment(w http.ResponseWriter, r *http.Request) {

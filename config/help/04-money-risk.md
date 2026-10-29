@@ -44,6 +44,23 @@ Credits that can't be matched to a client's registered account go to suspense on
 
 Never post a credit to a client on a guess or on the client's word alone.
 
+## live-bank-credits
+title: Get client money from the bank as it lands
+screen: connections
+roles: Admin
+ask: bank api; ecms; e-cms; virtual account; smart collect; auto collect; real time credit; instant credit; bank notification; credit intimation; hdfc ecms; axis ecoll; icici ecollection; kotak; yes bank
+related: unknown-credit, third-party-funds
+
+Instead of waiting for the bank statement, the bank (or Razorpay Smart Collect, or Cashfree virtual accounts) can tell Ledgerline about each credit the moment it lands. Each credit is checked exactly like a statement credit, so the statement later finds it already there.
+
+1. On [[connections|Connections]] (Admin), open the one you use:
+    - **Bank credit notifications** for your own bank's collection service: HDFC e-CMS, Axis Power eColl, ICICI e-Collection, Kotak, Yes Bank and others. Banks give their message format only to their customers, so ask your bank's cash management team for the "real-time credit notification (push)" specification. Then fill in where the amount, UTR, virtual account and payer's account are in the bank's message, and how the bank signs it.
+    - **Razorpay Smart Collect** or **Cashfree virtual bank accounts**: enter the webhook secret or client secret.
+2. If clients pay into virtual accounts made of a prefix and their client code, enter the prefix.
+3. Give the bank or provider the address shown (`/hooks/<firm>/bank/bank`, `…/razorpay` or `…/cashfree`) and the server's IP address.
+
+Money from the client's registered account is a receipt at once, and is allocated to the clearing corporation. Money into a client's virtual account from any other account is held as third-party funds, and an alert is raised.
+
 ## cheque-return
 title: Handle a returned (bounced) cheque
 screen: money

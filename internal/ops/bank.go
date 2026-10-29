@@ -26,6 +26,13 @@ type BankTxn struct {
 	EntryID  string       `json:"entry_id,omitempty"`
 	Note     string       `json:"note,omitempty"`
 	By       string       `json:"by,omitempty"`
+	// Live notices from the bank or a collections provider (bankcredit.go):
+	// the virtual account paid into, the client it names, the payer's IFSC
+	// and where the notice came from.
+	VirtualAccount string `json:"virtual_account,omitempty"`
+	Hint           string `json:"virtual_account_client,omitempty"`
+	PayerIFSC      string `json:"payer_ifsc,omitempty"`
+	Source         string `json:"source,omitempty"`
 }
 
 // Public masks the remitter account.
@@ -62,13 +69,24 @@ func (o *Ops) matchCredit(ctx context.Context, tenant, actor string, t BankTxn, 
 	entry := ledger.Entry{Tenant: tenant, ValueDate: t.Date, CreatedBy: actor, Source: ledger.SourceRef{Kind: "BANK", ID: t.Ref}}
 	if byAcct != nil {
 		t.Status, t.UCC = "Matched", byAcct.UCC
+		if t.Hint != "" && t.Hint != byAcct.UCC {
+			t.Note = fmt.Sprintf("Paid into %s's virtual account from %s's registered account", t.Hint, byAcct.UCC)
+		}
 		entry.Key = "RCPT:" + t.Ref
 		entry.Narration = fmt.Sprintf("Funds received · %s %s", t.Mode, t.Ref)
 		entry.Postings = []ledger.Posting{{Account: ledger.BankClient, Debit: t.Amount}, {Account: ledger.ClientAccount(byAcct.UCC), Credit: t.Amount, Memo: "Receipt from registered account"}}
 	} else {
 		t.Status = "Unidentified"
 		low := strings.ToLower(t.Remitter)
+		if t.Hint != "" {
+			// Paid into a client's virtual account, but not from that
+			// client's registered bank account.
+			t.Status, t.UCC = "Third-party", t.Hint
+		}
 		for _, c := range clients {
+			if t.Status == "Third-party" {
+				break
+			}
 			last := strings.ToLower(lastWord(c.Name))
 			if len(last) > 2 && strings.Contains(low, last) && t.Account != "VPA" {
 				t.Status, t.UCC = "Third-party", c.UCC
