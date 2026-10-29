@@ -196,6 +196,7 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/whatsapp/chats", s.waChats, false)
 	R("POST /v1/whatsapp/simulate", s.waSimulate, true)
 	s.mux.HandleFunc("POST /hooks/{tenant}/whatsapp", s.waHook)
+	s.mux.HandleFunc("GET /hooks/{tenant}/whatsapp", s.waVerify)
 	s.mux.HandleFunc("GET /optin/{tenant}/{token}", s.optinPage)
 	s.mux.HandleFunc("POST /optin/{tenant}/{token}", s.optinPage)
 	R("GET /v1/whatsapp/consents", s.waConsents, false)
@@ -2647,8 +2648,24 @@ func (s *Server) waHook(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "bad_request", "cannot read the body", nil)
 		return
 	}
-	v, err := s.ops.WhatsAppWebhook(r.Context(), r.PathValue("tenant"), body, r.Header.Get("X-Signature"))
+	sig := r.Header.Get("X-Signature")
+	if h := r.Header.Get("X-Hub-Signature-256"); h != "" {
+		sig = h // Meta's Cloud API
+	}
+	v, err := s.ops.WhatsAppWebhook(r.Context(), r.PathValue("tenant"), body, sig)
 	ok(w, map[string]any{"reply": v}, err)
+}
+
+// waVerify answers Meta's check of the webhook address (hub.challenge).
+func (s *Server) waVerify(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	c, err := s.ops.WhatsAppVerify(r.Context(), r.PathValue("tenant"), q.Get("hub.mode"), q.Get("hub.verify_token"), q.Get("hub.challenge"))
+	if err != nil {
+		writeErr(w, 403, "forbidden", "verify token does not match", nil)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain")
+	_, _ = w.Write([]byte(c))
 }
 
 func (s *Server) portalWhatsApp(w http.ResponseWriter, r *http.Request) {

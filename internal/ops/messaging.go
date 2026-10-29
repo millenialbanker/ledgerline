@@ -196,19 +196,24 @@ func render(s string, vars map[string]string) string {
 
 // Message is one message sent (or held) to a client.
 type Message struct {
-	ID       string `json:"id"`
-	At       string `json:"at"`
-	Event    string `json:"event"`
-	Template string `json:"template"`
-	Channel  string `json:"channel"`
-	Category string `json:"category"`
-	UCC      string `json:"ucc"`
-	To       string `json:"to"`
-	Subject  string `json:"subject,omitempty"`
-	Body     string `json:"body"`
-	Status   string `json:"status"` // Sent, Bounced, Failed, Held, Not opted in
-	Note     string `json:"note,omitempty"`
-	DLT      string `json:"dlt_template_id,omitempty"`
+	ID       string   `json:"id"`
+	At       string   `json:"at"`
+	Event    string   `json:"event"`
+	Template string   `json:"template"`
+	Channel  string   `json:"channel"`
+	Category string   `json:"category"`
+	UCC      string   `json:"ucc"`
+	To       string   `json:"to"`
+	Subject  string   `json:"subject,omitempty"`
+	Body     string   `json:"body"`
+	Status   string   `json:"status"` // Sent, Bounced, Failed, Held, Not opted in
+	Note     string   `json:"note,omitempty"`
+	DLT      string   `json:"dlt_template_id,omitempty"`
+	Provider string   `json:"provider,omitempty"` // SMS gateway or WhatsApp provider that took it
+	Ref      string   `json:"ref,omitempty"`      // the provider's message reference
+	Attempts int      `json:"attempts,omitempty"`
+	TriedAt  string   `json:"tried_at,omitempty"`
+	Params   []string `json:"params,omitempty"` // WhatsApp template values, for a retry
 }
 
 // notify sends an event's messages to a client through every active
@@ -280,6 +285,12 @@ func (o *Ops) deliver(ctx context.Context, tenant, actor string, t Template, c C
 		return m, err
 	}
 	m.ID = fmt.Sprintf("MSG-%07d", n)
+	waName := ""
+	if t.Channel == ChWhatsApp && t.WAName != "" {
+		waName, m.Params = t.WAName, waParams(t.Body, vars)
+	}
+	o.transmit(ctx, tenant, &m, waName, m.Params)
+	m.TriedAt = now.Format(time.RFC3339)
 	return m, docs.Upsert(ctx, o.Docs, tenant, cMessage, m.ID, m, actor)
 }
 
@@ -668,6 +679,27 @@ func (o *Ops) WhatsAppWebhook(ctx context.Context, tenant string, body []byte, s
 	}
 	if set.WhatsAppSecret == "" {
 		return "", fmt.Errorf("%w: WhatsApp is not set up for this firm", ErrState)
+	}
+	// Meta's Cloud API posts its own format, signed "sha256=<hex>" with the
+	// app secret; the bot's answers then go back through the provider.
+	if msgs, ok := metaInbound(body); ok && strings.HasPrefix(strings.ToLower(sig), "sha256=") {
+		if !validHubSignature(set.WhatsAppSecret, body, sig) {
+			return "", fmt.Errorf("%w: bad signature", ErrForbidden)
+		}
+		var last string
+		for _, x := range msgs {
+			reply, err := o.WhatsAppInbound(ctx, tenant, x[0], x[1], o.businessDate(ctx, tenant))
+			if err != nil {
+				return "", err
+			}
+			ucc := ""
+			if chats, err := docs.List[WAChat](ctx, o.Docs, tenant, cWAChat, ""); err == nil && len(chats) > 0 {
+				ucc = chats[len(chats)-1].UCC
+			}
+			o.replyWhatsApp(ctx, tenant, x[0], ucc, reply)
+			last = reply
+		}
+		return last, nil
 	}
 	mac := hmac.New(sha256.New, []byte(set.WhatsAppSecret))
 	mac.Write(body)

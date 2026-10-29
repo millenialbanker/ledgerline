@@ -70,8 +70,10 @@ var ConnProviders = []ConnProvider{
 	{ID: "digilocker", Name: "DigiLocker (via Ledgerline KYC)", Group: "KYC", Purpose: "Aadhaar and PAN for online account opening", System: "Set on the server (LEDGERLINE_KYC_URL); the firm's own API Setu registration"},
 	{ID: "esign", Name: "e-Sign (Aadhaar e-Sign provider)", Group: "KYC", Purpose: "Signing account opening forms", Test: "https",
 		Fields: []ConnField{fVend("eMudhra", "NSDL e-Gov", "Protean", "Leegality", "Digio", "Other"), {Key: "client_id", Label: "Client ID"}, fKey, fURL, fNotes}},
-	{ID: "pennydrop", Name: "Bank account check (penny drop)", Group: "KYC", Purpose: "Verifying clients' bank accounts", Test: "https",
-		Fields: []ConnField{fVend("Cashfree", "Razorpay", "Digio", "Signzy", "Other"), {Key: "client_id", Label: "Client ID", Optional: true}, fKey, fURL, fNotes}},
+	{ID: connVerify, Name: "Bank account and PAN checks", Group: "KYC", Purpose: "Live bank account (penny drop) and PAN checks when clients open an account online or change their bank account. Cashfree works directly; other providers are kept as a record until connected", Test: "https",
+		Fields: []ConnField{fVend("Cashfree", "Razorpay", "Digio", "Signzy", "Other"), {Key: "client_id", Label: "Client ID", Optional: true}, {Key: "api_key", Label: "Client secret (API key)", Secret: true},
+
+			{Key: "mode", Label: "Environment", Options: []string{"Live", verifySandbox}, Optional: true}, {Key: "url", Label: "Address (leave empty for the provider's own)", Optional: true, Placeholder: "https://…"}, fNotes}},
 	{ID: "oms", Name: "Trading front end (OMS)", Group: "Trading", Purpose: "Trade feed for live risk, start-of-day limits and holdings upload", Required: true, Test: "https",
 		Fields: []ConnField{fVend("ODIN (63 moons)", "Omnesys NEST", "Greek", "Symphony", "TradeSmart XTS", "Other"), {Key: "member", Label: "Member / dealer ID"}, fUser, fKey, fURL, fNotes}},
 	{ID: "nse", Name: "NSE member portal (ENIT / extranet)", Group: "Exchanges", Purpose: "UCC, reports and file downloads", Test: "https",
@@ -86,10 +88,17 @@ var ConnProviders = []ConnProvider{
 		Fields: []ConnField{fVend("CDSL", "NSDL"), {Key: "dp_id", Label: "DP ID"}, fUser, fPass, fURL, fNotes}},
 	{ID: "bank", Name: "Client money bank account", Group: "Money", Purpose: "Statements for receipts, and payouts", Required: true, Test: "https",
 		Fields: []ConnField{{Key: "bank", Label: "Bank"}, {Key: "account", Label: "Account (last 4)", Placeholder: "e.g. 4321"}, fUser, {Key: "password", Label: "Password or API key", Secret: true}, fURL, fNotes}},
-	{ID: "sms", Name: "SMS gateway", Group: "Messages", Purpose: "OTPs and client SMS (DLT registered)", Test: "https",
-		Fields: []ConnField{fVend("MSG91", "Gupshup", "Kaleyra", "Route Mobile", "Other"), {Key: "sender", Label: "Sender ID"}, {Key: "dlt_entity", Label: "DLT entity ID"}, fKey, fURL, fNotes}},
-	{ID: "whatsapp", Name: "WhatsApp Business", Group: "Messages", Purpose: "Client messages and the WhatsApp bot", Test: "https",
-		Fields: []ConnField{fVend("Meta Cloud API", "Gupshup", "Interakt", "Other"), {Key: "number", Label: "Business number"}, fKey, fURL, fNotes}},
+	{ID: "sms", Name: "SMS gateway", Group: "Messages", Purpose: "OTPs and client SMS (DLT registered). MSG91, Kaleyra, Gupshup and Route Mobile send directly; Other takes the gateway's address", Test: "https",
+		Fields: []ConnField{fVend(SMSProviders...), {Key: "sender", Label: "Sender ID (DLT header)"}, {Key: "dlt_entity", Label: "DLT entity ID"},
+			{Key: "user", Label: "Account SID or user name (Kaleyra, Gupshup, Route Mobile)", Optional: true}, {Key: "api_key", Label: "API key or password", Secret: true},
+			{Key: "otp_template", Label: "DLT template ID for one-time codes", Optional: true},
+			{Key: "url", Label: "Address (leave empty for the gateway's own; for Other, the full address with {to} and {text})", Optional: true, Placeholder: "https://…"}, fNotes}},
+	{ID: "whatsapp", Name: "WhatsApp Business", Group: "Messages", Purpose: "Client messages and the WhatsApp bot. Meta Cloud API, Gupshup and Interakt send directly", Test: "https",
+		Fields: []ConnField{fVend(WAProviders...), {Key: "number", Label: "Business number"}, {Key: "phone_id", Label: "Meta only: phone number ID", Optional: true},
+			{Key: "app", Label: "Gupshup only: app name", Optional: true}, {Key: "api_key", Label: "Access token or API key", Secret: true},
+			{Key: "lang", Label: "Template language code", Optional: true, Placeholder: "en"},
+			{Key: "verify_token", Label: "Meta only: webhook verify token (any phrase; enter the same on Meta)", Optional: true},
+			{Key: "url", Label: "Address (leave empty for the provider's own)", Optional: true, Placeholder: "https://…"}, fNotes}},
 	{ID: "mail", Name: "Mail server", Group: "Messages", Purpose: "Signed contract notes and statements to clients", Required: true, Test: "smtp",
 		Fields: []ConnField{{Key: "host", Label: "Server", Placeholder: "smtp.firm.in"}, {Key: "port", Label: "Port", Placeholder: "587 (STARTTLS) or 465 (TLS)"}, {Key: "from", Label: "Send as", Placeholder: "notes@firm.in"}, fUser, fPass, fNotes}},
 	{ID: "signing", Name: "Digital signature certificate", Group: "Messages", Purpose: "Signing contract notes and statements", System: "Set in Dispatch register → Digital signature"},
@@ -264,6 +273,21 @@ func (o *Ops) SaveConnection(ctx context.Context, tenant, actor, id string, valu
 			return ConnectionView{}, err
 		}
 	}
+	if id == "sms" {
+		if err := checkSMSConn(nc); err != nil {
+			return ConnectionView{}, err
+		}
+	}
+	if id == "whatsapp" {
+		if err := checkWAConn(nc); err != nil {
+			return ConnectionView{}, err
+		}
+	}
+	if id == connVerify {
+		if err := checkVerifyConn(nc); err != nil {
+			return ConnectionView{}, err
+		}
+	}
 	if err := docs.Upsert(ctx, o.Docs, tenant, cConn, id, nc, actor); err != nil {
 		return ConnectionView{}, err
 	}
@@ -338,6 +362,8 @@ func (o *Ops) TestConnection(ctx context.Context, tenant, actor, id string) (Con
 		}
 	case p.Test == "https" && c.Values["url"] != "":
 		status, problem = o.checkAddress(ctx, c.Values["url"])
+	case id == connVerify && verifyBases[c.Values["provider"]][0] != "":
+		status, problem = o.checkAddress(ctx, verifyBase(c))
 	default:
 		status, problem = "Saved", "nothing to test automatically: the login is checked the first time it is used"
 	}

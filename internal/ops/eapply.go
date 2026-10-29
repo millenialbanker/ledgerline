@@ -248,7 +248,7 @@ type AppConfig struct {
 // ApplyConfig describes the firm for the public page.
 func (o *Ops) ApplyConfig(ctx context.Context, tenant string) AppConfig {
 	set, _ := o.Settings(ctx, tenant)
-	return AppConfig{Firm: set.Firm, SEBIReg: set.SEBIReg, Email: set.ComplianceEmail, Provider: o.kyc().Name(), Dev: o.DevCodes, Segments: SegmentNames, Declare: AppDeclarations, Steps: AppSteps,
+	return AppConfig{Firm: set.Firm, SEBIReg: set.SEBIReg, Email: set.ComplianceEmail, Provider: o.kycName(ctx, tenant), Dev: o.DevCodes, Segments: SegmentNames, Declare: AppDeclarations, Steps: AppSteps,
 		DocKinds: []string{"PAN card", "Photograph", "Signature", "Income proof", "Bank proof"}, DigiLockerRedirect: isFlow(o.kyc()), AadhaarMethods: o.aadhaarMethods(ctx)}
 }
 
@@ -332,7 +332,8 @@ func (o *Ops) sendAppCode(ctx context.Context, tenant string, a *Application, ch
 	a.Codes[ch] = appCode{Hash: hashOTP(a.ID+ch, code), Expires: o.now().Add(10 * time.Minute).Format(time.RFC3339)}
 	set, _ := o.Settings(ctx, tenant)
 	if ch == "mobile" {
-		o.sendDirect(ctx, tenant, "applicant", ChSMS, a.Mobile, "", "eapply.code", "", fmt.Sprintf("%s is your code to open an account with %s. Valid for 10 minutes. Do not share it.", code, set.Firm))
+		msg := "%s is your code to open an account with %s. Valid for 10 minutes. Do not share it."
+		o.sendDirectAs(ctx, tenant, "applicant", ChSMS, a.Mobile, "", "eapply.code", "", fmt.Sprintf(msg, code, set.Firm), fmt.Sprintf(msg, "••••••", set.Firm))
 	} else {
 		o.sendDirect(ctx, tenant, "applicant", ChEmail, a.Email, "", "eapply.code", "Your code to open an account: "+code, fmt.Sprintf("Your code to open an account with %s is %s. It is valid for 10 minutes.\n\nIf you did not ask for it, please ignore this email.\n\n%s", set.Firm, code, set.Firm))
 	}
@@ -492,7 +493,7 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 			return a, &ValidationError{[]FieldError{{"pan", "We cannot open an account for this PAN. Please contact us."}}}
 		}
 		a.PAN, a.Name, a.DOB, a.Gender, a.Father, a.Marital = d.PAN, d.Name, d.DOB, d.Gender, strings.TrimSpace(d.Father), d.Marital
-		pc := p.PAN(a.PAN, a.Name, a.DOB)
+		pc := o.checkPAN(ctx, tenant, p, a.PAN, a.Name, a.DOB)
 		a.setCheck(pc, now)
 		a.setCheck(p.KRA(a.PAN), now)
 		if pc.Status == "Failed" {
@@ -540,7 +541,7 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 			return a, &ValidationError{fe}
 		}
 		a.Bank, a.IFSC, a.Account = strings.TrimSpace(d.Bank), d.IFSC, d.Account
-		c := p.PennyDrop(a.Account, a.IFSC, a.Name)
+		c := o.checkBank(ctx, tenant, p, a.Account, a.IFSC, a.Name)
 		a.setCheck(c, now)
 		if c.Status == "Failed" {
 			_ = docs.Upsert(ctx, o.Docs, tenant, cApplication, a.ID, a, "applicant")

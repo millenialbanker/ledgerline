@@ -276,6 +276,9 @@ type ChangeRequest struct {
 	NeedsOTP   bool   `json:"needs_otp,omitempty"`
 	Verified   string `json:"verified_at,omitempty"`
 	DevCode    string `json:"dev_code,omitempty"` // development only; never stored
+	// Check is the live bank account check of a new bank account, when the
+	// firm has a verification provider connected.
+	Check *AppCheck `json:"check,omitempty"`
 }
 
 func changeOld(c Client, kind string) map[string]string {
@@ -378,6 +381,16 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 			return r, invalid("a %s change for %s is already waiting for approval (%s)", strings.ToLower(kind), ucc, x.ID)
 		}
 	}
+	if kind == "Bank account" && o.verifier(ctx, tenant) != nil {
+		// The account is checked in the client's name before a checker sees
+		// it; one the bank says is closed or wrong is not taken.
+		ck := o.checkBank(ctx, tenant, nil, trial.Bank.Account, trial.Bank.IFSC, c.Name)
+		ck.At = o.now().Format(time.RFC3339)
+		if ck.Status == "Failed" {
+			return r, invalid("%s", ck.Detail)
+		}
+		r.Check = &ck
+	}
 	n, err := o.next(ctx, tenant, "change", actor)
 	if err != nil {
 		return r, err
@@ -398,7 +411,9 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 			to, ch = r.New["mobile"], ChSMS
 		}
 		// The provider gets the code; the copy kept here does not.
-		o.sendDirect(ctx, tenant, actor, ch, to, ucc, "change.otp", "Verify your new "+strings.ToLower(kind), fmt.Sprintf("Your code to confirm the change of %s on account %s is ••••••. It is valid for 15 minutes. Do not share it.", strings.ToLower(kind), ucc))
+		msg := "Your code to confirm the change of %s on account %s is %s. It is valid for 15 minutes. Do not share it."
+		o.sendDirectAs(ctx, tenant, actor, ch, to, ucc, "change.otp", "Verify your new "+strings.ToLower(kind),
+			fmt.Sprintf(msg, strings.ToLower(kind), ucc, code), fmt.Sprintf(msg, strings.ToLower(kind), ucc, "••••••"))
 	}
 	out := r.public()
 	out.DevCode = code // the API passes it on only on a development server
@@ -644,10 +659,26 @@ func (o *Ops) VerifyChange(ctx context.Context, tenant, actor, id, code string) 
 
 // sendDirect sends one message to a given address (codes to a new contact).
 func (o *Ops) sendDirect(ctx context.Context, tenant, actor, channel, to, ucc, event, subject, body string) {
+	o.sendDirectAs(ctx, tenant, actor, channel, to, ucc, event, subject, body, body)
+}
+
+// sendDirectAs sends sent but keeps kept in the log (a one-time code is
+// sent, never kept). SMS uses the gateway's DLT template for codes.
+func (o *Ops) sendDirectAs(ctx context.Context, tenant, actor, channel, to, ucc, event, subject, sent, kept string) {
 	n, err := o.next(ctx, tenant, "message", actor)
 	if err != nil {
 		return
 	}
-	m := Message{ID: fmt.Sprintf("MSG-%07d", n), At: o.now().Format(time.RFC3339), Event: event, Channel: channel, Category: "Transactional", UCC: ucc, To: to, Subject: subject, Body: body, Status: "Sent"}
+	m := Message{ID: fmt.Sprintf("MSG-%07d", n), At: o.now().Format(time.RFC3339), Event: event, Channel: channel, Category: "Transactional", UCC: ucc, To: to, Subject: subject, Body: sent, Status: "Sent"}
+	if channel == ChSMS {
+		if c, ok := o.msgConn(ctx, tenant, "sms"); ok {
+			m.DLT = c.Values["otp_template"]
+		}
+	}
+	if channel == ChSMS || channel == ChWhatsApp {
+		o.transmit(ctx, tenant, &m, "", nil)
+		m.TriedAt = m.At
+	}
+	m.Body = kept
 	_ = docs.Upsert(ctx, o.Docs, tenant, cMessage, m.ID, m, actor)
 }

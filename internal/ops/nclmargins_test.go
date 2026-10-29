@@ -124,7 +124,7 @@ func fakeFor(t *testing.T, o *Ops, ctx context.Context) *fakeNCLM {
 }
 
 func TestNCLMarginsFeed(t *testing.T) {
-	o, ctx := newOps(t)
+	o, ctx := setup(t)
 	at := time.Date(2026, 10, 29, 10, 0, 0, 0, ist)
 	o.Now = func() time.Time { return at }
 	if _, err := o.NCLMarginsFetch(ctx, T, "admin", "FO", "cm", nil); err == nil {
@@ -188,10 +188,17 @@ func TestNCLMarginsFeed(t *testing.T) {
 	if err != nil || lv.ExchangeMarginAt == "" {
 		t.Fatalf("live %v %v", lv.ExchangeMarginAt, err)
 	}
+	found := false
 	for _, r := range lv.Rows {
-		if r.UCC == "BH1003" && (r.ExchangeMargin == nil || r.Margin.Cmp(*r.ExchangeMargin) < 0) {
-			t.Fatalf("live row %+v", r)
+		if r.UCC == "BH1003" {
+			found = true
+			if r.ExchangeMargin == nil || r.ExchangeMargin.String() != "180866.72" || r.Margin.Cmp(*r.ExchangeMargin) < 0 {
+				t.Fatalf("live row %+v", r)
+			}
 		}
+	}
+	if !found {
+		t.Fatal("BH1003 not in live risk")
 	}
 	// Market-wide limits are F&O only; segments not switched on are refused.
 	if _, err := o.NCLMarginsFetch(ctx, T, "admin", "CD", "mwpl", nil); err == nil {

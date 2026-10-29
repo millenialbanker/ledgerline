@@ -281,6 +281,7 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	// fetching on in Connections.
 	o.notisTick(ctx, tenant, now)
 	o.nclMarginsTick(ctx, tenant, now)
+	o.retryMessages(ctx, tenant, now)
 	if o.manual(ctx, tenant) {
 		return 0, nil // Manual edition: none of the firm's jobs run on a timer
 	}

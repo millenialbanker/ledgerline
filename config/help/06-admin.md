@@ -287,7 +287,7 @@ Online account opening takes the applicant's Aadhaar from DigiLocker (with their
 3. Give the client ID and secret to whoever runs Ledgerline KYC for you; they add your firm and give you an API key.
 4. For the offline e-KYC file, whoever runs Ledgerline KYC adds UIDAI's offline e-KYC certificate (from UIDAI's website); no registration with UIDAI is needed. Applicants then see both choices at the address step.
 5. Your Ledgerline administrator sets `LEDGERLINE_KYC_URL` and `LEDGERLINE_KYC_KEY` and restarts. Applicants then see **Continue to DigiLocker** at the address step.
-6. Penny drop, face match and Aadhaar e-Sign still need their own vendors; until connected, those checks show **Check manually** and applications wait for a checker instead of activating by themselves.
+6. Bank account (penny drop) and PAN checks run live once **Bank account and PAN checks** is connected (see "Check bank accounts and PANs automatically"). Face match and Aadhaar e-Sign still need their own vendors; until connected, those checks show **Check manually** and applications wait for a checker instead of activating by themselves.
 
 ## team-messages
 title: Message colleagues, branches and APs
@@ -340,6 +340,42 @@ On [[rpa|Automations]]:
 6. A run that needs you pauses: Ledgy messages you; do the step in the bot's window and click **Continue**. A failed run shows the step, the reason and a picture of the screen.
 
 **Share** lets colleagues run a workflow on their own computers with their own saved logins. Admins can add firm logins (the firm's own portal accounts) and choose who may use them. Every use of a saved password is in the audit trail.
+
+## verify-bank-pan
+title: Check bank accounts and PANs automatically
+screen: connections
+roles: Admin
+ask: penny drop; bank account verification; verify bank account; pan verification; verify pan; name match; aadhaar pan link; pan aadhaar seeding; inoperative pan; cashfree verification; cashfree secure id; bank account check
+related: connections
+
+With a verification provider connected, Ledgerline checks each new client's PAN and bank account while they open an account online, and every bank account change before a checker sees it.
+
+1. Open an account with Cashfree's verification service (Secure ID) and create API keys for its verification API.
+2. On [[connections|Connections]] (Admin), open **Bank account and PAN checks**, choose Cashfree, and enter the client ID and client secret. Choose **Sandbox (test)** first if you want to try it with Cashfree's test keys.
+3. Add this server's IP address in Cashfree's dashboard if your account limits addresses.
+
+The PAN check confirms the PAN is valid, the name on it, and whether it is linked to Aadhaar (an unlinked PAN is inoperative and is left to a checker). The bank check confirms the account is open and reads the account holder's name at the bank. A name that does not match well, or a provider that does not answer, never rejects anyone: the check shows **Check manually** for a checker. Only an account or PAN the provider says is invalid fails.
+
+## sms-whatsapp-sending
+title: Send SMS and WhatsApp messages through your provider
+screen: connections
+roles: Admin
+ask: sms not sent; send sms; sms provider; whatsapp provider; msg91; kaleyra; gupshup; route mobile; meta whatsapp; whatsapp cloud api; interakt; dlt template; dlt entity; sender id; header; otp sms; whatsapp template; approved template; 24 hour window; whatsapp webhook; verify token
+related: connections, team-messages
+
+Client messages (receipts, payouts, margin calls, contract-note alerts and one-time codes) are written to the message log, then sent through the firm's own SMS gateway and WhatsApp provider. Until one is connected they stay in the log as **Not sent**.
+
+**SMS**
+1. On [[connections|Connections]], open **SMS gateway** and choose MSG91, Kaleyra, Gupshup or Route Mobile, or **Other** for any gateway: then enter its full address with `{to}` and `{text}` (and `{sender}`, `{entity}`, `{template}`, `{key}` if it needs them).
+2. Enter the DLT sender ID (header) and DLT entity ID, the API key or password, and for Kaleyra, Gupshup and Route Mobile the account SID or user name.
+3. Each SMS template needs its DLT template ID (on the template), with the text exactly as registered. Enter the DLT template ID for one-time codes on the connection.
+
+**WhatsApp**
+1. Open **WhatsApp Business** and choose Meta Cloud API, Gupshup or Interakt. For Meta, enter the phone number ID and a permanent access token; for Gupshup, the business number, app name and API key; for Interakt, its API key.
+2. Messages the firm starts must use a template approved on WhatsApp: on each WhatsApp template in Ledgerline, enter the approved template's name. Its values are filled in the order they appear in the Ledgerline text. Without a name, a message goes only within 24 hours of the client writing in, as WhatsApp allows.
+3. For the bot, point your provider's webhook at `/hooks/<firm>/whatsapp`. For Meta, enter a verify token here and the same on Meta, and the app secret in Settings as the WhatsApp secret.
+
+A message the provider does not answer is tried again a minute later, three times in all, then shows **Failed** with the reason. Each sent message keeps the provider's reference for tracing.
 
 ## connections
 title: Connect KRA, the OMS, the bank, SMS and the mail server
