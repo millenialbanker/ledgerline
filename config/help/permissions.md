@@ -24,6 +24,7 @@ Blocking clients in continuous debit | Risk manager
 Booking vendor bills | Ops maker, Ops checker
 Buy-back offers | Ops maker, Ops checker
 Changing a segment's status | Ops checker, Compliance officer
+Changing a stock SIP | Ops maker, Ops checker
 Changing automation | Compliance officer, Admin
 Changing backup settings | Admin
 Changing brokerage channels | Ops checker
@@ -58,6 +59,7 @@ Deciding a pledge request | Ops maker, Ops checker, Risk manager
 Discarding scanned bills | Ops maker, Ops checker
 Downloading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
 Downloading periodic files | Ops maker, Ops checker, Compliance officer
+Downloading stock SIP basket files | Ops maker, Ops checker, Risk manager
 Downloading the collateral file | Ops maker, Ops checker, Risk manager, Compliance officer
 Editing message templates | Ops checker, Compliance officer
 Entering a payout request | Ops maker, Ops checker, Branch staff, Authorised person
@@ -90,6 +92,7 @@ Managing partners | Ops checker, Admin
 Managing the firm's saved logins | Admin
 Mapping clients | Ops checker, Admin
 Marking a report uploaded | Ops checker, Compliance officer
+Matching stock SIP orders to trades | Ops maker, Ops checker, Risk manager
 Month-end postings | Ops checker
 NRI registration | Ops checker, Compliance officer
 Paying vendor bills | Ops maker, Ops checker
@@ -101,18 +104,21 @@ Posting margin penalties | Ops checker, Risk manager
 Posting referral rewards | Ops checker
 Prepaid schemes | Ops checker, Admin
 Proposing legacy debts | Ops maker, Ops checker, Risk manager, Compliance officer
+Raising stock SIP top-up debits | Ops maker, Ops checker
 Recording DP responses | Ops maker, Ops checker
 Recording MTF pledges | Ops maker, Ops checker, Risk manager
 Recording WhatsApp consent | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Recording a bounce | Ops maker, Ops checker, Admin
 Recording a physical dispatch | Ops maker, Ops checker, Admin
 Recording a receipt | Ops maker, Ops checker, Branch staff
+Recording a stock SIP fill | Ops maker, Ops checker
 Recording bounces | Ops maker, Ops checker, Admin
 Recording clearing deposits | Ops checker
 Recording complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Recording re-KYC | Ops maker, Ops checker, Compliance officer
 Recording recovery of a legacy debt | Ops maker, Ops checker, Risk manager, Compliance officer
 Recording the BSDA choice | Ops maker, Ops checker
+Registering a stock SIP for a client | Ops maker, Ops checker
 Rejecting an application | Ops checker, Compliance officer
 Releasing CUSPA securities | Ops maker, Ops checker
 Releasing clearing deposits | Ops checker
@@ -132,6 +138,7 @@ Running automations | Ops checker, Admin
 Running jobs | Ops checker, Admin
 Running periodic work | Ops maker, Ops checker
 Running prepaid adjustments | Ops checker
+Running stock SIP instalments | Ops maker, Ops checker, Risk manager
 Running surveillance rules | Ops checker, Compliance officer
 Scanning vendor bills | Ops maker, Ops checker
 Scheduling jobs | Admin
@@ -143,11 +150,14 @@ Sending contract notes | Ops maker, Ops checker
 Sending documents | Ops maker, Ops checker
 Sending legacy debt reminders | Ops maker, Ops checker, Risk manager, Compliance officer
 Sending statements | Ops maker, Ops checker
+Sending stock SIP orders to the OMS | Ops maker, Ops checker, Risk manager
 Sending year-end packs | Ops maker, Ops checker, Compliance officer
 Setting client risk | Compliance officer
 Setting the firm's default dashboard | Admin
 Setting the signing certificate | Admin
 Setting the signing service | Admin
+Setting up a stock SIP top-up mandate | Ops maker, Ops checker
+Setting up stock SIPs | Compliance officer
 Settlement actions | Ops maker, Ops checker
 Settling a buy-back | Ops checker
 Square-off | Risk manager
@@ -160,6 +170,7 @@ The kill switch | Risk manager
 Unmarking a legacy debt | Ops checker, Compliance officer
 Updating KYC details | Ops maker, Ops checker
 Uploading delivery instructions | Ops maker, Ops checker
+Uploading stock SIP scrip lists | Risk manager, Compliance officer
 Upstreaming funds | Ops checker
 Using automations | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Verifying delivery instructions | Ops checker
@@ -173,6 +184,7 @@ Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance
 Viewing the signing certificate | Ops checker, Compliance officer, Admin
 Viewing vendor bills | Ops maker, Ops checker, Compliance officer
 Viewing vendors | Ops maker, Ops checker, Compliance officer
+Withdrawing a stock SIP basket file | Ops maker, Ops checker, Risk manager
 Working client insights | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Working complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Writing off a debt | Ops checker
