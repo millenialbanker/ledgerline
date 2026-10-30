@@ -79,6 +79,16 @@ const (
 	cdslPathStatus   = "Commonweb/api/CDASAPI/Status"          // §5.5–5.7 upload status
 	cdslPathDownload = "Commonweb/api/CDASAPI/Download"        // §5.5–5.7 response file
 
+	// BO lifecycle (§5.1–5.6). §5.4 gives the BO online path only as
+	// "api/BOAPI/BOSetup/"; it is taken to sit under Commonweb like the BO
+	// uploads of §5.5–5.6, and can be changed in Connections.
+	cdslPathBOOnline      = "Commonweb/api/BOAPI/BOSetup"                                  // §5.4
+	cdslPathBOSetupUpload = "Commonweb/api/BOAPI/HrmSetUpload"                             // §5.5
+	cdslPathBOModUpload   = "Commonweb/api/BOAPI/HrmModUpload"                             // §5.6
+	cdslPathBOCount       = "boactivedematcount/GetCount"                                  // §5.3
+	cdslPathTransfer      = "AccountTransferAPI/AccountTransfer/TransferClosureRequestAPI" // §5.1
+	cdslPathBeneficiary   = "BSBLWebAPI/v1.0"                                              // §5.2
+
 	cdslHashHexLower = "hex lower"
 	cdslHashHexUpper = "hex upper"
 	cdslHashBase64   = "base64"
@@ -131,7 +141,11 @@ func init() {
 	for _, fam := range cdslFamilies {
 		f = append(f, ConnField{Key: fam.Key, Label: "Use: " + fam.Label, Options: []string{"On", "Off"}, Optional: true})
 	}
-	f = append(f, ConnField{Key: "url", Label: "Address (leave empty for CDSL's gateway)", Optional: true, Placeholder: cdslLiveBase}, fNotes)
+	f = append(f,
+		ConnField{Key: "path_bo_online", Label: "BO online API path (leave empty for " + cdslPathBOOnline + ")", Optional: true, Placeholder: cdslPathBOOnline},
+		ConnField{Key: "upload_bo_setup", Label: "Upload ID for BO setup files (the handbook's example is 08)", Optional: true, Placeholder: "08"},
+		ConnField{Key: "upload_bo_modify", Label: "Upload ID for BO modify files (the handbook's example is 11)", Optional: true, Placeholder: "11"},
+		ConnField{Key: "url", Label: "Address (leave empty for CDSL's gateway)", Optional: true, Placeholder: cdslLiveBase}, fNotes)
 	ConnProviders = append(ConnProviders, ConnProvider{ID: connCDSL, Name: "CDSL APIs (DP)", Group: "Depository", Test: "https",
 		Purpose: "CDSL's APIs for DPs: open and modify demat accounts, account transfer and closure, off-market beneficiaries, eDIS, pledges, uploads and reports. Ask CDSL's helpdesk for the mock details first; CDSL must list this server's address before any call works. Turn on each API family once it has passed CDSL's mock testing",
 		Fields:  f})
@@ -384,6 +398,8 @@ type cdslRequest struct {
 	JSON   []byte            // a JSON body; or
 	Form   url.Values        // form fields (with Files: multipart, else urlencoded)
 	Files  []cdslFile
+	// Multipart sends Form as multipart/form-data even with no file.
+	Multipart bool
 }
 
 // cdslResponse is CDSL's answer.
@@ -397,7 +413,7 @@ func (x cdslConn) do(ctx context.Context, r cdslRequest) (cdslResponse, error) {
 	var body io.Reader
 	ctype := ""
 	switch {
-	case len(r.Files) > 0:
+	case len(r.Files) > 0 || r.Multipart:
 		var buf bytes.Buffer
 		mw := multipart.NewWriter(&buf)
 		for k, vs := range r.Form {
@@ -604,27 +620,36 @@ func (x cdslConn) Token(ctx context.Context, tenant string, fresh bool) (string,
 // (the JSON as sent), plus a file when given. Form fields, when given, go
 // in a multipart request with the file; the AuthSign is still over body.
 func (x cdslConn) Common(ctx context.Context, tenant, path string, body []byte, form url.Values, file *cdslFile, extra map[string]string) (map[string]any, error) {
+	r := cdslRequest{Path: path, JSON: body, Form: form, Header: extra}
+	if file != nil {
+		r.Files = []cdslFile{*file}
+	}
+	return x.signed(ctx, tenant, r)
+}
+
+// signed makes a Commonweb call: it adds AuthToken and AuthSign (over
+// r.JSON, the body as the handbook writes it) and FileComputeHash when a
+// file goes with it, signing in again once if the token is refused.
+func (x cdslConn) signed(ctx context.Context, tenant string, r cdslRequest) (map[string]any, error) {
 	for attempt := 0; attempt < 2; attempt++ {
 		tok, err := x.Token(ctx, tenant, attempt > 0)
 		if err != nil {
 			return nil, err
 		}
-		sign, err := x.AuthSign(body)
+		sign, err := x.AuthSign(r.JSON)
 		if err != nil {
 			return nil, err
 		}
 		h := map[string]string{"AuthToken": tok, "AuthSign": sign}
-		for k, v := range extra {
+		for k, v := range r.Header {
 			h[k] = v
 		}
-		r := cdslRequest{Path: path, Header: h, JSON: body}
-		if file != nil {
-			h["FileComputeHash"] = x.FileHash(file.Data)
-			r.Form, r.Files = form, []cdslFile{*file}
-		} else if form != nil {
-			r.Form = form
+		if len(r.Files) > 0 {
+			h["FileComputeHash"] = x.FileHash(r.Files[0].Data)
 		}
-		resp, err := x.do(ctx, r)
+		req := r
+		req.Header = h
+		resp, err := x.do(ctx, req)
 		if resp.Status == 401 && attempt == 0 {
 			continue // the token may have expired: sign in again
 		}
@@ -657,4 +682,80 @@ func cdslExplain(id, msg string) string {
 		return id
 	}
 	return msg + " (" + id + ")"
+}
+
+// ---- Commonweb uploads, upload status and response files (§5.5–5.7) ----
+
+// cdslUploadOK reads an upload's answer: the acknowledgement, or why not.
+func cdslUploadOK(m map[string]any) (string, error) {
+	ack := cdslStr(m, "AcknowledgmentID", "AcknowledgementID")
+	if ack == "" || strings.EqualFold(cdslStr(m, "success"), "false") {
+		id, msg := cdslError(m)
+		return "", fmt.Errorf("CDSL did not take the file: %s", cdslExplain(id, firstOf(msg, "no acknowledgement in the answer")))
+	}
+	return ack, nil
+}
+
+// Upload sends a file to a Commonweb upload API. kv is the body's fields in
+// the handbook's order (Signature is added, blank: digital signing is not
+// used); the AuthSign is over that JSON and the same fields go in the form.
+func (x cdslConn) Upload(ctx context.Context, tenant, path string, file cdslFile, kv ...string) (string, map[string]any, error) {
+	kv = append(kv, "Signature", "")
+	body := cdslJSON(kv...)
+	form := url.Values{}
+	for i := 0; i+1 < len(kv); i += 2 {
+		form.Set(kv[i], kv[i+1])
+	}
+	m, err := x.Common(ctx, tenant, path, body, form, &file, nil)
+	if err != nil {
+		return "", m, err
+	}
+	ack, err := cdslUploadOK(m)
+	return ack, m, err
+}
+
+// UploadStatus asks how an upload is doing. CDSL's words for the state are
+// returned as given ("Completed" when processed).
+func (x cdslConn) UploadStatus(ctx context.Context, tenant, ack string) (string, map[string]any, error) {
+	m, err := x.Common(ctx, tenant, cdslPathStatus, cdslJSON("AcknowledgmentID", ack, "Signature", ""), nil, nil, nil)
+	if err != nil {
+		return "", m, err
+	}
+	st := cdslStr(m, "Status")
+	if st == "" || strings.EqualFold(cdslStr(m, "success"), "false") {
+		id, msg := cdslError(m)
+		return "", m, fmt.Errorf("CDSL gave no status for %s: %s", ack, cdslExplain(id, msg))
+	}
+	return st, m, nil
+}
+
+// UploadResponse downloads the success/failure report for an upload.
+func (x cdslConn) UploadResponse(ctx context.Context, tenant, uploadID, fileName string) (string, []byte, error) {
+	m, err := x.Common(ctx, tenant, cdslPathDownload, cdslJSON("UploadID", uploadID, "UploadFileName", fileName, "Signature", ""), nil, nil, nil)
+	if err != nil {
+		return "", nil, err
+	}
+	buf := cdslStr(m, "ResponseFilebuffer", "ResponseFileBuffer")
+	if buf == "" || strings.EqualFold(cdslStr(m, "success"), "false") {
+		id, msg := cdslError(m)
+		return "", nil, fmt.Errorf("CDSL gave no response file for %s: %s", fileName, cdslExplain(id, msg))
+	}
+	b, err := base64.StdEncoding.DecodeString(buf)
+	if err != nil {
+		return "", nil, errors.New("CDSL's response file is not in base64")
+	}
+	return firstOf(cdslStr(m, "ResponseFileName"), fileName+".response.zip"), b, nil
+}
+
+// cdslUploadDone sorts CDSL's upload status words: done, failed, or still
+// being processed.
+func cdslUploadDone(st string) (done, failed bool) {
+	s := strings.ToLower(st)
+	switch {
+	case strings.Contains(s, "reject") || strings.Contains(s, "fail") || strings.Contains(s, "error") || strings.Contains(s, "invalid"):
+		return true, true
+	case strings.Contains(s, "complete") || strings.Contains(s, "processed") || strings.Contains(s, "success"):
+		return true, false
+	}
+	return false, false
 }
