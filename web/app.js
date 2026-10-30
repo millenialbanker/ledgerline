@@ -123,6 +123,7 @@ const GROUPS = {
   debtg: ['Debtors', [['debits', 'Debtors & interest'], ['legacy', 'Legacy debts']]],
   mfg: ['Mutual funds', [['mforders', 'MF orders'], ['mfsips', 'SIPs'], ['mfmandates', 'MF mandates'], ['mfunits', 'MF units'], ['mfcomm', 'MF commission'], ['mfsettings', 'MF settings']]],
   brokg: ['Brokerage & charges', [['brokerage', 'Brokerage plans'], ['charges', 'Charges calculator'], ['prepaid', 'Prepaid schemes']]],
+  partnersg: ['Branches & partners', [['partners', 'Branches & partners'], ['dealers', 'Dealers & terminals']]],
 };
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard'], ['chat', 'Team messages'], ['@automation'], ['@calendar']]],
@@ -132,7 +133,7 @@ const NAV = [
   ['Compliance', [['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['audit', 'Audit trail']]],
   ['Investments', [['ipo', 'IPO & public issues'], ['@mfg'], ['stocksip', 'Stock SIPs']]],
   ['Depository', [['dp', 'Demat accounts & DIS']]],
-  ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['partners', 'Branches & partners']]],
+  ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['@partnersg']]],
   ['Admin', [['connections', 'Connections'], ['backups', 'Backups'], ['settings', 'Settings']]]];
 // Every staff screen with its name, groups opened up.
 const NAV_VIEWS = NAV.flatMap(g => g[1].flatMap(([k, l]) => k[0] === '@' ? GROUPS[k.slice(1)][1] : [[k, l]]));
