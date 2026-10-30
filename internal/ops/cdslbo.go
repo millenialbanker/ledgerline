@@ -387,7 +387,21 @@ var cdslDefaultFields = []struct{ Key, Label, Default string }{
 	{"primary_mobil_isd_code", "ISD code of mobile numbers", "91"},
 	{"bonafide_flag", "Bonafide flag (P for a CDAS BO upload)", "P"},
 	{"email_statement_flag", "Statements by email (Y/N)", "Y"},
+	{"open_via", "Open new accounts by (BO online, or BO setup upload)", cdslViaOnline},
+	{"operator_id", "CDAS operator ID for upload files (6 characters)", ""},
+	{"occupation", "Occupation code (when the client has none)", ""},
+	{"geo", "Geographical code", ""},
+	{"education", "Education code", ""},
+	{"language", "Language code", ""},
+	{"cas_mode", "CAS mode (NO or PH)", ""},
+	{"annual_report", "Annual report flag (1 physical, 2 electronic, 3 both)", ""},
+	{"ucc_cm_id", "Clearing member ID for BO-UCC links (8 characters)", ""},
 }
+
+const (
+	cdslViaOnline = "BO online"
+	cdslViaUpload = "BO setup upload"
+)
 
 // CDSLBODefaultsNow returns the DP's defaults.
 func (o *Ops) CDSLBODefaultsNow(ctx context.Context, tenant string) CDSLBODefaults {
@@ -1013,8 +1027,23 @@ func (o *Ops) NewCDSLRequest(ctx context.Context, tenant, actor string, in CDSLN
 		return o.cdslNewRequest(ctx, tenant, actor, r)
 	case CDSLBeneficiary:
 		return o.newBeneficiaryRequest(ctx, tenant, actor, c, in.Buyers)
+	case CDSLSetupUpload:
+		// A BO setup file made from the client (the BO setup upload API
+		// instead of BO online); a checker approves it.
+		if c.Demat.ID != "" {
+			return CDSLRequest{}, invalid("%s already has a demat account (%s %s)", c.UCC, c.Demat.Depository, c.Demat.ID)
+		}
+		x, ok := o.cdslConnFor(ctx, tenant)
+		if !ok {
+			return CDSLRequest{}, fmt.Errorf("%w: the CDSL APIs connection is not set (the DP ID)", ErrState)
+		}
+		r := CDSLRequest{Kind: CDSLSetupUpload, UCC: c.UCC, Name: c.Name, Fields: cleanFields(in.Fields), Source: "staff", Maker: actor, Status: crNeedsFile}
+		if err := o.cdslRegenerate(ctx, tenant, actor, x, &r); err != nil {
+			return r, err
+		}
+		return o.cdslNewRequest(ctx, tenant, actor, r)
 	}
-	return CDSLRequest{}, invalid("a request raised here is %s or %s; modifications come from approved change requests, closures from the DP's closure requests", CDSLOpen, CDSLBeneficiary)
+	return CDSLRequest{}, invalid("a request raised here is %s, %s or %s; modifications come from approved change requests, closures from the DP's closure requests", CDSLOpen, CDSLSetupUpload, CDSLBeneficiary)
 }
 
 func cleanFields(f map[string]string) map[string]string {
@@ -1031,7 +1060,7 @@ func cleanFields(f map[string]string) map[string]string {
 func (o *Ops) cdslOpenFor(ctx context.Context, tenant, ucc string) (CDSLRequest, bool) {
 	rs, _ := docs.List[CDSLRequest](ctx, o.Docs, tenant, cCDSLReq, "")
 	for _, r := range rs {
-		if r.Kind == CDSLOpen && r.UCC == ucc && r.Status != crCancelled {
+		if (r.Kind == CDSLOpen || (r.Kind == CDSLSetupUpload && r.Fields["delete_holder"] == "")) && r.UCC == ucc && r.Status != crCancelled {
 			return r, true
 		}
 	}
@@ -1140,8 +1169,8 @@ func (o *Ops) cdslKeepFile(ctx context.Context, tenant, name string, data []byte
 		if !found {
 			return CDSLFileRef{}, "", invalid("the ZIP must hold the main upload file %s (in a folder of that name, with the signature images); CDSL rejects a ZIP of signatures alone", main)
 		}
-	} else if !strings.HasPrefix(strings.ToUpper(name), "BO_") {
-		warn = "CDAS names BO upload files BO_UPLD_<DP ID>_<date and time>_<sequence>.csv; check the file name"
+	} else if !strings.HasPrefix(strings.ToUpper(name), "BO_") && !reBOFileName.MatchString(name) {
+		warn = "CDSL names BO upload files 08<DP ID>.<serial> (setup) or 11<DP ID>.<serial> (modify); check the file name"
 	}
 	sum := sha256.Sum256(data)
 	rf, err := o.App.Ingest.Raw.Put(ctx, ingest.RawFile{Tenant: tenant, Source: "CDSL-API-OUT", Name: name, SHA256: hex.EncodeToString(sum[:]), Size: int64(len(data)), Content: data, ReceivedAt: o.now()})
@@ -1216,7 +1245,7 @@ type CDSLActResult struct {
 //   - cancel: stop a request that has not completed
 func (o *Ops) ActOnCDSLRequest(ctx context.Context, tenant, actor, id, action, note, value string) (CDSLActResult, error) {
 	roles := []string{RoleChecker}
-	if action == "retry" || action == "status" || action == "link" || action == "cancel" {
+	if action == "retry" || action == "status" || action == "link" || action == "cancel" || action == "regenerate" {
 		roles = append(roles, RoleMaker)
 	}
 	if err := o.require(ctx, tenant, actor, "Acting on CDSL requests", roles...); err != nil {
@@ -1345,6 +1374,35 @@ func (o *Ops) ActOnCDSLRequest(ctx context.Context, tenant, actor, id, action, n
 		if err := o.cdslManualDone(ctx, tenant, actor, &r, note, value); err != nil {
 			return res, err
 		}
+	case "regenerate":
+		if (r.Kind != CDSLModify && r.Kind != CDSLSetupUpload) || !(r.Status == crNeedsFile || r.Status == crChecker || r.Status == crFailed || r.Status == crRejected) {
+			return res, fmt.Errorf("%w: a BO upload file is made again only for a modification or setup upload not yet sent (%s is %s)", ErrState, r.ID, strings.ToLower(r.Status))
+		}
+		if !set {
+			return res, fmt.Errorf("%w: the CDSL connection is not set", ErrState)
+		}
+		if err := o.cdslRegenerate(ctx, tenant, actor, x, &r); err != nil {
+			return res, err
+		}
+		r.Maker, r.Checker, r.Hash = actor, "", ""
+		if len(r.Problems) > 0 {
+			if err := o.cdslSave(ctx, tenant, actor, &r); err != nil {
+				return res, err
+			}
+			return CDSLActResult{Request: r.public()}, invalid("%s", strings.Join(r.Problems, "; "))
+		}
+	case "boid":
+		if r.Kind != CDSLSetupUpload || r.Status != crCompleted || r.UCC == "" || r.BOID != "" || r.Fields["delete_holder"] != "" {
+			return res, fmt.Errorf("%w: a BO ID is recorded for a processed BO setup upload of one client", ErrState)
+		}
+		boid := strings.TrimSpace(value)
+		if !regexp.MustCompile(`^[0-9]{16}$`).MatchString(boid) {
+			return res, invalid("give the 16-digit BO ID from CDSL's response file")
+		}
+		if err := o.cdslApplyBOID(ctx, tenant, actor, &r, boid, r.Reply); err != nil {
+			return res, err
+		}
+		r.event(now, actor, "BO ID "+boid+" recorded from CDSL's response file"+notePart(note))
 	case "activated":
 		if r.Kind != CDSLOpen || r.Status != crCompleted || !r.PendingActivation {
 			return res, fmt.Errorf("%w: only an account CDSL opened pending activation is activated here", ErrState)
@@ -1361,7 +1419,7 @@ func (o *Ops) ActOnCDSLRequest(ctx context.Context, tenant, actor, id, action, n
 		r.PendingActivation = false
 		r.event(now, actor, "Account activated (signature uploaded in CDAS)"+notePart(note))
 	default:
-		return res, invalid("action must be approve, reject, retry, status, link, done, activated or cancel")
+		return res, invalid("action must be approve, reject, retry, status, link, done, activated, regenerate, boid or cancel")
 	}
 	if err := o.cdslSave(ctx, tenant, actor, &r); err != nil {
 		return res, err
@@ -1726,6 +1784,7 @@ func (o *Ops) cdslPoll(ctx context.Context, tenant, actor string, x cdslConn, r 
 	}
 	r.Status, r.DoneAt = crCompleted, now
 	o.closeWork(ctx, tenant, actor, "cdslbo", r.ID, "processed")
+	o.cdslAfterUpload(ctx, tenant, actor, r)
 	if r.Kind == CDSLModify {
 		o.cdslCountSoon(ctx, tenant, r.UCC)
 	}
@@ -1808,12 +1867,23 @@ func (o *Ops) cdslCaptureModifications(ctx context.Context, tenant string, x cds
 		if !x.On(cdslFamBO) {
 			r.Status = crManual
 		}
+		if r.Status == crNeedsFile {
+			// The BO modify file is made from the change; with something
+			// missing, the problems say what, and staff can still attach one.
+			o.cdslFillModify(ctx, tenant, SystemActor, x, &r, ch)
+		}
 		r, err = o.cdslNewRequest(ctx, tenant, SystemActor, r)
 		if err != nil {
 			continue
 		}
 		n++
 		what := "attach the BO modify file (CDAS upload layout) for it; a checker then approves and it is uploaded to CDSL"
+		switch {
+		case r.Status == crChecker:
+			what = "its BO modify file is ready (" + r.File.Name + "); a checker approves it and it is uploaded to CDSL"
+		case len(r.Problems) > 0:
+			what = "the BO modify file could not be made: " + strings.Join(r.Problems, "; ") + ". Fix them and make the file again, or attach one"
+		}
 		if r.Status == crManual {
 			what = "the CDSL BO API is off: make the change in CDAS and mark it done"
 		}
@@ -1843,6 +1913,31 @@ func (o *Ops) cdslAutoOpen(ctx context.Context, tenant string, x cdslConn, since
 		src := "client " + c.UCC
 		if a := o.cdslAppFor(ctx, tenant, c.UCC); a != nil {
 			src = "online application " + a.ID
+		}
+		if o.CDSLBODefaultsNow(ctx, tenant).Values["open_via"] == cdslViaUpload {
+			// By BO setup upload: the file is made from the client; the
+			// activation is the checker's approval, so a complete one goes.
+			r := CDSLRequest{Kind: CDSLSetupUpload, UCC: c.UCC, Name: c.Name, Source: src, Maker: SystemActor, Status: crNeedsFile}
+			if err := o.cdslRegenerate(ctx, tenant, SystemActor, x, &r); err != nil {
+				continue
+			}
+			if r.Status == crChecker {
+				r.Status, r.Checker = crApproved, c.ActivatedBy
+			}
+			r, err := o.cdslNewRequest(ctx, tenant, SystemActor, r)
+			if err != nil {
+				continue
+			}
+			n++
+			if r.Status != crApproved {
+				o.raiseWork(ctx, tenant, "cdslbo", r.ID, "Complete "+c.UCC+"'s details to open the demat account",
+					c.Name+" is active with no demat account. Before the BO setup file can be made: "+strings.Join(r.Problems, "; ")+".", c.UCC, RoleMaker, "cdslreq", "")
+				continue
+			}
+			r.event(o.now().Format(time.RFC3339), SystemActor, "Approved by the client's activation ("+c.ActivatedBy+")")
+			_, _ = o.cdslSend(ctx, tenant, SystemActor, x, &r)
+			_ = o.cdslSave(ctx, tenant, SystemActor, &r)
+			continue
 		}
 		r := CDSLRequest{Kind: CDSLOpen, UCC: c.UCC, Name: c.Name, Source: src, Maker: firstOf(c.CreatedBy, SystemActor), Checker: c.ActivatedBy}
 		d, _, err := o.cdslOpenCheck(ctx, tenant, &r)

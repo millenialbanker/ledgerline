@@ -16,7 +16,7 @@ V.cdslreq = {
   load: () => get('/v1/cdsl/requests'),
   html: d => {
     const c = d.counts || {}, mk = d.can_make, ck = d.can_check;
-    const acts = mk ? '<button class="btn" data-act="crNew" data-id="Open account">Open an account</button><button class="btn" data-act="crNew" data-id="Add beneficiary">Add beneficiary</button><input type="file" id="cr-up" hidden><button class="btn" data-act="crUpload">BO setup upload</button>' : '';
+    const acts = mk ? '<button class="btn" data-act="crNew" data-id="Open account">Open an account</button><button class="btn" data-act="crNew" data-id="Add beneficiary">Add beneficiary</button><button class="btn" data-act="crSetupFile">BO setup file</button><input type="file" id="cr-up" hidden><button class="btn" data-act="crUpload" title="Upload a BO setup file made elsewhere">Attach a setup file</button><button class="btn" data-act="crDetails">Client’s CDSL details</button><button class="btn" data-act="crDelHolder">Deceased holder</button><button class="btn" data-act="crCdasFiles">Signature / closure file</button>' : '';
     const fam = (d.families || []).map(f => `<span class="tag">${esc(f.label)}: <b>${f.on ? 'On' : 'Off'}</b></span>`).join(' ');
     return ph('CDSL requests', 'Calls to CDSL’s APIs about demat accounts: account opening (BO online), modifications and BO setup files (BO uploads), transfer cum closure and off-market beneficiaries (confirmed by the client with CDSL’s OTP). A checker approves each before it goes; CDSL’s reference and every answer are kept. With an API switched off in Connections, the request says “Do in CDAS”: do it there and record it here.', acts) +
       (d.connection_set ? '' : '<div class="note">The CDSL APIs connection is not set up (Admin → Connections). Until it is, nothing goes to CDSL.</div>') +
@@ -51,6 +51,8 @@ function crActs(r, d) {
   if (d.can_make && r.status === 'Waiting for client') out.push(b('link', 'New link'));
   if (d.can_check && ['Do in CDAS', 'Failed', 'Rejected by CDSL', 'Confirmed by client'].includes(r.status)) out.push(b('done', 'Done in CDAS'));
   if (d.can_check && r.pending_activation && r.status === 'Completed') out.push(b('activated', 'Activated'));
+  if (d.can_make && ['Modify account', 'BO setup upload'].includes(r.kind) && ['Needs file', 'Waiting for checker', 'Failed', 'Rejected by CDSL'].includes(r.status) && (r.ucc || (r.fields || {}).uccs)) out.push(b('regenerate', 'Make file again'));
+  if (d.can_check && r.kind === 'BO setup upload' && r.status === 'Completed' && r.ucc && !r.bo_id && !(r.fields || {}).delete_holder) out.push(`<button class="btn sm" data-act="crBOID" data-id="${esc(r.id)}">Record BO ID</button>`);
   if (r.reply_file) out.push(`<button class="btn sm" data-act="dl" data-id="/v1/cdsl/requests/${esc(r.id)}/file/reply" data-name="${esc(r.reply_file.name)}">CDSL’s file</button>`);
   return out.join('');
 }
@@ -142,6 +144,51 @@ Object.assign(A, {
     confirmModal('BO defaults', 'CDSL’s product number and code values the DP uses for new accounts (from CDSL’s code list, as set up in CDAS).',
       `<div class="form" style="grid-template-columns:repeat(2,1fr)">${v.fields.map(f => `<div class="fld"><label for="crd-${f.key}">${esc(f.label)}</label><input class="in mono" id="crd-${f.key}" value="${esc(v.defaults.values[f.key] || '')}"></div>`).join('')}</div>`, 'Save',
       () => act(() => api('PUT', '/v1/cdsl/bo-defaults', { values: Object.fromEntries(v.fields.map(f => [f.key, $('crd-' + f.key).value.trim()])) }), 'BO defaults saved'));
+  },
+  crSetupFile: async () => {
+    await clientCache();
+    confirmModal('BO setup file', 'Makes CDSL’s BO setup upload file (08, fixed width) for an active client with no demat account, from the client master, the UCC details and the client’s CDSL details. A checker approves it, then it is uploaded to CDSL.',
+      `<div class="fld"><label for="crs-u-q">Client</label>${cpick('crs-u', '', {})}</div>${crFieldsForm({})}`, 'Make the file', () => act(() => post('/v1/cdsl/requests', { kind: 'BO setup upload', ucc: $('crs-u').value, fields: crFieldsRead() }), r => r.problems?.length ? `${r.id}: ${r.problems.length} thing(s) to fix` : `${r.id}: ${r.file.name} made`));
+  },
+  crBOID: id => confirmModal('Record the BO ID', 'From CDSL’s response file for this BO setup upload.', '<div class="fld"><label for="crb-v">BO ID</label><input class="in mono" id="crb-v" maxlength="16" inputmode="numeric"></div>', 'Record',
+    () => act(() => post(`/v1/cdsl/requests/${encodeURIComponent(id)}/action`, { action: 'boid', value: $('crb-v').value.trim() }), 'BO ID recorded')),
+  crDetails: async () => {
+    await clientCache();
+    confirmModal('Client’s CDSL details', 'Choose the client.', `<div class="fld"><label for="crd-u-q">Client</label>${cpick('crd-u', '', {})}</div>`, 'Open', async () => {
+      const ucc = $('crd-u').value, d = await get('/v1/cdsl/bo-details/' + encodeURIComponent(ucc));
+      const h = i => (d.holders || [])[i] || {}, f = (id, l, v, x = '') => `<div class="fld"><label for="${id}">${l}</label><input class="in" id="${id}" value="${esc(v || '')}" ${x}></div>`;
+      const codes = Object.entries(d.codes || {}).map(([k, v]) => `${k}=${v}`).join(', ');
+      modal(mhd('CDSL details · ' + esc(ucc), 'What CDSL holds that the client master does not: joint holders, mode of operation, DDPI, and CDSL’s codes for this client.') + `<div class="bd">
+        ${[0, 1].map(i => `<h4 style="margin:6px 0">${i ? 'Third' : 'Second'} holder</h4><div class="form" style="grid-template-columns:repeat(3,1fr)">${f('cdh-n' + i, 'Name', h(i).name)}${f('cdh-p' + i, 'PAN', h(i).pan, 'class="in mono"')}${f('cdh-f' + i, 'Father’s or spouse’s name', h(i).father)}${f('cdh-m' + i, 'Mobile', h(i).mobile)}${f('cdh-e' + i, 'Email', h(i).email)}<label class="chk"><input type="checkbox" id="cdh-v${i}" ${h(i).pan_verified ? 'checked' : ''}> PAN verified, Aadhaar-linked</label></div>`).join('')}
+        <div class="form" style="grid-template-columns:repeat(3,1fr)">${f('cdd-mo', 'Mode of operation (0 sole, 1 jointly, 2 anyone or survivor)', d.mode_of_operation)}${f('cdd-cp', 'Communication (1 first holder, 2 all)', d.comm_pref)}<label class="chk"><input type="checkbox" id="cdd-pv" ${d.pan_verified ? 'checked' : ''}> First holder’s PAN verified, Aadhaar-linked</label>
+        ${f('cdd-dr', 'DDPI registration number', d.ddpi_reg_no, 'class="in mono"')}${f('cdd-dd', 'DDPI date', d.ddpi_date, 'type="date"')}${f('cdd-dp', 'DDPI purposes (S P M T)', (d.ddpi_purposes || []).join(' '))}</div>
+        ${f('cdd-codes', 'CDSL codes for this client (key=value, comma separated: occupation, geo, education, language, staff, staff_code, city_seq…)', codes)}<div id="cdd-err"></div></div>
+        <div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" id="cdd-save">Save</button></div>`);
+      $('cdd-save').onclick = async () => {
+        const holders = [0, 1].map(i => ({ name: $('cdh-n' + i).value.trim(), pan: $('cdh-p' + i).value.trim(), father: $('cdh-f' + i).value.trim(), mobile: $('cdh-m' + i).value.trim(), email: $('cdh-e' + i).value.trim(), pan_verified: $('cdh-v' + i).checked })).filter(x => x.name);
+        const cm = Object.fromEntries($('cdd-codes').value.split(',').map(x => x.split('=').map(y => y.trim())).filter(x => x[0] && x[1]));
+        try { await api('PUT', '/v1/cdsl/bo-details/' + encodeURIComponent(ucc), { ...d, holders, mode_of_operation: $('cdd-mo').value.trim(), comm_pref: $('cdd-cp').value.trim(), pan_verified: $('cdd-pv').checked,
+          ddpi_reg_no: $('cdd-dr').value.trim(), ddpi_date: $('cdd-dd').value, ddpi_purposes: $('cdd-dp').value.split(/\s+/).filter(Boolean), codes: cm }); closeModal(); toast('CDSL details saved'); }
+        catch (e) { $('cdd-err').innerHTML = errHTML(e); }
+      };
+    });
+  },
+  crDelHolder: async () => {
+    await clientCache();
+    confirmModal('Delete a deceased holder’s name', 'For a joint account, within 365 days of the death (CDSL communiqué 2023/404). The first holder is deleted by a BO setup record with the survivors in order; the second or third by a BO modify record. Older deaths go through transmission.',
+      `<div class="fld"><label for="cdx-u-q">Client</label>${cpick('cdx-u', '', {})}</div><div class="form"><div class="fld"><label for="cdx-h">Holder</label><select class="in" id="cdx-h"><option value="1">First</option><option value="2">Second</option><option value="3">Third</option></select></div><div class="fld"><label for="cdx-d">Date of death (as on the certificate)</label><input class="in" type="date" id="cdx-d"></div></div>`,
+      'Raise', () => act(() => post('/v1/cdsl/delete-holder', { ucc: $('cdx-u').value, holder: +$('cdx-h').value, died_on: $('cdx-d').value }), r => `${r.id}: ${r.status.toLowerCase()}`));
+  },
+  crCdasFiles: async () => {
+    await clientCache();
+    confirmModal('Files for CDAS', 'The BO signature upload (06) and BO closure upload (13) are uploaded in CDAS, not through the API.',
+      `<div class="fld"><label for="cdf-u-q">Client (signature file)</label>${cpick('cdf-u', '', {})}</div><div class="fld"><label for="cdf-t">Signature</label><select class="in" id="cdf-t"><option value="S">Set up</option><option value="R">Replace</option><option value="D">Delete</option></select></div>
+       <div class="fld"><label for="cdf-r">or a closure request (DPR-…)</label><input class="in mono" id="cdf-r"></div>`, 'Download', async () => {
+        const r = $('cdf-r').value.trim();
+        if (r) await download('/v1/cdsl/files/closure/' + encodeURIComponent(r), 'closure.txt');
+        else await download(`/v1/cdsl/files/signature/${encodeURIComponent($('cdf-u').value)}?txn=${$('cdf-t').value}`, 'signature.zip');
+        closeModal();
+      });
   },
   crCount: async ucc => { try { await post('/v1/cdsl/demat-check/' + encodeURIComponent(ucc)); toast('Checked at CDSL'); cdslDematCheck(ucc); } catch (e) { toast(e.message, true); } },
 });
