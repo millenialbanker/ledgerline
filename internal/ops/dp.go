@@ -458,17 +458,17 @@ type DISLine struct {
 
 // DIS is a delivery instruction.
 type DIS struct {
-	ID            string       `json:"id"`
-	UCC           string       `json:"ucc"`
-	Name          string       `json:"name"`
-	BOID          string       `json:"bo_id"`
-	Slip          int64        `json:"slip"`
-	Kind          string       `json:"kind"` // Off-market, Inter-depository, On-market
-	ToBO          string       `json:"to_bo"`
+	ID   string `json:"id"`
+	UCC  string `json:"ucc"`
+	Name string `json:"name"`
+	BOID string `json:"bo_id"`
+	Slip int64  `json:"slip"`
+	Kind string `json:"kind"` // Off-market, Inter-depository, On-market
+	ToBO string `json:"to_bo"`
 	// Settlement and Exchange are an on-market delivery's (to the clearing
 	// member's account for a settlement).
-	Settlement string `json:"settlement,omitempty"`
-	Exchange   string `json:"exchange,omitempty"`
+	Settlement    string       `json:"settlement,omitempty"`
+	Exchange      string       `json:"exchange,omitempty"`
 	Reason        string       `json:"reason"`
 	Consideration money.Amount `json:"consideration"`
 	ExecDate      string       `json:"exec_date"`
@@ -987,8 +987,10 @@ func (o *Ops) RaiseDPRequest(ctx context.Context, tenant, actor string, r DPRequ
 		var certs int
 		fmt.Sscanf(d["qty"], "%d", &q)
 		fmt.Sscanf(d["certificates"], "%d", &certs)
-		if d["isin"] == "" || q <= 0 || certs <= 0 || d["drf"] == "" {
-			return r, invalid("give the DRF number, ISIN, quantity and number of certificates")
+		// Units in a mutual fund statement of account (a folio) have no
+		// certificates; they go to CDSL by DESTAT (cdsltxn.go).
+		if d["isin"] == "" || (q <= 0 && !strings.EqualFold(d["qty"], "all")) || (certs <= 0 && d["folio"] == "") || d["drf"] == "" {
+			return r, invalid("give the DRF number, ISIN, quantity and number of certificates (or the folio, for units)")
 		}
 	case "Freeze":
 		if !contains([]string{"Debit", "Credit", "Both"}, d["type"]) || strings.TrimSpace(d["reason"]) == "" {

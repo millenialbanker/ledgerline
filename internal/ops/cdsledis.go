@@ -930,9 +930,18 @@ func (o *Ops) edisDeliverable(ctx context.Context, tenant, date string) (map[str
 	}
 	need := map[string]bool{}
 	bos, _ := docs.List[BOAccount](ctx, o.Docs, tenant, cBO, "")
+	byUCC := map[string]BOAccount{}
 	for _, b := range bos {
+		byUCC[b.UCC] = b
+	}
+	cs, _ := o.ClientMap(ctx, tenant)
+	for u, c := range cs {
+		b, ok := byUCC[u]
+		if !ok { // as o.bo reads an account with no DP record
+			b = BOAccount{UCC: u, BOID: c.Demat.ID, Depository: c.Demat.Depository, Status: "Active"}
+		}
 		if !b.DDPI && b.Status != "Closed" && (b.Depository == "" || strings.EqualFold(b.Depository, "CDSL")) && cdxBODP(b.BOID) == strings.TrimLeft(x.DPID, "0") {
-			need[b.UCC] = true
+			need[u] = true
 		}
 	}
 	qty := map[string]int64{}
