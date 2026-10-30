@@ -368,3 +368,33 @@ ask: kill switch; stop client trading; freeze client; block trading immediately;
 related: margin-shortfall, surveillance
 
 On [[rms|RMS & limits]], use the kill switch on the client's row. Their limit drops to nil immediately. Only a Risk manager can do this, and it's recorded with the reason.
+
+## payout-hold
+title: Pay-out holds for big sellers
+screen: payouthold
+roles: Risk manager, Ops checker
+ask: pay-out hold; payout hold; big seller; big sellers; sale proceeds awaiting payout; sale money awaiting pay-out; hold sale money; broker funds tied up; de-allocate sale money; reduce allocation until payout; payout not received; nse clearing payout credit; release pay-out hold
+related: clearing-allocation, bod-files, live-bank-credits
+
+**Why.** A client who sold on T has the sale money as a ledger credit on T+1, and the start-of-day allocation gives it to the client at NSE Clearing. The clearing corporation pays the sale money out only around 13:00 on T+1. Until then that allocation is backed by the **firm's own funds** at NSE Clearing, and one or two big sellers can tie up most of them. Pay-out holds take most of that money back from the allocation and the OMS limit until the pay-out lands, and then give it back.
+
+**The rule** (set under **Rules** on [[payouthold|Pay-out holds]] by the risk manager or Admin):
+1. **Starting broker funds**: the free broker funds of the segments counted (CM and F&O by default), from NSE Clearing's margins API (trading member figures), else the N-MASS file, else the figure the risk team types in each morning (with who and when). The screen shows which source was used. With no figure nothing is held, and a work item asks for it.
+2. **Net sale money awaiting pay-out**, for each settlement whose funds pay-out is today: sale value − purchase value − charges, if positive (or, on the gross basis, sale value − charges).
+3. A client above the **threshold** (20% of starting broker funds by default) is held at the **hold %** (80% by default) of it, never more than the money awaiting pay-out and never below zero allocation. Holds below the **minimum hold** are not made. About 20% stays allocated, enough margin for the client to buy about the full amount in non-trade-for-trade stocks before pay-out.
+4. **When**: once the start-of-day files are done (the start-of-day allocation sent or accepted, or the allocation file made, and the BOD limit file made), or at the **apply time** (08:45 by default) when they are not detected. **Apply holds now** does it at once.
+5. **Mode**: automatic (holds are made at once) or propose (the risk team approves or edits each hold, then it is made).
+
+**What is changed.**
+- With NSE Clearing's allocation API on, each hold is sent as the client's **final** allocation (confirmed level less the hold, action D); the release sends the confirmed level plus the hold (action U). One request per client is out at a time; results come back as for any allocation request. A rejected hold is not put back into money in.
+- With the API off, download the **N-MASS hold file** (or release file), upload it in N-MASS, then press **Done in N-MASS**.
+- The trading front end has no API: download the **OMS hold file** and later the **OMS release file** (client, segment, change and new limit) and upload them. Until the Finspot layout is confirmed the files use a generic limit-change layout.
+- [[live|Live RMS]] shows the hold and takes it off the client's free funds. Later allocation batches that day keep the hold; after release they use the normal figure.
+
+**Release.** The holds are given back when the pay-out is seen:
+- a live credit from the clearing corporation on the settlement account (the remitter pattern, e.g. "NSE CLEARING", or the settlement account number), or the same credit in the day's bank statement;
+- **Pay-out received** (risk manager or ops checker), for all settlements or only those ticked;
+- optionally, at the **assume paid out at** time (off by default; 13:30 suggested), with a work item saying no credit was seen.
+A credit that names a settlement number, or ICCL rather than NSE Clearing, releases only the matching settlements' share.
+
+**Good to know.** Every N-MASS change is made at NSE Clearing: it is recorded there, visible to the clearing corporation and appears in the client collateral reporting. Holding back unpaid sale money from allocation is the conservative position: the client's own cleared money is never reduced, only money the clearing corporation has not yet paid. Every hold, approval, release and file is in the audit trail; failures, proposals, a pay-out not seen and holds larger than broker funds raise work items for the risk team.

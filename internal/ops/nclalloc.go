@@ -97,6 +97,8 @@ type AllocRecord struct {
 	Action   string    `json:"action"` // U or D
 	Code     string    `json:"code,omitempty"`
 	Result   string    `json:"result,omitempty"`
+	// Ref ties the record to what asked for it (a pay-out hold, payouthold.go).
+	Ref string `json:"ref,omitempty"`
 }
 
 // AllocMessage is one request to NSE Clearing.
@@ -728,6 +730,9 @@ func (o *Ops) applyAllocResults(ctx context.Context, tenant, actor string, m All
 		}
 	}
 	o.log(ctx, tenant, actor, "allocation.result", m.ID, map[string]any{"records": len(m2.Records), "problems": len(problems)})
+	if m2.Kind == AllocPayoutHold || m2.Kind == AllocPayoutRelease {
+		o.payoutHoldResults(ctx, tenant, actor, m2) // payouthold.go
+	}
 	if len(problems) > 0 {
 		if len(problems) > 8 {
 			problems = append(problems[:8], fmt.Sprintf("and %d more", len(problems)-8))
