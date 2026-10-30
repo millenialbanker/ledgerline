@@ -55,6 +55,7 @@ func (s *Server) opsRoutes() {
 	s.stockSIPRoutes()
 	s.mfRoutes()
 	s.ipoRoutes()
+	s.payoutHoldRoutes()
 	R("GET /v1/me", s.me, false)
 	R("GET /v1/users", s.users, false)
 	R("PUT /v1/users/{id}", s.putUser, true)

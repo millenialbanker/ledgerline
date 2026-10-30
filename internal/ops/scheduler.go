@@ -269,6 +269,9 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	if err := o.rpaTick(ctx, tenant, now, !o.manual(ctx, tenant)); err != nil {
 		return 0, fmt.Errorf("automations: %w", err)
 	}
+	// Pay-out holds for big sellers: applied after the start-of-day files,
+	// released when the clearing corporation's pay-out lands.
+	o.payoutHoldTick(ctx, tenant, now)
 	// Client allocation: results of requests sent to NSE Clearing are
 	// fetched and applied, and money in is sent, while the allocation
 	// window is open. Runs only when the firm switched sending on.
