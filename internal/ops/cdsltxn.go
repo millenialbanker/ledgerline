@@ -4,20 +4,13 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/csv"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
-	"mime/multipart"
-	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -28,109 +21,100 @@ import (
 	"ledgerline/internal/xfile"
 )
 
-// ---- CDSL APIs: transactions (Common upload), DESTAT ----
+// ---- CDSL APIs: transactions (common upload) and DESTAT ----
 //
-// The DP's CDSL connection ("cdsl-api", set up in cdslapi.go) carries the
-// DP ID, the environment (Mock or Live), the API user and its secrets, and
-// one on/off switch per API family. This file reads it by ID and keeps its
-// own calls:
+// The DP's one CDSL connection ("cdsl-api", cdslapi.go) carries the DP ID,
+// the environment, the API user and its secrets, and a switch per API
+// family. This file and cdsledis.go / cdslrptsetup.go add their own options
+// to it (init below) and keep their own calls:
 //
-//   - Common upload (CDSL API Handbook §5.7): verified delivery instruction
-//     slips (off-market and inter-depository) go to CDSL as a transaction
-//     upload file through the API instead of the DIS batch file. Ledgerline
-//     signs in (AuthWeb APIAuth, a token for 15 minutes), uploads the zipped
-//     file (Upload v2.0), asks for its status and, when CDAS has processed
-//     it, downloads the response file and marks each instruction executed
-//     or failed (ExecuteDIS). With the API off, the batch file stays.
-//   - DESTAT (§5.8): conversion of mutual fund units held in a statement of
-//     account into the demat account. A pending demat request with a folio
-//     is sent to CDSL's DESTAT page by a redirect POST; the investor
-//     confirms with the OTP CDSL sends, and CDSL posts the result back with
-//     a DESTAT request number (DRN) per ISIN. The request then waits for the
-//     RTA like any demat request (Sent to RTA, then the checker credits it).
+//   - Common upload (CDSL API Handbook §5.7): delivery instructions a
+//     checker has verified (VerifyDIS) go to CDAS as a transaction upload
+//     file through the API instead of being uploaded by hand. Ledgerline
+//     uploads the zipped file (Upload v2.0, signed with the shared
+//     Commonweb sign-in), asks for its status and, once CDAS has processed
+//     it, downloads the response file and records each instruction as
+//     executed or failed (ExecuteDIS). With the API off, the same file is
+//     made for upload in CDAS (DISUploadFile), and the plain DIS batch
+//     (DISBatch) stays.
+//   - DESTAT (§5.8): mutual fund units held in a statement of account,
+//     converted into the demat account. A pending demat request with a
+//     folio is sent to CDSL's DESTAT page by a redirect POST from the
+//     browser; the investor confirms with the OTP CDSL sends, and CDSL posts
+//     the result back with a DESTAT request number (DRN) per ISIN. The
+//     request then waits for the RTA like any demat request.
 //
-// Encryption: AES-256-CBC, PKCS#7, a null (all-zero) IV, base64, under the
-// key CDSL issues for the API family (§5.8.7, §5.11.6, §5.21.6). The common
-// upload's AuthSign is the SHA-256 of the exact body, encrypted the same
-// way under the user's secret key (§5.7.5–5.7.6).
+// Encryption for the redirect APIs: AES-256-CBC, PKCS#7, a null IV, base64
+// (§5.8.7, §5.11.6, §5.21.6), under the key CDSL issued for the module
+// (CDSL keeps one key per module; the connection's API key is used when no
+// module key is entered).
 
 const (
-	connCDSLAPI = "cdsl-api" // defined in cdslapi.go; read here by ID
-
 	cCDSLUpload  = "cdslupload"  // transaction uploads through the API
 	cCDSLDestat  = "cdsldestat"  // DESTAT requests, by reqid
-	cCDSLTxState = "cdsltxstate" // "state": sign-in token and last runs
+	cCDSLTxState = "cdsltxstate" // "state": last runs, once-a-day keys
 
-	// Families of the cdsl-api connection's on/off switches.
-	cdxFamCommon = "common_upload"
-	cdxFamDestat = "destat"
-	cdxFamEDIS   = "edis"
-	cdxFamReport = "report"
+	// Module keys (secrets of the cdsl-api connection, added below).
+	cdxKeyEDIS   = "edis_key"
+	cdxKeyDestat = "destat_key"
+	cdxKeyReport = "report_key"
 
-	// cdxUploadID is CDAS's upload ID for the transaction upload module
-	// (the handbook's sample). The connection's "upload_id" value, when set,
-	// replaces it.
+	// cdxUploadID is CDAS's upload ID for the transaction module (the
+	// handbook's sample); the connection's upload_id replaces it.
 	cdxUploadID = "18"
+
+	cdxPathUpload = "Commonweb/api/CDASAPI/Upload/v2.0" // §5.7.3
+	cdxPathDestat = "DestatWebapi/v1.0"                 // §5.8.5
 )
 
-// cdxHosts are CDSL's API gateways (§5.7.3, §5.8.5, §5.21.5); tests replace them.
-var cdxHosts = map[bool]string{false: "https://mockapigt.cdsl.co.in", true: "https://apigt.cdsl.co.in"}
-
-// cdxHTTP is replaced in tests.
-var cdxHTTP = &http.Client{Timeout: 2 * time.Minute}
-
-// cdxMu keeps one sign-in per tenant at a time.
-var cdxMu sync.Mutex
-
-// cdxConn is what this file needs from the cdsl-api connection.
-type cdxConn struct {
-	dpID     string // 5 or 6 digits, as CDSL wants it ("10900", not "12010900")
-	live     bool
-	base     string
-	user     string
-	secret   string // the API user's secret key (common upload)
-	password string
-	values   map[string]string
-	secrets  map[string]string
-	status   string
+// cdxFields are this file's, cdsledis.go's and cdslrptsetup.go's options on
+// the cdsl-api connection.
+var cdxFields = []ConnField{
+	{Key: "upload_id", Label: "Common upload: CDAS upload ID for transaction files (CDSL's sample uses 18)", Optional: true, Placeholder: cdxUploadID},
+	{Key: "txn_types", Label: "Common upload: transaction type codes for off-market, inter-depository and on-market (comma separated)", Optional: true, Placeholder: "WTR,IDD,IDO"},
+	{Key: cdxKeyDestat, Label: "DESTAT API key (if CDSL gave DESTAT its own key)", Secret: true, Optional: true},
+	{Key: cdxKeyEDIS, Label: "eDIS API key (if CDSL gave eDIS its own key)", Secret: true, Optional: true},
+	{Key: "edis_version", Label: "eDIS version agreed with CDSL", Options: []string{"1.2", "1.1"}, Optional: true},
+	{Key: "edis_cm_nse", Label: "eDIS: clearing member ID for NSE (as in CDSL's CM master)", Optional: true},
+	{Key: "edis_cm_bse", Label: "eDIS: clearing member ID for BSE (as in CDSL's CM master)", Optional: true},
+	{Key: "edis_tm", Label: "eDIS: trading member ID (optional)", Optional: true},
+	{Key: "edis_days", Label: "eDIS: days a pre-trade authorisation stays valid", Optional: true, Placeholder: "1"},
+	{Key: cdxKeyReport, Label: "Report setup API key (if CDSL gave reports their own key)", Secret: true, Optional: true},
+	{Key: "sftp_host", Label: "Report SFTP server (host:port), if CDSL gives one", Optional: true},
+	{Key: "sftp_user", Label: "Report SFTP user", Optional: true},
+	{Key: "sftp_password", Label: "Report SFTP password", Secret: true, Optional: true},
+	{Key: "sftp_dir", Label: "Report SFTP folder", Optional: true, Placeholder: "/outgoing"},
+	{Key: "sftp_hostkey", Label: "Report SFTP server's host key fingerprint (SHA256:…)", Optional: true},
 }
 
-// cdxSet reports whether the cdsl-api connection is there at all.
-func (c cdxConn) set() bool { return c.status != "" && c.status != "Not set" }
-
-// on reports whether an API family is switched on in the connection.
-func (c cdxConn) on(fam string) bool {
-	if !c.set() {
-		return false
-	}
-	for _, k := range []string{fam, "api_" + fam, fam + "_api", "use_" + fam} {
-		switch strings.ToLower(strings.TrimSpace(c.values[k])) {
-		case "on", "yes", "y", "true", "1", "enabled":
-			return true
-		case "off", "no", "n", "false", "0", "disabled":
-			return false
+func init() {
+	for i := range ConnProviders {
+		p := &ConnProviders[i]
+		if p.ID != connCDSL {
+			continue
 		}
-	}
-	return false
-}
-
-// key is the AES key of an API family: its own key when the connection has
-// one (CDSL issues separate keys for eDIS, DESTAT and reports), else the
-// shared secret.
-func (c cdxConn) key(fam string) string {
-	ks := []string{fam + "_key", fam + "_api_key", "api_key", "aes_key", "secret"}
-	if fam == cdxFamCommon {
-		ks = []string{"secret"} // the common upload signs with the user's secret key
-	}
-	for _, k := range ks {
-		if v := strings.TrimSpace(c.secrets[k]); v != "" {
-			return v
+		// Before the address and notes, which close the form.
+		at := len(p.Fields)
+		for at > 0 && (p.Fields[at-1].Key == "url" || p.Fields[at-1].Key == "notes") {
+			at--
 		}
+		fs := append([]ConnField{}, p.Fields[:at]...)
+		fs = append(fs, cdxFields...)
+		p.Fields = append(fs, p.Fields[at:]...)
 	}
-	return ""
 }
 
-// cdxDPID normalises a CDSL DP ID to the 5 or 6 digits the APIs take.
+// cdxConn reads the cdsl-api connection; ok is false when it is not set.
+func (o *Ops) cdxConn(ctx context.Context, tenant string) (cdslConn, bool) {
+	x, ok := o.cdslConnFor(ctx, tenant)
+	if ok {
+		x.DPID = cdxDPID(x.DPID)
+	}
+	return x, ok
+}
+
+// cdxDPID is a CDSL DP ID as the APIs take it: 5 or 6 digits ("10900", not
+// "12010900"; handbook FAQ).
 func cdxDPID(s string) string {
 	s = strings.TrimSpace(s)
 	if len(s) == 8 && strings.HasPrefix(s, "12") {
@@ -139,7 +123,7 @@ func cdxDPID(s string) string {
 	return s
 }
 
-// cdxBODP is the DP ID part of a CDSL BO ID.
+// cdxBODP is the DP ID part of a CDSL BO ID, without leading zeros.
 func cdxBODP(bo string) string {
 	bo = strings.TrimSpace(bo)
 	if len(bo) != 16 {
@@ -148,114 +132,84 @@ func cdxBODP(bo string) string {
 	return strings.TrimLeft(bo[2:8], "0")
 }
 
-func (o *Ops) cdxConn(ctx context.Context, tenant string) cdxConn {
-	c, _, err := docs.Get[Connection](ctx, o.Docs, tenant, cConn, connCDSLAPI)
-	if err != nil {
-		return cdxConn{status: "Not set"}
+// cdxOwnBO checks a BO ID is a 16-digit CDSL account of this DP.
+func cdxOwnBO(x cdslConn, bo string) error {
+	if len(bo) != 16 || strings.Trim(bo, "0123456789") != "" {
+		return invalid("the client has no 16-digit CDSL BO ID")
 	}
-	x := cdxConn{dpID: cdxDPID(c.Values["dp_id"]), user: strings.TrimSpace(c.Values["user"]), secret: c.Secrets["secret"], password: c.Secrets["password"],
-		values: c.Values, secrets: c.Secrets, status: c.Status}
-	if x.values == nil {
-		x.values = map[string]string{}
+	if cdxBODP(bo) != strings.TrimLeft(x.DPID, "0") {
+		return invalid("BO %s is not an account of DP %s", cdslMaskBO(bo), x.DPID)
 	}
-	if x.secrets == nil {
-		x.secrets = map[string]string{}
-	}
-	switch strings.ToLower(strings.TrimSpace(c.Values["env"])) {
-	case "live", "production", "prod":
-		x.live = true
-	}
-	x.base = cdxHosts[x.live]
-	for _, k := range []string{"base_url", "url"} {
-		if u, err := url.Parse(strings.TrimRight(c.Values[k], "/")); err == nil && u.Scheme == "https" && u.Host != "" {
-			x.base = u.Scheme + "://" + u.Host
-			break
-		}
-	}
-	return x
+	return nil
 }
 
-// ---- encryption (AES-256-CBC, PKCS#7, null IV, base64) ----
+// ---- module keys and sealing ----
 
-// cdxKeyBytes reads a CDSL API key: the key text itself (32 characters for
-// AES-256), or base64 of 16, 24 or 32 bytes.
-func cdxKeyBytes(k string) ([]byte, error) {
-	k = strings.TrimSpace(k)
-	switch len(k) {
-	case 16, 24, 32:
-		return []byte(k), nil
+// cdxKey is a module's AES key: its own when entered, else the API key.
+func cdxKey(x cdslConn, module string) ([]byte, error) {
+	if s := strings.TrimSpace(x.c.Secrets[module]); s != "" {
+		return cdslAESKey(s, strings.ReplaceAll(module, "_", " "))
 	}
-	for _, enc := range []*base64.Encoding{base64.StdEncoding, base64.RawStdEncoding, base64.URLEncoding, base64.RawURLEncoding} {
-		if b, err := enc.DecodeString(k); err == nil && (len(b) == 16 || len(b) == 24 || len(b) == 32) {
-			return b, nil
-		}
-	}
-	if k == "" {
-		return nil, invalid("the CDSL API key is not set: enter it in Settings → Connections → CDSL APIs (DP)")
-	}
-	return nil, invalid("the CDSL API key must be the 32-character key CDSL issued")
+	return x.apiKey()
 }
 
-// cdxEncrypt encrypts with AES-CBC, PKCS#7 padding and an all-zero IV, and
-// gives base64.
-func cdxEncrypt(key string, plain []byte) (string, error) {
-	kb, err := cdxKeyBytes(key)
+// cdxSeal encrypts plain under a module's key.
+func cdxSeal(x cdslConn, module string, plain []byte) (string, error) {
+	key, err := cdxKey(x, module)
 	if err != nil {
 		return "", err
 	}
-	blk, err := aes.NewCipher(kb)
+	iv, err := x.iv()
 	if err != nil {
 		return "", err
 	}
-	pad := aes.BlockSize - len(plain)%aes.BlockSize
-	p := append(append([]byte{}, plain...), bytes.Repeat([]byte{byte(pad)}, pad)...)
-	out := make([]byte, len(p))
-	cipher.NewCBCEncrypter(blk, make([]byte, aes.BlockSize)).CryptBlocks(out, p)
-	return base64.StdEncoding.EncodeToString(out), nil
+	return cdslEncrypt(key, iv, plain)
 }
 
-// cdxDecrypt reverses cdxEncrypt. It tolerates what a form post does to
-// base64 (a + read as a space), line breaks and quotes.
-func cdxDecrypt(key, text string) ([]byte, error) {
-	kb, err := cdxKeyBytes(key)
+// cdxOpen decrypts text from CDSL under a module's key and reads the JSON.
+// A form post turns a + into a space; that is undone first.
+func cdxOpen(x cdslConn, module, text string) (cdxObj, error) {
+	key, err := cdxKey(x, module)
+	if err != nil {
+		return nil, err
+	}
+	iv, err := x.iv()
 	if err != nil {
 		return nil, err
 	}
 	text = strings.Trim(strings.TrimSpace(text), `"`)
-	text = strings.NewReplacer("\r", "", "\n", "", " ", "+", `\/`, "/").Replace(text)
-	var ct []byte
-	for _, enc := range []*base64.Encoding{base64.StdEncoding, base64.RawStdEncoding, base64.URLEncoding, base64.RawURLEncoding} {
-		if b, err := enc.DecodeString(text); err == nil {
-			ct = b
-			break
-		}
-	}
-	if len(ct) == 0 || len(ct)%aes.BlockSize != 0 {
-		return nil, errors.New("not CDSL's encrypted data")
-	}
-	blk, err := aes.NewCipher(kb)
+	text = strings.NewReplacer(" ", "+", `\/`, "/").Replace(text)
+	p, err := cdslDecrypt(key, iv, text)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]byte, len(ct))
-	cipher.NewCBCDecrypter(blk, make([]byte, aes.BlockSize)).CryptBlocks(out, ct)
-	n := int(out[len(out)-1])
-	if n == 0 || n > aes.BlockSize || n > len(out) || !bytes.Equal(out[len(out)-n:], bytes.Repeat([]byte{byte(n)}, n)) {
-		return nil, errors.New("decryption failed: the key does not match")
+	return cdxParse(p)
+}
+
+// cdxOpenReply reads an encrypted reply body: the base64 text itself, a
+// JSON string holding it, or a JSON object with it in one field. A plain
+// JSON object is returned as it is.
+func cdxOpenReply(x cdslConn, module string, b []byte) (cdxObj, error) {
+	if m, err := cdxParse(b); err == nil {
+		for _, v := range m.in("body") {
+			if s, ok := v.(string); ok && len(s) >= 24 {
+				if p, err := cdxOpen(x, module, s); err == nil {
+					return p, nil
+				}
+			}
+		}
+		return m, nil
 	}
-	return out[:len(out)-n], nil
-}
-
-// cdxSHA256 is the hex SHA-256 of b.
-func cdxSHA256(b []byte) string {
-	s := sha256.Sum256(b)
-	return hex.EncodeToString(s[:])
-}
-
-// cdxAuthSign is the common upload's AuthSign: the body's SHA-256,
-// encrypted under the user's secret key.
-func cdxAuthSign(key string, body []byte) (string, error) {
-	return cdxEncrypt(key, []byte(cdxSHA256(body)))
+	t := strings.TrimSpace(string(b))
+	var s string
+	if json.Unmarshal(b, &s) == nil {
+		t = s
+	}
+	m, err := cdxOpen(x, module, t)
+	if err != nil {
+		return nil, fmt.Errorf("CDSL's reply could not be read (%v): %s", err, trimBody(b))
+	}
+	return m, nil
 }
 
 // ---- reading CDSL's JSON, whatever its key spelling ----
@@ -284,7 +238,7 @@ func cdxNormal(v any) any {
 
 func cdxParse(b []byte) (cdxObj, error) {
 	var v any
-	d := json.NewDecoder(bytes.NewReader(bytes.TrimPrefix(bytes.TrimSpace(b), []byte("\xef\xbb\xbf"))))
+	d := json.NewDecoder(bytes.NewReader(cdslCleanJSON(b)))
 	d.UseNumber()
 	if err := d.Decode(&v); err != nil {
 		return nil, err
@@ -318,16 +272,6 @@ func (m cdxObj) str(k string) string {
 	return ""
 }
 
-func (m cdxObj) truth(k string) bool {
-	switch x := m[strings.ToLower(k)].(type) {
-	case bool:
-		return x
-	case string:
-		return strings.EqualFold(strings.TrimSpace(x), "true")
-	}
-	return false
-}
-
 func (m cdxObj) list(k string) []cdxObj {
 	var out []cdxObj
 	if xs, ok := m[strings.ToLower(k)].([]any); ok {
@@ -340,26 +284,8 @@ func (m cdxObj) list(k string) []cdxObj {
 	return out
 }
 
-// cdxError finds CDSL's error code and message anywhere in a reply.
-func cdxError(m cdxObj) string {
-	var walk func(x cdxObj) string
-	walk = func(x cdxObj) string {
-		if id := firstOf(x.str("errorid"), x.str("errorcode")); id != "" {
-			return strings.TrimSpace(id + " " + firstOf(x.str("errormessage"), x.str("errormsg")))
-		}
-		for _, v := range x {
-			if o, ok := v.(cdxObj); ok {
-				if s := walk(o); s != "" {
-					return s
-				}
-			}
-		}
-		return ""
-	}
-	return walk(m)
-}
-
-// cdxNumericID is a numeric ID of n digits: the time, then random digits.
+// cdxNumericID is an ID of n digits: the time as laid out, then random
+// digits.
 func cdxNumericID(now time.Time, n int, layout string) string {
 	s := now.In(ist).Format(layout)
 	for len(s) < n {
@@ -369,72 +295,36 @@ func cdxNumericID(now time.Time, n int, layout string) string {
 	return s[:n]
 }
 
+// cdxSeqID is an ID of n digits unique for the firm: the date (yymmdd, or
+// yyyymmddhhmmss for 24 digits) then a sequence.
+func (o *Ops) cdxSeqID(ctx context.Context, tenant, seq string, n int) (string, error) {
+	k, err := o.next(ctx, tenant, seq, SystemActor)
+	if err != nil {
+		return "", err
+	}
+	head := o.now().Format("060102")
+	if n >= 24 {
+		head = o.now().Format("20060102150405")
+	}
+	return head + fmt.Sprintf("%0*d", n-len(head), k%pow10(n-len(head))), nil
+}
+
+func pow10(n int) int64 {
+	p := int64(1)
+	for i := 0; i < n && i < 18; i++ {
+		p *= 10
+	}
+	return p
+}
+
 // cdxTime is CDSL's ddmmyyyyhhmmss, IST.
 func cdxTime(t time.Time) string { return t.In(ist).Format("02012006150405") }
 
-// cdxPost sends a form (multipart, as CDSL's eDIS gateway takes) with extra
-// headers and returns the status and body.
-func cdxPostForm(ctx context.Context, address string, headers, fields map[string]string) (int, []byte, error) {
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-	keys := make([]string, 0, len(fields))
-	for k := range fields {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		_ = mw.WriteField(k, fields[k])
-	}
-	_ = mw.Close()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, address, &buf)
-	if err != nil {
-		return 0, nil, err
-	}
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
-	return cdxDo(req)
-}
-
-func cdxDo(req *http.Request) (int, []byte, error) {
-	req.Header.Set("Accept", "application/json, text/plain, */*")
-	resp, err := cdxHTTP.Do(req)
-	if err != nil {
-		return 0, nil, fmt.Errorf("could not reach CDSL: %v", err)
-	}
-	defer resp.Body.Close()
-	b, err := io.ReadAll(io.LimitReader(resp.Body, MaxXFileBytes))
-	return resp.StatusCode, b, err
-}
-
-// cdxDecryptReply reads an encrypted reply body: the base64 text itself, a
-// JSON string, or a JSON object holding it.
-func cdxDecryptReply(key string, b []byte) (cdxObj, error) {
-	t := strings.TrimSpace(string(b))
-	if m, err := cdxParse(b); err == nil {
-		for _, v := range m.in("body") {
-			if s, ok := v.(string); ok && len(s) >= 24 {
-				if p, err := cdxDecrypt(key, s); err == nil {
-					return cdxParse(p)
-				}
-			}
-		}
-		return m, nil // already plain
-	}
-	var s string
-	if json.Unmarshal(b, &s) == nil {
-		t = s
-	}
-	p, err := cdxDecrypt(key, t)
-	if err != nil {
-		return nil, fmt.Errorf("CDSL's reply could not be read (%v): %s", err, trimBody(b))
-	}
-	return cdxParse(p)
-}
+// cdxQty is a quantity as CDSL's (13,3) fields take it.
+func cdxQty(q int64) string { return fmt.Sprintf("%d", q) }
 
 // CDSLForm is a redirect POST to CDSL: the browser submits these fields to
-// the address (the client's TPIN or OTP page).
+// the address (the client's TPIN, OTP or change-PIN page).
 type CDSLForm struct {
 	Action string            `json:"action"`
 	Fields map[string]string `json:"fields"`
@@ -442,7 +332,58 @@ type CDSLForm struct {
 	Note   string            `json:"note,omitempty"`
 }
 
+// CDSLReturn is what a CDSL redirect back to Ledgerline did, for the page
+// the browser lands on.
+type CDSLReturn struct {
+	Firm    string
+	Title   string
+	Lines   []string
+	OK      bool
+	Back    string
+	BackFor string
+}
+
+// cdxState is the transaction module's last runs.
+type cdxState struct {
+	LastSend  string            `json:"last_send,omitempty"`
+	LastPoll  string            `json:"last_poll,omitempty"`
+	LastError string            `json:"last_error,omitempty"`
+	Done      map[string]string `json:"done,omitempty"` // once-a-day keys
+}
+
+func (o *Ops) cdxState(ctx context.Context, tenant string) cdxState {
+	st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cCDSLTxState, "state", cdxState{})
+	if st.Done == nil {
+		st.Done = map[string]string{}
+	}
+	return st
+}
+
+func (o *Ops) cdxSaveState(ctx context.Context, tenant string, st cdxState) {
+	_ = docs.Upsert(ctx, o.Docs, tenant, cCDSLTxState, "state", st, SystemActor)
+}
+
+// cdxOnce reports whether key is new today, and records it.
+func (o *Ops) cdxOnce(ctx context.Context, tenant, key string, now time.Time) bool {
+	st := o.cdxState(ctx, tenant)
+	if st.Done[key] != "" {
+		return false
+	}
+	day := now.In(ist).Format("2006-01-02")
+	st.Done[key] = now.Format(time.RFC3339)
+	for k, v := range st.Done { // keep a week
+		if v < addDays(day, -7) {
+			delete(st.Done, k)
+		}
+	}
+	o.cdxSaveState(ctx, tenant, st)
+	return true
+}
+
 // ---- Common upload: delivery instructions by API ----
+
+// cdxMu keeps one upload or status check at a time.
+var cdxMu sync.Mutex
 
 // CDSLUpload is one transaction upload sent through the API.
 type CDSLUpload struct {
@@ -467,153 +408,40 @@ type CDSLUpload struct {
 	UnreadResult bool              `json:"unread_result,omitempty"`
 }
 
-// cdxState is the sign-in and the last runs.
-type cdxState struct {
-	Token     string            `json:"token,omitempty"`
-	TokenExp  string            `json:"token_exp,omitempty"`
-	LastSend  string            `json:"last_send,omitempty"`
-	LastPoll  string            `json:"last_poll,omitempty"`
-	LastError string            `json:"last_error,omitempty"`
-	Done      map[string]string `json:"done,omitempty"` // once-a-day keys
-}
-
-func (o *Ops) cdxState(ctx context.Context, tenant string) cdxState {
-	st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cCDSLTxState, "state", cdxState{})
-	if st.Done == nil {
-		st.Done = map[string]string{}
-	}
-	return st
-}
-
-func (o *Ops) cdxSaveState(ctx context.Context, tenant string, st cdxState) {
-	_ = docs.Upsert(ctx, o.Docs, tenant, cCDSLTxState, "state", st, SystemActor)
-}
-
-// cdxAuthBody is the sign-in body, in CDSL's key order.
-type cdxAuthBody struct {
-	DPID     string `json:"DPID"`
-	UserID   string `json:"UserID"`
-	Password string `json:"Password"`
-}
-
-// cdxLogin signs in to CDAS (AuthWeb APIAuth) and keeps the token for 14
-// minutes (CDSL's lasts 15).
-func (o *Ops) cdxLogin(ctx context.Context, tenant string, c cdxConn, force bool) (string, error) {
-	st := o.cdxState(ctx, tenant)
-	now := o.now()
-	if exp, err := time.Parse(time.RFC3339, st.TokenExp); err == nil && now.Before(exp) && st.Token != "" && !force {
-		return st.Token, nil
-	}
-	if c.dpID == "" || c.user == "" || c.secret == "" || c.password == "" {
-		return "", invalid("the CDSL APIs connection needs the DP ID, user ID, secret key and password for the common upload")
-	}
-	pw, err := cdxEncrypt(c.secret, []byte(c.password))
-	if err != nil {
-		return "", err
-	}
-	body, _ := json.Marshal(cdxAuthBody{DPID: c.dpID, UserID: c.user, Password: pw})
-	sign, err := cdxAuthSign(c.secret, body)
-	if err != nil {
-		return "", err
-	}
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/AuthWeb/api/CDASAuthorization/APIAuth", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("AuthSign", sign)
-	code, b, err := cdxDo(req)
-	if err != nil {
-		return "", err
-	}
-	m, perr := cdxParse(b)
-	tok := ""
-	if perr == nil {
-		tok = m.in("body").str("authtoken")
-	}
-	if code != 200 || tok == "" {
-		msg := fmt.Sprintf("HTTP %d %s", code, trimBody(b))
-		if perr == nil && cdxError(m) != "" {
-			msg = cdxError(m)
-		}
-		st.LastError = "CDSL sign-in refused: " + msg
-		o.cdxSaveState(ctx, tenant, st)
-		return "", fmt.Errorf("%w: CDSL refused the API sign-in: %s", ErrState, msg)
-	}
-	st.Token, st.TokenExp = tok, now.Add(14*time.Minute).Format(time.RFC3339)
-	o.cdxSaveState(ctx, tenant, st)
-	return tok, nil
-}
-
-// cdxCall posts a signed JSON body to a CommonWeb endpoint, signing in
-// again once if the token was refused.
-func (o *Ops) cdxCall(ctx context.Context, tenant string, c cdxConn, path string, body []byte, multipartFile []byte, fileName string) (cdxObj, error) {
-	try := func(force bool) (int, []byte, error) {
-		tok, err := o.cdxLogin(ctx, tenant, c, force)
-		if err != nil {
-			return 0, nil, err
-		}
-		sign, err := cdxAuthSign(c.secret, body)
-		if err != nil {
-			return 0, nil, err
-		}
-		var req *http.Request
-		if multipartFile != nil {
-			var fields map[string]string
-			_ = json.Unmarshal(body, &fields)
-			var buf bytes.Buffer
-			mw := multipart.NewWriter(&buf)
-			for _, k := range []string{"UploadId", "Signature"} {
-				_ = mw.WriteField(k, fields[k])
-			}
-			fw, _ := mw.CreateFormFile("file", fileName)
-			_, _ = fw.Write(multipartFile)
-			_ = mw.Close()
-			req, _ = http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, &buf)
-			req.Header.Set("Content-Type", mw.FormDataContentType())
-			req.Header.Set("FileComputeHash", cdxSHA256(multipartFile))
-		} else {
-			req, _ = http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, bytes.NewReader(body))
-			req.Header.Set("Content-Type", "application/json")
-		}
-		req.Header.Set("AuthToken", tok)
-		req.Header.Set("AuthSign", sign)
-		return cdxDo(req)
-	}
-	code, b, err := try(false)
-	if err == nil && (code == 401 || strings.Contains(strings.ToLower(string(b)), "invalid auth token")) {
-		code, b, err = try(true)
-	}
-	if err != nil {
-		return nil, err
-	}
-	m, perr := cdxParse(b)
-	if perr != nil || code != 200 {
-		msg := fmt.Sprintf("HTTP %d %s", code, trimBody(b))
-		if perr == nil && cdxError(m) != "" {
-			msg = cdxError(m)
-		}
-		return nil, fmt.Errorf("CDSL answered %s", msg)
-	}
-	m = m.in("body")
-	if !m.truth("success") {
-		return m, fmt.Errorf("CDSL answered %s", firstOf(cdxError(m), "not successful"))
-	}
-	return m, nil
-}
-
 // cdxReasonCodes are CDSL's off-market trade reason codes for the reasons
 // Ledgerline offers. Confirm them against CDSL's current list before going
-// live; a wrong code makes CDSL reject the line, never move the shares.
+// live: a wrong code makes CDSL reject the line, never move the shares.
 var cdxReasonCodes = map[string]string{
 	"Sale (off-market)": "1", "Gift": "2", "Transfer to own account": "3", "Transfer to family member": "4", "Donation": "5",
 	"Transmission": "6", "Implementation of government order": "7", "Margin to clearing member": "8", "Others": "9",
 }
 
+// cdxExchangeIDs are CDSL's exchange IDs (§5.11.7: BSE 11, NSE 12).
+var cdxExchangeIDs = map[string]string{"BSE": "11", "NSE": "12"}
+
+// cdxTxnTypes are the upload's transaction type codes by DIS kind, as
+// CDSL's transaction files show them; the connection's txn_types replaces
+// them.
+func cdxTxnTypes(x cdslConn) map[string]string {
+	t := map[string]string{"Off-market": "WTR", "Inter-depository": "IDD", "On-market": "IDO"}
+	if v := strings.Split(x.c.Values["txn_types"], ","); len(v) == 3 {
+		for i, k := range []string{"Off-market", "Inter-depository", "On-market"} {
+			if s := strings.ToUpper(strings.TrimSpace(v[i])); s != "" {
+				t[k] = s
+			}
+		}
+	}
+	return t
+}
+
 // cdxDISRows are the transaction upload's lines for verified slips.
-func (o *Ops) cdxDISRows(ctx context.Context, tenant string, c cdxConn, ds []DIS, batch string) ([]xfile.Row, error) {
+func (o *Ops) cdxDISRows(ctx context.Context, tenant string, x cdslConn, ds []DIS, batch string) ([]xfile.Row, error) {
 	set, _ := o.Settings(ctx, tenant)
-	sender := firstOf(strings.TrimSpace(set.MemberCodes["CDSL-SENDER"]), c.user)
+	sender := firstOf(strings.TrimSpace(set.MemberCodes["CDSL-SENDER"]), x.User)
 	if sender == "" {
 		return nil, invalid("set the CDSL sender ID (member code CDSL-SENDER) in Settings")
 	}
+	types := cdxTxnTypes(x)
 	var rows []xfile.Row
 	for _, d := range ds {
 		bo := strings.TrimSpace(d.BOID)
@@ -621,21 +449,21 @@ func (o *Ops) cdxDISRows(ctx context.Context, tenant string, c cdxConn, ds []DIS
 			return nil, invalid("%s: the client's BO ID is not a 16-digit CDSL BO ID", d.ID)
 		}
 		for i, l := range d.Lines {
-			v := map[string]string{"BtchId": batch, "SndrId": sender, "BrnchId": "1", "CntrlSctiesDpstryPtcptRole": "DP",
+			v := map[string]string{"BtchId": batch, "SndrId": sender, "BrnchId": "1", "CntrlSctiesDpstryPtcptRole": "DP", "TxnTyp": types[d.Kind],
 				"LineNb": fmt.Sprint(len(rows) + 1), "SeqNm": fmt.Sprintf("%04d", len(rows)+1), "SrcCntrlSctiesDpstryPtcpt": bo[2:8], "SrcClntIdOrBnfclOwnrId": bo,
 				"ISIN": l.ISIN, "Qty": fmt.Sprintf("%d.000", l.Qty), "BuySellInd": "S", "ExecDt": d.ExecDate, "DISTpInd": "NRM", "DISSrlNb": fmt.Sprintf("%012d", d.Slip),
 				"ReqRcvdDtFrBO": d.Received, "MkrOprId": d.Maker, "ChckrOprtrId": d.Checker, "IntlRefNb": d.ID, "SndrRefNb1": fmt.Sprintf("%s-%d", d.ID, i+1), "ChanlInd": "API"}
 			switch d.Kind {
 			case "Inter-depository":
-				v["TxnTyp"] = "IDD"
 				to := strings.ToUpper(d.ToBO)
 				if strings.HasPrefix(to, "IN") && len(to) == 16 {
 					v["OthrDpstryPtcpt"], v["OthrDpstryClntCd"], v["OthrDpstryId"] = to[:8], to[8:], "NSDL"
 				} else {
 					v["CntrBnfclOwnrId"] = to
 				}
+			case "On-market":
+				v["CntrCMBPId"], v["SctiesSttlmTxId"], v["Xchg"] = d.ToBO, d.Settlement, cdxExchangeIDs[d.Exchange]
 			default:
-				v["TxnTyp"] = "WTR"
 				v["CntrBnfclOwnrId"] = d.ToBO
 				v["TrdRsnCd"] = cdxReasonCodes[d.Reason]
 				if d.Consideration > 0 {
@@ -657,25 +485,11 @@ func cdxZip(name string, data []byte) []byte {
 	return buf.Bytes()
 }
 
-// SendDISByAPI sends the verified slips due by date to CDSL through the
-// common upload API and marks them uploaded. Slips are sent only after a
-// checker has verified them (VerifyDIS).
-func (o *Ops) SendDISByAPI(ctx context.Context, tenant, actor, date string) (CDSLUpload, error) {
-	if err := o.require(ctx, tenant, actor, "Uploading delivery instructions", RoleMaker, RoleChecker); err != nil {
-		return CDSLUpload{}, err
-	}
-	c := o.cdxConn(ctx, tenant)
-	if !c.on(cdxFamCommon) {
-		return CDSLUpload{}, fmt.Errorf("%w: the CDSL common upload API is off: use the upload batch file, or switch the API on in Settings → Connections → CDSL APIs (DP)", ErrState)
-	}
-	if date == "" {
-		date = o.now().In(ist).Format("2006-01-02")
-	}
-	cdxMu.Lock()
-	defer cdxMu.Unlock()
+// cdxDue are the verified slips due by date.
+func (o *Ops) cdxDue(ctx context.Context, tenant, date string) ([]DIS, error) {
 	all, err := docs.List[DIS](ctx, o.Docs, tenant, cDIS, "")
 	if err != nil {
-		return CDSLUpload{}, err
+		return nil, err
 	}
 	var due []DIS
 	for _, d := range all {
@@ -684,66 +498,120 @@ func (o *Ops) SendDISByAPI(ctx context.Context, tenant, actor, date string) (CDS
 		}
 	}
 	if len(due) == 0 {
-		return CDSLUpload{}, invalid("no verified instructions to send for %s", date)
+		return nil, invalid("no verified instructions to send for %s", date)
 	}
+	return due, nil
+}
+
+// cdxUploadFile writes the transaction upload file for slips.
+func (o *Ops) cdxUploadFile(ctx context.Context, tenant string, x cdslConn, due []DIS, date string, n int64) (string, []byte, error) {
 	lib, err := XFiles()
 	if err != nil {
-		return CDSLUpload{}, err
+		return "", nil, err
 	}
 	s, ok := lib.Get("cdsl-txn-upload")
 	if !ok {
-		return CDSLUpload{}, errors.New("the CDSL transaction upload layout is missing")
+		return "", nil, errors.New("the CDSL transaction upload layout is missing")
+	}
+	rows, err := o.cdxDISRows(ctx, tenant, x, due, strings.ReplaceAll(date, "-", "")+fmt.Sprintf("%04d", n%10000))
+	if err != nil {
+		return "", nil, err
+	}
+	content, err := s.Write(rows)
+	if err != nil {
+		return "", nil, err
+	}
+	name, err := s.FileName(xfile.Vars{"dp_id": strings.TrimSpace(due[0].BOID)[2:8], "date": date, "seq": fmt.Sprint(n)})
+	return name, content, err
+}
+
+// cdxMarkUploaded moves slips to Uploaded with a batch reference.
+func (o *Ops) cdxMarkUploaded(ctx context.Context, tenant, actor string, due []DIS, batch string) error {
+	for _, d := range due {
+		if _, err := docs.Update(ctx, o.Docs, tenant, cDIS, d.ID, actor, func(x *DIS) error {
+			if x.Status != "Verified" {
+				return fmt.Errorf("%w: %s changed while sending", ErrState, x.ID)
+			}
+			x.Status, x.Batch = "Uploaded", batch
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// cdxCommon makes a Commonweb call and checks CDSL's "success".
+func cdxCommon(ctx context.Context, tenant string, x cdslConn, path string, body []byte, form url.Values, file *cdslFile) (map[string]any, error) {
+	m, err := x.Common(ctx, tenant, path, body, form, file, nil)
+	if err != nil {
+		return nil, err
+	}
+	if cdslStr(m, "success") != "true" {
+		id, msg := cdslError(m)
+		return m, fmt.Errorf("%w: CDSL answered: %s", ErrState, cdslExplain(id, firstOf(msg, "not successful")))
+	}
+	return m, nil
+}
+
+// SendDISByAPI sends the verified slips due by date to CDSL through the
+// common upload API (§5.7.6) and marks them uploaded. Only slips a checker
+// has verified (VerifyDIS) are sent.
+func (o *Ops) SendDISByAPI(ctx context.Context, tenant, actor, date string) (CDSLUpload, error) {
+	if err := o.require(ctx, tenant, actor, "Uploading delivery instructions", RoleMaker, RoleChecker); err != nil {
+		return CDSLUpload{}, err
+	}
+	x, ok := o.cdxConn(ctx, tenant)
+	if !ok || !x.On(cdslFamUpload) {
+		return CDSLUpload{}, fmt.Errorf("%w: the CDSL common upload API is off: use the upload file, or switch the API on in Settings → Connections → CDSL APIs (DP)", ErrState)
+	}
+	if date == "" {
+		date = o.now().Format("2006-01-02")
+	}
+	cdxMu.Lock()
+	defer cdxMu.Unlock()
+	due, err := o.cdxDue(ctx, tenant, date)
+	if err != nil {
+		return CDSLUpload{}, err
 	}
 	n, err := o.next(ctx, tenant, "cdslupload", actor)
 	if err != nil {
 		return CDSLUpload{}, err
 	}
 	now := o.now()
-	u := CDSLUpload{ID: fmt.Sprintf("CU-%06d", n), Date: date, Status: "Sent", SentAt: now.Format(time.RFC3339), SentBy: actor, Environment: map[bool]string{true: "Live", false: "Mock"}[c.live]}
-	rows, err := o.cdxDISRows(ctx, tenant, c, due, strings.ReplaceAll(date, "-", "")+fmt.Sprintf("%04d", n%10000))
+	u := CDSLUpload{ID: fmt.Sprintf("CU-%06d", n), Date: date, Status: "Sent", SentAt: now.Format(time.RFC3339), SentBy: actor, Environment: x.Env}
+	name, content, err := o.cdxUploadFile(ctx, tenant, x, due, date, n)
 	if err != nil {
 		return u, err
 	}
-	content, err := s.Write(rows)
-	if err != nil {
-		return u, err
-	}
-	u.File, err = s.FileName(xfile.Vars{"dp_id": strings.TrimSpace(due[0].BOID)[2:8], "date": date, "seq": fmt.Sprint(n)})
-	if err != nil {
-		return u, err
-	}
-	zipped := cdxZip(u.File, content)
+	u.File = name
 	if f, err := o.keepFile(ctx, tenant, u.File, content); err == nil {
 		u.FileID = f.ID
 	}
 	for _, d := range due {
 		u.DIS = append(u.DIS, d.ID)
+		u.Lines += len(d.Lines)
 	}
-	u.Lines = len(rows)
-	upID := firstOf(strings.TrimSpace(c.values["upload_id"]), cdxUploadID)
-	body, _ := json.Marshal(struct {
-		UploadID  string `json:"UploadId"`
-		Signature string `json:"Signature"`
-	}{upID, ""})
-	m, err := o.cdxCall(ctx, tenant, c, "/Commonweb/api/CDASAPI/Upload/v2.0", body, zipped, strings.TrimSuffix(u.File, ".csv")+".zip")
+	upID := firstOf(strings.TrimSpace(x.c.Values["upload_id"]), cdxUploadID)
+	zipName := strings.TrimSuffix(u.File, ".csv") + ".zip"
+	// The AuthSign is over the body as JSON; the same fields go in the
+	// multipart request with the zipped file (§5.7.6). No digital
+	// signature: "Signature" is blank.
+	body := cdslJSON("UploadId", upID, "Signature", "")
+	m, err := cdxCommon(ctx, tenant, x, cdxPathUpload, body, url.Values{"UploadId": {upID}, "Signature": {""}}, &cdslFile{Field: "file", Name: zipName, Data: cdxZip(u.File, content)})
 	if err != nil {
 		o.log(ctx, tenant, actor, "cdsl.upload_failed", u.ID, map[string]any{"instructions": len(due), "error": err.Error()})
+		st := o.cdxState(ctx, tenant)
+		st.LastError = err.Error()
+		o.cdxSaveState(ctx, tenant, st)
 		return u, err
 	}
-	u.Ack = m.str("acknowledgmentid")
+	u.Ack = cdslStr(m, "AcknowledgmentID", "AcknowledgementID")
 	if u.Ack == "" {
 		return u, errors.New("CDSL took the file but gave no acknowledgement number")
 	}
-	for _, d := range due {
-		if _, err := docs.Update(ctx, o.Docs, tenant, cDIS, d.ID, actor, func(x *DIS) error {
-			if x.Status != "Verified" {
-				return fmt.Errorf("%w: %s changed while sending", ErrState, x.ID)
-			}
-			x.Status, x.Batch = "Uploaded", "CDSL API "+u.ID+" ack "+u.Ack
-			return nil
-		}); err != nil {
-			return u, err
-		}
+	if err := o.cdxMarkUploaded(ctx, tenant, actor, due, "CDSL API "+u.ID+" ack "+u.Ack); err != nil {
+		return u, err
 	}
 	if _, err := docs.Put(ctx, o.Docs, tenant, cCDSLUpload, u.ID, u, 0, actor); err != nil {
 		return u, err
@@ -753,6 +621,37 @@ func (o *Ops) SendDISByAPI(ctx context.Context, tenant, actor, date string) (CDS
 	o.cdxSaveState(ctx, tenant, st)
 	o.log(ctx, tenant, actor, "cdsl.uploaded", u.ID, map[string]any{"ack": u.Ack, "instructions": len(due), "lines": u.Lines, "file": u.File})
 	return u, nil
+}
+
+// DISUploadFile is the fallback when the API is off: the same transaction
+// upload file, for upload in CDAS by hand. The slips are marked uploaded.
+func (o *Ops) DISUploadFile(ctx context.Context, tenant, actor, date string) (string, []byte, int, error) {
+	if err := o.require(ctx, tenant, actor, "Uploading delivery instructions", RoleMaker, RoleChecker); err != nil {
+		return "", nil, 0, err
+	}
+	if date == "" {
+		date = o.now().Format("2006-01-02")
+	}
+	x, _ := o.cdxConn(ctx, tenant) // the sender and type codes, when set
+	cdxMu.Lock()
+	defer cdxMu.Unlock()
+	due, err := o.cdxDue(ctx, tenant, date)
+	if err != nil {
+		return "", nil, 0, err
+	}
+	n, err := o.next(ctx, tenant, "cdslupload", actor)
+	if err != nil {
+		return "", nil, 0, err
+	}
+	name, content, err := o.cdxUploadFile(ctx, tenant, x, due, date, n)
+	if err != nil {
+		return "", nil, 0, err
+	}
+	if err := o.cdxMarkUploaded(ctx, tenant, actor, due, "CDAS file "+name); err != nil {
+		return "", nil, 0, err
+	}
+	o.log(ctx, tenant, actor, "dis.uploaded", name, map[string]any{"instructions": len(due), "via": "CDAS upload file"})
+	return name, content, len(due), nil
 }
 
 // CheckCDSLUpload asks CDSL for an upload's status and, once processed,
@@ -768,57 +667,51 @@ func (o *Ops) CheckCDSLUpload(ctx context.Context, tenant, actor, id string) (CD
 	if u.Status == "Done" || u.Status == "Failed" {
 		return u, nil
 	}
-	c := o.cdxConn(ctx, tenant)
-	if !c.set() {
+	x, ok := o.cdxConn(ctx, tenant)
+	if !ok {
 		return u, fmt.Errorf("%w: the CDSL APIs connection is not set", ErrState)
 	}
 	cdxMu.Lock()
 	defer cdxMu.Unlock()
 	now := o.now()
 	u.CheckedAt, u.Checks = now.Format(time.RFC3339), u.Checks+1
-	body, _ := json.Marshal(struct {
-		Ack       string `json:"AcknowledgmentID"`
-		Signature string `json:"Signature"`
-	}{u.Ack, ""})
-	m, err := o.cdxCall(ctx, tenant, c, "/Commonweb/api/CDASAPI/Status", body, nil, "")
 	save := func() { _ = docs.Upsert(ctx, o.Docs, tenant, cCDSLUpload, u.ID, u, actor) }
+	m, err := cdxCommon(ctx, tenant, x, cdslPathStatus, cdslJSON("AcknowledgmentID", u.Ack, "Signature", ""), nil, nil)
 	if err != nil {
 		u.Problem = err.Error()
 		save()
 		return u, err
 	}
-	u.CDSLStatus, u.Problem = m.str("status"), ""
+	u.CDSLStatus, u.Problem = cdslStr(m, "Status"), ""
 	low := strings.ToLower(u.CDSLStatus)
 	switch {
 	case strings.Contains(low, "fail") || strings.Contains(low, "reject") || strings.Contains(low, "error"):
 		u.Status, u.Problem = "Failed", "CDSL did not process the file: "+u.CDSLStatus
 		o.cdxRequeue(ctx, tenant, actor, u)
 		save()
-		o.raiseWork(ctx, tenant, "cdsl", "upload:"+u.ID, "CDSL did not process upload "+u.ID, u.Problem+". The instructions are back to Verified: send them again or use the batch file.", "", RoleMaker, "cdsltxn", "")
+		o.raiseWork(ctx, tenant, "cdsl", "upload:"+u.ID, "CDSL did not process upload "+u.ID, u.Problem+". The instructions are back to Verified: send them again or use the upload file.", "", RoleMaker, "cdsltxn", "")
 		return u, nil
 	case !strings.Contains(low, "complete") && !strings.Contains(low, "processed") && !strings.Contains(low, "success"):
 		u.Status = "Processing"
 		save()
 		return u, nil
 	}
-	body, _ = json.Marshal(struct {
-		UploadID  string `json:"UploadID"`
-		Name      string `json:"UploadFileName"`
-		Signature string `json:"Signature"`
-	}{firstOf(strings.TrimSpace(c.values["upload_id"]), cdxUploadID), strings.TrimSuffix(u.File, ".csv"), ""})
-	m, err = o.cdxCall(ctx, tenant, c, "/Commonweb/api/CDASAPI/Download", body, nil, "")
+	// The response is asked for by the uploaded file's name without .zip
+	// (handbook FAQ).
+	upID := firstOf(strings.TrimSpace(x.c.Values["upload_id"]), cdxUploadID)
+	m, err = cdxCommon(ctx, tenant, x, cdslPathDownload, cdslJSON("UploadID", upID, "UploadFileName", strings.TrimSuffix(u.File, ".csv"), "Signature", ""), nil, nil)
 	if err != nil {
 		u.Problem = err.Error()
 		save()
 		return u, err
 	}
-	data, err := base64.StdEncoding.DecodeString(strings.TrimSpace(m.str("responsefilebuffer")))
+	data, err := base64.StdEncoding.DecodeString(strings.TrimSpace(cdslStr(m, "ResponseFilebuffer")))
 	if err != nil || len(data) == 0 {
 		u.Problem = "CDSL's response file could not be read"
 		save()
 		return u, errors.New(u.Problem)
 	}
-	u.Response = firstOf(m.str("responsefilename"), u.ID+"_response.zip")
+	u.Response = firstOf(cdslStr(m, "ResponseFileName"), u.ID+"_response.zip")
 	if f, err := o.keepFile(ctx, tenant, u.Response, data); err == nil {
 		u.ResponseID = f.ID
 	}
@@ -869,7 +762,8 @@ func (o *Ops) cdxRequeue(ctx context.Context, tenant, actor string, u CDSLUpload
 // internal reference sent), "" for accepted or the rejection reasons. A
 // line is rejected when it carries rejection reason codes or a rejected
 // status; accepted when it carries CDSL's transaction ID or an accepted
-// status. Instructions it cannot place are left out.
+// status. Instructions it cannot place are left out. CDSL's response
+// layout is not in the handbook, so the columns are found by name.
 func cdxReadResponse(name string, data []byte, ids []string) (map[string]string, bool) {
 	out := map[string]string{}
 	fail := map[string][]string{}
@@ -978,6 +872,7 @@ func cdxReadResponse(name string, data []byte, ids []string) (map[string]string,
 // CDSLDestat is one DESTAT request sent to CDSL.
 type CDSLDestat struct {
 	ReqID     string `json:"reqid"`
+	BOReqID   string `json:"boreqid"`
 	DPReq     string `json:"dp_request"`
 	UCC       string `json:"ucc"`
 	BOID      string `json:"bo_id"` // masked
@@ -994,20 +889,22 @@ type CDSLDestat struct {
 	DoneAt    string `json:"done_at,omitempty"`
 }
 
+// destatErrors are §5.8.8's codes most often seen, in words.
+var destatErrors = map[string]string{"ERR002": "the DP is not registered for the DESTAT API", "ERR032": "CDSL has declared its end of day", "ERR034": "CDSL could not decrypt the request (check the DESTAT key)",
+	"ERR048": "CDSL has no mobile number or e-mail for the account", "ERR051": "the OTP was wrong", "ERR052": "the OTP expired", "ERR054": "too many OTP attempts", "ERR050": "the session timed out"}
+
 // StartDestat builds the redirect POST that takes a pending demat request
 // for mutual fund units (one with a folio) to CDSL's DESTAT page, where the
-// investor confirms with the OTP CDSL sends (§5.8).
+// investor confirms with the OTP CDSL sends (§5.8.7 A). The request must
+// have been checked: DESTAT replaces the physical DRF for units, so a
+// checker sends it.
 func (o *Ops) StartDestat(ctx context.Context, tenant, actor, dpReqID, base string) (CDSLForm, error) {
-	if err := o.require(ctx, tenant, actor, "DP requests", RoleMaker, RoleChecker, RoleCompliance, RoleBranch); err != nil {
+	if err := o.require(ctx, tenant, actor, "Sending demat requests to CDSL DESTAT", RoleChecker); err != nil {
 		return CDSLForm{}, err
 	}
-	c := o.cdxConn(ctx, tenant)
-	if !c.on(cdxFamDestat) {
+	x, ok := o.cdxConn(ctx, tenant)
+	if !ok || !x.On(cdslFamDestat) {
 		return CDSLForm{}, fmt.Errorf("%w: the CDSL DESTAT API is off: switch it on in Settings → Connections → CDSL APIs (DP)", ErrState)
-	}
-	key := c.key(cdxFamDestat)
-	if c.dpID == "" || key == "" {
-		return CDSLForm{}, invalid("the CDSL APIs connection needs the DP ID and the DESTAT API key")
 	}
 	r, _, err := docs.Get[DPRequest](ctx, o.Docs, tenant, cDPReq, dpReqID)
 	if err != nil {
@@ -1016,27 +913,38 @@ func (o *Ops) StartDestat(ctx context.Context, tenant, actor, dpReqID, base stri
 	if r.Kind != "Demat" || r.Status != "Pending" {
 		return CDSLForm{}, fmt.Errorf("%w: only a pending demat request goes to DESTAT", ErrState)
 	}
+	if r.Maker == actor {
+		return CDSLForm{}, fmt.Errorf("%w: the person who raised the request cannot send it", ErrForbidden)
+	}
 	folio := strings.TrimSpace(r.Detail["folio"])
-	if folio == "" {
-		return CDSLForm{}, invalid("DESTAT is for units held in a statement of account: give the folio number on the request")
+	if folio == "" || len(folio) > 16 {
+		return CDSLForm{}, invalid("DESTAT is for units held in a statement of account: give the folio number (up to 16 characters) on the request")
+	}
+	drf := strings.TrimSpace(r.Detail["drf"])
+	if drf == "" || len(drf) > 16 {
+		return CDSLForm{}, invalid("give the DRF number (up to 16 characters)")
 	}
 	cl, err := o.Client(ctx, tenant, r.UCC)
 	if err != nil {
 		return CDSLForm{}, err
 	}
 	bo := strings.TrimSpace(o.bo(ctx, tenant, cl).BOID)
-	if len(bo) != 16 || strings.Trim(bo, "0123456789") != "" {
-		return CDSLForm{}, invalid("%s has no 16-digit CDSL BO ID", r.UCC)
+	if err := cdxOwnBO(x, bo); err != nil {
+		return CDSLForm{}, err
+	}
+	pub := strings.TrimRight(firstOf(x.Callback, base), "/")
+	if pub == "" {
+		return CDSLForm{}, invalid("set Ledgerline's public address in the CDSL APIs connection so CDSL can send the result back")
 	}
 	now := o.now()
 	qty, qtype := strings.TrimSpace(r.Detail["qty"]), ""
 	if strings.EqualFold(qty, "all") || qty == "" {
-		qty, qtype = "", "A"
+		qty, qtype = "", "A" // all units: quantity type A, no quantity
 	}
 	pages := firstOf(strings.TrimSpace(r.Detail["pages"]), "0")
-	d := CDSLDestat{ReqID: cdxNumericID(now, 24, "20060102150405"), DPReq: r.ID, UCC: r.UCC, BOID: MaskAccount(bo), ISIN: strings.ToUpper(r.Detail["isin"]), Folio: folio, Qty: firstOf(qty, "ALL"),
-		Status: "Awaiting OTP", At: now.Format(time.RFC3339), By: actor}
-	d.ISINReqID = cdxNumericID(now.Add(time.Second), 24, "20060102150405")
+	d := CDSLDestat{ReqID: cdxNumericID(now, 24, "20060102150405"), BOReqID: cdxNumericID(now, 24, "20060102150405"), DPReq: r.ID, UCC: r.UCC, BOID: cdslMaskBO(bo),
+		ISIN: strings.ToUpper(strings.TrimSpace(r.Detail["isin"])), Folio: folio, Qty: firstOf(qty, "ALL"), Status: "Awaiting OTP", At: now.Format(time.RFC3339), By: actor}
+	d.ISINReqID = cdxNumericID(now, 24, "20060102150405")
 	type isinDtl struct {
 		ISINReqID    string `json:"isinreqid"`
 		Folio        string `json:"foliono"`
@@ -1055,53 +963,40 @@ func (o *Ops) StartDestat(ctx context.Context, tenant, actor, dpReqID, base stri
 		Pages     string    `json:"noofpages"`
 		ReturnURL string    `json:"returnurl"`
 		ISINs     []isinDtl `json:"isindtls"`
-	}{cdxTime(now), d.ReqID, bo, r.Detail["drf"], pages, strings.TrimRight(base, "/") + "/hooks/" + tenant + "/cdsl/destat/return",
+	}{cdxTime(now), d.BOReqID, bo, drf, pages, pub + "/hooks/" + tenant + "/cdsl/destat/return",
 		[]isinDtl{{d.ISINReqID, folio, d.ISIN, qtype, qty, r.Detail["lockin_reason"], r.Detail["lockin_expiry"], r.Detail["arn"]}}}
 	plain, _ := json.Marshal(dtl)
-	enc, err := cdxEncrypt(key, plain)
+	enc, err := cdxSeal(x, cdxKeyDestat, plain)
 	if err != nil {
 		return CDSLForm{}, err
 	}
 	if _, err := docs.Put(ctx, o.Docs, tenant, cCDSLDestat, d.ReqID, d, 0, actor); err != nil {
 		return CDSLForm{}, err
 	}
+	_, _ = docs.Update(ctx, o.Docs, tenant, cDPReq, r.ID, actor, func(y *DPRequest) error { y.Checker = actor; y.Detail["destat_reqid"] = d.ReqID; return nil })
 	o.log(ctx, tenant, actor, "cdsl.destat_started", r.ID, map[string]any{"reqid": d.ReqID, "bo": d.BOID, "isin": d.ISIN})
-	return CDSLForm{Action: c.base + "/DestatWebapi/v1.0", Fields: map[string]string{"dpid": c.dpID, "reqid": d.ReqID, "destatdtls": enc}, Ref: d.ReqID,
-		Note: "CDSL sends the investor an OTP on the registered mobile and e-mail; the investor confirms there."}, nil
+	return CDSLForm{Action: x.URL(cdxPathDestat), Fields: map[string]string{"dpid": x.DPID, "reqid": d.ReqID, "destatdtls": enc}, Ref: d.ReqID,
+		Note: "CDSL sends the investor an OTP on the registered mobile and e-mail; the investor confirms on CDSL's page."}, nil
 }
 
-// CDSLReturn is what a CDSL redirect back to Ledgerline did, for the page
-// the browser lands on.
-type CDSLReturn struct {
-	Firm    string
-	Title   string
-	Lines   []string
-	OK      bool
-	Back    string
-	BackFor string
-}
-
-// DestatReturn takes CDSL's post-back of a DESTAT request (not signed in:
-// it must decrypt under the DP's DESTAT key and match a request sent).
+// DestatReturn takes CDSL's post-back of a DESTAT request (§5.8.7 C; not
+// signed in: it must decrypt under the DP's DESTAT key and match a request
+// sent from here).
 func (o *Ops) DestatReturn(ctx context.Context, tenant string, form url.Values) (CDSLReturn, error) {
 	set, _ := o.Settings(ctx, tenant)
 	out := CDSLReturn{Firm: set.Firm, Title: "DESTAT request", Back: "/#dp", BackFor: "Back to Depository"}
-	c := o.cdxConn(ctx, tenant)
+	x, ok := o.cdxConn(ctx, tenant)
 	reqid := strings.TrimSpace(form.Get("reqid"))
 	d, _, err := docs.Get[CDSLDestat](ctx, o.Docs, tenant, cCDSLDestat, reqid)
-	if err != nil || reqid == "" {
+	if err != nil || reqid == "" || !ok {
 		return out, fmt.Errorf("%w: no DESTAT request %q was sent from here", ErrNotFound, reqid)
 	}
-	p, err := cdxDecrypt(c.key(cdxFamDestat), form.Get("destatresdtls"))
+	m, err := cdxOpen(x, cdxKeyDestat, form.Get("destatresdtls"))
 	if err != nil {
-		return out, fmt.Errorf("%w: CDSL's reply could not be verified: %v", ErrInvalid, err)
-	}
-	m, err := cdxParse(p)
-	if err != nil {
-		return out, fmt.Errorf("%w: CDSL's reply is not readable", ErrInvalid)
+		return out, fmt.Errorf("%w: CDSL's reply could not be verified", ErrInvalid)
 	}
 	m = m.in("destatresdtls")
-	if got := m.str("reqid"); got != "" && got != reqid {
+	if got := m.str("reqid"); got != reqid {
 		return out, fmt.Errorf("%w: CDSL's reply is for another request", ErrInvalid)
 	}
 	if d.Status != "Awaiting OTP" {
@@ -1109,19 +1004,20 @@ func (o *Ops) DestatReturn(ctx context.Context, tenant string, form url.Values) 
 		return out, nil
 	}
 	d.ResID, d.DoneAt = m.str("resid"), o.now().Format(time.RFC3339)
-	d.Status, d.Error = "Failed", strings.TrimSpace(m.str("reserror")+" "+m.str("reserrmsg"))
+	code := m.str("reserror")
+	d.Status, d.Error = "Failed", strings.TrimSpace(firstOf(destatErrors[code], m.str("reserrmsg"))+" "+code)
 	if m.str("resstatus") == "0" {
-		for _, x := range m.list("isinresdtls") {
-			if x.str("isinreqid") != d.ISINReqID && x.str("isin") != d.ISIN {
+		for _, y := range m.list("isinresdtls") {
+			if y.str("isinreqid") != d.ISINReqID && y.str("isin") != d.ISIN {
 				continue
 			}
-			if x.str("isinreqstatus") == "0" && x.str("drn") != "" {
-				d.Status, d.DRN, d.Error = "Accepted", x.str("drn"), ""
-				if q := x.str("quantity"); q != "" {
+			if y.str("isinreqstatus") == "0" && y.str("drn") != "" {
+				d.Status, d.DRN, d.Error = "Accepted", y.str("drn"), ""
+				if q := y.str("quantity"); q != "" {
 					d.Qty = q
 				}
 			} else {
-				d.Error = firstOf(strings.TrimSpace(x.str("errorcode")+" "+x.str("errormsg")), "CDSL did not accept the ISIN")
+				d.Error = firstOf(strings.TrimSpace(y.str("errorcode")+" "+y.str("errormsg")), "CDSL did not accept the ISIN")
 			}
 		}
 	}
@@ -1129,17 +1025,17 @@ func (o *Ops) DestatReturn(ctx context.Context, tenant string, form url.Values) 
 		return out, err
 	}
 	if d.Status == "Accepted" {
-		_, _ = docs.Update(ctx, o.Docs, tenant, cDPReq, d.DPReq, SystemActor, func(x *DPRequest) error {
-			if x.Status == "Pending" {
-				x.Status = "Sent to RTA"
-				x.Detail["drn"], x.Detail["via"] = d.DRN, "CDSL DESTAT"
+		_, _ = docs.Update(ctx, o.Docs, tenant, cDPReq, d.DPReq, SystemActor, func(y *DPRequest) error {
+			if y.Status == "Pending" {
+				y.Status = "Sent to RTA"
+				y.Detail["drn"], y.Detail["via"] = d.DRN, "CDSL DESTAT"
 				if q := strings.TrimSpace(d.Qty); q != "" && q != "ALL" {
 					if i := strings.Index(q, "."); i > 0 && strings.Trim(q[i+1:], "0") == "" {
 						q = q[:i]
 					}
-					x.Detail["qty"] = q
+					y.Detail["qty"] = q
 				}
-				x.Note = "DESTAT request " + d.DRN + " accepted by CDSL; waiting for the RTA"
+				y.Note = "DESTAT request " + d.DRN + " accepted by CDSL; waiting for the RTA"
 			}
 			return nil
 		})
@@ -1156,7 +1052,7 @@ func (o *Ops) DestatReturn(ctx context.Context, tenant string, form url.Values) 
 
 // CDSLTxnView is the Transactions (API) tab.
 type CDSLTxnView struct {
-	Connection string            `json:"connection"` // Not set, Off, On
+	Connection string            `json:"connection"` // Not set, Set
 	Families   map[string]bool   `json:"families"`
 	Env        string            `json:"environment"`
 	DPID       string            `json:"dp_id"`
@@ -1168,7 +1064,8 @@ type CDSLTxnView struct {
 	DestatOpen []DPRequest       `json:"destat_open"` // pending demat requests with a folio
 	Reports    []CDSLReportSetup `json:"reports"`
 	Subs       []CDSLReportSub   `json:"report_subscriptions"`
-	ReportURL  string            `json:"report_callback,omitempty"`
+	Received   []CDSLReportIn    `json:"report_received"`
+	SFTP       string            `json:"sftp"`
 }
 
 // CDSLTxnScreen shows the transaction uploads, DESTAT and report setups.
@@ -1176,12 +1073,11 @@ func (o *Ops) CDSLTxnScreen(ctx context.Context, tenant, actor string) (CDSLTxnV
 	if err := o.require(ctx, tenant, actor, "Viewing CDSL API transactions", RoleMaker, RoleChecker, RoleRisk, RoleCompliance); err != nil {
 		return CDSLTxnView{}, err
 	}
-	c := o.cdxConn(ctx, tenant)
-	v := CDSLTxnView{Connection: "Not set", Families: map[string]bool{}, ToSend: []DIS{}, Uploads: []CDSLUpload{}, Destat: []CDSLDestat{}, DestatOpen: []DPRequest{}, Reports: []CDSLReportSetup{}, Subs: []CDSLReportSub{}}
-	if c.set() {
-		v.Connection, v.Env, v.DPID = "On", map[bool]string{true: "Live", false: "Mock"}[c.live], c.dpID
-		for _, f := range []string{cdxFamCommon, cdxFamDestat, cdxFamEDIS, cdxFamReport} {
-			v.Families[f] = c.on(f)
+	v := CDSLTxnView{Connection: "Not set", Families: map[string]bool{}, ToSend: []DIS{}, Uploads: []CDSLUpload{}, Destat: []CDSLDestat{}, DestatOpen: []DPRequest{}}
+	if x, ok := o.cdxConn(ctx, tenant); ok {
+		v.Connection, v.Env, v.DPID = "Set", x.Env, x.DPID
+		for _, f := range []string{cdslFamUpload, cdslFamDestat, cdslFamEDIS, cdslFamReport} {
+			v.Families[f] = x.On(f)
 		}
 	}
 	st := o.cdxState(ctx, tenant)
@@ -1207,28 +1103,30 @@ func (o *Ops) CDSLTxnScreen(ctx context.Context, tenant, actor string) (CDSLTxnV
 			v.DestatOpen = append(v.DestatOpen, r)
 		}
 	}
-	v.Reports, v.Subs = o.cdslReportLists(ctx, tenant)
+	v.Reports, v.Subs, v.Received = o.cdslReportLists(ctx, tenant)
+	v.SFTP = o.cdslSFTPState(ctx, tenant)
 	return v, nil
 }
 
 // ---- the scheduler ----
 
-// cdslTxnTick, every few minutes on business days:
-//   - sends newly verified slips through the common upload (08:00–18:30)
-//     and reads back CDSL's processing of sent uploads;
-//   - asks CDSL for eDIS authorisations whose redirect never came back,
-//     and closes the day's unfinished ones after the day;
-//   - sends the day's report setups.
+// cdslTxnTick, every few minutes:
+//   - on business days 08:00–18:30, sends newly verified slips through the
+//     common upload and reads back CDSL's processing of sent uploads;
+//   - asks CDSL about eDIS authorisations whose redirect never came back,
+//     and closes lapsed ones (cdsledis.go);
+//   - on business days, sends the day's standing report setups and fetches
+//     reports from CDSL's SFTP server (cdslrptsetup.go).
 func (o *Ops) cdslTxnTick(ctx context.Context, tenant string, now time.Time) {
-	c := o.cdxConn(ctx, tenant)
-	if !c.set() {
+	x, ok := o.cdxConn(ctx, tenant)
+	if !ok {
 		return
 	}
 	set, _ := o.Settings(ctx, tenant)
 	day, hm := now.In(ist).Format("2006-01-02"), now.In(ist).Format("15:04")
 	business := set.IsBusinessDay(day)
-	st := o.cdxState(ctx, tenant)
-	if c.on(cdxFamCommon) && business && hm >= "08:00" && hm <= "18:30" {
+	if x.On(cdslFamUpload) && business && hm >= "08:00" && hm <= "18:30" {
+		st := o.cdxState(ctx, tenant)
 		if t, err := time.Parse(time.RFC3339, st.LastPoll); err != nil || now.Sub(t) >= 5*time.Minute {
 			st.LastPoll = now.Format(time.RFC3339)
 			o.cdxSaveState(ctx, tenant, st)
@@ -1239,19 +1137,16 @@ func (o *Ops) cdslTxnTick(ctx context.Context, tenant string, now time.Time) {
 			}
 			us, _ := docs.List[CDSLUpload](ctx, o.Docs, tenant, cCDSLUpload, "")
 			for _, u := range us {
-				if u.Status == "Sent" || u.Status == "Processing" {
-					if u.Checks > 200 {
-						continue
-					}
+				if (u.Status == "Sent" || u.Status == "Processing") && u.Checks <= 200 {
 					_, _ = o.CheckCDSLUpload(ctx, tenant, SystemActor, u.ID)
 				}
 			}
 		}
 	}
-	if c.on(cdxFamEDIS) {
+	if x.On(cdslFamEDIS) {
 		o.edisTick(ctx, tenant, now)
 	}
-	if c.on(cdxFamReport) && business {
+	if x.On(cdslFamReport) && business {
 		o.cdslReportTick(ctx, tenant, now)
 	}
 }
