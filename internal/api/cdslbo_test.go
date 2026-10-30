@@ -137,4 +137,17 @@ func TestCDSLBOAPI(t *testing.T) {
 	if code, _ := call("POST", "/v1/cdsl/demat-check/"+c.UCC, "priya.nair", ""); code != 409 && code != 422 {
 		t.Fatalf("demat check with the API off: %d", code)
 	}
+	// The client's CDSL details for the BO upload files.
+	if code, m := call("PUT", "/v1/cdsl/bo-details/"+c.UCC, "priya.nair", `{"holders":[{"name":"Hari Shah","pan":"abcph2222h"}],"mode_of_operation":"2","comm_pref":"1"}`); code != 200 || m["mode_of_operation"] != "2" {
+		t.Fatalf("details: %d %v", code, m)
+	}
+	if code, m := call("GET", "/v1/cdsl/bo-details/"+c.UCC, "vikram.shah", ""); code != 200 || m["holders"].([]any)[0].(map[string]any)["pan"] != "ABCPH2222H" {
+		t.Fatalf("details: %d %v", code, m)
+	}
+	if code, _ := call("PUT", "/v1/cdsl/bo-details/"+c.UCC, "priya.nair", `{"mode_of_operation":"7"}`); code != 422 {
+		t.Fatalf("bad mode: %d", code)
+	}
+	if code, m := call("POST", "/v1/cdsl/delete-holder", "priya.nair", `{"ucc":"`+c.UCC+`","holder":2,"died_on":"2026-10-01"}`); code != 201 || m["kind"] != "Modify account" {
+		t.Fatalf("delete holder: %d %v", code, m)
+	}
 }

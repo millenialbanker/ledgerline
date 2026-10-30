@@ -1043,7 +1043,7 @@ func (o *Ops) NewCDSLRequest(ctx context.Context, tenant, actor string, in CDSLN
 		}
 		return o.cdslNewRequest(ctx, tenant, actor, r)
 	}
-	return CDSLRequest{}, invalid("a request raised here is %s or %s; modifications come from approved change requests, closures from the DP's closure requests", CDSLOpen, CDSLBeneficiary)
+	return CDSLRequest{}, invalid("a request raised here is %s, %s or %s; modifications come from approved change requests, closures from the DP's closure requests", CDSLOpen, CDSLSetupUpload, CDSLBeneficiary)
 }
 
 func cleanFields(f map[string]string) map[string]string {

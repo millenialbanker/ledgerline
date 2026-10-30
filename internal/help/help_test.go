@@ -158,6 +158,8 @@ func TestQuestions(t *testing.T) {
 		{"bo id not received from cdsl", "", "cdsl-demat-api"},
 		{"how many demat accounts for this pan", "", "cdsl-demat-api"},
 		{"add off market beneficiary", "", "cdsl-demat-api"},
+		{"joint holder died delete name at cdsl", "", "cdsl-demat-api"},
+		{"make the bo modify file for cdsl", "", "cdsl-demat-api"},
 		// Day.
 		{"why can't I close the day", "", "eod-close"},
 		{"what is the daily process", "", "daily-routine"},

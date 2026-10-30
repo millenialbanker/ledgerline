@@ -35,6 +35,7 @@ Authorising sales and TPIN for clients (eDIS) | Ops maker, Ops checker, Branch s
 Blocking clients in continuous debit | Risk manager
 Booking vendor bills | Ops maker, Ops checker
 Buy-back offers | Ops maker, Ops checker
+Changing CDSL account details | Ops maker, Ops checker
 Changing CDSL pledge settings | Risk manager, Compliance officer
 Changing a segment's status | Ops checker, Compliance officer
 Changing a stock SIP | Ops maker, Ops checker
