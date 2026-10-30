@@ -44,6 +44,7 @@ Changing the account type | Ops checker
 Changing the chart of accounts | Ops checker
 Changing the compliance calendar | Compliance officer
 Changing vendors | Ops maker, Ops checker
+Checking CDSL demat account counts | Ops maker, Ops checker, Compliance officer
 Checking PAN status at BSE | Ops maker, Ops checker
 Checking PAN status at the exchange | Ops maker, Ops checker, Compliance officer
 Checking a backup | Ops checker, Compliance officer
@@ -124,6 +125,7 @@ Posting margin penalties | Ops checker, Risk manager
 Posting referral rewards | Ops checker
 Prepaid schemes | Ops checker, Admin
 Proposing legacy debts | Ops maker, Ops checker, Risk manager, Compliance officer
+Raising CDSL requests | Ops maker, Ops checker
 Raising stock SIP top-up debits | Ops maker, Ops checker
 Recording DP responses | Ops maker, Ops checker
 Recording IPO bid status | Ops maker, Ops checker
@@ -185,6 +187,7 @@ Sending legacy debt reminders | Ops maker, Ops checker, Risk manager, Compliance
 Sending statements | Ops maker, Ops checker
 Sending stock SIP orders to the OMS | Ops maker, Ops checker, Risk manager
 Sending year-end packs | Ops maker, Ops checker, Compliance officer
+Setting CDSL account defaults | Ops checker
 Setting client risk | Compliance officer
 Setting the firm's default dashboard | Admin
 Setting the signing certificate | Admin
@@ -212,6 +215,8 @@ Verifying delivery instructions | Ops checker
 View data protection | Compliance officer
 Viewing AI usage | Compliance officer
 Viewing BSE UCC registrations | Ops maker, Ops checker, Compliance officer
+Viewing CDSL demat account counts | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing CDSL requests | Ops maker, Ops checker, Compliance officer
 Viewing backups | Ops checker, Compliance officer
 Viewing connections | Compliance officer, Admin
 Viewing dealers and terminals | Ops maker, Ops checker, Risk manager, Compliance officer

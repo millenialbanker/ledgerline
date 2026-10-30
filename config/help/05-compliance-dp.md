@@ -170,9 +170,11 @@ title: Handle demat, freeze, transmission or closure requests
 screen: dp
 roles: Ops maker, Ops checker
 ask: dematerialisation; demat request; freeze account; transmission; close demat account; account closure; rta
-related: dis
+related: dis, cdsl-demat-api
 
 On [[dp|Demat accounts & DIS]], **New request** and choose the type. Demat requests are **Sent to RTA**, then completed or rejected from the RTA's response. A closure needs the holdings transferred first.
+
+With CDSL's account transfer cum closure API switched on, an approved closure of a CDSL account goes to CDSL instead: the client confirms with CDSL's OTP and the account closes when CDSL confirms (see [[cdslreq|CDSL requests]]).
 
 ## dp-billing
 title: Run DP billing

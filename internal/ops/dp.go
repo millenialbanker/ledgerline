@@ -942,7 +942,7 @@ type DPRequest struct {
 	UCC     string            `json:"ucc"`
 	Name    string            `json:"name"`
 	Detail  map[string]string `json:"detail"`
-	Status  string            `json:"status"` // Pending, Sent to RTA, Completed, Rejected
+	Status  string            `json:"status"` // Pending, Sent to RTA, Sent to CDSL, Completed, Rejected
 	Maker   string            `json:"maker"`
 	Checker string            `json:"checker,omitempty"`
 	At      string            `json:"at"`
@@ -1047,12 +1047,21 @@ func (o *Ops) ActOnDPRequest(ctx context.Context, tenant, actor, id, action, not
 	b := o.bo(ctx, tenant, c)
 	date := o.businessDate(ctx, tenant)
 	status := "Completed"
+	viaCDSL := false
 	switch action {
 	case "reject":
 		if strings.TrimSpace(note) == "" {
 			return r, invalid("give the reason")
 		}
 		status = "Rejected"
+		if r.Status == "Sent to CDSL" {
+			// stop the CDSL request too (the client's link stops working)
+			if cr, ok := o.cdslBySource(ctx, tenant, r.ID); ok && cr.open() {
+				cr.Status = crCancelled
+				cr.event(o.now().Format(time.RFC3339), actor, "Cancelled with "+r.ID+": "+note)
+				_ = o.cdslSave(ctx, tenant, actor, &cr)
+			}
+		}
 	case "send":
 		if r.Kind != "Demat" || r.Status != "Pending" {
 			return r, fmt.Errorf("%w: only a pending demat request goes to the RTA", ErrState)
@@ -1104,6 +1113,18 @@ func (o *Ops) ActOnDPRequest(ctx context.Context, tenant, actor, id, action, not
 			}
 			b.Status, b.Freeze, b.FreezeWhy = "Frozen", "Both", "Transmission completed ("+r.ID+")"
 		case "Closure":
+			// With CDSL's account transfer cum closure API on, CDSL moves
+			// the holdings and closes the account once the client confirms
+			// with an OTP; the account closes here when CDSL confirms.
+			if r.Status == "Sent to CDSL" {
+				return r, fmt.Errorf("%w: %s is with CDSL; it completes when CDSL confirms (see CDSL requests)", ErrState, id)
+			}
+			if took, err := o.cdslStartClosure(ctx, tenant, actor, r, c, b); err != nil {
+				return r, err
+			} else if took {
+				status, viaCDSL = "Sent to CDSL", true
+				break
+			}
 			hs, _ := o.Holdings(ctx, tenant, c.UCC)
 			for _, h := range hs {
 				if h.Qty > 0 {
@@ -1112,7 +1133,7 @@ func (o *Ops) ActOnDPRequest(ctx context.Context, tenant, actor, id, action, not
 			}
 			b.Status, b.ClosedOn = "Closed", date
 		}
-		if r.Kind != "Demat" {
+		if r.Kind != "Demat" && !viaCDSL {
 			if err := docs.Upsert(ctx, o.Docs, tenant, cBO, b.UCC, b, actor); err != nil {
 				return r, err
 			}
