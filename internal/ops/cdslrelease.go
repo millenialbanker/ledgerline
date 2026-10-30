@@ -1326,7 +1326,15 @@ func (o *Ops) cplReleaseTick(ctx context.Context, tenant string, now time.Time) 
 			_, _ = o.cplInvoke(ctx, tenant, SystemActor, r)
 		}
 	}
+	// Pledges that may be invoked: looked for once a day, after 10:00.
 	date := now.In(ist).Format("2006-01-02")
+	if now.In(ist).Hour() < 10 {
+		return
+	}
+	if _, _, err := docs.Get[struct{}](ctx, o.Docs, tenant, cCPLCfg, "scan|"+date); err == nil {
+		return
+	}
+	_ = docs.Upsert(ctx, o.Docs, tenant, cCPLCfg, "scan|"+date, struct{}{}, SystemActor)
 	for _, c := range o.InvocationCandidates(ctx, tenant, date) {
 		if c.Raised == "" {
 			o.raiseWork(ctx, tenant, "cdslinvoke", c.UCC+"|"+c.PSN, "Pledge "+c.PSN+" of "+c.UCC+" may be invoked", c.Why+". Raise an invocation on Pledges (CDSL) if the client does not pay.", c.UCC, RoleRisk, "cdslpledge", date)

@@ -1247,6 +1247,8 @@ func (o *Ops) cdslPledgeTick(ctx context.Context, tenant string, now time.Time) 
 				})
 			}
 		}
+	}
+	if _, err := o.cplConnection(ctx, tenant, "CF"); err == nil {
 		o.cplReleaseTick(ctx, tenant, now)
 	}
 	if _, err := o.cplConnection(ctx, tenant, "EPI"); err == nil {
