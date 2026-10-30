@@ -4,6 +4,7 @@
 
 Activating a client | Ops checker
 Adding client documents | Ops maker, Ops checker, Compliance officer, Branch staff
+Adding or changing dealers and terminals | Ops maker, Compliance officer
 Adding users | Admin
 Advancing onboarding | Ops maker, Ops checker
 Allocating collateral | Ops maker, Ops checker, Risk manager
@@ -73,6 +74,7 @@ Entering broker funds | Risk manager
 Entering delivery instructions | Ops maker, Ops checker, Branch staff
 Entering outside trades | Ops maker, Ops checker, Branch staff
 Entering vouchers | Ops maker, Ops checker
+Exporting dealers with PANs | Ops maker, Compliance officer
 Fetching files from NSE's extranet | Ops maker, Ops checker, Risk manager
 Fetching margins from NSE Clearing | Ops maker, Ops checker, Risk manager
 Fetching trades from NSE | Ops maker, Ops checker, Risk manager
@@ -84,6 +86,7 @@ Generating contract notes | Ops maker, Ops checker
 Generating reports | Ops maker, Ops checker, Risk manager, Compliance officer
 Giving clients portal access | Ops checker, Admin
 Identifying a bank credit | Ops checker
+Importing dealers and terminals | Ops maker, Compliance officer
 Issuing DIS books | Ops maker, Ops checker
 Loading MF files | Ops maker, Ops checker
 Loading brokerage rates | Ops checker
@@ -93,6 +96,7 @@ Loading files | Ops maker, Ops checker, Risk manager, Compliance officer
 Looking at NSE's extranet | Ops maker, Ops checker, Risk manager, Compliance officer
 MTF enrolment | Ops checker, Risk manager
 MTF margin calls | Ops checker, Risk manager
+Making BSE dealer files | Ops maker, Compliance officer
 Making the NSE Clearing key | Admin
 Managing SIPs | Ops maker, Ops checker
 Managing branches | Ops checker, Admin
@@ -100,6 +104,7 @@ Managing message channels and desks | Admin
 Managing partners | Ops checker, Admin
 Managing the firm's saved logins | Admin
 Mapping clients | Ops checker, Admin
+Marking a dealer as left | Compliance officer
 Marking a report uploaded | Ops checker, Compliance officer
 Matching stock SIP orders to trades | Ops maker, Ops checker, Risk manager
 Month-end postings | Ops checker
@@ -202,6 +207,7 @@ View data protection | Compliance officer
 Viewing AI usage | Compliance officer
 Viewing backups | Ops checker, Compliance officer
 Viewing connections | Compliance officer, Admin
+Viewing dealers and terminals | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing nominations | Ops maker, Ops checker, Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
