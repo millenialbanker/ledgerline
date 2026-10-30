@@ -1457,22 +1457,21 @@ func (o *Ops) ImportDealers(ctx context.Context, tenant, actor string, data []by
 			after = append(after, d)
 		}
 	}
-	for _, k := range order {
+	// A clash is reported on the later line: earlier rows of the file
+	// count as on the register.
+	for n, k := range order {
 		e := groups[k]
 		d := e.d
-		var others []Dealer
-		others = append(others, after...)
-		for _, k2 := range order {
-			if k2 != k {
-				x := groups[k2].d
-				if x.ID == "" {
-					x.ID = "new:" + k2
-				}
-				others = append(others, x)
+		others := append([]Dealer{}, after...)
+		for _, k2 := range order[:n] {
+			x := groups[k2].d
+			if x.ID == "" {
+				x.ID = fmt.Sprintf("line %d", groups[k2].line)
 			}
+			others = append(others, x)
 		}
 		if d.ID == "" {
-			d.ID = "new:" + k
+			d.ID = fmt.Sprintf("line %d", e.line)
 		}
 		for i, m := range uniqueIssues(d, others, today) {
 			bad(e.tline[i], "Terminal", "%s", m)
@@ -1480,7 +1479,7 @@ func (o *Ops) ImportDealers(ctx context.Context, tenant, actor string, data []by
 		if d.Status == DealerActive {
 			for _, x := range others {
 				if x.Status == DealerActive && x.PAN == d.PAN && x.ID != d.ID {
-					bad(e.line, "PAN", "PAN %s is on another dealer (%s)", MaskPAN(d.PAN), firstOf(strings.TrimPrefix(x.ID, "new:"), x.Name()))
+					bad(e.line, "PAN", "PAN %s is on another dealer (%s %s)", MaskPAN(d.PAN), x.ID, x.Name())
 					break
 				}
 			}
