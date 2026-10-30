@@ -224,3 +224,31 @@ related: add-ap
 1. Record the referrer on the new client (**Branch and partner → Change → Referred by**).
 2. The referrer earns the share of the referred client's brokerage set in [[settings|Settings]], for the set number of months.
 3. On [[partners|Branches & partners]], **Post rewards** for the month credits referrers' ledgers.
+
+## dealers-nism
+title: Dealers, terminals and NISM
+screen: dealers
+roles: Ops maker, Compliance officer
+ask: dealer; add a dealer; dealer terminal; terminal id; user id; ctcl id; location id; who uses the terminal; nism; nism viii; nism certificate expired; nism renewal; dealer left; close terminal; block terminal; trades with no dealer; dealer wise turnover; dealer report; terminals and users; bse dealer file; dealer registration file; dealer pan file; nism upload file; algo terminal 14 digit
+related: add-ap, add-branch, trading-channels, work-queue
+
+The register of who trades on each terminal, on [[dealers|Dealers & terminals]] (a tab of Branches & partners). Adding or changing a dealer needs an **Ops maker** or **Compliance officer**; marking a dealer as left needs the **Compliance officer**; any staff member can view it.
+
+1. Click **Add dealer** and enter:
+   - **Name**, **PAN** (shown masked to others), date of birth, mobile, email
+   - **Relationship:** Employee (with the **branch**), AP or AP employee (with the **AP's code** from Branches & partners)
+   - **Office** and **residence** address (BSE's files need them)
+   - **NISM Series VIII:** certificate number, exam date and **valid till**. A dealer with an active terminal must have one.
+2. Under **Terminals**, add each terminal or user ID with its exchange (NSE, BSE or MCX), segments, location ID, CTCL ID, algo flag and **active from** date. A terminal ID may be a pattern (333* covers every ID starting 333). One terminal ID can be active for only one dealer on an exchange.
+3. When a terminal stops, enter **closed on**; it is in use up to the day before.
+4. When a dealer leaves, click **Left**: give the date, and close their terminals from the next day.
+
+**Import and export:** **Import CSV** loads many dealers at once, one row per terminal (PAN, FirstName and Relationship are required; a dealer is matched by DealerID or PAN). A file with any wrong line is refused and the lines are listed; nothing is changed. **Export CSV** writes the same layout.
+
+**Reminders:** each day the compliance officer gets a work item 60, 30 and 7 days before a certificate runs out, and on the day ("block the terminal"), and one for a dealer who left with terminals still open. Each is raised once; updating the certificate or closing the terminals closes it.
+
+**Report:** dealer-wise turnover, trades, clients and brokerage for a period (brokerage from the bills, shared by turnover when several dealers traded for a client on a day), with **trades from terminals with no dealer** and **trades by a dealer whose NISM had expired** on the trade date.
+
+**Inspection:** **Terminals and users** downloads every terminal and segment with its location, dealer (PAN masked), NISM number and validity, branch or AP, and status.
+
+**BSE files:** on the **Exchange files** tab, download BSE's **dealer registration**, **NISM** and **dealer PAN** files (all dealers, or the IDs you give). After uploading, download BSE's records and enter each terminal's **BSE record ID**: later changes go as modifications with it, and a closed terminal marked **delete permanently** goes as P. The NISM file sends A the first time, RN after a renewal and M otherwise. NSE publishes no dealer file layout, so NSE terminals are registered on NSE's portal.

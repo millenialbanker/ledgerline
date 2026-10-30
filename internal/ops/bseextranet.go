@@ -962,6 +962,7 @@ type OTRRow struct {
 	Orders int       `json:"orders"`
 	Trades int       `json:"trades"`
 	Ratio  money.Dec `json:"ratio"`
+	Dealer string    `json:"dealer,omitempty"` // terminal rows: from the dealers register
 }
 
 // BSEOrderLog is a day's order log with its ratios.
@@ -1041,6 +1042,7 @@ func (o *Ops) loadBSEOrderLog(ctx context.Context, tenant, actor, date, name str
 		}
 	}
 	x.ByClient, x.ByTerminal = otr(ordBy, tradesBy), otr(ordTerm, tradesTerm)
+	o.tagOTRDealers(ctx, tenant, "BSE", date, x.ByTerminal) // dealers.go
 	if err := docs.Upsert(ctx, o.Docs, tenant, cBSEOrderLog, date, x, actor); err != nil {
 		return err
 	}

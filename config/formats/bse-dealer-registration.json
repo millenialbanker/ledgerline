@@ -1,0 +1,186 @@
+{
+ "id": "bse-dealer-registration",
+ "title": "Dealer registration (BSE)",
+ "party": "BSE",
+ "direction": "out",
+ "when": "On change",
+ "purpose": "Dealers and their BSE terminals (user IDs) to add or modify: one pipe-delimited row of 38 fields per terminal, no header, exactly one newline at the end. Written on Dealers & terminals → Exchange files.",
+ "names": [
+  "BSE_DEALER_REG_\\d{8}\\.txt"
+ ],
+ "template": "BSE_DEALER_REG_{date:02012006}.txt",
+ "delimiter": "|",
+ "header": false,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "Add/Modify",
+   "type": "str",
+   "note": "A to add, M to modify",
+   "required": true
+  },
+  {
+   "name": "UserType",
+   "type": "str"
+  },
+  {
+   "name": "Pincode",
+   "type": "str",
+   "note": "pincode of the terminal's location"
+  },
+  {
+   "name": "Tws/BranchId",
+   "type": "str"
+  },
+  {
+   "name": "UserId",
+   "type": "str",
+   "required": true
+  },
+  {
+   "name": "14 Digit",
+   "type": "str",
+   "note": "order type code 0-8 (0 non-algo, 1 algo, 2 algo using SOR, 3 non-algo SOR, 4 inter-exchange algo, 5 RMS square-off, 6 AMO, 7 basket, 8 batch)"
+  },
+  {
+   "name": "Vendorcode",
+   "type": "str"
+  },
+  {
+   "name": "OfficeAddress",
+   "type": "str"
+  },
+  {
+   "name": "OfficeAreaName",
+   "type": "str"
+  },
+  {
+   "name": "OfficeCity",
+   "type": "str"
+  },
+  {
+   "name": "OfficePincode",
+   "type": "str"
+  },
+  {
+   "name": "NatureofOffice",
+   "type": "str",
+   "note": "code; Ledgerline writes 0 for a branch and 1 for an AP office (to confirm)"
+  },
+  {
+   "name": "FirstName",
+   "type": "str",
+   "required": true
+  },
+  {
+   "name": "MiddleName",
+   "type": "str"
+  },
+  {
+   "name": "LastName",
+   "type": "str"
+  },
+  {
+   "name": "Emailaddress",
+   "type": "str"
+  },
+  {
+   "name": "PhoneNumber",
+   "type": "str"
+  },
+  {
+   "name": "Mobile",
+   "type": "str"
+  },
+  {
+   "name": "Mapinno",
+   "type": "str"
+  },
+  {
+   "name": "SebiRegiNo",
+   "type": "str"
+  },
+  {
+   "name": "Relationship",
+   "type": "str",
+   "note": "code; Ledgerline writes 0 employee, 1 AP, 2 AP employee (to confirm)"
+  },
+  {
+   "name": "Dateofbirth",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "ResidenceAddress",
+   "type": "str"
+  },
+  {
+   "name": "ResidenceAreaName",
+   "type": "str"
+  },
+  {
+   "name": "ResidenceCity",
+   "type": "str"
+  },
+  {
+   "name": "ResidencePincode",
+   "type": "str"
+  },
+  {
+   "name": "ConnectionMode",
+   "type": "str"
+  },
+  {
+   "name": "ActiveTerminal",
+   "type": "str",
+   "note": "Y active, N inactive, P permanent deletion",
+   "required": true
+  },
+  {
+   "name": "ApplicationType",
+   "type": "str"
+  },
+  {
+   "name": "PANNumber",
+   "type": "str",
+   "required": true
+  },
+  {
+   "name": "Cash",
+   "type": "str",
+   "note": "Y or N; likewise the other segment fields"
+  },
+  {
+   "name": "EquityDerivative",
+   "type": "str"
+  },
+  {
+   "name": "CurrencyDerivative",
+   "type": "str"
+  },
+  {
+   "name": "Commodity",
+   "type": "str"
+  },
+  {
+   "name": "EGR",
+   "type": "str"
+  },
+  {
+   "name": "AlGO_NONALGO",
+   "type": "str",
+   "note": "Y for an algo terminal, N otherwise"
+  },
+  {
+   "name": "ExchangeAllotedTradingID",
+   "type": "str"
+  },
+  {
+   "name": "ID",
+   "type": "str",
+   "note": "BSE's record ID: blank on add, required on modify (from BSE's download of the records)"
+  }
+ ],
+ "confirmed": false,
+ "linked": "Written from the dealers register (Dealers & terminals)"
+}

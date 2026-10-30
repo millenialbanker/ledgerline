@@ -150,6 +150,9 @@ func TestQuestions(t *testing.T) {
 		{"give the AP a login", "", "ap-login"},
 		{"how do we pay AP commission and TDS", "", "ap-payout"},
 		{"open a new branch office", "", "add-branch"},
+		{"dealer nism certificate expired", "", "dealers-nism"},
+		{"who uses terminal 40001", "", "dealers-nism"},
+		{"bse dealer registration file", "", "dealers-nism"},
 		// Day.
 		{"why can't I close the day", "", "eod-close"},
 		{"what is the daily process", "", "daily-routine"},

@@ -1,0 +1,74 @@
+{
+ "id": "bse-dealer-pan",
+ "title": "Dealer PAN (BSE)",
+ "party": "BSE",
+ "direction": "out",
+ "when": "On change",
+ "purpose": "Dealers' PAN with the location ID and office address of each open BSE terminal; pipe-delimited, no header. Written on Dealers & terminals → Exchange files.",
+ "names": [
+  "BSE_DEALER_PAN_\\d{8}\\.txt"
+ ],
+ "template": "BSE_DEALER_PAN_{date:02012006}.txt",
+ "delimiter": "|",
+ "header": false,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "Initial Flag",
+   "type": "str",
+   "note": "A for a terminal not yet registered at BSE, M otherwise (to confirm)",
+   "required": true
+  },
+  {
+   "name": "Location ID",
+   "type": "str",
+   "required": true
+  },
+  {
+   "name": "First Name",
+   "type": "str",
+   "required": true
+  },
+  {
+   "name": "Middle Name",
+   "type": "str"
+  },
+  {
+   "name": "Last Name",
+   "type": "str"
+  },
+  {
+   "name": "Pincode",
+   "type": "str"
+  },
+  {
+   "name": "Area Name",
+   "type": "str"
+  },
+  {
+   "name": "City Name",
+   "type": "str"
+  },
+  {
+   "name": "State Name",
+   "type": "str"
+  },
+  {
+   "name": "Address",
+   "type": "str"
+  },
+  {
+   "name": "Date Of Birth",
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "layout not in BSE's sample; written as on the dealer registration file (to confirm)"
+  },
+  {
+   "name": "PAN NO",
+   "type": "str",
+   "required": true
+  }
+ ],
+ "confirmed": false,
+ "linked": "Written from the dealers register (Dealers & terminals)"
+}
