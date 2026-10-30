@@ -117,7 +117,7 @@ const GROUPS = {
   filesg: ['Files', [['xfiles', 'Exchange files'], ['ccdata', 'Clearing data'], ['files', 'Other uploads & migration']]],
   clientsg: ['Clients & onboarding', [['clients', 'Clients'], ['apps', 'Online applications'], ['changes', 'Change requests']]],
   docsg: ['Client documents', [['statements', 'Client reports'], ['dispatch', 'Dispatch register'], ['messages', 'Client messages'], ['yearend', 'Year-end packs']]],
-  riskg: ['RMS & margin', [['rms', 'RMS & limits'], ['live', 'Live (intraday)'], ['margin', 'Margin reporting']]],
+  riskg: ['RMS & margin', [['rms', 'RMS & limits'], ['live', 'Live (intraday)'], ['margin', 'Margin reporting'], ['payouthold', 'Pay-out holds']]],
   collg: ['Collateral', [['collateral', 'Client collateral & pledge'], ['allocation', 'Clearing allocation'], ['deposits', 'Clearing deposits']]],
   moneyg: ['Receipts & payouts', [['money', 'Receipts & payouts'], ['bank', 'Bank reconciliation'], ['ras', 'Running account']]],
   debtg: ['Debtors', [['debits', 'Debtors & interest'], ['legacy', 'Legacy debts']]],

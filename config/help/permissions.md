@@ -8,6 +8,7 @@ Adding users | Admin
 Advancing onboarding | Ops maker, Ops checker
 Allocating collateral | Ops maker, Ops checker, Risk manager
 Applying corporate actions | Ops checker
+Applying pay-out holds | Ops checker, Risk manager
 Applying the BSDA review | Ops checker
 Approving a receipt | Ops checker
 Approving allocation | Ops checker, Risk manager
@@ -15,6 +16,7 @@ Approving an override | Ops checker, Risk manager
 Approving client changes | Ops checker
 Approving exchange holidays | Ops checker, Compliance officer
 Approving legacy debts | Ops checker, Compliance officer
+Approving pay-out holds | Risk manager
 Approving payouts | Ops checker, Risk manager
 Approving reactivation | Ops checker, Compliance officer
 Approving vouchers | Ops checker
@@ -61,11 +63,13 @@ DP requests | Ops maker, Ops checker, Compliance officer, Branch staff
 Deciding a pledge request | Ops maker, Ops checker, Risk manager
 Discarding scanned bills | Ops maker, Ops checker
 Downloading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
+Downloading pay-out hold files | Ops maker, Ops checker, Risk manager
 Downloading periodic files | Ops maker, Ops checker, Compliance officer
 Downloading stock SIP basket files | Ops maker, Ops checker, Risk manager
 Downloading the collateral file | Ops maker, Ops checker, Risk manager, Compliance officer
 Editing message templates | Ops checker, Compliance officer
 Entering a payout request | Ops maker, Ops checker, Branch staff, Authorised person
+Entering broker funds | Risk manager
 Entering delivery instructions | Ops maker, Ops checker, Branch staff
 Entering outside trades | Ops maker, Ops checker, Branch staff
 Entering vouchers | Ops maker, Ops checker
@@ -100,6 +104,7 @@ Marking a report uploaded | Ops checker, Compliance officer
 Matching stock SIP orders to trades | Ops maker, Ops checker, Risk manager
 Month-end postings | Ops checker
 NRI registration | Ops checker, Compliance officer
+Pay-out hold rules | Risk manager
 Paying vendor bills | Ops maker, Ops checker
 Placing IPO bids for clients | Ops maker, Ops checker, Branch staff, Authorised person
 Placing mutual fund orders | Ops maker, Ops checker
@@ -118,6 +123,7 @@ Recording IPO compensation | Ops checker, Compliance officer
 Recording MF allotments | Ops maker, Ops checker
 Recording MF mandates | Ops maker, Ops checker
 Recording MTF pledges | Ops maker, Ops checker, Risk manager
+Recording N-MASS changes | Ops checker, Risk manager
 Recording WhatsApp consent | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Recording a bounce | Ops maker, Ops checker, Admin
 Recording a physical dispatch | Ops maker, Ops checker, Admin
@@ -131,6 +137,7 @@ Recording complaints | Ops maker, Ops checker, Compliance officer, Branch staff,
 Recording re-KYC | Ops maker, Ops checker, Compliance officer
 Recording recovery of a legacy debt | Ops maker, Ops checker, Risk manager, Compliance officer
 Recording the BSDA choice | Ops maker, Ops checker
+Recording the funds pay-out | Ops checker, Risk manager
 Registering a stock SIP for a client | Ops maker, Ops checker
 Registering clients on MF platforms | Ops maker, Ops checker
 Rejecting an application | Ops checker, Compliance officer

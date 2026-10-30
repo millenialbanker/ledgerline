@@ -86,15 +86,18 @@ type LiveRow struct {
 	// derivatives (margins API), when fetched today; Margin uses it when it
 	// is higher than Ledgerline's estimate.
 	ExchangeMargin *money.Dec `json:"exchange_margin,omitempty"`
-	MTM            money.Dec  `json:"mtm"`      // derivatives and intraday, at live prices
-	Unbilled       money.Dec  `json:"unbilled"` // charges on today's trades
-	Auction        money.Dec  `json:"auction"`  // short delivery reserve
-	Turnover       money.Dec  `json:"turnover"`
-	Free           money.Dec  `json:"free"`
-	Status         string     `json:"status"`
-	Blocked        bool       `json:"blocked"`
-	Short          []string   `json:"short_delivery"`
-	Trades         int        `json:"trades"`
+	// PayoutHold is sale money awaiting pay-out held back from the client's
+	// allocation and limit (payouthold.go); it comes off Free.
+	PayoutHold *money.Dec `json:"payout_hold,omitempty"`
+	MTM        money.Dec  `json:"mtm"`      // derivatives and intraday, at live prices
+	Unbilled   money.Dec  `json:"unbilled"` // charges on today's trades
+	Auction    money.Dec  `json:"auction"`  // short delivery reserve
+	Turnover   money.Dec  `json:"turnover"`
+	Free       money.Dec  `json:"free"`
+	Status     string     `json:"status"`
+	Blocked    bool       `json:"blocked"`
+	Short      []string   `json:"short_delivery"`
+	Trades     int        `json:"trades"`
 }
 
 // LiveView is the live risk screen.
@@ -224,6 +227,7 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 		held[h.UCC+"|"+h.Symbol] += h.Qty
 	}
 	exMargin, exAt, _ := o.NCLMClientMargins(ctx, tenant, date)
+	payoutHeld := o.payoutHeld(ctx, tenant, date)
 	if len(exMargin) > 0 {
 		v.ExchangeMarginAt = exAt
 	}
@@ -270,6 +274,13 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 		usable := cash.Add(money.Min(r.Collateral, cash)).Add(money.Min(r.Funds, money.Dec{}))
 		// Losses count at once; profits are not given intraday.
 		r.Free = usable.Sub(r.Margin).Add(money.Min(r.MTM, money.Dec{})).Sub(r.Unbilled).Sub(r.Auction)
+		if hs := payoutHeld[u]; len(hs) > 0 {
+			var h money.Dec
+			for _, v := range hs {
+				h = h.Add(v)
+			}
+			r.PayoutHold, r.Free = &h, r.Free.Sub(h)
+		}
 		switch {
 		case r.Free.Round(money.UnitPaisa) < 0 && (r.Margin.Sign() > 0 || r.MTM.Sign() < 0 || r.Auction.Sign() > 0):
 			r.Status = "Breach"
@@ -343,6 +354,8 @@ func (o *Ops) LimitFile(ctx context.Context, tenant, date string) ([]byte, error
 		}
 		rows = append(rows, []string{date, r.UCC, r.Cash.Fixed(2), r.CollUsable.Fixed(2), r.Required.Fixed(2), r.Overrides.Fixed(2), r.Limit.Fixed(2), buy, why, strings.Join(open, "/")})
 	}
+	// Ticked off for the day: pay-out holds wait for the BOD files (payouthold.go).
+	o.noteDailyFile(ctx, tenant, SystemActor, payoutBODLimitFile, "BOD limit file", date)
 	return csvBytesOf(rows), nil
 }
 
@@ -414,8 +427,18 @@ type AllocationRow struct {
 // Allocation splits each client's funds and collateral across segments for
 // the clearing corporation's client-level allocation (end of day): first to
 // cover each segment's margin, the remainder to the client's most active
-// segment (equity cash when none).
+// segment (equity cash when none). A pay-out hold active on date
+// (payouthold.go) lowers the held client's cash allocation.
 func (o *Ops) Allocation(ctx context.Context, tenant, date string) ([]AllocationRow, error) {
+	rows, err := o.allocationBase(ctx, tenant, date)
+	if err != nil {
+		return nil, err
+	}
+	return o.withPayoutHolds(ctx, tenant, date, rows), nil
+}
+
+// allocationBase is Allocation without pay-out holds.
+func (o *Ops) allocationBase(ctx context.Context, tenant, date string) ([]AllocationRow, error) {
 	rv, err := o.Risk(ctx, tenant, date)
 	if err != nil {
 		return nil, err
