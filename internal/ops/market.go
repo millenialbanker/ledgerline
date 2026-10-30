@@ -204,10 +204,23 @@ type PledgeRequest struct {
 	Symbol    string `json:"symbol"`
 	Qty       int64  `json:"qty"`
 	Time      string `json:"time"`
-	Status    string `json:"status"` // Pending, Accepted, Rejected
+	Status    string `json:"status"` // Pending, Accepted, Rejected; through CDSL's API also Awaiting client, Failed
 	PSN       string `json:"psn,omitempty"`
 	DecidedBy string `json:"decided_by,omitempty"`
 	Reason    string `json:"reason,omitempty"`
+	// Pledges sent through CDSL's margin pledge API (cdslpledge.go).
+	Via         string `json:"via,omitempty"`  // "CDSL API"; empty: recorded from the depository's file
+	Kind        string `json:"kind,omitempty"` // MP (margin) or MF (margin trading)
+	MTFID       string `json:"mtf_id,omitempty"`
+	RequestedBy string `json:"requested_by,omitempty"`
+	ReqID       string `json:"req_id,omitempty"` // CDSL reqid of the hand-over
+	ISINReqID   string `json:"isin_req_id,omitempty"`
+	SentAt      string `json:"sent_at,omitempty"`
+	Expiry      string `json:"expiry,omitempty"` // pledge expiry sent to CDSL
+	PSNStatus   string `json:"psn_status,omitempty"`
+	DoneAt      string `json:"done_at,omitempty"`
+	ErrCode     string `json:"err_code,omitempty"`
+	ErrMsg      string `json:"err_msg,omitempty"`
 }
 
 // PledgeRequests lists pledge requests.
@@ -232,6 +245,11 @@ func (o *Ops) DecidePledge(ctx context.Context, tenant, actor, id string, accept
 	}
 	if !accept && strings.TrimSpace(reason) == "" {
 		return p, invalid("give a reason for rejecting the pledge")
+	}
+	if p.Via == cplVia {
+		// Sent through CDSL's API: the checker approves, the client then
+		// confirms at CDSL, and CDSL's answer marks the shares pledged.
+		return o.decideAPIPledge(ctx, tenant, actor, p, accept, reason)
 	}
 	if accept {
 		hs, err := o.Holdings(ctx, tenant, p.UCC)

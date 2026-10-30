@@ -3,17 +3,13 @@ package ops
 import (
 	"bytes"
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"html/template"
-	"io"
-	"net/http"
 	"net/url"
 	"regexp"
 	"sort"
@@ -60,8 +56,7 @@ import (
 // and the on/off switches "pledge" and "early_payin" when present.
 
 const (
-	cplConnID = "cdsl-api"
-	cplVia    = "CDSL API"
+	cplVia = "CDSL API"
 
 	cCPLCfg      = "cdslplcfg"    // main: CDSLPledgeConfig
 	cCPLTok      = "cdslpltok"    // sha256(token): client confirmation links
@@ -73,26 +68,24 @@ const (
 	cplVersion = "2.0"
 )
 
-// cplHosts are CDSL's API gateways by environment (handbook §5.16.5 ff.).
-// Tests point them at a fake.
-var cplHosts = map[string]string{"Mock": "https://mockapigt.cdsl.co.in", "Live": "https://apigt.cdsl.co.in"}
-
-// cplPaths are the endpoints under the gateway.
+// cplPaths are the endpoints under CDSL's API gateway (CDSL API Handbook
+// §5.9.4, §5.10.4, §5.16.5, §5.17.4, §5.18.4, §5.19.4, §5.20.4). The
+// gateway (mock or live, or a proxy) comes from the shared connection.
 var cplPaths = map[string]string{
-	"MP":         "/PledgeServices/MPSetup",
-	"MF":         "/PledgeServices/MPSetup",
-	"MPInquiry":  "/PledgeServices/MPInquiry",
-	"MR":         "/PledgeServices/MRSetup",
-	"EP":         "/PledgeServices/Setup",
-	"UN":         "/PledgeServices/UnpledgeSetup",
-	"CF":         "/PledgeServices/ConfiscateSetup",
-	"EPI":        "/EarlyPayin/v2.0",
-	"EPIInquiry": "/EarlyPayin/Inquiry",
+	"MP":         "PledgeServices/MPSetup",
+	"MF":         "PledgeServices/MPSetup",
+	"MPInquiry":  "PledgeServices/MPInquiry",
+	"MR":         "PledgeServices/MRSetup",
+	"EP":         "PledgeServices/Setup",
+	"UN":         "PledgeServices/UnpledgeSetup",
+	"CF":         "PledgeServices/ConfiscateSetup",
+	"EPI":        "EarlyPayin/v2.0",
+	"EPIInquiry": "EarlyPayin/Inquiry",
 }
 
-// cplHTTP calls CDSL; tests swap it. CDSL requires TLS 1.2 or later.
-var cplHTTP = &http.Client{Timeout: 60 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, TLSHandshakeTimeout: 20 * time.Second}}
+// cplFamily is the switch on the shared connection each call needs.
+var cplFamily = map[string]string{"MP": cdslFamMargin, "MF": cdslFamMargin, "MPInquiry": cdslFamMargin, "MR": cdslFamMargin,
+	"EP": cdslFamPledge, "UN": cdslFamPledge, "CF": cdslFamPledge, "EPI": cdslFamEarlyPayin, "EPIInquiry": cdslFamEarlyPayin}
 
 func init() {
 	for _, k := range []string{"cdsl.pledge_confirm", "cdsl.pledge_done", "cdsl.pledge_failed", "cdsl.unpledge_done", "cdsl.invocation_notice", "cdsl.invocation_done"} {
@@ -107,125 +100,93 @@ func init() {
 		t("cdsl.pledge_done", ChEmail, "Pledge set up: {scrips}", "Dear {name},\n\nCDSL has set up your pledge {ref}: {scrips}, pledge sequence number {psn}. The shares stay in your demat account and count as margin with us.\n\n{firm}", ""),
 		t("cdsl.pledge_failed", ChEmail, "Pledge not set up: {ref}", "Dear {name},\n\nYour pledge request {ref} ({scrips}) was not set up by CDSL: {reason}. You can ask again from the client portal.\n\n{firm}", ""),
 		t("cdsl.unpledge_done", ChEmail, "Shares released from pledge: {scrips}", "Dear {name},\n\nThe pledge {psn} is released for {scrips} ({ref}). The shares are free in your demat account.\n\n{firm}", ""),
-		t("cdsl.invocation_notice", ChEmail, "Notice: pledged shares to be invoked", "Dear {name},\n\nYour trading account has an overdue debit of ₹{debit}. Unless it is paid by {due}, we will invoke the pledge {psn} and transfer {scrips} from your demat account to recover it, as the rights and obligations document allows. Any surplus after the sale is credited to your account.\n\nPay the debit before {due} to keep your shares. Questions: reply to this email.\n\n{firm}", ""),
-		t("cdsl.invocation_notice", ChSMS, "", "Dear {name}, overdue debit Rs {debit}. Unless paid by {due}, pledge {psn} ({scrips}) will be invoked to recover it. -{firm}", "1107166000000000062"),
-		t("cdsl.invocation_done", ChEmail, "Pledged shares invoked: {scrips}", "Dear {name},\n\nAs our notice said, the pledge {psn} was invoked for {scrips} ({ref}) to recover the overdue debit. The sale proceeds will be credited to your trading account.\n\n{firm}", ""),
+		t("cdsl.invocation_notice", ChEmail, "Notice: pledged shares to be invoked", "Dear {name},\n\n{reason}. Unless it is paid by {due}, we will invoke the pledge {psn} and transfer {scrips} from your demat account to recover ₹{debit}, as the rights and obligations document allows. Any surplus after the sale is credited to your account.\n\nPay before {due} to keep your shares. Questions: reply to this email.\n\n{firm}", ""),
+		t("cdsl.invocation_notice", ChSMS, "", "Dear {name}, Rs {debit} is overdue. Unless paid by {due}, pledge {psn} ({scrips}) will be invoked to recover it. -{firm}", "1107166000000000062"),
+		t("cdsl.invocation_done", ChEmail, "Pledged shares invoked: {scrips}", "Dear {name},\n\nAs our notice said, the pledge {psn} was invoked for {scrips} ({ref}). The sale proceeds will be credited to your trading account.\n\n{firm}", ""),
 	)
 }
 
 // ---- connection, keys, transport ----
 
-// cplConn is what the shared CDSL API connection gives these APIs.
+// cplConn is the shared "cdsl-api" connection (cdslapi.go) as the pledge
+// and early pay-in APIs use it.
 type cplConn struct {
-	DPID string // 6-digit DP ID as the APIs carry it
-	DP8  string // the 8-digit DP ID BO IDs start with, when known
+	x    cdslConn
+	DPID string // the DP ID as the APIs carry it (at most 6 digits)
+	DP8  string // the 8-digit DP ID BO IDs start with, when the connection has it
 	Env  string // Mock or Live
 	key  []byte
+	iv   []byte
 }
 
-func (c cplConn) url(kind string) string { return cplHosts[c.Env] + cplPaths[kind] }
+func (c cplConn) url(kind string) string { return c.x.URL(cplPaths[kind]) }
 
-// ErrCDSLNotSet means the CDSL API connection is missing or switched off.
-var ErrCDSLNotSet = errors.New("the CDSL APIs connection is not set up (Settings → Connections → CDSL APIs (DP))")
+// errCPLNotSet means the CDSL API connection is missing, incomplete or the
+// API family is switched off.
+var errCPLNotSet = errors.New("the CDSL APIs connection is not set up (Settings → Connections → CDSL APIs (DP))")
 
-// cplConnection reads the shared connection for an API family ("pledge" or
-// "early_payin"). A missing connection, or the family switched off, is
-// ErrCDSLNotSet.
-func (o *Ops) cplConnection(ctx context.Context, tenant, family string) (cplConn, error) {
-	c, _, err := docs.Get[Connection](ctx, o.Docs, tenant, cConn, cplConnID)
-	if err != nil || c.Status == "Not set" || c.Values == nil {
-		return cplConn{}, ErrCDSLNotSet
+// cplConnection reads the shared connection for an API (a cplPaths kind).
+// A missing connection, or its family switched off, is errCPLNotSet.
+func (o *Ops) cplConnection(ctx context.Context, tenant, kind string) (cplConn, error) {
+	x, ok := o.cdslConnFor(ctx, tenant)
+	if !ok {
+		return cplConn{}, errCPLNotSet
 	}
-	for _, k := range []string{family, "api_" + family} {
-		if v := strings.ToLower(strings.TrimSpace(c.Values[k])); v == "off" || v == "no" || v == "false" || v == "disabled" {
-			return cplConn{}, fmt.Errorf("%w: the %s APIs are switched off there", ErrCDSLNotSet, strings.ReplaceAll(family, "_", "-"))
+	fam := cplFamily[kind]
+	if !x.On(fam) {
+		for _, f := range cdslFamilies {
+			if f.Key == fam {
+				return cplConn{}, fmt.Errorf("%w: switch on %s there once CDSL has enabled it", errCPLNotSet, f.Label)
+			}
 		}
+		return cplConn{}, errCPLNotSet
 	}
-	dp := strings.TrimSpace(c.Values["dp_id"])
-	cc := cplConn{Env: "Mock"}
+	dp := strings.TrimSpace(x.DPID)
+	cc := cplConn{x: x, Env: x.Env}
 	switch {
-	case len(dp) == 8 && strings.Trim(dp, "0123456789") == "":
+	case len(dp) == 8 && cplDigits(dp):
 		cc.DP8, cc.DPID = dp, dp[2:]
-	case len(dp) >= 1 && len(dp) <= 6 && strings.Trim(dp, "0123456789") == "":
+	case len(dp) >= 1 && len(dp) <= 6 && cplDigits(dp):
 		cc.DPID = dp
 	default:
-		return cplConn{}, fmt.Errorf("%w: the DP ID should be CDSL's 8-digit DP ID (or its last 6 digits)", ErrCDSLNotSet)
+		return cplConn{}, fmt.Errorf("%w: the DP ID should be CDSL's DP ID (up to 6 digits, or the 8-digit form BO IDs start with)", errCPLNotSet)
 	}
-	if e := strings.ToLower(c.Values["env"]); strings.HasPrefix(e, "live") || strings.HasPrefix(e, "prod") {
-		cc.Env = "Live"
+	var err error
+	if cc.key, err = x.apiKey(); err != nil {
+		return cplConn{}, fmt.Errorf("%w: %v", errCPLNotSet, err)
 	}
-	key, err := cplKey(c.Secrets["secret"])
-	if err != nil {
-		return cplConn{}, err
+	if len(cc.key) != 32 {
+		return cplConn{}, fmt.Errorf("%w: the API key must be 32 characters for AES-256", errCPLNotSet)
 	}
-	cc.key = key
+	if cc.iv, err = x.iv(); err != nil {
+		return cplConn{}, fmt.Errorf("%w: %v", errCPLNotSet, err)
+	}
 	return cc, nil
 }
 
-// cplKey turns the API key CDSL issues into the AES-256 key: 32 characters
-// used as they are, or 64 hex digits, or base64 of 32 bytes.
-func cplKey(s string) ([]byte, error) {
-	s = strings.TrimSpace(s)
-	switch {
-	case s == "":
-		return nil, fmt.Errorf("%w: enter the API key CDSL issued (Secret key)", ErrCDSLNotSet)
-	case len(s) == 32:
-		return []byte(s), nil
-	case len(s) == 64:
-		if b, err := hex.DecodeString(s); err == nil {
-			return b, nil
-		}
-	}
-	if b, err := base64.StdEncoding.DecodeString(s); err == nil && len(b) == 32 {
-		return b, nil
-	}
-	return nil, fmt.Errorf("%w: the API key must be 32 characters for AES-256 (or 64 hex digits)", ErrCDSLNotSet)
-}
+func cplDigits(s string) bool { return s != "" && strings.Trim(s, "0123456789") == "" }
 
-// cplEncrypt is AES-256-CBC, PKCS#7 padding, zero IV, base64 (§5.16.7).
-func cplEncrypt(key, plain []byte) (string, error) {
-	b, err := aes.NewCipher(key)
+// seal encrypts a request: AES-256-CBC, PKCS#7, IV "null" (zero bytes
+// unless the connection has one), base64 (§5.16.7).
+func (c cplConn) seal(v any) (string, error) {
+	b, err := json.Marshal(v)
 	if err != nil {
 		return "", err
 	}
-	n := aes.BlockSize - len(plain)%aes.BlockSize
-	buf := append(append([]byte{}, plain...), bytes.Repeat([]byte{byte(n)}, n)...)
-	cipher.NewCBCEncrypter(b, make([]byte, aes.BlockSize)).CryptBlocks(buf, buf)
-	return base64.StdEncoding.EncodeToString(buf), nil
+	return cdslEncrypt(c.key, c.iv, b)
 }
 
-var errCPLDecrypt = errors.New("the reply could not be decrypted with the CDSL API key")
-
-// cplDecrypt reverses cplEncrypt. A form post may turn '+' into a space.
-func cplDecrypt(key []byte, s string) ([]byte, error) {
-	s = strings.ReplaceAll(strings.TrimSpace(s), " ", "+")
-	raw, err := base64.StdEncoding.DecodeString(s)
-	if err != nil {
-		if raw, err = base64.RawStdEncoding.DecodeString(strings.TrimRight(s, "=")); err != nil {
-			return nil, errCPLDecrypt
-		}
-	}
-	if len(raw) == 0 || len(raw)%aes.BlockSize != 0 {
-		return nil, errCPLDecrypt
-	}
-	b, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]byte, len(raw))
-	cipher.NewCBCDecrypter(b, make([]byte, aes.BlockSize)).CryptBlocks(out, raw)
-	n := int(out[len(out)-1])
-	if n == 0 || n > aes.BlockSize || n > len(out) || !bytes.Equal(out[len(out)-n:], bytes.Repeat([]byte{byte(n)}, n)) {
-		return nil, errCPLDecrypt
-	}
-	return out[:len(out)-n], nil
+// decrypt decrypts one value. A form post that was not percent-encoded
+// turns '+' into a space, so spaces are read back as '+'.
+func (c cplConn) decrypt(s string) ([]byte, error) {
+	return cdslDecrypt(c.key, c.iv, strings.ReplaceAll(strings.TrimSpace(s), " ", "+"))
 }
 
 // cplNorm re-encodes JSON with every object key trimmed and lower-cased:
 // CDSL's samples spell keys loosely (" pledgeresdtls", "partQuantity").
 func cplNorm(b []byte) ([]byte, error) {
 	var v any
-	d := json.NewDecoder(bytes.NewReader(b))
+	d := json.NewDecoder(bytes.NewReader(cdslCleanJSON(b)))
 	d.UseNumber()
 	if err := d.Decode(&v); err != nil {
 		return nil, err
@@ -252,16 +213,16 @@ func cplNorm(b []byte) ([]byte, error) {
 	return json.Marshal(walk(v))
 }
 
-var reHidden = regexp.MustCompile(`(?is)<input[^>]*name\s*=\s*["']?([a-z0-9_]+)["']?[^>]*value\s*=\s*["']([^"']*)["']`)
+var cplReHidden = regexp.MustCompile(`(?is)<input[^>]*name\s*=\s*["']?([a-z0-9_]+)["']?[^>]*value\s*=\s*["']([^"']*)["']`)
 
-// cplOpen finds and decrypts the encrypted part of a CDSL reply. Replies
-// may be a JSON object carrying the encrypted value (field names), a
+// open finds and decrypts the encrypted part of a CDSL reply. Replies may
+// be a JSON object carrying the encrypted value (under one of fields), a
 // form-encoded or HTML form post, a bare (or quoted) base64 string, or
-// already-plain JSON. It returns key-normalised JSON.
-func cplOpen(key, body []byte, fields ...string) ([]byte, error) {
-	s := strings.TrimSpace(string(body))
+// already-plain JSON (error replies). It returns key-normalised JSON.
+func (c cplConn) open(body []byte, fields ...string) ([]byte, error) {
+	s := strings.TrimSpace(string(cdslCleanJSON(body)))
 	try := func(v string) ([]byte, bool) {
-		p, err := cplDecrypt(key, v)
+		p, err := c.decrypt(v)
 		if err != nil {
 			return nil, false
 		}
@@ -308,13 +269,10 @@ func cplOpen(key, body []byte, fields ...string) ([]byte, error) {
 		}
 	}
 	if strings.Contains(strings.ToLower(s), "<input") {
-		for _, m := range reHidden.FindAllStringSubmatch(s, -1) {
+		for _, m := range cplReHidden.FindAllStringSubmatch(s, -1) {
 			for _, f := range fields {
 				if strings.EqualFold(m[1], f) {
-					if p, ok := try(template.HTMLEscapeString(m[2])); ok {
-						return p, nil
-					}
-					if p, ok := try(m[2]); ok {
+					if p, ok := try(html.UnescapeString(m[2])); ok {
 						return p, nil
 					}
 				}
@@ -337,72 +295,35 @@ func cplOpen(key, body []byte, fields ...string) ([]byte, error) {
 	if p, ok := try(s); ok {
 		return p, nil
 	}
-	return nil, errCPLDecrypt
+	return nil, errCDSLDecrypt
 }
 
-// cplReply is an HTTP answer from CDSL, kept for the request log.
-type cplReply struct {
-	Status int
-	Body   []byte
-}
-
-// cplPostForm sends a form post (the setup APIs).
-func (o *Ops) cplPostForm(ctx context.Context, cc cplConn, kind string, form url.Values) (cplReply, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cc.url(kind), strings.NewReader(form.Encode()))
+// postForm sends a form post (the setup APIs: dpid, reqid, version and
+// pledgedtls; the "Request Header/Body" of §5.18–5.20 are all form fields).
+func (c cplConn) postForm(ctx context.Context, kind string, form url.Values) ([]byte, error) {
+	r, err := c.x.do(ctx, cdslRequest{Path: cplPaths[kind], Form: form})
 	if err != nil {
-		return cplReply{}, err
+		return r.Body, err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	return cplDo(req)
+	if r.Status >= 400 {
+		return r.Body, fmt.Errorf("CDSL answered %d", r.Status)
+	}
+	return r.Body, nil
 }
 
-// cplPostJSON sends the JSON APIs (inquiries, early pay-in): dpid, version
+// postJSON sends the JSON APIs (inquiries, early pay-in): dpid, version
 // and requestseqno as request headers and {"encryptreqdtl": …} as the body
 // (handbook §5.9.6, §5.10.6, §5.17.6 "Request Header/Body").
-func (o *Ops) cplPostJSON(ctx context.Context, cc cplConn, kind, seq string, enc string) (cplReply, error) {
+func (c cplConn) postJSON(ctx context.Context, kind, seq, enc string) ([]byte, error) {
 	b, _ := json.Marshal(map[string]string{"encryptreqdtl": enc})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cc.url(kind), bytes.NewReader(b))
+	r, err := c.x.do(ctx, cdslRequest{Path: cplPaths[kind], JSON: b, Header: map[string]string{"dpid": c.DPID, "version": cplVersion, "requestseqno": seq}})
 	if err != nil {
-		return cplReply{}, err
+		return r.Body, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("dpid", cc.DPID)
-	req.Header.Set("version", cplVersion)
-	req.Header.Set("requestseqno", seq)
-	return cplDo(req)
-}
-
-func cplDo(req *http.Request) (cplReply, error) {
-	resp, err := cplHTTP.Do(req)
-	if err != nil {
-		return cplReply{}, fmt.Errorf("CDSL did not answer: %s", cplErrText(err))
+	if r.Status >= 400 {
+		return r.Body, fmt.Errorf("CDSL answered %d", r.Status)
 	}
-	defer resp.Body.Close()
-	b, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
-	if err != nil {
-		return cplReply{}, fmt.Errorf("CDSL's answer was cut off: %v", err)
-	}
-	r := cplReply{Status: resp.StatusCode, Body: b}
-	if resp.StatusCode >= 400 {
-		return r, fmt.Errorf("CDSL answered %d", resp.StatusCode)
-	}
-	return r, nil
-}
-
-func cplErrText(err error) string {
-	m := err.Error()
-	if i := strings.LastIndex(m, "\": "); i >= 0 {
-		m = m[i+3:]
-	}
-	return m
-}
-
-// maskBO keeps the last four digits of a BO ID for logs.
-func maskBO(b string) string {
-	if len(b) <= 4 {
-		return "****"
-	}
-	return strings.Repeat("*", len(b)-4) + b[len(b)-4:]
+	return r.Body, nil
 }
 
 func cplTime(t time.Time) string { return t.In(ist).Format("02012006150405") }
@@ -414,7 +335,8 @@ func cplDate(d string) string {
 }
 func cplQty(q int64) string { return strconv.FormatInt(q, 10) }
 
-// cplReqID is a reqid unique for the DP for ever: the firm's own counter.
+// cplReqID is a reqid unique for the DP for ever: the firm's own counter
+// with a prefix, zero-padded to width.
 func (o *Ops) cplReqID(ctx context.Context, tenant, prefix string, width int) (string, error) {
 	n, err := o.next(ctx, tenant, "cdslreq", SystemActor)
 	if err != nil {
@@ -498,9 +420,9 @@ func (o *Ops) CDSLPledgeSettings(ctx context.Context, tenant string) CDSLPledgeC
 }
 
 var (
-	reBO16  = regexp.MustCompile(`^[0-9]{16}$`)
-	reAlnum = regexp.MustCompile(`^[A-Za-z0-9-]*$`)
-	reNum   = regexp.MustCompile(`^[0-9]*$`)
+	cplReBO16  = regexp.MustCompile(`^[0-9]{16}$`)
+	cplReAlnum = regexp.MustCompile(`^[A-Za-z0-9-]*$`)
+	cplReNum   = regexp.MustCompile(`^[0-9]*$`)
 )
 
 // SaveCDSLPledgeSettings checks and stores the configuration.
@@ -509,7 +431,7 @@ func (o *Ops) SaveCDSLPledgeSettings(ctx context.Context, tenant, actor string, 
 		return c, err
 	}
 	for _, x := range []struct{ v, what string }{{c.PledgeeBOID, "margin pledgee BO ID"}, {c.MTFPledgeeBOID, "MTF pledgee BO ID"}, {c.RepledgeeBOID, "re-pledge pledgee BO ID"}, {c.EPIBOID, "early pay-in BO ID"}, {c.DDPIPOAID, "DDPI POA ID"}} {
-		if x.v != "" && !reBO16.MatchString(x.v) {
+		if x.v != "" && !cplReBO16.MatchString(x.v) {
 			return c, invalid("the %s must be 16 digits", x.what)
 		}
 	}
@@ -517,8 +439,8 @@ func (o *Ops) SaveCDSLPledgeSettings(ctx context.Context, tenant, actor string, 
 		v, what string
 		n       int
 		re      *regexp.Regexp
-	}{{c.TMID, "TM ID", 12, reAlnum}, {c.CMID, "CM ID", 8, reAlnum}, {c.RepledgeCMID, "re-pledge CM ID", 8, reAlnum}, {c.EPICMID, "early pay-in CM ID", 16, reAlnum}, {c.EPITMCPID, "early pay-in TM/CP ID", 12, reAlnum},
-		{c.ExID, "exchange ID", 2, reNum}, {c.EPIExID, "early pay-in exchange ID", 2, reNum}, {c.ReasonCode, "reason code", 2, reNum}, {c.RepledgeReason, "re-pledge reason code", 2, reNum}, {c.NormalReason, "normal pledge reason code", 2, reNum}} {
+	}{{c.TMID, "TM ID", 12, cplReAlnum}, {c.CMID, "CM ID", 8, cplReAlnum}, {c.RepledgeCMID, "re-pledge CM ID", 8, cplReAlnum}, {c.EPICMID, "early pay-in CM ID", 16, cplReAlnum}, {c.EPITMCPID, "early pay-in TM/CP ID", 12, cplReAlnum},
+		{c.ExID, "exchange ID", 2, cplReNum}, {c.EPIExID, "early pay-in exchange ID", 2, cplReNum}, {c.ReasonCode, "reason code", 2, cplReNum}, {c.RepledgeReason, "re-pledge reason code", 2, cplReNum}, {c.NormalReason, "normal pledge reason code", 2, cplReNum}} {
 		if len(x.v) > x.n || !x.re.MatchString(x.v) {
 			return c, invalid("the %s is at most %d letters or digits", x.what, x.n)
 		}
@@ -622,7 +544,7 @@ func (o *Ops) RequestMarginPledge(ctx context.Context, tenant, actor, ucc, kind,
 	if c.Status != "Active" || bo.Status != "Active" || bo.Freeze == "Debit" || bo.Freeze == "Both" {
 		return nil, invalid("%s's account or demat account is not active for debits", ucc)
 	}
-	if !reBO16.MatchString(bo.BOID) || !strings.EqualFold(firstOf(bo.Depository, "CDSL"), "CDSL") {
+	if !cplReBO16.MatchString(bo.BOID) || !strings.EqualFold(firstOf(bo.Depository, "CDSL"), "CDSL") {
 		return nil, invalid("%s has no CDSL demat account with this DP", ucc)
 	}
 	var mtf MTFPosition
@@ -717,7 +639,7 @@ func (o *Ops) CDSLPledgeLink(ctx context.Context, tenant, actor, ucc string) (st
 	if len(o.cplAwaiting(ctx, tenant, ucc)) == 0 {
 		return "", invalid("there is no approved pledge waiting for your confirmation")
 	}
-	if _, err := o.cplConnection(ctx, tenant, "pledge"); err != nil {
+	if _, err := o.cplConnection(ctx, tenant, "MP"); err != nil {
 		return "", err
 	}
 	tok, err := newToken()
@@ -809,7 +731,7 @@ func (o *Ops) CDSLPledgeFormPage(ctx context.Context, tenant, token, base string
 	if err != nil {
 		return fail("This link has expired or was already used. Open Pledge shares in the client portal and choose Confirm with CDSL again.", ErrNotFound)
 	}
-	cc, err := o.cplConnection(ctx, tenant, "pledge")
+	cc, err := o.cplConnection(ctx, tenant, "MP")
 	if err != nil {
 		return fail("Pledges through CDSL are not available just now. Please try later.", err)
 	}
@@ -834,7 +756,7 @@ func (o *Ops) CDSLPledgeFormPage(ctx context.Context, tenant, token, base string
 	if kind == "MF" {
 		pledgee = cfg.MTFPledgeeBOID
 	}
-	if !reBO16.MatchString(pledgee) || cfg.CMID == "" || cfg.TMID == "" || cfg.ExID == "" || cfg.SegmentID == "" {
+	if !cplReBO16.MatchString(pledgee) || cfg.CMID == "" || cfg.TMID == "" || cfg.ExID == "" || cfg.SegmentID == "" {
 		return fail("Pledges through CDSL are not set up yet. Please contact us.", invalid("CDSL pledge settings are incomplete"))
 	}
 	if cc.DP8 != "" && !strings.HasPrefix(bo.BOID, cc.DP8) {
@@ -848,7 +770,8 @@ func (o *Ops) CDSLPledgeFormPage(ctx context.Context, tenant, token, base string
 	today := now.Format("2006-01-02")
 	d := cplMPDetails{PledgeIdentifier: kind, ReqTime: cplTime(now), PledgorBOID: bo.BOID, PledgeeBOID: pledgee, ExecutionDate: cplDate(today),
 		ExpiryDate: cplDate(addDays(today, cfg.ExpiryDays)), UCCID: truncate(c.UCC, 11), ExID: cfg.ExID, EntityIdentifier: cfg.Entity, TMID: cfg.TMID,
-		Remarks: "Margin pledge", ReturnURL: strings.TrimRight(base, "/") + "/hooks/" + tenant + "/cdsl/pledge-return"}
+		Remarks: "Margin pledge", ReturnURL: strings.TrimRight(firstOf(cc.x.Callback, base), "/") + "/hooks/" + tenant + "/cdsl/pledge-return"}
+	expiry := addDays(today, cfg.ExpiryDays)
 	call := CDSLCall{ReqID: reqID, Kind: kind, UCC: tk.UCC, At: now.Format(time.RFC3339), Status: "Sent"}
 	for _, p := range batch {
 		isinReq, err := o.cplReqID(ctx, tenant, "LI", 20)
@@ -867,8 +790,7 @@ func (o *Ops) CDSLPledgeFormPage(ctx context.Context, tenant, token, base string
 		call.IDs, call.ISINReq = append(call.IDs, p.ID), append(call.ISINReq, isinReq)
 		pg.Lines = append(pg.Lines, fmt.Sprintf("%d %s (%s)", p.Qty, p.Symbol, p.ISIN))
 	}
-	plain, _ := json.Marshal(d)
-	enc, err := cplEncrypt(cc.key, plain)
+	enc, err := cc.seal(d)
 	if err != nil {
 		return fail("Something went wrong; please try again.", err)
 	}
@@ -877,11 +799,11 @@ func (o *Ops) CDSLPledgeFormPage(ctx context.Context, tenant, token, base string
 	}
 	for i, p := range batch {
 		_, _ = docs.Update(ctx, o.Docs, tenant, cPledge, p.ID, SystemActor, func(x *PledgeRequest) error {
-			x.ReqID, x.ISINReqID, x.SentAt = reqID, call.ISINReq[i], call.At
+			x.ReqID, x.ISINReqID, x.SentAt, x.Expiry = reqID, call.ISINReq[i], call.At, expiry
 			return nil
 		})
 	}
-	o.log(ctx, tenant, SystemActor, "cdsl.pledge.sent", reqID, map[string]any{"bo": maskBO(bo.BOID), "kind": kind, "requests": call.IDs})
+	o.log(ctx, tenant, SystemActor, "cdsl.pledge.sent", reqID, map[string]any{"bo": cdslMaskBO(bo.BOID), "kind": kind, "requests": call.IDs})
 	pg.Name = strings.Fields(c.Name + " x")[0]
 	pg.Action = cc.url(kind)
 	pg.Fields = []CDSLFormField{{"dpid", cc.DPID}, {"reqid", reqID}, {"version", cplVersion}, {"pledgedtls", enc}}
@@ -984,12 +906,12 @@ func (o *Ops) CDSLPledgeReturn(ctx context.Context, tenant, base string, form ur
 		o.log(ctx, tenant, SystemActor, "cdsl.pledge.return_unknown", truncate(reqID, 30), nil)
 		return pg, ErrNotFound
 	}
-	cc, err := o.cplConnection(ctx, tenant, "pledge")
+	cc, err := o.cplConnection(ctx, tenant, "MP")
 	if err != nil {
 		pg.Error = "Your pledge result will show in the client portal shortly."
 		return pg, err
 	}
-	p, err := cplOpen(cc.key, []byte(form.Encode()), "pledgeresdtls")
+	p, err := cc.open([]byte(form.Encode()), "pledgeresdtls")
 	if err != nil {
 		o.log(ctx, tenant, SystemActor, "cdsl.pledge.return_rejected", reqID, map[string]any{"why": "did not decrypt"})
 		pg.Error = "CDSL's reply could not be read. If you confirmed the pledge, it will show in the client portal shortly."
@@ -1090,7 +1012,7 @@ func (o *Ops) InquireMarginPledge(ctx context.Context, tenant, actor, reqID stri
 	if err != nil || (call.Kind != "MP" && call.Kind != "MF") {
 		return call, ErrNotFound
 	}
-	cc, err := o.cplConnection(ctx, tenant, "pledge")
+	cc, err := o.cplConnection(ctx, tenant, "MP")
 	if err != nil {
 		return call, err
 	}
@@ -1099,19 +1021,18 @@ func (o *Ops) InquireMarginPledge(ctx context.Context, tenant, actor, reqID stri
 	if err != nil {
 		return call, err
 	}
-	body, _ := json.Marshal(struct {
+	enc, err := cc.seal(struct {
 		ReqID       string `json:"reqid"`
 		ReqDateTime string `json:"reqdatetime"`
 	}{reqID, cplTime(now)})
-	enc, err := cplEncrypt(cc.key, body)
 	if err != nil {
 		return call, err
 	}
 	call.LastInquiry, call.Inquiries = now.Format(time.RFC3339), call.Inquiries+1
-	r, herr := o.cplPostJSON(ctx, cc, "MPInquiry", seq, enc)
+	body, herr := cc.postJSON(ctx, "MPInquiry", seq, enc)
 	var res cplPledgeRes
 	if herr == nil {
-		p, err := cplOpen(cc.key, r.Body, "encryptresdtl", "mpsetupresdtls", "encryptreqdtl", "data")
+		p, err := cc.open(body, "encryptresdtl", "mpsetupresdtls", "encryptreqdtl", "data")
 		if err == nil {
 			res, err = cplParsePledge(p)
 		}
@@ -1123,13 +1044,23 @@ func (o *Ops) InquireMarginPledge(ctx context.Context, tenant, actor, reqID stri
 		return call, fmt.Errorf("%w: %v", ErrState, herr)
 	}
 	_ = docs.Upsert(ctx, o.Docs, tenant, cCPLReq, reqID, call, SystemActor)
-	if fail, code, _ := res.failed(); fail && (code == "ERR221" || code == "ERR216") {
-		// CDSL has nothing: the client did not finish the OTP. After half
-		// an hour the requests wait for the client again.
-		if at, err := time.Parse(time.RFC3339, call.At); err == nil && now.Sub(at) > 30*time.Minute {
-			o.cplAbandon(ctx, tenant, call)
+	if fail, code, msg := res.failed(); fail && len(res.lines()) == 0 {
+		switch code {
+		case "ERR081", "ERR054", "ERR044", "ERR047", "ERR046":
+			// The client cancelled at CDSL or the OTP failed: no pledge.
+			o.cplApplyMP(ctx, tenant, call, res, "inquiry")
+		case "ERR221", "ERR216":
+			// CDSL has nothing: the client did not finish at CDSL's page.
+			// After half an hour the requests wait for the client again.
+			if at, err := time.Parse(time.RFC3339, call.At); err == nil && now.Sub(at) > 30*time.Minute {
+				o.cplAbandon(ctx, tenant, call)
+			}
+		default:
+			// An error with the inquiry itself (§5.17.7): try again later.
+			o.log(ctx, tenant, actor, "cdsl.pledge.inquiry_error", reqID, map[string]any{"code": code, "error": msg})
 		}
-		return docs.Get[CDSLCall](ctx, o.Docs, tenant, cCPLReq, reqID) //nolint
+		c, _, _ := docs.Get[CDSLCall](ctx, o.Docs, tenant, cCPLReq, reqID)
+		return c, nil
 	}
 	o.cplApplyMP(ctx, tenant, call, res, "inquiry")
 	c, _, _ := docs.Get[CDSLCall](ctx, o.Docs, tenant, cCPLReq, reqID)
@@ -1176,7 +1107,7 @@ type CDSLPledgeView struct {
 // CDSLPledges builds the screen.
 func (o *Ops) CDSLPledges(ctx context.Context, tenant, date string) (CDSLPledgeView, error) {
 	v := CDSLPledgeView{Date: date, Settings: o.CDSLPledgeSettings(ctx, tenant), Pledges: []PledgeRequest{}, Calls: []CDSLCall{}}
-	if cc, err := o.cplConnection(ctx, tenant, "pledge"); err != nil {
+	if cc, err := o.cplConnection(ctx, tenant, "MP"); err != nil {
 		v.Problem = err.Error()
 	} else {
 		v.Connected, v.Env = true, cc.Env
@@ -1240,7 +1171,7 @@ func (o *Ops) PortalPledges(ctx context.Context, tenant, actor, ucc string) (Por
 		return PortalPledgeView{}, ErrNotFound
 	}
 	v := PortalPledgeView{UCC: ucc, Holdings: []PortalPledgeH{}, Requests: []PledgeRequest{}, Releases: []PledgeRelease{}, PSNs: []PSNAvail{}}
-	_, err = o.cplConnection(ctx, tenant, "pledge")
+	_, err = o.cplConnection(ctx, tenant, "MP")
 	v.Connected = err == nil
 	hs, _ := o.Holdings(ctx, tenant, ucc)
 	for _, h := range hs {
@@ -1283,7 +1214,7 @@ func (o *Ops) PortalPledges(ctx context.Context, tenant, actor, ucc string) (Por
 // approved and past their notice go to CDSL; early pay-ins with no answer
 // are asked about.
 func (o *Ops) cdslPledgeTick(ctx context.Context, tenant string, now time.Time) {
-	if _, err := o.cplConnection(ctx, tenant, "pledge"); err == nil {
+	if _, err := o.cplConnection(ctx, tenant, "MP"); err == nil {
 		cs, _ := docs.List[CDSLCall](ctx, o.Docs, tenant, cCPLReq, "")
 		for _, c := range cs {
 			if (c.Kind != "MP" && c.Kind != "MF") || c.Status != "Sent" {
@@ -1316,7 +1247,7 @@ func (o *Ops) cdslPledgeTick(ctx context.Context, tenant string, now time.Time) 
 		}
 		o.cplReleaseTick(ctx, tenant, now)
 	}
-	if _, err := o.cplConnection(ctx, tenant, "early_payin"); err == nil {
+	if _, err := o.cplConnection(ctx, tenant, "EPI"); err == nil {
 		o.epiTick(ctx, tenant, now)
 	}
 }
