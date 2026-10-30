@@ -295,9 +295,20 @@ func TestCDSLModifyFromChangeRequest(t *testing.T) {
 	}
 	o.cdslBOTick(ctx, T, time.Now())
 	r, ok := o.cdslBySource(ctx, T, ch.ID)
-	if !ok || r.Kind != CDSLModify || r.Status != crNeedsFile || len(r.Changes) != 1 || r.Changes[0].Field != "primary_email" || r.Changes[0].New != "meera.new@example.test" {
+	if !ok || r.Kind != CDSLModify || r.Status != crChecker || len(r.Changes) != 1 || r.Changes[0].Field != "primary_email" || r.Changes[0].New != "meera.new@example.test" {
 		t.Fatalf("captured: %+v", r)
 	}
+	// The BO modify file is made from the change: header, line 01, and a
+	// line 02 with only the new email.
+	if r.File == nil || !reBOFileName.MatchString(r.File.Name) || !strings.HasPrefix(r.File.Name, "11010900.") {
+		t.Fatalf("generated file: %+v", r.File)
+	}
+	_, gen, _ := o.CDSLRequestFile(ctx, T, "priya.nair", r.ID, "sent")
+	gl := strings.Split(strings.TrimSuffix(string(gen), "\r\n"), "\r\n")
+	if len(gl) != 3 || gl[0] != "010900APIUSE00001" || boFieldOf(t, gl[1], "m01", "bo_id") != "1201090000004444" || strings.TrimSpace(boFieldOf(t, gl[2], "m02", "email")) != "meera.new@example.test" || strings.TrimSpace(boFieldOf(t, gl[2], "m02", "mobile")) != "" {
+		t.Fatalf("modify file:\n%q", gen)
+	}
+	// Staff can still attach a file of their own.
 	if _, err := o.AttachCDSLFile(ctx, T, "priya.nair", r.ID, "bad name!.csv", []byte("a")); err == nil {
 		t.Fatal("a bad file name was taken")
 	}

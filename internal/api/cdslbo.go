@@ -37,6 +37,13 @@ func (s *Server) cdslBORoutes() {
 	R("PUT /v1/cdsl/bo-defaults", s.cdslDefaultsPut, true)
 	R("GET /v1/cdsl/demat-check/{ucc}", s.cdslCount, false)
 	R("POST /v1/cdsl/demat-check/{ucc}", s.cdslCountRun, true)
+	// BO upload files (cdslbofile.go): a client's CDSL details, deletion of
+	// a deceased holder's name, and the signature and closure files.
+	R("GET /v1/cdsl/bo-details/{ucc}", s.cdslDetailGet, false)
+	R("PUT /v1/cdsl/bo-details/{ucc}", s.cdslDetailPut, true)
+	R("POST /v1/cdsl/delete-holder", s.cdslDeleteHolder, true)
+	R("GET /v1/cdsl/files/signature/{ucc}", s.cdslSigFile, false)
+	R("GET /v1/cdsl/files/closure/{id}", s.cdslClosureFile, false)
 	s.mux.HandleFunc("POST /hooks/{tenant}/cdsl/bo/{token}", s.cdslBOHook)
 	s.mux.HandleFunc("GET /hooks/{tenant}/cdsl/go/{token}", s.cdslGo)
 	s.mux.HandleFunc("POST /hooks/{tenant}/cdsl/return/{token}", s.cdslReturn)
