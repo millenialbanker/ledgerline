@@ -197,7 +197,7 @@ func (o *Ops) edisWho(ctx context.Context, tenant, actor, ucc string) (string, e
 		}
 		return "Portal", nil
 	}
-	if err := o.require(ctx, tenant, actor, "eDIS and TPIN for clients", RoleMaker, RoleChecker, RoleBranch); err != nil {
+	if err := o.require(ctx, tenant, actor, "Authorising sales and TPIN for clients (eDIS)", RoleMaker, RoleChecker, RoleBranch); err != nil {
 		return "", err
 	}
 	return "Staff", nil
