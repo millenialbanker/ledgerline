@@ -1,0 +1,215 @@
+{
+ "compress": "none",
+ "format": "delimited",
+ "direction": "in",
+ "party": "BSE",
+ "id": "bse-order-log",
+ "title": "Order log (BSE)",
+ "when": "Daily about 17:40",
+ "purpose": "Every order event of the day: side, scrip, quantity, price, time, order ID, client, validity, action and the terminal (CTCL) ID. PROVISIONAL: field meanings inferred from masked files.",
+ "names": [
+  "BO\\d{6}\\.\\d+",
+  "BO\\d{6}\\.\\d+\\.zip"
+ ],
+ "delimiter": "|",
+ "header": false,
+ "crlf": false,
+ "final_eol": true,
+ "records": [
+  {
+   "code": "#19",
+   "columns": [
+    {
+     "name": "BuySell",
+     "type": "str"
+    },
+    {
+     "name": "ScripCode",
+     "type": "str"
+    },
+    {
+     "name": "Symbol",
+     "type": "str"
+    },
+    {
+     "name": "Qty",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "Qty2",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false,
+     "note": "disclosed or pending quantity (to confirm)"
+    },
+    {
+     "name": "Price",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false,
+     "note": "paise or rupees: decided against the day's trades"
+    },
+    {
+     "name": "Flag1",
+     "type": "str"
+    },
+    {
+     "name": "Flag2",
+     "type": "str"
+    },
+    {
+     "name": "Time",
+     "type": "time",
+     "layout": "15:04:05"
+    },
+    {
+     "name": "Date",
+     "type": "date",
+     "layout": "02/01/2006"
+    },
+    {
+     "name": "OrderID",
+     "type": "str"
+    },
+    {
+     "name": "OrderType",
+     "type": "str",
+     "note": "A = active (to confirm)"
+    },
+    {
+     "name": "ClientCode",
+     "type": "str"
+    },
+    {
+     "name": "Validity",
+     "type": "str",
+     "note": "EOSESS end of session, EOTODY end of day"
+    },
+    {
+     "name": "Action",
+     "type": "str",
+     "note": "A add, D delete, U update"
+    },
+    {
+     "name": "Message",
+     "type": "str"
+    },
+    {
+     "name": "Code",
+     "type": "str"
+    },
+    {
+     "name": "CTCLID",
+     "type": "str"
+    },
+    {
+     "name": "Filler",
+     "type": "blank"
+    }
+   ]
+  },
+  {
+   "code": "",
+   "columns": [
+    {
+     "name": "BuySell",
+     "type": "str"
+    },
+    {
+     "name": "ScripCode",
+     "type": "str"
+    },
+    {
+     "name": "Symbol",
+     "type": "str"
+    },
+    {
+     "name": "Qty",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "Qty2",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false,
+     "note": "disclosed or pending quantity (to confirm)"
+    },
+    {
+     "name": "Price",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false,
+     "note": "paise or rupees: decided against the day's trades"
+    },
+    {
+     "name": "Flag1",
+     "type": "str"
+    },
+    {
+     "name": "Flag2",
+     "type": "str"
+    },
+    {
+     "name": "Time",
+     "type": "time",
+     "layout": "15:04:05"
+    },
+    {
+     "name": "Date",
+     "type": "date",
+     "layout": "02/01/2006"
+    },
+    {
+     "name": "OrderID",
+     "type": "str"
+    },
+    {
+     "name": "OrderType",
+     "type": "str",
+     "note": "A = active (to confirm)"
+    },
+    {
+     "name": "ClientCode",
+     "type": "str"
+    },
+    {
+     "name": "Validity",
+     "type": "str",
+     "note": "EOSESS end of session, EOTODY end of day"
+    },
+    {
+     "name": "Action",
+     "type": "str",
+     "note": "A add, D delete, U update"
+    },
+    {
+     "name": "Message",
+     "type": "str"
+    },
+    {
+     "name": "Code",
+     "type": "str"
+    },
+    {
+     "name": "CTCLID",
+     "type": "str"
+    },
+    {
+     "name": "Field19",
+     "type": "str"
+    },
+    {
+     "name": "Filler",
+     "type": "blank"
+    }
+   ]
+  }
+ ],
+ "confirmed": false,
+ "source": "PROVISIONAL: masked sample files (pipe-separated, trailing pipe, no header)",
+ "linked": "Kept as the order log for surveillance: order-to-trade ratio per client and per terminal (Clearing data)"
+}

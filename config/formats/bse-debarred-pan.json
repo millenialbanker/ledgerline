@@ -1,0 +1,27 @@
+{
+ "compress": "none",
+ "format": "delimited",
+ "direction": "in",
+ "party": "BSE",
+ "id": "bse-debarred-pan",
+ "title": "PANs debarred by SEBI (BSE statement)",
+ "when": "Daily about 21:00",
+ "purpose": "BSE's statement of PANs debarred by SEBI among the broker's clients: client, PAN, scrip (when the order is scrip-specific), period and segment.",
+ "names": [
+  "DEBR\\d{6}\\.\\d+"
+ ],
+ "delimiter": "\u0001",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "line",
+   "type": "str",
+   "key": "line"
+  }
+ ],
+ "confirmed": true,
+ "source": "Report layout (pipe-separated table under a header block)",
+ "linked": "Added to the debarred list; active clients are blocked (or, for a scrip-specific order, flagged) and compliance gets a work item and an alert"
+}

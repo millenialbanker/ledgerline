@@ -15,6 +15,12 @@ func (s *Server) xfileRoutes() {
 	s.route("GET /v1/exchange-files/formats", s.xfileFormats, false)
 	s.route("POST /v1/exchange-files", s.xfileUpload, true)
 	s.route("GET /v1/exchange-files/{id}", s.xfileDownload, false)
+	s.route("GET /v1/exchange-files-checklist", s.xfileChecklist, false)
+}
+
+func (s *Server) xfileChecklist(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.DailyFileChecklist(r.Context(), tenant(r), r.URL.Query().Get("date"))
+	ok(w, v, err)
 }
 
 func (s *Server) xfileFormats(w http.ResponseWriter, r *http.Request) {

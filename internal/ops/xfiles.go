@@ -168,6 +168,9 @@ func (o *Ops) LoadExchangeFile(ctx context.Context, tenant, actor, name string, 
 		}
 		detail["loaded"] = r.Loaded
 		o.log(ctx, tenant, actor, "xfile.received", f.Name, detail)
+		if load && r.Problems == 0 && !strings.HasPrefix(r.Loaded, "Not loaded") {
+			o.noteDailyFile(ctx, tenant, actor, s.ID, f.Name, "") // daily file checklist (dailyfiles.go)
+		}
 		out = append(out, r)
 	}
 	return out, nil
@@ -195,12 +198,17 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 				return
 			}
 		}
+		if isProvisionalTradeFile(f.Name) { // intraday _P_ file: live risk only (provtrades.go)
+			o.loadProvisionalTrades(ctx, tenant, actor, src, f, r)
+			return
+		}
 		res, err := o.App.IngestFile(ctx, tenant, actor, src, "", f.Name, f.Data)
 		if err != nil {
 			fail(err)
 			return
 		}
 		r.Loaded, r.Added, r.Skipped = "Loaded as exchange trades", res.Added, res.DuplicateRows
+		o.replaceProvisional(ctx, tenant, actor, f.Name, rows)
 	case "cdsl-holding":
 		csv, n, skipped, err := o.sohToHoldings(ctx, tenant, rows)
 		if err != nil {
@@ -267,6 +275,9 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 			return
 		}
 		if o.loadIPOXFile(ctx, tenant, actor, s, f, rows, r) { // IPO bid responses (ipoexchange.go)
+			return
+		}
+		if o.loadBSEXFile(ctx, tenant, actor, s, f, rows, r) { // BSE stamp duty, bhavcopy (bsefiles.go)
 			return
 		}
 		r.Loaded = "Checked and kept; Ledgerline does not use this file yet"
@@ -505,6 +516,7 @@ func (o *Ops) ExchangeFile(ctx context.Context, tenant, actor, id, date string, 
 		return "", nil, err
 	}
 	o.log(ctx, tenant, actor, "xfile.written", name, map[string]any{"format": id, "date": date, "bytes": len(content)})
+	o.noteDailyFile(ctx, tenant, actor, id, name, date) // daily file checklist (dailyfiles.go)
 	return name, content, nil
 }
 

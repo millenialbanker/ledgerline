@@ -617,29 +617,36 @@ func (o *Ops) ClearingData(ctx context.Context, tenant, date string) ([]CCSectio
 	out = append(out, sa)
 
 	// Stamp duty: clearing corporation vs what Ledgerline charged.
-	st := CCSection{ID: "stamp", Title: "Stamp duty", About: "Stamp duty the clearing corporation collected per client against the stamp duty on Ledgerline's bills for the day.",
+	// Each file is set against the stamp duty billed on its own exchange's
+	// trades (NSE Clearing's file: NSE; MCXCCL's: MCX; BSE's MBRSTD: BSE).
+	st := CCSection{ID: "stamp", Title: "Stamp duty", About: "Stamp duty the clearing corporation or exchange collected per client against the stamp duty on Ledgerline's bills for the day on that exchange.",
 		Columns: []string{"Segment", "Client", "Name", "Clearing corporation", "Ledgerline", "Difference"}}
-	for _, d := range o.ccData(ctx, tenant, "stamp", date, "") {
+	for _, d := range append(o.ccData(ctx, tenant, "stamp", date, ""), o.ccData(ctx, tenant, "bsestamp", date, "")...) {
 		st.Loaded, st.File = true, strings.TrimPrefix(st.File+", "+d.File, ", ")
+		exch, uKey, aKey := "NSE", "ClntId", "StmpDtyAmt"
+		switch {
+		case d.Kind == "bsestamp":
+			exch, uKey, aKey = "BSE", "ClientCode", "TotalStamp"
+		case d.Segment == "COM":
+			exch = "MCX"
+		}
 		per := map[string]money.Dec{}
 		for _, r := range d.Rows {
-			if u := strings.ToUpper(r["ClntId"]); u != "" {
-				per[u] = per[u].Add(decOr0(r["StmpDtyAmt"]))
+			if u := strings.ToUpper(r[uKey]); u != "" {
+				per[u] = per[u].Add(decOr0(r[aKey]))
 			}
 		}
 		for _, u := range sortedKeys(per) {
 			bt, _ := o.bills(ctx, tenant, u, date, date)
-			l := bt.charges["Stamp duty"].Neg()
-			if l.Sign() < 0 {
-				l = l.Neg()
-			}
+			l := bt.stampBy[exch].Abs()
 			if !near(per[u], l) {
 				st.Diffs++
 			}
-			st.Rows = append(st.Rows, []string{d.Segment, u, cs[u].Name, per[u].Fixed(2), l.Fixed(2), per[u].Sub(l).Fixed(2)})
+			st.Rows = append(st.Rows, []string{exch + " " + d.Segment, u, cs[u].Name, per[u].Fixed(2), l.Fixed(2), per[u].Sub(l).Fixed(2)})
 		}
 	}
 	out = append(out, st)
+	out = append(out, o.bseSections(ctx, tenant, date, cs)...) // BSE member reports (bseextranet.go)
 
 	// Cash market obligation by security vs the day's trades.
 	ob := CCSection{ID: "obligation", Title: "Cash market obligation", About: "NSE's obligation per security (buy and sell quantity) against the firm's trades of the day in Ledgerline.",

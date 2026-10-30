@@ -1,0 +1,67 @@
+{
+ "compress": "none",
+ "format": "delimited",
+ "direction": "in",
+ "party": "BSE",
+ "id": "bse-ucc-not-permitted",
+ "title": "UCCs not permitted to trade (BSE, cash and derivatives)",
+ "when": "About 15:00 and 22:00 (_01, _02 runs)",
+ "purpose": "Clients BSE will not let trade, with the reason in the column that applies (inactive, not approved, PAN validation, PAN status, KRA status, primary or secondary DP 1\u20135). EQX is cash, EQD derivatives; the latest run of the day replaces the earlier one.",
+ "names": [
+  "EQ[XD]_\\d+_UCC_NotPermittedToTrade_\\d{8}_\\d+\\.csv"
+ ],
+ "delimiter": "|",
+ "header": true,
+ "crlf": true,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "UCC Code",
+   "type": "str",
+   "key": "UCC"
+  },
+  {
+   "name": "IsActiveStatus",
+   "type": "str"
+  },
+  {
+   "name": "Approved",
+   "type": "str"
+  },
+  {
+   "name": "PAN Validation Status",
+   "type": "str"
+  },
+  {
+   "name": "PAN Status",
+   "type": "str"
+  },
+  {
+   "name": "KRA Status",
+   "type": "str"
+  },
+  {
+   "name": "PrimaryOrSecondaryDP1Status",
+   "type": "str"
+  },
+  {
+   "name": "PrimaryOrSecondaryDP2Status",
+   "type": "str"
+  },
+  {
+   "name": "PrimaryOrSecondaryDP3Status",
+   "type": "str"
+  },
+  {
+   "name": "PrimaryOrSecondaryDP4Status",
+   "type": "str"
+  },
+  {
+   "name": "PrimaryOrSecondaryDP5Status",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "linked": "Kept per date, segment and client; a work item per client says what to fix; shown on Clearing data"
+}

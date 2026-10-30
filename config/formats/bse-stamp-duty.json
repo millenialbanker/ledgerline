@@ -1,0 +1,372 @@
+{
+ "id": "bse-stamp-duty",
+ "title": "Stamp duty file (BSE / ICCL, cash market)",
+ "party": "BSE",
+ "direction": "in",
+ "when": "T+1 about 15:00",
+ "purpose": "Stamp duty per client and scrip as BSE collects it (square-off and delivery, buy and sell), with a summary of the total; reconciled with the stamp duty Ledgerline charged on BSE trades.",
+ "names": [
+  "MBRSTD\\d+_OTB_CM_[0-9A-Z]+_\\d{6}\\.csv"
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "records": [
+  {
+   "code": "#summary-header",
+   "where": "first",
+   "columns": [
+    {
+     "name": "RECORD TYPE",
+     "key": "SH1",
+     "type": "str",
+     "const": "RECORD TYPE"
+    },
+    {
+     "name": "TRADE DATE",
+     "key": "SH2",
+     "type": "str",
+     "const": "TRADE DATE"
+    },
+    {
+     "name": "CM CODE",
+     "key": "SH3",
+     "type": "str",
+     "const": "CM CODE"
+    },
+    {
+     "name": "TOTAL NO. OF RECORDS IN THE DETAILS SECTION",
+     "key": "SH4",
+     "type": "str",
+     "const": "TOTAL NO. OF RECORDS IN THE DETAILS SECTION"
+    },
+    {
+     "name": "TOTAL STAMP DUTY AMOUNT",
+     "key": "SH5",
+     "type": "str",
+     "const": "TOTAL STAMP DUTY AMOUNT"
+    }
+   ]
+  },
+  {
+   "code": "RECORD TYPE",
+   "columns": [
+    {
+     "name": "RECORD TYPE",
+     "key": "DH1",
+     "type": "str",
+     "const": "RECORD TYPE"
+    },
+    {
+     "name": "TRADE DATE",
+     "key": "DH2",
+     "type": "str",
+     "const": "TRADE DATE"
+    },
+    {
+     "name": "SETT NO.",
+     "key": "DH3",
+     "type": "str",
+     "const": "SETT NO."
+    },
+    {
+     "name": "SETT TYPE",
+     "key": "DH4",
+     "type": "str",
+     "const": "SETT TYPE"
+    },
+    {
+     "name": "SCRIP CODE",
+     "key": "DH5",
+     "type": "str",
+     "const": "SCRIP CODE"
+    },
+    {
+     "name": "GROUP NAME",
+     "key": "DH6",
+     "type": "str",
+     "const": "GROUP NAME"
+    },
+    {
+     "name": "CM CODE",
+     "key": "DH7",
+     "type": "str",
+     "const": "CM CODE"
+    },
+    {
+     "name": "TM CODE/CP CODE",
+     "key": "DH8",
+     "type": "str",
+     "const": "TM CODE/CP CODE"
+    },
+    {
+     "name": "CLIENT CODE/INST",
+     "key": "DH9",
+     "type": "str",
+     "const": "CLIENT CODE/INST"
+    },
+    {
+     "name": "BUY SQOFF QTY",
+     "key": "DH10",
+     "type": "str",
+     "const": "BUY SQOFF QTY"
+    },
+    {
+     "name": "BUY SQOFF AMOUNT",
+     "key": "DH11",
+     "type": "str",
+     "const": "BUY SQOFF AMOUNT"
+    },
+    {
+     "name": "BUY SQOFF STAMP DUTY",
+     "key": "DH12",
+     "type": "str",
+     "const": "BUY SQOFF STAMP DUTY"
+    },
+    {
+     "name": "SELL SQOFF QTY",
+     "key": "DH13",
+     "type": "str",
+     "const": "SELL SQOFF QTY"
+    },
+    {
+     "name": "SELL SQOFF AMOUNT",
+     "key": "DH14",
+     "type": "str",
+     "const": "SELL SQOFF AMOUNT"
+    },
+    {
+     "name": "SELL SQOFF STAMP DUTY",
+     "key": "DH15",
+     "type": "str",
+     "const": "SELL SQOFF STAMP DUTY"
+    },
+    {
+     "name": "BUY DELIVERY QTY",
+     "key": "DH16",
+     "type": "str",
+     "const": "BUY DELIVERY QTY"
+    },
+    {
+     "name": "BUY DELIVERY AMOUNT",
+     "key": "DH17",
+     "type": "str",
+     "const": "BUY DELIVERY AMOUNT"
+    },
+    {
+     "name": "BUY DELIVERY STAMP DUTY",
+     "key": "DH18",
+     "type": "str",
+     "const": "BUY DELIVERY STAMP DUTY"
+    },
+    {
+     "name": "SELL DELIVERY QTY",
+     "key": "DH19",
+     "type": "str",
+     "const": "SELL DELIVERY QTY"
+    },
+    {
+     "name": "SELL DELIVERY AMOUNT",
+     "key": "DH20",
+     "type": "str",
+     "const": "SELL DELIVERY AMOUNT"
+    },
+    {
+     "name": "SELL DELIVERY STAMP DUTY",
+     "key": "DH21",
+     "type": "str",
+     "const": "SELL DELIVERY STAMP DUTY"
+    },
+    {
+     "name": "TOTAL STAMP DUTY",
+     "key": "DH22",
+     "type": "str",
+     "const": "TOTAL STAMP DUTY"
+    }
+   ]
+  },
+  {
+   "code": "#summary",
+   "columns": [
+    {
+     "name": "RECORD TYPE",
+     "key": "RecordType",
+     "type": "str"
+    },
+    {
+     "name": "TRADE DATE",
+     "key": "TradeDate",
+     "type": "date",
+     "layout": "02-01-2006"
+    },
+    {
+     "name": "CM CODE",
+     "key": "CMCode",
+     "type": "str"
+    },
+    {
+     "name": "TOTAL NO. OF RECORDS IN THE DETAILS SECTION",
+     "key": "RecordCount",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "TOTAL STAMP DUTY AMOUNT",
+     "key": "TotalStampDuty",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    }
+   ]
+  },
+  {
+   "code": "",
+   "columns": [
+    {
+     "name": "RECORD TYPE",
+     "key": "RecordType",
+     "type": "str"
+    },
+    {
+     "name": "TRADE DATE",
+     "key": "TradeDate",
+     "type": "date",
+     "layout": "02-01-2006"
+    },
+    {
+     "name": "SETT NO.",
+     "key": "SettNo",
+     "type": "str"
+    },
+    {
+     "name": "SETT TYPE",
+     "key": "SettType",
+     "type": "str"
+    },
+    {
+     "name": "SCRIP CODE",
+     "key": "ScripCode",
+     "type": "str"
+    },
+    {
+     "name": "GROUP NAME",
+     "key": "Group",
+     "type": "str"
+    },
+    {
+     "name": "CM CODE",
+     "key": "CMCode",
+     "type": "str"
+    },
+    {
+     "name": "TM CODE/CP CODE",
+     "key": "TMCode",
+     "type": "str"
+    },
+    {
+     "name": "CLIENT CODE/INST",
+     "key": "ClientCode",
+     "type": "str"
+    },
+    {
+     "name": "BUY SQOFF QTY",
+     "key": "BuySqoffQty",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "BUY SQOFF AMOUNT",
+     "key": "BuySqoffAmt",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "BUY SQOFF STAMP DUTY",
+     "key": "BuySqoffStamp",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "SELL SQOFF QTY",
+     "key": "SellSqoffQty",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "SELL SQOFF AMOUNT",
+     "key": "SellSqoffAmt",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "SELL SQOFF STAMP DUTY",
+     "key": "SellSqoffStamp",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "BUY DELIVERY QTY",
+     "key": "BuyDelQty",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "BUY DELIVERY AMOUNT",
+     "key": "BuyDelAmt",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "BUY DELIVERY STAMP DUTY",
+     "key": "BuyDelStamp",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "SELL DELIVERY QTY",
+     "key": "SellDelQty",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "SELL DELIVERY AMOUNT",
+     "key": "SellDelAmt",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "SELL DELIVERY STAMP DUTY",
+     "key": "SellDelStamp",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    },
+    {
+     "name": "TOTAL STAMP DUTY",
+     "key": "TotalStamp",
+     "type": "dec",
+     "decimals": 2,
+     "fixed": false
+    }
+   ]
+  }
+ ],
+ "confirmed": true,
+ "source": "The file's two header rows (summary and details)",
+ "linked": "Loaded and reconciled client-wise with the stamp duty on Ledgerline's BSE bills (Clearing data); the summary total is checked against the details"
+}

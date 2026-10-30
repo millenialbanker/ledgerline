@@ -394,7 +394,7 @@ func (s *Server) settings(w http.ResponseWriter, r *http.Request) {
 	if set.WhatsAppSecret != "" {
 		set.WhatsAppSecret = ops.SecretMask
 	}
-	ok(w, map[string]any{"settings": set, "schedule": s.app.Schedule}, err)
+	ok(w, map[string]any{"settings": set, "schedule": s.app.Schedule, "clearing": ops.ClearingSegments, "clearing_corps": ops.ClearingCorpNames}, err)
 }
 
 func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {

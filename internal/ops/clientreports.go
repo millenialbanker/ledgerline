@@ -634,6 +634,7 @@ type billTotals struct {
 	derivBySeg map[string]money.Dec // EXCH-SEG -> MTM and premium settled
 	charges    map[string]money.Dec // head -> amount
 	turnover   map[string]int       // EXCH-SEG -> bills
+	stampBy    map[string]money.Dec // exchange -> stamp duty (as charged: negative)
 }
 
 var chargeHeads = []struct{ acct, label string }{
@@ -651,7 +652,7 @@ func (o *Ops) bills(ctx context.Context, tenant, ucc, from, to string) (billTota
 	for _, e := range es {
 		byID[e.ID] = e
 	}
-	bt := billTotals{derivBySeg: map[string]money.Dec{}, charges: map[string]money.Dec{}, turnover: map[string]int{}}
+	bt := billTotals{derivBySeg: map[string]money.Dec{}, charges: map[string]money.Dec{}, turnover: map[string]int{}, stampBy: map[string]money.Dec{}}
 	for _, e := range es {
 		if e.ValueDate < from || e.ValueDate > to {
 			continue
@@ -676,6 +677,10 @@ func (o *Ops) bills(ctx context.Context, tenant, ucc, from, to string) (billTota
 			for _, h := range chargeHeads {
 				if p.Account == h.acct || strings.HasPrefix(p.Account, h.acct+":") {
 					bt.charges[h.label] = bt.charges[h.label].Add(net)
+					if h.acct == ledger.PayableStamp {
+						ex, _, _ := strings.Cut(seg, "-")
+						bt.stampBy[ex] = bt.stampBy[ex].Add(net)
+					}
 				}
 			}
 		}

@@ -1,0 +1,27 @@
+{
+ "compress": "none",
+ "format": "delimited",
+ "direction": "in",
+ "party": "BSE",
+ "id": "bse-clearing-statement",
+ "title": "Clearing house account statement (BSE)",
+ "when": "Daily about 19:40",
+ "purpose": "BSE clearing house (accounts department) statement of the member's account: date, code, particulars, document number, debit, credit, balance. Discrepancies must be reported within 15 days.",
+ "names": [
+  "VA\\d{4}\\.\\d+"
+ ],
+ "delimiter": "\u0001",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "line",
+   "type": "str",
+   "key": "line"
+  }
+ ],
+ "confirmed": true,
+ "source": "Fixed-width report; columns found from its heading line",
+ "linked": "Kept as BSE clearing ledger entries; a checker is reminded to reconcile within 15 days (Clearing data)"
+}

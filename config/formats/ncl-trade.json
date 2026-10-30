@@ -3,11 +3,11 @@
  "title": "Trade file (NSE Clearing / NSE, cash and F&O)",
  "party": "NSE Clearing",
  "direction": "in",
- "when": "Intraday and EOD",
+ "when": "Intraday (_P_ provisional files) and EOD (_F_ final file)",
  "purpose": "Every trade of the day in the common format of SEBI's standardised file structure; the basis of contract notes, bills and obligations.",
  "names": [
-  "Trade_NCL_(CM|FO|CD|CO)_\\d+_(CM|TM)_\\d+_\\d{8}_F_\\d+\\.csv(\\.gz)?",
-  "TRADE_NSE_(CM|FO|CD|CO)_\\d+_(CM|TM)_\\d+_\\d{8}_F_\\d+\\.csv(\\.gz)?"
+  "Trade_NCL_(CM|FO|CD|CO)_\\d+_(CM|TM)_\\d+_\\d{8}_(F|P)_\\d+\\.csv(\\.gz)?",
+  "TRADE_NSE_(CM|FO|CD|CO)_\\d+_(CM|TM)_\\d+_\\d{8}_(F|P)_\\d+\\.csv(\\.gz)?"
  ],
  "compress": "gzip",
  "header": true,
