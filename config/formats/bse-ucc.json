@@ -4,7 +4,7 @@
  "party": "BSE",
  "direction": "out",
  "when": "As needed",
- "purpose": "New and modified client codes for BSE: one pipe-delimited row of 136 fields per client (directors of non-individuals in a second row).",
+ "purpose": "New and modified client codes for BSE: one pipe-delimited row of 136 fields (135 pipes) per client; for a non-individual, director or authorised person rows (NR/DR, 13 fields) follow its row. Ledgerline writes the clients waiting to be sent to BSE, the fallback when the UCC API is not used.",
  "delimiter": "|",
  "names": [
   "BSE_UCC_\\d{8}\\.txt"
@@ -14,7 +14,8 @@
   {
    "name": "New/Modify",
    "key": "NewModify",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "BAT User",
@@ -24,62 +25,74 @@
   {
    "name": "Client Type",
    "key": "ClientType",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "Client Status",
    "key": "ClientStatus",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "Client Category",
    "key": "ClientCategory",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "Client Code",
    "key": "ClientCode",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "PAN",
    "key": "Pan",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "Politically Exposed Person",
    "key": "PoliticallyExposedPerson",
-   "type": "str"
+   "type": "str",
+   "note": "Y or N; may be blank for institutions"
   },
   {
    "name": "Permanent Address",
    "key": "PermanentAddress",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "Permanent same as Correspondence",
    "key": "PermanentSameAsCorrespondence",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "Correspondence Address",
    "key": "CorrespondenceAddress",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "Country",
    "key": "Country",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "State",
    "key": "State",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "City",
    "key": "City",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "Pin code",
@@ -89,17 +102,20 @@
   {
    "name": "Types of Service",
    "key": "TypesOfService",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "Contact Details",
    "key": "ContactDetails",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "Email",
    "key": "Email",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "Mobile Number",
@@ -219,12 +235,14 @@
   {
    "name": "Provide Details For",
    "key": "ProvideDetailsFor",
-   "type": "str"
+   "type": "str",
+   "note": "1 income, 3 income and networth; blank or 0 for institutions"
   },
   {
    "name": "Income",
    "key": "Income",
-   "type": "str"
+   "type": "str",
+   "note": "Income band code: individuals 1-5, non-individuals 1-6"
   },
   {
    "name": "Income Date",
@@ -244,7 +262,9 @@
   {
    "name": "Is Active",
    "key": "IsActive",
-   "type": "str"
+   "type": "str",
+   "required": true,
+   "note": "Y active, N not active, C closed"
   },
   {
    "name": "Reason for Modifying Status",
@@ -314,7 +334,8 @@
   {
    "name": "No of Directors",
    "key": "NoOfDirectors",
-   "type": "str"
+   "type": "str",
+   "note": "Number of director rows (NR/DR, 13 fields) that follow a body corporate's row"
   },
   {
    "name": "Partners Karta UID",
@@ -414,17 +435,20 @@
   {
    "name": "POA",
    "key": "Poa",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "POA for Funds",
    "key": "PoaForFunds",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "POA for Securities",
    "key": "PoaForSecurities",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "Date of POA for Funds",
@@ -439,17 +463,20 @@
   {
    "name": "Permanent Country",
    "key": "PermanentCountry",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "Permanent State",
    "key": "PermanentState",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "Permanent City",
    "key": "PermanentCity",
-   "type": "str"
+   "type": "str",
+   "required": true
   },
   {
    "name": "Permanent Pin code",
@@ -559,7 +586,9 @@
   {
    "name": "Opt for UPI",
    "key": "OptForUpi",
-   "type": "str"
+   "type": "str",
+   "required": true,
+   "note": "Y registered, N not opted, NA not applicable, D deregistered (only after Y)"
   },
   {
    "name": "IFSC Code 1",
@@ -698,6 +727,6 @@
  "crlf": true,
  "final_eol": true,
  "confirmed": true,
- "linked": "",
- "source": "BSE notice 20240223-42 (23 Feb 2024), Revised file formats in the UCC system: UCC Batch Upload file format (136 fields)"
+ "linked": "Written from the clients waiting for BSE registration (BSE UCC screen)",
+ "source": "BSE UCC Batch Upload file format (136 fields; director row of 13), as current with BSE UCC REST API v0.2.2 (July 2024); first published with BSE notice 20240223-42 (23 Feb 2024)"
 }

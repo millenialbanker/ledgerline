@@ -55,7 +55,7 @@ type XFormat struct {
 }
 
 // xWriters are the outgoing files Ledgerline writes.
-var xWriters = map[string]bool{"ncl-allocation": true, "ncl-allocation-api": true, "holding-statement-api": true, "segmon-client-funds": true, "ncl-client-collateral": true, "ncl-cuspa-mtf-payout": true, "ncl-margin-reporting": true, "mcx-margin-reporting": true, "ncl-short-allocation-reporting": true, "ncl-shortage-reporting": true, "cdsl-txn-upload": true}
+var xWriters = map[string]bool{"ncl-allocation": true, "ncl-allocation-api": true, "holding-statement-api": true, "segmon-client-funds": true, "ncl-client-collateral": true, "ncl-cuspa-mtf-payout": true, "ncl-margin-reporting": true, "mcx-margin-reporting": true, "ncl-short-allocation-reporting": true, "ncl-shortage-reporting": true, "cdsl-txn-upload": true, "bse-ucc": true}
 
 // ExchangeFormats lists every known layout.
 func (o *Ops) ExchangeFormats() ([]XFormat, error) {
@@ -500,6 +500,8 @@ func (o *Ops) ExchangeFile(ctx context.Context, tenant, actor, id, date string, 
 		name, content, err = o.shortageReportingFile(ctx, tenant, s, date, vars)
 	case "cdsl-txn-upload":
 		name, content, err = o.disMasterFile(ctx, tenant, s, set, date, vars)
+	case "bse-ucc":
+		name, content, _, _, err = o.bseUCCBatchFile(ctx, tenant, s, vars)
 	}
 	if err != nil {
 		return "", nil, err
