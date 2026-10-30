@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"ledgerline/internal/backup"
@@ -1736,18 +1737,20 @@ func (s *Server) gatewayHook(w http.ResponseWriter, r *http.Request) {
 
 // bankCreditHook receives live credit notices from the firm's bank or a
 // collections provider. Not signed in: each notice must carry the signature
-// or token set in Connections.
+// or token set in Connections (HDFC e-CMS: the bank's address).
 func (s *Server) bankCreditHook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
 		writeErr(w, 400, "bad_request", "cannot read the body", nil)
 		return
 	}
-	res, err := s.ops.BankCreditHook(r.Context(), r.PathValue("tenant"), r.PathValue("provider"), r.Header, body)
-	if err != nil {
+	res, err := s.ops.BankCreditHookFrom(r.Context(), r.PathValue("tenant"), r.PathValue("provider"), clientIP(r), r.Header, body)
+	if err != nil && (res.Ack == "" || errors.Is(err, ops.ErrForbidden)) {
 		fail(w, err, nil)
 		return
 	}
+	// A bank that expects its own reply format even on a failure (HDFC
+	// e-CMS: "Technical Reject", so it pushes again) gets it with 200.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 	_, _ = w.Write([]byte(res.Ack))

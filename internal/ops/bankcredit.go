@@ -172,6 +172,20 @@ func (o *Ops) BankCreditHook(ctx context.Context, tenant, provider string, h htt
 	if err != nil {
 		return res, invalid("%v", err)
 	}
+	source := firstOf(c.Values["provider"], map[string]string{connCreditsRazorpay: "Razorpay Smart Collect", connCreditsCashfree: "Cashfree"}[id])
+	r2, err := o.recordCredits(ctx, tenant, c, source, credits)
+	res.Received, res.Added, res.Duplicate, res.Credits = r2.Received, r2.Added, r2.Duplicate, r2.Credits
+	res.Ignored += r2.Ignored
+	if err != nil {
+		return res, err
+	}
+	return res, nil
+}
+
+// recordCredits turns credits read from a notice into statement credits,
+// matched to clients, skipping ones already recorded (by UTR).
+func (o *Ops) recordCredits(ctx context.Context, tenant string, c Connection, source string, credits []BankCredit) (BankCreditResult, error) {
+	res := BankCreditResult{}
 	clients, err := o.Clients(ctx, tenant)
 	if err != nil {
 		return res, err
@@ -180,7 +194,6 @@ func (o *Ops) BankCreditHook(ctx context.Context, tenant, provider string, h htt
 	for _, cl := range clients {
 		known[cl.UCC] = true
 	}
-	source := firstOf(c.Values["provider"], map[string]string{connCreditsRazorpay: "Razorpay Smart Collect", connCreditsCashfree: "Cashfree"}[id])
 	for _, bc := range credits {
 		res.Received++
 		if bc.Amount <= 0 || bc.Ref == "" {
@@ -420,7 +433,7 @@ func creditWhen(s string, now time.Time) (string, string) {
 	if n, err := strconv.ParseInt(s, 10, 64); err == nil && n > 1e9 {
 		t = time.Unix(n, 0)
 	} else {
-		for _, l := range []string{time.RFC3339, "2006-01-02T15:04:05", "2006-01-02 15:04:05", "02-01-2006 15:04:05", "02/01/2006 15:04:05", "2006-01-02"} {
+		for _, l := range []string{time.RFC3339, "2006-01-02T15:04:05", "2006-01-02 15:04:05", "2006-01-02 15:04", "02-01-2006 15:04:05", "02/01/2006 15:04:05", "2006-01-02"} {
 			if x, err := time.ParseInLocation(l, s, ist); err == nil {
 				t = x
 				break

@@ -273,6 +273,11 @@ func (o *Ops) SaveConnection(ctx context.Context, tenant, actor, id string, valu
 			return ConnectionView{}, err
 		}
 	}
+	if id == connCreditsECMS {
+		if err := checkECMSConn(nc); err != nil {
+			return ConnectionView{}, err
+		}
+	}
 	if id == "sms" {
 		if err := checkSMSConn(nc); err != nil {
 			return ConnectionView{}, err
