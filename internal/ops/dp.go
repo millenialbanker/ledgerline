@@ -458,13 +458,17 @@ type DISLine struct {
 
 // DIS is a delivery instruction.
 type DIS struct {
-	ID            string       `json:"id"`
-	UCC           string       `json:"ucc"`
-	Name          string       `json:"name"`
-	BOID          string       `json:"bo_id"`
-	Slip          int64        `json:"slip"`
-	Kind          string       `json:"kind"` // Off-market, Inter-depository
-	ToBO          string       `json:"to_bo"`
+	ID   string `json:"id"`
+	UCC  string `json:"ucc"`
+	Name string `json:"name"`
+	BOID string `json:"bo_id"`
+	Slip int64  `json:"slip"`
+	Kind string `json:"kind"` // Off-market, Inter-depository, On-market
+	ToBO string `json:"to_bo"`
+	// Settlement and Exchange are an on-market delivery's (to the clearing
+	// member's account for a settlement).
+	Settlement    string       `json:"settlement,omitempty"`
+	Exchange      string       `json:"exchange,omitempty"`
 	Reason        string       `json:"reason"`
 	Consideration money.Amount `json:"consideration"`
 	ExecDate      string       `json:"exec_date"`
@@ -574,17 +578,28 @@ func (o *Ops) EnterDIS(ctx context.Context, tenant, actor string, d DIS) (DIS, e
 	if contains(i64s(book.Lost), fmt.Sprint(d.Slip)) {
 		return d, invalid("slip %d was reported lost and cannot be accepted", d.Slip)
 	}
-	if !contains([]string{"Off-market", "Inter-depository"}, d.Kind) {
-		return d, invalid("kind must be Off-market or Inter-depository (market deliveries go through DDPI or eDIS at pay-in)")
+	if !contains([]string{"Off-market", "Inter-depository", "On-market"}, d.Kind) {
+		return d, invalid("kind must be Off-market, Inter-depository or On-market")
 	}
 	d.ToBO = strings.ToUpper(strings.TrimSpace(d.ToBO))
+	if d.Kind == "On-market" {
+		// A slip delivering to the clearing member for a settlement (clients
+		// without DDPI or eDIS); no transfer reason.
+		d.Settlement, d.Exchange = strings.TrimSpace(d.Settlement), strings.ToUpper(strings.TrimSpace(d.Exchange))
+		if d.ToBO == "" || d.ToBO == b.BOID || d.Settlement == "" || !contains([]string{"NSE", "BSE"}, d.Exchange) {
+			return d, invalid("an on-market slip needs the clearing member's account, the exchange (NSE or BSE) and the settlement number")
+		}
+		d.Reason = "On-market delivery"
+	} else {
+		d.Settlement, d.Exchange = "", ""
+	}
 	if d.Kind == "Off-market" && (len(d.ToBO) != 16 || d.ToBO == b.BOID) {
 		return d, invalid("give the 16-digit target BO ID of another account")
 	}
 	if d.Kind == "Inter-depository" && len(d.ToBO) != 16 && !strings.HasPrefix(d.ToBO, "IN") {
 		return d, invalid("give the target DP ID and client ID at the other depository")
 	}
-	if !contains(OffMarketReasons, d.Reason) {
+	if d.Kind != "On-market" && !contains(OffMarketReasons, d.Reason) {
 		return d, invalid("choose the reason for the transfer")
 	}
 	if d.Reason == "Sale (off-market)" && d.Consideration <= 0 {
@@ -972,8 +987,10 @@ func (o *Ops) RaiseDPRequest(ctx context.Context, tenant, actor string, r DPRequ
 		var certs int
 		fmt.Sscanf(d["qty"], "%d", &q)
 		fmt.Sscanf(d["certificates"], "%d", &certs)
-		if d["isin"] == "" || q <= 0 || certs <= 0 || d["drf"] == "" {
-			return r, invalid("give the DRF number, ISIN, quantity and number of certificates")
+		// Units in a mutual fund statement of account (a folio) have no
+		// certificates; they go to CDSL by DESTAT (cdsltxn.go).
+		if d["isin"] == "" || (q <= 0 && !strings.EqualFold(d["qty"], "all")) || (certs <= 0 && d["folio"] == "") || d["drf"] == "" {
+			return r, invalid("give the DRF number, ISIN, quantity and number of certificates (or the folio, for units)")
 		}
 	case "Freeze":
 		if !contains([]string{"Debit", "Credit", "Both"}, d["type"]) || strings.TrimSpace(d["reason"]) == "" {

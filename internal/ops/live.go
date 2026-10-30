@@ -226,6 +226,9 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 	for _, h := range in.holdings {
 		held[h.UCC+"|"+h.Symbol] += h.Qty
 	}
+	// With CDSL eDIS on, a client who has no DDPI can deliver only what was
+	// authorised by TPIN (cdsledis.go).
+	edisNeed, edisQty := o.edisDeliverable(ctx, tenant, date)
 	exMargin, exAt, _ := o.NCLMClientMargins(ctx, tenant, date)
 	payoutHeld := o.payoutHeld(ctx, tenant, date)
 	if len(exMargin) > 0 {
@@ -263,10 +266,14 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 			}
 			sym := strings.Split(l.key, "|")[0]
 			if net := l.sq - l.bq; net > 0 && l.cncSell > 0 {
-				short := min(net, l.cncSell) - held[u+"|"+sym]
+				have, note := held[u+"|"+sym], ""
+				if edisNeed[u] && edisQty[u+"|"+sym] < have {
+					have, note = edisQty[u+"|"+sym], " (not authorised by eDIS)"
+				}
+				short := min(net, l.cncSell) - have
 				if short > 0 && ltp.Sign() > 0 {
 					r.Auction = r.Auction.Add(ltp.MulInt(short).Pct(AuctionPct))
-					r.Short = append(r.Short, fmt.Sprintf("%s %d", sym, short))
+					r.Short = append(r.Short, fmt.Sprintf("%s %d%s", sym, short, note))
 				}
 			}
 		}

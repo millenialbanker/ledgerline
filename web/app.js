@@ -124,7 +124,7 @@ const GROUPS = {
   mfg: ['Mutual funds', [['mforders', 'MF orders'], ['mfsips', 'SIPs'], ['mfmandates', 'MF mandates'], ['mfunits', 'MF units'], ['mfcomm', 'MF commission'], ['mfsettings', 'MF settings']]],
   brokg: ['Brokerage & charges', [['brokerage', 'Brokerage plans'], ['charges', 'Charges calculator'], ['prepaid', 'Prepaid schemes']]],
   partnersg: ['Branches & partners', [['partners', 'Branches & partners'], ['dealers', 'Dealers & terminals']]],
-  dpg: ['Depository', [['dp', 'Demat accounts & DIS'], ['cdslreq', 'CDSL requests']]],
+  dpg: ['Depository', [['dp', 'Demat accounts & DIS'], ['cdslreq', 'CDSL requests'], ['edis', 'eDIS authorisations'], ['cdsltxn', 'Transactions (API)']]],
 };
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard'], ['chat', 'Team messages'], ['@automation'], ['@calendar']]],
@@ -139,7 +139,7 @@ const NAV = [
 // Every staff screen with its name, groups opened up.
 const NAV_VIEWS = NAV.flatMap(g => g[1].flatMap(([k, l]) => k[0] === '@' ? GROUPS[k.slice(1)][1] : [[k, l]]));
 const groupOf = v => Object.keys(GROUPS).find(g => GROUPS[g][1].some(([k]) => k === v));
-const PORTAL_NAV = [['My account', [['portal', 'Overview'], ['pnotes', 'Contract notes'], ['pdocs', 'Signed statements'], ['statements', 'Reports & statements'], ['pinsights', 'Tax & insights'], ['pfunds', 'Funds & payouts'], ['pipo', 'IPOs & public issues'], ['pmf', 'Mutual funds'], ['psip', 'Stock SIPs'], ['pprofile', 'Profile & documents'], ['phelp', 'Help desk'], ['pext', 'Trades elsewhere']]]];
+const PORTAL_NAV = [['My account', [['portal', 'Overview'], ['pnotes', 'Contract notes'], ['pdocs', 'Signed statements'], ['statements', 'Reports & statements'], ['pinsights', 'Tax & insights'], ['pfunds', 'Funds & payouts'], ['pipo', 'IPOs & public issues'], ['pmf', 'Mutual funds'], ['psip', 'Stock SIPs'], ['pedis', 'Authorise sale (CDSL TPIN)'], ['pprofile', 'Profile & documents'], ['phelp', 'Help desk'], ['pext', 'Trades elsewhere']]]];
 const PORTAL_VIEWS = PORTAL_NAV[0][1].map(v => v[0]);
 const clientUser = () => S.me?.role === 'Client';
 const VIEWS = [...NAV_VIEWS.map(v => v[0]), ...PORTAL_VIEWS, 'support'];

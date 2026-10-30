@@ -21,8 +21,10 @@ Approving pay-out holds | Risk manager
 Approving payouts | Ops checker, Risk manager
 Approving reactivation | Ops checker, Compliance officer
 Approving vouchers | Ops checker
+Asking CDSL about eDIS authorisations | Ops maker, Ops checker, Risk manager
 Asking clients for WhatsApp consent | Ops checker, Compliance officer
 Assigning brokerage plans | Ops checker
+Authorising sales and TPIN for clients (eDIS) | Ops maker, Ops checker, Branch staff
 Blocking clients in continuous debit | Risk manager
 Booking vendor bills | Ops maker, Ops checker
 Buy-back offers | Ops maker, Ops checker
@@ -182,6 +184,7 @@ Sending UCC to BSE | Ops maker, Ops checker
 Sending bulk messages | Ops checker, Compliance officer
 Sending clients to the exchange UCC | Ops maker, Ops checker
 Sending contract notes | Ops maker, Ops checker
+Sending demat requests to CDSL DESTAT | Ops checker
 Sending documents | Ops maker, Ops checker
 Sending legacy debt reminders | Ops maker, Ops checker, Risk manager, Compliance officer
 Sending statements | Ops maker, Ops checker
@@ -192,6 +195,7 @@ Setting client risk | Compliance officer
 Setting the firm's default dashboard | Admin
 Setting the signing certificate | Admin
 Setting the signing service | Admin
+Setting up CDSL reports | Ops maker, Ops checker, Compliance officer
 Setting up a stock SIP top-up mandate | Ops maker, Ops checker
 Setting up public issues | Ops maker, Ops checker
 Setting up stock SIPs | Compliance officer
@@ -215,11 +219,13 @@ Verifying delivery instructions | Ops checker
 View data protection | Compliance officer
 Viewing AI usage | Compliance officer
 Viewing BSE UCC registrations | Ops maker, Ops checker, Compliance officer
+Viewing CDSL API transactions | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing CDSL demat account counts | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing CDSL requests | Ops maker, Ops checker, Compliance officer
 Viewing backups | Ops checker, Compliance officer
 Viewing connections | Compliance officer, Admin
 Viewing dealers and terminals | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing eDIS authorisations | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing exchange UCC registrations | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing nominations | Ops maker, Ops checker, Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
