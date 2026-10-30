@@ -3,10 +3,10 @@
  "title": "Trade file (BSE / ICCL, cash and F&O)",
  "party": "BSE",
  "direction": "in",
- "when": "Intraday and EOD",
+ "when": "Intraday (_P_ provisional files); final _F_ file about 17:00",
  "purpose": "BSE trades in the same SEBI standardised 46-column layout as NSE Clearing's trade file.",
  "names": [
-  "TRADE_BSE_(CM|FO|CD)_\\d+_(CM|TM)_\\d+_\\d{8}_F_\\d+\\.csv(\\.gz)?"
+  "TRADE_BSE_(CM|FO|CD)_\\d+_(CM|TM)_\\d+_\\d{8}_(F|P)_\\d+\\.csv(\\.gz)?"
  ],
  "header": true,
  "crlf": true,

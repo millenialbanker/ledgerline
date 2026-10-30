@@ -1,0 +1,190 @@
+{
+ "id": "udiff-bhavcopy",
+ "title": "Bhavcopy (SEBI common format, NSE and BSE, cash and F&O)",
+ "party": "NSE / BSE",
+ "direction": "in",
+ "when": "EOD: BSE cash about 16:30, BSE F&O about 17:20; NSE after the close",
+ "purpose": "Every security's and contract's open, high, low, close, last and settlement prices, open interest and lot size, in SEBI's common (UDiFF) bhavcopy layout.",
+ "names": [
+  "BhavCopy_(NSE|BSE)_(CM|FO|CD)_0_0_0_\\d{8}_F_\\d+\\.csv(\\.zip|\\.gz)?"
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "crlf": false,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "TradDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "BizDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "Sgmt",
+   "type": "str"
+  },
+  {
+   "name": "Src",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmTp",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmId",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "TckrSymb",
+   "type": "str"
+  },
+  {
+   "name": "SctySrs",
+   "type": "str"
+  },
+  {
+   "name": "XpryDt",
+   "type": "str"
+  },
+  {
+   "name": "FininstrmActlXpryDt",
+   "type": "str"
+  },
+  {
+   "name": "StrkPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "OptnTp",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmNm",
+   "type": "str"
+  },
+  {
+   "name": "OpnPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "HghPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "LwPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "ClsPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "LastPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "PrvsClsgPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "UndrlygPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "SttlmPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "OpnIntrst",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "ChngInOpnIntrst",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "TtlTradgVol",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "TtlTrfVal",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "TtlNbOfTxsExctd",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "SsnId",
+   "type": "str"
+  },
+  {
+   "name": "NewBrdLotQty",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Rmks",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file (SEBI common bhavcopy)",
+ "linked": "Loaded into the day's market data as closing, last and settlement prices for the exchange and segment (BSE scrip codes matched to ISINs through the scrip and series mapping)"
+}

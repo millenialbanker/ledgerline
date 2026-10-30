@@ -125,6 +125,15 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 	}
 	in.look, v.PricesAt = look, asAt
 	v.Source = "Exchange"
+	// Provisional trade files fill the exchange segments whose final file
+	// has not arrived (provtrades.go); a final file replaces them.
+	if pt := o.provisionalTrades(ctx, tenant, date, in.trades); len(pt) > 0 {
+		v.Source = "Exchange (provisional trade files)"
+		if len(in.trades) > 0 {
+			v.Source = "Exchange (final and provisional trade files)"
+		}
+		in.trades = append(in.trades, pt...)
+	}
 	if len(in.trades) == 0 {
 		// During the day: trades from NSE's trade API, confirmed by the
 		// exchange, before falling back to the trading front end's book.

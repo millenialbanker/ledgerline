@@ -119,6 +119,13 @@ type Settings struct {
 	InsightCoolOffDays int64 `json:"insight_cool_off_days"`
 	// WABotSessionHours: how long a code given on WhatsApp keeps account information open (default 24).
 	WABotSessionHours int64 `json:"wa_bot_session_hours"`
+	// ClearingFor is the clearing corporation each exchange segment
+	// ("BSE-CM" …) is cleared through: NCL, ICCL, MCCIL, MCXCCL, NCCL (see
+	// ClearingSegments), CM:<code> for another clearing member (the firm is
+	// only a trading member there, ClearingMemberNames has its name) or
+	// NONE. Unset segments take the default (dailyfiles.go).
+	ClearingFor         map[string]string `json:"clearing_for,omitempty"`
+	ClearingMemberNames map[string]string `json:"clearing_member_names,omitempty"`
 	// ClearingBMC is base minimum capital required by each clearing corporation (₹).
 	ClearingBMC map[string]string `json:"clearing_bmc,omitempty"`
 
@@ -477,9 +484,14 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 			return invalid("date %q must be YYYY-MM-DD", d)
 		}
 	}
+	if err := checkClearing(&s); err != nil {
+		return err
+	}
+	prev, _ := o.Settings(ctx, tenant)
 	if err := docs.Upsert(ctx, o.Docs, tenant, cSettings, "main", s, actor); err != nil {
 		return err
 	}
+	o.logClearing(ctx, tenant, actor, prev, s)
 	o.log(ctx, tenant, actor, "settings.saved", "settings", map[string]any{"warn_util_pct": s.WarnUtilPct, "ras_buffer_pct": s.RASBufferPct, "penalty_pass_through": s.PenaltyPassThrough})
 	return nil
 }

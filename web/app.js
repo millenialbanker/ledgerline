@@ -2160,6 +2160,21 @@ function sealHTML(s) {
 P['audit-t'] = d => { const q = UI.auditQ.toLowerCase(); return tbl([['Time'], ['User'], ['Action'], ['Object'], ['Details']], d.filter(a => (a.actor + ' ' + a.action + ' ' + a.object + ' ' + JSON.stringify(a.detail || {})).toLowerCase().includes(q)).slice(0, 500).map(a => `<tr><td class="n dim">${new Date(a.at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'medium' })}</td><td>${esc(a.actor)}</td><td>${pill(a.action, /rejected|kill\.on|str/.test(a.action) ? 'bad' : 'acc')}</td><td class="n">${esc(a.object)}</td><td class="wrap dim">${esc(Object.entries(a.detail || {}).map(([k, v]) => k + ': ' + (typeof v === 'object' ? JSON.stringify(v) : v)).join(' · '))}</td></tr>`), { tall: true, empty: 'No actions yet' }); };
 
 /* ---------- settings ---------- */
+// Cleared through: one row per exchange segment, from the server's table of allowed clearing corporations.
+function clearingPanel(d, admin) {
+  const s = d.settings, segs = d.clearing || [], corps = d.clearing_corps || {}, cf = s.clearing_for || {}, nm = s.clearing_member_names || {};
+  const row = c => { const v = cf[c.key] || c.default, cm = v.startsWith('CM:'), id = 'st-clr-' + c.key;
+    return `<tr><td class="n">${esc(c.key)}</td><td><select class="in sm" id="${id}" data-key="${esc(c.key)}" ${admin ? '' : 'disabled'}>${c.allowed.map(a => `<option value="${a}" ${v === a ? 'selected' : ''}>${esc(a)} · ${esc(corps[a] || '')}</option>`).join('')}<option value="CM" ${cm ? 'selected' : ''}>Another clearing member (we are trading member only)</option><option value="NONE" ${v === 'NONE' ? 'selected' : ''}>Not traded</option></select></td>
+      <td><input class="in sm mono" id="${id}-code" placeholder="clearing member code" value="${esc(cm ? v.slice(3) : '')}" ${admin ? '' : 'disabled'}></td><td><input class="in sm" id="${id}-name" placeholder="clearing member name" value="${esc(nm[c.key] || '')}" ${admin ? '' : 'disabled'}></td></tr>`; };
+  return `<div class="panel"><div class="hd"><h3>Cleared through</h3><small>Clearing corporation of each exchange segment (SEBI interoperability)</small></div><div class="bd"><p class="dim small" style="margin-top:0">Decides which clearing-corporation files appear on the daily file checklist on Exchange files. A segment cleared by another clearing member has no clearing-corporation files: they come from that member. Every change is in the audit trail.</p>${tbl([['Segment'], ['Cleared through'], ['Clearing member code'], ['Clearing member name']], segs.map(row))}</div></div>`;
+}
+function clearingValues() {
+  const cf = {}, nm = {};
+  document.querySelectorAll('select[id^="st-clr-"]').forEach(el => { const k = el.dataset.key; let v = el.value;
+    if (v === 'CM') { v = 'CM:' + ($(el.id + '-code').value || '').trim().toUpperCase(); nm[k] = ($(el.id + '-name').value || '').trim(); }
+    cf[k] = v; });
+  return { clearing_for: cf, clearing_member_names: nm };
+}
 V.settings = {
   load: async () => { const [s, users, ai, alloc] = await Promise.all([get('/v1/settings'), get('/v1/users'), has('Compliance officer') ? get(`/v1/ai/usage?month=${UI.aiMonth || ''}`).catch(() => null) : null, get(`/v1/allocation?date=${S.date}`).catch(() => null)]); return { ...s, users, ai, alloc }; },
   html: d => {
@@ -2184,6 +2199,7 @@ V.settings = {
       <div class="fld full"><label for="st-hol">Extra holidays (YYYY-MM-DD, comma separated)</label><input class="in mono" id="st-hol" value="${esc((s.holidays || []).join(', '))}" ${admin ? '' : 'disabled'}><div class="dim small" style="margin-top:4px">Exchange trading and settlement holidays come from the approved exchange calendar (<button type="button" class="linkish" data-act="go" data-id="circulars:hol">Circulars & calendar → Exchange holidays</button>). Add a day here only for a closure that is not in it.</div></div>
       <label class="check full"><input type="checkbox" id="st-pen" ${s.penalty_pass_through ? 'checked' : ''} ${admin ? '' : 'disabled'}> Pass short-collection penalties through to client ledgers</label>
     </div></div></div></div>
+    ${clearingPanel(d, admin)}
     <div class="grid g2"><div class="panel"><div class="hd"><h3>Debit balances and interest</h3></div><div class="bd"><div class="form">
       <div class="fld"><label for="st-int">Interest on overdue debit (% a year)</label><input class="in" id="st-int" value="${esc(s.interest_pct_pa || '18')}" ${admin ? '' : 'disabled'}></div>
       <div class="fld"><label for="st-grace">Grace days at the start of a debit</label><input class="in" id="st-grace" type="number" min="0" max="30" value="${s.interest_grace_days || 0}" ${admin ? '' : 'disabled'}></div>
@@ -2660,7 +2676,7 @@ const A = {
   saveSettings: () => {
     const s = { ...C.settings.settings, firm: $('st-firm').value, sebi_reg: $('st-sebi').value, compliance_email: $('st-comp').value, warn_util_pct: parseInt($('st-warn').value, 10), ras_buffer_pct: parseInt($('st-buf').value, 10), ras_monthly: $('st-rasm').value, ras_quarterly: $('st-rasq').value,
       alloc_api_live: !!$('st-alive')?.checked, alloc_auto_push: !!$('st-apush')?.checked, alloc_push_segment: $('st-aseg')?.value || 'CM', two_factor: $('st-2fa').value, ledgy_ai: !!$('st-lai')?.checked, bill_ai: !!$('st-bai')?.checked, inactive_months: parseInt($('st-inm').value, 10) || 24, session_idle_minutes: parseInt($('st-idle').value, 10) || 30, snapshot_times: $('st-snap').value.split(',').map(x => x.trim()).filter(Boolean), holidays: $('st-hol').value.split(',').map(x => x.trim()).filter(Boolean), penalty_pass_through: $('st-pen').checked,
-      interest_pct_pa: $('st-int').value.trim(), interest_grace_days: parseInt($('st-grace').value, 10) || 0, interest_minimum: $('st-imin').value.trim(), gst_pct: $('st-gst').value.trim(), interest_exempt_tags: $('st-iex').value.split(',').map(x => x.trim().toUpperCase()).filter(Boolean), interest_posting: $('st-ipost').value, interest_daily_from: $('st-idfrom').value, debit_block_days: parseInt($('st-dbd').value, 10) || 7, locked_up_to: $('st-lock').value, firm_pan: ($('st-fpan')?.value || '').trim().toUpperCase(), clearing_member_pan: ($('st-cmpan')?.value || '').trim().toUpperCase(), firm_gstin: $('st-gstin').value.trim().toUpperCase(), firm_state: $('st-state').value.trim(), cheque_bounce_charge: $('st-bnc').value.trim(), tds_commission_pct: $('st-tds').value.trim(), referral_pct: $('st-refp').value.trim(), referral_months: parseInt($('st-refm').value, 10) || 12, payout_debit_account: $('st-pda').value.trim(), gateway_secret: $('st-gws').value, whatsapp_secret: $('st-was').value, management_emails: $('st-mgmt').value.split(',').map(x => x.trim()).filter(Boolean), lead_incentive: $('st-linc').value.trim(), auto_lock_days: parseInt($('st-alock').value, 10) || 0 };
+      interest_pct_pa: $('st-int').value.trim(), interest_grace_days: parseInt($('st-grace').value, 10) || 0, interest_minimum: $('st-imin').value.trim(), gst_pct: $('st-gst').value.trim(), interest_exempt_tags: $('st-iex').value.split(',').map(x => x.trim().toUpperCase()).filter(Boolean), interest_posting: $('st-ipost').value, interest_daily_from: $('st-idfrom').value, debit_block_days: parseInt($('st-dbd').value, 10) || 7, locked_up_to: $('st-lock').value, firm_pan: ($('st-fpan')?.value || '').trim().toUpperCase(), clearing_member_pan: ($('st-cmpan')?.value || '').trim().toUpperCase(), firm_gstin: $('st-gstin').value.trim().toUpperCase(), firm_state: $('st-state').value.trim(), cheque_bounce_charge: $('st-bnc').value.trim(), tds_commission_pct: $('st-tds').value.trim(), referral_pct: $('st-refp').value.trim(), referral_months: parseInt($('st-refm').value, 10) || 12, payout_debit_account: $('st-pda').value.trim(), gateway_secret: $('st-gws').value, whatsapp_secret: $('st-was').value, management_emails: $('st-mgmt').value.split(',').map(x => x.trim()).filter(Boolean), lead_incentive: $('st-linc').value.trim(), auto_lock_days: parseInt($('st-alock').value, 10) || 0, ...clearingValues() };
     act(() => api('PUT', '/v1/settings', s), 'Settings saved').then(loadMe);
   },
   eod: async () => {
@@ -2929,7 +2945,7 @@ Object.assign(A, {
   perRun: (id, el) => act(() => post(`/v1/periodic/${id}/run`, { period: el.dataset.p, date: S.date }), r => `${r.status}: ${r.summary}`),
 });
 V.xfiles = {
-  load: () => get('/v1/exchange-files/formats'),
+  load: async () => { const [fs, cl] = await Promise.all([get('/v1/exchange-files/formats'), get(`/v1/exchange-files-checklist?date=${S.date}`).catch(() => null)]); fs.checklist = cl; return fs; },
   html: fs => {
     const inn = fs.filter(f => f.direction === 'in'), out = fs.filter(f => f.direction === 'out'), mk = has('Ops maker', 'Ops checker', 'Risk manager', 'Compliance officer');
     const res = UI.xfRes ? `<div class="panel"><div class="hd"><h3>Last upload</h3></div>${tbl([['File'], ['Recognised as'], ['Rows', 'r'], ['Check'], ['Result']], UI.xfRes.map(r => `<tr><td class="mono small wrap">${esc(r.name)}</td><td>${r.format ? `<b>${esc(r.title)}</b><div class="dim small mono">${esc(r.format)}</div>` : '<span class="dim">Not recognised</span>'}</td><td class="r">${r.rows || '—'}</td><td>${!r.format ? '' : r.problems ? pill(r.problems + ' problem' + (r.problems > 1 ? 's' : ''), 'bad') + `<div class="small wrap">${r.issues.slice(0, 5).map(i => `line ${i.line}${i.column ? ' · ' + esc(i.column) : ''}: ${esc(i.message)}`).join('<br>')}</div>` : pill('Matches the layout', 'good')}</td><td class="small wrap">${esc(r.loaded || '')}${r.added ? ` · ${r.added} added` : ''}${r.skipped ? ` · ${r.skipped} skipped` : ''}${r.note ? `<div class="dim">${esc(r.note)}</div>` : ''}</td></tr>`))}</div>` : '';
@@ -2939,10 +2955,18 @@ V.xfiles = {
     return ph('Exchange files', 'The files the firm receives from and sends to the exchanges, clearing corporations, CDSL, the trading front end and the bank, in their exact layouts. Drop a file as downloaded (zip or gz is fine): Ledgerline recognises it, checks every field against the layout, and loads the ones it uses.',
       mk ? '<button class="btn" data-act="xfPick" data-load="0">Check a file</button><button class="btn pri" data-act="xfPick" data-load="1">Load files</button>' : '') +
       `<div class="kpis">${kpi('Layouts', fs.length, `${inn.length} received · ${out.length} sent`)}${kpi('Used by Ledgerline', fs.filter(f => f.linked || f.writes).length, 'read into Ledgerline or written by it', 'good')}${kpi('Checked only', fs.filter(f => !f.linked && !f.writes).length, 'recognised and validated, not used yet')}</div>` + res +
+      xfChecklist(fs.checklist) +
       `<div class="panel"><div class="hd"><h3>Received</h3></div>${tbl([['File'], ['From'], ['When'], ['Fields', 'r'], ['Status'], ['']], inn.map(row), { tall: true })}</div>
       <div class="panel"><div class="hd"><h3>Sent</h3><div class="tools"><label class="dim small">For</label><input class="in sm" type="date" id="xf-date" value="${esc(UI.xfDate || S.date)}"></div></div>${tbl([['File'], ['To'], ['When'], ['Fields', 'r'], ['Status'], ['']], out.map(row), { tall: true })}</div>`;
   }
 };
+// The day's expected files, filtered by the clearing corporations chosen in Settings.
+function xfChecklist(cl) {
+  if (!cl) return '';
+  const tone = { Received: 'good', Written: 'good', Due: 'acc', Missing: 'bad', Intraday: 'nt', 'Check by hand': 'warn' };
+  return `<div class="panel"><div class="hd"><h3>Daily file checklist · ${fmtDate(cl.date)}</h3><small>${cl.missing ? pill(cl.missing + ' missing', 'bad') : pill('Nothing missing', 'good')} · ${esc(cl.clearing.map(c => c.key + ' ' + c.through).join(' · '))}</small></div>${cl.notes.length ? `<div class="bd" style="padding-bottom:0">${cl.notes.map(n => `<div class="note">${esc(n)}</div>`).join('')}</div>` : ''}
+    ${tbl([['File'], ['From / to'], ['For'], ['Due'], ['Status']], cl.items.map(i => `<tr><td><b>${esc(i.title)}</b>${(i.files || []).length ? `<div class="dim small mono wrap">${esc(i.files.join(', '))}</div>` : ''}</td><td>${esc(i.party)} ${i.direction === 'out' ? '(sent)' : ''}</td><td class="small">${esc(i.for.join(', '))}</td><td class="n small">${esc(i.due)}</td><td>${pill(i.status, tone[i.status] || 'nt')}</td></tr>`), { tall: true })}</div>`;
+}
 Object.assign(A, {
   xfPick: (id, el) => {
     const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; const load = el.dataset.load === '1';
