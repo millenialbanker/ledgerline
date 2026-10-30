@@ -17,17 +17,25 @@ Approving an override | Ops checker, Risk manager
 Approving client changes | Ops checker
 Approving exchange holidays | Ops checker, Compliance officer
 Approving legacy debts | Ops checker, Compliance officer
+Approving margin pledges sent to CDSL | Ops checker, Risk manager
 Approving pay-out holds | Risk manager
 Approving payouts | Ops checker, Risk manager
+Approving pledge invocations | Compliance officer
+Approving pledges to lenders | Ops checker
+Approving re-pledges | Ops checker, Risk manager
 Approving reactivation | Ops checker, Compliance officer
+Approving unpledges | Ops checker, Risk manager
 Approving vouchers | Ops checker
 Asking CDSL about eDIS authorisations | Ops maker, Ops checker, Risk manager
+Asking CDSL about early pay-ins | Ops maker, Ops checker, Risk manager
+Asking CDSL about pledges | Ops maker, Ops checker, Risk manager
 Asking clients for WhatsApp consent | Ops checker, Compliance officer
 Assigning brokerage plans | Ops checker
 Authorising sales and TPIN for clients (eDIS) | Ops maker, Ops checker, Branch staff
 Blocking clients in continuous debit | Risk manager
 Booking vendor bills | Ops maker, Ops checker
 Buy-back offers | Ops maker, Ops checker
+Changing CDSL pledge settings | Risk manager, Compliance officer
 Changing a segment's status | Ops checker, Compliance officer
 Changing a stock SIP | Ops maker, Ops checker
 Changing an investor's MF route | Compliance officer
@@ -78,7 +86,11 @@ Editing message templates | Ops checker, Compliance officer
 Entering a payout request | Ops maker, Ops checker, Branch staff, Authorised person
 Entering broker funds | Risk manager
 Entering delivery instructions | Ops maker, Ops checker, Branch staff
+Entering early pay-ins | Ops maker, Ops checker
+Entering margin pledge requests | Ops maker, Ops checker, Risk manager
 Entering outside trades | Ops maker, Ops checker, Branch staff
+Entering pledges to lenders | Ops maker, Ops checker
+Entering unpledge requests | Ops maker, Ops checker, Risk manager
 Entering vouchers | Ops maker, Ops checker
 Exporting dealers with PANs | Ops maker, Compliance officer
 Fetching files from NSE's extranet | Ops maker, Ops checker, Risk manager
@@ -93,6 +105,7 @@ Generating reports | Ops maker, Ops checker, Risk manager, Compliance officer
 Giving clients portal access | Ops checker, Admin
 Identifying a bank credit | Ops checker
 Importing dealers and terminals | Ops maker, Compliance officer
+Invoking pledges | Risk manager
 Issuing DIS books | Ops maker, Ops checker
 Loading MF files | Ops maker, Ops checker
 Loading brokerage rates | Ops checker
@@ -128,7 +141,10 @@ Posting referral rewards | Ops checker
 Prepaid schemes | Ops checker, Admin
 Proposing legacy debts | Ops maker, Ops checker, Risk manager, Compliance officer
 Raising CDSL requests | Ops maker, Ops checker
+Raising pledge invocations | Risk manager
 Raising stock SIP top-up debits | Ops maker, Ops checker
+Re-pledging clients' collateral | Ops maker, Risk manager
+Recording CDSL results | Ops checker, Risk manager
 Recording DP responses | Ops maker, Ops checker
 Recording IPO bid status | Ops maker, Ops checker
 Recording IPO compensation | Ops checker, Compliance officer
@@ -186,6 +202,7 @@ Sending clients to the exchange UCC | Ops maker, Ops checker
 Sending contract notes | Ops maker, Ops checker
 Sending demat requests to CDSL DESTAT | Ops checker
 Sending documents | Ops maker, Ops checker
+Sending early pay-ins | Ops checker
 Sending legacy debt reminders | Ops maker, Ops checker, Risk manager, Compliance officer
 Sending statements | Ops maker, Ops checker
 Sending stock SIP orders to the OMS | Ops maker, Ops checker, Risk manager

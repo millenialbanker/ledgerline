@@ -294,6 +294,7 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	// CDSL (DP): demat account requests, transactions, eDIS and report set-ups.
 	o.cdslBOTick(ctx, tenant, now)
 	o.cdslTxnTick(ctx, tenant, now)
+	o.cdslPledgeTick(ctx, tenant, now)
 	// Stock SIP instalments, top-ups and fills: orders still go out only
 	// through the dealer's basket upload or the firm's OMS connection.
 	o.stockSIPTick(ctx, tenant, now)
