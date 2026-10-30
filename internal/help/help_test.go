@@ -153,6 +153,11 @@ func TestQuestions(t *testing.T) {
 		{"dealer nism certificate expired", "", "dealers-nism"},
 		{"who uses terminal 40001", "", "dealers-nism"},
 		{"bse dealer registration file", "", "dealers-nism"},
+		// CDSL APIs.
+		{"open demat account through cdsl api", "", "cdsl-demat-api"},
+		{"bo id not received from cdsl", "", "cdsl-demat-api"},
+		{"how many demat accounts for this pan", "", "cdsl-demat-api"},
+		{"add off market beneficiary", "", "cdsl-demat-api"},
 		// Day.
 		{"why can't I close the day", "", "eod-close"},
 		{"what is the daily process", "", "daily-routine"},
