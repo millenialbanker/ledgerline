@@ -115,7 +115,7 @@ const GROUPS = {
   automation: ['Automation', [['autopilot', 'Autopilot & work queue'], ['jobs', 'Scheduled jobs'], ['rpa', 'Browser automations']]],
   calendar: ['Calendar & circulars', [['periodic', 'Periodic work'], ['circulars', 'Circulars & duties']]],
   filesg: ['Files', [['xfiles', 'Exchange files'], ['ccdata', 'Clearing data'], ['files', 'Other uploads & migration']]],
-  clientsg: ['Clients & onboarding', [['clients', 'Clients'], ['apps', 'Online applications'], ['changes', 'Change requests']]],
+  clientsg: ['Clients & onboarding', [['clients', 'Clients'], ['apps', 'Online applications'], ['changes', 'Change requests'], ['uccapi', 'Exchange UCC']]],
   docsg: ['Client documents', [['statements', 'Client reports'], ['dispatch', 'Dispatch register'], ['messages', 'Client messages'], ['yearend', 'Year-end packs']]],
   riskg: ['RMS & margin', [['rms', 'RMS & limits'], ['live', 'Live (intraday)'], ['margin', 'Margin reporting'], ['payouthold', 'Pay-out holds']]],
   collg: ['Collateral', [['collateral', 'Client collateral & pledge'], ['allocation', 'Clearing allocation'], ['deposits', 'Clearing deposits']]],
