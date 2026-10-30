@@ -486,9 +486,9 @@ func edisShares(a EDISAuth, only string) string {
 }
 
 // edisRecord saves an answered authorisation and tells the client.
-func (o *Ops) edisRecord(ctx context.Context, tenant string, a EDISAuth, how string) error {
+func (o *Ops) edisRecord(ctx context.Context, tenant string, a *EDISAuth, how string) error {
 	a.DoneAt, a.AnsweredBy = o.now().Format(time.RFC3339), how
-	if err := docs.Upsert(ctx, o.Docs, tenant, cEDIS, a.ReqID, a, SystemActor); err != nil {
+	if err := docs.Upsert(ctx, o.Docs, tenant, cEDIS, a.ReqID, *a, SystemActor); err != nil {
 		return err
 	}
 	reason := ""
@@ -497,9 +497,9 @@ func (o *Ops) edisRecord(ctx context.Context, tenant string, a EDISAuth, how str
 			reason = firstOf(reason, "Not authorised: "+firstOf(l.Symbol, l.ISIN)+": "+l.Error+".")
 		}
 	}
-	shares := edisShares(a, "Authorised")
+	shares := edisShares(*a, "Authorised")
 	if a.Status == "Failed" {
-		shares = edisShares(a, "")
+		shares = edisShares(*a, "")
 	}
 	o.notify(ctx, tenant, SystemActor, "edis.authorised", a.UCC, map[string]string{"req": a.ReqID, "status": strings.ToLower(a.Status), "shares": shares, "valid_till": fmtDay(a.ValidTill), "reason": reason})
 	o.closeWork(ctx, tenant, SystemActor, "cdsl", "edis:"+a.ReqID, a.Status)
@@ -539,7 +539,7 @@ func (o *Ops) EDISReturn(ctx context.Context, tenant string, form url.Values) (C
 		out.Lines = []string{"CDSL has not finished the authorisation. If you closed CDSL's page, start again."}
 		return out, nil
 	}
-	if err := o.edisRecord(ctx, tenant, a, "Redirect"); err != nil {
+	if err := o.edisRecord(ctx, tenant, &a, "Redirect"); err != nil {
 		return out, err
 	}
 	return edisReturnPage(out, a), nil
@@ -656,7 +656,8 @@ func (o *Ops) EDISInquire(ctx context.Context, tenant, actor, reqID string) (EDI
 		_ = docs.Upsert(ctx, o.Docs, tenant, cEDIS, a.ReqID, a, actor)
 		return a, nil
 	}
-	return a, o.edisRecord(ctx, tenant, a, "Inquiry")
+	err = o.edisRecord(ctx, tenant, &a, "Inquiry")
+	return a, err
 }
 
 // GenerateTPIN asks CDSL to send the client a new TPIN (§5.13). Only for
