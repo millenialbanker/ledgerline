@@ -286,6 +286,9 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.nclMarginsTick(ctx, tenant, now)
 	o.retryMessages(ctx, tenant, now)
 	o.extranetTick(ctx, tenant, now)
+	// Client registration with the exchanges by API (UCC), when switched on.
+	o.nseUCITick(ctx, tenant, now)
+	o.bseUCCTick(ctx, tenant, now)
 	// Stock SIP instalments, top-ups and fills: orders still go out only
 	// through the dealer's basket upload or the firm's OMS connection.
 	o.stockSIPTick(ctx, tenant, now)

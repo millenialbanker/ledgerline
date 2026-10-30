@@ -43,6 +43,7 @@ Changing the account type | Ops checker
 Changing the chart of accounts | Ops checker
 Changing the compliance calendar | Compliance officer
 Changing vendors | Ops maker, Ops checker
+Checking PAN status at BSE | Ops maker, Ops checker
 Checking PAN status at the exchange | Ops maker, Ops checker, Compliance officer
 Checking a backup | Ops checker, Compliance officer
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
@@ -150,6 +151,7 @@ Removing the signing certificate | Admin
 Reporting short allocation | Ops maker, Ops checker, Risk manager
 Requesting reactivation | Ops maker, Ops checker
 Resetting passwords | Admin
+Resetting the BSE UCC API password | Admin
 Resetting two-factor sign-in | Admin
 Restricting client data | Compliance officer, Admin
 Returning a bank credit | Ops maker, Ops checker
@@ -169,6 +171,7 @@ See full client identifiers | Ops checker, Compliance officer
 Seeing mail sent to staff | Compliance officer, Admin
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
 Sending IPO bids to the exchange | Ops maker, Ops checker
+Sending UCC to BSE | Ops maker, Ops checker
 Sending bulk messages | Ops checker, Compliance officer
 Sending clients to the exchange UCC | Ops maker, Ops checker
 Sending contract notes | Ops maker, Ops checker
@@ -203,6 +206,7 @@ Using automations | Ops maker, Ops checker, Risk manager, Compliance officer, Br
 Verifying delivery instructions | Ops checker
 View data protection | Compliance officer
 Viewing AI usage | Compliance officer
+Viewing BSE UCC registrations | Ops maker, Ops checker, Compliance officer
 Viewing backups | Ops checker, Compliance officer
 Viewing connections | Compliance officer, Admin
 Viewing exchange UCC registrations | Ops maker, Ops checker, Risk manager, Compliance officer

@@ -40,16 +40,16 @@ import (
 // (their specs say so) until BSE's own descriptions are in hand.
 
 const (
-	cBSEUCCRun   = "bseuccrun"   // date|seg: not-permitted list
-	cBSEUCCList  = "bseuccstat"  // date|seg: permitted list exceptions
-	cBSEOrdChg   = "bseordchg"   // YYYY-MM
-	cBSETRC      = "bsetrc"      // date
-	cBSEClrStmt  = "bseclrstmt"  // date
-	cBSEDebr     = "bsedebr"     // date
-	cBSEContact  = "bsecontact"  // date
-	cBSEBulk     = "bsebulk"     // date
-	cBSEOrderLog = "bseorderlog" // date
-	cBSEUCCDemat = "bseuccdemat" // ucc|depository
+	cBSENotPermitted = "bsenotpermitted" // date|seg: not-permitted list
+	cBSEUCCList      = "bseuccstat"      // date|seg: permitted list exceptions
+	cBSEOrdChg       = "bseordchg"       // YYYY-MM
+	cBSETRC          = "bsetrc"          // date
+	cBSEClrStmt      = "bseclrstmt"      // date
+	cBSEDebr         = "bsedebr"         // date
+	cBSEContact      = "bsecontact"      // date
+	cBSEBulk         = "bsebulk"         // date
+	cBSEOrderLog     = "bseorderlog"     // date
+	cBSEUCCDemat     = "bseuccdemat"     // ucc|depository
 
 	wBSEUCCBlocked = "bse-ucc-blocked"
 	wBSEUCCStatus  = "bse-ucc-status"
@@ -162,8 +162,8 @@ func (o *Ops) loadBSEExtranet(ctx context.Context, tenant, actor string, s *xfil
 
 // ---- UCCs not permitted to trade ----
 
-// BSEUCCRun is the latest not-permitted list of a date and segment.
-type BSEUCCRun struct {
+// BSENotPermittedList is the latest not-permitted list of a date and segment.
+type BSENotPermittedList struct {
 	ID      string              `json:"id"`
 	Date    string              `json:"date"`
 	Segment string              `json:"segment"`
@@ -198,11 +198,11 @@ var segWord = map[string]string{"CM": "Cash", "FO": "Derivatives"}
 func (o *Ops) loadBSENotPermitted(ctx context.Context, tenant, actor, date, name string, rows []xfile.Row, r *XFileResult) error {
 	seg, seq := bseSeg(name), bseSeq(name)
 	id := date + "|" + seg
-	if old, _, err := docs.Get[BSEUCCRun](ctx, o.Docs, tenant, cBSEUCCRun, id); err == nil && old.Seq > seq {
+	if old, _, err := docs.Get[BSENotPermittedList](ctx, o.Docs, tenant, cBSENotPermitted, id); err == nil && old.Seq > seq {
 		r.Loaded = fmt.Sprintf("Not used: run %02d of the day is already loaded", old.Seq)
 		return nil
 	}
-	run := BSEUCCRun{ID: id, Date: date, Segment: seg, File: name, Seq: seq, Clients: map[string][]string{}, BSE: map[string][]string{}}
+	run := BSENotPermittedList{ID: id, Date: date, Segment: seg, File: name, Seq: seq, Clients: map[string][]string{}, BSE: map[string][]string{}}
 	cols := []string{"IsActiveStatus", "Approved", "PAN Validation Status", "PAN Status", "KRA Status"}
 	for i := 1; i <= 5; i++ {
 		cols = append(cols, fmt.Sprintf("PrimaryOrSecondaryDP%dStatus", i))
@@ -225,7 +225,7 @@ func (o *Ops) loadBSENotPermitted(ctx context.Context, tenant, actor, date, name
 			run.Clients[ucc] = []string{segWord[seg] + ": BSE does not permit the client to trade (no reason given); check the client's UCC at BSE."}
 		}
 	}
-	if err := docs.Upsert(ctx, o.Docs, tenant, cBSEUCCRun, id, run, actor); err != nil {
+	if err := docs.Upsert(ctx, o.Docs, tenant, cBSENotPermitted, id, run, actor); err != nil {
 		return err
 	}
 	o.syncBSEUCCWork(ctx, tenant, actor, date)
@@ -238,8 +238,8 @@ func bseSeg(name string) string { return bseSegOf(name) }
 // BSEUCCBlocked are the reasons BSE does not permit each client to trade,
 // from the latest not-permitted list of each segment.
 func (o *Ops) BSEUCCBlocked(ctx context.Context, tenant string) map[string][]string {
-	all, _ := docs.List[BSEUCCRun](ctx, o.Docs, tenant, cBSEUCCRun, "")
-	latest := map[string]BSEUCCRun{}
+	all, _ := docs.List[BSENotPermittedList](ctx, o.Docs, tenant, cBSENotPermitted, "")
+	latest := map[string]BSENotPermittedList{}
 	for _, x := range all {
 		if x.Date > latest[x.Segment].Date {
 			latest[x.Segment] = x
@@ -1114,7 +1114,7 @@ func (o *Ops) bseSections(ctx context.Context, tenant, date string, cs map[strin
 	np := CCSection{ID: "bse_ucc", Title: "BSE: clients not permitted to trade", About: "BSE's latest not-permitted list of the day (cash and derivatives) with what to fix; each client has a work item.",
 		Columns: []string{"Segment", "Client", "Name", "Reason and fix"}}
 	for _, seg := range []string{"CM", "FO"} {
-		if x, _, err := docs.Get[BSEUCCRun](ctx, o.Docs, tenant, cBSEUCCRun, date+"|"+seg); err == nil {
+		if x, _, err := docs.Get[BSENotPermittedList](ctx, o.Docs, tenant, cBSENotPermitted, date+"|"+seg); err == nil {
 			np.Loaded, np.File = true, strings.TrimPrefix(np.File+", "+x.File, ", ")
 			for _, u := range sortedKeys(x.Clients) {
 				np.Rows = append(np.Rows, []string{seg, u, cs[u].Name, strings.Join(x.Clients[u], " ")})
