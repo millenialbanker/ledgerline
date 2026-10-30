@@ -1,0 +1,26 @@
+{
+ "compress": "none",
+ "format": "delimited",
+ "direction": "in",
+ "party": "BSE",
+ "id": "bse-ucc-trading-status",
+ "title": "UCCs permitted to trade (BSE, cash and derivatives)",
+ "when": "About 15:00 and 22:00 (_01, _02 runs)",
+ "purpose": "Every client code BSE lets trade in the segment (EQX cash, EQD derivatives), one per line.",
+ "names": [
+  "EQ[XD]_\\d+_UCC_Trading_Status_\\d{8}_\\d+\\.csv"
+ ],
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "UCC",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "The file (one client code per line, no header)",
+ "linked": "Compared with Ledgerline's active clients for the segment; exceptions on Clearing data"
+}

@@ -1,0 +1,63 @@
+{
+ "compress": "none",
+ "format": "delimited",
+ "direction": "in",
+ "party": "BSE",
+ "id": "bse-bulk-deals",
+ "title": "Bulk deals (BSE)",
+ "when": "Daily about 16:50",
+ "purpose": "Bulk deals of the day: member, scrip code, client, buy or sell, quantity, price and date. PROVISIONAL: field meanings inferred from masked files.",
+ "names": [
+  "BULK\\d{6}\\.\\d+"
+ ],
+ "delimiter": "|",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "MemberCode",
+   "type": "str"
+  },
+  {
+   "name": "ScripCode",
+   "type": "str"
+  },
+  {
+   "name": "ClientCode",
+   "type": "str"
+  },
+  {
+   "name": "ClientName",
+   "type": "str"
+  },
+  {
+   "name": "BuySell",
+   "type": "str"
+  },
+  {
+   "name": "Qty",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Price",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Date",
+   "type": "date",
+   "layout": "02/01/2006"
+  },
+  {
+   "name": "Filler",
+   "type": "blank"
+  }
+ ],
+ "confirmed": false,
+ "source": "PROVISIONAL: masked sample files (9 pipe-separated fields, padded values)",
+ "linked": "Kept for surveillance, with a low-priority alert per client found"
+}

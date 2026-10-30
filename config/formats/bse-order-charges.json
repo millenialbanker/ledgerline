@@ -1,0 +1,49 @@
+{
+ "compress": "none",
+ "format": "delimited",
+ "direction": "in",
+ "party": "BSE",
+ "id": "bse-order-charges",
+ "title": "Order charges (BSE, equity)",
+ "when": "Daily about 20:30 (month to date)",
+ "purpose": "BSE's order charges per day: number of orders, the day's charge and the month's cumulative charge.",
+ "names": [
+  "Equity_ ?OrderCharges_\\d{8}_\\d+\\.csv"
+ ],
+ "delimiter": ",",
+ "header": true,
+ "crlf": false,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "Member Code",
+   "type": "str"
+  },
+  {
+   "name": "Trade Date",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "Daily Number of Orders",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Daily Charges",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Daily Cumulative Charges",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "linked": "Kept by month as BSE's order charges, to check BSE's monthly bill (Clearing data)"
+}

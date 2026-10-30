@@ -646,6 +646,7 @@ func (o *Ops) ClearingData(ctx context.Context, tenant, date string) ([]CCSectio
 		}
 	}
 	out = append(out, st)
+	out = append(out, o.bseSections(ctx, tenant, date, cs)...) // BSE member reports (bseextranet.go)
 
 	// Cash market obligation by security vs the day's trades.
 	ob := CCSection{ID: "obligation", Title: "Cash market obligation", About: "NSE's obligation per security (buy and sell quantity) against the firm's trades of the day in Ledgerline.",

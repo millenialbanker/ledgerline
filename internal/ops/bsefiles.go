@@ -50,7 +50,7 @@ func (o *Ops) loadBSEXFile(ctx context.Context, tenant, actor string, s *xfile.S
 		}
 		r.Loaded, r.Added = fmt.Sprintf("Loaded as %s %s closing prices of %s (market data)", exch, seg, date), n
 	default:
-		return false
+		return o.loadBSEExtranet(ctx, tenant, actor, s, f, rows, r) // member reports (bseextranet.go)
 	}
 	return true
 }

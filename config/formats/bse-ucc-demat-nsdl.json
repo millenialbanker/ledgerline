@@ -1,0 +1,82 @@
+{
+ "compress": "none",
+ "format": "delimited",
+ "direction": "in",
+ "party": "BSE",
+ "id": "bse-ucc-demat-nsdl",
+ "title": "UCC demat check response from NSDL (BSE)",
+ "when": "After a UCC upload",
+ "purpose": "BSE's response to the UCC master upload after checking each client's demat account with NSDL. PROVISIONAL: only the first seven fields are known; BSE's UCC master layout is needed for the rest.",
+ "names": [
+  "NSDL_UCCMSTR_02_\\d{8}_\\d+\\.RES\\.\\d+"
+ ],
+ "delimiter": "#",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "RecordType",
+   "type": "str"
+  },
+  {
+   "name": "MemberCode",
+   "type": "str"
+  },
+  {
+   "name": "ClientCode",
+   "type": "str"
+  },
+  {
+   "name": "Field4",
+   "type": "str"
+  },
+  {
+   "name": "PAN",
+   "type": "str"
+  },
+  {
+   "name": "DPID",
+   "type": "str"
+  },
+  {
+   "name": "MemberCode2",
+   "type": "str"
+  },
+  {
+   "name": "Field8",
+   "type": "str"
+  },
+  {
+   "name": "Field9",
+   "type": "str"
+  },
+  {
+   "name": "Field10",
+   "type": "str"
+  },
+  {
+   "name": "Field11",
+   "type": "str"
+  },
+  {
+   "name": "Field12",
+   "type": "str"
+  },
+  {
+   "name": "Field13",
+   "type": "str"
+  },
+  {
+   "name": "Field14",
+   "type": "str"
+  },
+  {
+   "name": "Field15",
+   "type": "str"
+  }
+ ],
+ "confirmed": false,
+ "source": "PROVISIONAL: masked response files ('#'-separated, 15 fields, no header). Needs BSE's UCC master layout.",
+ "linked": "Kept per client as received and shown with the client"
+}

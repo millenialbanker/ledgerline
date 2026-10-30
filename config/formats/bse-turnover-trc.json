@@ -1,0 +1,88 @@
+{
+ "compress": "none",
+ "format": "delimited",
+ "direction": "in",
+ "party": "BSE",
+ "id": "bse-turnover-trc",
+ "title": "Turnover and transaction charges (BSE)",
+ "when": "Daily about 19:15",
+ "purpose": "The day's turnover and transaction charges per scrip group and settlement, with the month's cumulative turnover.",
+ "names": [
+  "Turnover_TRC_\\d{8}_\\d+\\.csv"
+ ],
+ "delimiter": ",",
+ "header": true,
+ "crlf": true,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "Member Code",
+   "type": "str"
+  },
+  {
+   "name": "Group",
+   "type": "str"
+  },
+  {
+   "name": "BSE Exclusive/Non-Exclusive",
+   "type": "str"
+  },
+  {
+   "name": "Settlement Number",
+   "type": "str"
+  },
+  {
+   "name": "Daily Turnover",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Trade Date",
+   "type": "str"
+  },
+  {
+   "name": "Daily Cumulative Turnover",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Monthly Cumulative Turnover",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Transaction Charges",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Filler",
+   "type": "str"
+  },
+  {
+   "name": "Amount Payable",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Filler1",
+   "type": "str"
+  },
+  {
+   "name": "Filler2",
+   "type": "str"
+  },
+  {
+   "name": "Filler3",
+   "type": "str"
+  }
+ ],
+ "confirmed": true,
+ "source": "Header row of the file",
+ "linked": "Reconciled with the exchange transaction charges Ledgerline billed on BSE trades of the day (Clearing data)"
+}

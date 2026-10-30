@@ -1,0 +1,38 @@
+{
+ "compress": "none",
+ "format": "delimited",
+ "direction": "in",
+ "party": "BSE",
+ "id": "bse-contact-exceptions",
+ "title": "Mobile and email exceptions (BSE)",
+ "when": "Daily about 21:20",
+ "purpose": "Client codes with the mobile number or email BSE flags (shared, invalid or missing).",
+ "names": [
+  "NOME\\d{6}\\.\\d+"
+ ],
+ "delimiter": "|",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "UCC",
+   "type": "str"
+  },
+  {
+   "name": "Mobile",
+   "type": "str"
+  },
+  {
+   "name": "Email",
+   "type": "str"
+  },
+  {
+   "name": "Filler",
+   "type": "blank"
+  }
+ ],
+ "confirmed": false,
+ "source": "The file (pipe-separated, no header); why BSE lists a client is not stated in the file",
+ "linked": "Compared with the clients' mobile and email in Ledgerline; one work item lists the clients to check"
+}

@@ -194,6 +194,17 @@ var DailyFiles = []DailyFile{
 	{ID: "bse-bhav-fo", Title: "BSE bhavcopy, F&O (common format)", Format: "udiff-bhavcopy", Name: `_BSE_FO_`, Party: "BSE", Exchange: "BSE", Segments: []string{"FO"}, Direction: "in", At: "17:20"},
 	{ID: "bse-stamp", Title: "BSE stamp duty file (MBRSTD)", Format: "bse-stamp-duty", Party: "BSE", Exchange: "BSE", Segments: []string{"CM"}, Direction: "in", At: "15:00", NextDay: true},
 	{ID: "bse-scrip", Title: "BSE scrip and series mapping", Format: "bse-scrip-series", Party: "BSE", Exchange: "BSE", Segments: []string{"CM"}, Direction: "in", At: "08:00"},
+	{ID: "bse-ucc-np-1", Title: "BSE UCCs not permitted to trade (first run)", Format: "bse-ucc-not-permitted", Name: `_01\.csv$`, Party: "BSE", Exchange: "BSE", Segments: []string{"CM", "FO"}, Direction: "in", At: "15:00"},
+	{ID: "bse-ucc-np-2", Title: "BSE UCCs not permitted to trade (evening run)", Format: "bse-ucc-not-permitted", Name: `_(0[2-9]|[1-9]\d)\.csv$`, Party: "BSE", Exchange: "BSE", Segments: []string{"CM", "FO"}, Direction: "in", At: "22:00"},
+	{ID: "bse-ucc-ts-1", Title: "BSE UCCs permitted to trade (first run)", Format: "bse-ucc-trading-status", Name: `_01\.csv$`, Party: "BSE", Exchange: "BSE", Segments: []string{"CM", "FO"}, Direction: "in", At: "15:00"},
+	{ID: "bse-ucc-ts-2", Title: "BSE UCCs permitted to trade (evening run)", Format: "bse-ucc-trading-status", Name: `_(0[2-9]|[1-9]\d)\.csv$`, Party: "BSE", Exchange: "BSE", Segments: []string{"CM", "FO"}, Direction: "in", At: "22:00"},
+	{ID: "bse-bulk", Title: "BSE bulk deals (BULK)", Format: "bse-bulk-deals", Party: "BSE", Exchange: "BSE", Segments: []string{"CM"}, Direction: "in", At: "16:50"},
+	{ID: "bse-orders", Title: "BSE order log (BO)", Format: "bse-order-log", Party: "BSE", Exchange: "BSE", Segments: []string{"CM"}, Direction: "in", At: "17:40"},
+	{ID: "bse-trc", Title: "BSE turnover and transaction charges (Turnover_TRC)", Format: "bse-turnover-trc", Party: "BSE", Exchange: "BSE", Segments: []string{"CM"}, Direction: "in", At: "19:15"},
+	{ID: "bse-va", Title: "BSE clearing house account statement (VA)", Format: "bse-clearing-statement", Party: "BSE", Exchange: "BSE", Segments: []string{"CM", "FO"}, Direction: "in", At: "19:40"},
+	{ID: "bse-ordchg", Title: "BSE order charges", Format: "bse-order-charges", Party: "BSE", Exchange: "BSE", Segments: []string{"CM"}, Direction: "in", At: "20:30"},
+	{ID: "bse-debr", Title: "BSE statement of PANs debarred by SEBI (DEBR)", Format: "bse-debarred-pan", Party: "BSE", Exchange: "BSE", Segments: []string{"CM", "FO"}, Direction: "in", At: "21:00"},
+	{ID: "bse-nome", Title: "BSE mobile and email exceptions (NOME)", Format: "bse-contact-exceptions", Party: "BSE", Exchange: "BSE", Segments: []string{"CM", "FO"}, Direction: "in", At: "21:20"},
 	// MCX
 	{ID: "mcx-trade-f", Title: "MCX trade file", Format: "mcx-trade", Party: "MCX", Exchange: "MCX", Segments: []string{"COM"}, Direction: "in", At: "23:59"},
 	// NSE Clearing
@@ -233,8 +244,6 @@ type DailyFileRecv struct {
 	By     string `json:"by"`
 }
 
-var reDDMMYY = regexp.MustCompile(`_([0-3]\d)(0[1-9]|1[0-2])(\d\d)\.[A-Za-z]+$`)
-
 // noteDailyFile ticks a file off the checklist of its date (from the file
 // name; today when the name has none).
 func (o *Ops) noteDailyFile(ctx context.Context, tenant, actor, format, name, date string) {
@@ -242,9 +251,7 @@ func (o *Ops) noteDailyFile(ctx context.Context, tenant, actor, format, name, da
 		date = ymdFromName(name)
 	}
 	if date == "" {
-		if m := reDDMMYY.FindStringSubmatch(name); m != nil && validDate("20"+m[3]+"-"+m[2]+"-"+m[1]) {
-			date = "20" + m[3] + "-" + m[2] + "-" + m[1]
-		}
+		date = bseFileDate(name, o.now())
 	}
 	if date == "" {
 		date = o.now().In(ist).Format("2006-01-02")

@@ -1,0 +1,14 @@
+                STATEMENT FOR LIST OF PAN DEBARRED BY SEBI FOR STOCK BROKERS
+
+NAME OF THE EXCHANGE   : BSE LIMITED
+CODE NO. OF THE BROKER : 9999
+NAME OF THE BROKER     : TEST BROKING LTD
+REPORT DATE            : 16/10/2026
+
+----------------------------------------------------------------------------------------------------------------
+|SR NO |SCRIP |CLIENT CODE| CLIENT NAME                    | PAN NO     | START DATE | END DATE      |SEGMENT|
+----------------------------------------------------------------------------------------------------------------
+|1     |      |{{UCC1}}   | TEST CLIENT ONE                | {{PAN1}} | 01/10/2026 | NOT SPECIFIED |EQD    |
+|2     |599901|{{UCC2}}   | TEST CLIENT TWO                | {{PAN2}} | 01/09/2026 | 31/12/2026    |EQ     |
+|3     |      |ZZNOTCL1   | NOT OUR CLIENT                 | ZZZZZ9999Z | 01/01/2026 | NOT SPECIFIED |EQ     |
+----------------------------------------------------------------------------------------------------------------
