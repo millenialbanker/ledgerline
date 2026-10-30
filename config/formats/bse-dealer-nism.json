@@ -1,0 +1,69 @@
+{
+ "id": "bse-dealer-nism",
+ "title": "Dealer NISM certificates (BSE)",
+ "party": "BSE",
+ "direction": "out",
+ "when": "On change and on renewal",
+ "purpose": "Each dealer's NISM Series VIII certificate (number, exam date, valid till) to add, modify or renew; dates MM/DD/YYYY, no header. Written on Dealers & terminals → Exchange files.",
+ "names": [
+  "BSE_NISM_\\d{8}\\.txt"
+ ],
+ "template": "BSE_NISM_{date:02012006}.txt",
+ "delimiter": "|",
+ "header": false,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "Add/Modify/Renew",
+   "type": "str",
+   "note": "A add, M modify, RN renew",
+   "required": true
+  },
+  {
+   "name": "PAN_Number",
+   "type": "str",
+   "required": true
+  },
+  {
+   "name": "FirstName",
+   "type": "str",
+   "required": true
+  },
+  {
+   "name": "MiddleName",
+   "type": "str"
+  },
+  {
+   "name": "LastName",
+   "type": "str"
+  },
+  {
+   "name": "Segment",
+   "type": "str",
+   "note": "EQD for NISM Series VIII"
+  },
+  {
+   "name": "Enrollment_Number",
+   "type": "str",
+   "required": true
+  },
+  {
+   "name": "ExamDate",
+   "type": "date",
+   "layout": "01/02/2006",
+   "required": true
+  },
+  {
+   "name": "ValidTillDate",
+   "type": "date",
+   "layout": "01/02/2006",
+   "required": true
+  },
+  {
+   "name": "NISM_Approve_Flag",
+   "type": "str"
+  }
+ ],
+ "confirmed": false,
+ "linked": "Written from the dealers register (Dealers & terminals)"
+}
