@@ -473,7 +473,7 @@ type CDSLCall struct {
 	ReqID   string   `json:"req_id"`
 	Kind    string   `json:"kind"` // MP, MF, MR, EP, UN, CF, EPI
 	UCC     string   `json:"ucc,omitempty"`
-	IDs     []string `json:"ids"`     // Ledgerline records it carries
+	IDs     []string `json:"ids"`      // Ledgerline records it carries
 	ISINReq []string `json:"isin_req"` // isinreqid per record, same order
 	At      string   `json:"at"`
 	Status  string   `json:"status"` // Sent, Done, No reply, Abandoned
@@ -877,7 +877,9 @@ type cplISINReply struct {
 	ErrorMsg  string `json:"errormsg"`
 }
 
-func (r cplPledgeRes) lines() []cplISINReply { return append(append(append([]cplISINReply{}, r.A...), r.B...), r.C...) }
+func (r cplPledgeRes) lines() []cplISINReply {
+	return append(append(append([]cplISINReply{}, r.A...), r.B...), r.C...)
+}
 
 // failed says whether the whole request failed, and why.
 func (r cplPledgeRes) failed() (bool, string, string) {

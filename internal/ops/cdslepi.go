@@ -696,4 +696,3 @@ func (o *Ops) EarlyPayins(ctx context.Context, tenant, date string) (EPIView, er
 	}
 	return v, nil
 }
-

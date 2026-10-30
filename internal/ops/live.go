@@ -226,6 +226,12 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 	for _, h := range in.holdings {
 		held[h.UCC+"|"+h.Symbol] += h.Qty
 	}
+	// Shares CDSL accepted for early pay-in are delivered: a sale they
+	// cover is not a short delivery. Holdings are the morning's, so they
+	// may still include those shares; the larger of the two counts.
+	for k, q := range o.epiCovered(ctx, tenant, date) {
+		held[k] = max(held[k], q)
+	}
 	exMargin, exAt, _ := o.NCLMClientMargins(ctx, tenant, date)
 	payoutHeld := o.payoutHeld(ctx, tenant, date)
 	if len(exMargin) > 0 {
