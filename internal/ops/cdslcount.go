@@ -101,16 +101,16 @@ func (o *Ops) RunCDSLDematCheck(ctx context.Context, tenant, actor, ucc string) 
 }
 
 // cdslCountTick checks the accounts that are new or changed, a few at a
-// time. Accounts that were already there when the API was switched on are
-// noted, not checked, until something about them changes.
-func (o *Ops) cdslCountTick(ctx context.Context, tenant string, x cdslConn, now time.Time) {
+// time. Accounts that were already there when the API was first switched
+// on (first) are noted, not checked, until something about them changes.
+func (o *Ops) cdslCountTick(ctx context.Context, tenant string, x cdslConn, now time.Time, first bool) {
 	cs, _ := o.Clients(ctx, tenant)
 	have := map[string]CDSLCount{}
 	all, _ := docs.List[CDSLCount](ctx, o.Docs, tenant, cCDSLCount, "")
 	for _, a := range all {
 		have[a.UCC] = a
 	}
-	baseline := len(all) == 0
+	baseline := first
 	runs := 0
 	for _, c := range cs {
 		if c.Demat.Depository != "CDSL" || c.Demat.ID == "" || c.Status == "Closed" {

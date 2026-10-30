@@ -1894,6 +1894,7 @@ func (o *Ops) cdslBOTick(ctx context.Context, tenant string, now time.Time) {
 		st.Since = map[string]string{}
 	}
 	day := now.In(ist).Format("2006-01-02")
+	firstCount := x.On(cdslFamBOCount) && st.Since[cdslFamBOCount] == ""
 	for _, f := range []string{cdslFamBO, cdslFamBOCount, cdslFamTransfer, cdslFamBeneficiary} {
 		if x.On(f) && st.Since[f] == "" {
 			st.Since[f] = now.In(ist).Truncate(time.Second).Format(time.RFC3339)
@@ -1932,7 +1933,7 @@ func (o *Ops) cdslBOTick(ctx context.Context, tenant string, now time.Time) {
 		st.LastPoll = now.Format(time.RFC3339)
 	}
 	if x.On(cdslFamBOCount) {
-		o.cdslCountTick(ctx, tenant, x, now)
+		o.cdslCountTick(ctx, tenant, x, now, firstCount)
 	}
 	_ = docs.Upsert(ctx, o.Docs, tenant, cCDSLState, "tick", st, SystemActor)
 }
