@@ -41,6 +41,7 @@ Changing the account type | Ops checker
 Changing the chart of accounts | Ops checker
 Changing the compliance calendar | Compliance officer
 Changing vendors | Ops maker, Ops checker
+Checking PAN status at the exchange | Ops maker, Ops checker, Compliance officer
 Checking a backup | Ops checker, Compliance officer
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
 Claiming IPO commission | Ops checker
@@ -64,6 +65,7 @@ Downloading exchange files | Ops maker, Ops checker, Risk manager, Compliance of
 Downloading periodic files | Ops maker, Ops checker, Compliance officer
 Downloading stock SIP basket files | Ops maker, Ops checker, Risk manager
 Downloading the collateral file | Ops maker, Ops checker, Risk manager, Compliance officer
+Editing exchange UCC details | Ops maker, Ops checker
 Editing message templates | Ops checker, Compliance officer
 Entering a payout request | Ops maker, Ops checker, Branch staff, Authorised person
 Entering delivery instructions | Ops maker, Ops checker, Branch staff
@@ -161,6 +163,7 @@ Seeing mail sent to staff | Compliance officer, Admin
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
 Sending IPO bids to the exchange | Ops maker, Ops checker
 Sending bulk messages | Ops checker, Compliance officer
+Sending clients to the exchange UCC | Ops maker, Ops checker
 Sending contract notes | Ops maker, Ops checker
 Sending documents | Ops maker, Ops checker
 Sending legacy debt reminders | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -195,6 +198,7 @@ View data protection | Compliance officer
 Viewing AI usage | Compliance officer
 Viewing backups | Ops checker, Compliance officer
 Viewing connections | Compliance officer, Admin
+Viewing exchange UCC registrations | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing nominations | Ops maker, Ops checker, Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
