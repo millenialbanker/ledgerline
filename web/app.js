@@ -118,7 +118,7 @@ const GROUPS = {
   clientsg: ['Clients & onboarding', [['clients', 'Clients'], ['apps', 'Online applications'], ['changes', 'Change requests'], ['uccapi', 'Exchange UCC']]],
   docsg: ['Client documents', [['statements', 'Client reports'], ['dispatch', 'Dispatch register'], ['messages', 'Client messages'], ['yearend', 'Year-end packs']]],
   riskg: ['RMS & margin', [['rms', 'RMS & limits'], ['live', 'Live (intraday)'], ['margin', 'Margin reporting'], ['payouthold', 'Pay-out holds']]],
-  collg: ['Collateral', [['collateral', 'Client collateral & pledge'], ['allocation', 'Clearing allocation'], ['deposits', 'Clearing deposits']]],
+  collg: ['Collateral', [['collateral', 'Client collateral & pledge'], ['cdslpledge', 'Pledges (CDSL)'], ['cdslepi', 'Early pay-in'], ['allocation', 'Clearing allocation'], ['deposits', 'Clearing deposits']]],
   moneyg: ['Receipts & payouts', [['money', 'Receipts & payouts'], ['bank', 'Bank reconciliation'], ['ras', 'Running account']]],
   debtg: ['Debtors', [['debits', 'Debtors & interest'], ['legacy', 'Legacy debts']]],
   mfg: ['Mutual funds', [['mforders', 'MF orders'], ['mfsips', 'SIPs'], ['mfmandates', 'MF mandates'], ['mfunits', 'MF units'], ['mfcomm', 'MF commission'], ['mfsettings', 'MF settings']]],
@@ -138,7 +138,7 @@ const NAV = [
 // Every staff screen with its name, groups opened up.
 const NAV_VIEWS = NAV.flatMap(g => g[1].flatMap(([k, l]) => k[0] === '@' ? GROUPS[k.slice(1)][1] : [[k, l]]));
 const groupOf = v => Object.keys(GROUPS).find(g => GROUPS[g][1].some(([k]) => k === v));
-const PORTAL_NAV = [['My account', [['portal', 'Overview'], ['pnotes', 'Contract notes'], ['pdocs', 'Signed statements'], ['statements', 'Reports & statements'], ['pinsights', 'Tax & insights'], ['pfunds', 'Funds & payouts'], ['pipo', 'IPOs & public issues'], ['pmf', 'Mutual funds'], ['psip', 'Stock SIPs'], ['pprofile', 'Profile & documents'], ['phelp', 'Help desk'], ['pext', 'Trades elsewhere']]]];
+const PORTAL_NAV = [['My account', [['portal', 'Overview'], ['pnotes', 'Contract notes'], ['pdocs', 'Signed statements'], ['statements', 'Reports & statements'], ['pinsights', 'Tax & insights'], ['pfunds', 'Funds & payouts'], ['pipo', 'IPOs & public issues'], ['pmf', 'Mutual funds'], ['psip', 'Stock SIPs'], ['ppledge', 'Pledge shares'], ['pprofile', 'Profile & documents'], ['phelp', 'Help desk'], ['pext', 'Trades elsewhere']]]];
 const PORTAL_VIEWS = PORTAL_NAV[0][1].map(v => v[0]);
 const clientUser = () => S.me?.role === 'Client';
 const VIEWS = [...NAV_VIEWS.map(v => v[0]), ...PORTAL_VIEWS, 'support'];
