@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"ledgerline/internal/docs"
 	"ledgerline/internal/money"
@@ -81,6 +82,9 @@ func allocSetup(t *testing.T) (*Ops, context.Context, *fakeNCL) {
 	o, ctx := newOps(t)
 	f := &fakeNCL{codes: map[string]string{}}
 	o.NCL = f
+	// A fixed working-day clock: NSE Clearing's 20:00 cut-off must not
+	// depend on when the tests run.
+	o.Now = func() time.Time { return time.Date(2026, 10, 16, 11, 0, 0, 0, ist) }
 	for _, u := range []string{"AL1", "AL2", "AL3"} {
 		docs.Upsert(ctx, o.Docs, T, cClient, u, Client{UCC: u, Name: "Client " + u, Status: "Active", Email: u + "@x.example"}, "t")
 	}
