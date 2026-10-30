@@ -268,3 +268,46 @@ func TestCDSLEDISVersion11AndOffMarket(t *testing.T) {
 		t.Fatalf("F %+v", m)
 	}
 }
+
+func TestCDSLEDISInLiveRisk(t *testing.T) {
+	o, ctx := setup(t)
+	short := func() map[string]string {
+		lv, err := o.LiveRisk(ctx, T, D, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		m := map[string]string{}
+		for _, r := range lv.Rows {
+			for _, s := range r.Short {
+				m[r.UCC+"|"+strings.Fields(s)[0]] = s
+			}
+		}
+		return m
+	}
+	before := short()
+	cdxTestConn(t, o, "https://cdsl.example.test", cdslFamEDIS)
+	after := short()
+	key := ""
+	for k, s := range after {
+		if strings.HasSuffix(s, "(not authorised by eDIS)") {
+			key = k
+			break
+		}
+	}
+	if key == "" {
+		t.Skip("the sample day has no delivery sell by a CDSL client of this DP")
+	}
+	ucc, sym := strings.Split(key, "|")[0], strings.Split(key, "|")[1]
+	a := EDISAuth{ReqID: "2610160000000099", UCC: ucc, ReqType: "D", Status: "Authorised", At: D + "T10:00:00+05:30", ValidTill: D,
+		Lines: []EDISLine{{TxnReqID: "1", ISIN: "INE000000000", Symbol: sym, Qty: 1 << 20, Status: "Authorised", TxnID: "T"}}}
+	if err := docs.Upsert(ctx, o.Docs, T, cEDIS, a.ReqID, a, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	now := short()
+	if s := now[key]; strings.Contains(s, "eDIS") {
+		t.Fatalf("authorised but still short: %s", s)
+	}
+	if now[key] != before[key] {
+		t.Fatalf("with the authorisation: %q, without eDIS: %q", now[key], before[key])
+	}
+}
