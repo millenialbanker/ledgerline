@@ -314,7 +314,7 @@ Object.assign(A, {
   },
   ipoCommRcv: () => {
     const i = C.ipo.recon.issue;
-    confirmModal('Commission received', 'Into the firm’s own bank account, with any TDS (section 194H) the payer deducted.', `<div class="form"><div class="fld"><label for="icr-d">Date</label><input class="in" type="date" id="icr-d" value="${esc(S.date)}"></div><div class="fld"><label for="icr-a">Received (₹)</label><input class="in mono" id="icr-a"></div><div class="fld"><label for="icr-t">TDS deducted (₹)</label><input class="in mono" id="icr-t" value="0"></div><div class="fld"><label for="icr-r">Bank reference</label><input class="in" id="icr-r"></div></div>`, 'Record',
+    confirmModal('Commission received', 'Into the firm’s own bank account, with any TDS on commission the payer deducted (section 393(1), Table Sl. No. 1(ii); section 194H before 1 April 2026).', `<div class="form"><div class="fld"><label for="icr-d">Date</label><input class="in" type="date" id="icr-d" value="${esc(S.date)}"></div><div class="fld"><label for="icr-a">Received (₹)</label><input class="in mono" id="icr-a"></div><div class="fld"><label for="icr-t">TDS deducted (₹)</label><input class="in mono" id="icr-t" value="0"></div><div class="fld"><label for="icr-r">Bank reference</label><input class="in" id="icr-r"></div></div>`, 'Record',
       () => act(() => post(`/v1/ipo/issues/${ipoEnc(i.id)}/commission`, { action: 'received', date: $('icr-d').value, received: $('icr-a').value.trim() || '0', tds: $('icr-t').value.trim() || '0', ref: $('icr-r').value.trim() }), 'Recorded'));
   },
   ipoOFS: () => {

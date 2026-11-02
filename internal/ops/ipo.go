@@ -775,6 +775,6 @@ const (
 	PayableOFSMargin      = "PAYABLE:OFS_MARGIN" // client money held as offer-for-sale margin
 	ReceivableIPOComm     = "RECEIVABLE:IPO_COMMISSION"
 	IncomeIPOComm         = "INCOME:IPO_COMMISSION"
-	ReceivableTDS         = "RECEIVABLE:TDS_194H"
+	ReceivableTDS         = "RECEIVABLE:TDS_194H" // TDS the payer deducted on commission: s.393(1) Table Sl. 1(ii), earlier 194H (code kept so balances carry on)
 	ExpenseIPOCompensated = "EXPENSE:IPO_COMPENSATION"
 )

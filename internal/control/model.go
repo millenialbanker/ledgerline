@@ -150,7 +150,7 @@ type Customer struct {
 	EditionFee    map[string]money.Amount `json:"edition_fee,omitempty"`    // overrides the price book per edition
 	IncludedUsers int                     `json:"included_users,omitempty"` // overrides the price book (0 = price book)
 	MinMonthly    money.Amount            `json:"min_monthly,omitempty"`    // minimum monthly bill before GST (AI credit not counted)
-	TDSPct        string                  `json:"tds_pct,omitempty"`        // TDS the customer deducts, e.g. 10 (194J) or 2
+	TDSPct        string                  `json:"tds_pct,omitempty"`        // TDS the customer deducts, e.g. 10 or 2 (s.393(1) Table Sl. 6(iii), earlier 194J)
 }
 
 var CustomerStatuses = []string{"Trial", "Active", "Suspended", "Left"}
@@ -235,12 +235,13 @@ type InvoiceLine struct {
 
 // Payment is money received against an invoice. TDS is tax the customer
 // deducted and paid to the government on our behalf (it settles the
-// invoice like money; claim it against the TDS certificate, Form 16A).
+// invoice like money; claim it against the TDS certificate: Form 131 from
+// 1 April 2026, Form 16A before).
 type Payment struct {
 	Date    string       `json:"date"`
 	Amount  money.Amount `json:"amount"`
 	TDS     money.Amount `json:"tds,omitempty"`
-	TDSCert string       `json:"tds_cert,omitempty"` // Form 16A number or note once received
+	TDSCert string       `json:"tds_cert,omitempty"` // TDS certificate (Form 131, earlier 16A) number or note once received
 	Mode    string       `json:"mode"`
 	Ref     string       `json:"ref"`
 	By      string       `json:"by"`

@@ -276,9 +276,11 @@ type NRITDS struct {
 }
 
 // NRI capital gains rates on listed equity (sales from 23 July 2024):
-// short-term 20% (s.111A), long-term 12.5% above ₹1.25 lakh a year
-// (s.112A); speculative (intraday) income at 30%; 4% health and
-// education cess. Surcharge depends on total
+// short-term 20%, long-term 12.5% above ₹1.25 lakh a year (sections 196
+// and 198 of the Income-tax Act 2025 from 1 April 2026; sections 111A and
+// 112A before; rates unchanged); speculative (intraday) income at 30%; 4%
+// health and education cess. Tax is deducted under section 393(2) [Table:
+// Sl. No. 17] (section 195 before 1 April 2026). Surcharge depends on total
 // income and is left to the bank.
 var (
 	nriSTCG    = money.DecInt(20)

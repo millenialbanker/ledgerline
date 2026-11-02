@@ -311,7 +311,8 @@ type TDSRow struct {
 	Name     string       `json:"name"`
 	PAN      string       `json:"tan_pan,omitempty"`
 	Date     string       `json:"date"`
-	Quarter  string       `json:"quarter"` // FY 26-27 Q2
+	Quarter  string       `json:"quarter"` // TY 26-27 Q2 (FY before the tax year 2026-27)
+	Form     string       `json:"form"`    // the certificate's form for the payment date
 	Index    int          `json:"index"`   // the payment's place on the invoice
 	Amount   money.Amount `json:"amount"`
 	Cert     string       `json:"cert"`
@@ -323,11 +324,28 @@ func quarterOf(date string) string {
 		return ""
 	}
 	q := (int(t.Month())+8)%12/3 + 1 // Apr–Jun = Q1
+	// The Income-tax Act 2025 counts in tax years from 1 April 2026.
+	if date >= itAct2025From {
+		return fmt.Sprintf("TY %s Q%d", fy(t), q)
+	}
 	return fmt.Sprintf("FY %s Q%d", fy(t), q)
 }
 
+// itAct2025From is when the Income-tax Act 2025 and Rules 2026 apply.
+const itAct2025From = "2026-04-01"
+
+// tdsCertForm is the TDS certificate a customer gives for a payment:
+// Form 131 under the Income-tax Rules 2026 (section 395(4), rule 215; it
+// replaced Form 16A), Form 16A for payments before 1 April 2026.
+func tdsCertForm(date string) string {
+	if date >= itAct2025From {
+		return "Form 131"
+	}
+	return "Form 16A"
+}
+
 // TDSRegister lists TDS deducted by customers, with whether each
-// certificate (Form 16A) has come in.
+// certificate (Form 131, earlier Form 16A) has come in.
 func (c *Control) TDSRegister(ctx context.Context, by string) ([]TDSRow, error) {
 	if err := c.need(ctx, by, RoleBilling); err != nil {
 		return nil, err
@@ -337,7 +355,7 @@ func (c *Control) TDSRegister(ctx context.Context, by string) ([]TDSRow, error) 
 	for _, iv := range ivs {
 		for i, p := range iv.Payments {
 			if p.TDS > 0 {
-				out = append(out, TDSRow{Invoice: iv.ID, InvNo: iv.Number, Customer: iv.Customer, Name: firstOf(iv.Bill.LegalName, iv.Bill.Name), Date: p.Date, Quarter: quarterOf(p.Date), Index: i, Amount: p.TDS, Cert: p.TDSCert})
+				out = append(out, TDSRow{Invoice: iv.ID, InvNo: iv.Number, Customer: iv.Customer, Name: firstOf(iv.Bill.LegalName, iv.Bill.Name), Date: p.Date, Quarter: quarterOf(p.Date), Form: tdsCertForm(p.Date), Index: i, Amount: p.TDS, Cert: p.TDSCert})
 			}
 		}
 	}
@@ -345,7 +363,8 @@ func (c *Control) TDSRegister(ctx context.Context, by string) ([]TDSRow, error) 
 	return out, err
 }
 
-// TDSCertificate records the Form 16A for TDS on one payment.
+// TDSCertificate records the TDS certificate (Form 131, earlier Form 16A)
+// for TDS on one payment.
 func (c *Control) TDSCertificate(ctx context.Context, by, invoice string, index int, cert string) (Invoice, error) {
 	if err := c.need(ctx, by, RoleBilling); err != nil {
 		return Invoice{}, err
