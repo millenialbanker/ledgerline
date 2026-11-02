@@ -68,11 +68,28 @@ const segmonRespNote = "NSE Clearing's SEGMON response layout is not in the publ
 
 var (
 	reRespOK   = regexp.MustCompile(`(?i)^\s*(success(ful(ly)?)?|accepted|valid|ok|processed|no error|nil|-)?\s*\.?\s*$`)
-	reAnyPAN   = regexp.MustCompile(`\b[A-Z]{5}[0-9]{4}[A-Z]\b`)
+	reAnyPAN   = regexp.MustCompile(`[A-Z]{5}[0-9]{4}[A-Z]`)
 	reCodeOnly = regexp.MustCompile(`^[A-Z]{0,4}\d{2,6}$`)
 )
 
-func maskPANs(s string) string { return reAnyPAN.ReplaceAllStringFunc(s, MaskPAN) }
+// maskPANs hides the middle of every PAN in s (one not run into other
+// letters or digits; "_" and punctuation around it are fine).
+func maskPANs(s string) string {
+	alnum := func(i int) bool {
+		if i < 0 || i >= len(s) {
+			return false
+		}
+		c := s[i]
+		return c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9'
+	}
+	b := []byte(s)
+	for _, m := range reAnyPAN.FindAllStringIndex(s, -1) {
+		if !alnum(m[0]-1) && !alnum(m[1]) {
+			copy(b[m[0]+5:m[0]+9], "XXXX")
+		}
+	}
+	return string(b)
+}
 
 // segmonPlain says a rejection in plain words.
 func segmonPlain(r SegmonRejection, date string) string {
