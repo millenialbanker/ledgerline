@@ -20,6 +20,11 @@ func init() { DocKindNames[DocLetter] = "Letter on an account request" }
 
 // sendLetter sends a signed letter; ref identifies the request.
 func (o *Ops) sendLetter(ctx context.Context, tenant, actor, date, ucc, ref, title string, paras []string) (Dispatch, error) {
+	return o.sendLetterWith(ctx, tenant, actor, date, ucc, ref, title, paras, nil)
+}
+
+// sendLetterWith sends a signed letter with kept files attached as they are.
+func (o *Ops) sendLetterWith(ctx context.Context, tenant, actor, date, ucc, ref, title string, paras []string, extra []PeriodicFile) (Dispatch, error) {
 	c, err := o.Client(ctx, tenant, ucc)
 	if err != nil {
 		return Dispatch{}, err
@@ -30,7 +35,7 @@ func (o *Ops) sendLetter(ctx context.Context, tenant, actor, date, ucc, ref, tit
 	rep.normalise()
 	return o.dispatchDoc(ctx, tenant, actor, docRequest{Kind: DocLetter, Ref: ref, Date: date, UCC: c.UCC, Report: reportPDF(rep, set), Title: title,
 		FileName: strings.NewReplacer(" ", "", "/", "-").Replace(title) + "_" + c.UCC + "_" + date + ".pdf",
-		Text:     fmt.Sprintf("Dear %s,\n\n%s\n\nThe signed letter is attached.", c.Name, strings.Join(paras, "\n\n"))})
+		Text:     fmt.Sprintf("Dear %s,\n\n%s\n\nThe signed letter is attached.", c.Name, strings.Join(paras, "\n\n")), Extra: extra})
 }
 
 func (o *Ops) reactivationLetter(ctx context.Context, tenant, actor string, r Reactivation) {

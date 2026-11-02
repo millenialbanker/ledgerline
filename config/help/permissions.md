@@ -11,6 +11,7 @@ Allocating collateral | Ops maker, Ops checker, Risk manager
 Applying corporate actions | Ops checker
 Applying pay-out holds | Ops checker, Risk manager
 Applying the BSDA review | Ops checker
+Approving a margin penalty pass-through | Ops checker, Risk manager, Compliance officer
 Approving a receipt | Ops checker
 Approving allocation | Ops checker, Risk manager
 Approving an override | Ops checker, Risk manager
@@ -136,6 +137,7 @@ Marking a report uploaded | Ops checker, Compliance officer
 Matching stock SIP orders to trades | Ops maker, Ops checker, Risk manager
 Month-end postings | Ops checker
 NRI registration | Ops checker, Compliance officer
+Passing a margin penalty to a client | Risk manager, Compliance officer
 Pay-out hold rules | Risk manager
 Paying vendor bills | Ops maker, Ops checker
 Placing IPO bids for clients | Ops maker, Ops checker, Branch staff, Authorised person
@@ -144,9 +146,9 @@ Posting AP payouts | Ops checker
 Posting IPO allotments | Ops maker, Ops checker
 Posting MTF interest | Ops checker, Risk manager
 Posting interest | Ops checker, Risk manager
-Posting margin penalties | Ops checker, Risk manager
 Posting referral rewards | Ops checker
 Prepaid schemes | Ops checker, Admin
+Preparing margin penalties | Ops checker, Risk manager, Compliance officer
 Proposing legacy debts | Ops maker, Ops checker, Risk manager, Compliance officer
 Raising CDSL requests | Ops maker, Ops checker
 Raising pledge invocations | Risk manager
@@ -259,6 +261,7 @@ Viewing dealers and terminals | Ops maker, Ops checker, Risk manager, Compliance
 Viewing eDIS authorisations | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing exchange UCC registrations | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing exchange disclosures | Compliance officer
+Viewing margin penalty evidence | Ops checker, Risk manager, Compliance officer
 Viewing nominations | Ops maker, Ops checker, Compliance officer
 Viewing order-to-trade ratios | Risk manager, Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer

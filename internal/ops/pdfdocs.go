@@ -146,16 +146,19 @@ func (o *Ops) marginStatement(ctx context.Context, tenant, date string, r Margin
 		{"Margin available", formatINR(r.Collected), ""},
 		{"Shortfall at peak", formatINR(r.Short), firstOf(r.ShortAt, "-")},
 	}
+	rep.Notes = []string{"Margins are computed at the exchanges' snapshot times; the peak is the highest of them. Please keep enough funds or collateral to cover the peak margin of your positions."}
 	if r.Penalty.Sign() > 0 {
-		set, _ := o.Settings(ctx, tenant)
-		note := "levied by the exchange on the firm"
-		if set.PenaltyPassThrough {
-			note = "charged to your account"
+		// The penalty is charged to the client only once a pass-through for
+		// an allowed reason is approved (NSE/INSP/64315); the statement then
+		// says why and which documents support it.
+		note := "levied by the clearing corporation on the firm; not charged to you"
+		if p, ok := o.penaltyPass(ctx, tenant, date, r.UCC); ok && p.Status == "Posted" {
+			note = "charged to your account: " + p.ReasonText
+			rep.Notes = append(rep.Notes, fmt.Sprintf("The short-collection penalty of ₹%s is charged to you because: %s (%s). Supporting documents: %s; they were sent to you with our letter.", formatINR(p.Penalty), p.ReasonText, p.Ref(), p.EvidenceNames()))
 		}
 		sec.Rows = append(sec.Rows, []string{"Short-collection penalty (" + r.SlabPct.String() + "%)", formatINR(r.Penalty), note})
 	}
 	rep.Sections = []Section{sec}
-	rep.Notes = []string{"Margins are computed at the exchanges' snapshot times; the peak is the highest of them. Please keep enough funds or collateral to cover the peak margin of your positions."}
 	return rep, nil
 }
 

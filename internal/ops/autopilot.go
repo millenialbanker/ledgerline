@@ -79,7 +79,7 @@ var AutoDefs = []AutoDef{
 	{"margin_calls", "Risk", "Margin calls", "Messages every client short of margin, and raises MTF margin calls.", "intraday", ModeAuto, "", ModeAuto, nil, 20},
 	{"square_off", "Risk", "Square-off of unmet shortfalls", "At the cut-off, closes positions of clients still short of margin, as the risk policy disclosed to clients allows.", "preclose", ModeAuto, "", ModeSuggest, map[string]string{"at": "15:00"}, 20},
 	{"mtf_liquidation", "Risk", "MTF liquidation", "Liquidates MTF positions whose margin call was not met or whose pledge was not made by T+1.", "preclose", ModeAuto, "", ModeSuggest, nil, 15},
-	{"penalties", "Risk", "Margin penalties", "Posts short-collection penalties at the end of the day.", "eod", ModeAuto, "", ModeAuto, nil, 10},
+	{"penalties", "Risk", "Margin penalties", "Prepares the day's short-collection penalties: each is the firm's unless Compliance or Risk passes it to the client for a dishonoured cheque or a disclosed hedge break, with evidence, and a checker approves. Never posts to a client by itself.", "eod", ModeSuggest, "Penalties may be passed to clients only for a dishonoured cheque or a hedge break disclosed in the risk policy, with documents to the client (NSE/INSP/64315).", ModeSuggest, nil, 10},
 	{"reports", "Compliance", "Regulatory reports", "Generates and validates every daily report; the upload to the exchange portal is queued until a connection is set up.", "eod", ModeAuto, "", ModeAuto, nil, 40},
 	{"surveillance", "Compliance", "Surveillance triage", "Runs the alert rules and gathers evidence on each alert; a compliance officer decides it.", "eod", ModeSuggest, "Alerts are decided, and suspicious transactions reported, by the principal officer under the PMLA rules.", ModeSuggest, nil, 30},
 	{"nri", "Compliance", "NRI checks", "Checks NRI trades against the PIS rules and raises alerts.", "eod", ModeAuto, "", ModeAuto, nil, 10},
@@ -416,6 +416,8 @@ func (o *Ops) carryOut(ctx context.Context, tenant, actor, date string, p Propos
 		_, err = o.PostDailyInterest(ctx, tenant, actor, a["date"])
 	case "ras.settle":
 		_, err = o.settleRAS(ctx, tenant, actor, a["date"])
+	case "penalty.pass":
+		_, err = o.DecidePenaltyPass(ctx, tenant, actor, a["id"], true, "")
 	default:
 		err = invalid("unknown action %q", p.Kind)
 	}
@@ -1056,14 +1058,13 @@ func autoMTFLiquidation(r *runCtx) error {
 	return nil
 }
 
+// autoPenalties only prepares: a penalty is passed to a client's ledger
+// only by a person, for an allowed reason with evidence, and approved by a
+// checker (NSE/INSP/64315). Autopilot never posts one, whatever its mode.
 func autoPenalties(r *runCtx) error {
-	n, err := r.o.PostPenalties(r.ctx, r.tenant, SystemActor, r.date)
-	if err != nil && errors.Is(err, ErrState) {
-		r.note("already posted")
-		return nil
-	}
-	r.done += n
-	r.note("%d penalties posted", n)
+	n, err := r.o.PreparePenalties(r.ctx, r.tenant, SystemActor, r.date)
+	r.queued += n
+	r.note("%d penalties prepared for a decision; none posted", n)
 	return err
 }
 

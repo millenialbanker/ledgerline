@@ -62,6 +62,27 @@ Under SEBI's 2025 nomination rules a client may name up to 10 nominees, each wit
 2. Records from the previous back office load with the **NOMINEES** file on [[files|Files]].
 3. The **Nomination status** report on [[reports|Regulatory reports]] lists clients with details missing or no declaration.
 
+## penalty-pass-through
+title: Pass a margin penalty to a client
+screen: margin
+roles: Compliance officer, Risk manager, Ops checker
+ask: pass penalty to client; charge penalty to client; margin penalty pass through; cheque bounce penalty; hedge break penalty; penalty evidence; penalty pass-through setting
+related: peak-margin
+
+A clearing corporation's penalty for short collection of upfront margin is the firm's. Under NSE/INSP/64315 (for penalties from 1 Nov 2024) it may be charged to a client only when the client caused the shortfall:
+
+- a cheque the client gave was **dishonoured**; or
+- a **hedge break**: the client changed a hedge or a leg expired, and the firm's risk management policy says this can raise margins and was notified to clients at least 7 days before.
+
+Pass-through is **off** by default (Settings). When it is on, nothing is charged by itself: Autopilot only puts each penalty in the work queue.
+
+1. On [[margin|Margin reporting]], a Compliance officer or Risk manager chooses the reason and gives the dishonoured cheque (recorded as bounced on Receipts) or the policy clause and the date clients were notified of it.
+2. Attach the supporting documents (PDF or image): the bank's return memo, or the policy extract and its notice.
+3. A different person (Ops checker, Risk manager or Compliance officer) approves it in the work queue. Only then is the client's ledger debited.
+4. The client gets a signed letter with the documents, and the margin statement gives the reason and the evidence. Every step is in the audit trail.
+
+Without an allowed reason, dismiss the item: the firm bears the penalty.
+
 ## segment-status
 title: Client status in each segment
 screen: clients

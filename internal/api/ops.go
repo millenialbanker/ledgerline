@@ -121,6 +121,11 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/rms/squareoff", s.squareOff, true)
 	R("GET /v1/margin", s.margin, false)
 	R("POST /v1/margin/penalties", s.penalties, true)
+	R("GET /v1/margin/penalties/pass", s.penaltyPasses, false)
+	R("POST /v1/margin/penalties/pass", s.proposePenaltyPass, true)
+	R("POST /v1/margin/penalties/pass/{date}/{ucc}/decide", s.decidePenaltyPass, true)
+	R("POST /v1/margin/penalties/evidence", s.penaltyEvidenceUp, true)
+	R("GET /v1/margin/penalties/evidence/{id}", s.penaltyEvidence, false)
 	R("GET /v1/settlement", s.settlement, false)
 	R("POST /v1/settlement/action", s.settleAction, true)
 	R("POST /v1/settlement/settle-ready", s.settleReady, true)
@@ -793,8 +798,55 @@ func (s *Server) penalties(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &b) {
 		return
 	}
-	n, err := s.ops.PostPenalties(r.Context(), tenant(r), actor(r), b.Date)
-	ok(w, map[string]int{"posted": n}, err)
+	// Prepares the day's penalties for a decision; nothing is debited to a
+	// client until a pass-through with a reason and evidence is approved.
+	n, err := s.ops.PreparePenalties(r.Context(), tenant(r), actor(r), b.Date)
+	ok(w, map[string]int{"prepared": n, "posted": 0}, err)
+}
+
+func (s *Server) penaltyPasses(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.PenaltyPasses(r.Context(), tenant(r), r.URL.Query().Get("date"))
+	ok(w, v, err)
+}
+
+func (s *Server) proposePenaltyPass(w http.ResponseWriter, r *http.Request) {
+	var b ops.PenaltyPassRequest
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.ProposePenaltyPass(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) decidePenaltyPass(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Approve bool   `json:"approve"`
+		Note    string `json:"note"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.DecidePenaltyPass(r.Context(), tenant(r), actor(r), r.PathValue("date")+"|"+strings.ToUpper(r.PathValue("ucc")), b.Approve, b.Note)
+	ok(w, v, err)
+}
+
+func (s *Server) penaltyEvidenceUp(w http.ResponseWriter, r *http.Request) {
+	data, err := io.ReadAll(io.LimitReader(r.Body, ops.MaxPenaltyEvidence+1))
+	if err != nil {
+		writeErr(w, 400, "bad_request", "cannot read the file", nil)
+		return
+	}
+	v, err := s.ops.UploadPenaltyEvidence(r.Context(), tenant(r), actor(r), r.URL.Query().Get("name"), data)
+	ok(w, v, err)
+}
+
+func (s *Server) penaltyEvidence(w http.ResponseWriter, r *http.Request) {
+	f, err := s.ops.PenaltyEvidence(r.Context(), tenant(r), actor(r), r.PathValue("id"))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	sendFile(w, f.Name, http.DetectContentType(f.Content), f.Content)
 }
 
 // ---- settlement ----
