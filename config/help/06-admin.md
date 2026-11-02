@@ -91,10 +91,12 @@ Insights are **rule-based, not AI**: each kind is a fixed rule applied to the cl
 title: Send year-end tax packs
 screen: yearend
 roles: Ops maker, Ops checker, Compliance officer
-ask: year end pack; tax statement; form 10db; stt certificate; capital gains for itr; annual statement
+ask: year end pack; tax statement; stt statement; stt paid; form 10db; stt certificate; capital gains for itr; annual statement
 related: client-reports
 
-On [[yearend|Year-end packs]], choose the financial year. Each client's pack has capital gains, the F&O result, charges, closing balance and holdings, and the STT particulars for **Form 10DB**, one per exchange. **Email all clients** after 31 March, or **Open** and **Email** one. Clients also open it in their portal.
+On [[yearend|Year-end packs]], choose the financial year. Each client's pack has capital gains, the F&O result, charges, closing balance and holdings, and a **statement of securities transaction tax paid**, per exchange. **Email all clients** after 31 March, or **Open** and **Email** one. Clients also open it in their portal.
+
+The STT statement is a plain statement from the firm's records with the same figures billing charged. It is not a statutory form: Form 10DB was withdrawn in 2021 and nothing replaced it.
 
 ## leads
 title: Track leads
