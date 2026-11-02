@@ -63,7 +63,7 @@ Under SEBI's nomination circular of 29 May 2026 (in force from 1 Sep 2026) a cli
 - **Joint accounts**: nomination is optional, but giving or changing one needs the consent of every holder. Confirm that all holders consented.
 - **Statements** show the nominees' names or only Yes/No, as the client chooses.
 
-1. Open the client and use **Change nomination** (or the client asks from the portal). A checker approves it like any other change.
+1. Open the client and use **Change nomination** (or the client asks from the portal). Tick **Nominee is under 18** to give a minor's date of birth (and, optionally, a guardian). Choose how it was declared; a thumb impression needs both witnesses' names and addresses. Choose what statements show, and for a joint account tick **All holders consented**. Choosing *Opted out* shows the declaration the client makes. A checker approves it like any other change.
 2. Records from the previous back office load with the **NOMINEES** file on [[files|Files]].
 3. The **Nomination status** report on [[reports|Regulatory reports]] lists clients with details missing or no declaration.
 4. Nominations recorded before 1 Sep 2026 with more than 3 nominees are kept as they are. They show as **More than 3 nominees (review)** and each has a work item: ask the client for a new nomination of up to 3.
@@ -80,11 +80,11 @@ A clearing corporation's penalty for short collection of upfront margin is the f
 - a cheque the client gave was **dishonoured**; or
 - a **hedge break**: the client changed a hedge or a leg expired, and the firm's risk management policy says this can raise margins and was notified to clients at least 7 days before.
 
-Pass-through is **off** by default (Settings). When it is on, nothing is charged by itself: Autopilot only puts each penalty in the work queue.
+Pass-through is **off** by default (Settings → *Allow passing penalties to clients case by case*). When it is on, nothing is charged by itself: Autopilot only puts each penalty in the work queue.
 
-1. On [[margin|Margin reporting]], a Compliance officer or Risk manager chooses the reason and gives the dishonoured cheque (recorded as bounced on Receipts) or the policy clause and the date clients were notified of it.
+1. On [[margin|Margin reporting]], **Prepare penalties** lists them (nothing is debited); then a Compliance officer or Risk manager clicks **Pass to client…** on the row, chooses the reason and gives the dishonoured cheque (recorded as bounced on Receipts) or the policy clause and the date clients were notified of it.
 2. Attach the supporting documents (PDF or image): the bank's return memo, or the policy extract and its notice.
-3. A different person (Ops checker, Risk manager or Compliance officer) approves it in the work queue. Only then is the client's ledger debited.
+3. A different person (Ops checker, Risk manager or Compliance officer) approves or rejects it, on Margin reporting (**Approve and post** or **Reject**, with a reason) or from the work queue. Only then is the client's ledger debited.
 4. The client gets a signed letter with the documents, and the margin statement gives the reason and the evidence. Every step is in the audit trail.
 
 Without an allowed reason, dismiss the item: the firm bears the penalty.
@@ -107,7 +107,7 @@ title: Work a surveillance or AML alert
 screen: surv
 roles: Compliance officer
 ask: surveillance alert; aml alert; suspicious transaction; file str; close alert; exchange alert; turnover more than income; fiu
-related: kyc-pmla, kill-switch
+related: kyc-pmla, kill-switch, surveillance-return
 
 On [[surv|Surveillance & AML]]:
 
@@ -116,6 +116,8 @@ On [[surv|Surveillance & AML]]:
 3. **Close** with a written rationale, or **File STR** with FIU-IND if it's suspicious.
 
 Closing or filing needs the compliance officer. Never tell the client an STR was filed.
+
+Each quarter the alerts' status goes to the exchanges in the surveillance obligation report (Formats I to III, within 15 days of the quarter's end): record **Referred to exchange** and other actions here as they happen (see *Quarterly surveillance obligation report*).
 
 ## complaints
 title: Handle an investor complaint
@@ -136,13 +138,15 @@ title: Track circulars and compliance deadlines
 screen: circulars
 roles: Compliance officer
 ask: circular; new sebi circular; exchange circular; compliance calendar; due dates; compliance deadline; recurring compliance; what is due this month
-related: regulatory-reports
+related: regulatory-reports, ras-calendar, compliance-profile, shared-filing, surveillance-return
 
 On [[circulars|Circulars & calendar]]:
 
 1. **Load circulars file** (or they arrive once the exchange connection is set up). Each is sorted by area and priority with suggested actions, owners and due dates.
 2. Work each action: **Done**, **Not needed**, **Not applicable**, or **Add action**.
 3. The **calendar** lists recurring obligations (complaints disclosure, CTR, RAS, audits, net worth, cyber audit, AP inspection). **Mark done** with the evidence each time.
+4. **RAS dates & profile** holds the exchanges' joint RAS calendar (see *Keep the exchanges' RAS dates*) and the system audit cycle, auditor and MTF approval that date the audit and net worth duties (see *System audit cycle, auditor and MTF*).
+5. Common submissions that a member of NSE and other exchanges files with NSE only show once, marked **File with NSE (shared with the other exchanges)** (see *Submissions filed with NSE only*).
 
 Items are queued a week ahead. Check the seeded due dates against current circulars.
 

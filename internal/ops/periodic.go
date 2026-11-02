@@ -50,7 +50,7 @@ var PeriodicTasks = []PeriodicTask{
 	{"ledger_statements", "Monthly statement of account", "Clients", "Monthly", "Emails every active client a signed statement of account for the month just ended.", "By the 7th", "Exchange rules on statements of accounts to clients", true, "dispatch", ""},
 	{"dp_statements", "DP transaction and holding statements", "Depository", "Monthly", "Emails every demat account its signed statement of transactions and holdings for the month just ended.", "By the 10th", "Depository rules on statements to beneficial owners", true, "dp", ""},
 	{"complaints_disclosure", "Investor complaints disclosure", "Compliance", "Monthly", "Builds the month's complaints data (received, resolved, pending, average days) for the website disclosure.", "By the 7th", "SEBI circular on disclosure of investor complaints", true, "helpdesk", ""},
-	{"ras", "Running account settlement", "Money", "Monthly / quarterly", "Settles running accounts on the settlement date (monthly or quarterly as each client chose), pays out the funds and sends each client the settlement statement.", "On the settlement date set in Settings", "SEBI rules on running account settlement", true, "ras", ""},
+	{"ras", "Running account settlement", "Money", "Monthly / quarterly", "Settles running accounts on the settlement date (monthly or quarterly as each client chose), pays out the funds and sends each client the settlement statement.", "On the exchanges' RAS dates (Circulars & calendar)", "SEBI rules on running account settlement", true, "ras", ""},
 	{"ras_idle", "Return idle credit balances (30 days)", "Money", "Daily", "Every morning: clients with a credit balance and no transaction (trade, open position or funds received) for 30 calendar days are settled and paid out within three working days, whatever their monthly or quarterly choice, under the running account settlement policy in Autopilot.", "Within 3 working days of the 30th day", "NSE/INSP/53820 (running account settlement FAQ)", true, "ras", ""},
 	{"bsda_review", "BSDA review", "Depository", "Quarterly", "Checks every demat account against the BSDA rules: eligible regular accounts become BSDA unless the client opted out; BSDAs above the limit become regular. A checker applies it; the depository modification file is kept and clients are told.", "By the 10th after the quarter", "SEBI circular on Basic Services Demat Accounts", false, "dp", ""},
 }
@@ -211,7 +211,7 @@ func (o *Ops) periodicStatus(ctx context.Context, tenant string, t PeriodicTask,
 	done, note := o.periodicDone(ctx, tenant, t, p, date)
 	switch {
 	case p == "":
-		s.Status, s.Note = "Nothing to do", "No settlement date is set in Settings."
+		s.Status, s.Note = "Nothing to do", "No RAS date is listed: add the exchanges' dates on Circulars & calendar → RAS dates & profile."
 	case done:
 		s.Status, s.Note = "Done", note
 	case s.Run != nil && s.Run.Status != "Done" && s.Run.Status != "Due":
@@ -313,7 +313,7 @@ func (o *Ops) RunPeriodic(ctx context.Context, tenant, actor, id, period, date s
 		period, _, _ = o.periodFor(ctx, tenant, t, date)
 	}
 	if period == "" {
-		return PeriodicRun{}, invalid("there is no period to run: set the settlement dates in Settings")
+		return PeriodicRun{}, invalid("there is no period to run: add the exchanges' RAS dates on Circulars & calendar → RAS dates & profile")
 	}
 	run := PeriodicRun{ID: t.ID + "|" + period, Task: t.ID, Period: period, Status: "Done", By: actor, At: o.now().Format("2006-01-02 15:04")}
 	var err error

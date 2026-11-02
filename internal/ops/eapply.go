@@ -23,10 +23,11 @@ import (
 // An individual opens an account from a link, on a phone, without visiting
 // the office: mobile and email confirmed by one-time codes; PAN checked and
 // the KRA searched; address from DigiLocker or a proof; bank account
-// confirmed by a penny drop; trading profile, nominees (or the online
+// confirmed by a penny drop; trading profile, nominees (up to 3, or the
 // opt-out declaration), photograph and signature (no in-person
-// verification is needed with Aadhaar e-KYC; see below); then the
-// account-opening form signed by Aadhaar e-Sign. The application lands in
+// verification when the KYC is done through Aadhaar or DigiLocker:
+// SEBI/HO/MIRSD/DOP/CIR/P/2020/73); then the account-opening form
+// signed by Aadhaar e-Sign. The application lands in
 // Clients & onboarding at KYC verification with every check and document
 // attached, and goes through the same stages, with a checker activating it.
 //
@@ -701,7 +702,7 @@ var appFormTmpl = template.Must(template.New("form").Parse(`<!doctype html><html
 <h2>Contact and address</h2><table><tr><td>Mobile (verified)</td><td>{{.A.Mobile}}</td></tr><tr><td>Email (verified)</td><td>{{.A.Email}}</td></tr><tr><td>Address ({{.A.AddrSource}})</td><td>{{.A.Address}}, {{.A.City}}, {{.A.State}} {{.A.PIN}}</td></tr></table>
 <h2>Bank and demat</h2><table><tr><td>Bank</td><td>{{.A.Bank}} · {{.A.IFSC}} · {{.AcctMasked}}</td></tr><tr><td>Demat account</td><td>{{if .A.DematID}}{{.A.Depository}} {{.A.DematID}}{{else}}To be opened with us{{end}}</td></tr></table>
 <h2>Trading</h2><table><tr><td>Segments</td><td>{{.Segments}}</td></tr><tr><td>Annual income</td><td>{{.A.Income}}</td></tr><tr><td>Occupation</td><td>{{.A.Occupation}}</td></tr><tr><td>Trading experience</td><td>{{.A.Experience}}</td></tr><tr><td>Running account settlement</td><td>{{.A.RAS}}</td></tr></table>
-<h2>Nomination</h2><table>{{if .A.NomineeOptOut}}<tr><td>Nominee</td><td>I do not wish to nominate</td></tr>{{else}}{{range $n := .A.Nominees}}<tr><td>Nominee</td><td>{{$n.Name}} ({{$n.Relation}}), {{$n.Share}}% · {{$n.IDType}} {{$n.MaskedID}}{{if $n.Guardian}} · minor, guardian {{$n.Guardian}} ({{$n.GuardianRelation}}){{end}}</td></tr>{{end}}{{end}}</table>
+<h2>Nomination</h2><table>{{if .A.NomineeOptOut}}<tr><td>Nominee</td><td>I do not wish to nominate. I could name up to 3 nominees, giving only each one's name and relationship (and the date of birth of anyone under 18), and may do so later. I understand that without a nominee the securities and money in this account will go to my legal heirs only after they produce the documents the law requires, such as a succession certificate or probate.</td></tr>{{else}}{{range $n := .A.Nominees}}<tr><td>Nominee</td><td>{{$n.Name}} ({{$n.Relation}}), {{$n.Share}}%{{if $n.ID}} · {{$n.IDType}} {{$n.MaskedID}}{{end}}{{if or $n.IsMinor $n.Guardian}} · minor{{if $n.DOB}}, born {{$n.DOB}}{{end}}{{if $n.Guardian}}, guardian {{$n.Guardian}}{{if $n.GuardianRelation}} ({{$n.GuardianRelation}}){{end}}{{end}}{{end}}</td></tr>{{end}}<tr><td>Statements show</td><td>{{if .A.NomineesOnStatement}}the nominees' names{{else}}whether there is a nomination (Yes/No){{end}}</td></tr>{{end}}</table>
 <h2>Declarations</h2><ul>{{range .Decl}}<li>{{.}}</li>{{end}}</ul>
 <p class="small">Signed electronically by {{.A.Name}}. The document hash is recorded with the signature.</p></body></html>`))
 

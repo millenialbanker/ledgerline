@@ -151,7 +151,7 @@ function edDetails(d) {
       <div class="fld"><label for="ed-ise">Email</label><input class="in" id="ed-ise" value="${esc(p.infosec_email)}" ${dis}></div>
       <div class="fld"><label for="ed-isp">Phone</label><input class="in" id="ed-isp" value="${esc(p.infosec_phone)}" ${dis}></div>
       <div class="fld full"><label>Exchanges filed with (none ticked: every exchange the firm has a member code for${d.member_of.length ? ', now ' + esc(d.member_of.join(', ')) : ''})</label><div class="tools">${d.exchanges.map(x => `<label class="check"><input type="checkbox" data-edex="${x}" ${p.exchanges.includes(x) ? 'checked' : ''} ${dis}> ${x}</label>`).join('')}</div></div>
-      <label class="check full"><input type="checkbox" id="ed-single" ${p.single_filing ? 'checked' : ''} ${dis}> File the AI &amp; ML report once, at NSE (NSE shares an NSE member’s filing with BSE, MCX and the other exchanges)</label>
+      <div class="dim small full">A member of NSE and other exchanges files both reports once, with NSE, which shares them with the other exchanges (AI &amp; ML: NSE/INSP/69184, item 40; SaaS: NSE/INSP/70505, Phase II item 19). Without NSE, each exchange is filed with.</div>
       <label class="check"><input type="checkbox" id="ed-grc" ${p.saas_grc ? 'checked' : ''} ${dis}> The firm uses a SaaS-based GRC solution</label>
       <div class="fld"><label for="ed-grct">GRC solution</label><input class="in" id="ed-grct" value="${esc(p.grc_tool || '')}" ${dis}></div>
     </div></div>
@@ -169,7 +169,7 @@ async function edClip(text) {
 function edProfileValue(over) {
   const p = { ...C.exdisc.profile };
   if ($('ed-cat')) Object.assign(p, { category: $('ed-cat').value.trim(), aiml_cycle: $('ed-cyc').value, infosec_name: $('ed-isn').value.trim(), infosec_designation: $('ed-isd').value.trim(), infosec_email: $('ed-ise').value.trim(), infosec_phone: $('ed-isp').value.trim(),
-    exchanges: [...document.querySelectorAll('[data-edex]')].filter(x => x.checked).map(x => x.dataset.edex), single_filing: $('ed-single').checked, saas_grc: $('ed-grc').checked, grc_tool: $('ed-grct').value.trim() });
+    exchanges: [...document.querySelectorAll('[data-edex]')].filter(x => x.checked).map(x => x.dataset.edex), saas_grc: $('ed-grc').checked, grc_tool: $('ed-grct').value.trim() });
   return Object.assign(p, over || {});
 }
 

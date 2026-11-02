@@ -11,7 +11,7 @@ related: online-opening, activate-client, ucc-upload
 
 Two ways:
 
-- **Individuals with Aadhaar and PAN:** send them the online account opening link from [[apps|Online applications]]. They do e-KYC, DigiLocker, bank check, video verification and e-Sign on their phone.
+- **Individuals with Aadhaar and PAN:** send them the online account opening link from [[apps|Online applications]]. They do e-KYC, DigiLocker, bank check, nominees (up to 3, or the opt-out declaration) and e-Sign on their phone; no in-person or video verification is needed with Aadhaar.
 - **Walk-in, HUF, corporate, NRI and others:** on [[clients|Clients & onboarding]] click **New client** and fill in the five steps (identity, bank & demat, segments & risk, nominee & declarations, review).
 
 Either way the client lands at **KYC verification** and moves through the stages to **Active**: see "activate a client".

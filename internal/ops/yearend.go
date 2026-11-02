@@ -363,6 +363,21 @@ func RenderYearEnd(p YearEndPack) ([]byte, error) {
 var yearEndTmpl = template.Must(template.New("ye").Funcs(template.FuncMap{
 	"inr": func(d money.Dec) string { return formatINR(d) },
 	"day": fmtDay,
+	// Names for a year from 1 April 2026 follow the Income-tax Act, 2025
+	// (taxlabels.go); earlier years keep the 1961 Act's.
+	"yearname": func(from string) string {
+		if newTaxAct(from) {
+			return "Tax year"
+		}
+		return "FY"
+	},
+	"yearword": func(from string) string { return strings.TrimSuffix(taxYearWord(from), " year") },
+	"cg": func(kind, from string) string {
+		if newTaxAct(from) {
+			return cgRef(kind, from) + " of the Income-tax Act, 2025"
+		}
+		return cgRef(kind, from)
+	},
 	"neg": func(d money.Dec) bool { return d.Sign() < 0 },
 	"abs": func(d money.Dec) money.Dec { return d.Abs() },
 	"ex": func(ls []STTRow, ex string) []STTRow {
@@ -395,14 +410,14 @@ tfoot td{font-weight:700;border-top:2px solid #16201B}.small{font-size:11px;colo
 .box{border:1px solid #16201B;padding:12px 14px;margin-top:10px;page-break-inside:avoid}.warn{background:#FAEFD6;padding:8px 10px;border-radius:6px}
 @media print{body{margin:12mm}}
 </style></head><body>
-<div class="meta"><div><h1>Year-end statement · FY {{.FY}}</h1><span>{{.Name}} · client code {{.UCC}} · PAN {{.PAN}}</span><span>{{day .From}} to {{day .To}}</span></div>
+<div class="meta"><div><h1>Year-end statement · {{yearname .From}} {{.FY}}</h1><span>{{.Name}} · client code {{.UCC}} · PAN {{.PAN}}</span><span>{{day .From}} to {{day .To}}</span></div>
 <div style="text-align:right"><b>{{.Firm}}</b><span>SEBI registration {{.SEBIReg}}</span>{{range .Members}}<span>{{.}}</span>{{end}}</div></div>
-{{if .Running}}<p class="warn">The financial year is still running: figures are to {{day .To}}. The final statement is issued after 31 March.</p>{{end}}
+{{if .Running}}<p class="warn">The {{yearword .From}} year is still running: figures are to {{day .To}}. The final statement is issued after 31 March.</p>{{end}}
 
 <h2>1. Summary</h2>
 <table><tbody>
-<tr><td>Short-term capital gains on listed shares (section 111A)</td><td class="r">{{inr .STCG}}</td></tr>
-<tr><td>Long-term capital gains on listed shares (section 112A)</td><td class="r">{{inr .LTCG}}</td></tr>
+<tr><td>Short-term capital gains on listed shares ({{cg "st" .From}})</td><td class="r">{{inr .STCG}}</td></tr>
+<tr><td>Long-term capital gains on listed shares ({{cg "lt" .From}})</td><td class="r">{{inr .LTCG}}</td></tr>
 <tr><td>Intraday (speculative) result</td><td class="r">{{inr .Spec}}</td></tr>
 <tr><td>Futures and options result (mark-to-market and premium)</td><td class="r">{{inr .Deriv}}</td></tr>
 <tr><td>Securities transaction tax paid</td><td class="r">{{inr .STTTotal}}</td></tr>

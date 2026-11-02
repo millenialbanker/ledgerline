@@ -101,12 +101,14 @@ related: payout
 title: Run the running account settlement (RAS)
 screen: ras
 roles: Ops checker
-ask: running account settlement; ras; quarterly settlement; monthly settlement; settle client funds; return idle funds
-related: payout
+ask: running account settlement; ras; quarterly settlement; monthly settlement; settle client funds; return idle funds; 30 days no trade; idle client funds; 3 working days
+related: payout, ras-calendar
 
-SEBI requires unused client funds to be returned monthly or quarterly, as each client chose, on the dates the exchanges set jointly for each financial year: a Friday and/or the Saturday after it (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197). For FY 2026-27, for example, the quarterly dates are 17/18 April, 3/4 July, 16/17 October 2026 and 1/2 January 2027. The dates are kept on [[circulars|Circulars & calendar]] → *RAS dates & profile* by the compliance officer or an admin; Settings shows the next monthly and quarterly date from that list, and the compliance calendar dates the two settlements from it.
+SEBI requires unused client funds to be returned monthly or quarterly, as each client chose, on the dates the exchanges set jointly for each financial year: a Friday and/or the Saturday after it (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197). For FY 2026-27, for example, the quarterly dates are 17/18 April, 3/4 July, 16/17 October 2026 and 1/2 January 2027. The dates come from the exchanges' joint calendar, kept on [[circulars|Circulars & calendar]] → *RAS dates & profile* by the compliance officer or an admin (see *Keep the exchanges' RAS dates*); Settings shows the next monthly and quarterly date from that list, and the compliance calendar dates the two settlements from it.
 
-1. Open [[ras|Running account]] on the settlement date. It lists each client's amount to return, keeping the allowed buffer.
+**Idle clients: 3 working days.** A client with a credit balance and no transaction for 30 calendar days (no trade and no funds received; open positions or margin count as activity) is settled within 3 working days after the 30 days, whatever they chose, not on the next monthly or quarterly date (NSE/INSP/53820). Fresh funds start the 30 days again.
+
+1. Open [[ras|Running account]] on the settlement date. It lists each client's amount to return, keeping the allowed buffer. Idle clients are marked with the date their money is due back, and are included in any settlement run from that day.
 2. Download the **Bank payout file**, pay through the bank, and record the result.
 3. Clients get a statement of the settlement.
 
@@ -305,16 +307,16 @@ Breaches left open block a clean day close.
 ## peak-margin
 title: Understand a peak margin penalty
 screen: margin
-roles: Risk manager, Ops checker
-ask: peak margin; margin penalty; short collection penalty; penalty slab; why penalty; margin reporting; snapshot
-related: margin-shortfall
+roles: Risk manager, Ops checker, Compliance officer
+ask: peak margin; margin penalty; short collection penalty; penalty slab; why penalty; margin reporting; snapshot; prepare penalties
+related: margin-shortfall, penalty-pass-through
 
 On [[margin|Margin reporting]]:
 
 - Peak margin is rebuilt from trade timestamps at each clearing snapshot time.
 - Collection = the client's funds before the day's bills + UPI blocks + usable collateral.
 - **Penalty:** 0.5% if the shortfall is under ₹1 lakh **and** under 10% of the requirement, otherwise 1%.
-- Penalties are posted monthly (Risk manager or Ops checker); passing them to clients follows your Settings.
+- **Prepare penalties** (Risk manager, Ops checker or Compliance officer) lists the day's penalties for a decision. Penalties are prepared, never posted to clients automatically: each is the firm's. Passing one on needs an allowed reason (a dishonoured cheque or a disclosed hedge break), the evidence, and a second person's approval; see *Pass a margin penalty to a client*.
 
 ## pledge
 title: Accept a margin pledge

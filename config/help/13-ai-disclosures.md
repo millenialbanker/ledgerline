@@ -73,7 +73,7 @@ related: aiml-report, saas-report, circulars
 3. File it on the exchange's portal.
 4. **Mark submitted** for each exchange, with the date, the reference number and a screenshot or the acknowledgement. The answers are then kept as filed.
 
-Each exchange's filing is a duty in the compliance calendar ([[circulars|Circulars & duties]]): it shows as due a week before and closes when marked submitted. **Download CSV** gives the answers and the filings.
+Each filing is a duty in the compliance calendar ([[circulars|Circulars & duties]]); a member of NSE and other exchanges has one, with NSE. It shows as due a week before and closes when marked submitted. **Download CSV** gives the answers and the filings.
 
 ## aiml-report
 title: The AI & ML systems report
@@ -87,7 +87,7 @@ SEBI's circular of 4 January 2019 (SEBI/HO/MIRSD/DOS2/CIR/P/2019/10) asks broker
 - The header comes from [[settings|Settings]]: SEBI registration, firm name and PAN.
 - Each AI system in use at any time in the period gets an entry, answered from the AI inventory: Ledgy does not initiate or route orders, manage portfolios, give advice (it answers staff questions about operations) or detect attacks; it is implemented by the vendor (Ledgerline) using the connected provider's model; its controls and safeguards are the kill switch, masking, the answer log and no autonomous actions.
 - If AI was off for the whole period, the answer is **No** (no system falls under these categories).
-- An NSE member can file once at NSE, which shares it with BSE, MCX and the other exchanges: tick **File the AI & ML report once, at NSE**.
+- A member of NSE and other exchanges files it once, with NSE, which shares it with BSE, MCX and the others (NSE/INSP/69184, Phase I item 40): the calendar has one duty, **File with NSE (shared with the other exchanges)**.
 
 ## saas-report
 title: The SaaS use report
@@ -102,3 +102,4 @@ The exchanges collect the SaaS report half-yearly (January–June by 31 July, Ju
 2. **Hosted by Ledgerline**: one row for Ledgerline (back-office application; client KYC, ledger, holdings, trades; the region you entered). Edit the gaps and the deadline after your assessment.
 3. On your own server or cloud account, Ledgerline is not SaaS: the answer is **No** unless AI was on.
 4. When AI was on in the period, the AI provider is a SaaS row too. Add other SaaS services the firm uses (email, GRC…) under **Other SaaS services**.
+5. A member of NSE and other exchanges files it once, with NSE, which shares it with the others (NSE/INSP/70505, Phase II item 19): the calendar has one duty, **File with NSE (shared with the other exchanges)**. Without NSE, it is filed with each exchange.

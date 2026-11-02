@@ -76,7 +76,7 @@ func TestAIDisclosureRoutes(t *testing.T) {
 	}
 
 	var ds ops.DisclosuresScreen
-	if c := ipoCall(t, srv, "GET", "/v1/disclosures", "vikram.shah", nil, &ds); c != 200 || ds.AIML.Period.ID != "2026-04_2026-09" || ds.SaaS.Period.ID != "2026-01_2026-06" || len(ds.AIML.Exchanges) != 3 {
+	if c := ipoCall(t, srv, "GET", "/v1/disclosures", "vikram.shah", nil, &ds); c != 200 || ds.AIML.Period.ID != "2026-04_2026-09" || ds.SaaS.Period.ID != "2026-01_2026-06" || len(ds.AIML.Exchanges) != 1 || ds.AIML.Exchanges[0].Exchange != "NSE" || len(ds.SaaS.Exchanges) != 1 {
 		t.Fatalf("screen %d %+v", c, ds.AIML.Period)
 	}
 	if ds.AIML.Answer != "Yes" { // the firm's own tool is in use
@@ -103,15 +103,16 @@ func TestAIDisclosureRoutes(t *testing.T) {
 	if c := ipoCall(t, srv, "POST", "/v1/disclosures/evidence?name=ack.png", "vikram.shah", png, &ev); c != 200 || ev.ID == "" {
 		t.Fatalf("evidence %d %+v", c, ev)
 	}
-	sub := map[string]string{"exchange": "MCX", "date": "2026-10-14", "ref": "MCX-ACK-1", "file_id": ev.ID}
-	if c := ipoCall(t, srv, "POST", "/v1/disclosures/aiml/2026-04_2026-09/submit", "vikram.shah", sub, &dv); c != 200 || dv.Status != "Partly submitted" {
+	// Filed once, with NSE, which shares it with BSE and MCX.
+	sub := map[string]string{"exchange": "NSE", "date": "2026-10-14", "ref": "NSE-ACK-1", "file_id": ev.ID}
+	if c := ipoCall(t, srv, "POST", "/v1/disclosures/aiml/2026-04_2026-09/submit", "vikram.shah", sub, &dv); c != 200 || dv.Status != "Submitted" {
 		t.Fatalf("submit %d %s", c, dv.Status)
 	}
 	var img []byte
 	if c := ipoCall(t, srv, "GET", "/v1/disclosures/evidence/"+ev.ID, "vikram.shah", nil, &img); c != 200 || len(img) != len(png) {
 		t.Fatalf("evidence back %d %d", c, len(img))
 	}
-	if c := ipoCall(t, srv, "GET", "/v1/disclosures/aiml/2026-04_2026-09/csv", "vikram.shah", nil, &csv); c != 200 || !strings.Contains(string(csv), "MCX-ACK-1") {
+	if c := ipoCall(t, srv, "GET", "/v1/disclosures/aiml/2026-04_2026-09/csv", "vikram.shah", nil, &csv); c != 200 || !strings.Contains(string(csv), "NSE-ACK-1") {
 		t.Fatalf("csv %d %s", c, csv)
 	}
 }

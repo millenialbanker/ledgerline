@@ -67,6 +67,18 @@ func TestYearEndPack(t *testing.T) {
 			t.Fatalf("pack still mentions %q", gone)
 		}
 	}
+	// 2026-27 is a tax year under the Income-tax Act, 2025; an earlier
+	// year keeps the 1961 names.
+	for _, want := range []string{"Tax year 2026-27", "The tax year is still running", "section 196 of the Income-tax Act, 2025", "section 198 of the Income-tax Act, 2025"} {
+		if !strings.Contains(string(b), want) {
+			t.Fatalf("pack lacks %q", want)
+		}
+	}
+	old := p
+	old.FY, old.From = "2025-26", "2025-04-01"
+	if b, _ := RenderYearEnd(old); !strings.Contains(string(b), "FY 2025-26") || !strings.Contains(string(b), "section 111A") || !strings.Contains(string(b), "section 112A") || !strings.Contains(string(b), "financial year is still running") {
+		t.Fatal("a 2025-26 pack must keep the 1961 Act's names")
+	}
 	// Packs go out only after the year ends.
 	if _, _, err := o.SendYearEnd(ctx, T, "priya.nair", "2026-27", D, nil); err == nil {
 		t.Fatal("sent during the year")

@@ -57,8 +57,10 @@ func TestAIMLDisclosure(t *testing.T) {
 	if f := field(v, "h.sebi_reg"); !strings.HasPrefix(f.Value, "INZ000") || field(v, "h.entity").Value == "" || field(v, "h.year").Value != "2026-27" {
 		t.Fatalf("header %+v", v.Fields[:6])
 	}
-	if len(v.Exchanges) != 3 || v.Status != "Overdue" {
-		t.Fatalf("exchanges %+v %s", v.Exchanges, v.Status)
+	// A member of NSE, BSE and MCX files once, with NSE, which shares it
+	// (NSE/INSP/69184, Phase I item 40).
+	if len(v.Exchanges) != 1 || v.Exchanges[0].Exchange != "NSE" || v.Status != "Overdue" || !strings.Contains(strings.Join(v.Notes, " "), discSharedNote) {
+		t.Fatalf("exchanges %+v %s %v", v.Exchanges, v.Status, v.Notes)
 	}
 
 	// October 2026 – March 2027: Ledgy was on, so one entry, answered from the facts.
@@ -94,7 +96,7 @@ func TestAIMLDisclosure(t *testing.T) {
 		t.Fatalf("edit %+v %v", f, err)
 	}
 
-	// The calendar has the duty for each exchange, due on 15 April.
+	// The calendar has one duty, with NSE, due on 15 April.
 	up, _ := o.Upcoming(ctx, T, "2027-04-02", 30)
 	due := 0
 	for _, c := range up {
@@ -102,8 +104,17 @@ func TestAIMLDisclosure(t *testing.T) {
 			due++
 		}
 	}
-	if due != 3 {
+	if due != 1 {
 		t.Fatalf("calendar: %d AI & ML duties in %+v", due, up)
+	}
+	ds, _ := o.Duties(ctx, T, "2027-04-02")
+	for _, d := range ds {
+		if d.ID == "OB-AIML-NSE" && (!d.Active || d.Filing != discSharedNote) {
+			t.Fatalf("NSE duty %+v", d)
+		}
+		if (d.ID == "OB-AIML-BSE" || d.ID == "OB-AIML-MCX") && d.Active {
+			t.Fatalf("separate duty %+v", d)
+		}
 	}
 
 	// Filed on NSE with a screenshot.
@@ -119,7 +130,7 @@ func TestAIMLDisclosure(t *testing.T) {
 		t.Fatalf("no reference accepted: %v", err)
 	}
 	v, err = o.MarkDisclosureSubmitted(ctx, T, "vikram.shah", DiscAIML, v.Period.ID, DiscSubmission{Exchange: "NSE", Date: "2027-04-05", Ref: "ENIT-77881", FileID: f.ID})
-	if err != nil || !v.Locked || v.Status != "Partly submitted" || v.Exchanges[0].Submitted == nil || v.Exchanges[0].Submitted.FileName != "nse-ack.png" || len(v.Exchanges[0].Submitted.Answers) == 0 {
+	if err != nil || !v.Locked || v.Status != "Submitted" || v.Exchanges[0].Submitted == nil || v.Exchanges[0].Submitted.FileName != "nse-ack.png" || len(v.Exchanges[0].Submitted.Answers) == 0 {
 		t.Fatalf("submitted %+v %v", v.Exchanges, err)
 	}
 	if _, err := o.MarkDisclosureSubmitted(ctx, T, "vikram.shah", DiscAIML, v.Period.ID, DiscSubmission{Exchange: "NSE", Date: "2027-04-06", Ref: "again"}); !errors.Is(err, ErrState) {
@@ -139,14 +150,36 @@ func TestAIMLDisclosure(t *testing.T) {
 		t.Fatalf("csv %s %s %v", name, csv, err)
 	}
 
-	// Filing once at NSE (shared with the other exchanges) leaves one duty.
+	// Filing with BSE and MCX only (no NSE): each exchange separately, and
+	// the NSE duty stops; back to all three, it is shared through NSE again.
 	p := o.discProfile(ctx, T)
-	p.SingleFiling = true
+	p.Exchanges = []string{"BSE", "MCX"}
+	if _, err := o.SaveDisclosureProfile(ctx, T, "vikram.shah", p); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ = o.Disclosure(ctx, T, "vikram.shah", DiscAIML, v.Period.ID); len(v.Exchanges) != 3 || v.Status != "Due" || strings.Contains(strings.Join(v.Notes, " "), discSharedNote) {
+		t.Fatalf("each exchange: %+v %s %v", v.Exchanges, v.Status, v.Notes)
+	}
+	ds, _ = o.Duties(ctx, T, "2027-04-06")
+	active := map[string]bool{}
+	for _, d := range ds {
+		active[d.ID] = d.Active
+	}
+	if !active["OB-AIML-BSE"] || !active["OB-AIML-MCX"] || active["OB-AIML-NSE"] || !active["OB-SAAS-BSE"] || active["OB-SAAS-NSE"] {
+		t.Fatalf("duties for BSE and MCX: %v", active)
+	}
+	p.Exchanges = nil
 	if _, err := o.SaveDisclosureProfile(ctx, T, "vikram.shah", p); err != nil {
 		t.Fatal(err)
 	}
 	if v, _ = o.Disclosure(ctx, T, "vikram.shah", DiscAIML, v.Period.ID); len(v.Exchanges) != 1 || v.Status != "Submitted" {
-		t.Fatalf("single filing: %+v %s", v.Exchanges, v.Status)
+		t.Fatalf("shared again: %+v %s", v.Exchanges, v.Status)
+	}
+	ds, _ = o.Duties(ctx, T, "2027-04-06")
+	for _, d := range ds {
+		if strings.HasPrefix(d.ID, "OB-AIML-") && d.Active != (d.ID == "OB-AIML-NSE") {
+			t.Fatalf("shared again: %+v", d)
+		}
 	}
 
 	// With AI switched off for a whole later period, the answer is No.
@@ -213,15 +246,22 @@ func TestSaaSDisclosure(t *testing.T) {
 	if v.Answer != "Yes" || len(v.Systems) != 1 || !strings.Contains(v.Systems[0], "Anthropic") {
 		t.Fatalf("self-hosted, AI on: %s %+v", v.Answer, v.Systems)
 	}
-	// The SaaS duty for each exchange, due 31 January.
+	// One SaaS duty, with NSE (shared with BSE and MCX: NSE/INSP/70505,
+	// Phase II item 19), due 31 January.
 	ds, _ := o.Duties(ctx, T, "2027-02-02")
 	n := 0
 	for _, d := range ds {
-		if strings.HasPrefix(d.ID, "OB-SAAS-") && d.Rule == "01-31,07-31" {
+		if strings.HasPrefix(d.ID, "OB-SAAS-") && d.Rule == "01-31,07-31" && d.Active {
 			n++
+			if d.ID != "OB-SAAS-NSE" || d.Filing != discSharedNote {
+				t.Fatalf("SaaS duty %+v", d)
+			}
 		}
 	}
-	if n != 3 {
+	if n != 1 {
 		t.Fatalf("%d SaaS duties", n)
+	}
+	if v, _ = o.Disclosure(ctx, T, "vikram.shah", DiscSaaS, ""); len(v.Exchanges) != 1 || !strings.Contains(strings.Join(v.Notes, " "), "NSE/INSP/70505") {
+		t.Fatalf("SaaS filing: %+v %v", v.Exchanges, v.Notes)
 	}
 }

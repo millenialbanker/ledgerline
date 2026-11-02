@@ -925,7 +925,7 @@ function compProfileHTML(p) {
   const can = has('Compliance officer');
   return `<div class="bd">${p.warnings.map(w => `<div class="note warn">${esc(w)}</div>`).join('')}
     <div class="kpis">${kpi('Next monthly RAS', p.next_monthly ? fmtDate(p.next_monthly) : '—', 'clients who chose monthly')}${kpi('Next quarterly RAS', p.next_quarterly ? fmtDate(p.next_quarterly) : '—', 'clients who chose quarterly')}${kpi('Calendar runs to', p.calendar_ends ? fmtDate(p.calendar_ends) : '—', 'add the next year in January', p.warnings.length ? 'warn' : '')}${kpi('System audit', esc((p.sys_audit || '').replace(/^./, c => c.toUpperCase())), p.auditor_empanelled ? 'NSE-empanelled auditor' : 'auditor not recorded as empanelled', p.auditor_empanelled || p.sys_audit === 'none' ? 'good' : 'warn')}</div>
-    <p class="small">Running accounts are settled on the Friday and/or Saturday the exchanges set jointly for each year, separately for monthly and quarterly clients (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197). The RAS run, Periodic work and the calendar follow this list; Settings shows the next dates. ${p.exchanges.length ? 'Member of ' + esc(p.exchanges.join(', ')) + ': common submissions — ' + esc(p.shared_filing.toLowerCase()) + '.' : ''}</p>
+    <p class="small">Running accounts are settled on the Friday and/or Saturday the exchanges set jointly for each year, separately for monthly and quarterly clients (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197). The RAS run, Periodic work and the calendar follow this list; Settings shows the next dates. ${p.exchanges.length ? 'Member of ' + esc(p.exchanges.join(', ')) + '. Common submissions: ' + esc(p.shared_filing) + '.' : ''}</p>
     ${can ? '<div class="tools"><button class="btn" data-act="compRAS">Edit RAS dates</button><button class="btn" data-act="compProf">System audit, auditor and MTF</button></div>' : ''}
     <div class="dim small" style="margin:8px 0">Source: ${esc(p.ras_source || '—')}${p.by ? ' · changed by ' + esc(p.by) : ''}</div></div>` +
     tbl([['Settlement'], ['Period'], ['Exchanges’ dates'], ['Firm settles on']], p.ras.map(r => `<tr class="${r.run_on < S.date ? 'dim' : ''}"><td>${esc(r.kind)}</td><td class="mono">${esc(r.period)}</td><td>${r.dates.map(fmtDate).join(' and/or ')}</td><td class="n">${fmtDate(r.run_on)}</td></tr>`), { tall: true, empty: 'No dates: add the exchanges’ calendar.' });
@@ -1138,40 +1138,74 @@ const NOM_REL = ['Spouse', 'Son', 'Daughter', 'Father', 'Mother', 'Brother', 'Si
 // Nomination (SEBI/HO/OIAE/OIAE_IAD-3/P/CIR/2026/12676, from 1 September 2026): up to 3 nominees;
 // only the name and relationship are needed (date of birth for a minor); identity is optional.
 const NOM_MAX = 3;
-const NOM_ID = [['', 'Not given (optional)'], ['PAN', 'PAN'], ['DL', 'Driving licence'], ['AADHAAR', 'Aadhaar (last 4 digits)'], ['PASSPORT', 'Passport']];
+const NOM_ID = [['', 'Not given'], ['PAN', 'PAN'], ['DL', 'Driving licence'], ['AADHAAR', 'Aadhaar (last 4 digits)'], ['PASSPORT', 'Passport']];
+// How a nomination or opt-out is declared: ops.NominationModes (nominees.go). No video.
+const NOM_MODES = ['Online with e-Sign', 'Online with digital signature', 'Online with OTP', 'Signed form', 'Thumb impression with two witnesses'];
+const NOM_THUMB = 'Thumb impression with two witnesses';
 function nomRow(n) {
   const o = (opts, v) => opts.map(x => { const [k, l] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(k)}" ${v === k ? 'selected' : ''}>${esc(l)}</option>`; }).join('');
+  const minor = !!(n.minor || n.guardian);
   return `<div class="form nomrow" style="grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px">
     <div class="fld" style="grid-column:span 2"><label>Full name</label><input class="in nm-name" value="${esc(n.name || '')}"></div>
     <div class="fld"><label>Relationship</label><select class="in nm-rel">${o(NOM_REL, n.relation)}</select></div>
-    <div class="fld"><label>Share %</label><input class="in nm-share" inputmode="decimal" placeholder="equal" value="${esc(n.share || '')}"></div>
-    <div class="fld"><label>Identity (optional)</label><select class="in nm-idt">${o(NOM_ID, n.id_type)}</select></div>
+    <div class="fld"><label>Share % (optional)</label><input class="in nm-share" inputmode="decimal" placeholder="equal" value="${esc(n.share || '')}"></div>
+    <div class="fld"><label>Identity detail (optional)</label><select class="in nm-idt">${o(NOM_ID, n.id_type || '')}</select></div>
     <div class="fld"><label>Number (optional)</label><input class="in mono nm-id" value="${esc(n.id && !/X/.test(n.id) ? n.id : '')}" placeholder="${n.id ? esc(n.id) : ''}"></div>
-    <div class="fld"><label>Date of birth (if under 18)</label><input class="in nm-dob" type="date" value="${esc(n.dob || '')}"></div>
+    <div class="fld" style="align-self:end"><label class="check"><input type="checkbox" class="nm-minor" ${minor ? 'checked' : ''}> Nominee is under 18</label></div>
     <div class="fld" style="align-self:end"><button type="button" class="linkish" data-nomdel>Remove</button></div>
-    <div class="fld" style="grid-column:span 2"><label>Guardian (minor only)</label><input class="in nm-g" value="${esc(n.guardian || '')}"></div>
-    <div class="fld" style="grid-column:span 2"><label>Guardian's relationship to the nominee</label><input class="in nm-gr" value="${esc(n.guardian_relation || '')}"></div></div>`;
+    <div class="fld nm-minorf" ${minor ? '' : 'hidden'}><label>Date of birth (required for a minor)</label><input class="in nm-dob" type="date" value="${esc(n.dob || '')}"></div>
+    <div class="fld nm-minorf" ${minor ? '' : 'hidden'}><label>Guardian (optional)</label><input class="in nm-g" value="${esc(n.guardian || '')}"></div>
+    <div class="fld nm-minorf" style="grid-column:span 2" ${minor ? '' : 'hidden'}><label>Guardian's relationship to the nominee (optional)</label><input class="in nm-gr" value="${esc(n.guardian_relation || '')}"></div></div>`;
 }
-function nomEditor(list) { return `<div class="full"><div id="nom-list">${(list.length ? list : [{}]).map(nomRow).join('')}</div><button type="button" class="btn sm" id="nom-add">Add a nominee</button> <span class="dim small">Up to 3. Only the name and relationship are needed (and the date of birth and guardian for a minor); identity is optional. Shares left blank are split equally, any odd lot to the first nominee. Identity numbers already on record must be typed again when changing the nomination. In a joint account every holder must agree.</span></div>`; }
+function nomEditor(list) { return `<div class="full"><div id="nom-list">${(list.length ? list : [{}]).map(nomRow).join('')}</div><button type="button" class="btn sm" id="nom-add">Add a nominee</button> <span class="dim small">At most ${NOM_MAX} nominees. Only the name and relationship are needed, and the date of birth of a nominee under 18; the identity detail, share and guardian are optional. Shares left blank are split equally, any odd lot to the first nominee. Identity numbers already on record must be typed again when changing the nomination.</span></div>`; }
 function nomBind() {
   const add = $('nom-add'); if (!add) return;
   add.onclick = () => { const l = $('nom-list'); if (l.children.length >= NOM_MAX) { toast(`At most ${NOM_MAX} nominees`); return; } l.insertAdjacentHTML('beforeend', nomRow({})); nomBind(); };
   document.querySelectorAll('[data-nomdel]').forEach(b => { b.onclick = () => { if (document.querySelectorAll('.nomrow').length > 1) b.closest('.nomrow').remove(); }; });
+  document.querySelectorAll('.nm-minor').forEach(b => { b.onchange = () => b.closest('.nomrow').querySelectorAll('.nm-minorf').forEach(f => { f.hidden = !b.checked; }); });
 }
-function nomRead() { return [...document.querySelectorAll('.nomrow')].map(r => { const g = c => r.querySelector('.nm-' + c).value.trim(); return { name: g('name'), relation: g('rel'), share: g('share'), id_type: g('idt'), id: g('id'), dob: g('dob'), guardian: g('g'), guardian_relation: g('gr') }; }); }
-const nomState = c => (c.nominees || []).length ? 'Nominated' : c.nominee === 'Opted in' ? 'Nominee details missing' : c.nomination_on ? 'Opted out (declared)' : 'No declaration';
+function nomRead() { return [...document.querySelectorAll('.nomrow')].map(r => { const g = c => r.querySelector('.nm-' + c).value.trim(), minor = r.querySelector('.nm-minor').checked; return { name: g('name'), relation: g('rel'), share: g('share'), id_type: g('id') ? g('idt') : '', id: g('id'), minor, dob: minor ? g('dob') : '', guardian: minor ? g('g') : '', guardian_relation: minor ? g('gr') : '' }; }); }
+// A nomination of more than 3 recorded before 1 Sep 2026 is kept and reviewed (ops.NominationOverLimit).
+const NOM_OVER = 'More than 3 nominees (review)';
+// The fields of a nomination change (ops.nominationChange): nominee, nominees, mode, witness_1/2,
+// on_statement (names | yes_no) and, for a joint account, joint_consent: "all".
+function nomChangeFields(staff) {
+  const st = UI.chOnStmt || '';
+  return `<div class="fld"><label for="ch-nominee">Nomination</label><select class="in" id="ch-nominee"><option>Opted in</option><option>Opted out</option></select></div>
+    ${staff ? `<div class="fld"><label for="ch-mode">Declared by</label><select class="in" id="ch-mode">${NOM_MODES.map(m => `<option ${m === 'Signed form' ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></div>` : '<div class="fld"></div>'}
+    <div id="ch-wit" class="full form" hidden style="padding:0"><div class="fld"><label for="ch-w1">Witness 1: name and address</label><input class="in" id="ch-w1"></div><div class="fld"><label for="ch-w2">Witness 2: name and address</label><input class="in" id="ch-w2"></div></div>
+    <div id="ch-noms" class="full">${nomEditor(UI.chNoms || [])}</div>
+    <div class="fld" id="ch-stmtf"><label for="ch-stmt">On statements, show</label><select class="in" id="ch-stmt">${st ? '' : '<option value="">As now</option>'}<option value="names" ${st === 'names' ? 'selected' : ''}>The nominees’ names</option><option value="yes_no" ${st === 'yes_no' ? 'selected' : ''}>Only whether there is a nomination (Yes/No)</option></select></div>
+    <div class="fld" id="ch-jointf" style="align-self:end"><label class="check"><input type="checkbox" id="ch-joint"> <span>All holders consented<br><span class="dim small">Joint account: every holder must agree to the nomination</span></span></label></div>
+    <div id="ch-optout" class="full note" hidden>${nomOptOutText()}</div>`;
+}
+// The opt-out declaration (in Ledgerline's words, after Annexure-B of the SEBI nomination circular of 29 May 2026).
+const nomOptOutText = () => `<b>Declaration not to nominate.</b> I/We do not wish to nominate anyone for this account. I/We understand that if all of us die, the securities and money in the account will be passed to our legal heirs only after they produce the documents the law requires, such as a succession certificate or probate, which can take time and cost money. I/We may name up to ${NOM_MAX} nominees at any time later.`;
+const nomState = c => (c.nominees || []).length > NOM_MAX ? NOM_OVER : (c.nominees || []).length ? 'Nominated' : c.nominee === 'Opted in' ? 'Nominee details missing' : c.nomination_on ? 'Opted out (declared)' : 'No declaration';
 const nomSummary = c => (c.nominees || []).length ? c.nominees.map(n => `${esc(n.name)} <span class="dim">(${esc(n.relation)}, ${esc(n.share)}%)</span>`).join(', ') : esc(c.nominee) + (c.nominee_name ? ' · ' + esc(c.nominee_name) + ' <span class="dim">(details missing)</span>' : '');
 const CHG_FIELDS = { Email: [['email', 'New email', 'email']], Mobile: [['mobile', 'New mobile', 'tel']], Address: [['city', 'City'], ['state', 'State']], 'Bank account': [['bank', 'Bank name'], ['ifsc', 'IFSC'], ['account', 'Account number']], Nomination: [] };
 function changeModal(kind, ucc, staff) {
   const f = CHG_FIELDS[kind], proof = { 'Bank account': 'Bank proof', Address: 'Address proof' }[kind];
   modal(mhd('Change ' + kind.toLowerCase(), `${ucc} · checked by head office before it takes effect`) + `<form class="bd" id="chf"><div class="form">${f.map(([k, l, t]) => `<div class="fld"><label for="ch-${k}">${l}</label><input class="in" id="ch-${k}" type="${t || 'text'}" required></div>`).join('')}
-    ${kind === 'Nomination' ? `<div class="fld"><label for="ch-nominee">Nomination</label><select class="in" id="ch-nominee"><option>Opted in</option><option>Opted out</option></select></div>${staff ? `<div class="fld"><label for="ch-mode">Declared by</label><select class="in" id="ch-mode"><option>Signed form</option><option>Online with e-Sign</option></select></div>` : '<div class="fld"></div>'}<div id="ch-noms" class="full">${nomEditor(UI.chNoms || [])}</div>` : ''}
+    ${kind === 'Nomination' ? nomChangeFields(staff) : ''}
     ${proof ? `<div class="fld full"><label for="ch-doc">${proof} (${kind === 'Bank account' ? 'cancelled cheque or bank statement' : 'Aadhaar, passport, utility bill'}) · PDF, JPEG or PNG</label><input class="in" type="file" id="ch-doc" accept="application/pdf,image/jpeg,image/png" required></div>` : ''}</div>
     <div id="ch-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Submit request</button></div></form>`);
-  nomBind(); if ($('ch-nominee')) $('ch-nominee').onchange = e => { $('ch-noms').hidden = e.target.value !== 'Opted in'; };
+  nomBind();
+  if ($('ch-nominee')) $('ch-nominee').onchange = e => { const inn = e.target.value === 'Opted in'; $('ch-noms').hidden = !inn; $('ch-optout').hidden = inn; $('ch-stmtf').hidden = !inn; $('ch-jointf').hidden = !inn; };
+  if ($('ch-mode')) $('ch-mode').onchange = e => { $('ch-wit').hidden = e.target.value !== NOM_THUMB; };
   $('chf').onsubmit = async e => {
     e.preventDefault(); const values = {}; f.forEach(([k]) => values[k] = $('ch-' + k).value);
-    if (kind === 'Nomination') { values.nominee = $('ch-nominee').value; if (values.nominee === 'Opted in') values.nominees = JSON.stringify(nomRead()); values.mode = staff ? $('ch-mode').value : 'Online with e-Sign'; }
+    if (kind === 'Nomination') {
+      values.nominee = $('ch-nominee').value; values.mode = staff ? $('ch-mode').value : 'Online with e-Sign';
+      if (values.nominee === 'Opted in') {
+        const ns = nomRead(), kid = ns.findIndex(n => n.minor && !n.dob);
+        if (kid >= 0) { $('ch-err').innerHTML = errHTML(new Error(`Nominee ${kid + 1} is under 18: enter the date of birth`)); return; }
+        values.nominees = JSON.stringify(ns);
+        if ($('ch-stmt').value) values.on_statement = $('ch-stmt').value;
+        if ($('ch-joint').checked) values.joint_consent = 'all';
+      }
+      if (values.mode === NOM_THUMB) { values.witness_1 = $('ch-w1').value.trim(); values.witness_2 = $('ch-w2').value.trim(); if (!values.witness_1 || !values.witness_2) { $('ch-err').innerHTML = errHTML(new Error('A thumb impression needs two witnesses: give each one’s name and address')); return; } }
+    }
     try {
       let doc = '';
       if (proof) { const file = $('ch-doc').files[0]; const d = await api('POST', `/v1/clients/${ucc}/documents?kind=${encodeURIComponent(proof)}&name=${encodeURIComponent(file.name)}`, file, true); doc = d.id; }
@@ -1679,8 +1713,9 @@ async function clientDrawer(ucc) {
     ${r ? `<div class="kv"><div><small>Ledger</small><b class="mono ${sgn(r.funds)}">${inr(r.funds, 2)}</b></div><div><small>UPI blocked</small><b class="mono">${inr(r.upi)}</b></div><div><small>Collateral (usable)</small><b class="mono">${inr(r.collateral_usable)}</b></div><div><small>Margin required</small><b class="mono">${inr(r.required)}</b></div><div><small>Free</small><b class="mono ${sgn(r.free)}">${inr(r.free)}</b></div><div><small>OMS limit</small><b class="mono">${inr(r.limit)}</b></div></div>` : '<div class="note">Not active yet. Limits and the ledger start at activation.</div>'}
     <div class="kv"><div><small>PAN</small><b class="mono"><span id="rv-pan">${esc(c.pan)}</span>${revealBtn(c.ucc, 'pan')}</b></div><div><small>Bank</small><b>${esc(c.bank.bank)} · <span id="rv-account">${esc(c.bank.account)}</span>${revealBtn(c.ucc, 'account')}</b></div><div><small>IFSC</small><b class="mono">${esc(c.bank.ifsc)}</b></div><div><small>Demat</small><b class="mono">${esc(c.demat.depository)} ${esc(c.demat.id)}</b></div><div id="cdsl-dc"></div><div><small>Income</small><b>${esc(c.income)}</b></div><div><small>RAS</small><b>${esc(c.ras)}</b></div><div><small>Contract notes</small><b>${c.physical_notes ? 'Printed, by courier' : 'Electronic (signed PDF)'}</b></div><div><small>KYC date</small><b>${fmtDate(c.kyc_date)}</b></div><div><small>Email</small><b>${esc(c.email)}</b></div><div><small>Last trade</small><b>${fmtDate(c.last_trade) || '—'}</b></div></div>
     <div>${h3('Segments')}${tbl([['Segment'], ['Status'], ['Since'], ['Reason'], ['']], ['CM', 'FO', 'CD', 'COM'].filter(g => (c.segments || []).includes(g) || (c.seg_status || {})[g]).map(g => { const x = (c.seg_status || {})[g] || { status: 'Active' }; return `<tr><td>${esc(d.segment_names[g] || g)}</td><td>${pill(x.status, { Active: 'good', Reactivated: 'good', Suspended: 'bad', Dormant: 'warn', Closed: 'nt' }[x.status])}</td><td class="n">${x.since ? fmtDate(x.since) : '—'}</td><td class="small wrap">${esc(x.reason || '')}</td><td>${has('Ops checker', 'Compliance officer') ? `<button class="btn sm" data-act="segSet" data-id="${c.ucc}" data-seg="${g}">Change</button>` : ''}</td></tr>`; }))}${(c.seg_history || []).length ? `<details style="margin-top:6px"><summary class="dim small">History · ${c.seg_history.length} change${c.seg_history.length === 1 ? "" : "s"}</summary>${tbl([['Effective'], ['Segment'], ['Change'], ['Reason'], ['By']], c.seg_history.slice().reverse().map(h => `<tr><td class="n">${fmtDate(h.on)}</td><td>${h.segment}</td><td>${esc(h.from)} → <b>${esc(h.to)}</b></td><td class="small wrap">${esc(h.reason || '')}</td><td class="small">${esc(h.by)}${h.source === 'Import' ? ' <span class="dim">(import)</span>' : ''}</td></tr>`))}</details>` : ''}</div>
-    <div>${h3('Nomination')}<div class="tools">${pill(nomState(c), nomState(c) === 'Nominated' || nomState(c) === 'Opted out (declared)' ? 'good' : 'warn')}${c.nomination_on ? `<span class="dim small">declared ${fmtDate(c.nomination_on)}${c.nomination_mode ? ' · ' + esc(c.nomination_mode) : ''}</span>` : ''}${has('Ops maker', 'Ops checker', 'Compliance officer', 'Branch staff') ? `<button class="btn sm" data-act="nomChange" data-id="${c.ucc}">Change nomination</button>` : ''}</div>
-      ${(c.nominees || []).length ? tbl([['Nominee'], ['Relationship'], ['Share', 'r'], ['Identity'], ['Minor']], c.nominees.map(n => `<tr><td>${esc(n.name)}</td><td>${esc(n.relation)}</td><td class="r">${esc(n.share)}%</td><td class="mono small">${esc(n.id_type)} ${esc(n.id)}</td><td class="small">${n.guardian ? 'Yes · guardian ' + esc(n.guardian) : ''}</td></tr>`)) : `<div class="dim small" style="margin-top:6px">${c.nominee === 'Opted in' ? 'Only a name is on record (' + esc(c.nominee_name || '') + '): collect each nominee’s share and identity detail.' : c.nomination_on ? 'The client declared that they do not wish to nominate.' : 'No nomination or opt-out declaration on record: a sole holder must make one.'}</div>`}</div>
+    <div>${h3('Nomination')}<div class="tools">${pill(nomState(c), nomState(c) === 'Nominated' || nomState(c) === 'Opted out (declared)' ? 'good' : 'warn')}${c.nomination_on ? `<span class="dim small">declared ${fmtDate(c.nomination_on)}${c.nomination_mode ? ' · ' + esc(c.nomination_mode) : ''}</span>` : ''}${(c.nominees || []).length ? `<span class="dim small">statements show ${c.nominees_on_statement ? 'the names' : 'Yes/No'}</span>` : ''}${has('Ops maker', 'Ops checker', 'Compliance officer', 'Branch staff') ? `<button class="btn sm" data-act="nomChange" data-id="${c.ucc}">Change nomination</button>` : ''}</div>
+      ${nomState(c) === NOM_OVER ? `<div class="note" style="margin-top:6px">Recorded with ${c.nominees.length} nominees before 1 September 2026. It is kept as it is; ask the client for a new nomination of up to ${NOM_MAX}.</div>` : ''}
+      ${(c.nominees || []).length ? tbl([['Nominee'], ['Relationship'], ['Share', 'r'], ['Identity'], ['Minor']], c.nominees.map(n => `<tr><td>${esc(n.name)}</td><td>${esc(n.relation)}</td><td class="r">${esc(n.share)}%</td><td class="mono small">${n.id ? esc(n.id_type) + ' ' + esc(n.id) : '<span class="dim">not given</span>'}</td><td class="small">${n.minor || n.guardian ? 'Yes' + (n.dob ? ' · born ' + fmtDate(n.dob) : '') + (n.guardian ? ' · guardian ' + esc(n.guardian) : '') : ''}</td></tr>`)) : `<div class="dim small" style="margin-top:6px">${c.nominee === 'Opted in' ? 'Only a name is on record (' + esc(c.nominee_name || '') + '): collect each nominee’s relationship (share and identity are optional).' : c.nomination_on ? 'The client declared that they do not wish to nominate.' : 'No nomination or opt-out declaration on record: a sole holder must make one.'}</div>`}</div>
     ${d.positions.length ? `<div>${h3('Open positions')}${tbl([['Contract'], ['Net qty', 'r'], ['Avg', 'r'], ['LTP', 'r'], ['MTM', 'r'], ['Margin', 'r']], d.positions.map(p => `<tr><td>${esc(p.name)}</td><td class="r ${sgn(p.qty)}">${nf(p.qty)}</td><td class="r">${nf(p.avg_price, 2)}</td><td class="r">${nf(p.ltp, 2)}</td><td class="r ${sgn(p.mtm)}">${nf(p.mtm, 0)}</td><td class="r">${inr(p.margin)}</td></tr>`))}</div>` : ''}
     ${d.holdings.length ? `<div>${h3('Demat holdings')}${tbl([['Scrip'], ['Qty', 'r'], ['Pledged', 'r'], ['LTP', 'r'], ['Value', 'r']], d.holdings.map(h => `<tr><td>${esc(h.symbol)}</td><td class="r">${nf(h.qty)}</td><td class="r">${h.pledged ? nf(h.pledged) : '—'}</td><td class="r">${nf(h.ltp, 2)}</td><td class="r">${inr(h.value)}</td></tr>`))}</div>` : ''}
     ${d.trades.length ? `<div>${h3(`Trades on ${fmtDate(S.date)} · ${d.trades.length}`)}${tbl([['Time'], ['Contract'], ['Side'], ['Qty', 'r'], ['Price', 'r'], ['Product']], d.trades.slice(0, 40).map(t => `<tr><td class="n">${t.trade_time}</td><td>${esc(instName(`${t.symbol}|${t.instrument_type}|${t.expiry}|${t.strike}`))}</td><td>${t.side === 'B' ? 'Buy' : 'Sell'}</td><td class="r">${nf(t.qty)}</td><td class="r">${nf(t.price, 2)}</td><td><span class="tag">${esc(t.product)}</span></td></tr>`))}</div>` : ''}
@@ -1738,18 +1773,67 @@ P['rms-t'] = d => {
 };
 
 /* ---------- margin ---------- */
+// Margin penalties (penaltypass.go, NSE/INSP/64315): prepared, never posted to a client by
+// themselves. Compliance or Risk proposes passing one on for an allowed reason with evidence;
+// a different person approves (Ops checker, Risk manager or Compliance officer).
+const PEN_REASONS = [['cheque_bounce', 'Cheque given by the client was dishonoured'], ['hedge_break', 'Hedge changed or a hedge leg expired, as disclosed in the risk management policy']];
+const PEN_PASS_FROM = '2024-11-01';
+const penPill = s => pill(s, { 'Waiting for approval': 'warn', Posted: 'bad', Rejected: 'nt' }[s] || 'nt');
 V.margin = {
-  load: () => get(`/v1/margin?date=${S.date}`),
+  load: async () => { const [d, passes] = await Promise.all([get(`/v1/margin?date=${S.date}`), get(`/v1/margin/penalties/pass?date=${S.date}`).catch(() => [])]); d.passes = passes || []; return d; },
   html: d => {
-    const rows = d.rows;
-    return ph('Margin reporting', 'Peak margin is rebuilt from trade timestamps at each clearing snapshot time; collection is the client’s funds before the day’s bills, plus UPI blocks and usable collateral. Penalty slab: 0.5% if the shortfall is under ₹1 lakh and under 10% of the requirement, otherwise 1%.',
-      `<button class="btn" data-act="dl" data-id="/v1/reports/margin/download?date=${S.date}" data-name="margin_${S.date}.csv">Download CC upload file</button>${has('Risk manager', 'Ops checker') ? `<button class="btn pri" data-act="penalties" ${d.penalties_posted ? 'disabled' : ''}>${d.penalties_posted ? 'Penalties posted' : 'Post penalties to clients'}</button>` : ''}`) +
-    `<div class="kpis">${kpi('Peak requirement', cmp(sum(rows, r => num(r.peak))), rows.length + ' clients')}${kpi('Collected upfront', cmp(sum(rows, r => num(r.collected))), 'cash + eligible collateral')}${kpi('Short collection', cmp(sum(rows, r => num(r.short))), rows.filter(r => num(r.short) > 0).length + ' clients short', rows.some(r => num(r.short) > 0) ? 'bad' : 'good')}${kpi('Penalty', inr(sum(rows, r => num(r.penalty)), 2), d.penalties_posted ? 'posted to client ledgers' : 'estimate', rows.some(r => num(r.penalty) > 0) ? 'warn' : '')}</div>
+    const rows = d.rows, pass = Object.fromEntries(d.passes.map(p => [p.ucc, p]));
+    const canProp = has('Compliance officer', 'Risk manager'), canDecide = has('Ops checker', 'Risk manager', 'Compliance officer');
+    const passCell = r => {
+      const p = pass[r.ucc];
+      if (!num(r.penalty)) return '';
+      if (!r.pass_status) return `<span class="dim small">The firm’s</span>${canProp && S.date >= PEN_PASS_FROM ? ` <button class="btn sm" data-act="penPass" data-id="${esc(r.ucc)}">Pass to client…</button>` : ''}`;
+      const ev = p && p.evidence.length ? `<div class="small">${p.evidence.map(f => `<button class="linkish" data-act="dl" data-id="/v1/margin/penalties/evidence/${encodeURIComponent(f.id)}" data-name="${esc(f.name)}">${esc(f.name)}</button>`).join(' · ')}</div>` : '';
+      const who = p ? `<div class="dim small">Proposed by ${esc(p.maker)}${p.checker ? ` · ${p.status === 'Rejected' ? 'rejected' : 'approved'} by ${esc(p.checker)}${p.checker_note ? ': ' + esc(p.checker_note) : ''}` : ''}${p.note ? ` · note: ${esc(p.note)}` : ''}</div>` : '';
+      const mine = p && p.maker === S.me?.actor;
+      const acts = r.pass_status === 'Waiting for approval' && canDecide ? (mine ? '<div class="dim small">Another person approves it.</div>' : `<div class="split" style="margin-top:4px"><button class="btn sm pri" data-act="penDecide" data-id="${esc(r.ucc)}" data-ok="1">Approve and post</button><button class="btn sm" data-act="penDecide" data-id="${esc(r.ucc)}" data-ok="0">Reject</button></div>`)
+        : r.pass_status === 'Rejected' && canProp ? `<button class="btn sm" data-act="penPass" data-id="${esc(r.ucc)}">Propose again…</button>` : '';
+      return `${penPill(r.pass_status)}${p && p.status === 'Posted' ? ` <span class="small">${inr(p.penalty, 2)} debited${p.entry ? ' · ' + esc(p.entry) : ''}</span>` : ''}<div class="small wrap">${esc(r.pass_reason || '')}</div><div class="dim small wrap">${esc(r.pass_ref || '')}</div>${ev}${who}${acts}`;
+    };
+    // Amounts passed on are those approved (the pass's own figure), not the day's recomputed estimate.
+    const waiting = d.passes.filter(p => p.status === 'Waiting for approval').length, posted = d.passes.filter(p => p.status === 'Posted');
+    return ph('Margin reporting', 'Peak margin is rebuilt from trade timestamps at each clearing snapshot time; collection is the client’s funds before the day’s bills, plus UPI blocks and usable collateral. Penalty slab: 0.5% if the shortfall is under ₹1 lakh and under 10% of the requirement, otherwise 1%. A penalty is the firm’s: it is never posted to a client automatically, and passing one on needs an allowed reason, evidence and a second person’s approval.',
+      `<button class="btn" data-act="dl" data-id="/v1/reports/margin/download?date=${S.date}" data-name="margin_${S.date}.csv">Download CC upload file</button>${has('Risk manager', 'Ops checker', 'Compliance officer') ? `<button class="btn pri" data-act="penalties" ${d.penalties_posted ? 'disabled' : ''}>${d.penalties_posted ? 'Penalties prepared' : 'Prepare penalties'}</button>` : ''}`) +
+    `<div class="kpis">${kpi('Peak requirement', cmp(sum(rows, r => num(r.peak))), rows.length + ' clients')}${kpi('Collected upfront', cmp(sum(rows, r => num(r.collected))), 'cash + eligible collateral')}${kpi('Short collection', cmp(sum(rows, r => num(r.short))), rows.filter(r => num(r.short) > 0).length + ' clients short', rows.some(r => num(r.short) > 0) ? 'bad' : 'good')}${kpi('Penalty', inr(sum(rows, r => num(r.penalty)), 2), d.penalties_posted ? 'prepared · the firm’s unless passed on' : 'estimate', rows.some(r => num(r.penalty) > 0) ? 'warn' : '')}${kpi('Passed to clients', inr(sum(posted, r => num(r.penalty)), 2), `${posted.length} posted · ${waiting} waiting for approval`, waiting ? 'warn' : '')}</div>
     <div class="panel"><div class="hd"><h3>Snapshot times</h3><small>From Settings</small></div><div class="bd"><div class="tools">${d.snapshots.map(t => `<span class="tag">${esc(t)}</span>`).join('')}<span class="tag">EOD</span></div></div></div>
-    <div class="panel">${tbl([['UCC'], ['Client'], ['Peak required', 'r'], ['At'], ['EOD required', 'r'], ['Collected', 'r'], ['Short', 'r'], ['% short', 'r'], ['Slab', 'r'], ['Penalty (₹)', 'r'], ['Status']], rows.map(r => `<tr><td class="n">${r.ucc}</td><td>${esc(r.name)}</td><td class="r">${inr(r.peak)}</td><td class="n dim">${esc(r.peak_at)}</td><td class="r">${inr(r.eod)}</td><td class="r">${inr(r.collected)}</td><td class="r ${num(r.short) > 0 ? 'neg' : ''}">${num(r.short) > 0 ? inr(r.short) : '—'}</td><td class="r">${num(r.short) > 0 ? pct(r.short_pct) : '—'}</td><td class="r">${num(r.slab_pct) ? r.slab_pct + '%' : '—'}</td><td class="r">${num(r.penalty) ? inr(r.penalty, 2) : '—'}</td><td>${num(r.short) > 0 ? pill('Short', 'bad') : pill('Collected', 'good')}</td></tr>`), { tall: true, empty: 'No margin requirement on this date.',
-      foot: rows.length ? `<tfoot><tr><td colspan="2">Total</td><td class="r">${inr(sum(rows, r => num(r.peak)))}</td><td></td><td class="r">${inr(sum(rows, r => num(r.eod)))}</td><td class="r">${inr(sum(rows, r => num(r.collected)))}</td><td class="r">${inr(sum(rows, r => num(r.short)))}</td><td></td><td></td><td class="r">${inr(sum(rows, r => num(r.penalty)), 2)}</td><td></td></tr></tfoot>` : '' })}</div>`;
+    <div class="panel">${tbl([['UCC'], ['Client'], ['Peak required', 'r'], ['At'], ['EOD required', 'r'], ['Collected', 'r'], ['Short', 'r'], ['% short', 'r'], ['Slab', 'r'], ['Penalty (₹)', 'r'], ['Status'], ['Pass-through']], rows.map(r => `<tr><td class="n">${r.ucc}</td><td>${esc(r.name)}</td><td class="r">${inr(r.peak)}</td><td class="n dim">${esc(r.peak_at)}</td><td class="r">${inr(r.eod)}</td><td class="r">${inr(r.collected)}</td><td class="r ${num(r.short) > 0 ? 'neg' : ''}">${num(r.short) > 0 ? inr(r.short) : '—'}</td><td class="r">${num(r.short) > 0 ? pct(r.short_pct) : '—'}</td><td class="r">${num(r.slab_pct) ? r.slab_pct + '%' : '—'}</td><td class="r">${num(r.penalty) ? inr(r.penalty, 2) : '—'}</td><td>${num(r.short) > 0 ? pill('Short', 'bad') : pill('Collected', 'good')}</td><td class="wrap" style="min-width:240px">${passCell(r)}</td></tr>`), { tall: true, empty: 'No margin requirement on this date.',
+      foot: rows.length ? `<tfoot><tr><td colspan="2">Total</td><td class="r">${inr(sum(rows, r => num(r.peak)))}</td><td></td><td class="r">${inr(sum(rows, r => num(r.eod)))}</td><td class="r">${inr(sum(rows, r => num(r.collected)))}</td><td class="r">${inr(sum(rows, r => num(r.short)))}</td><td></td><td></td><td class="r">${inr(sum(rows, r => num(r.penalty)), 2)}</td><td></td><td></td></tr></tfoot>` : '' })}
+    <div class="pad"><span class="dim small">A penalty may be passed to a client only when the client caused the shortfall: a dishonoured cheque, or a hedge break that the risk management policy disclosed to clients at least 7 days before (NSE/INSP/64315, penalties from 1 November 2024). The setting must allow it; the client gets a signed letter with the evidence.</span></div></div>`;
   }
 };
+function penPassModal(ucc) {
+  const r = (C.margin?.rows || []).find(x => x.ucc === ucc); if (!r) return;
+  modal(mhd('Pass a margin penalty to the client', `${esc(ucc)} · ${esc(r.name)} · penalty ₹${inr(r.penalty, 2)} for ${fmtDate(S.date)}. Nothing is debited until a different person approves.`) + `<form class="bd" id="ppf"><div class="form">
+    <div class="fld full"><label for="pp-reason">Reason</label><select class="in" id="pp-reason">${PEN_REASONS.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('')}</select></div>
+    <div class="fld full" id="pp-chq"><label for="pp-cheque">Dishonoured cheque: its receipt ID or cheque number (recorded as bounced on Receipts)</label><input class="in mono" id="pp-cheque"></div>
+    <div class="fld" id="pp-cl" hidden><label for="pp-clause">Risk management policy clause</label><input class="in" id="pp-clause" placeholder="e.g. 7.3"></div>
+    <div class="fld" id="pp-on" hidden><label for="pp-notified">Date clients were notified of it (at least 7 days before)</label><input class="in" type="date" id="pp-notified"></div>
+    <div class="fld full"><label for="pp-ev">Evidence (PDF, PNG or JPEG; the bank’s return memo, or the policy extract and its notice). It goes to the client.</label><input class="in" type="file" id="pp-ev" multiple accept="application/pdf,image/png,image/jpeg" required></div>
+    <div class="fld full"><label for="pp-note">Note (optional)</label><textarea class="in" id="pp-note" rows="2"></textarea></div></div>
+    <div id="pp-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Propose for approval</button></div></form>`);
+  $('pp-reason').onchange = e => { const c = e.target.value === 'cheque_bounce'; $('pp-chq').hidden = !c; $('pp-cl').hidden = c; $('pp-on').hidden = c; };
+  $('ppf').onsubmit = async e => {
+    e.preventDefault(); const btn = e.submitter; if (btn) btn.disabled = true;
+    try {
+      const ev = [];
+      for (const file of $('pp-ev').files) { const f = await api('POST', `/v1/margin/penalties/evidence?name=${encodeURIComponent(file.name)}`, file, true); ev.push(f.id); }
+      const reason = $('pp-reason').value, q = { date: S.date, ucc, reason, evidence: ev, note: $('pp-note').value.trim() };
+      if (reason === 'cheque_bounce') q.cheque = $('pp-cheque').value.trim(); else { q.policy_clause = $('pp-clause').value.trim(); q.policy_notified_on = $('pp-notified').value; }
+      await post('/v1/margin/penalties/pass', q); closeModal(); toast(`Proposed: waiting for another person’s approval`); render({ keep: true });
+    } catch (err) { $('pp-err').innerHTML = errHTML(err); if (btn) btn.disabled = false; }
+  };
+}
+function penDecideModal(ucc, approve) {
+  const p = (C.margin?.passes || []).find(x => x.ucc === ucc), r = (C.margin?.rows || []).find(x => x.ucc === ucc);
+  confirmModal(approve ? 'Approve and post the penalty' : 'Reject passing the penalty on', `${esc(ucc)} · ₹${inr(r?.penalty, 2)} · ${esc(r?.pass_reason || '')}`,
+    `<p class="small">${esc(r?.pass_ref || '')}${p?.evidence?.length ? ' · evidence: ' + p.evidence.map(f => esc(f.name)).join(', ') : ''}</p>${approve ? '<p class="small">The client’s ledger is debited and the client is sent a signed letter with the evidence.</p>' : '<p class="small">The firm bears the penalty.</p>'}<div class="fld"><label for="pd-note">${approve ? 'Note (optional)' : 'Why it is rejected'}</label><textarea class="in" id="pd-note" rows="2"></textarea></div>`,
+    approve ? 'Approve and post' : 'Reject', () => act(() => post(`/v1/margin/penalties/pass/${encodeURIComponent(S.date)}/${encodeURIComponent(ucc)}/decide`, { approve, note: $('pd-note').value.trim() }), x => `${x.ucc}: ${x.status.toLowerCase()}`), !approve);
+}
 
 /* ---------- collateral ---------- */
 V.collateral = {
@@ -2227,7 +2311,7 @@ V.settings = {
       <div class="fld"><label for="st-inm">Inactive after (months without activity)</label><input class="in" id="st-inm" type="number" min="12" max="60" value="${s.inactive_months || 24}" ${admin ? '' : 'disabled'}></div>
       <div class="fld full"><label for="st-snap">Margin snapshot times (HH:MM:SS, comma separated)</label><input class="in mono" id="st-snap" value="${esc((s.snapshot_times || []).join(', '))}" ${admin ? '' : 'disabled'}></div>
       <div class="fld full"><label for="st-hol">Extra holidays (YYYY-MM-DD, comma separated)</label><input class="in mono" id="st-hol" value="${esc((s.holidays || []).join(', '))}" ${admin ? '' : 'disabled'}><div class="dim small" style="margin-top:4px">Exchange trading and settlement holidays come from the approved exchange calendar (<button type="button" class="linkish" data-act="go" data-id="circulars:hol">Circulars & calendar → Exchange holidays</button>). Add a day here only for a closure that is not in it.</div></div>
-      <label class="check full"><input type="checkbox" id="st-pen" ${s.penalty_pass_through ? 'checked' : ''} ${admin ? '' : 'disabled'}> Pass short-collection penalties through to client ledgers</label>
+      <label class="check full"><input type="checkbox" id="st-pen" ${s.penalty_pass_through ? 'checked' : ''} ${admin ? '' : 'disabled'}> Allow passing penalties to clients case by case (dishonoured cheque or disclosed hedge break, with evidence and approval)</label>
     </div></div></div></div>
     ${clearingPanel(d, admin)}
     <div class="grid g2"><div class="panel"><div class="hd"><h3>Debit balances and interest</h3></div><div class="bd"><div class="form">
@@ -2394,7 +2478,7 @@ const A = {
   pWhatsApp: (id, el) => act(() => post('/v1/portal/whatsapp', { ucc: UI.pAcct, on: el.dataset.on === '1' }), r => r.whatsapp ? 'WhatsApp alerts on' : 'WhatsApp alerts off'),
   pAcct: (id, el) => { UI.pAcct = el.value; render(); },
   pNote: id => { const [d, u, p] = id.split('|'); openDoc(`/v1/notes/${d}/${u}/document${p ? '?part=' + p : ''}`); },
-  pChange: id => { UI.chNoms = C[S.view]?.account?.nominees || []; changeModal(id, UI.pAcct); },
+  pChange: id => { UI.chNoms = C[S.view]?.account?.nominees || []; UI.chOnStmt = ''; changeModal(id, UI.pAcct); },
   pTicket: () => ticketModal(false),
   sTicket: () => ticketModal(true),
   tOpen: id => ticketDrawer(id),
@@ -2581,7 +2665,7 @@ const A = {
   ui: (id, el) => { UI[el.dataset.k] = el.dataset.v; if (el.dataset.k === 'lgTab') { UI.lgSel.clear(); render({ keep: true }); return; } const part = el.dataset.part; if (part && $(part)) { rerenderPart(part); el.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === el)); } else { $('page').innerHTML = groupBar(S.view) + V[S.view].html(C[S.view]); bindPage(); } },
   dl: (path, el) => download(path, el.dataset.name),
   client: id => clientDrawer(id),
-  nomChange: async id => { try { const d = await get(`/v1/clients/${encodeURIComponent(id)}?date=${S.date}`); UI.chNoms = d.client.nominees || []; changeModal('Nomination', id, true); } catch (e) { toast(e.message, true); } },
+  nomChange: async id => { try { const d = await get(`/v1/clients/${encodeURIComponent(id)}?date=${S.date}`); UI.chNoms = d.client.nominees || []; UI.chOnStmt = d.client.nominees_on_statement ? 'names' : 'yes_no'; changeModal('Nomination', id, true); } catch (e) { toast(e.message, true); } },
   segSet: (id, el) => { const g = el.dataset.seg; modal(mhd(`Change ${g} status · ${id}`, 'The change is kept in the client’s segment history and goes to the exchanges with the UCC upload for the effective date.') + `<div class="bd"><div class="form"><div class="fld"><label for="sg-st">New status</label><select class="in" id="sg-st">${['Active', 'Reactivated', 'Suspended', 'Dormant', 'Closed'].map(x => `<option>${x}</option>`).join('')}</select></div><div class="fld"><label for="sg-on">Effective from</label><input class="in" type="date" id="sg-on" value="${S.date}"></div><div class="fld full"><label for="sg-why">Reason</label><input class="in" id="sg-why" placeholder="e.g. Income proof for derivatives has lapsed"></div></div><div id="sg-err"></div></div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" id="sg-go">Save</button></div>`);
     $('sg-go').onclick = async () => { try { await post(`/v1/clients/${encodeURIComponent(id)}/segment-status`, { segment: g, status: $('sg-st').value, on: $('sg-on').value, reason: $('sg-why').value }); toast(`${g} is now ${$('sg-st').value}`); clientDrawer(id); } catch (e) { $('sg-err').innerHTML = errHTML(e); } }; },
   openLedger: id => { UI.ledgerU = id; A.go('ledger'); },
@@ -2671,7 +2755,9 @@ const A = {
   ovDecide: (id, el) => act(() => post(`/v1/rms/overrides/${id}/decide`, { date: S.date, approve: el.dataset.a === '1' }), o => `Override ${o.status.toLowerCase()}`),
   sq: id => confirmModal('Square off ' + id, 'Sends close-out orders for every open derivatives position.', S.me?.dev ? '<div class="note">Development server: a simulated OMS fills the orders at the last price. Rebill afterwards to bill the closing trades.</div>' : '', 'Square off', () => act(() => post('/v1/rms/squareoff', { date: S.date, uccs: [id] }), r => `${r.instructions.length} orders sent${r.filled ? ', ' + r.filled + ' filled' : ''}`), true),
   sqAll: () => confirmModal('Square off all breaches', 'Sends close-out orders for every breached client with open derivatives positions.', S.me?.dev ? '<div class="note">Development server: a simulated OMS fills the orders at the last price. Rebill afterwards to bill the closing trades.</div>' : '', 'Square off all', () => act(() => post('/v1/rms/squareoff', { date: S.date, uccs: [] }), r => `${r.instructions.length} orders sent${r.filled ? ', ' + r.filled + ' filled' : ''}`), true),
-  penalties: () => confirmModal('Post margin penalties', 'Debits each short client with their slab penalty, payable to the clearing corporation.', '', 'Post penalties', () => act(() => post('/v1/margin/penalties', { date: S.date }), r => `${r.posted} penalties posted`)),
+  penalties: () => confirmModal('Prepare margin penalties', 'Lists each short client’s slab penalty for a decision. No client is debited: a penalty is the firm’s unless Compliance or Risk passes it on for an allowed reason, with evidence, and a different person approves.', '', 'Prepare penalties', () => act(() => post('/v1/margin/penalties', { date: S.date }), r => `${r.prepared} penalties prepared for a decision · ${r.posted} posted to clients`)),
+  penPass: id => penPassModal(id),
+  penDecide: (id, el) => penDecideModal(id, el.dataset.ok === '1'),
   pledge: (id, el) => { if (el.dataset.a === '1') { act(() => post(`/v1/pledges/${encodeURIComponent(id)}/decide`, { accept: true }), 'Pledge accepted; collateral updated'); return; }
     confirmModal('Reject pledge ' + id, '', `<div class="fld"><label for="pl-r">Reason</label><input class="in" id="pl-r" placeholder="e.g. Scrip not on approved collateral list"></div>`, 'Reject', () => act(() => post(`/v1/pledges/${encodeURIComponent(id)}/decide`, { accept: false, reason: $('pl-r').value }), 'Pledge rejected'), true); },
   journal: async () => {
@@ -2983,7 +3069,7 @@ V.periodic = {
     const row = t => `<tr><td><b>${esc(t.name)}</b><div class="dim small wrap">${esc(t.about)}</div>${t.basis ? `<div class="small dim">${esc(t.basis)}</div>` : ''}</td><td class="small">${esc(t.label)}<div class="dim">${esc(t.due)}</div></td><td class="small">${t.due_on ? fmtDate(t.due_on) : '—'}</td>
       <td>${pill(t.status, PER_ST[t.status] || 'nt')}${t.note ? `<div class="small wrap">${esc(t.note)}</div>` : ''}${t.run ? `<div class="dim small">${esc(t.run.by)} · ${esc(t.run.at)}</div>` : ''}${t.run && t.run.files ? t.run.files.map(f => `<div><button class="linkish small" data-act="dl" data-id="/v1/periodic/files/${f.id}" data-name="${esc(f.name)}">${esc(f.name)}</button></div>`).join('') : ''}</td>
       <td class="r"><div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">${mk && t.status !== 'Done' && t.status !== 'Nothing to do' ? `<button class="btn sm ${['Due', 'Overdue', 'Failed'].includes(t.status) ? 'pri' : ''}" data-act="perRun" data-id="${t.id}" data-p="${esc(t.period)}">${t.status === 'Failed' ? 'Try again' : t.auto ? 'Run now' : 'Start'}</button>` : ''}${t.view ? `<button class="btn sm" data-act="go" data-id="${t.view}">Open</button>` : ''}</div></td></tr>`;
-    return ph('Periodic work', 'Weekly, monthly and quarterly work: client statements, month-end postings, running account settlement, the BSDA review, the client funds monitoring return, disclosures and the periodic exchange files. Each task shows the period it covers, when it is due and whether it is done, counting work done on its own screen or by Autopilot. The “Periodic work” scheduled job runs the ones that can run by themselves every morning and puts the rest in the work queue.') +
+    return ph('Periodic work', 'Weekly, monthly and quarterly work: client statements, month-end postings, running account settlement on the exchanges’ RAS dates, the BSDA review, disclosures and the periodic exchange files. Each task shows the period it covers, when it is due and whether it is done, counting work done on its own screen or by Autopilot. The “Periodic work” scheduled job runs the ones that can run by themselves every morning and puts the rest in the work queue.') +
       `<div class="kpis">${kpi('Overdue', n(['Overdue', 'Failed']), 'past the due date or failed', n(['Overdue', 'Failed']) ? 'bad' : 'good')}${kpi('Due', n(['Due']), 'due today')}${kpi('Waiting', n(['Waiting for approval', 'Waiting for a file']), 'for a checker or a file')}${kpi('Done', n(['Done']), 'for the current period', 'good')}</div>` +
       groups.map(g => `<div class="panel"><div class="hd"><h3>${esc(g)}</h3></div>${tbl([['Task'], ['Period'], ['Due'], ['Status'], ['']], ts.filter(t => t.freq === g).map(row))}</div>`).join('');
   }

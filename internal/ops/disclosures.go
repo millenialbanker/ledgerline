@@ -24,8 +24,10 @@ import (
 // how they use SaaS (SEBI's advisory on SaaS solutions,
 // SEBI/HO/MIRSD2/DOR/CIR/P/2020/221 of 3 November 2020: half-yearly,
 // January–June and July–December, by the end of the next month on the
-// exchanges' member portals). NSE shares an NSE member's AI & ML filing
-// with BSE, MCX and the other exchanges; the firm can file once at NSE.
+// exchanges' member portals). Both are common submissions that a member
+// of NSE and other exchanges files with NSE only, and NSE shares them (AI
+// & ML: NSE/INSP/69184, Phase I item 40; SaaS: NSE/INSP/70505, Phase II
+// item 19); a firm that is not an NSE member files with each exchange.
 //
 // This prints ready answers for each form from the facts in Ledgerline:
 // the firm's settings, the AI inventory and its on/off history and answer
@@ -58,8 +60,9 @@ type DisclosureProfile struct {
 	// AIMLCycle: half-yearly (members trading through algorithms, the
 	// default), yearly (other members) or quarterly (the 2019 circular).
 	AIMLCycle string `json:"aiml_cycle"`
-	// SingleFiling: an NSE member files the AI & ML report at NSE only,
-	// which shares it with the other exchanges.
+	// SingleFiling was the choice to file the AI & ML report at NSE only.
+	// It is now always so for a member of NSE and other exchanges (see
+	// discExchanges); the field is kept for stored profiles.
 	SingleFiling bool `json:"single_filing"`
 	// Exchanges overrides the exchanges filed with (default: those the
 	// firm has a member code for).
@@ -259,8 +262,23 @@ func (o *Ops) SaveDisclosureProfile(ctx context.Context, tenant, actor string, p
 	return o.discProfile(ctx, tenant), nil
 }
 
-// discExchanges are the exchanges the firm files the report with.
+// discExchanges are the exchanges the firm files the report with. Both
+// reports are on NSE's list of common submissions: the AI & ML report is
+// item 40 of Phase I (NSE/INSP/69184, from 1 August 2025) and the SaaS
+// report item 19 of Phase II (NSE/INSP/70505, from 15 October 2025). So a
+// member of NSE and other exchanges files each once, with NSE, which
+// shares it; the others file with each exchange.
 func (o *Ops) discExchanges(set Settings, p DisclosureProfile, kind string) []string {
+	exs := discFilingExchanges(set, p)
+	if discShared(exs) {
+		return []string{"NSE"}
+	}
+	return exs
+}
+
+// discFilingExchanges are the exchanges the firm reports to: those chosen
+// on the profile, or those it has a member code for.
+func discFilingExchanges(set Settings, p DisclosureProfile) []string {
 	exs := p.Exchanges
 	if len(exs) == 0 {
 		for _, x := range discExchangeOrder {
@@ -269,11 +287,14 @@ func (o *Ops) discExchanges(set Settings, p DisclosureProfile, kind string) []st
 			}
 		}
 	}
-	if kind == DiscAIML && p.SingleFiling && contains(exs, "NSE") {
-		return []string{"NSE"}
-	}
 	return exs
 }
+
+// discShared: filed once with NSE, which shares it with the others.
+func discShared(exs []string) bool { return contains(exs, "NSE") && len(exs) > 1 }
+
+// discSharedNote is where a shared report goes.
+const discSharedNote = "File with NSE (shared with the other exchanges)"
 
 // ---- periods ----
 
@@ -385,23 +406,51 @@ func (o *Ops) ensureDisclosureDuties(ctx context.Context, tenant, date string, o
 	for i, d := range obs {
 		have[d.ID] = i
 	}
+	shared := discShared(discFilingExchanges(set, p))
 	for _, kind := range []string{DiscAIML, DiscSaaS} {
-		for _, ex := range o.discExchanges(set, p, kind) {
+		filed := o.discExchanges(set, p, kind)
+		for _, ex := range filed {
 			id, rule, title := discDutyID(kind, ex), discDutyRule(kind, p.AIMLCycle), discTitle(kind, p.AIMLCycle)+" to "+ex
+			auth := "SEBI / " + ex
+			filing := "File with " + ex
+			if shared {
+				auth, filing = "SEBI / NSE (shared with the other exchanges: NSE/INSP/69184, NSE/INSP/70505)", discSharedNote
+			}
 			if i, ok := have[id]; ok {
-				if obs[i].Rule != rule || obs[i].Title != title {
-					obs[i].Rule, obs[i].Title, obs[i].Frequency = rule, title, discFrequency(kind, p.AIMLCycle)
+				// stopped here because it was not filed separately: filed again
+				back := !obs[i].Active && (strings.HasPrefix(obs[i].Warning, "Filed with NSE") || strings.HasPrefix(obs[i].Warning, "Not filed with"))
+				if obs[i].Rule != rule || obs[i].Title != title || obs[i].Authority != auth || back {
+					obs[i].Rule, obs[i].Title, obs[i].Frequency, obs[i].Authority = rule, title, discFrequency(kind, p.AIMLCycle), auth
+					if back {
+						obs[i].Active, obs[i].Warning = true, ""
+					}
 					_ = docs.Upsert(ctx, o.Docs, tenant, cObligation, id, obs[i], SystemActor)
 				}
+				obs[i].Filing = filing
 				continue
 			}
-			auth := "SEBI / " + ex
 			ev := "The exchange portal's acknowledgement: Compliance → Exchange disclosures → Mark submitted"
 			d := Duty{ID: id, Title: title, Authority: auth, Frequency: discFrequency(kind, p.AIMLCycle),
 				Rule: rule, Role: RoleCompliance, Evidence: ev, Active: true, Since: date, Done: []DutyRun{}}
 			if docs.Upsert(ctx, o.Docs, tenant, cObligation, id, d, SystemActor) == nil {
+				d.Filing = filing
 				obs = append(obs, d)
 			}
+		}
+		// A duty for an exchange no longer filed with separately (now
+		// shared through NSE, or dropped from the list) stops; its record
+		// of past filings is kept.
+		for i := range obs {
+			x := &obs[i]
+			ex, ok := strings.CutPrefix(x.ID, "OB-"+strings.ToUpper(kind)+"-")
+			if !ok || contains(filed, ex) || !x.Active {
+				continue
+			}
+			x.Active, x.Warning = false, "Not filed with "+ex+" separately"
+			if shared {
+				x.Warning = "Filed with NSE, which shares it with " + ex + " (NSE/INSP/69184, NSE/INSP/70505)"
+			}
+			_ = docs.Upsert(ctx, o.Docs, tenant, cObligation, x.ID, *x, SystemActor)
 		}
 	}
 	return obs
@@ -478,7 +527,11 @@ func (o *Ops) disclosure(ctx context.Context, tenant, kind, period string) (Disc
 	v.Fields = b.fields
 	v.Locked = len(rec.Submissions) > 0
 	done := 0
-	for _, ex := range o.discExchanges(set, prof, kind) {
+	filed := o.discExchanges(set, prof, kind)
+	if discShared(discFilingExchanges(set, prof)) {
+		v.Notes = append(v.Notes, discSharedNote+": it is on NSE's list of common submissions ("+map[string]string{DiscAIML: "NSE/INSP/69184, Phase I item 40", DiscSaaS: "NSE/INSP/70505, Phase II item 19"}[kind]+").")
+	}
+	for _, ex := range filed {
 		e := DiscExchange{Exchange: ex, Duty: discDutyID(kind, ex)}
 		for i := range rec.Submissions {
 			if rec.Submissions[i].Exchange == ex {
@@ -501,7 +554,7 @@ func (o *Ops) disclosure(ctx context.Context, tenant, kind, period string) (Disc
 		}
 	}
 	switch {
-	case len(v.Exchanges) > 0 && done >= len(v.Exchanges):
+	case len(filed) > 0 && done >= len(filed):
 		v.Status = "Submitted"
 	case done > 0:
 		v.Status = "Partly submitted"

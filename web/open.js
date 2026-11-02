@@ -21,18 +21,27 @@ async function call(method, path, body, raw) {
 }
 const fieldErr = f => { const x = (ERR?.fields || []).find(e => e.field === f); return x ? `<span class="err">${esc(x.message)}</span>` : ''; };
 const NREL = ['Spouse', 'Son', 'Daughter', 'Father', 'Mother', 'Brother', 'Sister', 'Grandchild', 'Other'];
-const NID = [['PAN', 'PAN'], ['DL', 'Driving licence'], ['AADHAAR', 'Last 4 digits of Aadhaar'], ['PASSPORT', 'Passport']];
-const nomBlock = n => `<fieldset class="nom"><div class="row"><div class="fld"><label>Full name</label><input class="in n-name" value="${esc(n.name || '')}"></div><div class="fld"><label>Relationship</label><select class="in n-rel"><option value="">Choose</option>${NREL.map(o => `<option ${o === n.relation ? 'selected' : ''}>${o}</option>`).join('')}</select></div></div>
-  <div class="row"><div class="fld"><label>Identity</label><select class="in n-idt">${NID.map(([k, l]) => `<option value="${k}" ${k === n.id_type ? 'selected' : ''}>${l}</option>`).join('')}</select></div><div class="fld"><label>Number</label><input class="in n-id" value="${esc(n.id || '')}" autocapitalize="characters"></div></div>
-  <div class="row"><div class="fld"><label>Share % (optional)</label><input class="in n-share" inputmode="decimal" value="${esc(n.share || '')}"></div><div class="fld"><label>Date of birth (if under 18)</label><input class="in n-dob" type="date" value="${esc(n.dob || '')}"></div></div>
-  <div class="row"><div class="fld"><label>Guardian (if under 18)</label><input class="in n-g" value="${esc(n.guardian || '')}"></div><div class="fld"><label>Guardian's relationship</label><input class="in n-gr" value="${esc(n.guardian_relation || '')}"></div></div>
-  <button class="linkish small n-del" type="button">Remove this nominee</button></fieldset>`;
-const nomsRead = () => [...document.querySelectorAll('fieldset.nom')].map(f => { const g = c => f.querySelector('.n-' + c).value.trim(); return { name: g('name'), relation: g('rel'), id_type: g('idt'), id: g('id'), share: g('share'), dob: g('dob'), guardian: g('g'), guardian_relation: g('gr') }; });
+// Nomination (SEBI circular of 29 May 2026, from 1 September 2026; ops/nominees.go): up to 3
+// nominees, each needing only a name and relationship (and a minor's date of birth).
+const NOM_MAX = 3;
+const NID = [['', 'Not given'], ['PAN', 'PAN'], ['DL', 'Driving licence'], ['AADHAAR', 'Last 4 digits of Aadhaar'], ['PASSPORT', 'Passport']];
+const nomBlock = n => { const minor = !!(n.minor || n.guardian); return `<fieldset class="nom"><div class="row"><div class="fld"><label>Full name</label><input class="in n-name" value="${esc(n.name || '')}"></div><div class="fld"><label>Relationship</label><select class="in n-rel"><option value="">Choose</option>${NREL.map(o => `<option ${o === n.relation ? 'selected' : ''}>${o}</option>`).join('')}</select></div></div>
+  <div class="row"><div class="fld"><label>Identity detail (optional)</label><select class="in n-idt">${NID.map(([k, l]) => `<option value="${k}" ${k === (n.id_type || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div><div class="fld"><label>Number (optional)</label><input class="in n-id" value="${esc(n.id || '')}" autocapitalize="characters"></div></div>
+  <div class="row"><div class="fld"><label>Share % (optional)</label><input class="in n-share" inputmode="decimal" value="${esc(n.share || '')}"></div><div class="fld"><label class="check"><input type="checkbox" class="n-minor" ${minor ? 'checked' : ''}> <span>This nominee is under 18</span></label></div></div>
+  <div class="row n-minorf" ${minor ? '' : 'hidden'}><div class="fld"><label>Date of birth (required for a minor)</label><input class="in n-dob" type="date" value="${esc(n.dob || '')}"></div><div class="fld"><label>Guardian (optional)</label><input class="in n-g" value="${esc(n.guardian || '')}"></div></div>
+  <div class="row n-minorf" ${minor ? '' : 'hidden'}><div class="fld"><label>Guardian's relationship (optional)</label><input class="in n-gr" value="${esc(n.guardian_relation || '')}"></div></div>
+  <button class="linkish small n-del" type="button">Remove this nominee</button></fieldset>`; };
+const nomsRead = () => [...document.querySelectorAll('fieldset.nom')].map(f => { const g = c => f.querySelector('.n-' + c).value.trim(), minor = f.querySelector('.n-minor').checked; return { name: g('name'), relation: g('rel'), id_type: g('id') ? g('idt') : '', id: g('id'), share: g('share'), minor, dob: minor ? g('dob') : '', guardian: minor ? g('g') : '', guardian_relation: minor ? g('gr') : '' }; });
 function nomsBind() {
-  $('nomadd').onclick = () => { if (document.querySelectorAll('fieldset.nom').length >= 10) return; $('nomadd').insertAdjacentHTML('beforebegin', nomBlock({})); nomsBind(); };
-  document.querySelectorAll('.n-del').forEach(b => { b.onclick = () => { if (document.querySelectorAll('fieldset.nom').length > 1) b.closest('fieldset').remove(); }; });
-  $('optout').onchange = e => { $('noms').hidden = e.target.checked; };
+  $('nomadd').onclick = () => { if (document.querySelectorAll('fieldset.nom').length >= NOM_MAX) return; $('nomadd').insertAdjacentHTML('beforebegin', nomBlock({})); nomsBind(); };
+  $('nomadd').hidden = document.querySelectorAll('fieldset.nom').length >= NOM_MAX;
+  document.querySelectorAll('.n-del').forEach(b => { b.onclick = () => { if (document.querySelectorAll('fieldset.nom').length > 1) { b.closest('fieldset').remove(); nomsBind(); } }; });
+  document.querySelectorAll('.n-minor').forEach(b => { b.onchange = () => b.closest('fieldset').querySelectorAll('.n-minorf').forEach(r => { r.hidden = !b.checked; }); });
+  $('optout').onchange = e => { $('noms').hidden = e.target.checked; $('optdecl').hidden = !e.target.checked; };
 }
+// The opt-out declaration shown and accepted online (in Ledgerline's words, after Annexure-B
+// of the SEBI nomination circular of 29 May 2026).
+const optOutDecl = () => `<div class="note" id="optdecl" ${APP.nominee_opt_out ? '' : 'hidden'}><b>Declaration: I do not wish to nominate</b><p class="small m0">I am opening this account without naming a nominee, of my own choice. I understand that I could name up to ${NOM_MAX} nominees, giving only each one’s name and relationship to me (and the date of birth of anyone under 18), with an identity detail and a share for each if I wish; and that I can name nominees at any time later. I understand that if I die without a nominee, the securities and money in this account will go to my legal heirs only after they produce the documents the law requires, such as a succession certificate, a will with probate or letters of administration, which can take time and cost money. By ticking the box and signing the form with Aadhaar e-Sign, I make this declaration.</p></div>`;
 const fld = (id, label, val, attrs = '') => `<div class="fld"><label for="${id}">${label}</label><input class="in" id="${id}" value="${esc(val || '')}" ${attrs}>${fieldErr(id)}</div>`;
 const sel = (id, label, opts, val) => `<div class="fld"><label for="${id}">${label}</label><select class="in" id="${id}"><option value="">Choose</option>${opts.map(o => `<option ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>${fieldErr(id)}</div>`;
 const checks = names => { const cs = (APP?.checks || []).filter(c => names.includes(c.name)); return cs.length ? `<div class="res">${cs.map(c => `<div><span class="pill ${c.status.split(' ')[0]}">${esc(c.status)}</span><span>${esc(c.name)}: ${esc(c.detail)}</span></div>`).join('')}</div>` : ''; };
@@ -93,9 +102,10 @@ const V = {
     ${fld('demat_id', 'Existing demat account (leave blank to open one with us)', APP.demat_id, 'class="in mono" maxlength="16"')}
     <div class="fld"><label for="f-inc">Income proof (needed for futures, options, currency and commodities): salary slip, ITR or 6-month bank statement</label><input class="in" type="file" id="f-inc" accept="image/*,application/pdf">${hasDoc('Income proof') ? '<span class="small dim">Uploaded ✓</span>' : ''}${fieldErr('income_proof')}</div>
     <button class="btn pri" id="go">Continue</button>`; },
-  nominee: () => `<p class="dim">Your nominees receive your holdings and funds if something happens to you. You can name up to 10 and say what share each gets (equal shares if you leave them blank). For each, give one identity detail. A nominee under 18 needs a guardian.</p>
-    <label class="check"><input type="checkbox" id="optout" ${APP.nominee_opt_out ? 'checked' : ''}> <span>I do not wish to nominate anyone</span></label>
-    <div id="noms" ${APP.nominee_opt_out ? 'hidden' : ''}>${(APP.nominees && APP.nominees.length ? APP.nominees : [{}]).map(nomBlock).join('')}<button class="btn" type="button" id="nomadd">Add another nominee</button></div>${fieldErr('nominees')}
+  nominee: () => `<p class="dim">Your nominees receive your holdings and funds if something happens to you. You can name up to ${NOM_MAX}. Only each one’s name and relationship to you are needed, and the date of birth of anyone under 18; an identity detail, a share (equal shares if you leave them blank) and a guardian for a minor are optional.</p>
+    <label class="check"><input type="checkbox" id="optout" ${APP.nominee_opt_out ? 'checked' : ''}> <span>I do not wish to nominate anyone</span></label>${optOutDecl()}
+    <div id="noms" ${APP.nominee_opt_out ? 'hidden' : ''}>${(APP.nominees && APP.nominees.length ? APP.nominees : [{}]).map(nomBlock).join('')}<button class="btn" type="button" id="nomadd">Add another nominee</button>
+    <div class="fld"><label for="nomstmt">On my statements, show</label><select class="in" id="nomstmt"><option value="yes_no" ${APP.nominees_on_statement ? '' : 'selected'}>Only whether I have nominated (Yes/No)</option><option value="names" ${APP.nominees_on_statement ? 'selected' : ''}>My nominees’ names</option></select></div></div>${fieldErr('nominees')}
     <button class="btn pri" id="go">Continue</button>`,
   photo: () => `<div class="media"><b>Your photograph</b><p class="dim small m0">Face the camera in good light, without glasses or a cap.</p><video id="cam" autoplay playsinline muted width="320" hidden></video><div class="acts start"><button class="btn" id="camon">Open camera</button><button class="btn" id="snap" hidden>Take photograph</button><label class="btn">Upload instead<input type="file" id="f-photo" accept="image/*" hidden></label></div>${hasDoc('Photograph') ? '<span class="small dim">Photograph saved ✓</span>' : ''}</div>
     <div class="media"><b>Your signature</b><canvas class="sig" id="sig" width="600" height="180"></canvas><div class="acts start"><button class="btn" id="sigclr">Clear</button><button class="btn" id="sigsave">Save signature</button></div>${hasDoc('Signature') ? '<span class="small dim">Signature saved ✓</span>' : ''}</div>
@@ -132,7 +142,7 @@ function bind(step) {
   if (step === 'bank') go.onclick = () => run(() => saveStep('bank', { bank: v('bankname'), ifsc: v('ifsc'), account: v('account') }));
   if (step === 'profile') { fileUp('f-inc', 'Income proof');
     go.onclick = () => run(() => saveStep('profile', { segments: [...document.querySelectorAll('[data-seg]:checked')].map(x => x.dataset.seg), income: v('income'), occupation: v('occupation'), experience: v('experience'), ras: v('ras'), demat_id: v('demat_id') })); }
-  if (step === 'nominee') { nomsBind(); go.onclick = () => run(() => saveStep('nominee', { nominee_opt_out: $('optout').checked, nominees: $('optout').checked ? [] : nomsRead() })); }
+  if (step === 'nominee') { nomsBind(); go.onclick = () => run(() => saveStep('nominee', { nominee_opt_out: $('optout').checked, nominees: $('optout').checked ? [] : nomsRead(), nominees_on_statement: !$('optout').checked && $('nomstmt').value === 'names' })); }
   if (step === 'photo') {
     fileUp('f-photo', 'Photograph'); fileUp('f-pan', 'PAN card');
     $('camon').onclick = async () => { try { await camera(false); $('snap').hidden = false; } catch (e) { ERR = new ApiErr({ error: { message: 'The camera could not be opened; upload a photograph instead.' } }); render(); } };
