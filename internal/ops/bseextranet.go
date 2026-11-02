@@ -238,13 +238,7 @@ func bseSeg(name string) string { return bseSegOf(name) }
 // BSEUCCBlocked are the reasons BSE does not permit each client to trade,
 // from the latest not-permitted list of each segment.
 func (o *Ops) BSEUCCBlocked(ctx context.Context, tenant string) map[string][]string {
-	all, _ := docs.List[BSENotPermittedList](ctx, o.Docs, tenant, cBSENotPermitted, "")
-	latest := map[string]BSENotPermittedList{}
-	for _, x := range all {
-		if x.Date > latest[x.Segment].Date {
-			latest[x.Segment] = x
-		}
-	}
+	latest := o.bseLatestNotPermitted(ctx, tenant)
 	out := map[string][]string{}
 	for _, seg := range []string{"CM", "FO"} {
 		for u, rs := range latest[seg].Clients {
@@ -252,6 +246,18 @@ func (o *Ops) BSEUCCBlocked(ctx context.Context, tenant string) map[string][]str
 		}
 	}
 	return out
+}
+
+// bseLatestNotPermitted is the latest not-permitted list of each segment.
+func (o *Ops) bseLatestNotPermitted(ctx context.Context, tenant string) map[string]BSENotPermittedList {
+	all, _ := docs.List[BSENotPermittedList](ctx, o.Docs, tenant, cBSENotPermitted, "")
+	latest := map[string]BSENotPermittedList{}
+	for _, x := range all {
+		if x.Date > latest[x.Segment].Date {
+			latest[x.Segment] = x
+		}
+	}
+	return latest
 }
 
 // syncBSEUCCWork raises a work item per blocked client and closes those of
