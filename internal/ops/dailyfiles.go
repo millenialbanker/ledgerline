@@ -172,6 +172,9 @@ type DailyFile struct {
 	At        string   `json:"at"`        // usual time, IST
 	NextDay   bool     `json:"next_day,omitempty"`
 	Intraday  bool     `json:"intraday,omitempty"` // several in the day; never alerted
+	// HandNote says, for a file with no layout yet (checked by hand), what
+	// Ledgerline needs before it can read or write it.
+	HandNote string `json:"hand_note,omitempty"`
 }
 
 var all3 = []string{"CM", "FO", "CD"}
@@ -219,17 +222,33 @@ var DailyFiles = []DailyFile{
 	{ID: "ncl-mrg", Title: "Margin reporting file to NSE Clearing", Format: "ncl-margin-reporting", Party: "NCL", Segments: all3, Direction: "out", At: "12:00", NextDay: true},
 	{ID: "ncl-sa-rpt", Title: "Short allocation reporting to NSE Clearing", Format: "ncl-short-allocation-reporting", Party: "NCL", Segments: all3, Direction: "out", At: "12:00", NextDay: true},
 	{ID: "ncl-sett", Title: "Combined settlement master (monthly)", Format: "ncl-settlement-master", Party: "NCL", Segments: all3, Direction: "in", At: "09:00", Intraday: true},
-	// ICCL: layouts not yet in Ledgerline, checked by hand
-	{ID: "iccl-var", Title: "ICCL VaR and ELM rates (VARELMAM)", Party: "ICCL", Segments: []string{"CM"}, Direction: "in", At: "08:30"},
-	{ID: "iccl-haircut", Title: "ICCL haircuts (approved securities)", Party: "ICCL", Segments: all3, Direction: "in", At: "08:30"},
-	{ID: "iccl-coll", Title: "ICCL collateral reports", Party: "ICCL", Segments: all3, Direction: "in", At: "20:00"},
-	{ID: "iccl-margin", Title: "ICCL client margin file", Party: "ICCL", Segments: all3, Direction: "in", At: "20:00"},
-	{ID: "iccl-alloc", Title: "Client allocation to ICCL", Party: "ICCL", Segments: all3, Direction: "out", At: "19:00"},
-	{ID: "iccl-icoll", Title: "ICOLL response (ICCL collateral)", Party: "ICCL", Segments: all3, Direction: "in", At: "19:30"},
-	{ID: "iccl-mrg", Title: "Margin reporting file to ICCL", Party: "ICCL", Segments: all3, Direction: "out", At: "12:00", NextDay: true},
+	// ICCL: layouts not yet in Ledgerline, checked by hand. No public ICCL
+	// or BSE circular found (November 2026) publishes the column layout of
+	// these files: the eligible-collateral notices of 17 December 2025
+	// ("Standardization of file format for eligible collateral") name some
+	// fields but not the full ordered layout, BSE notice 20230120-19 (20
+	// January 2023, for ICCL) lists the fields of the intraday short
+	// collateral report only and says the formats will be given separately,
+	// and BSE's member downloads (ICCL sections) hold paper formats for
+	// bank guarantees, FDRs and pledges. Ledgerline does not guess layouts:
+	// each file stays "check by hand" until ICCL's own file description is
+	// in hand (from the member extranet or ICCL), and its HandNote says what
+	// is needed.
+	{ID: "iccl-var", Title: "ICCL VaR and ELM rates (VARELMAM)", Party: "ICCL", Segments: []string{"CM"}, Direction: "in", At: "08:30", HandNote: iCCLNeed("the VaR and ELM rates file (VARELMAM): its columns, delimiter and whether it has a header")},
+	{ID: "iccl-haircut", Title: "ICCL haircuts (approved securities)", Party: "ICCL", Segments: all3, Direction: "in", At: "08:30", HandNote: iCCLNeed("the eligible-collateral (haircut) file in the standard format of December 2025: the full ordered field list with lengths, and the file name")},
+	{ID: "iccl-coll", Title: "ICCL collateral reports", Party: "ICCL", Segments: all3, Direction: "in", At: "20:00", HandNote: iCCLNeed("the end-of-day client collateral reports: which reports, their names and columns")},
+	{ID: "iccl-margin", Title: "ICCL client margin file", Party: "ICCL", Segments: all3, Direction: "in", At: "20:00", HandNote: iCCLNeed("the client margin file per segment: its columns (margin types, as of time) and name")},
+	{ID: "iccl-alloc", Title: "Client allocation to ICCL", Party: "ICCL", Segments: all3, Direction: "out", At: "19:00", HandNote: iCCLNeed("the client collateral allocation upload: field order, codes and the response file")},
+	{ID: "iccl-icoll", Title: "ICOLL response (ICCL collateral)", Party: "ICCL", Segments: all3, Direction: "in", At: "19:30", HandNote: iCCLNeed("the ICOLL response file: its columns and status codes")},
+	{ID: "iccl-mrg", Title: "Margin reporting file to ICCL", Party: "ICCL", Segments: all3, Direction: "out", At: "12:00", NextDay: true, HandNote: iCCLNeed("the client margin reporting upload (collected against required margin): field order, segment codes and the file name")},
 	// MCXCCL
 	{ID: "mcx-margin", Title: "MCXCCL client margin file", Format: "mcx-client-margin", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "08:00", NextDay: true},
 	{ID: "mcx-mrg", Title: "Margin reporting file to MCXCCL", Format: "mcx-margin-reporting", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "out", At: "12:00", NextDay: true},
+}
+
+// iCCLNeed is the note on an ICCL file Ledgerline cannot read yet.
+func iCCLNeed(what string) string {
+	return "Checked by hand: no public ICCL layout found. To read it, Ledgerline needs ICCL's file description of " + what + " (ICCL member extranet or ICCL's clearing operations), and a sample file with made-up data."
 }
 
 const cDailyRecv = "xfilerecv" // date|format|name

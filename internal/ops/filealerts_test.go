@@ -182,3 +182,15 @@ func TestMissingFilesFollowClearingChoice(t *testing.T) {
 		}
 	}
 }
+
+// Files checked by hand say what Ledgerline needs to read them.
+func TestHandFilesSayWhatIsNeeded(t *testing.T) {
+	for _, f := range DailyFiles {
+		if f.Format == "" && !strings.Contains(f.HandNote, "needs") {
+			t.Errorf("%s is checked by hand with no note of what is needed", f.ID)
+		}
+		if f.Format != "" && f.HandNote != "" {
+			t.Errorf("%s has a layout and a hand note", f.ID)
+		}
+	}
+}
