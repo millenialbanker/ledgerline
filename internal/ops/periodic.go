@@ -51,6 +51,7 @@ var PeriodicTasks = []PeriodicTask{
 	{"dp_statements", "DP transaction and holding statements", "Depository", "Monthly", "Emails every demat account its signed statement of transactions and holdings for the month just ended.", "By the 10th", "Depository rules on statements to beneficial owners", true, "dp", ""},
 	{"complaints_disclosure", "Investor complaints disclosure", "Compliance", "Monthly", "Builds the month's complaints data (received, resolved, pending, average days) for the website disclosure.", "By the 7th", "SEBI circular on disclosure of investor complaints", true, "helpdesk", ""},
 	{"ras", "Running account settlement", "Money", "Monthly / quarterly", "Settles running accounts on the settlement date (monthly or quarterly as each client chose), pays out the funds and sends each client the settlement statement.", "On the settlement date set in Settings", "SEBI rules on running account settlement", true, "ras", ""},
+	{"ras_idle", "Return idle credit balances (30 days)", "Money", "Daily", "Every morning: clients with a credit balance and no transaction (trade, open position or funds received) for 30 calendar days are settled and paid out within three working days, whatever their monthly or quarterly choice, under the running account settlement policy in Autopilot.", "Within 3 working days of the 30th day", "NSE/INSP/53820 (running account settlement FAQ)", true, "ras", ""},
 	{"bsda_review", "BSDA review", "Depository", "Quarterly", "Checks every demat account against the BSDA rules: eligible regular accounts become BSDA unless the client opted out; BSDAs above the limit become regular. A checker applies it; the depository modification file is kept and clients are told.", "By the 10th after the quarter", "SEBI circular on Basic Services Demat Accounts", false, "dp", ""},
 }
 
@@ -274,6 +275,11 @@ func (o *Ops) periodicDone(ctx context.Context, tenant string, t PeriodicTask, p
 			}
 			return true, fmt.Sprintf("%d clients settled", n)
 		}
+	case "ras_idle":
+		due, _, err := o.IdleRASDue(ctx, tenant, period)
+		if err == nil && len(due) == 0 {
+			return true, "No idle credit balance to return"
+		}
 	case "bsda_review":
 		r, _, err := docs.Get[BSDAReview](ctx, o.Docs, tenant, cBSDAReview, period)
 		if err == nil && r.Status == "Applied" {
@@ -330,6 +336,12 @@ func (o *Ops) RunPeriodic(ctx context.Context, tenant, actor, id, period, date s
 // itself: only when its policy is Auto. Otherwise the approval is queued
 // (Suggest) or the work is left to a person (Off, or the Manual edition).
 func (o *Ops) unattended(ctx context.Context, tenant, process, date string, queue func(*runCtx)) (bool, error) {
+	return o.unattendedAs(ctx, tenant, process, process, date, queue)
+}
+
+// unattendedAs is unattended with the approval queued under its own work
+// process, so the Autopilot run of the policy does not clear it.
+func (o *Ops) unattendedAs(ctx context.Context, tenant, process, workProcess, date string, queue func(*runCtx)) (bool, error) {
 	if o.manual(ctx, tenant) {
 		return false, &pendingErr{"Nothing runs by itself in the Manual edition: run it here when ready", "Due"}
 	}
@@ -338,11 +350,25 @@ func (o *Ops) unattended(ctx context.Context, tenant, process, date string, queu
 	case ModeAuto:
 		return true, nil
 	case ModeSuggest:
-		r := &runCtx{o: o, ctx: ctx, tenant: tenant, date: date, mode: mode, params: params, process: process, keys: map[string]bool{}}
+		r := &runCtx{o: o, ctx: ctx, tenant: tenant, date: date, mode: mode, params: params, process: workProcess, keys: map[string]bool{}}
 		queue(r)
 		return false, &pendingErr{"Waiting for a checker to approve it in the Autopilot work queue", "Waiting for approval"}
 	}
 	return false, &pendingErr{"Switched off in Autopilot: run it here by hand", "Due"}
+}
+
+// wRASIdle is the work process of the 30-day idle balance approvals.
+const wRASIdle = "ras_idle"
+
+// closeIdleRASWork closes the open idle-balance approvals once nothing is
+// left to return.
+func (o *Ops) closeIdleRASWork(ctx context.Context, tenant, actor string) {
+	ws, _ := docs.List[WorkItem](ctx, o.Docs, tenant, cWorkItem, "")
+	for _, w := range ws {
+		if w.Process == wRASIdle && w.Status == "Open" {
+			o.closeWork(ctx, tenant, actor, wRASIdle, strings.TrimPrefix(w.Key, wRASIdle+":"), "idle balances returned")
+		}
+	}
 }
 
 // pendingErr: the task did its part and waits for a person.
@@ -422,6 +448,32 @@ func (o *Ops) runPeriodic(ctx context.Context, tenant, actor string, t PeriodicT
 			return "Settled already; statements: " + statementSummary(res), nil, nil
 		}
 		return s, nil, err
+	case "ras_idle":
+		// The 30-day rule: settled under the RAS policy (Auto settles; Suggest
+		// asks a checker; a person running it must be a checker, as RunRAS
+		// requires).
+		due, overdue, err := o.IdleRASDue(ctx, tenant, period)
+		if err != nil {
+			return "", nil, err
+		}
+		if len(due) == 0 {
+			o.closeIdleRASWork(ctx, tenant, actor)
+			return "No idle credit balance to return", nil, nil
+		}
+		if actor == SystemActor {
+			if ok, why := o.unattendedAs(ctx, tenant, "ras", wRASIdle, date, func(r *runCtx) { queueIdleRAS(r, period, due) }); !ok {
+				if len(overdue) > 0 {
+					o.log(ctx, tenant, actor, "ras.idle.overdue", period, map[string]any{"clients": len(overdue)})
+				}
+				return "", nil, why
+			}
+		}
+		s, err := o.settleRAS(ctx, tenant, actor, period)
+		if err != nil {
+			return "", nil, err
+		}
+		o.closeIdleRASWork(ctx, tenant, actor)
+		return fmt.Sprintf("Idle balances (30 days): %s", s), nil, nil
 	case "cuspa_review":
 		return o.cuspaReview(ctx, tenant, actor, date)
 	case "settlement_master":

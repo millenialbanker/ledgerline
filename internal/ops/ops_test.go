@@ -243,12 +243,18 @@ func TestSampleDay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	due := 0
+	// The monthly date's clients, and the idle ones (30 days without a
+	// transaction, due within three working days) not yet returned.
+	due, idle := 0, 0
 	for _, r := range rv3.Rows {
-		if r.SettlesOn == "2026-11-06" && r.Payout.Sign() > 0 {
+		if r.dueIn("2026-11-06") && r.Payout.Sign() > 0 {
 			due++
 		}
+		if r.Idle30 {
+			idle++
+		}
 	}
+	t.Logf("ras: %d due on 2026-11-06, %d idle for 30 days", due, idle)
 	b, err := o.RunRAS(ctx, T, "farhan.khan", D, "2026-11-06")
 	if err != nil || len(b.Items) != due {
 		t.Fatalf("ras %d of %d: %v", len(b.Items), due, err)
