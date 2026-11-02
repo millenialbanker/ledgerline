@@ -243,6 +243,12 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 		o.LedgyAI, o.Meter = w, m
 		log.Info("Ledgy AI available to firms that switch it on", "provider", w.Provider(), "model", w.Model(), "markup", m.Markup.String(), "usd_inr", m.USDINR.String())
 	}
+	// LEDGERLINE_AI_OFF=1 is the server's AI kill switch: no firm's
+	// feature calls a model, whatever its settings. Firms have their own.
+	if v := strings.TrimSpace(os.Getenv("LEDGERLINE_AI_OFF")); v == "1" || strings.EqualFold(v, "true") {
+		o.AIOff = true
+		log.Warn("AI is switched off for every firm (LEDGERLINE_AI_OFF)")
+	}
 	if _, err := ops.HelpKB(); err != nil {
 		return fmt.Errorf("Ledgy help articles: %w", err)
 	}

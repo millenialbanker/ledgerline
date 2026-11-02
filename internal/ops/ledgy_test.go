@@ -180,7 +180,7 @@ func TestLedgyAIOnlyWhenSwitchedOn(t *testing.T) {
 		t.Fatal(err)
 	}
 	a, _ = o.Ledgy(ctx, T, "priya.nair", "change brokerage for ABCPI1234K", "", D)
-	if a.AI == "" || strings.Contains(fw.q, "ABCPI1234K") || !strings.Contains(fw.q, "[PAN]") {
+	if a.AI == "" || strings.Contains(fw.q, "ABCPI1234K") || !strings.Contains(fw.q, "[PAN-1]") {
 		t.Fatalf("ai: %q note %q sent %q", a.AI, a.AINote, fw.q)
 	}
 }

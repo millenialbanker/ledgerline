@@ -181,6 +181,13 @@ type Settings struct {
 	// or photo) to the AI model to read its details. Off by default; the
 	// bill leaves the server, so not allowed in India-only mode.
 	BillAI bool `json:"bill_ai,omitempty"`
+	// Deployment is where this firm's Ledgerline runs, for the SaaS
+	// disclosure (disclosures.go): "hosted" by Ledgerline (the default),
+	// "self" on the broker's own server, or "own_cloud" in the broker's own
+	// cloud account; with the hosting provider and region.
+	Deployment      string `json:"deployment,omitempty"`
+	HostingProvider string `json:"hosting_provider,omitempty"`
+	HostingRegion   string `json:"hosting_region,omitempty"`
 	// Client allocation to NSE Clearing through its API (nclalloc.go): the
 	// key and secret are in Connections. AllocAPILive sends requests;
 	// AllocAutoPush sends money that comes in during the day as it is
@@ -263,6 +270,9 @@ type Ops struct {
 	LedgyAI LedgyWriter
 	// Meter prices AI answers and takes them from each firm's credit.
 	Meter *Meter
+	// AIOff switches every AI call off on this server, for every firm
+	// (LEDGERLINE_AI_OFF=1; see aicontrol.go). Firms have their own switch.
+	AIOff bool
 	// EditionOf is each firm's edition (manual, autopilot or full), set by
 	// the provider; DefaultEdition applies to firms not listed.
 	// Residency is where the server says it is hosted (see residency.go).
@@ -493,6 +503,7 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	}
 	o.logClearing(ctx, tenant, actor, prev, s)
 	o.log(ctx, tenant, actor, "settings.saved", "settings", map[string]any{"warn_util_pct": s.WarnUtilPct, "ras_buffer_pct": s.RASBufferPct, "penalty_pass_through": s.PenaltyPassThrough})
+	o.aiMarkState(ctx, tenant) // the AI features' on/off history (aicontrol.go)
 	return nil
 }
 
