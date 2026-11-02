@@ -606,7 +606,7 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 				bad(r.line, "Reference", "is required")
 			}
 			if dir == "CR" {
-				ts = append(ts, BankTxn{ID: r.get("Reference"), Date: pdate(r, "Date", false), Time: r.get("Time"), Mode: strings.ToUpper(r.get("Mode")), Ref: r.get("Reference"), Remitter: r.get("Remitter"), Account: r.get("Account"), Amount: amt})
+				ts = append(ts, BankTxn{ID: r.get("Reference"), Date: pdate(r, "Date", false), Time: r.get("Time"), Mode: strings.ToUpper(r.get("Mode")), Ref: r.get("Reference"), Remitter: r.get("Remitter"), Account: r.get("Account"), Amount: amt, PayeeVPA: r.get("PayeeVPA")})
 			}
 		}
 		return func() (int, int, error) {

@@ -22,7 +22,8 @@ import (
 // bank account, the TDS section their payments fall under and whether they
 // are a micro or small enterprise (MSME), whose bills must be paid within
 // 45 days (15 without a written agreement) or the expense is disallowed
-// until paid (Income-tax Act section 43B(h)). Each vendor has a ledger
+// until paid (section 37(2)(g) of the Income-tax Act 2025; section 43B(h)
+// of the 1961 Act before 1 April 2026). Each vendor has a ledger
 // account, PAYABLE:VENDOR:<id>.
 //
 // A vendor bill is booked as a journal voucher, made by one person and
@@ -45,15 +46,19 @@ const (
 // TDSSections are the sections vendor payments usually fall under, with
 // the usual rate (%). Rates are suggestions; the person booking the bill
 // can change the TDS on any bill (thresholds, lower-deduction certificates).
+// The codes are the 1961 section numbers, kept as the keys of vendor
+// records and TDS payable accounts; the labels give the Income-tax Act 2025
+// provision (all TDS other than salary is in section 393 from 1 April 2026,
+// at the same rates) and the 1961 section it replaced (taxlabels.go).
 var TDSSections = []TDSSection{
 	{"", "No TDS", ""},
-	{"194C", "194C Contractors (1% individual or HUF, 2% others)", "2"},
-	{"194J", "194J Professional fees", "10"},
-	{"194JA", "194J Technical services, call centres", "2"},
-	{"194I", "194I Rent of land, building, furniture", "10"},
-	{"194IPM", "194I Rent of plant and machinery", "2"},
-	{"194H", "194H Commission or brokerage", "2"},
-	{"194Q", "194Q Purchase of goods", "0.1"},
+	{"194C", "Contractors (1% individual or HUF, 2% others) · s.393(1) Table Sl. 6(i), was 194C", "2"},
+	{"194J", "Professional fees · s.393(1) Table Sl. 6(iii), was 194J", "10"},
+	{"194JA", "Technical services, call centres · s.393(1) Table Sl. 6(iii), was 194J", "2"},
+	{"194I", "Rent of land, building, furniture · s.393(1) Table Sl. 2(ii), was 194-I", "10"},
+	{"194IPM", "Rent of plant and machinery · s.393(1) Table Sl. 2(ii), was 194-I", "2"},
+	{"194H", "Commission or brokerage · s.393(1) Table Sl. 1(ii), was 194H", "2"},
+	{"194Q", "Purchase of goods · s.393(1) Table Sl. 8(ii), was 194Q", "0.1"},
 }
 
 // TDSSection is a TDS section and its usual rate.
@@ -72,8 +77,9 @@ func tdsSection(code string) (TDSSection, bool) {
 	return TDSSection{}, false
 }
 
-// tdsRate is the usual rate for a vendor: 20% without a PAN (206AA), 1%
-// under 194C for an individual or HUF.
+// tdsRate is the usual rate for a vendor: 20% without a PAN (206AA of the
+// 1961 Act), 1% for a contractor (194C, now s.393(1) Table Sl. 6(i)) who is
+// an individual or HUF.
 func tdsRate(section, pan string) string {
 	s, _ := tdsSection(section)
 	if section == "" {
@@ -128,7 +134,8 @@ var (
 	reEmailLax = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 )
 
-// msmeSmall says whether 43B(h) applies: micro and small enterprises only.
+// msmeSmall says whether the late-payment rule applies (section 37(2)(g),
+// earlier 43B(h)): micro and small enterprises only.
 func (v Vendor) msmeSmall() bool {
 	return v.MSME != "" && (v.MSMEType == "Micro" || v.MSMEType == "Small")
 }
@@ -454,7 +461,7 @@ type BillRegister struct {
 	TDS       money.Amount `json:"tds"`
 	Unpaid    money.Amount `json:"unpaid"`
 	Overdue   money.Amount `json:"overdue"`
-	MSMELate  int          `json:"msme_late"` // MSME bills unpaid past the 43B(h) limit
+	MSMELate  int          `json:"msme_late"` // MSME bills unpaid past the section 37(2)(g) (earlier 43B(h)) limit
 	MSMESoon  int          `json:"msme_soon"` // due within 7 days
 	Pending   int          `json:"pending"`   // awaiting approval
 	TDSBySect []TDSLine    `json:"tds_by_section"`
@@ -463,6 +470,7 @@ type BillRegister struct {
 // TDSLine is TDS deducted under one section.
 type TDSLine struct {
 	Section string       `json:"section"`
+	Label   string       `json:"label"` // the provision, by the register's end date
 	Bills   int          `json:"bills"`
 	Amount  money.Amount `json:"amount"` // paid or credited
 	TDS     money.Amount `json:"tds"`
@@ -521,7 +529,7 @@ func (o *Ops) VendorBills(ctx context.Context, tenant, actor, from, to string) (
 		if b.TDSSection != "" && b.TDS > 0 {
 			l := sect[b.TDSSection]
 			if l == nil {
-				l = &TDSLine{Section: b.TDSSection}
+				l = &TDSLine{Section: b.TDSSection, Label: TDSSectionLabel(b.TDSSection, to)}
 				sect[b.TDSSection] = l
 			}
 			l.Bills++
@@ -669,7 +677,7 @@ func (o *Ops) SaveVendorBill(ctx context.Context, tenant, actor string, b Vendor
 		b.Warnings = append(b.Warnings, "The firm's GSTIN is not set in Settings.")
 	}
 	if v.TDSSection != "" && b.TDSSection == "" {
-		b.Warnings = append(b.Warnings, "The vendor's payments usually fall under "+v.TDSSection+" but no TDS was deducted: check the threshold or the lower-deduction certificate.")
+		b.Warnings = append(b.Warnings, "The vendor's payments usually fall under "+tdsRef(v.TDSSection, b.BillDate)+" but no TDS was deducted: check the threshold or the lower-deduction certificate.")
 	}
 	if b.TDSSection != "" && b.TDS > 0 {
 		rate := v.TDSRate
@@ -699,7 +707,7 @@ func (o *Ops) SaveVendorBill(ctx context.Context, tenant, actor string, b Vendor
 		b.DueDate = addDays(b.BillDate, int(days))
 	}
 	if b.MSMEPayBy != "" && b.DueDate > b.MSMEPayBy {
-		b.Warnings = append(b.Warnings, "The vendor is a "+strings.ToLower(v.MSMEType)+" enterprise: pay by "+b.MSMEPayBy+" or the expense is disallowed until paid (section 43B(h)).")
+		b.Warnings = append(b.Warnings, "The vendor is a "+strings.ToLower(v.MSMEType)+" enterprise: pay by "+b.MSMEPayBy+" or the expense is disallowed until paid ("+msmeRef(b.BillDate)+").")
 	}
 
 	// The journal voucher.
@@ -723,7 +731,7 @@ func (o *Ops) SaveVendorBill(ctx context.Context, tenant, actor string, b Vendor
 		lines = append(lines, VoucherLine{Account: PayableRCM, Credit: gst, Memo: "GST on reverse charge"})
 	}
 	if b.TDS > 0 {
-		lines = append(lines, VoucherLine{Account: "PAYABLE:TDS:" + b.TDSSection, Credit: b.TDS, Memo: "TDS " + b.TDSSection})
+		lines = append(lines, VoucherLine{Account: "PAYABLE:TDS:" + b.TDSSection, Credit: b.TDS, Memo: "TDS u/s " + strings.TrimPrefix(tdsRef(b.TDSSection, b.BillDate), "section ")})
 	}
 	if b.Payable > 0 {
 		lines = append(lines, VoucherLine{Account: v.Ledger, Credit: b.Payable})

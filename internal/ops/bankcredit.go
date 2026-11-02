@@ -73,6 +73,7 @@ var bankCreditFields = []struct{ Key, Label string }{
 	{"path_payer_ifsc", "Payer IFSC"},
 	{"path_payer_name", "Payer name"},
 	{"path_mode", "Mode (NEFT, RTGS, IMPS, UPI)"},
+	{"path_payee_vpa", "UPI ID paid to (the firm's .brk@valid ID)"},
 	{"path_time", "Credit date and time"},
 }
 
@@ -110,7 +111,7 @@ func checkCreditConn(c Connection) error {
 	if c.Values["auth"] == "" || c.Values["header"] == "" {
 		return invalid("choose how the bank signs its messages and the header it uses")
 	}
-	for _, k := range []string{"path_records", "path_amount", "path_utr", "path_virtual_account", "path_payer_account", "path_payer_ifsc", "path_payer_name", "path_mode", "path_time"} {
+	for _, k := range []string{"path_records", "path_amount", "path_utr", "path_virtual_account", "path_payer_account", "path_payer_ifsc", "path_payer_name", "path_mode", "path_time", "path_payee_vpa"} {
 		if p := c.Values[k]; p != "" && !rePath.MatchString(p) {
 			return invalid("%s: write the field as names separated by dots, with [0] for list items, e.g. data.credits[0].amount", strings.TrimPrefix(k, "path_"))
 		}
@@ -122,8 +123,8 @@ var rePath = regexp.MustCompile(`^[A-Za-z0-9_$@-]+(\[\d+\])?(\.[A-Za-z0-9_$@-]+(
 
 // BankCredit is one credit as read from a notice.
 type BankCredit struct {
-	Ref, VirtualAccount, PayerAccount, PayerIFSC, PayerName, Mode, Time, UCC string
-	Amount                                                                   money.Amount
+	Ref, VirtualAccount, PayerAccount, PayerIFSC, PayerName, Mode, Time, UCC, PayeeVPA string
+	Amount                                                                             money.Amount
 }
 
 // BankCreditResult is what a notice did.
@@ -219,7 +220,7 @@ func (o *Ops) recordCredits(ctx context.Context, tenant string, c Connection, so
 			acct = "VPA"
 		}
 		t := BankTxn{ID: bc.Ref, Date: date, Time: tm, Mode: strings.ToUpper(firstOf(bc.Mode, "BANK")), Ref: bc.Ref, Remitter: bc.PayerName, Account: acct, Amount: bc.Amount,
-			Hint: ucc, VirtualAccount: bc.VirtualAccount, PayerIFSC: strings.ToUpper(bc.PayerIFSC), Source: source + " (live)"}
+			Hint: ucc, VirtualAccount: bc.VirtualAccount, PayerIFSC: strings.ToUpper(bc.PayerIFSC), Source: source + " (live)", PayeeVPA: bc.PayeeVPA}
 		if _, _, err := docs.Get[BankTxn](ctx, o.Docs, tenant, cBankTxn, t.ID); err == nil {
 			res.Duplicate++
 			continue
@@ -377,7 +378,7 @@ func parseMappedCredits(c Connection, body []byte) ([]BankCredit, error) {
 			Amount: parseAmountUnit(jsonStr(r, c.Values["path_amount"]), paise), Ref: jsonStr(r, c.Values["path_utr"]),
 			VirtualAccount: jsonStr(r, c.Values["path_virtual_account"]), PayerAccount: jsonStr(r, c.Values["path_payer_account"]),
 			PayerIFSC: jsonStr(r, c.Values["path_payer_ifsc"]), PayerName: jsonStr(r, c.Values["path_payer_name"]),
-			Mode: jsonStr(r, c.Values["path_mode"]), Time: jsonStr(r, c.Values["path_time"]),
+			Mode: jsonStr(r, c.Values["path_mode"]), Time: jsonStr(r, c.Values["path_time"]), PayeeVPA: jsonStr(r, c.Values["path_payee_vpa"]),
 		})
 	}
 	return out, nil

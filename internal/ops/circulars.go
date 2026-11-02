@@ -348,20 +348,33 @@ func (o *Ops) ActOnCircular(ctx context.Context, tenant, actor, id string, a Cir
 
 // Duty is a recurring duty with its due-date rule.
 type Duty struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	Authority string    `json:"authority"`
-	Frequency string    `json:"frequency"` // Monthly, Quarterly, Half-yearly, Yearly
-	Rule      string    `json:"rule"`      // "D07": day 7 of the next month; "MM-DD,MM-DD": dates in the year; "FRI1Q": first Friday of each quarter
-	Role      string    `json:"role"`
-	Evidence  string    `json:"evidence"` // what to keep
-	Active    bool      `json:"active"`
-	Since     string    `json:"since,omitempty"` // first date it applies from
-	Done      []DutyRun `json:"done"`
-	Task      string    `json:"task,omitempty"` // a Periodic work task that does it: its due date and records count
-	NextDue   string    `json:"next_due,omitempty"`
-	Period    string    `json:"period,omitempty"`
-	Overdue   bool      `json:"overdue,omitempty"`
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Authority string `json:"authority"`
+	Frequency string `json:"frequency"` // Daily, Monthly, Quarterly, Half-yearly, Yearly
+	// Rule: "D07" day 7 of the next month; "MM-DD,MM-DD" dates in the year;
+	// "RASM" / "RASQ" the monthly / quarterly dates of the exchanges' RAS
+	// calendar (compcal.go); "NETWORTH" the net worth certificate dates for
+	// the firm (MTF or not); "SYSPLAN", "SYSPRELIM", "SYSATR" the system
+	// audit milestones for the firm's cycle; "DAILY" each day but Sunday,
+	// due the next day.
+	Rule     string    `json:"rule"`
+	Role     string    `json:"role"`
+	Evidence string    `json:"evidence"` // what to keep
+	Active   bool      `json:"active"`
+	Since    string    `json:"since,omitempty"` // first date it applies from
+	Done     []DutyRun `json:"done"`
+	Task     string    `json:"task,omitempty"` // a Periodic work task that does it: its due date and records count
+	// Shared: a common submission that a member of NSE and other exchanges
+	// files with NSE only (NSE/INSP/69184, NSE/INSP/70505).
+	Shared bool `json:"shared,omitempty"`
+	// Rev is the version of the default duty it was last brought up to.
+	Rev     int    `json:"rev,omitempty"`
+	Filing  string `json:"filing,omitempty"`  // where it is filed, for this firm
+	Warning string `json:"warning,omitempty"` // something to fix before it can be done
+	NextDue string `json:"next_due,omitempty"`
+	Period  string `json:"period,omitempty"`
+	Overdue bool   `json:"overdue,omitempty"`
 }
 
 // DutyRun is one time it was done.
@@ -374,41 +387,70 @@ type DutyRun struct {
 	Late     bool   `json:"late,omitempty"`
 }
 
+// dutyRev is the version of DefaultDuties. A saved default duty with an
+// older Rev takes the new title, authority, frequency, rule and evidence
+// once (keeping whether it is active and its history).
+const dutyRev = 2
+
 // DefaultDuties is the starting calendar for a stockbroker. Each date
 // should be checked against the current circulars before relying on it.
 func DefaultDuties() []Duty {
 	ob := func(id, title, auth, freq, rule, role, ev string) Duty {
-		return Duty{ID: id, Title: title, Authority: auth, Frequency: freq, Rule: rule, Role: role, Evidence: ev, Active: true, Done: []DutyRun{}}
+		return Duty{ID: id, Title: title, Authority: auth, Frequency: freq, Rule: rule, Role: role, Evidence: ev, Active: true, Done: []DutyRun{}, Rev: dutyRev}
 	}
+	shared := func(d Duty) Duty { d.Shared = true; return d }
 	return []Duty{
-		ob("OB-COMPLAINTS", "Publish the monthly investor complaints disclosure on the website", "SEBI", "Monthly", "D07", RoleCompliance, "Screenshot or link of the published table (Periodic work builds the table)"),
+		ob("OB-COMPLAINTS", "Publish the monthly investor complaints disclosure on the website", "SEBI (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/22)", "Monthly", "D07", RoleCompliance, "Screenshot or link of the published table (Periodic work builds the table)"),
 		ob("OB-CTR", "Cash transaction report to FIU-IND (or nil confirmation per firm policy)", "PMLA rules", "Monthly", "D15", RoleCompliance, "FINnet acknowledgement"),
-		withTask(ob("OB-RAS", "Quarterly running account settlement of client funds and securities", "SEBI / exchanges", "Quarterly", "FRI1Q", RoleChecker, "Settlement run and statements sent"), "ras"),
-		ob("OB-INTAUDIT", "Half-yearly internal audit report submitted to the exchanges", "Exchanges", "Half-yearly", "05-15,11-15", RoleCompliance, "Audit report and exchange acknowledgement"),
-		ob("OB-NETWORTH", "Half-yearly net worth certificate to the exchanges", "Exchanges", "Half-yearly", "04-30,10-31", RoleCompliance, "CA certificate and upload acknowledgement"),
-		ob("OB-SYSAUDIT", "Annual system audit by an empanelled auditor", "Exchanges", "Yearly", "06-30", RoleAdmin, "System audit report and submission"),
-		ob("OB-CYBER", "Annual cyber security audit and VAPT under CSCRF", "SEBI", "Yearly", "06-30", RoleAdmin, "Audit and VAPT reports, closure of findings"),
+		withTask(ob("OB-RAS", "Running account settlement: clients who chose quarterly settlement", "SEBI / exchanges' joint RAS calendar (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197)", "Quarterly", "RASQ", RoleChecker, "Settlement run and statements sent"), "ras"),
+		withTask(ob("OB-RAS-M", "Running account settlement: clients who chose monthly settlement", "SEBI / exchanges' joint RAS calendar (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197)", "Monthly", "RASM", RoleChecker, "Settlement run and statements sent"), "ras"),
+		ob("OB-INTAUDIT", "Half-yearly internal audit report", "Exchanges", "Half-yearly", "05-15,11-15", RoleCompliance, "Audit report and exchange acknowledgement"),
+		shared(ob("OB-NETWORTH", "Half-yearly net worth certificate", "Exchanges (NSE/INSP/70505)", "Half-yearly", "NETWORTH", RoleCompliance, "CA certificate and upload acknowledgement")),
+		shared(ob("OB-ANNUALRET", "Annual returns", "Exchanges (NSE/INSP/70505)", "Yearly", "10-31", RoleCompliance, "Audited accounts, annual return and upload acknowledgement")),
+		ob("OB-SYSAUDIT-PLAN", "System audit: audit plan on NSE ENIT (auditor, systems, office locations to visit)", "NSE (NSE/INSP/73850)", "Yearly", "SYSPLAN", RoleAdmin, "ENIT submission of the audit plan, agreed with the NSE-empanelled auditor"),
+		ob("OB-SYSAUDIT", "System audit: preliminary audit report by an NSE-empanelled auditor", "NSE (NSE/INSP/73850)", "Yearly", "SYSPRELIM", RoleAdmin, "Preliminary report with management comments, after the algo MIS, version confirmation, assessment and visit details are in"),
+		ob("OB-SYSAUDIT-ATR", "System audit: action taken report validated by the same auditor (if there were non-compliances)", "NSE (NSE/INSP/73850)", "Yearly", "SYSATR", RoleAdmin, "ATR marked Compliant / Non-Compliant by the auditor on the portal, or a note that there was nothing to act on"),
+		shared(ob("OB-CYBER", "Cyber security audit and VAPT under CSCRF", "SEBI / exchanges (NSE/INSP/70505)", "Yearly", "06-30", RoleAdmin, "Audit and VAPT reports, closure of findings")),
 		ob("OB-APINSP", "Annual inspection of authorised persons", "Exchanges", "Yearly", "03-31", RoleCompliance, "Inspection reports"),
 		ob("OB-POLICIES", "Board review of risk, PMLA, surveillance and outsourcing policies", "SEBI / exchanges", "Yearly", "03-31", RoleCompliance, "Board minutes"),
-		ob("OB-CHARTER", "Review the investor charter and the website disclosures", "SEBI", "Yearly", "04-30", RoleCompliance, "Updated pages"),
+		ob("OB-CHARTER", "Review the investor charter for stock brokers (2025 charter: SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/22 of 21 February 2025) on the website, in the account opening kit and at the offices, and the website disclosures", "SEBI", "Yearly", "04-30", RoleCompliance, "Updated pages and kit"),
+		shared(ob("OB-BANKBAL", "Confirm your banks submit daily client bank balances to the exchange", "NSE (NSE/INSP/59044)", "Yearly", "04-30", RoleCompliance, "For every reported bank account: the bank's confirmation (NSE/INSP/70505 Annexure D) and the exchange's view that the bank's T+1 daily balances are coming in")),
+		ob("OB-SURV", "Surveillance obligation quarterly report in Formats I to III (nil report when there is nothing to report)", "Exchanges (NSE/SURV/48818, NSE/SURV/49765, NSE/SURV/74008; BSE)", "Quarterly", "01-15,04-15,07-15,10-15", RoleCompliance, "Regulatory reports → Surveillance alert register, and each exchange's acknowledgement (NSE ENIT, BSE BEFS)"),
 	}
+}
+
+// bseHoldingDuty is added for a BSE member that is not an NSE member.
+func bseHoldingDuty() Duty {
+	return Duty{ID: "OB-BSEHOLD", Title: "Daily holding statement to BSE (BEFS portal)", Authority: "BSE (notice 20230113-13)", Frequency: "Daily", Rule: "DAILY", Role: RoleCompliance,
+		Evidence: "BEFS acknowledgement, recorded on Exchange files", Active: true, Done: []DutyRun{}, Task: "bse_holding", Rev: dutyRev}
 }
 
 func withTask(d Duty, task string) Duty { d.Task = task; return d }
 
 // dutyTasks links duties saved before the link existed to the Periodic
 // work task that does them, so a duty is not dated and chased twice.
-var dutyTasks = map[string]string{"OB-RAS": "ras"}
+var dutyTasks = map[string]string{"OB-RAS": "ras", "OB-RAS-M": "ras"}
+
+// retiredDuty: duties for returns that were discontinued are switched off
+// once, with a note (the weekly client funds monitoring return, NSE/INSP/61121).
+func retiredDuty(d Duty) (string, bool) {
+	t := strings.ToLower(d.Title)
+	if d.Task == "es_return" || strings.Contains(t, "client funds monitoring") || strings.Contains(t, "enhanced supervision") {
+		return "Discontinued from 18 March 2024 (NSE/INSP/61121)", true
+	}
+	return "", false
+}
 
 // nextDue is the first due date on or after `from` for a rule, and the
-// period it belongs to.
+// period it belongs to. The rules that depend on the firm (RASM, RASQ,
+// NETWORTH, SYS*, DAILY) are resolved by Duties.
 func nextDue(rule, from string) (string, string) {
 	t, err := time.Parse("2006-01-02", from)
 	if err != nil {
 		return "", ""
 	}
 	switch {
-	case strings.HasPrefix(rule, "D"):
+	case reDutyMonthly.MatchString(rule):
 		day, _ := strconv.Atoi(rule[1:])
 		for i := 0; i < 3; i++ {
 			m := time.Date(t.Year(), t.Month()+time.Month(i), day, 0, 0, 0, 0, time.UTC)
@@ -416,20 +458,7 @@ func nextDue(rule, from string) (string, string) {
 				return d, m.AddDate(0, -1, 0).Format("2006-01")
 			}
 		}
-	case rule == "FRI1Q":
-		for i := 0; i < 15; i++ {
-			m := time.Date(t.Year(), t.Month()+time.Month(i), 1, 0, 0, 0, 0, time.UTC)
-			if (int(m.Month())-1)%3 != 0 {
-				continue
-			}
-			for m.Weekday() != time.Friday {
-				m = m.AddDate(0, 0, 1)
-			}
-			if d := m.Format("2006-01-02"); d >= from {
-				return d, fmt.Sprintf("%d-Q%d", m.Year(), (int(m.Month())-1)/3+1)
-			}
-		}
-	default:
+	case reDutyDates.MatchString(rule):
 		var best string
 		for _, md := range strings.Split(rule, ",") {
 			md = strings.TrimSpace(md)
@@ -445,6 +474,34 @@ func nextDue(rule, from string) (string, string) {
 	return "", ""
 }
 
+var (
+	reDutyMonthly = regexp.MustCompile(`^D(0[1-9]|[12][0-9]|3[01])$`)
+	reDutyDates   = regexp.MustCompile(`^\d{2}-\d{2}( *, *\d{2}-\d{2})*$`)
+)
+
+// dutyRules are the rules resolved from the firm's profile.
+var dutyRules = []string{"RASM", "RASQ", "NETWORTH", "SYSPLAN", "SYSPRELIM", "SYSATR", "DAILY"}
+
+// resolveRule turns a firm-dependent rule into dates.
+func resolveRule(rule string, p ComplianceProfile) string {
+	switch rule {
+	case "NETWORTH":
+		// Within 60 days of 31 March; within 45 days of 30 September for a
+		// member with MTF, 60 days otherwise (NSE/INSP/70505, item 29).
+		if p.MTF {
+			return "05-30,11-14"
+		}
+		return "05-30,11-29"
+	case "SYSPLAN":
+		return sysAuditRule("plan", p.SysAudit)
+	case "SYSPRELIM":
+		return sysAuditRule("prelim", p.SysAudit)
+	case "SYSATR":
+		return sysAuditRule("atr", p.SysAudit)
+	}
+	return rule
+}
+
 // Obligations lists the calendar with each next due date, seeding the
 // default list for a new firm.
 func (o *Ops) Duties(ctx context.Context, tenant, date string) ([]Duty, error) {
@@ -452,29 +509,120 @@ func (o *Ops) Duties(ctx context.Context, tenant, date string) ([]Duty, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(obs) == 0 {
-		for _, x := range DefaultDuties() {
+	set, _ := o.Settings(ctx, tenant)
+	prof := o.CompProfile(ctx, tenant)
+	have := map[string]int{}
+	for i, d := range obs {
+		have[d.ID] = i
+	}
+	defs := DefaultDuties()
+	if ok, _ := bseHoldingApplies(set, date); ok {
+		defs = append(defs, bseHoldingDuty())
+	}
+	for _, x := range defs {
+		i, ok := have[x.ID]
+		if !ok {
+			// A new firm, or a duty added to the defaults since.
 			x.Since = date
-			if err := docs.Upsert(ctx, o.Docs, tenant, cObligation, x.ID, x, "system"); err != nil {
+			if err := docs.Upsert(ctx, o.Docs, tenant, cObligation, x.ID, x, SystemActor); err != nil {
 				return nil, err
 			}
+			have[x.ID] = len(obs)
 			obs = append(obs, x)
+			continue
+		}
+		if y := &obs[i]; y.Rev < x.Rev {
+			y.Title, y.Authority, y.Frequency, y.Rule, y.Evidence, y.Shared, y.Rev = x.Title, x.Authority, x.Frequency, x.Rule, x.Evidence, x.Shared, x.Rev
+			if y.Task == "" {
+				y.Task = x.Task
+			}
+			if err := docs.Upsert(ctx, o.Docs, tenant, cObligation, y.ID, *y, SystemActor); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for i := range obs {
+		if why, ok := retiredDuty(obs[i]); ok && obs[i].Active {
+			obs[i].Active, obs[i].Warning = false, why
+			_ = docs.Upsert(ctx, o.Docs, tenant, cObligation, obs[i].ID, obs[i], SystemActor)
 		}
 	}
 	// The AI & ML and SaaS reports, for each exchange the firm files with.
 	obs = o.ensureDisclosureDuties(ctx, tenant, date, obs)
+	var batches []RASBatch
+	if len(prof.RAS) > 0 {
+		batches, _ = docs.List[RASBatch](ctx, o.Docs, tenant, cRASBatch, "")
+	}
+	settled := func(r RASDate) bool {
+		for _, b := range batches {
+			if contains(r.Dates, b.Date) || b.Date == r.RunOn {
+				return true
+			}
+		}
+		return false
+	}
 	for i := range obs {
 		x := &obs[i]
 		if x.Done == nil {
 			x.Done = []DutyRun{}
 		}
+		if x.Shared {
+			x.Filing = sharedFilingNote(set)
+		} else if x.ID == "OB-INTAUDIT" || x.ID == "OB-SURV" {
+			x.Filing = eachExchangeNote(set)
+		}
+		if strings.HasPrefix(x.Rule, "SYS") {
+			x.Frequency = sysAuditFrequency(prof.SysAudit)
+			if prof.SysAudit == SysAuditNone {
+				x.Warning = "Not applicable: the firm uses only the exchange's NEAT terminals (system audit cycle set to none on the compliance profile)."
+				x.NextDue, x.Period, x.Overdue = "", "", false
+				continue
+			}
+			if !prof.AuditorEmpanelled {
+				x.Warning = "Record the auditor as NSE-empanelled on the compliance profile: NSE accepts system audit reports only from an empanelled auditor (NSE/INSP/69631)."
+			}
+			if prof.SysAudit == SysAuditTwoYearly {
+				x.Warning = strings.TrimSpace(x.Warning + " Audited once in 2 years: in the year between, mark the duty done with \"not due this year\".")
+			}
+		}
+		if x.Rule == "DAILY" && x.ID == "OB-BSEHOLD" {
+			o.bseHoldingDue(ctx, tenant, set, date, x)
+			continue
+		}
+		if x.Rule == "RASM" || x.Rule == "RASQ" {
+			kind := map[string]string{"RASM": RASKindMonthly, "RASQ": RASKindQuarterly}[x.Rule]
+			from := addDays(date, -120)
+			if x.Since > from {
+				from = x.Since
+			}
+			x.NextDue, x.Period = "", ""
+			for k := 0; k < 30; k++ {
+				r, ok := prof.rasWindow(kind, from)
+				if !ok {
+					x.Warning = "No " + strings.ToLower(kind) + " settlement date left in the RAS calendar: add the exchanges' calendar for the next financial year (Circulars & calendar → RAS dates)."
+					break
+				}
+				done := settled(r)
+				for _, d := range x.Done {
+					done = done || d.Period == r.Period
+				}
+				if !done {
+					x.NextDue, x.Period = r.Last(), r.Period
+					break
+				}
+				from = addDays(r.Last(), 1)
+			}
+			x.Overdue = x.Active && x.NextDue != "" && x.NextDue < date
+			continue
+		}
+		rule := resolveRule(x.Rule, prof)
 		// The next due is the earliest one not yet done, which may be past.
 		from := addDays(date, -120)
 		if x.Since > from {
 			from = x.Since
 		}
 		for k := 0; k < 30; k++ {
-			d, p := nextDue(x.Rule, from)
+			d, p := nextDue(rule, from)
 			if d == "" {
 				break
 			}
@@ -505,6 +653,25 @@ func (o *Ops) Duties(ctx context.Context, tenant, date string) ([]Duty, error) {
 	return obs, nil
 }
 
+// bseHoldingDue dates the BSE holding statement duty: the earliest data
+// day not recorded as uploaded, due the day after it.
+func (o *Ops) bseHoldingDue(ctx context.Context, tenant string, set Settings, date string, x *Duty) {
+	x.NextDue, x.Period, x.Overdue = "", "", false
+	if ok, why := bseHoldingApplies(set, date); !ok {
+		x.Filing = why
+		return
+	}
+	x.Filing = "Upload on BEFS; BSE's API is waiting for BSE's document"
+	if ps := o.bseHoldingPending(ctx, tenant, set, date); len(ps) > 0 {
+		x.Period, x.NextDue = ps[0], addDays(ps[0], 1)
+		x.Overdue = x.Active && x.NextDue < date
+		return
+	}
+	if t, _ := time.Parse("2006-01-02", date); t.Weekday() != time.Sunday {
+		x.Period, x.NextDue = date, addDays(date, 1)
+	}
+}
+
 // DoneDuty records an obligation met for its current period.
 func (o *Ops) DoneDuty(ctx context.Context, tenant, actor, date, id, evidence string) (Duty, error) {
 	obs, err := o.Duties(ctx, tenant, date)
@@ -526,6 +693,19 @@ func (o *Ops) DoneDuty(ctx context.Context, tenant, actor, date, id, evidence st
 	if strings.TrimSpace(evidence) == "" {
 		return Duty{}, invalid("say what was done and where the evidence is: %s", x.Evidence)
 	}
+	if x.ID == "OB-BSEHOLD" {
+		// Each day is recorded with BEFS's acknowledgement on Exchange files.
+		if x.Period == "" {
+			return *x, fmt.Errorf("%w: nothing is waiting to be uploaded to BSE", ErrState)
+		}
+		if _, err := o.BSEHoldingUploaded(ctx, tenant, actor, x.Period, evidence); err != nil {
+			return *x, err
+		}
+		return *x, nil
+	}
+	if x.NextDue == "" {
+		return *x, fmt.Errorf("%w: nothing is due on this duty now", ErrState)
+	}
 	run := DutyRun{Period: x.Period, Due: x.NextDue, At: o.now().Format(time.RFC3339), By: actor, Evidence: strings.TrimSpace(evidence), Late: date > x.NextDue}
 	saved, err := docs.Update(ctx, o.Docs, tenant, cObligation, id, actor, func(y *Duty) error {
 		y.Done = append(y.Done, run)
@@ -546,8 +726,8 @@ func (o *Ops) SaveDuty(ctx context.Context, tenant, actor string, x Duty) (Duty,
 	if strings.TrimSpace(x.Title) == "" || !contains([]string{RoleMaker, RoleChecker, RoleRisk, RoleCompliance, RoleAdmin}, x.Role) {
 		return x, invalid("an obligation needs a title and an owner role")
 	}
-	if d, _ := nextDue(x.Rule, "2026-01-01"); d == "" {
-		return x, invalid("due rule must be D07 (day of next month), FRI1Q (first Friday of each quarter) or MM-DD dates such as 05-15,11-15")
+	if d, _ := nextDue(x.Rule, "2026-01-01"); d == "" && !contains(dutyRules, x.Rule) {
+		return x, invalid("due rule must be D07 (day of next month), MM-DD dates such as 05-15,11-15, RASM or RASQ (the exchanges' monthly or quarterly RAS dates), NETWORTH, SYSPLAN, SYSPRELIM, SYSATR or DAILY")
 	}
 	if x.ID == "" {
 		n, err := o.next(ctx, tenant, "obligation", actor)
@@ -558,8 +738,10 @@ func (o *Ops) SaveDuty(ctx context.Context, tenant, actor string, x Duty) (Duty,
 	}
 	old, _, err := docs.Get[Duty](ctx, o.Docs, tenant, cObligation, x.ID)
 	if err == nil {
-		x.Done = old.Done
+		x.Done, x.Shared = old.Done, old.Shared
 	}
+	// A saved duty keeps the person's version: defaults are not applied to it again.
+	x.Rev, x.Filing, x.Warning, x.NextDue, x.Period, x.Overdue = dutyRev, "", "", "", "", false
 	if x.Done == nil {
 		x.Done = []DutyRun{}
 	}
@@ -576,6 +758,17 @@ func (o *Ops) SaveDuty(ctx context.Context, tenant, actor string, x Duty) (Duty,
 // autoCompliance queues circular actions and obligations falling due in
 // the next seven days (and overdue ones) for their owners.
 func autoCompliance(r *runCtx) error {
+	// The next RAS dates in Settings follow the exchanges' calendar; this
+	// runs at the start of the day, before the RAS job at its end.
+	r.o.syncRASSettings(r.ctx, r.tenant, SystemActor, r.date)
+	prof := r.o.CompProfile(r.ctx, r.tenant)
+	if end := prof.rasCalendarEnds(); end == "" || daysBetween(r.date, end) < 60 {
+		r.queue("ras-calendar", "Add the exchanges' RAS calendar for the next financial year", "The running account settlement calendar in Ledgerline ends "+firstOf(fmtDay(end), "now")+". The exchanges publish the next year's Friday/Saturday dates jointly, usually in January (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197). Add them on Circulars & calendar → RAS dates.", "", RoleCompliance, "circulars", "", nil)
+	}
+	r.o.trackAlertLife(r.ctx, r.tenant, r.date) // dates alert closures for the quarterly surveillance report
+	if n := r.o.bseHoldingChase(r.ctx, r.tenant, r.date); n > 0 {
+		r.note("%d day(s) of holding statement to upload to BSE", n)
+	}
 	obs, err := r.o.Duties(r.ctx, r.tenant, r.date)
 	if err != nil {
 		return err

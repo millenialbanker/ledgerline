@@ -105,7 +105,7 @@ func TestCreditNotesTDSStatementAgeing(t *testing.T) {
 		t.Fatalf("paid %v %+v", err, iv)
 	}
 	tds, _ := c.TDSRegister(ctx, "owner")
-	if len(tds) != 1 || tds[0].Quarter != "FY 26-27 Q3" || tds[0].Cert != "" {
+	if len(tds) != 1 || tds[0].Quarter != "TY 26-27 Q3" || tds[0].Form != "Form 131" || tds[0].Cert != "" {
 		t.Fatalf("tds %+v", tds)
 	}
 	if _, err := c.TDSCertificate(ctx, "owner", iv.ID, 0, "16A/ABC/2026/Q3"); err != nil {

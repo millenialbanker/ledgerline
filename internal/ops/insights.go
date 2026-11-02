@@ -17,7 +17,7 @@ import (
 // Every evening the insight automations look through each client's
 // holdings, purchase lots, positions, funds and the firm's corporate-action
 // calendar for things the client would want to know: losses that could be
-// booked before the financial year ends to cut tax, a buy-back at a premium
+// booked before the tax year ends to cut tax, a buy-back at a premium
 // on shares they hold, stock derivatives about to be settled by delivery,
 // funds lying idle, holdings that could be pledged for margin, an account
 // about to turn inactive, a dividend or bonus on their shares, an advance
@@ -120,9 +120,11 @@ const actWindow = 15
 
 // ---- tax rates for listed equity (resident individuals) ----
 //
-// Section 111A short-term gains at 20% and section 112A long-term gains at
-// 12.5% above ₹1.25 lakh a year, as amended by the Finance (No. 2) Act 2024
-// for transfers from 23 July 2024; 4% health and education cess. Surcharge,
+// Short-term gains at 20% and long-term gains at 12.5% above ₹1.25 lakh a
+// year (sections 196 and 198 of the Income-tax Act 2025 from the tax year
+// 2026-27; sections 111A and 112A of the 1961 Act before, as amended by the
+// Finance (No. 2) Act 2024 for transfers from 23 July 2024; the rates were
+// not changed by the 2025 Act); 4% health and education cess. Surcharge,
 // the basic exemption and other income are not considered: figures are
 // estimates for the client to check with their tax adviser.
 var (
@@ -135,7 +137,8 @@ var (
 	advanceTaxes = []string{"06-15", "09-15", "12-15", "03-15"}
 )
 
-// fyOf is the financial year a date falls in: label, first and last day.
+// fyOf is the tax year (financial year before 2026-27) a date falls in:
+// label, first and last day.
 func fyOf(date string) (label, from, to string) {
 	y, _ := strconv.Atoi(date[:4])
 	if date[5:7] < "04" {
@@ -189,7 +192,7 @@ type HarvestLot struct {
 	TurnsLong bool      `json:"turns_long,omitempty"` // a short-term gain that turns long-term within 60 days
 }
 
-// TaxPlan is a client's capital gains position for the financial year and
+// TaxPlan is a client's capital gains position for the tax year and
 // what booking losses (or long-term gains within the exemption) would do.
 type TaxPlan struct {
 	UCC          string       `json:"ucc"`

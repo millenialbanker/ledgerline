@@ -21,8 +21,10 @@ import (
 //
 // An AP's share is a percentage of the brokerage earned on its clients.
 // The firm holds back an AP's payout to the extent of its clients' overdue
-// debits (the AP answers for them). TDS under section 194H is deducted; if
-// the AP is GST-registered, GST is added and the firm takes input credit.
+// debits (the AP answers for them). TDS on commission is deducted (section
+// 393(1) [Table: Sl. No. 1(ii)] of the Income-tax Act 2025 from 1 April
+// 2026, earlier section 194H, at the same 2%); if the AP is GST-registered,
+// GST is added and the firm takes input credit.
 //
 // A client may be referred by another client: the referrer earns a share of
 // the brokerage on the referred client's trades for a period, credited to
@@ -33,7 +35,9 @@ const (
 	cPartner  = "partner"
 	cAPPayout = "ap_payout"
 	cReferral = "referral_run"
-	// PayableTDS194H is tax deducted at source on commission.
+	// PayableTDS194H is tax deducted at source on commission (section
+	// 393(1) Table Sl. No. 1(ii), earlier 194H). The account code is kept
+	// as it is so balances carry on.
 	PayableTDS194H = "PAYABLE:TDS_194H"
 	// ExpenseAPShare is brokerage shared with authorised persons.
 	ExpenseAPShare = "EXPENSE:AP_SHARE"
@@ -370,7 +374,7 @@ func (s Settings) tdsRate() money.Dec {
 	if d, err := money.ParseDec(s.TDSCommissionPct); err == nil && s.TDSCommissionPct != "" {
 		return d
 	}
-	return money.DecInt(2) // section 194H from 1 October 2024
+	return money.DecInt(2) // 2% from 1 October 2024 (194H), unchanged in section 393(1) Table Sl. No. 1(ii)
 }
 
 // APPayouts computes each authorised person's share for from..to, merged
@@ -455,7 +459,7 @@ func (o *Ops) PostAPPayouts(ctx context.Context, tenant, actor, from, to string)
 			post = append(post, ledger.Posting{Account: InputIGST, Debit: a.GST, Memo: "GST on AP commission"})
 		}
 		if a.TDS > 0 {
-			post = append(post, ledger.Posting{Account: PayableTDS194H, Credit: a.TDS, Memo: "TDS u/s 194H"})
+			post = append(post, ledger.Posting{Account: PayableTDS194H, Credit: a.TDS, Memo: "TDS u/s " + strings.TrimPrefix(tdsRef("194H", to), "section ")})
 		}
 		post = append(post, ledger.Posting{Account: "AP:" + a.Partner, Credit: a.Share + a.GST - a.TDS, Memo: fmt.Sprintf("Payable now ₹%s, held ₹%s", a.Payable, a.Withheld)})
 		e, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "APS:" + a.ID, ValueDate: to, CreatedBy: actor,

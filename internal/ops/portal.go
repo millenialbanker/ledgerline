@@ -232,6 +232,14 @@ func (o *Ops) Portal(ctx context.Context, tenant, actor, date, ucc string) (Port
 	sort.Slice(v.Tickets, func(i, j int) bool { return v.Tickets[i].ID > v.Tickets[j].ID })
 	set, _ := o.Settings(ctx, tenant)
 	v.Firm = map[string]string{"name": set.Firm, "sebi_reg": set.SEBIReg, "compliance_email": set.ComplianceEmail, "payin_account": set.PayoutDebitAccount}
+	// Validated UPI IDs and the SEBI QR (SEBI circular of 11 June 2025).
+	if upi := o.UPICollectConfig(ctx, tenant); len(upi.Handles) > 0 {
+		var ids []string
+		for _, h := range upi.Handles {
+			ids = append(ids, h.VPA)
+		}
+		v.Firm["upi_ids"], v.Firm["upi_qr"] = strings.Join(ids, ","), upi.QR
+	}
 	v.Documents = []PortalDocument{}
 	ds, _ := docs.List[Dispatch](ctx, o.Docs, tenant, cDispatch, "")
 	seen := map[string]bool{}

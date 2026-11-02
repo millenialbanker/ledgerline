@@ -33,6 +33,10 @@ type BankTxn struct {
 	Hint           string `json:"virtual_account_client,omitempty"`
 	PayerIFSC      string `json:"payer_ifsc,omitempty"`
 	Source         string `json:"source,omitempty"`
+	// PayeeVPA is the UPI ID a UPI credit was paid to; Channel says whether
+	// it is one of the firm's validated .brk@valid IDs (upicollect.go).
+	PayeeVPA string `json:"payee_vpa,omitempty"`
+	Channel  string `json:"channel,omitempty"`
 }
 
 // Public masks the remitter account.
@@ -60,6 +64,8 @@ func (o *Ops) BankTxns(ctx context.Context, tenant string) ([]BankTxn, error) {
 // bank suspense account until it is returned or identified: third-party if
 // the remitter name resembles a client, unidentified otherwise.
 func (o *Ops) matchCredit(ctx context.Context, tenant, actor string, t BankTxn, clients []Client) (BankTxn, error) {
+	// Paid through the firm's validated UPI handle: its own collection.
+	o.tagUPI(ctx, tenant, &t)
 	var byAcct *Client
 	for i := range clients {
 		if clients[i].Bank.Account != "" && clients[i].Bank.Account == t.Account {
@@ -74,6 +80,9 @@ func (o *Ops) matchCredit(ctx context.Context, tenant, actor string, t BankTxn, 
 		}
 		entry.Key = "RCPT:" + t.Ref
 		entry.Narration = fmt.Sprintf("Funds received · %s %s", t.Mode, t.Ref)
+		if t.Channel == ChannelValidUPI {
+			entry.Narration += " · to " + t.PayeeVPA
+		}
 		entry.Postings = []ledger.Posting{{Account: ledger.BankClient, Debit: t.Amount}, {Account: ledger.ClientAccount(byAcct.UCC), Credit: t.Amount, Memo: "Receipt from registered account"}}
 	} else {
 		t.Status = "Unidentified"

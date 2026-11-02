@@ -104,7 +104,7 @@ roles: Ops checker
 ask: running account settlement; ras; quarterly settlement; monthly settlement; settle client funds; return idle funds
 related: payout
 
-SEBI requires unused client funds to be returned monthly or quarterly, as each client chose.
+SEBI requires unused client funds to be returned monthly or quarterly, as each client chose, on the dates the exchanges set jointly for each financial year: a Friday and/or the Saturday after it (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197). For FY 2026-27, for example, the quarterly dates are 17/18 April, 3/4 July, 16/17 October 2026 and 1/2 January 2027. The dates are kept on [[circulars|Circulars & calendar]] → *RAS dates & profile* by the compliance officer or an admin; Settings shows the next monthly and quarterly date from that list, and the compliance calendar dates the two settlements from it.
 
 1. Open [[ras|Running account]] on the settlement date. It lists each client's amount to return, keeping the allowed buffer.
 2. Download the **Bank payout file**, pay through the bank, and record the result.
@@ -181,7 +181,7 @@ On [[books|Firm accounts & GST]] → **Vendor bills**:
 
 1. **Scan a bill:** upload the PDF, JPEG or PNG. A PDF made by the vendor's software is read on the server: vendor, GSTIN (check digit verified), PAN, address, bank account and IFSC, bill number and date, taxable value, CGST, SGST, IGST and total fill the form. A scanned or photographed bill has no text: type the details, or use **Read with AI** if an admin has switched on *Read bills with AI* in Settings (the bill is then sent to the AI provider and charged from the AI credit; not available in India-only mode).
 2. **Check every figure against the bill.** Warnings show what doesn't add up: a wrong GSTIN check digit, totals that don't match, IGST from a vendor in your own state, a bill not made out to the firm's GSTIN.
-3. A new vendor is added from the bill in one click (**Add vendor**). Set the **TDS section**, payment terms, and the **Udyam number** for a micro or small enterprise: their bills must be paid within the agreed days, at most 45 (15 without an agreement), or the expense is disallowed until paid (section 43B(h)).
+3. A new vendor is added from the bill in one click (**Add vendor**). Set the **TDS section**, payment terms, and the **Udyam number** for a micro or small enterprise: their bills must be paid within the agreed days, at most 45 (15 without an agreement), or the expense is disallowed until paid (section 37(2)(g) of the Income-tax Act 2025; section 43B(h) before 1 April 2026). The TDS sections are shown by their 2025-Act provision (all TDS other than salary is in section 393, at the same rates) with the 1961 section they replaced; bills dated before 1 April 2026 keep the 1961 section in the voucher.
 4. **Book bill** makes a journal voucher: expense and input GST debited, TDS and the vendor credited (reverse charge credits GST payable instead). An Ops checker who didn't make it posts it.
 5. **Pay** makes a payment voucher from the firm's own bank account; a checker posts it. Part payments are allowed.
 

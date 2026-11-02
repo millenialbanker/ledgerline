@@ -195,11 +195,11 @@ They see only their own clients (an AP) or their office and those under it (bran
 title: Pay APs their brokerage share
 screen: partners
 roles: Ops checker
-ask: ap payout; ap commission; sub broker payment; ap share; pay partner; ap brokerage sharing; tds on ap commission; 194h
+ask: ap payout; ap commission; sub broker payment; ap share; pay partner; ap brokerage sharing; tds on ap commission; 194h; section 393
 related: add-ap, map-client
 
 1. On [[partners|Branches & partners]], choose the month and click **Show** to see each AP's share.
-2. Ledgerline works out the share of brokerage on their clients, deducts **TDS under section 194H** (rate in Settings), adds **GST** if the AP is registered, and **holds back** the amount of their clients' overdue debits.
+2. Ledgerline works out the share of brokerage on their clients, deducts **TDS on commission** (rate in Settings, 2%): section 393(1) [Table: Sl. No. 1(ii)] of the Income-tax Act 2025 from 1 April 2026, section 194H before, adds **GST** if the AP is registered, and **holds back** the amount of their clients' overdue debits.
 3. AP payouts are posted with the month-end postings ([[autopilot|Autopilot]] → Month-end postings → **Post all**), approved by an Ops checker.
 
 ## limit-request

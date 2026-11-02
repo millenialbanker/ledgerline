@@ -29,6 +29,9 @@ func (s *Server) exchangeReportingRoutes() {
 	R("GET /v1/segmon/responses", s.segmonResponses, false)
 	R("GET /v1/holding-api", s.holdingAPIView, false)
 	R("POST /v1/holding-api/submit", s.holdingAPISubmit, true)
+	s.complianceCalendarRoutes(R)
+	s.surveillanceReturnRoutes(R)
+	s.upiCollectRoutes(R)
 }
 
 func (s *Server) segmonCheck(w http.ResponseWriter, r *http.Request) {
