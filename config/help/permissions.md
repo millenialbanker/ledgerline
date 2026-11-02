@@ -174,6 +174,7 @@ Recording re-KYC | Ops maker, Ops checker, Compliance officer
 Recording recovery of a legacy debt | Ops maker, Ops checker, Risk manager, Compliance officer
 Recording the BSDA choice | Ops maker, Ops checker
 Recording the funds pay-out | Ops checker, Risk manager
+Recording the holding statement sent to BSE | Ops maker, Ops checker, Compliance officer
 Registering a stock SIP for a client | Ops maker, Ops checker
 Registering clients on MF platforms | Ops maker, Ops checker
 Rejecting an application | Ops checker, Compliance officer
@@ -264,6 +265,7 @@ Viewing order-to-trade ratios | Risk manager, Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the AI answer log | Compliance officer
 Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
+Viewing the compliance calendar | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 Viewing the signing certificate | Ops checker, Compliance officer, Admin
 Viewing vendor bills | Ops maker, Ops checker, Compliance officer

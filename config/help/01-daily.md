@@ -302,15 +302,15 @@ NSE takes each client's demat holdings every day except Sunday, by API (NSE circ
 title: Weekly, monthly and quarterly work
 screen: periodic
 roles: Ops maker, Ops checker, Compliance officer
-ask: periodic work; weekly statement; statement of funds and securities; monthly statement; month end; quarterly; bsda review; running account settlement; enhanced supervision; client funds monitoring; weekly return; complaints disclosure; settlement master; ccil prices; g-sec prices; cuspa; mtf payout reporting; unpaidmtf
+ask: periodic work; weekly statement; statement of funds and securities; monthly statement; month end; quarterly; bsda review; running account settlement; complaints disclosure; settlement master; ccil prices; g-sec prices; cuspa; mtf payout reporting; unpaidmtf
 related: exchange-files
 
 On [[periodic|Periodic work]] every task that is not daily is listed with the period it covers (the week to Friday, the month just ended, the quarter), when it is due and whether it is done. Work done on its own screen or by Autopilot counts.
 
-1. **Weekly**: the statement of funds and securities to clients (Saturday); the client funds monitoring return for the exchanges (a workbook with the particulars, client credits and debits, bank balances, deposits and utilised margins); unpaid securities in CUSPA released to clients who have paid, and those still unpaid after the allowed days (Settings, 7 by default) queued for sale.
+1. **Weekly**: the statement of funds and securities to clients (Saturday); unpaid securities in CUSPA released to clients who have paid, and those still unpaid after the allowed days (Settings, 7 by default) queued for sale. (The weekly client funds monitoring return to the exchanges was discontinued from 18 March 2024, NSE/INSP/61121.)
 2. **Each settlement day**: the CUSPA and MTF pay-out reporting file for NSE Clearing (UNPAIDMTF), which needs the month's settlement master loaded on [[xfiles|Exchange files]].
 3. **Monthly**: month-end postings (interest, MTF interest, DP bills, AP commission), statements of account, DP statements and the complaints disclosure; checks that the coming month's settlement master and CCIL's month-end G-sec and T-bill prices (MTMPRICE, .xls as published) are loaded.
-4. **Running account settlement** on the dates in Settings, with the statements.
+4. **Running account settlement** on the exchanges' RAS dates (the Friday and/or Saturday of their joint annual calendar, separately for monthly and quarterly clients; kept on [[circulars|Circulars & calendar]] → *RAS dates & profile*), with the statements.
 5. **Quarterly BSDA review**: proposes conversions on the [[dp|Depository]] screen (BSDA review tab); a different checker applies it, the depository modification file is kept and clients are emailed. Record a client's choice to stay regular, or a demat account with another DP, so the review leaves them out.
 
 **Run now** runs a task by hand. The **Periodic work** scheduled job (on [[jobs|Scheduled jobs]], every morning) runs the ones that can run by themselves and puts the rest in the work queue: a review to approve, a file to load, a return to upload.

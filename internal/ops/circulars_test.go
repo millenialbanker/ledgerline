@@ -69,8 +69,8 @@ func TestCircularsAndCalendar(t *testing.T) {
 	if d, p := nextDue("D07", "2026-10-16"); d != "2026-11-07" || p != "2026-10" {
 		t.Fatalf("monthly: %s %s", d, p)
 	}
-	if d, _ := nextDue("FRI1Q", "2026-10-16"); d != "2027-01-01" {
-		t.Fatalf("first Friday of quarter: %s", d)
+	if d, _ := nextDue("FRI1Q", "2026-10-16"); d != "" {
+		t.Fatalf("the first-Friday rule is gone: %s", d)
 	}
 	if d, _ := nextDue("05-15,11-15", "2026-10-16"); d != "2026-11-15" {
 		t.Fatalf("half-yearly: %s", d)

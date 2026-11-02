@@ -104,7 +104,7 @@ roles: Ops checker
 ask: running account settlement; ras; quarterly settlement; monthly settlement; settle client funds; return idle funds
 related: payout
 
-SEBI requires unused client funds to be returned monthly or quarterly, as each client chose.
+SEBI requires unused client funds to be returned monthly or quarterly, as each client chose, on the dates the exchanges set jointly for each financial year: a Friday and/or the Saturday after it (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197). For FY 2026-27, for example, the quarterly dates are 17/18 April, 3/4 July, 16/17 October 2026 and 1/2 January 2027. The dates are kept on [[circulars|Circulars & calendar]] → *RAS dates & profile* by the compliance officer or an admin; Settings shows the next monthly and quarterly date from that list, and the compliance calendar dates the two settlements from it.
 
 1. Open [[ras|Running account]] on the settlement date. It lists each client's amount to return, keeping the allowed buffer.
 2. Download the **Bank payout file**, pay through the bank, and record the result.
