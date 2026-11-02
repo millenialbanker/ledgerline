@@ -1010,7 +1010,7 @@ V.yearend = {
   load: () => get(`/v1/year-end?date=${S.date}${UI.yeFY ? '&fy=' + UI.yeFY : ''}`),
   html: d => {
     const can = has('Ops maker', 'Ops checker', 'Compliance officer');
-    return ph('Year-end packs', 'One statement per client and financial year for their tax return: capital gains, futures and options result, charges paid, closing balance and holdings, and the securities transaction tax particulars for Form No. 10DB (rule 20AB), one form per exchange. Clients open it in the portal; emailing tells them it is ready.',
+    return ph('Year-end packs', 'One statement per client and year for their tax return (the tax year from 2026-27, the financial year before): capital gains, futures and options result, charges paid, closing balance and holdings, and a statement of STT paid on each exchange. Clients open it in the portal; emailing tells them it is ready.',
       `<select class="in sm" id="ye-fy">${d.years.map(y => `<option ${y === d.fy ? 'selected' : ''}>${y}</option>`).join('')}</select>${can ? `<button class="btn pri" data-act="yeSendAll" ${d.running ? 'disabled title="After 31 March"' : ''}>Email all clients</button>` : ''}`) +
     (d.running ? `<div class="note">FY ${esc(d.fy)} is still running: packs show figures to ${fmtDate(d.to)} and can be emailed after 31 March.</div>` : '') +
     `<div class="kpis">${kpi('Clients', nf(d.rows.length), 'active')}${kpi('STT collected', cmp(d.stt), `FY ${esc(d.fy)}${d.running ? ' to date' : ''}`)}${kpi('Packs emailed', nf(d.sent), `of ${d.rows.length}`, d.sent && d.sent === d.rows.length ? 'good' : '')}${kpi('No email address', nf(d.rows.filter(r => !r.email).length), 'see the pack in the portal only', d.rows.some(r => !r.email) ? 'warn' : '')}</div>
@@ -1079,7 +1079,7 @@ V.pinsights = {
     (d.items.length ? `<div class="panel"><div class="hd"><h3>For your attention</h3></div><div class="bd ins-list">${d.items.map(i => `<div class="ins"><small>${esc(INS_KINDS[i.kind] || i.kind)}${i.due ? ' · by ' + fmtDate(i.due) : ''}</small><b>${esc(i.title)}</b><span class="dim small">${esc(i.detail)}</span></div>`).join('')}</div></div>` : '') +
     (d.buybacks.length ? `<div class="panel"><div class="hd"><h3>Buy-back offers on your shares</h3></div>${tbl([['Company'], ['Offer price', 'r'], ['Market price', 'r'], ['Your free shares', 'r'], ['Category'], ['Entitlement', 'r'], ['Closes'], ['Tender']], d.buybacks.map(b => `<tr><td><b>${esc(b.symbol)}</b><div class="dim small">${esc(b.company)}</div></td><td class="r">${nf(b.price, 2)}</td><td class="r">${num(b.ltp) ? nf(b.ltp, 2) : '—'}</td><td class="r">${nf(b.free)}</td><td class="small">${esc(b.category)}</td><td class="r">${b.entitlement ? nf(b.entitlement) : '—'}</td><td class="n">${fmtDate(b.close)}</td><td>${b.open ? `<div class="tools"><input class="in sm mono" id="pt-${esc(b.id)}" inputmode="numeric" style="width:90px" value="${b.tendered || b.entitlement || ''}"><button class="btn sm pri" data-act="pTender" data-id="${esc(b.id)}">${b.tendered ? 'Change' : 'Tender'}</button></div>${b.tendered ? `<div class="dim small">${nf(b.tendered)} tendered; 0 cancels</div>` : ''}` : '<span class="dim small">opens later</span>'}</td></tr>`))}<div class="pad"><span class="dim small">Shares not accepted are returned to your demat. Since 1 October 2024 the buy-back amount is taxed as dividend in your hands and the cost of the shares accepted becomes a capital loss.</span></div></div>` : '') +
     `<div class="panel"><div class="hd"><h3>Capital gains and tax-loss harvesting · FY ${esc(d.tax.fy)}</h3><button class="btn sm" data-act="go" data-id="statements">Capital gains statement</button></div><div class="bd">${taxPlanHTML(d.tax)}</div></div>
-    <div class="panel"><div class="hd"><h3>Year-end statements</h3></div><div class="bd"><p class="dim small" style="margin-top:0">For your tax return: capital gains, F&amp;O result, charges, closing balance and holdings, and the STT particulars for Form No. 10DB.</p><div class="tools">${[fyLabel(S.date), fyLabel(String(+S.date.slice(0, 4) - 1) + S.date.slice(4))].map(y => `<button class="btn" data-act="pYearEnd" data-id="${y}">FY ${y}${y === fyLabel(S.date) ? ' (to date)' : ''}</button>`).join('')}</div></div></div>
+    <div class="panel"><div class="hd"><h3>Year-end statements</h3></div><div class="bd"><p class="dim small" style="margin-top:0">For your tax return: capital gains, F&amp;O result, charges, closing balance and holdings, and a statement of STT paid.</p><div class="tools">${[fyLabel(S.date), fyLabel(String(+S.date.slice(0, 4) - 1) + S.date.slice(4))].map(y => `<button class="btn" data-act="pYearEnd" data-id="${y}">${y >= '2026-27' ? 'Tax year' : 'FY'} ${y}${y === fyLabel(S.date) ? ' (to date)' : ''}</button>`).join('')}</div></div></div>
     <div class="panel"><div class="bd"><label class="check"><input type="checkbox" id="pins-off" ${d.off ? '' : 'checked'}> Send me insights about my account by email and WhatsApp</label><div class="dim small">Contract notes, statements and margin alerts are always sent.</div></div></div>`;
   }
 };
@@ -1135,24 +1135,27 @@ V.pprofile = {
   }
 };
 const NOM_REL = ['Spouse', 'Son', 'Daughter', 'Father', 'Mother', 'Brother', 'Sister', 'Grandchild', 'Other'];
-const NOM_ID = [['PAN', 'PAN'], ['DL', 'Driving licence'], ['AADHAAR', 'Aadhaar (last 4 digits)'], ['PASSPORT', 'Passport']];
+// Nomination (SEBI/HO/OIAE/OIAE_IAD-3/P/CIR/2026/12676, from 1 September 2026): up to 3 nominees;
+// only the name and relationship are needed (date of birth for a minor); identity is optional.
+const NOM_MAX = 3;
+const NOM_ID = [['', 'Not given (optional)'], ['PAN', 'PAN'], ['DL', 'Driving licence'], ['AADHAAR', 'Aadhaar (last 4 digits)'], ['PASSPORT', 'Passport']];
 function nomRow(n) {
   const o = (opts, v) => opts.map(x => { const [k, l] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(k)}" ${v === k ? 'selected' : ''}>${esc(l)}</option>`; }).join('');
   return `<div class="form nomrow" style="grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px">
     <div class="fld" style="grid-column:span 2"><label>Full name</label><input class="in nm-name" value="${esc(n.name || '')}"></div>
     <div class="fld"><label>Relationship</label><select class="in nm-rel">${o(NOM_REL, n.relation)}</select></div>
     <div class="fld"><label>Share %</label><input class="in nm-share" inputmode="decimal" placeholder="equal" value="${esc(n.share || '')}"></div>
-    <div class="fld"><label>Identity</label><select class="in nm-idt">${o(NOM_ID, n.id_type)}</select></div>
-    <div class="fld"><label>Number</label><input class="in mono nm-id" value="${esc(n.id && !/X/.test(n.id) ? n.id : '')}" placeholder="${n.id ? esc(n.id) : ''}"></div>
+    <div class="fld"><label>Identity (optional)</label><select class="in nm-idt">${o(NOM_ID, n.id_type)}</select></div>
+    <div class="fld"><label>Number (optional)</label><input class="in mono nm-id" value="${esc(n.id && !/X/.test(n.id) ? n.id : '')}" placeholder="${n.id ? esc(n.id) : ''}"></div>
     <div class="fld"><label>Date of birth (if under 18)</label><input class="in nm-dob" type="date" value="${esc(n.dob || '')}"></div>
     <div class="fld" style="align-self:end"><button type="button" class="linkish" data-nomdel>Remove</button></div>
     <div class="fld" style="grid-column:span 2"><label>Guardian (minor only)</label><input class="in nm-g" value="${esc(n.guardian || '')}"></div>
     <div class="fld" style="grid-column:span 2"><label>Guardian's relationship to the nominee</label><input class="in nm-gr" value="${esc(n.guardian_relation || '')}"></div></div>`;
 }
-function nomEditor(list) { return `<div class="full"><div id="nom-list">${(list.length ? list : [{}]).map(nomRow).join('')}</div><button type="button" class="btn sm" id="nom-add">Add a nominee</button> <span class="dim small">Up to 10. Leave the shares blank for equal shares. Identity numbers already on record must be typed again when changing the nomination.</span></div>`; }
+function nomEditor(list) { return `<div class="full"><div id="nom-list">${(list.length ? list : [{}]).map(nomRow).join('')}</div><button type="button" class="btn sm" id="nom-add">Add a nominee</button> <span class="dim small">Up to 3. Only the name and relationship are needed (and the date of birth and guardian for a minor); identity is optional. Shares left blank are split equally, any odd lot to the first nominee. Identity numbers already on record must be typed again when changing the nomination. In a joint account every holder must agree.</span></div>`; }
 function nomBind() {
   const add = $('nom-add'); if (!add) return;
-  add.onclick = () => { const l = $('nom-list'); if (l.children.length >= 10) { toast('At most 10 nominees'); return; } l.insertAdjacentHTML('beforeend', nomRow({})); nomBind(); };
+  add.onclick = () => { const l = $('nom-list'); if (l.children.length >= NOM_MAX) { toast(`At most ${NOM_MAX} nominees`); return; } l.insertAdjacentHTML('beforeend', nomRow({})); nomBind(); };
   document.querySelectorAll('[data-nomdel]').forEach(b => { b.onclick = () => { if (document.querySelectorAll('.nomrow').length > 1) b.closest('.nomrow').remove(); }; });
 }
 function nomRead() { return [...document.querySelectorAll('.nomrow')].map(r => { const g = c => r.querySelector('.nm-' + c).value.trim(); return { name: g('name'), relation: g('rel'), share: g('share'), id_type: g('idt'), id: g('id'), dob: g('dob'), guardian: g('g'), guardian_relation: g('gr') }; }); }
@@ -1162,7 +1165,7 @@ const CHG_FIELDS = { Email: [['email', 'New email', 'email']], Mobile: [['mobile
 function changeModal(kind, ucc, staff) {
   const f = CHG_FIELDS[kind], proof = { 'Bank account': 'Bank proof', Address: 'Address proof' }[kind];
   modal(mhd('Change ' + kind.toLowerCase(), `${ucc} · checked by head office before it takes effect`) + `<form class="bd" id="chf"><div class="form">${f.map(([k, l, t]) => `<div class="fld"><label for="ch-${k}">${l}</label><input class="in" id="ch-${k}" type="${t || 'text'}" required></div>`).join('')}
-    ${kind === 'Nomination' ? `<div class="fld"><label for="ch-nominee">Nomination</label><select class="in" id="ch-nominee"><option>Opted in</option><option>Opted out</option></select></div>${staff ? `<div class="fld"><label for="ch-mode">Declared by</label><select class="in" id="ch-mode"><option>Signed form</option><option>Video recorded</option><option>Online with e-Sign</option></select></div>` : '<div class="fld"></div>'}<div id="ch-noms" class="full">${nomEditor(UI.chNoms || [])}</div>` : ''}
+    ${kind === 'Nomination' ? `<div class="fld"><label for="ch-nominee">Nomination</label><select class="in" id="ch-nominee"><option>Opted in</option><option>Opted out</option></select></div>${staff ? `<div class="fld"><label for="ch-mode">Declared by</label><select class="in" id="ch-mode"><option>Signed form</option><option>Online with e-Sign</option></select></div>` : '<div class="fld"></div>'}<div id="ch-noms" class="full">${nomEditor(UI.chNoms || [])}</div>` : ''}
     ${proof ? `<div class="fld full"><label for="ch-doc">${proof} (${kind === 'Bank account' ? 'cancelled cheque or bank statement' : 'Aadhaar, passport, utility bill'}) · PDF, JPEG or PNG</label><input class="in" type="file" id="ch-doc" accept="application/pdf,image/jpeg,image/png" required></div>` : ''}</div>
     <div id="ch-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Submit request</button></div></form>`);
   nomBind(); if ($('ch-nominee')) $('ch-nominee').onchange = e => { $('ch-noms').hidden = e.target.value !== 'Opted in'; };
