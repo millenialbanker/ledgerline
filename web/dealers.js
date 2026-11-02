@@ -6,7 +6,7 @@
    certificate had run out), the inspection list and BSE's dealer upload
    files. Loaded after app.js. */
 
-Object.assign(UI, { dlTab: 'dealers', dlSt: 'Active', dlQ: '', dlFrom: '', dlTo: '' });
+Object.assign(UI, { dlTab: 'dealers', dlSt: 'Active', dlQ: '', dlFrom: '', dlTo: '', otrOnly: 'over', otrQ: '', otrFrom: '', otrTo: '' });
 const dlCan = () => has('Ops maker', 'Compliance officer');
 const dlLeaveCan = () => has('Compliance officer');
 const dlNISMPill = r => pill(r.nism_state === 'Valid' ? 'Valid' : r.nism_state === 'Missing' ? 'No NISM' : r.nism_state === 'Expired' ? 'Expired' : `${r.nism_days} days left`,
@@ -27,6 +27,10 @@ V.dealers = {
       UI.dlFrom ||= dlMonthStart(); UI.dlTo ||= S.date;
       try { v.report = await get(`/v1/dealers/report?from=${UI.dlFrom}&to=${UI.dlTo}`); } catch (e) { v.reportErr = e; }
     }
+    if (UI.dlTab === 'otr') {
+      UI.otrFrom ||= dlMonthStart(); UI.otrTo ||= S.date;
+      try { v.otr = await get(`/v1/otr?from=${UI.otrFrom}&to=${UI.otrTo}`); } catch (e) { v.otrErr = e; }
+    }
     if (UI.dlTab === 'files' && v.can_edit) {
       v.files = await Promise.all(DL_FILES.map(([k]) => get(`/v1/dealers/files/${k}?check=1`).catch(e => ({ kind: k, error: e.message, problems: [] }))));
     }
@@ -40,8 +44,8 @@ V.dealers = {
       `<div class="kpis">${kpi('Active dealers', nf(c.active), c.left ? c.left + ' left' : '')}${kpi('Open terminals', nf(c.terminals), c.left_with_terminals ? `<span class="neg">${c.left_with_terminals} dealer(s) who left still have terminals</span>` : '')}
         ${kpi('NISM expiring', nf(c.expiring_60), 'within 60 days', c.expiring_60 ? 'warn' : '')}${kpi('NISM expired', nf(c.expired), c.nism_missing ? c.nism_missing + ' with no certificate' : 'block their terminals', c.expired ? 'bad' : '')}
         ${kpi('Trades with no dealer', nf(c.unattributed_trades), fmtDate(d.date), c.unattributed_trades ? 'warn' : '')}</div>` +
-      `<div class="panel"><div class="hd"><div class="seg">${[['dealers', 'Dealers'], ['expiring', `Expiring · ${d.expiring.length}`], ['report', 'Report'], ['files', 'Exchange files']].map(([k, l]) => `<button class="${UI.dlTab === k ? 'on' : ''}" data-act="dlTab" data-id="${k}">${l}</button>`).join('')}</div></div></div>` +
-      ({ dealers: dlList, expiring: dlExpiring, report: dlReport, files: dlFiles }[UI.dlTab] || dlList)(d);
+      `<div class="panel"><div class="hd"><div class="seg">${[['dealers', 'Dealers'], ['expiring', `Expiring · ${d.expiring.length}`], ['report', 'Report'], ['otr', 'Order-to-trade'], ['files', 'Exchange files']].map(([k, l]) => `<button class="${UI.dlTab === k ? 'on' : ''}" data-act="dlTab" data-id="${k}">${l}</button>`).join('')}</div></div></div>` +
+      ({ dealers: dlList, expiring: dlExpiring, report: dlReport, otr: dlOTR, files: dlFiles }[UI.dlTab] || dlList)(d);
   }
 };
 
@@ -51,6 +55,29 @@ function dlRow(r, d) {
     <td>${dlTerms(r)}</td><td class="mono small">${esc(r.nism.cert_no || '—')}<div>${r.nism.valid_till ? 'till ' + fmtDate(r.nism.valid_till) : ''}</div></td><td>${dlNISMPill(r)}</td>
     <td>${dlStPill(r.status)}${r.left_on ? `<div class="dim small">${fmtDate(r.left_on)}${r.open_terminals ? ` · <span class="neg">${r.open_terminals} open</span>` : ''}</div>` : ''}</td><td class="nowrap">${acts}</td></tr>`;
 }
+
+// Order-to-trade ratios from the exchanges' order logs (otr.go): the firm,
+// each client and each terminal, with the penalty slab.
+function dlOTR(d) {
+  if (d.otrErr) return `<div class="panel"><div class="bd">${errHTML(d.otrErr)}</div></div>`;
+  const v = d.otr, st = v.settings, can = has('Compliance officer');
+  const head = `<div class="pad" style="padding-bottom:0"><div class="tools"><label class="dim small" for="otr-from">Days from</label><input class="in sm" type="date" id="otr-from" value="${esc(UI.otrFrom)}"><span class="dim">to</span><input class="in sm" type="date" id="otr-to" value="${esc(UI.otrTo)}"><button class="btn sm" data-act="otrPeriod">Show</button>
+    ${segBtns('otrOnly', [['over', 'Over the alert level'], ['all', 'All']], 'otr-t')}<input class="in" data-ui="otrQ" data-part="otr-t" placeholder="Filter by client, terminal or dealer" value="${esc(UI.otrQ || '')}"></div></div>`;
+  const rules = `<div class="panel"><div class="hd"><h3>Rules</h3><small>${st.off ? pill('Alerts off', 'warn') : pill(`Work item from ${st.alert_from}:1`, 'good')} · ${st.count === 'algo' ? 'algo terminals only' : 'every order'} · cooling-off at ${st.cool_off_at}:1</small><div class="tools">${can ? '<button class="btn sm" data-act="otrSet">Change</button>' : ''}</div></div>
+    <div class="bd"><div class="small">${tbl([['Daily ratio'], ['Charge per algo order', 'r']], st.slabs.map((x, i) => `<tr><td>${x.from}${st.slabs[i + 1] ? ' to below ' + st.slabs[i + 1].from : ' or more'}</td><td class="r">${x.paise} paise</td></tr>`))}</div>
+    <p class="dim small">${esc(v.basis)} Slabs: SEBI/HO/MRD/DP/CIR/P/2018/62, BSE notice 20180622-41, SEBI/HO/MRD1/DSAP/CIR/P/2020/107, NSE/SURV/45016; bands: SEBI circular of 4 Feb 2026 (HO/47/11/16(2)2025-MRD-POD2/I/4113/2026), BSE notice 20260406-8.</p></div></div>`;
+  return `<div class="panel">${head}<div id="otr-t">${P['otr-t'](d)}</div></div>` + rules;
+}
+P['otr-t'] = d => {
+  const v = d.otr; if (!v) return '';
+  const q = (UI.otrQ || '').trim().toLowerCase(), only = (UI.otrOnly || 'over') === 'over';
+  const rows = [];
+  for (const day of v.days) for (const l of day.lines) if ((!only || l.over) && (!q || [l.key, l.name].join(' ').toLowerCase().includes(q))) rows.push({ day, l });
+  return tbl([['Day'], ['Exchange'], ['For'], ['Client, terminal or firm'], ['Orders', 'r'], ['Trades', 'r'], ['Ratio', 'r'], ['Slab']], rows.slice(0, 1000).map(({ day, l }) => `<tr><td class="n">${fmtDate(day.date)}</td><td>${esc(day.exchange)}</td><td>${esc(l.by)}</td>
+    <td>${l.by === 'Client' ? `<button class="linkish mono" data-act="client" data-id="${esc(l.key)}">${esc(l.key)}</button>` : `<span class="mono">${esc(l.key)}</span>`}${l.name ? `<div class="dim small">${esc(l.name)}</div>` : ''}</td>
+    <td class="r">${nf(l.orders)}</td><td class="r">${nf(l.trades)}</td><td class="r ${l.over ? 'neg' : ''}"><b>${nf(l.ratio, 2)}</b></td><td>${pill(l.slab, l.cool_off ? 'bad' : l.paise ? 'warn' : 'good')}${l.paise ? ` <span class="dim small">${l.paise} paise</span>` : ''}${l.cool_off ? '<div class="small neg">cooling-off next day</div>' : ''}</td></tr>`),
+    { tall: true, empty: only ? 'No day over the alert level in this period. Order logs are loaded on Exchange files (BSE order log, BO).' : 'No order logs loaded in this period.' });
+};
 
 function dlList(d) {
   return `<div class="panel"><div class="hd"><div class="tools">${segBtns('dlSt', [['Active', 'Active'], ['Left', 'Left'], ['', 'All']], 'dl-t')}</div><input class="in" data-ui="dlQ" data-part="dl-t" placeholder="Filter by name, ID, terminal, branch or AP" value="${esc(UI.dlQ)}"></div><div id="dl-t">${P['dl-t'](d)}</div></div>`;
@@ -143,6 +170,21 @@ function dlCollect() {
 
 Object.assign(A, {
   dlTab: id => { UI.dlTab = id; render({ keep: true }); },
+  otrPeriod: () => { UI.otrFrom = $('otr-from').value; UI.otrTo = $('otr-to').value; render({ keep: true }); },
+  otrSet: () => {
+    const st = C.dealers.otr.settings;
+    modal(mhd('Order-to-trade ratio alerts', 'Defaults are the exchanges’ slabs') + `<div class="bd"><div class="form">
+      <label class="check full"><input type="checkbox" id="otr-on" ${st.off ? '' : 'checked'}> Raise a work item for compliance when a ratio reaches the alert level</label>
+      <div class="fld"><label for="otr-af">Alert level (ratio)</label><input class="in" id="otr-af" type="number" min="1" value="${st.alert_from}"></div>
+      <div class="fld"><label for="otr-co">Cooling-off from (ratio)</label><input class="in" id="otr-co" type="number" min="1" value="${st.cool_off_at}"></div>
+      <div class="fld"><label for="otr-ct">Count</label><select class="in" id="otr-ct"><option value="all" ${st.count !== 'algo' ? 'selected' : ''}>Every order</option><option value="algo" ${st.count === 'algo' ? 'selected' : ''}>Only terminals marked algo in the dealers register</option></select></div>
+      <div class="fld full"><label for="otr-sl">Slabs: ratio from = paise per algo order, separated by commas</label><input class="in mono" id="otr-sl" value="${esc(st.slabs.map(x => x.from + '=' + x.paise).join(', '))}"></div>
+    </div></div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="otrSave">Save</button></div>`);
+  },
+  otrSave: () => {
+    const slabs = $('otr-sl').value.split(',').map(x => x.trim()).filter(Boolean).map(x => { const [f, p] = x.split('='); return { from: parseInt(f, 10) || 0, paise: parseInt(p, 10) || 0 }; });
+    act(() => api('PUT', '/v1/otr/settings', { off: !$('otr-on').checked, alert_from: parseInt($('otr-af').value, 10) || 0, cool_off_at: parseInt($('otr-co').value, 10) || 0, count: $('otr-ct').value, slabs }), 'OTR rules saved');
+  },
   dlPeriod: () => { UI.dlFrom = $('dl-from').value; UI.dlTo = $('dl-to').value; render({ keep: true }); },
   dlNew: () => dlOpen({ relationship: 'Employee', office: {}, residence: {}, nism: { series: 'VIII' }, terminals: [] }),
   dlEdit: async id => { try { dlOpen(await get(`/v1/dealers/${encodeURIComponent(id)}`)); } catch (e) { toast(e.message, true); } },
