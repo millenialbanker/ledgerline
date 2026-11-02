@@ -52,10 +52,29 @@ func TestFuturesAndOptions(t *testing.T) {
 	if f.Brokerage != amt("20.00") || f.ExchTxn != amt("29.02") || f.SEBIFee != amt("1.68") || f.Stamp != amt("33.55") || f.GST != amt("9.13") || f.Total != amt("93.38") {
 		t.Fatalf("futures %+v", f)
 	}
-	// Option sell: STT on premium, no stamp on sell side.
+	// Option sell: STT 0.15% on premium from 1 Apr 2026 (NSE/FATAX/73524),
+	// no stamp on sell side. Premium 14,625 × 0.15% = 21.9375 → 21.94.
 	o, _ := s.Compute(Leg{Bucket: FOOpt, Exchange: "NSE", Side: "S", Qty: 130, Price: money.MustDec("112.50"), Date: "2026-10-16"})
-	if o.STT != amt("14.63") || o.Stamp != 0 || o.Brokerage != amt("20.00") {
+	if o.STT != amt("21.94") || o.Stamp != 0 || o.Brokerage != amt("20.00") {
 		t.Fatalf("option sell %+v", o)
+	}
+	// Futures sell: 0.05% from 1 Apr 2026. 16,77,650 × 0.05% = 838.825 → 838.83.
+	fs, _ := s.Compute(Leg{Bucket: FOFut, Exchange: "NSE", Side: "S", Qty: 65, Price: money.MustDec("25810"), Date: "2026-10-16"})
+	if fs.STT != amt("838.83") || f.STT != 0 {
+		t.Fatalf("futures STT sell %s buy %s", fs.STT, f.STT)
+	}
+	// Trades up to 31 Mar 2026 keep the earlier rates: futures 0.02%
+	// (335.53) and option premium 0.1% (14.625 → 14.63).
+	fOld, err := s.Compute(Leg{Bucket: FOFut, Exchange: "NSE", Side: "S", Qty: 65, Price: money.MustDec("25810"), Date: "2026-03-31"})
+	if err != nil || fOld.STT != amt("335.53") || !strings.HasSuffix(fOld.Rule, "/2024-10-01") {
+		t.Fatalf("futures before 1 Apr 2026: %+v %v", fOld, err)
+	}
+	oOld, _ := s.Compute(Leg{Bucket: FOOpt, Exchange: "NSE", Side: "S", Qty: 130, Price: money.MustDec("112.50"), Date: "2026-03-31"})
+	if oOld.STT != amt("14.63") {
+		t.Fatalf("option before 1 Apr 2026: %+v", oOld)
+	}
+	if fNew, _ := s.Compute(Leg{Bucket: FOFut, Exchange: "NSE", Side: "S", Qty: 65, Price: money.MustDec("25810"), Date: "2026-04-01"}); fNew.STT != amt("838.83") {
+		t.Fatalf("futures on 1 Apr 2026: %+v", fNew)
 	}
 	// Intraday small order: percent brokerage below the flat cap.
 	i, _ := s.Compute(Leg{Bucket: CMIntraday, Exchange: "NSE", Side: "S", Qty: 10, Price: money.MustDec("400"), Date: "2026-10-16"})
