@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"time"
 
 	"ledgerline/internal/docs"
 )
@@ -257,15 +256,19 @@ func (o *Ops) noteDailyFile(ctx context.Context, tenant, actor, format, name, da
 		date = o.now().In(ist).Format("2006-01-02")
 	}
 	_ = docs.Upsert(ctx, o.Docs, tenant, cDailyRecv, date+"|"+format+"|"+name, DailyFileRecv{Date: date, Format: format, Name: name, At: o.now().In(ist).Format("2006-01-02 15:04"), By: actor}, actor)
+	o.closeMissingWork(ctx, tenant, actor, format, name, date) // filealerts.go
 }
 
 // ChecklistItem is one expected file on the checklist.
 type ChecklistItem struct {
 	DailyFile
+	Date   string   `json:"date"`   // the trading date it is for
 	For    []string `json:"for"`    // exchange segments it serves
 	Due    string   `json:"due"`    // YYYY-MM-DD HH:MM
 	Status string   `json:"status"` // Received, Due, Missing, Intraday, Check by hand
 	Files  []string `json:"files,omitempty"`
+	// AlertedAt is when the file was chased as missing (filealerts.go).
+	AlertedAt string `json:"alerted_at,omitempty"`
 }
 
 // FileChecklist is a day's expected files.
@@ -306,6 +309,7 @@ func (o *Ops) DailyFileChecklist(ctx context.Context, tenant, date string) (File
 		out.Clearing = append(out.Clearing, row)
 	}
 	recv, _ := docs.List[DailyFileRecv](ctx, o.Docs, tenant, cDailyRecv, date+"|")
+	alerted := alertTimes(recv)
 	now := o.now().In(ist).Format("2006-01-02 15:04")
 	for _, f := range DailyFiles {
 		var serves []string
@@ -320,7 +324,7 @@ func (o *Ops) DailyFileChecklist(ctx context.Context, tenant, date string) (File
 		if len(serves) == 0 {
 			continue
 		}
-		it := ChecklistItem{DailyFile: f, For: serves}
+		it := ChecklistItem{DailyFile: f, Date: date, For: serves, AlertedAt: alerted[f.ID]}
 		day := date
 		if f.NextDay {
 			day = set.NextBusinessDay(date)
@@ -358,25 +362,22 @@ func (o *Ops) DailyFileChecklist(ctx context.Context, tenant, date string) (File
 }
 
 // MissingDailyFiles lists the expected files past their time and not
-// received, and records an xfile.missing alert in the audit trail for each,
-// once a day.
+// received, and chases each (an xfile.missing entry in the audit trail and
+// a work item), once a day; with no grace period, unlike the scheduled
+// alerts (RunFileAlerts), and with no email.
 func (o *Ops) MissingDailyFiles(ctx context.Context, tenant, actor, date string) ([]ChecklistItem, error) {
+	if _, err := o.chaseMissing(ctx, tenant, actor, date, o.now().In(ist).Format("2006-01-02 15:04")); err != nil {
+		return nil, err
+	}
 	cl, err := o.DailyFileChecklist(ctx, tenant, date)
 	if err != nil {
 		return nil, err
 	}
 	var out []ChecklistItem
 	for _, it := range cl.Items {
-		if it.Status != "Missing" {
-			continue
+		if it.Status == "Missing" {
+			out = append(out, it)
 		}
-		out = append(out, it)
-		id := date + "|alert|" + it.ID
-		if _, _, err := docs.Get[DailyFileRecv](ctx, o.Docs, tenant, cDailyRecv, id); err == nil {
-			continue
-		}
-		_ = docs.Upsert(ctx, o.Docs, tenant, cDailyRecv, id, DailyFileRecv{Date: date, Format: "alert", Name: it.ID, At: o.now().In(ist).Format(time.DateTime), By: actor}, actor)
-		o.log(ctx, tenant, actor, "xfile.missing", it.ID, map[string]any{"date": date, "title": it.Title, "party": it.Party, "due": it.Due, "for": strings.Join(it.For, ", ")})
 	}
 	return out, nil
 }

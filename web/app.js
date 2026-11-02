@@ -2948,7 +2948,7 @@ Object.assign(A, {
   perRun: (id, el) => act(() => post(`/v1/periodic/${id}/run`, { period: el.dataset.p, date: S.date }), r => `${r.status}: ${r.summary}`),
 });
 V.xfiles = {
-  load: async () => { const [fs, cl] = await Promise.all([get('/v1/exchange-files/formats'), get(`/v1/exchange-files-checklist?date=${S.date}`).catch(() => null)]); fs.checklist = cl; return fs; },
+  load: async () => { const [fs, cl, al] = await Promise.all([get('/v1/exchange-files/formats'), get(`/v1/exchange-files-checklist?date=${S.date}`).catch(() => null), get('/v1/exchange-files-alerts').catch(() => null)]); fs.checklist = cl; if (cl) cl.alerts = al; return fs; },
   html: fs => {
     const inn = fs.filter(f => f.direction === 'in'), out = fs.filter(f => f.direction === 'out'), mk = has('Ops maker', 'Ops checker', 'Risk manager', 'Compliance officer');
     const res = UI.xfRes ? `<div class="panel"><div class="hd"><h3>Last upload</h3></div>${tbl([['File'], ['Recognised as'], ['Rows', 'r'], ['Check'], ['Result']], UI.xfRes.map(r => `<tr><td class="mono small wrap">${esc(r.name)}</td><td>${r.format ? `<b>${esc(r.title)}</b><div class="dim small mono">${esc(r.format)}</div>` : '<span class="dim">Not recognised</span>'}</td><td class="r">${r.rows || '—'}</td><td>${!r.format ? '' : r.problems ? pill(r.problems + ' problem' + (r.problems > 1 ? 's' : ''), 'bad') + `<div class="small wrap">${r.issues.slice(0, 5).map(i => `line ${i.line}${i.column ? ' · ' + esc(i.column) : ''}: ${esc(i.message)}`).join('<br>')}</div>` : pill('Matches the layout', 'good')}</td><td class="small wrap">${esc(r.loaded || '')}${r.added ? ` · ${r.added} added` : ''}${r.skipped ? ` · ${r.skipped} skipped` : ''}${r.note ? `<div class="dim">${esc(r.note)}</div>` : ''}</td></tr>`))}</div>` : '';
@@ -2964,13 +2964,28 @@ V.xfiles = {
   }
 };
 // The day's expected files, filtered by the clearing corporations chosen in Settings.
+// Files still missing 30 minutes (the grace period) after their time are
+// chased by the scheduler: a work item each and one email (filealerts.go).
 function xfChecklist(cl) {
   if (!cl) return '';
   const tone = { Received: 'good', Written: 'good', Due: 'acc', Missing: 'bad', Intraday: 'nt', 'Check by hand': 'warn' };
-  return `<div class="panel"><div class="hd"><h3>Daily file checklist · ${fmtDate(cl.date)}</h3><small>${cl.missing ? pill(cl.missing + ' missing', 'bad') : pill('Nothing missing', 'good')} · ${esc(cl.clearing.map(c => c.key + ' ' + c.through).join(' · '))}</small></div>${cl.notes.length ? `<div class="bd" style="padding-bottom:0">${cl.notes.map(n => `<div class="note">${esc(n)}</div>`).join('')}</div>` : ''}
-    ${tbl([['File'], ['From / to'], ['For'], ['Due'], ['Status']], cl.items.map(i => `<tr><td><b>${esc(i.title)}</b>${(i.files || []).length ? `<div class="dim small mono wrap">${esc(i.files.join(', '))}</div>` : ''}</td><td>${esc(i.party)} ${i.direction === 'out' ? '(sent)' : ''}</td><td class="small">${esc(i.for.join(', '))}</td><td class="n small">${esc(i.due)}</td><td>${pill(i.status, tone[i.status] || 'nt')}</td></tr>`), { tall: true })}</div>`;
+  const al = cl.alerts, can = has('Compliance officer', 'Risk manager'), chase = has('Ops maker', 'Ops checker', 'Risk manager', 'Compliance officer');
+  const alertLine = al ? `<div class="bd" style="padding-bottom:0"><div class="tools">${al.off ? pill('Missing-file alerts off', 'warn') : pill(`Chased ${al.grace_minutes} min after the due time`, 'good')}<span class="dim small">${al.off ? 'Nothing is chased or emailed.' : `Business days only · a work item per file · one email a run to ${esc((al.to || []).length ? al.to.join(', ') : 'the management emails')}`}</span>${chase ? '<button class="btn sm" data-act="xfChase">Check now</button>' : ''}${can ? '<button class="btn sm" data-act="xfAlertSet">Alert settings</button>' : ''}</div></div>` : '';
+  return `<div class="panel"><div class="hd"><h3>Daily file checklist · ${fmtDate(cl.date)}</h3><small>${cl.missing ? pill(cl.missing + ' missing', 'bad') : pill('Nothing missing', 'good')} · ${esc(cl.clearing.map(c => c.key + ' ' + c.through).join(' · '))}</small></div>${alertLine}${cl.notes.length ? `<div class="bd" style="padding-bottom:0">${cl.notes.map(n => `<div class="note">${esc(n)}</div>`).join('')}</div>` : ''}
+    ${tbl([['File'], ['From / to'], ['For'], ['Due'], ['Status'], ['Alerted at']], cl.items.map(i => `<tr><td><b>${esc(i.title)}</b>${(i.files || []).length ? `<div class="dim small mono wrap">${esc(i.files.join(', '))}</div>` : ''}${i.status === 'Check by hand' && i.hand_note ? `<div class="dim small wrap">${esc(i.hand_note)}</div>` : ''}</td><td>${esc(i.party)} ${i.direction === 'out' ? '(sent)' : ''}</td><td class="small">${esc(i.for.join(', '))}</td><td class="n small">${esc(i.due)}</td><td>${pill(i.status, tone[i.status] || 'nt')}</td><td class="n small">${i.alerted_at ? esc(i.alerted_at) + ((i.files || []).length ? '<div class="dim">since received</div>' : '') : '<span class="dim">—</span>'}</td></tr>`), { tall: true })}</div>`;
 }
 Object.assign(A, {
+  xfChase: () => act(() => post('/v1/exchange-files-alerts/run'), r => r.skipped ? 'Not checked: ' + r.skipped : r.alerted.length ? `${r.alerted.length} file(s) newly missing: work items raised and emailed` : 'Nothing newly missing'),
+  xfAlertSet: async () => {
+    let a; try { a = await get('/v1/exchange-files-alerts'); } catch (e) { toast(e.message, true); return; }
+    modal(mhd('Missing-file alerts', 'On business days, after each file’s usual time plus the grace period') + `<div class="bd"><div class="form">
+      <label class="check full"><input type="checkbox" id="xfa-on" ${a.off ? '' : 'checked'}> Chase missing files (work items and email)</label>
+      <div class="fld"><label for="xfa-g">Grace period (minutes)</label><input class="in" id="xfa-g" type="number" min="1" max="600" value="${a.grace_minutes || 30}"></div>
+      <div class="fld full"><label for="xfa-to">Email to (addresses, or management / compliance; empty = the management emails)</label><input class="in" id="xfa-to" value="${esc((a.to || []).join(', '))}"></div>
+      <p class="dim small full" style="margin:0">Each missing file gets one work item a day for the role that handles it (Ops maker for exchange files, Risk manager for clearing-corporation files, Compliance officer for surveillance files). It closes itself when the file is loaded. Files of clearing corporations not chosen under Settings → Cleared through are never chased.</p>
+    </div></div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="xfAlertSave">Save</button></div>`);
+  },
+  xfAlertSave: () => act(() => api('PUT', '/v1/exchange-files-alerts', { off: !$('xfa-on').checked, grace_minutes: parseInt($('xfa-g').value, 10) || 30, to: $('xfa-to').value.split(',').map(x => x.trim()).filter(Boolean) }), 'Alert settings saved'),
   xfPick: (id, el) => {
     const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; const load = el.dataset.load === '1';
     inp.onchange = async () => {
