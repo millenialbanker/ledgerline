@@ -60,3 +60,17 @@ Each quarter, within 15 calendar days of its end, the firm reports the status of
 - **Format III**: any major surveillance action other than referring alerts.
 
 On [[surv|Surveillance & AML]], **Referred to exchange** records the date and observation for Format II; **Add an action** records a Format III entry. An alert counts as closed in the quarter Ledgerline first sees it Closed (or STR filed). [[reports|Regulatory reports]] → *Surveillance obligation report* downloads the three formats for the quarter ended before the chosen date, with **NIL** where there is nothing to report; the compliance calendar has the quarterly duty.
+
+## upi-collection
+title: Collect client money by UPI: validated UPI IDs and the SEBI QR
+screen: settings
+roles: Compliance officer, Admin
+ask: upi id; validated upi; brk@valid; @valid upi handle; sebi check; upi qr code; add funds by upi; old upi id; collect money by upi
+related: live-bank-credits, unknown-credit
+
+SEBI's circular SEBI/HO/DEPA-II/DEPA-II_SRG/P/CIR/2025/86 (11 June 2025) lets a stock broker collect investors' money by UPI only through a standardised, validated UPI ID: a readable username, **.brk**, and an **@valid** handle with the bank's name, for example *abc.brk@validhdfc*, available from 1 October 2025. The QR code comes from SEBI's SI portal and is shown on the website, the client portal and payment pages. NSE asks every account given to investors for payment to be linked to an @valid ID so it can be checked in SEBI Check (NSE/COMP/75700).
+
+1. Get the validated UPI ID from your bank and the QR code from the SI portal.
+2. In [[settings|Settings]] → *UPI collection* → **Change**, enter each ID (with the bank and the client bank account it credits) and upload the QR image (PNG or JPEG). Only IDs of the form *name.brk@valid<bank>* are accepted.
+3. The client portal's **Add funds** panel then shows the QR and the UPI ID first, with the bank account for NEFT, RTGS or IMPS as the alternative. Ledgerline does not start payments.
+4. Statement credits say which UPI ID they were paid to when the bank gives it (the optional *PayeeVPA* column of the bank statement file, or *UPI ID paid to* on a live bank connection). A credit to the firm's validated ID is its own collection and is matched as usual (it must still come from the client's registered account); a credit to any other UPI ID opens a work item to stop the old ID.

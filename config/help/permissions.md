@@ -58,6 +58,7 @@ Changing the MTF policy | Risk manager, Admin
 Changing the account type | Ops checker
 Changing the chart of accounts | Ops checker
 Changing the compliance calendar | Compliance officer
+Changing the firm's UPI collection IDs | Compliance officer
 Changing vendors | Ops maker, Ops checker
 Chasing missing daily files | Ops maker, Ops checker, Risk manager, Compliance officer
 Checking CDSL demat account counts | Ops maker, Ops checker, Compliance officer

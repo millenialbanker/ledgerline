@@ -47,6 +47,26 @@ func (s *Server) bseHoldingUploaded(w http.ResponseWriter, r *http.Request) {
 	ok(w, v, err)
 }
 
+// upiCollectRoutes: the firm's validated UPI IDs and SEBI QR code, shown in
+// the client portal. Registered from exchangeReportingRoutes.
+func (s *Server) upiCollectRoutes(R func(string, http.HandlerFunc, bool)) {
+	R("GET /v1/settings/upi-collect", s.upiCollect, false)
+	R("PUT /v1/settings/upi-collect", s.saveUPICollect, true)
+}
+
+func (s *Server) upiCollect(w http.ResponseWriter, r *http.Request) {
+	ok(w, s.ops.UPICollectConfig(r.Context(), tenant(r)), nil)
+}
+
+func (s *Server) saveUPICollect(w http.ResponseWriter, r *http.Request) {
+	var b ops.UPICollect
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveUPICollect(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
 // surveillanceReturnRoutes: the quarterly surveillance obligation report
 // (Formats I to III), referring an alert to the exchange and the major
 // surveillance actions of a quarter. Registered from exchangeReportingRoutes.
