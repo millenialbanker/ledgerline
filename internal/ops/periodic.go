@@ -42,7 +42,6 @@ type PeriodicTask struct {
 var PeriodicTasks = []PeriodicTask{
 	{"funds_securities", "Weekly statement of funds and securities", "Clients", "Weekly", "Emails every client with a balance, a movement or securities with the broker a signed statement of the week's funds and securities.", "Saturday, for the week to Friday", "Exchange and SEBI rules on statements of accounts to clients", true, "dispatch", ""},
 	{"cuspa_review", "Unpaid securities (CUSPA): release or sell", "Settlement", "Weekly", "Releases unpaid purchases held in the client unpaid securities pledgee account to clients who have since paid, and queues for sale those still unpaid after the allowed days.", "Monday", "SEBI rules on unpaid securities (CUSPA)", true, "settle", ""},
-	{"es_return", "Client funds monitoring return (enhanced supervision)", "Compliance", "Weekly", "Builds the weekly statement of client money held and where (client bank balances, collateral with clearing corporations, client credit and debit balances, own collateral, bank guarantees, margin used by credit-balance clients) with the client-wise workbook, for upload to the exchanges.", "Tuesday, for the week to Friday", "SEBI and exchange circulars on enhanced supervision of stock brokers", true, "periodic", ""},
 	{"dis_master", "DIS master upload to CDSL", "Depository", "Weekly", "Builds CDSL's transaction upload (DIS issue) for the delivery instruction slip books issued in the week, for upload on CDSL's system.", "Monday, for the week to Friday", "CDSL operating instructions on DIS issuance", true, "dp", "cdsl-txn-upload"},
 	{"cuspa_mtf_payout", "CUSPA and MTF pay-out reporting", "Settlement", "Settlement day", "Reports to NSE Clearing the settlement's purchases that are not paid out to clients' demat accounts: unpaid purchases kept in CUSPA and MTF purchases kept for the pledge.", "Settlement day, before pay-out", "SEBI and NSE Clearing rules on pay-out of securities to clients", true, "settle", "ncl-cuspa-mtf-payout"},
 	{"settlement_master", "Settlement calendar for the coming month", "Settlement", "Monthly", "Checks that NSE Clearing's settlement master for the coming month is loaded: settlement numbers and pay-in and pay-out dates used by the pay-out reporting and the settlement screen.", "Before the month starts", "", true, "xfiles", "ncl-settlement-master"},
@@ -53,6 +52,44 @@ var PeriodicTasks = []PeriodicTask{
 	{"complaints_disclosure", "Investor complaints disclosure", "Compliance", "Monthly", "Builds the month's complaints data (received, resolved, pending, average days) for the website disclosure.", "By the 7th", "SEBI circular on disclosure of investor complaints", true, "helpdesk", ""},
 	{"ras", "Running account settlement", "Money", "Monthly / quarterly", "Settles running accounts on the settlement date (monthly or quarterly as each client chose), pays out the funds and sends each client the settlement statement.", "On the settlement date set in Settings", "SEBI rules on running account settlement", true, "ras", ""},
 	{"bsda_review", "BSDA review", "Depository", "Quarterly", "Checks every demat account against the BSDA rules: eligible regular accounts become BSDA unless the client opted out; BSDAs above the limit become regular. A checker applies it; the depository modification file is kept and clients are told.", "By the 10th after the quarter", "SEBI circular on Basic Services Demat Accounts", false, "dp", ""},
+}
+
+// RetiredPeriodicTasks were periodic tasks that no rule requires any more,
+// like RetiredJobKinds for scheduled jobs: they are not listed, never run
+// and their open work items are cleared. Their past runs and files are
+// kept for inspection.
+var RetiredPeriodicTasks = map[string]string{
+	// The weekly enhanced-supervision return of client funds (12
+	// particulars, NSE/INSP/37395) was discontinued by NSE/INSP/60283 of
+	// 16 Jan 2024 (SEBI/HO/MIRSD/MIRSD-PoD-1/P/CIR/2024/03), and the
+	// client-level cash balance reporting by NSE/INSP/61121 from 18 Mar
+	// 2024. The exchanges now monitor client funds from the banks' and
+	// clearing corporations' data and the client-level collateral reports
+	// (Segregation and monitoring), which Ledgerline still files.
+	"es_return": "Discontinued: client funds monitoring return (NSE/INSP/60283, NSE/INSP/61121)",
+}
+
+// retiredWorkKeys are the key prefixes of the work items a retired task
+// raised (process "periodic").
+var retiredWorkKeys = map[string]string{"es_return": "periodic:es:"}
+
+// clearRetiredWork closes the open work items of retired tasks.
+func (o *Ops) clearRetiredWork(ctx context.Context, tenant string) int {
+	ws, _ := docs.List[WorkItem](ctx, o.Docs, tenant, cWorkItem, "")
+	n := 0
+	for _, w := range ws {
+		if w.Process != "periodic" || w.Status != "Open" {
+			continue
+		}
+		for id, prefix := range retiredWorkKeys {
+			if strings.HasPrefix(w.Key, prefix) {
+				w.Status, w.Closed, w.ClosedBy, w.Note = "Cleared", o.now().Format(time.RFC3339), SystemActor, "no longer required: "+RetiredPeriodicTasks[id]
+				_ = docs.Upsert(ctx, o.Docs, tenant, cWorkItem, w.ID, w, SystemActor)
+				n++
+			}
+		}
+	}
+	return n
 }
 
 // PeriodicRun is one run of a task for a period.
@@ -115,9 +152,6 @@ func (o *Ops) periodFor(ctx context.Context, tenant string, t PeriodicTask, date
 	case "month_end", "ccil_prices":
 		m := prevMonth(date)
 		return m, monthLabel(m), addMonths(m+"-01", 1)[:8] + "05"
-	case "es_return":
-		fri := lastFriday(date)
-		return fri, "Week to " + fmtDay(fri), addDays(fri, 4)
 	case "cuspa_mtf_payout":
 		set, _ := o.Settings(ctx, tenant)
 		td := set.PrevBusinessDay(date)
@@ -254,6 +288,9 @@ func (o *Ops) periodicDone(ctx context.Context, tenant string, t PeriodicTask, p
 
 // RunPeriodic runs a task for a period ("" = the current one).
 func (o *Ops) RunPeriodic(ctx context.Context, tenant, actor, id, period, date string) (PeriodicRun, error) {
+	if why, gone := RetiredPeriodicTasks[id]; gone {
+		return PeriodicRun{}, fmt.Errorf("%w: periodic task %q is retired (%s)", ErrState, id, why)
+	}
 	t, ok := periodicTask(id)
 	if !ok {
 		return PeriodicRun{}, fmt.Errorf("%w: periodic task %q", ErrNotFound, id)
@@ -387,8 +424,6 @@ func (o *Ops) runPeriodic(ctx context.Context, tenant, actor string, t PeriodicT
 		return s, nil, err
 	case "cuspa_review":
 		return o.cuspaReview(ctx, tenant, actor, date)
-	case "es_return":
-		return o.runESReturn(ctx, tenant, period)
 	case "settlement_master":
 		msg := fmt.Sprintf("NSE Clearing's settlement master for %s is not loaded: download it from the member portal and load it on Exchange files", monthLabel(period))
 		o.raiseWork(ctx, tenant, "periodic", "settmaster:"+period, "Load the settlement master for "+monthLabel(period), msg, "", RoleMaker, "xfiles", date)
@@ -518,6 +553,7 @@ func businessDaysBetween(set Settings, from, to string) int {
 // queues the others for people. The scheduler calls it every morning.
 func (o *Ops) RunDuePeriodic(ctx context.Context, tenant, date string) (string, error) {
 	var ran, queued, failed []string
+	o.clearRetiredWork(ctx, tenant)
 	for _, t := range PeriodicTasks {
 		s := o.periodicStatus(ctx, tenant, t, date)
 		if s.Status != "Due" && s.Status != "Overdue" && s.Status != "Failed" {

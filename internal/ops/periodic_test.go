@@ -137,6 +137,31 @@ func TestPeriodicCalendar(t *testing.T) {
 	}
 }
 
+// The weekly client funds monitoring return was discontinued (NSE/INSP/60283,
+// NSE/INSP/61121): it is not listed, cannot run, and its open work clears.
+func TestRetiredPeriodicTask(t *testing.T) {
+	o, ctx := setup(t)
+	o.raiseWork(ctx, T, "periodic", "es:2026-10-09", "Upload the client funds monitoring return", "old item", "", RoleCompliance, "periodic", "2026-10-13")
+	ps, _ := o.Periodic(ctx, T, D)
+	for _, p := range ps {
+		if _, gone := RetiredPeriodicTasks[p.ID]; gone {
+			t.Fatalf("retired task listed: %s", p.ID)
+		}
+	}
+	if _, err := o.RunPeriodic(ctx, T, "priya.nair", "es_return", "", D); !errors.Is(err, ErrState) {
+		t.Fatalf("retired task ran: %v", err)
+	}
+	if _, err := o.RunDuePeriodic(ctx, T, D); err != nil {
+		t.Logf("due: %v", err)
+	}
+	ws, _ := o.WorkItems(ctx, T, "")
+	for _, w := range ws {
+		if w.Key == "periodic:es:2026-10-09" && w.Status != "Cleared" {
+			t.Fatalf("retired work still %s", w.Status)
+		}
+	}
+}
+
 func TestMonthEndApprovalQueued(t *testing.T) {
 	o, ctx := notesReady(t)
 	if _, err := o.RunPeriodic(ctx, T, SystemActor, "month_end", "", "2026-10-19"); err != nil {
