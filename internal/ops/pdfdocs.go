@@ -146,16 +146,19 @@ func (o *Ops) marginStatement(ctx context.Context, tenant, date string, r Margin
 		{"Margin available", formatINR(r.Collected), ""},
 		{"Shortfall at peak", formatINR(r.Short), firstOf(r.ShortAt, "-")},
 	}
+	rep.Notes = []string{"Margins are computed at the exchanges' snapshot times; the peak is the highest of them. Please keep enough funds or collateral to cover the peak margin of your positions."}
 	if r.Penalty.Sign() > 0 {
-		set, _ := o.Settings(ctx, tenant)
-		note := "levied by the exchange on the firm"
-		if set.PenaltyPassThrough {
-			note = "charged to your account"
+		// The penalty is charged to the client only once a pass-through for
+		// an allowed reason is approved (NSE/INSP/64315); the statement then
+		// says why and which documents support it.
+		note := "levied by the clearing corporation on the firm; not charged to you"
+		if p, ok := o.penaltyPass(ctx, tenant, date, r.UCC); ok && p.Status == "Posted" {
+			note = "charged to your account: " + p.ReasonText
+			rep.Notes = append(rep.Notes, fmt.Sprintf("The short-collection penalty of ₹%s is charged to you because: %s (%s). Supporting documents: %s; they were sent to you with our letter.", formatINR(p.Penalty), p.ReasonText, p.Ref(), p.EvidenceNames()))
 		}
 		sec.Rows = append(sec.Rows, []string{"Short-collection penalty (" + r.SlabPct.String() + "%)", formatINR(r.Penalty), note})
 	}
 	rep.Sections = []Section{sec}
-	rep.Notes = []string{"Margins are computed at the exchanges' snapshot times; the peak is the highest of them. Please keep enough funds or collateral to cover the peak margin of your positions."}
 	return rep, nil
 }
 
@@ -214,7 +217,10 @@ func (o *Ops) DPStatement(ctx context.Context, tenant, month, ucc string) (Clien
 	from := month + "-01"
 	to := addDays(addMonths(from, 1), -1)
 	rep := ClientReport{Kind: "dp", Title: "Statement of transactions and holdings (DP)", UCC: c.UCC, Name: c.Name, PAN: MaskPAN(c.PAN), From: from, To: to, Period: from + " to " + to, Generated: o.now().Format("02-Jan-2006 15:04 IST")}
-	rep.Summary = []SummaryItem{{Label: "BO ID", Value: bo.BOID, Type: ColText}, {Label: "Depository", Value: bo.Depository, Type: ColText}, {Label: "Status", Value: bo.Status, Type: ColText}}
+	// Nomination: the nominees' names or Yes/No, as the client chose
+	// (SEBI nomination circular of 29 May 2026).
+	rep.Summary = []SummaryItem{{Label: "BO ID", Value: bo.BOID, Type: ColText}, {Label: "Depository", Value: bo.Depository, Type: ColText}, {Label: "Status", Value: bo.Status, Type: ColText},
+		{Label: "Nomination", Value: c.StatementNomination(), Type: ColText}}
 	tx, _ := o.DPTransactions(ctx, tenant, c.UCC)
 	sec := Section{Title: "Transactions", Columns: []Column{{"date", "Date", ColDate}, {"isin", "ISIN", ColText}, {"symbol", "Security", ColText}, {"kind", "Transaction", ColText}, {"ref", "Reference", ColText}, {"qty", "Quantity", ColQty}}, Empty: "No transactions in this period."}
 	for _, t := range tx {

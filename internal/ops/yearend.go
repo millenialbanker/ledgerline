@@ -19,15 +19,19 @@ import (
 // ---- year-end packs ----
 //
 // After 31 March every client asks for the same papers for their tax
-// return: the securities transaction tax certificate (Form No. 10DB under
-// rule 20AB of the Income-tax Rules, one per exchange), capital gains for
-// the year, charges paid, and the closing balance and holdings. The pack
-// puts them in one document per client and financial year, available in
-// the client portal and emailed in bulk.
+// return: a statement of the securities transaction tax paid (per
+// exchange), capital gains for the year, charges paid, and the closing
+// balance and holdings. The pack puts them in one document per client and
+// financial year, available in the client portal and emailed in bulk.
+//
+// The STT part is a plain statement from the firm's records, not a
+// statutory form: Form No. 10DB and rule 20AB were omitted from the
+// Income-tax Rules in 2021 and nothing replaced them.
 
 const cYearEnd = "yearend"
 
-// STTRow is one row of Form 10DB: an exchange and transaction code.
+// STTRow is one line of the STT statement: an exchange and a kind of
+// taxable transaction.
 type STTRow struct {
 	Exchange string    `json:"exchange"`
 	Code     string    `json:"code"`
@@ -37,7 +41,8 @@ type STTRow struct {
 	Trades   int       `json:"trades"`
 }
 
-// Form 10DB transaction codes.
+// sttCodes are the kinds of taxable transaction, in the order of the STT
+// rate table. The code only orders and groups the lines.
 var sttCodes = map[string]string{
 	"01": "Purchase of equity shares or units of equity-oriented funds, settled by delivery",
 	"02": "Sale of equity shares or units of equity-oriented funds, settled by delivery",
@@ -46,7 +51,7 @@ var sttCodes = map[string]string{
 	"05": "Sale of a future in securities",
 }
 
-// sttCode is a trade's Form 10DB code ("" when STT does not apply).
+// sttCode is a trade's kind of taxable transaction ("" when STT does not apply).
 func sttCode(b charges.Bucket, side string) string {
 	switch {
 	case b == charges.CMDelivery && side == "B":
@@ -378,7 +383,6 @@ var yearEndTmpl = template.Must(template.New("ye").Funcs(template.FuncMap{
 		}
 		return t
 	},
-	"code": func() []string { return []string{"01", "02", "03", "04", "05"} },
 }).Parse(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Year-end statement {{.FY}} · {{.UCC}}</title>
 <style>
 body{font:12.5px/1.45 -apple-system,system-ui,"Segoe UI",sans-serif;color:#16201B;margin:32px;max-width:960px}
@@ -412,19 +416,14 @@ tfoot td{font-weight:700;border-top:2px solid #16201B}.small{font-size:11px;colo
 {{range .Charges}}<tr><td>{{.Head}}</td><td class="r">{{inr .Amount}}</td></tr>{{else}}<tr><td colspan="2">No charges in the year.</td></tr>{{end}}
 </tbody></table>
 
-<h2>3. Securities transaction tax: Form No. 10DB</h2>
-<p class="small">Particulars for Form No. 10DB (see rule 20AB of the Income-tax Rules, 1962), one for each stock exchange. Columns 5 and 6 are for transactions entered into in the course of your business, which you fill in.</p>
+<h2>3. Statement of securities transaction tax paid</h2>
+<p class="small">Securities transaction tax (STT) collected from you on your transactions through us in the year and paid to the government, for each stock exchange, from our records. Total STT paid: ₹{{inr .STTTotal}}.</p>
 {{$p := .}}{{range .Exchanges}}{{$ex := .}}<div class="box">
-<h3>FORM No. 10DB · Financial year {{$p.FY}} · {{$ex}}</h3>
-<table><tbody>
-<tr><td>1. Name of the assessee</td><td>{{$p.Name}}</td></tr><tr><td>2. Address of the assessee</td><td>{{$p.City}}</td></tr>
-<tr><td>3. PAN of the assessee</td><td>{{$p.PAN}}</td></tr><tr><td>4. MAPIN of the assessee</td><td>Not applicable</td></tr>
-<tr><td>5. Name of the stock exchange</td><td>{{$ex}}</td></tr><tr><td>6. Financial year</td><td>{{$p.FY}}</td></tr>
-<tr><td>7–9. Stock broker, address, code</td><td>{{$p.Firm}} · SEBI {{$p.SEBIReg}}</td></tr></tbody></table>
-<table><thead><tr><th>(1) Client code</th><th>(2) Code of transaction</th><th class="r">(3) Value of transactions (₹)</th><th class="r">(4) STT collected (₹)</th><th class="r">(5) Of (3), in the course of business</th><th class="r">(6) STT on (5)</th></tr></thead><tbody>
-{{range ex $p.STT $ex}}<tr><td>{{$p.UCC}}</td><td>{{.Code}} · <span class="small">{{.Desc}}</span></td><td class="r">{{inr .Value}}</td><td class="r">{{inr .STT}}</td><td class="r"></td><td class="r"></td></tr>{{end}}
-</tbody>{{$t := tot $p.STT $ex}}<tfoot><tr><td colspan="2">Total</td><td class="r">{{inr (index $t 0)}}</td><td class="r">{{inr (index $t 1)}}</td><td></td><td></td></tr></tfoot></table>
-<p class="small">Verification (by the assessee): I, ________, son/daughter of ________, solemnly declare that to the best of my knowledge and belief the information given in this Form is correct and complete and that the amount of securities transaction tax shown is truly stated. Place ______ Date ______ Signature ______</p>
+<h3>{{$ex}} · financial year {{$p.FY}} · client code {{$p.UCC}}</h3>
+<table><thead><tr><th>Taxable transaction</th><th class="r">Trades</th><th class="r">Value of transactions (₹)</th><th class="r">STT paid (₹)</th></tr></thead><tbody>
+{{range ex $p.STT $ex}}<tr><td>{{.Desc}}</td><td class="r">{{.Trades}}</td><td class="r">{{inr .Value}}</td><td class="r">{{inr .STT}}</td></tr>{{end}}
+</tbody>{{$t := tot $p.STT $ex}}<tfoot><tr><td colspan="2">Total {{$ex}}</td><td class="r">{{inr (index $t 0)}}</td><td class="r">{{inr (index $t 1)}}</td></tr></tfoot></table>
 </div>{{else}}<p>No transactions liable to securities transaction tax in the year.</p>{{end}}
+<p class="small">This is a statement from your account with us, not a statutory form or certificate.</p>
 <p class="small" style="margin-top:20px">Generated {{.Generated}} from the records of {{.Firm}}. This statement is information from your account to help you prepare your return; it is not tax advice. Please report any discrepancy to us within 30 days.</p>
 </body></html>`))

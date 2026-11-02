@@ -42,7 +42,6 @@ type PeriodicTask struct {
 var PeriodicTasks = []PeriodicTask{
 	{"funds_securities", "Weekly statement of funds and securities", "Clients", "Weekly", "Emails every client with a balance, a movement or securities with the broker a signed statement of the week's funds and securities.", "Saturday, for the week to Friday", "Exchange and SEBI rules on statements of accounts to clients", true, "dispatch", ""},
 	{"cuspa_review", "Unpaid securities (CUSPA): release or sell", "Settlement", "Weekly", "Releases unpaid purchases held in the client unpaid securities pledgee account to clients who have since paid, and queues for sale those still unpaid after the allowed days.", "Monday", "SEBI rules on unpaid securities (CUSPA)", true, "settle", ""},
-	{"es_return", "Client funds monitoring return (enhanced supervision)", "Compliance", "Weekly", "Builds the weekly statement of client money held and where (client bank balances, collateral with clearing corporations, client credit and debit balances, own collateral, bank guarantees, margin used by credit-balance clients) with the client-wise workbook, for upload to the exchanges.", "Tuesday, for the week to Friday", "SEBI and exchange circulars on enhanced supervision of stock brokers", true, "periodic", ""},
 	{"dis_master", "DIS master upload to CDSL", "Depository", "Weekly", "Builds CDSL's transaction upload (DIS issue) for the delivery instruction slip books issued in the week, for upload on CDSL's system.", "Monday, for the week to Friday", "CDSL operating instructions on DIS issuance", true, "dp", "cdsl-txn-upload"},
 	{"cuspa_mtf_payout", "CUSPA and MTF pay-out reporting", "Settlement", "Settlement day", "Reports to NSE Clearing the settlement's purchases that are not paid out to clients' demat accounts: unpaid purchases kept in CUSPA and MTF purchases kept for the pledge.", "Settlement day, before pay-out", "SEBI and NSE Clearing rules on pay-out of securities to clients", true, "settle", "ncl-cuspa-mtf-payout"},
 	{"settlement_master", "Settlement calendar for the coming month", "Settlement", "Monthly", "Checks that NSE Clearing's settlement master for the coming month is loaded: settlement numbers and pay-in and pay-out dates used by the pay-out reporting and the settlement screen.", "Before the month starts", "", true, "xfiles", "ncl-settlement-master"},
@@ -52,7 +51,46 @@ var PeriodicTasks = []PeriodicTask{
 	{"dp_statements", "DP transaction and holding statements", "Depository", "Monthly", "Emails every demat account its signed statement of transactions and holdings for the month just ended.", "By the 10th", "Depository rules on statements to beneficial owners", true, "dp", ""},
 	{"complaints_disclosure", "Investor complaints disclosure", "Compliance", "Monthly", "Builds the month's complaints data (received, resolved, pending, average days) for the website disclosure.", "By the 7th", "SEBI circular on disclosure of investor complaints", true, "helpdesk", ""},
 	{"ras", "Running account settlement", "Money", "Monthly / quarterly", "Settles running accounts on the settlement date (monthly or quarterly as each client chose), pays out the funds and sends each client the settlement statement.", "On the settlement date set in Settings", "SEBI rules on running account settlement", true, "ras", ""},
+	{"ras_idle", "Return idle credit balances (30 days)", "Money", "Daily", "Every morning: clients with a credit balance and no transaction (trade, open position or funds received) for 30 calendar days are settled and paid out within three working days, whatever their monthly or quarterly choice, under the running account settlement policy in Autopilot.", "Within 3 working days of the 30th day", "NSE/INSP/53820 (running account settlement FAQ)", true, "ras", ""},
 	{"bsda_review", "BSDA review", "Depository", "Quarterly", "Checks every demat account against the BSDA rules: eligible regular accounts become BSDA unless the client opted out; BSDAs above the limit become regular. A checker applies it; the depository modification file is kept and clients are told.", "By the 10th after the quarter", "SEBI circular on Basic Services Demat Accounts", false, "dp", ""},
+}
+
+// RetiredPeriodicTasks were periodic tasks that no rule requires any more,
+// like RetiredJobKinds for scheduled jobs: they are not listed, never run
+// and their open work items are cleared. Their past runs and files are
+// kept for inspection.
+var RetiredPeriodicTasks = map[string]string{
+	// The weekly enhanced-supervision return of client funds (12
+	// particulars, NSE/INSP/37395) was discontinued by NSE/INSP/60283 of
+	// 16 Jan 2024 (SEBI/HO/MIRSD/MIRSD-PoD-1/P/CIR/2024/03), and the
+	// client-level cash balance reporting by NSE/INSP/61121 from 18 Mar
+	// 2024. The exchanges now monitor client funds from the banks' and
+	// clearing corporations' data and the client-level collateral reports
+	// (Segregation and monitoring), which Ledgerline still files.
+	"es_return": "Discontinued: client funds monitoring return (NSE/INSP/60283, NSE/INSP/61121)",
+}
+
+// retiredWorkKeys are the key prefixes of the work items a retired task
+// raised (process "periodic").
+var retiredWorkKeys = map[string]string{"es_return": "periodic:es:"}
+
+// clearRetiredWork closes the open work items of retired tasks.
+func (o *Ops) clearRetiredWork(ctx context.Context, tenant string) int {
+	ws, _ := docs.List[WorkItem](ctx, o.Docs, tenant, cWorkItem, "")
+	n := 0
+	for _, w := range ws {
+		if w.Process != "periodic" || w.Status != "Open" {
+			continue
+		}
+		for id, prefix := range retiredWorkKeys {
+			if strings.HasPrefix(w.Key, prefix) {
+				w.Status, w.Closed, w.ClosedBy, w.Note = "Cleared", o.now().Format(time.RFC3339), SystemActor, "no longer required: "+RetiredPeriodicTasks[id]
+				_ = docs.Upsert(ctx, o.Docs, tenant, cWorkItem, w.ID, w, SystemActor)
+				n++
+			}
+		}
+	}
+	return n
 }
 
 // PeriodicRun is one run of a task for a period.
@@ -115,9 +153,6 @@ func (o *Ops) periodFor(ctx context.Context, tenant string, t PeriodicTask, date
 	case "month_end", "ccil_prices":
 		m := prevMonth(date)
 		return m, monthLabel(m), addMonths(m+"-01", 1)[:8] + "05"
-	case "es_return":
-		fri := lastFriday(date)
-		return fri, "Week to " + fmtDay(fri), addDays(fri, 4)
 	case "cuspa_mtf_payout":
 		set, _ := o.Settings(ctx, tenant)
 		td := set.PrevBusinessDay(date)
@@ -240,6 +275,11 @@ func (o *Ops) periodicDone(ctx context.Context, tenant string, t PeriodicTask, p
 			}
 			return true, fmt.Sprintf("%d clients settled", n)
 		}
+	case "ras_idle":
+		due, _, err := o.IdleRASDue(ctx, tenant, period)
+		if err == nil && len(due) == 0 {
+			return true, "No idle credit balance to return"
+		}
 	case "bsda_review":
 		r, _, err := docs.Get[BSDAReview](ctx, o.Docs, tenant, cBSDAReview, period)
 		if err == nil && r.Status == "Applied" {
@@ -254,6 +294,9 @@ func (o *Ops) periodicDone(ctx context.Context, tenant string, t PeriodicTask, p
 
 // RunPeriodic runs a task for a period ("" = the current one).
 func (o *Ops) RunPeriodic(ctx context.Context, tenant, actor, id, period, date string) (PeriodicRun, error) {
+	if why, gone := RetiredPeriodicTasks[id]; gone {
+		return PeriodicRun{}, fmt.Errorf("%w: periodic task %q is retired (%s)", ErrState, id, why)
+	}
 	t, ok := periodicTask(id)
 	if !ok {
 		return PeriodicRun{}, fmt.Errorf("%w: periodic task %q", ErrNotFound, id)
@@ -293,6 +336,12 @@ func (o *Ops) RunPeriodic(ctx context.Context, tenant, actor, id, period, date s
 // itself: only when its policy is Auto. Otherwise the approval is queued
 // (Suggest) or the work is left to a person (Off, or the Manual edition).
 func (o *Ops) unattended(ctx context.Context, tenant, process, date string, queue func(*runCtx)) (bool, error) {
+	return o.unattendedAs(ctx, tenant, process, process, date, queue)
+}
+
+// unattendedAs is unattended with the approval queued under its own work
+// process, so the Autopilot run of the policy does not clear it.
+func (o *Ops) unattendedAs(ctx context.Context, tenant, process, workProcess, date string, queue func(*runCtx)) (bool, error) {
 	if o.manual(ctx, tenant) {
 		return false, &pendingErr{"Nothing runs by itself in the Manual edition: run it here when ready", "Due"}
 	}
@@ -301,11 +350,25 @@ func (o *Ops) unattended(ctx context.Context, tenant, process, date string, queu
 	case ModeAuto:
 		return true, nil
 	case ModeSuggest:
-		r := &runCtx{o: o, ctx: ctx, tenant: tenant, date: date, mode: mode, params: params, process: process, keys: map[string]bool{}}
+		r := &runCtx{o: o, ctx: ctx, tenant: tenant, date: date, mode: mode, params: params, process: workProcess, keys: map[string]bool{}}
 		queue(r)
 		return false, &pendingErr{"Waiting for a checker to approve it in the Autopilot work queue", "Waiting for approval"}
 	}
 	return false, &pendingErr{"Switched off in Autopilot: run it here by hand", "Due"}
+}
+
+// wRASIdle is the work process of the 30-day idle balance approvals.
+const wRASIdle = "ras_idle"
+
+// closeIdleRASWork closes the open idle-balance approvals once nothing is
+// left to return.
+func (o *Ops) closeIdleRASWork(ctx context.Context, tenant, actor string) {
+	ws, _ := docs.List[WorkItem](ctx, o.Docs, tenant, cWorkItem, "")
+	for _, w := range ws {
+		if w.Process == wRASIdle && w.Status == "Open" {
+			o.closeWork(ctx, tenant, actor, wRASIdle, strings.TrimPrefix(w.Key, wRASIdle+":"), "idle balances returned")
+		}
+	}
 }
 
 // pendingErr: the task did its part and waits for a person.
@@ -385,10 +448,34 @@ func (o *Ops) runPeriodic(ctx context.Context, tenant, actor string, t PeriodicT
 			return "Settled already; statements: " + statementSummary(res), nil, nil
 		}
 		return s, nil, err
+	case "ras_idle":
+		// The 30-day rule: settled under the RAS policy (Auto settles; Suggest
+		// asks a checker; a person running it must be a checker, as RunRAS
+		// requires).
+		due, overdue, err := o.IdleRASDue(ctx, tenant, period)
+		if err != nil {
+			return "", nil, err
+		}
+		if len(due) == 0 {
+			o.closeIdleRASWork(ctx, tenant, actor)
+			return "No idle credit balance to return", nil, nil
+		}
+		if actor == SystemActor {
+			if ok, why := o.unattendedAs(ctx, tenant, "ras", wRASIdle, date, func(r *runCtx) { queueIdleRAS(r, period, due) }); !ok {
+				if len(overdue) > 0 {
+					o.log(ctx, tenant, actor, "ras.idle.overdue", period, map[string]any{"clients": len(overdue)})
+				}
+				return "", nil, why
+			}
+		}
+		s, err := o.settleRAS(ctx, tenant, actor, period)
+		if err != nil {
+			return "", nil, err
+		}
+		o.closeIdleRASWork(ctx, tenant, actor)
+		return fmt.Sprintf("Idle balances (30 days): %s", s), nil, nil
 	case "cuspa_review":
 		return o.cuspaReview(ctx, tenant, actor, date)
-	case "es_return":
-		return o.runESReturn(ctx, tenant, period)
 	case "settlement_master":
 		msg := fmt.Sprintf("NSE Clearing's settlement master for %s is not loaded: download it from the member portal and load it on Exchange files", monthLabel(period))
 		o.raiseWork(ctx, tenant, "periodic", "settmaster:"+period, "Load the settlement master for "+monthLabel(period), msg, "", RoleMaker, "xfiles", date)
@@ -518,6 +605,8 @@ func businessDaysBetween(set Settings, from, to string) int {
 // queues the others for people. The scheduler calls it every morning.
 func (o *Ops) RunDuePeriodic(ctx context.Context, tenant, date string) (string, error) {
 	var ran, queued, failed []string
+	o.clearRetiredWork(ctx, tenant)
+	o.flagNominationsOverLimit(ctx, tenant, date)
 	for _, t := range PeriodicTasks {
 		s := o.periodicStatus(ctx, tenant, t, date)
 		if s.Status != "Due" && s.Status != "Overdue" && s.Status != "Failed" {

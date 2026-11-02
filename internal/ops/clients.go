@@ -96,12 +96,15 @@ type Client struct {
 	NoInsights bool `json:"no_insights,omitempty"`
 	// WAConsent records the client's WhatsApp choice: when, how and by whom.
 	WAConsent *WAConsent `json:"wa_consent,omitempty"`
-	// Nominees (up to 10, SEBI nomination rules of 2025) with each one's
-	// share and identity; NominationOn is when the choice (nominate or opt
-	// out) was made and NominationMode how it was declared.
-	Nominees       []Nominee `json:"nominees,omitempty"`
-	NominationOn   string    `json:"nomination_on,omitempty"`
-	NominationMode string    `json:"nomination_mode,omitempty"`
+	// Nominees (up to 3 from 1 Sep 2026; see nominees.go) with each one's
+	// share and optional identity; NominationOn is when the choice
+	// (nominate or opt out) was made and NominationMode how it was
+	// declared. NomineesOnStatement: the client chose to have the
+	// nominees' names on statements (otherwise Yes/No).
+	Nominees            []Nominee `json:"nominees,omitempty"`
+	NominationOn        string    `json:"nomination_on,omitempty"`
+	NominationMode      string    `json:"nomination_mode,omitempty"`
+	NomineesOnStatement bool      `json:"nominees_on_statement,omitempty"`
 	// SegStatus is each exchange segment's own status (Active, Suspended,
 	// Dormant, Reactivated, Closed) and SegHistory every change to it.
 	SegStatus  map[string]SegmentState `json:"seg_status,omitempty"`
@@ -233,7 +236,10 @@ func (c Client) Validate() error {
 	if c.Nominee == "Opted in" && strings.TrimSpace(c.NomineeName) == "" {
 		add("nominee_name", "Enter the nominee name")
 	}
-	fe = append(fe, validateNominees(c.Nominees, time.Now())...)
+	// A nomination of more than 3 made before 1 Sep 2026 is kept (and
+	// flagged) when other details change; new ones are held to 3 where
+	// they are made (createApplication, nomination changes).
+	fe = append(fe, checkNominees(c.Nominees, time.Now(), legacyMaxNominees)...)
 	if len(fe) > 0 {
 		return &ValidationError{fe}
 	}
@@ -284,6 +290,9 @@ func (o *Ops) createApplication(ctx context.Context, tenant, actor string, c Cli
 	}
 	if err := c.Validate(); err != nil {
 		return Client{}, err
+	}
+	if len(c.Nominees) > MaxNominees {
+		return Client{}, &ValidationError{[]FieldError{{"nominees", fmt.Sprintf("At most %d nominees", MaxNominees)}}}
 	}
 	all, err := o.Clients(ctx, tenant)
 	if err != nil {

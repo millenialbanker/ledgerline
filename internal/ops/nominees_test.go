@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"ledgerline/internal/docs"
 )
 
 func TestNominees(t *testing.T) {
@@ -17,15 +19,44 @@ func TestNominees(t *testing.T) {
 	if fe := validateNominees(c.Nominees, now); len(fe) != 0 {
 		t.Fatalf("%v", fe)
 	}
-	bad := []Nominee{{Name: "A One", Relation: "Spouse", IDType: "PAN", ID: "ABCPA1234K", Share: "60"}, {Name: "Kid", Relation: "Son", IDType: "PASSPORT", ID: "X1234567", Share: "30", DOB: "2020-01-01"}}
+	// SEBI circular of 29 May 2026: name and relationship are mandatory,
+	// and a minor's date of birth; identity and guardian are optional.
+	bad := []Nominee{{Name: "A One", Relation: "Spouse", IDType: "PAN", ID: "ABCPA1234K", Share: "60"}, {Name: "Kid", Relation: "Son", Share: "30", IsMinor: true}, {Name: "No Relation", Share: "10", IDType: "PAN", ID: "BAD"}}
 	fe := validateNominees(bad, now)
 	msg := (&ValidationError{fe}).Error()
-	if !strings.Contains(msg, "guardian") || !strings.Contains(msg, "90.00%") {
-		t.Fatalf("%s", msg)
+	for _, want := range []string{"Nominee 2: a minor nominee's date of birth", "Nominee 3: enter the relationship", "Nominee 3: PAN must be"} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("%q not in %s", want, msg)
+		}
 	}
-	eleven := make([]Nominee, 11)
-	if fe := validateNominees(eleven, now); len(fe) != 1 {
-		t.Fatalf("eleven: %v", fe)
+	if strings.Contains(msg, "guardian") || strings.Contains(msg, "Nominee 1") {
+		t.Fatalf("optional details required: %s", msg)
+	}
+	plain := Client{Nominees: []Nominee{{Name: "Only Name", Relation: "Spouse", IDType: "PAN"}, {Name: "Kid Two", Relation: "Son", DOB: "2020-01-01"}}}
+	normaliseNominees(&plain)
+	if fe := validateNominees(plain.Nominees, now); len(fe) != 0 || plain.Nominees[0].IDType != "" {
+		t.Fatalf("name and relationship only: %v %+v", fe, plain.Nominees)
+	}
+	four := make([]Nominee, 4)
+	if fe := validateNominees(four, now); len(fe) != 1 || !strings.Contains(fe[0].Msg, "At most 3") {
+		t.Fatalf("four: %v", fe)
+	}
+	// A nomination of up to 10 recorded before 1 Sep 2026 still validates
+	// when other details change, and is flagged.
+	old := Client{Nominees: make([]Nominee, 5)}
+	for i := range old.Nominees {
+		old.Nominees[i] = Nominee{Name: "Person " + string(rune('A'+i)), Relation: "Friend"}
+	}
+	normaliseNominees(&old)
+	if fe := checkNominees(old.Nominees, now, legacyMaxNominees); len(fe) != 0 || old.NominationState() != NominationOverLimit {
+		t.Fatalf("legacy five: %v %s", fe, old.NominationState())
+	}
+	if old.StatementNomination() != "Yes" {
+		t.Fatal("statement shows names without the client's choice")
+	}
+	old.NomineesOnStatement = true
+	if !strings.HasPrefix(old.StatementNomination(), "Person A") || (Client{Nominee: "Opted out"}).StatementNomination() != "No" {
+		t.Fatal("statement nomination")
 	}
 	if c.Nominees[0].MaskedID() == "ABCPA1234K" || !strings.HasSuffix(c.Nominees[2].MaskedID(), "7777") {
 		t.Fatal("not masked")
@@ -64,6 +95,55 @@ func TestNominationChangeAndFiles(t *testing.T) {
 	}
 	if _, err := o.LoadFile(ctx, T, "priya.nair", "NOMINEES", "", "bad.csv", []byte("UCC,Name,Relation,Share,IDType,ID,DOB,Guardian,GuardianRelation\n"+u2+",X Y Z,Son,100,VOTER,123,,,\n")); err == nil {
 		t.Fatal("voter ID accepted")
+	}
+	// From 1 Sep 2026: no video declaration, at most 3 nominees, every
+	// joint holder consents, and a thumb impression needs two witnesses.
+	one, _ := json.Marshal([]Nominee{{Name: "Kiran Rao", Relation: "Brother"}})
+	if _, err := o.RequestChange(ctx, T, "priya.nair", u, "Nomination", map[string]string{"nominee": "Opted out", "mode": "Video recorded"}, ""); err == nil {
+		t.Fatal("video opt-out accepted")
+	}
+	four, _ := json.Marshal([]Nominee{{Name: "Kiran Rao", Relation: "Brother"}, {Name: "Mala Rao", Relation: "Sister"}, {Name: "Anu Rao", Relation: "Mother"}, {Name: "Raj Rao", Relation: "Father"}})
+	if _, err := o.RequestChange(ctx, T, "priya.nair", u, "Nomination", map[string]string{"nominee": "Opted in", "nominees": string(four), "mode": "Signed form"}, ""); err == nil {
+		t.Fatal("four nominees accepted")
+	}
+	if _, err := o.RequestChange(ctx, T, "priya.nair", u, "Nomination", map[string]string{"nominee": "Opted in", "nominees": string(one), "mode": "Thumb impression with two witnesses", "witness_1": "A, Pune"}, ""); err == nil {
+		t.Fatal("thumb impression with one witness accepted")
+	}
+	uj := cs[2].UCC
+	if err := docs.Upsert(ctx, o.Docs, T, cCDSLBODetail, uj, CDSLBODetail{UCC: uj, ModeOfOperation: "2", Holders: []CDSLJointHolder{{Name: "Second Holder", PAN: "ABCPS1234K"}}}, "test"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.RequestChange(ctx, T, "priya.nair", uj, "Nomination", map[string]string{"nominee": "Opted in", "nominees": string(one), "mode": "Signed form"}, ""); err == nil || !strings.Contains(err.Error(), "joint") {
+		t.Fatalf("joint nomination without every holder's consent: %v", err)
+	}
+	if _, err := o.RequestChange(ctx, T, "priya.nair", uj, "Nomination", map[string]string{"nominee": "Opted in", "nominees": string(one), "mode": "Online with OTP", "joint_consent": "all", "on_statement": "names"}, ""); err != nil {
+		t.Fatalf("joint nomination with consent: %v", err)
+	}
+	// A nomination of 5 recorded before the limit: kept, flagged, worked.
+	uo := cs[3].UCC
+	five := []Nominee{{Name: "Aa One", Relation: "Son"}, {Name: "Bb Two", Relation: "Son"}, {Name: "Cc Three", Relation: "Son"}, {Name: "Dd Four", Relation: "Son"}, {Name: "Ee Five", Relation: "Son"}}
+	if _, err := docs.Update(ctx, o.Docs, T, cClient, uo, "test", func(c *Client) error { c.Nominees = five; normaliseNominees(c); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.RequestChange(ctx, T, "priya.nair", uo, "Mobile", map[string]string{"mobile": "9876501234"}, ""); err != nil {
+		t.Fatalf("another change blocked by the old nomination: %v", err)
+	}
+	nrows, by, err := o.Nominations(ctx, T, "vikram.shah")
+	if err != nil || by[NominationOverLimit] != 1 {
+		t.Fatalf("nomination report: %v %v", by, err)
+	}
+	for _, r := range nrows {
+		if r.UCC == uo && (!r.OverLimit || r.Count != 5) {
+			t.Fatalf("not flagged or changed: %+v", r)
+		}
+	}
+	ws, _ := o.WorkItems(ctx, T, "Open")
+	flagged := false
+	for _, w := range ws {
+		flagged = flagged || w.Key == wNominations+":over:"+uo
+	}
+	if !flagged {
+		t.Fatal("no work item for the nomination over the limit")
 	}
 	// SEGMENT-STATUS file then a change by a checker.
 	seg := "UCC,Segment,Status,EffectiveDate,Reason\n" + u + ",FO,Suspended,2025-01-10,Income proof expired\n" + u + ",FO,Reactivated,2025-03-01,Income proof received\n" + u + ",CM,Dormant,2026-01-01,No trades\n"

@@ -78,10 +78,23 @@ func TestOnlineAccountOpening(t *testing.T) {
 	}
 	step("profile", Application{Segments: []string{"CM", "FO"}, Income: "10-25 L", Occupation: "Salaried", Experience: "1–5 years", RAS: "Quarterly"}, false)
 	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "nominee", Application: Application{NomineeName: "Ramesh Iyer", NomineeRel: "Father"}}); err == nil {
-		t.Fatal("nominee without an identity detail accepted")
+		t.Fatal("nominee given only as a name accepted")
 	}
-	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "nominee", Application: Application{Nominees: []Nominee{{Name: "Ramesh Iyer", Relation: "Father", IDType: "PAN", ID: "ABCPI1234K"}, {Name: "Asha Iyer", Relation: "Daughter", IDType: "AADHAAR", ID: "1234 5678 9012", DOB: "2015-04-01"}}}}); err == nil || !strings.Contains(err.Error(), "guardian") {
-		t.Fatalf("minor without guardian: %v", err)
+	// SEBI circular of 29 May 2026: a minor's date of birth is mandatory;
+	// the guardian and identity are optional; at most 3 nominees.
+	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "nominee", Application: Application{Nominees: []Nominee{{Name: "Asha Iyer", Relation: "Daughter", IsMinor: true}}}}); err == nil || !strings.Contains(err.Error(), "date of birth") {
+		t.Fatalf("minor without a date of birth: %v", err)
+	}
+	four := []Nominee{{Name: "Ramesh Iyer", Relation: "Father"}, {Name: "Asha Iyer", Relation: "Daughter"}, {Name: "Lata Iyer", Relation: "Mother"}, {Name: "Ravi Iyer", Relation: "Brother"}}
+	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "nominee", Application: Application{Nominees: four}}); err == nil {
+		t.Fatal("four nominees accepted")
+	}
+	three := []Nominee{{Name: "Ramesh Iyer", Relation: "Father"}, {Name: "Asha Iyer", Relation: "Daughter"}, {Name: "Lata Iyer", Relation: "Mother"}}
+	if a := step("nominee", Application{Nominees: three}, false); len(a.Nominees) != 3 || a.Nominees[0].Share != "33.34" {
+		t.Fatalf("three nominees with name and relationship only: %+v", a.Nominees)
+	}
+	if a := step("nominee", Application{Nominees: []Nominee{{Name: "Asha Iyer", Relation: "Daughter", DOB: "2015-04-01", Share: "100"}}}, false); len(a.Nominees) != 1 {
+		t.Fatalf("minor without a guardian: %+v", a.Nominees)
 	}
 	a = step("nominee", Application{Nominees: []Nominee{{Name: "Ramesh Iyer", Relation: "Father", IDType: "PAN", ID: "ABCPI1234K", Share: "60"}, {Name: "Asha Iyer", Relation: "Daughter", IDType: "AADHAAR", ID: "1234 5678 9012", DOB: "2015-04-01", Share: "40", Guardian: "Ramesh Iyer", GuardianRelation: "Father"}}}, false)
 	if len(a.Nominees) != 2 || a.Nominees[1].ID != "9012" {

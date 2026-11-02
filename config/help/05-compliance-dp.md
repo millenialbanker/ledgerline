@@ -53,14 +53,41 @@ Check the layout against NSE Clearing's current file specification before the fi
 title: Nominees and opt-out declarations
 screen: clients
 roles: Ops maker, Ops checker, Compliance officer, Branch staff
-ask: nominee; add nominee; change nominee; multiple nominees; nominee share; minor nominee; guardian; opt out of nomination; nomination declaration; nominee identity
+ask: nominee; add nominee; change nominee; multiple nominees; how many nominees; nominee share; minor nominee; guardian; opt out of nomination; nomination declaration; nominee identity; joint account nomination; nominee on statement; more than 3 nominees
 related: regulatory-reports
 
-Under SEBI's 2025 nomination rules a client may name up to 10 nominees, each with a share (equal if not given), a relationship and one identity detail: PAN, driving licence, the last 4 digits of Aadhaar, or passport. A nominee under 18 needs a date of birth and a guardian. A sole holder must either nominate or declare that they do not wish to.
+Under SEBI's nomination circular of 29 May 2026 (in force from 1 Sep 2026) a client may name up to **3** nominees. Only each nominee's **name and relationship** are required, and the date of birth of a nominee under 18. The share, identity detail (PAN, driving licence, last 4 digits of Aadhaar or passport), mobile, email and a minor's guardian are optional. Shares not given are equal, any odd amount going to the first nominee.
+
+- **Opting out** is by the signed declaration or online, where the declaration is shown and accepted. A video is not accepted.
+- **How it is declared**: online with e-Sign, a digital signature or an OTP to the registered mobile and email; or on paper with a signature (no witness), or a thumb impression with two witnesses (names and addresses).
+- **Joint accounts**: nomination is optional, but giving or changing one needs the consent of every holder. Confirm that all holders consented.
+- **Statements** show the nominees' names or only Yes/No, as the client chooses.
 
 1. Open the client and use **Change nomination** (or the client asks from the portal). A checker approves it like any other change.
 2. Records from the previous back office load with the **NOMINEES** file on [[files|Files]].
 3. The **Nomination status** report on [[reports|Regulatory reports]] lists clients with details missing or no declaration.
+4. Nominations recorded before 1 Sep 2026 with more than 3 nominees are kept as they are. They show as **More than 3 nominees (review)** and each has a work item: ask the client for a new nomination of up to 3.
+
+## penalty-pass-through
+title: Pass a margin penalty to a client
+screen: margin
+roles: Compliance officer, Risk manager, Ops checker
+ask: pass penalty to client; charge penalty to client; margin penalty pass through; cheque bounce penalty; hedge break penalty; penalty evidence; penalty pass-through setting
+related: peak-margin
+
+A clearing corporation's penalty for short collection of upfront margin is the firm's. Under NSE/INSP/64315 (for penalties from 1 Nov 2024) it may be charged to a client only when the client caused the shortfall:
+
+- a cheque the client gave was **dishonoured**; or
+- a **hedge break**: the client changed a hedge or a leg expired, and the firm's risk management policy says this can raise margins and was notified to clients at least 7 days before.
+
+Pass-through is **off** by default (Settings). When it is on, nothing is charged by itself: Autopilot only puts each penalty in the work queue.
+
+1. On [[margin|Margin reporting]], a Compliance officer or Risk manager chooses the reason and gives the dishonoured cheque (recorded as bounced on Receipts) or the policy clause and the date clients were notified of it.
+2. Attach the supporting documents (PDF or image): the bank's return memo, or the policy extract and its notice.
+3. A different person (Ops checker, Risk manager or Compliance officer) approves it in the work queue. Only then is the client's ledger debited.
+4. The client gets a signed letter with the documents, and the margin statement gives the reason and the evidence. Every step is in the audit trail.
+
+Without an allowed reason, dismiss the item: the firm bears the penalty.
 
 ## segment-status
 title: Client status in each segment

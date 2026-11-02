@@ -57,8 +57,15 @@ func TestYearEndPack(t *testing.T) {
 		t.Fatalf("pack: %+v %v", p, err)
 	}
 	b, err := RenderYearEnd(p)
-	if err != nil || !strings.Contains(string(b), "FORM No. 10DB") || !strings.Contains(string(b), "still running") {
+	if err != nil || !strings.Contains(string(b), "Statement of securities transaction tax paid") || !strings.Contains(string(b), "still running") {
 		t.Fatalf("render: %v", err)
+	}
+	// Form 10DB and rule 20AB were omitted in 2021: the pack must not
+	// present the statement as that form.
+	for _, gone := range []string{"10DB", "20AB", "assessee", "Verification"} {
+		if strings.Contains(string(b), gone) {
+			t.Fatalf("pack still mentions %q", gone)
+		}
 	}
 	// Packs go out only after the year ends.
 	if _, _, err := o.SendYearEnd(ctx, T, "priya.nair", "2026-27", D, nil); err == nil {

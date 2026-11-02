@@ -13,33 +13,74 @@ import (
 	"ledgerline/internal/money"
 )
 
-// Nomination under SEBI's revised nomination rules for demat and trading
-// accounts (January 2025): up to 10 nominees, each with a share (equal
-// shares when none are given), the nominee's relationship and one identity
-// detail (PAN, driving licence, the last four digits of Aadhaar, or
-// passport), a date of birth and guardian for a minor; a sole holder must
-// either nominate or declare that they do not wish to.
+// Nomination under SEBI/HO/OIAE/OIAE_IAD-3/P/CIR/2026/12676 (29 May 2026,
+// in force from 1 Sep 2026; it supersedes the 2025 nomination circulars):
+//
+//   - up to 3 nominees;
+//   - only the name and relationship are mandatory, and the date of birth
+//     of a minor nominee; the identity detail (PAN, driving licence, last
+//     four digits of Aadhaar, passport), contact details, share and the
+//     guardian of a minor are optional;
+//   - shares not given are equal, any odd lot to the first nominee;
+//   - opting out is by the signed declaration (Annexure-B) or online, with
+//     the declaration shown and accepted; there is no other mode;
+//   - online it is validated by DSC, e-Sign or an OTP to the registered
+//     mobile and email; offline by wet signature without witnesses, or a
+//     thumb impression with two witnesses;
+//   - for a joint account nomination is optional, and giving or changing
+//     it needs the consent of every holder;
+//   - statements show the nominees' names or only Yes/No, as the client
+//     chooses.
+//
+// Nominations made before 1 Sep 2026 with more than 3 nominees are kept as
+// they are; they are flagged for review and cannot be changed to another
+// list of more than 3.
 
 // MaxNominees is the most a client may name.
-const MaxNominees = 10
+const MaxNominees = 3
+
+// legacyMaxNominees was the limit before 1 Sep 2026 (up to 10). Records
+// within it are kept when other client details change.
+const legacyMaxNominees = 10
 
 // NomineeIDTypes are the identity details SEBI accepts for a nominee.
 var NomineeIDTypes = map[string]string{"PAN": "PAN", "DL": "Driving licence", "AADHAAR": "Aadhaar (last 4 digits)", "PASSPORT": "Passport"}
 
-// NominationModes record how a nomination or opt-out was declared.
-var NominationModes = []string{"Online with e-Sign", "Signed form", "Video recorded"}
+// NominationModes record how a nomination or opt-out was declared and
+// validated. Online: e-Sign, digital signature or OTP; offline: the signed
+// form or declaration (no witness), or a thumb impression with two
+// witnesses.
+var NominationModes = []string{"Online with e-Sign", "Online with digital signature", "Online with OTP", "Signed form", "Thumb impression with two witnesses"}
+
+// modeThumb needs the two witnesses' names and addresses.
+const modeThumb = "Thumb impression with two witnesses"
+
+// StatementNomination returns what a statement shows about nomination:
+// the nominees' names when the client chose that, otherwise Yes or No.
+func (c Client) StatementNomination() string {
+	if len(c.Nominees) == 0 && c.Nominee != "Opted in" {
+		return "No"
+	}
+	if c.NomineesOnStatement && c.NomineeName != "" {
+		return c.NomineeName
+	}
+	return "Yes"
+}
 
 // Nominee is one person nominated.
 type Nominee struct {
 	Name     string `json:"name"`
 	Relation string `json:"relation"`
 	Share    string `json:"share"` // percent, two decimals; all shares add to 100
-	IDType   string `json:"id_type"`
-	ID       string `json:"id"` // for Aadhaar only the last 4 digits are kept
-	DOB      string `json:"dob,omitempty"`
-	Address  string `json:"address,omitempty"`
-	Mobile   string `json:"mobile,omitempty"`
-	Email    string `json:"email,omitempty"`
+	// IDType and ID are optional (one identity detail, if given).
+	IDType string `json:"id_type"`
+	ID     string `json:"id"` // for Aadhaar only the last 4 digits are kept
+	// IsMinor marks a nominee under 18; the date of birth is then required.
+	IsMinor bool   `json:"minor,omitempty"`
+	DOB     string `json:"dob,omitempty"`
+	Address string `json:"address,omitempty"`
+	Mobile  string `json:"mobile,omitempty"`
+	Email   string `json:"email,omitempty"`
 	// Guardian of a minor nominee.
 	Guardian         string `json:"guardian,omitempty"`
 	GuardianRelation string `json:"guardian_relation,omitempty"`
@@ -85,6 +126,9 @@ func normaliseNominees(c *Client) {
 			n.IDType = "DL"
 		}
 		n.ID = strings.ToUpper(strings.TrimSpace(n.ID))
+		if n.ID == "" {
+			n.IDType = "" // the identity detail is optional
+		}
 		if n.IDType == "AADHAAR" {
 			// Only the last four digits are ever kept.
 			d := strings.Map(func(r rune) rune {
@@ -124,14 +168,22 @@ func normaliseNominees(c *Client) {
 	c.NomineeName = strings.Join(names, ", ")
 }
 
-// validateNominees checks the nominees against the rules.
+// validateNominees checks a new or changed list of nominees against the
+// rules, at most MaxNominees.
 func validateNominees(ns []Nominee, today time.Time) []FieldError {
+	return checkNominees(ns, today, MaxNominees)
+}
+
+// checkNominees checks nominees with a limit on their number: MaxNominees
+// for a new nomination, legacyMaxNominees for one recorded before the
+// limit fell to 3 (kept as it is and flagged for review).
+func checkNominees(ns []Nominee, today time.Time, limit int) []FieldError {
 	var fe []FieldError
 	add := func(i int, f, m string) {
 		fe = append(fe, FieldError{fmt.Sprintf("nominees.%d.%s", i, f), fmt.Sprintf("Nominee %d: %s", i+1, m)})
 	}
-	if len(ns) > MaxNominees {
-		return []FieldError{{"nominees", fmt.Sprintf("At most %d nominees", MaxNominees)}}
+	if len(ns) > limit {
+		return []FieldError{{"nominees", fmt.Sprintf("At most %d nominees", limit)}}
 	}
 	total := money.Dec{}
 	for i, n := range ns {
@@ -148,6 +200,10 @@ func validateNominees(ns []Nominee, today time.Time) []FieldError {
 			total = total.Add(sh)
 		}
 		switch n.IDType {
+		case "":
+			if n.ID != "" {
+				add(i, "id_type", "say which identity detail this is: PAN, driving licence, last 4 digits of Aadhaar, or passport")
+			}
 		case "PAN":
 			if !rePAN.MatchString(n.ID) {
 				add(i, "id", "PAN must be 5 letters, 4 digits, 1 letter")
@@ -165,13 +221,17 @@ func validateNominees(ns []Nominee, today time.Time) []FieldError {
 				add(i, "id", "passport number is a letter and 7 digits")
 			}
 		default:
-			add(i, "id_type", "give one identity detail: PAN, driving licence, last 4 digits of Aadhaar, or passport")
+			add(i, "id_type", "the identity detail is PAN, driving licence, last 4 digits of Aadhaar, or passport")
 		}
 		if n.DOB != "" && !validDate(n.DOB) {
 			add(i, "dob", "date of birth must be YYYY-MM-DD")
 		}
-		if n.Minor(today) && (len(n.Guardian) < 3 || n.GuardianRelation == "") {
-			add(i, "guardian", "a minor nominee needs a guardian and the guardian's relationship")
+		// A minor's date of birth is mandatory; the guardian is optional.
+		if n.DOB == "" && (n.IsMinor || n.Guardian != "") {
+			add(i, "dob", "a minor nominee's date of birth is required")
+		}
+		if n.Guardian != "" && len(n.Guardian) < 3 {
+			add(i, "guardian", "enter the guardian's full name")
 		}
 		if n.Mobile != "" && !reMobile.MatchString(n.Mobile) {
 			add(i, "mobile", "enter a 10-digit mobile number")
@@ -186,9 +246,15 @@ func validateNominees(ns []Nominee, today time.Time) []FieldError {
 	return fe
 }
 
+// NominationOverLimit is the state of a nomination recorded with more than
+// MaxNominees nominees before the limit fell: kept, but to be reviewed.
+const NominationOverLimit = "More than 3 nominees (review)"
+
 // NominationState says where a client stands under the nomination rules.
 func (c Client) NominationState() string {
 	switch {
+	case len(c.Nominees) > MaxNominees:
+		return NominationOverLimit
 	case len(c.Nominees) > 0:
 		return "Nominated"
 	case c.Nominee == "Opted in":
@@ -213,24 +279,57 @@ func nominationChange(c *Client, n map[string]string) error {
 				return invalid("nominees must be a list")
 			}
 		} else if name := strings.TrimSpace(n["nominee_name"]); name != "" {
-			return invalid("give the nominee's share and identity detail (PAN, driving licence, last 4 digits of Aadhaar or passport)")
+			return invalid("give the nominees as a list, each with a name and relationship")
 		}
 		if len(ns) == 0 {
 			return invalid("name at least one nominee, or opt out")
+		}
+		if len(ns) > MaxNominees {
+			return invalid("at most %d nominees", MaxNominees)
 		}
 		c.Nominee, c.Nominees = "Opted in", ns
 	default:
 		return invalid("nomination must be Opted in or Opted out")
 	}
 	if m := strings.TrimSpace(n["mode"]); m != "" {
+		if !contains(NominationModes, m) {
+			return invalid("a nomination or opt-out is declared %s (a video is not one of them)", strings.Join(NominationModes, ", "))
+		}
+		if m == modeThumb && (strings.TrimSpace(n["witness_1"]) == "" || strings.TrimSpace(n["witness_2"]) == "") {
+			return invalid("a thumb impression needs two witnesses: give each one's name and address")
+		}
 		c.NominationMode = m
+	}
+	switch n["on_statement"] {
+	case "names":
+		c.NomineesOnStatement = true
+	case "yes_no":
+		c.NomineesOnStatement = false
+	}
+	return nil
+}
+
+// checkNominationConsent: giving or changing a nomination on a joint
+// account needs the consent of every holder, whatever the mode of
+// operation, so the request must confirm that all holders consented.
+func (o *Ops) checkNominationConsent(ctx context.Context, tenant, ucc string, n map[string]string) error {
+	d, _, err := docs.Get[CDSLBODetail](ctx, o.Docs, tenant, cCDSLBODetail, ucc)
+	if err != nil || len(d.Holders) == 0 {
+		return nil // a sole holder
+	}
+	if n["joint_consent"] != "all" {
+		return invalid("%s is a joint account: all %d holders must consent to the nomination; keep their signed or OTP consents and confirm that all consented", ucc, len(d.Holders)+1)
 	}
 	return nil
 }
 
 func nominationOld(c Client) map[string]string {
 	b, _ := json.Marshal(maskNominees(c.Nominees))
-	return map[string]string{"nominee": c.Nominee, "nominee_name": c.NomineeName, "nominees": string(b)}
+	show := "yes_no"
+	if c.NomineesOnStatement {
+		show = "names"
+	}
+	return map[string]string{"nominee": c.Nominee, "nominee_name": c.NomineeName, "nominees": string(b), "on_statement": show}
 }
 
 // maskNominees hides identity numbers for portal and change history.
@@ -252,7 +351,38 @@ type NominationRow struct {
 	On       string    `json:"on,omitempty"`
 	Mode     string    `json:"mode,omitempty"`
 	Nominees []Nominee `json:"list,omitempty"`
+	// OverLimit: more than 3 nominees, recorded before the limit fell.
+	// Kept as it is; the client is asked to bring it within 3.
+	OverLimit bool `json:"over_limit,omitempty"`
 }
+
+// flagNominationsOverLimit raises a work item for every client whose
+// recorded nomination has more than MaxNominees nominees, and closes the
+// items of those now within it. Nothing is deleted.
+func (o *Ops) flagNominationsOverLimit(ctx context.Context, tenant, date string) int {
+	cs, err := o.Clients(ctx, tenant)
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, c := range cs {
+		if c.Status == "Closed" || c.Status == "Rejected" {
+			continue
+		}
+		if len(c.Nominees) > MaxNominees {
+			o.raiseWork(ctx, tenant, wNominations, "over:"+c.UCC, fmt.Sprintf("%s has %d nominees: ask the client to bring it within %d", c.UCC, len(c.Nominees), MaxNominees),
+				fmt.Sprintf("%s's nomination (%s) was recorded with %d nominees. From 1 Sep 2026 a demat account may have at most %d (SEBI circular of 29 May 2026). It is kept as it is: ask the client for a new nomination of up to %d, or note why it stays.", c.Name, firstOf(c.NominationOn, "date not recorded"), len(c.Nominees), MaxNominees, MaxNominees),
+				c.UCC, RoleCompliance, "clients", date)
+			n++
+		} else {
+			o.closeWork(ctx, tenant, SystemActor, wNominations, "over:"+c.UCC, "nomination now within the limit")
+		}
+	}
+	return n
+}
+
+// wNominations is the work queue process of nomination reviews.
+const wNominations = "nominations"
 
 // Nominations lists every active client's nomination state.
 func (o *Ops) Nominations(ctx context.Context, tenant, actor string) ([]NominationRow, map[string]int, error) {
@@ -271,7 +401,10 @@ func (o *Ops) Nominations(ctx context.Context, tenant, actor string) ([]Nominati
 		}
 		st := c.NominationState()
 		by[st]++
-		out = append(out, NominationRow{UCC: c.UCC, Name: c.Name, State: st, Count: len(c.Nominees), On: c.NominationOn, Mode: c.NominationMode, Nominees: maskNominees(c.Nominees)})
+		out = append(out, NominationRow{UCC: c.UCC, Name: c.Name, State: st, Count: len(c.Nominees), On: c.NominationOn, Mode: c.NominationMode, Nominees: maskNominees(c.Nominees), OverLimit: len(c.Nominees) > MaxNominees})
+	}
+	if by[NominationOverLimit] > 0 {
+		o.flagNominationsOverLimit(ctx, tenant, o.now().Format("2006-01-02"))
 	}
 	return out, by, nil
 }
@@ -307,7 +440,9 @@ func (o *Ops) prepareNominees(ctx context.Context, tenant, actor string, rows []
 		}
 		c := Client{Nominees: ns}
 		normaliseNominees(&c)
-		for _, f := range validateNominees(c.Nominees, now) {
+		// A migration file carries nominations already made, some under
+		// the old limit of 10: they load as they are and are flagged.
+		for _, f := range checkNominees(c.Nominees, now, legacyMaxNominees) {
 			errs = append(errs, ingest.ParseError{Line: lines[u], Field: f.Field, Msg: u + ": " + f.Msg})
 		}
 		by[u] = c.Nominees

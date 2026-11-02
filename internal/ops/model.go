@@ -247,7 +247,9 @@ type CalendarItem struct {
 // DefaultSettings are used until a tenant saves its own.
 func DefaultSettings() Settings {
 	return Settings{
-		Firm: "Your firm", WarnUtilPct: 80, RASBufferPct: 0, PenaltyPassThrough: true,
+		// Penalties are the firm's by default: passing one to a client is
+		// allowed only case by case (NSE/INSP/64315, see penaltypass.go).
+		Firm: "Your firm", WarnUtilPct: 80, RASBufferPct: 0, PenaltyPassThrough: false,
 		SnapshotTimes:   []string{"10:12:41", "11:47:03", "13:05:29", "14:58:16"},
 		IndexNetLimitCr: 1500, InactiveDays: 30, MemberCodes: map[string]string{},
 	}

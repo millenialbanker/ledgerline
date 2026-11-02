@@ -8,7 +8,6 @@ import (
 
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
-	"ledgerline/internal/ledger"
 	"ledgerline/internal/money"
 )
 
@@ -552,6 +551,12 @@ type MarginRow struct {
 	// plus UPI blocks); Collateral the pledged securities used, after haircut.
 	Funds      money.Dec `json:"funds"`
 	Collateral money.Dec `json:"collateral"`
+	// PassStatus is set when the penalty is proposed to be, or was, passed
+	// to the client (Waiting for approval, Posted, Rejected), with the
+	// reason and its reference.
+	PassStatus string `json:"pass_status,omitempty"`
+	PassReason string `json:"pass_reason,omitempty"`
+	PassRef    string `json:"pass_ref,omitempty"`
 }
 
 // MarginReport is the client-wise margin collection report.
@@ -559,7 +564,7 @@ type MarginReport struct {
 	Date      string      `json:"date"`
 	Snapshots []string    `json:"snapshots"`
 	Rows      []MarginRow `json:"rows"`
-	Posted    bool        `json:"penalties_posted"`
+	Posted    bool        `json:"penalties_posted"` // the day's penalties were prepared (none is debited without approval)
 }
 
 // Margins computes peak margin from the intraday snapshot times: positions
@@ -624,47 +629,47 @@ func (o *Ops) Margins(ctx context.Context, tenant, date string) (MarginReport, e
 			continue
 		}
 		row.Penalty = row.Short.Pct(row.SlabPct)
+		if p, ok := o.penaltyPass(ctx, tenant, date, u); ok {
+			row.PassStatus, row.PassReason, row.PassRef = p.Status, p.ReasonText, p.Ref()
+		}
 		rep.Rows = append(rep.Rows, row)
 	}
 	sort.SliceStable(rep.Rows, func(i, j int) bool { return rep.Rows[i].Short.Cmp(rep.Rows[j].Short) > 0 })
 	return rep, nil
 }
 
-// PostPenalties debits short-collection penalties to clients when the
-// tenant passes them through. Idempotent per client and date.
-func (o *Ops) PostPenalties(ctx context.Context, tenant, actor, date string) (int, error) {
-	if err := o.require(ctx, tenant, actor, "Posting margin penalties", RoleRisk, RoleChecker); err != nil {
+// PreparePenalties prepares the day's short-collection penalties. It never
+// debits a client: a penalty is the firm's unless a person passes it on
+// for an allowed reason with evidence and a checker approves it
+// (NSE/INSP/64315; see ProposePenaltyPass). When the firm's Settings allow
+// pass-through, each penalty from 1 Nov 2024 gets a work item for
+// Compliance or Risk to decide. It returns the number of items prepared.
+func (o *Ops) PreparePenalties(ctx context.Context, tenant, actor, date string) (int, error) {
+	if err := o.require(ctx, tenant, actor, "Preparing margin penalties", RoleRisk, RoleChecker, RoleCompliance); err != nil {
 		return 0, err
 	}
 	set, err := o.Settings(ctx, tenant)
 	if err != nil {
 		return 0, err
 	}
-	if !set.PenaltyPassThrough {
-		return 0, fmt.Errorf("%w: penalty pass-through is off in Settings", ErrState)
-	}
 	rep, err := o.Margins(ctx, tenant, date)
 	if err != nil {
 		return 0, err
 	}
 	n := 0
-	for _, r := range rep.Rows {
-		amt := r.Penalty.Round(money.UnitPaisa)
-		if amt <= 0 {
-			continue
-		}
-		_, created, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "PEN:" + date + ":" + r.UCC, ValueDate: date,
-			Narration: fmt.Sprintf("Short margin collection penalty for %s (%s%% on %s)", date, r.SlabPct, r.Short.Fixed(2)),
-			Source:    ledger.SourceRef{Kind: "PENALTY", ID: date + "/" + r.UCC}, CreatedBy: actor,
-			Postings: []ledger.Posting{{Account: ledger.ClientAccount(r.UCC), Debit: amt}, {Account: ledger.PayablePenalty, Credit: amt}}})
-		if err != nil {
-			return n, err
-		}
-		if created {
+	if set.PenaltyPassThrough && date >= PenaltyPassFrom {
+		r := &runCtx{o: o, ctx: ctx, tenant: tenant, date: date, process: wPenaltyPass, keys: map[string]bool{}}
+		for _, m := range rep.Rows {
+			if m.Penalty.Round(money.UnitPaisa) <= 0 || m.PassStatus != "" {
+				continue
+			}
+			r.queue(penaltyPassID(date, m.UCC), fmt.Sprintf("Margin penalty ₹%s of %s: the firm's, unless the client caused it", formatINR(m.Penalty), m.UCC),
+				fmt.Sprintf("Short collection of ₹%s on %s (%s%%). It may be passed to the client only for a dishonoured cheque or a hedge break disclosed in the risk policy: give the reason and attach the evidence on RMS → Margin reporting, or dismiss to bear it.", formatINR(m.Short), fmtDay(date), m.SlabPct),
+				m.UCC, RoleCompliance, "rms", "", nil)
 			n++
 		}
 	}
 	_ = docs.Upsert(ctx, o.Docs, tenant, cSnapshotPx, "penalty|"+date, struct{ Posted bool }{true}, actor)
-	o.log(ctx, tenant, actor, "margin.penalties.posted", date, map[string]any{"clients": n})
+	o.log(ctx, tenant, actor, "margin.penalties.prepared", date, map[string]any{"items": n, "pass_through": set.PenaltyPassThrough})
 	return n, nil
 }

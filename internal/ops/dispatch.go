@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 	"time"
@@ -92,6 +93,9 @@ type docRequest struct {
 	Report               pdf.Report
 	Title, FileName      string
 	Text                 string // email body
+	// Extra are kept files sent with the document as they are (such as
+	// the evidence for a margin penalty passed on); they are not signed.
+	Extra []PeriodicFile
 }
 
 func mailFrom(m Mailer, set Settings) string {
@@ -136,6 +140,15 @@ func (o *Ops) dispatchDoc(ctx context.Context, tenant, actor string, r docReques
 		return d, err
 	}
 	d.Files = append(d.Files, DispatchFile{Name: r.FileName, RawID: rf.ID, SHA256: sum, Bytes: len(data), Signed: true, Signer: info.Name, Serial: info.Serial, Issuer: info.Issuer, SignedAt: now.Format(time.RFC3339)})
+	attach := []MailFile{{Name: r.FileName, Type: "application/pdf", Data: data}}
+	for _, x := range r.Extra {
+		f, err := o.App.Ingest.Raw.Get(ctx, tenant, x.ID)
+		if err != nil {
+			return d, err
+		}
+		d.Files = append(d.Files, DispatchFile{Name: f.Name, RawID: f.ID, SHA256: f.SHA256, Bytes: len(f.Content)})
+		attach = append(attach, MailFile{Name: f.Name, Type: http.DetectContentType(f.Content), Data: f.Content})
+	}
 	if d.Channel == "physical" {
 		d.Status, d.Reason = "Physical pending", "client chose paper contract notes and statements"
 		o.raiseWork(ctx, tenant, "dispatch", d.ID, "Send a printed copy to "+c.Name, fmt.Sprintf("%s %s: print the signed PDF from the Dispatch register and send it by courier; record the courier reference.", DocKindNames[r.Kind], r.Ref), c.UCC, RoleMaker, "dispatch:"+d.ID, r.Date)
@@ -149,7 +162,7 @@ func (o *Ops) dispatchDoc(ctx context.Context, tenant, actor string, r docReques
 	}
 	mailer := o.mailerFor(ctx, tenant)
 	mail := Mail{From: mailFrom(mailer, set), To: c.Email, Subject: d.Subject, Text: r.Text + "\n\n" + set.Firm + "\nThe attached PDF is digitally signed. If you did not expect this message, write to " + firstOf(set.ComplianceEmail, "the firm") + ".",
-		Attach: []MailFile{{Name: r.FileName, Type: "application/pdf", Data: data}}}
+		Attach: attach}
 	switch {
 	case mailer != nil:
 		id, err := mailer.Send(ctx, mail)
