@@ -291,6 +291,8 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.bseUCCTick(ctx, tenant, now)
 	// Dealers: NISM certificate expiry and open terminals of dealers who left.
 	o.dealersTick(ctx, tenant, now)
+	// Expected exchange and clearing files still missing after their time.
+	o.dailyFileAlertTick(ctx, tenant, now)
 	// CDSL (DP): demat account requests, transactions, eDIS and report set-ups.
 	o.cdslBOTick(ctx, tenant, now)
 	o.cdslTxnTick(ctx, tenant, now)
