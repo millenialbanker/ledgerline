@@ -257,7 +257,46 @@ On [[xfiles|Exchange files]]:
 
 **Daily file checklist**: the top of Exchange files lists the day's expected files with their usual times (for example BSE's final trade file about 17:00, its cash bhavcopy about 16:30 and F&O bhavcopy about 17:20, the MBRSTD stamp duty file about 15:00 the next day) and marks each Received, Written, Due or Missing. Which files appear follows **Cleared through** in [[settings|Settings]] (Admin): choose for each exchange segment the clearing corporation it is cleared at under SEBI interoperability (NSE and BSE: NSE Clearing or ICCL; MSE: MCCIL, NSE Clearing or ICCL; MCX: MCXCCL; NCDEX: NCCL), **Another clearing member** (the firm is only a trading member there; give the member's code and name) or **Not traded**. The exchange's own files appear whenever the firm trades on that exchange; a clearing corporation's files appear only when some segment is cleared there; a segment cleared by another clearing member has no clearing-corporation files, since they come from that member. Every change is in the audit trail. The writers of outgoing files are not affected.
 
-The firm's PAN is taken from the GSTIN unless set in Settings; set the clearing member's PAN there if another member clears for the firm. Check the first SEGMON files against the previous system before uploading: Ledgerline reports the ledger balance and pledged securities, and zero for collateral it does not hold (bank guarantees, FDRs).
+The firm's PAN is taken from the GSTIN unless set in Settings; set the clearing member's PAN there if another member clears for the firm. **Download** on the SEGMON file and on the holding statement opens their own panel first: the SEGMON check and NSE Clearing's response, and the holding statement's submission to NSE by API.
+
+## segmon-report
+title: Client funds and collateral report (SEGMON): check, download, response
+screen: xfiles
+roles: Ops maker, Ops checker, Risk manager, Compliance officer
+ask: segmon; segmon check; client funds report; 65 column file; peak ledger balance; peak clear balance; credit in lieu of epi; cash placed with ncl; mtf indicator; non mtf; uncleared receipts; settlement amount column; segmon error file; segmon response; segmon rejected; segregation and monitoring of collateral
+related: exchange-files, client-collateral, holding-api
+
+On [[xfiles|Exchange files]], under **Sent**, choose the date and **Download** on *Client funds and collateral report*. Ledgerline first runs the **SEGMON check** and shows its errors and warnings; the file is made only when there are no errors.
+
+What Ledgerline reports for each client (one line per segment with an allocation; the ledger, received and retained amounts on the client's first line):
+
+- **Ledger balance (A)** and **clear balance (B)**: the client ledger at the end of the day; B leaves out cheques credited but not yet cleared, which are in **Uncleared receipts**.
+- **Peak clear balance (C)**: the highest clear balance during the day, worked out from the start-of-day balance and the day's postings in the order they were made. A cheque counts from the day it clears. The day's settlement bills do not lower the peak.
+- **Credit in lieu of early pay-in**: the full value of shares the client paid in early through CDSL that day (their sale price, else the closing price).
+- **Cash and securities placed with NSE Clearing**: the client's end-of-day allocation to the segment, the same as the allocation file and CC01. Securities pledged and not allocated are shown as retained by the trading member. G-secs and T-bills are reported in their own columns.
+- **MTF**: a client with margin trading has a second cash-segment line marked **MTF** with the margin trading ledger; the client's cash margin on open MTF positions is in **Cash collateral for MTF positions** and in the **NON MTF** line's balances, not in the MTF line.
+- **Settlement amount**: funds paid out in the running account settlement, in the file of the working day after the settlement date.
+- Bank guarantees, fixed deposits, commodities and other collateral are zero: clients do not give them to the firm in Ledgerline.
+
+The check stops the file for: a missing or malformed PAN (firm, clearing member or client; shown masked), a client twice for the same segment and indicator, collateral received not equal to retained plus placed (or placed with the clearing member not equal to retained by it plus placed with NSE Clearing), a peak below the clear balance, totals that do not agree with the client ledgers or the day's allocation, and a client with a balance left out. It warns when cash allocated is more than the client's clear credit.
+
+**Load NSE Clearing's response**: drop the response or error file NSE Clearing gives back (zip or gz is fine). Each line it did not accept opens a work item for the compliance officer saying why in plain words. NSE Clearing's response layout is not in the published circulars, so Ledgerline reads it leniently and says so; send a sample response file to have its layout confirmed.
+
+## holding-api
+title: Holding statement to NSE by API
+screen: xfiles
+roles: Ops maker, Ops checker, Compliance officer
+ask: holding statement api; submit holding statement; nse holding statement; holding statement rejected; inspection api; daily holding statement; hs file; holding statement error code; 805 error; submit earlier day first
+related: exchange-files, connections
+
+NSE takes each client's demat holdings every day except Sunday, by API (NSE circulars NSE/INSP/55039 and NSE/INSP/55380). A day is accepted only after the day before it.
+
+1. **Set up** (Admin): [[connections|Settings → Connections]] → *NSE holding statement API*: the 5-digit member code, the API password and the secret key NSE mailed at registration on its inspection portal (the login ID is ApiUser followed by the member code unless NSE gave another). The secret key changes with every password reset.
+2. **Submit by hand**: on [[xfiles|Exchange files]], under **Sent**, choose the date and **Download** on *Client holding statement*, then **Submit to NSE now**. Ledgerline checks every record first (demat account, name, PAN, ISIN, pledged plus free equals total) and sends nothing while a record would fail; the problems are listed.
+3. **Automatic**: with *Submit the previous day's statement automatically* on, the scheduler sends each day up to yesterday that NSE has not accepted, oldest first, once the CDSL statement of holding for it is loaded. Ledgerline keeps the latest holdings only, so a day whose holdings were already replaced by a later CDSL file is not sent: a work item asks for it to go through NSE's portal.
+4. Every submission is kept with NSE's acknowledgement and codes. A rejected file or record opens a work item with NSE's reason in plain words (for example *the client PAN is not right (905)* or *an earlier day's holding statement has not been submitted yet (805)*). Correct and submit again; each submission gets the next file number.
+
+**Download the file** stays available for NSE's or BSE's portal. BSE is not covered by these circulars, so there is no BSE API connection.
 
 ## periodic-work
 title: Weekly, monthly and quarterly work
