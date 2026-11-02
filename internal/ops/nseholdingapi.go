@@ -49,8 +49,16 @@ import (
 //   - Production base https://api.nseindia.com/inspectionapi; the circulars
 //     give no UAT address for the API (it can be set on the connection).
 //
-// BSE is not covered by these circulars, so there is no BSE connector; the
-// JSON file stays downloadable on Exchange files for the portal.
+// The same circulars named a daily bank account balance submission; NSE
+// discontinued members' reporting of bank balances and statements from 30
+// October 2023, the banks now report them directly (NSE/INSP/59044), so it
+// is not to be built. The firm confirms its banks do (a yearly duty).
+//
+// BSE takes the holding statement daily too (BSE notice 20230113-13), by its
+// own API or the BEFS portal; from 15 October 2025 a member of NSE and BSE
+// reports it to NSE only and NSE shares it (NSE/INSP/70505). A BSE-only
+// member uploads it on BEFS from Exchange files (bseholding.go) until BSE's
+// API document is available.
 
 const (
 	connNSEHolding = "nse-holding-api"

@@ -2,7 +2,8 @@
 /* Ledgerline console: reports sent from Exchange files. The client funds
    report (SEGMON) gets its pre-upload check, the download and NSE
    Clearing's response file; the holding statement gets the NSE API
-   submission and its history. Loaded after app.js; it takes over the
+   submission and its history, and the BSE upload record for a BSE-only
+   member. Loaded after app.js; it takes over the
    Download button of those two rows on the "xfiles" screen. */
 
 const xrPill = s => pill(s, { Accepted: 'good', 'Partly accepted': 'warn', Rejected: 'bad', Failed: 'bad', 'Not sent': 'warn' }[s] || 'nt');
@@ -24,16 +25,27 @@ function xrSegmonHTML(d, chk, resps) {
   </div>`;
 }
 
-function xrHoldingHTML(d, v) {
+function xrBSEHoldingHTML(d, b) {
+  if (!b) return '';
+  const can = has('Ops maker', 'Ops checker', 'Compliance officer');
+  if (!b.applies) return `<h3 style="margin-top:14px">BSE</h3><div class="small">${esc(b.note)}</div>`;
+  return `<h3 style="margin-top:14px">BSE (BEFS portal)</h3><div class="small">${esc(b.note)}</div><div class="note warn small">${esc(b.api)}</div>
+    ${b.problems.length ? `<div class="note bad small"><b>Fix before uploading:</b><ul>${b.problems.slice(0, 10).map(p => `<li>${esc(p)}</li>`).join('')}${b.problems.length > 10 ? `<li>…and ${b.problems.length - 10} more</li>` : ''}</ul></div>` : ''}
+    ${b.pending.length ? `<div class="small">Not yet recorded: ${b.pending.map(fmtDate).join(', ')}</div>` : ''}
+    ${can ? `<div class="split" style="margin-top:8px"><button class="btn" data-act="xrBSERec" data-id="${d}">Recorded on BEFS…</button></div>` : ''}
+    ${tbl([['Date'], ['Records', 'r'], ['BEFS acknowledgement'], ['When']], b.filings.slice(0, 10).map(f => `<tr><td class="n">${fmtDate(f.date)}</td><td class="r">${nf(f.records)}</td><td class="mono small">${esc(f.ack)}</td><td class="small">${xrStamp(f.at)}<div class="dim">${esc(f.by)}</div></td></tr>`), { empty: 'Nothing recorded yet.' })}`;
+}
+
+function xrHoldingHTML(d, v, b) {
   const conn = v.connection === 'Not set' ? `<div class="note">The NSE holding statement API is not set up (Settings → Connections). Download the file and upload it on NSE's portal.</div>`
     : `<div class="small">Connection: ${pill(v.connection, CONN_ST[v.connection] || 'nt')} · automatic submission ${v.auto ? 'on' : 'off'}${v.state.last_ok ? ' · last accepted ' + fmtDate(v.state.last_ok) : ''}${v.problem ? ` · <span class="neg">${esc(v.problem)}</span>` : ''}</div>`;
   const can = has('Ops maker', 'Ops checker', 'Compliance officer');
-  return mhd('Client holding statement', `Holdings for ${fmtDate(d)}, as reported to NSE (and BSE by their portal).`) + `<div class="bd">${conn}
+  return mhd('Client holding statement', `Holdings for ${fmtDate(d)}, reported to the exchanges daily except Sunday, by the next day.`) + `<div class="bd">${conn}
     <div class="split" style="margin-top:12px"><button class="btn" data-act="dl" data-id="/v1/exchange-files/holding-statement-api?date=${d}" data-name="holding_${d}.json">Download the file</button>
       ${can && v.connection !== 'Not set' ? `<button class="btn pri" data-act="xrHoldSubmit" data-id="${d}">Submit to NSE now</button>` : ''}</div>
     <h3 style="margin-top:14px">Submissions for ${fmtDate(d)}</h3>
     ${tbl([['File'], ['Records', 'r'], ['Status'], ['NSE'], ['When']], v.submissions.map(s => `<tr><td class="mono small">${esc(s.file)}</td><td class="r">${nf(s.records)}</td><td>${xrPill(s.status)}${s.reason ? `<div class="small wrap">${esc(s.reason)}</div>` : ''}${(s.errors || []).length ? `<ul class="small">${s.errors.slice(0, 8).map(x => `<li>${esc([x.ucc, x.isin].filter(Boolean).join(' '))}${x.ucc ? ': ' : ''}${esc(x.plain)}</li>`).join('')}${s.errors.length > 8 ? `<li>…and ${s.errors.length - 8} more</li>` : ''}</ul>` : ''}</td>
-      <td class="small">${s.ack_id ? 'ACK ' + esc(s.ack_id) : ''}${(s.hdr_code || []).length ? `<div class="dim">code ${esc(s.hdr_code.join(', '))}</div>` : ''}</td><td class="small">${xrStamp(s.at)}<div class="dim">${esc(s.by)}</div></td></tr>`), { empty: 'Nothing submitted for this date.' })}</div>`;
+      <td class="small">${s.ack_id ? 'ACK ' + esc(s.ack_id) : ''}${(s.hdr_code || []).length ? `<div class="dim">code ${esc(s.hdr_code.join(', '))}</div>` : ''}</td><td class="small">${xrStamp(s.at)}<div class="dim">${esc(s.by)}</div></td></tr>`), { empty: 'Nothing submitted for this date.' })}${xrBSEHoldingHTML(d, b)}</div>`;
 }
 
 const xrPrevDl = A.xfDl;
@@ -47,7 +59,8 @@ Object.assign(A, {
         return;
       }
       if (id === 'holding-statement-api') {
-        modal(xrHoldingHTML(d, await get(`/v1/holding-api?date=${d}`)));
+        const [v, b] = await Promise.all([get(`/v1/holding-api?date=${d}`), get(`/v1/holding-api/bse?date=${d}`).catch(() => null)]);
+        modal(xrHoldingHTML(d, v, b));
         return;
       }
     } catch (e) { toast(e.message, true); return; }
@@ -66,6 +79,9 @@ Object.assign(A, {
     };
     inp.click();
   },
+  xrBSERec: d => confirmModal('Recorded on BEFS', `The holding statement for ${fmtDate(d)} uploaded on BSE’s BEFS portal.`, '<div class="fld"><label for="xb-a">BEFS acknowledgement or upload reference</label><input class="in mono" id="xb-a"></div>', 'Record', async () => {
+    await post('/v1/holding-api/bse', { date: d, ack: $('xb-a').value }); toast('Recorded'); A.xfDl('holding-statement-api');
+  }),
   xrHoldSubmit: async d => {
     try {
       toast('Submitting to NSE…');

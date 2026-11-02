@@ -283,10 +283,10 @@ The check stops the file for: a missing or malformed PAN (firm, clearing member 
 **Load NSE Clearing's response**: drop the response or error file NSE Clearing gives back (zip or gz is fine). Each line it did not accept opens a work item for the compliance officer saying why in plain words. NSE Clearing's response layout is not in the published circulars, so Ledgerline reads it leniently and says so; send a sample response file to have its layout confirmed.
 
 ## holding-api
-title: Holding statement to NSE by API
+title: Holding statement to NSE by API (and BSE)
 screen: xfiles
 roles: Ops maker, Ops checker, Compliance officer
-ask: holding statement api; submit holding statement; nse holding statement; holding statement rejected; inspection api; daily holding statement; hs file; holding statement error code; 805 error; submit earlier day first
+ask: holding statement api; submit holding statement; nse holding statement; bse holding statement; befs holding statement; bank balance submission; holding statement rejected; inspection api; daily holding statement; hs file; holding statement error code; 805 error; submit earlier day first
 related: exchange-files, connections
 
 NSE takes each client's demat holdings every day except Sunday, by API (NSE circulars NSE/INSP/55039 and NSE/INSP/55380). A day is accepted only after the day before it.
@@ -296,7 +296,11 @@ NSE takes each client's demat holdings every day except Sunday, by API (NSE circ
 3. **Automatic**: with *Submit the previous day's statement automatically* on, the scheduler sends each day up to yesterday that NSE has not accepted, oldest first, once the CDSL statement of holding for it is loaded. Ledgerline keeps the latest holdings only, so a day whose holdings were already replaced by a later CDSL file is not sent: a work item asks for it to go through NSE's portal.
 4. Every submission is kept with NSE's acknowledgement and codes. A rejected file or record opens a work item with NSE's reason in plain words (for example *the client PAN is not right (905)* or *an earlier day's holding statement has not been submitted yet (805)*). Correct and submit again; each submission gets the next file number.
 
-**Download the file** stays available for NSE's or BSE's portal. BSE is not covered by these circulars, so there is no BSE API connection.
+**Download the file** stays available for NSE's portal.
+
+**BSE**: BSE also takes the holding statement daily except Sunday, by the next day (BSE notice 20230113-13). From 15 October 2025 a member of both NSE and BSE reports it to NSE only, and NSE shares it with BSE (NSE/INSP/70505), so nothing more is sent. A member of BSE that is not an NSE member downloads the day's file in the same panel, uploads it on BSE's BEFS portal and clicks **Recorded on BEFS** with BEFS's acknowledgement; a day not recorded opens a work item the next morning, and the compliance calendar has the daily duty. BSE's API is not set up: its document (Annexure I of the notice) is given to members and is not public, so ask BSE for it to have the API added.
+
+The daily bank balance submission named in the same circulars is not sent: NSE stopped it from 30 October 2023 because the banks report balances directly (NSE/INSP/59044). The compliance calendar has a yearly duty to confirm the banks do.
 
 ## periodic-work
 title: Weekly, monthly and quarterly work
