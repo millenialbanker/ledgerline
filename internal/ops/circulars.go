@@ -461,6 +461,8 @@ func (o *Ops) Duties(ctx context.Context, tenant, date string) ([]Duty, error) {
 			obs = append(obs, x)
 		}
 	}
+	// The AI & ML and SaaS reports, for each exchange the firm files with.
+	obs = o.ensureDisclosureDuties(ctx, tenant, date, obs)
 	for i := range obs {
 		x := &obs[i]
 		if x.Done == nil {

@@ -364,6 +364,7 @@ func (o *Ops) aiOnDuring(ctx context.Context, tenant, feature, from, to string) 
 
 // aiControlsTick keeps the on/off history up to date (the server's own
 // switches change only at a restart) and prunes the answer log once a day.
+// It runs in every edition, from the scheduler's Tick.
 func (o *Ops) aiControlsTick(ctx context.Context, tenant string, now time.Time) {
 	o.aiMarkState(ctx, tenant)
 	today := now.In(ist).Format("2006-01-02")
@@ -375,9 +376,4 @@ func (o *Ops) aiControlsTick(ctx context.Context, tenant string, now time.Time) 
 	t = o.aiTimelineDoc(ctx, tenant)
 	t.Pruned = today
 	_ = docs.Upsert(ctx, o.Docs, tenant, cAIControl, "timeline", t, SystemActor)
-}
-
-// AIControlsTick is aiControlsTick for the scheduler's Tick.
-func (o *Ops) AIControlsTick(ctx context.Context, tenant string, now time.Time) {
-	o.aiControlsTick(ctx, tenant, now)
 }

@@ -85,6 +85,8 @@ On [[insights|Client insights]], Ledgerline finds opportunities in each client's
 
 Messages give facts about the client's own account, never advice.
 
+Insights are **rule-based, not AI**: each kind is a fixed rule applied to the client's own holdings, lots, positions, funds and the corporate-action calendar. No AI model is asked, and a test in Ledgerline fails if the insights code ever calls one.
+
 ## year-end-packs
 title: Send year-end tax packs
 screen: yearend
@@ -223,7 +225,7 @@ Ledgy always answers from its help articles at no cost. If your firm switches on
 - **AI credit and usage** in Settings shows the credit left, AI answers this month, the charge (plus GST), the most one answer can cost, each answer and every top-up.
 - When credit runs out, Ledgy keeps answering from its help articles without AI and says so.
 - Credit is added by your Ledgerline provider after payment. Ask them for a top-up.
-- Only the question (with PAN, numbers and emails masked) and the help articles are sent to the AI provider; questions aren't stored with the charges.
+- Only the question (with client names and codes, PAN, Aadhaar, phones, emails, account numbers and staff names masked) and the help articles are sent to the AI provider. Each call, masked, is in the **AI answer log** on [[aictl|AI controls]].
 
 ## customize-dashboard
 title: Customize your dashboard

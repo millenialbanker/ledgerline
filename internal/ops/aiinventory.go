@@ -79,7 +79,7 @@ func (o *Ops) ledgerlineAISystems() []AISystem {
 		prov, model = o.LedgyAI.Provider(), o.LedgyAI.Model()
 		info := aiProviderInfo[prov]
 		tool = fmt.Sprintf("%s (%s), through Ledgerline", info.Name, model)
-		impl = fmt.Sprintf("Vendor (Ledgerline) using %s's %s model through its API", info.Company, model)
+		impl = fmt.Sprintf("Vendor (Ledgerline) using the %s model %s (%s), through its API", info.Name, model, info.Company)
 	}
 	safeguards := "Kill switch (firm-wide, per provider and server-wide) that stops the next call; identifiers masked before sending; every call logged with the masked prompt and answer for the compliance officer; answers capped in length; no autonomous actions: the reply is text for a person and every decision and change in Ledgerline is made by staff (maker-checker); prepaid credit cap; on any error or refusal the feature falls back to its non-AI behaviour."
 	return []AISystem{

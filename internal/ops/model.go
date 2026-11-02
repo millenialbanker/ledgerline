@@ -434,6 +434,9 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	if s.BillAI && o.Residency.IndiaOnly {
 		return invalid("reading bills with AI sends them outside India, which India-only mode does not allow")
 	}
+	if err := checkDeployment(&s); err != nil {
+		return err
+	}
 	s.AllocPushSegment = strings.ToUpper(strings.TrimSpace(s.AllocPushSegment))
 	if s.AllocPushSegment != "" && s.AllocPushSegment != "CM" && s.AllocPushSegment != "FO" && s.AllocPushSegment != "CD" {
 		return invalid("money coming in is allocated to CM, FO or CD")
