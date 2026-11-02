@@ -497,7 +497,7 @@ func (o *Ops) ExchangeFile(ctx context.Context, tenant, actor, id, date string, 
 	case "holding-statement-api":
 		name, content, err = o.holdingStatementFile(ctx, tenant, s, set, date, vars)
 	case "segmon-client-funds":
-		name, content, err = o.segmonFile(ctx, tenant, s, set, date, vars)
+		name, content, err = o.segmonFile(ctx, tenant, set, date, vars)
 	case "ncl-client-collateral":
 		return o.ClientCollateralFile(ctx, tenant, actor, date, opt.Segment, false)
 	case "ncl-cuspa-mtf-payout":
@@ -692,117 +692,4 @@ func (o *Ops) holdingStatementFile(ctx context.Context, tenant string, s *xfile.
 		return "", nil, invalid("%v", err)
 	}
 	return name, b, nil
-}
-
-// segmonFile is the daily client funds and collateral report (65 columns).
-// Mapping: ledger balance (A) and clear balance (B, less uncleared cheques)
-// from the client ledger; peak clear balance (C) is the end-of-day clear
-// balance (Ledgerline does not yet keep intraday ledger peaks); securities
-// pledged as margin are "Approved Securities Non-cash component received";
-// each client is reported in each segment they hold an allocation in, with
-// the ledger balance and securities on their first segment. Columns for
-// collateral Ledgerline does not hold (BG, FDR, commodities) are zero. A
-// firm checks the first files against the previous system before using it.
-func (o *Ops) segmonFile(ctx context.Context, tenant string, s *xfile.Spec, set Settings, date string, vars xfile.Vars) (string, []byte, error) {
-	pan := firmPAN(set)
-	if pan == "" {
-		return "", nil, invalid("set the firm's PAN (or GSTIN) in Settings first")
-	}
-	cmPAN := firstNonEmptyStr(set.ClearingMemberPAN, pan)
-	funds, err := o.clientFunds(ctx, tenant, date, "")
-	if err != nil {
-		return "", nil, err
-	}
-	unc := o.uncleared(ctx, tenant)
-	rv, err := o.Risk(ctx, tenant, date)
-	if err != nil {
-		return "", nil, err
-	}
-	coll := map[string]money.Dec{}
-	for _, r := range rv.Rows {
-		coll[r.UCC] = r.Collateral
-	}
-	al, err := o.Allocation(ctx, tenant, date)
-	if err != nil {
-		return "", nil, err
-	}
-	segs := map[string][]string{}
-	for _, a := range al {
-		seg := a.Segment
-		if seg == "COM" {
-			continue // commodities are reported to MCX separately
-		}
-		if !contains(segs[a.UCC], seg) {
-			segs[a.UCC] = append(segs[a.UCC], seg)
-		}
-	}
-	cs, _ := o.ClientMap(ctx, tenant)
-	uccs := make([]string, 0, len(cs))
-	for u, c := range cs {
-		if c.Status == "Active" || funds[u] != 0 || len(segs[u]) > 0 {
-			uccs = append(uccs, u)
-		}
-	}
-	sort.Strings(uccs)
-	cols := s.Columns
-	zero := func() map[string]string {
-		m := map[string]string{}
-		for _, c := range cols {
-			if c.Type == "dec" {
-				m[c.Key] = "0"
-			}
-		}
-		return m
-	}
-	byName := func(prefix string) string {
-		for _, c := range cols {
-			if strings.HasPrefix(c.Name, prefix) {
-				return c.Key
-			}
-		}
-		panic("segmon column " + prefix)
-	}
-	kA, kB, kC := byName("Financial Ledger balance-A"), byName("Financial Ledger balance (clear)-B"), byName("Peak Financial Ledger Balance")
-	kSec := byName("Approved Securities Non-cash component received by TM")
-	d, _ := time.Parse("2006-01-02", date)
-	var rows []xfile.Row
-	for _, u := range uccs {
-		ss := segs[u]
-		if len(ss) == 0 {
-			ss = []string{"CM"}
-		}
-		sort.SliceStable(ss, func(i, j int) bool { return segRank(ss[i]) < segRank(ss[j]) })
-		for i, seg := range ss {
-			m := zero()
-			m["Date"] = d.Format("02-01-2006")
-			m["Clearing Member PAN"], m["Trading member PAN"], m["Client PAN"] = cmPAN, pan, cs[u].PAN
-			m["Account Type"], m["Segment Indicator"], m["UCC Code"] = "C", seg, u
-			m["MTF /Non MTF indicator/Reason Code"] = "NA"
-			if seg == "CM" {
-				m["MTF /Non MTF indicator/Reason Code"] = "NON MTF"
-			}
-			m["Unclaimed/Unsettled Client Funds"] = "NA"
-			if i == 0 {
-				a := funds[u].Dec()
-				b := (funds[u] - unc[u]).Dec()
-				m[kA], m[kB], m[kC] = a.Fixed(2), b.Fixed(2), b.Fixed(2)
-				m[kSec] = coll[u].Fixed(2)
-			}
-			rows = append(rows, xfile.Row{Values: m})
-		}
-	}
-	b, err := s.Write(rows)
-	if err != nil {
-		return "", nil, err
-	}
-	vars["member_pan"] = pan
-	name, err := s.FileName(vars)
-	if err != nil {
-		return "", nil, invalid("%v", err)
-	}
-	return name, b, nil
-}
-
-func segRank(s string) int {
-	return map[string]int{"CM": 0, "FO": 1, "CD": 2}[s]
 }

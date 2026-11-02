@@ -223,6 +223,7 @@ Setting up stock SIPs | Compliance officer
 Settlement actions | Ops maker, Ops checker
 Settling a buy-back | Ops checker
 Square-off | Risk manager
+Submitting the holding statement to NSE | Ops maker, Ops checker, Compliance officer
 Switching the autopilot schedule | Admin
 Taking a backup | Admin
 Tendering for a client | Ops maker, Ops checker
