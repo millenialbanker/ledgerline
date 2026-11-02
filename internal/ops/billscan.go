@@ -52,7 +52,8 @@ type BillScanDoc struct {
 
 var billTypes = map[string]bool{"application/pdf": true, "image/jpeg": true, "image/png": true}
 
-// billAI says whether bills may be read with AI, and why not.
+// billAI says whether bills may be read with AI, and why not (the AI
+// gate: server and firm kill switches, India-only mode, the setting).
 func (o *Ops) billAI(ctx context.Context, tenant string) (help.DocumentReader, string) {
 	if o.Residency.IndiaOnly {
 		return nil, "Reading bills with AI is not allowed in India-only mode."
@@ -61,8 +62,8 @@ func (o *Ops) billAI(ctx context.Context, tenant string) (help.DocumentReader, s
 	if o.LedgyAI == nil || !ok || o.Meter == nil {
 		return nil, "No AI model is connected on this server."
 	}
-	if set, _ := o.Settings(ctx, tenant); !set.BillAI {
-		return nil, "An admin can switch on “Read bills with AI” in Settings (the bill is then sent to the AI provider)."
+	if _, why := o.aiGate(ctx, tenant, AIFeatureBillScan); why != "" {
+		return nil, why
 	}
 	return dr, ""
 }
@@ -178,27 +179,21 @@ func (o *Ops) ReadBillWithAI(ctx context.Context, tenant, actor, id string) (Bil
 	return sc, nil
 }
 
-// readBillAI sends the bill to the model, meters the call and keeps what
-// was read when it is the expected JSON.
-func (o *Ops) readBillAI(ctx context.Context, tenant, actor string, dr help.DocumentReader, data []byte, ct, firmGSTIN string, sc *BillScanDoc) error {
-	reserve, err := o.aiReserve(o.LedgyAI.Provider(), o.LedgyAI.Model(), 2500+len(data)/400, help.MaxDocOutputTokens)
-	if err != nil {
-		sc.AINote = "AI reading is unavailable: " + err.Error()
+// readBillAI sends the bill to the model (through the AI gate, metered
+// and logged) and keeps what was read when it is the expected JSON.
+func (o *Ops) readBillAI(ctx context.Context, tenant, actor string, _ help.DocumentReader, data []byte, ct, firmGSTIN string, sc *BillScanDoc) error {
+	check := func(text string) error { _, err := billscan.ParseAI(text, firmGSTIN); return err }
+	r, err := o.aiReadDocument(ctx, tenant, actor, AIFeatureBillScan, sc.ID+" "+sc.Name, data, ct, billscan.AIInstruction, help.MaxDocOutputTokens, check)
+	if note, refused := aiRefusal(err); refused {
+		sc.AINote = note
 		return invalid("%s", sc.AINote)
 	}
-	if o.aiBalance(ctx, tenant) < reserve {
-		sc.AINote = "The firm's AI credit has run out. Ask your Ledgerline provider to add credit, or type the details from the bill."
-		return invalid("%s", sc.AINote)
-	}
-	cctx, cancel := context.WithTimeout(ctx, 90*time.Second)
-	r, err := dr.ReadDocument(cctx, data, ct, billscan.AIInstruction)
-	cancel()
 	if err != nil {
-		sc.AINote = "The AI model could not read the bill: " + err.Error()
-		return fmt.Errorf("%w: %s", ErrState, sc.AINote)
-	}
-	if _, err := o.aiMeter(ctx, tenant, actor, r); err != nil {
-		sc.AINote = "The AI reading was not used: it could not be metered (" + err.Error() + ")."
+		if strings.HasPrefix(err.Error(), "not metered: ") {
+			sc.AINote = "The AI reading was not used: it could not be metered (" + strings.TrimPrefix(err.Error(), "not metered: ") + ")."
+		} else {
+			sc.AINote = "The AI model could not read the bill: " + err.Error()
+		}
 		return fmt.Errorf("%w: %s", ErrState, sc.AINote)
 	}
 	f, err := billscan.ParseAI(r.Text, firmGSTIN)
@@ -336,5 +331,5 @@ func (o *Ops) DiscardBillScan(ctx context.Context, tenant, actor, id string) err
 // (a model that reads documents is connected, and not India-only mode).
 func (o *Ops) BillAIAvailable() bool {
 	_, ok := o.LedgyAI.(help.DocumentReader)
-	return ok && o.LedgyAI != nil && o.Meter != nil && !o.Residency.IndiaOnly
+	return ok && o.LedgyAI != nil && o.Meter != nil && !o.Residency.IndiaOnly && !o.AIOff
 }

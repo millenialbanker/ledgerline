@@ -125,13 +125,14 @@ const GROUPS = {
   brokg: ['Brokerage & charges', [['brokerage', 'Brokerage plans'], ['charges', 'Charges calculator'], ['prepaid', 'Prepaid schemes']]],
   partnersg: ['Branches & partners', [['partners', 'Branches & partners'], ['dealers', 'Dealers & terminals']]],
   dpg: ['Depository', [['dp', 'Demat accounts & DIS'], ['cdslreq', 'CDSL requests'], ['edis', 'eDIS authorisations'], ['cdsltxn', 'Transactions (API)']]],
+  regg: ['Regulatory reports', [['reports', 'Regulatory reports'], ['exdisc', 'Exchange disclosures'], ['aictl', 'AI controls']]],
 };
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard'], ['chat', 'Team messages'], ['@automation'], ['@calendar']]],
   ['Operations', [['@filesg'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['@clientsg'], ['corp', 'Corporate actions'], ['@docsg']]],
   ['Risk', [['@riskg'], ['@collg'], ['@debtg'], ['mtf', 'Margin trading (MTF)']]],
   ['Accounts', [['ledger', 'Ledger'], ['@moneyg'], ['books', 'Firm accounts & GST'], ['@brokg']]],
-  ['Compliance', [['reports', 'Regulatory reports'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['audit', 'Audit trail']]],
+  ['Compliance', [['@regg'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['audit', 'Audit trail']]],
   ['Investments', [['ipo', 'IPO & public issues'], ['@mfg'], ['stocksip', 'Stock SIPs']]],
   ['Depository', [['@dpg']]],
   ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['@partnersg']]],
@@ -1025,7 +1026,7 @@ V.insights = {
   html: d => {
     const live = d.items.filter(insLive), rate = d.sent ? Math.round(100 * d.acted / d.sent) : 0;
     const finder = has('Ops maker', 'Ops checker', 'Compliance officer');
-    return ph('Client insights', 'Opportunities found in each client’s own account every evening: losses that could cut tax before the year ends, buy-backs above the market on shares they hold, stock derivatives that would settle by delivery, advance tax, dividends, idle funds, margin from holdings and accounts about to turn inactive. In Auto the client gets the approved message; in Suggest the client waits here for a call. Messages are information about the client’s account, never advice.',
+    return ph('Client insights', 'Opportunities found in each client’s own account every evening: losses that could cut tax before the year ends, buy-backs above the market on shares they hold, stock derivatives that would settle by delivery, advance tax, dividends, idle funds, margin from holdings and accounts about to turn inactive. In Auto the client gets the approved message; in Suggest the client waits here for a call. Messages are information about the client’s account, never advice. Insights are rule-based, not AI: each is found by a fixed rule on the client’s own records, and no AI model is used.',
       `${finder ? '<button class="btn" data-act="insFind">Find opportunities now</button>' : ''}${has('Compliance officer') ? '<button class="btn" data-act="insPolicies">Automations</button><button class="btn" data-act="go" data-id="messages">Message templates</button>' : ''}`) +
     `<div class="kpis">${kpi('Open opportunities', nf(live.length), cmp(d.value) + ' worth to clients', live.length ? 'warn' : '')}${kpi('Clients reached', nf(d.sent), 'messaged or called')}${kpi('Acted on', nf(d.acted), d.sent ? rate + '% of those reached' : 'within 15 days', d.acted ? 'good' : '')}${kpi('Turnover after insights', cmp(d.turnover), 'trades within 15 days')}</div>
     <div class="panel"><div class="hd"><div class="tools">${segBtns('insKind', [['All', `All · ${live.length}`], ...d.kinds.map(k => [k.id, `${INS_KINDS[k.id] || k.name} · ${d.counts['live:' + k.id] || 0}`])], 'ins-t')}</div></div>
@@ -2245,7 +2246,7 @@ V.settings = {
     <div class="panel"><div class="hd"><h3>Edition</h3><small>Set by your Ledgerline provider</small></div><div class="bd">${editionNote()}${S.me?.dev && admin ? `<div class="tools" style="margin-top:10px"><span class="dim small">Development server: try another edition</span>${(S.me.edition?.editions || []).map(e => `<button class="btn sm ${e.id === edition() ? 'pri' : ''}" data-act="devEdition" data-id="${e.id}">${esc(e.name)}</button>`).join('')}</div>` : ''}</div></div>
     <div class="panel"><div class="hd"><h3>Ledgy (help)</h3></div><div class="bd">
       <label class="check"><input type="checkbox" id="st-lai" ${s.ledgy_ai ? 'checked' : ''} ${admin && S.me?.ledgy_ai ? '' : 'disabled'}> Let Ledgy write answers with AI (charged from AI credit)</label>
-      <p class="dim" style="margin:6px 0 0;font-size:12.5px">${S.me?.ledgy_ai ? 'Ledgy answers from its help articles either way. With this on, the question (with PAN, numbers and emails masked) and the matching articles are sent to the AI provider to phrase the answer; client data never is. Leave it off if your policy keeps all processing in India.' : 'Not available: no AI provider is connected on this server (LEDGERLINE_ANTHROPIC_KEY, LEDGERLINE_OPENAI_KEY or LEDGERLINE_GEMINI_KEY). Ledgy answers from its help articles.'}</p>
+      <p class="dim" style="margin:6px 0 0;font-size:12.5px">${S.me?.ledgy_ai ? 'Ledgy answers from its help articles either way. With this on, the question (with client names and codes, PAN, Aadhaar, phones, emails, account numbers and staff names masked) and the matching articles are sent to the AI provider to phrase the answer; client data never is. Every call is in the AI answer log, and AI can be switched off at once on AI controls. Leave it off if your policy keeps all processing in India.' : 'Not available: no AI provider is connected on this server (LEDGERLINE_ANTHROPIC_KEY, LEDGERLINE_OPENAI_KEY or LEDGERLINE_GEMINI_KEY). Ledgy answers from its help articles.'}</p>
       <label class="check" style="margin-top:10px"><input type="checkbox" id="st-bai" ${s.bill_ai ? 'checked' : ''} ${admin && S.me?.bill_ai ? '' : 'disabled'}> Read scanned bills with AI (charged from AI credit)</label>
       <p class="dim" style="margin:6px 0 0;font-size:12.5px">${S.me?.bill_ai ? 'Vendor bills made as PDFs are read on this server either way. With this on, a scanned or photographed bill can be sent to the AI provider to read its details, when someone presses Read with AI. Vendor bills are the firm’s own purchases, not client data; leave it off if your policy keeps all processing in India.' : 'Not available: no AI provider is connected on this server, or the server runs in India-only mode. PDF bills are still read on the server.'}</p>
     </div></div>

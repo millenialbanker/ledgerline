@@ -223,40 +223,21 @@ func (o *Ops) Ledgy(ctx context.Context, tenant, actor, q, view, date string) (L
 		}
 	}
 
-	// Phrasing by an AI model, when the firm switched it on. Only the
-	// question (masked) and the articles are sent, never client data.
-	// Every call is metered and paid from the firm's prepaid AI credit.
+	// Phrasing by an AI model, when the firm switched it on and no kill
+	// switch is on. Only the question (identifiers masked) and the
+	// articles are sent, never client data. Every call is metered, paid
+	// from the firm's prepaid AI credit and logged (ailog.go).
 	if o.LedgyAI != nil && o.Meter != nil && ans.Confident {
-		if set, _ := o.Settings(ctx, tenant); set.LedgyAI {
-			var arts []help.Article
-			if ans.Article != nil {
-				arts = append(arts, *ans.Article)
-			}
-			for _, h := range hits {
-				if len(arts) < 3 && h.Score >= confidentScore*0.6 && (ans.Article == nil || h.Article.ID != ans.Article.ID) {
-					arts = append(arts, h.Article)
-				}
-			}
-			mq := MaskQuestion(q)
-			reserve, err := o.aiReserve(o.LedgyAI.Provider(), o.LedgyAI.Model(), help.EstimateInputTokens(mq, arts, ans.Perms), o.LedgyAI.MaxOutput())
-			switch {
-			case err != nil:
-				ans.AINote = "AI answers are unavailable: " + err.Error()
-			case o.aiBalance(ctx, tenant) < reserve:
-				ans.AINote = "Your firm's AI credit has run out, so this is Ledgy's standard answer. Ask your Ledgerline provider to add credit."
-			default:
-				cctx, cancel := context.WithTimeout(ctx, 25*time.Second)
-				r, err := o.LedgyAI.Write(cctx, mq, arts, ans.Perms)
-				cancel()
-				if err == nil && strings.TrimSpace(r.Text) != "" {
-					if _, merr := o.aiMeter(ctx, tenant, actor, r); merr == nil {
-						ans.AI, ans.AIBy = strings.TrimSpace(r.Text), aiName(r)
-					} else {
-						ans.AINote = "AI answer withheld: it could not be metered (" + merr.Error() + ")."
-					}
-				}
+		var arts []help.Article
+		if ans.Article != nil {
+			arts = append(arts, *ans.Article)
+		}
+		for _, h := range hits {
+			if len(arts) < 3 && h.Score >= confidentScore*0.6 && (ans.Article == nil || h.Article.ID != ans.Article.ID) {
+				arts = append(arts, h.Article)
 			}
 		}
+		ans.AI, ans.AIBy, ans.AINote = o.aiAsk(ctx, tenant, actor, q, arts, ans.Perms)
 	}
 
 	if !ans.Confident {

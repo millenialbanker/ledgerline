@@ -35,6 +35,7 @@ Authorising sales and TPIN for clients (eDIS) | Ops maker, Ops checker, Branch s
 Blocking clients in continuous debit | Risk manager
 Booking vendor bills | Ops maker, Ops checker
 Buy-back offers | Ops maker, Ops checker
+Changing AI masking | Admin
 Changing CDSL account details | Ops maker, Ops checker
 Changing CDSL pledge settings | Risk manager, Compliance officer
 Changing a segment's status | Ops checker, Compliance officer
@@ -51,6 +52,7 @@ Changing missing-file alerts | Risk manager, Compliance officer
 Changing mutual fund settings | Compliance officer
 Changing order-to-trade ratio alerts | Compliance officer
 Changing settings | Admin
+Changing the AI inventory | Compliance officer
 Changing the DP tariff | Ops checker, Admin
 Changing the MTF policy | Risk manager, Admin
 Changing the account type | Ops checker
@@ -86,6 +88,7 @@ Downloading periodic files | Ops maker, Ops checker, Compliance officer
 Downloading stock SIP basket files | Ops maker, Ops checker, Risk manager
 Downloading the collateral file | Ops maker, Ops checker, Risk manager, Compliance officer
 Editing exchange UCC details | Ops maker, Ops checker
+Editing exchange disclosures | Compliance officer
 Editing message templates | Ops checker, Compliance officer
 Entering a payout request | Ops maker, Ops checker, Branch staff, Authorised person
 Entering broker funds | Risk manager
@@ -100,6 +103,7 @@ Exporting dealers with PANs | Ops maker, Compliance officer
 Fetching files from NSE's extranet | Ops maker, Ops checker, Risk manager
 Fetching margins from NSE Clearing | Ops maker, Ops checker, Risk manager
 Fetching trades from NSE | Ops maker, Ops checker, Risk manager
+Filing exchange disclosures | Compliance officer
 Finding client insights | Ops maker, Ops checker, Compliance officer, Admin
 Flagging accounts inactive | Ops checker, Compliance officer
 Funding under MTF | Ops checker, Risk manager
@@ -213,6 +217,8 @@ Sending stock SIP orders to the OMS | Ops maker, Ops checker, Risk manager
 Sending year-end packs | Ops maker, Ops checker, Compliance officer
 Setting CDSL account defaults | Ops checker
 Setting client risk | Compliance officer
+Setting the AI answer log retention | Compliance officer
+Setting the deployment for exchange disclosures | Compliance officer
 Setting the firm's default dashboard | Admin
 Setting the signing certificate | Admin
 Setting the signing service | Admin
@@ -224,6 +230,7 @@ Settlement actions | Ops maker, Ops checker
 Settling a buy-back | Ops checker
 Square-off | Risk manager
 Submitting the holding statement to NSE | Ops maker, Ops checker, Compliance officer
+Switching AI off or on | Compliance officer
 Switching the autopilot schedule | Admin
 Taking a backup | Admin
 Tendering for a client | Ops maker, Ops checker
@@ -239,6 +246,7 @@ Upstreaming funds | Ops checker
 Using automations | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Verifying delivery instructions | Ops checker
 View data protection | Compliance officer
+Viewing AI controls | Compliance officer
 Viewing AI usage | Compliance officer
 Viewing BSE UCC registrations | Ops maker, Ops checker, Compliance officer
 Viewing CDSL API transactions | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -250,9 +258,11 @@ Viewing connections | Compliance officer, Admin
 Viewing dealers and terminals | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing eDIS authorisations | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing exchange UCC registrations | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing exchange disclosures | Compliance officer
 Viewing nominations | Ops maker, Ops checker, Compliance officer
 Viewing order-to-trade ratios | Risk manager, Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing the AI answer log | Compliance officer
 Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 Viewing the signing certificate | Ops checker, Compliance officer, Admin
