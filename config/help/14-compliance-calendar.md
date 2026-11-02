@@ -45,3 +45,18 @@ A member of NSE that is also a member of BSE, MSE, MCX or NCDEX files the common
 In the compliance calendar these duties appear once and say **File with NSE (shared with the other exchanges)** when the firm has an NSE member code and another exchange's in Settings. A firm that is not an NSE member sees **File with each exchange**. Bank account reporting to NSE uses the revised undertaking, authorisation and bank confirmation formats from 15 October 2025 (Annexures B to D of NSE/INSP/70505); Ledgerline does not print these letters.
 
 The yearly duty **Confirm your banks submit daily client bank balances to the exchange** remains: members stopped sending daily bank balances from 30 October 2023, but must ensure their banks send them to the exchange on T+1 (NSE/INSP/59044).
+
+## surveillance-return
+title: Quarterly surveillance obligation report (Formats I to III)
+screen: surv
+roles: Compliance officer
+ask: surveillance report; quarterly surveillance reporting; surveillance obligation; alert register; format i; format ii; format iii; nil report surveillance; alerts referred to exchange; surveillance return due
+related: shared-filing
+
+Each quarter, within 15 calendar days of its end, the firm reports the status of its surveillance alerts to every exchange it trades on (NSE/SURV/48818 and NSE/SURV/49765, in the consolidated surveillance circular NSE/SURV/74008 of 30 April 2026; BSE's guidelines, on BEFS). It is not a monthly register.
+
+- **Format I**, for each alert name: alerts under process at the start of the quarter, new in the quarter, verified and closed, referred to the exchange, and pending at the end.
+- **Format II**: each alert referred to the exchange, with the date of the alert, its type, the brief observation and action taken, and the date referred.
+- **Format III**: any major surveillance action other than referring alerts.
+
+On [[surv|Surveillance & AML]], **Referred to exchange** records the date and observation for Format II; **Add an action** records a Format III entry. An alert counts as closed in the quarter Ledgerline first sees it Closed (or STR filed). [[reports|Regulatory reports]] → *Surveillance obligation report* downloads the three formats for the quarter ended before the chosen date, with **NIL** where there is nothing to report; the compliance calendar has the quarterly duty.

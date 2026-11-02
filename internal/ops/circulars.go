@@ -765,6 +765,7 @@ func autoCompliance(r *runCtx) error {
 	if end := prof.rasCalendarEnds(); end == "" || daysBetween(r.date, end) < 60 {
 		r.queue("ras-calendar", "Add the exchanges' RAS calendar for the next financial year", "The running account settlement calendar in Ledgerline ends "+firstOf(fmtDay(end), "now")+". The exchanges publish the next year's Friday/Saturday dates jointly, usually in January (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197). Add them on Circulars & calendar → RAS dates.", "", RoleCompliance, "circulars", "", nil)
 	}
+	r.o.trackAlertLife(r.ctx, r.tenant, r.date) // dates alert closures for the quarterly surveillance report
 	if n := r.o.bseHoldingChase(r.ctx, r.tenant, r.date); n > 0 {
 		r.note("%d day(s) of holding statement to upload to BSE", n)
 	}

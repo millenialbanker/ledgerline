@@ -64,14 +64,14 @@ func reportDefs() []ReportDef {
 	return []ReportDef{
 		{"funds_balance", "Client funds and securities balance", "NSE, BSE, MCX", "Daily", "T 23:59", "CSV (sample layout)", nil},
 		{"margin", "Client-wise margin collection (peak and EOD)", "Clearing corporations", "Daily", "T+1 18:00", "CSV (sample layout)", nil},
-		{"holdings", "Weekly holding statement", "Clients", "Weekly", "Friday 23:59", "CSV", nil},
+		{"holdings", "Client holding statement (demat holdings)", "NSE (shared with BSE and the other exchanges); BSE on BEFS for a BSE-only member", "Daily (not Sunday)", "T+1", "CSV register; the exchange file is sent from Exchange files", nil},
 		{"cc01", "Client-level collateral (SEGMON: CC01)", "NSE Clearing", "Daily", "T 23:59", "CSV.gz per segment (check against the current NCL spec)", nil},
 		{"ucc", "UCC upload batch", "NSE, BSE, MCX", "On change", "Before first trade", "CSV (sample layout)", nil},
 		{"ccm", "Client code modification log", "Exchanges", "Daily", "T 16:00", "CSV (sample layout)", nil},
 		{"ras", "Running account settlement statement", "Clients", "Monthly / quarterly", "Settlement date", "CSV", nil},
 		{"bills", "Bills and charges register", "Internal audit", "Daily", "T", "CSV", nil},
 		{"trades", "Trade register", "Internal audit", "Daily", "T", "CSV", nil},
-		{"alerts", "Surveillance alert register", "Exchanges / FIU-IND", "Monthly", "7th of next month", "CSV", nil},
+		{"alerts", "Surveillance obligation report: alert status (Formats I, II and III)", "Each exchange (NSE ENIT, BSE BEFS)", "Quarterly", "Within 15 calendar days of the quarter's end (for the quarter ended before the date)", "CSV in the exchanges' Formats I–III (NIL where nothing to report)", nil},
 		{"register_securities", "Register of securities (client-wise, with the firm and in demat)", "Inspection", "On demand", "—", "CSV", nil},
 		{"client_register", "Client register in exchange format", "Inspection", "On demand", "—", "CSV", nil},
 		{"ledger_balances", "Client ledger balances with days in debit", "Inspection", "On demand", "—", "CSV", nil},
@@ -228,15 +228,14 @@ func (o *Ops) ReportRows(ctx context.Context, tenant, date, code string) ([][]st
 		}
 		return rows, nil
 	case "alerts":
-		as, err := o.Alerts(ctx, tenant)
+		// The quarter ended before the date, in the exchanges' formats
+		// (NSE/SURV/48818, 49765, 74008; BSE): survreturn.go.
+		r, err := o.survReturn(ctx, tenant, lastEndedQuarter(date))
 		if err != nil {
 			return nil, err
 		}
-		rows := [][]string{{"AlertID", "Date", "Source", "Type", "UCC", "Severity", "Status", "Detail", "Notes"}}
-		for _, a := range as {
-			rows = append(rows, []string{a.ID, a.Date, a.Source, a.Type, a.UCC, a.Severity, a.Status, a.Detail, strings.Join(a.Notes, " | ")})
-		}
-		return rows, nil
+		set, _ := o.Settings(ctx, tenant)
+		return survReturnRows(r, set.Firm), nil
 	case "register_securities":
 		hs, err := o.Holdings(ctx, tenant, "")
 		if err != nil {

@@ -165,6 +165,7 @@ Recording a bounce | Ops maker, Ops checker, Admin
 Recording a physical dispatch | Ops maker, Ops checker, Admin
 Recording a receipt | Ops maker, Ops checker, Branch staff
 Recording a stock SIP fill | Ops maker, Ops checker
+Recording a surveillance action | Compliance officer
 Recording allotments | Ops maker, Ops checker
 Recording bounces | Ops maker, Ops checker, Admin
 Recording clearing deposits | Ops checker
@@ -175,6 +176,7 @@ Recording recovery of a legacy debt | Ops maker, Ops checker, Risk manager, Comp
 Recording the BSDA choice | Ops maker, Ops checker
 Recording the funds pay-out | Ops checker, Risk manager
 Recording the holding statement sent to BSE | Ops maker, Ops checker, Compliance officer
+Referring an alert to the exchange | Compliance officer
 Registering a stock SIP for a client | Ops maker, Ops checker
 Registering clients on MF platforms | Ops maker, Ops checker
 Rejecting an application | Ops checker, Compliance officer
@@ -268,6 +270,7 @@ Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch
 Viewing the compliance calendar | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 Viewing the signing certificate | Ops checker, Compliance officer, Admin
+Viewing the surveillance report | Ops checker, Compliance officer
 Viewing vendor bills | Ops maker, Ops checker, Compliance officer
 Viewing vendors | Ops maker, Ops checker, Compliance officer
 Withdrawing a stock SIP basket file | Ops maker, Ops checker, Risk manager
