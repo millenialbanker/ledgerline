@@ -707,14 +707,20 @@ func newDealerBook(ds []Dealer) *dealerBook {
 // find: an exact terminal or CTCL ID first, then patterns in register
 // order; only terminals in use on day.
 func (b *dealerBook) find(exchange, terminal, day string) (int, bool) {
+	i, _, ok := b.findTerminal(exchange, terminal, day)
+	return i, ok
+}
+
+// findTerminal is find with the register's terminal (its algo flag).
+func (b *dealerBook) findTerminal(exchange, terminal, day string) (int, DealerTerminal, bool) {
 	terminal = strings.TrimSpace(terminal)
 	if terminal == "" {
-		return -1, false
+		return -1, DealerTerminal{}, false
 	}
 	exchange = strings.ToUpper(strings.TrimSpace(exchange))
 	for _, x := range b.idx.exact[exchange+"|"+strings.ToUpper(terminal)] {
 		if x.t.activeOn(day) {
-			return x.d, true
+			return x.d, x.t, true
 		}
 	}
 	for _, x := range b.idx.patterns {
@@ -722,10 +728,10 @@ func (b *dealerBook) find(exchange, terminal, day string) (int, bool) {
 			continue
 		}
 		if ok, _ := path.Match(strings.ToUpper(x.t.TerminalID), strings.ToUpper(terminal)); ok {
-			return x.d, true
+			return x.d, x.t, true
 		}
 	}
-	return -1, false
+	return -1, DealerTerminal{}, false
 }
 
 // DealerFor is the dealer who used a terminal on a date.

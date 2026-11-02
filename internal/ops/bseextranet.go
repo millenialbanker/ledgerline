@@ -238,13 +238,7 @@ func bseSeg(name string) string { return bseSegOf(name) }
 // BSEUCCBlocked are the reasons BSE does not permit each client to trade,
 // from the latest not-permitted list of each segment.
 func (o *Ops) BSEUCCBlocked(ctx context.Context, tenant string) map[string][]string {
-	all, _ := docs.List[BSENotPermittedList](ctx, o.Docs, tenant, cBSENotPermitted, "")
-	latest := map[string]BSENotPermittedList{}
-	for _, x := range all {
-		if x.Date > latest[x.Segment].Date {
-			latest[x.Segment] = x
-		}
-	}
+	latest := o.bseLatestNotPermitted(ctx, tenant)
 	out := map[string][]string{}
 	for _, seg := range []string{"CM", "FO"} {
 		for u, rs := range latest[seg].Clients {
@@ -252,6 +246,18 @@ func (o *Ops) BSEUCCBlocked(ctx context.Context, tenant string) map[string][]str
 		}
 	}
 	return out
+}
+
+// bseLatestNotPermitted is the latest not-permitted list of each segment.
+func (o *Ops) bseLatestNotPermitted(ctx context.Context, tenant string) map[string]BSENotPermittedList {
+	all, _ := docs.List[BSENotPermittedList](ctx, o.Docs, tenant, cBSENotPermitted, "")
+	latest := map[string]BSENotPermittedList{}
+	for _, x := range all {
+		if x.Date > latest[x.Segment].Date {
+			latest[x.Segment] = x
+		}
+	}
+	return latest
 }
 
 // syncBSEUCCWork raises a work item per blocked client and closes those of
@@ -1001,10 +1007,12 @@ func (o *Ops) loadBSEOrderLog(ctx context.Context, tenant, actor, date, name str
 	ts, _ := o.App.Trades.List(ctx, tenant, ingest.FromExchange, date)
 	px := map[string]money.Dec{}
 	tradesBy, tradesTerm := map[string]int{}, map[string]int{}
+	var otrTrades []otrTrade
 	for _, t := range ts {
 		if t.Exchange != "BSE" {
 			continue
 		}
+		otrTrades = append(otrTrades, otrTrade{t.UCC, t.Terminal})
 		px[t.UCC+"|"+t.Symbol] = t.Price
 		tradesBy[t.UCC]++
 		if t.Terminal != "" {
@@ -1046,7 +1054,15 @@ func (o *Ops) loadBSEOrderLog(ctx context.Context, tenant, actor, date, name str
 	if err := docs.Upsert(ctx, o.Docs, tenant, cBSEOrderLog, date, x, actor); err != nil {
 		return err
 	}
+	otrOrders := make([]otrOrder, 0, len(x.Orders))
+	for _, od := range x.Orders {
+		otrOrders = append(otrOrders, otrOrder{od.UCC, od.Terminal})
+	}
+	day := o.otrCheck(ctx, tenant, actor, "BSE", date, name, otrOrders, otrTrades) // otr.go
 	r.Loaded, r.Added = fmt.Sprintf("Kept as the order log for surveillance (provisional layout; prices %s); order-to-trade ratios by client and terminal", x.PriceUnit), len(x.Orders)
+	if day.Over > 0 {
+		r.Loaded += fmt.Sprintf("; %d over the OTR alert level, a work item each for compliance", day.Over)
+	}
 	return nil
 }
 
@@ -1175,9 +1191,10 @@ func (o *Ops) bseSections(ctx context.Context, tenant, date string, cs map[strin
 	}
 	out = append(out, cl)
 	ol := CCSection{ID: "bse_orders", Title: "BSE: order-to-trade ratio", About: "From BSE's order log (provisional layout): order events against trades, by client and by terminal (CTCL ID).",
-		Columns: []string{"By", "Client or terminal", "Orders", "Trades", "Ratio"}}
+		Columns: []string{"By", "Client or terminal", "Orders", "Trades", "Ratio", "Slab"}}
 	if x := o.BSEOrderToTrade(ctx, tenant, date); x != nil {
 		ol.Loaded, ol.File = true, x.File
+		st := o.OTRSettings(ctx, tenant)
 		for _, g := range []struct {
 			by string
 			rs []OTRRow
@@ -1186,7 +1203,11 @@ func (o *Ops) bseSections(ctx context.Context, tenant, date string, cs map[strin
 				if i == 20 {
 					break
 				}
-				ol.Rows = append(ol.Rows, []string{g.by, rr.Key, fmt.Sprint(rr.Orders), fmt.Sprint(rr.Trades), rr.Ratio.Fixed(2)})
+				_, slab, _ := st.slabFor(rr.Ratio)
+				ol.Rows = append(ol.Rows, []string{g.by, rr.Key, fmt.Sprint(rr.Orders), fmt.Sprint(rr.Trades), rr.Ratio.Fixed(2), slab})
+				if rr.Ratio.Cmp(money.DecInt(int64(st.AlertFrom))) >= 0 {
+					ol.Diffs++
+				}
 			}
 		}
 	}

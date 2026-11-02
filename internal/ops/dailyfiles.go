@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"time"
 
 	"ledgerline/internal/docs"
 )
@@ -173,6 +172,9 @@ type DailyFile struct {
 	At        string   `json:"at"`        // usual time, IST
 	NextDay   bool     `json:"next_day,omitempty"`
 	Intraday  bool     `json:"intraday,omitempty"` // several in the day; never alerted
+	// HandNote says, for a file with no layout yet (checked by hand), what
+	// Ledgerline needs before it can read or write it.
+	HandNote string `json:"hand_note,omitempty"`
 }
 
 var all3 = []string{"CM", "FO", "CD"}
@@ -220,17 +222,33 @@ var DailyFiles = []DailyFile{
 	{ID: "ncl-mrg", Title: "Margin reporting file to NSE Clearing", Format: "ncl-margin-reporting", Party: "NCL", Segments: all3, Direction: "out", At: "12:00", NextDay: true},
 	{ID: "ncl-sa-rpt", Title: "Short allocation reporting to NSE Clearing", Format: "ncl-short-allocation-reporting", Party: "NCL", Segments: all3, Direction: "out", At: "12:00", NextDay: true},
 	{ID: "ncl-sett", Title: "Combined settlement master (monthly)", Format: "ncl-settlement-master", Party: "NCL", Segments: all3, Direction: "in", At: "09:00", Intraday: true},
-	// ICCL: layouts not yet in Ledgerline, checked by hand
-	{ID: "iccl-var", Title: "ICCL VaR and ELM rates (VARELMAM)", Party: "ICCL", Segments: []string{"CM"}, Direction: "in", At: "08:30"},
-	{ID: "iccl-haircut", Title: "ICCL haircuts (approved securities)", Party: "ICCL", Segments: all3, Direction: "in", At: "08:30"},
-	{ID: "iccl-coll", Title: "ICCL collateral reports", Party: "ICCL", Segments: all3, Direction: "in", At: "20:00"},
-	{ID: "iccl-margin", Title: "ICCL client margin file", Party: "ICCL", Segments: all3, Direction: "in", At: "20:00"},
-	{ID: "iccl-alloc", Title: "Client allocation to ICCL", Party: "ICCL", Segments: all3, Direction: "out", At: "19:00"},
-	{ID: "iccl-icoll", Title: "ICOLL response (ICCL collateral)", Party: "ICCL", Segments: all3, Direction: "in", At: "19:30"},
-	{ID: "iccl-mrg", Title: "Margin reporting file to ICCL", Party: "ICCL", Segments: all3, Direction: "out", At: "12:00", NextDay: true},
+	// ICCL: layouts not yet in Ledgerline, checked by hand. No public ICCL
+	// or BSE circular found (November 2026) publishes the column layout of
+	// these files: the eligible-collateral notices of 17 December 2025
+	// ("Standardization of file format for eligible collateral") name some
+	// fields but not the full ordered layout, BSE notice 20230120-19 (20
+	// January 2023, for ICCL) lists the fields of the intraday short
+	// collateral report only and says the formats will be given separately,
+	// and BSE's member downloads (ICCL sections) hold paper formats for
+	// bank guarantees, FDRs and pledges. Ledgerline does not guess layouts:
+	// each file stays "check by hand" until ICCL's own file description is
+	// in hand (from the member extranet or ICCL), and its HandNote says what
+	// is needed.
+	{ID: "iccl-var", Title: "ICCL VaR and ELM rates (VARELMAM)", Party: "ICCL", Segments: []string{"CM"}, Direction: "in", At: "08:30", HandNote: iCCLNeed("the VaR and ELM rates file (VARELMAM): its columns, delimiter and whether it has a header")},
+	{ID: "iccl-haircut", Title: "ICCL haircuts (approved securities)", Party: "ICCL", Segments: all3, Direction: "in", At: "08:30", HandNote: iCCLNeed("the eligible-collateral (haircut) file in the standard format of December 2025: the full ordered field list with lengths, and the file name")},
+	{ID: "iccl-coll", Title: "ICCL collateral reports", Party: "ICCL", Segments: all3, Direction: "in", At: "20:00", HandNote: iCCLNeed("the end-of-day client collateral reports: which reports, their names and columns")},
+	{ID: "iccl-margin", Title: "ICCL client margin file", Party: "ICCL", Segments: all3, Direction: "in", At: "20:00", HandNote: iCCLNeed("the client margin file per segment: its columns (margin types, as of time) and name")},
+	{ID: "iccl-alloc", Title: "Client allocation to ICCL", Party: "ICCL", Segments: all3, Direction: "out", At: "19:00", HandNote: iCCLNeed("the client collateral allocation upload: field order, codes and the response file")},
+	{ID: "iccl-icoll", Title: "ICOLL response (ICCL collateral)", Party: "ICCL", Segments: all3, Direction: "in", At: "19:30", HandNote: iCCLNeed("the ICOLL response file: its columns and status codes")},
+	{ID: "iccl-mrg", Title: "Margin reporting file to ICCL", Party: "ICCL", Segments: all3, Direction: "out", At: "12:00", NextDay: true, HandNote: iCCLNeed("the client margin reporting upload (collected against required margin): field order, segment codes and the file name")},
 	// MCXCCL
 	{ID: "mcx-margin", Title: "MCXCCL client margin file", Format: "mcx-client-margin", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "08:00", NextDay: true},
 	{ID: "mcx-mrg", Title: "Margin reporting file to MCXCCL", Format: "mcx-margin-reporting", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "out", At: "12:00", NextDay: true},
+}
+
+// iCCLNeed is the note on an ICCL file Ledgerline cannot read yet.
+func iCCLNeed(what string) string {
+	return "Checked by hand: no public ICCL layout found. To read it, Ledgerline needs ICCL's file description of " + what + " (ICCL member extranet or ICCL's clearing operations), and a sample file with made-up data."
 }
 
 const cDailyRecv = "xfilerecv" // date|format|name
@@ -257,15 +275,19 @@ func (o *Ops) noteDailyFile(ctx context.Context, tenant, actor, format, name, da
 		date = o.now().In(ist).Format("2006-01-02")
 	}
 	_ = docs.Upsert(ctx, o.Docs, tenant, cDailyRecv, date+"|"+format+"|"+name, DailyFileRecv{Date: date, Format: format, Name: name, At: o.now().In(ist).Format("2006-01-02 15:04"), By: actor}, actor)
+	o.closeMissingWork(ctx, tenant, actor, format, name, date) // filealerts.go
 }
 
 // ChecklistItem is one expected file on the checklist.
 type ChecklistItem struct {
 	DailyFile
+	Date   string   `json:"date"`   // the trading date it is for
 	For    []string `json:"for"`    // exchange segments it serves
 	Due    string   `json:"due"`    // YYYY-MM-DD HH:MM
 	Status string   `json:"status"` // Received, Due, Missing, Intraday, Check by hand
 	Files  []string `json:"files,omitempty"`
+	// AlertedAt is when the file was chased as missing (filealerts.go).
+	AlertedAt string `json:"alerted_at,omitempty"`
 }
 
 // FileChecklist is a day's expected files.
@@ -306,6 +328,7 @@ func (o *Ops) DailyFileChecklist(ctx context.Context, tenant, date string) (File
 		out.Clearing = append(out.Clearing, row)
 	}
 	recv, _ := docs.List[DailyFileRecv](ctx, o.Docs, tenant, cDailyRecv, date+"|")
+	alerted := alertTimes(recv)
 	now := o.now().In(ist).Format("2006-01-02 15:04")
 	for _, f := range DailyFiles {
 		var serves []string
@@ -320,7 +343,7 @@ func (o *Ops) DailyFileChecklist(ctx context.Context, tenant, date string) (File
 		if len(serves) == 0 {
 			continue
 		}
-		it := ChecklistItem{DailyFile: f, For: serves}
+		it := ChecklistItem{DailyFile: f, Date: date, For: serves, AlertedAt: alerted[f.ID]}
 		day := date
 		if f.NextDay {
 			day = set.NextBusinessDay(date)
@@ -358,25 +381,22 @@ func (o *Ops) DailyFileChecklist(ctx context.Context, tenant, date string) (File
 }
 
 // MissingDailyFiles lists the expected files past their time and not
-// received, and records an xfile.missing alert in the audit trail for each,
-// once a day.
+// received, and chases each (an xfile.missing entry in the audit trail and
+// a work item), once a day; with no grace period, unlike the scheduled
+// alerts (RunFileAlerts), and with no email.
 func (o *Ops) MissingDailyFiles(ctx context.Context, tenant, actor, date string) ([]ChecklistItem, error) {
+	if _, err := o.chaseMissing(ctx, tenant, actor, date, o.now().In(ist).Format("2006-01-02 15:04")); err != nil {
+		return nil, err
+	}
 	cl, err := o.DailyFileChecklist(ctx, tenant, date)
 	if err != nil {
 		return nil, err
 	}
 	var out []ChecklistItem
 	for _, it := range cl.Items {
-		if it.Status != "Missing" {
-			continue
+		if it.Status == "Missing" {
+			out = append(out, it)
 		}
-		out = append(out, it)
-		id := date + "|alert|" + it.ID
-		if _, _, err := docs.Get[DailyFileRecv](ctx, o.Docs, tenant, cDailyRecv, id); err == nil {
-			continue
-		}
-		_ = docs.Upsert(ctx, o.Docs, tenant, cDailyRecv, id, DailyFileRecv{Date: date, Format: "alert", Name: it.ID, At: o.now().In(ist).Format(time.DateTime), By: actor}, actor)
-		o.log(ctx, tenant, actor, "xfile.missing", it.ID, map[string]any{"date": date, "title": it.Title, "party": it.Party, "due": it.Due, "for": strings.Join(it.For, ", ")})
 	}
 	return out, nil
 }

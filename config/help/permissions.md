@@ -47,7 +47,9 @@ Changing brokerage plans | Ops checker
 Changing client brokerage rates | Ops checker
 Changing client groups | Ops maker, Ops checker
 Changing connections | Admin
+Changing missing-file alerts | Risk manager, Compliance officer
 Changing mutual fund settings | Compliance officer
+Changing order-to-trade ratio alerts | Compliance officer
 Changing settings | Admin
 Changing the DP tariff | Ops checker, Admin
 Changing the MTF policy | Risk manager, Admin
@@ -55,6 +57,7 @@ Changing the account type | Ops checker
 Changing the chart of accounts | Ops checker
 Changing the compliance calendar | Compliance officer
 Changing vendors | Ops maker, Ops checker
+Chasing missing daily files | Ops maker, Ops checker, Risk manager, Compliance officer
 Checking CDSL demat account counts | Ops maker, Ops checker, Compliance officer
 Checking PAN status at BSE | Ops maker, Ops checker
 Checking PAN status at the exchange | Ops maker, Ops checker, Compliance officer
@@ -241,11 +244,13 @@ Viewing CDSL API transactions | Ops maker, Ops checker, Risk manager, Compliance
 Viewing CDSL demat account counts | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing CDSL requests | Ops maker, Ops checker, Compliance officer
 Viewing backups | Ops checker, Compliance officer
+Viewing clients BSE does not permit to trade | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing connections | Compliance officer, Admin
 Viewing dealers and terminals | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing eDIS authorisations | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing exchange UCC registrations | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing nominations | Ops maker, Ops checker, Compliance officer
+Viewing order-to-trade ratios | Risk manager, Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin

@@ -18,7 +18,7 @@ V.uccapi = {
   load: async () => {
     const ex = UI.uccEx in UCC_EX ? UI.uccEx : 'nse';
     if (ex === 'mcx') return { ex };
-    try { return { ex, v: await get(`/v1/ucc-api/${ex}`) }; }
+    try { const [v, blocked] = await Promise.all([get(`/v1/ucc-api/${ex}`), ex === 'bse' ? get('/v1/bse-ucc-blocked').catch(() => null) : null]); return { ex, v, blocked }; }
     catch (e) { if (e.status === 404) return { ex, missing: true }; throw e; }
   },
   html: d => {
@@ -31,10 +31,11 @@ V.uccapi = {
       ? `<div class="note warn"><b>The ${esc(v.exchange)} UCC API is not set up.</b> The firm’s admin enters the API user and password under <a href="#connections" data-act="go" data-id="connections">Connections</a>. Until then, records can be checked and previewed here but not sent.</div>`
       : v.connection === 'Problem' ? `<div class="note bad"><b>Last call to ${esc(v.exchange)} failed.</b> ${esc(v.problem || '')}</div>`
       : `<div class="note">${pill(v.live ? 'Production' : 'Test (UAT)', v.live ? 'good' : 'warn')} ${v.auto ? 'New and changed clients go automatically every 15 minutes from 08:00 to 22:00, and PAN status is refreshed once a day.' : 'Automatic sending is off: send from here.'}</div>`;
-    const pend = c['Not sent'] || 0;
+    const pend = c['Not sent'] || 0, nb = d.blocked ? d.blocked.clients.length : 0;
+    const asOf = d.blocked ? Object.entries(d.blocked.lists).map(([g, x]) => `${g === 'FO' ? 'derivatives' : 'cash'} ${fmtDate(x)}`).join(', ') : '';
     return head + tabs + conn +
-      `<div class="kpis">${kpi('Not sent', nf(pend), 'new or changed, ready', pend ? 'warn' : '')}${kpi('Needs fixing', nf(c['Needs fixing'] || 0), 'checked before sending', c['Needs fixing'] ? 'bad' : '')}${kpi('Sent', nf(c.Sent || 0), 'waiting for the exchange')}${kpi('Accepted', nf(c.Accepted || 0), 'registered')}${kpi('Rejected', nf(c.Rejected || 0), 'by the exchange', c.Rejected ? 'bad' : '')}</div>` +
-      `<div class="panel"><div class="hd"><div class="tools">${segBtns('uccSt', [['open', 'To act on'], ['all', 'All'], ['Accepted', 'Accepted'], ['Sent', 'Sent']], 'ucc-t')}<input class="in" data-ui="uccQ" data-part="ucc-t" placeholder="Filter by client, PAN or reason" value="${esc(UI.uccQ)}"></div>
+      `<div class="kpis">${kpi('Not sent', nf(pend), 'new or changed, ready', pend ? 'warn' : '')}${kpi('Needs fixing', nf(c['Needs fixing'] || 0), 'checked before sending', c['Needs fixing'] ? 'bad' : '')}${kpi('Sent', nf(c.Sent || 0), 'waiting for the exchange')}${kpi('Accepted', nf(c.Accepted || 0), 'registered')}${kpi('Rejected', nf(c.Rejected || 0), 'by the exchange', c.Rejected ? 'bad' : '')}${d.blocked ? kpi('Blocked by BSE', nf(nb), asOf ? 'not permitted to trade · list of ' + asOf : 'no not-permitted list loaded', nb ? 'bad' : '') : ''}</div>` +
+      `<div class="panel"><div class="hd"><div class="tools">${segBtns('uccSt', [['open', 'To act on'], ['all', 'All'], ['Accepted', 'Accepted'], ['Sent', 'Sent'], ...(d.blocked ? [['blocked', `Blocked by BSE (${nb})`]] : [])], 'ucc-t')}<input class="in" data-ui="uccQ" data-part="ucc-t" placeholder="Filter by client, PAN or reason" value="${esc(UI.uccQ)}"></div>
         <div class="tools">${uccCan() ? `<button class="btn ${pend ? 'pri' : ''}" data-act="uccSend" ${pend && v.connection !== 'Not set' ? '' : 'disabled'}>Send pending (${pend})</button><button class="btn" data-act="uccSend" data-id="sel" ${v.connection !== 'Not set' ? '' : 'disabled'}>Send selected</button>` : ''}
         ${uccPanCan() ? `<button class="btn" data-act="uccPAN" ${v.connection !== 'Not set' ? '' : 'disabled'}>Check PAN status</button>` : ''}</div></div><div id="ucc-t">${P['ucc-t'](d)}</div></div>` +
       `<div class="panel"><div class="hd"><h3>Runs</h3><small>each call’s request (Aadhaar masked) and answer are kept with the run</small></div>${tbl([['Run'], ['When'], ['By'], ['Clients', 'r'], ['Accepted', 'r'], ['Rejected', 'r'], ['What happened']], (v.runs || []).map(r => `<tr><td class="mono">${esc(r.id)}</td><td class="small">${uccStamp(r.at)}</td><td>${esc(r.by === 'system:scheduler' ? 'Scheduler' : r.by)}</td><td class="r">${r.sent}</td><td class="r">${r.accepted}</td><td class="r ${r.rejected ? 'neg' : ''}">${r.rejected}</td><td class="wrap small">${esc(r.note)}</td></tr>`), { empty: 'Nothing sent yet.' })}</div>`;
@@ -43,16 +44,33 @@ V.uccapi = {
 
 P['ucc-t'] = d => {
   const v = d.v, q = (UI.uccQ || '').trim().toLowerCase(), st = UI.uccSt;
-  const rows = (v.clients || []).filter(r => st === 'all' || (st === 'open' ? ['Not sent', 'Needs fixing', 'Rejected'].includes(r.status) : r.status === st))
-    .filter(r => !q || [r.ucc, r.name, r.pan, r.reason, ...(r.problems || [])].join(' ').toLowerCase().includes(q));
+  // BSE's not-permitted reasons (the latest EQX and EQD reports), by client.
+  const bl = d.blocked ? Object.fromEntries(d.blocked.clients.map(x => [x.ucc, x])) : null;
+  let all = v.clients || [];
+  if (bl && st === 'blocked') {
+    const have = new Set(all.map(r => r.ucc));
+    all = all.concat(d.blocked.clients.filter(x => !have.has(x.ucc)).map(x => ({ ucc: x.ucc, name: x.name || '', pan: '', action: '', status: '', problems: [] })));
+  }
+  const rows = all.filter(r => st === 'all' || (st === 'blocked' ? bl && bl[r.ucc] : st === 'open' ? ['Not sent', 'Needs fixing', 'Rejected'].includes(r.status) : r.status === st))
+    .filter(r => !q || [r.ucc, r.name, r.pan, r.reason, ...(r.problems || []), ...(bl && bl[r.ucc] ? bl[r.ucc].reasons : [])].join(' ').toLowerCase().includes(q));
   const probs = r => (r.problems || []).length ? `<ul class="small" style="margin:2px 0 0 16px;padding:0">${r.problems.slice(0, 3).map(p => `<li>${esc(p)}</li>`).join('')}${r.problems.length > 3 ? `<li class="dim">and ${r.problems.length - 3} more</li>` : ''}</ul>` : '';
-  return tbl([[''], ['Client'], ['PAN'], ['Action'], ['Status'], ['Reason'], ['PAN status'], ['Sent'], ['Result'], ['']], rows.map(r => `<tr>
+  const np = r => { const x = bl && bl[r.ucc]; if (!x) return bl ? pill('Permitted', 'good') : ''; return `${pill('Not permitted · ' + x.segments.map(g => g === 'FO' ? 'Derivatives' : 'Cash').join(', '), 'bad')}<ul class="small wrap" style="margin:2px 0 0 16px;padding:0">${x.reasons.map(t => `<li>${esc(t)}</li>`).join('')}</ul><div class="dim small">BSE list of ${fmtDate(x.as_of)}</div>`; };
+  return tbl([[''], ['Client'], ['PAN'], ['Action'], ['Status'], ['Reason'], ...(bl ? [['BSE trading']] : []), ['PAN status'], ['Sent'], ['Result'], ['']], rows.map(r => `<tr>
     <td>${uccCan() && r.status === 'Not sent' ? `<input type="checkbox" aria-label="Select ${esc(r.ucc)}" data-act="uccTick" data-id="${esc(r.ucc)}" ${UI.uccSel.has(r.ucc) ? 'checked' : ''}>` : ''}</td>
-    <td><b>${esc(r.ucc)}</b><div class="dim small">${esc(r.name)}</div></td><td class="mono small">${esc(r.pan)}</td><td>${esc(r.action)}</td><td>${uccPill(r.status)}</td>
-    <td class="wrap small">${r.problems && r.problems.length ? probs(r) : esc(r.reason || '')}</td><td class="small">${r.pan_status ? uccPill(r.pan_status.split(' · ')[0]) + (r.pan_status.includes(' · ') ? `<div class="neg small">${esc(r.pan_status.split(' · ').slice(1).join(' · '))}</div>` : '') : '<span class="dim">—</span>'}</td>
+    <td><button class="linkish mono" data-act="client" data-id="${esc(r.ucc)}"><b>${esc(r.ucc)}</b></button><div class="dim small">${esc(r.name)}</div></td><td class="mono small">${esc(r.pan)}</td><td>${esc(r.action)}</td><td>${r.status ? uccPill(r.status) : '<span class="dim">not in Ledgerline’s UCC list</span>'}</td>
+    <td class="wrap small">${r.problems && r.problems.length ? probs(r) : esc(r.reason || '')}</td>${bl ? `<td class="small" style="min-width:220px">${np(r)}</td>` : ''}<td class="small">${r.pan_status ? uccPill(r.pan_status.split(' · ')[0]) + (r.pan_status.includes(' · ') ? `<div class="neg small">${esc(r.pan_status.split(' · ').slice(1).join(' · '))}</div>` : '') : '<span class="dim">—</span>'}</td>
     <td class="small">${uccStamp(r.sent_at)}${r.ref ? `<div class="dim mono">${esc(r.ref)}</div>` : ''}</td><td class="small">${uccStamp(r.result_at)}</td>
-    <td class="nowrap"><button class="btn sm" data-act="uccPreview" data-id="${esc(r.ucc)}">Preview</button></td></tr>`), { tall: true, empty: st === 'open' ? 'Nothing to act on: every client is sent or accepted.' : 'No clients match.' });
+    <td class="nowrap">${r.status ? `<button class="btn sm" data-act="uccPreview" data-id="${esc(r.ucc)}">Preview</button>` : ''}</td></tr>`), { tall: true, empty: st === 'open' ? 'Nothing to act on: every client is sent or accepted.' : st === 'blocked' ? 'BSE permits every client on its latest lists (or no not-permitted list is loaded yet: load it on Exchange files).' : 'No clients match.' });
 };
+
+// bseBlockedCheck fills the client drawer's line on BSE's not-permitted
+// lists: why BSE will not take the client's orders, and the fix.
+async function bseBlockedCheck(ucc) {
+  const el = $('bse-np'); if (!el) return;
+  let x; try { x = await get('/v1/bse-ucc-blocked/' + encodeURIComponent(ucc)); } catch (e) { el.innerHTML = ''; return; }
+  if (!x.blocked) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="note bad" style="margin:8px 0"><b>BSE does not permit this client to trade (${esc(x.segments.map(g => g === 'FO' ? 'derivatives' : 'cash').join(', '))})</b> <span class="dim small">BSE list of ${fmtDate(x.as_of)}</span><ul class="small" style="margin:4px 0 0 16px;padding:0">${x.reasons.map(t => `<li>${esc(t)}</li>`).join('')}</ul><div class="small"><a href="#uccapi" data-act="uccBlockedGo">Open on Exchange UCC</a></div></div>`;
+}
 
 function uccDetailsForm(dt) {
   const f = (id, label, val, ph = '') => `<div class="fld"><label for="ucd-${id}">${label}</label><input class="in" id="ucd-${id}" value="${esc(val || '')}" placeholder="${esc(ph)}"></div>`;
@@ -68,7 +86,8 @@ function uccDetailsForm(dt) {
 }
 
 Object.assign(A, {
-  uccEx: id => { UI.uccEx = id; UI.uccSel = new Set(); render(); },
+  uccEx: id => { UI.uccEx = id; UI.uccSel = new Set(); if (UI.uccSt === 'blocked' && id !== 'bse') UI.uccSt = 'open'; render(); },
+  uccBlockedGo: () => { UI.uccEx = 'bse'; UI.uccSt = 'blocked'; A.go('uccapi'); },
   uccTick: (id, el) => { if (el.checked) UI.uccSel.add(id); else UI.uccSel.delete(id); },
   uccSend: id => {
     const uccs = id === 'sel' ? [...UI.uccSel] : [];
