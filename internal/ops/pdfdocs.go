@@ -217,7 +217,10 @@ func (o *Ops) DPStatement(ctx context.Context, tenant, month, ucc string) (Clien
 	from := month + "-01"
 	to := addDays(addMonths(from, 1), -1)
 	rep := ClientReport{Kind: "dp", Title: "Statement of transactions and holdings (DP)", UCC: c.UCC, Name: c.Name, PAN: MaskPAN(c.PAN), From: from, To: to, Period: from + " to " + to, Generated: o.now().Format("02-Jan-2006 15:04 IST")}
-	rep.Summary = []SummaryItem{{Label: "BO ID", Value: bo.BOID, Type: ColText}, {Label: "Depository", Value: bo.Depository, Type: ColText}, {Label: "Status", Value: bo.Status, Type: ColText}}
+	// Nomination: the nominees' names or Yes/No, as the client chose
+	// (SEBI nomination circular of 29 May 2026).
+	rep.Summary = []SummaryItem{{Label: "BO ID", Value: bo.BOID, Type: ColText}, {Label: "Depository", Value: bo.Depository, Type: ColText}, {Label: "Status", Value: bo.Status, Type: ColText},
+		{Label: "Nomination", Value: c.StatementNomination(), Type: ColText}}
 	tx, _ := o.DPTransactions(ctx, tenant, c.UCC)
 	sec := Section{Title: "Transactions", Columns: []Column{{"date", "Date", ColDate}, {"isin", "ISIN", ColText}, {"symbol", "Security", ColText}, {"kind", "Transaction", ColText}, {"ref", "Reference", ColText}, {"qty", "Quantity", ColQty}}, Empty: "No transactions in this period."}
 	for _, t := range tx {

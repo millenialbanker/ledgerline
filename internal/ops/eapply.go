@@ -23,8 +23,9 @@ import (
 // An individual opens an account from a link, on a phone, without visiting
 // the office: mobile and email confirmed by one-time codes; PAN checked and
 // the KRA searched; address from DigiLocker or a proof; bank account
-// confirmed by a penny drop; trading profile, nominee, photograph,
-// signature and a short video for in-person verification; then the
+// confirmed by a penny drop; trading profile, nominees (or the online
+// opt-out declaration), photograph and signature (no in-person
+// verification is needed with Aadhaar e-KYC; see below); then the
 // account-opening form signed by Aadhaar e-Sign. The application lands in
 // Clients & onboarding at KYC verification with every check and document
 // attached, and goes through the same stages, with a checker activating it.
@@ -83,8 +84,12 @@ type Application struct {
 	NomineeOptOut bool   `json:"nominee_opt_out,omitempty"`
 	NomineeName   string `json:"nominee_name,omitempty"`
 	NomineeRel    string `json:"nominee_relation,omitempty"`
-	// Nominees: up to 10, each with share and identity (SEBI 2025 rules).
+	// Nominees: up to 3, each with a name and relationship; share and
+	// identity optional (SEBI circular of 29 May 2026).
 	Nominees []Nominee `json:"nominees,omitempty"`
+	// NomineesOnStatement: show the nominees' names on statements
+	// (otherwise Yes/No), as the applicant chooses.
+	NomineesOnStatement bool `json:"nominees_on_statement,omitempty"`
 
 	Declarations map[string]bool `json:"declarations,omitempty"`
 	WhatsApp     bool            `json:"whatsapp,omitempty"`
@@ -578,11 +583,13 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 		}
 	case "nominee":
 		if d.NomineeOptOut {
+			// The online opt-out: the declaration is shown on the step and
+			// accepted by ticking it; the form is then e-Signed.
 			a.NomineeOptOut, a.NomineeName, a.NomineeRel, a.Nominees = true, "", "", nil
 			break
 		}
 		if len(d.Nominees) == 0 {
-			return a, invalid("add a nominee (name, relationship and one identity detail), or choose not to nominate")
+			return a, invalid("add a nominee (name and relationship), or choose not to nominate")
 		}
 		c := Client{Nominees: d.Nominees}
 		normaliseNominees(&c)
@@ -590,6 +597,7 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 			return a, &ValidationError{fe}
 		}
 		a.NomineeOptOut, a.Nominees, a.NomineeName, a.NomineeRel = false, c.Nominees, c.NomineeName, c.Nominees[0].Relation
+		a.NomineesOnStatement = d.NomineesOnStatement
 	case "photo":
 		panDL := a.hasDoc("PAN (DigiLocker)")
 		if !a.hasDoc("Photograph") || !a.hasDoc("Signature") || (!panDL && !a.hasDoc("PAN card")) {
@@ -771,7 +779,7 @@ func (o *Ops) submitApplication(ctx context.Context, tenant string, a Applicatio
 	}
 	c := Client{Name: a.Name, Type: "Individual", PAN: a.PAN, DOB: a.DOB, Mobile: a.Mobile, Email: a.Email, City: a.City, State: a.State, Segments: a.Segments,
 		Risk: "Low", Income: a.Income, RAS: a.RAS, Bank: BankAccount{a.Bank, a.IFSC, a.Account}, Demat: Demat{a.Depository, a.DematID},
-		Nominee: nom, NomineeName: a.NomineeName, Nominees: a.Nominees, NominationOn: o.now().Format("2006-01-02"), NominationMode: "Online with e-Sign", KYCRoute: kycRoute(a), IncomeProof: a.hasDoc("Income proof"), RiskDisclosure: true,
+		Nominee: nom, NomineeName: a.NomineeName, Nominees: a.Nominees, NominationOn: o.now().Format("2006-01-02"), NominationMode: "Online with e-Sign", NomineesOnStatement: a.NomineesOnStatement && !a.NomineeOptOut, KYCRoute: kycRoute(a), IncomeProof: a.hasDoc("Income proof"), RiskDisclosure: true,
 		WhatsApp: a.WhatsApp, Partner: a.Partner, Tags: []string{"ONLINE"}}
 	if c.Demat.Depository == "" {
 		c.Demat.Depository = "CDSL"

@@ -53,14 +53,20 @@ Check the layout against NSE Clearing's current file specification before the fi
 title: Nominees and opt-out declarations
 screen: clients
 roles: Ops maker, Ops checker, Compliance officer, Branch staff
-ask: nominee; add nominee; change nominee; multiple nominees; nominee share; minor nominee; guardian; opt out of nomination; nomination declaration; nominee identity
+ask: nominee; add nominee; change nominee; multiple nominees; how many nominees; nominee share; minor nominee; guardian; opt out of nomination; nomination declaration; nominee identity; joint account nomination; nominee on statement; more than 3 nominees
 related: regulatory-reports
 
-Under SEBI's 2025 nomination rules a client may name up to 10 nominees, each with a share (equal if not given), a relationship and one identity detail: PAN, driving licence, the last 4 digits of Aadhaar, or passport. A nominee under 18 needs a date of birth and a guardian. A sole holder must either nominate or declare that they do not wish to.
+Under SEBI's nomination circular of 29 May 2026 (in force from 1 Sep 2026) a client may name up to **3** nominees. Only each nominee's **name and relationship** are required, and the date of birth of a nominee under 18. The share, identity detail (PAN, driving licence, last 4 digits of Aadhaar or passport), mobile, email and a minor's guardian are optional. Shares not given are equal, any odd amount going to the first nominee.
+
+- **Opting out** is by the signed declaration or online, where the declaration is shown and accepted. A video is not accepted.
+- **How it is declared**: online with e-Sign, a digital signature or an OTP to the registered mobile and email; or on paper with a signature (no witness), or a thumb impression with two witnesses (names and addresses).
+- **Joint accounts**: nomination is optional, but giving or changing one needs the consent of every holder. Confirm that all holders consented.
+- **Statements** show the nominees' names or only Yes/No, as the client chooses.
 
 1. Open the client and use **Change nomination** (or the client asks from the portal). A checker approves it like any other change.
 2. Records from the previous back office load with the **NOMINEES** file on [[files|Files]].
 3. The **Nomination status** report on [[reports|Regulatory reports]] lists clients with details missing or no declaration.
+4. Nominations recorded before 1 Sep 2026 with more than 3 nominees are kept as they are. They show as **More than 3 nominees (review)** and each has a work item: ask the client for a new nomination of up to 3.
 
 ## penalty-pass-through
 title: Pass a margin penalty to a client

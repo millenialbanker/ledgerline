@@ -357,6 +357,11 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 	if err := applyChange(&trial, r); err != nil {
 		return r, err
 	}
+	if kind == "Nomination" && r.New["nominee"] == "Opted in" {
+		if err := o.checkNominationConsent(ctx, tenant, ucc, r.New); err != nil {
+			return r, err
+		}
+	}
 	if fmt.Sprint(changeOld(trial, kind)) == fmt.Sprint(r.Old) && kind != "Bank account" {
 		return r, invalid("nothing would change")
 	}

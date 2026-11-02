@@ -554,6 +554,7 @@ func businessDaysBetween(set Settings, from, to string) int {
 func (o *Ops) RunDuePeriodic(ctx context.Context, tenant, date string) (string, error) {
 	var ran, queued, failed []string
 	o.clearRetiredWork(ctx, tenant)
+	o.flagNominationsOverLimit(ctx, tenant, date)
 	for _, t := range PeriodicTasks {
 		s := o.periodicStatus(ctx, tenant, t, date)
 		if s.Status != "Due" && s.Status != "Overdue" && s.Status != "Failed" {
