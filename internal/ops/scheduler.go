@@ -289,6 +289,8 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	// Client registration with the exchanges by API (UCC), when switched on.
 	o.nseUCITick(ctx, tenant, now)
 	o.bseUCCTick(ctx, tenant, now)
+	// Holding statement to NSE by API, when switched on.
+	o.nseHoldingTick(ctx, tenant, now)
 	// Dealers: NISM certificate expiry and open terminals of dealers who left.
 	o.dealersTick(ctx, tenant, now)
 	// Expected exchange and clearing files still missing after their time.
