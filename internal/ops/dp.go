@@ -56,11 +56,114 @@ type BOAccount struct {
 	BSDA       bool   `json:"bsda"`
 	// BSDAOptOut: the client chose a regular account although eligible;
 	// OtherDemat: the client has a demat account with another DP.
-	BSDAOptOut bool   `json:"bsda_opt_out,omitempty"`
-	OtherDemat bool   `json:"other_demat,omitempty"`
-	DDPI       bool   `json:"ddpi"`
-	Opened     string `json:"opened"`
-	ClosedOn   string `json:"closed_on,omitempty"`
+	BSDAOptOut bool `json:"bsda_opt_out,omitempty"`
+	OtherDemat bool `json:"other_demat,omitempty"`
+	// DDPI: the client has a DDPI (or a POA for settlement) with the firm
+	// on this demat, so sales are delivered without a slip or eDIS; it is
+	// set from CDSL's client master (cdslclient.go). Without it a sale
+	// needs eDIS (or a DIS).
+	DDPI     bool   `json:"ddpi"`
+	Opened   string `json:"opened"`
+	ClosedOn string `json:"closed_on,omitempty"`
+	// CDSL is what CDSL's client master last said about the account
+	// (cdslclient.go).
+	CDSL *BOCDSL `json:"cdsl,omitempty"`
+	// CDSLFreeze is an account-level freeze CDSL reports (Debit, Credit
+	// or Both): from the freeze master (DPE6, cdslfreeze.go) or the client
+	// master's freeze status. It is kept apart from Freeze, which is the
+	// DP's own freeze request, so an unfreeze here cannot lift CDSL's.
+	CDSLFreeze    string `json:"cdsl_freeze,omitempty"`
+	CDSLFreezeWhy string `json:"cdsl_freeze_reason,omitempty"`
+}
+
+// BOCDSL is the account as CDSL's client master (CLN_MSTR) shows it.
+type BOCDSL struct {
+	Status       string `json:"status"`                  // CDSL's account status (ACT, PAC, CLS, TBC …)
+	StatusText   string `json:"status_text,omitempty"`   // its meaning
+	StatusReason string `json:"status_reason,omitempty"` // status change / closure reason (code and meaning)
+	ClosedOn     string `json:"closed_on,omitempty"`
+	ActivatedAt  string `json:"activated_at,omitempty"`
+	Product      string `json:"product,omitempty"`     // product number / client type
+	SubType      string `json:"sub_type,omitempty"`    // beneficiary sub type
+	Category     string `json:"bo_category,omitempty"` // beneficiary account category
+	BSDA         string `json:"bsda,omitempty"`        // BSDA, NBSD or OPTO
+	// POAType is the account's POA / DDPI type; POA its links (purpose
+	// POALB); POAMappings CDSL's number of POA mappings.
+	POAType     string      `json:"poa_type,omitempty"`
+	POA         []BOPOALink `json:"poa,omitempty"`
+	POAMappings string      `json:"poa_mappings,omitempty"`
+	// DDPIBy says which link makes DDPI true (or why none does).
+	DDPIBy         string `json:"ddpi_by,omitempty"`
+	NoNomination   string `json:"no_nomination,omitempty"` // YES: not opted / opted out; NO: nomination opted
+	Nominees       int    `json:"nominees"`
+	PANFlag        string `json:"pan_flag,omitempty"`
+	PANVerified    bool   `json:"pan_verified"`
+	MobileVerified string `json:"mobile_verified,omitempty"` // Yes, No
+	EmailVerified  string `json:"email_verified,omitempty"`
+	// CMIDs are the clearing members on the BO-UCC links and CM mappings;
+	// UCCLinks the BO-UCC links (exchange, UCC, TM code, segment, CM).
+	CMIDs    []string `json:"cm_ids,omitempty"`
+	UCCLinks []string `json:"ucc_links,omitempty"`
+	Freeze   string   `json:"freeze,omitempty"` // FRZ / NFZ with what for (FD, FC, FB)
+	File     string   `json:"file"`
+	FileType string   `json:"file_type"` // I incremental, F full
+	FullReq  string   `json:"full_request,omitempty"`
+	At       string   `json:"at"`
+}
+
+// BOPOALink is one POA or DDPI linked to the account at CDSL.
+type BOPOALink struct {
+	Type     string `json:"type,omitempty"`      // POA / DDPI type
+	ID       string `json:"id,omitempty"`        // POA / DDPI ID
+	RegNo    string `json:"reg_no,omitempty"`    // POA registration number (POA ID)
+	MasterID string `json:"master_id,omitempty"` // POA master ID
+	Nature   string `json:"nature,omitempty"`    // GPA/BPA flag: SET, GNP, MRP, MUF, TEO …
+	Holder   string `json:"holder,omitempty"`    // link purpose: FRH, SRH, TRH, ARH
+	From     string `json:"from,omitempty"`
+	To       string `json:"to,omitempty"`
+	Operate  string `json:"operate,omitempty"` // POA to operate the account
+}
+
+// freezeFor is every freeze on the account together: the DP's own
+// (Status Frozen) and CDSL's, as Debit, Credit or Both ("" when none).
+func (b BOAccount) freezeFor() string {
+	var d, c bool
+	add := func(f string) {
+		d = d || f == "Debit" || f == "Both"
+		c = c || f == "Credit" || f == "Both"
+	}
+	if b.Status == "Frozen" {
+		add(firstOf(b.Freeze, "Both"))
+	}
+	add(b.CDSLFreeze)
+	switch {
+	case d && c:
+		return "Both"
+	case d:
+		return "Debit"
+	case c:
+		return "Credit"
+	}
+	return ""
+}
+
+// debitFrozen says whether nothing may leave the account (DIS, eDIS,
+// pledges, early pay-in).
+func (b BOAccount) debitFrozen() bool { f := b.freezeFor(); return f == "Debit" || f == "Both" }
+
+// creditFrozen says whether nothing may come in (IPO allotments, pay-outs).
+func (b BOAccount) creditFrozen() bool { f := b.freezeFor(); return f == "Credit" || f == "Both" }
+
+// freezeWhy is the reason to show for a frozen account.
+func (b BOAccount) freezeWhy() string {
+	var why []string
+	if b.Status == "Frozen" && b.FreezeWhy != "" {
+		why = append(why, b.FreezeWhy)
+	}
+	if b.CDSLFreeze != "" {
+		why = append(why, firstOf(b.CDSLFreezeWhy, "frozen at CDSL"))
+	}
+	return firstOf(strings.Join(why, "; "), "frozen")
 }
 
 // DPTariff is the firm's DP rate card (₹, before GST).
@@ -538,6 +641,10 @@ func (o *Ops) freeBalance(ctx context.Context, tenant, ucc, isin string) int64 {
 		return 0
 	}
 	free := h.Qty - h.Pledged
+	// A part of the ISIN frozen at CDSL cannot move (cdslfreeze.go).
+	if c, err := o.Client(ctx, tenant, ucc); err == nil {
+		free -= o.cdslFrozenQty(ctx, tenant, o.bo(ctx, tenant, c).BOID, isin, h.Qty)
+	}
 	ds, _ := docs.List[DIS](ctx, o.Docs, tenant, cDIS, "")
 	for _, d := range ds {
 		if d.UCC != ucc || (d.Status != "Entered" && d.Status != "Verified" && d.Status != "Uploaded") {
@@ -565,8 +672,8 @@ func (o *Ops) EnterDIS(ctx context.Context, tenant, actor string, d DIS) (DIS, e
 	switch {
 	case b.Status == "Closed":
 		return d, fmt.Errorf("%w: the demat account is closed", ErrState)
-	case b.Status == "Frozen" && b.Freeze != "Credit":
-		return d, fmt.Errorf("%w: the demat account is frozen for debits (%s)", ErrState, b.FreezeWhy)
+	case b.debitFrozen():
+		return d, fmt.Errorf("%w: the demat account is frozen for debits (%s)", ErrState, b.freezeWhy())
 	}
 	book, ok := o.slipBook(ctx, tenant, c.UCC, d.Slip)
 	if !ok {
@@ -622,6 +729,9 @@ func (o *Ops) EnterDIS(ctx context.Context, tenant, actor string, d DIS) (DIS, e
 		l.ISIN = strings.ToUpper(strings.TrimSpace(l.ISIN))
 		if l.Qty <= 0 {
 			return d, invalid("quantity must be above zero")
+		}
+		if fz, ok := o.cdslISINFrozen(ctx, tenant, b.BOID, l.ISIN, false); ok && fz.Full() {
+			return d, fmt.Errorf("%w: %s is frozen for debits at CDSL in this account (%s)", ErrState, l.ISIN, fz.Why())
 		}
 		if free := o.freeBalance(ctx, tenant, c.UCC, l.ISIN); l.Qty > free {
 			return d, invalid("only %d free in %s (after pledges and pending instructions)", max(free, 0), l.ISIN)
@@ -740,6 +850,17 @@ func (o *Ops) ExecuteDIS(ctx context.Context, tenant, actor, id string, ok bool,
 		date = d.ExecDate
 	}
 	if ok {
+		// A freeze CDSL reported after the slip was verified stops it here.
+		if c, err := o.Client(ctx, tenant, d.UCC); err == nil {
+			if b := o.bo(ctx, tenant, c); b.debitFrozen() {
+				return d, fmt.Errorf("%w: the demat account is frozen for debits (%s); record the slip as failed", ErrState, b.freezeWhy())
+			}
+			for _, l := range d.Lines {
+				if fz, frozen := o.cdslISINFrozen(ctx, tenant, d.BOID, l.ISIN, false); frozen && fz.Full() {
+					return d, fmt.Errorf("%w: %s is frozen for debits at CDSL (%s); record the slip as failed", ErrState, l.ISIN, fz.Why())
+				}
+			}
+		}
 		for _, l := range d.Lines {
 			if _, err := docs.Update(ctx, o.Docs, tenant, cHolding, holdingID(d.UCC, l.ISIN), actor, func(h *Holding) error {
 				if h.Qty-h.Pledged < l.Qty {

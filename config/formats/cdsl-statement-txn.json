@@ -1,0 +1,469 @@
+{
+ "id": "cdsl-statement-txn",
+ "title": "Statement of transaction (CDSL DP, SOT_EXP)",
+ "party": "CDSL",
+ "direction": "in",
+ "when": "On request (EOD or for a period)",
+ "purpose": "Each BO's transactions with the position booked (free, pledged, lock-in …), the narration and the counter account, for a period.",
+ "names": [
+  "SOT_EXP_\\d+_\\d+_[A-Z]_\\d+_\\d+_[CP]_\\d+_\\d+(_P\\d+)?\\.csv"
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Checked and kept (the COD export is what loads the DP transaction register)",
+ "source": "CDSL UDiFF Catalogue V3.0.1.4, sheet Field Master, information type Statement_of_transaction (42 fields; names, types and standard values); header and values checked against CDSL's sample file SOT_EXP_041400_104_B_202512311336_5_C_1304140006514184_0_P0.csv (4 rows)",
+ "columns": [
+  {
+   "name": "Src",
+   "type": "str",
+   "note": "Source; CHAR(4)",
+   "codes": {
+    "CDSL": "Central Depository Services (India) Limited",
+    "NSDL": "National Securities Depository Limited"
+   }
+  },
+  {
+   "name": "LineNb",
+   "type": "int",
+   "note": "Line Number; INTEGER(9)"
+  },
+  {
+   "name": "CntrlSctiesDpstryPtcpt",
+   "type": "str",
+   "note": "DP ID; CHAR(8)"
+  },
+  {
+   "name": "BrnchId",
+   "type": "str",
+   "note": "Branch Code; CHAR(6); Always 000000 for CDSL"
+  },
+  {
+   "name": "BnfclOwnrId",
+   "type": "str",
+   "note": "Beneficiary Account Number/BO Id; CHAR(16)"
+  },
+  {
+   "name": "ISIN",
+   "type": "str",
+   "note": "ISIN; CHAR(12); ISIN/ISIN No."
+  },
+  {
+   "name": "ExecDt",
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Execution Date; DATE(10); Booking date/Transaction Date / Execution Date YYYY-MM-DD"
+  },
+  {
+   "name": "CdtDbtInd",
+   "type": "str",
+   "note": "Credit Debit Indicator; CHAR(2)",
+   "codes": {
+    "C": "Credit",
+    "D": "Debit",
+    "DF": "Default",
+    "S": "Simultaneous debit and credit",
+    "DC": "Debit and Credit"
+   }
+  },
+  {
+   "name": "PossBookd",
+   "type": "dec",
+   "decimals": 3,
+   "note": "Positions booked /Transaction Qty.; DECIMAL(15,3)"
+  },
+  {
+   "name": "AcctTp",
+   "type": "str",
+   "note": "Beneficiary Account Type; CHAR(6)",
+   "codes": {
+    "CMD": "CM Delivery",
+    "BH": "Beneficiary House",
+    "BNH": "Beneficiary Non House",
+    "BRRRR": "Beneficiary Remat / Repurchase/ Redemption/Reconversion",
+    "BDC": "Beneficiary Demat/ Conversion of Units represented by Statement of Account",
+    "BPTH": "Beneficiary Pledge Transit House",
+    "BPTNH": "Beneficiary Pledge Transit Non House",
+    "PH": "Pledge House",
+    "PNH": "Pledge Non House",
+    "CMR": "CM Receipt",
+    "BHTH": "Beneficiary Hold Transit House",
+    "BHTNH": "Beneficiary Hold Transit Non House",
+    "BHH": "Beneficiary Hold House",
+    "BHNH": "Beneficiary Hold Non House",
+    "CMP": "CM Pool",
+    "CMT": "CM Transit",
+    "TH": "Transit House",
+    "TNH": "Transit Non House",
+    "BIHT": "Beneficiary IDT House\\Tender Offer",
+    "DFT": "Default",
+    "BINHT": "Beneficiary IDT Non House\\Tender Offer",
+    "PDV": "Pending Demat Verf Bal",
+    "PDC": "Pending Demat Conf Bal",
+    "PRC": "Pending Remat Conf Bal",
+    "CB": "Current Balance",
+    "PLGB": "Pledge Balance",
+    "PLEEB": "Pledgee Balance",
+    "LB": "Lockin Balance",
+    "PSB": "PSB",
+    "PB": "PB",
+    "SFK": "Safekeep",
+    "ERMK": "Earmark Balance"
+   }
+  },
+  {
+   "name": "BookgNrrtnCd",
+   "type": "str",
+   "note": "Booking Narration Code / Description Code; CHAR(6); 584 standard values (catalogue, Standard Value List)"
+  },
+  {
+   "name": "BookgTp",
+   "type": "str",
+   "note": "Booking Type; CHAR(3); Refer Standard Value List In case of CDSL except for Lockin the value will be DFT",
+   "codes": {
+    "ULK": "Unlock",
+    "BLK": "Block / Freeze",
+    "LKI": "Lock In",
+    "STC": "Status Change",
+    "DFT": "Default",
+    "LKR": "Lock In Release"
+   }
+  },
+  {
+   "name": "ClrSysId",
+   "type": "str",
+   "note": "CC ID/CH ID; CHAR(6); Refer Standard Value List Will be populated only for Settlement transactions",
+   "codes": {
+    "ICCL": "Indian Clearing Corporation Limited",
+    "NCL": "NSE Clearing Limited",
+    "NCLSLB": "NSE Clearing Limited - SLB",
+    "OTCEI": "NATIONAL SECURITIES CLEARING CORP LTD-OTCEI",
+    "NCCL": "NATIONAL COMMODITY CLEARING LIMITED (NCCL)",
+    "MCXCCL": "MULTI COMMODITY EXCHANGE CLEARING CORPORATION LIMITED (MCXCCL)",
+    "MCCL": "METROPOLITAN CLEARING CORPORATION OF INDIA LIMITED",
+    "CSECH": "CALCUTTA STOCK EXCHANGE- CLEARING HOUSE",
+    "DSECH": "DELHI STOCK EXCHANGE LIMITED - CLEARING HOUSE",
+    "ASECH": "AHMEDABAD STOCK EXCHANGE CLEARING HOUSE",
+    "BSLSLB": "BOI SHAREHOLDING LIMITED - SLB",
+    "NSEL": "NATIONAL SPOT EXCHANGE LIMITED",
+    "ICSEL": "INTER-CONNECTED STOCK EXCHANGE OF INDIA LIMITED",
+    "ICL": "INDIAN CLEARING CORPORATION LIMITED - Debt",
+    "ADCEL": "ACE DERIVATIVES AND COMMODITIES EXCHANGE LIMITED",
+    "UCEL": "UNIVERSAL COMMODITY EXCHANGE LIMITED",
+    "CCIL": "THE CLEARING CORPORATION OF INDIA LTD.",
+    "MCL": "METROPOLITAN CLEARING CORPORATION OF INDIA LIMITED - ICX",
+    "DFT": "Default",
+    "BSL": "BOI SHAREHOLDING LIMITED",
+    "NCDL": "NATIONAL COMMODITY AND DERIVATIVES EXCH. LTD.",
+    "LASE": "LUDHIANA STOCK EXCHANGE",
+    "BASE": "BANGALORE STOCK EXCHANGE",
+    "MDSE": "MADRAS STOCK EXCHANGE",
+    "MCEL": "MULTI COMMODITY EXCHANGE OF INDIA LIMITED",
+    "ARCL": "AMC REPO CLEARING LIMITED",
+    "CA": "Corporate Action"
+   }
+  },
+  {
+   "name": "MktTpAndId",
+   "type": "str",
+   "note": "Market Type; CHAR(3); Refer Standard Value List Will be populated only for Settlement transactions; 140 standard values (catalogue, Standard Value List)"
+  },
+  {
+   "name": "SctiesSttlmTxId",
+   "type": "str",
+   "note": "Settlement Number; CHAR(13); Settlement No /Settlement Id Will be populated only for Settlement transactions"
+  },
+  {
+   "name": "BlckOrLckFlg",
+   "type": "str",
+   "note": "Block/Lock Flag; CHAR(3)",
+   "codes": {
+    "BLK": "Block",
+    "LCK": "Lock",
+    "DFT": "Default",
+    "FRE": "Free",
+    "TRN": "Transit"
+   }
+  },
+  {
+   "name": "BlckOrLckCd",
+   "type": "str",
+   "note": "Block/Lock Code; CHAR(3)",
+   "codes": {
+    "00": "If Block / Lock flag = FRE / DFT",
+    "DTA": "IDT/Tender Offer/eDIS/Block Delivery Transit",
+    "INV": "Request By Investor/Beneficial Owner",
+    "OTR": "Other Reasons",
+    "RSA": "Request By Statuatory Authority",
+    "SPW": "SARAL -Positive Confirmation Awaited",
+    "APN": "Account Holder related -PAN non-compliant/PAN verification pending",
+    "AFN": "Account Holder related -FATCA non-compliant/FATCA NonCompliance(under ITRule 114H(8)",
+    "AKN": "Account Holder related -KYC non-compliant",
+    "AHD": "Account Holder related -Holder deceased",
+    "AMT": "Account Holder related -Minor turned major/Minor Attained Majority",
+    "ANP": "Account Holder related -Non-payment of dues of DP",
+    "AMD": "Account Holder related -Merger of DPM set-up",
+    "ACR": "Account Holder related -Account closure/transmission - Residual balances",
+    "SSO": "Statutory Order -SEBI order/SEBI Directive",
+    "SJC": "Statutory Order -Judicial authorities -Court/Court Order",
+    "SJS": "Statutory Order -Judicial authorities -SAT",
+    "SJO": "Statutory Order -Judicial authorities -Official Liquidator",
+    "SCL": "Statutory Order -Judicial authorities -Company Law Board",
+    "SLP": "Statutory Order -Law Enforcement Agencies -Police",
+    "CBI": "Statutory Order -Law Enforcement Agencies -Central Bureau of Investigations (CBI)/Order fr",
+    "CID": "Statutory Order -Law Enforcement Agencies -Criminal Investigation Department (CID)",
+    "SFI": "Statutory Order -Law Enforcement Agencies -Serious Fraud Investigation Office (SFIO)",
+    "EOW": "Statutory Order -Law Enforcement Agencies -Economic Offence Wing (EOW)",
+    "SED": "Statutory Order -Law Enforcement Agencies -Directorate of Enforcement (ED)",
+    "ACB": "Statutory Order -Law Enforcement Agencies -Anti-Corruption Bureau (ACB)",
+    "RRC": "Statutory Order -Recovery Proceedings -Recovery Certificate under Cooperative Societies Ac",
+    "DRT": "Statutory Order -Recovery Proceedings -Debt Recovery Tribunal (DRT)",
+    "RIT": "Statutory Order -Revenue Authorities -Income Tax",
+    "RST": "Statutory Order -Revenue Authorities -Service Tax",
+    "RAS": "Statutory Order -Revenue Authorities -Sales Tax",
+    "RAC": "Statutory Order -Revenue Authorities -Customs",
+    "RAE": "Statutory Order -Revenue Authorities -Central Excise",
+    "WSF": "Write-off of shares held by FPIs",
+    "BAD": "Breach of MPS/PN3 - Blocked for Additional Disclosures",
+    "KYC": "Account Holder related- Non Compliant- 6 KYC Attributes/Mandatory 6 KYC Non Compliant Acco",
+    "PAN": "Account holder related PAN inoperative",
+    "NNC": "Nomination non-compliant account",
+    "RGS": "RGESS",
+    "ALF": "Non-payment of ALF",
+    "SCN": "Statutory Order -SEBI SCN / Order Not Delivered/Acknowledged/SEBI SCN/Order NotDelivered/A",
+    "TWC": "Trading Window Closure Period",
+    "ITO": "ITO Attachment",
+    "DPD": "Disinvestment & Private Deals",
+    "SHD": "Second Holder Deceased",
+    "THD": "Third Holder Deceased",
+    "FHD": "Sole/First Holder Deceased",
+    "SRO": "Order from Special Recovery Officer",
+    "FIU": "FIU-IND Requirement",
+    "IPV": "In Person Verification Pending",
+    "ASS": "Assignment",
+    "IBB": "Initiated By BO",
+    "RBB": "Requested By BO",
+    "CAF": "CORPORATE ACTION FREEZE",
+    "KYD": "KYC deficiency reported by CDSL",
+    "KYV": "KYC verification Non Compliant Account",
+    "EGR": "Gold deposit setup",
+    "NDF": "NDU freeze setup",
+    "RPA": "Restrained PAN",
+    "PNR": "PAN not recorded",
+    "LEI": "LEI Expiry/Lapse",
+    "AMO": "Account Holder related-Taken over in NSDL Omnibus",
+    "DRQ": "Director/Relative Quota",
+    "EPQ": "Employee Quota",
+    "PFQ": "Preferential Quota",
+    "PRQ": "Promoters Quota",
+    "UWQ": "Underwriters Quota",
+    "PP": "Private Placement",
+    "ITA": "54EA of IT Act 1961",
+    "ITB": "54EB of IT Act 1961",
+    "ITC": "Sec 54EC of IT Act 1961",
+    "ITD": "Sec 88 of IT Act 1961",
+    "ELS": "ELSS2005",
+    "PIS": "PRE IPO SHARES",
+    "TSS": "TAX SAVINGS SCHEME",
+    "OTH": "Others",
+    "MDT": "Maturity Date",
+    "CHP": "Children Plan",
+    "RTP": "Retirement Plan",
+    "SCA": "Scheme of Arrangement",
+    "TSP": "Transfer of securities in physical mode",
+    "DFT": "Default",
+    "GDS": "Gold Deposit Scheme (13)",
+    "VL": "Voluntary Lockin(14)",
+    "RPS": "Re-lodged physical shares(36)",
+    "DON": "DONATION(43)"
+   }
+  },
+  {
+   "name": "CntrCntrlSctiesDpstryPtcpt",
+   "type": "str",
+   "note": "Counter DP Id/Other Depository ID; CHAR(8)"
+  },
+  {
+   "name": "CntrBnfclOwnrId",
+   "type": "str",
+   "note": "COUNTER BO ID/ Other Client ID; CHAR(16); Counter Beneficiary Id /Other client code"
+  },
+  {
+   "name": "TxnID",
+   "type": "int",
+   "note": "TRANSACTION ID; INTEGER(16); BP instruction id /Transaction ID Will be blank for payout transactions from CC."
+  },
+  {
+   "name": "OrdrRef",
+   "type": "int",
+   "note": "DM Order Number; INTEGER(10); CDSL to populate Trade ID in case of Onmarket / Offmarket txn"
+  },
+  {
+   "name": "Rmks",
+   "type": "str",
+   "note": "Remarks; CHAR(150); Internal ref no / remarks"
+  },
+  {
+   "name": "CntrCMBPId",
+   "type": "str",
+   "note": "Counter CM BP ID; CHAR(8)"
+  },
+  {
+   "name": "RjctnRsnCd",
+   "type": "str",
+   "note": "Rejection Reason Code/ERROR CODE; CHAR(50); Will be populated only in case rejection transaction of Demat and Remat. Refer Standard Value List In case of NSDL full description for legacy cases will be pop; 138 standard values (catalogue, Standard Value List)"
+  },
+  {
+   "name": "OthrSctiesSttlmTxId",
+   "type": "str",
+   "note": "Other Settlement Details; CHAR(13); Will be populated only for Settlement transactions"
+  },
+  {
+   "name": "LqdtnSts",
+   "type": "str",
+   "note": "Liquidation / Winding Up Status; CHAR(3)",
+   "codes": {
+    "NUL": "Listed Company - Not Under Liquidation",
+    "UL": "Listed Company - Under Liquidation",
+    "RBF": "Listed Company - Reference BIFR",
+    "DFT": "Default"
+   }
+  },
+  {
+   "name": "UnqClntId",
+   "type": "str",
+   "note": "UCC; CHAR(11)"
+  },
+  {
+   "name": "UnqClrMmbId",
+   "type": "str",
+   "note": "UCC CMID; CHAR(8)"
+  },
+  {
+   "name": "BrkrOrCtdnPtcptId",
+   "type": "str",
+   "note": "Trading Member ID /TM ID / CP ID; CHAR(16)"
+  },
+  {
+   "name": "Xchg",
+   "type": "str",
+   "note": "Exchange ID; CHAR(3); UCC Exchange Id Refer Standard Value List",
+   "codes": {
+    "BSE": "BOMBAY STOCK EXCHANGE LIMITED",
+    "NSE": "NATIONAL STOCK EXCHANGE OF INDIA LIMITED",
+    "OTC": "OTC EXCHANGE OF INDIA",
+    "NCD": "NATIONAL COMMODITY & DERIVATIVES EXCHANGE LIMITED",
+    "MCX": "MULTI COMMODITY EXCHANGE OF INDIA LIMITED",
+    "NSL": "NATIONAL STOCK EXCHANGE OF INDIA LIMITED - SLB",
+    "ICS": "INTER-CONNECTED STOCK EXCHANGE OF INDIA LIMITED",
+    "MSE": "METROPOLITAN STOCK EXCHANGE OF INDIA LIMITED",
+    "BSC": "BOMBAY STOCK EXCHANGE LIMITED",
+    "RBI": "RESERVE BANK OF INDIA",
+    "ICX": "INDIAN COMMODITY EXCHANGE LIMITED (ICEX)",
+    "CSE": "THE CALCUTTA STOCK EXCHANGE ASSOCIATION LIMITED",
+    "DSE": "THE DELHI STOCK EXCHANGE ASSOCIATION LIMITED",
+    "ASE": "THE STOCK EXCHANGE AHMEDABAD",
+    "BSS": "BOMBAY STOCK EXCHANGE LIMITED - SLB",
+    "NSP": "NATIONAL SPOT EXCHANGE LTD",
+    "ACE": "ACE DERIVATIVES AND COMMODITIES EXCHANGE LIMITED",
+    "UCX": "UNIVERSAL COMMODITY EXCHANGE LIMITED",
+    "DSP": "DUMMY SETTLEMENT POCKET1",
+    "CA": "CORPORATE ACTION",
+    "DFT": "Default",
+    "LSE": "LUDHIANA STOCK EXCHANGE",
+    "BGE": "BANGALORE STOCK EXCHANGE",
+    "MDE": "MADRAS STOCK EXCHANGE",
+    "CCI": "THE CLEARING CORPORATION OF INDIA LIMITED"
+   }
+  },
+  {
+   "name": "Sgmt",
+   "type": "str",
+   "note": "Segment Code; CHAR(2)",
+   "codes": {
+    "CM": "Cash segment",
+    "FO": "Equity Derivatives Segment",
+    "CD": "Currency Derivative Segment",
+    "DT": "Debt Segment",
+    "CO": "Commodity Derivatives Segment",
+    "SB": "SLB Segment",
+    "AL": "ALL Segments",
+    "EG": "EGR",
+    "FP": "Futures and Options Physical",
+    "OF": "OFS",
+    "AC": "Auction Cash, SLB, FO",
+    "SM": "SME",
+    "DF": "Default"
+   }
+  },
+  {
+   "name": "CustdlTxnFlg",
+   "type": "str",
+   "note": "Custodial Transaction Flag / Entity Identifier; CHAR(3)",
+   "codes": {
+    "CTR": "Custodial Transaction",
+    "NCT": "Non Custodial Transaction",
+    "DFT": "Default",
+    "PM": "PMS"
+   }
+  },
+  {
+   "name": "UCCClrSysId",
+   "type": "str",
+   "note": "UCC CCID; CHAR(4)"
+  },
+  {
+   "name": "ReplgId",
+   "type": "int",
+   "note": "Repledge PSN/ Order ID; NUMBER(8)"
+  },
+  {
+   "name": "LckInRlsDt",
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Lock-in Release Date; DATE(10); Lockin Release Date / Freeze Expiry Date YYYY-MM-DD"
+  },
+  {
+   "name": "TrnCrnDtTme",
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05",
+   "note": "Transaction creation date and time; DATETIME(19); YYYY-MM-DDTHH:mm:ss"
+  },
+  {
+   "name": "StmtFrmDt",
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Statement From Date; DATE(10); YYYY-MM-DD"
+  },
+  {
+   "name": "StmtToDt",
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Statement To Date; DATE(10); YYYY-MM-DD"
+  },
+  {
+   "name": "PartCntr",
+   "type": "str",
+   "note": "PART COUNTER; CHAR(50); CDSL to populate part counter for unpledge and confiscate. Required for description generation"
+  },
+  {
+   "name": "TxnDesc",
+   "type": "str",
+   "note": "Transaction Description; CHAR(60); CDSL to populate complete Transaction description"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "str",
+   "note": "Dummy_Field_3; CHAR(50)"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "str",
+   "note": "Dummy_Field_4; CHAR(50)"
+  }
+ ]
+}

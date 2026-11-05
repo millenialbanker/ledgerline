@@ -220,8 +220,8 @@ func (o *Ops) ipoClientErr(ctx context.Context, tenant string, c Client, cat IPO
 		switch {
 		case bo.Status == "Closed":
 			return invalid("%s's demat account is closed", c.UCC)
-		case bo.Freeze == "Credit" || bo.Freeze == "Both":
-			return invalid("%s's demat account is frozen for credits (%s): shares could not be credited", c.UCC, firstOf(bo.FreezeWhy, "frozen"))
+		case bo.creditFrozen():
+			return invalid("%s's demat account is frozen for credits (%s): shares could not be credited", c.UCC, bo.freezeWhy())
 		}
 	}
 	if cat.Individual && !individualClient(c) {

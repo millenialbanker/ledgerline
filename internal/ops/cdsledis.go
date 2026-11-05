@@ -222,8 +222,8 @@ func (o *Ops) edisClient(ctx context.Context, tenant string, x cdslConn, ucc str
 	switch {
 	case b.Status == "Closed" || b.Status == "Not opened":
 		return c, b, fmt.Errorf("%w: the demat account is %s", ErrState, strings.ToLower(b.Status))
-	case b.Status == "Frozen" && b.Freeze != "Credit":
-		return c, b, fmt.Errorf("%w: the demat account is frozen for debits", ErrState)
+	case b.debitFrozen():
+		return c, b, fmt.Errorf("%w: the demat account is frozen for debits (%s)", ErrState, b.freezeWhy())
 	}
 	b.BOID = strings.TrimSpace(b.BOID)
 	return c, b, cdxOwnBO(x, b.BOID)
@@ -322,6 +322,9 @@ func (o *Ops) StartEDIS(ctx context.Context, tenant, actor string, in EDISReques
 		seen[l.ISIN] = true
 		if l.Qty <= 0 {
 			return CDSLForm{}, a, invalid("quantity must be above zero")
+		}
+		if fz, ok := o.cdslISINFrozen(ctx, tenant, b.BOID, l.ISIN, false); ok && fz.Full() {
+			return CDSLForm{}, a, fmt.Errorf("%w: %s is frozen for debits at CDSL in this account (%s)", ErrState, l.ISIN, fz.Why())
 		}
 		if free := o.freeBalance(ctx, tenant, c.UCC, l.ISIN); l.Qty > free {
 			return CDSLForm{}, a, invalid("only %d free in %s (after pledges and pending instructions)", max(free, 0), l.ISIN)

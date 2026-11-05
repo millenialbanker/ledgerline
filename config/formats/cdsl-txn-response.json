@@ -1,0 +1,75 @@
+{
+ "id": "cdsl-txn-response",
+ "title": "Transaction upload response (CDSL DP, TXN_RESP)",
+ "party": "CDSL",
+ "direction": "in",
+ "when": "After each transaction upload",
+ "purpose": "CDSL's result for each line of a transaction upload: accepted or rejected, CDSL's transaction ID, and the error code and description.",
+ "names": [
+  "TXN_RESP_\\d+_\\d{12}_\\d+(_UP)?(_P\\d+)?\\.csv"
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Records each uploaded delivery instruction as executed (accepted) or failed (rejected, with CDSL's error)",
+ "source": "CDSL UDiFF Catalogue V3.0.1.4, sheet Field Master, information type Transaction_Upload_Response (9 fields; names, types and standard values)",
+ "columns": [
+  {
+   "name": "Src",
+   "type": "str",
+   "note": "Source; CHAR(4)",
+   "codes": {
+    "CDSL": "Central Depository Services (India) Limited",
+    "NSDL": "National Securities Depository Limited"
+   }
+  },
+  {
+   "name": "CntrlSctiesDpstryPtcpt",
+   "type": "str",
+   "note": "DP ID; CHAR(8)"
+  },
+  {
+   "name": "LineNb",
+   "type": "int",
+   "note": "Line Number; INTEGER(6)"
+  },
+  {
+   "name": "IntlRefNb",
+   "type": "str",
+   "note": "Internal Reference Number; CHAR(35)"
+  },
+  {
+   "name": "SeqNm",
+   "type": "int",
+   "note": "SEQUENCE NUMBER; INTEGER(8); Unique Sequence Number / Batch Number"
+  },
+  {
+   "name": "Status",
+   "type": "str",
+   "note": "Record Status; CHAR(1)",
+   "codes": {
+    "A": "Accepted",
+    "R": "Rejected"
+   }
+  },
+  {
+   "name": "TxUnqId",
+   "type": "int",
+   "note": "Transaction Unique ID; INTEGER(14); Transaction ID / BP Instruction ID"
+  },
+  {
+   "name": "ErrCD",
+   "type": "str",
+   "note": "Error Code; CHAR(10)"
+  },
+  {
+   "name": "ErrDesc",
+   "type": "str",
+   "note": "Error Description; CHAR(150)"
+  }
+ ]
+}

@@ -6,250 +6,431 @@
  "when": "BOD",
  "purpose": "New and changed securities with issuer, registrar, status and face value.",
  "names": [
-  "ISIN_MSTR_\\d+_\\d+_I_\\d+_\\d+\\.csv"
+  "ISIN_MSTR_\\d+_\\d+_[IF]_\\d+_\\d+(_P\\d+)?\\.csv"
  ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
  "header": true,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded into the security master: name, type, face value and status by ISIN",
+ "source": "CDSL UDiFF Catalogue V3.0.1.4, sheet Field Master, information type ISIN_Master (54 fields; names, types and standard values)",
  "columns": [
   {
    "name": "Src",
-   "type": "str"
+   "type": "str",
+   "note": "Source; CHAR(4); Depository providing the data",
+   "codes": {
+    "CDSL": "Central Depository Services (India) Limited",
+    "NSDL": "National Securities Depository Limited"
+   }
   },
   {
    "name": "CntrlSctiesDpstryPtcpt",
-   "type": "str"
+   "type": "str",
+   "note": "DP ID; CHAR(8); DPID in case of NSDL '000001 for CDSL"
   },
   {
    "name": "LineNb",
-   "type": "str"
+   "type": "int",
+   "note": "Line Number; INTEGER(7)"
   },
   {
    "name": "ISIN",
-   "type": "str"
+   "type": "str",
+   "note": "ISIN; CHAR(12)"
   },
   {
    "name": "ISINShrtNm",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "ISIN short name; CHAR(140)"
   },
   {
    "name": "ISINDesc",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "ISIN Description; CHAR(290)"
   },
   {
    "name": "IssrOrgId",
-   "type": "str"
+   "type": "str",
+   "note": "Company Code/Issuer ID; CHAR(8)"
   },
   {
    "name": "IssrOrgNm",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Company Name/Issuer Name; CHAR(140)"
   },
   {
    "name": "FinInstrmTp",
-   "type": "str"
+   "type": "str",
+   "note": "Security Type; CHAR(5)",
+   "codes": {
+    "EQTY": "Ordinary Shares / Equity",
+    "PRSH": "Preference Shares",
+    "PPRSH": "Participating Preference Shares",
+    "CPRSH": "Cumulative Preference Shares",
+    "CCPRS": "Cumulative Convertible Preference Shares",
+    "PROSH": "Promoters Shares",
+    "UNITS": "Units",
+    "MUNIT": "Mutual Units",
+    "OEMFT": "Open Ended Mutual Fund / Mutual Fund Trace",
+    "CEMF": "Close Ended Mutual Fund",
+    "WRRNT": "Warrants",
+    "DEBTR": "Debentures",
+    "PTCSI": "Pass Through Certificates / Securitized Instruments",
+    "PYTC": "Pay Through Certificates",
+    "ZCB": "Zero Coupon Bonds",
+    "TB": "Treasury Bills",
+    "CP": "Commercial Paper",
+    "COD": "Certificate of Deposit",
+    "BOCSG": "Bonds (Central and State guaranteed)",
+    "GSEC": "Government Securities",
+    "COMDT": "Comodity",
+    "PRMNT": "Promissory Note",
+    "COMBN": "Commodity Bullion",
+    "INVIT": "InvIT Units / Infrastructure Investment trust",
+    "CMNGB": "Cash Management Bills",
+    "REIT": "REIT / Real Estate Investment Trusts",
+    "REDBT": "Rights Entitlement Debt",
+    "REEQT": "Rights Entitlement Equity / Rights Entitlement",
+    "SECRT": "Security Receipts",
+    "REINT": "Rights Entitlement InvIT",
+    "CEAIF": "Closed Ended AIF Category - I / Alternative Investment Fund",
+    "ZCZPI": "Zero Coupon Zero Principal Instruments",
+    "CEAF2": "Closed Ended AIF Category - II",
+    "CEAF3": "Closed Ended AIF Category - III",
+    "OEAIF": "Open Ended AIF Category - III",
+    "EGR": "EGR",
+    "SGB": "Sovereign Gold Bonds",
+    "CIS": "Collective Investment Scheme",
+    "IDR": "Indian Depository Receipt",
+    "RBIRB": "RBI Releif Bonds",
+    "REGRB": "Regular Return Bond",
+    "BOND": "Bond",
+    "DDBON": "Deep Discount Bond",
+    "FLTRB": "Floating Rate Bond",
+    "MNCPB": "Municipal Bonds",
+    "PSSCH": "Postal Saving Scheme",
+    "DFT": "Default",
+    "OPSIF": "Open ended SIF",
+    "CLSIF": "Close Ended SIF",
+    "IFSIF": "Interval Fund SIF",
+    "SIF": "Specialized Investment Funds",
+    "REPRF": "Rights Entitlement Preference"
+   }
   },
   {
    "name": "SctySts",
-   "type": "str"
+   "type": "str",
+   "note": "Security Status / ISIN Status; CHAR(3)",
+   "codes": {
+    "ACT": "Active",
+    "CAP": "Captured",
+    "INA": "Inactive / Blocked due to Auto CA",
+    "FRZ": "Suspended / Frozen",
+    "DEL": "Deleted / Permanently Inactive",
+    "DFT": "Default"
+   }
   },
   {
    "name": "BookgBsis",
-   "type": "str"
+   "type": "str",
+   "note": "Booking Basis; CHAR(3); Not applicable for CDSL. Refer Standard Value List",
+   "codes": {
+    "QTY": "Quantity",
+    "VAL": "Value",
+    "DFT": "Default"
+   }
   },
   {
    "name": "IsseDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Issue Date; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "Regar",
-   "type": "str"
+   "type": "str",
+   "note": "Share Registrar Code/RTA ID; CHAR(8)"
   },
   {
    "name": "RegarNm",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Share Registrar Name/RTA Name; CHAR(140)"
   },
   {
    "name": "SEBIRgnFrDt",
-   "type": "str"
+   "type": "str",
+   "note": "SEBI Registration From Date; CHAR(20); YYYY-MM-DD"
   },
   {
    "name": "SEBIRgnToDt",
-   "type": "str"
+   "type": "str",
+   "note": "SEBI Registration To Date; CHAR(20); YYYY-MM-DD"
   },
   {
    "name": "CntctNm",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Contact Person Name; CHAR(100)"
   },
   {
    "name": "CntctDesg",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Contact Person Designation; CHAR(50)"
   },
   {
    "name": "ISINShrNm",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "ISIN Share Name; CHAR(100)"
   },
   {
    "name": "ISINScndNm",
-   "type": "str"
+   "type": "str",
+   "note": "ISIN Second Name; CHAR(20)"
   },
   {
    "name": "ISINLastNm",
-   "type": "str"
+   "type": "str",
+   "note": "ISIN Last Name; CHAR(20)"
   },
   {
    "name": "ISINPstlAdr1",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "ISIN Address(1); CHAR(40)"
   },
   {
    "name": "ISINPstlAdr2",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "ISIN Address(2); CHAR(40)"
   },
   {
    "name": "ISINPstlAdr3",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "ISIN Address(3); CHAR(40)"
   },
   {
    "name": "ISINCity",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "ISIN City; CHAR(40)"
   },
   {
    "name": "ISINCtrySubDvsn",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "ISIN State; CHAR(25); Not Applicable for NSDL"
   },
   {
    "name": "ISINCtry",
-   "type": "str"
+   "type": "str",
+   "note": "ISIN Country; CHAR(25); Not Applicable for NSDL"
   },
   {
    "name": "ISINPstCd",
-   "type": "str"
+   "type": "str",
+   "note": "ISIN Zip Code; CHAR(10); Not Applicable for NSDL"
   },
   {
    "name": "ISINPhneNb1",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "ISIN Phone(1); CHAR(24)"
   },
   {
    "name": "ISINPhneNb2",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "ISIN Phone(2); CHAR(24)"
   },
   {
    "name": "ISINFaxNb",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "ISIN Fax; CHAR(24)"
   },
   {
    "name": "ISINEmailAdr",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "ISIN Email; CHAR(80)"
   },
   {
    "name": "MtrtyDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Maturity Date/Expiry Date; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "ConvsDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Convert Date/Conversion Date; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "DcmlAllwd",
-   "type": "str"
+   "type": "str",
+   "note": "Decimal allowed /ISIN Decimal Code; CHAR(3)",
+   "codes": {
+    "NA": "Not Allowed",
+    "AL": "Allowed",
+    "DF": "Default"
+   }
   },
   {
    "name": "DmtrlsdRegdScties",
-   "type": "str"
+   "type": "str",
+   "note": "Hold Demat Flag; CHAR(3); Refer Standard Value List Not Applicable for NSDL",
+   "codes": {
+    "YES": "YES",
+    "NO": "NO",
+    "DFT": "Default"
+   }
   },
   {
    "name": "RmtrlsdRegdScties",
-   "type": "str"
+   "type": "str",
+   "note": "Hold Remat Flag; CHAR(3); Refer Standard Value List Not Applicable for NSDL",
+   "codes": {
+    "YES": "YES",
+    "NO": "NO",
+    "DFT": "Default"
+   }
   },
   {
    "name": "ClssfctnFinInstrm",
-   "type": "str"
+   "type": "str",
+   "note": "Listing Status / CFI Code; CHAR(3)",
+   "codes": {
+    "LST": "LISTED",
+    "PSU": "PSU",
+    "UNL": "UNLISTED",
+    "PLC": "PRIVATE LIMITED COMPANIES",
+    "BIF": "BIFR COMPANY",
+    "COM": "COMMODITIES",
+    "CUL": "COMPANY WITH UNLIMITED LIABILITY",
+    "LDR": "Listed Defaulted in Redemption",
+    "UDR": "Unlisted Defaulted in Redemption",
+    "DFT": "Default"
+   }
   },
   {
    "name": "ParVal",
-   "type": "str"
+   "type": "dec",
+   "decimals": 3,
+   "note": "Face Value /Par Value; DECIMAL(15,3)"
   },
   {
    "name": "PdAmt",
-   "type": "str"
+   "type": "dec",
+   "decimals": 3,
+   "note": "Paidup Value; DECIMAL(15,3); Not Applicable for NSDL"
   },
   {
    "name": "RedPric",
-   "type": "str"
+   "type": "dec",
+   "decimals": 3,
+   "note": "Redemption Price; DECIMAL(15,3); Not Applicable for NSDL"
   },
   {
    "name": "RedDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Redemption Date; DATE(10); YYYY-MM-DD Not Applicable for NSDL"
   },
   {
    "name": "ClsPric",
-   "type": "str"
+   "type": "dec",
+   "decimals": 3,
+   "note": "ISIN CLOSE PRICE; DECIMAL(15,3)"
   },
   {
    "name": "ClsDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "ISIN CLOSE PRICE DATE; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "DstnctRgExstg",
-   "type": "str"
+   "type": "str",
+   "note": "Distinct Range Exists; CHAR(3); Refer Standard Value List Not Applicable for NSDL",
+   "codes": {
+    "YES": "YES",
+    "NO": "NO",
+    "DFT": "Default"
+   }
   },
   {
    "name": "ISINSspnsnFlg",
-   "type": "str"
+   "type": "str",
+   "note": "ISIN Suspension Flag; CHAR(2); Refer Standard Value List Not Applicable for NSDL",
+   "codes": {
+    "NF": "Not Frozen",
+    "FD": "Frozen for Debit",
+    "FC": "Frozen for Credit",
+    "FB": "Frozen for Both",
+    "DF": "Default"
+   }
   },
   {
    "name": "DueDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Money Due Date; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "LqdtnSts",
-   "type": "str"
+   "type": "str",
+   "note": "Liquidation / Winding Up Status; CHAR(3)",
+   "codes": {
+    "NUL": "Listed Company - Not Under Liquidation",
+    "UL": "Listed Company - Under Liquidation",
+    "RBF": "Listed Company - Reference BIFR",
+    "DFT": "Default"
+   }
   },
   {
    "name": "Rmks",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Remarks; CHAR(150); Remarks/Security Remark"
   },
   {
    "name": "ConvsAmt",
-   "type": "str"
+   "type": "dec",
+   "decimals": 3,
+   "note": "Convert Amount; DECIMAL(15,3)"
   },
   {
    "name": "Rsvd1",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_1; CHAR(50)"
   },
   {
    "name": "Rsvd2",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_2; CHAR(50)"
   },
   {
    "name": "Rsvd3",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_3; CHAR(50)"
   },
   {
    "name": "Rsvd4",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_4; CHAR(50)"
   }
- ],
- "confirmed": true,
- "source": "Header row of the file",
- "compress": "none",
- "format": "delimited",
- "delimiter": ",",
- "crlf": true,
- "final_eol": true,
- "linked": "Loaded into the security master: name, type, face value and status by ISIN"
+ ]
 }

@@ -625,7 +625,7 @@ func (o *Ops) RequestNormalPledge(ctx context.Context, tenant, actor string, n N
 		return n, invalid("client %s not found", n.UCC)
 	}
 	bo := o.bo(ctx, tenant, c)
-	if bo.Status != "Active" || bo.Freeze == "Debit" || bo.Freeze == "Both" || !cplReBO16.MatchString(bo.BOID) {
+	if bo.Status != "Active" || bo.debitFrozen() || !cplReBO16.MatchString(bo.BOID) {
 		return n, invalid("%s has no active CDSL demat account with this DP", n.UCC)
 	}
 	n.PledgeeBOID = strings.TrimSpace(n.PledgeeBOID)

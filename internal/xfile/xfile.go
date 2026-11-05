@@ -44,6 +44,9 @@ type Column struct {
 	Quote    string `json:"quote,omitempty"`    // "always": in double quotes even when empty; "set": quoted when it has a value
 	Required bool   `json:"required,omitempty"`
 	Note     string `json:"note,omitempty"`
+	// Codes are the field's published standard values and their meanings;
+	// informational (values are not checked against them, as code lists grow).
+	Codes map[string]string `json:"codes,omitempty"`
 }
 
 // Record is one kind of line in a file with several (a header record,

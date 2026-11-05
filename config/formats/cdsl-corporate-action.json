@@ -1,0 +1,206 @@
+{
+ "id": "cdsl-corporate-action",
+ "title": "Corporate action master (CDSL, CA_EXP)",
+ "party": "CDSL",
+ "direction": "in",
+ "when": "Daily",
+ "purpose": "Corporate actions set up at CDSL: type, debit (parent) and credit ISIN, ratio, record and execution dates, dividend per security and status.",
+ "names": [
+  "CA_EXP_\\d+_\\d+_[IF]_\\d+_\\d+(_P\\d+)?\\.csv"
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Stored as CDSL's corporate action list and shown with corporate actions; actions on ISINs clients hold go to the work queue to be set up",
+ "source": "CDSL UDiFF Catalogue V3.0.1.4, sheet Field Master, information type Corporate_action_master (26 fields; names, types and standard values)",
+ "columns": [
+  {
+   "name": "Src",
+   "type": "str",
+   "note": "Source; CHAR(4)",
+   "codes": {
+    "CDSL": "Central Depository Services (India) Limited",
+    "NSDL": "National Securities Depository Limited"
+   }
+  },
+  {
+   "name": "CntrlSctiesDpstryPtcpt",
+   "type": "str",
+   "note": "DP ID; CHAR(8); DPID in case of NSDL '000001 for CDSL"
+  },
+  {
+   "name": "LineNb",
+   "type": "int",
+   "note": "Line Number; INTEGER(7)"
+  },
+  {
+   "name": "CorpActnEvtId",
+   "type": "int",
+   "note": "DM Order No /Corporate Action Sequence Number; INTEGER(10)"
+  },
+  {
+   "name": "CATyp",
+   "type": "str",
+   "note": "CA Type/Corporate Action Type; CHAR(7); 129 standard values (catalogue, Standard Value List)"
+  },
+  {
+   "name": "PrntISIN",
+   "type": "str",
+   "note": "DEBIT ISIN/Parent ISIN; CHAR(12)"
+  },
+  {
+   "name": "CdtISIN",
+   "type": "str",
+   "note": "CREDIT ISIN; CHAR(12)"
+  },
+  {
+   "name": "Rtio",
+   "type": "str",
+   "note": "Ratio – Parent ISIN : CREDIT ISIN; CHAR(35)"
+  },
+  {
+   "name": "CASbTyp",
+   "type": "str",
+   "note": "Corporate Action – ‘File’/’Auto’; CHAR(4)",
+   "codes": {
+    "FILE": "FILE Corporate Action",
+    "AUTO": "Auto Corporate Action",
+    "DFT": "Default"
+   }
+  },
+  {
+   "name": "CACntrNb",
+   "type": "int",
+   "note": "CA Counter Number; INTEGER(3); Incremental counter starting from 1"
+  },
+  {
+   "name": "CAFilStts",
+   "type": "str",
+   "note": "CA File Status; CHAR(5)",
+   "codes": {
+    "RECAF": "Received Allotment File",
+    "COMPL": "Completed",
+    "REJAP": "Rejected in Allotment Processing",
+    "VOLCC": "Voluntarily Closed By CDS",
+    "IARRG": "In Allotment,Ready For Report Generation",
+    "IARFP": "In Allotment, Ready For Processing",
+    "REJCD": "Rejected By CDS",
+    "DELTD": "Deleted",
+    "PEMIS": "Pending for MIS File",
+    "PROIN": "Processing Initiated",
+    "APPCD": "Approved By CDS",
+    "IALVS": "In Allotment, Validation Successful",
+    "CNTSE": "Counter Setup",
+    "VOLCR": "Voluntary Closure Requested",
+    "PENSD": "Pending for Stamp Duty",
+    "DOCBV": "Documents Being Verified",
+    "DFT": "Default"
+   }
+  },
+  {
+   "name": "ExecDt",
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Execution Date; DATE(10); Execution Date/Request Set Up Date YYYY-MM-DD"
+  },
+  {
+   "name": "EffctDt",
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Effective Date; DATE(10); YYYY-MM-DD"
+  },
+  {
+   "name": "RcrdDt",
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Record Date / Book Closure Start Date; DATE(10); YYYY-MM-DD"
+  },
+  {
+   "name": "BookClsrEndDt",
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Book Closure End Date; DATE(10); YYYY-MM-DD"
+  },
+  {
+   "name": "DvddIntrstAmtPerScty",
+   "type": "dec",
+   "decimals": 3,
+   "note": "Dividend / Interest Amount Per Security; DECIMAL(15,3)"
+  },
+  {
+   "name": "BenPosRptDt",
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "BenPos Report Date; DATE(10); YYYY-MM-DD"
+  },
+  {
+   "name": "CdtDbtInd",
+   "type": "str",
+   "note": "Credit Debit Indicator; CHAR(2)",
+   "codes": {
+    "C": "Credit",
+    "D": "Debit",
+    "DF": "Default",
+    "S": "Simultaneous debit and credit",
+    "DC": "Debit and Credit"
+   }
+  },
+  {
+   "name": "Rmks",
+   "type": "str",
+   "note": "Remarks; CHAR(150); Corporate Action Description – Remarks entered by RTA"
+  },
+  {
+   "name": "MktTpAndId",
+   "type": "str",
+   "note": "Market Type; CHAR(3); Refer Standard Value List Not Applicable for CDSL; 140 standard values (catalogue, Standard Value List)"
+  },
+  {
+   "name": "SctiesSttlmTxId",
+   "type": "str",
+   "note": "Settlement Number; CHAR(13); Not applicable for CDSL"
+  },
+  {
+   "name": "CorpActnSts",
+   "type": "str",
+   "note": "CA Status; CHAR(5)",
+   "codes": {
+    "AUCL": "Auto Closure",
+    "TBCL": "To Be Closed",
+    "CLSD": "Closed",
+    "VCCD": "Voluntarily closed by CDS",
+    "HLRG": "Holding Report Generated",
+    "DELT": "Deleted",
+    "PECV": "Pending For CDSL Verification",
+    "RCDV": "Rejected By CDSL During Verification / Closed, Rejected by NSDL",
+    "SETUP": "Setup",
+    "VLCR": "Voluntary Closure Requested",
+    "DFT": "Default"
+   }
+  },
+  {
+   "name": "Rsvd1",
+   "type": "str",
+   "note": "Dummy_Field_1; CHAR(50)"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "str",
+   "note": "Dummy_Field_2; CHAR(50)"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "str",
+   "note": "Dummy_Field_3; CHAR(50)"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "str",
+   "note": "Dummy_Field_4; CHAR(50)"
+  }
+ ]
+}

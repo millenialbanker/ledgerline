@@ -152,8 +152,12 @@ func (o *Ops) LoadExchangeFile(ctx context.Context, tenant, actor, name string, 
 		} else {
 			r.Issues = t.Issues
 		}
-		sum := sha256.Sum256(f.Data)
-		rf, err := o.App.Ingest.Raw.Put(ctx, ingest.RawFile{Tenant: tenant, Source: "XFILE-" + strings.ToUpper(s.ID), Name: f.Name, SHA256: hex.EncodeToString(sum[:]), Content: f.Data})
+		keep := f.Data
+		if s.ID == "cdsl-client-master" {
+			keep = cdslMaskUID(keep) // Aadhaar is never stored (cdslclient.go)
+		}
+		sum := sha256.Sum256(keep)
+		rf, err := o.App.Ingest.Raw.Put(ctx, ingest.RawFile{Tenant: tenant, Source: "XFILE-" + strings.ToUpper(s.ID), Name: f.Name, SHA256: hex.EncodeToString(sum[:]), Content: keep})
 		if err != nil {
 			return out, err
 		}
@@ -271,6 +275,9 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 		}
 		r.Loaded, r.Added = "Loaded as G-sec and T-bill prices of "+date, n
 	default:
+		if o.loadCDSLXFile(ctx, tenant, actor, s, f, rows, r) { // CDSL harmonised files and DPE6 (cdslharmon.go)
+			return
+		}
 		if o.loadCCFile(ctx, tenant, actor, s, f, rows, r) {
 			return
 		}

@@ -1,0 +1,180 @@
+{
+ "id": "cdsl-dis-master",
+ "title": "DIS master export (CDSL DP, DIS_MSTR)",
+ "party": "CDSL",
+ "direction": "in",
+ "when": "Daily or on request",
+ "purpose": "Delivery instruction slips CDSL holds as issued to each BO, with their status (active, used, cancelled, lost …).",
+ "names": [
+  "DIS_MSTR_\\d+_\\d+_[IF]_\\d+_\\d+(_P\\d+)?\\.csv"
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Matched to the DIS books issued: slips CDSL has cancelled or blocked are marked lost so they cannot be accepted, and differences go to the work queue",
+ "source": "CDSL UDiFF Catalogue V3.0.1.4, sheet Field Master, information type DIS_Master_Export (20 fields; names, types and standard values); header and values checked against CDSL's sample file DIS_MSTR_041400_121_F_202512311455_001.csv (2 rows)",
+ "columns": [
+  {
+   "name": "Src",
+   "type": "str",
+   "note": "Source; CHAR(4)",
+   "codes": {
+    "CDSL": "Central Depository Services (India) Limited",
+    "NSDL": "National Securities Depository Limited"
+   }
+  },
+  {
+   "name": "CntrlSctiesDpstryPtcpt",
+   "type": "str",
+   "note": "DP ID; CHAR(8)"
+  },
+  {
+   "name": "LineNb",
+   "type": "int",
+   "note": "Line Number; INTEGER(7)"
+  },
+  {
+   "name": "DisInstrId",
+   "type": "str",
+   "note": "DIS Instruction ID; INTEGER(12); the catalogue says INTEGER(12) but CDSL's sample file has 'PRA 101', so it is read as text"
+  },
+  {
+   "name": "DISIssdToClntOrPwrOfAttnyHldr",
+   "type": "str",
+   "note": "DIS issued to Client or POA Holder / Issue entity; CHAR(3)",
+   "codes": {
+    "BO": "BO / Client",
+    "DDP": "DIS Issued to DDPI",
+    "POA": "POA",
+    "DFT": "Default"
+   }
+  },
+  {
+   "name": "SrcClntIdOrBnfclOwnrId",
+   "type": "str",
+   "note": "Source Client ID / BO ID; CHAR(16)"
+  },
+  {
+   "name": "PwrOfAttnyId",
+   "type": "str",
+   "note": "POA ID /DDPI ID; CHAR(16)"
+  },
+  {
+   "name": "DISFrmtFlg",
+   "type": "str",
+   "note": "DIS Format Flag; CHAR(3)",
+   "codes": {
+    "NEW": "New DIS",
+    "OLD": "Old DIS",
+    "DFT": "Default"
+   }
+  },
+  {
+   "name": "DISSrlNb",
+   "type": "str",
+   "note": "DIS Serial No.; CHAR(20)"
+  },
+  {
+   "name": "DISIssncDt",
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "DIS Issuance Date; DATE(10); YYYY-MM-DD"
+  },
+  {
+   "name": "DISSts",
+   "type": "str",
+   "note": "DIS Status; CHAR(3)",
+   "codes": {
+    "USE": "DIS Used in a Transaction / Used",
+    "CLS": "DIS Closed in EOD",
+    "DBM": "Deleted by Maker (Setup/Cancel/Revoke)",
+    "IBC": "Inactive DIS Due TO BO Closure in EOD",
+    "RDC": "Revoke DIS Issuance Cancellation by Checker",
+    "DCM": "DIS Cancellation by Maker-Lost, Misplace etc",
+    "CAN": "DIS Cancellation Approved by Checker / Cancelled",
+    "DSM": "DIS Issuance Setup by Maker",
+    "DPA": "DIS Pending for Activation",
+    "RCV": "Rejected by Checker/Verifier (Setup/Cancel/Revoke)",
+    "DSC": "DIS Issuance Setup Approved by Checker / Active",
+    "DCR": "DIS Cancelled Due to Request From CDSL",
+    "RDM": "Revoke DIS Issuance Cancellation by Maker",
+    "DFT": "Default",
+    "ACT": "ACTIVE",
+    "BLK": "BLOCK"
+   }
+  },
+  {
+   "name": "DISISDTxTp",
+   "type": "str",
+   "note": "DIS Issued to Transaction Type; CHAR(3); Refer Standard Value List Not applicable for CDSL",
+   "codes": {
+    "DFP": "Delivery Free of Payment Instruction / Transaction",
+    "NDO": "Delivery Out Instruction / BO Obligation",
+    "IDO": "Irreversible Delivery Out Instruction / Early Pay-in",
+    "IDD": "Inter Depository Transfer Instruction (DFP/Delivery)",
+    "IST": "Inter Settlement Transfer Instruction",
+    "CMD": "CM Pool Delivery Instruction",
+    "DFT": "Default"
+   }
+  },
+  {
+   "name": "DISCxlFlg",
+   "type": "str",
+   "note": "DIS CANCELLATION FLAG /Reason Code for DIS Status; CHAR(2)",
+   "codes": {
+    "LD": "Cancellation Due to Lost DIS / Stollen DIS",
+    "MD": "Cancellation Due to Misplaced DIS.",
+    "OR": "Cancellation Due To Other Reasons",
+    "NA": "Not Applicable.",
+    "UD": "Cancellation Due to Undelivered DIS.",
+    "CC": "Client account is closed",
+    "OT": "Others",
+    "DF": "Default"
+   }
+  },
+  {
+   "name": "DISBookltTp",
+   "type": "str",
+   "note": "DIS Booklet Type / Issuance Type Flag; CHAR(3)",
+   "codes": {
+    "NRM": "Normal",
+    "LOS": "Loose",
+    "DFT": "Default"
+   }
+  },
+  {
+   "name": "StsChngRsn",
+   "type": "str",
+   "note": "Status change reason; CHAR(50); DIS Status change reason Not applicable for CDSL"
+  },
+  {
+   "name": "Rmks",
+   "type": "str",
+   "note": "Remarks; CHAR(150)"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "str",
+   "note": "Dummy_Field_1; CHAR(50)"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "str",
+   "note": "Dummy_Field_2; CHAR(50)"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "str",
+   "note": "Dummy_Field_3; CHAR(50)"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "str",
+   "note": "Dummy_Field_4; CHAR(50)"
+  }
+ ]
+}

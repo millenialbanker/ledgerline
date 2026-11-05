@@ -6,90 +6,167 @@
  "when": "BOD",
  "purpose": "Pay-in and pay-out dates and deadlines per exchange settlement.",
  "names": [
-  "CC_CLND_\\d+_\\d+_I_\\d+_\\d+\\.csv"
+  "CC_CLND_\\d+_\\d+_[IF]_\\d+_\\d+(_P\\d+)?\\.csv"
  ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
  "header": true,
+ "crlf": true,
  "final_eol": false,
+ "confirmed": true,
+ "linked": "Loaded as CDSL's settlement calendar",
+ "source": "CDSL UDiFF Catalogue V3.0.1.4, sheet Field Master, information type CC_Calendar (17 fields; names, types and standard values)",
  "columns": [
   {
    "name": "Src",
-   "type": "str"
+   "type": "str",
+   "note": "Source; CHAR(4)",
+   "codes": {
+    "CDSL": "Central Depository Services (India) Limited",
+    "NSDL": "National Securities Depository Limited"
+   }
   },
   {
    "name": "CntrlSctiesDpstryPtcpt",
-   "type": "str"
+   "type": "str",
+   "note": "DP ID; CHAR(8); DPID in case of NSDL '000001 for CDSL"
   },
   {
    "name": "LineNb",
-   "type": "str"
+   "type": "int",
+   "note": "Line Number; INTEGER(7)"
   },
   {
    "name": "Xchg",
-   "type": "str"
+   "type": "str",
+   "note": "Exchange ID; CHAR(3)",
+   "codes": {
+    "BSE": "BOMBAY STOCK EXCHANGE LIMITED",
+    "NSE": "NATIONAL STOCK EXCHANGE OF INDIA LIMITED",
+    "OTC": "OTC EXCHANGE OF INDIA",
+    "NCD": "NATIONAL COMMODITY & DERIVATIVES EXCHANGE LIMITED",
+    "MCX": "MULTI COMMODITY EXCHANGE OF INDIA LIMITED",
+    "NSL": "NATIONAL STOCK EXCHANGE OF INDIA LIMITED - SLB",
+    "ICS": "INTER-CONNECTED STOCK EXCHANGE OF INDIA LIMITED",
+    "MSE": "METROPOLITAN STOCK EXCHANGE OF INDIA LIMITED",
+    "BSC": "BOMBAY STOCK EXCHANGE LIMITED",
+    "RBI": "RESERVE BANK OF INDIA",
+    "ICX": "INDIAN COMMODITY EXCHANGE LIMITED (ICEX)",
+    "CSE": "THE CALCUTTA STOCK EXCHANGE ASSOCIATION LIMITED",
+    "DSE": "THE DELHI STOCK EXCHANGE ASSOCIATION LIMITED",
+    "ASE": "THE STOCK EXCHANGE AHMEDABAD",
+    "BSS": "BOMBAY STOCK EXCHANGE LIMITED - SLB",
+    "NSP": "NATIONAL SPOT EXCHANGE LTD",
+    "ACE": "ACE DERIVATIVES AND COMMODITIES EXCHANGE LIMITED",
+    "UCX": "UNIVERSAL COMMODITY EXCHANGE LIMITED",
+    "DSP": "DUMMY SETTLEMENT POCKET1",
+    "CA": "CORPORATE ACTION",
+    "DFT": "Default",
+    "LSE": "LUDHIANA STOCK EXCHANGE",
+    "BGE": "BANGALORE STOCK EXCHANGE",
+    "MDE": "MADRAS STOCK EXCHANGE",
+    "CCI": "THE CLEARING CORPORATION OF INDIA LIMITED"
+   }
   },
   {
    "name": "ClrSysId",
-   "type": "str"
+   "type": "str",
+   "note": "CC ID/CH ID; CHAR(6)",
+   "codes": {
+    "ICCL": "Indian Clearing Corporation Limited",
+    "NCL": "NSE Clearing Limited",
+    "NCLSLB": "NSE Clearing Limited - SLB",
+    "OTCEI": "NATIONAL SECURITIES CLEARING CORP LTD-OTCEI",
+    "NCCL": "NATIONAL COMMODITY CLEARING LIMITED (NCCL)",
+    "MCXCCL": "MULTI COMMODITY EXCHANGE CLEARING CORPORATION LIMITED (MCXCCL)",
+    "MCCL": "METROPOLITAN CLEARING CORPORATION OF INDIA LIMITED",
+    "CSECH": "CALCUTTA STOCK EXCHANGE- CLEARING HOUSE",
+    "DSECH": "DELHI STOCK EXCHANGE LIMITED - CLEARING HOUSE",
+    "ASECH": "AHMEDABAD STOCK EXCHANGE CLEARING HOUSE",
+    "BSLSLB": "BOI SHAREHOLDING LIMITED - SLB",
+    "NSEL": "NATIONAL SPOT EXCHANGE LIMITED",
+    "ICSEL": "INTER-CONNECTED STOCK EXCHANGE OF INDIA LIMITED",
+    "ICL": "INDIAN CLEARING CORPORATION LIMITED - Debt",
+    "ADCEL": "ACE DERIVATIVES AND COMMODITIES EXCHANGE LIMITED",
+    "UCEL": "UNIVERSAL COMMODITY EXCHANGE LIMITED",
+    "CCIL": "THE CLEARING CORPORATION OF INDIA LTD.",
+    "MCL": "METROPOLITAN CLEARING CORPORATION OF INDIA LIMITED - ICX",
+    "DFT": "Default",
+    "BSL": "BOI SHAREHOLDING LIMITED",
+    "NCDL": "NATIONAL COMMODITY AND DERIVATIVES EXCH. LTD.",
+    "LASE": "LUDHIANA STOCK EXCHANGE",
+    "BASE": "BANGALORE STOCK EXCHANGE",
+    "MDSE": "MADRAS STOCK EXCHANGE",
+    "MCEL": "MULTI COMMODITY EXCHANGE OF INDIA LIMITED",
+    "ARCL": "AMC REPO CLEARING LIMITED",
+    "CA": "Corporate Action"
+   }
   },
   {
    "name": "MktTpAndId",
-   "type": "str"
+   "type": "str",
+   "note": "Market Type; CHAR(3); CC Market Type/ Settlement Type Refer Standard Value List; 140 standard values (catalogue, Standard Value List)"
   },
   {
    "name": "SctiesSttlmTxId",
-   "type": "str"
+   "type": "str",
+   "note": "Settlement Number; CHAR(13); CC Settlement Number / Settlement Id"
   },
   {
    "name": "SttlmPrdFr",
    "type": "date",
-   "layout": "2006-01-02"
+   "layout": "2006-01-02",
+   "note": "CC Settlement Period From/Settlement Start Date; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "SttlmPrdTo",
    "type": "date",
-   "layout": "2006-01-02"
+   "layout": "2006-01-02",
+   "note": "CC Settlement Period To /End Trade Date; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "NSLDDdlnDt",
    "type": "datetime",
-   "layout": "2006-01-02T15:04:05"
+   "layout": "2006-01-02T15:04:05",
+   "note": "CC Deadline Date Time /Earmark Date Time; DATE(19); YYYY-MM-DDTHH:mm:ss"
   },
   {
    "name": "PayInDt",
    "type": "date",
-   "layout": "2006-01-02"
+   "layout": "2006-01-02",
+   "note": "CC Pay In Date; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "PyoutDt",
    "type": "datetime",
-   "layout": "2006-01-02T15:04:05"
+   "layout": "2006-01-02T15:04:05",
+   "note": "CC Pay Out Date /Settlement Date; DATE(19); YYYY-MM-DDTHH:mm:ss"
   },
   {
    "name": "Rmks",
-   "type": "str"
+   "type": "str",
+   "note": "Remarks; CHAR(150)"
   },
   {
    "name": "Rsvd1",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_1; CHAR(50)"
   },
   {
    "name": "Rsvd2",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_2; CHAR(50)"
   },
   {
    "name": "Rsvd3",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_3; CHAR(50)"
   },
   {
    "name": "Rsvd4",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_4; CHAR(50)"
   }
- ],
- "confirmed": true,
- "source": "Header row of the file",
- "compress": "none",
- "format": "delimited",
- "delimiter": ",",
- "crlf": true,
- "linked": "Loaded as CDSL's settlement calendar"
+ ]
 }

@@ -664,6 +664,9 @@ func (o *Ops) cdslSetupFile(ctx context.Context, tenant, actor string, x cdslCon
 	if len(probs) > 0 {
 		return "", nil, dedupe(probs), warns, nil
 	}
+	if o.cdslBOUploadFormat(ctx, tenant) == cdslFmtCSV { // the harmonised CSV (cdslharmon.go)
+		return o.cdslWriteBOCSV(ctx, tenant, actor, x, file, false, warns)
+	}
 	b, p := file.Bytes()
 	if len(p) > 0 {
 		return "", nil, p, warns, nil
@@ -673,6 +676,23 @@ func (o *Ops) cdslSetupFile(ctx context.Context, tenant, actor string, x cdslCon
 		return "", nil, nil, nil, err
 	}
 	return boFileName("08", x.DPID, seq), b, nil, warns, nil
+}
+
+// cdslWriteBOCSV writes BO records as the harmonised CSV upload, with a
+// running serial of its own.
+func (o *Ops) cdslWriteBOCSV(ctx context.Context, tenant, actor string, x cdslConn, file boFile, modify bool, warns []string) (string, []byte, []string, []string, error) {
+	if _, p := file.Bytes(); len(p) > 0 { // the same checks as the fixed-width file
+		return "", nil, p, warns, nil
+	}
+	seq, err := o.next(ctx, tenant, "cdslboupld", actor)
+	if err != nil {
+		return "", nil, nil, nil, err
+	}
+	name, b, p := cdslBOUploadCSV(boCSVIn{Records: file.Records, Modify: modify, DPID: x.DPID, Operator: file.Operator, Batch: seq, At: o.now()}, seq)
+	if len(p) > 0 {
+		return "", nil, p, warns, nil
+	}
+	return name, b, nil, warns, nil
 }
 
 func prefixUCC(n int, ucc, s string) string {
@@ -831,6 +851,9 @@ func (o *Ops) cdslWriteModify(ctx context.Context, tenant, actor string, x cdslC
 	}
 	if len(probs) > 0 {
 		return "", nil, dedupe(probs), warns, nil
+	}
+	if o.cdslBOUploadFormat(ctx, tenant) == cdslFmtCSV { // the harmonised CSV (cdslharmon.go)
+		return o.cdslWriteBOCSV(ctx, tenant, actor, x, file, true, warns)
 	}
 	b, p := file.Bytes()
 	if len(p) > 0 {
