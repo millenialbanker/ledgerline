@@ -7,9 +7,9 @@ title: Exchange UCC by API
 screen: uccapi
 roles: Ops maker, Ops checker, Risk manager, Compliance officer
 ask: ucc api; uci api; nse uci api; nse ucc api; send ucc by api; register clients with nse by api; exchange ucc screen; ucc sent to nse; ucc not sent; ucc needs fixing; bse ucc api; send clients to exchange automatically
-related: ucc-api-setup, ucc-api-fix, ucc-api-pan, ucc-upload, ucc-rejected, mcx-ucc-file
+related: ucc-api-setup, ucc-api-fix, ucc-api-pan, ucc-upload, ucc-rejected, mcx-ucc-file, mcx-ucc-api
 
-The **Exchange UCC** screen (Clients & onboarding) registers clients with each exchange through its UCC API instead of the batch file. It has a tab per exchange: **NSE** (NSE's UCI API), **BSE** (BSE's UCC REST API) and **MCX**, which takes the UCC file only (see the MCX UCC file).
+The **Exchange UCC** screen (Clients & onboarding) registers clients with each exchange through its UCC API instead of the batch file. It has a tab per exchange: **NSE** (NSE's UCI API), **BSE** (BSE's UCC REST API) and **MCX**, by MCX's UCC file or its UCC API (see the MCX UCC file and the MCX UCC API).
 
 What goes to the exchange:
 
@@ -81,9 +81,9 @@ title: Register clients at MCX by the UCC file
 screen: uccapi
 roles: Ops maker, Ops checker, Compliance officer
 ask: mcx ucc; mcx ucc file; register client at mcx; mcx ucc upload; mcx ucc response file; mcx ucc rejected; mcx state city code; state city master mcx; mcx batch number; commodity ucc
-related: ucc-api, ucc-api-fix, ucc-upload
+related: ucc-api, ucc-api-fix, ucc-upload, mcx-ucc-api
 
-MCX has no UCC API: new clients with the commodity segment, and changes to clients MCX holds, go in MCX's UCC file (MCX_DDMMYYYY_UCC<member>.Mnn). Open the **MCX** tab of [[uccapi|Exchange UCC]].
+New clients with the commodity segment, and changes to clients MCX holds, go in MCX's UCC file (or the same records by MCX's UCC API: see the MCX UCC API) (MCX_DDMMYYYY_UCC<member>.Mnn). Open the **MCX** tab of [[uccapi|Exchange UCC]].
 
 1. Once, and whenever MCX revises it: save MCX's **State-City Code master** as CSV (with a header row: state, city, code) and load it on [[xfiles|Exchange files]]. Every client's city needs a code from it; a client whose city is not in it is listed with the problem.
 2. Click **Download UCC file**: it has every client that is new or changed and has nothing to fix, under the day's next batch number (01, 02… in series). Clients with problems are left out and listed: individuals only (an HUF, company, firm, trust or NRI is registered on MCX's portal), and each needs gender, father's or spouse's name, marital status, occupation, bank account type and the address, set under **Exchange UCC details** in the client's Preview.
@@ -91,3 +91,20 @@ MCX has no UCC API: new clients with the commodity segment, and changes to clien
 4. Load MCX's response file (.Enn) on [[xfiles|Exchange files]]: each client becomes **Accepted** or **Rejected** with MCX's error in words, and an Ops maker gets a work item for each rejection. Correct the client and it goes in the next file. A file MCX refuses whole (returned as .Mnn.F<error>) puts its clients back for the next batch.
 
 A mobile number or e-mail address two clients share must say whose it is (self, spouse, dependent child or dependent parent) in the Exchange UCC details. Clients active before Ledgerline wrote its first MCX file are taken as registered at MCX already.
+
+## mcx-ucc-api
+title: Register clients at MCX by the UCC API
+screen: uccapi
+roles: Ops maker, Ops checker, Compliance officer, Admin
+ask: mcx ucc api; send ucc to mcx by api; mcx api key; mcx aes key; mcx ucc api set up; mcx pan verification; mcx pass pending verification; mcx ucc api token; mcx ucc uat; check status at mcx
+related: mcx-ucc-file, ucc-api, connections
+
+MCX's UCC API takes the same records as the MCX UCC file, without the upload: each client's registration is shared, so a client sent by file is not sent again by API.
+
+1. Once: the firm writes to MCX for API access. MCX e-mails the **API key** and the **AES key**; MCX may also need the server's address allowed (give it the address shown on the Connections page). Test on MCX's UAT first.
+2. The Admin opens **MCX UCC API** in [[connections|Connections]]: the trading member ID (empty uses the MCX member code in Settings), the API key, the AES key, and the environment (**UAT** or **Live**). **Test** asks MCX for a token and runs its health check.
+3. On the **MCX** tab of [[uccapi|Exchange UCC]], click **Send by API**, or **Send now** in a client's Preview. A client MCX does not hold goes as an add; one it holds (accepted before, by file or API) as an update. The State-City master and the problems are as for the file: a client with anything to fix is not sent.
+4. MCX answers each client at once: **Accepted** (usually with the PAN verification pending) or **Rejected** with MCX's error in words and a work item for an Ops maker. Correct the client and it goes again.
+5. **Check status at MCX** asks MCX's search for clients sent without a clear answer and for PAN verification: a PAN MCX could not verify shows Rejected with a work item.
+
+With **Send to MCX automatically** On, Ledgerline sends every 15 minutes from 08:00 to 22:00 and checks status every hour. If MCX refuses the API key or the answers do not decrypt with the AES key, sending stops and the connection shows the problem until the Admin saves it again. Requests are kept with each batch, PAN and account numbers masked; the keys and MCX's token never are.

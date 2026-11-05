@@ -68,4 +68,16 @@ func TestMCXUCCRoutes(t *testing.T) {
 	if code := ipoCall(t, srv, "GET", "/v1/ucc-api/mcx/preview/NOSUCH", "priya.nair", nil, nil); code != 404 {
 		t.Fatalf("preview of no client: %d", code)
 	}
+	// The UCC API: not set up yet (409), and not for a risk manager.
+	if raw["api"] != "Not set" {
+		t.Errorf("api %v", raw["api"])
+	}
+	for _, p := range []string{"/v1/ucc-api/mcx/send", "/v1/ucc-api/mcx/send/MCX01", "/v1/ucc-api/mcx/send-pending", "/v1/ucc-api/mcx/sync"} {
+		if code := ipoCall(t, srv, "POST", p, "priya.nair", nil, nil); code != 409 {
+			t.Errorf("%s without the connection: %d", p, code)
+		}
+		if code := ipoCall(t, srv, "POST", p, "anita.rao", nil, nil); code != 403 {
+			t.Errorf("%s by a risk manager: %d", p, code)
+		}
+	}
 }

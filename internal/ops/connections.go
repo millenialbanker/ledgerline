@@ -365,6 +365,8 @@ func (o *Ops) TestConnection(ctx context.Context, tenant, actor, id string) (Con
 		if err != nil {
 			status, problem = "Problem", err.Error()
 		}
+	case id == connMCXUCC: // a token and MCX's health check
+		status, problem = o.mcxUCCAPITest(ctx, tenant, c)
 	case p.Test == "https" && c.Values["url"] != "":
 		status, problem = o.checkAddress(ctx, c.Values["url"])
 	case id == connVerify && verifyBases[c.Values["provider"]][0] != "":

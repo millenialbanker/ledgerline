@@ -1,8 +1,8 @@
 'use strict';
 /* Ledgerline console: Exchange UCC by API. Staff screen "uccapi": one tab
-   per exchange (NSE's UCI API, BSE's UCC REST API; MCX takes the UCC file
-   only: its tab writes the next file and marks it uploaded, and MCX's
-   response file is loaded on Exchange files). Each tab lists the clients
+   per exchange (NSE's UCI API, BSE's UCC REST API; MCX by its UCC file,
+   whose tab writes the next file and marks it uploaded, MCX's response file
+   being loaded on Exchange files, or the same records by MCX's UCC API). Each tab lists the clients
    with their registration at that exchange, sends the new and changed ones,
    checks PAN status and previews a client's record before it goes. Loaded after app.js; opened from the
    Clients & onboarding group. */
@@ -22,13 +22,17 @@ V.uccapi = {
     catch (e) { if (e.status === 404) return { ex, missing: true }; throw e; }
   },
   html: d => {
-    const tabs = `<div class="panel"><div class="hd"><div class="seg">${['nse', 'bse', 'mcx'].map(x => `<button class="${d.ex === x ? 'on' : ''}" data-act="uccEx" data-id="${x}">${UCC_EX[x]}${x === 'mcx' ? ' · UCC file' : ''}</button>`).join('')}</div></div></div>`;
+    const tabs = `<div class="panel"><div class="hd"><div class="seg">${['nse', 'bse', 'mcx'].map(x => `<button class="${d.ex === x ? 'on' : ''}" data-act="uccEx" data-id="${x}">${UCC_EX[x]}${x === 'mcx' ? ' · file or API' : ''}</button>`).join('')}</div></div></div>`;
     const head = ph('Exchange UCC', 'Clients registered with each exchange through its UCC API: new clients from the UCC upload stage, approved changes, segment status changes and reactivations. Each record is checked against the exchange’s rules before it goes; a record that has not changed is never sent again.');
     if (d.missing) return head + tabs + `<div class="note">${UCC_EX[d.ex]} connection not available yet.</div>`;
     const v = d.v, c = v.counts || {};
-    const mcx = d.ex === 'mcx';
+    const mcx = d.ex === 'mcx', mcxApi = mcx && v.api && v.api !== 'Not set';
+    UI.uccMcxApi = mcxApi;
+    const mcxApiNote = !mcx ? '' : !mcxApi ? ' MCX’s UCC API is not set up: the admin enters the API key and AES key MCX gives under <a href="#connections" data-act="go" data-id="connections">Connections</a> to send the same records by API.'
+      : v.api === 'Problem' ? ` <b>MCX UCC API: last call failed.</b> ${esc(v.api_problem || '')}`
+      : ` MCX UCC API ${pill(v.api_live ? 'Live' : 'Test (UAT)', v.api_live ? 'good' : 'warn')} ${v.api_auto ? 'sends new and changed clients every 15 minutes from 08:00 to 22:00 and checks their status with MCX every hour.' : 'is on manual: send from here.'}`;
     const conn = mcx
-      ? `<div class="note ${v.member && v.master ? '' : 'warn'}">MCX has no UCC API: download the next UCC file (batch ${String(v.next_batch || 1).padStart(2, '0')} today), upload it on MCX’s portal, mark it uploaded below, then load MCX’s response file (.E) on <a href="#xfiles" data-act="go" data-id="xfiles">Exchange files</a>. ${v.member ? `Member code ${esc(v.member)}.` : '<b>Set the firm’s MCX member code in Settings.</b>'} ${v.master ? `State-City master: ${esc(v.master)} (${nf(v.master_count)} cities).` : '<b>Load MCX’s State-City Code master (CSV) on Exchange files</b>: every client needs a code from it.'}</div>`
+      ? `<div class="note ${v.member && v.master ? '' : 'warn'}">By file: download the next UCC file (batch ${String(v.next_batch || 1).padStart(2, '0')} today), upload it on MCX’s portal, mark it uploaded below, then load MCX’s response file (.E) on <a href="#xfiles" data-act="go" data-id="xfiles">Exchange files</a>. ${v.member ? `Member code ${esc(v.member)}.` : '<b>Set the firm’s MCX member code in Settings.</b>'} ${v.master ? `State-City master: ${esc(v.master)} (${nf(v.master_count)} cities).` : '<b>Load MCX’s State-City Code master (CSV) on Exchange files</b>: every client needs a code from it.'}${mcxApiNote}</div>`
       : v.connection === 'Not set'
       ? `<div class="note warn"><b>The ${esc(v.exchange)} UCC API is not set up.</b> The firm’s admin enters the API user and password under <a href="#connections" data-act="go" data-id="connections">Connections</a>. Until then, records can be checked and previewed here but not sent.</div>`
       : v.connection === 'Problem' ? `<div class="note bad"><b>Last call to ${esc(v.exchange)} failed.</b> ${esc(v.problem || '')}</div>`
@@ -38,7 +42,7 @@ V.uccapi = {
     return head + tabs + conn +
       `<div class="kpis">${kpi('Not sent', nf(pend), 'new or changed, ready', pend ? 'warn' : '')}${kpi('Needs fixing', nf(c['Needs fixing'] || 0), 'checked before sending', c['Needs fixing'] ? 'bad' : '')}${kpi('Sent', nf(c.Sent || 0), 'waiting for the exchange')}${kpi('Accepted', nf(c.Accepted || 0), 'registered')}${kpi('Rejected', nf(c.Rejected || 0), 'by the exchange', c.Rejected ? 'bad' : '')}${d.blocked ? kpi('Blocked by BSE', nf(nb), asOf ? 'not permitted to trade · list of ' + asOf : 'no not-permitted list loaded', nb ? 'bad' : '') : ''}</div>` +
       `<div class="panel"><div class="hd"><div class="tools">${segBtns('uccSt', [['open', 'To act on'], ['all', 'All'], ['Accepted', 'Accepted'], ['Sent', 'Sent'], ...(d.blocked ? [['blocked', `Blocked by BSE (${nb})`]] : [])], 'ucc-t')}<input class="in" data-ui="uccQ" data-part="ucc-t" placeholder="Filter by client, PAN or reason" value="${esc(UI.uccQ)}"></div>
-        <div class="tools">${mcx ? `<button class="btn ${pend ? 'pri' : ''}" data-act="uccMcxFile" ${pend ? '' : 'disabled'}>Download UCC file (${pend})</button>` : `${uccCan() ? `<button class="btn ${pend ? 'pri' : ''}" data-act="uccSend" ${pend && v.connection !== 'Not set' ? '' : 'disabled'}>Send pending (${pend})</button><button class="btn" data-act="uccSend" data-id="sel" ${v.connection !== 'Not set' ? '' : 'disabled'}>Send selected</button>` : ''}
+        <div class="tools">${mcx ? `<button class="btn ${pend ? 'pri' : ''}" data-act="uccMcxFile" ${pend ? '' : 'disabled'}>Download UCC file (${pend})</button>${mcxApi && uccCan() ? `<button class="btn" data-act="uccMcxApiSend" ${pend ? '' : 'disabled'}>Send by API (${pend})</button>` : ''}${mcxApi && uccPanCan() ? '<button class="btn" data-act="uccMcxSync">Check status at MCX</button>' : ''}` : `${uccCan() ? `<button class="btn ${pend ? 'pri' : ''}" data-act="uccSend" ${pend && v.connection !== 'Not set' ? '' : 'disabled'}>Send pending (${pend})</button><button class="btn" data-act="uccSend" data-id="sel" ${v.connection !== 'Not set' ? '' : 'disabled'}>Send selected</button>` : ''}
         ${uccPanCan() ? `<button class="btn" data-act="uccPAN" ${v.connection !== 'Not set' ? '' : 'disabled'}>Check PAN status</button>` : ''}`}</div></div><div id="ucc-t">${P['ucc-t'](d)}</div></div>` +
       `<div class="panel"><div class="hd"><h3>${mcx ? 'UCC files' : 'Runs'}</h3><small>${mcx ? 'a file’s clients are Sent once it is marked uploaded, then Accepted or Rejected when MCX’s response file is loaded' : 'each call’s request (Aadhaar masked) and answer are kept with the run'}</small></div>${tbl([[mcx ? 'File' : 'Run'], ['When'], ['By'], ['Clients', 'r'], ['Accepted', 'r'], ['Rejected', 'r'], ['What happened']], (v.runs || []).map(r => `<tr><td class="mono">${esc(r.id)}</td><td class="small">${uccStamp(r.at)}</td><td>${esc(r.by === 'system:scheduler' ? 'Scheduler' : r.by)}</td><td class="r">${r.sent}</td><td class="r">${r.accepted}</td><td class="r ${r.rejected ? 'neg' : ''}">${r.rejected}</td><td class="wrap small">${esc(r.note)}${mcx && uccCan() && r.note.startsWith('written') ? ` <button class="btn sm" data-act="uccMcxUploaded" data-id="${esc(r.id)}">Mark uploaded</button>` : ''}</td></tr>`), { empty: 'Nothing sent yet.' })}</div>`;
   }
@@ -110,8 +114,10 @@ Object.assign(A, {
         <p class="dim small">Empty fields are sent empty and not shown. PAN and account numbers are masked here.</p>` : ''}
       ${uccDetailsForm(p.details || {})}
       ${(p.history || []).length ? `<h4>History</h4><ul class="small">${p.history.slice().reverse().map(h => `<li>${uccStamp(h.at)} · ${esc(h.what)}${h.ref ? ' · ' + esc(h.ref) : ''}${h.detail ? ' · ' + esc(h.detail) : ''}</li>`).join('')}</ul>` : ''}
-      <div id="ucc-perr"></div></div><div class="ft"><button class="btn" data-act="close">Close</button>${uccCan() && UI.uccEx !== 'mcx' && (p.pending || []).length && !(p.problems || []).length ? `<button class="btn pri" data-act="uccSendOne" data-id="${esc(p.ucc)}">Send now</button>` : ''}</div>`, true);
+      <div id="ucc-perr"></div></div><div class="ft"><button class="btn" data-act="close">Close</button>${uccCan() && (UI.uccEx !== 'mcx' || UI.uccMcxApi) && (p.pending || []).length && !(p.problems || []).length ? `<button class="btn pri" data-act="uccSendOne" data-id="${esc(p.ucc)}">Send now</button>` : ''}</div>`, true);
   },
+  uccMcxApiSend: () => act(() => post('/v1/ucc-api/mcx/send-pending', {}), r => r.message + (r.problems?.length ? ` · ${r.problems.length} not sent: ${r.problems[0]}` : '')).catch(() => {}),
+  uccMcxSync: () => act(() => post('/v1/ucc-api/mcx/sync', {}), r => r.message).catch(() => {}),
   uccMcxFile: async () => { await download('/v1/ucc-api/mcx/batch-file'); render({ keep: true }); },
   uccMcxUploaded: id => confirmModal('Mark uploaded to MCX', 'Only once the file is uploaded on MCX’s portal: its clients become Sent until MCX’s response file is loaded.', `<div class="mono small">${esc(id)}</div>`, 'Mark uploaded', () => act(() => post('/v1/ucc-api/mcx/batch-file/uploaded', { file: id }), r => r.message)),
   uccSendOne: id => act(() => post(`${uccPath()}/send`, { uccs: [id] }), r => r.message).catch(() => {}),
