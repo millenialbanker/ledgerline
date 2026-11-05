@@ -1,0 +1,112 @@
+{
+ "id": "mcx-web-allocation",
+ "title": "Web allocation / deallocation report (MCXCCL)",
+ "party": "MCXCCL",
+ "direction": "in",
+ "when": "EOD",
+ "purpose": "Collateral the clearing member allocated to the trading member and each end client (start of day, allocated and deallocated during the day, end of day), own collateral, eligible collateral and margin utilised.",
+ "names": [
+  "MCX_WebAllocationDeall(oc|co)ation_?\\d+_\\d{8}\\.csv"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "trailing_empty": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as each client's commodity collateral allocation with MCXCCL (Clearing allocation and Clearing data)",
+ "columns": [
+  {
+   "name": "CM ID",
+   "type": "str"
+  },
+  {
+   "name": "TM ID",
+   "type": "str",
+   "note": "blank for a CP record"
+  },
+  {
+   "name": "End Client/CP Code",
+   "type": "str",
+   "note": "blank for the TM record"
+  },
+  {
+   "name": "Allocation at BoD",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Allocation during the day",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Deallocation during the day",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Allocation at EoD",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "OWN Collateral at BoD",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "OWN Collateral added during the day",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "OWN Collateral reduced during the day",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "OWN Collateral at EoD",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "OWN Others Collateral at BOD",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "OWN Others Collateral added during Day",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "OWN Others Collateral reduced during Day",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "OWN Others Collateral at EOD",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Total Collateral at EoD",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Eligible Collateral at EoD",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Margin Utilization",
+   "type": "dec",
+   "decimals": 2
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), section 1.42 Web Allocation/Deallocation Report to Members (the circulars spell the file name Deallcoation); MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.75"
+}

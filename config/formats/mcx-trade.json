@@ -6,7 +6,7 @@
  "when": "EOD / next morning",
  "purpose": "Commodity trades in the same standardised layout.",
  "names": [
-  "Trade_MCX_CO_\\d+_TM_\\d+_\\d{8}_F_\\d+\\.csv(\\.gz)?"
+  "Trade_MCX(CCL)?_CO_\\d+_(CM|TM)_\\d+_\\d{8}_F_\\d+\\.csv(\\.gz)?"
  ],
  "header": true,
  "crlf": false,
@@ -186,24 +186,36 @@
   },
   {
    "name": "Rsvd1",
-   "type": "str"
+   "type": "str",
+   "aliases": [
+    "Rsvd01"
+   ]
   },
   {
    "name": "Rsvd2",
-   "type": "str"
+   "type": "str",
+   "aliases": [
+    "Rsvd02"
+   ]
   },
   {
    "name": "Rsvd3",
-   "type": "str"
+   "type": "str",
+   "aliases": [
+    "Rsvd03"
+   ]
   },
   {
    "name": "Rsvd4",
-   "type": "str"
+   "type": "str",
+   "aliases": [
+    "Rsvd04"
+   ]
   }
  ],
  "confirmed": true,
  "linked": "Loaded as the day's MCX trades",
- "source": "Header row of the file",
+ "source": "MCXCCL File Formats (Version 1, Public), section 1.55 UDiFF Trade File; MCXCCL UDiFF Trade File; header row of MCXCCL's sample file (Trade_MCXCCL_CO_0_TM_…)",
  "compress": "none",
  "format": "delimited",
  "delimiter": ",",

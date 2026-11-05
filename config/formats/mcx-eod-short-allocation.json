@@ -1,0 +1,69 @@
+{
+ "id": "mcx-eod-short-allocation",
+ "title": "EOD short allocation to member (MCXCCL, EODSAR)",
+ "party": "MCXCCL",
+ "direction": "in",
+ "when": "Next morning",
+ "purpose": "Clients whose end-of-day allocation fell short of the margin, for the member to report the reasons back.",
+ "names": [
+  "MCX_EODSAR_\\d+_\\d{8}\\.csv"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "trailing_empty": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as MCXCCL's end-of-day short allocations (Clearing data)",
+ "columns": [
+  {
+   "name": "Trade Date",
+   "type": "str",
+   "note": "DDMMMYYYY"
+  },
+  {
+   "name": "CMID",
+   "type": "str"
+  },
+  {
+   "name": "TMID/CPID",
+   "type": "str"
+  },
+  {
+   "name": "Client Code",
+   "type": "str",
+   "note": "blank for a CP"
+  },
+  {
+   "name": "EOD Short Allocation",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Excess Collateral NCL",
+   "type": "dec",
+   "decimals": 2,
+   "note": "blank in MCXCCL's file; for member reporting"
+  },
+  {
+   "name": "Excess Collateral ICCL",
+   "type": "dec",
+   "decimals": 2,
+   "note": "blank in MCXCCL's file"
+  },
+  {
+   "name": "Excess Collateral NCCL",
+   "type": "dec",
+   "decimals": 2,
+   "note": "blank in MCXCCL's file"
+  },
+  {
+   "name": "Reserved",
+   "type": "blank",
+   "note": "reserved for future use; any value is ignored"
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), section 1.43 EOD Short Allocation File to Member; MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.76"
+}

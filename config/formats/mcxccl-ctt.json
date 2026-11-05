@@ -1,0 +1,227 @@
+{
+ "id": "mcxccl-ctt",
+ "title": "CTT file, UDiFF (MCXCCL)",
+ "party": "MCXCCL",
+ "direction": "in",
+ "when": "EOD / next morning",
+ "purpose": "Commodity transaction tax per client and contract in SEBI's common format: turnover, taxable sale value of futures and options, exercise and the CTT.",
+ "names": [
+  "CTT_MCXCCL_CO_\\d+_(CM|TM)_\\d+_\\d{8}_F_\\d+\\.csv(\\.gz)?"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "trailing_empty": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded for CTT reconciliation with the CTT Ledgerline billed on MCX",
+ "columns": [
+  {
+   "name": "RptHdr",
+   "type": "str"
+  },
+  {
+   "name": "Sgmt",
+   "type": "str"
+  },
+  {
+   "name": "Src",
+   "type": "str"
+  },
+  {
+   "name": "TradDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "ClctnDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "DueDt",
+   "type": "str"
+  },
+  {
+   "name": "SttlmTp",
+   "type": "str"
+  },
+  {
+   "name": "SctiesSttlmTxId",
+   "type": "str"
+  },
+  {
+   "name": "ClrMmbId",
+   "type": "str"
+  },
+  {
+   "name": "BrkrOrCtdnPtcptId",
+   "type": "str"
+  },
+  {
+   "name": "ClntId",
+   "type": "str"
+  },
+  {
+   "name": "TckrSymb",
+   "type": "str"
+  },
+  {
+   "name": "SctySrs",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmId",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmTp",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "XpryDt",
+   "type": "str"
+  },
+  {
+   "name": "OptnTp",
+   "type": "str"
+  },
+  {
+   "name": "StrkPric",
+   "type": "str"
+  },
+  {
+   "name": "SttlmPric",
+   "type": "str"
+  },
+  {
+   "name": "TtlBuyTradgVol",
+   "type": "str"
+  },
+  {
+   "name": "TtlBuyTrfVal",
+   "type": "str"
+  },
+  {
+   "name": "TtlSellTradgVol",
+   "type": "str"
+  },
+  {
+   "name": "TtlSellTrfVal",
+   "type": "str"
+  },
+  {
+   "name": "AvrgPric",
+   "type": "str"
+  },
+  {
+   "name": "BuyDlvrblQty",
+   "type": "str"
+  },
+  {
+   "name": "SellDlvrblQty",
+   "type": "str"
+  },
+  {
+   "name": "SellOthrThanDlvryQty",
+   "type": "str"
+  },
+  {
+   "name": "BuyDlvrblVal",
+   "type": "str"
+  },
+  {
+   "name": "SellDlvrblVal",
+   "type": "str"
+  },
+  {
+   "name": "SellOthrThanDlvryVal",
+   "type": "str"
+  },
+  {
+   "name": "BuyDelvryTtlTaxs",
+   "type": "str"
+  },
+  {
+   "name": "SellDelvryTtlTaxs",
+   "type": "str"
+  },
+  {
+   "name": "SellOthrThanDelvryTtlTaxs",
+   "type": "str"
+  },
+  {
+   "name": "TaxblSellFutrsVal",
+   "type": "str"
+  },
+  {
+   "name": "TaxblSellOptnVal",
+   "type": "str"
+  },
+  {
+   "name": "OptnExrcQty",
+   "type": "str"
+  },
+  {
+   "name": "OptnExrcVal",
+   "type": "str"
+  },
+  {
+   "name": "TaxblExrcVal",
+   "type": "str"
+  },
+  {
+   "name": "FutrsTtlTaxs",
+   "type": "str"
+  },
+  {
+   "name": "OptnTtlTaxs",
+   "type": "str"
+  },
+  {
+   "name": "TaxblBuyValCallAuctn",
+   "type": "str"
+  },
+  {
+   "name": "TaxblSellValCallAuctn",
+   "type": "str"
+  },
+  {
+   "name": "TtlTaxs",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Rmks",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "blank",
+   "note": "dummy field"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "blank",
+   "note": "dummy field"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "blank",
+   "note": "dummy field"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "blank",
+   "note": "dummy field"
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), sections 1.58 and 1.59 UDiFF CTT file to Clearing / Trading Member; MCXCCL Unified Distilled File Formats (UDiFF) CTT File; header row of MCXCCL's sample files"
+}

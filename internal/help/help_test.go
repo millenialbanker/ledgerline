@@ -219,6 +219,10 @@ func TestQuestions(t *testing.T) {
 		{"pay-in date is wrong because of a bank holiday", "", "exchange-holidays"},
 		{"why is the autopilot screen missing", "", "editions"},
 		{"what does full autopilot change", "", "editions"},
+		{"where does the mcx nobl obligation file go", "", "mcx-files"},
+		{"mcx peak margin file not loading", "", "mcx-files"},
+		{"web allocation deallocation report mcxccl", "", "mcx-files"},
+		{"check real files locally with ledgerctl check-file", "", "check-file"},
 	}
 	fails := 0
 	for _, c := range cases {

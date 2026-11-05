@@ -99,5 +99,5 @@
    "type": "str"
   }
  ],
- "source": "MCXCCL circular MCX/MCXCCL/327/2026 (MCXCCL/TECH/121/2026, 1 Jun 2026), Revision in Client Margin Reporting File Formats, section 1.7"
+ "source": "MCXCCL circular MCX/MCXCCL/327/2026 (MCXCCL/TECH/121/2026, 1 Jun 2026), Revision in Client Margin Reporting File Formats, section 1.7; checked against MCXCCL File Formats (Version 1, Public), section 1.14 Margin File, and MCX/TECH/394/2023, section 1.28: 19 fields, same order"
 }

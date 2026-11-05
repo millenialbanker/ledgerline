@@ -42,7 +42,7 @@ func (o *Ops) loadBSEXFile(ctx context.Context, tenant, actor string, s *xfile.S
 			return true
 		}
 		r.Loaded, r.Added = "Loaded and reconciled with the stamp duty Ledgerline charged on BSE trades of "+date+" (Clearing data)", n
-	case "udiff-bhavcopy":
+	case "udiff-bhavcopy", "mcx-bhavcopy":
 		date, exch, seg, n, err := o.loadBhavcopy(ctx, tenant, actor, f.Name, rows)
 		if err != nil {
 			fail(err)
@@ -102,15 +102,22 @@ func (o *Ops) loadBhavcopy(ctx context.Context, tenant, actor, name string, rows
 		date = firstOf(anyDate(rows[0].Get("TradDt")), date)
 		exch, seg = strings.ToUpper(rows[0].Get("Src")), strings.ToUpper(rows[0].Get("Sgmt"))
 	}
-	for _, x := range []string{"NSE", "BSE"} {
+	for _, x := range []string{"NSE", "BSE", "MCX"} {
 		if exch == "" && strings.Contains(up, "_"+x+"_") {
 			exch = x
 		}
 	}
-	for _, x := range []string{"CM", "FO", "CD"} {
+	for _, x := range []string{"CM", "FO", "CD", "CO"} {
 		if seg == "" && strings.Contains(up, "_"+x+"_") {
 			seg = x
 		}
+	}
+	// MCX's commodity bhavcopy (Src MCX, Sgmt CO) is Ledgerline's MCX COM.
+	if exch == "MCXCCL" {
+		exch = "MCX"
+	}
+	if seg == "CO" {
+		seg = "COM"
 	}
 	if date == "" || exch == "" || seg == "" {
 		return "", "", "", 0, fmt.Errorf("the file does not say its date, exchange and segment")
@@ -145,9 +152,9 @@ func (o *Ops) loadBhavcopy(ctx context.Context, tenant, actor, name string, rows
 		ft := strings.ToUpper(row.Get("FinInstrmTp"))
 		if seg != "CM" {
 			switch {
-			case ft == "IDF" || ft == "STF" || strings.HasPrefix(ft, "FUT"):
+			case ft == "IDF" || ft == "STF" || ft == "COF" || strings.HasPrefix(ft, "FUT"):
 				typ = "FUT"
-			case ft == "IDO" || ft == "STO" || strings.HasPrefix(ft, "OPT"):
+			case ft == "IDO" || ft == "STO" || ft == "FUO" || ft == "COO" || strings.HasPrefix(ft, "OPT"):
 				typ = strings.ToUpper(row.Get("OptnTp"))
 				if typ != "CE" && typ != "PE" {
 					continue
@@ -209,7 +216,9 @@ func (o *Ops) loadBhavcopy(ctx context.Context, tenant, actor, name string, rows
 		if i, ok := at[k]; ok {
 			x := &m.Instruments[i]
 			x.LTP, x.Close = ltp, cls
-			if lot > 0 {
+			// MCX's bhavcopy gives a market lot of 1; the product master's
+			// tradable lot, when loaded, stays.
+			if lot > 0 && !(exch == "MCX" && x.Lot > 1) {
 				x.Lot = lot
 			}
 			if x.ISIN == "" {

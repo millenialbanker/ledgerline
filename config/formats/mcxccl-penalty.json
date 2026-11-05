@@ -1,0 +1,102 @@
+{
+ "id": "mcxccl-penalty",
+ "title": "Penalty file, UDiFF (MCXCCL)",
+ "party": "MCXCCL",
+ "direction": "in",
+ "when": "Next morning",
+ "purpose": "The penalty MCXCCL levied per client for short or non-collection of margin: shortfall, penalty, GST and total.",
+ "names": [
+  "Penalty_MCXCCL_CO_\\d+_(CM|TM)_\\d+_\\d{8}_F_\\d+\\.csv(\\.gz)?"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "trailing_empty": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as the penalty MCXCCL levied per client: margin reporting shows it and it is the penalty of the pass-through rules (never debited without approval)",
+ "columns": [
+  {
+   "name": "Sgmt",
+   "type": "str"
+  },
+  {
+   "name": "Src",
+   "type": "str"
+  },
+  {
+   "name": "PnltyDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "TxDtTm",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "ClrMmbId",
+   "type": "str"
+  },
+  {
+   "name": "BrkrOrCtdnPtcptId",
+   "type": "str"
+  },
+  {
+   "name": "ClntId",
+   "type": "str",
+   "note": "blank for ITCM/PCM"
+  },
+  {
+   "name": "PnltyTp",
+   "type": "str"
+  },
+  {
+   "name": "DfcitAmt",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "PnltyAmt",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "GSTAmt",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "TtlPnltyAmt",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Rmks",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "blank",
+   "note": "dummy field"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "blank",
+   "note": "dummy field"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "blank",
+   "note": "dummy field"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "blank",
+   "note": "dummy field"
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), section 1.62 UDiFF Penalty File; MCXCCL Unified Distilled File Formats (UDiFF) Penalty File; header row of MCXCCL's sample files"
+}

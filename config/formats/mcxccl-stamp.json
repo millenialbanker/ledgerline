@@ -1,0 +1,182 @@
+{
+ "id": "mcxccl-stamp",
+ "title": "Stamp duty file, UDiFF (MCXCCL)",
+ "party": "MCXCCL",
+ "direction": "in",
+ "when": "EOD / next morning",
+ "purpose": "Stamp duty per client and contract in SEBI's common format.",
+ "names": [
+  "(Stamp|StampDuty)_MCXCCL_CO_\\d+_(CM|TM)_\\d+_\\d{8}_F_\\d+\\.csv(\\.gz)?"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "trailing_empty": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded and reconciled with the stamp duty Ledgerline charged on MCX trades (Clearing data)",
+ "columns": [
+  {
+   "name": "RptHdr",
+   "type": "str"
+  },
+  {
+   "name": "Sgmt",
+   "type": "str"
+  },
+  {
+   "name": "Src",
+   "type": "str"
+  },
+  {
+   "name": "SttlmTp",
+   "type": "str"
+  },
+  {
+   "name": "SctiesSttlmTxId",
+   "type": "str"
+  },
+  {
+   "name": "ClrMmbId",
+   "type": "str"
+  },
+  {
+   "name": "BrkrOrCtdnPtcptId",
+   "type": "str"
+  },
+  {
+   "name": "ClctnDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "DueDt",
+   "type": "str"
+  },
+  {
+   "name": "ClntId",
+   "type": "str"
+  },
+  {
+   "name": "CtrySubDvsn",
+   "type": "str"
+  },
+  {
+   "name": "TckrSymb",
+   "type": "str"
+  },
+  {
+   "name": "SctySrs",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmId",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmTp",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "XpryDt",
+   "type": "str"
+  },
+  {
+   "name": "StrkPric",
+   "type": "str"
+  },
+  {
+   "name": "OptnTp",
+   "type": "str"
+  },
+  {
+   "name": "TtlBuyTradgVol",
+   "type": "str"
+  },
+  {
+   "name": "TtlBuyTrfVal",
+   "type": "str"
+  },
+  {
+   "name": "TtlSellTradgVol",
+   "type": "str"
+  },
+  {
+   "name": "TtlSellTrfVal",
+   "type": "str"
+  },
+  {
+   "name": "BuyDlvryQty",
+   "type": "str"
+  },
+  {
+   "name": "BuyDlvryVal",
+   "type": "str"
+  },
+  {
+   "name": "BuyOthrThanDlvryQty",
+   "type": "str"
+  },
+  {
+   "name": "BuyOthrThanDlvryVal",
+   "type": "str"
+  },
+  {
+   "name": "BuyStmpDty",
+   "type": "str"
+  },
+  {
+   "name": "SellStmpDty",
+   "type": "str"
+  },
+  {
+   "name": "SttlmPric",
+   "type": "str"
+  },
+  {
+   "name": "BuyDlvryStmpDty",
+   "type": "str"
+  },
+  {
+   "name": "BuyOthrThanDlvryStmpDty",
+   "type": "str"
+  },
+  {
+   "name": "StmpDtyAmt",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Rmks",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "blank",
+   "note": "dummy field"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "blank",
+   "note": "dummy field"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "blank",
+   "note": "dummy field"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "blank",
+   "note": "dummy field"
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), sections 1.56 and 1.57 UDiFF Stamp Duty to Clearing / Trading Member; MCXCCL Unified Distilled File Formats (UDiFF) Stamp Duty File; header row of MCXCCL's sample files"
+}

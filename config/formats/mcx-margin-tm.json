@@ -1,0 +1,333 @@
+{
+ "id": "mcx-margin-tm",
+ "title": "Margin file to trading member (MCXCCL, MCX_MRG)",
+ "party": "MCXCCL",
+ "direction": "in",
+ "when": "EOD / next morning",
+ "purpose": "The margin MCXCCL charged: the member's total and each client's (initial/SPAN, special, additional, tender, delivery, spread benefit, ALM, net buy premium, ELM, concentration, devolvement), and per client and contract.",
+ "names": [
+  "MCX_MRG_\\d+_ ?\\d{8}\\.csv"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "trailing_empty": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as the margin MCXCCL charged each client: live RMS takes it when higher than Ledgerline's, and it is checked against Ledgerline's margin (Clearing data)",
+ "records": [
+  {
+   "code": "10",
+   "columns": [
+    {
+     "name": "Record Type",
+     "type": "str",
+     "const": "10"
+    },
+    {
+     "name": "Date",
+     "type": "str",
+     "note": "DDMMYYYY"
+    },
+    {
+     "name": "CM ID",
+     "type": "str"
+    },
+    {
+     "name": "TM ID",
+     "type": "str"
+    },
+    {
+     "name": "Number of Detail Records at Summary - End Client Level",
+     "type": "int"
+    },
+    {
+     "name": "Number of Detail Records at Detail - End Client Level",
+     "type": "int"
+    },
+    {
+     "name": "Initial Margin/SPAN Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Special Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Additional Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Tender Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Delivery Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Spread Margin Benefit",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Delivery Margin Exemption",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Early Pay-In Benefit",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Actual Margin Levied",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Additional Lean period margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Net Buy Premium",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Extreme Loss Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Concentration Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Devolvement Margin",
+     "type": "dec",
+     "decimals": 2
+    }
+   ]
+  },
+  {
+   "code": "30",
+   "columns": [
+    {
+     "name": "Record Type",
+     "type": "str",
+     "const": "30"
+    },
+    {
+     "name": "TM ID",
+     "type": "str"
+    },
+    {
+     "name": "Account Type",
+     "type": "str",
+     "note": "P proprietary, C client, I institutional"
+    },
+    {
+     "name": "Account ID",
+     "type": "str",
+     "note": "TM ID for P, INST for I"
+    },
+    {
+     "name": "Initial Margin/SPAN Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Special Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Additional Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Tender Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Delivery Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Spread Margin Benefit",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Delivery Margin Exemption",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Early Pay-In Benefit",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Actual Margin Levied",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Additional Lean period margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Reserved",
+     "type": "blank",
+     "note": "reserved for future use; any value is ignored"
+    },
+    {
+     "name": "Net Buy Premium",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Extreme Loss Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Concentration Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Devolvement Margin",
+     "type": "dec",
+     "decimals": 2
+    }
+   ]
+  },
+  {
+   "code": "40",
+   "columns": [
+    {
+     "name": "Record Type",
+     "type": "str",
+     "const": "40"
+    },
+    {
+     "name": "Account Type",
+     "type": "str"
+    },
+    {
+     "name": "Account ID",
+     "type": "str"
+    },
+    {
+     "name": "Instrument Name",
+     "type": "str"
+    },
+    {
+     "name": "Symbol",
+     "type": "str"
+    },
+    {
+     "name": "Expiry Date",
+     "type": "str",
+     "note": "DDMMMYYYY"
+    },
+    {
+     "name": "Strike Price",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Options Type",
+     "type": "str"
+    },
+    {
+     "name": "Initial Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Special Margin On Buy Position",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Special Margin On Sell Position",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Additional Margin On Buy Position",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Additional Margin On Sell Position",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Tender Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Delivery Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Delivery Margin Exemption",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Early Pay-In Benefit",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Additional Lean period margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Reserved",
+     "type": "blank",
+     "note": "reserved for future use; any value is ignored"
+    },
+    {
+     "name": "Net Buy Premium",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Extreme Loss Margin",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Concentration Margin",
+     "type": "dec",
+     "decimals": 2
+    }
+   ]
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), section 1.10 Margin File to Trading Member; MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.21"
+}

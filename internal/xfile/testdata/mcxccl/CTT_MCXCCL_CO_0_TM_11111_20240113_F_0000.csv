@@ -1,0 +1,12 @@
+RptHdr,Sgmt,Src,TradDt,ClctnDt,DueDt,SttlmTp,SctiesSttlmTxId,ClrMmbId,BrkrOrCtdnPtcptId,ClntId,TckrSymb,SctySrs,FinInstrmId,FinInstrmTp,ISIN,XpryDt,OptnTp,StrkPric,SttlmPric,TtlBuyTradgVol,TtlBuyTrfVal,TtlSellTradgVol,TtlSellTrfVal,AvrgPric,BuyDlvrblQty,SellDlvrblQty,SellOthrThanDlvryQty,BuyDlvrblVal,SellDlvrblVal,SellOthrThanDlvryVal,BuyDelvryTtlTaxs,SellDelvryTtlTaxs,SellOthrThanDelvryTtlTaxs,TaxblSellFutrsVal,TaxblSellOptnVal,OptnExrcQty,OptnExrcVal,TaxblExrcVal,FutrsTtlTaxs,OptnTtlTaxs,TaxblBuyValCallAuctn,TaxblSellValCallAuctn,TtlTaxs,Rmks,Rsvd1,Rsvd2,Rsvd3,Rsvd4
+10,CO,MCXCCL,2024-01-13,2024-01-13,,NORMAL1,,,11111,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,27332.00,,,,,
+20,CO,MCXCCL,2024-01-13,2024-01-13,,NORMAL1,,,11111,A105S03,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,872.00,,,,,
+20,CO,MCXCCL,2024-01-13,2024-01-13,,NORMAL1,,,11111,A1CS066,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,3.00,,,,,
+20,CO,MCXCCL,2024-01-13,2024-01-13,,NORMAL1,,,11111,A6XX017,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,2866.00,,,,,
+20,CO,MCXCCL,2024-01-13,2024-01-13,,NORMAL1,,,11111,A7GP5001,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,26.00,,,,,
+20,CO,MCXCCL,2024-01-13,2024-01-13,,NORMAL1,,,11111,A7KR5007,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,52.00,,,,,
+20,CO,MCXCCL,2024-01-13,2024-01-13,,NORMAL1,,,11111,A7KR5009,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,617.00,,,,,
+20,CO,MCXCCL,2024-01-13,2024-01-13,,NORMAL1,,,11111,AASK046,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,8.00,,,,,
+20,CO,MCXCCL,2024-01-13,2024-01-13,,NORMAL1,,,11111,AD01U02,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,3.00,,,,,
+20,CO,MCXCCL,2024-01-13,2024-01-13,,NORMAL1,,,11111,AHKM002,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,45.00,,,,,
+20,CO,MCXCCL,2024-01-13,2024-01-13,,NORMAL1,,,11111,AHRH5002,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,3.00,,,,,

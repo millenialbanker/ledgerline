@@ -1,0 +1,275 @@
+{
+ "id": "mcxccl-margin",
+ "title": "Client margin file, UDiFF (MCXCCL)",
+ "party": "MCXCCL",
+ "direction": "in",
+ "when": "EOD / next morning",
+ "purpose": "Margin per client and contract (or portfolio) in SEBI's common format: SPAN, ELM, premium, delivery, special, tender, additional, concentration and devolvement margin, peak and EOD requirement.",
+ "names": [
+  "Margin_MCXCCL_CO_\\d+_(CM|TM)_\\d+_\\d{8}_F_\\d+\\.csv(\\.gz)?"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "trailing_empty": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as the margin MCXCCL charged each client (UDiFF): live RMS takes it when higher than Ledgerline's, and it is checked against Ledgerline's margin (Clearing data)",
+ "columns": [
+  {
+   "name": "Sgmt",
+   "type": "str"
+  },
+  {
+   "name": "Src",
+   "type": "str"
+  },
+  {
+   "name": "RptgDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "BizDt",
+   "type": "date",
+   "layout": "2006-01-02"
+  },
+  {
+   "name": "TradRegnOrgn",
+   "type": "str"
+  },
+  {
+   "name": "Lvl",
+   "type": "str"
+  },
+  {
+   "name": "ClrMmbId",
+   "type": "str"
+  },
+  {
+   "name": "BrkrOrCtdnPtcptId",
+   "type": "str"
+  },
+  {
+   "name": "ClntTp",
+   "type": "str"
+  },
+  {
+   "name": "ClntId",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "TckrSymb",
+   "type": "str"
+  },
+  {
+   "name": "SttlmTp",
+   "type": "str"
+  },
+  {
+   "name": "SctiesSttlmTxId",
+   "type": "str"
+  },
+  {
+   "name": "SctySrs",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmId",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmTp",
+   "type": "str"
+  },
+  {
+   "name": "XpryDt",
+   "type": "str"
+  },
+  {
+   "name": "StrkPric",
+   "type": "str"
+  },
+  {
+   "name": "OptnTp",
+   "type": "str"
+  },
+  {
+   "name": "ValAtRskMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "SPANMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "LossMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "PrmAmt",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "CnsltdCrstllsdOblgtnMrg",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "DlvrySttlmtMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "SpclMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "SpclCshMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "TndrMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "AddtlMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "MrkToMktNetd",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "MinMrgn",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "SPANMrgnMin",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "XtrmLossMrgnMin",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "AggtPeakLbltyRptd",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "EndOfDayRqrmntRptd",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "TtlMrgnAsPerActlParams",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "TtlBuyTradgVol",
+   "type": "str"
+  },
+  {
+   "name": "TtlBuyTrfVal",
+   "type": "str"
+  },
+  {
+   "name": "TtlSellTradgVol",
+   "type": "str"
+  },
+  {
+   "name": "TtlSellTrfVal",
+   "type": "str"
+  },
+  {
+   "name": "NetOpnQty",
+   "type": "str"
+  },
+  {
+   "name": "NetOpnVal",
+   "type": "str"
+  },
+  {
+   "name": "CncntrtnMrgn",
+   "type": "str"
+  },
+  {
+   "name": "DvlmntMrgn",
+   "type": "str"
+  },
+  {
+   "name": "CrossMrgnBnftForSPAN",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "CrossMrgnBnftForELM",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Rmks",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "blank",
+   "note": "dummy field"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "blank",
+   "note": "dummy field"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "blank",
+   "note": "dummy field"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "blank",
+   "note": "dummy field"
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), section 1.61 UDiFF Margin File; MCXCCL Unified Distilled File Formats (UDiFF) Margin File (CM and TM level); header row of MCXCCL's sample files"
+}

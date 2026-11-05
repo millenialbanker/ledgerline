@@ -243,7 +243,7 @@ title: Load or download exchange, clearing and depository files
 screen: xfiles
 roles: Ops maker, Ops checker, Risk manager, Compliance officer
 ask: exchange file; trade file; ncl file; nse clearing file; cdsl file; soh file; holding file; position file; stt file; stamp duty file; var file; span file; allocation file; segmon file; holding statement; upload file format; file layout; finspot file; mcx file; bse file; bse extranet; provisional trade file; intraday trade file; mbrstd; bhavcopy; udiff; daily file checklist; missing file; expected files; cleared through; clearing corporation; iccl; interoperability; trading member only; not permitted to trade; bse permitted list; order charges; turnover trc; transaction charges; clearing house statement; debarred pan; debr; nome; bulk deals; order log; demat check response
-related: load-files, file-rejected, clearing-data
+related: load-files, file-rejected, clearing-data, mcx-files, check-file
 
 On [[xfiles|Exchange files]]:
 
@@ -255,9 +255,44 @@ On [[xfiles|Exchange files]]:
    - **BSE member reports**: UCCs not permitted to trade (EQX cash, EQD derivatives; the latest run of the day replaces the earlier one; a work item per client says what to fix, closed when the client drops off the list); UCCs permitted to trade (compared with active clients: exceptions on Clearing data); order charges and turnover/transaction charges (the transaction charges are reconciled with those billed on BSE trades, and a difference over ₹1 opens a work item for a checker); the clearing house statement (`VA<DDMM>`, kept as BSE clearing ledger entries with a reminder to reconcile within 15 days); PANs debarred by SEBI (`DEBR`: added to the debarred list, active clients blocked with the reason "SEBI debarred (BSE DEBR report)"; a scrip-specific order only flags the client for the compliance officer); mobile and email exceptions (`NOME`, one work item); bulk deals (`BULK`, low-priority alerts) and the order log (`BO`, order-to-trade ratio by client and terminal); and BSE's demat check responses to the UCC upload (kept with the client). The bulk deal, order log and demat response layouts are provisional.
 3. Under **Sent**, choose the date and **Download**: the client allocation file and API message (NSE Clearing, MCXCCL), the client holding statement for NSE/BSE, the 65-column client funds report (SEGMON) and the client collateral (CC01) files, named as the receiver expects.
 
-**Daily file checklist**: the top of Exchange files lists the day's expected files with their usual times (for example BSE's final trade file about 17:00, its cash bhavcopy about 16:30 and F&O bhavcopy about 17:20, the MBRSTD stamp duty file about 15:00 the next day) and marks each Received, Written, Due or Missing. Which files appear follows **Cleared through** in [[settings|Settings]] (Admin): choose for each exchange segment the clearing corporation it is cleared at under SEBI interoperability (NSE and BSE: NSE Clearing or ICCL; MSE: MCCIL, NSE Clearing or ICCL; MCX: MCXCCL; NCDEX: NCCL), **Another clearing member** (the firm is only a trading member there; give the member's code and name) or **Not traded**. The exchange's own files appear whenever the firm trades on that exchange; a clearing corporation's files appear only when some segment is cleared there; a segment cleared by another clearing member has no clearing-corporation files, since they come from that member. Every change is in the audit trail. The writers of outgoing files are not affected.
+**Daily file checklist**: the top of Exchange files lists the day's expected files with their usual times (for example BSE's final trade file about 17:00, its cash bhavcopy about 16:30 and F&O bhavcopy about 17:20, the MBRSTD stamp duty file about 15:00 the next day) and marks each Received, Written, Due or Missing. Which files appear follows **Cleared through** in [[settings|Settings]] (Admin): choose for each exchange segment the clearing corporation it is cleared at under SEBI interoperability (NSE and BSE: NSE Clearing or ICCL; MSE: MCCIL, NSE Clearing or ICCL; MCX: MCXCCL; NCDEX: NCCL), **Another clearing member** (the firm is only a trading member there; give the member's code and name) or **Not traded**. The exchange's own files appear whenever the firm trades on that exchange; a clearing corporation's files appear only when some segment is cleared there; a segment cleared by another clearing member has no clearing-corporation files, since they come from that member, except the files a clearing corporation sends the trading member itself (MCXCCL's obligation, margin, peak margin, penalty, collateral and allocation files: see [[xfiles|MCX and MCXCCL files]]). Every change is in the audit trail. The writers of outgoing files are not affected.
 
 The firm's PAN is taken from the GSTIN unless set in Settings; set the clearing member's PAN there if another member clears for the firm. **Download** on the SEGMON file and on the holding statement opens their own panel first: the SEGMON check and NSE Clearing's response, and the holding statement's submission to NSE by API.
+
+## mcx-files
+title: MCX and MCXCCL files
+screen: xfiles
+roles: Ops maker, Ops checker, Risk manager, Compliance officer
+ask: mcx file; mcxccl file; mcx nobl; mcx pnobl; mcx obligation file; mcx_mrg; mcx margin file; mcx peak margin; peakmargin; mcx ncmr; margin shortfall penalty mcx; mcx penalty file; mcx_cd; mcx collateral file; mcx_cd ucc; web allocation deallocation; mcx allocation report; mcx product master; productmaster; contract master commodity; mcx lot size; mcx bhavcopy; mcx cp master; mcx ord file; mcx online orders; daily index file; eodsar; intrasar; mcx debit credit note; ctt mcxccl; stamp mcxccl; position mcxccl; commodity files
+related: exchange-files, clearing-data, check-file, otr-alerts
+
+Ledgerline reads MCX's and MCXCCL's files as MCXCCL's **File Formats** (Version 1) and MCX circular **MCX/TECH/394/2023** (File Formats 1.2) lay them out, and MCXCCL's UDiFF (SEBI common format) files. Drop them on [[xfiles|Exchange files]] as downloaded (zip or gz is fine). A trading member cleared through another clearing member still receives the trading-member files; a clearing member's own NOBL, MCX_MRG and peak margin files share the names and are told apart by their lines.
+
+- **MCX_ProductMaster.csv**: the commodity contract master (tradable lot, quotation quantity and unit, tick, expiry, delivery unit and mode). Its live contracts go into the day's MCX contracts in the market data, whose lots commodity billing uses. About 17,000 lines load in a second or two.
+- **Bhavcopy_MCX_CO_…** (UDiFF): closing and settlement prices of the MCX contracts (market data: valuation, MTM, margins). Its market lot of 1 does not replace the product master's lot.
+- **MCX_NOBL_…** (and the provisional **MCX_PNOBL_…**): the day's commodity obligation. On [[ccdata|Clearing data]] each client's MTM, premium and exercise or assignment is set against Ledgerline's own MCX obligation from the bills; a difference over ₹1 is counted as a break.
+- **MCX_MRG_…**, **Margin_MCXCCL_CO_…** (UDiFF) and **MCX_PeakMargin…_nn**: the margin MCXCCL charged and its peak snapshots. Live RMS uses MCXCCL's figure (the latest snapshot, or the end-of-day margin) when it is higher than Ledgerline's; Margin reporting shows MCXCCL's margin and highest peak beside Ledgerline's; Clearing data compares them.
+- **MCX_NCMR_…** and **Penalty_MCXCCL_CO_…**: the shortfall and penalty MCXCCL levied. On Margin reporting the client's penalty is then MCXCCL's (marked as levied by MCXCCL). It is the firm's: it reaches the client only by the pass-through rules (a dishonoured cheque or a disclosed hedge break, with evidence, approved by a second person). Ledgerline never debits it by itself.
+- **MCX_WebAllocationDeallocation…** (MCX's own spelling, *Deallcoation*, is accepted too): each client's commodity allocation at end of day becomes the client's COM level on Clearing allocation, and Clearing data sets it, with the client collateral file **MCX_CD_…_UCC**, against Ledgerline's allocation. The member collateral file **MCX_CD_…** is kept. Commodity levels are never sent to NSE Clearing.
+- **CTT_MCXCCL_…** and **Stamp_MCXCCL_…** (UDiFF): reconciled with the CTT and stamp duty billed on MCX, as NSE Clearing's STT and stamp files are (only the per client and contract lines count, so totals are not added twice).
+- **Position_MCXCCL_…** (UDiFF): commodity positions carried into the next day.
+- **MCX_<ddmmyyyy>ORD** (`.txt` from the terminal, or `_n.csv`): the MCX order log; order-to-trade ratios per firm, client and terminal (one line per order, so changes are not counted separately).
+- **EODSAR, INTRASAR, debit/credit notes, the CP master and DailyIndexFile**: kept; short allocations and debit/credit notes are listed on Clearing data.
+
+The daily file checklist lists these files at their usual times for a firm with an MCX member code. MCX's NCMR and daily index files have a title row whose text the circulars do not give, so only its number of columns is checked.
+
+## check-file
+title: Check real exchange files on your own computer
+screen: xfiles
+roles: Ops maker, Ops checker, Risk manager, Compliance officer
+ask: check file without uploading; check real files locally; ledgerctl check-file; masked summary; file does not load; why is my file not recognised; share file problem with support; field count error; trailing comma
+related: exchange-files, mcx-files, file-rejected
+
+To see how Ledgerline reads a file without loading it or sending it anywhere, run on the computer that holds the files:
+
+    ledgerctl check-file ~/Downloads/MCX/*
+
+(a folder is checked file by file; zip and gz files are opened in memory). For each file it prints the layout it is recognised as, the rows by record type, the number of fields on the lines against the layout, the header row against the layout's column names, the problems by column and kind with the first line numbers, and whether the file writes back byte for byte. **No field value is printed**: quoted values are masked (letters A, digits 9), every other digit is shown as 9 and file names keep only their letters, so the summary can be pasted to support. Add `-json` for the same summary as JSON. It ends with exit status 3 when a file is not recognised or has problems.
 
 ## segmon-report
 title: Client funds and collateral report (SEGMON): check, download, response

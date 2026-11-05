@@ -1,0 +1,105 @@
+{
+ "id": "mcx-dc-note",
+ "title": "Debit / credit note to member (MCXCCL)",
+ "party": "MCXCCL",
+ "direction": "in",
+ "when": "As issued",
+ "purpose": "Charges MCXCCL debits or credits to the member (delivery, penalties and others), with GST.",
+ "names": [
+  "MCX_DEBIT-CREDIT ?NOTE_\\d+_(\\d{8}|[A-Z]{3}\\d{4})\\.csv"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded and reconciled with the charges Ledgerline billed on MCX (Clearing data)",
+ "columns": [
+  {
+   "name": "Date",
+   "type": "str",
+   "note": "DD/MM/YYYY"
+  },
+  {
+   "name": "CM ID",
+   "type": "int"
+  },
+  {
+   "name": "TM / CP ID",
+   "type": "str"
+  },
+  {
+   "name": "Debit/Credit",
+   "type": "str",
+   "note": "D debit, C credit"
+  },
+  {
+   "name": "Dr/Cr Note No.",
+   "type": "str"
+  },
+  {
+   "name": "Delivery Marking Date",
+   "type": "str",
+   "note": "DD/MM/YYYY"
+  },
+  {
+   "name": "Charge Description",
+   "type": "str"
+  },
+  {
+   "name": "Instrument Name",
+   "type": "str"
+  },
+  {
+   "name": "Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Expiry Date",
+   "type": "str",
+   "note": "DD-MMM-YYYY"
+  },
+  {
+   "name": "Charge Amount",
+   "type": "dec",
+   "decimals": 2,
+   "note": "before tax"
+  },
+  {
+   "name": "CGST",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "SGST",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "IGST",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Tax Amount",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Total Amount",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Remarks",
+   "type": "str"
+  },
+  {
+   "name": "Currency Code",
+   "type": "str"
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), section 1.4 Debit/Credit Note to Member; MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.11"
+}

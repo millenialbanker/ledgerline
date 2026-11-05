@@ -787,7 +787,7 @@ func (o *Ops) PrepareAllocationBatch(ctx context.Context, tenant, actor, date, k
 		keys[k] = true
 	}
 	for k, l := range levels {
-		if l.Amount.Sign() > 0 {
+		if l.Amount.Sign() > 0 && l.Segment != "COM" { // commodity levels are MCXCCL's (web allocation report)
 			keys[k] = true // allocated before, nothing now: brought down
 		}
 	}

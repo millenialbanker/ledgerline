@@ -1,0 +1,210 @@
+{
+ "id": "mcx-bhavcopy",
+ "title": "Bhavcopy, UDiFF (MCX)",
+ "party": "MCX",
+ "direction": "in",
+ "when": "EOD",
+ "purpose": "Every MCX contract's open, high, low, close, last and settlement prices, open interest, volume and lot in SEBI's common format.",
+ "names": [
+  "Bhavcopy_MCX_CO_0_0_0_\\d{8}_F_\\d+\\.csv(\\.zip|\\.gz)?",
+  "Bhavcopy_MCXCCL_CO_0_0_0_\\d{8}_F_\\d+\\.csv(\\.zip|\\.gz)?"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "trailing_empty": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as MCX commodity closing and settlement prices (market data: valuation, MTM and margins)",
+ "columns": [
+  {
+   "name": "TradDt",
+   "type": "str",
+   "note": "YYYY-MM-DD in the layout; DD-MM-YYYY in MCX's sample file"
+  },
+  {
+   "name": "BizDt",
+   "type": "str",
+   "note": "YYYY-MM-DD in the layout; DD-MM-YYYY in MCX's sample file"
+  },
+  {
+   "name": "Sgmt",
+   "type": "str"
+  },
+  {
+   "name": "Src",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmTp",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmId",
+   "type": "str"
+  },
+  {
+   "name": "ISIN",
+   "type": "str"
+  },
+  {
+   "name": "TckrSymb",
+   "type": "str"
+  },
+  {
+   "name": "SctySrs",
+   "type": "str"
+  },
+  {
+   "name": "XpryDt",
+   "type": "str",
+   "note": "YYYY-MM-DD in the layout; DD-MM-YYYY in MCX's sample file"
+  },
+  {
+   "name": "FininstrmActlXpryDt",
+   "type": "str",
+   "note": "YYYY-MM-DD in the layout; DD-MM-YYYY in MCX's sample file"
+  },
+  {
+   "name": "StrkPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "OptnTp",
+   "type": "str"
+  },
+  {
+   "name": "FinInstrmNm",
+   "type": "str"
+  },
+  {
+   "name": "OpnPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "HghPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "LwPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "ClsPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "LastPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "PrvsClsgPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "UndrlygPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "SttlmPric",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "OpnIntrst",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "ChngInOpnIntrst",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "TtlTradgVol",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "TtlTrfVal",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "TtlNbOfTxsExctd",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "SsnId",
+   "type": "str"
+  },
+  {
+   "name": "NewBrdLotQty",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": false
+  },
+  {
+   "name": "Rmks",
+   "type": "str"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "blank",
+   "note": "dummy field",
+   "aliases": [
+    "Rsvd01"
+   ]
+  },
+  {
+   "name": "Rsvd2",
+   "type": "blank",
+   "note": "dummy field",
+   "aliases": [
+    "Rsvd02"
+   ]
+  },
+  {
+   "name": "Rsvd3",
+   "type": "blank",
+   "note": "dummy field",
+   "aliases": [
+    "Rsvd03"
+   ]
+  },
+  {
+   "name": "Rsvd4",
+   "type": "blank",
+   "note": "dummy field",
+   "aliases": [
+    "Rsvd04"
+   ]
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), section 1.54 UDiFF Bhavcopy; MCXCCL Unified Distilled File Formats (UDiFF) Bhavcopy; header row of MCX's sample file (bhavcopy_mcxccl_co_0_0_0_20231204_f_0000)"
+}

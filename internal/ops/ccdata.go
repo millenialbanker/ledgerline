@@ -103,7 +103,7 @@ func ymdFromName(name string) string {
 
 func anyDate(v string) string {
 	v = strings.TrimSpace(v)
-	for _, l := range []string{"2006-01-02", "02-Jan-2006", "02Jan2006", "02012006", "20060102", "02-01-2006", "02/01/2006", "2006-01-02T15:04:05"} {
+	for _, l := range []string{"2006-01-02", "02-Jan-2006", "02Jan2006", "02012006", "20060102", "02-01-2006", "02/01/2006", "2006-01-02T15:04:05", "02-Jan-06"} {
 		if len(v) >= len(l) {
 			if t, err := time.Parse(l, v[:len(l)]); err == nil {
 				return t.Format("2006-01-02")
@@ -646,7 +646,8 @@ func (o *Ops) ClearingData(ctx context.Context, tenant, date string) ([]CCSectio
 		}
 	}
 	out = append(out, st)
-	out = append(out, o.bseSections(ctx, tenant, date, cs)...) // BSE member reports (bseextranet.go)
+	out = append(out, o.bseSections(ctx, tenant, date, cs)...)     // BSE member reports (bseextranet.go)
+	out = append(out, o.mcxSections(ctx, tenant, date, cs, ab)...) // MCX and MCXCCL files (mcxfiles.go)
 
 	// Cash market obligation by security vs the day's trades.
 	ob := CCSection{ID: "obligation", Title: "Cash market obligation", About: "NSE's obligation per security (buy and sell quantity) against the firm's trades of the day in Ledgerline.",

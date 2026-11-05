@@ -1,0 +1,214 @@
+{
+ "id": "mcx-orders",
+ "title": "Online orders file (MCX trading terminal)",
+ "party": "MCX",
+ "direction": "in",
+ "when": "EOD",
+ "purpose": "Every order of the day from the MCX trading terminal (MTS/MCS): status, contract, book type, user, side, quantities, price, client and order time.",
+ "names": [
+  "MCX_\\d{8}ORD(_\\d+)?\\.(txt|csv)"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "trailing_empty": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as the day's MCX order log: order-to-trade ratios per member, client and terminal",
+ "columns": [
+  {
+   "name": "Order Number",
+   "type": "int"
+  },
+  {
+   "name": "Order Trade Status",
+   "type": "int",
+   "note": "1 pending, 3 partly traded, 4 fully traded, 5 cancelled, 6 rejected"
+  },
+  {
+   "name": "Instrument ID",
+   "type": "int"
+  },
+  {
+   "name": "Instrument Name",
+   "type": "str"
+  },
+  {
+   "name": "Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Expiry Date",
+   "type": "str",
+   "note": "DDMMMYYYY"
+  },
+  {
+   "name": "Reserved 7",
+   "type": "blank",
+   "note": "reserved for future use; any value is ignored"
+  },
+  {
+   "name": "Strike Price",
+   "type": "dec",
+   "decimals": 4
+  },
+  {
+   "name": "Options Type",
+   "type": "str"
+  },
+  {
+   "name": "Product Description",
+   "type": "str"
+  },
+  {
+   "name": "Book Type",
+   "type": "str"
+  },
+  {
+   "name": "Book Type Name",
+   "type": "str"
+  },
+  {
+   "name": "Market Type",
+   "type": "str"
+  },
+  {
+   "name": "User Id",
+   "type": "int"
+  },
+  {
+   "name": "Branch No",
+   "type": "str"
+  },
+  {
+   "name": "Buy/Sell Indicator",
+   "type": "int",
+   "note": "1 buy, 2 sell"
+  },
+  {
+   "name": "Disclosed Qty",
+   "type": "str"
+  },
+  {
+   "name": "Disclosed Volume Remaining",
+   "type": "str"
+  },
+  {
+   "name": "Total Volume Remaining",
+   "type": "str"
+  },
+  {
+   "name": "Original Volume",
+   "type": "str"
+  },
+  {
+   "name": "Reserved 21",
+   "type": "blank",
+   "note": "reserved for future use; any value is ignored"
+  },
+  {
+   "name": "Reserved 22",
+   "type": "blank",
+   "note": "reserved for future use; any value is ignored"
+  },
+  {
+   "name": "Volume Filled Today",
+   "type": "str"
+  },
+  {
+   "name": "Price",
+   "type": "dec",
+   "decimals": 4
+  },
+  {
+   "name": "TM ID",
+   "type": "str"
+  },
+  {
+   "name": "Order Type",
+   "type": "str"
+  },
+  {
+   "name": "Good Till Date",
+   "type": "str",
+   "note": "DD MMM YYYY HH:MM:SS"
+  },
+  {
+   "name": "Duration",
+   "type": "str",
+   "note": "0 day, 1 IOC, 2 GTC, 3 GTD, 4 EOS, 5 FOK"
+  },
+  {
+   "name": "Account Type",
+   "type": "int",
+   "note": "1 client, 2 pro, 3 INST"
+  },
+  {
+   "name": "Account ID",
+   "type": "str"
+  },
+  {
+   "name": "Participant Settler",
+   "type": "str"
+  },
+  {
+   "name": "Reserved 32",
+   "type": "blank",
+   "note": "reserved for future use; any value is ignored"
+  },
+  {
+   "name": "Reserved 33",
+   "type": "blank",
+   "note": "reserved for future use; any value is ignored"
+  },
+  {
+   "name": "Reserved 34",
+   "type": "blank",
+   "note": "reserved for future use; any value is ignored"
+  },
+  {
+   "name": "Remarks",
+   "type": "str"
+  },
+  {
+   "name": "Order Time",
+   "type": "str",
+   "note": "DD MMM YYYY HH:MM:SS"
+  },
+  {
+   "name": "Reserved 37",
+   "type": "blank",
+   "note": "reserved for future use; any value is ignored"
+  },
+  {
+   "name": "Reserved 38",
+   "type": "blank",
+   "note": "reserved for future use; any value is ignored"
+  },
+  {
+   "name": "Counter TM ID",
+   "type": "str"
+  },
+  {
+   "name": "Reserved 40",
+   "type": "blank",
+   "note": "reserved for future use; any value is ignored"
+  },
+  {
+   "name": "ISV Unique No.",
+   "type": "str"
+  },
+  {
+   "name": "Product Month",
+   "type": "str"
+  },
+  {
+   "name": "Reserved 43",
+   "type": "blank",
+   "note": "reserved for future use; any value is ignored"
+  }
+ ],
+ "source": "MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.3 Online Orders File (MCX_ddmmyyyyORD.txt; exported by the terminal, also seen as MCX_ddmmyyyyORD_n.csv)"
+}

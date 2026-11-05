@@ -1,13 +1,12 @@
 {
  "id": "stt-ctt",
- "title": "STT / CTT file (NSE Clearing, MCXCCL)",
- "party": "NSE Clearing / MCXCCL",
+ "title": "STT / CTT file (NSE Clearing)",
+ "party": "NSE Clearing",
  "direction": "in",
  "when": "EOD / next morning",
  "purpose": "Securities (or commodities) transaction tax per client and contract, as the clearing corporation collects it; reconciled with the STT Ledgerline charged.",
  "names": [
   "\\d{8}\\.txt",
-  "CTT_MCXCCL_CO_\\d+_TM_\\d+_\\d{8}_F_\\d+\\.csv",
   "STT_.*\\.(txt|csv)"
  ],
  "header": true,

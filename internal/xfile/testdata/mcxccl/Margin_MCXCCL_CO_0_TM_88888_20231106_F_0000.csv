@@ -1,0 +1,5 @@
+Sgmt,Src,RptgDt,BizDt,TradRegnOrgn,Lvl,ClrMmbId,BrkrOrCtdnPtcptId,ClntTp,ClntId,ISIN,TckrSymb,SttlmTp,SctiesSttlmTxId,SctySrs,FinInstrmId,FinInstrmTp,XpryDt,StrkPric,OptnTp,ValAtRskMrgn,SPANMrgn,LossMrgn,PrmAmt,CnsltdCrstllsdOblgtnMrg,DlvrySttlmtMrgn,SpclMrgn,SpclCshMrgn,TndrMrgn,AddtlMrgn, MrkToMktNetd,MinMrgn,SPANMrgnMin,XtrmLossMrgnMin,AggtPeakLbltyRptd,EndOfDayRqrmntRptd,TtlMrgnAsPerActlParams,TtlBuyTradgVol,TtlBuyTrfVal,TtlSellTradgVol,TtlSellTrfVal,NetOpnQty,NetOpnVal,CncntrtnMrgn,DvlmntMrgn,CrossMrgnBnftForSPAN,CrossMrgnBnftForELM,Rmks,Rsvd1,Rsvd2,Rsvd3,Rsvd4
+CO,MCXCCL,2023-11-06,2023-11-06,1,C,5555,88888,C,1010,,GOLDM,,,,,COF,2023-11-30,,,,,100.00,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+CO,MCXCCL,2023-11-06,2023-11-06,1,C,5555,88888,P,,,SILVER,,,,,COO,2023-11-30,72000.00,PE,,,0.00,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+CO,MCXCCL,2023-11-06,2023-11-06,1,P,5555,88888,C,1010,,,,,,,,,,,,350.00,100.00,125.00,,15.00,,,15.00,15.00,,,340.00,85.00,,,665.00,,,,,,,,30.00,,,,,,,
+CO,MCXCCL,2023-11-06,2023-11-06,1,P,5555,88888,P,,,,,,,,,,,,,0.00,0.00,175.00,,20.00,,,20.00,20.00,,,0.00,0.00,,,295.00,,,,,,,,40.00,,,,,,,

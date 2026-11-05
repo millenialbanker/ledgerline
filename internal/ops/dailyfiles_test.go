@@ -88,10 +88,26 @@ func TestClearingChoicesFilterChecklist(t *testing.T) {
 			t.Fatalf("BSE-FO still has %s files: %v", p, by)
 		}
 	}
-	if len(by["MCXCCL"]) != 0 || !contains(by["BSE"], "BSE-FO") || !contains(by["MCX"], "MCX-COM") {
+	if !contains(by["BSE"], "BSE-FO") || !contains(by["MCX"], "MCX-COM") {
 		t.Fatalf("trading member only: %v", by)
 	}
-	if len(cl.Notes) != 2 || !strings.Contains(strings.Join(cl.Notes, " "), "Test Clearing Ltd") {
+	// MCXCCL still sends the trading member its own files (NOBL, MCX_MRG,
+	// peak margin, NCMR …); only those are listed.
+	for _, it := range cl.Items {
+		if it.Party == "MCXCCL" && !it.TMLevel {
+			t.Fatalf("%s listed for a segment another member clears", it.ID)
+		}
+	}
+	ids := map[string]bool{}
+	for _, it := range cl.Items {
+		ids[it.ID] = true
+	}
+	for _, id := range []string{"mcx-nobl", "mcx-mrgfile", "mcx-peak", "mcx-ncmr", "mcx-weballoc", "mcx-collateral", "mcx-collateral-ucc", "mcx-udiff-margin", "mcx-products", "mcx-bhav"} {
+		if !ids[id] {
+			t.Fatalf("%s not listed for MCX-COM cleared by another member", id)
+		}
+	}
+	if len(cl.Notes) != 2 || !strings.Contains(strings.Join(cl.Notes, " "), "Test Clearing Ltd") || !strings.Contains(strings.Join(cl.Notes, " "), "MCXCCL sends the trading member itself") {
 		t.Fatalf("notes %v", cl.Notes)
 	}
 	set, _ := o.Settings(t.Context(), T)
