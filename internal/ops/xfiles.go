@@ -50,12 +50,17 @@ type XFormat struct {
 	Linked    string `json:"linked"`
 	Confirmed bool   `json:"confirmed"`
 	Fields    int    `json:"fields"`
-	Writes    bool   `json:"writes"` // Ledgerline can produce it
+	Writes    bool   `json:"writes"`               // Ledgerline can produce it
+	WrittenOn string `json:"written_on,omitempty"` // the screen that writes it, when not Exchange files
 	Example   string `json:"example"`
 }
 
+// xWrittenOn are outgoing files Ledgerline writes on another screen, not
+// from Exchange files.
+var xWrittenOn = map[string]string{"hdfc-enet-payout": "Receipts & payouts → payout batches (HDFC ENet file)", "cdsl-bo-upload": "Depository → CDSL requests"}
+
 // xWriters are the outgoing files Ledgerline writes.
-var xWriters = map[string]bool{"ncl-allocation": true, "ncl-allocation-api": true, "holding-statement-api": true, "segmon-client-funds": true, "ncl-client-collateral": true, "ncl-cuspa-mtf-payout": true, "ncl-margin-reporting": true, "mcx-margin-reporting": true, "ncl-short-allocation-reporting": true, "ncl-shortage-reporting": true, "cdsl-txn-upload": true, "bse-ucc": true}
+var xWriters = map[string]bool{"ncl-allocation": true, "ncl-allocation-api": true, "holding-statement-api": true, "segmon-client-funds": true, "ncl-client-collateral": true, "ncl-cuspa-mtf-payout": true, "ncl-margin-reporting": true, "ncl-margin-reporting-fo": true, "mcx-margin-reporting": true, "ncl-short-allocation-reporting": true, "ncl-shortage-reporting": true, "cdsl-txn-upload": true, "bse-ucc": true}
 
 // ExchangeFormats lists every known layout.
 func (o *Ops) ExchangeFormats() ([]XFormat, error) {
@@ -74,7 +79,7 @@ func (o *Ops) ExchangeFormats() ([]XFormat, error) {
 			ex = s.Names[0]
 		}
 		out = append(out, XFormat{ID: s.ID, Title: s.Title, Party: s.Party, Direction: s.Direction, When: s.When, Purpose: s.Purpose, Linked: s.Linked,
-			Confirmed: s.Confirmed, Fields: n, Writes: xWriters[s.ID], Example: ex})
+			Confirmed: s.Confirmed, Fields: n, Writes: xWriters[s.ID] || xWrittenOn[s.ID] != "", WrittenOn: xWrittenOn[s.ID], Example: ex})
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Direction != out[j].Direction {
@@ -522,8 +527,8 @@ func (o *Ops) ExchangeFile(ctx context.Context, tenant, actor, id, date string, 
 		return o.ClientCollateralFile(ctx, tenant, actor, date, opt.Segment, false)
 	case "ncl-cuspa-mtf-payout":
 		name, content, err = o.cuspaMTFFile(ctx, tenant, s, set, date, vars)
-	case "ncl-margin-reporting", "mcx-margin-reporting":
-		vars["member"] = set.MemberCodes[map[string]string{"ncl-margin-reporting": "NSE", "mcx-margin-reporting": "MCX"}[id]]
+	case "ncl-margin-reporting", "ncl-margin-reporting-fo", "mcx-margin-reporting":
+		vars["member"] = set.MemberCodes[map[string]string{"ncl-margin-reporting": "NSE", "ncl-margin-reporting-fo": "NSE", "mcx-margin-reporting": "MCX"}[id]]
 		name, content, err = o.marginReportingFile(ctx, tenant, s, set, date, vars)
 	case "ncl-short-allocation-reporting":
 		name, content, err = o.shortAllocationFile(ctx, tenant, s, date, vars)

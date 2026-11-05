@@ -234,7 +234,8 @@ var DailyFiles = []DailyFile{
 	{ID: "ncl-alloc", Title: "Client allocation to NSE Clearing", Format: "ncl-allocation", Party: "NCL", Segments: all3, Direction: "out", At: "19:00"},
 	{ID: "ncl-cc01", Title: "Client collateral file (CC01)", Format: "ncl-client-collateral", Party: "NCL", Segments: all3, Direction: "out", At: "19:00"},
 	{ID: "ncl-segmon", Title: "Client funds and collateral (SEGMON)", Format: "segmon-client-funds", Party: "NCL", Segments: all3, Direction: "out", At: "12:00", NextDay: true},
-	{ID: "ncl-mrg", Title: "Margin reporting file to NSE Clearing", Format: "ncl-margin-reporting", Party: "NCL", Segments: all3, Direction: "out", At: "12:00", NextDay: true},
+	{ID: "ncl-mrg", Title: "Margin reporting file to NSE Clearing, cash", Format: "ncl-margin-reporting", Party: "NCL", Segments: []string{"CM"}, Direction: "out", At: "12:00", NextDay: true},
+	{ID: "ncl-mrg-fo", Title: "Margin reporting file to NSE Clearing, F&O", Format: "ncl-margin-reporting-fo", Party: "NCL", Segments: []string{"FO"}, Direction: "out", At: "12:00", NextDay: true},
 	{ID: "ncl-sa-rpt", Title: "Short allocation reporting to NSE Clearing", Format: "ncl-short-allocation-reporting", Party: "NCL", Segments: all3, Direction: "out", At: "12:00", NextDay: true},
 	{ID: "ncl-sett", Title: "Combined settlement master (monthly)", Format: "ncl-settlement-master", Party: "NCL", Segments: all3, Direction: "in", At: "09:00", Intraday: true},
 	// ICCL: layouts not yet in Ledgerline, checked by hand. No public ICCL

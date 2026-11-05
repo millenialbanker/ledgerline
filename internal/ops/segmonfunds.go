@@ -355,7 +355,11 @@ func (o *Ops) segmonData(ctx context.Context, tenant, date string) (map[string]*
 		}
 		for _, r := range epis {
 			var px money.Dec
-			if s := sold[r.UCC+"|"+r.ISIN]; s != nil && s.qty > 0 {
+			key := r.ISIN
+			if key == "" { // a CEP allocation whose ISIN is not in the market data
+				key = r.Symbol
+			}
+			if s := sold[r.UCC+"|"+key]; s != nil && s.qty > 0 {
 				px, _ = s.val.Quo(money.DecInt(s.qty))
 			} else if i, ok := look.ByISIN(r.ISIN); ok {
 				px = i.LTP

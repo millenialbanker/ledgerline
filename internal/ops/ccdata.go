@@ -302,9 +302,9 @@ func (o *Ops) loadCCFile(ctx context.Context, tenant, actor string, s *xfile.Spe
 		}
 		o.mergeVaR(ctx, tenant, actor, date, rates)
 		r.Loaded, r.Added = "Loaded as VaR, extreme loss and haircut rates of "+date, len(rates)
-	case "ncl-span-client", "ncl-span-client-fo", "mcx-client-margin", "ncl-short-allocation", "ncl-nmass-cm", "ncl-nmass-fo", "stamp-duty", "nse-cm-obligation", "ncl-direct-payout", "ncl-repledge-status", "ncl-client-margin", "cdsl-calendar", "cdsl-member-master":
+	case "ncl-span-client", "ncl-span-client-fo", "mcx-client-margin", "ncl-short-allocation", "ncl-nmass-cm", "ncl-nmass-fo", "stamp-duty", "nse-cm-obligation", "ncl-direct-payout", "ncl-repledge-status", "ncl-client-margin", "cdsl-calendar", "cdsl-member-master", "cdsl-early-payin":
 		kind := map[string]string{"ncl-span-client": "mg13", "ncl-span-client-fo": "mg13", "mcx-client-margin": "mcxmargin", "ncl-short-allocation": "sa04", "ncl-nmass-cm": "nmass", "ncl-nmass-fo": "nmass",
-			"stamp-duty": "stamp", "nse-cm-obligation": "obligation", "ncl-direct-payout": "directpayout", "ncl-repledge-status": "repledge", "ncl-client-margin": "nclmargin", "cdsl-calendar": "cdslcal", "cdsl-member-master": "cdslmembers"}[s.ID]
+			"stamp-duty": "stamp", "nse-cm-obligation": "obligation", "ncl-direct-payout": "directpayout", "ncl-repledge-status": "repledge", "ncl-client-margin": "nclmargin", "cdsl-calendar": "cdslcal", "cdsl-member-master": "cdslmembers", "cdsl-early-payin": "cep"}[s.ID]
 		if len(rows) > 0 {
 			for _, k := range []string{"Date", "RptgDt", "BizDt", "ClctnDt", "DueDt", "Obligation Date"} {
 				if d := anyDate(rows[0].Get(k)); d != "" {
@@ -789,8 +789,11 @@ func (o *Ops) marginReportingFile(ctx context.Context, tenant string, s *xfile.S
 		return "", nil, err
 	}
 	seg := "CM"
-	if s.ID == "mcx-margin-reporting" {
+	switch s.ID {
+	case "mcx-margin-reporting":
 		seg = "COM"
+	case "ncl-margin-reporting-fo":
+		seg = "FO"
 	}
 	have := map[string]money.Dec{}
 	for _, a := range alloc {
@@ -823,9 +826,16 @@ func (o *Ops) marginReportingFile(ctx context.Context, tenant string, s *xfile.S
 			rows = append(rows, xfile.Row{Values: v})
 		}
 	} else {
-		ds := o.ccData(ctx, tenant, "mg13", date, "CM")
+		ds := o.ccData(ctx, tenant, "mg13", date, seg)
 		if len(ds) == 0 {
-			return "", nil, invalid("load NSE Clearing's client margin file (C_MG13) for %s first", date)
+			return "", nil, invalid("load NSE Clearing's client margin file (%s_MG13) for %s first", seg[:1], date)
+		}
+		// The firm's own (pro) rows report the margin to collect: field 8
+		// in both segments' MG13 (named in the cash layout; F&O fields 3 to 9
+		// are unnamed, in the same order).
+		toCollect := "EODMarginToCollect"
+		if seg == "FO" {
+			toCollect = "Field8"
 		}
 		for _, r := range ds[0].Rows {
 			v := map[string]string{}
@@ -834,7 +844,7 @@ func (o *Ops) marginReportingFile(ctx context.Context, tenant string, s *xfile.S
 			}
 			got := have[strings.ToUpper(r["ClientCode"])]
 			if r["ClientProFlag"] == "P" {
-				got = decOr0(r["EODMarginToCollect"])
+				got = decOr0(r[toCollect])
 			}
 			v["EODMarginCollected"], v["PeakMarginCollected"] = got.Fixed(2), got.Fixed(2)
 			rows = append(rows, xfile.Row{Values: v})

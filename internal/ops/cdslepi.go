@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,12 +79,65 @@ func (o *Ops) epiAll(ctx context.Context, tenant, prefix string) []EPIRecord {
 	return rs
 }
 
-// EPIAccepted lists the early pay-ins CDSL accepted for trade date date.
+// EPIAccepted lists the early pay-ins accepted for trade date date: those
+// CDSL accepted through the API, and those NSE Clearing allocated in its
+// early pay-in file (<member>_CEP<yyyymmdd>.Dnn, record 20). For a client
+// and symbol in the CEP file, NSE Clearing's allocated quantity replaces
+// the API's NSE (or unmarked) records, so nothing is counted twice; BSE
+// records stay.
 func (o *Ops) EPIAccepted(ctx context.Context, tenant, date string) []EPIRecord {
+	cep := o.cepAllocated(ctx, tenant, date)
 	out := []EPIRecord{}
 	for _, r := range o.epiAll(ctx, tenant, date+"|") {
-		if r.Status == "Accepted" {
-			out = append(out, r)
+		if r.Status != "Accepted" {
+			continue
+		}
+		if _, ok := cep[strings.ToUpper(r.UCC)+"|"+strings.ToUpper(r.Symbol)]; ok && (r.Exchange == "" || strings.EqualFold(r.Exchange, "NSE")) {
+			continue
+		}
+		out = append(out, r)
+	}
+	keys := make([]string, 0, len(cep))
+	for k := range cep {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		out = append(out, cep[k])
+	}
+	return out
+}
+
+// cepAllocated reads NSE Clearing's early pay-in allocation file of a date
+// (Clearing data, kind cep): the quantity allocated per client and symbol,
+// with the ISIN from the day's market data where it is known.
+func (o *Ops) cepAllocated(ctx context.Context, tenant, date string) map[string]EPIRecord {
+	out := map[string]EPIRecord{}
+	ds := o.ccData(ctx, tenant, "cep", date, "")
+	if len(ds) == 0 {
+		return out
+	}
+	_, look, _ := o.Market(ctx, tenant, date)
+	for _, d := range ds {
+		for _, r := range d.Rows {
+			if strings.TrimSpace(r["RecordType"]) != "20" {
+				continue
+			}
+			ucc, sym := strings.ToUpper(strings.TrimSpace(r["ClientCode"])), strings.ToUpper(strings.TrimSpace(r["Symbol"]))
+			q, err := strconv.ParseInt(strings.TrimSpace(r["QuantityAllocated"]), 10, 64)
+			if ucc == "" || sym == "" || err != nil || q <= 0 {
+				continue
+			}
+			k := ucc + "|" + sym
+			x, ok := out[k]
+			if !ok {
+				x = EPIRecord{ID: "CEP|" + date + "|" + k, Date: date, UCC: strings.TrimSpace(r["ClientCode"]), Symbol: sym, Exchange: "NSE", Status: "Accepted", Maker: "NSE Clearing CEP file", At: d.LoadedAt, SettID: strings.TrimSpace(r["SettlementType"]) + strings.TrimSpace(r["SettlementNo"])}
+				if i, ok := look.Get("NSE", "CM", sym+"|"+strings.TrimSpace(r["Series"])); ok {
+					x.ISIN = i.ISIN
+				}
+			}
+			x.Qty += q
+			out[k] = x
 		}
 	}
 	return out

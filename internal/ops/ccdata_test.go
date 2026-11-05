@@ -198,7 +198,10 @@ func TestRealFilesLoad(t *testing.T) {
 	for kind, out := range map[string]string{"mg13": "ncl-margin-reporting", "mcxmargin": "mcx-margin-reporting", "sa04": "ncl-short-allocation-reporting"} {
 		ds, _ := docs.List[CCData](ctx, o.Docs, T, cCCData, kind+"|")
 		for _, d := range ds {
-			if (kind == "mg13" || kind == "sa04") && d.Segment != "CM" {
+			out := out
+			if kind == "mg13" && d.Segment == "FO" {
+				out = "ncl-margin-reporting-fo"
+			} else if (kind == "mg13" || kind == "sa04") && d.Segment != "CM" {
 				continue
 			}
 			if kind == "sa04" {
