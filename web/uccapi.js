@@ -1,9 +1,10 @@
 'use strict';
 /* Ledgerline console: Exchange UCC by API. Staff screen "uccapi": one tab
    per exchange (NSE's UCI API, BSE's UCC REST API; MCX takes the UCC file
-   only). Each tab lists the clients with their registration at that
-   exchange, sends the new and changed ones, checks PAN status and previews
-   a client's record before it goes. Loaded after app.js; opened from the
+   only: its tab writes the next file and marks it uploaded, and MCX's
+   response file is loaded on Exchange files). Each tab lists the clients
+   with their registration at that exchange, sends the new and changed ones,
+   checks PAN status and previews a client's record before it goes. Loaded after app.js; opened from the
    Clients & onboarding group. */
 
 Object.assign(UI, { uccEx: 'nse', uccSt: 'open', uccQ: '', uccSel: new Set() });
@@ -17,17 +18,18 @@ const uccPath = () => `/v1/ucc-api/${UI.uccEx}`;
 V.uccapi = {
   load: async () => {
     const ex = UI.uccEx in UCC_EX ? UI.uccEx : 'nse';
-    if (ex === 'mcx') return { ex };
     try { const [v, blocked] = await Promise.all([get(`/v1/ucc-api/${ex}`), ex === 'bse' ? get('/v1/bse-ucc-blocked').catch(() => null) : null]); return { ex, v, blocked }; }
     catch (e) { if (e.status === 404) return { ex, missing: true }; throw e; }
   },
   html: d => {
-    const tabs = `<div class="panel"><div class="hd"><div class="seg">${['nse', 'bse'].map(x => `<button class="${d.ex === x ? 'on' : ''}" data-act="uccEx" data-id="${x}">${UCC_EX[x]}</button>`).join('')}<button disabled title="MCX takes the UCC file only">MCX · file upload only</button></div></div></div>`;
+    const tabs = `<div class="panel"><div class="hd"><div class="seg">${['nse', 'bse', 'mcx'].map(x => `<button class="${d.ex === x ? 'on' : ''}" data-act="uccEx" data-id="${x}">${UCC_EX[x]}${x === 'mcx' ? ' · UCC file' : ''}</button>`).join('')}</div></div></div>`;
     const head = ph('Exchange UCC', 'Clients registered with each exchange through its UCC API: new clients from the UCC upload stage, approved changes, segment status changes and reactivations. Each record is checked against the exchange’s rules before it goes; a record that has not changed is never sent again.');
-    if (d.ex === 'mcx') return head + tabs + `<div class="note">MCX has no UCC API: make the UCC upload batch on <a href="#reports" data-act="go" data-id="reports">Regulatory reports</a> and upload it on MCX’s portal.</div>`;
     if (d.missing) return head + tabs + `<div class="note">${UCC_EX[d.ex]} connection not available yet.</div>`;
     const v = d.v, c = v.counts || {};
-    const conn = v.connection === 'Not set'
+    const mcx = d.ex === 'mcx';
+    const conn = mcx
+      ? `<div class="note ${v.member && v.master ? '' : 'warn'}">MCX has no UCC API: download the next UCC file (batch ${String(v.next_batch || 1).padStart(2, '0')} today), upload it on MCX’s portal, mark it uploaded below, then load MCX’s response file (.E) on <a href="#xfiles" data-act="go" data-id="xfiles">Exchange files</a>. ${v.member ? `Member code ${esc(v.member)}.` : '<b>Set the firm’s MCX member code in Settings.</b>'} ${v.master ? `State-City master: ${esc(v.master)} (${nf(v.master_count)} cities).` : '<b>Load MCX’s State-City Code master (CSV) on Exchange files</b>: every client needs a code from it.'}</div>`
+      : v.connection === 'Not set'
       ? `<div class="note warn"><b>The ${esc(v.exchange)} UCC API is not set up.</b> The firm’s admin enters the API user and password under <a href="#connections" data-act="go" data-id="connections">Connections</a>. Until then, records can be checked and previewed here but not sent.</div>`
       : v.connection === 'Problem' ? `<div class="note bad"><b>Last call to ${esc(v.exchange)} failed.</b> ${esc(v.problem || '')}</div>`
       : `<div class="note">${pill(v.live ? 'Production' : 'Test (UAT)', v.live ? 'good' : 'warn')} ${v.auto ? 'New and changed clients go automatically every 15 minutes from 08:00 to 22:00, and PAN status is refreshed once a day.' : 'Automatic sending is off: send from here.'}</div>`;
@@ -36,9 +38,9 @@ V.uccapi = {
     return head + tabs + conn +
       `<div class="kpis">${kpi('Not sent', nf(pend), 'new or changed, ready', pend ? 'warn' : '')}${kpi('Needs fixing', nf(c['Needs fixing'] || 0), 'checked before sending', c['Needs fixing'] ? 'bad' : '')}${kpi('Sent', nf(c.Sent || 0), 'waiting for the exchange')}${kpi('Accepted', nf(c.Accepted || 0), 'registered')}${kpi('Rejected', nf(c.Rejected || 0), 'by the exchange', c.Rejected ? 'bad' : '')}${d.blocked ? kpi('Blocked by BSE', nf(nb), asOf ? 'not permitted to trade · list of ' + asOf : 'no not-permitted list loaded', nb ? 'bad' : '') : ''}</div>` +
       `<div class="panel"><div class="hd"><div class="tools">${segBtns('uccSt', [['open', 'To act on'], ['all', 'All'], ['Accepted', 'Accepted'], ['Sent', 'Sent'], ...(d.blocked ? [['blocked', `Blocked by BSE (${nb})`]] : [])], 'ucc-t')}<input class="in" data-ui="uccQ" data-part="ucc-t" placeholder="Filter by client, PAN or reason" value="${esc(UI.uccQ)}"></div>
-        <div class="tools">${uccCan() ? `<button class="btn ${pend ? 'pri' : ''}" data-act="uccSend" ${pend && v.connection !== 'Not set' ? '' : 'disabled'}>Send pending (${pend})</button><button class="btn" data-act="uccSend" data-id="sel" ${v.connection !== 'Not set' ? '' : 'disabled'}>Send selected</button>` : ''}
-        ${uccPanCan() ? `<button class="btn" data-act="uccPAN" ${v.connection !== 'Not set' ? '' : 'disabled'}>Check PAN status</button>` : ''}</div></div><div id="ucc-t">${P['ucc-t'](d)}</div></div>` +
-      `<div class="panel"><div class="hd"><h3>Runs</h3><small>each call’s request (Aadhaar masked) and answer are kept with the run</small></div>${tbl([['Run'], ['When'], ['By'], ['Clients', 'r'], ['Accepted', 'r'], ['Rejected', 'r'], ['What happened']], (v.runs || []).map(r => `<tr><td class="mono">${esc(r.id)}</td><td class="small">${uccStamp(r.at)}</td><td>${esc(r.by === 'system:scheduler' ? 'Scheduler' : r.by)}</td><td class="r">${r.sent}</td><td class="r">${r.accepted}</td><td class="r ${r.rejected ? 'neg' : ''}">${r.rejected}</td><td class="wrap small">${esc(r.note)}</td></tr>`), { empty: 'Nothing sent yet.' })}</div>`;
+        <div class="tools">${mcx ? `<button class="btn ${pend ? 'pri' : ''}" data-act="uccMcxFile" ${pend ? '' : 'disabled'}>Download UCC file (${pend})</button>` : `${uccCan() ? `<button class="btn ${pend ? 'pri' : ''}" data-act="uccSend" ${pend && v.connection !== 'Not set' ? '' : 'disabled'}>Send pending (${pend})</button><button class="btn" data-act="uccSend" data-id="sel" ${v.connection !== 'Not set' ? '' : 'disabled'}>Send selected</button>` : ''}
+        ${uccPanCan() ? `<button class="btn" data-act="uccPAN" ${v.connection !== 'Not set' ? '' : 'disabled'}>Check PAN status</button>` : ''}`}</div></div><div id="ucc-t">${P['ucc-t'](d)}</div></div>` +
+      `<div class="panel"><div class="hd"><h3>${mcx ? 'UCC files' : 'Runs'}</h3><small>${mcx ? 'a file’s clients are Sent once it is marked uploaded, then Accepted or Rejected when MCX’s response file is loaded' : 'each call’s request (Aadhaar masked) and answer are kept with the run'}</small></div>${tbl([[mcx ? 'File' : 'Run'], ['When'], ['By'], ['Clients', 'r'], ['Accepted', 'r'], ['Rejected', 'r'], ['What happened']], (v.runs || []).map(r => `<tr><td class="mono">${esc(r.id)}</td><td class="small">${uccStamp(r.at)}</td><td>${esc(r.by === 'system:scheduler' ? 'Scheduler' : r.by)}</td><td class="r">${r.sent}</td><td class="r">${r.accepted}</td><td class="r ${r.rejected ? 'neg' : ''}">${r.rejected}</td><td class="wrap small">${esc(r.note)}${mcx && uccCan() && r.note.startsWith('written') ? ` <button class="btn sm" data-act="uccMcxUploaded" data-id="${esc(r.id)}">Mark uploaded</button>` : ''}</td></tr>`), { empty: 'Nothing sent yet.' })}</div>`;
   }
 };
 
@@ -56,7 +58,7 @@ P['ucc-t'] = d => {
   const probs = r => (r.problems || []).length ? `<ul class="small" style="margin:2px 0 0 16px;padding:0">${r.problems.slice(0, 3).map(p => `<li>${esc(p)}</li>`).join('')}${r.problems.length > 3 ? `<li class="dim">and ${r.problems.length - 3} more</li>` : ''}</ul>` : '';
   const np = r => { const x = bl && bl[r.ucc]; if (!x) return bl ? pill('Permitted', 'good') : ''; return `${pill('Not permitted · ' + x.segments.map(g => g === 'FO' ? 'Derivatives' : 'Cash').join(', '), 'bad')}<ul class="small wrap" style="margin:2px 0 0 16px;padding:0">${x.reasons.map(t => `<li>${esc(t)}</li>`).join('')}</ul><div class="dim small">BSE list of ${fmtDate(x.as_of)}</div>`; };
   return tbl([[''], ['Client'], ['PAN'], ['Action'], ['Status'], ['Reason'], ...(bl ? [['BSE trading']] : []), ['PAN status'], ['Sent'], ['Result'], ['']], rows.map(r => `<tr>
-    <td>${uccCan() && r.status === 'Not sent' ? `<input type="checkbox" aria-label="Select ${esc(r.ucc)}" data-act="uccTick" data-id="${esc(r.ucc)}" ${UI.uccSel.has(r.ucc) ? 'checked' : ''}>` : ''}</td>
+    <td>${uccCan() && r.status === 'Not sent' && d.ex !== 'mcx' ? `<input type="checkbox" aria-label="Select ${esc(r.ucc)}" data-act="uccTick" data-id="${esc(r.ucc)}" ${UI.uccSel.has(r.ucc) ? 'checked' : ''}>` : ''}</td>
     <td><button class="linkish mono" data-act="client" data-id="${esc(r.ucc)}"><b>${esc(r.ucc)}</b></button><div class="dim small">${esc(r.name)}</div></td><td class="mono small">${esc(r.pan)}</td><td>${esc(r.action)}</td><td>${r.status ? uccPill(r.status) : '<span class="dim">not in Ledgerline’s UCC list</span>'}</td>
     <td class="wrap small">${r.problems && r.problems.length ? probs(r) : esc(r.reason || '')}</td>${bl ? `<td class="small" style="min-width:220px">${np(r)}</td>` : ''}<td class="small">${r.pan_status ? uccPill(r.pan_status.split(' · ')[0]) + (r.pan_status.includes(' · ') ? `<div class="neg small">${esc(r.pan_status.split(' · ').slice(1).join(' · '))}</div>` : '') : '<span class="dim">—</span>'}</td>
     <td class="small">${uccStamp(r.sent_at)}${r.ref ? `<div class="dim mono">${esc(r.ref)}</div>` : ''}</td><td class="small">${uccStamp(r.result_at)}</td>
@@ -80,7 +82,9 @@ function uccDetailsForm(dt) {
     ${f('marital', 'Marital status', dt.marital, 'Single, Married, Widowed, Divorced')}${f('occ', 'Occupation', dt.occupation, 'Private sector, Public sector, Business…')}
     ${f('occd', 'Occupation details (for Others)', dt.occupation_detail)}${f('inc', 'Income declared on (YYYY-MM-DD)', dt.income_as_on)}
     ${f('cat', 'Client category code (when not from the client type)', dt.category, '2 partnership, 5 trust')}${f('cin', 'CIN (companies)', dt.cin)}
-    ${f('poaf', 'POA for funds (Y/N)', dt.poa_funds, 'N')}${f('poas', 'POA for securities (Y/N)', dt.poa_securities, 'N')}</div>
+    ${f('poaf', 'POA for funds (Y/N)', dt.poa_funds, 'N')}${f('poas', 'POA for securities (Y/N)', dt.poa_securities, 'N')}
+    ${f('bankt', 'Bank account type (MCX)', dt.bank_type, 'Savings, Current or Other')}${f('mrel', 'Whose the mobile is (MCX)', dt.mobile_relation, 'Self, Spouse, Dependent child, Dependent parent')}
+    ${f('erel', 'Whose the e-mail is (MCX)', dt.email_relation, 'Self, Spouse, Dependent child, Dependent parent')}</div>
     <div class="fld"><label for="ucd-contacts">Contact persons of a firm, HUF, company or trust: one a line, as name | PAN | address | phone | e-mail | DIN</label><textarea class="in mono" id="ucd-contacts" rows="3">${esc((dt.contacts || []).map(c => [c.name, c.pan, c.address, c.phone, c.email, c.din].map(x => x || '').join(' | ')).join('\n'))}</textarea></div>
     ${uccCan() ? '<div class="tools"><button class="btn" data-act="uccSaveDetails">Save details</button></div>' : ''}</details>`;
 }
@@ -100,21 +104,23 @@ Object.assign(A, {
     try { p = await get(`${uccPath()}/preview/${encodeURIComponent(id)}`); } catch (e) { toast(e.message, true); return; }
     UI.uccPv = p;
     const rec = p.records || [], keys = rec.length ? Object.keys(rec[0]).filter(k => rec.some(r => r[k])).sort() : [];
-    modal(mhd(`${esc(p.ucc)} · ${esc(p.name)}`, `${uccPill(p.status)} ${esc(p.action || '')}${(p.pending || []).length ? ' · would send segment ' + p.pending.map(esc).join(', ') : ' · nothing new to send'}`) + `<div class="bd">
+    modal(mhd(`${esc(p.ucc)} · ${esc(p.name)}`, `${uccPill(p.status)} ${esc(p.action || '')}${(p.pending || []).length ? (UI.uccEx === 'mcx' ? ' · goes in the next UCC file' : ' · would send segment ' + p.pending.map(esc).join(', ')) : ' · nothing new to send'}`) + `<div class="bd">
       ${(p.problems || []).length ? `<div class="note bad"><b>Fix these before it can be sent</b><ul>${p.problems.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '<div class="note good">The record passes the exchange’s field rules.</div>'}
-      ${rec.length ? `<div class="tw tall"><table class="tbl"><thead><tr><th>Field</th>${rec.map(r => `<th>Segment ${esc(r.ccdSegInd || r.segment || '')}</th>`).join('')}</tr></thead><tbody>${keys.map(k => `<tr><td class="mono small">${esc(k)}</td>${rec.map(r => `<td class="mono small wrap">${esc(r[k] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      ${rec.length ? `<div class="tw tall"><table class="tbl"><thead><tr><th>Field</th>${rec.map(r => `<th>${UI.uccEx === 'mcx' ? 'MCX record' : 'Segment ' + esc(r.ccdSegInd || r.segment || '')}</th>`).join('')}</tr></thead><tbody>${keys.map(k => `<tr><td class="mono small">${esc(k)}</td>${rec.map(r => `<td class="mono small wrap">${esc(r[k] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
         <p class="dim small">Empty fields are sent empty and not shown. PAN and account numbers are masked here.</p>` : ''}
       ${uccDetailsForm(p.details || {})}
       ${(p.history || []).length ? `<h4>History</h4><ul class="small">${p.history.slice().reverse().map(h => `<li>${uccStamp(h.at)} · ${esc(h.what)}${h.ref ? ' · ' + esc(h.ref) : ''}${h.detail ? ' · ' + esc(h.detail) : ''}</li>`).join('')}</ul>` : ''}
-      <div id="ucc-perr"></div></div><div class="ft"><button class="btn" data-act="close">Close</button>${uccCan() && (p.pending || []).length && !(p.problems || []).length ? `<button class="btn pri" data-act="uccSendOne" data-id="${esc(p.ucc)}">Send now</button>` : ''}</div>`, true);
+      <div id="ucc-perr"></div></div><div class="ft"><button class="btn" data-act="close">Close</button>${uccCan() && UI.uccEx !== 'mcx' && (p.pending || []).length && !(p.problems || []).length ? `<button class="btn pri" data-act="uccSendOne" data-id="${esc(p.ucc)}">Send now</button>` : ''}</div>`, true);
   },
+  uccMcxFile: async () => { await download('/v1/ucc-api/mcx/batch-file'); render({ keep: true }); },
+  uccMcxUploaded: id => confirmModal('Mark uploaded to MCX', 'Only once the file is uploaded on MCX’s portal: its clients become Sent until MCX’s response file is loaded.', `<div class="mono small">${esc(id)}</div>`, 'Mark uploaded', () => act(() => post('/v1/ucc-api/mcx/batch-file/uploaded', { file: id }), r => r.message)),
   uccSendOne: id => act(() => post(`${uccPath()}/send`, { uccs: [id] }), r => r.message).catch(() => {}),
   uccSaveDetails: async () => {
     const p = UI.uccPv; if (!p) return;
     const v = id => ($('ucd-' + id)?.value || '').trim();
     const contacts = v('contacts').split('\n').map(l => l.split('|').map(x => x.trim())).filter(x => x[0]).map(([name, pan, address, phone, email, din]) => ({ name, pan: pan || '', address: address || '', phone: phone || '', email: email || '', din: din || '' }));
     const b = { address1: v('a1'), address2: v('a2'), address3: v('a3'), city: v('city'), state: v('state'), pin: v('pin'), gender: v('gender'), guardian: v('guardian'), marital: v('marital'),
-      occupation: v('occ'), occupation_detail: v('occd'), income_as_on: v('inc'), category: v('cat'), cin: v('cin'), poa_funds: v('poaf'), poa_securities: v('poas'), contacts };
+      occupation: v('occ'), occupation_detail: v('occd'), income_as_on: v('inc'), category: v('cat'), cin: v('cin'), poa_funds: v('poaf'), poa_securities: v('poas'), bank_type: v('bankt'), mobile_relation: v('mrel'), email_relation: v('erel'), contacts };
     const keep = p.details || {};
     for (const k of ['country', 'perm_address1', 'perm_address2', 'perm_address3', 'perm_city', 'perm_state', 'perm_country', 'perm_pin', 'nationality', 'pep', 'ipv', 'upi', 'agreement_date']) if (keep[k]) b[k] = keep[k];
     try { await post(`/v1/ucc-api/details/${encodeURIComponent(p.ucc)}`, b); toast('Details saved'); await A.uccPreview(p.ucc); render({ keep: true }); }

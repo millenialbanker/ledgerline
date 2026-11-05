@@ -1,0 +1,80 @@
+{
+ "id": "mcx-ucc-response",
+ "title": "UCC response (MCX)",
+ "party": "MCX",
+ "direction": "in",
+ "when": "After each UCC upload",
+ "purpose": "MCX's answer to a UCC upload batch: a control record and one line per client code with MCX's error code, blank when the record was taken.",
+ "names": [
+  "MCX_\\d{8}_UCC\\d+\\.E\\d+"
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "trailing_empty": true,
+ "records": [
+  {
+   "code": "",
+   "where": "first",
+   "columns": [
+    {
+     "name": "Record Type",
+     "key": "RecordType",
+     "type": "str",
+     "const": "11"
+    },
+    {
+     "name": "Member Type",
+     "key": "MemberType",
+     "type": "str",
+     "const": "M"
+    },
+    {
+     "name": "Member Code",
+     "key": "MemberCode",
+     "type": "str"
+    },
+    {
+     "name": "Date",
+     "key": "Date",
+     "type": "str",
+     "note": "DDMMYYYY, the business date"
+    },
+    {
+     "name": "Batch Number",
+     "key": "BatchNumber",
+     "type": "str",
+     "note": "the batch of the member's file (01 to 99)"
+    },
+    {
+     "name": "Total No. of Records",
+     "key": "TotalRecords",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "#2",
+   "columns": [
+    {
+     "name": "Client Code",
+     "key": "ClientCode",
+     "type": "str",
+     "required": true
+    },
+    {
+     "name": "Error Code",
+     "key": "ErrorCode",
+     "type": "str",
+     "note": "three digits from MCX's list of UCC error codes (section 1.3); blank when the record was taken"
+    }
+   ]
+  }
+ ],
+ "confirmed": true,
+ "linked": "Marks each client of the batch accepted or rejected at MCX, with the error in words; rejected clients become work items",
+ "source": "MCX circular MCX/TECH/023/2022 (13 Jan 2022), MCX UCC File Formats (Version 1.0), sections 1.2 and 1.3"
+}

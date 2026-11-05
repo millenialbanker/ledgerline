@@ -1,0 +1,51 @@
+{
+ "id": "mcx-state-city-master",
+ "title": "State-City Code master (MCX)",
+ "party": "MCX",
+ "direction": "in",
+ "when": "When MCX revises it",
+ "purpose": "MCX's list of State-City codes for fields 15 and 22 of the UCC file (published separately and revised by circular, e.g. MCX/S&I/507/2024). Save it as CSV with a header row: Ledgerline finds the state, city and code columns by their header names, as MCX's layout is not published with the UCC file formats.",
+ "names": [
+  ".*state[ _-]*city.*\\.(csv|txt)"
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "crlf": false,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "State",
+   "key": "State",
+   "type": "str",
+   "aliases": [
+    "State Name",
+    "STATE_NAME"
+   ]
+  },
+  {
+   "name": "City",
+   "key": "City",
+   "type": "str",
+   "aliases": [
+    "City Name",
+    "CITY_NAME"
+   ]
+  },
+  {
+   "name": "State-City Code",
+   "key": "Code",
+   "type": "str",
+   "aliases": [
+    "State City Code",
+    "STATE_CITY_CODE",
+    "City Code",
+    "Code"
+   ]
+  }
+ ],
+ "confirmed": false,
+ "linked": "Loaded as MCX's State-City codes for the MCX UCC file; columns are found by their header names (state, city, code), in any order, with other columns ignored",
+ "source": "Column names assumed: MCX publishes the State-City Code master separately from MCX/TECH/023/2022 (MCX UCC File Formats v1.0) and its layout was not available"
+}

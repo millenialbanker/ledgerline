@@ -214,6 +214,7 @@ Seeing mail sent to staff | Compliance officer, Admin
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
 Sending IPO bids to the exchange | Ops maker, Ops checker
 Sending UCC to BSE | Ops maker, Ops checker
+Sending UCC to MCX | Ops maker, Ops checker
 Sending bulk messages | Ops checker, Compliance officer
 Sending clients to the exchange UCC | Ops maker, Ops checker
 Sending contract notes | Ops maker, Ops checker
@@ -262,6 +263,7 @@ Viewing CDSL API transactions | Ops maker, Ops checker, Risk manager, Compliance
 Viewing CDSL demat account counts | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing CDSL freezes | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing CDSL requests | Ops maker, Ops checker, Compliance officer
+Viewing MCX UCC registrations | Ops maker, Ops checker, Compliance officer
 Viewing backups | Ops checker, Compliance officer
 Viewing clients BSE does not permit to trade | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing connections | Compliance officer, Admin

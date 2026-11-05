@@ -60,7 +60,7 @@ type XFormat struct {
 var xWrittenOn = map[string]string{"hdfc-enet-payout": "Receipts & payouts → payout batches (HDFC ENet file)", "cdsl-bo-upload": "Depository → CDSL requests"}
 
 // xWriters are the outgoing files Ledgerline writes.
-var xWriters = map[string]bool{"ncl-allocation": true, "ncl-allocation-api": true, "holding-statement-api": true, "segmon-client-funds": true, "ncl-client-collateral": true, "ncl-cuspa-mtf-payout": true, "ncl-margin-reporting": true, "ncl-margin-reporting-fo": true, "mcx-margin-reporting": true, "ncl-short-allocation-reporting": true, "ncl-shortage-reporting": true, "cdsl-txn-upload": true, "bse-ucc": true}
+var xWriters = map[string]bool{"ncl-allocation": true, "ncl-allocation-api": true, "holding-statement-api": true, "segmon-client-funds": true, "ncl-client-collateral": true, "ncl-cuspa-mtf-payout": true, "ncl-margin-reporting": true, "ncl-margin-reporting-fo": true, "mcx-margin-reporting": true, "ncl-short-allocation-reporting": true, "ncl-shortage-reporting": true, "cdsl-txn-upload": true, "bse-ucc": true, "mcx-ucc": true}
 
 // ExchangeFormats lists every known layout.
 func (o *Ops) ExchangeFormats() ([]XFormat, error) {
@@ -145,6 +145,9 @@ func (o *Ops) LoadExchangeFile(ctx context.Context, tenant, actor, name string, 
 			r.Note = strings.TrimPrefix(err.Error(), "xfile: ")
 			out = append(out, r)
 			continue
+		}
+		if xLenient(s.ID, f.Name) {
+			t.Issues = nil // read by its header names, or by its name only (mcxucc.go)
 		}
 		for _, row := range t.Rows {
 			if !row.Blank() {
@@ -283,6 +286,9 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 		}
 		r.Loaded, r.Added = "Loaded as G-sec and T-bill prices of "+date, n
 	default:
+		if o.loadMCXUCCFile(ctx, tenant, actor, s, f, rows, r) { // MCX UCC response, refused file, State-City master (mcxucc.go)
+			return
+		}
 		if o.loadMCXFile(ctx, tenant, actor, s, f, rows, r) { // MCX and MCXCCL files (mcxfiles.go)
 			return
 		}
@@ -487,7 +493,7 @@ func firmPAN(set Settings) string {
 type XFileOptions struct {
 	Exchange string `json:"exchange"` // NSE (default) or MCX, for allocation files
 	Segment  string `json:"segment"`  // CM, FO, CD or COM, for the collateral file
-	Seq      int    `json:"seq"`      // file number of the day (default 1)
+	Seq      int    `json:"seq"`      // file number of the day (default 1; for the MCX UCC file, the date's next batch)
 }
 
 // ExchangeFile writes an outgoing file for a date.
@@ -510,6 +516,7 @@ func (o *Ops) ExchangeFile(ctx context.Context, tenant, actor, id, date string, 
 	if err != nil {
 		return "", nil, err
 	}
+	seqGiven := opt.Seq > 0
 	if opt.Seq <= 0 {
 		opt.Seq = 1
 	}
@@ -538,6 +545,14 @@ func (o *Ops) ExchangeFile(ctx context.Context, tenant, actor, id, date string, 
 		name, content, err = o.disMasterFile(ctx, tenant, s, set, date, vars)
 	case "bse-ucc":
 		name, content, _, _, err = o.bseUCCBatchFile(ctx, tenant, s, vars)
+	case "mcx-ucc":
+		seq := 0 // the date's next batch unless one is given (mcxucc.go)
+		if seqGiven {
+			seq = opt.Seq
+		}
+		var b MCXUCCBatch
+		b, err = o.mcxUCCBatchFile(ctx, tenant, actor, s, set, date, seq)
+		name, content = b.Name, b.Content
 	}
 	if err != nil {
 		return "", nil, err

@@ -6,7 +6,8 @@
  "when": "As needed",
  "purpose": "New and modified client codes for MCX: header record + 240-field details (comma-separated).",
  "names": [
-  "MCX_\\d{8}_UCC\\d+\\.M\\d+"
+  "MCX_\\d{8}_UCC\\d+\\.M\\d+",
+  "MCX_\\d{8}_UCC\\d+\\.M\\d+\\.F\\d+"
  ],
  "template": "MCX_{date:02012006}_UCC{member}.M{seq:2}",
  "compress": "none",
@@ -1234,19 +1235,16 @@
      "type": "str"
     },
     {
-     "name": "Relationship with Client (Email)",
-     "key": "RelationshipWithClientEmail",
-     "type": "str"
-    },
-    {
-     "name": "Name of Authorised/Contact Person (Email)",
-     "key": "NameOfAuthorisedContactPersonEmail",
-     "type": "str"
-    },
-    {
      "name": "Relationship with Client (Mobile)",
      "key": "RelationshipWithClientMobile",
-     "type": "str"
+     "type": "str",
+     "codes": {
+      "1": "Self",
+      "2": "Spouse",
+      "3": "Dependent children",
+      "4": "Dependent parent",
+      "5": "Authorized/contact person (categories other than 01)"
+     }
     },
     {
      "name": "Name of Authorised/Contact Person (Mobile)",
@@ -1254,14 +1252,33 @@
      "type": "str"
     },
     {
+     "name": "Relationship with Client (Email)",
+     "key": "RelationshipWithClientEmail",
+     "type": "str",
+     "codes": {
+      "1": "Self",
+      "2": "Spouse",
+      "3": "Dependent children",
+      "4": "Dependent parent",
+      "5": "Authorized/contact person (categories other than 01)"
+     }
+    },
+    {
+     "name": "Name of Authorised/Contact Person (Email)",
+     "key": "NameOfAuthorisedContactPersonEmail",
+     "type": "str"
+    },
+    {
      "name": "Flag",
      "key": "Flag",
-     "type": "str"
+     "type": "str",
+     "const": "E",
+     "note": "E marks the end of the record"
     }
    ]
   }
  ],
  "confirmed": true,
- "linked": "",
- "source": "MCX circular MCX/TECH/023/2022 (13 Jan 2022), MCX UCC File Formats (Version 1.0), section 1.1, with the email and mobile relationship fields added in 2024"
+ "linked": "Written on Exchange UCC (MCX tab) and Exchange files for clients at UCC upload with the commodity segment and changes MCX does not hold yet; the file MCX returns with .F<error> marks the whole batch refused",
+ "source": "MCX circular MCX/TECH/023/2022 (13 Jan 2022), MCX UCC File Formats (Version 1.0), section 1.1 (fields 236 to 239: relationship and name for the mobile number, then for the e-mail); client e-mail mandatory for all categories from MCX/S&I/663/2024 (4 Oct 2024)"
 }

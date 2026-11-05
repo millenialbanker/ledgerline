@@ -7,9 +7,9 @@ title: Exchange UCC by API
 screen: uccapi
 roles: Ops maker, Ops checker, Risk manager, Compliance officer
 ask: ucc api; uci api; nse uci api; nse ucc api; send ucc by api; register clients with nse by api; exchange ucc screen; ucc sent to nse; ucc not sent; ucc needs fixing; bse ucc api; send clients to exchange automatically
-related: ucc-api-setup, ucc-api-fix, ucc-api-pan, ucc-upload, ucc-rejected
+related: ucc-api-setup, ucc-api-fix, ucc-api-pan, ucc-upload, ucc-rejected, mcx-ucc-file
 
-The **Exchange UCC** screen (Clients & onboarding) registers clients with each exchange through its UCC API instead of the batch file. It has a tab per exchange: **NSE** (NSE's UCI API), **BSE** (BSE's UCC REST API) and MCX, which takes the UCC file only.
+The **Exchange UCC** screen (Clients & onboarding) registers clients with each exchange through its UCC API instead of the batch file. It has a tab per exchange: **NSE** (NSE's UCI API), **BSE** (BSE's UCC REST API) and **MCX**, which takes the UCC file only (see the MCX UCC file).
 
 What goes to the exchange:
 
@@ -75,3 +75,19 @@ The exchange checks each client's PAN, name and date of birth with the Income Ta
 - **Pending**: the exchange has not finished checking.
 - **Incorrect PAN**: the PAN, name or date of birth does not match the PAN record. An Ops maker gets a work item: check them against the PAN card, correct the client record, and the corrected record is sent again.
 - **Not permitted to trade** in a segment: the compliance officer gets a work item to find out why (PAN verification, PAN-Aadhaar link) before the client trades.
+
+## mcx-ucc-file
+title: Register clients at MCX by the UCC file
+screen: uccapi
+roles: Ops maker, Ops checker, Compliance officer
+ask: mcx ucc; mcx ucc file; register client at mcx; mcx ucc upload; mcx ucc response file; mcx ucc rejected; mcx state city code; state city master mcx; mcx batch number; commodity ucc
+related: ucc-api, ucc-api-fix, ucc-upload
+
+MCX has no UCC API: new clients with the commodity segment, and changes to clients MCX holds, go in MCX's UCC file (MCX_DDMMYYYY_UCC<member>.Mnn). Open the **MCX** tab of [[uccapi|Exchange UCC]].
+
+1. Once, and whenever MCX revises it: save MCX's **State-City Code master** as CSV (with a header row: state, city, code) and load it on [[xfiles|Exchange files]]. Every client's city needs a code from it; a client whose city is not in it is listed with the problem.
+2. Click **Download UCC file**: it has every client that is new or changed and has nothing to fix, under the day's next batch number (01, 02… in series). Clients with problems are left out and listed: individuals only (an HUF, company, firm, trust or NRI is registered on MCX's portal), and each needs gender, father's or spouse's name, marital status, occupation, bank account type and the address, set under **Exchange UCC details** in the client's Preview.
+3. Upload the file on MCX's portal, then click **Mark uploaded** against it: its clients are **Sent**.
+4. Load MCX's response file (.Enn) on [[xfiles|Exchange files]]: each client becomes **Accepted** or **Rejected** with MCX's error in words, and an Ops maker gets a work item for each rejection. Correct the client and it goes in the next file. A file MCX refuses whole (returned as .Mnn.F<error>) puts its clients back for the next batch.
+
+A mobile number or e-mail address two clients share must say whose it is (self, spouse, dependent child or dependent parent) in the Exchange UCC details. Clients active before Ledgerline wrote its first MCX file are taken as registered at MCX already.

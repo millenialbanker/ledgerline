@@ -70,6 +70,15 @@ type UCCDetails struct {
 	UPI              string `json:"upi,omitempty"` // Y registered for UPI, N not
 	AgreementDate    string `json:"agreement_date,omitempty"`
 	CIN              string `json:"cin,omitempty"`
+	// BankType is the bank account's type (Savings, Current or Other),
+	// which MCX's UCC file needs and the client record does not hold.
+	BankType string `json:"bank_type,omitempty"`
+	// MobileRelation and EmailRelation say whose the mobile number and
+	// e-mail address are (Self, Spouse, Dependent child, Dependent parent):
+	// MCX takes a number or address as the client's own once; others
+	// sharing it must say how they are related.
+	MobileRelation string `json:"mobile_relation,omitempty"`
+	EmailRelation  string `json:"email_relation,omitempty"`
 
 	Contacts []UCCContact `json:"contacts,omitempty"`
 
@@ -82,7 +91,7 @@ func (d *UCCDetails) normalise() {
 	for _, p := range []*string{&d.Category, &d.Address1, &d.Address2, &d.Address3, &d.City, &d.State, &d.Country, &d.PIN,
 		&d.PermAddress1, &d.PermAddress2, &d.PermAddress3, &d.PermCity, &d.PermState, &d.PermCountry, &d.PermPIN,
 		&d.Gender, &d.Guardian, &d.Marital, &d.Nationality, &d.Occupation, &d.OccupationDetail, &d.IncomeAsOn, &d.PEP, &d.IPV,
-		&d.POAFunds, &d.POASecurities, &d.UPI, &d.AgreementDate, &d.CIN} {
+		&d.POAFunds, &d.POASecurities, &d.UPI, &d.AgreementDate, &d.CIN, &d.BankType, &d.MobileRelation, &d.EmailRelation} {
 		t(p)
 	}
 	for _, p := range []*string{&d.IPV, &d.POAFunds, &d.POASecurities, &d.UPI, &d.CIN} {

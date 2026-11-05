@@ -58,6 +58,7 @@ func (s *Server) opsRoutes() {
 	s.payoutHoldRoutes()
 	s.nseUCIRoutes()
 	s.bseUCCRoutes()
+	s.mcxUCCRoutes()
 	s.dealerRoutes()
 	s.cdslBORoutes()
 	s.cdslTxnRoutes()

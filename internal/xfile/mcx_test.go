@@ -152,6 +152,9 @@ func TestMCXFixtures(t *testing.T) {
 		if !strings.HasPrefix(s.ID, "mcx") || s.Direction != "in" || s.Format != "delimited" {
 			continue
 		}
+		if s.ID == "mcx-state-city-master" {
+			continue // published apart from the file formats; read by its header names (internal/ops/mcxucc.go)
+		}
 		n++
 		if !s.Confirmed || !strings.Contains(s.Source, "MCX") {
 			t.Errorf("%s: not confirmed from a circular (%q)", s.ID, s.Source)
