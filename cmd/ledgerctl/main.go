@@ -3,6 +3,7 @@
 //	ledgerctl demo                                    run the sample day end to end
 //	ledgerctl check -source NSE-CM-TRADE file.csv     parse a file without storing it
 //	ledgerctl quote -bucket CM-DEL -exchange NSE -side B -qty 10 -price 1412
+//	ledgerctl check-file FILE|FOLDER...                check real exchange files here; prints a masked summary
 package main
 
 import (
@@ -40,6 +41,12 @@ func main() {
 		err = quote(os.Args[2:])
 	case "keygen":
 		err = keygen(os.Args[2:])
+	case "check-file":
+		var bad int
+		bad, err = checkFile(os.Args[2:], os.Stdout)
+		if err == nil && bad > 0 {
+			os.Exit(3) // checked; some files have problems (see the summary)
+		}
 	default:
 		usage()
 	}
@@ -50,7 +57,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: ledgerctl demo | keygen [-version N] | check -source NAME FILE | quote -bucket B -exchange X -side B|S -qty N -price P [-date YYYY-MM-DD]")
+	fmt.Fprintln(os.Stderr, "usage: ledgerctl demo | keygen [-version N] | check -source NAME FILE | check-file [-json] FILE|FOLDER... | quote -bucket B -exchange X -side B|S -qty N -price P [-date YYYY-MM-DD]")
 	os.Exit(2)
 }
 

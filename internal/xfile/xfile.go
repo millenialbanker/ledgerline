@@ -397,15 +397,23 @@ func (l *Library) Recognise(name string, data []byte) (*Spec, error) {
 	if len(cands) == 0 && len(byName) > 1 {
 		// Header-less layouts sharing a name (a clearing member's and a
 		// trading member's file of the same name): the one whose record
-		// layouts every line fits.
-		var fit []*Spec
+		// layouts most of the first lines fit (all, in a good file; a file
+		// with a few bad lines is still told apart, to report them).
+		var best *Spec
+		top, tie := 0, false
 		for _, s := range byName {
-			if s.Format == "delimited" && !s.Header && s.linesFit(data, 200) {
-				fit = append(fit, s)
+			if s.Format != "delimited" || s.Header {
+				continue
+			}
+			switch n := s.linesFit(data, 200); {
+			case n > top:
+				best, top, tie = s, n, false
+			case n == top && n > 0:
+				tie = true
 			}
 		}
-		if len(fit) == 1 {
-			return fit[0], nil
+		if best != nil && !tie {
+			return best, nil
 		}
 	}
 	if len(cands) > 1 {
@@ -478,16 +486,14 @@ func (s *Spec) fits(f []string, cols []Column) bool {
 	return true
 }
 
-// linesFit says whether the first n lines of a file all fit a record layout.
-func (s *Spec) linesFit(data []byte, n int) bool {
+// linesFit counts how many of the first n lines of a file fit a record layout.
+func (s *Spec) linesFit(data []byte, n int) int {
 	data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
 	lines := strings.Split(strings.ReplaceAll(strings.ReplaceAll(string(data), "\r\n", "\n"), "\r", "\n"), "\n")
 	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
 		lines = lines[:len(lines)-1]
 	}
-	if len(lines) == 0 {
-		return false
-	}
+	fit := 0
 	for i, l := range lines {
 		if i >= n {
 			break
@@ -496,12 +502,11 @@ func (s *Spec) linesFit(data []byte, n int) bool {
 			continue
 		}
 		f := splitLine(s, l)
-		r := s.recordFor(f, i == 0, i == len(lines)-1)
-		if r == nil || !s.fits(f, r.Columns) {
-			return false
+		if r := s.recordFor(f, i == 0, i == len(lines)-1); r != nil && s.fits(f, r.Columns) {
+			fit++
 		}
 	}
-	return true
+	return fit
 }
 
 func splitLine(s *Spec, line string) []string {
