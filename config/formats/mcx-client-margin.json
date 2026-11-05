@@ -92,12 +92,14 @@
   },
   {
    "name": "PeakSnapshotRef",
-   "type": "str"
+   "type": "str",
+   "note": "Peak Snapshot Reference Number, Numeric (2) (revised by MCX/MCXCCL/327/2026); text, as MCXCCL gives it"
   },
   {
    "name": "IntrasarSnapshotRef",
-   "type": "str"
+   "type": "str",
+   "note": "Intrasar Snapshot Reference Number, Numeric (2) (revised by MCX/MCXCCL/327/2026); text, as MCXCCL gives it"
   }
  ],
- "source": "MCXCCL circular MCX/MCXCCL/327/2026 (MCXCCL/TECH/121/2026, 1 Jun 2026), Revision in Client Margin Reporting File Formats, section 1.7; checked against MCXCCL File Formats (Version 1, Public), section 1.14 Margin File, and MCX/TECH/394/2023, section 1.28: 19 fields, same order"
+ "source": "MCXCCL circular MCX/MCXCCL/327/2026 (MCXCCL/TECH/121/2026, 1 Jun 2026), Revision in Client Margin Reporting File Formats, section 1.7 (fields 18 and 19, the peak and intrasar snapshot reference numbers, revised; live date to be announced by MCXCCL); checked against MCXCCL File Formats (Version 1, Public), section 1.14 Margin File, and MCX/TECH/394/2023, section 1.28: 19 fields, same order"
 }

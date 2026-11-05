@@ -106,11 +106,13 @@
   },
   {
    "name": "PeakSnapshotRef",
-   "type": "str"
+   "type": "str",
+   "note": "Peak Snapshot Reference Number, Numeric (2) (revised by MCX/MCXCCL/327/2026); text, as MCXCCL gives it"
   },
   {
    "name": "IntrasarSnapshotRef",
-   "type": "str"
+   "type": "str",
+   "note": "Intrasar Snapshot Reference Number, Numeric (2) (revised by MCX/MCXCCL/327/2026); text, as MCXCCL gives it"
   }
  ],
  "compress": "none",
@@ -121,5 +123,5 @@
  "final_eol": true,
  "confirmed": true,
  "linked": "Written from MCXCCL's margin file with the margin collected from Ledgerline's allocation",
- "source": "MCXCCL circular MCX/MCXCCL/327/2026 (MCXCCL/TECH/121/2026, 1 Jun 2026), Revision in Client Margin Reporting File Formats, section 1.8 (the margin file with the member's collected amounts in fields 9 to 11 and 14)"
+ "source": "MCXCCL circular MCX/MCXCCL/327/2026 (MCXCCL/TECH/121/2026, 1 Jun 2026), Revision in Client Margin Reporting File Formats, section 1.8 (the margin file with the member's collected amounts in fields 9 to 11 and 14; fields 18 and 19, the snapshot reference numbers, revised, and written as MCXCCL's margin file gives them, so the file follows whichever layout MCXCCL sends)"
 }

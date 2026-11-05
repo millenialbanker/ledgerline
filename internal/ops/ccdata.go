@@ -782,7 +782,11 @@ func (o *Ops) SaveSAReason(ctx context.Context, tenant, actor string, x SAReason
 
 // marginReportingFile writes NSE Clearing's (cash) or MCXCCL's margin
 // reporting upload: the clearing corporation's own row, unaltered, with the
-// margin collected from Ledgerline's allocation for the segment.
+// margin collected from Ledgerline's allocation for the segment. MCXCCL's
+// fields other than the collected amounts (the reserved ones, and fields 18
+// and 19, the snapshot references of MCX/MCXCCL/327/2026) are written as
+// its margin file gave them, so the upload follows whichever layout
+// MCXCCL sends, before and after the revision goes live.
 func (o *Ops) marginReportingFile(ctx context.Context, tenant string, s *xfile.Spec, set Settings, date string, vars xfile.Vars) (string, []byte, error) {
 	alloc, err := o.Allocation(ctx, tenant, date)
 	if err != nil {

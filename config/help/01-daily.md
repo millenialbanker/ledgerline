@@ -278,6 +278,7 @@ Ledgerline reads MCX's and MCXCCL's files as MCXCCL's **File Formats** (Version 
 - **Position_MCXCCL_…** (UDiFF): commodity positions carried into the next day.
 - **MCX_<ddmmyyyy>ORD** (`.txt` from the terminal, or `_n.csv`): the MCX order log; order-to-trade ratios per firm, client and terminal (one line per order, so changes are not counted separately).
 - **EODSAR, INTRASAR, debit/credit notes, the CP master and DailyIndexFile**: kept; short allocations and debit/credit notes are listed on Clearing data.
+- **MCX_MARGIN_…, EODSAR and INTRASAR in the revised layout** (MCXCCL circular **MCX/MCXCCL/327/2026**, 1 June 2026; the live date is to be announced by MCXCCL): INTRASAR fields 9 and 15 and EODSAR field 9 become reserved, INTRASAR field 16 is the intrasar snapshot reference, and margin file fields 18 and 19 are the peak and intrasar snapshot references. The field counts are unchanged; files in the earlier and the revised layout both read, reserved fields are ignored, and the margin reporting upload (MCX_MARGIN_…_.Mnn) carries fields 18 and 19 as MCXCCL's margin file gave them, so it follows whichever layout MCXCCL sends without a setting.
 
 The daily file checklist lists these files at their usual times for a firm with an MCX member code. MCX's NCMR and daily index files have a title row whose text the circulars do not give, so only its number of columns is checked.
 

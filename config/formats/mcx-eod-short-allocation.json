@@ -62,8 +62,8 @@
   {
    "name": "Reserved",
    "type": "blank",
-   "note": "reserved for future use; any value is ignored"
+   "note": "Reserved, Numeric (15,2); ignored if the member reports it (revised by MCX/MCXCCL/327/2026); any value is ignored, so files in the earlier layout read too"
   }
  ],
- "source": "MCXCCL File Formats (Version 1, Public), section 1.43 EOD Short Allocation File to Member; MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.76"
+ "source": "MCXCCL circular MCX/MCXCCL/327/2026 (MCXCCL/TECH/121/2026, 1 Jun 2026), Revision in Client Margin Reporting File Formats, section 1.4 (field 9 revised; 9 fields, as before; live date to be announced by MCXCCL); MCXCCL File Formats (Version 1, Public), section 1.43 EOD Short Allocation File to Member; MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.76"
 }

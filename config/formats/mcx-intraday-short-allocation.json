@@ -63,7 +63,7 @@
   {
    "name": "Reserved 9",
    "type": "blank",
-   "note": "reserved for future use; any value is ignored"
+   "note": "Reserved, Numeric (15,2); ignored if the member reports it (revised by MCX/MCXCCL/327/2026); any value is ignored, so files in the earlier layout read too"
   },
   {
    "name": "Early Pay-in of Commodities",
@@ -93,12 +93,13 @@
   {
    "name": "Reserved 15",
    "type": "blank",
-   "note": "reserved for future use; any value is ignored"
+   "note": "Reserved, Numeric (15,2); ignored if the member reports it (revised by MCX/MCXCCL/327/2026); any value is ignored, so files in the earlier layout read too"
   },
   {
    "name": "Intrasar Snapshot reference number",
-   "type": "int"
+   "type": "str",
+   "note": "Numeric (2): the peak snapshot the short allocation is from (revised by MCX/MCXCCL/327/2026); read as text, so files in the earlier layout, whose field 16 differed, read too"
   }
  ],
- "source": "MCXCCL File Formats (Version 1, Public), section 1.46 Intraday Short Allocation File to Member; MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.79"
+ "source": "MCXCCL circular MCX/MCXCCL/327/2026 (MCXCCL/TECH/121/2026, 1 Jun 2026), Revision in Client Margin Reporting File Formats, section 1.1 (fields 9, 15 and 16 revised; 16 fields, as before; live date to be announced by MCXCCL); MCXCCL File Formats (Version 1, Public), section 1.46 Intraday Short Allocation File to Member; MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.79"
 }
