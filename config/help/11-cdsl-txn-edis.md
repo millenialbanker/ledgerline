@@ -20,6 +20,8 @@ A firm that is a CDSL DP can send its work to CDSL through CDSL's APIs instead o
 
 With the API off, **Upload file for CDAS** gives the same file to upload in CDAS by hand; record the results on the DIS tab as before.
 
+The transaction upload is in the harmonised layout of SEBI's UDiFF catalogue (TXN_UPLD, 177 fields, catalogue V3.0.1.4). CDSL's harmonised response (TXN_RESP: status A or R, CDSL's transaction ID, error code and description) is read both from the API and when loaded on [[xfiles|Exchange files]]: each uploaded slip is recorded executed or failed.
+
 **What the DP must get from CDSL first:** the API documents from its relationship manager; mock details from CDSL's helpdesk; a separate CDAS user for the APIs with its secret key; the server's public static IP address listed with CDSL (needed for the common upload, TPIN generation and pledges); success logs from mock testing sent from the DP's registered e-mail to enable the DP in Live; and, for eDIS, CDSL's registration form.
 
 ## cdsl-edis
@@ -29,7 +31,7 @@ roles: Ops maker, Ops checker, Risk manager, Branch staff
 ask: edis authorisation; client cannot sell shares; sell without ddpi; edis not authorised; short delivery edis; tpin authorisation failed; edis cancel; revoke edis; edis inquiry; edis status not received
 related: cdsl-edis-tpin, cdsl-txn-edis
 
-A client without a DDPI must authorise a sale from the demat account on CDSL's page with the CDSL **TPIN** and an OTP.
+A client without a DDPI must authorise a sale from the demat account on CDSL's page with the CDSL **TPIN** and an OTP. Whether the client has a DDPI on a demat account comes from CDSL's client master (CLN_MSTR): an active DDPI or POA for settlement to the firm's DDPI master (see the client master help). When it ends, the client's sales need eDIS again. CDSL's eDIS file (EDIS, the harmonised replacement of DPT3) can be loaded on Exchange files; authorisations in it that were not requested through Ledgerline go to the compliance officer.
 
 1. In the client portal, **Authorise sale (CDSL TPIN)** lists the shares that are free (holdings less pledges and pending slips). The client enters the quantities (up to 10 shares at a time) and goes to CDSL's page. Staff can do the same on **Depository → eDIS authorisations → Authorise for a client**, with the client present.
 2. CDSL sends the client back with the result. Ledgerline takes it only if it decrypts with the firm's eDIS key and matches a request sent from here, and records each share as authorised (with CDSL's transaction ID) or failed with the reason. The client gets an e-mail and SMS.

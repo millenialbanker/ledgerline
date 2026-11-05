@@ -47,6 +47,7 @@ func (s *Server) cdslBORoutes() {
 	s.mux.HandleFunc("POST /hooks/{tenant}/cdsl/bo/{token}", s.cdslBOHook)
 	s.mux.HandleFunc("GET /hooks/{tenant}/cdsl/go/{token}", s.cdslGo)
 	s.mux.HandleFunc("POST /hooks/{tenant}/cdsl/return/{token}", s.cdslReturn)
+	s.cdslHarmonRoutes() // CDSL freezes (cdslharmon.go)
 }
 
 func (s *Server) cdslList(w http.ResponseWriter, r *http.Request) {
