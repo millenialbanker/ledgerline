@@ -15,8 +15,9 @@ import (
 
 // ---- MCX UCC: mapping a client to MCX's UCC record ----
 //
-// MCX has no UCC API: new and modified client codes go in the UCC file
-// (MCX/TECH/023/2022, MCX UCC File Formats v1.0, section 1.1): a control
+// New and modified client codes go in the UCC file (MCX/TECH/023/2022,
+// MCX UCC File Formats v1.0, section 1.1), or the same record by MCX's UCC
+// API (mcxuccapi.go, which renames the fields to the API's): a control
 // record and one 240-field detail record per client, comma-separated, named
 // MCX_DDMMYYYY_UCC<member>.Mnn. The file has no add or modify flag: a
 // client code MCX already holds is a modification. MCX/S&I/663/2024 made

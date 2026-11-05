@@ -36,6 +36,9 @@ import (
 //     taken as registered at MCX before (as for BSE); their later changes
 //     go as modifications. Registrations share the collection of BSE's
 //     (key "MCX|<UCC>").
+//   - The same records also go by MCX's UCC API (mcxuccapi.go): one
+//     registration per client whichever way it went, and API add requests
+//     take their batch numbers from the same daily series.
 //
 // Choices where the specification is not explicit:
 //   - The file has no add or modify flag; a client code MCX holds is a
@@ -71,13 +74,25 @@ type MCXUCCBatchDoc struct {
 	Accepted   int                          `json:"accepted,omitempty"`
 	Rejected   int                          `json:"rejected,omitempty"`
 	FileError  string                       `json:"file_error,omitempty"`
+	Via        string                       `json:"via,omitempty"`   // API for a request sent by MCX's UCC API; empty for a file
+	Kind       string                       `json:"kind,omitempty"`  // API: add or update
+	Calls      []BSEUCCCall                 `json:"calls,omitempty"` // API: the request and answer, PAN, account and Aadhaar masked
 }
 
 func mcxBatchKey(date string, n int) string { return fmt.Sprintf("%s|%02d", date, n) }
 func mcxRegKey(ucc string) string           { return "MCX|" + ucc }
 
-// One MCX UCC change at a time across the server.
-var mcxUCCMu sync.Mutex
+// One MCX UCC change at a time per firm: the file and the API share the
+// registrations and the day's batch numbers.
+var mcxUCCMus sync.Map // tenant → *sync.Mutex
+
+// mcxUCCLock locks the firm's MCX UCC work and returns the unlock.
+func mcxUCCLock(tenant string) func() {
+	m, _ := mcxUCCMus.LoadOrStore(tenant, &sync.Mutex{})
+	mu := m.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
 
 // ---- the State-City master ----
 
@@ -306,8 +321,8 @@ func (o *Ops) mcxUCCItems(ctx context.Context, tenant, date string) ([]mcxUCCIte
 			}
 		}
 		r.Action = "Add"
-		if r.AcceptedHash != "" {
-			r.Action = "Modify"
+		if r.AcceptedHash != "" || r.Ref == mcxAtMCX {
+			r.Action = "Modify" // the API sends it as an update
 		}
 		r.Name = c.Name
 		it := mcxUCCItem{c: c, reg: r, exists: ok}
@@ -389,8 +404,7 @@ func (o *Ops) mcxUCCBatchFile(ctx context.Context, tenant, actor string, s *xfil
 	if member == "" {
 		return b, invalid("set the firm's MCX member code in Settings first")
 	}
-	mcxUCCMu.Lock()
-	defer mcxUCCMu.Unlock()
+	defer mcxUCCLock(tenant)()
 	next, batches := o.mcxUCCNextBatch(ctx, tenant, date)
 	if seq <= 0 {
 		seq = next
@@ -501,8 +515,7 @@ func (o *Ops) MCXUCCMarkUploaded(ctx context.Context, tenant, actor, file string
 	if !ok {
 		return res, invalid("give the name of the UCC file written for MCX (MCX_DDMMYYYY_UCC<member>.Mnn)")
 	}
-	mcxUCCMu.Lock()
-	defer mcxUCCMu.Unlock()
+	defer mcxUCCLock(tenant)()
 	b, _, err := docs.Get[MCXUCCBatchDoc](ctx, o.Docs, tenant, cMCXUCCBatch, mcxBatchKey(date, batch))
 	if err != nil || !strings.EqualFold(b.File, strings.TrimSpace(file)) {
 		return res, fmt.Errorf("%w: %s was not written by Ledgerline (or a later file of batch %02d replaced it)", ErrState, file, batch)
@@ -602,8 +615,7 @@ func (o *Ops) loadMCXUCCResponse(ctx context.Context, tenant, actor, name string
 	if date == "" || batch == 0 {
 		return 0, 0, 0, invalid("the response has no date and batch number (control record or file name)")
 	}
-	mcxUCCMu.Lock()
-	defer mcxUCCMu.Unlock()
+	defer mcxUCCLock(tenant)()
 	b, _, berr := docs.Get[MCXUCCBatchDoc](ctx, o.Docs, tenant, cMCXUCCBatch, mcxBatchKey(date, batch))
 	known := berr == nil
 	cs, _ := o.ClientMap(ctx, tenant)
@@ -628,21 +640,12 @@ func (o *Ops) loadMCXUCCResponse(ctx context.Context, tenant, actor, name string
 			r.Hash, r.Via = h, "File"
 			r.Action = firstOf(b.Actions[u], r.Action)
 		}
-		r.ResultAt, r.Ref, r.Problems = at, ref, nil
+		r.Name = firstOf(cs[u].Name, r.Name)
 		if code == "" {
-			r.AcceptedHash = r.Hash
-			if s, ok := b.Summaries[u]; ok {
-				r.Summary = s
-			}
-			r.event(at, actor, UCCAccepted, "", ref)
-			o.closeWork(ctx, tenant, actor, "mcxucc", "rej:"+u, "accepted by MCX")
+			o.mcxUCCAnswered(ctx, tenant, actor, &r, at, ref, date, "", "", b.Summaries[u], "")
 			acc++
 		} else {
-			text := MCXUCCError(code)
-			r.event(at, actor, UCCRejected, text, ref)
-			who := firstOf(cs[u].Name, u)
-			o.raiseWork(ctx, tenant, "mcxucc", "rej:"+u, "MCX rejected the UCC of "+who,
-				fmt.Sprintf("%s: MCX refused the client's record in %s: %s. Correct the client's details (or the Exchange UCC details); the corrected record goes in the next MCX UCC file.", u, ref, text), u, RoleMaker, "uccapi", date)
+			o.mcxUCCAnswered(ctx, tenant, actor, &r, at, ref, date, MCXUCCError(code), "", nil, "the corrected record goes in the next MCX UCC file.")
 			rej++
 		}
 		o.mcxUCCSaveReg(ctx, tenant, r)
@@ -658,12 +661,31 @@ func (o *Ops) loadMCXUCCResponse(ctx context.Context, tenant, actor, name string
 	return acc, rej, skipped, nil
 }
 
+// mcxUCCAnswered records MCX's answer for one client, from its response
+// file or its API: Accepted (note is the reason shown, e.g. PAN verification
+// pending), or Rejected with MCX's error and a work item for an Ops maker;
+// next says where the corrected record goes. The caller saves r.
+func (o *Ops) mcxUCCAnswered(ctx context.Context, tenant, actor string, r *BSEUCCReg, at, ref, date, errText, note string, summary map[string]string, next string) {
+	r.ResultAt, r.Ref, r.Problems = at, ref, nil
+	if errText == "" {
+		r.AcceptedHash = r.Hash
+		if summary != nil {
+			r.Summary = summary
+		}
+		r.event(at, actor, UCCAccepted, note, ref)
+		o.closeWork(ctx, tenant, actor, "mcxucc", "rej:"+r.UCC, "accepted by MCX")
+		return
+	}
+	r.event(at, actor, UCCRejected, errText, ref)
+	o.raiseWork(ctx, tenant, "mcxucc", "rej:"+r.UCC, "MCX rejected the UCC of "+firstOf(r.Name, r.UCC),
+		fmt.Sprintf("%s: MCX refused the client's record in %s: %s. Correct the client's details (or the Exchange UCC details); %s", r.UCC, ref, errText, next), r.UCC, RoleMaker, "uccapi", date)
+}
+
 // mcxUCCFileRefused handles a file MCX refused whole (.Mnn.F<error>): not
 // the clients' fault, so they are Not sent again and go in the next batch.
 func (o *Ops) mcxUCCFileRefused(ctx context.Context, tenant, actor, name string) (int, error) {
 	date, batch, code, _ := mcxUCCNameParts(name)
-	mcxUCCMu.Lock()
-	defer mcxUCCMu.Unlock()
+	defer mcxUCCLock(tenant)()
 	b, _, err := docs.Get[MCXUCCBatchDoc](ctx, o.Docs, tenant, cMCXUCCBatch, mcxBatchKey(date, batch))
 	if err != nil {
 		return 0, invalid("batch %02d of %s was not written by Ledgerline", batch, fmtDay(date))
@@ -711,17 +733,29 @@ type MCXUCCView struct {
 	NextBatch   int    `json:"next_batch"`
 	Master      string `json:"master"` // the State-City master: file and when loaded, "" when not loaded
 	MasterCount int    `json:"master_count"`
+	API         string `json:"api"` // the MCX UCC API connection: Not set, Saved, Working, Problem
+	APIProblem  string `json:"api_problem,omitempty"`
+	APILive     bool   `json:"api_live"`
+	APIAuto     bool   `json:"api_auto"`
 }
 
 // MCXUCCView lists the clients and the files.
 func (o *Ops) MCXUCCView(ctx context.Context, tenant, actor string) (MCXUCCView, error) {
-	v := MCXUCCView{BSEUCCView: BSEUCCView{Exchange: "MCX", Connection: "File", Counts: map[string]int{}, Clients: []BSEUCCClientRow{}, Runs: []BSEUCCRunRow{}}}
+	v := MCXUCCView{BSEUCCView: BSEUCCView{Exchange: "MCX", Connection: "File", Counts: map[string]int{}, Clients: []BSEUCCClientRow{}, Runs: []BSEUCCRunRow{}}, API: "Not set"}
 	if err := o.require(ctx, tenant, actor, "Viewing MCX UCC registrations", RoleMaker, RoleChecker, RoleCompliance); err != nil {
 		return v, err
 	}
 	set, _ := o.Settings(ctx, tenant)
 	v.Member = strings.TrimSpace(set.MemberCodes["MCX"])
 	v.Live = v.Member != ""
+	if cn, _, err := docs.Get[Connection](ctx, o.Docs, tenant, cConn, connMCXUCC); err == nil && cn.Status != "" && cn.Status != "Not set" {
+		v.API, v.APIProblem, v.APIAuto = cn.Status, cn.Problem, cn.Values["send"] == "On"
+		if x, err := parseMCXUCCConn(cn, v.Member); err != nil {
+			v.API, v.APIProblem = "Problem", err.Error()
+		} else {
+			v.APILive = x.live
+		}
+	}
 	for _, s := range []string{UCCNotSent, UCCSent, UCCAccepted, UCCRejected, UCCNeedsFixing} {
 		v.Counts[s] = 0
 	}
@@ -742,8 +776,12 @@ func (o *Ops) MCXUCCView(ctx context.Context, tenant, actor string) (MCXUCCView,
 		if it.pending {
 			probs = it.rec.Problems
 		}
+		ref := it.reg.Ref
+		if ref == mcxAtMCX {
+			ref = ""
+		}
 		v.Clients = append(v.Clients, BSEUCCClientRow{UCC: it.c.UCC, Name: it.c.Name, PAN: MaskPAN(it.c.PAN), Action: it.reg.Action, Status: st, Reason: reason, Problems: probs,
-			SentAt: it.reg.SentAt, ResultAt: it.reg.ResultAt, Ref: it.reg.Ref})
+			PANStatus: it.reg.PANStatus, SentAt: it.reg.SentAt, ResultAt: it.reg.ResultAt, Ref: ref})
 	}
 	sort.SliceStable(v.Clients, func(i, j int) bool { return rank[v.Clients[i].Status] < rank[v.Clients[j].Status] })
 	if len(v.Clients) > 1000 {
@@ -757,6 +795,12 @@ func (o *Ops) MCXUCCView(ctx context.Context, tenant, actor string) (MCXUCCView,
 		}
 		note := "written, not marked uploaded"
 		switch {
+		case b.Via == "API" && b.FileError != "":
+			note = "sent by API (" + b.Kind + "), stopped: " + b.FileError
+		case b.Via == "API" && b.ResponseAt == "":
+			note = "sent by API (" + b.Kind + "), no answer read: checked with MCX's search before it goes again"
+		case b.Via == "API":
+			note = "sent by API (" + b.Kind + ")"
 		case b.FileError != "":
 			note = "refused whole by MCX: " + b.FileError
 		case b.ResponseAt != "":

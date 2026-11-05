@@ -66,6 +66,7 @@ Chasing missing daily files | Ops maker, Ops checker, Risk manager, Compliance o
 Checking CDSL demat account counts | Ops maker, Ops checker, Compliance officer
 Checking PAN status at BSE | Ops maker, Ops checker
 Checking PAN status at the exchange | Ops maker, Ops checker, Compliance officer
+Checking UCC status at MCX | Ops maker, Ops checker, Compliance officer
 Checking a backup | Ops checker, Compliance officer
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
 Claiming IPO commission | Ops checker
