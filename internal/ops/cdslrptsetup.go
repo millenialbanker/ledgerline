@@ -39,9 +39,8 @@ import (
 // but says nothing of how a DP reaches that server. When CDSL gives one,
 // its address and login go in the connection, and the tick fetches new
 // files from it every half hour and loads them through the same readers.
-// The SSH client this needs is not in the standard library and go.mod
-// carries no other modules, so cdslSFTPFetch is nil in this build: the
-// screen says so and reports come in through the call-back or Files.
+// The client is in cdslsftp.go (github.com/pkg/sftp over
+// golang.org/x/crypto/ssh); the server's host key must be saved first.
 
 const (
 	cCDSLRptSetup = "cdslrptsetup" // by request sequence number
@@ -396,9 +395,7 @@ type CDSLSFTPConfig struct {
 }
 
 // cdslSFTPFetch lists and reads the files in the folder; files already
-// fetched are skipped by the caller. It is nil in this build: an SSH client
-// (golang.org/x/crypto/ssh and an SFTP package) is not available, as go.mod
-// keeps to the standard library. Tests set it.
+// fetched are skipped by the caller. Set in cdslsftp.go; tests replace it.
 var cdslSFTPFetch func(ctx context.Context, cfg CDSLSFTPConfig) ([]CDSLReportFile, error)
 
 var errNoSFTP = errors.New("this build of Ledgerline has no SFTP client; reports come in through the call-back or on Files")

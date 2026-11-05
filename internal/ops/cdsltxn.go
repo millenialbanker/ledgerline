@@ -84,7 +84,7 @@ var cdxFields = []ConnField{
 	{Key: "sftp_user", Label: "Report SFTP user", Optional: true},
 	{Key: "sftp_password", Label: "Report SFTP password", Secret: true, Optional: true},
 	{Key: "sftp_dir", Label: "Report SFTP folder", Optional: true, Placeholder: "/outgoing"},
-	{Key: "sftp_hostkey", Label: "Report SFTP server's host key fingerprint (SHA256:…)", Optional: true},
+	{Key: "sftp_hostkey", Label: "Report SFTP server's host key (SHA256:… fingerprint or the full key line). Required before fetching; the first try shows the key the server offers", Optional: true},
 }
 
 func init() {

@@ -450,12 +450,10 @@ func TestCDSLReportSFTPFetch(t *testing.T) {
 	if err := docs.Upsert(ctx, o.Docs, T, cConn, connCDSL, x.c, "admin"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := o.FetchCDSLSFTP(ctx, T, "priya.nair"); !errors.Is(err, ErrState) {
-		t.Fatalf("no client: %v", err)
+	if st := o.cdslSFTPState(ctx, T); st != "Not fetched yet" {
+		t.Fatal(st)
 	}
-	if !strings.Contains(o.cdslSFTPState(ctx, T), "no SFTP client") {
-		t.Fatal(o.cdslSFTPState(ctx, T))
-	}
+	prev := cdslSFTPFetch
 	calls := 0
 	cdslSFTPFetch = func(_ context.Context, cfg CDSLSFTPConfig) ([]CDSLReportFile, error) {
 		calls++
@@ -464,7 +462,7 @@ func TestCDSLReportSFTPFetch(t *testing.T) {
 		}
 		return []CDSLReportFile{{Name: "/out/DPG1_20261016.txt", Data: []byte("01|16102026\n")}}, nil
 	}
-	t.Cleanup(func() { cdslSFTPFetch = nil })
+	t.Cleanup(func() { cdslSFTPFetch = prev })
 	got, err := o.FetchCDSLSFTP(ctx, T, "priya.nair")
 	if err != nil || len(got) != 1 {
 		t.Fatalf("fetch %v %v", got, err)
