@@ -1,13 +1,12 @@
 {
  "id": "stamp-duty",
- "title": "Stamp duty file (NSE Clearing, MCXCCL)",
- "party": "NSE Clearing / MCXCCL",
+ "title": "Stamp duty file (NSE Clearing)",
+ "party": "NSE Clearing",
  "direction": "in",
  "when": "EOD / next morning",
  "purpose": "Stamp duty per client, state and contract as the clearing corporation collects it; reconciled with the stamp duty Ledgerline charged.",
  "names": [
-  "\\d{8}\\.txt",
-  "StampDuty_MCXCCL_CO_\\d+_TM_\\d+_\\d{8}_F_\\d+\\.csv"
+  "\\d{8}\\.txt"
  ],
  "header": true,
  "columns": [

@@ -1,0 +1,57 @@
+{
+ "id": "mcx-daily-index",
+ "title": "Daily index file (MCX)",
+ "party": "MCX",
+ "direction": "in",
+ "when": "EOD",
+ "purpose": "Each MCX index's open, high, low, close and previous close (-2000000000 where not available).",
+ "names": [
+  "DailyIndexFile\\d{8}(\\.csv)?"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "header_check": "count",
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Kept as MCX's index values of the day",
+ "columns": [
+  {
+   "name": "Index Name",
+   "type": "str"
+  },
+  {
+   "name": "Index Date",
+   "type": "str",
+   "note": "DDMMYYYY"
+  },
+  {
+   "name": "Open Value",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "High Value",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Low Value",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Closing Value",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Previous Close Value",
+   "type": "dec",
+   "decimals": 2
+  }
+ ],
+ "source": "MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.60 Daily Index File. The circular says the file has a column title row but does not give its text; only its number of columns is checked"
+}

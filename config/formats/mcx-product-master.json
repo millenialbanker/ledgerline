@@ -1,0 +1,342 @@
+{
+ "id": "mcx-product-master",
+ "title": "Product (contract) master (MCX)",
+ "party": "MCX",
+ "direction": "in",
+ "when": "BOD",
+ "purpose": "Every MCX underlying asset and contract: symbol, expiry, strike, lot (tradable lot and quotation quantity), tick, margins, position limits, delivery unit and delivery mode.",
+ "names": [
+  "MCX_ProductMaster(_\\d{8})?\\.csv"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as the commodity contract master (lot, tick, expiry, settlement and delivery) and into the day's MCX contracts used by commodity billing",
+ "columns": [
+  {
+   "name": "Instrument Name",
+   "type": "str",
+   "note": "FUTCOM, OPTFUT, FUTIDX …"
+  },
+  {
+   "name": "Instrument ID",
+   "type": "int"
+  },
+  {
+   "name": "Unique Identifier",
+   "type": "int"
+  },
+  {
+   "name": "Underlying Unique Identifier",
+   "type": "int",
+   "note": "0 for an underlying asset record; else the asset's unique identifier"
+  },
+  {
+   "name": "Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Underlying Asset",
+   "type": "str"
+  },
+  {
+   "name": "Underlying Group",
+   "type": "str"
+  },
+  {
+   "name": "Options Type",
+   "type": "str"
+  },
+  {
+   "name": "Strike Price",
+   "type": "dec",
+   "decimals": 4
+  },
+  {
+   "name": "Expiry Date",
+   "type": "str",
+   "note": "DDMMMYYYY; blank for call auction"
+  },
+  {
+   "name": "Base Price",
+   "type": "dec",
+   "decimals": 4
+  },
+  {
+   "name": "Product Description",
+   "type": "str"
+  },
+  {
+   "name": "Quotation Quantity",
+   "type": "int"
+  },
+  {
+   "name": "Quotation Unit",
+   "type": "str"
+  },
+  {
+   "name": "Unique Identifier of Mapped Auction Buy In Product",
+   "type": "int"
+  },
+  {
+   "name": "Unique Identifier of Mapped Auction Sell Out Product",
+   "type": "int"
+  },
+  {
+   "name": "T2T Allowed",
+   "type": "str",
+   "note": "Y or N"
+  },
+  {
+   "name": "Reserved 18",
+   "type": "blank",
+   "note": "reserved for future use; any value is ignored"
+  },
+  {
+   "name": "Tradable Lot",
+   "type": "int",
+   "note": "times the quotation quantity gives the lot size"
+  },
+  {
+   "name": "Price Tick",
+   "type": "dec",
+   "decimals": 4,
+   "note": "blank for an underlying asset"
+  },
+  {
+   "name": "Near Month Product Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Far Month Product Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Product Start Date Time",
+   "type": "str",
+   "note": "DD-MMM-YYYY HH:MM:SS"
+  },
+  {
+   "name": "Product End Date Time",
+   "type": "str",
+   "note": "DD-MMM-YYYY HH:MM:SS"
+  },
+  {
+   "name": "Tender Start Date Time",
+   "type": "str",
+   "note": "DD-MMM-YYYY HH:MM:SS"
+  },
+  {
+   "name": "Tender End Date",
+   "type": "str",
+   "note": "DD-MMM-YYYY"
+  },
+  {
+   "name": "Delivery Start Date",
+   "type": "str",
+   "note": "DD-MMM-YYYY"
+  },
+  {
+   "name": "Delivery End Date",
+   "type": "str",
+   "note": "DD-MMM-YYYY"
+  },
+  {
+   "name": "Expiry Process Date",
+   "type": "str",
+   "note": "DD-MMM-YYYY"
+  },
+  {
+   "name": "Margin Indicator",
+   "type": "str",
+   "note": "0 none, 1 per cent, 2 flat per trading unit"
+  },
+  {
+   "name": "Regular Buy Margin",
+   "type": "dec",
+   "decimals": 8
+  },
+  {
+   "name": "Regular Sell Margin",
+   "type": "dec",
+   "decimals": 8
+  },
+  {
+   "name": "Special Buy Margin",
+   "type": "dec",
+   "decimals": 8
+  },
+  {
+   "name": "Special Sell Margin",
+   "type": "dec",
+   "decimals": 8
+  },
+  {
+   "name": "Tender Buy Margin",
+   "type": "dec",
+   "decimals": 8
+  },
+  {
+   "name": "Tender Sell Margin",
+   "type": "dec",
+   "decimals": 8
+  },
+  {
+   "name": "Delivery Buy Margin",
+   "type": "dec",
+   "decimals": 8
+  },
+  {
+   "name": "Delivery Sell Margin",
+   "type": "dec",
+   "decimals": 8
+  },
+  {
+   "name": "Limit for All Client",
+   "type": "dec",
+   "decimals": 8
+  },
+  {
+   "name": "Limit for Only All Client",
+   "type": "dec",
+   "decimals": 8
+  },
+  {
+   "name": "Limit for Only All Own",
+   "type": "dec",
+   "decimals": 8
+  },
+  {
+   "name": "Limit Per Client Account",
+   "type": "dec",
+   "decimals": 8
+  },
+  {
+   "name": "Limit Per Own Account",
+   "type": "dec",
+   "decimals": 8
+  },
+  {
+   "name": "Spread Benefit Allowed",
+   "type": "str"
+  },
+  {
+   "name": "Record Deleted",
+   "type": "str",
+   "note": "Y deleted, N active"
+  },
+  {
+   "name": "Remarks",
+   "type": "str"
+  },
+  {
+   "name": "Price Numerator",
+   "type": "dec",
+   "decimals": 4
+  },
+  {
+   "name": "Price Denominator",
+   "type": "dec",
+   "decimals": 4
+  },
+  {
+   "name": "General Numerator",
+   "type": "dec",
+   "decimals": 4
+  },
+  {
+   "name": "General Denominator",
+   "type": "dec",
+   "decimals": 4
+  },
+  {
+   "name": "Lot Numerator",
+   "type": "dec",
+   "decimals": 4
+  },
+  {
+   "name": "Lot Denominator",
+   "type": "dec",
+   "decimals": 4
+  },
+  {
+   "name": "Decimal Locator",
+   "type": "int"
+  },
+  {
+   "name": "Block Deal",
+   "type": "int"
+  },
+  {
+   "name": "Currency Code",
+   "type": "str"
+  },
+  {
+   "name": "Reserved 56",
+   "type": "blank",
+   "note": "reserved for future use; any value is ignored"
+  },
+  {
+   "name": "Delivery Weight",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Delivery Unit",
+   "type": "str"
+  },
+  {
+   "name": "Product Month",
+   "type": "str",
+   "note": "MMMYY"
+  },
+  {
+   "name": "Trade Group ID",
+   "type": "int"
+  },
+  {
+   "name": "Matching No.",
+   "type": "int"
+  },
+  {
+   "name": "Pre-Open Session",
+   "type": "int"
+  },
+  {
+   "name": "Spread Type",
+   "type": "int"
+  },
+  {
+   "name": "Extreme Loss Buy Margin",
+   "type": "dec",
+   "decimals": 8,
+   "note": "per cent"
+  },
+  {
+   "name": "Extreme Loss Sell Margin",
+   "type": "dec",
+   "decimals": 8,
+   "note": "per cent"
+  },
+  {
+   "name": "Option Pricing Method",
+   "type": "str",
+   "note": "-1 not an option, 0 Black Scholes, 3 Black76, 4 Bachelier"
+  },
+  {
+   "name": "Threshold Limit (Rs.)",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Delivery Mode",
+   "type": "int",
+   "note": "0 both, 1 seller's option, 2 compulsory delivery, -1 not deliverable"
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), section 1.1 Underlying Asset/Product; MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.1"
+}

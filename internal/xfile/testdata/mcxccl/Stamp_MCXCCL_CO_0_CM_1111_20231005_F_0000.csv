@@ -1,0 +1,8 @@
+RptHdr,Sgmt,Src,SttlmTp,SctiesSttlmTxId,ClrMmbId,BrkrOrCtdnPtcptId,ClctnDt,DueDt,ClntId,CtrySubDvsn,TckrSymb,SctySrs,FinInstrmId,FinInstrmTp,ISIN,XpryDt,StrkPric,OptnTp,TtlBuyTradgVol,TtlBuyTrfVal,TtlSellTradgVol,TtlSellTrfVal,BuyDlvryQty,BuyDlvryVal,BuyOthrThanDlvryQty,BuyOthrThanDlvryVal,BuyStmpDty,SellStmpDty,SttlmPric,BuyDlvryStmpDty,BuyOthrThanDlvryStmpDty,StmpDtyAmt,Rmks,Rsvd1,Rsvd2,Rsvd3,Rsvd4
+10,CO,MCXCCL,NORMAL1,,1111,,2023-10-05,,,,,,,,,,,,,,,,,,,,,,,,,890407.43,,,,,
+20,CO,MCXCCL,NORMAL1,,,99999,2023-10-05,,,,,,,,,,,,,,,,,,,,,,,,,218284.06,,,,,
+20,CO,MCXCCL,NORMAL1,,,99999,2023-10-05,,,,,,,,,,,,,,,,,,,,,,,,,1168.05,,,,,
+30,CO,MCXCCL,NORMAL1,,,99999,2023-12-05,,10501,,,,,,,,,,,,,,,,,,,,,,,238.80,,,,,
+30,CO,MCXCCL,NORMAL1,,,99999,2023-12-05,,10502,,,,,,,,,,,,,,,,,,,,,,,157.61,,,,,
+40,CO,MCXCCL,NORMAL1,,,99999,2023-12-05,,G14,Madhya Pradesh,ZINC,,,FUO,,2023-11-21,195.00,PE,,700.00,,,,,,,0.02,,,,,0.02,,,,,
+40,CO,MCXCCL,NORMAL1,,,99999,2023-12-05,,G15,Assam,LEAD,,,COF,,2023-12-29,200.00,,,950868750.00,,,,,,,19017.38,,,,,19017.38,,,,,

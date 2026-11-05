@@ -1,0 +1,379 @@
+{
+ "id": "mcx-collateral-client",
+ "title": "Collateral file for end clients / CPs (MCXCCL, MCX_CD_…_UCC)",
+ "party": "MCXCCL",
+ "direction": "in",
+ "when": "EOD / next morning",
+ "purpose": "Each end client's (or CP's) collateral with MCXCCL: totals, eligible collateral with haircut and pledge status, the day's inward and outward, and renewals.",
+ "names": [
+  "MCX_CD_\\d+_(UCC|CP)_\\d{8}\\.csv"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "trailing_empty": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as each client's collateral with MCXCCL, shown with the commodity allocation (Clearing data)",
+ "records": [
+  {
+   "code": "10",
+   "columns": [
+    {
+     "name": "Record Type",
+     "type": "str",
+     "const": "10"
+    },
+    {
+     "name": "Date",
+     "type": "str",
+     "note": "DDMMYYYY"
+    },
+    {
+     "name": "Member Code",
+     "type": "str",
+     "note": "INST for a CP record"
+    },
+    {
+     "name": "End Client/CP Code",
+     "type": "str"
+    },
+    {
+     "name": "Cash",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Cash Collateral",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Other Collateral",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Blocked Minimum Liquid Net Worth Amount",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Blocked Minimum Liquid Net Worth Amount Cash",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Blocked Minimum Liquid Net Worth Amount Non-Cash",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Reserved",
+     "type": "blank",
+     "note": "reserved for future use; any value is ignored"
+    },
+    {
+     "name": "Pledge Status",
+     "type": "str",
+     "note": "P pledge, R re-pledge (warehouse and share securities)"
+    }
+   ]
+  },
+  {
+   "code": "20",
+   "columns": [
+    {
+     "name": "Record Type",
+     "type": "str",
+     "const": "20"
+    },
+    {
+     "name": "CM Code",
+     "type": "int"
+    },
+    {
+     "name": "TM Code",
+     "type": "str",
+     "note": "INST for a CP record"
+    },
+    {
+     "name": "End Client/CP Code",
+     "type": "str"
+    },
+    {
+     "name": "Group Type",
+     "type": "int",
+     "note": "01 cash, 02 FD, 03 BG, 04 G-sec, 05 T-bills, 06 warehouse receipts, 07 share securities"
+    },
+    {
+     "name": "Collateral Type",
+     "type": "int",
+     "note": "01 cash, 02 cash collateral, 03 others"
+    },
+    {
+     "name": "Custodian/Depository Name",
+     "type": "str"
+    },
+    {
+     "name": "Instrument / Bank Name",
+     "type": "str"
+    },
+    {
+     "name": "Instrument Number",
+     "type": "str"
+    },
+    {
+     "name": "Quantity / Face Value",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Currency Code",
+     "type": "str"
+    },
+    {
+     "name": "Conversion Factor",
+     "type": "dec",
+     "decimals": 6
+    },
+    {
+     "name": "Blocked Amount",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Amount Before Hair Cut",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Hair Cut %",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Amount After Hair Cut",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Reserved",
+     "type": "blank",
+     "note": "reserved for future use; any value is ignored"
+    },
+    {
+     "name": "Start Date",
+     "type": "str",
+     "note": "DDMMYYYY"
+    },
+    {
+     "name": "Expiry Date",
+     "type": "str",
+     "note": "DDMMYYYY"
+    },
+    {
+     "name": "Pledge Status",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "30",
+   "columns": [
+    {
+     "name": "Record Type",
+     "type": "str",
+     "const": "30"
+    },
+    {
+     "name": "CM Code",
+     "type": "int"
+    },
+    {
+     "name": "TM Code",
+     "type": "str"
+    },
+    {
+     "name": "End Client/CP Code",
+     "type": "str"
+    },
+    {
+     "name": "Date",
+     "type": "str",
+     "note": "DDMMYYYY"
+    },
+    {
+     "name": "Inward / Outward",
+     "type": "str"
+    },
+    {
+     "name": "Group Type",
+     "type": "int",
+     "note": "01 cash, 02 FD, 03 BG, 04 G-sec, 05 T-bills, 06 warehouse receipts, 07 share securities"
+    },
+    {
+     "name": "Collateral Type",
+     "type": "int",
+     "note": "01 cash, 02 cash collateral, 03 others"
+    },
+    {
+     "name": "Custodian/Depository Name",
+     "type": "str"
+    },
+    {
+     "name": "Instrument / Bank Name",
+     "type": "str"
+    },
+    {
+     "name": "Instrument Number",
+     "type": "str"
+    },
+    {
+     "name": "Quantity / Face Value",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Currency Code",
+     "type": "str"
+    },
+    {
+     "name": "Amount",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Blocked Amount",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Amount Before Hair Cut",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Hair Cut %",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Amount After Hair Cut",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Exchange/CCL",
+     "type": "str"
+    },
+    {
+     "name": "Start Date",
+     "type": "str",
+     "note": "DDMMYYYY"
+    },
+    {
+     "name": "Expiry Date",
+     "type": "str",
+     "note": "DDMMYYYY"
+    },
+    {
+     "name": "Reserved 22",
+     "type": "blank",
+     "note": "reserved for future use; any value is ignored"
+    },
+    {
+     "name": "Reserved 23",
+     "type": "blank",
+     "note": "reserved for future use; any value is ignored"
+    },
+    {
+     "name": "Liquid Net Worth",
+     "type": "str",
+     "note": "Y or N"
+    },
+    {
+     "name": "Pledge Status",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "40",
+   "columns": [
+    {
+     "name": "Record Type",
+     "type": "str",
+     "const": "40"
+    },
+    {
+     "name": "CM Code",
+     "type": "int"
+    },
+    {
+     "name": "TM Code",
+     "type": "int"
+    },
+    {
+     "name": "Date",
+     "type": "str",
+     "note": "DDMMYYYY"
+    },
+    {
+     "name": "Group Type",
+     "type": "int",
+     "note": "01 cash, 02 FD, 03 BG, 04 G-sec, 05 T-bills, 06 warehouse receipts, 07 share securities"
+    },
+    {
+     "name": "Collateral Type",
+     "type": "int",
+     "note": "01 cash, 02 cash collateral, 03 others"
+    },
+    {
+     "name": "Instrument / Bank Name",
+     "type": "str"
+    },
+    {
+     "name": "Old Instrument Number",
+     "type": "str"
+    },
+    {
+     "name": "New Instrument Number",
+     "type": "str"
+    },
+    {
+     "name": "Currency Code",
+     "type": "str"
+    },
+    {
+     "name": "Old Amount",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Renewed Amount",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Start Date",
+     "type": "str",
+     "note": "DDMMYYYY"
+    },
+    {
+     "name": "Expiry Date",
+     "type": "str",
+     "note": "DDMMYYYY"
+    },
+    {
+     "name": "Claim Date",
+     "type": "str",
+     "note": "DDMMYYYY"
+    }
+   ]
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), section 1.38 Collateral File to Members for End Client/CP; MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.71"
+}

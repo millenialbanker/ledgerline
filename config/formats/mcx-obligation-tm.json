@@ -1,0 +1,156 @@
+{
+ "id": "mcx-obligation-tm",
+ "title": "Obligation file to trading member (MCXCCL, NOBL / PNOBL)",
+ "party": "MCXCCL",
+ "direction": "in",
+ "when": "EOD (provisional PNOBL intraday)",
+ "purpose": "The day's funds obligation: the member's MTM, premium, exercise/assignment, charges and net pay-in or pay-out, and each client's per contract.",
+ "names": [
+  "MCX_P?NOBL_\\d+_\\d{8}\\.csv"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as the commodity settlement obligation and reconciled with Ledgerline's own MCX obligation per client (Clearing data)",
+ "records": [
+  {
+   "code": "10",
+   "columns": [
+    {
+     "name": "Record Type",
+     "type": "str",
+     "const": "10"
+    },
+    {
+     "name": "Date",
+     "type": "str",
+     "note": "DDMMYYYY"
+    },
+    {
+     "name": "CM ID",
+     "type": "str"
+    },
+    {
+     "name": "TM ID",
+     "type": "str"
+    },
+    {
+     "name": "Reserved",
+     "type": "blank",
+     "note": "reserved for future use; any value is ignored"
+    },
+    {
+     "name": "Due Date Of Payment",
+     "type": "str",
+     "note": "DDMMYYYY"
+    },
+    {
+     "name": "Number of Detail Records at End Client Level",
+     "type": "int"
+    },
+    {
+     "name": "MTM Profit/Loss",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Premium Pay-In/Pay-out",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Exercise / Assignment Value",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Charges",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Net Pay-In/Pay-Out",
+     "type": "dec",
+     "decimals": 2,
+     "note": "pay-in (due from member) negative"
+    },
+    {
+     "name": "Currency Code",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "20",
+   "columns": [
+    {
+     "name": "Record Type",
+     "type": "str",
+     "const": "20"
+    },
+    {
+     "name": "Account Type",
+     "type": "str",
+     "note": "P proprietary, C client"
+    },
+    {
+     "name": "Account ID",
+     "type": "str",
+     "note": "TM ID for P"
+    },
+    {
+     "name": "Instrument Name",
+     "type": "str"
+    },
+    {
+     "name": "Symbol",
+     "type": "str"
+    },
+    {
+     "name": "Expiry Date",
+     "type": "str",
+     "note": "DDMMMYYYY"
+    },
+    {
+     "name": "Strike Price",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Options Type",
+     "type": "str"
+    },
+    {
+     "name": "MTM Profit/Loss",
+     "type": "dec",
+     "decimals": 2,
+     "note": "profit positive, loss negative"
+    },
+    {
+     "name": "Premium Pay-In/PayOut",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Exercise/Assignment Value",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Currency Code",
+     "type": "str"
+    },
+    {
+     "name": "Reserved",
+     "type": "blank",
+     "note": "reserved for future use; any value is ignored"
+    }
+   ]
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), section 1.8 Obligation File to Trading Member; MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.19"
+}

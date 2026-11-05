@@ -1,0 +1,174 @@
+{
+ "id": "mcx-ncmr",
+ "title": "Daily margin shortfall and penalty to trading member (MCXCCL, NCMR)",
+ "party": "MCXCCL",
+ "direction": "in",
+ "when": "Next morning",
+ "purpose": "Each client's margin utilised and reported (initial, other, MTM, peak, short allocation), the shortfalls and the penalty MCXCCL levied.",
+ "names": [
+  "MCX_NCMR_\\d+_\\d{8}\\.csv"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "header_check": "count",
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as the shortfall and penalty MCXCCL levied per client: margin reporting shows it and it is the penalty of the pass-through rules (never debited without approval)",
+ "columns": [
+  {
+   "name": "Trade Date",
+   "type": "date",
+   "layout": "02-Jan-06",
+   "note": "DD-Mmm-YY"
+  },
+  {
+   "name": "CM ID",
+   "type": "str"
+  },
+  {
+   "name": "CM Name",
+   "type": "str"
+  },
+  {
+   "name": "TM/CP ID",
+   "type": "str"
+  },
+  {
+   "name": "TM/Fund Name",
+   "type": "str"
+  },
+  {
+   "name": "Client Code",
+   "type": "str",
+   "note": "blank for ITCM/PCM"
+  },
+  {
+   "name": "Actual Shortfall",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Shortfall on which penalty has been levied",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Shortfall%",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Count of Shortfall for Consecutive Days",
+   "type": "int"
+  },
+  {
+   "name": "Count of Shortfall in the Calendar Month",
+   "type": "int"
+  },
+  {
+   "name": "Applicable Penalty %",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Penalty Amount",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Initial Margin Utilized",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Other Margin Utilized",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "MTM",
+   "type": "dec",
+   "decimals": 2,
+   "note": "net pay-in of MTM and exercise/assignment; 0.00 for a pay-out"
+  },
+  {
+   "name": "Initial Margin Reported",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Other Margin Reported",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "MTM Reported",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Initial Margin Shortfall",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Other Margin & MTM Shortfall",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Peak Margin Utilized",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Peak Margin Reported",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Peak Margin Shortfall",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Intra-day short Allocation",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "EOD Short Allocation",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Intra-day Short Allocation Reported",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Reserved",
+   "type": "blank",
+   "note": "reserved for future use; any value is ignored"
+  },
+  {
+   "name": "Intra-day allocation shortfall",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "EOD Short Allocation Reported",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "EOD allocation shortfall",
+   "type": "dec",
+   "decimals": 2
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), section 1.13 Daily Margin Shortfall and Penalty to Trading Member; MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.26. The circulars say the file has a column title row but do not give its text; only its number of columns is checked"
+}

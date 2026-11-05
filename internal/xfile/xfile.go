@@ -44,6 +44,26 @@ type Column struct {
 	Quote    string `json:"quote,omitempty"`    // "always": in double quotes even when empty; "set": quoted when it has a value
 	Required bool   `json:"required,omitempty"`
 	Note     string `json:"note,omitempty"`
+	// Aliases are other header texts the column is known by (a circular
+	// and the exchange's own files spelling a reserved field differently).
+	Aliases []string `json:"aliases,omitempty"`
+}
+
+// reserved says whether a column is a reserved or dummy field.
+func (c Column) reserved() bool { return c.Type == "blank" }
+
+// named says whether a header text is the column's name or an alias.
+func (c Column) named(h string) bool {
+	h = strings.TrimSpace(h)
+	if strings.EqualFold(h, c.Name) {
+		return true
+	}
+	for _, a := range c.Aliases {
+		if strings.EqualFold(h, a) {
+			return true
+		}
+	}
+	return false
 }
 
 // Record is one kind of line in a file with several (a header record,
@@ -62,10 +82,11 @@ type Spec struct {
 	Direction   string   `json:"direction"` // in (received) or out (sent)
 	When        string   `json:"when"`      // BOD, Intraday, EOD, On request
 	Purpose     string   `json:"purpose"`
-	Names       []string `json:"names"`    // regular expressions matching the file name (as received or sent)
-	Template    string   `json:"template"` // name of a file Ledgerline writes: {member}, {member_pan}, {date:02012006}, {seq:2}
-	Compress    string   `json:"compress"` // none, gzip, zip
-	Format      string   `json:"format"`   // delimited, json
+	Names       []string `json:"names"`               // regular expressions matching the file name (as received or sent)
+	NotNames    []string `json:"not_names,omitempty"` // names the patterns would match that are another layout's
+	Template    string   `json:"template"`            // name of a file Ledgerline writes: {member}, {member_pan}, {date:02012006}, {seq:2}
+	Compress    string   `json:"compress"`            // none, gzip, zip
+	Format      string   `json:"format"`              // delimited, json
 	Delimiter   string   `json:"delimiter"`
 	Header      bool     `json:"header"`
 	TitleLine   string   `json:"title_line,omitempty"` // a fixed first line before the records (e.g. "RMS Limits")
@@ -74,13 +95,22 @@ type Spec struct {
 	FinalEOL    bool     `json:"final_eol"`
 	TextTrailer bool     `json:"text_trailer,omitempty"` // the last line is free text (a total or a note)
 	HeaderLine  string   `json:"header_line,omitempty"`  // the header exactly as the file has it, when it is not plain CSV (a comma inside a name)
-	Columns     []Column `json:"columns,omitempty"`
-	Records     []Record `json:"records,omitempty"`
-	JSONShape   any      `json:"json_shape,omitempty"`
-	Confirmed   bool     `json:"confirmed"` // every column's meaning is from the published spec or the file's own header
-	Linked      string   `json:"linked"`    // what Ledgerline does with it ("" = layout known, not used yet)
-	Source      string   `json:"source,omitempty"`
-	nameRx      []*regexp.Regexp
+	// HeaderCheck "count": the file has a header row whose text the
+	// published layout does not give; only its number of columns is
+	// checked, and the layout is never recognised by its header.
+	HeaderCheck string `json:"header_check,omitempty"`
+	// TrailingEmpty: a line may end with empty fields beyond the layout (a
+	// trailing delimiter) or stop before trailing reserved fields; such a
+	// line is read as the layout and written back as it came.
+	TrailingEmpty bool     `json:"trailing_empty,omitempty"`
+	Columns       []Column `json:"columns,omitempty"`
+	Records       []Record `json:"records,omitempty"`
+	JSONShape     any      `json:"json_shape,omitempty"`
+	Confirmed     bool     `json:"confirmed"` // every column's meaning is from the published spec or the file's own header
+	Linked        string   `json:"linked"`    // what Ledgerline does with it ("" = layout known, not used yet)
+	Source        string   `json:"source,omitempty"`
+	nameRx        []*regexp.Regexp
+	notRx         []*regexp.Regexp
 }
 
 // Library is the set of known layouts.
@@ -196,6 +226,22 @@ func (s *Spec) compile() error {
 		}
 		s.nameRx = append(s.nameRx, rx)
 	}
+	for _, n := range s.NotNames {
+		rx, err := regexp.Compile("(?i)^(?:" + n + ")$")
+		if err != nil {
+			return fmt.Errorf("%s: excluded name pattern %q: %w", s.ID, n, err)
+		}
+		s.notRx = append(s.notRx, rx)
+	}
+	switch s.HeaderCheck {
+	case "":
+	case "count":
+		if !s.Header {
+			return fmt.Errorf("%s: header_check needs a header row", s.ID)
+		}
+	default:
+		return fmt.Errorf("%s: header_check must be empty or count", s.ID)
+	}
 	return nil
 }
 
@@ -228,6 +274,11 @@ func (s *Spec) detail() *Record {
 // MatchesName reports whether a file name fits the spec.
 func (s *Spec) MatchesName(name string) bool {
 	base := path.Base(strings.ReplaceAll(name, "\\", "/"))
+	for _, rx := range s.notRx {
+		if rx.MatchString(base) {
+			return false
+		}
+	}
 	for _, rx := range s.nameRx {
 		if rx.MatchString(base) {
 			return true
@@ -336,12 +387,26 @@ func (l *Library) Recognise(name string, data []byte) (*Spec, error) {
 		pool = l.Specs
 	}
 	for _, s := range pool {
-		if s.Format == "delimited" && s.Header && headerMatches(s, first) {
+		if s.Format == "delimited" && s.Header && s.HeaderCheck == "" && headerMatches(s, first) {
 			cands = append(cands, s)
 		}
 	}
 	if len(cands) == 1 {
 		return cands[0], nil
+	}
+	if len(cands) == 0 && len(byName) > 1 {
+		// Header-less layouts sharing a name (a clearing member's and a
+		// trading member's file of the same name): the one whose record
+		// layouts every line fits.
+		var fit []*Spec
+		for _, s := range byName {
+			if s.Format == "delimited" && !s.Header && s.linesFit(data, 200) {
+				fit = append(fit, s)
+			}
+		}
+		if len(fit) == 1 {
+			return fit[0], nil
+		}
 	}
 	if len(cands) > 1 {
 		ids := make([]string, len(cands))
@@ -374,11 +439,65 @@ func headerMatches(s *Spec, line string) bool {
 	}
 	f := splitLine(s, line)
 	cols := s.detail().Columns
-	if len(f) != len(cols) {
+	if !s.fits(f, cols) {
 		return false
 	}
+	if s.HeaderCheck == "count" {
+		return true
+	}
 	for i, c := range cols {
-		if !strings.EqualFold(strings.TrimSpace(f[i]), c.Name) {
+		if i < len(f) && !c.named(f[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// fits says whether a line's fields fit a record layout: exactly, or with
+// the spec's leniency on trailing fields.
+func (s *Spec) fits(f []string, cols []Column) bool {
+	if len(f) == len(cols) {
+		return true
+	}
+	if !s.TrailingEmpty {
+		return false
+	}
+	if len(f) > len(cols) {
+		for _, v := range f[len(cols):] {
+			if strings.TrimSpace(v) != "" {
+				return false
+			}
+		}
+		return true
+	}
+	for _, c := range cols[len(f):] {
+		if !c.reserved() {
+			return false
+		}
+	}
+	return true
+}
+
+// linesFit says whether the first n lines of a file all fit a record layout.
+func (s *Spec) linesFit(data []byte, n int) bool {
+	data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
+	lines := strings.Split(strings.ReplaceAll(strings.ReplaceAll(string(data), "\r\n", "\n"), "\r", "\n"), "\n")
+	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) == 0 {
+		return false
+	}
+	for i, l := range lines {
+		if i >= n {
+			break
+		}
+		if strings.TrimSpace(l) == "" {
+			continue
+		}
+		f := splitLine(s, l)
+		r := s.recordFor(f, i == 0, i == len(lines)-1)
+		if r == nil || !s.fits(f, r.Columns) {
 			return false
 		}
 	}
@@ -410,6 +529,9 @@ type Row struct {
 	Line   int
 	Record string
 	Values map[string]string
+	// Fields is the number of fields the line had when it differed from the
+	// layout (trailing empty or missing reserved fields); 0 otherwise.
+	Fields int
 }
 
 // Blank reports whether the row is a kept empty line.
@@ -488,7 +610,11 @@ func (s *Spec) Read(name string, data []byte) (*Table, error) {
 		}
 		row := Row{Line: i + 1, Record: rec.Code, Values: map[string]string{}}
 		if len(f) != len(rec.Columns) {
-			t.Issues = append(t.Issues, Issue{Line: i + 1, Msg: fmt.Sprintf("%d fields, expected %d", len(f), len(rec.Columns))})
+			if s.fits(f, rec.Columns) {
+				row.Fields = len(f)
+			} else {
+				t.Issues = append(t.Issues, Issue{Line: i + 1, Msg: fmt.Sprintf("%d fields, expected %d", len(f), len(rec.Columns))})
+			}
 		}
 		for j, c := range rec.Columns {
 			v := ""
@@ -507,11 +633,11 @@ func (s *Spec) Read(name string, data []byte) (*Table, error) {
 
 func headerDiff(s *Spec, got []string) string {
 	cols := s.detail().Columns
-	if len(got) != len(cols) {
+	if !s.fits(got, cols) {
 		return fmt.Sprintf("header has %d columns, the layout %s has %d; is this the current version of the file?", len(got), s.ID, len(cols))
 	}
 	for i, c := range cols {
-		if !strings.EqualFold(strings.TrimSpace(got[i]), c.Name) {
+		if i < len(got) && !c.named(got[i]) {
 			return fmt.Sprintf("header column %d is %q, the layout expects %q", i+1, got[i], c.Name)
 		}
 	}
@@ -523,22 +649,35 @@ func (s *Spec) recordFor(f []string, first, last bool) *Record {
 		r := s.detail()
 		return r
 	}
-	var byCount *Record
-	for i := range s.Records {
-		r := &s.Records[i]
-		if r.Where == "first" && !first || r.Where == "last" && !last {
-			continue
+	// Exact field counts first, then (for a lenient spec) lines with
+	// trailing empty or missing reserved fields.
+	for _, lenient := range []bool{false, true} {
+		if lenient && !s.TrailingEmpty {
+			break
 		}
-		byFields := r.Code == "" || strings.HasPrefix(r.Code, "#")
-		if !byFields && len(f) > 0 && strings.TrimSpace(f[0]) == r.Code && len(f) == len(r.Columns) {
-			return r
+		fit := func(r *Record) bool {
+			if lenient {
+				return s.fits(f, r.Columns)
+			}
+			return len(f) == len(r.Columns)
 		}
-		if byFields && len(f) == len(r.Columns) && byCount == nil {
-			byCount = r
+		var byCount *Record
+		for i := range s.Records {
+			r := &s.Records[i]
+			if r.Where == "first" && !first || r.Where == "last" && !last {
+				continue
+			}
+			byFields := r.Code == "" || strings.HasPrefix(r.Code, "#")
+			if !byFields && len(f) > 0 && strings.TrimSpace(f[0]) == r.Code && fit(r) {
+				return r
+			}
+			if byFields && fit(r) && byCount == nil {
+				byCount = r
+			}
 		}
-	}
-	if byCount != nil {
-		return byCount
+		if byCount != nil {
+			return byCount
+		}
 	}
 	for i := range s.Records {
 		r := &s.Records[i]
@@ -703,6 +842,14 @@ func (s *Spec) Write(rows []Row) ([]byte, error) {
 			}
 			f[i] = s.quote(v, c.Quote == "always" || c.Quote == "set" && v != "")
 		}
+		if r.Fields > 0 && s.TrailingEmpty {
+			// as the line came: with its trailing empty fields, or without
+			// its trailing reserved ones
+			for len(f) < r.Fields {
+				f = append(f, "")
+			}
+			f = f[:r.Fields]
+		}
 		lines = append(lines, strings.Join(f, s.Delimiter))
 	}
 	b.WriteString(strings.Join(lines, eol))
@@ -813,7 +960,9 @@ func (s *Spec) RoundTrip(name string, data []byte) (same bool, diff string, err 
 	if !t.CROnly {
 		clean = bytes.TrimSuffix(clean, []byte("\r")) // a final line ending in CR alone
 	}
-	// Rewrite raw values (no reformatting) to test the structure.
+	// Rewrite raw values (no reformatting) to test the structure. The
+	// records are copied first: the spec is shared by the whole library.
+	cp.Records = append([]Record(nil), s.Records...)
 	for i := range cp.Records {
 		cp.Records[i].Columns = rawCols(cp.Records[i].Columns)
 	}
@@ -875,6 +1024,28 @@ func rawCols(cs []Column) []Column {
 }
 
 func parseRat(s string) (*big.Rat, bool) { return new(big.Rat).SetString(s) }
+
+// MaskMessage hides the values in an issue message: every quoted value is
+// masked (letters A, digits 9) and every other digit becomes 9, so a
+// summary of a real file can be shared without its contents.
+func MaskMessage(msg string) string {
+	var b strings.Builder
+	in := false
+	for _, r := range msg {
+		switch {
+		case r == '"':
+			in = !in
+			b.WriteRune(r)
+		case in:
+			b.WriteString(Mask(string(r)))
+		case r >= '0' && r <= '9':
+			b.WriteRune('9')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
 
 // Mask hides values: letters become A and digits 9 (for messages about real files).
 func Mask(v string) string {

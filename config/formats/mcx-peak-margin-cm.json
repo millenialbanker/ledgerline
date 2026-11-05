@@ -1,0 +1,79 @@
+{
+ "id": "mcx-peak-margin-cm",
+ "title": "Peak margin snapshot to clearing member (MCXCCL)",
+ "party": "MCXCCL",
+ "direction": "in",
+ "when": "Intraday (each snapshot batch _nn)",
+ "purpose": "Each trading member's or CP's upfront margin at an MCXCCL peak-margin snapshot, with the allocation and other collateral then, and any short allocation.",
+ "names": [
+  "MCX_PeakMargin\\d+_\\d{8}_\\d+\\.csv"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Kept as MCXCCL's peak margin snapshots of the trading members",
+ "columns": [
+  {
+   "name": "Business Date",
+   "type": "date",
+   "layout": "02Jan2006",
+   "note": "DDMMMYYYY"
+  },
+  {
+   "name": "Snapshot Interval",
+   "type": "time",
+   "layout": "15:04:05",
+   "note": "HH:MM:SS"
+  },
+  {
+   "name": "CM ID",
+   "type": "str"
+  },
+  {
+   "name": "TM/CP ID",
+   "type": "str"
+  },
+  {
+   "name": "Initial margin",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "ELM",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Net Buy Premium",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Total Upfront Margin",
+   "type": "dec",
+   "decimals": 2,
+   "note": "initial margin + ELM + net buy premium"
+  },
+  {
+   "name": "Client margin allocation",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Client other collaterals",
+   "type": "dec",
+   "decimals": 2
+  },
+  {
+   "name": "Short allocation",
+   "type": "dec",
+   "decimals": 2,
+   "note": "upfront margin less allocation and other collaterals, if above zero"
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), section 1.31 Peak Margin Details File to Clearing Member; MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.61"
+}

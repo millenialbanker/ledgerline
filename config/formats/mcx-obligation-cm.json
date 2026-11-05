@@ -1,0 +1,212 @@
+{
+ "id": "mcx-obligation-cm",
+ "title": "Obligation file to clearing member (MCXCCL, NOBL / PNOBL)",
+ "party": "MCXCCL",
+ "direction": "in",
+ "when": "EOD (provisional PNOBL intraday)",
+ "purpose": "A clearing member's funds obligation: its own, each trading member's or CP's, and each client's per contract.",
+ "names": [
+  "MCX_P?NOBL_\\d+_\\d{8}\\.csv"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as the commodity settlement obligation and reconciled with Ledgerline's own MCX obligation per client (Clearing data)",
+ "records": [
+  {
+   "code": "10",
+   "columns": [
+    {
+     "name": "Record Type",
+     "type": "str",
+     "const": "10"
+    },
+    {
+     "name": "Date",
+     "type": "str",
+     "note": "DDMMYYYY"
+    },
+    {
+     "name": "CM ID",
+     "type": "str"
+    },
+    {
+     "name": "Reserved",
+     "type": "blank",
+     "note": "reserved for future use; any value is ignored"
+    },
+    {
+     "name": "Due Date Of Payment",
+     "type": "str",
+     "note": "DDMMYYYY"
+    },
+    {
+     "name": "Number of Detail Records at TM Level",
+     "type": "int"
+    },
+    {
+     "name": "Number of Detail Records at End Client Level",
+     "type": "int"
+    },
+    {
+     "name": "MTM Profit/Loss",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Premium Pay-In/Pay-Out",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Exercise / Assignment Value",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Charges",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Shortages",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Net Pay-In/Pay-Out",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Currency Code",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "20",
+   "columns": [
+    {
+     "name": "Record Type",
+     "type": "str",
+     "const": "20"
+    },
+    {
+     "name": "CM ID",
+     "type": "str"
+    },
+    {
+     "name": "TM / CP ID",
+     "type": "str"
+    },
+    {
+     "name": "Reserved",
+     "type": "blank",
+     "note": "reserved for future use; any value is ignored"
+    },
+    {
+     "name": "MTM",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Premium Pay-In/Pay-Out",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Exercise/Assignment Value",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Charges",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Currency Code",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "30",
+   "columns": [
+    {
+     "name": "Record Type",
+     "type": "str",
+     "const": "30"
+    },
+    {
+     "name": "CM ID",
+     "type": "str"
+    },
+    {
+     "name": "TM ID/INST",
+     "type": "str"
+    },
+    {
+     "name": "Account Type",
+     "type": "str"
+    },
+    {
+     "name": "Account ID",
+     "type": "str"
+    },
+    {
+     "name": "Instrument Name",
+     "type": "str"
+    },
+    {
+     "name": "Symbol",
+     "type": "str"
+    },
+    {
+     "name": "Expiry Date",
+     "type": "str",
+     "note": "DDMMMYYYY"
+    },
+    {
+     "name": "Strike Price",
+     "type": "dec",
+     "decimals": 4
+    },
+    {
+     "name": "Options Type",
+     "type": "str"
+    },
+    {
+     "name": "MTM",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Premium Pay-In/Pay-Out",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Exercise/Assignment Value",
+     "type": "dec",
+     "decimals": 2
+    },
+    {
+     "name": "Currency Code",
+     "type": "str"
+    },
+    {
+     "name": "Reserved",
+     "type": "blank",
+     "note": "reserved for future use; any value is ignored"
+    }
+   ]
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), section 1.7 Obligation File to Clearing Member; MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.18"
+}

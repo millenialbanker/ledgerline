@@ -1,0 +1,48 @@
+{
+ "id": "mcx-cp-master",
+ "title": "Custodian participant master (MCX)",
+ "party": "MCX",
+ "direction": "in",
+ "when": "BOD",
+ "purpose": "Custodian participants (funds) and their custodian clearing members, with status and category.",
+ "names": [
+  "MCX_CP ?MASTER_\\d{8}\\.csv"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Kept as MCX's custodian participant master",
+ "columns": [
+  {
+   "name": "CP ID",
+   "type": "str"
+  },
+  {
+   "name": "CP Name",
+   "type": "str"
+  },
+  {
+   "name": "Custodian ID",
+   "type": "str",
+   "note": "the clearing member's ID"
+  },
+  {
+   "name": "Custodian Name",
+   "type": "str"
+  },
+  {
+   "name": "Status",
+   "type": "str",
+   "note": "A active, I inactive, S suspended"
+  },
+  {
+   "name": "CP Category",
+   "type": "str"
+  }
+ ],
+ "source": "MCXCCL File Formats (Version 1, Public), section 1.3 Custodian Participant Master File; MCX circular MCX/TECH/394/2023 (19 Jun 2023), MCX File Formats Version 1.2, section 1.10"
+}
