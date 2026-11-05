@@ -275,7 +275,7 @@ func (o *Ops) chaseMissing(ctx context.Context, tenant, actor, date, cutoff stri
 // closeMissingWork closes the missing-file items a received file answers.
 func (o *Ops) closeMissingWork(ctx context.Context, tenant, actor, format, name, date string) {
 	for _, f := range DailyFiles {
-		if f.Format == "" || f.Format != format {
+		if f.Format == "" || f.Format != format && !contains(f.Also, format) {
 			continue
 		}
 		if f.Name != "" && !regexp.MustCompile("(?i)"+f.Name).MatchString(name) {

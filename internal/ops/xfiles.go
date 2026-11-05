@@ -228,7 +228,7 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 		if skipped > 0 {
 			r.Note = fmt.Sprintf("%d lines are for demat accounts not linked to a client (or the firm's own accounts) and were left out.", skipped)
 		}
-	case "ncl-position":
+	case "ncl-position", "mcxccl-position":
 		csv, date, n, err := positionsCSV(rows)
 		if err != nil {
 			fail(err)
@@ -244,7 +244,10 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 			return
 		}
 		r.Loaded, r.Added = "Loaded as positions carried into "+date, res.Added
-	case "stt-ctt":
+	case "stt-ctt", "mcxccl-ctt":
+		if s.ID == "mcxccl-ctt" {
+			rows = udiffFinest(rows) // per client and contract only: the totals above are not added again
+		}
 		csv, date, err := sttCSV(rows)
 		if err != nil {
 			fail(err)
@@ -271,6 +274,9 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 		}
 		r.Loaded, r.Added = "Loaded as G-sec and T-bill prices of "+date, n
 	default:
+		if o.loadMCXFile(ctx, tenant, actor, s, f, rows, r) { // MCX and MCXCCL files (mcxfiles.go)
+			return
+		}
 		if o.loadCCFile(ctx, tenant, actor, s, f, rows, r) {
 			return
 		}
@@ -373,7 +379,7 @@ func positionsCSV(rows []xfile.Row) ([]byte, string, int, error) {
 		}
 		typ := "FUT"
 		switch strings.ToUpper(r.Get("FinInstrmTp")) {
-		case "IDO", "STO", "OPT", "OPTIDX", "OPTSTK":
+		case "IDO", "STO", "OPT", "OPTIDX", "OPTSTK", "FUO", "COO", "OPTFUT", "OPTCOM":
 			typ = strings.ToUpper(r.Get("OptnTp"))
 		}
 		strike := ""
@@ -381,10 +387,17 @@ func positionsCSV(rows []xfile.Row) ([]byte, string, int, error) {
 			strike = r.Get("StrkPric")
 		}
 		ex := strings.ToUpper(r.Get("Src"))
-		if ex == "" || ex == "NCL" {
+		switch ex {
+		case "", "NCL":
 			ex = "NSE"
+		case "MCXCCL":
+			ex = "MCX"
 		}
-		out = append(out, []string{strings.ToUpper(r.Get("ClntId")), ex, strings.ToUpper(r.Get("Sgmt")), strings.ToUpper(r.Get("TckrSymb")), typ, r.Get("XpryDt"), strike, q.Round(money.UnitRupee).Dec().Fixed(0), nz(r.Get("SttlmPric"))})
+		seg := strings.ToUpper(r.Get("Sgmt"))
+		if seg == "CO" {
+			seg = "COM"
+		}
+		out = append(out, []string{strings.ToUpper(r.Get("ClntId")), ex, seg, strings.ToUpper(r.Get("TckrSymb")), typ, r.Get("XpryDt"), strike, q.Round(money.UnitRupee).Dec().Fixed(0), nz(r.Get("SttlmPric"))})
 		n++
 	}
 	if date == "" {

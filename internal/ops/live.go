@@ -82,8 +82,9 @@ type LiveRow struct {
 	Funds      money.Dec `json:"funds"` // ledger before today's bills
 	Collateral money.Dec `json:"collateral"`
 	Margin     money.Dec `json:"margin"` // derivatives and open intraday
-	// ExchangeMargin is NSE Clearing's own margin for the client's
-	// derivatives (margins API), when fetched today; Margin uses it when it
+	// ExchangeMargin is the clearing corporations' own margin for the client's
+	// derivatives (NSE Clearing's margins API, MCXCCL's peak and margin
+	// files), when there is one today; Margin uses it when it
 	// is higher than Ledgerline's estimate.
 	ExchangeMargin *money.Dec `json:"exchange_margin,omitempty"`
 	// PayoutHold is sale money awaiting pay-out held back from the client's
@@ -111,7 +112,7 @@ type LiveView struct {
 	Rows      []LiveRow                 `json:"rows"`
 	Breaches  int                       `json:"breaches"`
 	Positions map[string][]PositionView `json:"positions"`
-	// ExchangeMarginAt is when NSE Clearing's client margins were fetched.
+	// ExchangeMarginAt is when the clearing corporations' client margins were true.
 	ExchangeMarginAt string `json:"exchange_margin_at,omitempty"`
 }
 
@@ -236,6 +237,17 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 		held[k] = max(held[k], q)
 	}
 	exMargin, exAt, _ := o.NCLMClientMargins(ctx, tenant, date)
+	if exMargin == nil {
+		exMargin = map[string]money.Dec{}
+	}
+	// MCXCCL's own margin for the client (peak snapshots of the day, the
+	// end-of-day margin file), added to NSE Clearing's (mcxfiles.go).
+	if mm, at := o.mcxClientMargins(ctx, tenant, date); len(mm) > 0 {
+		for u, v := range mm {
+			exMargin[u] = exMargin[u].Add(v)
+		}
+		exAt = laterTime(exAt, at)
+	}
 	payoutHeld := o.payoutHeld(ctx, tenant, date)
 	if len(exMargin) > 0 {
 		v.ExchangeMarginAt = exAt

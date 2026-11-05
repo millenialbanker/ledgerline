@@ -26,8 +26,11 @@ import (
 // master), needed whenever the firm trades on that exchange; or a clearing
 // corporation (allocation, margin reporting, VaR and haircuts …), needed
 // only when some segment is cleared there. A segment cleared by another
-// clearing member has no clearing-corporation files: they come from that
-// member. The writers of outgoing files are not affected: they work for
+// clearing member has no clearing-corporation files (they come from that
+// member) except those the clearing corporation sends the trading member
+// itself (TMLevel: MCXCCL's NOBL, MCX_MRG, peak margin, NCMR and the
+// like, which a trading member under another clearing member still
+// receives on its own FTP folder). The writers of outgoing files are not affected: they work for
 // the segments that use them.
 
 // ClearingCorpNames names the clearing corporations.
@@ -172,6 +175,13 @@ type DailyFile struct {
 	At        string   `json:"at"`        // usual time, IST
 	NextDay   bool     `json:"next_day,omitempty"`
 	Intraday  bool     `json:"intraday,omitempty"` // several in the day; never alerted
+	// TMLevel marks a clearing corporation's file to the trading member:
+	// sent to the firm itself even when another clearing member clears the
+	// segment (MCXCCL's TM files: NOBL, MCX_MRG, peak margin, NCMR …).
+	TMLevel bool `json:"tm_level,omitempty"`
+	// Also are other layouts of the same file (a clearing member's version
+	// under the same name) that tick it off.
+	Also []string `json:"-"`
 	// HandNote says, for a file with no layout yet (checked by hand), what
 	// Ledgerline needs before it can read or write it.
 	HandNote string `json:"hand_note,omitempty"`
@@ -208,7 +218,12 @@ var DailyFiles = []DailyFile{
 	{ID: "bse-debr", Title: "BSE statement of PANs debarred by SEBI (DEBR)", Format: "bse-debarred-pan", Party: "BSE", Exchange: "BSE", Segments: []string{"CM", "FO"}, Direction: "in", At: "21:00"},
 	{ID: "bse-nome", Title: "BSE mobile and email exceptions (NOME)", Format: "bse-contact-exceptions", Party: "BSE", Exchange: "BSE", Segments: []string{"CM", "FO"}, Direction: "in", At: "21:20"},
 	// MCX
+	{ID: "mcx-products", Title: "MCX product (contract) master", Format: "mcx-product-master", Party: "MCX", Exchange: "MCX", Segments: []string{"COM"}, Direction: "in", At: "08:00"},
+	{ID: "mcx-cp", Title: "MCX custodian participant master", Format: "mcx-cp-master", Party: "MCX", Exchange: "MCX", Segments: []string{"COM"}, Direction: "in", At: "08:00"},
 	{ID: "mcx-trade-f", Title: "MCX trade file", Format: "mcx-trade", Party: "MCX", Exchange: "MCX", Segments: []string{"COM"}, Direction: "in", At: "23:59"},
+	{ID: "mcx-orders", Title: "MCX online orders (ORD, from the trading terminal)", Format: "mcx-orders", Party: "MCX", Exchange: "MCX", Segments: []string{"COM"}, Direction: "in", At: "23:59"},
+	{ID: "mcx-bhav", Title: "MCX bhavcopy (common format)", Format: "mcx-bhavcopy", Party: "MCX", Exchange: "MCX", Segments: []string{"COM"}, Direction: "in", At: "07:00", NextDay: true},
+	{ID: "mcx-index", Title: "MCX daily index file", Format: "mcx-daily-index", Party: "MCX", Exchange: "MCX", Segments: []string{"COM"}, Direction: "in", At: "07:00", NextDay: true},
 	// NSE Clearing
 	{ID: "ncl-var", Title: "NSE Clearing VaR file", Format: "ncl-var", Party: "NCL", Segments: []string{"CM"}, Direction: "in", At: "08:30"},
 	{ID: "ncl-haircut", Title: "NSE Clearing haircuts (approved securities)", Format: "ncl-cb-haircut", Party: "NCL", Segments: []string{"CM", "FO", "CD"}, Direction: "in", At: "08:30"},
@@ -241,9 +256,26 @@ var DailyFiles = []DailyFile{
 	{ID: "iccl-alloc", Title: "Client allocation to ICCL", Party: "ICCL", Segments: all3, Direction: "out", At: "19:00", HandNote: iCCLNeed("the client collateral allocation upload: field order, codes and the response file")},
 	{ID: "iccl-icoll", Title: "ICOLL response (ICCL collateral)", Party: "ICCL", Segments: all3, Direction: "in", At: "19:30", HandNote: iCCLNeed("the ICOLL response file: its columns and status codes")},
 	{ID: "iccl-mrg", Title: "Margin reporting file to ICCL", Party: "ICCL", Segments: all3, Direction: "out", At: "12:00", NextDay: true, HandNote: iCCLNeed("the client margin reporting upload (collected against required margin): field order, segment codes and the file name")},
-	// MCXCCL
-	{ID: "mcx-margin", Title: "MCXCCL client margin file", Format: "mcx-client-margin", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "08:00", NextDay: true},
-	{ID: "mcx-mrg", Title: "Margin reporting file to MCXCCL", Format: "mcx-margin-reporting", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "out", At: "12:00", NextDay: true},
+	// MCXCCL: trading-member files, which the firm receives itself even when
+	// another clearing member clears its commodity trades.
+	{ID: "mcx-pnobl", Title: "MCXCCL provisional obligation (PNOBL)", Format: "mcx-obligation-tm", Also: []string{"mcx-obligation-cm"}, Name: `MCX_PNOBL_`, Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "18:00", Intraday: true, TMLevel: true},
+	{ID: "mcx-peak", Title: "MCXCCL peak margin snapshots", Format: "mcx-peak-margin-tm", Also: []string{"mcx-peak-margin-cm"}, Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "10:00", Intraday: true, TMLevel: true},
+	{ID: "mcx-dcnote", Title: "MCXCCL debit / credit notes", Format: "mcx-dc-note", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "18:00", Intraday: true, TMLevel: true},
+	{ID: "mcx-nobl", Title: "MCXCCL obligation (NOBL)", Format: "mcx-obligation-tm", Also: []string{"mcx-obligation-cm"}, Name: `MCX_NOBL_`, Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "08:00", NextDay: true, TMLevel: true},
+	{ID: "mcx-mrgfile", Title: "MCXCCL margin file (MCX_MRG)", Format: "mcx-margin-tm", Also: []string{"mcx-margin-cm"}, Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "08:00", NextDay: true, TMLevel: true},
+	{ID: "mcx-margin", Title: "MCXCCL client margin file", Format: "mcx-client-margin", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "08:00", NextDay: true, TMLevel: true},
+	{ID: "mcx-udiff-margin", Title: "MCXCCL margin file (UDiFF)", Format: "mcxccl-margin", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "08:00", NextDay: true, TMLevel: true},
+	{ID: "mcx-udiff-position", Title: "MCXCCL position file (UDiFF)", Format: "mcxccl-position", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "08:00", NextDay: true, TMLevel: true},
+	{ID: "mcx-ctt", Title: "MCXCCL CTT file (UDiFF)", Format: "mcxccl-ctt", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "08:00", NextDay: true, TMLevel: true},
+	{ID: "mcx-stamp", Title: "MCXCCL stamp duty file (UDiFF)", Format: "mcxccl-stamp", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "08:00", NextDay: true, TMLevel: true},
+	{ID: "mcx-collateral", Title: "MCXCCL collateral file (MCX_CD)", Format: "mcx-collateral", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "08:00", NextDay: true, TMLevel: true},
+	{ID: "mcx-collateral-ucc", Title: "MCXCCL client collateral file (MCX_CD_…_UCC)", Format: "mcx-collateral-client", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "08:00", NextDay: true, TMLevel: true},
+	{ID: "mcx-weballoc", Title: "MCXCCL web allocation / deallocation report", Format: "mcx-web-allocation", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "08:00", NextDay: true, TMLevel: true},
+	{ID: "mcx-eodsar", Title: "MCXCCL EOD short allocation (EODSAR)", Format: "mcx-eod-short-allocation", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "09:00", NextDay: true, TMLevel: true},
+	{ID: "mcx-intrasar", Title: "MCXCCL intraday short allocation (INTRASAR)", Format: "mcx-intraday-short-allocation", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "09:00", NextDay: true, TMLevel: true},
+	{ID: "mcx-mrg", Title: "Margin reporting file to MCXCCL", Format: "mcx-margin-reporting", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "out", At: "12:00", NextDay: true, TMLevel: true},
+	{ID: "mcx-ncmr", Title: "MCXCCL margin shortfall and penalty (NCMR)", Format: "mcx-ncmr", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "20:00", NextDay: true, TMLevel: true},
+	{ID: "mcx-penalty", Title: "MCXCCL penalty file (UDiFF)", Format: "mcxccl-penalty", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "20:00", NextDay: true, TMLevel: true},
 }
 
 // iCCLNeed is the note on an ICCL file Ledgerline cannot read yet.
@@ -323,7 +355,14 @@ func (o *Ops) DailyFileChecklist(ctx context.Context, tenant, date string) (File
 		row := ClearingRow{Key: c.Key, Through: th, Name: ClearingCorpNames[th]}
 		if strings.HasPrefix(th, "CM:") {
 			row.Name = set.ClearingMemberNames[c.Key] + " (clearing member " + th[3:] + ")"
-			out.Notes = append(out.Notes, fmt.Sprintf("%s is cleared by %s: its clearing-corporation files (margins, collateral, allocation) come from the clearing member, not to this checklist.", c.Key, row.Name))
+			note := fmt.Sprintf("%s is cleared by %s: its clearing-corporation files (margins, collateral, allocation) come from the clearing member, not to this checklist.", c.Key, row.Name)
+			for _, f := range DailyFiles {
+				if f.TMLevel && contains(f.Segments, c.Segment) && contains(c.Allowed, f.Party) {
+					note += fmt.Sprintf(" The files %s sends the trading member itself (obligation, margin, peak margin, penalty …) are still listed.", f.Party)
+					break
+				}
+			}
+			out.Notes = append(out.Notes, note)
 		}
 		out.Clearing = append(out.Clearing, row)
 	}
@@ -336,7 +375,12 @@ func (o *Ops) DailyFileChecklist(ctx context.Context, tenant, date string) (File
 			if !contains(f.Segments, c.Segment) {
 				continue
 			}
-			if f.Exchange != "" && f.Exchange == c.Exchange || f.Exchange == "" && set.ClearedThrough(c.Key) == f.Party {
+			th := set.ClearedThrough(c.Key)
+			switch {
+			case f.Exchange != "" && f.Exchange == c.Exchange, f.Exchange == "" && th == f.Party:
+				serves = append(serves, c.Key)
+			case f.Exchange == "" && f.TMLevel && strings.HasPrefix(th, "CM:") && contains(c.Allowed, f.Party):
+				// cleared by another member: the trading-member file still comes
 				serves = append(serves, c.Key)
 			}
 		}
@@ -354,7 +398,7 @@ func (o *Ops) DailyFileChecklist(ctx context.Context, tenant, date string) (File
 			rx = regexp.MustCompile("(?i)" + f.Name)
 		}
 		for _, r := range recv {
-			if f.Format != "" && r.Format == f.Format && (rx == nil || rx.MatchString(r.Name)) {
+			if f.Format != "" && (r.Format == f.Format || contains(f.Also, r.Format)) && (rx == nil || rx.MatchString(r.Name)) {
 				it.Files = append(it.Files, r.Name)
 			}
 		}

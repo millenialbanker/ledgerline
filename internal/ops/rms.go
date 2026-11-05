@@ -557,6 +557,15 @@ type MarginRow struct {
 	PassStatus string `json:"pass_status,omitempty"`
 	PassReason string `json:"pass_reason,omitempty"`
 	PassRef    string `json:"pass_ref,omitempty"`
+	// The clearing corporation's own figures, when its files are loaded
+	// (MCXCCL: the margin charged, the highest peak snapshot). PenaltyBy is
+	// "" for Ledgerline's estimate of the penalty, or the clearing
+	// corporation and file whose levied shortfall and penalty the row
+	// carries (MCX_NCMR, the UDiFF penalty file).
+	CCMargin  *money.Dec `json:"cc_margin,omitempty"`
+	CCPeak    *money.Dec `json:"cc_peak,omitempty"`
+	CCPeakAt  string     `json:"cc_peak_at,omitempty"`
+	PenaltyBy string     `json:"penalty_by,omitempty"`
 }
 
 // MarginReport is the client-wise margin collection report.
@@ -594,6 +603,12 @@ func (o *Ops) Margins(ctx context.Context, tenant, date string) (MarginReport, e
 	}
 	posted, _, _ := docs.GetOr(ctx, o.Docs, tenant, cSnapshotPx, "penalty|"+date, struct{ Posted bool }{})
 	rep.Posted = posted.Posted
+	// MCXCCL's figures (mcxfiles.go): the margin it charged, its peak
+	// snapshots, and the shortfall and penalty it actually levied, which
+	// replace Ledgerline's estimate of the client's penalty.
+	ccMargin, _ := o.mcxChargedMargins(ctx, tenant, date)
+	ccPeaks := o.mcxPeaks(ctx, tenant, date)
+	levied := o.mcxLevied(ctx, tenant, date)
 	for _, u := range sortedKeys(in.clients) {
 		c := in.clients[u]
 		if c.Status != "Active" {
@@ -625,10 +640,24 @@ func (o *Ops) Margins(ctx context.Context, tenant, date string) (MarginReport, e
 				}
 			}
 		}
-		if row.Peak.Sign() == 0 && row.EOD.Sign() == 0 {
+		lv, isLevied := levied[strings.ToUpper(u)]
+		if m, ok := ccMargin[strings.ToUpper(u)]; ok {
+			row.CCMargin = &m
+		}
+		if p := ccPeaks[strings.ToUpper(u)]; p != nil {
+			pk := p.Peak
+			row.CCPeak, row.CCPeakAt = &pk, p.At
+		}
+		if row.Peak.Sign() == 0 && row.EOD.Sign() == 0 && !isLevied && row.CCMargin == nil && row.CCPeak == nil {
 			continue
 		}
 		row.Penalty = row.Short.Pct(row.SlabPct)
+		if isLevied {
+			row.Short, row.SlabPct, row.Penalty, row.PenaltyBy = lv.Short, lv.Pct, lv.Penalty, "MCXCCL ("+lv.File+")"
+			if row.Short.Sign() > 0 && row.Peak.Sign() > 0 {
+				row.ShortPct = row.Short.Float64() / row.Peak.Float64()
+			}
+		}
 		if p, ok := o.penaltyPass(ctx, tenant, date, u); ok {
 			row.PassStatus, row.PassReason, row.PassRef = p.Status, p.ReasonText, p.Ref()
 		}
