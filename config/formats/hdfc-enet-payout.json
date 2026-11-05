@@ -4,124 +4,40 @@
  "party": "Bank (HDFC)",
  "direction": "out",
  "when": "Afternoon",
- "purpose": "Client fund payouts to their bank accounts (NEFT/RTGS/IMPS).",
+ "purpose": "Client fund payouts to their registered bank accounts through HDFC Bank ENet bulk upload: NEFT, RTGS and HDFC-to-HDFC transfers, one line per payment, no header or trailer.",
  "names": [
-  "[A-Z]+\\d{8}\\.\\d{3}"
+  "[A-Z][A-Z0-9]*\\d{4}\\.\\d{3}"
  ],
- "template": "{bank_prefix}{date:02012006}.{seq:3}",
+ "template": "{hdfc_client_id}{date:0201}.{seq:3}",
  "columns": [
-  {
-   "name": "TxnType",
-   "type": "str"
-  },
-  {
-   "name": "BeneficiaryCode",
-   "type": "str"
-  },
-  {
-   "name": "BeneficiaryAccount",
-   "type": "str"
-  },
-  {
-   "name": "Amount",
-   "type": "str"
-  },
-  {
-   "name": "BeneficiaryName",
-   "type": "str"
-  },
-  {
-   "name": "Field6",
-   "type": "str"
-  },
-  {
-   "name": "Field7",
-   "type": "str"
-  },
-  {
-   "name": "Field8",
-   "type": "str"
-  },
-  {
-   "name": "Field9",
-   "type": "str"
-  },
-  {
-   "name": "Field10",
-   "type": "str"
-  },
-  {
-   "name": "Field11",
-   "type": "str"
-  },
-  {
-   "name": "Field12",
-   "type": "str"
-  },
-  {
-   "name": "Field13",
-   "type": "str"
-  },
-  {
-   "name": "Field14",
-   "type": "str"
-  },
-  {
-   "name": "Field15",
-   "type": "str"
-  },
-  {
-   "name": "Field16",
-   "type": "str"
-  },
-  {
-   "name": "Field17",
-   "type": "str"
-  },
-  {
-   "name": "Field18",
-   "type": "str"
-  },
-  {
-   "name": "Field19",
-   "type": "str"
-  },
-  {
-   "name": "Field20",
-   "type": "str"
-  },
-  {
-   "name": "Field21",
-   "type": "str"
-  },
-  {
-   "name": "Field22",
-   "type": "str"
-  },
-  {
-   "name": "Field23",
-   "type": "str"
-  },
-  {
-   "name": "Field24",
-   "type": "str"
-  },
-  {
-   "name": "Field25",
-   "type": "str"
-  },
-  {
-   "name": "Field26",
-   "type": "str"
-  },
-  {
-   "name": "Field27",
-   "type": "str"
-  },
-  {
-   "name": "Field28",
-   "type": "str"
-  }
+  {"name": "Transaction Type", "key": "txn_type", "type": "str", "required": true, "note": "N NEFT, R RTGS, I internal HDFC-to-HDFC transfer (D demand draft exists in HDFC's format; Ledgerline does not write it)"},
+  {"name": "Beneficiary Code", "key": "bene_code", "type": "str", "required": true, "note": "the client code (UCC); the length is not fixed"},
+  {"name": "Beneficiary Account Number", "key": "account", "type": "str", "required": true, "note": "digits only"},
+  {"name": "Instrument Amount", "key": "amount", "type": "dec", "decimals": 2, "fixed": true, "required": true, "note": "rupees, 2 decimals, no thousands separators"},
+  {"name": "Beneficiary Name", "key": "name", "type": "str", "required": true, "note": "no commas or line breaks"},
+  {"name": "Drawee Location", "key": "drawee_location", "type": "blank", "note": "demand drafts only; blank"},
+  {"name": "Print Location", "key": "print_location", "type": "blank", "note": "demand drafts only; blank"},
+  {"name": "Beneficiary Address 1", "key": "address1", "type": "blank", "note": "blank"},
+  {"name": "Beneficiary Address 2", "key": "address2", "type": "blank", "note": "blank"},
+  {"name": "Beneficiary Address 3", "key": "address3", "type": "blank", "note": "blank"},
+  {"name": "Beneficiary Address 4", "key": "address4", "type": "blank", "note": "blank"},
+  {"name": "Beneficiary Address 5", "key": "address5", "type": "blank", "note": "blank"},
+  {"name": "Instruction Reference Number", "key": "instruction_ref", "type": "str", "required": true, "note": "14 digits: the firm's prefix and a running number, unique per payment across days"},
+  {"name": "Customer Reference Number", "key": "customer_ref", "type": "str", "required": true, "note": "client code, a hyphen and a 3-letter suffix (UCC-PAY)"},
+  {"name": "Payment Details 1", "key": "payment_details1", "type": "blank", "note": "blank"},
+  {"name": "Payment Details 2", "key": "payment_details2", "type": "blank", "note": "blank"},
+  {"name": "Payment Details 3", "key": "payment_details3", "type": "blank", "note": "blank"},
+  {"name": "Payment Details 4", "key": "payment_details4", "type": "blank", "note": "blank"},
+  {"name": "Payment Details 5", "key": "payment_details5", "type": "blank", "note": "blank"},
+  {"name": "Payment Details 6", "key": "payment_details6", "type": "blank", "note": "blank"},
+  {"name": "Payment Details 7", "key": "payment_details7", "type": "blank", "note": "blank"},
+  {"name": "Cheque Number", "key": "cheque_no", "type": "blank", "note": "blank"},
+  {"name": "Cheque/Transaction Date", "key": "txn_date", "type": "date", "layout": "02/01/2006", "required": true, "note": "the payout value date, DD/MM/YYYY"},
+  {"name": "MICR Number", "key": "micr", "type": "blank", "note": "blank"},
+  {"name": "IFSC Code", "key": "ifsc", "type": "str", "required": true, "note": "always given, HDFC IFSCs included on I rows"},
+  {"name": "Beneficiary Bank Name", "key": "bank_name", "type": "str", "note": "no commas or line breaks"},
+  {"name": "Beneficiary Bank Branch Name", "key": "branch_name", "type": "str", "note": "no commas or line breaks; blank when the client's bank branch is not recorded"},
+  {"name": "Beneficiary Email ID", "key": "email", "type": "str", "required": true, "note": "the client's registered email"}
  ],
  "compress": "none",
  "format": "delimited",
@@ -129,6 +45,7 @@
  "header": false,
  "crlf": true,
  "final_eol": true,
- "confirmed": false,
- "linked": ""
+ "confirmed": true,
+ "linked": "Written from Receipts & payouts (Payout batches: HDFC ENet file), one file per payout batch",
+ "source": "HDFC Bank ENet bulk upload format, confirmed against a broker's live upload file (structure only)"
 }
