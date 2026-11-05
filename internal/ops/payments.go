@@ -413,6 +413,7 @@ type PayoutRequest struct {
 	Entry     string       `json:"entry,omitempty"`
 	UTR       string       `json:"utr,omitempty"`
 	ExpiresOn string       `json:"expires_on"`
+	RTGS      bool         `json:"rtgs,omitempty"` // to go by RTGS whatever the threshold
 }
 
 // Withdrawable explains how much a client can take out today.
@@ -590,10 +591,12 @@ type PayoutItem struct {
 	IFSC    string       `json:"ifsc"`
 	Account string       `json:"account"`
 	Amount  money.Amount `json:"amount"`
-	Mode    string       `json:"mode"` // NEFT or RTGS (₹2 lakh and above)
+	Mode    string       `json:"mode"` // NEFT or RTGS (from the RTGS threshold, or marked RTGS)
 	Entry   string       `json:"entry"`
 	Status  string       `json:"status"` // Sent, Paid, Failed
 	UTR     string       `json:"utr,omitempty"`
+	// InstrRef is the HDFC ENet instruction reference, given once (hdfcenet.go).
+	InstrRef string `json:"instr_ref,omitempty"`
 }
 
 // CreatePayoutBatch pays every approved request: debits each client,
@@ -610,6 +613,7 @@ func (o *Ops) CreatePayoutBatch(ctx context.Context, tenant, actor, date string)
 	if err != nil {
 		return PayoutBatch{}, err
 	}
+	set, _ := o.Settings(ctx, tenant)
 	b := PayoutBatch{ID: fmt.Sprintf("PB-%06d", n), Date: date, Status: "Sent to bank", By: actor, Items: []PayoutItem{}}
 	for _, p := range prs {
 		if p.Status != "Approved" || p.Batch != "" {
@@ -620,7 +624,7 @@ func (o *Ops) CreatePayoutBatch(ctx context.Context, tenant, actor, date string)
 			continue
 		}
 		mode := "NEFT"
-		if p.Amount >= 20000000 {
+		if p.RTGS || p.Amount >= set.rtgsThreshold() {
 			mode = "RTGS"
 		}
 		e, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "PAY:" + p.ID, ValueDate: date, CreatedBy: actor,

@@ -23,6 +23,9 @@ type BankAccount struct {
 	Bank    string `json:"bank"`
 	IFSC    string `json:"ifsc"`
 	Account string `json:"account"`
+	// Branch is the bank branch's name, when known (the HDFC payout file
+	// carries it).
+	Branch string `json:"branch,omitempty"`
 }
 
 // Demat is a client's demat account.

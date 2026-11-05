@@ -787,7 +787,7 @@ func autoPayoutBatch(r *runCtx) error {
 	}
 	r.done++
 	r.note("batch %s: %d payouts, ₹%s", b.ID, len(b.Items), formatINR(b.Total.Dec()))
-	r.queue(b.ID, "Upload payout batch "+b.ID+" to the bank", fmt.Sprintf("%d payouts, ₹%s. Upload the file, then enter the UTRs (or connect the bank API to do this automatically).", len(b.Items), formatINR(b.Total.Dec())), "", RoleChecker, "money", r.date+" 18:00", nil)
+	r.queue(b.ID, "Upload payout batch "+b.ID+" to the bank", fmt.Sprintf("%d payouts, ₹%s. Produce the HDFC ENet file (its checks must pass), upload it on ENet, then enter the UTRs (or connect the bank API to do this automatically).", len(b.Items), formatINR(b.Total.Dec())), "", RoleChecker, "money", r.date+" 18:00", nil)
 	return nil
 }
 

@@ -272,7 +272,7 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		for _, r := range rows {
 			c := Client{UCC: r.get("UCC"), Name: r.get("Name"), Type: r.get("Type"), PAN: r.get("PAN"), DOB: r.get("DOB"), Mobile: r.get("Mobile"), Email: r.get("Email"),
 				City: r.get("City"), Segments: strings.Split(r.get("Segments"), ";"), Risk: r.get("Risk"), Income: r.get("Income"), RAS: r.get("RAS"),
-				Bank: BankAccount{r.get("Bank"), r.get("IFSC"), r.get("Account")}, Demat: Demat{r.get("Depository"), r.get("DematID")},
+				Bank: BankAccount{Bank: r.get("Bank"), IFSC: r.get("IFSC"), Account: r.get("Account")}, Demat: Demat{r.get("Depository"), r.get("DematID")},
 				Nominee: r.get("Nominee"), NomineeName: r.get("NomineeName"), KYCDate: pdate(r, "KYCDate", true), Status: r.get("Status"),
 				API: strings.EqualFold(r.get("API"), "Y"), LastTrade: pdate(r, "LastTrade", true), IncomeProof: true, RiskDisclosure: true, CreatedBy: "import",
 				Branch: r.get("Branch"), State: r.get("State"), GSTIN: strings.ToUpper(r.get("GSTIN"))}
