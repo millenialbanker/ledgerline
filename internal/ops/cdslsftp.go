@@ -64,38 +64,80 @@ func sftpAddr(host string) string {
 	return net.JoinHostPort(strings.Trim(host, "[]"), "22")
 }
 
-func fetchSFTP(ctx context.Context, cfg CDSLSFTPConfig) ([]CDSLReportFile, error) {
-	ctx, cancel := context.WithTimeout(ctx, sftpTimeout)
-	defer cancel()
+// sftpSession is one signed-in SFTP connection.
+type sftpSession struct {
+	*sftp.Client
+	ssh  *ssh.Client
+	stop func() bool
+	nc   net.Conn
+}
+
+func (s *sftpSession) Close() {
+	s.Client.Close()
+	s.ssh.Close()
+	s.stop()
+}
+
+// sftpDial signs in to an SFTP server, checking its host key. Cancelling
+// ctx closes the connection.
+func sftpDial(ctx context.Context, host, user, password, hostKey string) (*sftpSession, error) {
 	conf := &ssh.ClientConfig{
-		User: cfg.User,
-		Auth: []ssh.AuthMethod{ssh.Password(cfg.Password), ssh.KeyboardInteractive(func(_, _ string, qs []string, _ []bool) ([]string, error) {
+		User: user,
+		Auth: []ssh.AuthMethod{ssh.Password(password), ssh.KeyboardInteractive(func(_, _ string, qs []string, _ []bool) ([]string, error) {
 			a := make([]string, len(qs))
 			for i := range a {
-				a[i] = cfg.Password
+				a[i] = password
 			}
 			return a, nil
 		})},
-		HostKeyCallback: sftpHostKeyCheck(cfg.HostKey),
+		HostKeyCallback: sftpHostKeyCheck(hostKey),
 		Timeout:         30 * time.Second,
 	}
 	var d net.Dialer
-	nc, err := d.DialContext(ctx, "tcp", sftpAddr(cfg.Host))
+	nc, err := d.DialContext(ctx, "tcp", sftpAddr(host))
 	if err != nil {
 		return nil, fmt.Errorf("could not reach the SFTP server: %w", err)
 	}
 	stop := context.AfterFunc(ctx, func() { nc.Close() })
-	defer stop()
-	sc, chans, reqs, err := ssh.NewClientConn(nc, sftpAddr(cfg.Host), conf)
+	sc, chans, reqs, err := ssh.NewClientConn(nc, sftpAddr(host), conf)
 	if err != nil {
+		stop()
 		nc.Close()
 		return nil, fmt.Errorf("SFTP login failed: %w", err)
 	}
 	client := ssh.NewClient(sc, chans, reqs)
-	defer client.Close()
 	fs, err := sftp.NewClient(client)
 	if err != nil {
+		client.Close()
+		stop()
 		return nil, fmt.Errorf("SFTP session failed: %w", err)
+	}
+	return &sftpSession{Client: fs, ssh: client, stop: stop, nc: nc}, nil
+}
+
+// readSmall reads a file of at most sftpMaxBytes.
+func (s *sftpSession) readSmall(p string) ([]byte, error) {
+	f, err := s.Open(p)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, sftpMaxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > sftpMaxBytes {
+		return nil, errors.New("larger than 64 MB, skipped")
+	}
+	return data, nil
+}
+
+func fetchSFTP(ctx context.Context, cfg CDSLSFTPConfig) ([]CDSLReportFile, error) {
+	ctx, cancel := context.WithTimeout(ctx, sftpTimeout)
+	defer cancel()
+	fs, err := sftpDial(ctx, cfg.Host, cfg.User, cfg.Password, cfg.HostKey)
+	if err != nil {
+		return nil, err
 	}
 	defer fs.Close()
 
@@ -122,19 +164,9 @@ func fetchSFTP(ctx context.Context, cfg CDSLSFTPConfig) ([]CDSLReportFile, error
 			errs = append(errs, fmt.Errorf("%s is larger than 64 MB and was skipped", e.Name()))
 			continue
 		}
-		f, err := fs.Open(path.Join(dir, e.Name()))
+		data, err := fs.readSmall(path.Join(dir, e.Name()))
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", e.Name(), err))
-			continue
-		}
-		data, err := io.ReadAll(io.LimitReader(f, sftpMaxBytes+1))
-		f.Close()
-		if err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", e.Name(), err))
-			continue
-		}
-		if len(data) > sftpMaxBytes {
-			errs = append(errs, fmt.Errorf("%s is larger than 64 MB and was skipped", e.Name()))
 			continue
 		}
 		out = append(out, CDSLReportFile{Name: e.Name(), Data: data})

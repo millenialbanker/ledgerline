@@ -3102,7 +3102,7 @@ Object.assign(A, {
   perRun: (id, el) => act(() => post(`/v1/periodic/${id}/run`, { period: el.dataset.p, date: S.date }), r => `${r.status}: ${r.summary}`),
 });
 V.xfiles = {
-  load: async () => { const [fs, cl, al] = await Promise.all([get('/v1/exchange-files/formats'), get(`/v1/exchange-files-checklist?date=${S.date}`).catch(() => null), get('/v1/exchange-files-alerts').catch(() => null)]); fs.checklist = cl; if (cl) cl.alerts = al; return fs; },
+  load: async () => { const [fs, cl, al, mx] = await Promise.all([get('/v1/exchange-files/formats'), get(`/v1/exchange-files-checklist?date=${S.date}`).catch(() => null), get('/v1/exchange-files-alerts').catch(() => null), get('/v1/mcx/sftp').catch(() => null)]); fs.checklist = cl; fs.mcxsftp = mx; if (cl) cl.alerts = al; return fs; },
   html: fs => {
     const inn = fs.filter(f => f.direction === 'in'), out = fs.filter(f => f.direction === 'out'), mk = has('Ops maker', 'Ops checker', 'Risk manager', 'Compliance officer');
     const res = UI.xfRes ? `<div class="panel"><div class="hd"><h3>Last upload</h3></div>${tbl([['File'], ['Recognised as'], ['Rows', 'r'], ['Check'], ['Result']], UI.xfRes.map(r => `<tr><td class="mono small wrap">${esc(r.name)}</td><td>${r.format ? `<b>${esc(r.title)}</b><div class="dim small mono">${esc(r.format)}</div>` : '<span class="dim">Not recognised</span>'}</td><td class="r">${r.rows || '—'}</td><td>${!r.format ? '' : r.problems ? pill(r.problems + ' problem' + (r.problems > 1 ? 's' : ''), 'bad') + `<div class="small wrap">${r.issues.slice(0, 5).map(i => `line ${i.line}${i.column ? ' · ' + esc(i.column) : ''}: ${esc(i.message)}`).join('<br>')}</div>` : pill('Matches the layout', 'good')}</td><td class="small wrap">${esc(r.loaded || '')}${r.added ? ` · ${r.added} added` : ''}${r.skipped ? ` · ${r.skipped} skipped` : ''}${r.note ? `<div class="dim">${esc(r.note)}</div>` : ''}</td></tr>`))}</div>` : '';
@@ -3112,11 +3112,18 @@ V.xfiles = {
     return ph('Exchange files', 'The files the firm receives from and sends to the exchanges, clearing corporations, CDSL, the trading front end and the bank, in their exact layouts. Drop a file as downloaded (zip or gz is fine): Ledgerline recognises it, checks every field against the layout, and loads the ones it uses.',
       mk ? '<button class="btn" data-act="xfPick" data-load="0">Check a file</button><button class="btn pri" data-act="xfPick" data-load="1">Load files</button>' : '') +
       `<div class="kpis">${kpi('Layouts', fs.length, `${inn.length} received · ${out.length} sent`)}${kpi('Used by Ledgerline', fs.filter(f => f.linked || f.writes).length, 'read into Ledgerline or written by it', 'good')}${kpi('Checked only', fs.filter(f => !f.linked && !f.writes).length, 'recognised and validated, not used yet')}</div>` + res +
-      xfChecklist(fs.checklist) +
+      xfChecklist(fs.checklist) + xfMCXSFTP(fs.mcxsftp, mk) +
       `<div class="panel"><div class="hd"><h3>Received</h3></div>${tbl([['File'], ['From'], ['When'], ['Fields', 'r'], ['Status'], ['']], inn.map(row), { tall: true })}</div>
       <div class="panel"><div class="hd"><h3>Sent</h3><div class="tools"><label class="dim small">For</label><input class="in sm" type="date" id="xf-date" value="${esc(UI.xfDate || S.date)}"></div></div>${tbl([['File'], ['To'], ['When'], ['Fields', 'r'], ['Status'], ['']], out.map(row), { tall: true })}</div>`;
   }
 };
+// MCX SFTP: the automatic fetch's last run and latest files (mcxsftp.go).
+function xfMCXSFTP(m, mk) {
+  if (!m || (!m.state.last_run && !m.files.length)) return '';
+  const st = m.state;
+  return `<div class="panel"><div class="hd"><h3>MCX SFTP</h3><small>${st.last_error ? pill('Problem', 'bad') + ' ' + esc(st.last_error) : st.last_ok ? pill('Working', 'good') + ' last fetched ' + esc(fmtTS(st.last_ok)) : ''}</small>${mk ? '<div class="tools"><button class="btn sm" data-act="mcxSFTP">Fetch now</button></div>' : ''}</div>
+    ${tbl([['File'], ['Folder'], ['Fetched'], ['Result']], m.files.slice(0, 20).map(f => `<tr><td class="mono small wrap">${esc(f.name)}</td><td class="mono small dim wrap">${esc(f.folder)}</td><td class="n dim">${esc(fmtTS(f.at))}</td><td class="small">${f.format ? `<b>${esc(f.format)}</b> · ` : ''}${esc(f.loaded)}</td></tr>`), { empty: 'Nothing fetched yet.' })}</div>`;
+}
 // The day's expected files, filtered by the clearing corporations chosen in Settings.
 // Files still missing 30 minutes (the grace period) after their time are
 // chased by the scheduler: a work item each and one email (filealerts.go).
@@ -3129,6 +3136,7 @@ function xfChecklist(cl) {
     ${tbl([['File'], ['From / to'], ['For'], ['Due'], ['Status'], ['Alerted at']], cl.items.map(i => `<tr><td><b>${esc(i.title)}</b>${(i.files || []).length ? `<div class="dim small mono wrap">${esc(i.files.join(', '))}</div>` : ''}${i.status === 'Check by hand' && i.hand_note ? `<div class="dim small wrap">${esc(i.hand_note)}</div>` : ''}</td><td>${esc(i.party)} ${i.direction === 'out' ? '(sent)' : ''}</td><td class="small">${esc(i.for.join(', '))}</td><td class="n small">${esc(i.due)}</td><td>${pill(i.status, tone[i.status] || 'nt')}</td><td class="n small">${i.alerted_at ? esc(i.alerted_at) + ((i.files || []).length ? '<div class="dim">since received</div>' : '') : '<span class="dim">—</span>'}</td></tr>`), { tall: true })}</div>`;
 }
 Object.assign(A, {
+  mcxSFTP: () => act(() => post('/v1/mcx/sftp/fetch'), r => `${(r.fetched || []).length} new file(s) from MCX${(r.problems || []).length ? ' · ' + r.problems[0] : ''}`),
   xfChase: () => act(() => post('/v1/exchange-files-alerts/run'), r => r.skipped ? 'Not checked: ' + r.skipped : r.alerted.length ? `${r.alerted.length} file(s) newly missing: work items raised and emailed` : 'Nothing newly missing'),
   xfAlertSet: async () => {
     let a; try { a = await get('/v1/exchange-files-alerts'); } catch (e) { toast(e.message, true); return; }

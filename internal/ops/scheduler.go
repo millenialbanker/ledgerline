@@ -286,6 +286,7 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.nclMarginsTick(ctx, tenant, now)
 	o.retryMessages(ctx, tenant, now)
 	o.extranetTick(ctx, tenant, now)
+	o.mcxSFTPTick(ctx, tenant, now)
 	// Client registration with the exchanges by API (UCC), when switched on.
 	o.nseUCITick(ctx, tenant, now)
 	o.bseUCCTick(ctx, tenant, now)

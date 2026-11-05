@@ -103,6 +103,7 @@ Entering pledges to lenders | Ops maker, Ops checker
 Entering unpledge requests | Ops maker, Ops checker, Risk manager
 Entering vouchers | Ops maker, Ops checker
 Exporting dealers with PANs | Ops maker, Compliance officer
+Fetching files from MCX's SFTP | Ops maker, Ops checker, Risk manager
 Fetching files from NSE's extranet | Ops maker, Ops checker, Risk manager
 Fetching margins from NSE Clearing | Ops maker, Ops checker, Risk manager
 Fetching trades from NSE | Ops maker, Ops checker, Risk manager
