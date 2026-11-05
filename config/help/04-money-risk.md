@@ -89,13 +89,52 @@ related: payout-bank-file, ras
 ## payout-bank-file
 title: Send approved payouts to the bank
 screen: money
-roles: Ops checker
-ask: payout file; bank payout file; neft file; release payouts; payout utr; payout failed; bank result
+roles: Ops maker, Ops checker
+ask: payout file; bank payout file; neft file; rtgs file; hdfc file; hdfc enet; enet upload; release payouts; payout utr; payout failed; bank result; payout file blocked; cancel payout file; file sequence number; instruction reference
 related: payout
 
-1. On [[money|Receipts & payouts]], download the **Bank file** of approved payouts (Autopilot prepares it at the cut-off).
-2. Upload it on the bank's corporate banking.
+1. On [[money|Receipts & payouts]], an Ops checker clicks **Release payouts** (Autopilot does it at the cut-off). Each client is debited and a payout batch is made. Release as often as you send files: two or three batches a day is normal.
+2. On the batch, click **HDFC ENet file**. You see each payment's type and any problems. Click **Produce and download** and upload the plain file (for example `ABCD12340411.817`) on HDFC ENet.
 3. When the bank responds, click **Enter bank result**: the UTR for each paid item, or mark it failed. Failed payouts go back to the client's ledger.
+
+**The file.** HDFC ENet's bulk upload format: one line per payment, 28 comma-separated fields, no header or trailer, CRLF line endings. Each line carries:
+- the client code as beneficiary code;
+- the registered account, the amount (2 decimals), the name, the IFSC, the bank and branch and the client's registered email;
+- a 14-digit instruction reference (your prefix and a running number, given once per payment);
+- the customer reference `UCC-PAY`;
+- the value date as DD/MM/YYYY.
+
+**Transaction type.**
+- **I** (HDFC to HDFC) when the IFSC starts with HDFC.
+- **R** (RTGS) from the RTGS threshold (₹2,00,000 unless changed), or when the payout was marked *Send by RTGS*.
+- **N** (NEFT) otherwise.
+
+Settings can turn I off or force one type.
+
+**Checks.** Any of these blocks the file, and every problem is listed:
+- the account is not the client's registered bank account;
+- the IFSC is not 11 characters with 0 as the 5th;
+- the account number is not 9–18 digits;
+- an amount is not above zero;
+- a client appears twice (unless allowed);
+- the file total differs from the batch's approved total;
+- there is no registered email;
+- a forced type doesn't fit (I needs an HDFC IFSC; R needs ₹2 lakh);
+- a field is too long or has characters the file cannot carry.
+
+Commas and line breaks are taken out of names and bank names. HDFC doesn't publish field lengths, so Ledgerline uses safe limits:
+- name, bank name and branch: 35 characters;
+- client code and customer reference: 20 characters;
+- email: 100 characters.
+
+**One file per batch.** A file can be downloaded again; each download is recorded with who and when. To make a new file for the same payouts (not uploaded, or rejected by the bank), an Ops checker first clicks **Cancel file** and gives the reason. The new file takes the next number and keeps the same instruction references.
+
+**Settings → Receipts and payouts.**
+- **HDFC ENet client ID.**
+- **File name template:** default `{hdfc_client_id}{date:0201}.{seq:3}`, the ID then DDMM then the number. You can put a fixed number in place of the date.
+- **File sequence:** *running* across days, the default, wrapping from 999 to 001; or *restart at 001 each day*.
+- **Next file number:** set it to carry on from the previous system's last file. There is an optional **second series** with its own number. Tick *Number from the second series* when producing a file.
+- **Instruction reference prefix**, **customer reference suffix** (PAY), **RTGS from**, **transaction type**, **HDFC-to-HDFC transfers**, **allow a client twice**.
 
 ## ras
 title: Run the running account settlement (RAS)

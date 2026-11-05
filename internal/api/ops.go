@@ -162,6 +162,7 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/payouts/batches", s.payoutBatch, true)
 	R("GET /v1/payouts/batches/{id}/file", s.payoutFile, false)
 	R("POST /v1/payouts/batches/{id}/confirm", s.confirmPayouts, true)
+	s.hdfcENetRoutes(R)
 	R("GET /v1/corporate-actions", s.corpActions, false)
 	R("POST /v1/corporate-actions", s.saveCorpAction, true)
 	R("POST /v1/corporate-actions/{id}/apply", s.applyCorpAction, true)
@@ -1888,6 +1889,7 @@ func (s *Server) requestPayout(w http.ResponseWriter, r *http.Request) {
 		Date   string       `json:"date"`
 		UCC    string       `json:"ucc"`
 		Amount money.Amount `json:"amount"`
+		RTGS   bool         `json:"rtgs"` // send by RTGS whatever the threshold
 	}
 	if !decode(w, r, &b) {
 		return
@@ -1905,10 +1907,20 @@ func (s *Server) requestPayout(w http.ResponseWriter, r *http.Request) {
 	case ops.RoleClient:
 		src = "Client"
 	}
+	if b.RTGS && b.Amount < 20000000 {
+		writeErr(w, 422, "invalid", "RTGS needs at least ₹2,00,000", nil)
+		return
+	}
 	v, err := s.ops.RequestPayout(r.Context(), tenant(r), actor(r), b.Date, b.UCC, b.Amount, src)
 	if err != nil {
 		fail(w, err, nil)
 		return
+	}
+	if b.RTGS && src != "Client" {
+		if v, err = s.ops.MarkPayoutRTGS(r.Context(), tenant(r), actor(r), v.ID, true); err != nil {
+			fail(w, err, nil)
+			return
+		}
 	}
 	writeJSON(w, 201, v)
 }

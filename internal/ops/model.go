@@ -164,6 +164,22 @@ type Settings struct {
 	// ManagementEmails get scheduled-job results and alerts.
 	ManagementEmails   []string `json:"management_emails"`
 	PayoutDebitAccount string   `json:"payout_debit_account"` // client bank account payouts are made from
+	// HDFC Bank ENet payout file (hdfcenet.go): the firm's ENet client ID
+	// and the file name template (default {hdfc_client_id}{date:0201}.{seq:3}),
+	// the sequence (running across days, the default, or daily), the
+	// instruction reference prefix (digits; a running number fills the 14),
+	// the customer reference suffix (UCC-PAY), the RTGS threshold (₹,
+	// default 200000), HDFC-to-HDFC transfers (I) unless turned off, a
+	// forced type (N, R or I) and whether a client may appear twice.
+	HDFCClientID      string `json:"hdfc_client_id,omitempty"`
+	HDFCFileName      string `json:"hdfc_file_name,omitempty"`
+	HDFCSeqMode       string `json:"hdfc_seq_mode,omitempty"`
+	HDFCInstrPrefix   string `json:"hdfc_instr_prefix,omitempty"`
+	HDFCCustRefSuffix string `json:"hdfc_cust_ref_suffix,omitempty"`
+	RTGSThreshold     string `json:"rtgs_threshold,omitempty"`
+	HDFCNoInternal    bool   `json:"hdfc_no_internal,omitempty"`
+	HDFCForceType     string `json:"hdfc_force_type,omitempty"`
+	HDFCRepeatClient  bool   `json:"hdfc_repeat_client,omitempty"`
 
 	// Period locking: nothing may be posted on or before LockedUpTo, or
 	// before today minus AutoLockDays business days when that is set.
@@ -500,6 +516,9 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 		}
 	}
 	if err := checkClearing(&s); err != nil {
+		return err
+	}
+	if err := checkHDFCSettings(&s); err != nil {
 		return err
 	}
 	prev, _ := o.Settings(ctx, tenant)

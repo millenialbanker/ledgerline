@@ -36,6 +36,7 @@ Authorising sales and TPIN for clients (eDIS) | Ops maker, Ops checker, Branch s
 Blocking clients in continuous debit | Risk manager
 Booking vendor bills | Ops maker, Ops checker
 Buy-back offers | Ops maker, Ops checker
+Cancelling a payout bank file | Ops checker
 Changing AI masking | Admin
 Changing CDSL account details | Ops maker, Ops checker
 Changing CDSL pledge settings | Risk manager, Compliance officer
@@ -150,6 +151,7 @@ Posting interest | Ops checker, Risk manager
 Posting referral rewards | Ops checker
 Prepaid schemes | Ops checker, Admin
 Preparing margin penalties | Ops checker, Risk manager, Compliance officer
+Producing the payout bank file | Ops maker, Ops checker
 Proposing legacy debts | Ops maker, Ops checker, Risk manager, Compliance officer
 Raising CDSL requests | Ops maker, Ops checker
 Raising pledge invocations | Risk manager
