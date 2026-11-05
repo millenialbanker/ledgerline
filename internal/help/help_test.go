@@ -160,6 +160,11 @@ func TestQuestions(t *testing.T) {
 		{"add off market beneficiary", "", "cdsl-demat-api"},
 		{"joint holder died delete name at cdsl", "", "cdsl-demat-api"},
 		{"make the bo modify file for cdsl", "", "cdsl-demat-api"},
+		{"what does the cdsl client master file change", "", "cdsl-client-master"},
+		{"why does the client need edis to sell", "", "cdsl-client-master|cdsl-edis"},
+		{"cdsl froze the account dpe6", "", "cdsl-freeze"},
+		{"freeze lifted at cdsl", "", "cdsl-freeze"},
+		{"harmonised csv bo upload", "", "cdsl-demat-api"},
 		// Day.
 		{"why can't I close the day", "", "eod-close"},
 		{"what is the daily process", "", "daily-routine"},

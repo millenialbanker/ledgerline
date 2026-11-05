@@ -47,6 +47,9 @@ type Column struct {
 	// Aliases are other header texts the column is known by (a circular
 	// and the exchange's own files spelling a reserved field differently).
 	Aliases []string `json:"aliases,omitempty"`
+	// Codes are the field's published standard values and their meanings;
+	// informational (values are not checked against them, as code lists grow).
+	Codes map[string]string `json:"codes,omitempty"`
 }
 
 // reserved says whether a column is a reserved or dummy field.

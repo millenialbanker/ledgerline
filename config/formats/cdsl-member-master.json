@@ -6,230 +6,401 @@
  "when": "BOD",
  "purpose": "Depository participants and clearing members with their CDSL ids.",
  "names": [
-  "MBR_MSTR_\\d+_\\d+_F_\\d+_\\d+\\.csv"
+  "MBR_MSTR_\\d+_\\d+_[IF]_\\d+_\\d+(_P\\d+)?\\.csv"
  ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
  "header": true,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as CDSL's participant master",
+ "source": "CDSL UDiFF Catalogue V3.0.1.4, sheet Field Master, information type Member_Master (49 fields; names, types and standard values)",
  "columns": [
   {
    "name": "Src",
-   "type": "str"
+   "type": "str",
+   "note": "Source; CHAR(4)",
+   "codes": {
+    "CDSL": "Central Depository Services (India) Limited",
+    "NSDL": "National Securities Depository Limited"
+   }
   },
   {
    "name": "CntrlSctiesDpstryPtcpt",
-   "type": "str"
+   "type": "str",
+   "note": "DP ID; CHAR(8); DP ID / BP ID Blank in case of CM master list"
   },
   {
    "name": "DPNm",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "DP Name / BP Name; CHAR(140)"
   },
   {
    "name": "SEBIRegNb",
-   "type": "str"
+   "type": "str",
+   "note": "SEBI Registration Number; CHAR(24); Not Applicable for NSDL"
   },
   {
    "name": "PrntDPId",
-   "type": "str",
-   "quote": "always"
+   "type": "int",
+   "quote": "always",
+   "note": "Parent DP Id; NUMBER(6); Not Applicable for NSDL"
   },
   {
    "name": "PrntDPNm",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Parent DP Name; CHAR(140); Not Applicable for NSDL"
   },
   {
    "name": "CntrlSctiesDpstryPtcptRole",
-   "type": "str"
+   "type": "str",
+   "note": "DP Type / BP Role; CHAR(3)",
+   "codes": {
+    "CH": "Clearing House/Clearing Corporation",
+    "CM": "Clearing Member",
+    "DP": "Regular/Depository Participant",
+    "RT": "Registered Transfer Agent",
+    "DE": "Depository",
+    "CU": "Custodian",
+    "SE": "Stock Exchange",
+    "DF": "Default"
+   }
   },
   {
    "name": "RegCtctNm",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Registered Contact Name; CHAR(100); Not Applicable for NSDL"
   },
   {
    "name": "CmplOffcrNm",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Compliance Officer Name; CHAR(100); Not Applicable for NSDL"
   },
   {
    "name": "Addr1",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Address Line 1; CHAR(55)"
   },
   {
    "name": "Addr2",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Address Line 2; CHAR(55)"
   },
   {
    "name": "Addr3",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Address Line 3; CHAR(55)"
   },
   {
    "name": "City",
-   "type": "str"
+   "type": "str",
+   "note": "City; CHAR(36); Not Applicable for NSDL"
   },
   {
    "name": "State",
-   "type": "str"
+   "type": "str",
+   "note": "State; CHAR(25); Not Applicable for NSDL"
   },
   {
    "name": "Cntry",
-   "type": "str"
+   "type": "str",
+   "note": "Country; CHAR(25); Not Applicable for NSDL"
   },
   {
    "name": "PstCd",
-   "type": "str"
+   "type": "str",
+   "note": "Pin Code / CUST ADDR ZIP; CHAR(10)"
   },
   {
    "name": "PhneNb1",
-   "type": "str"
+   "type": "str",
+   "note": "Phone 1 / Phone; CHAR(24)"
   },
   {
    "name": "PhneNb2",
-   "type": "str"
+   "type": "str",
+   "note": "Phone 2; CHAR(24)"
   },
   {
    "name": "FaxNb",
-   "type": "str"
+   "type": "str",
+   "note": "Fax No. / FAX; CHAR(24)"
   },
   {
    "name": "Email",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Email; CHAR(80)"
   },
   {
    "name": "MbrStatus",
-   "type": "str"
+   "type": "str",
+   "note": "Member Status / BP Status; CHAR(3)",
+   "codes": {
+    "ACT": "Active",
+    "SUS": "Inactive/Suspended",
+    "SFD": "Suspended for debit",
+    "TBC": "To Be Closed",
+    "RFC": "Requested for Closure",
+    "CLS": "Closed",
+    "PAC": "Pending for Activation",
+    "CLO": "Permantly Inactive/Closed",
+    "DFT": "Default"
+   }
   },
   {
    "name": "SEBIRegFrmDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "SEBI Registration Date [From]; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "SEBIRegToDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "SEBI Registration Date [To]; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "OprtnlAddr1",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Operational Contact Address(1); CHAR(30); Not Applicable for NSDL"
   },
   {
    "name": "OprtnlAddr2",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Operational Contact Address(2); CHAR(30); Not Applicable for NSDL"
   },
   {
    "name": "OprtnlAddr3",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Operational Contact Address(3); CHAR(30); Not Applicable for NSDL"
   },
   {
    "name": "OprtnlCity",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Operational Contact City; CHAR(25); Not Applicable for NSDL"
   },
   {
    "name": "OprtnlState",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Operational Contact State; CHAR(25); Not Applicable for NSDL"
   },
   {
    "name": "OprtnlCntry",
-   "type": "str"
+   "type": "str",
+   "note": "Operational Contact Country; CHAR(25); Not Applicable for NSDL"
   },
   {
    "name": "OprtnlPstCd",
-   "type": "str"
+   "type": "str",
+   "note": "Operational Contact Zip; CHAR(10); Not Applicable for NSDL"
   },
   {
    "name": "OprtnlPhneNb1",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Operational Contact Phone(1); CHAR(24); Not Applicable for NSDL"
   },
   {
    "name": "OprtnlPhneNb2",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Operational Contact Phone(2); CHAR(24); Not Applicable for NSDL"
   },
   {
    "name": "OprtnlFaxNb",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Operational Contact Fax; CHAR(24); Not Applicable for NSDL"
   },
   {
    "name": "Rmks",
-   "type": "str"
+   "type": "str",
+   "note": "Remarks; CHAR(150)"
   },
   {
    "name": "DPAcctngTyp",
-   "type": "str"
+   "type": "str",
+   "note": "Member Accounting Type / Business Category; CHAR(3)",
+   "codes": {
+    "FII": "Foreign Institutional Investor",
+    "OCB": "Overseas Corporate Bodies",
+    "OTH": "Others",
+    "PFI": "Public Financial Institution ( 19 a i )",
+    "BNK": "Bank ( 19 a ii )",
+    "FRB": "Foreign Bank ( 19 a iii )",
+    "SFC": "State Financial Corporation ( 19 a iv )",
+    "INS": "Institution ( 19 a v )",
+    "CUS": "Custodian of Securities ( 19 a vi )",
+    "CCH": "Clearing Corporation / House (19 a vii )",
+    "SBR": "Stock Broker ( 19 a viii )",
+    "NBA": "NBFC [ > 50 lacs < 50 crores (19 a ix) ]",
+    "NBB": "NBFC [ > 50 crores ( 19 a ix) ]",
+    "RTA": "RTA",
+    "ISS": "ISSUER",
+    "RCC": "Request for closure - CM/RTA/Custodian",
+    "RCB": "Request for closure - Bank",
+    "MCC": "Marked for closure -CM/RTA/Custodian",
+    "MCB": "Marked for closure - Bank",
+    "CLS": "Closed",
+    "RCH": "Request for closure - CH",
+    "MCH": "Marked for closure - CH",
+    "DRC": "Deemed RTA Closed/Nonfunction/Terminated",
+    "NBF": "NBFC",
+    "CLM": "Clearing Member",
+    "CU": "Custodian",
+    "MCO": "Marked for closure Others",
+    "DFT": "Default"
+   }
   },
   {
    "name": "SuspDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Suspended Date; DATE(10); YYYY-MM-DD Not Applicable for NSDL"
   },
   {
    "name": "ClrSysId",
-   "type": "str"
+   "type": "str",
+   "note": "CC ID/CH ID; CHAR(6)",
+   "codes": {
+    "ICCL": "Indian Clearing Corporation Limited",
+    "NCL": "NSE Clearing Limited",
+    "NCLSLB": "NSE Clearing Limited - SLB",
+    "OTCEI": "NATIONAL SECURITIES CLEARING CORP LTD-OTCEI",
+    "NCCL": "NATIONAL COMMODITY CLEARING LIMITED (NCCL)",
+    "MCXCCL": "MULTI COMMODITY EXCHANGE CLEARING CORPORATION LIMITED (MCXCCL)",
+    "MCCL": "METROPOLITAN CLEARING CORPORATION OF INDIA LIMITED",
+    "CSECH": "CALCUTTA STOCK EXCHANGE- CLEARING HOUSE",
+    "DSECH": "DELHI STOCK EXCHANGE LIMITED - CLEARING HOUSE",
+    "ASECH": "AHMEDABAD STOCK EXCHANGE CLEARING HOUSE",
+    "BSLSLB": "BOI SHAREHOLDING LIMITED - SLB",
+    "NSEL": "NATIONAL SPOT EXCHANGE LIMITED",
+    "ICSEL": "INTER-CONNECTED STOCK EXCHANGE OF INDIA LIMITED",
+    "ICL": "INDIAN CLEARING CORPORATION LIMITED - Debt",
+    "ADCEL": "ACE DERIVATIVES AND COMMODITIES EXCHANGE LIMITED",
+    "UCEL": "UNIVERSAL COMMODITY EXCHANGE LIMITED",
+    "CCIL": "THE CLEARING CORPORATION OF INDIA LTD.",
+    "MCL": "METROPOLITAN CLEARING CORPORATION OF INDIA LIMITED - ICX",
+    "DFT": "Default",
+    "BSL": "BOI SHAREHOLDING LIMITED",
+    "NCDL": "NATIONAL COMMODITY AND DERIVATIVES EXCH. LTD.",
+    "LASE": "LUDHIANA STOCK EXCHANGE",
+    "BASE": "BANGALORE STOCK EXCHANGE",
+    "MDSE": "MADRAS STOCK EXCHANGE",
+    "MCEL": "MULTI COMMODITY EXCHANGE OF INDIA LIMITED",
+    "ARCL": "AMC REPO CLEARING LIMITED",
+    "CA": "Corporate Action"
+   }
   },
   {
    "name": "AssctdDPId",
-   "type": "str"
+   "type": "str",
+   "note": "Associated DP ID; CHAR(8); Not available in CDSL"
   },
   {
    "name": "AssctdCCCMId",
-   "type": "str"
+   "type": "str",
+   "note": "Associated CC CM ID; CHAR(16); Not available in CDSL"
   },
   {
    "name": "TMID",
-   "type": "str"
+   "type": "str",
+   "note": "Trading Member ID; CHAR(10); Not applicable for NSDL"
   },
   {
    "name": "UnfSettAcct",
-   "type": "str"
+   "type": "str",
+   "note": "Unified Settlement Account (USA); CHAR(16); Not applicable for NSDL"
   },
   {
    "name": "CMCUSA",
-   "type": "str"
+   "type": "str",
+   "note": "Client Unpaid Securities Account (CUSA); CHAR(16); Not applicable for NSDL"
   },
   {
    "name": "EPAcct",
-   "type": "str"
+   "type": "str",
+   "note": "Early Pay-in Account; CHAR(16); Not applicable for NSDL"
   },
   {
    "name": "CmPoolTyp",
-   "type": "str"
+   "type": "str",
+   "note": "CM POOL TYPE; CHAR(3); Refer Standard Value List Not Applicable for CDSL",
+   "codes": {
+    "CMP": "POOL",
+    "CUS": "CUSA",
+    "PMS": "PMS",
+    "TMP": "TM Pool",
+    "SCM": "TM/CM",
+    "DFT": "Default"
+   }
   },
   {
    "name": "Xchg",
-   "type": "str"
+   "type": "str",
+   "note": "Exchange ID; CHAR(3)",
+   "codes": {
+    "BSE": "BOMBAY STOCK EXCHANGE LIMITED",
+    "NSE": "NATIONAL STOCK EXCHANGE OF INDIA LIMITED",
+    "OTC": "OTC EXCHANGE OF INDIA",
+    "NCD": "NATIONAL COMMODITY & DERIVATIVES EXCHANGE LIMITED",
+    "MCX": "MULTI COMMODITY EXCHANGE OF INDIA LIMITED",
+    "NSL": "NATIONAL STOCK EXCHANGE OF INDIA LIMITED - SLB",
+    "ICS": "INTER-CONNECTED STOCK EXCHANGE OF INDIA LIMITED",
+    "MSE": "METROPOLITAN STOCK EXCHANGE OF INDIA LIMITED",
+    "BSC": "BOMBAY STOCK EXCHANGE LIMITED",
+    "RBI": "RESERVE BANK OF INDIA",
+    "ICX": "INDIAN COMMODITY EXCHANGE LIMITED (ICEX)",
+    "CSE": "THE CALCUTTA STOCK EXCHANGE ASSOCIATION LIMITED",
+    "DSE": "THE DELHI STOCK EXCHANGE ASSOCIATION LIMITED",
+    "ASE": "THE STOCK EXCHANGE AHMEDABAD",
+    "BSS": "BOMBAY STOCK EXCHANGE LIMITED - SLB",
+    "NSP": "NATIONAL SPOT EXCHANGE LTD",
+    "ACE": "ACE DERIVATIVES AND COMMODITIES EXCHANGE LIMITED",
+    "UCX": "UNIVERSAL COMMODITY EXCHANGE LIMITED",
+    "DSP": "DUMMY SETTLEMENT POCKET1",
+    "CA": "CORPORATE ACTION",
+    "DFT": "Default",
+    "LSE": "LUDHIANA STOCK EXCHANGE",
+    "BGE": "BANGALORE STOCK EXCHANGE",
+    "MDE": "MADRAS STOCK EXCHANGE",
+    "CCI": "THE CLEARING CORPORATION OF INDIA LIMITED"
+   }
   },
   {
    "name": "Rsvd1",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_1; CHAR(50)"
   },
   {
    "name": "Rsvd2",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_2; CHAR(50)"
   },
   {
    "name": "Rsvd3",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_3; CHAR(50)"
   },
   {
    "name": "Rsvd4",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_4; CHAR(50)"
   }
- ],
- "confirmed": true,
- "source": "Header row of the file",
- "compress": "none",
- "format": "delimited",
- "delimiter": ",",
- "crlf": true,
- "final_eol": true,
- "linked": "Loaded as CDSL's participant master"
+ ]
 }

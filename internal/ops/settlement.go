@@ -227,6 +227,9 @@ func (o *Ops) SettleAction(ctx context.Context, tenant, actor, date, key, action
 	if ob.Action == "" || ob.Action != action {
 		return *ob, fmt.Errorf("%w: %s %s is %s; %q is not available", ErrState, ob.UCC, ob.Symbol, ob.Status, action)
 	}
+	if why := o.settleFrozen(ctx, tenant, *ob, action); why != "" {
+		return *ob, fmt.Errorf("%w: %s", ErrState, why)
+	}
 	status := ""
 	switch action {
 	case "payin":
@@ -290,6 +293,9 @@ func (o *Ops) SettleAllReady(ctx context.Context, tenant, actor, date string) (i
 	n := 0
 	for _, ob := range st.Obligations {
 		if ob.Action == "payin" || ob.Action == "payout" {
+			if o.settleFrozen(ctx, tenant, ob, ob.Action) != "" {
+				continue // frozen at CDSL: left for a person (cdslfreeze.go)
+			}
 			if _, err := o.SettleAction(ctx, tenant, actor, date, ob.Key, ob.Action); err != nil {
 				return n, err
 			}

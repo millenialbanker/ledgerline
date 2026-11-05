@@ -497,6 +497,9 @@ type PledgeLine struct {
 func (o *Ops) cplFree(ctx context.Context, tenant, ucc, isin, except string) (Holding, int64) {
 	h, _, _ := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingID(ucc, isin))
 	free := h.Qty - h.Pledged - o.cplEncumbered(ctx, tenant, ucc)[isin]
+	if c, err := o.Client(ctx, tenant, ucc); err == nil { // frozen at CDSL (cdslfreeze.go)
+		free -= o.cdslFrozenQty(ctx, tenant, o.bo(ctx, tenant, c).BOID, isin, h.Qty)
+	}
 	ps, _ := docs.List[PledgeRequest](ctx, o.Docs, tenant, cPledge, "")
 	for _, p := range ps {
 		if p.ID != except && p.UCC == ucc && p.ISIN == isin && p.Via == cplVia && (p.Status == "Pending" || p.Status == "Awaiting client") {
@@ -541,7 +544,7 @@ func (o *Ops) RequestMarginPledge(ctx context.Context, tenant, actor, ucc, kind,
 		return nil, err
 	}
 	bo := o.bo(ctx, tenant, c)
-	if c.Status != "Active" || bo.Status != "Active" || bo.Freeze == "Debit" || bo.Freeze == "Both" {
+	if c.Status != "Active" || bo.Status != "Active" || bo.debitFrozen() {
 		return nil, invalid("%s's account or demat account is not active for debits", ucc)
 	}
 	if !cplReBO16.MatchString(bo.BOID) || !strings.EqualFold(firstOf(bo.Depository, "CDSL"), "CDSL") {

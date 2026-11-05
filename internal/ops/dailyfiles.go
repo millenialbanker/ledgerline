@@ -276,6 +276,18 @@ var DailyFiles = []DailyFile{
 	{ID: "mcx-mrg", Title: "Margin reporting file to MCXCCL", Format: "mcx-margin-reporting", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "out", At: "12:00", NextDay: true, TMLevel: true},
 	{ID: "mcx-ncmr", Title: "MCXCCL margin shortfall and penalty (NCMR)", Format: "mcx-ncmr", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "20:00", NextDay: true, TMLevel: true},
 	{ID: "mcx-penalty", Title: "MCXCCL penalty file (UDiFF)", Format: "mcxccl-penalty", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "20:00", NextDay: true, TMLevel: true},
+	// CDSL, for a firm that is a CDSL DP (listed when the CDSL connection
+	// has a DP ID or a CDSL member code is set; cdslDPFirm).
+	{ID: "cdsl-cln", Title: "CDSL client master (CLN_MSTR, incremental)", Format: "cdsl-client-master", Party: "CDSL", Segments: []string{"DP"}, Direction: "in", At: "09:00"},
+	{ID: "cdsl-dpe6", Title: "CDSL online freeze master report (DPE6), as it arrives", Format: "cdsl-freeze-master", Party: "CDSL", Segments: []string{"DP"}, Direction: "in", At: "09:00", Intraday: true},
+}
+
+// cdslDPFirm says whether the firm is a CDSL DP, for the checklist.
+func (o *Ops) cdslDPFirm(ctx context.Context, tenant string, set Settings) bool {
+	if x, ok := o.cdxConn(ctx, tenant); ok && strings.TrimSpace(x.DPID) != "" {
+		return true
+	}
+	return strings.TrimSpace(set.MemberCodes["CDSL"]) != "" || strings.TrimSpace(set.MemberCodes["CDSL-SENDER"]) != ""
 }
 
 // iCCLNeed is the note on an ICCL file Ledgerline cannot read yet.
@@ -369,8 +381,12 @@ func (o *Ops) DailyFileChecklist(ctx context.Context, tenant, date string) (File
 	recv, _ := docs.List[DailyFileRecv](ctx, o.Docs, tenant, cDailyRecv, date+"|")
 	alerted := alertTimes(recv)
 	now := o.now().In(ist).Format("2006-01-02 15:04")
+	dp := o.cdslDPFirm(ctx, tenant, set)
 	for _, f := range DailyFiles {
 		var serves []string
+		if f.Party == "CDSL" && dp {
+			serves = []string{"CDSL DP"}
+		}
 		for _, c := range act {
 			if !contains(f.Segments, c.Segment) {
 				continue

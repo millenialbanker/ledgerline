@@ -1,0 +1,175 @@
+{
+ "id": "cdsl-edis",
+ "title": "eDIS authorisations (CDSL, EDIS)",
+ "party": "CDSL",
+ "direction": "in",
+ "when": "EOD (replaces DPT3)",
+ "purpose": "Each eDIS authorisation with its quantity, quantity used and pending, status, exchange, CM and CDSL's transaction ID.",
+ "names": [
+  "EDIS_\\d+_\\d+_\\d+(_P\\d+)?\\.csv"
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Checked and kept; authorisations CDSL reports that Ledgerline has no record of go to the work queue",
+ "source": "CDSL UDiFF Catalogue V3.0.1.4, sheet Field Master, information type EDIS_ (20 fields; names, types and standard values)",
+ "columns": [
+  {
+   "name": "Src",
+   "type": "str",
+   "note": "Source; CHAR(4)",
+   "codes": {
+    "CDSL": "Central Depository Services (India) Limited",
+    "NSDL": "National Securities Depository Limited"
+   }
+  },
+  {
+   "name": "EdisTxnTyp",
+   "type": "str",
+   "note": "EDIS transaction type; CHAR(3)",
+   "codes": {
+    "PRT": "Pre Trade",
+    "POT": "Post Trade",
+    "OFM": "Off Market",
+    "DFT": "Default"
+   }
+  },
+  {
+   "name": "EDISExecQty",
+   "type": "dec",
+   "decimals": 3,
+   "note": "EDIS Executed or Used Quantity; DECIMAL(15,3)"
+  },
+  {
+   "name": "EDISPendQty",
+   "type": "dec",
+   "decimals": 3,
+   "note": "PENDING QTY; DECIMAL(15,3)"
+  },
+  {
+   "name": "TargClntId",
+   "type": "str",
+   "note": "Target BOID.; CHAR(16)"
+  },
+  {
+   "name": "ExecDt",
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Execution Date; DATE(10); YYYY-MM-DD"
+  },
+  {
+   "name": "SttlmId",
+   "type": "str",
+   "note": "Settlement ID; CHAR(13)"
+  },
+  {
+   "name": "EdisStatus",
+   "type": "str",
+   "note": "EDIS Status; CHAR(3)",
+   "codes": {
+    "ACC": "Accepted / Active",
+    "PAR": "Partially Used",
+    "LCK": "Lock",
+    "EXP": "Expired",
+    "RVK": "Revoke",
+    "DFT": "Default",
+    "CAC": "Cancelled in Auto CA",
+    "CLS": "Closed",
+    "FAL": "Failed"
+   }
+  },
+  {
+   "name": "ClntId",
+   "type": "str",
+   "note": "BO ID/Client ID; CHAR(16)"
+  },
+  {
+   "name": "ISIN",
+   "type": "str",
+   "note": "ISIN; CHAR(12)"
+  },
+  {
+   "name": "Xchg",
+   "type": "str",
+   "note": "Exchange ID; CHAR(3); Stock Exchange ID Refer Standard Value List",
+   "codes": {
+    "BSE": "BOMBAY STOCK EXCHANGE LIMITED",
+    "NSE": "NATIONAL STOCK EXCHANGE OF INDIA LIMITED",
+    "OTC": "OTC EXCHANGE OF INDIA",
+    "NCD": "NATIONAL COMMODITY & DERIVATIVES EXCHANGE LIMITED",
+    "MCX": "MULTI COMMODITY EXCHANGE OF INDIA LIMITED",
+    "NSL": "NATIONAL STOCK EXCHANGE OF INDIA LIMITED - SLB",
+    "ICS": "INTER-CONNECTED STOCK EXCHANGE OF INDIA LIMITED",
+    "MSE": "METROPOLITAN STOCK EXCHANGE OF INDIA LIMITED",
+    "BSC": "BOMBAY STOCK EXCHANGE LIMITED",
+    "RBI": "RESERVE BANK OF INDIA",
+    "ICX": "INDIAN COMMODITY EXCHANGE LIMITED (ICEX)",
+    "CSE": "THE CALCUTTA STOCK EXCHANGE ASSOCIATION LIMITED",
+    "DSE": "THE DELHI STOCK EXCHANGE ASSOCIATION LIMITED",
+    "ASE": "THE STOCK EXCHANGE AHMEDABAD",
+    "BSS": "BOMBAY STOCK EXCHANGE LIMITED - SLB",
+    "NSP": "NATIONAL SPOT EXCHANGE LTD",
+    "ACE": "ACE DERIVATIVES AND COMMODITIES EXCHANGE LIMITED",
+    "UCX": "UNIVERSAL COMMODITY EXCHANGE LIMITED",
+    "DSP": "DUMMY SETTLEMENT POCKET1",
+    "CA": "CORPORATE ACTION",
+    "DFT": "Default",
+    "LSE": "LUDHIANA STOCK EXCHANGE",
+    "BGE": "BANGALORE STOCK EXCHANGE",
+    "MDE": "MADRAS STOCK EXCHANGE",
+    "CCI": "THE CLEARING CORPORATION OF INDIA LIMITED"
+   }
+  },
+  {
+   "name": "ClrMmbId",
+   "type": "str",
+   "note": "CM ID; CHAR(16); Max length (8) in case of CDSL"
+  },
+  {
+   "name": "TxnId",
+   "type": "int",
+   "note": "TRANSACTION ID; INTEGER(16); EDIS transaction Id"
+  },
+  {
+   "name": "TxnDt",
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05",
+   "note": "EDIS transaction setup date with time; DATE(19); YYYY-MM-DDTHH:mm:ss"
+  },
+  {
+   "name": "EDISTxnQty",
+   "type": "dec",
+   "decimals": 3,
+   "note": "EDIS transaction Quantity; DECIMAL(15,3)"
+  },
+  {
+   "name": "Rmks",
+   "type": "str",
+   "note": "Remarks; CHAR(150)"
+  },
+  {
+   "name": "Rsvd1",
+   "type": "str",
+   "note": "Dummy_Field_1; CHAR(50)"
+  },
+  {
+   "name": "Rsvd2",
+   "type": "str",
+   "note": "Dummy_Field_2; CHAR(50)"
+  },
+  {
+   "name": "Rsvd3",
+   "type": "str",
+   "note": "Dummy_Field_3; CHAR(50)"
+  },
+  {
+   "name": "Rsvd4",
+   "type": "str",
+   "note": "Dummy_Field_4; CHAR(50)"
+  }
+ ]
+}

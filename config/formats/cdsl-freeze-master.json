@@ -1,0 +1,1118 @@
+{
+ "id": "cdsl-freeze-master",
+ "title": "Online freeze master report (CDSL DPE6)",
+ "party": "CDSL",
+ "direction": "in",
+ "when": "As it arrives (several times a day)",
+ "purpose": "Every freeze on the DP's accounts: set up, unfrozen, cancelled, released or failed, for the whole account or one ISIN, in full or for a quantity, with the reason, the authority and the order.",
+ "names": [
+  "\\d*DPE6.*"
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": "~",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Active freezes block DIS, eDIS, pledges, early pay-in and pay-outs of the frozen securities (and funds pay-outs for an account frozen for debits); unfreeze, cancel and release lift the block; each freeze and lift goes to the work queue",
+ "source": "CDSL communique CDSL/SURV/DP/POLCY/2026/621 (9 September 2026), Annexure A: the revised DPE6 layout with the four fields it adds (other regulatory authority, details of authority, type of order, reason for delay), in continuation of 2026/532. The annexure gives the fields in the order of CDSL's unformatted (~ separated) report and a single name field of 100 + 20 + 20 + 2 characters; lines with the names in three fields, the layout before 2026/621 and a heading line are read too. Dates are DDMMYYYY:HH24MISS, read as text and converted by Ledgerline",
+ "records": [
+  {
+   "code": "FZ_ID",
+   "where": "first",
+   "columns": [
+    {
+     "name": "HFZ_ID",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_BO_ID",
+     "type": "str"
+    },
+    {
+     "name": "HCUST_NAME",
+     "type": "str"
+    },
+    {
+     "name": "HBO_MIDDLE_NAME",
+     "type": "str"
+    },
+    {
+     "name": "HCUST_SRCH_NAME",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ISIN",
+     "type": "str"
+    },
+    {
+     "name": "HISIN_NAME",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_QTY_TYPE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_SETUP_QTY",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ACTUAL_QTY",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_STATUS",
+     "type": "str"
+    },
+    {
+     "name": "HFROZEN_FOR",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_SUB_OPTION",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_INITIATED_BY",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_INIT_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ACTIVATION_TYPE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ACTIVATION_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_TYPE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_EXP_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_REASON_CD",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_REASON_DESC",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_INT_REF_NBR",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_UC_DP",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_UCR_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_UC_REMARK",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_REMARK",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_OPER_ID",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_PAR_ID",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_AUTHORITY_NAME",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_AUTHORITY_DETAILS",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_TYPE_OF_ORDER",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_RSN_FOR_DELAY",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "FZ_ID",
+   "where": "first",
+   "columns": [
+    {
+     "name": "HFZ_ID",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_BO_ID",
+     "type": "str"
+    },
+    {
+     "name": "HCUST_NAME",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ISIN",
+     "type": "str"
+    },
+    {
+     "name": "HISIN_NAME",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_QTY_TYPE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_SETUP_QTY",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ACTUAL_QTY",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_STATUS",
+     "type": "str"
+    },
+    {
+     "name": "HFROZEN_FOR",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_SUB_OPTION",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_INITIATED_BY",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_INIT_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ACTIVATION_TYPE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ACTIVATION_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_TYPE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_EXP_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_REASON_CD",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_REASON_DESC",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_INT_REF_NBR",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_UC_DP",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_UCR_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_UC_REMARK",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_REMARK",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_OPER_ID",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_PAR_ID",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_AUTHORITY_NAME",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_AUTHORITY_DETAILS",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_TYPE_OF_ORDER",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_RSN_FOR_DELAY",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "FZ_ID",
+   "where": "first",
+   "columns": [
+    {
+     "name": "HFZ_ID",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_BO_ID",
+     "type": "str"
+    },
+    {
+     "name": "HCUST_NAME",
+     "type": "str"
+    },
+    {
+     "name": "HBO_MIDDLE_NAME",
+     "type": "str"
+    },
+    {
+     "name": "HCUST_SRCH_NAME",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ISIN",
+     "type": "str"
+    },
+    {
+     "name": "HISIN_NAME",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_QTY_TYPE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_SETUP_QTY",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ACTUAL_QTY",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_STATUS",
+     "type": "str"
+    },
+    {
+     "name": "HFROZEN_FOR",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_SUB_OPTION",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_INITIATED_BY",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_INIT_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ACTIVATION_TYPE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ACTIVATION_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_TYPE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_EXP_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_REASON_CD",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_REASON_DESC",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_INT_REF_NBR",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_UC_DP",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_UCR_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_UC_REMARK",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_REMARK",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_OPER_ID",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_PAR_ID",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "FZ_ID",
+   "where": "first",
+   "columns": [
+    {
+     "name": "HFZ_ID",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_BO_ID",
+     "type": "str"
+    },
+    {
+     "name": "HCUST_NAME",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ISIN",
+     "type": "str"
+    },
+    {
+     "name": "HISIN_NAME",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_QTY_TYPE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_SETUP_QTY",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ACTUAL_QTY",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_STATUS",
+     "type": "str"
+    },
+    {
+     "name": "HFROZEN_FOR",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_SUB_OPTION",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_INITIATED_BY",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_INIT_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ACTIVATION_TYPE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_ACTIVATION_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_TYPE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_EXP_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_REASON_CD",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_REASON_DESC",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_INT_REF_NBR",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_UC_DP",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_UCR_DATE",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_UC_REMARK",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_REMARK",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_OPER_ID",
+     "type": "str"
+    },
+    {
+     "name": "HFZ_PAR_ID",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "#32",
+   "columns": [
+    {
+     "name": "FZ_ID",
+     "type": "int",
+     "note": "Freeze ID; Number(8)"
+    },
+    {
+     "name": "FZ_BO_ID",
+     "type": "str",
+     "note": "BO ID; VARCHAR(16)"
+    },
+    {
+     "name": "CUST_NAME",
+     "type": "str",
+     "note": "First holder's first name; VARCHAR(100)"
+    },
+    {
+     "name": "BO_MIDDLE_NAME",
+     "type": "str",
+     "note": "First holder's middle name; VARCHAR(20)"
+    },
+    {
+     "name": "CUST_SRCH_NAME",
+     "type": "str",
+     "note": "First holder's last (search) name; VARCHAR(20)"
+    },
+    {
+     "name": "FZ_ISIN",
+     "type": "str",
+     "note": "ISIN; Char(12); blank for a freeze of the whole account"
+    },
+    {
+     "name": "ISIN_NAME",
+     "type": "str",
+     "note": "ISIN short name; VARCHAR(20)"
+    },
+    {
+     "name": "FZ_QTY_TYPE",
+     "type": "str",
+     "note": "Freeze quantity type; Char(1): F full, P partial (CDSL's old values of FrzQtyTp)"
+    },
+    {
+     "name": "FZ_SETUP_QTY",
+     "type": "dec",
+     "decimals": 3,
+     "note": "Freeze setup quantity; Long(17)"
+    },
+    {
+     "name": "FZ_ACTUAL_QTY",
+     "type": "dec",
+     "decimals": 3,
+     "note": "Freeze actual quantity; Long(17)"
+    },
+    {
+     "name": "FZ_STATUS",
+     "type": "str",
+     "note": "Freeze status; Char(1); the communique gives no code list"
+    },
+    {
+     "name": "FROZEN_FOR",
+     "type": "str",
+     "note": "Transaction flag (frozen for); Number(1): 1 debit, 2 credit, 3 both (CDSL's old values of FrznFor)"
+    },
+    {
+     "name": "FZ_SUB_OPTION",
+     "type": "str",
+     "note": "Freeze sub category; Number(1): 1 lien, 2 statutory bodies"
+    },
+    {
+     "name": "FZ_INITIATED_BY",
+     "type": "str",
+     "note": "Freeze category (initiated by); Number(1): 1 BO, 2 CDSL, 3 DP"
+    },
+    {
+     "name": "FZ_INIT_DATE",
+     "type": "str",
+     "note": "Freeze initiated date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_ACTIVATION_TYPE",
+     "type": "str",
+     "note": "Freeze active flag; Number(1): 1 current, 2 future"
+    },
+    {
+     "name": "FZ_ACTIVATION_DATE",
+     "type": "str",
+     "note": "Freeze active date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_TYPE",
+     "type": "str",
+     "note": "Freeze type; Char(1): S setup, U unfreeze, P permanent, T temporary (CDSL's old values of FrzTp)"
+    },
+    {
+     "name": "FZ_EXP_DATE",
+     "type": "str",
+     "note": "Freeze expiry date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_REASON_CD",
+     "type": "str",
+     "note": "Reason code; Number(2) (CDSL's old values of FrzRsnCd)"
+    },
+    {
+     "name": "FZ_REASON_DESC",
+     "type": "str",
+     "note": "Reason description; VARCHAR(100)"
+    },
+    {
+     "name": "FZ_INT_REF_NBR",
+     "type": "str",
+     "note": "Internal reference number; VARCHAR(16)"
+    },
+    {
+     "name": "FZ_UC_DP",
+     "type": "str",
+     "note": "Freeze unfreeze or cancel by DP; Number(6)"
+    },
+    {
+     "name": "FZ_UCR_DATE",
+     "type": "str",
+     "note": "Freeze unfreeze, cancel, release date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_UC_REMARK",
+     "type": "str",
+     "note": "Freeze unfreeze, cancel remark; CHAR(100)"
+    },
+    {
+     "name": "FZ_REMARK",
+     "type": "str",
+     "note": "Freeze remark; VARCHAR(100)"
+    },
+    {
+     "name": "FZ_OPER_ID",
+     "type": "str",
+     "note": "Operator ID; VARCHAR(6)"
+    },
+    {
+     "name": "FZ_PAR_ID",
+     "type": "str",
+     "note": "Parent ISIN; Number(8)"
+    },
+    {
+     "name": "FZ_AUTHORITY_NAME",
+     "type": "str",
+     "note": "Other regulatory authority; VARCHAR(100); added by communique 2026/621"
+    },
+    {
+     "name": "FZ_AUTHORITY_DETAILS",
+     "type": "str",
+     "note": "Details of authority; VARCHAR(200); added by communique 2026/621"
+    },
+    {
+     "name": "FZ_TYPE_OF_ORDER",
+     "type": "str",
+     "note": "Type of order; VARCHAR(100); added by communique 2026/621"
+    },
+    {
+     "name": "FZ_RSN_FOR_DELAY",
+     "type": "str",
+     "note": "Reason for delay; VARCHAR(70); added by communique 2026/621"
+    }
+   ]
+  },
+  {
+   "code": "#30",
+   "columns": [
+    {
+     "name": "FZ_ID",
+     "type": "int",
+     "note": "Freeze ID; Number(8)"
+    },
+    {
+     "name": "FZ_BO_ID",
+     "type": "str",
+     "note": "BO ID; VARCHAR(16)"
+    },
+    {
+     "name": "CUST_NAME",
+     "type": "str",
+     "note": "First holder's name (first, middle and last together); VARCHAR(100 + 20 + 20 + 2)"
+    },
+    {
+     "name": "FZ_ISIN",
+     "type": "str",
+     "note": "ISIN; Char(12); blank for a freeze of the whole account"
+    },
+    {
+     "name": "ISIN_NAME",
+     "type": "str",
+     "note": "ISIN short name; VARCHAR(20)"
+    },
+    {
+     "name": "FZ_QTY_TYPE",
+     "type": "str",
+     "note": "Freeze quantity type; Char(1): F full, P partial (CDSL's old values of FrzQtyTp)"
+    },
+    {
+     "name": "FZ_SETUP_QTY",
+     "type": "dec",
+     "decimals": 3,
+     "note": "Freeze setup quantity; Long(17)"
+    },
+    {
+     "name": "FZ_ACTUAL_QTY",
+     "type": "dec",
+     "decimals": 3,
+     "note": "Freeze actual quantity; Long(17)"
+    },
+    {
+     "name": "FZ_STATUS",
+     "type": "str",
+     "note": "Freeze status; Char(1); the communique gives no code list"
+    },
+    {
+     "name": "FROZEN_FOR",
+     "type": "str",
+     "note": "Transaction flag (frozen for); Number(1): 1 debit, 2 credit, 3 both (CDSL's old values of FrznFor)"
+    },
+    {
+     "name": "FZ_SUB_OPTION",
+     "type": "str",
+     "note": "Freeze sub category; Number(1): 1 lien, 2 statutory bodies"
+    },
+    {
+     "name": "FZ_INITIATED_BY",
+     "type": "str",
+     "note": "Freeze category (initiated by); Number(1): 1 BO, 2 CDSL, 3 DP"
+    },
+    {
+     "name": "FZ_INIT_DATE",
+     "type": "str",
+     "note": "Freeze initiated date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_ACTIVATION_TYPE",
+     "type": "str",
+     "note": "Freeze active flag; Number(1): 1 current, 2 future"
+    },
+    {
+     "name": "FZ_ACTIVATION_DATE",
+     "type": "str",
+     "note": "Freeze active date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_TYPE",
+     "type": "str",
+     "note": "Freeze type; Char(1): S setup, U unfreeze, P permanent, T temporary (CDSL's old values of FrzTp)"
+    },
+    {
+     "name": "FZ_EXP_DATE",
+     "type": "str",
+     "note": "Freeze expiry date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_REASON_CD",
+     "type": "str",
+     "note": "Reason code; Number(2) (CDSL's old values of FrzRsnCd)"
+    },
+    {
+     "name": "FZ_REASON_DESC",
+     "type": "str",
+     "note": "Reason description; VARCHAR(100)"
+    },
+    {
+     "name": "FZ_INT_REF_NBR",
+     "type": "str",
+     "note": "Internal reference number; VARCHAR(16)"
+    },
+    {
+     "name": "FZ_UC_DP",
+     "type": "str",
+     "note": "Freeze unfreeze or cancel by DP; Number(6)"
+    },
+    {
+     "name": "FZ_UCR_DATE",
+     "type": "str",
+     "note": "Freeze unfreeze, cancel, release date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_UC_REMARK",
+     "type": "str",
+     "note": "Freeze unfreeze, cancel remark; CHAR(100)"
+    },
+    {
+     "name": "FZ_REMARK",
+     "type": "str",
+     "note": "Freeze remark; VARCHAR(100)"
+    },
+    {
+     "name": "FZ_OPER_ID",
+     "type": "str",
+     "note": "Operator ID; VARCHAR(6)"
+    },
+    {
+     "name": "FZ_PAR_ID",
+     "type": "str",
+     "note": "Parent ISIN; Number(8)"
+    },
+    {
+     "name": "FZ_AUTHORITY_NAME",
+     "type": "str",
+     "note": "Other regulatory authority; VARCHAR(100); added by communique 2026/621"
+    },
+    {
+     "name": "FZ_AUTHORITY_DETAILS",
+     "type": "str",
+     "note": "Details of authority; VARCHAR(200); added by communique 2026/621"
+    },
+    {
+     "name": "FZ_TYPE_OF_ORDER",
+     "type": "str",
+     "note": "Type of order; VARCHAR(100); added by communique 2026/621"
+    },
+    {
+     "name": "FZ_RSN_FOR_DELAY",
+     "type": "str",
+     "note": "Reason for delay; VARCHAR(70); added by communique 2026/621"
+    }
+   ]
+  },
+  {
+   "code": "#28",
+   "columns": [
+    {
+     "name": "FZ_ID",
+     "type": "int",
+     "note": "Freeze ID; Number(8)"
+    },
+    {
+     "name": "FZ_BO_ID",
+     "type": "str",
+     "note": "BO ID; VARCHAR(16)"
+    },
+    {
+     "name": "CUST_NAME",
+     "type": "str",
+     "note": "First holder's first name; VARCHAR(100)"
+    },
+    {
+     "name": "BO_MIDDLE_NAME",
+     "type": "str",
+     "note": "First holder's middle name; VARCHAR(20)"
+    },
+    {
+     "name": "CUST_SRCH_NAME",
+     "type": "str",
+     "note": "First holder's last (search) name; VARCHAR(20)"
+    },
+    {
+     "name": "FZ_ISIN",
+     "type": "str",
+     "note": "ISIN; Char(12); blank for a freeze of the whole account"
+    },
+    {
+     "name": "ISIN_NAME",
+     "type": "str",
+     "note": "ISIN short name; VARCHAR(20)"
+    },
+    {
+     "name": "FZ_QTY_TYPE",
+     "type": "str",
+     "note": "Freeze quantity type; Char(1): F full, P partial (CDSL's old values of FrzQtyTp)"
+    },
+    {
+     "name": "FZ_SETUP_QTY",
+     "type": "dec",
+     "decimals": 3,
+     "note": "Freeze setup quantity; Long(17)"
+    },
+    {
+     "name": "FZ_ACTUAL_QTY",
+     "type": "dec",
+     "decimals": 3,
+     "note": "Freeze actual quantity; Long(17)"
+    },
+    {
+     "name": "FZ_STATUS",
+     "type": "str",
+     "note": "Freeze status; Char(1); the communique gives no code list"
+    },
+    {
+     "name": "FROZEN_FOR",
+     "type": "str",
+     "note": "Transaction flag (frozen for); Number(1): 1 debit, 2 credit, 3 both (CDSL's old values of FrznFor)"
+    },
+    {
+     "name": "FZ_SUB_OPTION",
+     "type": "str",
+     "note": "Freeze sub category; Number(1): 1 lien, 2 statutory bodies"
+    },
+    {
+     "name": "FZ_INITIATED_BY",
+     "type": "str",
+     "note": "Freeze category (initiated by); Number(1): 1 BO, 2 CDSL, 3 DP"
+    },
+    {
+     "name": "FZ_INIT_DATE",
+     "type": "str",
+     "note": "Freeze initiated date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_ACTIVATION_TYPE",
+     "type": "str",
+     "note": "Freeze active flag; Number(1): 1 current, 2 future"
+    },
+    {
+     "name": "FZ_ACTIVATION_DATE",
+     "type": "str",
+     "note": "Freeze active date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_TYPE",
+     "type": "str",
+     "note": "Freeze type; Char(1): S setup, U unfreeze, P permanent, T temporary (CDSL's old values of FrzTp)"
+    },
+    {
+     "name": "FZ_EXP_DATE",
+     "type": "str",
+     "note": "Freeze expiry date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_REASON_CD",
+     "type": "str",
+     "note": "Reason code; Number(2) (CDSL's old values of FrzRsnCd)"
+    },
+    {
+     "name": "FZ_REASON_DESC",
+     "type": "str",
+     "note": "Reason description; VARCHAR(100)"
+    },
+    {
+     "name": "FZ_INT_REF_NBR",
+     "type": "str",
+     "note": "Internal reference number; VARCHAR(16)"
+    },
+    {
+     "name": "FZ_UC_DP",
+     "type": "str",
+     "note": "Freeze unfreeze or cancel by DP; Number(6)"
+    },
+    {
+     "name": "FZ_UCR_DATE",
+     "type": "str",
+     "note": "Freeze unfreeze, cancel, release date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_UC_REMARK",
+     "type": "str",
+     "note": "Freeze unfreeze, cancel remark; CHAR(100)"
+    },
+    {
+     "name": "FZ_REMARK",
+     "type": "str",
+     "note": "Freeze remark; VARCHAR(100)"
+    },
+    {
+     "name": "FZ_OPER_ID",
+     "type": "str",
+     "note": "Operator ID; VARCHAR(6)"
+    },
+    {
+     "name": "FZ_PAR_ID",
+     "type": "str",
+     "note": "Parent ISIN; Number(8)"
+    }
+   ]
+  },
+  {
+   "code": "#26",
+   "columns": [
+    {
+     "name": "FZ_ID",
+     "type": "int",
+     "note": "Freeze ID; Number(8)"
+    },
+    {
+     "name": "FZ_BO_ID",
+     "type": "str",
+     "note": "BO ID; VARCHAR(16)"
+    },
+    {
+     "name": "CUST_NAME",
+     "type": "str",
+     "note": "First holder's name (first, middle and last together); VARCHAR(100 + 20 + 20 + 2)"
+    },
+    {
+     "name": "FZ_ISIN",
+     "type": "str",
+     "note": "ISIN; Char(12); blank for a freeze of the whole account"
+    },
+    {
+     "name": "ISIN_NAME",
+     "type": "str",
+     "note": "ISIN short name; VARCHAR(20)"
+    },
+    {
+     "name": "FZ_QTY_TYPE",
+     "type": "str",
+     "note": "Freeze quantity type; Char(1): F full, P partial (CDSL's old values of FrzQtyTp)"
+    },
+    {
+     "name": "FZ_SETUP_QTY",
+     "type": "dec",
+     "decimals": 3,
+     "note": "Freeze setup quantity; Long(17)"
+    },
+    {
+     "name": "FZ_ACTUAL_QTY",
+     "type": "dec",
+     "decimals": 3,
+     "note": "Freeze actual quantity; Long(17)"
+    },
+    {
+     "name": "FZ_STATUS",
+     "type": "str",
+     "note": "Freeze status; Char(1); the communique gives no code list"
+    },
+    {
+     "name": "FROZEN_FOR",
+     "type": "str",
+     "note": "Transaction flag (frozen for); Number(1): 1 debit, 2 credit, 3 both (CDSL's old values of FrznFor)"
+    },
+    {
+     "name": "FZ_SUB_OPTION",
+     "type": "str",
+     "note": "Freeze sub category; Number(1): 1 lien, 2 statutory bodies"
+    },
+    {
+     "name": "FZ_INITIATED_BY",
+     "type": "str",
+     "note": "Freeze category (initiated by); Number(1): 1 BO, 2 CDSL, 3 DP"
+    },
+    {
+     "name": "FZ_INIT_DATE",
+     "type": "str",
+     "note": "Freeze initiated date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_ACTIVATION_TYPE",
+     "type": "str",
+     "note": "Freeze active flag; Number(1): 1 current, 2 future"
+    },
+    {
+     "name": "FZ_ACTIVATION_DATE",
+     "type": "str",
+     "note": "Freeze active date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_TYPE",
+     "type": "str",
+     "note": "Freeze type; Char(1): S setup, U unfreeze, P permanent, T temporary (CDSL's old values of FrzTp)"
+    },
+    {
+     "name": "FZ_EXP_DATE",
+     "type": "str",
+     "note": "Freeze expiry date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_REASON_CD",
+     "type": "str",
+     "note": "Reason code; Number(2) (CDSL's old values of FrzRsnCd)"
+    },
+    {
+     "name": "FZ_REASON_DESC",
+     "type": "str",
+     "note": "Reason description; VARCHAR(100)"
+    },
+    {
+     "name": "FZ_INT_REF_NBR",
+     "type": "str",
+     "note": "Internal reference number; VARCHAR(16)"
+    },
+    {
+     "name": "FZ_UC_DP",
+     "type": "str",
+     "note": "Freeze unfreeze or cancel by DP; Number(6)"
+    },
+    {
+     "name": "FZ_UCR_DATE",
+     "type": "str",
+     "note": "Freeze unfreeze, cancel, release date; DATE(DDMMYYYY:HH24MISS), 15"
+    },
+    {
+     "name": "FZ_UC_REMARK",
+     "type": "str",
+     "note": "Freeze unfreeze, cancel remark; CHAR(100)"
+    },
+    {
+     "name": "FZ_REMARK",
+     "type": "str",
+     "note": "Freeze remark; VARCHAR(100)"
+    },
+    {
+     "name": "FZ_OPER_ID",
+     "type": "str",
+     "note": "Operator ID; VARCHAR(6)"
+    },
+    {
+     "name": "FZ_PAR_ID",
+     "type": "str",
+     "note": "Parent ISIN; Number(8)"
+    }
+   ]
+  }
+ ]
+}

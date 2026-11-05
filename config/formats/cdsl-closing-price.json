@@ -1,65 +1,88 @@
 {
  "id": "cdsl-closing-price",
- "title": "Closing prices (CDSL)",
+ "title": "ISIN rate master: closing prices (CDSL)",
  "party": "CDSL",
  "direction": "in",
  "when": "BOD",
  "purpose": "Closing price per ISIN; values demat holdings and collateral.",
  "names": [
-  "ISIN_RATE_\\d+_\\d+_F_\\d+_\\d+\\.csv(\\.txt)?"
+  "ISIN_RATE_\\d+_\\d+_[IF]_\\d+_\\d+(_P\\d+)?\\.csv(\\.txt)?"
  ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
  "header": true,
  "crlf": false,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as closing prices: values holdings and collateral that have no exchange price",
+ "source": "CDSL UDiFF Catalogue V3.0.1.4, sheet Field Master, information type ISIN_Rate_Master (10 fields; names, types and standard values)",
  "columns": [
   {
    "name": "Src",
-   "type": "str"
+   "type": "str",
+   "note": "Source; CHAR(4)",
+   "codes": {
+    "CDSL": "Central Depository Services (India) Limited",
+    "NSDL": "National Securities Depository Limited"
+   }
   },
   {
    "name": "ISIN",
-   "type": "str"
+   "type": "str",
+   "note": "ISIN; CHAR(12)"
   },
   {
    "name": "Price",
    "type": "dec",
-   "decimals": 4,
-   "fixed": false
+   "decimals": 9,
+   "note": "PRICE; DECIMAL(22,9); Price of the ISIN"
   },
   {
    "name": "ActlDt",
    "type": "date",
-   "layout": "2006-01-02"
+   "layout": "2006-01-02",
+   "note": "ACTUAL DATE; DATE(10); Date of Price"
   },
   {
    "name": "SrcofPrce",
-   "type": "str"
+   "type": "str",
+   "note": "Source_of_Price; CHAR(7); Exchange from where Price is taken. Refer Standard Value List",
+   "codes": {
+    "BSEEQ": "BSE Equity",
+    "NSEEQ": "NSE Equity",
+    "BSEBOND": "BSE BOND",
+    "NSEBOND": "NSE BOND",
+    "AMFIMF": "AMFI Mutual Fund",
+    "NDBTMKT": "NSE Debenture Market",
+    "MCXSXEQ": "MCXSX Equity",
+    "DFT": "Default"
+   }
   },
   {
    "name": "Rmks",
-   "type": "str"
+   "type": "str",
+   "note": "Remarks; CHAR(150)"
   },
   {
    "name": "Rsvd1",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_1; CHAR(50)"
   },
   {
    "name": "Rsvd2",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_2; CHAR(50)"
   },
   {
    "name": "Rsvd3",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_3; CHAR(50)"
   },
   {
    "name": "Rsvd4",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_4; CHAR(50)"
   }
- ],
- "confirmed": true,
- "source": "Header row of the file",
- "compress": "none",
- "format": "delimited",
- "delimiter": ",",
- "final_eol": true,
- "linked": "Loaded as closing prices: values holdings and collateral that have no exchange price"
+ ]
 }

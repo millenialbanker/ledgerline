@@ -1,970 +1,1918 @@
 {
  "id": "cdsl-transactions",
- "title": "Transaction file (CDSL DP)",
+ "title": "Transaction export, COD / DP57 (CDSL DP)",
  "party": "CDSL",
  "direction": "in",
  "when": "Several times a day",
  "purpose": "Every demat transaction of the firm's DP clients: pay-ins, pay-outs, pledges, transfers, with status.",
  "names": [
-  "COD_EXP_\\d+_\\d+_F_\\d+_\\d+_P\\d+\\.csv"
+  "COD_EXP_\\d+_\\d+_[A-Z]_\\d+_\\d+(_P\\d+)?\\.csv"
  ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
  "header": true,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded into the DP transaction register (credits and debits by demat account; debits billable)",
+ "source": "CDSL UDiFF Catalogue V3.0.1.4, sheet Field Master, information type COD (230 fields; names, types and standard values); header and values checked against CDSL's sample file COD_EXP_41400_212112_I_202608281154_001_P0.csv (84 rows)",
  "columns": [
   {
    "name": "Src",
-   "type": "str"
+   "type": "str",
+   "note": "Source; CHAR(4)",
+   "codes": {
+    "CDSL": "Central Depository Services (India) Limited",
+    "NSDL": "National Securities Depository Limited"
+   }
   },
   {
    "name": "CntrlSctiesDpstryPtcpt",
-   "type": "str"
+   "type": "str",
+   "note": "DP ID; CHAR(8)"
   },
   {
    "name": "LineNb",
-   "type": "str"
+   "type": "int",
+   "note": "Line Number; INTEGER(9)"
   },
   {
    "name": "BrnchId",
-   "type": "str"
+   "type": "str",
+   "note": "Branch Code; CHAR(6); Always 000000 for CDSL"
   },
   {
    "name": "TxnTyp",
-   "type": "str"
+   "type": "str",
+   "note": "Transaction Type; CHAR(3)",
+   "codes": {
+    "DMT": "Dematerialization Instruction / Demat",
+    "RMT": "Rematerialization Instruction / Remat",
+    "REP": "Redemption/ Repurchase",
+    "DFP": "Delivery Free of Payment Instruction / Transaction",
+    "RFP": "Receipt Free of Payment Instruction",
+    "NDO": "Delivery Out Instruction / BO Obligation",
+    "PLG": "Pledge Initiation Instruction/ Pledge",
+    "PCN": "Pledge Confirmation",
+    "HYP": "Hypothecation Instruction",
+    "PIV": "Pledge invocation instruction",
+    "PCL": "Pledge closure instruction / Unpledge",
+    "PCC": "Pledge Closure Confirmation / Auto Unpledge",
+    "HYC": "Hypothecation Confirmation",
+    "PIC": "Pledge Invocation Confirmation / Confiscate",
+    "IDO": "Irreversible Delivery Out Instruction / Early Pay-in",
+    "IDD": "Inter Depository Transfer Instruction (DFP/Delivery)",
+    "IDR": "Inter Depository Transfer Instruction (RFP/Receipt)",
+    "FRZ": "Account Freezing / unfreezing",
+    "DFZ": "Account Unfreezing",
+    "ATS": "Account Transmission / One to One Transmission",
+    "ATC": "Account Transmission cum Closure / Account Transfer",
+    "ATM": "One To Many transmission",
+    "DMU": "DIS Master Upload (Creation and Modification)",
+    "DES": "Conversion (MF) / Destat",
+    "RES": "Reconversion (MF) / Restat",
+    "IST": "Inter Settlement Transfer Instruction",
+    "CMD": "CM Pool Delivery Instruction",
+    "CMR": "CM Pool Receipt Instruction",
+    "RIN": "Receipt-In Intimation",
+    "CAD": "Corporate Action (Debit) / Corporate Action",
+    "CAC": "Corporate Action (Credit)",
+    "LIR": "Lock-in Release",
+    "ADO": "Auto Do Transfer Instruction",
+    "ACD": "ACA Debit / Auto Corporate Action",
+    "ACC": "ACA Credit",
+    "FFD": "Freeze For Delivery",
+    "HLD": "Hold initiation",
+    "HRI": "Hold Release instruction",
+    "HCN": "Hold confirmation (Target DPs end – Confirmation of Hold instruction)",
+    "HRC": "Hold Release confirmation (Target DPs end)",
+    "EDI": "EGR Deposit instruction",
+    "EWI": "EGR Withdrawal instructions",
+    "CCT": "Pool – Pool Account transfer (valid only from CC’s CM Pool)",
+    "BPY": "BSE Payout",
+    "NPY": "NSE Payout",
+    "NPN": "NSE Payin",
+    "IPO": "IPO",
+    "CER": "CH Escrow release",
+    "NSP": "NSE SLB Payin",
+    "NSO": "NSE SLB Payout",
+    "BPZ": "BSE Payout[2nd stage]",
+    "WTR": "Withheld release",
+    "PBO": "Payin from BO[OSE]",
+    "SSO": "Switch In Switch Out",
+    "NDU": "NDU",
+    "TTZ": "Txn Type Zero",
+    "CSM": "CISA Movement",
+    "DTR": "Demat to RDG",
+    "RTD": "RDG to Demat"
+   }
   },
   {
    "name": "TxnID",
-   "type": "str"
+   "type": "int",
+   "note": "TRANSACTION ID; INTEGER(16); BP Instruction ID / TRANSACTION ID /FREEZE_ID / OBLIGATION ID"
   },
   {
    "name": "SrcCntrlSctiesDpstryPtcpt",
-   "type": "str"
+   "type": "str",
+   "note": "Source DP ID; CHAR(8)"
   },
   {
    "name": "ClntId",
-   "type": "str"
+   "type": "str",
+   "note": "BO ID/Client ID; CHAR(16)"
   },
   {
    "name": "ISIN",
-   "type": "str"
+   "type": "str",
+   "note": "ISIN; CHAR(12); It will blank in case of Account transfer and BO level freeze."
   },
   {
    "name": "ExecDt",
    "type": "date",
-   "layout": "2006-01-02"
+   "layout": "2006-01-02",
+   "note": "Execution Date; DATE(10); Execution Date/Remat Received Date / Pledge Execution date / Restat Received Date YYYY-MM-DD"
   },
   {
    "name": "Qty",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Quantity; DECIMAL(15,3); Quantity /Requested Quantity / Original Pledged / Original Hold quantity / Redemption Amount. Will be blank for BO level freeze"
   },
   {
    "name": "BuySellInd",
-   "type": "str"
+   "type": "str",
+   "note": "BUY / SELL FLAG; CHAR(1)",
+   "codes": {
+    "B": "Buy",
+    "S": "Sell",
+    "D": "Default"
+   }
   },
   {
    "name": "MktTpAndId",
-   "type": "str"
+   "type": "str",
+   "note": "Market Type; CHAR(3); Refer Standard Value List Will be populated for settlement transactions only; 140 standard values (catalogue, Standard Value List)"
   },
   {
    "name": "SctiesSttlmTxId",
-   "type": "str"
+   "type": "str",
+   "note": "Settlement Number; CHAR(13); Settlement Number /SETTLEMENT ID Will be populated for settlement transactions only"
   },
   {
    "name": "OthrDpstryPtcpt",
-   "type": "str"
+   "type": "str",
+   "note": "Other DP ID; CHAR(8); Other DP Id/Related DP Id"
   },
   {
    "name": "CntrBnfclOwnrId",
-   "type": "str"
+   "type": "str",
+   "note": "COUNTER BO ID/ Other Client ID; CHAR(16)"
   },
   {
    "name": "OthrMktTpAndId",
-   "type": "str"
+   "type": "str",
+   "note": "Other Market Type; CHAR(3); Refer Standard Value List Will be populated for settlement transactions only; 139 standard values (catalogue, Standard Value List)"
   },
   {
    "name": "OthrSctiesSttlmTxId",
-   "type": "str"
+   "type": "str",
+   "note": "Other Settlement Details; CHAR(13); Other Settlement Number / Counter Settlement ID Will be populated for settlement transactions only"
   },
   {
    "name": "Rsn",
-   "type": "str"
+   "type": "str",
+   "note": "Reason/ Purpose; CHAR(6)",
+   "codes": {
+    "SPOSE": "SPOUSE",
+    "FTHR": "FATHER(INCLUDING STEP-FATHER)",
+    "MTHR": "MOTHER(INCLUDING STEP-MOTHER)",
+    "SON": "SON(INCLUDING STEP-SON)",
+    "SNWFE": "SONS WIFE",
+    "DHTR": "DAUGHTER",
+    "SNILW": "DAUGHTERS HUSBAND",
+    "BRTHR": "BROTHER(INCLUDING STEP-BROTHER)",
+    "SISTER": "SISTER(INCLUDING STEP-SISTER)",
+    "MEMHUF": "MEMBERS OF SAME HUF",
+    "DFT": "Default"
+   }
   },
   {
    "name": "DISTpInd",
-   "type": "str"
+   "type": "str",
+   "note": "DIS Type Indicator / TRANSACTION ELECTRONIC FLAG; CHAR(3)",
+   "codes": {
+    "PHY": "For Physical,",
+    "FAX": "for FAX,",
+    "ESP": "For Electronic-SPEEDe / ELECTRONIC",
+    "ESE": "for Electronic-SPICE",
+    "EDS": "for Electronic- DSC,",
+    "EOT": "for Electronic- Others,",
+    "DGW": "for Demat Gateway",
+    "PRT": "PRE-TRADE",
+    "POT": "POST-TRADE",
+    "OFM": "OFF-MARKET",
+    "DDP": "DDPI",
+    "DFT": "Default",
+    "CPI": "CUSPA pledge invocation cum transfer"
+   }
   },
   {
    "name": "DISSrlNb",
-   "type": "str"
+   "type": "str",
+   "note": "DIS Serial No.; CHAR(20); DIS Serial No./DELIVERY INSTRUCTION SLIP / eDIS Mandate Reference Number"
   },
   {
    "name": "PwrOfAttnyId",
-   "type": "str"
+   "type": "str",
+   "note": "POA ID /DDPI ID; CHAR(16)"
   },
   {
    "name": "CustdlTxnFlg",
-   "type": "str"
+   "type": "str",
+   "note": "Custodial transaction Flag / Entity Identifier; CHAR(3)",
+   "codes": {
+    "CTR": "Custodial Transaction",
+    "NCT": "Non Custodial Transaction",
+    "DFT": "Default",
+    "PM": "PMS"
+   }
   },
   {
    "name": "UnqClntId",
-   "type": "str"
+   "type": "str",
+   "note": "UCC; CHAR(11); Client UCC /UCC"
   },
   {
    "name": "UnqClrMmbId",
-   "type": "str"
+   "type": "str",
+   "note": "UCC CMID; CHAR(8)"
   },
   {
    "name": "BrkrOrCtdnPtcptId",
-   "type": "str"
+   "type": "str",
+   "note": "Trading Member ID /TM ID / CP ID; CHAR(16)"
   },
   {
    "name": "Sgmt",
-   "type": "str"
+   "type": "str",
+   "note": "Segment Code; CHAR(2)",
+   "codes": {
+    "CM": "Cash segment",
+    "FO": "Equity Derivatives Segment",
+    "CD": "Currency Derivative Segment",
+    "DT": "Debt Segment",
+    "CO": "Commodity Derivatives Segment",
+    "SB": "SLB Segment",
+    "AL": "ALL Segments",
+    "EG": "EGR",
+    "FP": "Futures and Options Physical",
+    "OF": "OFS",
+    "AC": "Auction Cash, SLB, FO",
+    "SM": "SME",
+    "DF": "Default"
+   }
   },
   {
    "name": "ClrSysId",
-   "type": "str"
+   "type": "str",
+   "note": "CC ID/CH ID; CHAR(6)",
+   "codes": {
+    "ICCL": "Indian Clearing Corporation Limited",
+    "NCL": "NSE Clearing Limited",
+    "NCLSLB": "NSE Clearing Limited - SLB",
+    "OTCEI": "NATIONAL SECURITIES CLEARING CORP LTD-OTCEI",
+    "NCCL": "NATIONAL COMMODITY CLEARING LIMITED (NCCL)",
+    "MCXCCL": "MULTI COMMODITY EXCHANGE CLEARING CORPORATION LIMITED (MCXCCL)",
+    "MCCL": "METROPOLITAN CLEARING CORPORATION OF INDIA LIMITED",
+    "CSECH": "CALCUTTA STOCK EXCHANGE- CLEARING HOUSE",
+    "DSECH": "DELHI STOCK EXCHANGE LIMITED - CLEARING HOUSE",
+    "ASECH": "AHMEDABAD STOCK EXCHANGE CLEARING HOUSE",
+    "BSLSLB": "BOI SHAREHOLDING LIMITED - SLB",
+    "NSEL": "NATIONAL SPOT EXCHANGE LIMITED",
+    "ICSEL": "INTER-CONNECTED STOCK EXCHANGE OF INDIA LIMITED",
+    "ICL": "INDIAN CLEARING CORPORATION LIMITED - Debt",
+    "ADCEL": "ACE DERIVATIVES AND COMMODITIES EXCHANGE LIMITED",
+    "UCEL": "UNIVERSAL COMMODITY EXCHANGE LIMITED",
+    "CCIL": "THE CLEARING CORPORATION OF INDIA LTD.",
+    "MCL": "METROPOLITAN CLEARING CORPORATION OF INDIA LIMITED - ICX",
+    "DFT": "Default",
+    "BSL": "BOI SHAREHOLDING LIMITED",
+    "NCDL": "NATIONAL COMMODITY AND DERIVATIVES EXCH. LTD.",
+    "LASE": "LUDHIANA STOCK EXCHANGE",
+    "BASE": "BANGALORE STOCK EXCHANGE",
+    "MDSE": "MADRAS STOCK EXCHANGE",
+    "MCEL": "MULTI COMMODITY EXCHANGE OF INDIA LIMITED",
+    "ARCL": "AMC REPO CLEARING LIMITED",
+    "CA": "Corporate Action"
+   }
   },
   {
    "name": "Xchg",
-   "type": "str"
+   "type": "str",
+   "note": "Exchange ID; CHAR(3)",
+   "codes": {
+    "BSE": "BOMBAY STOCK EXCHANGE LIMITED",
+    "NSE": "NATIONAL STOCK EXCHANGE OF INDIA LIMITED",
+    "OTC": "OTC EXCHANGE OF INDIA",
+    "NCD": "NATIONAL COMMODITY & DERIVATIVES EXCHANGE LIMITED",
+    "MCX": "MULTI COMMODITY EXCHANGE OF INDIA LIMITED",
+    "NSL": "NATIONAL STOCK EXCHANGE OF INDIA LIMITED - SLB",
+    "ICS": "INTER-CONNECTED STOCK EXCHANGE OF INDIA LIMITED",
+    "MSE": "METROPOLITAN STOCK EXCHANGE OF INDIA LIMITED",
+    "BSC": "BOMBAY STOCK EXCHANGE LIMITED",
+    "RBI": "RESERVE BANK OF INDIA",
+    "ICX": "INDIAN COMMODITY EXCHANGE LIMITED (ICEX)",
+    "CSE": "THE CALCUTTA STOCK EXCHANGE ASSOCIATION LIMITED",
+    "DSE": "THE DELHI STOCK EXCHANGE ASSOCIATION LIMITED",
+    "ASE": "THE STOCK EXCHANGE AHMEDABAD",
+    "BSS": "BOMBAY STOCK EXCHANGE LIMITED - SLB",
+    "NSP": "NATIONAL SPOT EXCHANGE LTD",
+    "ACE": "ACE DERIVATIVES AND COMMODITIES EXCHANGE LIMITED",
+    "UCX": "UNIVERSAL COMMODITY EXCHANGE LIMITED",
+    "DSP": "DUMMY SETTLEMENT POCKET1",
+    "CA": "CORPORATE ACTION",
+    "DFT": "Default",
+    "LSE": "LUDHIANA STOCK EXCHANGE",
+    "BGE": "BANGALORE STOCK EXCHANGE",
+    "MDE": "MADRAS STOCK EXCHANGE",
+    "CCI": "THE CLEARING CORPORATION OF INDIA LIMITED"
+   }
   },
   {
    "name": "MkrChkrFlg",
-   "type": "str"
+   "type": "str",
+   "note": "MAKER CHECKER FLAG; CHAR(3)",
+   "codes": {
+    "MKR": "Maker",
+    "CKR": "Checker",
+    "DFT": "Default"
+   }
   },
   {
    "name": "Rmks",
    "type": "str",
-   "quote": "always"
+   "quote": "always",
+   "note": "Remarks; CHAR(150); REMARKS / DP Remarks / Pledgor Remarks /Transaction Remarks /Freeze Reason Description /Freeze Remarks / NDU Cancellation Remarks"
   },
   {
    "name": "MdOfPmt",
-   "type": "str"
+   "type": "str",
+   "note": "Mode of Payment /PAYMENT MODE; CHAR(3)",
+   "codes": {
+    "CHQ": "Cheque Payment",
+    "ELP": "Electronic Payment",
+    "CAP": "Cash Payment",
+    "DFT": "Default"
+   }
   },
   {
    "name": "PmtTxRefNb",
-   "type": "str"
+   "type": "str",
+   "note": "Payment Transaction Reference Number / Instrument Number (Cheque / Demand Draft / Pay Order) /CHEQUE / REFERENCE NUMBER; CHAR(25)"
   },
   {
    "name": "PmtDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Payment Date / Instrument Date; DATE(10); Payment Date / Instrument Date /DATE OF ISSUE / TRANSFER YYYY-MM-DD"
   },
   {
    "name": "TrfeeBkAcctNb",
-   "type": "str"
+   "type": "str",
+   "note": "Transferee’s Bank Account Number /BANK ACCOUNT NO; CHAR(35)"
   },
   {
    "name": "TrfeeBkNm",
-   "type": "str"
+   "type": "str",
+   "note": "Transferee’s Bank Name /BANK NAME; CHAR(100)"
   },
   {
    "name": "EPAcct",
-   "type": "str"
+   "type": "str",
+   "note": "Early Pay-in Account; CHAR(16); CM BP ID /Early Payin Account"
   },
   {
    "name": "AgrmtId",
-   "type": "str"
+   "type": "str",
+   "note": "Agreement No. /AGREEMENT NUMBER; CHAR(20)"
   },
   {
    "name": "AllUnitsOrAmtInd",
-   "type": "str"
+   "type": "str",
+   "note": "All Units/Amount Indicator/ Quantity Flag; CHAR(3)",
+   "codes": {
+    "AMT": "Amount",
+    "ALL": "All Units / All Quantity",
+    "PAR": "Specific Quantity / Partial Quantity",
+    "DFT": "Default"
+   }
   },
   {
    "name": "OthrDpstryId",
-   "type": "str"
+   "type": "str",
+   "note": "Other Depository ID; CHAR(8)"
   },
   {
    "name": "AuthntcnRefNb",
-   "type": "str"
+   "type": "str",
+   "note": "Authentication Reference Number [Applicable, if transaction is through Easiest]; CHAR(30); Applicable for manual mode txn from Easiest. NA for NSDL"
   },
   {
    "name": "EarlyPayInFlg",
-   "type": "str"
+   "type": "str",
+   "note": "Early Pay-in Flag / Early Pay-in Identifier; CHAR(3)",
+   "codes": {
+    "YES": "YES",
+    "NO": "NO",
+    "DFT": "Default"
+   }
   },
   {
    "name": "BlkInd",
-   "type": "str"
+   "type": "str",
+   "note": "Block Indicator; CHAR(3)",
+   "codes": {
+    "BEP": "Block with Early Pay-in",
+    "BNP": "Block with No Early Pay-in",
+    "EXM": "For exempted transactions",
+    "DFT": "Default"
+   }
   },
   {
    "name": "FreeOrLckInFlg",
-   "type": "str"
+   "type": "str",
+   "note": "Free / Lock-in Flag /Lock-in Status; CHAR(3)",
+   "codes": {
+    "FRE": "Free",
+    "LCK": "Lock-in",
+    "DFT": "Default"
+   }
   },
   {
    "name": "ClsrDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Closure Date /PLEDGE EXPIRY DATE / Hold Release Date; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "PldgTp",
-   "type": "str"
+   "type": "str",
+   "note": "Closure Type; CHAR(3)",
+   "codes": {
+    "NRC": "Normal Closure / Unpledge",
+    "UNC": "Unilateral Closure / Auto Unpledge",
+    "DFT": "Default"
+   }
   },
   {
    "name": "Cnsdrtn",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "CONSIDERATION AMOUNT; DECIMAL(15,3); Consideration /CONSIDERATION AMOUNT FOR DIS / Pledge Value"
   },
   {
    "name": "CuspaTxnFlg",
-   "type": "str"
+   "type": "str",
+   "note": "Auto Pledge Flag for Unpaid Securities / CUSPA TRANSACTION FLAG/ Invocation or Release with EPI Block / Redemption Flag; CHAR(3)",
+   "codes": {
+    "CM": "CUSPA Pledge in favour of Clearing Member (Allowed only for transaction from CC)",
+    "TM": "CUSPA Pledge in favour of Trading Member (Allowed only for transaction from CC)",
+    "MF": "Margin Funding Pledge in Favour of Trading Member (Allowed only for transaction from CC)",
+    "YES": "Invocation / Release with Early Payin using Client UCC",
+    "NO": "Normal Transaction.",
+    "DFT": "Default",
+    "RD": "Invocation of MF units (non-exchange traded) and auto DP redemption shall be generated",
+    "MBR": "Invocation with Early Payin using members UCC in case of \"Client not permitted to trade\" o"
+   }
   },
   {
    "name": "CuspaAcct",
-   "type": "str"
+   "type": "str",
+   "note": "Pledgee DP ID/CUSPA ACCOUNT; CHAR(16)"
   },
   {
    "name": "PldgeClntId",
-   "type": "str"
+   "type": "str",
+   "note": "Pledgee Client ID; CHAR(16)"
   },
   {
    "name": "DISIssdToClntOrPwrOfAttnyHldr",
-   "type": "str"
+   "type": "str",
+   "note": "DIS issued to Client or POA Holder / Issue entity; CHAR(3)",
+   "codes": {
+    "BO": "BO / Client",
+    "DDP": "DIS Issued to DDPI",
+    "POA": "POA",
+    "DFT": "Default"
+   }
   },
   {
    "name": "NbOfSOA",
-   "type": "str"
+   "type": "str",
+   "note": "Number of Pages of Statement of Account [SOA] / Number of Certificates; CHAR(5)"
   },
   {
    "name": "FolioNb",
-   "type": "str"
+   "type": "str",
+   "note": "Folio Number; CHAR(20)"
   },
   {
    "name": "DsptchDocId",
-   "type": "str"
+   "type": "str",
+   "note": "DISPATCH DOCUMENT ID; CHAR(20)"
   },
   {
    "name": "DsptchNm",
-   "type": "str"
+   "type": "str",
+   "note": "Dispatch Name; CHAR(30)"
   },
   {
    "name": "DsptchDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "DISPATCH DATE; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "DocRcvdDt",
-   "type": "str"
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05",
+   "note": "Document Received Date /RECEIVED DATE; DATE(19); YYYY-MM-DDTHH:mm:ss"
   },
   {
    "name": "DocNb",
-   "type": "str"
+   "type": "str",
+   "note": "DOCUMENT NUMBER; CHAR(20)"
   },
   {
    "name": "NbOfInstrs",
-   "type": "str"
+   "type": "int",
+   "note": "No of instructions; INTEGER(6)"
   },
   {
    "name": "OrgnlOrdrRefNb",
-   "type": "str"
+   "type": "int",
+   "note": "Original Order Reference Number; INTEGER(14); Original Order Reference Number / FREEZE PARENT ID / Original BP Instruction ID / PARENT TXN ID"
   },
   {
    "name": "LckInId",
-   "type": "str"
+   "type": "str",
+   "note": "LOCK IN ID; CHAR(16); LOCK IN ID / Freeze ID"
   },
   {
    "name": "LckInRsnCd",
-   "type": "str"
+   "type": "str",
+   "note": "Lock-in Reason Code; CHAR(3)",
+   "codes": {
+    "DRQ": "Director/Relative Quota",
+    "EPQ": "Employee Quota",
+    "PFQ": "Preferential Quota",
+    "PRQ": "Promoters Quota",
+    "UWQ": "Underwriters Quota",
+    "PP": "Private Placement",
+    "ITA": "54EA of IT Act 1961",
+    "ITB": "54EB of IT Act 1961",
+    "ITC": "Sec 54EC of IT Act 1961",
+    "ITD": "Sec 88 of IT Act 1961",
+    "ELS": "ELSS2005",
+    "PIS": "PRE IPO SHARES",
+    "TSS": "TAX SAVINGS SCHEME",
+    "OTH": "Others",
+    "MDT": "Maturity Date",
+    "CHP": "Children Plan",
+    "RTP": "Retirement Plan",
+    "SCA": "Scheme of Arrangement",
+    "TSP": "Transfer of securities in physical mode",
+    "DFT": "Default",
+    "GDS": "Gold Deposit Scheme (13)",
+    "VL": "Voluntary Lockin(14)",
+    "RPS": "Re-lodged physical shares(36)",
+    "DON": "DONATION(43)"
+   }
   },
   {
    "name": "LckInXpryDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "LOCK IN EXPIRY DATE; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "IntlRefNb",
    "type": "str",
-   "quote": "set"
+   "quote": "set",
+   "note": "Internal Reference Number; CHAR(35); Internal Ref Number/INTERNAL REFERENCE NUMBER"
   },
   {
    "name": "TrfeeNm",
-   "type": "str"
+   "type": "str",
+   "note": "Transferee Name; CHAR(150)"
   },
   {
    "name": "PldgrIntlRef",
-   "type": "str"
+   "type": "str",
+   "note": "PLEDGOR DP INTERNAL REFERENCE NUMBER; CHAR(16)"
   },
   {
    "name": "PldgeeIntlRef",
-   "type": "str"
+   "type": "str",
+   "note": "PLEDGEE DP INTERNAL REFERENCE NUMBER; CHAR(30)"
   },
   {
    "name": "PldgIdr",
-   "type": "str"
+   "type": "str",
+   "note": "Pledge Identifier /Margin pledge Re-pledge indicator; CHAR(2)",
+   "codes": {
+    "MP": "Margin Pledge / Margin -Pledge level 1",
+    "MR": "Margin Re-pledge",
+    "DF": "Default",
+    "M2": "Margin -Pledge level 2",
+    "M3": "Margin -Pledge level 3",
+    "NP": "Normal Pledge"
+   }
   },
   {
    "name": "MrgnPldgInstID",
-   "type": "str"
+   "type": "int",
+   "note": "Margin Pledge Instruction ID / Parent Margin Pledge Sequence No; INTEGER(16)"
   },
   {
    "name": "PartCntr",
-   "type": "str"
+   "type": "str",
+   "note": "PART COUNTER; CHAR(8)"
   },
   {
    "name": "OthrDpstryFlg",
-   "type": "str"
+   "type": "str",
+   "note": "Other Depository Flag / Transaction category; CHAR(3); Other Depository Flag for Unpaid Securities / Transaction Category / Other depository flag Refer Standard Value List",
+   "codes": {
+    "WD": "Within Depository",
+    "AD": "Across Depository",
+    "DFT": "Default"
+   }
   },
   {
    "name": "FrzTp",
-   "type": "str"
+   "type": "str",
+   "note": "FREEZE TYPE; CHAR(3)",
+   "codes": {
+    "SET": "Freeze Setup",
+    "UNF": "Unfreeze",
+    "PMF": "Permanent Freeze",
+    "TMF": "Temporary Freeze",
+    "DFT": "Default"
+   }
   },
   {
    "name": "FrzLvl",
-   "type": "str"
+   "type": "str",
+   "note": "Freeze Level; CHAR(4)",
+   "codes": {
+    "BID": "BO ISIN Level Freeze - frozen for Debit",
+    "BFD": "BO level Freeze - frozen for Debit",
+    "BIDC": "BO ISIN Level Freeze - frozen for Debit and Credit",
+    "BFDC": "BO level Freeze - frozen for Debit and Credit",
+    "QLF": "Quantity Level Freeze",
+    "BIC": "BO ISIN Level Freeze - frozen for Credit",
+    "BFC": "BO level Freeze - frozen for Credit",
+    "DFT": "Default"
+   }
   },
   {
    "name": "FrzInittdBy",
-   "type": "str"
+   "type": "str",
+   "note": "Freeze Initiated By / TXN Initiation Flag; CHAR(2)",
+   "codes": {
+    "BO": "Initiated By BO",
+    "DP": "Initiated by DP",
+    "CD": "Initiated by Depository",
+    "IS": "Initiated by Issuer",
+    "DF": "Default"
+   }
   },
   {
    "name": "FrznFor",
-   "type": "str"
+   "type": "str",
+   "note": "FROZEN FOR; CHAR(2)",
+   "codes": {
+    "FD": "Frozen for Debit",
+    "FC": "Frozen for Credit",
+    "FB": "Frozen for Both",
+    "DF": "Default"
+   }
   },
   {
    "name": "FrzXpryDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "FREEZE EXPIRY DATE; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "FrzQtyTp",
-   "type": "str"
+   "type": "str",
+   "note": "FREEZE QUANTITY TYPE; CHAR(3)",
+   "codes": {
+    "FUL": "Full",
+    "PAR": "Partial",
+    "DFT": "Default"
+   }
   },
   {
    "name": "MtlFndInd",
-   "type": "str"
+   "type": "str",
+   "note": "Mutual Fund Indicator; CHAR(2)",
+   "codes": {
+    "MF": "Mutual Fund",
+    "DF": "Default"
+   }
   },
   {
    "name": "FlgOfLooseSlip",
-   "type": "str"
+   "type": "str",
+   "note": "Flag of loose slip; CHAR(3)",
+   "codes": {
+    "Y": "Loose Slip",
+    "DFT": "Default"
+   }
   },
   {
    "name": "ChanlInd",
-   "type": "str"
+   "type": "str",
+   "note": "Channel Indicator /TRANSACTION SOURCE; CHAR(3)",
+   "codes": {
+    "ONL": "Online",
+    "CUP": "CDAS Upload",
+    "EON": "EASI Online",
+    "EUP": "EASI Upload",
+    "BPI": "BP Web",
+    "DMI": "DM",
+    "SMS": "SMS",
+    "SPD": "SPEEDE",
+    "SPI": "SPEEDE_INDIRECT",
+    "IMP": "Investor Margin Pledge",
+    "SOD": "SOD / EOD",
+    "PBR": "Process by RTA",
+    "DFT": "Default",
+    "IRM": "IRMS",
+    "MFS": "MutualFund SOA",
+    "MFR": "MutualFund Repurchase SOA",
+    "CMP": "Commercial Paper",
+    "CMS": "CMS",
+    "TLS": "TPLAS",
+    "TFC": "TXN IS FROM CH",
+    "API": "CDAS API",
+    "JPI": "CDAS JAVA API",
+    "MTF": "Margin Trading Funding",
+    "CCI": "CCIL",
+    "RTA": "Register and Transfer Agent"
+   }
   },
   {
    "name": "IrrvsblRsnCd",
-   "type": "str"
+   "type": "str",
+   "note": "Irreversible Reason Code; CHAR(50); Not applicable for CDSL"
   },
   {
    "name": "Prty",
-   "type": "str"
+   "type": "str",
+   "note": "Priority Flag; CHAR(2); Refer Standard Value List Not Applicable for CDSL",
+   "codes": {
+    "HP": "High Priority",
+    "LP": "Low Priority",
+    "DF": "Default",
+    "TP": "Top Priority"
+   }
   },
   {
    "name": "RjctnRsnCd",
-   "type": "str"
+   "type": "str",
+   "note": "Rejection Reason Code/ERROR CODE; CHAR(50); Refer Standard Value List In case of NSDL full description for legacy cases will be populated.; 138 standard values (catalogue, Standard Value List)"
   },
   {
    "name": "SndrTxnRefNm",
-   "type": "str"
+   "type": "str",
+   "note": "SENDER TRANSACTION REFERENCE NUMBER; CHAR(8 ); not applicable for CDSL"
   },
   {
    "name": "SndrRefNb1",
-   "type": "str"
+   "type": "str",
+   "note": "Sender reference number 1; CHAR(50); not applicable for CDSL"
   },
   {
    "name": "SndrRefNb2",
-   "type": "str"
+   "type": "str",
+   "note": "Sender reference number 2; CHAR(50); not applicable for CDSL"
   },
   {
    "name": "StmpDtyInd",
-   "type": "str"
+   "type": "str",
+   "note": "Stamp Duty Payment Indicator; CHAR(2)",
+   "codes": {
+    "DP": "Stamp duty paid through Depository Participant",
+    "CL": "Stamp duty paid by Client",
+    "DF": "Default"
+   }
   },
   {
    "name": "UsrId",
-   "type": "str"
+   "type": "str",
+   "note": "Status change user /OPERATOR ID; CHAR(8)"
   },
   {
    "name": "PANAndHldgPttrnMtcgh",
-   "type": "str"
+   "type": "str",
+   "note": "The PAN & holding pattern of source & target account holder(s) is matching; CHAR(2); Refer Standard Value List Not Applicable for CDSL",
+   "codes": {
+    "YS": "PAN Matches",
+    "NA": "Not Applicable",
+    "DF": "Default"
+   }
   },
   {
    "name": "WthtCnsdrtnFlg",
-   "type": "str"
+   "type": "str",
+   "note": "Without Consideration Flag /CONSIDERATION AMOUNT FLAG; CHAR(4)",
+   "codes": {
+    "CAMR": "Consideration Amount required",
+    "CANR": "Consideration Amount not required",
+    "DFT": "Default"
+   }
   },
   {
    "name": "OthrDpstryClntCd",
-   "type": "str"
+   "type": "int",
+   "note": "Other depository Client Code; INTEGER(16)"
   },
   {
    "name": "AcaInd",
-   "type": "str"
+   "type": "str",
+   "note": "Aca indicator; CHAR(3)",
+   "codes": {
+    "YES": "Yes",
+    "DFT": "Default"
+   }
   },
   {
    "name": "ACARmks",
-   "type": "str"
+   "type": "str",
+   "note": "ACA Remarks; CHAR(35)"
   },
   {
    "name": "AccptdQty",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Settled Qty /Earmark Qty /Verify Accpt Qty/Accepted Qty/Total Pledged Qty/Setup Qty/Actual Qty/Transferred Qty; DECIMAL(15,3)"
   },
   {
    "name": "ActlQty",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Closed/Released Qty/Reversal/Verify Reject Qty/Rejected Qty/Total Qty (Unpledge + confiscate); DECIMAL(15,3)"
   },
   {
    "name": "AllQtyFlg",
-   "type": "str"
+   "type": "str",
+   "note": "ALL QUANTITY FLAG; CHAR(3)",
+   "codes": {
+    "PRT": "Partial Quantity",
+    "ALL": "All Quantity",
+    "DFT": "Default"
+   }
   },
   {
    "name": "AMCCd",
-   "type": "str"
+   "type": "str",
+   "note": "AMC CODE; CHAR(30)"
   },
   {
    "name": "BckOffRefDtls",
-   "type": "str"
+   "type": "str",
+   "note": "Back Office reference details; CHAR(32); NA for CDSL"
   },
   {
    "name": "BnfcryAcctCtgy",
-   "type": "str"
+   "type": "str",
+   "note": "Beneficiary Account Category /BO Category; CHAR(3)",
+   "codes": {
+    "NHB": "Regular BO / Non House Beneficiary",
+    "CMP": "CM Principal",
+    "CME": "CM Escrow",
+    "CHP": "CH Pool",
+    "CHE": "CH Escrow",
+    "CUS": "Client Unpaid Securities",
+    "CML": "CM VB/CM Lend",
+    "CMO": "CM Pool",
+    "NOS": "Nostro",
+    "CM": "Clearing member / CM",
+    "POA": "POA",
+    "PMS": "PMS Pool",
+    "HOS": "House",
+    "INT": "Intermediary",
+    "INS": "Internal Suspense",
+    "CON": "Control",
+    "CUP": "Custodian Principal",
+    "CUE": "Custodian Escrow",
+    "ODE": "Other DP Escrow",
+    "CPR": "CH Principal",
+    "DFT": "Default"
+   }
   },
   {
    "name": "BrrwrEmail",
-   "type": "str"
+   "type": "str",
+   "note": "BORROWER EMAIL; CHAR(100)"
   },
   {
    "name": "BrrwrFlg",
-   "type": "str"
+   "type": "str",
+   "note": "BORROWER FLAG; CHAR(4)",
+   "codes": {
+    "PROM": "Promoter",
+    "COMP": "Company",
+    "OTHR": "Others",
+    "DFT": "Default"
+   }
   },
   {
    "name": "BrrwrPAN",
-   "type": "str"
+   "type": "str",
+   "note": "BORROWER PAN; CHAR(30)"
   },
   {
    "name": "BizDt",
    "type": "date",
-   "layout": "2006-01-02"
+   "layout": "2006-01-02",
+   "note": "BUSINESS DATE; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "CASeqNm",
-   "type": "str"
+   "type": "int",
+   "note": "CA SEQUENCE NUMBER; NUMBER(8)"
   },
   {
    "name": "CATyp",
-   "type": "str"
+   "type": "str",
+   "note": "CA Type/Corporate Action Type; CHAR(7); 129 standard values (catalogue, Standard Value List)"
   },
   {
    "name": "CnclSttsFrm",
-   "type": "str"
+   "type": "str",
+   "note": "Cancellation Status from; CHAR(7); Refer Standard Value List Not Applicable for CDSL; 310 standard values (catalogue, Standard Value List)"
   },
   {
    "name": "CnclSttsTo",
-   "type": "str"
+   "type": "str",
+   "note": "Cancellation Status to; CHAR(7); Refer Standard Value List Not Applicable for CDSL; 310 standard values (catalogue, Standard Value List)"
   },
   {
    "name": "ChkrDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "CHECKER DATE; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "PAN",
-   "type": "str"
+   "type": "str",
+   "note": "PAN / INCOME TAX PAN; CHAR(30); Client PAN /EGR PAN"
   },
   {
    "name": "ClrMmbId",
-   "type": "str"
+   "type": "str",
+   "note": "CM ID; CHAR(16); CM BP ID /CM ID Max length (8) in case of CDSL"
   },
   {
    "name": "ConfRejFlg",
-   "type": "str"
+   "type": "str",
+   "note": "CONFIRMATION / REJECTION FLAG; CHAR(3)",
+   "codes": {
+    "ACC": "Accepted",
+    "REJ": "Rejected",
+    "DFT": "Default"
+   }
   },
   {
    "name": "ConfDt",
-   "type": "str"
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05",
+   "note": "CONFIRMATION DATE; DATE(19); YYYY-MM-DDTHH:mm:ss"
   },
   {
    "name": "ConfRejQty",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Invoke Qty/Confirm Accpt Qty/Pledge Available Qty/Qty Available( Unpledge / confiscate)/Lockin qty/Accepted Qty/RTA confirmation Qty / Total Confirmed Qty; DECIMAL(15,3)"
   },
   {
    "name": "ConfCntr",
-   "type": "str"
+   "type": "int",
+   "note": "CONFISCATION COUNTER; NUMBER(6)"
   },
   {
    "name": "CoolngPrd",
-   "type": "str"
+   "type": "int",
+   "note": "Cooling Period; INTEGER(2)"
   },
   {
    "name": "CntrLckInId",
-   "type": "str"
+   "type": "str",
+   "note": "COUNTER LOCK-IN ID; CHAR(16 )"
   },
   {
    "name": "CourierNm",
-   "type": "str"
+   "type": "str",
+   "note": "COURIER NAME; CHAR(30)"
   },
   {
    "name": "CntrTxnRmks",
    "type": "str",
-   "quote": "set"
+   "quote": "set",
+   "note": "Counter Transaction Remarks/ Freeze reason code Description; CHAR(100); In case of CDSL this field will print the description of freeze reason code Others."
   },
   {
    "name": "DmatRejCd",
-   "type": "str"
+   "type": "str",
+   "note": "DEMAT REJECTION CODE; CHAR(7)",
+   "codes": {
+    "CNRCV": "Certificate(s) not received",
+    "CNRWST": "Certificate(s) not rcvd within spcfd tm",
+    "FRGCER": "Forged/Fake/Fudged Certificate",
+    "SIGNM": "Signatures do not match",
+    "STCERT": "Stolen Certificate",
+    "CERTAI": "Duplicate certificate already issued",
+    "HLNMMM": "Holders name does not match",
+    "FEHLNM": "Forged endorsement of holder(s) name/s",
+    "CDDNM": "Certificate details do not match",
+    "CINJ": "Court injunction",
+    "STPXFR": "Stop transfer",
+    "SOANRC": "SoA not received with MF-DRF",
+    "DRIWMF": "Destat req initiated in wrong MF ISIN",
+    "MFNA": "MF units not admitted",
+    "SMFDRFR": "Separate MF-DRFs reqd for separate RTA",
+    "MEPD": "Mismatch electronic and physical detail",
+    "DNR3D": "Documents not received within 30 days",
+    "TCDNA": "Transposition-cum-Destat not allowed",
+    "TMCDNA": "Transmission-cum-Destat not allowed",
+    "SIGMM": "Signature Mismatch",
+    "SIGNP": "Sign of 1st/2nd/3rd one of the holders not present",
+    "QTYMM": "Quantity recd and DRF quantity mismatch",
+    "CERTSF": "Certificates sent are fake",
+    "CRTRST": "Certificates sent are reported stolen",
+    "DUCRTI": "Duplicate Certificates already issued",
+    "ODCSD": "Old defunct Certs surrendered for demat",
+    "FSSD": "Forfeited Securities surrendered - demat",
+    "FEHLCT": "Forged endorsement on certificate",
+    "IHLDNM": "Incorrect Holder(s) name / pattern",
+    "CRTDMM": "Certificate details mismatch",
+    "DRFIRT": "DRF sent to incorrect Registrar",
+    "CNR3": "Certificate(s) not received within 30 da",
+    "CINJP": "Court injunction pending",
+    "DRIWIS": "Demat request initiated under wrong ISIN",
+    "ACPRNA": "Allotment/Call pymt receipt not attached",
+    "SCRNAD": "Security certs recd not available-demat",
+    "REJACA": "Rejected due to ACA",
+    "DWCRIS": "Debt/Warrant certs recd instead of Share",
+    "TFNS": "Transposition Form not submitted",
+    "DCNS": "TransmissionForm/DeathCert not submitted",
+    "IRRAC": "Investor req for rejection & a/c closure",
+    "SUST": "Shares under Stop Transfer",
+    "CBONA": "Chg in DPID/BOID on Certs not authorised",
+    "MBOC": "Mismatch of DPID/BOID on certificates",
+    "DRFNSG": "DRF not signed / stamped by DP",
+    "TIEPF": "Physical Securities Trnsfrrd to IEPF A/c",
+    "DRNWDN": "DRN setup without DN ranges Listed ISIN",
+    "OTH": "Others",
+    "DFT": "Default",
+    "CRFDTM": "Certiciate details mismatch",
+    "PSTIPF": "Physical Shares transferred/transmitted to IEPF Demat Account",
+    "UAIDMT": "Units already in demat form",
+    "USTDTM": "Unit statement details mismatch",
+    "CRFSIR": "CRF sent to incorrect registrar",
+    "USNR3D": "Unit Statement(s) not received within 30 days",
+    "CURIWI": "Conv of Units request initiated under wrong ISIN",
+    "UNACON": "Units recd not available for Conv of Units",
+    "MBUQCR": "Mismatch between Unit qty received and CRF qty",
+    "RSRIAS": "RTA Unit statement recd instead of AMC Unit statement",
+    "INRRAC": "Investor request for rejection and a/c closure",
+    "UULSTR": "Units under lien/Stop Transfer",
+    "CDCNCA": "Changes in DP ID/Client ID on CRF not authorized",
+    "MDCLCR": "Mismatch of DP ID/ Client ID on CRF",
+    "CRNSDP": "CRF not signed/ stamped by DP",
+    "RQUARD": "Requested units are already redeemed",
+    "USNECR": "Unit statement not enclosed with CRF"
+   }
   },
   {
    "name": "DmatRejFlg",
-   "type": "str"
+   "type": "str",
+   "note": "DEMAT REJECTION FLAG; CHAR(1)",
+   "codes": {
+    "V": "Rejection at Verification",
+    "C": "Rejection at Confirmation",
+    "D": "Default"
+   }
   },
   {
    "name": "DmatReqNb",
-   "type": "str"
+   "type": "int",
+   "note": "DEMAT REQUEST NUMBER; NUMBER(8)"
   },
   {
    "name": "DstatRejCd",
-   "type": "str"
+   "type": "str",
+   "note": "DESTAT REJECTION CODE; CHAR(4)",
+   "codes": {
+    "STIN": "Statement Incorrect",
+    "OTH": "Others",
+    "DFT": "Default",
+    "DNRT": "Documents not rcvd within specified time"
+   }
   },
   {
    "name": "OrdrRef",
-   "type": "str"
+   "type": "int",
+   "note": "DM Order Number; INTEGER(10); NA for CDSL"
   },
   {
    "name": "EarmrkdQty",
    "type": "dec",
-   "decimals": 6,
-   "fixed": false
+   "decimals": 3,
+   "note": "Confirm Reject Qty/Total Qty (Unpledge initiated + confiscate initiated)/Total Rejected Qty; DECIMAL(15,3)"
   },
   {
    "name": "EasiRefNb",
-   "type": "str"
+   "type": "str",
+   "note": "EASI REFERENCE NO / NOW Reference no; CHAR(16)"
   },
   {
    "name": "EFTSCd",
-   "type": "str"
+   "type": "str",
+   "note": "EFTS CODE; CHAR(3)",
+   "codes": {
+    "OTH": "Others",
+    "DFD": "Demat From DP",
+    "DFR": "Demat From RTA",
+    "IPA": "Demat IPO",
+    "FCA": "Corporate Action",
+    "RFD": "Remat from DP",
+    "RFR": "Remat from RTA",
+    "ACA": "Auto Corporate Action",
+    "1MT": "One to Many Transmission",
+    "IDT": "Inter-depository",
+    "PAY": "Payin / Payout",
+    "ACT": "One to One Account Transfer / Transmission",
+    "ECR": "Escrow Release",
+    "STT": "Settlement - Early payin Earmark",
+    "PLG": "Pledge",
+    "FRZ": "Freeze",
+    "LIR": "Lock-in Release",
+    "HSJ": "Hop Skip Jump",
+    "DFT": "Default",
+    "STL": "Settlement - Debit / Credit"
+   }
   },
   {
    "name": "EPTxnIDCUSPA",
-   "type": "str"
+   "type": "str",
+   "note": "EP transaction ID for CUSPA; CHAR(8)"
   },
   {
    "name": "FinFlg",
-   "type": "str"
+   "type": "int",
+   "note": "FINANCIAL FLAG; NUMBER(2)"
   },
   {
    "name": "HldRefNb",
-   "type": "str"
+   "type": "str",
+   "note": "Hold Reference Number; CHAR(20)"
   },
   {
    "name": "LndClntId",
-   "type": "str"
+   "type": "str",
+   "note": "LENDER BO ID; CHAR(16)"
   },
   {
    "name": "LndEmailId",
-   "type": "str"
+   "type": "str",
+   "note": "LENDER EMAIL ID; CHAR(100)"
   },
   {
    "name": "LndFlg",
-   "type": "str"
+   "type": "str",
+   "note": "LENDER FLAG; CHAR(4)",
+   "codes": {
+    "PROM": "Promoter",
+    "COMP": "Company",
+    "OTHR": "Others",
+    "DFT": "Default"
+   }
   },
   {
    "name": "LndPAN",
-   "type": "str"
+   "type": "str",
+   "note": "LENDER PAN; CHAR(30)"
   },
   {
    "name": "LotSize",
-   "type": "str"
+   "type": "int",
+   "note": "LOT SIZE; NUMBER(8)"
   },
   {
    "name": "ModFlg",
-   "type": "str"
+   "type": "int",
+   "note": "MODIFICATION FLAG; NUMBER(2)"
   },
   {
    "name": "UltLndIssCd",
-   "type": "str"
+   "type": "str",
+   "note": "Name of ultimate lender/Debenture Issuer Code; CHAR(100); Refer Standard Value List. Multiple values separated by semi colon to be entered; 543 standard values (catalogue, Standard Value List)"
   },
   {
    "name": "NDUPrntId",
-   "type": "str"
+   "type": "str",
+   "note": "NDU PARENT ID; CHAR(8)"
   },
   {
    "name": "OldOrNewDstRqstNm",
-   "type": "str"
+   "type": "int",
+   "note": "OLD / NEW Demat / DESTAT REQUEST NUMBER; NUMBER(8)"
   },
   {
    "name": "OnMktTrdId4CuspaXfer",
-   "type": "str"
+   "type": "int",
+   "note": "On Market Trade ID for CUSPA transfer; NUMBER(8)"
   },
   {
    "name": "OrdrsttsFlg",
-   "type": "str"
+   "type": "str",
+   "note": "ORDER STATUS FLAG; CHAR(3)",
+   "codes": {
+    "SBM": "Setup By Maker",
+    "ALG": "Alleged",
+    "MAT": "Matched",
+    "DFT": "Default"
+   }
   },
   {
    "name": "OrdSttsFrm",
-   "type": "str"
+   "type": "str",
+   "note": "Order Status from; CHAR(7); Refer Standard Value List Not Applicable for CDSL; 310 standard values (catalogue, Standard Value List)"
   },
   {
    "name": "OrdSttsTo",
-   "type": "str"
+   "type": "str",
+   "note": "Order Status to / TRANSACTION STATUS; CHAR(7); 310 standard values (catalogue, Standard Value List)"
   },
   {
    "name": "OrigDMOrdNm",
-   "type": "str"
+   "type": "int",
+   "note": "Original DM Order Number /PARENT PSN; INTEGER(10)"
   },
   {
    "name": "NSDLCMClntId",
-   "type": "str"
+   "type": "str",
+   "note": "Other Client Code /NSDL CMBP ID / DPID; CHAR(16)"
   },
   {
    "name": "CntrCMBPId",
-   "type": "str"
+   "type": "str",
+   "note": "Counter CM BP ID; CHAR(8); Other CM BP Id"
   },
   {
    "name": "OTPVrfyDt",
-   "type": "str"
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05",
+   "note": "OTP Verify Date; DATE(19); Date on which OTP verification is done"
   },
   {
    "name": "PrChldRmtReqNm",
-   "type": "str"
+   "type": "int",
+   "note": "PARENT / CHILD REMAT REQUEST NUMBER; NUMBER(8)"
   },
   {
    "name": "PrLckInId",
-   "type": "str"
+   "type": "str",
+   "note": "PARENT LOCK IN ID; CHAR(20)"
   },
   {
    "name": "PayInTypFlg",
-   "type": "str"
+   "type": "str",
+   "note": "PAY-IN TYPE FLAG; CHAR(4)",
+   "codes": {
+    "APIN": "Auto Pay-in",
+    "BTT": "B Type transaction",
+    "NPIN": "Normal Pay-in",
+    "DFT": "Default"
+   }
   },
   {
    "name": "PldgdBal",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "PLEDGE BALANCE; DECIMAL(15,3)"
   },
   {
    "name": "PldgExpDt",
    "type": "datetime",
-   "layout": "2006-01-02T15:04:05"
+   "layout": "2006-01-02T15:04:05",
+   "note": "PLEDGE EXPIRY DATE; DATE(19); YYYY-MM-DDTHH:mm:ss"
   },
   {
    "name": "PldgSeqNb",
-   "type": "str"
+   "type": "str",
+   "note": "Pledge sequence number in case of CUPSA transfer from NSDL to CDSL; CHAR(10); Pledge sequence number in case of CUPSA transfer from NSDL to CDSL"
   },
   {
    "name": "PldgeCntrlSctiesDpstryPtcptRmks",
-   "type": "str"
+   "type": "str",
+   "note": "PLEDGEE DP REMARKS; CHAR(100)"
   },
   {
    "name": "PldgOthrClntCd",
-   "type": "str"
+   "type": "str",
+   "note": "Pledgee -Other Depository Client Code; CHAR(16)"
   },
   {
    "name": "RsnCd",
-   "type": "str"
+   "type": "str",
+   "note": "Reason Code for encumbrances / Pledge Reason Code; CHAR(3)",
+   "codes": {
+    "CDC": "Collateral for issuance of Debentures by Company/Group Companies",
+    "CCC": "Collateral for loans taken by the Company/Group Companies",
+    "CTP": "Collateral for loans taken by the Third Party",
+    "MPE": "Margin Pledge / MTF for trading on the Stock Exchange",
+    "PAC": "Personal use by promoters and PAC",
+    "CFS": "Collateral for selfloan",
+    "CUP": "CUSPA Pledge",
+    "COP": "Cofia Pledge",
+    "DFT": "Default"
+   }
   },
   {
    "name": "RejRmks",
-   "type": "str"
+   "type": "str",
+   "note": "REJECTION REMARKS; CHAR(100)"
   },
   {
    "name": "RevChkrDt",
-   "type": "str"
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05",
+   "note": "REVERSAL CHECKER DATE; DATE(19); YYYY-MM-DDTHH:mm:ss"
   },
   {
    "name": "RevMkrDt",
-   "type": "str"
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05",
+   "note": "REVERSAL MAKER DATE; DATE(19); YYYY-MM-DDTHH:mm:ss"
   },
   {
    "name": "RevSrcDpId",
-   "type": "str"
+   "type": "int",
+   "note": "REVERSAL SOURCE DP ID; NUMBER(8)"
   },
   {
    "name": "RTAChkrDt",
-   "type": "str"
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05",
+   "note": "RTA CHECKER DATE; DATE(19); YYYY-MM-DDTHH:mm:ss"
   },
   {
    "name": "RTAId",
-   "type": "str"
+   "type": "int",
+   "note": "RTA ID / Vault Manager ID; NUMBER(6)"
   },
   {
    "name": "RTAIntRefNm",
-   "type": "str"
+   "type": "str",
+   "note": "RTA INTERNAL REFERENCE NUMBER; CHAR(16)"
   },
   {
    "name": "RTAMkrDt",
-   "type": "str"
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05",
+   "note": "RTA MAKER DATE; DATE(19); YYYY-MM-DDTHH:mm:ss"
   },
   {
    "name": "RTARmks",
-   "type": "str"
+   "type": "str",
+   "note": "RTA REMARKS; CHAR(100)"
   },
   {
    "name": "SelfBtchId",
-   "type": "str"
+   "type": "str",
+   "note": "SELF BATCH ID; CHAR(30)"
   },
   {
    "name": "SeqNm",
-   "type": "str"
+   "type": "int",
+   "note": "SEQUENCE NUMBER; INTEGER(8); IPO SEQUENCE NUMBER"
   },
   {
    "name": "SetUpDt",
    "type": "datetime",
-   "layout": "2006-01-02T15:04:05"
+   "layout": "2006-01-02T15:04:05",
+   "note": "SETUP DATE; DATE(19); YYYY-MM-DDTHH:mm:ss"
   },
   {
    "name": "StmpDty",
    "type": "dec",
-   "decimals": 2,
-   "fixed": false
+   "decimals": 3,
+   "note": "STAMP DUTY; DECIMAL(15,3)"
   },
   {
    "name": "LstMdfDt",
    "type": "datetime",
-   "layout": "2006-01-02T15:04:05"
+   "layout": "2006-01-02T15:04:05",
+   "note": "Status change date time /LAST MODIFICATION DATE; DATE(19); YYYY-MM-DDTHH:mm:ss"
   },
   {
    "name": "SwtchInISIN",
-   "type": "str"
+   "type": "str",
+   "note": "SWITCH IN ISIN; CHAR(20)"
   },
   {
    "name": "SwtchInISINSchm",
-   "type": "str"
+   "type": "int",
+   "note": "SWITCH IN ISIN SCHEME; NUMBER(8)"
   },
   {
    "name": "SwtchOutISINNAV",
-   "type": "str"
+   "type": "str",
+   "note": "SWITCH OUT ISIN NAV; CHAR(20)"
   },
   {
    "name": "SwtchOutISINSchm",
-   "type": "str"
+   "type": "int",
+   "note": "SWITCH OUT ISIN SCHEME; NUMBER(8)"
   },
   {
    "name": "SwtchOutRTADt",
-   "type": "str"
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05",
+   "note": "SWITCH OUT RTA DATE; DATE(19); YYYY-MM-DDTHH:mm:ss"
   },
   {
    "name": "SwtchReqNb",
-   "type": "str"
+   "type": "int",
+   "note": "SWITCH REQUEST NUMBER (SRN); NUMBER(8)"
   },
   {
    "name": "SwtchTxnStts",
-   "type": "str"
+   "type": "str",
+   "note": "SWITCH TRANSACTION STATUS; CHAR(1)"
   },
   {
    "name": "PldgrClntNm",
-   "type": "str"
+   "type": "str",
+   "note": "Pledgor Client Name /Source Client Name; CHAR(135)"
   },
   {
    "name": "ScndPldgrClntNm",
-   "type": "str"
+   "type": "str",
+   "note": "Second Holder Pledgor Client Name /Second Holder Source Client Name; CHAR(45)"
   },
   {
    "name": "ThrdPldgrClntNm",
-   "type": "str"
+   "type": "str",
+   "note": "Third Holder Pledgor Client Name /Third Holder Source Client name; CHAR(45)"
   },
   {
    "name": "TargClntNm",
-   "type": "str"
+   "type": "str",
+   "note": "Target Client Name; CHAR(135)"
   },
   {
    "name": "TrgtDPID",
-   "type": "str"
+   "type": "str",
+   "note": "Target DP ID; CHAR(8)"
   },
   {
    "name": "TermntDt",
-   "type": "str"
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05",
+   "note": "TERMINATE DATE/ Cancellation Date; DATE(19); YYYY-MM-DDTHH:mm:ss"
   },
   {
    "name": "TrdId",
-   "type": "str"
+   "type": "str",
+   "note": "TRADE ID; CHAR(8)"
   },
   {
    "name": "TxnBalTyp",
-   "type": "str"
+   "type": "int",
+   "note": "TRANSACTION BALANCE TYPE; NUMBER(2)"
   },
   {
    "name": "TxnCd",
-   "type": "str"
+   "type": "str",
+   "note": "TRANSACTION CODE; CHAR(7); 152 standard values (catalogue, Standard Value List)"
   },
   {
    "name": "TxnCntr",
-   "type": "str"
+   "type": "int",
+   "note": "TRANSACTION COUNTER; NUMBER(2)"
   },
   {
    "name": "TrdRsnCd",
-   "type": "str"
+   "type": "str",
+   "note": "Trade Reason Code; CHAR(3); Trade Reason Code / OFFMARKET REASON CODE Refer Standard Value List",
+   "codes": {
+    "GFT": "Gift.",
+    "OSP": "For Off-Market Sale/Purchase",
+    "TOA": "Transfer to own account(s)",
+    "GRO": "Implmntn of Govt/Regltry Directn/Orders",
+    "ERT": "Erroneous Transfer Pertng to Client Sec",
+    "OOA": "Open Offer for Acquisition",
+    "RSI": "Refund of securities by IEPF Authority",
+    "DON": "Donation",
+    "FBB": "For Buy-Back",
+    "MRS": "Margin returned by stock broker/ PCM",
+    "ESO": "ESOP/Transfer to employee",
+    "RMF": "Redemption of Mutual Fund units",
+    "CDR": "Conversion from/to DepositoryReceipt(DR)",
+    "TRN": "Transposition",
+    "MDC": "Merger/Demerger of Corporate entity",
+    "DRW": "DissolutionRestructrngWinding-Trust/Firm",
+    "TBH": "Trust to Beneficiaries/On HUFdissolution",
+    "TMG": "Transfer between Minor and Guardian",
+    "TFM": "Transfer between Specified Family Member",
+    "PDC": "Between Partner&Firm or Director&Company",
+    "TLH": "Transmission to Legal Heirs",
+    "TPM": "Trsfr within PMS provider and PMS client",
+    "MTC": "Margin to Custodian",
+    "MRC": "Margin returned by Custodian",
+    "DNS": "Due to change in nominee shareholder",
+    "OSW": "Off-Market Swap",
+    "DEL": "Delisting - Exit offer",
+    "STE": "Specific Transfer to/from Escrow account",
+    "TRC": "Transfer Frm/To-Triparty Repo-collateral",
+    "TCE": "TRANSFER OF CONSTITUTE SHARES FOR CREATION OF ETF UNITS",
+    "MII": "MARKET IDT IDENTIFIER",
+    "DFT": "Default"
+   }
   },
   {
    "name": "TxnRefNb",
-   "type": "str"
+   "type": "str",
+   "note": "TRANSACTION REFERENCE NUMBER FOR INTER DEPOSITORY TRANSFERS; CHAR(8)"
   },
   {
    "name": "TxnValtn",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "TRANSACTION VALUATION; DECIMAL(15,3)"
   },
   {
    "name": "XferTxnNb",
-   "type": "str"
+   "type": "str",
+   "note": "TRANSFER / TRANSMISSION TRANSACTION NUMBER; CHAR(8)"
   },
   {
    "name": "XferId",
-   "type": "str"
+   "type": "int",
+   "note": "TRANSFER ID; NUMBER(19)"
   },
   {
    "name": "XferRsnCd",
-   "type": "str"
+   "type": "str",
+   "note": "Transfer Reason Code; CHAR(3)",
+   "codes": {
+    "RMN": "Reverting to Maiden Name",
+    "COG": "Change in BO Name as Per Official Gazette",
+    "CUM": "Change in BO name upon marriage",
+    "SAD": "Shifting of Account from One DP to Other DP",
+    "DAH": "Death of the Account Holder - Single holder Account",
+    "DJH": "Death of One or More Joint Holders",
+    "DFT": "Default"
+   }
   },
   {
    "name": "XferSttsFlg",
-   "type": "str"
+   "type": "str",
+   "note": "TRANSFER STATUS FLAG; CHAR(3)",
+   "codes": {
+    "PRT": "Partially Transferred",
+    "FUL": "Fully Transferred",
+    "DFT": "Default"
+   }
   },
   {
    "name": "XferTyp",
-   "type": "str"
+   "type": "str",
+   "note": "TRANSFER TYPE; CHAR(3)",
+   "codes": {
+    "OFF": "Off-market",
+    "ON": "On-market",
+    "DFT": "Default"
+   }
   },
   {
    "name": "XferTypFlg",
-   "type": "str"
+   "type": "str",
+   "note": "TRANSFER TYPE FLAG; CHAR(6)",
+   "codes": {
+    "TOTO": "Transmission One to One",
+    "ACTXFR": "Account Transfer",
+    "TOTM": "Transmission One to Many",
+    "DFT": "Default"
+   }
   },
   {
    "name": "TrnsmssnRsn",
-   "type": "str"
+   "type": "str",
+   "note": "Transmission Reason; CHAR(3)",
+   "codes": {
+    "TS": "Transmission to Survivor",
+    "TN": "Transmission to Nominee",
+    "TC": "Transmission to / by court order / Legal heir",
+    "DFT": "Default",
+    "AC": "Account Closure",
+    "RMN": "Reverting to Maiden Name",
+    "COG": "Change in BO Name as Per Official Gazette",
+    "CUM": "Change in BO name upon marriage",
+    "SAD": "Shifting of Account from One DP to Other DP",
+    "DAH": "Death of the Account Holder - Single holder Account",
+    "DJH": "Death of One or More Joint Holders",
+    "SAS": "Shifting of Account in same DP",
+    "TCJ": "Transfer to Coparcener with Joint Holder",
+    "TCW": "Transfer to Coparcener without Joint Holder",
+    "SNM": "Single A/c to Nominee",
+    "SLH": "Single A/c to Legal Heir",
+    "JSH": "Joint A/c to surviving holder",
+    "JNM": "Joint A/c to Nominee",
+    "JYH": "Joint A/c to legal heir of youngest joint holder"
+   }
   },
   {
    "name": "DmsIndFlg",
-   "type": "str"
+   "type": "str",
+   "note": "Demise Indicator Flag; CHAR(3)",
+   "codes": {
+    "YES": "Yes",
+    "NO": "No",
+    "DFT": "Default",
+    "YN": "Two Holders account - First holder demised",
+    "NY": "Two Holders account - Second holder demised",
+    "YNN": "Three Holders account - First holder demised",
+    "NYN": "Three Holders account - Second holder demised",
+    "NNY": "Three Holders account - Third holder demised",
+    "YYN": "Three Holders account - First and Second holder demised",
+    "NYY": "Three Holders account - Second and Third holder demised",
+    "YNY": "Three Holders account - First and Third holder demised"
+   }
   },
   {
    "name": "UnpldCntr",
-   "type": "str"
+   "type": "int",
+   "note": "UNPLEDGE COUNTER; NUMBER(6)"
   },
   {
    "name": "VerftnDt",
-   "type": "str"
+   "type": "datetime",
+   "layout": "2006-01-02T15:04:05",
+   "note": "VERIFICATION DATE; DATE(19); YYYY-MM-DDTHH:mm:ss"
   },
   {
    "name": "TotNumBar",
-   "type": "str"
+   "type": "int",
+   "note": "Total number of BARS; NUMBER(10)"
   },
   {
    "name": "AutPrNm",
-   "type": "str"
+   "type": "str",
+   "note": "Authorized Person Name; CHAR(135)"
   },
   {
    "name": "PctgShrOfFrstNmnee",
-   "type": "str"
+   "type": "dec",
+   "decimals": 2,
+   "note": "Percentage Share of first Nominee; DECIMAL(3,2)"
   },
   {
    "name": "OthrDpstryFlgOfFrstNmnee",
-   "type": "str"
+   "type": "str",
+   "note": "Other depository flag of First Nominee; CHAR(1); NA for CDSL"
   },
   {
    "name": "OthrDpstryPtcptIdOfFrstNmnee",
-   "type": "str"
+   "type": "str",
+   "note": "Other DP ID of first Nominee; CHAR(8)"
   },
   {
    "name": "OthrClntIdOfFrstNmnee",
-   "type": "str"
+   "type": "str",
+   "note": "Other Client ID of first Nominee; CHAR(8)"
   },
   {
    "name": "OthrDpstryClntCdOfFrstNmnee",
-   "type": "str"
+   "type": "str",
+   "note": "Other depository Client code of First Nominee; CHAR(16)"
   },
   {
    "name": "PctgShrOfScndNmnee",
-   "type": "str"
+   "type": "dec",
+   "decimals": 2,
+   "note": "Percentage Share of second Nominee; DECIMAL(3,2)"
   },
   {
    "name": "OthrDpstryFlgOfScndNmnee",
-   "type": "str"
+   "type": "str",
+   "note": "Other depository flag of Second Nominee; CHAR(1); NA for CDSL"
   },
   {
    "name": "OthrDpstryPtcptIdOfScndNmnee",
-   "type": "str"
+   "type": "str",
+   "note": "Other DP ID of Second Nominee; CHAR(8)"
   },
   {
    "name": "OthrClntIdOfScndNmnee",
-   "type": "str"
+   "type": "str",
+   "note": "Other Client ID of Second Nominee; CHAR(8)"
   },
   {
    "name": "OthrDpstryClntCdOfScndNmnee",
-   "type": "str"
+   "type": "str",
+   "note": "Other depository Client code of Second Nominee; CHAR(16)"
   },
   {
    "name": "PctgShrOfThrdNmnee",
-   "type": "str"
+   "type": "dec",
+   "decimals": 2,
+   "note": "Percentage Share of third\nNominee; DECIMAL(3,2)"
   },
   {
    "name": "OtherDpstryFlgOfThrdNmnee",
-   "type": "str"
+   "type": "str",
+   "note": "Other depository flag of Third Nominee; CHAR(1); NA for CDSL"
   },
   {
    "name": "OthrDpstryPtcptIdOfThrdNmnee",
-   "type": "str"
+   "type": "str",
+   "note": "Other DP ID of third Nominee; CHAR(8)"
   },
   {
    "name": "OthrClntIdOfThrdNmnee",
-   "type": "str"
+   "type": "str",
+   "note": "Other Client ID of third Nominee; CHAR(8)"
   },
   {
    "name": "OthrDpstryClntCdOfThrdNmnee",
-   "type": "str"
+   "type": "str",
+   "note": "Other depository Client code of third Nominee; CHAR(16)"
   },
   {
    "name": "DepBy",
-   "type": "str"
+   "type": "str",
+   "note": "Deposited By; CHAR(20)"
   },
   {
    "name": "ClsPric",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "ISIN CLOSE PRICE; DECIMAL(15,3)"
   },
   {
    "name": "ClsDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "ISIN CLOSE PRICE DATE; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "FrzRsnCd",
-   "type": "str"
+   "type": "str",
+   "note": "Freeze Reason Code; CHAR(3)",
+   "codes": {
+    "INV": "Request By Investor/Beneficial Owner",
+    "OTR": "Other Reasons",
+    "RSA": "Request By Statuatory Authority",
+    "SPW": "SARAL -Positive Confirmation Awaited",
+    "APN": "Account Holder related -PAN non-compliant/PAN verification pending",
+    "AFN": "Account Holder related -FATCA non-compliant/FATCA NonCompliance(under ITRule 114H(8)",
+    "AKN": "Account Holder related -KYC non-compliant",
+    "AHD": "Account Holder related -Holder deceased",
+    "AMT": "Account Holder related -Minor turned major/Minor Attained Majority",
+    "ANP": "Account Holder related -Non-payment of dues of DP",
+    "AMD": "Account Holder related -Merger of DPM set-up",
+    "ACR": "Account Holder related -Account closure/transmission - Residual balances",
+    "SSO": "Statutory Order -SEBI order/SEBI Directive",
+    "SJC": "Statutory Order -Judicial authorities -Court/Court Order",
+    "SJS": "Statutory Order -Exchanges order/ Exchange Order based on SEBI Circular",
+    "SJO": "Statutory Order -Judicial authorities -Official Liquidator/ Official Liquidator",
+    "SCL": "Statutory Order -Judicial authorities -Company Law Board/ Company Law Board",
+    "SLP": "Statutory Order -Law Enforcement Agencies -Police",
+    "CBI": "Statutory Order -Law Enforcement Agencies -Central Bureau of Investigations (CBI)/Order fr",
+    "CID": "Statutory Order -Law Enforcement Agencies -Criminal Investigation Department (CID)/ Crimin",
+    "SFI": "Statutory Order -Law Enforcement Agencies -Serious Fraud Investigation Office (SFIO)/ Seri",
+    "EOW": "Statutory Order -Law Enforcement Agencies -Economic Offence Wing (EOW)/ EOW - Economic Off",
+    "SED": "Statutory Order -Law Enforcement Agencies -Directorate of Enforcement (ED)/ ED - Directora",
+    "ACB": "Statutory Order -Law Enforcement Agencies -Anti-Corruption Bureau (ACB)/ ACB - Anti-Corrup",
+    "RRC": "Statutory Order -Recovery Proceedings -Recovery Certificate under Cooperative Societies Ac",
+    "DRT": "Statutory Order -Recovery Proceedings -Debt Recovery Tribunal (DRT)/ DRT - Debt Recovery T",
+    "RIT": "Statutory Order -Revenue Authorities -Income Tax (deleted)",
+    "RST": "Statutory Order -Revenue Authorities - GST / State Tax Office",
+    "RAS": "Statutory Order -Revenue Authorities -Sales Tax",
+    "RAC": "Statutory Order -Revenue Authorities -Customs",
+    "RAE": "Statutory Order -Revenue Authorities -Central Excise",
+    "WSF": "Write-off of shares held by FPIs",
+    "BAD": "Breach of MPS/PN3 - Blocked for Additional Disclosures",
+    "KYC": "Account Holder related- Non Compliant- 6 KYC Attributes/Mandatory 6 KYC Non Compliant Acco",
+    "PAN": "Account holder related PAN inoperative",
+    "NNC": "Nomination non-compliant account",
+    "RGS": "RGESS",
+    "ALF": "Non-payment of ALF",
+    "SCN": "Statutory Order -SEBI SCN / Order Not Delivered/Acknowledged/SEBI SCN/Order NotDelivered/A",
+    "TWC": "Trading Window Closure Period",
+    "ITO": "ITO - Income Tax",
+    "DPD": "Disinvestment & Private Deals",
+    "SHD": "Second Holder Deceased",
+    "THD": "Third Holder Deceased",
+    "FHD": "Sole/First Holder Deceased",
+    "SRO": "Order from Special Recovery Officer",
+    "FIU": "FIU-IND Requirement",
+    "IPV": "In Person Verification Pending",
+    "ASS": "Assignment",
+    "IBB": "Initiated By BO",
+    "RBB": "Requested By BO",
+    "CAF": "CORPORATE ACTION FREEZE",
+    "KYD": "KYC deficiency reported by CDSL",
+    "KYV": "KYC verification Non Compliant Account",
+    "EGR": "Gold deposit setup",
+    "NDF": "NDU freeze setup",
+    "RPA": "Restrained PAN",
+    "PNR": "PAN not recorded",
+    "DFT": "Default",
+    "LEI": "LEI Expiry/Lapse",
+    "AMO": "Account Holder related-Taken over in NSDL Omnibus",
+    "FPI": "FPI Registration Expired",
+    "MNR": "Account Holder related - MNRL / FRI Non-Compliant Account",
+    "RAG": "Stat Order-Rev Auth-GST/State Tax Office (deleted)",
+    "BBE": "Buyback - Open mkt through Stock exchange",
+    "RGA": "Other Regulatory Authority",
+    "SIF": "SIF_Non compliance of Minimum threshold",
+    "EFO": "Statutory Order – Law Enforcement Agencies – Employee Provident Fund organisation (EPFO)/ ",
+    "EIC": "Statutory Order – Law Enforcement Agencies – Employees State Insurance Corporation (ESIC)/"
+   }
   },
   {
    "name": "AutPrMblNb",
-   "type": "str"
+   "type": "str",
+   "note": "Authorized Person Mobile Number; CHAR(24); NA for CDSL"
   },
   {
    "name": "RsnDlayPrsTxn",
-   "type": "str"
+   "type": "str",
+   "note": "Reason for delay processing Transaction; VARCHAR(100)"
   },
   {
    "name": "RegAuthDtls",
-   "type": "str"
+   "type": "str",
+   "note": "Regulatory Authority Details; VARCHAR(500); Contains Name, address, Phone and Email of regulatory Authority issuing Order"
   },
   {
    "name": "OrdTyp",
-   "type": "str"
+   "type": "str",
+   "note": "Order Type; CHAR(6)",
+   "codes": {
+    "INTORD": "Interim Order",
+    "FNLORD": "Final Order",
+    "CNFORD": "Confirmatory Order",
+    "SATORD": "SAT Order",
+    "DFT": "Default",
+    "RELORD": "Release Order",
+    "REVORD": "Revocation Order",
+    "NTOAT": "Notice of Attachment",
+    "OTHR": "Others"
+   }
   },
   {
    "name": "OrdDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Order Date; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "OgCATyp",
-   "type": "str"
+   "type": "str",
+   "note": "Original CA Type; CHAR(7); CA type prior to transfer on listing; 129 standard values (catalogue, Standard Value List)"
   },
   {
    "name": "Rsvd1",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_1; CHAR(50)"
   },
   {
    "name": "Rsvd2",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_2; CHAR(50)"
   },
   {
    "name": "Rsvd3",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_3; CHAR(50)"
   },
   {
    "name": "Rsvd4",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_4; CHAR(50)"
   }
- ],
- "confirmed": true,
- "source": "Header row of the file",
- "compress": "none",
- "format": "delimited",
- "delimiter": ",",
- "crlf": true,
- "final_eol": true,
- "linked": "Loaded into the DP transaction register (credits and debits by demat account; debits billable)"
+ ]
 }

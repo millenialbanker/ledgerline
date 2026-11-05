@@ -731,6 +731,13 @@ func (o *Ops) payoutRisk(ctx context.Context, tenant string, c Client) string {
 	case c.Risk == "High":
 		return "client is high risk (PMLA)"
 	}
+	// A demat account frozen for debits at CDSL (the whole account) holds
+	// funds payouts for a person to decide (cdslfreeze.go).
+	if c.Demat.ID != "" {
+		if b := o.bo(ctx, tenant, c); b.CDSLFreeze == "Debit" || b.CDSLFreeze == "Both" {
+			return "demat account frozen for debits at CDSL: " + b.freezeWhy()
+		}
+	}
 	als, _ := o.Alerts(ctx, tenant)
 	for _, a := range als {
 		if a.UCC == c.UCC && a.Severity == "High" && (a.Status == "Open" || a.Status == "Under review") {

@@ -754,8 +754,10 @@ func (o *Ops) cdxRequeue(ctx context.Context, tenant, actor string, u CDSLUpload
 // internal reference sent), "" for accepted or the rejection reasons. A
 // line is rejected when it carries rejection reason codes or a rejected
 // status; accepted when it carries CDSL's transaction ID or an accepted
-// status. Instructions it cannot place are left out. CDSL's response
-// layout is not in the handbook, so the columns are found by name.
+// status. Instructions it cannot place are left out. The handbook has no
+// response layout, so the columns are found by name; the harmonised
+// TXN_RESP (cdsl-txn-response) names them IntlRefNb, Status, TxUnqId,
+// ErrCD and ErrDesc.
 func cdxReadResponse(name string, data []byte, ids []string) (map[string]string, bool) {
 	out := map[string]string{}
 	fail := map[string][]string{}
@@ -829,6 +831,11 @@ func cdxReadResponse(name string, data []byte, ids []string) (map[string]string,
 						codes = append(codes, v)
 					}
 				}
+				// The harmonised response (TXN_RESP, UDiFF catalogue):
+				// Status A / R, ErrCD and ErrDesc, TxUnqId.
+				if e := strings.TrimSpace(get("ErrCD") + " " + get("ErrDesc")); e != "" && strings.ToUpper(get("Status")) != "A" {
+					codes = append(codes, e)
+				}
 				status = strings.ToUpper(firstOf(get("TxSts"), firstOf(get("Sts"), firstOf(get("Status"), get("StsChngRsn")))))
 			} else {
 				for _, x := range rec {
@@ -841,7 +848,7 @@ func cdxReadResponse(name string, data []byte, ids []string) (map[string]string,
 			switch {
 			case len(codes) > 0 || strings.HasPrefix(status, "REJ") || strings.HasPrefix(status, "FAIL") || status == "R" || status == "F":
 				fail[id] = append(fail[id], firstOf(strings.Join(codes, ", "), status))
-			case (head != nil && get("TxId") != "") || strings.HasPrefix(status, "ACC") || strings.HasPrefix(status, "SUCC") || strings.HasPrefix(status, "EXEC") || status == "A" || status == "S":
+			case (head != nil && (get("TxId") != "" || get("TxUnqId") != "")) || strings.HasPrefix(status, "ACC") || strings.HasPrefix(status, "SUCC") || strings.HasPrefix(status, "EXEC") || status == "A" || status == "S":
 				okSeen[id] = true
 			default:
 				unread = true

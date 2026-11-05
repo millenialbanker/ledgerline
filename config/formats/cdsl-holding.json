@@ -6,236 +6,429 @@
  "when": "BOD and several times a day",
  "purpose": "Every client's demat balance per ISIN: free, pledged, earmarked, lock-in; the source for collateral and sell checks.",
  "names": [
-  "SOH_EXP_\\d+_\\d+_F_\\d+_\\d+_C_\\d+_\\d+_P\\d+\\.csv"
+  "SOH_EXP_\\d+_\\d+_[A-Z]_\\d+_\\d+_[CPD]_\\d+_\\d+(_P\\d+)?\\.csv"
  ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
  "header": true,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as client demat holdings and pledges (matched to clients by demat account)",
+ "source": "CDSL UDiFF Catalogue V3.0.1.4, sheet Field Master, information type Statement_Of_Holding (44 fields; names, types and standard values); header and values checked against CDSL's sample file SOH_EXP_041400_123_F_202512300000_999_C_0_0_P1.csv (5 rows)",
  "columns": [
   {
    "name": "Src",
-   "type": "str"
+   "type": "str",
+   "note": "Source; CHAR(4)",
+   "codes": {
+    "CDSL": "Central Depository Services (India) Limited",
+    "NSDL": "National Securities Depository Limited"
+   }
   },
   {
    "name": "CntrlSctiesDpstryPtcpt",
-   "type": "str"
+   "type": "str",
+   "note": "DP ID; CHAR(8)"
   },
   {
    "name": "BrnchId",
-   "type": "str"
+   "type": "str",
+   "note": "Branch Code; CHAR(6); Always 000000 for CDSL"
   },
   {
    "name": "LineNb",
-   "type": "str"
+   "type": "int",
+   "note": "Line Number; INTEGER(9)"
   },
   {
    "name": "BnfcryAcctCtgy",
-   "type": "str"
+   "type": "str",
+   "note": "Beneficiary Account Category /BO Category; CHAR(3)",
+   "codes": {
+    "NHB": "Regular BO / Non House Beneficiary",
+    "CMP": "CM Principal",
+    "CME": "CM Escrow",
+    "CHP": "CH Pool",
+    "CHE": "CH Escrow",
+    "CUS": "Client Unpaid Securities",
+    "CML": "CM VB/CM Lend",
+    "CMO": "CM Pool",
+    "NOS": "Nostro",
+    "CM": "Clearing member / CM",
+    "POA": "POA",
+    "PMS": "PMS Pool",
+    "HOS": "House",
+    "INT": "Intermediary",
+    "INS": "Internal Suspense",
+    "CON": "Control",
+    "CUP": "Custodian Principal",
+    "CUE": "Custodian Escrow",
+    "ODE": "Other DP Escrow",
+    "CPR": "CH Principal",
+    "DFT": "Default"
+   }
   },
   {
    "name": "BnfclOwnrId",
-   "type": "str"
+   "type": "str",
+   "note": "Beneficiary Account Number/BO Id; CHAR(16)"
   },
   {
    "name": "ISIN",
-   "type": "str"
+   "type": "str",
+   "note": "ISIN; CHAR(12)"
   },
   {
    "name": "MktTpAndId",
-   "type": "str"
+   "type": "str",
+   "note": "Market Type; CHAR(3); Populated only for Clearing Member Statements. Refer Standard Value List; 140 standard values (catalogue, Standard Value List)"
   },
   {
    "name": "SctiesSttlmTxId",
-   "type": "str"
+   "type": "str",
+   "note": "Settlement Number; CHAR(13); Populated only for Clearing Member Statements"
   },
   {
    "name": "RcrdTp",
-   "type": "str"
+   "type": "str",
+   "note": "Record Type; CHAR(2); S - Summary B - breakup"
   },
   {
    "name": "CurBal",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Current Balance(Total Balance)/ Current Balance for settlement pocket; DECIMAL(15,3)"
   },
   {
    "name": "BnfcryAcctPos",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Beneficiary /Free Balance/Free Balance for settlement pocket; DECIMAL(15,3)"
   },
   {
    "name": "DmtrlstnPdgVrfctnBal",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Demat Pending Verification Balance /Beneficiary Demat/ Conversion of Units represented by Statement of Account; DECIMAL(15,3)"
   },
   {
    "name": "DmtrlstnPdgConfBal",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Demat Pending Confirmation Balance; DECIMAL(15,3)"
   },
   {
    "name": "LndBal",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Lent Balance; DECIMAL(15,3)"
   },
   {
    "name": "BrrwdBal",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Borrowed Balance (Pledgee Balance – in pledgee BO A/C); DECIMAL(15,3)"
   },
   {
    "name": "LckdInBalUdrRmtrlstn",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Lock-in Balance under Remat; DECIMAL(15,3)"
   },
   {
    "name": "ISINFrzForDbtOrCdtBoth",
-   "type": "str"
+   "type": "str",
+   "note": "ISIN Freeze for Debit or Credit or Both; CHAR(2)",
+   "codes": {
+    "FD": "Frozen for Debit",
+    "FC": "Frozen for Credit",
+    "FB": "Frozen for Both",
+    "DF": "Default"
+   }
   },
   {
    "name": "BOIdFrzForDbtOrCdtBoth",
-   "type": "str"
+   "type": "str",
+   "note": "BOID Freeze for Debit or Credit or Both; CHAR(2)",
+   "codes": {
+    "FD": "Frozen for Debit",
+    "FC": "Frozen for Credit",
+    "FB": "Frozen for Both",
+    "DF": "Default"
+   }
   },
   {
    "name": "BOISINFrzForDbtOrCdtBoth",
-   "type": "str"
+   "type": "str",
+   "note": "BOISIN Freeze for Debit or Credit or Both; CHAR(2)",
+   "codes": {
+    "FD": "Frozen for Debit",
+    "FC": "Frozen for Credit",
+    "FB": "Frozen for Both",
+    "DF": "Default"
+   }
   },
   {
    "name": "RpldgBal",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Re-Pledge Balance; DECIMAL(15,3)"
   },
   {
    "name": "ClrSysId",
-   "type": "str"
+   "type": "str",
+   "note": "CC ID/CH ID; CHAR(6)",
+   "codes": {
+    "ICCL": "Indian Clearing Corporation Limited",
+    "NCL": "NSE Clearing Limited",
+    "NCLSLB": "NSE Clearing Limited - SLB",
+    "OTCEI": "NATIONAL SECURITIES CLEARING CORP LTD-OTCEI",
+    "NCCL": "NATIONAL COMMODITY CLEARING LIMITED (NCCL)",
+    "MCXCCL": "MULTI COMMODITY EXCHANGE CLEARING CORPORATION LIMITED (MCXCCL)",
+    "MCCL": "METROPOLITAN CLEARING CORPORATION OF INDIA LIMITED",
+    "CSECH": "CALCUTTA STOCK EXCHANGE- CLEARING HOUSE",
+    "DSECH": "DELHI STOCK EXCHANGE LIMITED - CLEARING HOUSE",
+    "ASECH": "AHMEDABAD STOCK EXCHANGE CLEARING HOUSE",
+    "BSLSLB": "BOI SHAREHOLDING LIMITED - SLB",
+    "NSEL": "NATIONAL SPOT EXCHANGE LIMITED",
+    "ICSEL": "INTER-CONNECTED STOCK EXCHANGE OF INDIA LIMITED",
+    "ICL": "INDIAN CLEARING CORPORATION LIMITED - Debt",
+    "ADCEL": "ACE DERIVATIVES AND COMMODITIES EXCHANGE LIMITED",
+    "UCEL": "UNIVERSAL COMMODITY EXCHANGE LIMITED",
+    "CCIL": "THE CLEARING CORPORATION OF INDIA LTD.",
+    "MCL": "METROPOLITAN CLEARING CORPORATION OF INDIA LIMITED - ICX",
+    "DFT": "Default",
+    "BSL": "BOI SHAREHOLDING LIMITED",
+    "NCDL": "NATIONAL COMMODITY AND DERIVATIVES EXCH. LTD.",
+    "LASE": "LUDHIANA STOCK EXCHANGE",
+    "BASE": "BANGALORE STOCK EXCHANGE",
+    "MDSE": "MADRAS STOCK EXCHANGE",
+    "MCEL": "MULTI COMMODITY EXCHANGE OF INDIA LIMITED",
+    "ARCL": "AMC REPO CLEARING LIMITED",
+    "CA": "Corporate Action"
+   }
   },
   {
    "name": "BlckOrLckFlg",
-   "type": "str"
+   "type": "str",
+   "note": "Block/Lock Flag; CHAR(3)",
+   "codes": {
+    "BLK": "Block",
+    "LCK": "Lock",
+    "DFT": "Default",
+    "FRE": "Free",
+    "TRN": "Transit"
+   }
   },
   {
    "name": "BlckOrLckCd",
-   "type": "str"
+   "type": "str",
+   "note": "Block/Lock Code; CHAR(3)",
+   "codes": {
+    "00": "If Block / Lock flag = FRE / DFT",
+    "DTA": "IDT/Tender Offer/eDIS/Block Delivery Transit",
+    "INV": "Request By Investor/Beneficial Owner",
+    "OTR": "Other Reasons",
+    "RSA": "Request By Statuatory Authority",
+    "SPW": "SARAL -Positive Confirmation Awaited",
+    "APN": "Account Holder related -PAN non-compliant/PAN verification pending",
+    "AFN": "Account Holder related -FATCA non-compliant/FATCA NonCompliance(under ITRule 114H(8)",
+    "AKN": "Account Holder related -KYC non-compliant",
+    "AHD": "Account Holder related -Holder deceased",
+    "AMT": "Account Holder related -Minor turned major/Minor Attained Majority",
+    "ANP": "Account Holder related -Non-payment of dues of DP",
+    "AMD": "Account Holder related -Merger of DPM set-up",
+    "ACR": "Account Holder related -Account closure/transmission - Residual balances",
+    "SSO": "Statutory Order -SEBI order/SEBI Directive",
+    "SJC": "Statutory Order -Judicial authorities -Court/Court Order",
+    "SJS": "Statutory Order -Judicial authorities -SAT",
+    "SJO": "Statutory Order -Judicial authorities -Official Liquidator",
+    "SCL": "Statutory Order -Judicial authorities -Company Law Board",
+    "SLP": "Statutory Order -Law Enforcement Agencies -Police",
+    "CBI": "Statutory Order -Law Enforcement Agencies -Central Bureau of Investigations (CBI)/Order fr",
+    "CID": "Statutory Order -Law Enforcement Agencies -Criminal Investigation Department (CID)",
+    "SFI": "Statutory Order -Law Enforcement Agencies -Serious Fraud Investigation Office (SFIO)",
+    "EOW": "Statutory Order -Law Enforcement Agencies -Economic Offence Wing (EOW)",
+    "SED": "Statutory Order -Law Enforcement Agencies -Directorate of Enforcement (ED)",
+    "ACB": "Statutory Order -Law Enforcement Agencies -Anti-Corruption Bureau (ACB)",
+    "RRC": "Statutory Order -Recovery Proceedings -Recovery Certificate under Cooperative Societies Ac",
+    "DRT": "Statutory Order -Recovery Proceedings -Debt Recovery Tribunal (DRT)",
+    "RIT": "Statutory Order -Revenue Authorities -Income Tax",
+    "RST": "Statutory Order -Revenue Authorities -Service Tax",
+    "RAS": "Statutory Order -Revenue Authorities -Sales Tax",
+    "RAC": "Statutory Order -Revenue Authorities -Customs",
+    "RAE": "Statutory Order -Revenue Authorities -Central Excise",
+    "WSF": "Write-off of shares held by FPIs",
+    "BAD": "Breach of MPS/PN3 - Blocked for Additional Disclosures",
+    "KYC": "Account Holder related- Non Compliant- 6 KYC Attributes/Mandatory 6 KYC Non Compliant Acco",
+    "PAN": "Account holder related PAN inoperative",
+    "NNC": "Nomination non-compliant account",
+    "RGS": "RGESS",
+    "ALF": "Non-payment of ALF",
+    "SCN": "Statutory Order -SEBI SCN / Order Not Delivered/Acknowledged/SEBI SCN/Order NotDelivered/A",
+    "TWC": "Trading Window Closure Period",
+    "ITO": "ITO Attachment",
+    "DPD": "Disinvestment & Private Deals",
+    "SHD": "Second Holder Deceased",
+    "THD": "Third Holder Deceased",
+    "FHD": "Sole/First Holder Deceased",
+    "SRO": "Order from Special Recovery Officer",
+    "FIU": "FIU-IND Requirement",
+    "IPV": "In Person Verification Pending",
+    "ASS": "Assignment",
+    "IBB": "Initiated By BO",
+    "RBB": "Requested By BO",
+    "CAF": "CORPORATE ACTION FREEZE",
+    "KYD": "KYC deficiency reported by CDSL",
+    "KYV": "KYC verification Non Compliant Account",
+    "EGR": "Gold deposit setup",
+    "NDF": "NDU freeze setup",
+    "RPA": "Restrained PAN",
+    "PNR": "PAN not recorded",
+    "LEI": "LEI Expiry/Lapse",
+    "AMO": "Account Holder related-Taken over in NSDL Omnibus",
+    "DRQ": "Director/Relative Quota",
+    "EPQ": "Employee Quota",
+    "PFQ": "Preferential Quota",
+    "PRQ": "Promoters Quota",
+    "UWQ": "Underwriters Quota",
+    "PP": "Private Placement",
+    "ITA": "54EA of IT Act 1961",
+    "ITB": "54EB of IT Act 1961",
+    "ITC": "Sec 54EC of IT Act 1961",
+    "ITD": "Sec 88 of IT Act 1961",
+    "ELS": "ELSS2005",
+    "PIS": "PRE IPO SHARES",
+    "TSS": "TAX SAVINGS SCHEME",
+    "OTH": "Others",
+    "MDT": "Maturity Date",
+    "CHP": "Children Plan",
+    "RTP": "Retirement Plan",
+    "SCA": "Scheme of Arrangement",
+    "TSP": "Transfer of securities in physical mode",
+    "DFT": "Default",
+    "GDS": "Gold Deposit Scheme (13)",
+    "VL": "Voluntary Lockin(14)",
+    "RPS": "Re-lodged physical shares(36)",
+    "DON": "DONATION(43)"
+   }
   },
   {
    "name": "LckdInBal",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Lock in Balance; DECIMAL(15,3)"
   },
   {
    "name": "LckInRlsDt",
-   "type": "str"
+   "type": "date",
+   "layout": "2006-01-02",
+   "note": "Lock-in Release Date; DATE(10); YYYY-MM-DD"
   },
   {
    "name": "PldgdBal",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "PLEDGE BALANCE; DECIMAL(15,3); Pledge Balance (Pledgor)"
   },
   {
    "name": "EarmrkdBal",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Earmark Balance/ Earmark Balance for settlement pocket /Beneficiary IDT Balance\\Tender Offer; DECIMAL(15,3)"
   },
   {
    "name": "SkfpBal",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Safe Keep Balance; DECIMAL(15,3)"
   },
   {
    "name": "RmtrlstnPdgBal",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Pending Remat balance /Beneficiary Remat / Repurchase/ Redemption/Reconversion; DECIMAL(15,3)"
   },
   {
    "name": "AvlblForLndBal",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Available for Lend Balance (Pledge setup balance- in Pledgor BO Account) /Beneficiary Pledge Transit balance; DECIMAL(15,3)"
   },
   {
    "name": "CmDlry",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "CM Delivery; DECIMAL(15,3); Not maintained at CDSL"
   },
   {
    "name": "CmRcpt",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "CM Receipt; DECIMAL(15,3); Not maintained at CDSL"
   },
   {
    "name": "BeneficiaryHldTrnNHse",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Beneficiary Hold Transit Balance; DECIMAL(15,3); Not maintained at CDSL"
   },
   {
    "name": "BeneficiaryHldNHse",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Beneficiary Hold Balance; DECIMAL(15,3); Not maintained at CDSL"
   },
   {
    "name": "CmPool",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "CM Pool; DECIMAL(15,3); Not maintained at CDSL"
   },
   {
    "name": "CmTrns",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "CM Transit; DECIMAL(15,3); Not maintained at CDSL"
   },
   {
    "name": "TrnsNHse",
    "type": "dec",
    "decimals": 3,
-   "fixed": false
+   "note": "Transit Balance; DECIMAL(15,3); Not maintained at CDSL"
   },
   {
    "name": "StmtDt",
    "type": "datetime",
-   "layout": "2006-01-02T15:04:05"
+   "layout": "2006-01-02T15:04:05",
+   "note": "Statement Date; DATE(19); YYYY-MM-DDTHH:mm:ss"
   },
   {
    "name": "Rmks",
-   "type": "str"
+   "type": "str",
+   "note": "Remarks; CHAR(150)"
   },
   {
    "name": "Rsvd1",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_1; CHAR(50)"
   },
   {
    "name": "Rsvd2",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_2; CHAR(50)"
   },
   {
    "name": "Rsvd3",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_3; CHAR(50)"
   },
   {
    "name": "Rsvd4",
-   "type": "str"
+   "type": "str",
+   "note": "Dummy_Field_4; CHAR(50)"
   }
- ],
- "confirmed": true,
- "linked": "Loaded as client demat holdings and pledges (matched to clients by demat account)",
- "source": "Header row of the file",
- "compress": "none",
- "format": "delimited",
- "delimiter": ",",
- "crlf": true,
- "final_eol": true
+ ]
 }

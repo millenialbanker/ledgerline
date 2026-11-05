@@ -196,6 +196,48 @@ On [[dp|Demat accounts & DIS]]:
 
 "Slip already used" means that number was entered before. A slip can be used only once.
 
+A slip from an account CDSL has frozen for debits (the whole account, or the ISIN in full) is refused, and a slip already verified is not executed if a freeze arrives before execution (see [[dp|CDSL freezes]]). A part of an ISIN frozen at CDSL is taken out of the free balance.
+
+**CDSL's DIS master (DIS_MSTR).** Loading it on [[xfiles|Exchange files]] checks CDSL's slips against the books issued here:
+- a slip CDSL has cancelled, blocked or made inactive is marked **lost** on its book, so it cannot be accepted;
+- a slip CDSL shows as used that has no instruction here, a slip lost here but active at CDSL, and slips Ledgerline did not issue go to the work queue for the DP desk.
+
+## cdsl-client-master
+title: CDSL client master file (CLN_MSTR): what it changes
+screen: dp
+roles: Ops maker, Ops checker, Compliance officer
+ask: cdsl client master; cln_mstr; client master export; client master file from cdsl; ddpi flag from cdsl; poa flag; does the client have ddpi; why does the client need edis; account status at cdsl; pending activation at cdsl; account closed at cdsl; bsda flag from cdsl; cdsl says different pan; cdsl details differ from client master; accounts not in cdsl full file; harmonised client master; udiff client master
+related: cdsl-freeze, cdsl-edis, dis, cdsl-demat-api
+
+CDSL's client master export (CLN_MSTR, the harmonised layout of SEBI's UDiFF catalogue) has every demat account of the DP as CDSL holds it, one line per purpose: the first holder with each address, joint holders, nominees, POA and DDPI links, BO-UCC links. CDSL sends an incremental file (I, the accounts that changed) daily and a full file (F) on request. Load it on [[xfiles|Exchange files]]; it is on the daily file checklist for a firm that is a CDSL DP.
+
+For each account linked to a client (by its BO ID), Ledgerline records on [[dp|Demat accounts & DIS]]:
+- **Account status**: closed at CDSL closes the account here (with the reason and date); pending activation is shown so. A freeze the DP put on stays until it is lifted here.
+- **BSDA**: BSDA, non-BSDA or opted out; the DP tariff follows it.
+- **POA / DDPI**: the links with their nature (settlement, margin pledge, mutual fund, tender offer), holders and validity. The account **has DDPI** when an active link for settlement (or a general POA) covers the first or all holders, and, once the firm's DDPI POA ID is set in the CDSL pledge settings, is to that master. With DDPI, sales are delivered under it; **without it, every sale needs eDIS (TPIN) or a slip**, and live risk counts a sale not authorised by eDIS as short.
+- the nomination flag and number of nominees, PAN verification, whether the mobile and email are verified, the clearing members of the BO-UCC links and CM mappings, and CDSL's freeze status (an account CDSL shows as frozen is blocked like a freeze from the freeze master).
+
+**Nothing in the client's KYC is overwritten.** Where CDSL's name, PAN, date of birth, mobile, email, bank or nomination differ from the client master, a work item lists the differences (masked) for the DP desk: correct the client with the client's request, or the account at CDSL with a BO modify. Accounts no client is linked to, a DDPI that appears or ends, a closure and a BSDA change also go to the work queue. Aadhaar is never kept: it is masked in the stored copy of the file.
+
+A **full** file's last part (_P0) also lists the DP's accounts Ledgerline has as open that CDSL's file does not: check them in CDAS. Load every part of a file that came in parts, the _P0 part last.
+
+## cdsl-freeze
+title: CDSL freezes (freeze master DPE6): what they block
+screen: dp
+roles: Ops maker, Ops checker, Compliance officer, Risk manager
+ask: cdsl freeze; dpe6; online freeze master report; 18dpe6u; account frozen by cdsl; frozen for debit; frozen for credit; isin frozen; partial freeze; freeze by sebi order; freeze by court order; unfreeze at cdsl; freeze lifted; why can't the client sell frozen; payout held frozen account; regulatory authority freeze
+related: cdsl-client-master, dis, dp-requests, cdsl-edis
+
+CDSL's **online freeze master report (DPE6)** lists every freeze on the DP's accounts: set up, unfrozen, cancelled, released or failed, for the whole account or one ISIN, in full or for a quantity, with the reason, who initiated it and, since CDSL's communiqué CDSL/SURV/DP/POLCY/2026/621, the regulatory authority, its details, the type of order and the reason for delay. Load each file on [[xfiles|Exchange files]] as it arrives (CDSL names it like 18DPE6U…).
+
+While a freeze is in force (from its activation date to its expiry, unless lifted):
+- **frozen for debits, whole account**: no DIS (entry or execution), no eDIS, no pledge, no early pay-in, no settlement pay-in from the account; funds payouts are not approved automatically but wait for a checker;
+- **frozen for debits, one ISIN**: the same for that ISIN; a **partial** freeze takes its quantity out of the free balance;
+- **frozen for credits**: no pay-out of securities to the account (or of that ISIN) and no IPO bid that would credit it.
+
+A new freeze and a lifted one each go to the work queue. Unfreeze, cancel and release records lift the block; a failed freeze never takes effect. These freezes are CDSL's and are kept apart from the DP's own freeze requests, so an unfreeze request here does not lift them. Expiry and future activation are applied each morning.
+
+
 ## dp-requests
 title: Handle demat, freeze, transmission or closure requests
 screen: dp

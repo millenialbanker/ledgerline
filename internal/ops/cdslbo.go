@@ -396,6 +396,11 @@ var cdslDefaultFields = []struct{ Key, Label, Default string }{
 	{"cas_mode", "CAS mode (NO or PH)", ""},
 	{"annual_report", "Annual report flag (1 physical, 2 electronic, 3 both)", ""},
 	{"ucc_cm_id", "Clearing member ID for BO-UCC links (8 characters)", ""},
+	// The file layout of BO setup and modify uploads (cdslharmon.go): the
+	// fixed-width 08 / 11 files of communiqué 2023/404, or the harmonised
+	// CSV (BO_UPLD) of the UDiFF catalogue, which gives no date from which
+	// CSV is mandatory.
+	{"bo_upload_format", "CDSL BO upload format: Fixed-width (communiqué 2023/404) or CSV (harmonised UDiFF BO_UPLD)", cdslFmtFixed},
 }
 
 const (
@@ -437,6 +442,16 @@ func (o *Ops) SaveCDSLBODefaults(ctx context.Context, tenant, actor string, vals
 		v := strings.TrimSpace(vals[f.Key])
 		if v == "" {
 			continue
+		}
+		if f.Key == "bo_upload_format" {
+			switch {
+			case strings.EqualFold(v, cdslFmtCSV):
+				v = cdslFmtCSV
+			case strings.EqualFold(v, cdslFmtFixed), strings.EqualFold(v, "fixed"):
+				v = cdslFmtFixed
+			default:
+				probs = append(probs, "the CDSL BO upload format is Fixed-width or CSV")
+			}
 		}
 		if fd, ok := boFieldSpec("ProductDetails", f.Key); ok && utf8.RuneCountInString(v) > fd.Max {
 			probs = append(probs, fmt.Sprintf("%s is at most %d characters", f.Label, fd.Max))
@@ -1170,7 +1185,7 @@ func (o *Ops) cdslKeepFile(ctx context.Context, tenant, name string, data []byte
 			return CDSLFileRef{}, "", invalid("the ZIP must hold the main upload file %s (in a folder of that name, with the signature images); CDSL rejects a ZIP of signatures alone", main)
 		}
 	} else if !strings.HasPrefix(strings.ToUpper(name), "BO_") && !reBOFileName.MatchString(name) {
-		warn = "CDSL names BO upload files 08<DP ID>.<serial> (setup) or 11<DP ID>.<serial> (modify); check the file name"
+		warn = "CDSL names BO upload files 08<DP ID>.<serial> (setup) or 11<DP ID>.<serial> (modify), or BO_UPLD_<DP ID>_<YYYYMMDDHHMM>_<serial>.csv (harmonised); check the file name"
 	}
 	sum := sha256.Sum256(data)
 	rf, err := o.App.Ingest.Raw.Put(ctx, ingest.RawFile{Tenant: tenant, Source: "CDSL-API-OUT", Name: name, SHA256: hex.EncodeToString(sum[:]), Size: int64(len(data)), Content: data, ReceivedAt: o.now()})
@@ -1772,6 +1787,10 @@ func (o *Ops) cdslPoll(ctx context.Context, tenant, actor string, x cdslConn, r 
 		if rf, err := o.App.Ingest.Raw.Put(ctx, ingest.RawFile{Tenant: tenant, Source: "CDSL-API-IN", Name: path.Base(name), SHA256: hex.EncodeToString(sum[:]), Size: int64(len(data)), Content: data, ReceivedAt: o.now()}); err == nil {
 			r.Reply = &CDSLFileRef{Name: path.Base(name), FileID: rf.ID, Size: int64(len(data)), SHA256: rf.SHA256}
 			r.event(now, actor, "CDSL's response file: "+path.Base(name))
+		}
+		// A harmonised response (BO_RESP) says per line what CDSL did.
+		if rej, why := o.cdslApplyBOResp(ctx, tenant, actor, r, path.Base(name), data); rej {
+			failed, st = true, why
 		}
 	} else {
 		r.event(now, actor, "No response file yet: "+err.Error())

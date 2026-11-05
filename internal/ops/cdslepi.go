@@ -152,7 +152,7 @@ func (o *Ops) EnterEPI(ctx context.Context, tenant, actor string, in []EPIInput)
 			return out, invalid("client %s not found", x.UCC)
 		}
 		bo := o.bo(ctx, tenant, c)
-		if bo.Status != "Active" || bo.Freeze == "Debit" || bo.Freeze == "Both" || !cplReBO16.MatchString(bo.BOID) {
+		if bo.Status != "Active" || bo.debitFrozen() || !cplReBO16.MatchString(bo.BOID) {
 			return out, invalid("%s has no CDSL demat account with this DP open for debits", x.UCC)
 		}
 		if len(x.ISIN) != 12 || x.Qty <= 0 {

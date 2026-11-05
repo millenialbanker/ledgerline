@@ -259,6 +259,7 @@ Viewing AI usage | Compliance officer
 Viewing BSE UCC registrations | Ops maker, Ops checker, Compliance officer
 Viewing CDSL API transactions | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing CDSL demat account counts | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing CDSL freezes | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing CDSL requests | Ops maker, Ops checker, Compliance officer
 Viewing backups | Ops checker, Compliance officer
 Viewing clients BSE does not permit to trade | Ops maker, Ops checker, Risk manager, Compliance officer
