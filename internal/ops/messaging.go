@@ -597,7 +597,11 @@ func (o *Ops) botAnswer(ctx context.Context, tenant, cmd string, c Client, date 
 		if err == nil {
 			for _, r := range rv.Rows {
 				if r.UCC == c.UCC {
-					return fmt.Sprintf("Margin for %s on %s: required ₹%s, free ₹%s. Status: %s.", c.UCC, date, formatINR(r.Required), formatINR(r.Free), r.Status)
+					req, free := r.Required, r.Free
+					if r.Ledgers != nil { // the client as a whole (segledger.go)
+						req, free = r.allRequired(), r.Free.Add(r.Ledgers.CommodityFree)
+					}
+					return fmt.Sprintf("Margin for %s on %s: required ₹%s, free ₹%s. Status: %s.", c.UCC, date, formatINR(req), formatINR(free), r.Status)
 				}
 			}
 		}

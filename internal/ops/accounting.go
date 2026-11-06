@@ -115,6 +115,7 @@ func (o *Ops) Accounts(ctx context.Context, tenant, actor, asOf string) ([]Accou
 	vis := o.AccountVisible(ctx, tenant, actor)
 	var clients money.Amount
 	nClients := 0
+	seenClient := map[string]bool{} // a client's equity, commodity and awaiting ledgers are one client
 	add := func(code string) {
 		if seen[code] {
 			return
@@ -142,9 +143,10 @@ func (o *Ops) Accounts(ctx context.Context, tenant, actor, asOf string) ([]Accou
 		add(code)
 	}
 	for _, code := range sortedKeys(bal) {
-		if ledger.IsClientAccount(code) {
+		if u, _, ok := ledger.ClientCode(code); ok {
 			clients += bal[code]
-			if strings.HasPrefix(code, ledger.ClientEquityPrefix) {
+			if !seenClient[u] {
+				seenClient[u] = true
 				nClients++
 			}
 			continue

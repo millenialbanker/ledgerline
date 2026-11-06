@@ -455,3 +455,57 @@ related: clearing-allocation, bod-files, live-bank-credits
 A credit that names a settlement number, or ICCL rather than NSE Clearing, releases only the matching settlements' share.
 
 **Good to know.** Every N-MASS change is made at NSE Clearing: it is recorded there, visible to the clearing corporation and appears in the client collateral reporting. Holding back unpaid sale money from allocation is the conservative position: the client's own cleared money is never reduced, only money the clearing corporation has not yet paid. Every hold, approval, release and file is in the audit trail; failures, proposals, a pay-out not seen and holds larger than broker funds raise work items for the risk team.
+
+
+## commodity-ledger
+title: Keep separate equity and commodity ledgers
+screen: settings
+roles: Admin, Risk manager, Ops checker
+ask: separate commodity ledger; equity and commodity ledger; two ledgers; commodity balance in finspot limit; mcx money in equity limit; trading member only on mcx; commodity cleared by another member; bow limit; bow funds; ledger per segment; segment wise ledger; limit jumped after receipt
+related: funds-awaiting-allocation, ledger-transfer, bod-files
+
+**Who needs it.** A firm that is only a **trading member** on a commodity exchange: its MCX trades are cleared by another clearing member and placed on another front end (for example BOW), while equity trades on Finspot. Then the client's commodity money is not the equity front end's: if both sit in one ledger, a ₹5,000 receipt can lift the Finspot limit from ₹10,000 to ₹2,15,000 because the ₹2,00,000 commodity balance is in it.
+
+**Switching it on.** On [[settings|Settings]] (Admin), under **Equity and commodity ledgers**, tick **Separate commodity ledger**. Off (the default), there is one ledger per client, exactly as before. On, each client has:
+- the **Equity ledger** (`CLIENT:<code>`, NSE and BSE): the Finspot limit and pay-out hold lines (column 5), the NSE Clearing allocation, margin reporting and N-MASS, SEGMON, equity settlement, CUSPA, MTF, stock SIPs, DP charges, interest;
+- the **Commodity ledger** (`CLIENTCOM:<code>`, MCX): bills, carried futures MTM and expiry charges of MCX trades, the BOW commodity funds (Front office files → **BOW commodity funds**), the MCXCCL margin reporting;
+- **Awaiting allocation** (`CLIENTUNALLOC:<code>`): money received with no instruction where it goes. It is in neither front end's limit.
+
+The client always sees **one ledger**: statements, the portal, contract-note ledgers, SMS and email balances and annual statements merge the ledgers with one running balance, and leave out transfers between the client's own ledgers. Running account settlement, debit ageing and interest, dormant funds and the client-money check look at the client as a whole.
+
+**Opening balances.** In the OPENING-BALANCES file add a **Ledger** column (Equity or Commodity) for client rows; an empty Ledger is Equity.
+
+**Turning it off** is refused while any client still has money in a commodity or awaiting ledger: transfer it to the equity ledger first.
+
+Good to know: bills already posted keep the ledger they were posted to. Switch on at the start of a day, before billing, and load the commodity opening balances the same day.
+
+## funds-awaiting-allocation
+title: Allocate a credit to the equity or commodity ledger
+screen: rms
+roles: Risk manager, Ops checker, Ops maker
+ask: awaiting allocation; credit awaiting allocation; choose equity or commodity; which ledger; unallocated receipt; ecms credit not in limit; credit not in finspot; credit not in bow; allocate receipt; receipt went to suspense ledger
+related: commodity-ledger, ledger-transfer, live-bank-credits
+
+With separate equity and commodity ledgers, money from a client goes to a ledger by the **first instruction** that applies:
+1. the firm's **bank account** it was paid into (Settings: one line per account, `account number = Equity`, `Commodity` or `Ask`);
+2. a **word in the narration** or remarks: Commodity for MCX, COMM, COMMODITY, COMMODITIES; Equity for NSE, BSE, EQ, EQUITY, F&O, FNO (whole words; your own lists in Settings replace these). A narration naming both is left for a person;
+3. the **client's default** (client drawer → *Money in with no instruction goes to*).
+
+Otherwise the money **waits**. It is credited to the client's awaiting-allocation account at once, so it is in the client's ledger and statements, but it is in **neither** front end's limit. An urgent work item goes to Risk: "₹X from client Y: choose Equity or Commodity".
+
+To allocate, open [[rms|RMS & limits]] → **Money awaiting allocation** (or the client drawer) and click **Equity** or **Commodity**. The allocation is a journal from the awaiting account to the ledger, dated the day the money came in, so the next Finspot BOD limit file (or BOW commodity funds) carries it; money allocated to Equity is also sent to NSE Clearing when automatic allocation is on. Optionally, Settings can put money still waiting after so many minutes in Equity or Commodity.
+
+Money awaiting allocation is not paid out until it is allocated, and SEGMON warns if any is still waiting at the end of the day.
+
+## ledger-transfer
+title: Move money between a client's equity and commodity ledgers
+screen: books
+roles: Risk manager, Ops maker, Ops checker
+ask: transfer between equity and commodity; move money from commodity to equity; inter ledger transfer; inter-segment transfer; commodity profit to equity; payout from commodity ledger; ledger cannot pay; payout refused ledger
+related: commodity-ledger, funds-awaiting-allocation, payout
+
+1. In the client drawer, click **Transfer between equity and commodity**, choose From, the amount and a note.
+2. It becomes a **journal voucher**; an Ops checker approves it under [[books|Firm accounts & GST]] → Vouchers, like every journal. Only then do the balances move.
+3. The client does not see it: it moves money between the client's own ledgers and nets to nothing in the client's statement.
+
+**Payouts.** Receipts & payouts lets you pay from Equity, Commodity or either ledger. *Either* pays from each ledger only up to its own credit. A payout from one ledger that the ledger cannot pay on its own is **refused** with the shortfall to transfer, unless Settings lets payouts **transfer the shortfall** from the other ledger (recorded as a transfer entry on the payout). Running account settlement settles the client as a whole: a ledger in debit is first made good from the other, and no ledger is left below zero.

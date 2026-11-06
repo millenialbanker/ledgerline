@@ -496,6 +496,16 @@ func (s *Server) postJournal(w http.ResponseWriter, r *http.Request) {
 	if !s.allowed(w, r, "Manual journal entries", ops.RoleMaker, ops.RoleChecker) {
 		return
 	}
+	// A client's commodity or awaiting ledger exists only when the firm
+	// keeps a separate commodity ledger (ops/segledger.go).
+	for _, p := range body.Postings {
+		if _, kind, ok := ledger.ClientCode(p.Account); ok && kind != ledger.LedgerEquity && s.ops != nil {
+			if set, _ := s.ops.Settings(r.Context(), tenant(r)); !set.SeparateCommodityLedger {
+				writeErr(w, 422, "invalid_entry", p.Account+" is a separate commodity ledger account, and the firm keeps one ledger per client", nil)
+				return
+			}
+		}
+	}
 	e, created, err := s.app.PostManual(r.Context(), ledger.Entry{Tenant: tenant(r), Key: body.Key, ValueDate: body.ValueDate, Narration: body.Narration, Postings: body.Postings, CreatedBy: actor(r)})
 	if err != nil {
 		fail(w, err, nil)
@@ -605,7 +615,12 @@ func (s *Server) statement(w http.ResponseWriter, r *http.Request) {
 	var st ledger.Statement
 	var err error
 	if u, _, _ := ledger.ClientCode(acct); byCode && s.ops != nil {
-		st, err = s.ops.ClientStatement(r.Context(), tenant(r), u, from, to)
+		// One ledger for the client; staff see every ledger's lines, marked.
+		if role, _ := s.ops.RoleOf(r.Context(), tenant(r), actor(r)); role == ops.RoleClient {
+			st, err = s.ops.ClientStatement(r.Context(), tenant(r), u, from, to)
+		} else {
+			st, err = s.ops.StaffStatement(r.Context(), tenant(r), u, from, to)
+		}
 	} else {
 		st, err = s.app.Ledger.Statement(r.Context(), tenant(r), acct, from, to)
 	}

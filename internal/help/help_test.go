@@ -188,6 +188,9 @@ func TestQuestions(t *testing.T) {
 		{"review an online ekyc application", "", "online-opening"},
 		// Money and risk.
 		{"money came from client's wife's account", "", "third-party-funds"},
+		{"finspot limit jumped after receipt because of mcx balance", "", "commodity-ledger"},
+		{"ecms credit is awaiting allocation, choose equity or commodity", "", "funds-awaiting-allocation"},
+		{"move money from commodity to equity ledger", "", "ledger-transfer"},
 		{"unknown credit in bank statement", "", "unknown-credit"},
 		{"cheque bounced", "", "cheque-return"},
 		{"payout says only 5000 available", "", "payout"},

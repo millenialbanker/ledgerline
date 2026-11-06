@@ -557,6 +557,11 @@ func (o *Ops) clientEntries(ctx context.Context, tenant, ucc, to string) ([]ledg
 	return es, nil
 }
 
+// StaffStatement is staffStatement for other packages.
+func (o *Ops) StaffStatement(ctx context.Context, tenant, ucc, from, to string) (ledger.Statement, error) {
+	return o.staffStatement(ctx, tenant, ucc, from, to)
+}
+
 // staffStatement is the client drawer's statement: every line of every
 // ledger, each marked with its ledger, when the ledgers are separate.
 func (o *Ops) staffStatement(ctx context.Context, tenant, ucc, from, to string) (ledger.Statement, error) {

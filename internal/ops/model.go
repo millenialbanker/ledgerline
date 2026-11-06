@@ -700,7 +700,7 @@ type LedgerFunds struct {
 	Equity    money.Amount `json:"equity"`
 	Commodity money.Amount `json:"commodity"`
 	Awaiting  money.Amount `json:"awaiting"`
-	hasEquity bool // an equity posting was seen (clientLedgerFunds)
+	hasEquity bool         // an equity posting was seen (clientLedgerFunds)
 }
 
 // Combined is the client's money across the ledgers.

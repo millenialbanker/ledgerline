@@ -129,7 +129,7 @@ type BankCredit struct {
 	// The firm's account paid into and the remitter's narration, read for
 	// the ledger the money is for (segledger.go).
 	ToAccount, Narration string
-	Amount                                                                             money.Amount
+	Amount               money.Amount
 }
 
 // BankCreditResult is what a notice did.

@@ -8,6 +8,7 @@ Adding or changing dealers and terminals | Ops maker, Compliance officer
 Adding users | Admin
 Advancing onboarding | Ops maker, Ops checker
 Allocating collateral | Ops maker, Ops checker, Risk manager
+Allocating money to a ledger | Ops maker, Ops checker, Risk manager
 Applying corporate actions | Ops checker
 Applying pay-out holds | Ops checker, Risk manager
 Applying the BSDA review | Ops checker
@@ -228,6 +229,7 @@ Sending statements | Ops maker, Ops checker
 Sending stock SIP orders to the OMS | Ops maker, Ops checker, Risk manager
 Sending year-end packs | Ops maker, Ops checker, Compliance officer
 Setting CDSL account defaults | Ops checker
+Setting a client's default ledger | Ops checker, Risk manager
 Setting client risk | Compliance officer
 Setting the AI answer log retention | Compliance officer
 Setting the deployment for exchange disclosures | Compliance officer
@@ -249,6 +251,7 @@ Tendering for a client | Ops maker, Ops checker
 Testing connections | Admin
 Testing templates | Ops checker, Compliance officer
 The kill switch | Risk manager
+Transferring between a client's ledgers | Ops maker, Ops checker, Risk manager
 Unmarking a legacy debt | Ops checker, Compliance officer
 Updating KYC details | Ops maker, Ops checker
 Updating MF profiles | Ops maker, Ops checker, Compliance officer

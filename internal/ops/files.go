@@ -370,6 +370,7 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		}
 		var aged []agedDebit
 		var legacy []string
+		sep := o.sepCom(ctx, tenant)
 		for _, r := range rows {
 			acct := strings.ToUpper(r.get("Account"))
 			if _, err := ledger.TypeOf(acct); err != nil {
@@ -377,7 +378,6 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 			}
 			// A client's balance in the commodity ledger (segledger.go).
 			if u, kind, isClient := ledger.ClientCode(acct); isClient {
-				sep := o.sepCom(ctx, tenant)
 				if v := r.get("Ledger"); v != "" {
 					k, ok := normLedger(v)
 					switch {

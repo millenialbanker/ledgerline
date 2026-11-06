@@ -750,6 +750,12 @@ func (o *Ops) positionsOn(ctx context.Context, tenant, ucc, date string) ([]Posi
 			row = &rv.Rows[i]
 		}
 	}
+	if row != nil && row.Ledgers != nil {
+		// Client reports show one ledger: the client as a whole.
+		c := *row
+		c.Funds, c.Required, c.Free, c.Ledgers = c.Ledgers.Combined, c.allRequired(), c.Free.Add(c.Ledgers.CommodityFree), nil
+		row = &c
+	}
 	return rv.Positions[ucc], row, nil
 }
 
