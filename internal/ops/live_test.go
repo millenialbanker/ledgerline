@@ -101,3 +101,27 @@ func TestLiveRMSAndFiles(t *testing.T) {
 		t.Fatalf("eligible from file: %v", el)
 	}
 }
+
+// The BOD limit file in Finspot's RMS limit layout reads back through the
+// layout, one line per client, a blocked client at 0.
+func TestFinspotLimitFile(t *testing.T) {
+	o, ctx := setup(t)
+	set, _ := o.Settings(ctx, T)
+	next := set.nextBusinessDay(D)
+	name, b, err := o.FinspotLimitFile(ctx, T, next)
+	if err != nil || !strings.HasPrefix(name, "FINSPOT_RMS_LIMIT_") || !strings.HasSuffix(name, " AM.txt") && !strings.HasSuffix(name, " PM.txt") {
+		t.Fatalf("%s %v", name, err)
+	}
+	lib, _ := XFiles()
+	s, _ := lib.Get("finspot-rms-limit")
+	tb, err := s.Read(name, b)
+	rv, _ := o.Risk(ctx, T, D)
+	if err != nil || len(tb.Issues) != 0 || len(tb.Rows) != len(rv.Rows) || !strings.HasPrefix(string(b), "RMS Limits\r\n") {
+		t.Fatalf("%v: %d rows for %d clients, issues %v", err, len(tb.Rows), len(rv.Rows), tb.Issues)
+	}
+	for _, r := range tb.Rows {
+		if r.Values["Exchange"] != "" || r.Values["Segment"] != "" || r.Values["Product"] != "" || r.Values["CollateralMarginValue"] == "" {
+			t.Fatalf("%+v", r.Values)
+		}
+	}
+}

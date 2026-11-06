@@ -10,6 +10,7 @@ import (
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/money"
+	"ledgerline/internal/xfile"
 )
 
 // ---- live RMS and front-office files ----
@@ -382,6 +383,45 @@ func (o *Ops) LimitFile(ctx context.Context, tenant, date string) ([]byte, error
 	// Ticked off for the day: pay-out holds wait for the BOD files (payouthold.go).
 	o.noteDailyFile(ctx, tenant, SystemActor, payoutBODLimitFile, "BOD limit file", date)
 	return csvBytesOf(rows), nil
+}
+
+// FinspotLimitFile is the beginning-of-day limit upload in Finspot's RMS
+// limit layout (finspot-rms-limit): one line per client with the limit
+// across exchanges, segments and products, 0 for a client who may not buy.
+// The CSV LimitFile stays for other front ends.
+func (o *Ops) FinspotLimitFile(ctx context.Context, tenant, date string) (string, []byte, error) {
+	lib, err := XFiles()
+	if err != nil {
+		return "", nil, err
+	}
+	s, ok := lib.Get("finspot-rms-limit")
+	if !ok {
+		return "", nil, invalid("the Finspot limit layout is missing")
+	}
+	set, _ := o.Settings(ctx, tenant)
+	rv, err := o.Risk(ctx, tenant, set.PrevBusinessDay(date))
+	if err != nil {
+		return "", nil, err
+	}
+	cs, _ := o.ClientMap(ctx, tenant)
+	var rows []xfile.Row
+	for _, r := range rv.Rows {
+		if len(r.UCC) > 10 { // Finspot's account ID holds 10 characters
+			return "", nil, invalid("client code %s is longer than Finspot's 10 characters", r.UCC)
+		}
+		lim := money.Max(r.Limit, money.Dec{})
+		if r.Blocked || len(cs[r.UCC].OpenSegments()) == 0 {
+			lim = money.Dec{}
+		}
+		rows = append(rows, xfile.Row{Values: map[string]string{"AccountId": r.UCC, "CollateralMarginValue": lim.Fixed(2)}})
+	}
+	b, err := s.Write(rows)
+	if err != nil {
+		return "", nil, err
+	}
+	o.noteDailyFile(ctx, tenant, SystemActor, payoutBODLimitFile, "BOD limit file", date)
+	name, err := s.FileName(xfile.Vars{"date": date, "time": o.now().In(ist).Format("03_04_05 PM")})
+	return name, b, err
 }
 
 // HoldingsFile is the beginning-of-day holdings upload for the trading

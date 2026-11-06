@@ -151,16 +151,16 @@ func TestPayoutHoldAutomatic(t *testing.T) {
 			}
 		}
 	}
-	name, b, err := o.PayoutHoldFile(ctx, T, "anita.rao", phP, "oms-hold")
-	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
-	if err != nil || !strings.HasPrefix(name, "OMS_HOLD_") || len(lines) != 2 || lines[0] != "TradeDate,ClientCode,Segment,Change,NewLimit,BODLimit,Reason" ||
-		!strings.HasPrefix(lines[1], phP+",AL1,CM,-"+h.Amount.Fixed(2)+",") {
-		t.Fatalf("oms hold file %s %q %v", name, b, err)
+	// Finspot's limit layout is confirmed, so the hold file is Finspot limit
+	// lines: the client's new limit across exchanges.
+	if f, _ := payoutOMSFormat(); f != "finspot-rms-limit" {
+		t.Fatalf("OMS format %s", f)
 	}
-	if h.BODLimit != nil {
-		if f := strings.Split(lines[1], ","); f[4] != money.Max(h.BODLimit.Sub(h.Amount), money.Dec{}).Fixed(2) {
-			t.Fatalf("new limit %q", lines[1])
-		}
+	name, b, err := o.PayoutHoldFile(ctx, T, "anita.rao", phP, "oms-hold")
+	lines := strings.Split(strings.TrimSpace(string(b)), "\r\n")
+	if err != nil || !strings.HasPrefix(name, "FINSPOT_RMS_LIMIT_") || len(lines) != 2 || lines[0] != "RMS Limits" || h.BODLimit == nil ||
+		lines[1] != "AL1||||"+money.Max(h.BODLimit.Sub(h.Amount), money.Dec{}).Fixed(2) {
+		t.Fatalf("oms hold file %s %q %v", name, b, err)
 	}
 
 	// A credit from someone else is not the pay-out; NSE Clearing's is.
@@ -192,14 +192,9 @@ func TestPayoutHoldAutomatic(t *testing.T) {
 		t.Fatalf("allocation after release %s want %s", cash(al), cash(base))
 	}
 	_, b, _ = o.PayoutHoldFile(ctx, T, "anita.rao", phP, "oms-release")
-	lines = strings.Split(strings.TrimSpace(string(b)), "\n")
-	if len(lines) != 2 || !strings.HasPrefix(lines[1], phP+",AL1,CM,"+h.Amount.Fixed(2)+",") {
+	lines = strings.Split(strings.TrimSpace(string(b)), "\r\n")
+	if len(lines) != 2 || lines[1] != "AL1||||"+h.BODLimit.Fixed(2) {
 		t.Fatalf("oms release file %q", b)
-	}
-	if h.BODLimit != nil {
-		if f := strings.Split(lines[1], ","); f[4] != h.BODLimit.Fixed(2) {
-			t.Fatalf("limit after release %q", lines[1])
-		}
 	}
 }
 

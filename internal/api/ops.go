@@ -3110,6 +3110,16 @@ func (s *Server) frontOffice(w http.ResponseWriter, r *http.Request) {
 	switch r.PathValue("kind") {
 	case "limits":
 		f, err = s.ops.LimitFile(r.Context(), tenant(r), d)
+	case "finspot-limits":
+		var name string
+		name, f, err = s.ops.FinspotLimitFile(r.Context(), tenant(r), d)
+		if err == nil {
+			s.app.Log(r.Context(), tenant(r), actor(r), "frontoffice.finspot-limits", d, nil)
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+			w.Write(f)
+			return
+		}
 	case "holdings":
 		f, err = s.ops.HoldingsFile(r.Context(), tenant(r), d)
 	case "allocation":

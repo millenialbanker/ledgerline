@@ -60,7 +60,7 @@ func TestPayoutHoldAPI(t *testing.T) {
 	}
 	c, b := call("GET", "/v1/payout-holds?date=2026-10-16", "anita.rao", "")
 	var v ops.PayoutHoldView
-	if c != 200 || json.Unmarshal([]byte(b), &v) != nil || v.Threshold.Fixed(2) != "1240000.00" || v.Settings.Mode != "propose" || v.OMSFormat != "generic" {
+	if c != 200 || json.Unmarshal([]byte(b), &v) != nil || v.Threshold.Fixed(2) != "1240000.00" || v.Settings.Mode != "propose" || v.OMSFormat != "finspot-rms-limit" {
 		t.Fatalf("screen: %d %s", c, b)
 	}
 	if c, b := call("POST", "/v1/payout-holds/apply", "anita.rao", `{"date":"2026-10-16"}`); c != 200 {

@@ -1625,6 +1625,10 @@ func (o *Ops) PayoutHoldFile(ctx context.Context, tenant, actor, date, kind stri
 	var err error
 	switch kind {
 	case "oms-hold", "oms-release":
+		if f, _ := payoutOMSFormat(); f == "finspot-rms-limit" {
+			name, b, err = payoutFinspotFile(hs, date, kind == "oms-release", o.now().In(ist).Format("03_04_05 PM"))
+			break
+		}
 		name, b = payoutOMSFile(hs, date, kind == "oms-release")
 		name = strings.ToUpper(strings.ReplaceAll(kind, "-", "_")) + "_" + compact + ".csv"
 	case "nmass-hold", "nmass-release":
@@ -1637,6 +1641,59 @@ func (o *Ops) PayoutHoldFile(ctx context.Context, tenant, actor, date, kind stri
 	}
 	o.log(ctx, tenant, actor, "payouthold.file", name, map[string]any{"kind": kind, "date": date, "bytes": len(b)})
 	return name, b, nil
+}
+
+// payoutFinspotFile is the hold or release as Finspot limit lines: each
+// client's new limit across exchanges (Finspot's upload replaces the
+// value). A client whose beginning-of-day limit is unknown can't be given a
+// new value, so the file is refused until the BOD limit file has been made.
+func payoutFinspotFile(hs []PayoutHold, date string, release bool, at string) (string, []byte, error) {
+	lib, err := XFiles()
+	if err != nil {
+		return "", nil, err
+	}
+	s, ok := lib.Get("finspot-rms-limit")
+	if !ok {
+		return "", nil, invalid("the Finspot limit layout is missing")
+	}
+	var rows []xfile.Row
+	var missing []string
+	for _, h := range hs {
+		if len(h.Legs) == 0 {
+			continue
+		}
+		var held money.Dec
+		changed := false
+		for _, l := range h.Legs {
+			if release {
+				back := l.Released.Add(l.Releasing)
+				held = held.Add(l.Hold.Sub(back))
+				changed = changed || back.Sign() > 0
+			} else {
+				held = held.Add(l.Hold)
+			}
+		}
+		if !release && (h.Status == PHFailed || h.Status == PHRejected || h.Status == PHNotNeeded) {
+			continue
+		}
+		if release && !changed {
+			continue
+		}
+		if h.BODLimit == nil {
+			missing = append(missing, h.UCC)
+			continue
+		}
+		rows = append(rows, xfile.Row{Values: map[string]string{"AccountId": h.UCC, "CollateralMarginValue": money.Max(h.BODLimit.Sub(money.Max(held, money.Dec{})), money.Dec{}).Fixed(2)}})
+	}
+	if len(missing) > 0 {
+		return "", nil, invalid("no beginning-of-day limit for %s: make the BOD limit file first", strings.Join(missing, ", "))
+	}
+	b, err := s.Write(rows)
+	if err != nil {
+		return "", nil, err
+	}
+	name, err := s.FileName(xfile.Vars{"date": date, "time": at})
+	return name, b, err
 }
 
 func payoutOMSFile(hs []PayoutHold, date string, release bool) (string, []byte) {

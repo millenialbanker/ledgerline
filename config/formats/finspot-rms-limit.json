@@ -4,7 +4,7 @@
  "party": "Front end (Finspot)",
  "direction": "out",
  "when": "BOD, 08:50",
- "purpose": "Trading limit per client and segment, before the market opens.",
+ "purpose": "Trading limit per client before the market opens, and limit changes during the day. Finspot's RMS limit upload (RMS_Limit-FINSPOT_Format_1) has 54 columns; the file SharePro sends Finspot daily carries only the first five (account, exchange, segment, product, collateral/margin value), so Ledgerline writes those five. A blank exchange, segment or product means across all of them.",
  "names": [
   "FINSPOT_RMS_LIMIT_.*\\.txt"
  ],
@@ -13,24 +13,58 @@
  "delimiter": "|",
  "columns": [
   {
-   "name": "ClientSegment",
-   "type": "str"
+   "name": "AccountId",
+   "type": "str",
+   "required": true,
+   "note": "Client code (10 characters at most), or the branch ID for branch limits"
   },
   {
-   "name": "Field2",
-   "type": "str"
+   "name": "Exchange",
+   "type": "str",
+   "note": "Blank: across exchanges",
+   "codes": {
+    "NSE": "NSE",
+    "BSE": "BSE",
+    "NCX": "NCX",
+    "CDS": "CDS",
+    "DGCX": "DGCX",
+    "MFSS": "MFSS",
+    "MCX": "MCX",
+    "MCX-SX": "MCX-SX",
+    "USE": "USE"
+   }
   },
   {
-   "name": "Field3",
-   "type": "str"
+   "name": "Segment",
+   "type": "str",
+   "note": "Blank: across segments",
+   "codes": {
+    "FO": "FO",
+    "COM": "COM",
+    "CASH": "CASH",
+    "MF": "MF",
+    "CUR": "CUR"
+   }
   },
   {
-   "name": "Field4",
-   "type": "str"
+   "name": "Product",
+   "type": "str",
+   "note": "Blank: across products",
+   "codes": {
+    "NRML": "NRML",
+    "CNC": "CNC",
+    "ML": "ML",
+    "MIS": "MIS",
+    "ARB": "ARB",
+    "PMS": "PMS"
+   }
   },
   {
-   "name": "Limit",
-   "type": "str"
+   "name": "CollateralMarginValue",
+   "type": "dec",
+   "note": "Available margin/cash for the client (rupees, 2 decimals)",
+   "decimals": 2,
+   "fixed": true
   }
  ],
  "compress": "none",
@@ -38,6 +72,7 @@
  "header": false,
  "crlf": true,
  "final_eol": true,
- "confirmed": false,
- "linked": ""
+ "confirmed": true,
+ "linked": "Front office → BOD limit file (Finspot); Receipts & payouts → pay-out holds (limit changes)",
+ "source": "Finspot: RMS_Limit-FINSPOT_Format_1.xlsx (54-column RMS limit upload, columns 1-5 used); SharePro's FINSPOT_RMS_LIMIT files (title line 'RMS Limits', pipe-delimited, 5 fields)"
 }
