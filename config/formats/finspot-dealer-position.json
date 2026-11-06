@@ -1,0 +1,37 @@
+{
+ "id": "finspot-dealer-position",
+ "title": "Dealer client position file (Finspot OMS, Dealer Client position)",
+ "party": "Front end (Finspot)",
+ "direction": "out",
+ "when": "BOD",
+ "purpose": "Each client's open derivatives positions at the previous business day's close, under the dealer that handles them, product NRML: one line per client and contract, a long position as buy quantity and amount, a short one as sell quantity and amount. The amount is quantity × Ledgerline's average price of the open side (the column says amount; Finspot's sample value could also be read as a price, so confirm with Finspot). The dealer is the firm's default position dealer in Connections → Finspot uploads. Exchange: NFO, BFO, CDS, BCD, MCX, NCX; instrument OPTIDX, OPTSTK, FUTIDX, FUTSTK (FUTCUR, OPTCUR for currency; FUTCOM, OPTFUT for commodities); for futures the strike is 0 and the option type XX.",
+ "names": [
+  "FINSPOT_DEALER_CLIENT_POSITION_.*\\.txt"
+ ],
+ "template": "FINSPOT_DEALER_CLIENT_POSITION_{date:02012006}.txt",
+ "title_line": "Dealer-Client Position Information",
+ "delimiter": "|",
+ "columns": [
+  {"name": "USER", "type": "str", "required": true, "note": "Dealer login ID"},
+  {"name": "CLIENT", "type": "str", "required": true, "note": "UCC"},
+  {"name": "EXCH", "type": "str", "required": true},
+  {"name": "INSTRUMENT", "type": "str", "required": true},
+  {"name": "SYMBOL", "type": "str", "required": true},
+  {"name": "EXP", "type": "date", "layout": "02-Jan-2006", "required": true, "note": "dd-MON-yyyy, e.g. 13-APR-2022"},
+  {"name": "STRIKE", "type": "dec"},
+  {"name": "OPTIONTYPE", "type": "str", "note": "CE, PE; XX for futures"},
+  {"name": "BUYQTY", "type": "int"},
+  {"name": "BUYAMT", "type": "dec", "decimals": 2},
+  {"name": "SELLQTY", "type": "int"},
+  {"name": "SELLAMT", "type": "dec", "decimals": 2},
+  {"name": "PRODUCT", "type": "str", "required": true, "note": "NRML"}
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Front office → Finspot uploads (dealer client positions)",
+ "source": "Finspot File_Formats.xlsx, sheet Dealer Client position (13 columns, title line 'Dealer-Client Position Information')"
+}

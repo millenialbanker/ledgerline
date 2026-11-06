@@ -1683,7 +1683,7 @@ func payoutFinspotFile(hs []PayoutHold, date string, release bool, at string) (s
 			missing = append(missing, h.UCC)
 			continue
 		}
-		rows = append(rows, xfile.Row{Values: map[string]string{"AccountId": h.UCC, "CollateralMarginValue": money.Max(h.BODLimit.Sub(money.Max(held, money.Dec{})), money.Dec{}).Fixed(2)}})
+		rows = append(rows, finspotLimitRow(h.UCC, money.Max(h.BODLimit.Sub(money.Max(held, money.Dec{})), money.Dec{})))
 	}
 	if len(missing) > 0 {
 		return "", nil, invalid("no beginning-of-day limit for %s: make the BOD limit file first", strings.Join(missing, ", "))

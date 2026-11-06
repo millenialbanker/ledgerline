@@ -1,84 +1,133 @@
 {
  "id": "finspot-dp-holding",
- "title": "Client holding upload (Finspot OMS)",
+ "title": "Client holding upload (Finspot OMS, ISIN Holding)",
  "party": "Front end (Finspot)",
  "direction": "out",
  "when": "BOD, 08:54",
- "purpose": "Demat holdings per client, for sell checks and collateral limits.",
+ "purpose": "Each client's sellable demat holdings per ISIN before the market opens, so Finspot allows delivery sells. One line per client and ISIN, product CNC. Quantity: the demat balance (margin-pledged shares included: the pledge is released for the sale), less shares pledged to lenders, plus unpaid purchases held in CUSPA. No collateral benefit is given here (IS Collateral 0, collateral and broker collateral quantities 0, DP holdings quantity 0, as SharePro's file does): the value of pledged collateral after haircut is already in the client's limit in the RMS limit file, so giving it again here would count it twice. The haircut (0 to 1, from the day's VaR/haircut data; 1 when the security has none) and the close price are given for Finspot's valuation. The DP account is the client's demat account (BO ID) as Ledgerline holds it; the POA flag is Y when the client has a DDPI or POA for securities.",
  "names": [
-  "FINSPOT_DP_Holding_Upload_\\d{8}\\.txt"
+  "FINSPOT_DP_HOLDING_UPLOAD_.*\\.txt"
  ],
- "template": "FINSPOT_DP_Holding_Upload_{date:02012006}.txt",
+ "template": "FINSPOT_DP_HOLDING_UPLOAD_{date:02012006}.txt",
  "title_line": "ISIN Holding",
  "delimiter": "|",
  "columns": [
   {
-   "name": "ClientSegment",
-   "type": "str"
+   "name": "Account ID",
+   "key": "AccountId",
+   "type": "str",
+   "required": true,
+   "note": "Client code (the UCC)"
   },
   {
    "name": "ISIN",
-   "type": "str"
+   "key": "ISIN",
+   "type": "str",
+   "required": true
   },
   {
-   "name": "Field3",
-   "type": "str"
+   "name": "Holdings Qty",
+   "key": "HoldingsQty",
+   "type": "int",
+   "note": "Sellable quantity"
   },
   {
-   "name": "Field4",
-   "type": "str"
+   "name": "IS Collateral",
+   "key": "IsCollateral",
+   "type": "int",
+   "note": "0 no collateral, 1 collateral. Ledgerline writes 0: collateral is in the RMS limit",
+   "codes": {
+    "0": "No collateral",
+    "1": "Collateral"
+   }
   },
   {
-   "name": "Field5",
-   "type": "str"
+   "name": "Collateral Mode",
+   "key": "CollateralMode",
+   "type": "int",
+   "note": "Ledgerline writes 1, as SharePro's file and Finspot's sample do"
   },
   {
-   "name": "Field6",
-   "type": "str"
+   "name": "Collateral Qty",
+   "key": "CollateralQty",
+   "type": "int",
+   "note": "Ledgerline writes 0"
   },
   {
-   "name": "Field7",
-   "type": "str"
+   "name": "Haircut",
+   "key": "Haircut",
+   "type": "dec",
+   "note": "0 to 1 (0.17 = 17%); 1 when the security has no haircut in the day's data"
   },
   {
-   "name": "Field8",
-   "type": "str"
+   "name": "Broker collateral Qty",
+   "key": "BrokerCollateralQty",
+   "type": "int",
+   "note": "Quantity that gives only collateral benefit (the client cannot sell it). Ledgerline writes 0"
   },
   {
-   "name": "Field9",
-   "type": "str"
+   "name": "DP Holdings Qty",
+   "key": "DPHoldingsQty",
+   "type": "int",
+   "note": "Quantity available for sale only. Ledgerline writes 0, as SharePro's file does (the sellable quantity is in Holdings Qty)"
   },
   {
-   "name": "Field10",
-   "type": "str"
+   "name": "Close Price",
+   "key": "ClosePrice",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": true,
+   "note": "Previous close (rupees); also used for collateral after a corporate action"
   },
   {
-   "name": "Field11",
-   "type": "str"
+   "name": "Beneficary Holdings",
+   "key": "BeneficiaryHoldings",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": true,
+   "note": "Ledgerline writes 0.000, as SharePro's file does"
   },
   {
-   "name": "Field12",
-   "type": "str"
+   "name": "Unpledge Holdings",
+   "key": "UnpledgeHoldings",
+   "type": "blank",
+   "note": "Left empty, as SharePro's file does"
   },
   {
-   "name": "Field13",
-   "type": "str"
+   "name": "Product",
+   "key": "Product",
+   "type": "str",
+   "required": true,
+   "note": "CNC"
   },
   {
-   "name": "Field14",
-   "type": "str"
+   "name": "Reserved",
+   "key": "Reserved",
+   "type": "blank"
   },
   {
-   "name": "Field15",
-   "type": "str"
+   "name": "Actual price",
+   "key": "ActualPrice",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": true,
+   "note": "The close price again"
   },
   {
-   "name": "Field16",
-   "type": "str"
+   "name": "DP account number",
+   "key": "DPAccount",
+   "type": "str",
+   "note": "The client's demat account as Ledgerline holds it (16-digit CDSL BO ID, or the NSDL DP ID and client ID)"
   },
   {
-   "name": "Field17",
-   "type": "str"
+   "name": "POA flag",
+   "key": "POAFlag",
+   "type": "str",
+   "note": "Y when the client has a DDPI (or POA) for securities with the DP, else N",
+   "codes": {
+    "Y": "DDPI or POA",
+    "N": "None"
+   }
   }
  ],
  "compress": "none",
@@ -86,6 +135,7 @@
  "header": false,
  "crlf": true,
  "final_eol": true,
- "confirmed": false,
- "linked": ""
+ "confirmed": true,
+ "linked": "Front office → BOD holding file (Finspot)",
+ "source": "Finspot File_Formats.xlsx, sheet ISIN Holding (17 columns, title line 'ISIN Holding'); SharePro's FINSPOT_DP_HOLDING_UPLOAD files"
 }

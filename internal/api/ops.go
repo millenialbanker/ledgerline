@@ -3107,19 +3107,23 @@ func (s *Server) frontOffice(w http.ResponseWriter, r *http.Request) {
 	}
 	var f []byte
 	var err error
-	switch r.PathValue("kind") {
-	case "limits":
-		f, err = s.ops.LimitFile(r.Context(), tenant(r), d)
-	case "finspot-limits":
-		var name string
-		name, f, err = s.ops.FinspotLimitFile(r.Context(), tenant(r), d)
-		if err == nil {
-			s.app.Log(r.Context(), tenant(r), actor(r), "frontoffice.finspot-limits", d, nil)
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
-			w.Write(f)
+	kind := r.PathValue("kind")
+	if strings.HasPrefix(kind, "finspot-") {
+		// Finspot uploads (finspot.go), named as Finspot expects them.
+		name, f, err := s.ops.FinspotFile(r.Context(), tenant(r), actor(r), kind, d, r.URL.Query().Get("all") == "1")
+		if err != nil {
+			fail(w, err, nil)
 			return
 		}
+		s.app.Log(r.Context(), tenant(r), actor(r), "frontoffice."+kind, d, map[string]any{"file": name})
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+		w.Write(f)
+		return
+	}
+	switch kind {
+	case "limits":
+		f, err = s.ops.LimitFile(r.Context(), tenant(r), d)
 	case "holdings":
 		f, err = s.ops.HoldingsFile(r.Context(), tenant(r), d)
 	case "allocation":

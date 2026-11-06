@@ -1,0 +1,26 @@
+{
+ "id": "finspot-order-types",
+ "title": "Dealer order type file (Finspot OMS, Dealer – Order Type Enable)",
+ "party": "Front end (Finspot)",
+ "direction": "out",
+ "when": "On request",
+ "purpose": "The order types each dealer login may place. Ledgerline does not hold Finspot's dealer logins, so the dealer IDs and the order types (LMT, MKT, SL-LMT, SL-MKT, DS by default, as Finspot's sample lists them) are firm settings in Connections → Finspot uploads; one line per dealer ID.",
+ "names": [
+  "FINSPOT_DEALER_ORDER_TYPE_.*\\.txt"
+ ],
+ "template": "FINSPOT_DEALER_ORDER_TYPE_{date:02012006}.txt",
+ "title_line": "Dealer – Order Type Enable",
+ "delimiter": "|",
+ "columns": [
+  {"name": "User id", "key": "UserId", "type": "str", "required": true, "note": "Dealer login ID"},
+  {"name": "OrderType", "key": "OrderType", "type": "str", "required": true, "note": "Comma-separated: LMT, MKT, SL-LMT, SL-MKT, DS"}
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Front office → Finspot uploads (dealer order types)",
+ "source": "Finspot File_Formats.xlsx, sheet Dealer – Order Type Enable (2 columns, NOT NULL)"
+}

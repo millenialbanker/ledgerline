@@ -86,6 +86,7 @@ DP billing | Ops checker
 DP requests | Ops maker, Ops checker, Compliance officer, Branch staff
 Deciding a pledge request | Ops maker, Ops checker, Risk manager
 Discarding scanned bills | Ops maker, Ops checker
+Downloading Finspot block and client files | Ops maker, Ops checker, Risk manager
 Downloading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
 Downloading pay-out hold files | Ops maker, Ops checker, Risk manager
 Downloading periodic files | Ops maker, Ops checker, Compliance officer

@@ -4,7 +4,7 @@
  "party": "Front end (Finspot)",
  "direction": "out",
  "when": "BOD, 08:50",
- "purpose": "Trading limit per client before the market opens, and limit changes during the day. Finspot's RMS limit upload (RMS_Limit-FINSPOT_Format_1) has 54 columns; the file SharePro sends Finspot daily carries only the first five (account, exchange, segment, product, collateral/margin value), so Ledgerline writes those five. A blank exchange, segment or product means across all of them.",
+ "purpose": "Trading limit per client before the market opens, and limit changes during the day. Finspot's RMS limit upload has 54 columns, all listed here; the file SharePro sends Finspot daily stops after the first five (account, exchange, segment, product, collateral/margin value), so Ledgerline writes those five and the line ends there (trailing_empty: a line may stop before the columns Ledgerline does not fill, typed blank here, so SharePro's 5-field files read with no issues). A blank exchange, segment or product means across all of them. The account ID is the UCC (10 characters at most).",
  "names": [
   "FINSPOT_RMS_LIMIT_.*\\.txt"
  ],
@@ -65,6 +65,251 @@
    "note": "Available margin/cash for the client (rupees, 2 decimals)",
    "decimals": 2,
    "fixed": true
+  },
+  {
+   "name": "Exposure Limit",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Limit on total gross exposure"
+  },
+  {
+   "name": "Sell Exposure Limit",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: The total Sell Exposure limit for the client"
+  },
+  {
+   "name": "Buy Exposure Limit",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: The total Buy Exposure limit for the client"
+  },
+  {
+   "name": "Turnover Limit",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: The total turnover limit for the client"
+  },
+  {
+   "name": "Loss Limit",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: MtoM loss Limit"
+  },
+  {
+   "name": "Del Amount",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: This is taken into consideration only for product CNC"
+  },
+  {
+   "name": "Finance Limit",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Finance limits For product ML only"
+  },
+  {
+   "name": "Buy Security limit",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: This is to set limits for individual scrip’s"
+  },
+  {
+   "name": "Sell Security limit",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: This is to set limits for individual scrip’s"
+  },
+  {
+   "name": "Entity level margin",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Flat Percentage of exposure specified at the entity level to calculate margin irrespective of scrip’s"
+  },
+  {
+   "name": "Category/Client profile",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: The category is case sensitive"
+  },
+  {
+   "name": "Group wise validation indicator",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: yes or no for the client"
+  },
+  {
+   "name": "Gross Exposure Derivative Limit",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "Token",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Enter the Token of the Symbol selected"
+  },
+  {
+   "name": "Collateral value",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Collateral value (Calculated by broker)"
+  },
+  {
+   "name": "Buy Exposure Limit for Futures",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "Sell Exposure Limit for Futures",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "Buy Exposure Limit for Options",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "Sell Exposure Limit for Options",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "Notional cash",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Total notional cash in Rupees"
+  },
+  {
+   "name": "Client Dealers Broker",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Client\\ Dealers Broker"
+  },
+  {
+   "name": "CASH NRML Adhoc Margin",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Adhoc margin"
+  },
+  {
+   "name": "CASH MIS Adhoc Margin",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Adhoc margin"
+  },
+  {
+   "name": "CASH CNC Adhoc Margin",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Adhoc margin"
+  },
+  {
+   "name": "FO NRML Adhoc Margin",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Adhoc margin"
+  },
+  {
+   "name": "FO MIS Adhoc Margin",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Adhoc margin"
+  },
+  {
+   "name": "COM NRML Adhoc Margin",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Adhoc margin"
+  },
+  {
+   "name": "COM MIS Adhoc Margin",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Adhoc margin"
+  },
+  {
+   "name": "CUR NRML Adhoc Margin",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Adhoc margin"
+  },
+  {
+   "name": "CUR MIS Adhoc Margin",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Adhoc margin"
+  },
+  {
+   "name": "SLBM Limits",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "DANE LIMIT",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "RMS Group Email ID",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "OPT NRML ADHOC",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "OPT MIS ADHOC",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "CUR OPT NRML ADHOC",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "CUR OPT MIS ADHOC",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "Buy TurnOver Derivate Limit",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "Sell TurnOver Derivate Limit",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "Symbol/ Scrip code",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Exchange specified symbols"
+  },
+  {
+   "name": "Series/ Instrument name",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Exchange specified series"
+  },
+  {
+   "name": "Option Type",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "Strike Price",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "Expiry Date",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Format - dd/mm/yyyy"
+  },
+  {
+   "name": "Order Value Limit",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "Order Quantity",
+   "type": "blank",
+   "note": "Not filled by Ledgerline"
+  },
+  {
+   "name": "Remarks Text",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Remarks field is stored at the particular level"
+  },
+  {
+   "name": "Remarks Amount",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Remarks field amount is stored at the particular level"
+  },
+  {
+   "name": "Remarks Amount 2",
+   "type": "blank",
+   "note": "Not filled by Ledgerline: Remarks field amount is stored at the particular level"
   }
  ],
  "compress": "none",
@@ -74,5 +319,6 @@
  "final_eol": true,
  "confirmed": true,
  "linked": "Front office → BOD limit file (Finspot); Receipts & payouts → pay-out holds (limit changes)",
- "source": "Finspot: RMS_Limit-FINSPOT_Format_1.xlsx (54-column RMS limit upload, columns 1-5 used); SharePro's FINSPOT_RMS_LIMIT files (title line 'RMS Limits', pipe-delimited, 5 fields)"
+ "source": "Finspot File_Formats.xlsx, sheet RMS Limit (54 columns, title line 'RMS Limits'); SharePro's FINSPOT_RMS_LIMIT files (pipe-delimited, 5 fields)",
+ "trailing_empty": true
 }

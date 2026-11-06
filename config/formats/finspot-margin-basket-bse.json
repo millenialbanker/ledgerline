@@ -1,0 +1,32 @@
+{
+ "id": "finspot-margin-basket-bse",
+ "title": "BSE margin basket (Finspot OMS, Margin Basket)",
+ "party": "Front end (Finspot)",
+ "direction": "out",
+ "when": "BOD",
+ "purpose": "The margin percentage Finspot charges per BSE scrip for one product basket. First line: 'BSE Margin Basket', the product code (I = MIS, C = CNC, H = CO, M = NRML, B = BO) and the basket name; then one line per scrip with a BSE scrip code (from the BSE scrip and series file) among the previous business day's equity securities: scrip code and margin percentage = VaR + extreme loss margin, never below the firm's minimum. Product, basket name and minimum percentage are firm settings in Connections → Finspot uploads (I, BSEMIS and 20 by default).",
+ "names": [
+  "FINSPOT_BSE_MARGIN_BASKET_.*\\.txt"
+ ],
+ "template": "FINSPOT_BSE_MARGIN_BASKET_{date:02012006}.txt",
+ "delimiter": "|",
+ "records": [
+  {"code": "BSE Margin Basket", "where": "first", "columns": [
+   {"name": "Header", "type": "str", "const": "BSE Margin Basket"},
+   {"name": "Product", "type": "str", "required": true, "codes": {"I": "MIS", "C": "CNC", "H": "CO", "M": "NRML", "B": "BO"}},
+   {"name": "Basket", "type": "str", "required": true, "note": "Basket name, e.g. BSEMIS"}
+  ]},
+  {"code": "", "columns": [
+   {"name": "BSE Scrip code", "key": "ScripCode", "type": "str", "required": true},
+   {"name": "Margin Percentage", "key": "MarginPct", "type": "dec", "required": true}
+  ]}
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Front office → Finspot uploads (margin baskets)",
+ "source": "Finspot File_Formats.xlsx, sheet Margin Basket (header 'BSE Margin Basket|I|BSEMIS'; BSE scrip code, margin percentage; delimiter |)"
+}

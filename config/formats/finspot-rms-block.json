@@ -1,0 +1,146 @@
+{
+ "id": "finspot-rms-block",
+ "title": "Client block / unblock file (Finspot OMS)",
+ "party": "Front end (Finspot)",
+ "direction": "out",
+ "when": "BOD, 08:50, and when a block changes",
+ "purpose": "Blocks fresh positions for clients who may not trade, and unblocks them when that ends. Every file has a block line (Y) for every client blocked in Ledgerline at the time (kill switch, debit block, debarred PAN, inactive account, or no open segment), so a file re-sends the full list and a day-only block on Finspot is set again each morning; and an unblock line (N) for each client Ledgerline had blocked in an earlier file who is no longer blocked (repeated in every file that day). Clients blocked on Finspot by hand and never by Ledgerline are not unblocked. As in Finspot's sample, a client gets three lines: MIS and NRML blocked NON-SQROFF (new positions blocked, square-off allowed), and CNC buys (order type B) blocked NON-SQROFF, so delivery sells from holdings stay possible. Broker, branch, dealer, client group, exchange and the instrument fields are left empty (all), as in the sample; the remark gives the reason. Lines carry 22 fields as in Finspot's sample (three empty fields after the 19 columns).",
+ "names": [
+  "FINSPOT_RMS_BLOCK_.*\\.txt"
+ ],
+ "template": "FINSPOT_RMS_BLOCK_{date:02-01-06} {time}.txt",
+ "title_line": "RMS Block/UnBlock",
+ "delimiter": "|",
+ "trailing_empty": true,
+ "columns": [
+  {
+   "name": "Broker",
+   "type": "str",
+   "note": "Empty: all (the sample leaves it empty although the sheet says NOT NULL)"
+  },
+  {
+   "name": "Branch",
+   "type": "str",
+   "note": "Empty: all"
+  },
+  {
+   "name": "Dealer",
+   "type": "str",
+   "note": "Empty: all"
+  },
+  {
+   "name": "Client Group",
+   "key": "ClientGroup",
+   "type": "str",
+   "note": "Empty: all"
+  },
+  {
+   "name": "Client/ PRO",
+   "key": "Client",
+   "type": "str",
+   "required": true,
+   "note": "Client account ID (the UCC). ALL-WITHOUT-PRO blocks every client without the pro account"
+  },
+  {
+   "name": "OrderType Buy/Sell",
+   "key": "Side",
+   "type": "str",
+   "note": "B or S; empty for both",
+   "codes": {
+    "B": "Buy",
+    "S": "Sell"
+   }
+  },
+  {
+   "name": "Products",
+   "key": "Products",
+   "type": "str",
+   "note": "Product to block (MIS, NRML, CNC …)"
+  },
+  {
+   "name": "Block Type",
+   "key": "BlockType",
+   "type": "str",
+   "required": true,
+   "note": "SQROFF, NON-SQROFF, ALL or INTRADAY-SQROFF (the sample writes NonSqroff); Ledgerline writes NON-SQROFF",
+   "codes": {
+    "SQROFF": "Square-off orders",
+    "NON-SQROFF": "New (non-square-off) orders",
+    "ALL": "All orders",
+    "INTRADAY-SQROFF": "Intraday square-off"
+   }
+  },
+  {
+   "name": "Exchange",
+   "type": "str",
+   "note": "nse_cm, nse_fo, bse_cm, ncx_fo …; empty for all"
+  },
+  {
+   "name": "Symbol/ Scrip code",
+   "key": "Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Series/ Instrument name",
+   "key": "Series",
+   "type": "str"
+  },
+  {
+   "name": "Option Type",
+   "key": "OptionType",
+   "type": "str"
+  },
+  {
+   "name": "Strike Price",
+   "key": "Strike",
+   "type": "str"
+  },
+  {
+   "name": "Expiry Date",
+   "key": "Expiry",
+   "type": "str",
+   "note": "dd/mm/yyyy"
+  },
+  {
+   "name": "Block/Unblock",
+   "key": "Block",
+   "type": "str",
+   "required": true,
+   "note": "Y block, N unblock",
+   "codes": {
+    "Y": "Block",
+    "N": "Unblock"
+   }
+  },
+  {
+   "name": "Category",
+   "type": "str",
+   "note": "Category to block (empty: the client)"
+  },
+  {
+   "name": "Day Setting",
+   "key": "DaySetting",
+   "type": "str",
+   "note": "OK to set as a day setting; empty in the sample"
+  },
+  {
+   "name": "Remarks",
+   "type": "str",
+   "note": "The reason (Ledgerline writes the block reason, e.g. Inactive account)"
+  },
+  {
+   "name": "Order Type",
+   "key": "OrderType",
+   "type": "str",
+   "note": "AU, L, MKT, SL, SL-M, SP, 2L, 3L; empty for all"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Front office → block / unblock file (Finspot)",
+ "source": "Finspot File_Formats.xlsx, sheet RMS Block-Unblock (19 columns, title line 'RMS Block/UnBlock', sample lines of 22 fields)"
+}

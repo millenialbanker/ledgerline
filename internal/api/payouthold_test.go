@@ -66,7 +66,7 @@ func TestPayoutHoldAPI(t *testing.T) {
 	if c, b := call("POST", "/v1/payout-holds/apply", "anita.rao", `{"date":"2026-10-16"}`); c != 200 {
 		t.Fatalf("apply: %d %s", c, b)
 	}
-	if c, b := call("GET", "/v1/payout-holds/file?date=2026-10-16&kind=oms-hold", "anita.rao", ""); c != 200 || !strings.HasPrefix(b, "TradeDate,ClientCode,Segment,Change,NewLimit") {
+	if c, b := call("GET", "/v1/payout-holds/file?date=2026-10-16&kind=oms-hold", "anita.rao", ""); c != 200 || !strings.HasPrefix(b, "RMS Limits\r\n") {
 		t.Fatalf("oms file: %d %s", c, b)
 	}
 	if c, _ := call("POST", "/v1/payout-holds/payout", "farhan.khan", `{"date":"2026-10-16","settlements":[],"note":"bank portal"}`); c != 200 {

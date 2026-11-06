@@ -281,6 +281,10 @@ var DailyFiles = []DailyFile{
 	// has a DP ID or a CDSL member code is set; cdslDPFirm).
 	{ID: "cdsl-cln", Title: "CDSL client master (CLN_MSTR, incremental)", Format: "cdsl-client-master", Party: "CDSL", Segments: []string{"DP"}, Direction: "in", At: "09:00"},
 	{ID: "cdsl-dpe6", Title: "CDSL online freeze master report (DPE6), as it arrives", Format: "cdsl-freeze-master", Party: "CDSL", Segments: []string{"DP"}, Direction: "in", At: "09:00", Intraday: true},
+	// The trading front end, for a firm on Finspot (listed when Connections
+	// → Finspot uploads is saved; finspot.go): the BOD files it uploads.
+	{ID: "finspot-limit", Title: "Finspot BOD limit file (RMS Limits)", Format: "finspot-rms-limit", Party: "Finspot", Segments: []string{"CM", "FO", "CD", "COM"}, Direction: "out", At: "08:50"},
+	{ID: "finspot-holding", Title: "Finspot BOD holding file (ISIN Holding)", Format: "finspot-dp-holding", Party: "Finspot", Segments: []string{"CM"}, Direction: "out", At: "08:54"},
 }
 
 // cdslDPFirm says whether the firm is a CDSL DP, for the checklist.
@@ -383,10 +387,17 @@ func (o *Ops) DailyFileChecklist(ctx context.Context, tenant, date string) (File
 	alerted := alertTimes(recv)
 	now := o.now().In(ist).Format("2006-01-02 15:04")
 	dp := o.cdslDPFirm(ctx, tenant, set)
+	finspot := o.finspotChecklist(ctx, tenant)
 	for _, f := range DailyFiles {
 		var serves []string
 		if f.Party == "CDSL" && dp {
 			serves = []string{"CDSL DP"}
+		}
+		if f.Party == "Finspot" {
+			if !finspot {
+				continue
+			}
+			serves = []string{"Trading front end"}
 		}
 		for _, c := range act {
 			if !contains(f.Segments, c.Segment) {

@@ -1,0 +1,34 @@
+{
+ "id": "finspot-investor-segment",
+ "title": "Client segment file (Finspot OMS, Investor Segment)",
+ "party": "Front end (Finspot)",
+ "direction": "out",
+ "when": "On request (new or changed clients)",
+ "purpose": "Enables each exchange segment for a client login on Finspot: one line per client and Finspot segment (NSE, BSE, NFO, BFO, CDS, BCD, MCX, NCX) the firm trades and the client is registered in, enabled Y when the segment is open (active or reactivated) and N when it is suspended, dormant or closed. The exchange user ID, exchange user info and expiry date are the firm's, per segment, from the Finspot connection. Written for the same clients as the Investor Client file. Lines stop after the six required fields, as in Finspot's sample.",
+ "names": [
+  "FINSPOT_INVESTOR_SEGMENT_.*\\.txt"
+ ],
+ "template": "FINSPOT_INVESTOR_SEGMENT_{date:02012006}.txt",
+ "title_line": "Investor Segment",
+ "delimiter": "|",
+ "columns": [
+  {"name": "User id", "key": "UserId", "type": "str", "required": true, "note": "Char 10: the client's login ID (UCC)"},
+  {"name": "Segment", "type": "str", "required": true, "note": "Char 5: NSE, BSE, NFO …"},
+  {"name": "Exchange user id", "key": "ExchangeUserId", "type": "str", "required": true, "note": "Char 10"},
+  {"name": "Expiry date", "key": "Expiry", "type": "date", "layout": "02/01/2006", "required": true, "note": "Char 10, dd/mm/yyyy"},
+  {"name": "Exchange user info", "key": "ExchangeUserInfo", "type": "str", "required": true, "note": "Char 13"},
+  {"name": "Enabled flag", "key": "Enabled", "type": "str", "required": true, "codes": {"Y": "Enabled", "N": "Disabled"}},
+  {"name": "NCFM details", "key": "NCFM", "type": "blank", "note": "VARCHAR(50), may be empty; not filled by Ledgerline"},
+  {"name": "Days of Warning", "key": "WarningDays", "type": "blank", "note": "Numeric, may be empty; not filled by Ledgerline"},
+  {"name": "Proxy User Id", "key": "ProxyUserId", "type": "blank", "note": "VARCHAR(20), may be empty; not filled by Ledgerline"}
+ ],
+ "trailing_empty": true,
+ "compress": "none",
+ "format": "delimited",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Front office → client creation files (Finspot)",
+ "source": "Finspot File_Formats.xlsx, sheet Investor Segment (9 columns with NOT NULL and lengths; the sample lines stop after the 6 required fields)"
+}

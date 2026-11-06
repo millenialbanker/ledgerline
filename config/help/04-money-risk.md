@@ -391,7 +391,7 @@ On [[mtf|Margin trading (MTF)]]:
 title: Send limits and holdings to the trading system
 screen: rms
 roles: Risk manager, Ops checker
-ask: bod file; limit file; oms limits; trading limits not updated; holdings file to oms; start of day file; t1 holdings
+ask: bod file; limit file; oms limits; trading limits not updated; holdings file to oms; start of day file; t1 holdings; finspot; finspot margin basket; finspot dealer; finspot limit file; finspot holding file; finspot block; finspot client creation; isin holding file; rms limits file
 related: client-cant-trade, debit-interest
 
 On [[rms|RMS & limits]], download:
@@ -400,6 +400,20 @@ On [[rms|RMS & limits]], download:
 - **BOD holdings file (with T1):** sellable holdings including unsettled T1 shares.
 
 Load both into the trading system before the market opens. Autopilot prepares them in the start-of-day stage.
+
+**Finspot.** Under **Finspot uploads** the same files come in Finspot's own layouts, named as Finspot expects:
+- **BOD limits** (RMS Limits, by 08:50): each client's limit across exchanges; 0 for a blocked client.
+- **BOD holdings** (ISIN Holding, by 08:54): sellable demat holdings, less shares pledged to lenders or frozen at CDSL, plus unpaid purchases in CUSPA. No collateral benefit is given in this file: pledged collateral is already in the limit.
+- **T1 holdings** (T1 - ISIN Holdings): yesterday's delivery buys not yet received, so they can be sold.
+- **Block / unblock**: every client blocked in Ledgerline (kill switch, debit block, debarred, inactive, no open segment) blocked for new MIS and NRML positions and CNC buys, square-off allowed; and an unblock line for each client Ledgerline blocked earlier who is no longer blocked. Blocks set by hand on Finspot are never lifted by the file.
+- **New clients**, **Client segments**, **Client products**: logins for active clients new or changed since the last file (add `&all=1` to the address for every client, at go-live). Passwords are never in the file; Finspot sets them. The segment file needs the firm's exchange user IDs in Connections → **Finspot uploads**.
+- **F&O cost price** (NFO_COST_PRICE): open NSE F&O positions with their average cost.
+- **Dealer client positions**: open derivatives positions (buy or sell quantity and amount, NRML) under the firm's position dealer.
+- **NSE / BSE margin basket**: margin % per scrip (VaR + extreme loss margin, never below the minimum, 20% by default) for the basket product and name set in the connection. The BSE basket needs BSE's scrip and series file loaded (for the scrip codes).
+- **Dealer order types**: the order types (LMT, MKT, SL-LMT, SL-MKT, DS by default) for each dealer ID set in the connection.
+- **Client information (addition)**: Finspot's shorter client addition file, for the same clients as **New clients**.
+
+Saving the **Finspot uploads** connection puts the BOD limit and holding files on the daily file checklist.
 
 ## kill-switch
 title: Stop a client's trading at once
@@ -429,7 +443,7 @@ related: clearing-allocation, bod-files, live-bank-credits
 **What is changed.**
 - With NSE Clearing's allocation API on, each hold is sent as the client's **final** allocation (confirmed level less the hold, action D); the release sends the confirmed level plus the hold (action U). One request per client is out at a time; results come back as for any allocation request. A rejected hold is not put back into money in.
 - With the API off, download the **N-MASS hold file** (or release file), upload it in N-MASS, then press **Done in N-MASS**.
-- The trading front end has no API: download the **OMS hold file** and later the **OMS release file** (client, segment, change and new limit) and upload them. Until the Finspot layout is confirmed the files use a generic limit-change layout.
+- The trading front end has no API: download the **OMS hold file** and later the **OMS release file** and upload them. They are Finspot RMS Limits files: each held client's new limit across exchanges (the BOD limit less the hold, or back to the BOD limit on release).
 - [[live|Live RMS]] shows the hold and takes it off the client's free funds. Later allocation batches that day keep the hold; after release they use the normal figure.
 
 **Release.** The holds are given back when the pay-out is seen:

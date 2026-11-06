@@ -1,0 +1,26 @@
+{
+ "id": "finspot-investor-products",
+ "title": "Client products file (Finspot OMS, Investor Products Enabled)",
+ "party": "Front end (Finspot)",
+ "direction": "out",
+ "when": "On request (new or changed clients)",
+ "purpose": "The products a client login may use, across its enabled segments: I (MIS, intraday) when any segment is open, M (NRML, carry forward) when a derivatives segment (equity F&O, currency, commodity) is open, C (CNC, delivery) when equity cash is open; in Finspot's order I,M,C. Codes as the Margin Basket sheet gives them (I = MIS, C = CNC, M = NRML). Written for the same clients as the Investor Client file.",
+ "names": [
+  "FINSPOT_INVESTOR_PRODUCTS_.*\\.txt"
+ ],
+ "template": "FINSPOT_INVESTOR_PRODUCTS_{date:02012006}.txt",
+ "title_line": "Client Products Enabled",
+ "delimiter": "|",
+ "columns": [
+  {"name": "User Id", "key": "UserId", "type": "str", "required": true, "note": "The client's login ID (UCC)"},
+  {"name": "Products", "type": "str", "required": true, "note": "Comma-separated product codes, e.g. I,M,C", "codes": {"I": "MIS", "M": "NRML", "C": "CNC", "H": "CO", "B": "BO"}}
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Front office → client creation files (Finspot)",
+ "source": "Finspot File_Formats.xlsx, sheet Investor  Products Enabled (2 columns; the client sample's title line is 'Client Products Enabled')"
+}

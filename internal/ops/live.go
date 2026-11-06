@@ -413,15 +413,25 @@ func (o *Ops) FinspotLimitFile(ctx context.Context, tenant, date string) (string
 		if r.Blocked || len(cs[r.UCC].OpenSegments()) == 0 {
 			lim = money.Dec{}
 		}
-		rows = append(rows, xfile.Row{Values: map[string]string{"AccountId": r.UCC, "CollateralMarginValue": lim.Fixed(2)}})
+		rows = append(rows, finspotLimitRow(r.UCC, lim))
 	}
 	b, err := s.Write(rows)
 	if err != nil {
 		return "", nil, err
 	}
 	o.noteDailyFile(ctx, tenant, SystemActor, payoutBODLimitFile, "BOD limit file", date)
-	name, err := s.FileName(xfile.Vars{"date": date, "time": o.now().In(ist).Format("03_04_05 PM")})
+	name, err := s.FileName(xfile.Vars{"date": date, "time": o.now().In(ist).Format(finspotTimeFmt)})
+	if err == nil {
+		o.noteDailyFile(ctx, tenant, SystemActor, "finspot-rms-limit", name, date)
+	}
 	return name, b, err
+}
+
+// finspotLimitRow is one RMS Limits line: the client's limit across
+// exchanges, segments and products. The line stops after the five fields
+// Ledgerline fills, as SharePro's lines do.
+func finspotLimitRow(ucc string, lim money.Dec) xfile.Row {
+	return xfile.Row{Fields: 5, Values: map[string]string{"AccountId": ucc, "CollateralMarginValue": lim.Fixed(2)}}
 }
 
 // HoldingsFile is the beginning-of-day holdings upload for the trading

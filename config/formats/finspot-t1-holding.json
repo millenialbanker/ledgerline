@@ -1,0 +1,141 @@
+{
+ "id": "finspot-t1-holding",
+ "title": "T1 holding upload (Finspot OMS, T1 - ISIN Holdings)",
+ "party": "Front end (Finspot)",
+ "direction": "out",
+ "when": "BOD, 08:54",
+ "purpose": "The previous business day's delivery (CNC) buys not yet received in the client's demat account, per client and ISIN, so Finspot lets the client sell them (BTST) before pay-out. Same 17 columns as the ISIN Holding file: Holdings Qty is the net T1 quantity (buys less sells, never below 0); no collateral benefit (IS Collateral 0), haircut and close price from the previous day's market data, DP account and POA flag as in the ISIN Holding file.",
+ "names": [
+  "FINSPOT_NSEBSE_T\\d*_HOLDING_ISIN_.*\\.txt"
+ ],
+ "template": "FINSPOT_NSEBSE_T1_HOLDING_ISIN_{date:02012006}.txt",
+ "title_line": "T1 - ISIN Holdings",
+ "delimiter": "|",
+ "columns": [
+  {
+   "name": "Account ID",
+   "key": "AccountId",
+   "type": "str",
+   "required": true,
+   "note": "Client code (the UCC)"
+  },
+  {
+   "name": "ISIN",
+   "key": "ISIN",
+   "type": "str",
+   "required": true
+  },
+  {
+   "name": "Holdings Qty",
+   "key": "HoldingsQty",
+   "type": "int",
+   "note": "Net T1 quantity (previous day delivery buys less sells)"
+  },
+  {
+   "name": "IS Collateral",
+   "key": "IsCollateral",
+   "type": "int",
+   "note": "0 no collateral, 1 collateral. Ledgerline writes 0: collateral is in the RMS limit",
+   "codes": {
+    "0": "No collateral",
+    "1": "Collateral"
+   }
+  },
+  {
+   "name": "Collateral Mode",
+   "key": "CollateralMode",
+   "type": "int",
+   "note": "Ledgerline writes 1, as SharePro's file and Finspot's sample do"
+  },
+  {
+   "name": "Collateral Qty",
+   "key": "CollateralQty",
+   "type": "int",
+   "note": "Ledgerline writes 0"
+  },
+  {
+   "name": "Haircut",
+   "key": "Haircut",
+   "type": "dec",
+   "note": "0 to 1 (0.17 = 17%); 1 when the security has no haircut in the day's data"
+  },
+  {
+   "name": "Broker collateral Qty",
+   "key": "BrokerCollateralQty",
+   "type": "int",
+   "note": "Quantity that gives only collateral benefit (the client cannot sell it). Ledgerline writes 0"
+  },
+  {
+   "name": "DP Holdings Qty",
+   "key": "DPHoldingsQty",
+   "type": "int",
+   "note": "Quantity available for sale only. Ledgerline writes 0, as SharePro's file does (the sellable quantity is in Holdings Qty)"
+  },
+  {
+   "name": "Close Price",
+   "key": "ClosePrice",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": true,
+   "note": "Previous close (rupees); also used for collateral after a corporate action"
+  },
+  {
+   "name": "Beneficary Holdings",
+   "key": "BeneficiaryHoldings",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": true,
+   "note": "Ledgerline writes 0.000, as SharePro's file does"
+  },
+  {
+   "name": "Unpledge Holdings",
+   "key": "UnpledgeHoldings",
+   "type": "blank",
+   "note": "Left empty, as SharePro's file does"
+  },
+  {
+   "name": "Product",
+   "key": "Product",
+   "type": "str",
+   "required": true,
+   "note": "CNC"
+  },
+  {
+   "name": "Reserved",
+   "key": "Reserved",
+   "type": "blank"
+  },
+  {
+   "name": "Actual price",
+   "key": "ActualPrice",
+   "type": "dec",
+   "decimals": 3,
+   "fixed": true,
+   "note": "The close price again"
+  },
+  {
+   "name": "DP account number",
+   "key": "DPAccount",
+   "type": "str",
+   "note": "The client's demat account as Ledgerline holds it (16-digit CDSL BO ID, or the NSDL DP ID and client ID)"
+  },
+  {
+   "name": "POA flag",
+   "key": "POAFlag",
+   "type": "str",
+   "note": "Y when the client has a DDPI (or POA) for securities with the DP, else N",
+   "codes": {
+    "Y": "DDPI or POA",
+    "N": "None"
+   }
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Front office → T1 holding file (Finspot)",
+ "source": "Finspot File_Formats.xlsx, sheet T1 - ISIN Holdings (the ISIN Holding columns, title line 'T1 - ISIN Holdings'); SharePro's FINSPOT_NSEBSE_T#_HOLDING_ISIN files"
+}

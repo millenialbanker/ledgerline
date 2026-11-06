@@ -1,0 +1,32 @@
+{
+ "id": "finspot-nfo-cost-price",
+ "title": "Carry-forward F&O cost price (Finspot OMS, NFO_COST_PRICE)",
+ "party": "Front end (Finspot)",
+ "direction": "out",
+ "when": "BOD",
+ "purpose": "Each client's open NSE F&O positions at the previous business day's close with their average cost, so Finspot's MTM starts from the right price. Net quantity is signed (negative for a short position); the average rate is Ledgerline's average price of the open side. Instrument type OPTIDX, OPTSTK, FUTIDX or FUTSTK; for futures the strike is 0 and the option type XX, as in NSE's contract files (the sample shows options only). Unlike Finspot's other uploads this file has a header row and commas, as in the sample.",
+ "names": [
+  "FINSPOT_NFO_COST_PRICE_.*\\.txt"
+ ],
+ "template": "FINSPOT_NFO_COST_PRICE_{date:02012006}.txt",
+ "title_line": "NFO_COST_PRICE",
+ "delimiter": ",",
+ "header": true,
+ "columns": [
+  {"name": "CLIENT_ID", "type": "str", "required": true},
+  {"name": "INSTRUMENT_TYPE", "type": "str", "required": true, "codes": {"OPTIDX": "Index option", "OPTSTK": "Stock option", "FUTIDX": "Index future", "FUTSTK": "Stock future"}},
+  {"name": "SCRIP_NAME", "type": "str", "required": true},
+  {"name": "EXPIRY_DATE", "type": "date", "layout": "02-Jan-2006", "required": true, "note": "dd-Mon-yyyy, e.g. 21-Oct-2021"},
+  {"name": "STRIKE_PRICE", "type": "dec", "decimals": 4, "fixed": true},
+  {"name": "OPTION_TYPE", "type": "str", "note": "CE, PE; XX for futures"},
+  {"name": "NETQTY", "type": "int", "required": true},
+  {"name": "AVG_RATE", "type": "dec", "decimals": 4, "fixed": true}
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Front office → carry-forward cost file (Finspot)",
+ "source": "Finspot File_Formats.xlsx, sheet NFO_COST_PRICE (8 columns, title line, header row, comma-delimited)"
+}
