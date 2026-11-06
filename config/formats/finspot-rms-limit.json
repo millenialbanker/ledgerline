@@ -4,7 +4,7 @@
  "party": "Front end (Finspot)",
  "direction": "out",
  "when": "BOD, 08:50",
- "purpose": "Trading limit per client before the market opens, and limit changes during the day. Finspot's RMS limit upload has 54 columns, all listed here; the file SharePro sends Finspot daily stops after the first five (account, exchange, segment, product, collateral/margin value), so Ledgerline writes those five and the line ends there (trailing_empty: a line may stop before the columns Ledgerline does not fill, typed blank here, so SharePro's 5-field files read with no issues). A blank exchange, segment or product means across all of them. The account ID is the UCC (10 characters at most).",
+ "purpose": "Trading limit values per client before the market opens (BOD), and the limit changes of pay-out holds during the day. Finspot's RMS limit upload has 54 columns, all listed here. Finspot computes the limit itself, so Ledgerline writes, per client across exchanges, segments and products: the account ID (1), the client's ledger balance as is (5: end of the previous business day, negative when the client owes, less cheques not yet cleared), the group wise validation indicator (17, no by default) and the notional cash (25: pledged cash-equivalent collateral after haircut: government securities, T-bills, SDLs, and the liquid fund / ETF ISINs the firm lists), and the line ends after column 25 (trailing_empty: a line may stop before the columns Ledgerline does not fill, typed blank here, or columns 17 and 25, marked may_omit, so SharePro's 5-field lines read with no issues too). Non-cash pledged securities are not in this line: they go in the ISIN Holding file as collateral with their haircut, and Finspot adds them. A client who may not take new positions (blocked, inactive, no segment open) gets the lower of the balance and 0 and no notional cash. A pay-out hold line is the same line with the amount held taken off column 5; a release line puts it back. Finspot carries the equity segments only: column 5 is meant to be the equity balance, and is the whole client ledger until segment-wise client ledgers exist. The account ID is the UCC with the firm's account ID suffix (Connections → Finspot uploads), 10 characters at most: the file is refused for longer ones.",
  "names": [
   "FINSPOT_RMS_LIMIT_.*\\.txt"
  ],
@@ -16,7 +16,7 @@
    "name": "AccountId",
    "type": "str",
    "required": true,
-   "note": "Client code (10 characters at most), or the branch ID for branch limits"
+   "note": "Client code with the firm's account ID suffix (e.g. D224-BJT), 10 characters at most, or the branch ID for branch limits"
   },
   {
    "name": "Exchange",
@@ -62,7 +62,7 @@
   {
    "name": "CollateralMarginValue",
    "type": "dec",
-   "note": "Available margin/cash for the client (rupees, 2 decimals)",
+   "note": "Available margin/cash for the client: Ledgerline writes the client's ledger balance as is (rupees, 2 decimals, negative when the client owes); a pay-out hold line has the amount held taken off",
    "decimals": 2,
    "fixed": true
   },
@@ -123,8 +123,14 @@
   },
   {
    "name": "Group wise validation indicator",
-   "type": "blank",
-   "note": "Not filled by Ledgerline: yes or no for the client"
+   "type": "str",
+   "note": "yes or no for the client (Finspot's default no). Ledgerline writes the firm's setting, no by default",
+   "key": "GroupValidation",
+   "may_omit": true,
+   "codes": {
+    "no": "No",
+    "yes": "Yes"
+   }
   },
   {
    "name": "Gross Exposure Derivative Limit",
@@ -163,8 +169,12 @@
   },
   {
    "name": "Notional cash",
-   "type": "blank",
-   "note": "Not filled by Ledgerline: Total notional cash in Rupees"
+   "type": "dec",
+   "note": "Total notional cash in Rupees: Ledgerline writes the client's pledged cash-equivalent collateral after haircut (government securities, T-bills, SDLs, and the firm's listed liquid fund / ETF ISINs)",
+   "key": "NotionalCash",
+   "may_omit": true,
+   "decimals": 2,
+   "fixed": true
   },
   {
    "name": "Client Dealers Broker",
@@ -319,6 +329,6 @@
  "final_eol": true,
  "confirmed": true,
  "linked": "Front office → BOD limit file (Finspot); Receipts & payouts → pay-out holds (limit changes)",
- "source": "Finspot File_Formats.xlsx, sheet RMS Limit (54 columns, title line 'RMS Limits'); SharePro's FINSPOT_RMS_LIMIT files (pipe-delimited, 5 fields)",
+ "source": "Finspot File_Formats.xlsx, sheet RMS Limit (54 columns, title line 'RMS Limits'); the broker's worked example of the line Finspot needs (columns 1, 5, 17 and 25); SharePro's FINSPOT_RMS_LIMIT files (pipe-delimited, 5 fields)",
  "trailing_empty": true
 }

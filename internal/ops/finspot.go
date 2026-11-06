@@ -21,12 +21,13 @@ import (
 // data as pipe-delimited files whose first line names the file type, in
 // the layouts of Finspot's format workbook (config/formats/finspot-*.json):
 //
-//   - RMS Limits (finspot-rms-limit): the beginning-of-day limit (08:50,
-//     FinspotLimitFile in live.go) and limit changes in the day (pay-out
-//     holds, payouthold.go);
+//   - RMS Limits (finspot-rms-limit): the beginning-of-day values Finspot
+//     computes the limit from (08:50, FinspotLimitFile in live.go: ledger
+//     balance, cash-equivalent collateral as notional cash) and their
+//     changes in the day (pay-out holds, payouthold.go);
 //   - ISIN Holding (finspot-dp-holding, 08:54) and T1 - ISIN Holdings
-//     (finspot-t1-holding): sellable holdings and the previous day's
-//     delivery buys not yet received;
+//     (finspot-t1-holding): sellable holdings with margin-pledged non-cash
+//     collateral, and the previous day's delivery buys not yet received;
 //   - RMS Block/UnBlock (finspot-rms-block): clients who may not take new
 //     positions;
 //   - Investor Client, Investor Segment and Client Products Enabled
@@ -47,6 +48,8 @@ import (
 // order types, margin basket product, names and minimum) are in Connections → Finspot uploads; a firm with
 // that connection saved gets the BOD files on its daily file checklist.
 // Passwords and transaction passwords are never written: Finspot sets them.
+// Client account and user IDs are the UCC with the firm's account ID
+// suffix (finspotCfg.ID).
 
 const (
 	connFinspot    = "finspot"
@@ -74,6 +77,9 @@ func init() {
 			{Key: "nse_basket", Label: "NSE margin basket name (default NSEMIS)", Optional: true, Placeholder: "NSEMIS"},
 			{Key: "bse_basket", Label: "BSE margin basket name (default BSEMIS)", Optional: true, Placeholder: "BSEMIS"},
 			{Key: "basket_min_pct", Label: "Minimum margin % in the baskets (default 20)", Optional: true, Placeholder: "20"},
+			{Key: "account_suffix", Label: "Account ID suffix: added to the UCC in every Finspot file that carries a client's account or user ID (e.g. -BJT, the broker's code on Finspot)", Optional: true, Placeholder: "-BJT"},
+			{Key: "group_validation", Label: "Group wise validation indicator in the RMS limit lines: no or yes (default no)", Optional: true, Placeholder: "no"},
+			{Key: "cash_eq_isins", Label: "Cash-equivalent collateral ISINs besides government securities (liquid and overnight fund units, liquid ETFs), comma-separated: their pledged value goes in Notional cash, not in the ISIN Holding collateral", Optional: true},
 			fNotes}})
 }
 
@@ -89,7 +95,12 @@ type finspotCfg struct {
 	OrderTypes, PosDealer               string
 	BasketProduct, NSEBasket, BSEBasket string
 	BasketMin                           money.Dec
+	Suffix                              string // added to the UCC in client account/user IDs
+	GroupValidation                     string // RMS limit column 17: no or yes
 }
+
+// ID is a client's account / user ID on Finspot: the UCC and the firm's suffix.
+func (c finspotCfg) ID(ucc string) string { return ucc + c.Suffix }
 
 func (o *Ops) finspotConfig(ctx context.Context, tenant string) (finspotCfg, error) {
 	c, _, err := docs.Get[Connection](ctx, o.Docs, tenant, cConn, connFinspot)
@@ -124,6 +135,17 @@ func (o *Ops) finspotConfig(ctx context.Context, tenant string) (finspotCfg, err
 			return cfg, invalid("the minimum margin %% is a number from 0 to 100")
 		}
 		cfg.BasketMin = d
+	}
+	cfg.Suffix = strings.TrimSpace(v["account_suffix"])
+	if strings.ContainsAny(cfg.Suffix, "| \t\r\n") {
+		return cfg, invalid("the Finspot account ID suffix has no spaces or pipes")
+	}
+	cfg.GroupValidation = strings.ToLower(firstOf(strings.TrimSpace(v["group_validation"]), "no"))
+	if cfg.GroupValidation != "no" && cfg.GroupValidation != "yes" {
+		return cfg, invalid("the group wise validation indicator is no or yes")
+	}
+	if _, bad := cashEqISINList(v["cash_eq_isins"]); len(bad) > 0 {
+		return cfg, invalid("cash-equivalent ISINs: %s is not an ISIN (12 characters)", strings.Join(bad, ", "))
 	}
 	exp := strings.TrimSpace(v["segment_expiry"])
 	for _, part := range strings.FieldsFunc(v["exchange_users"], func(r rune) bool { return r == ';' || r == ',' || r == '\n' }) {
@@ -210,8 +232,13 @@ func (o *Ops) FinspotFile(ctx context.Context, tenant, actor, kind, date string,
 // they are sold), less shares pledged to lenders and shares frozen at
 // CDSL, plus unpaid purchases held in CUSPA; nothing for an account frozen
 // for debits. T1: the previous business day's delivery buys less sells,
-// never below 0. No collateral benefit is given: pledged collateral is in
-// the client's RMS limit already (see the layouts' notes).
+// never below 0. Collateral: a margin-pledged security that is not cash
+// equivalent is collateral on its holding line (IS Collateral 1,
+// Collateral Qty the pledged quantity, the haircut), so Finspot adds its
+// value to the limit; cash-equivalent pledges are in the RMS limit line's
+// notional cash already and are not collateral here, and a client who may
+// not take new positions has no collateral (as the limit line has no
+// notional cash). T1 lines have no collateral.
 func (o *Ops) FinspotHoldingFile(ctx context.Context, tenant, date string, t1 bool) (string, []byte, error) {
 	id := "finspot-dp-holding"
 	if t1 {
@@ -229,6 +256,11 @@ func (o *Ops) FinspotHoldingFile(ctx context.Context, tenant, date string, t1 bo
 	}
 	_, look, _ := o.Market(ctx, tenant, prev) // no market data: haircut 1, price 0
 	qty := map[string]int64{}                 // UCC|ISIN
+	pledged := map[string]int64{}             // UCC|ISIN: margin-pledged, not cash equivalent
+	cfg, err := o.finspotConfig(ctx, tenant)
+	if err != nil {
+		return "", nil, err
+	}
 	if t1 {
 		ts, err := o.exchangeTrades(ctx, tenant, prev)
 		if err != nil {
@@ -257,6 +289,13 @@ func (o *Ops) FinspotHoldingFile(ctx context.Context, tenant, date string, t1 bo
 			return "", nil, err
 		}
 		enc := o.cplEncumberedAll(ctx, tenant)
+		var pl []string
+		for _, h := range hs {
+			if h.Pledged > 0 {
+				pl = append(pl, h.ISIN)
+			}
+		}
+		cashEq := o.cashEquivalentISINs(ctx, tenant, pl)
 		frozenBO := map[string]bool{}
 		for _, h := range hs {
 			c := cs[h.UCC]
@@ -269,6 +308,9 @@ func (o *Ops) FinspotHoldingFile(ctx context.Context, tenant, date string, t1 bo
 			q := h.Qty - enc[h.UCC][h.ISIN]
 			q -= o.cdslFrozenQty(ctx, tenant, c.Demat.ID, h.ISIN, q)
 			qty[h.UCC+"|"+h.ISIN] += q
+			if h.Pledged > 0 && !cashEq[h.ISIN] && finspotBlockWhy(c) == "" {
+				pledged[h.UCC+"|"+h.ISIN] += min(h.Pledged, max(q, 0))
+			}
 		}
 		cu, _ := docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
 		for _, it := range cu {
@@ -303,8 +345,12 @@ func (o *Ops) FinspotHoldingFile(ctx context.Context, tenant, date string, t1 bo
 				hc = money.Min(hc, money.DecInt(1))
 			}
 		}
+		isColl, cq := "0", min(pledged[k], q)
+		if cq > 0 {
+			isColl = "1"
+		}
 		rows = append(rows, xfile.Row{Values: map[string]string{
-			"AccountId": u, "ISIN": isin, "HoldingsQty": fmt.Sprint(q), "IsCollateral": "0", "CollateralMode": "1", "CollateralQty": "0",
+			"AccountId": cfg.ID(u), "ISIN": isin, "HoldingsQty": fmt.Sprint(q), "IsCollateral": isColl, "CollateralMode": "1", "CollateralQty": fmt.Sprint(cq),
 			"Haircut": trimDec(hc.Fixed(4)), "BrokerCollateralQty": "0", "DPHoldingsQty": "0", "ClosePrice": px.Fixed(3), "BeneficiaryHoldings": "0",
 			"Product": "CNC", "ActualPrice": px.Fixed(3), "DPAccount": finspotText(normDematID(c.Demat.ID)), "POAFlag": poa[u]}})
 	}
@@ -420,6 +466,10 @@ func (o *Ops) FinspotBlockFile(ctx context.Context, tenant, actor, date string) 
 	for _, p := range prior {
 		st[p.UCC] = p
 	}
+	cfg, err := o.finspotConfig(ctx, tenant)
+	if err != nil {
+		return "", nil, err
+	}
 	sent, _ := docs.List[finspotSentState](ctx, o.Docs, tenant, cFinspotSent, "clients|")
 	onFinspot := map[string]bool{}
 	for _, x := range sent {
@@ -427,7 +477,7 @@ func (o *Ops) FinspotBlockFile(ctx context.Context, tenant, actor, date string) 
 	}
 	var rows []xfile.Row
 	line := func(u, side, product, block, why string) {
-		rows = append(rows, xfile.Row{Fields: 22, Values: map[string]string{"Client": u, "Side": side, "Products": product, "BlockType": "NON-SQROFF", "Block": block, "Remarks": finspotRemark(why)}})
+		rows = append(rows, xfile.Row{Fields: 22, Values: map[string]string{"Client": cfg.ID(u), "Side": side, "Products": product, "BlockType": "NON-SQROFF", "Block": block, "Remarks": finspotRemark(why)}})
 	}
 	lines := func(u, block, why string) {
 		line(u, "", "MIS", block, why)
@@ -531,7 +581,7 @@ func (o *Ops) FinspotClientFile(ctx context.Context, tenant, actor, kind, date s
 	}
 	var rows []xfile.Row
 	var changed []finspotSentState
-	var missing []string
+	var missing, long []string
 	for _, u := range sortedKeys(cs) {
 		c := cs[u]
 		if c.Status != "Active" {
@@ -539,6 +589,10 @@ func (o *Ops) FinspotClientFile(ctx context.Context, tenant, actor, kind, date s
 		}
 		if len(u) > 10 {
 			return "", nil, invalid("client code %s is longer than Finspot's 10 characters", u)
+		}
+		if kind == "client-segments" && len(cfg.ID(u)) > 10 { // Investor Segment: User id Char[10]
+			long = append(long, cfg.ID(u))
+			continue
 		}
 		var rs []xfile.Row
 		switch kind {
@@ -571,11 +625,11 @@ func (o *Ops) FinspotClientFile(ctx context.Context, tenant, actor, kind, date s
 				if c.SegmentOpen(fs.Seg) {
 					en = "Y"
 				}
-				rs = append(rs, xfile.Row{Fields: 6, Values: map[string]string{"UserId": u, "Segment": fs.Code, "ExchangeUserId": x.ID, "Expiry": exp, "ExchangeUserInfo": x.Info, "Enabled": en}})
+				rs = append(rs, xfile.Row{Fields: 6, Values: map[string]string{"UserId": cfg.ID(u), "Segment": fs.Code, "ExchangeUserId": x.ID, "Expiry": exp, "ExchangeUserInfo": x.Info, "Enabled": en}})
 			}
 		case "client-products":
 			if p := finspotProducts(c); p != "" {
-				rs = []xfile.Row{{Values: map[string]string{"UserId": u, "Products": p}}}
+				rs = []xfile.Row{{Values: map[string]string{"UserId": cfg.ID(u), "Products": p}}}
 			}
 		}
 		if len(rs) == 0 {
@@ -590,6 +644,9 @@ func (o *Ops) FinspotClientFile(ctx context.Context, tenant, actor, kind, date s
 		if !known || was.Hash != h {
 			changed = append(changed, finspotSentState{Kind: kind, UCC: u, Hash: h, On: date})
 		}
+	}
+	if len(long) > 0 {
+		return "", nil, invalid("Finspot's segment user ID holds 10 characters; with the account ID suffix %q these are longer: %s", cfg.Suffix, strings.Join(long, ", "))
 	}
 	if len(missing) > 0 {
 		return "", nil, invalid("set the exchange user ID, user info and expiry for %s in Connections → Finspot uploads", strings.Join(missing, ", "))
@@ -613,8 +670,8 @@ func (o *Ops) FinspotClientFile(ctx context.Context, tenant, actor, kind, date s
 // finspotClientLayouts are the client files' layouts by kind.
 var finspotClientLayouts = map[string]string{"clients": "finspot-investor-client", "client-info": "finspot-client-info", "client-segments": "finspot-investor-segment", "client-products": "finspot-investor-products"}
 
-// finspotClientRow is a client's Investor Client line. Passwords are never
-// written.
+// finspotClientRow is a client's Investor Client line: account and login
+// ID are the UCC with the firm's suffix. Passwords are never written.
 func (o *Ops) finspotClientRow(ctx context.Context, tenant string, c Client, cfg finspotCfg) xfile.Row {
 	d := o.UCCDetailsFor(ctx, tenant, c.UCC)
 	var addr []string
@@ -630,7 +687,7 @@ func (o *Ops) finspotClientRow(ctx context.Context, tenant string, c Client, cfg
 		dpid = demat[:8]
 	}
 	v := map[string]string{
-		"AccountId": c.UCC, "AccountName": c.Name, "LoginId": c.UCC, "BranchId": branch, "Email": c.Email,
+		"AccountId": cfg.ID(c.UCC), "AccountName": c.Name, "LoginId": cfg.ID(c.UCC), "BranchId": branch, "Email": c.Email,
 		"ResidenceAddress": strings.Join(addr, ", "), "Mobile": c.Mobile, "ClientGroup": branch, "DPId": dpid, "DPAccount": demat,
 		"DecimalPreference": "2", "PAN": c.PAN, "ClientType": cfg.ClientType, "BankAccount": c.Bank.Account, "BankName": c.Bank.Bank,
 		"BankAddress": c.Bank.Branch, "ClientStatus": "A", "UserRole": cfg.Role, "ClientType2": cfg.Type2, "AccessType": cfg.AccessTyp,

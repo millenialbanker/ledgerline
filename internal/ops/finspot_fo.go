@@ -49,6 +49,10 @@ func (o *Ops) FinspotCostFile(ctx context.Context, tenant, date string) (string,
 	if err != nil {
 		return "", nil, err
 	}
+	cfg, err := o.finspotConfig(ctx, tenant)
+	if err != nil {
+		return "", nil, err
+	}
 	set, _ := o.Settings(ctx, tenant)
 	rv, err := o.Risk(ctx, tenant, set.PrevBusinessDay(date))
 	if err != nil {
@@ -66,7 +70,7 @@ func (o *Ops) FinspotCostFile(ctx context.Context, tenant, date string) (string,
 			if t, err := time.Parse("2006-01-02", exp); err == nil {
 				exp = t.Format("02-Jan-2006")
 			}
-			rows = append(rows, xfile.Row{Values: map[string]string{"CLIENT_ID": u, "INSTRUMENT_TYPE": it, "SCRIP_NAME": sym, "EXPIRY_DATE": exp,
+			rows = append(rows, xfile.Row{Values: map[string]string{"CLIENT_ID": cfg.ID(u), "INSTRUMENT_TYPE": it, "SCRIP_NAME": sym, "EXPIRY_DATE": exp,
 				"STRIKE_PRICE": strike, "OPTION_TYPE": opt, "NETQTY": fmt.Sprint(p.Qty), "AVG_RATE": p.AvgPrice.Fixed(4)}})
 		}
 	}
@@ -116,7 +120,7 @@ func (o *Ops) FinspotDealerPositionFile(ctx context.Context, tenant, date string
 			if t, err := time.Parse("2006-01-02", exp); err == nil {
 				exp = strings.ToUpper(t.Format("02-Jan-2006"))
 			}
-			v := map[string]string{"USER": cfg.PosDealer, "CLIENT": u, "EXCH": exch, "INSTRUMENT": it, "SYMBOL": sym, "EXP": exp, "STRIKE": strike, "OPTIONTYPE": opt,
+			v := map[string]string{"USER": cfg.PosDealer, "CLIENT": cfg.ID(u), "EXCH": exch, "INSTRUMENT": it, "SYMBOL": sym, "EXP": exp, "STRIKE": strike, "OPTIONTYPE": opt,
 				"BUYQTY": "0", "BUYAMT": "0", "SELLQTY": "0", "SELLAMT": "0", "PRODUCT": "NRML"}
 			amt := p.AvgPrice.MulInt(abs(p.Qty)).Fixed(2)
 			if p.Qty > 0 {

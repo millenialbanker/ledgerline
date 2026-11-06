@@ -258,7 +258,7 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 		if c.Status != "Active" {
 			continue
 		}
-		r := LiveRow{UCC: u, Name: c.Name, Funds: funds[u].Dec(), Collateral: coll[u], Unbilled: unbilled[u], Turnover: turnover[u], Trades: count[u], Blocked: c.Blocked || c.Inactive, Short: []string{}}
+		r := LiveRow{UCC: u, Name: c.Name, Funds: funds[u].Dec(), Collateral: coll[u].Total(), Unbilled: unbilled[u], Turnover: turnover[u], Trades: count[u], Blocked: c.Blocked || c.Inactive, Short: []string{}}
 		deriv := money.Dec{}
 		for _, p := range pos[u] {
 			deriv = deriv.Add(p.Margin)
@@ -386,34 +386,21 @@ func (o *Ops) LimitFile(ctx context.Context, tenant, date string) ([]byte, error
 }
 
 // FinspotLimitFile is the beginning-of-day limit upload in Finspot's RMS
-// limit layout (finspot-rms-limit): one line per client with the limit
-// across exchanges, segments and products, 0 for a client who may not buy.
-// The CSV LimitFile stays for other front ends.
+// limit layout (finspot-rms-limit): one line per client across exchanges,
+// segments and products, with the values Finspot computes the limit from
+// (finspotLimits). The CSV LimitFile stays for other front ends.
 func (o *Ops) FinspotLimitFile(ctx context.Context, tenant, date string) (string, []byte, error) {
-	lib, err := XFiles()
+	s, err := finspotSpec("finspot-rms-limit")
 	if err != nil {
 		return "", nil, err
 	}
-	s, ok := lib.Get("finspot-rms-limit")
-	if !ok {
-		return "", nil, invalid("the Finspot limit layout is missing")
-	}
-	set, _ := o.Settings(ctx, tenant)
-	rv, err := o.Risk(ctx, tenant, set.PrevBusinessDay(date))
+	cfg, lims, err := o.finspotLimits(ctx, tenant, date)
 	if err != nil {
 		return "", nil, err
 	}
-	cs, _ := o.ClientMap(ctx, tenant)
 	var rows []xfile.Row
-	for _, r := range rv.Rows {
-		if len(r.UCC) > 10 { // Finspot's account ID holds 10 characters
-			return "", nil, invalid("client code %s is longer than Finspot's 10 characters", r.UCC)
-		}
-		lim := money.Max(r.Limit, money.Dec{})
-		if r.Blocked || len(cs[r.UCC].OpenSegments()) == 0 {
-			lim = money.Dec{}
-		}
-		rows = append(rows, finspotLimitRow(r.UCC, lim))
+	for _, u := range sortedKeys(lims) {
+		rows = append(rows, finspotLimitRow(cfg, lims[u], lims[u].Margin))
 	}
 	b, err := s.Write(rows)
 	if err != nil {
@@ -427,11 +414,99 @@ func (o *Ops) FinspotLimitFile(ctx context.Context, tenant, date string) (string
 	return name, b, err
 }
 
-// finspotLimitRow is one RMS Limits line: the client's limit across
-// exchanges, segments and products. The line stops after the five fields
-// Ledgerline fills, as SharePro's lines do.
-func finspotLimitRow(ucc string, lim money.Dec) xfile.Row {
-	return xfile.Row{Fields: 5, Values: map[string]string{"AccountId": ucc, "CollateralMarginValue": lim.Fixed(2)}}
+// finspotLimit is what a client's RMS Limits line says.
+type finspotLimit struct {
+	ID           string    // account ID on Finspot: UCC + suffix
+	Margin       money.Dec // column 5: the ledger balance (finspotFunds)
+	NotionalCash money.Dec // column 25: cash-equivalent collateral after haircut
+}
+
+// finspotFunds is each client's balance for Finspot (the RMS limit
+// lines' column 5, and the pay-out hold and release lines built on it):
+// the ledger balance at the end of the business day before date, as is
+// (negative when the client owes), less cheques not yet cleared, the same
+// as RiskRow.Funds. Every Finspot balance goes through here.
+//
+// Finspot carries only the equity segments (NSE and BSE cash, F&O and
+// currency); commodity trades on another front end. The client ledger is
+// one CLIENT:<ucc> account today, so this is still the whole balance,
+// commodity included: once segment-wise client ledgers exist this must
+// return the equity balance only.
+func (o *Ops) finspotFunds(ctx context.Context, tenant, date string) (map[string]money.Dec, error) {
+	set, _ := o.Settings(ctx, tenant)
+	f, err := o.clientFunds(ctx, tenant, set.PrevBusinessDay(date), "")
+	if err != nil {
+		return nil, err
+	}
+	for u, a := range o.uncleared(ctx, tenant) {
+		f[u] -= a
+	}
+	out := make(map[string]money.Dec, len(f))
+	for u, a := range f {
+		out[u] = a.Dec()
+	}
+	return out, nil
+}
+
+// finspotLimits are the RMS Limits values of every active client for a
+// trading date, by UCC. Finspot computes the limit itself: column 5 is the
+// ledger balance (finspotFunds), column 25 (Notional cash) the
+// cash-equivalent collateral after the previous day's haircut
+// (RiskRow.CashEqColl); non-cash pledged securities go in the ISIN
+// Holding file as collateral instead, and Finspot adds them. A client who
+// may not take new positions (blocked, inactive, no segment open) gets
+// the lower of the balance and 0, and no notional cash, as the limit file
+// gave such a client 0 before: the block file blocks them, and this keeps
+// them without a limit if the block file is not uploaded. Margin pledges
+// carry no segment in Ledgerline, so the collateral is the client's whole
+// margin collateral, not only what is given to equity segments.
+// Finspot's account ID holds 10 characters: the file is refused for
+// clients whose UCC with the suffix is longer.
+func (o *Ops) finspotLimits(ctx context.Context, tenant, date string) (finspotCfg, map[string]finspotLimit, error) {
+	if !validDate(date) {
+		return finspotCfg{}, nil, invalid("give a date (YYYY-MM-DD)")
+	}
+	cfg, err := o.finspotConfig(ctx, tenant)
+	if err != nil {
+		return cfg, nil, err
+	}
+	set, _ := o.Settings(ctx, tenant)
+	rv, err := o.Risk(ctx, tenant, set.PrevBusinessDay(date))
+	if err != nil {
+		return cfg, nil, err
+	}
+	funds, err := o.finspotFunds(ctx, tenant, date)
+	if err != nil {
+		return cfg, nil, err
+	}
+	cs, _ := o.ClientMap(ctx, tenant)
+	out := map[string]finspotLimit{}
+	var long []string
+	for _, r := range rv.Rows {
+		id := cfg.ID(r.UCC)
+		if len(id) > 10 {
+			long = append(long, id)
+			continue
+		}
+		l := finspotLimit{ID: id, Margin: funds[r.UCC], NotionalCash: r.CashEqColl}
+		if r.Blocked || len(cs[r.UCC].OpenSegments()) == 0 {
+			l.Margin, l.NotionalCash = money.Min(l.Margin, money.Dec{}), money.Dec{}
+		}
+		out[r.UCC] = l
+	}
+	if len(long) > 0 {
+		return cfg, nil, invalid("Finspot's RMS account ID holds 10 characters; with the account ID suffix %q these are longer: %s", cfg.Suffix, strings.Join(long, ", "))
+	}
+	return cfg, out, nil
+}
+
+// finspotLimitRow is one RMS Limits line across exchanges, segments and
+// products: account ID (1), collateral / margin value (5, the given
+// margin), group wise validation indicator (17) and notional cash (25).
+// The line stops after column 25.
+func finspotLimitRow(cfg finspotCfg, l finspotLimit, margin money.Dec) xfile.Row {
+	return xfile.Row{Fields: 25, Values: map[string]string{"AccountId": l.ID, "CollateralMarginValue": margin.Fixed(2),
+		"GroupValidation": firstOf(cfg.GroupValidation, "no"), "NotionalCash": l.NotionalCash.Fixed(2)}}
 }
 
 // HoldingsFile is the beginning-of-day holdings upload for the trading

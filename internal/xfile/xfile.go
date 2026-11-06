@@ -50,6 +50,9 @@ type Column struct {
 	// Codes are the field's published standard values and their meanings;
 	// informational (values are not checked against them, as code lists grow).
 	Codes map[string]string `json:"codes,omitempty"`
+	// MayOmit (trailing_empty specs): a line may stop before this column,
+	// as before a reserved one, and it reads as empty.
+	MayOmit bool `json:"may_omit,omitempty"`
 }
 
 // reserved says whether a column is a reserved or dummy field.
@@ -482,7 +485,7 @@ func (s *Spec) fits(f []string, cols []Column) bool {
 		return true
 	}
 	for _, c := range cols[len(f):] {
-		if !c.reserved() {
+		if !c.reserved() && !c.MayOmit {
 			return false
 		}
 	}

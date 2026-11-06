@@ -391,7 +391,7 @@ On [[mtf|Margin trading (MTF)]]:
 title: Send limits and holdings to the trading system
 screen: rms
 roles: Risk manager, Ops checker
-ask: bod file; limit file; oms limits; trading limits not updated; holdings file to oms; start of day file; t1 holdings; finspot; finspot margin basket; finspot dealer; finspot limit file; finspot holding file; finspot block; finspot client creation; isin holding file; rms limits file
+ask: bod file; limit file; oms limits; notional cash; cash equivalent collateral; account id suffix; finspot collateral; trading limits not updated; holdings file to oms; start of day file; t1 holdings; finspot; finspot margin basket; finspot dealer; finspot limit file; finspot holding file; finspot block; finspot client creation; isin holding file; rms limits file
 related: client-cant-trade, debit-interest
 
 On [[rms|RMS & limits]], download:
@@ -402,8 +402,10 @@ On [[rms|RMS & limits]], download:
 Load both into the trading system before the market opens. Autopilot prepares them in the start-of-day stage.
 
 **Finspot.** Under **Finspot uploads** the same files come in Finspot's own layouts, named as Finspot expects:
-- **BOD limits** (RMS Limits, by 08:50): each client's limit across exchanges; 0 for a blocked client.
-- **BOD holdings** (ISIN Holding, by 08:54): sellable demat holdings, less shares pledged to lenders or frozen at CDSL, plus unpaid purchases in CUSPA. No collateral benefit is given in this file: pledged collateral is already in the limit.
+- **BOD limits** (RMS Limits, by 08:50): Finspot works out the limit itself, so each client's line across exchanges has the **ledger balance** as it stood at the end of the previous business day (column 5, negative when the client owes; uncleared cheques left out), the **group wise validation indicator** (column 17, `no` unless set otherwise in the connection) and **notional cash** (column 25): pledged **cash-equivalent** collateral after the day's haircut. For example `D224-BJT||||-20000.00||||||||||||no||||||||150000.00`. A blocked client (or one with no open segment) keeps a debit but gets no positive balance and no notional cash. Approved limit overrides and UPI blocks are not in the Finspot line. Finspot carries the equity segments only: the balance is meant to be the equity balance, and is the whole client ledger until segment-wise client ledgers exist.
+- **Cash equivalent** collateral: government securities, T-bills and SDLs (by ISIN, or NSE series GS, TB, SG), and the ISINs the firm lists under **Cash-equivalent collateral ISINs** in Connections → **Finspot uploads** (units of liquid and overnight funds, liquid ETFs; empty until the firm fills it). Every other pledged security is non-cash collateral.
+- **BOD holdings** (ISIN Holding, by 08:54): sellable demat holdings (margin-pledged shares included), less shares pledged to lenders or frozen at CDSL, plus unpaid purchases in CUSPA. A margin-pledged **non-cash** security is collateral on its line (IS Collateral 1, Collateral Qty the pledged quantity, with the haircut), and Finspot adds its value to the limit. Cash-equivalent pledges are already notional cash in the limit file, so they are not collateral here: nothing is counted twice. A blocked client's holdings carry no collateral.
+- **Account ID suffix**: set it in the connection (e.g. `-BJT`) and every Finspot file writes the client's account and user IDs as the UCC with the suffix (`D224-BJT`). Finspot's RMS limit account ID and segment user ID hold 10 characters: those files are refused, naming the clients, when the UCC with the suffix is longer.
 - **T1 holdings** (T1 - ISIN Holdings): yesterday's delivery buys not yet received, so they can be sold.
 - **Block / unblock**: every client blocked in Ledgerline (kill switch, debit block, debarred, inactive, no open segment) blocked for new MIS and NRML positions and CNC buys, square-off allowed; and an unblock line for each client Ledgerline blocked earlier who is no longer blocked. Blocks set by hand on Finspot are never lifted by the file.
 - **New clients**, **Client segments**, **Client products**: logins for active clients new or changed since the last file (add `&all=1` to the address for every client, at go-live). Passwords are never in the file; Finspot sets them. The segment file needs the firm's exchange user IDs in Connections → **Finspot uploads**.
@@ -443,7 +445,7 @@ related: clearing-allocation, bod-files, live-bank-credits
 **What is changed.**
 - With NSE Clearing's allocation API on, each hold is sent as the client's **final** allocation (confirmed level less the hold, action D); the release sends the confirmed level plus the hold (action U). One request per client is out at a time; results come back as for any allocation request. A rejected hold is not put back into money in.
 - With the API off, download the **N-MASS hold file** (or release file), upload it in N-MASS, then press **Done in N-MASS**.
-- The trading front end has no API: download the **OMS hold file** and later the **OMS release file** and upload them. They are Finspot RMS Limits files: each held client's new limit across exchanges (the BOD limit less the hold, or back to the BOD limit on release).
+- The trading front end has no API: download the **OMS hold file** and later the **OMS release file** and upload them. They are Finspot RMS Limits files, the same line as the BOD limit file: the ledger balance less the amount held (on release, less only what is still held), with the client's notional cash again so the upload does not wipe it.
 - [[live|Live RMS]] shows the hold and takes it off the client's free funds. Later allocation batches that day keep the hold; after release they use the normal figure.
 
 **Release.** The holds are given back when the pay-out is seen:

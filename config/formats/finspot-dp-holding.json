@@ -4,7 +4,7 @@
  "party": "Front end (Finspot)",
  "direction": "out",
  "when": "BOD, 08:54",
- "purpose": "Each client's sellable demat holdings per ISIN before the market opens, so Finspot allows delivery sells. One line per client and ISIN, product CNC. Quantity: the demat balance (margin-pledged shares included: the pledge is released for the sale), less shares pledged to lenders, plus unpaid purchases held in CUSPA. No collateral benefit is given here (IS Collateral 0, collateral and broker collateral quantities 0, DP holdings quantity 0, as SharePro's file does): the value of pledged collateral after haircut is already in the client's limit in the RMS limit file, so giving it again here would count it twice. The haircut (0 to 1, from the day's VaR/haircut data; 1 when the security has none) and the close price are given for Finspot's valuation. The DP account is the client's demat account (BO ID) as Ledgerline holds it; the POA flag is Y when the client has a DDPI or POA for securities.",
+ "purpose": "Each client's demat holdings per ISIN before the market opens, so Finspot allows delivery sells and gives the benefit of non-cash collateral. One line per client and ISIN, product CNC. Holdings Qty is the sellable quantity: the demat balance (margin-pledged shares included: the pledge is released for the sale), less shares pledged to lenders and frozen at CDSL, plus unpaid purchases held in CUSPA. A security the client has margin-pledged that is not cash equivalent is collateral on its line: IS Collateral 1, Collateral Qty the margin-pledged quantity (part of Holdings Qty), Collateral Mode 1, and the haircut; Finspot values it and adds it to the client's limit. Cash-equivalent securities (government securities, T-bills, SDLs, the firm's listed liquid fund / ETF ISINs) are already in the RMS limit line's notional cash, so they stay IS Collateral 0 with Collateral Qty 0 here, and so does every security of a client who may not take new positions (blocked, inactive, no segment open). Broker collateral quantity and DP holdings quantity are 0, as SharePro's file has them. The haircut is 0 to 1 from the day's VaR/haircut data (1 when the security has none, so it gives no collateral value), with the close price for Finspot's valuation. The account ID is the UCC with the firm's account ID suffix; the DP account is the client's demat account (BO ID) as Ledgerline holds it; the POA flag is Y when the client has a DDPI or POA for securities.",
  "names": [
   "FINSPOT_DP_HOLDING_UPLOAD_.*\\.txt"
  ],
@@ -17,7 +17,7 @@
    "key": "AccountId",
    "type": "str",
    "required": true,
-   "note": "Client code (the UCC)"
+   "note": "Client code: the UCC with the firm's account ID suffix (e.g. D224-BJT)"
   },
   {
    "name": "ISIN",
@@ -29,13 +29,13 @@
    "name": "Holdings Qty",
    "key": "HoldingsQty",
    "type": "int",
-   "note": "Sellable quantity"
+   "note": "Sellable quantity (margin-pledged shares included)"
   },
   {
    "name": "IS Collateral",
    "key": "IsCollateral",
    "type": "int",
-   "note": "0 no collateral, 1 collateral. Ledgerline writes 0: collateral is in the RMS limit",
+   "note": "0 no collateral, 1 collateral. Ledgerline writes 1 when the client has margin-pledged the security and it is not cash equivalent (cash-equivalent collateral is in the RMS limit's notional cash), else 0",
    "codes": {
     "0": "No collateral",
     "1": "Collateral"
@@ -45,25 +45,25 @@
    "name": "Collateral Mode",
    "key": "CollateralMode",
    "type": "int",
-   "note": "Ledgerline writes 1, as SharePro's file and Finspot's sample do"
+   "note": "Ledgerline writes 1, as SharePro's file and Finspot's sample do (the sheet gives no codes)"
   },
   {
    "name": "Collateral Qty",
    "key": "CollateralQty",
    "type": "int",
-   "note": "Ledgerline writes 0"
+   "note": "The margin-pledged quantity of a collateral line (at most Holdings Qty), else 0"
   },
   {
    "name": "Haircut",
    "key": "Haircut",
    "type": "dec",
-   "note": "0 to 1 (0.17 = 17%); 1 when the security has no haircut in the day's data"
+   "note": "0 to 1 (0.17 = 17%), the day's haircut, as the RMS collateral value uses; 1 when the security has no haircut in the day's data"
   },
   {
    "name": "Broker collateral Qty",
    "key": "BrokerCollateralQty",
    "type": "int",
-   "note": "Quantity that gives only collateral benefit (the client cannot sell it). Ledgerline writes 0"
+   "note": "Quantity that gives only collateral benefit (the client cannot sell it). Ledgerline writes 0: margin-pledged shares can be sold, so they are in Collateral Qty"
   },
   {
    "name": "DP Holdings Qty",

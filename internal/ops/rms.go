@@ -41,7 +41,9 @@ type RiskRow struct {
 	Name        string    `json:"name"`
 	Funds       money.Dec `json:"funds"` // ledger credit; negative = client owes
 	UPI         money.Dec `json:"upi"`
-	Collateral  money.Dec `json:"collateral"`        // pledged value after haircut
+	Collateral  money.Dec `json:"collateral"`         // pledged value after haircut (CashEqColl + NonCashColl)
+	CashEqColl  money.Dec `json:"collateral_cash_eq"` // of which cash-equivalent securities (G-secs, T-bills, SDLs, listed liquid funds)
+	NonCashColl money.Dec `json:"collateral_non_cash"`
 	CollUsable  money.Dec `json:"collateral_usable"` // capped at the cash component
 	Cash        money.Dec `json:"cash"`
 	Required    money.Dec `json:"required"`
@@ -69,6 +71,7 @@ type riskInput struct {
 	carried  []Position
 	trades   []ingest.TradeEvent
 	holdings []Holding
+	cashEq   map[string]bool // ISIN -> cash-equivalent collateral (cashEquivalentISINs)
 }
 
 func (o *Ops) riskInput(ctx context.Context, tenant, date string) (riskInput, error) {
@@ -89,8 +92,17 @@ func (o *Ops) riskInput(ctx context.Context, tenant, date string) (riskInput, er
 	if in.trades, err = o.exchangeTrades(ctx, tenant, date); err != nil {
 		return in, err
 	}
-	in.holdings, err = o.Holdings(ctx, tenant, "")
-	return in, err
+	if in.holdings, err = o.Holdings(ctx, tenant, ""); err != nil {
+		return in, err
+	}
+	var pledged []string
+	for _, h := range in.holdings {
+		if h.Pledged > 0 {
+			pledged = append(pledged, h.ISIN)
+		}
+	}
+	in.cashEq = o.cashEquivalentISINs(ctx, tenant, pledged)
+	return in, nil
 }
 
 // positions nets carried positions and the day's derivative trades up to
@@ -214,15 +226,94 @@ func abs(x int64) int64 {
 	return x
 }
 
-// collateral returns each client's pledged value after haircut.
-func (in riskInput) collateral() map[string]money.Dec {
-	out := map[string]money.Dec{}
+// collSplit is a client's pledged value after haircut, cash-equivalent
+// and non-cash.
+type collSplit struct{ CashEq, NonCash money.Dec }
+
+// Total is the whole pledged value after haircut.
+func (c collSplit) Total() money.Dec { return c.CashEq.Add(c.NonCash) }
+
+// collateral returns each client's pledged value after haircut, split
+// into cash-equivalent and non-cash securities. A margin pledge in
+// Ledgerline carries no segment (Holding.Pledged is one quantity), so this
+// is the client's whole margin collateral, not the part given to one
+// segment.
+func (in riskInput) collateral() map[string]collSplit {
+	out := map[string]collSplit{}
 	for _, h := range in.holdings {
 		if h.Pledged <= 0 {
 			continue
 		}
 		if i, ok := in.look.ByISIN(h.ISIN); ok {
-			out[h.UCC] = out[h.UCC].Add(i.LTP.MulInt(h.Pledged).Pct(money.DecInt(100).Sub(i.HaircutPct)))
+			v := i.LTP.MulInt(h.Pledged).Pct(money.DecInt(100).Sub(i.HaircutPct))
+			c := out[h.UCC]
+			if in.cashEq[h.ISIN] {
+				c.CashEq = c.CashEq.Add(v)
+			} else {
+				c.NonCash = c.NonCash.Add(v)
+			}
+			out[h.UCC] = c
+		}
+	}
+	return out
+}
+
+// isGovtISIN: an ISIN of a Government of India or state government
+// security (dated G-sec, T-bill, SDL): "IN" then a digit (the issuer
+// code), where companies' and funds' ISINs have a letter (INE..., INF...).
+func isGovtISIN(isin string) bool {
+	return len(isin) == 12 && strings.HasPrefix(isin, "IN") && isin[2] >= '0' && isin[2] <= '9'
+}
+
+// govtSeries are NSE's series for government securities: G-sec, T-bill, SDL.
+var govtSeries = map[string]bool{"GS": true, "TB": true, "SG": true}
+
+// cashEqISINList parses the firm's list of cash-equivalent ISINs; bad
+// are the entries that are not ISINs.
+func cashEqISINList(s string) (ok map[string]bool, bad []string) {
+	ok = map[string]bool{}
+	for _, x := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ';' || r == ' ' || r == '\n' || r == '\t' || r == '\r' }) {
+		x = strings.ToUpper(x)
+		if len(x) != 12 || !strings.HasPrefix(x, "IN") {
+			bad = append(bad, x)
+			continue
+		}
+		ok[x] = true
+	}
+	return ok, bad
+}
+
+// cashEquivalentISINs says which of the ISINs are collateral the clearing
+// corporations treat as cash equivalent: government securities (by ISIN,
+// or NSE series GS, TB or SG in the security master) and the ISINs the
+// firm lists on Connections -> Finspot uploads (units of liquid and
+// overnight fund schemes, liquid ETFs; empty until the firm fills it).
+// Neither NSE Clearing's approved securities file (symbol, ISIN, price,
+// haircut) nor its haircut file carries a cash / non-cash category, so
+// they cannot say. Ledgerline does not record FDRs or bank guarantees as
+// client collateral.
+func (o *Ops) cashEquivalentISINs(ctx context.Context, tenant string, isins []string) map[string]bool {
+	out := map[string]bool{}
+	if len(isins) == 0 {
+		return out
+	}
+	var list map[string]bool
+	if c, _, err := docs.Get[Connection](ctx, o.Docs, tenant, cConn, connFinspot); err == nil {
+		list, _ = cashEqISINList(c.Values["cash_eq_isins"])
+	}
+	seen := map[string]bool{}
+	for _, isin := range isins {
+		if seen[isin] {
+			continue
+		}
+		seen[isin] = true
+		switch {
+		case list[isin], isGovtISIN(isin):
+			out[isin] = true
+		default:
+			if ref, _, err := docs.Get[SecRef](ctx, o.Docs, tenant, cSecRef, isin); err == nil && govtSeries[strings.ToUpper(ref.Series)] {
+				out[isin] = true
+			}
 		}
 	}
 	return out
@@ -293,7 +384,7 @@ func (o *Ops) Risk(ctx context.Context, tenant, date string) (RiskView, error) {
 		if c.Status != "Active" {
 			continue
 		}
-		r := RiskRow{UCC: u, Name: c.Name, Funds: funds[u].Dec(), UPI: c.UPIBlock.Dec(), Collateral: coll[u], Blocked: c.Blocked || c.Inactive, Inactive: c.Inactive, Positions: len(pos[u])}
+		r := RiskRow{UCC: u, Name: c.Name, Funds: funds[u].Dec(), UPI: c.UPIBlock.Dec(), Collateral: coll[u].Total(), CashEqColl: coll[u].CashEq, NonCashColl: coll[u].NonCash, Blocked: c.Blocked || c.Inactive, Inactive: c.Inactive, Positions: len(pos[u])}
 		for _, p := range pos[u] {
 			r.Required = r.Required.Add(p.Margin)
 			r.FutEq = r.FutEq.Add(p.FutEq)
@@ -615,8 +706,8 @@ func (o *Ops) Margins(ctx context.Context, tenant, date string) (MarginReport, e
 			continue
 		}
 		cash := money.Max(pre[u].Dec(), money.Dec{}).Add(c.UPIBlock.Dec())
-		collected := cash.Add(money.Min(coll[u], cash))
-		row := MarginRow{UCC: u, Name: c.Name, PAN: MaskPAN(c.PAN), Collected: collected, Funds: cash, Collateral: money.Min(coll[u], cash)}
+		collected := cash.Add(money.Min(coll[u].Total(), cash))
+		row := MarginRow{UCC: u, Name: c.Name, PAN: MaskPAN(c.PAN), Collected: collected, Funds: cash, Collateral: money.Min(coll[u].Total(), cash)}
 		for _, p := range eod[u] {
 			row.EOD = row.EOD.Add(p.Margin)
 		}

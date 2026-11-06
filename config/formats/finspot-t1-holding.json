@@ -17,7 +17,7 @@
    "key": "AccountId",
    "type": "str",
    "required": true,
-   "note": "Client code (the UCC)"
+   "note": "Client code: the UCC with the firm's account ID suffix"
   },
   {
    "name": "ISIN",
