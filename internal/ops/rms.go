@@ -8,6 +8,7 @@ import (
 
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
+	"ledgerline/internal/ledger"
 	"ledgerline/internal/money"
 )
 
@@ -60,6 +61,45 @@ type RiskRow struct {
 	Inactive    bool      `json:"inactive,omitempty"` // UCC flagged inactive: no new positions
 	Positions   int       `json:"positions"`
 	SqOffSent   int       `json:"square_off_sent"`
+	// Ledgers is set when the firm keeps a separate commodity ledger
+	// (segledger.go). Funds, Required, Free, Limit and Status above are then
+	// the equity ledger's against NSE and BSE positions (what Finspot and
+	// NSE Clearing see); Ledgers has the commodity ledger against MCX
+	// positions, money awaiting allocation, and the client as a whole.
+	Ledgers *RiskLedgers `json:"ledgers,omitempty"`
+}
+
+// RiskLedgers is a risk row ledger by ledger.
+type RiskLedgers struct {
+	Equity            money.Dec `json:"equity"`
+	Commodity         money.Dec `json:"commodity"`
+	Awaiting          money.Dec `json:"awaiting"`
+	Combined          money.Dec `json:"combined"`
+	CommodityRequired money.Dec `json:"commodity_required"`
+	CommodityFree     money.Dec `json:"commodity_free"`
+	CommodityStatus   string    `json:"commodity_status"`
+}
+
+// allRequired is the margin the client needs across every segment.
+func (r RiskRow) allRequired() money.Dec {
+	if r.Ledgers != nil {
+		return r.Required.Add(r.Ledgers.CommodityRequired)
+	}
+	return r.Required
+}
+
+// fillCommodity works out the commodity side of a risk row: commodity
+// funds against MCX margin (pledged securities are equity collateral).
+func fillCommodity(l *RiskLedgers) {
+	l.CommodityFree = l.Commodity.Sub(l.CommodityRequired)
+	switch {
+	case l.CommodityRequired.Sign() > 0 && l.CommodityFree.Round(money.UnitPaisa) < 0:
+		l.CommodityStatus = "Breach"
+	case l.Commodity.Sign() < 0:
+		l.CommodityStatus = "Debit"
+	default:
+		l.CommodityStatus = "OK"
+	}
 }
 
 // riskInput gathers everything a risk computation needs for one date.
@@ -365,6 +405,19 @@ func (o *Ops) Risk(ctx context.Context, tenant, date string) (RiskView, error) {
 	for u, a := range o.uncleared(ctx, tenant) {
 		funds[u] -= a
 	}
+	// A separate commodity ledger: the row is the equity ledger against
+	// NSE and BSE positions; the commodity side goes in Ledgers.
+	var lf map[string]LedgerFunds
+	if in.set.sepCom() {
+		if lf, err = o.clientLedgerFunds(ctx, tenant, date, ""); err != nil {
+			return RiskView{}, err
+		}
+		for u, a := range o.unclearedBy(ctx, tenant) {
+			f := lf[u]
+			f.Equity, f.Commodity = f.Equity-a.Equity, f.Commodity-a.Commodity
+			lf[u] = f
+		}
+	}
 	ovs, err := o.Overrides(ctx, tenant, date)
 	if err != nil {
 		return RiskView{}, err
@@ -385,7 +438,16 @@ func (o *Ops) Risk(ctx context.Context, tenant, date string) (RiskView, error) {
 			continue
 		}
 		r := RiskRow{UCC: u, Name: c.Name, Funds: funds[u].Dec(), UPI: c.UPIBlock.Dec(), Collateral: coll[u].Total(), CashEqColl: coll[u].CashEq, NonCashColl: coll[u].NonCash, Blocked: c.Blocked || c.Inactive, Inactive: c.Inactive, Positions: len(pos[u])}
+		if lf != nil {
+			f := lf[u]
+			r.Funds = f.Equity.Dec()
+			r.Ledgers = &RiskLedgers{Equity: f.Equity.Dec(), Commodity: f.Commodity.Dec(), Awaiting: f.Awaiting.Dec(), Combined: f.Combined().Dec()}
+		}
 		for _, p := range pos[u] {
+			if r.Ledgers != nil && in.set.segmentLedger(p.Exchange, p.Segment) == ledger.LedgerCommodity {
+				r.Ledgers.CommodityRequired = r.Ledgers.CommodityRequired.Add(p.Margin)
+				continue
+			}
 			r.Required = r.Required.Add(p.Margin)
 			r.FutEq = r.FutEq.Add(p.FutEq)
 			if p.Index {
@@ -403,6 +465,9 @@ func (o *Ops) Risk(ctx context.Context, tenant, date string) (RiskView, error) {
 			}
 		}
 		fillRisk(&r, in.set)
+		if r.Ledgers != nil {
+			fillCommodity(r.Ledgers)
+		}
 		v.Rows = append(v.Rows, r)
 	}
 	if v.Rows == nil {
@@ -659,6 +724,10 @@ type MarginRow struct {
 	PenaltyBy string     `json:"penalty_by,omitempty"`
 }
 
+// snapReq is a snapshot's margin requirement: equity (all of it with one
+// ledger) and commodity (with a separate commodity ledger).
+type snapReq struct{ eq, com money.Dec }
+
 // MarginReport is the client-wise margin collection report.
 type MarginReport struct {
 	Date      string      `json:"date"`
@@ -678,6 +747,12 @@ func (o *Ops) Margins(ctx context.Context, tenant, date string) (MarginReport, e
 	pre, err := o.clientFunds(ctx, tenant, date, date)
 	if err != nil {
 		return MarginReport{}, err
+	}
+	var preL map[string]LedgerFunds
+	if in.set.sepCom() {
+		if preL, err = o.clientLedgerFunds(ctx, tenant, date, date); err != nil {
+			return MarginReport{}, err
+		}
 	}
 	coll := in.collateral()
 	eod, _ := in.positions("")
@@ -707,19 +782,40 @@ func (o *Ops) Margins(ctx context.Context, tenant, date string) (MarginReport, e
 		}
 		cash := money.Max(pre[u].Dec(), money.Dec{}).Add(c.UPIBlock.Dec())
 		collected := cash.Add(money.Min(coll[u].Total(), cash))
-		row := MarginRow{UCC: u, Name: c.Name, PAN: MaskPAN(c.PAN), Collected: collected, Funds: cash, Collateral: money.Min(coll[u].Total(), cash)}
+		// A separate commodity ledger (segledger.go): equity money covers
+		// NSE and BSE margin, with the pledged securities; commodity money
+		// covers MCX margin. Neither covers the other's shortfall.
+		var comCash money.Dec
+		if preL != nil {
+			cash = money.Max(preL[u].Equity.Dec(), money.Dec{}).Add(c.UPIBlock.Dec())
+			comCash = money.Max(preL[u].Commodity.Dec(), money.Dec{})
+			collected = cash.Add(money.Min(coll[u].Total(), cash)).Add(comCash)
+		}
+		shortOf := func(s snapReq) money.Dec {
+			if preL == nil {
+				return s.eq.Sub(collected)
+			}
+			eqColl := cash.Add(money.Min(coll[u].Total(), cash))
+			return money.Max(s.eq.Sub(eqColl), money.Dec{}).Add(money.Max(s.com.Sub(comCash), money.Dec{}))
+		}
+		row := MarginRow{UCC: u, Name: c.Name, PAN: MaskPAN(c.PAN), Collected: collected, Funds: cash.Add(comCash), Collateral: money.Min(coll[u].Total(), cash)}
 		for _, p := range eod[u] {
 			row.EOD = row.EOD.Add(p.Margin)
 		}
 		for _, s := range snaps {
-			req := s.cm[u]
+			sr := snapReq{eq: s.cm[u]}
 			for _, p := range s.pos[u] {
-				req = req.Add(p.Margin)
+				if preL != nil && in.set.segmentLedger(p.Exchange, p.Segment) == ledger.LedgerCommodity {
+					sr.com = sr.com.Add(p.Margin)
+				} else {
+					sr.eq = sr.eq.Add(p.Margin)
+				}
 			}
+			req := sr.eq.Add(sr.com)
 			if req.Cmp(row.Peak) > 0 {
 				row.Peak, row.PeakAt = req, s.at
 			}
-			if short := req.Sub(collected); short.Cmp(row.Short) > 0 {
+			if short := shortOf(sr); short.Cmp(row.Short) > 0 {
 				row.Short, row.ShortAt = short, s.at
 				row.ShortPct = short.Float64() / req.Float64()
 				lakh := money.DecInt(100000)

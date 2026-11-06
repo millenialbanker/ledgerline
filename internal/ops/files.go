@@ -65,13 +65,13 @@ func baseSources() []masterSrc {
 		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding). Optional columns: Branch, State (place of supply for GST), GSTIN; WhatsApp (Y), WAConsentDate and WAConsentRef for WhatsApp consent recorded in the previous system; ECN (N for a client who chose printed contract notes); NominationDate and NominationMode for the nomination or opt-out declaration", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
 		{"NOMINEES", "Nominees of each client, up to 3 (replaces the client's list; a nomination of up to 10 made before 1 September 2026 loads as it is and is flagged for review). Name and Relation are required; IDType and ID are optional (PAN, DL, AADHAAR, of which only the last 4 digits are kept, or PASSPORT); leave Share blank for equal shares; a minor needs DOB (Guardian and GuardianRelation optional). Optional: Mobile, Email, Address, DeclaredOn, Mode", []string{"UCC", "Name", "Relation", "Share", "IDType", "ID", "DOB", "Guardian", "GuardianRelation"}, false, "Once at go-live, then on change"},
 		{"SEGMENT-STATUS", "Each client's status in each segment with its history, oldest first: Active, Reactivated, Suspended, Dormant or Closed (Segment CM, FO, CD or COM). Optional column Reason", []string{"UCC", "Segment", "Status", "EffectiveDate"}, false, "Once at go-live, then on change"},
-		{"OPENING-BALANCES", "Opening trial balance (migration); must balance. Optional column Since: for a client debit, the date it became due, so ageing, interest and debit blocks carry over. Optional column Legacy (Y): an old client debit to keep apart as a legacy debt (no interest, out of the daily debit work); a second person approves it on Legacy debts", []string{"Account", "Debit", "Credit"}, true, "Once at go-live"},
+		{"OPENING-BALANCES", "Opening trial balance (migration); must balance. Optional column Since: for a client debit, the date it became due, so ageing, interest and debit blocks carry over. Optional column Legacy (Y): an old client debit to keep apart as a legacy debt (no interest, out of the daily debit work); a second person approves it on Legacy debts. With a separate commodity ledger, optional column Ledger (Equity or Commodity) puts a client's balance in that ledger (CLIENTCOM:<code> may also be given as the account)", []string{"Account", "Debit", "Credit"}, true, "Once at go-live"},
 		{"MARKET-DATA", "Contract master, prices and risk parameters (SPAN, VaR, haircuts)", []string{"Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "ISIN", "Company", "Lot", "LTP", "Close", "VaRPct", "ELMPct", "HaircutPct", "SPANPct", "ExposurePct", "Delta", "Underlying", "Index"}, true, "BOD and EOD"},
 		{"DP-HOLDINGS", "Client demat holdings and pledges from the depository", []string{"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost"}, false, "BOD"},
 		{"HOLDING-LOTS", "Purchase lots behind client holdings (quantity, buy date, buy price) for P&L and capital gains; from the previous back office", []string{"UCC", "ISIN", "Symbol", "Qty", "BuyDate", "BuyPrice"}, true, "Once at go-live (as at the day before)"},
 		{"POSITIONS", "Derivatives positions carried forward from the previous day", []string{"UCC", "Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "Qty", "AvgPrice"}, true, "BOD"},
 		{"PLEDGE-REQUESTS", "Margin pledge requests initiated by clients at the depository", []string{"RequestID", "UCC", "ISIN", "Symbol", "Qty", "Time"}, false, "Intraday"},
-		{"BANK-STMT", "Client bank account statement", []string{"Date", "Time", "Mode", "Reference", "Remitter", "Account", "Amount", "DrCr"}, false, "Intraday and EOD"},
+		{"BANK-STMT", "Client bank account statement. With a separate commodity ledger, optional columns ToAccount (the firm's account paid into) and Narration say whether money is for equity or commodity", []string{"Date", "Time", "Mode", "Reference", "Remitter", "Account", "Amount", "DrCr"}, false, "Intraday and EOD"},
 		{"SURV-ALERTS", "Exchange surveillance alerts", []string{"AlertID", "Exchange", "Type", "UCC", "Detail", "Severity"}, false, "Daily"},
 		{"IPO-BIDS", "IPO applications from the exchange bidding platform", []string{"ApplicationNo", "UCC", "Issue", "Lots", "Amount", "UPI", "Mandate"}, false, "During the issue"},
 		{"IPO-ALLOTMENT", "IPO allotment results from the registrar", []string{"ApplicationNo", "AllottedLots"}, false, "After allotment"},
@@ -375,6 +375,26 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 			if _, err := ledger.TypeOf(acct); err != nil {
 				bad(r.line, "Account", "%v", err)
 			}
+			// A client's balance in the commodity ledger (segledger.go).
+			if u, kind, isClient := ledger.ClientCode(acct); isClient {
+				sep := o.sepCom(ctx, tenant)
+				if v := r.get("Ledger"); v != "" {
+					k, ok := normLedger(v)
+					switch {
+					case !ok:
+						bad(r.line, "Ledger", "must be Equity or Commodity")
+					case k != ledger.LedgerEquity && !sep:
+						bad(r.line, "Ledger", "the firm keeps one ledger per client; turn on the separate commodity ledger in Settings first")
+					case kind == ledger.LedgerEquity:
+						acct = ledger.ClientLedgerAccount(u, k)
+					case kind != k:
+						bad(r.line, "Ledger", "%s is not the %s ledger", acct, LedgerNames[k])
+					}
+				}
+				if _, kind, _ = ledger.ClientCode(acct); kind != ledger.LedgerEquity && !sep {
+					bad(r.line, "Account", "%s is a separate commodity ledger account, and the firm keeps one ledger per client", acct)
+				}
+			}
 			var dr, cr money.Amount
 			if v := r.get("Debit"); v != "" {
 				a, err := money.ParseAmount(v)
@@ -395,7 +415,7 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 			}
 			ps = append(ps, ledger.Posting{Account: acct, Debit: dr, Credit: cr, Memo: "Opening balance"})
 			if v := strings.ToUpper(r.get("Legacy")); v != "" && v != "N" {
-				u, isClient := strings.CutPrefix(acct, "CLIENT:")
+				u, _, isClient := ledger.ClientCode(acct)
 				switch {
 				case v != "Y":
 					bad(r.line, "Legacy", "must be Y or N")
@@ -409,7 +429,7 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 				switch {
 				case !ledger.ValidDate(v) || v > date:
 					bad(r.line, "Since", "must be a date (YYYY-MM-DD) on or before the opening date")
-				case !strings.HasPrefix(acct, "CLIENT:") || dr == 0:
+				case !ledger.IsClientAccount(acct) || dr == 0:
 					bad(r.line, "Since", "only a client debit balance can carry a due date")
 				case v < date:
 					aged = append(aged, agedDebit{acct, dr, v})
@@ -606,7 +626,8 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 				bad(r.line, "Reference", "is required")
 			}
 			if dir == "CR" {
-				ts = append(ts, BankTxn{ID: r.get("Reference"), Date: pdate(r, "Date", false), Time: r.get("Time"), Mode: strings.ToUpper(r.get("Mode")), Ref: r.get("Reference"), Remitter: r.get("Remitter"), Account: r.get("Account"), Amount: amt, PayeeVPA: r.get("PayeeVPA")})
+				ts = append(ts, BankTxn{ID: r.get("Reference"), Date: pdate(r, "Date", false), Time: r.get("Time"), Mode: strings.ToUpper(r.get("Mode")), Ref: r.get("Reference"), Remitter: r.get("Remitter"), Account: r.get("Account"), Amount: amt, PayeeVPA: r.get("PayeeVPA"),
+					ToAccount: r.get("ToAccount"), Narration: r.get("Narration")})
 			}
 		}
 		return func() (int, int, error) {

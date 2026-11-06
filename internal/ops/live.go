@@ -9,6 +9,7 @@ import (
 	"ledgerline/internal/billing"
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
+	"ledgerline/internal/ledger"
 	"ledgerline/internal/money"
 	"ledgerline/internal/xfile"
 )
@@ -100,6 +101,21 @@ type LiveRow struct {
 	Blocked    bool       `json:"blocked"`
 	Short      []string   `json:"short_delivery"`
 	Trades     int        `json:"trades"`
+	// Ledgers is set with a separate commodity ledger (segledger.go):
+	// the row above is then the equity ledger against NSE and BSE
+	// positions, and this the commodity ledger against MCX.
+	Ledgers *LiveLedgers `json:"ledgers,omitempty"`
+}
+
+// LiveLedgers is the commodity side of a live risk row.
+type LiveLedgers struct {
+	Commodity money.Dec `json:"commodity"` // commodity ledger before today's bills
+	Awaiting  money.Dec `json:"awaiting"`  // money awaiting allocation: in neither limit
+	Margin    money.Dec `json:"margin"`
+	MTM       money.Dec `json:"mtm"`
+	Unbilled  money.Dec `json:"unbilled"`
+	Free      money.Dec `json:"free"`
+	Status    string    `json:"status"`
 }
 
 // LiveView is the live risk screen.
@@ -179,13 +195,25 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 	if err != nil {
 		return v, err
 	}
+	sep := in.set.sepCom()
+	var lf map[string]LedgerFunds
+	if sep {
+		if lf, err = o.clientLedgerFunds(ctx, tenant, date, date); err != nil {
+			return v, err
+		}
+	}
+	isCom := func(exch, seg string) bool { return sep && in.set.segmentLedger(exch, seg) == ledger.LedgerCommodity }
 	// Charges on trades not yet billed.
-	unbilled := map[string]money.Dec{}
+	unbilled, unbilledCom := map[string]money.Dec{}, map[string]money.Dec{}
 	if len(trades) > 0 {
 		m, _, _ := o.Market(ctx, tenant, date)
 		out, err := o.App.BuildBills(ctx, billing.Input{Tenant: tenant, Date: date, Actor: "live", Trades: trades, SettlementPrices: m.SettlementPrices(), Schedule: o.App.Schedule})
 		if err == nil {
 			for _, g := range out.Groups {
+				if isCom(g.Exchange, g.Segment) {
+					unbilledCom[g.UCC] = unbilledCom[g.UCC].Add(g.Charges.Total.Dec())
+					continue
+				}
 				unbilled[g.UCC] = unbilled[g.UCC].Add(g.Charges.Total.Dec())
 			}
 		}
@@ -243,8 +271,13 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 	}
 	// MCXCCL's own margin for the client (peak snapshots of the day, the
 	// end-of-day margin file), added to NSE Clearing's (mcxfiles.go).
+	mcxMargin := map[string]money.Dec{}
 	if mm, at := o.mcxClientMargins(ctx, tenant, date); len(mm) > 0 {
 		for u, v := range mm {
+			if sep {
+				mcxMargin[u] = mcxMargin[u].Add(v) // against the commodity ledger
+				continue
+			}
 			exMargin[u] = exMargin[u].Add(v)
 		}
 		exAt = laterTime(exAt, at)
@@ -259,10 +292,34 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 			continue
 		}
 		r := LiveRow{UCC: u, Name: c.Name, Funds: funds[u].Dec(), Collateral: coll[u].Total(), Unbilled: unbilled[u], Turnover: turnover[u], Trades: count[u], Blocked: c.Blocked || c.Inactive, Short: []string{}}
+		if sep {
+			r.Funds = lf[u].Equity.Dec()
+			r.Ledgers = &LiveLedgers{Commodity: lf[u].Commodity.Dec(), Awaiting: lf[u].Awaiting.Dec(), Unbilled: unbilledCom[u]}
+		}
 		deriv := money.Dec{}
 		for _, p := range pos[u] {
+			if isCom(p.Exchange, p.Segment) {
+				r.Ledgers.Margin = r.Ledgers.Margin.Add(p.Margin)
+				r.Ledgers.MTM = r.Ledgers.MTM.Add(p.MTM)
+				continue
+			}
 			deriv = deriv.Add(p.Margin)
 			r.MTM = r.MTM.Add(p.MTM)
+		}
+		if l := r.Ledgers; l != nil {
+			if ex, ok := mcxMargin[strings.ToUpper(u)]; ok {
+				l.Margin = money.Max(l.Margin, ex)
+			}
+			l.Free = l.Commodity.Sub(l.Margin).Add(money.Min(l.MTM, money.Dec{})).Sub(l.Unbilled)
+			switch {
+			case l.Free.Round(money.UnitPaisa) < 0 && (l.Margin.Sign() > 0 || l.MTM.Sign() < 0):
+				l.Status = "Breach"
+				v.Breaches++
+			case l.Free.Sign() < 0:
+				l.Status = "Debit"
+			default:
+				l.Status = "OK"
+			}
 		}
 		// NSE Clearing's figure, when there is one, wins if it is higher.
 		if ex, ok := exMargin[strings.ToUpper(u)]; ok {
@@ -428,18 +485,21 @@ type finspotLimit struct {
 // as RiskRow.Funds. Every Finspot balance goes through here.
 //
 // Finspot carries only the equity segments (NSE and BSE cash, F&O and
-// currency); commodity trades on another front end. The client ledger is
-// one CLIENT:<ucc> account today, so this is still the whole balance,
-// commodity included: once segment-wise client ledgers exist this must
-// return the equity balance only.
+// currency); commodity trades on another front end. So this is the equity
+// ledger, CLIENT:<ucc>, only: with one ledger that is the whole balance;
+// with a separate commodity ledger (segledger.go) the commodity balance
+// and money awaiting allocation are never in it (bowFunds has the
+// commodity side).
 func (o *Ops) finspotFunds(ctx context.Context, tenant, date string) (map[string]money.Dec, error) {
 	set, _ := o.Settings(ctx, tenant)
-	f, err := o.clientFunds(ctx, tenant, set.PrevBusinessDay(date), "")
+	f, err := o.equityFunds(ctx, tenant, set.PrevBusinessDay(date), "")
 	if err != nil {
 		return nil, err
 	}
-	for u, a := range o.uncleared(ctx, tenant) {
-		f[u] -= a
+	for u, a := range o.unclearedBy(ctx, tenant) {
+		if a.Equity != 0 {
+			f[u] -= a.Equity
+		}
 	}
 	out := make(map[string]money.Dec, len(f))
 	for u, a := range f {
@@ -600,7 +660,20 @@ func (o *Ops) allocationBase(ctx context.Context, tenant, date string) ([]Alloca
 			need[p.Segment] = need[p.Segment].Add(p.Margin)
 		}
 		cash, noncash := money.Max(r.Funds, money.Dec{}), r.CollUsable
+		var comRow *AllocationRow
+		if r.Ledgers != nil {
+			// A separate commodity ledger (segledger.go): NSE Clearing's
+			// segments get the equity ledger (r.Funds) and the pledged
+			// securities; MCX gets the commodity ledger, cash only.
+			delete(need, "COM")
+			if com := money.Max(r.Ledgers.Commodity, money.Dec{}); com.Sign() > 0 {
+				comRow = &AllocationRow{UCC: r.UCC, Segment: "COM", Required: r.Ledgers.CommodityRequired, Cash: com}
+			}
+		}
 		if cash.Sign() == 0 && noncash.Sign() == 0 {
+			if comRow != nil {
+				out = append(out, *comRow)
+			}
 			continue
 		}
 		segs := sortedKeys(need)
@@ -632,6 +705,9 @@ func (o *Ops) allocationBase(ctx context.Context, tenant, date string) ([]Alloca
 		}
 		for _, s := range sortedKeys(alloc) {
 			out = append(out, *alloc[s])
+		}
+		if comRow != nil {
+			out = append(out, *comRow)
 		}
 	}
 	return out, nil

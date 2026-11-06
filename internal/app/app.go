@@ -649,6 +649,9 @@ type Pricing struct {
 	Brokerage BrokerageFunc
 	LotSize   func(ingest.TradeEvent) int64
 	Classify  func(ingest.TradeEvent) (string, []string)
+	// ClientAccount is the client ledger a segment's bill posts to (nil:
+	// CLIENT:<ucc>).
+	ClientAccount func(ucc, exchange, segment string) string
 }
 
 // BuildBills runs billing.Build with the brokerage plans and lot sizes from
@@ -659,7 +662,7 @@ func (a *App) BuildBills(ctx context.Context, in billing.Input) (billing.Output,
 		if err != nil {
 			return billing.Output{}, err
 		}
-		in.Brokerage, in.LotSize, in.Classify = p.Brokerage, p.LotSize, p.Classify
+		in.Brokerage, in.LotSize, in.Classify, in.ClientAccount = p.Brokerage, p.LotSize, p.Classify, p.ClientAccount
 	}
 	return billing.Build(in)
 }

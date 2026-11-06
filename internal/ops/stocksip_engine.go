@@ -12,6 +12,7 @@ import (
 	"ledgerline/internal/charges"
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
+	"ledgerline/internal/ledger"
 	"ledgerline/internal/money"
 )
 
@@ -355,19 +356,22 @@ func (o *Ops) sipCharges(ctx context.Context, tenant string, cfg SIPSettings, uc
 // margin could not be worked out.
 func (o *Ops) sipFreeFunds(ctx context.Context, tenant, date string) (map[string]money.Dec, string) {
 	out := map[string]money.Dec{}
-	funds, err := o.clientFunds(ctx, tenant, date, date)
+	// Shares are bought from the equity ledger.
+	funds, err := o.equityFunds(ctx, tenant, date, date)
 	if err != nil {
 		return out, "funds could not be read: " + err.Error()
 	}
 	for u, a := range funds {
 		out[u] = a.Dec()
 	}
-	for u, a := range o.uncleared(ctx, tenant) {
-		out[u] = out[u].Sub(a.Dec())
+	for u, a := range o.unclearedBy(ctx, tenant) {
+		if a.Equity != 0 {
+			out[u] = out[u].Sub(a.Equity.Dec())
+		}
 	}
 	prs, _ := docs.List[PayoutRequest](ctx, o.Docs, tenant, cPayout, "")
 	for _, p := range prs {
-		if p.Status == "Approved" && p.Batch == "" {
+		if p.Status == "Approved" && p.Batch == "" && p.Ledger != ledger.LedgerCommodity {
 			out[p.UCC] = out[p.UCC].Sub(p.Amount.Dec())
 		}
 	}

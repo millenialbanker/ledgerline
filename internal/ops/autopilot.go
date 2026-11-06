@@ -1263,7 +1263,7 @@ func (o *Ops) fulfilStatementRequest(ctx context.Context, tenant, date string, t
 		msg = fmt.Sprintf("contract note %s for %s", last.No, last.Date)
 	}
 	from := date[:8] + "01"
-	st, err := o.App.Ledger.Statement(ctx, tenant, ledgerClient(t.UCC), from, date)
+	st, err := o.clientStatement(ctx, tenant, t.UCC, from, date)
 	if err == nil {
 		cl, dc := st.Closing, "Cr"
 		if cl > 0 {

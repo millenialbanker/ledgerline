@@ -37,6 +37,13 @@ type BankTxn struct {
 	// it is one of the firm's validated .brk@valid IDs (upicollect.go).
 	PayeeVPA string `json:"payee_vpa,omitempty"`
 	Channel  string `json:"channel,omitempty"`
+	// With a separate commodity ledger (segledger.go): the firm's account
+	// paid into and the narration (the instructions read), the ledger the
+	// money went to (EQ, COM, or UNALLOC while it waits) and why.
+	ToAccount string `json:"to_account,omitempty"`
+	Narration string `json:"narration,omitempty"`
+	Ledger    string `json:"ledger,omitempty"`
+	LedgerWhy string `json:"ledger_why,omitempty"`
 }
 
 // Public masks the remitter account.
@@ -73,6 +80,10 @@ func (o *Ops) matchCredit(ctx context.Context, tenant, actor string, t BankTxn, 
 		}
 	}
 	entry := ledger.Entry{Tenant: tenant, ValueDate: t.Date, CreatedBy: actor, Source: ledger.SourceRef{Kind: "BANK", ID: t.Ref}}
+	set, _ := o.Settings(ctx, tenant)
+	if !set.sepCom() {
+		t.ToAccount, t.Narration = "", "" // kept only where they decide the ledger
+	}
 	if byAcct != nil {
 		t.Status, t.UCC = "Matched", byAcct.UCC
 		if t.Hint != "" && t.Hint != byAcct.UCC {
@@ -83,7 +94,11 @@ func (o *Ops) matchCredit(ctx context.Context, tenant, actor string, t BankTxn, 
 		if t.Channel == ChannelValidUPI {
 			entry.Narration += " · to " + t.PayeeVPA
 		}
-		entry.Postings = []ledger.Posting{{Account: ledger.BankClient, Debit: t.Amount}, {Account: ledger.ClientAccount(byAcct.UCC), Credit: t.Amount, Memo: "Receipt from registered account"}}
+		acct := ledger.ClientAccount(byAcct.UCC)
+		if set.sepCom() {
+			acct = o.routeCredit(set, *byAcct, &t)
+		}
+		entry.Postings = []ledger.Posting{{Account: ledger.BankClient, Debit: t.Amount}, {Account: acct, Credit: t.Amount, Memo: "Receipt from registered account"}}
 	} else {
 		t.Status = "Unidentified"
 		low := strings.ToLower(t.Remitter)
@@ -112,7 +127,7 @@ func (o *Ops) matchCredit(ctx context.Context, tenant, actor string, t BankTxn, 
 	}
 	t.EntryID = e.ID
 	if t.Status == "Matched" {
-		o.AllocationMoneyIn(ctx, tenant, t.UCC, t.Amount, "BANK:"+t.Ref)
+		o.creditedToLedger(ctx, tenant, t, byAcct.Name)
 	}
 	if t.Status == "Third-party" {
 		o.raiseAlert(ctx, tenant, actor, Alert{Source: "Internal", Type: "Third-party funds attempt", UCC: t.UCC, Severity: "Medium",
@@ -182,19 +197,27 @@ func (o *Ops) IdentifyCredit(ctx context.Context, tenant, actor, id, ucc string,
 	if err != nil {
 		return t, err
 	}
+	acct := ledger.ClientAccount(c.UCC)
+	routed := t
+	if set, _ := o.Settings(ctx, tenant); set.sepCom() {
+		acct = o.routeCredit(set, c, &routed)
+	}
 	e, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "IDN:" + t.Ref, ValueDate: o.now().Format("2006-01-02"),
 		Narration: "Identified receipt · " + t.Ref, Source: ledger.SourceRef{Kind: "BANK", ID: t.Ref}, CreatedBy: actor,
-		Postings: []ledger.Posting{{Account: ledger.SuspenseBank, Debit: t.Amount}, {Account: ledger.ClientAccount(c.UCC), Credit: t.Amount, Memo: "Receipt identified with bank confirmation"}}})
+		Postings: []ledger.Posting{{Account: ledger.SuspenseBank, Debit: t.Amount}, {Account: acct, Credit: t.Amount, Memo: "Receipt identified with bank confirmation"}}})
 	if err != nil {
 		return t, err
 	}
 	t, err = docs.Update(ctx, o.Docs, tenant, cBankTxn, id, actor, func(x *BankTxn) error {
 		x.Status, x.UCC, x.By, x.EntryID = "Identified", c.UCC, actor, e.ID
+		x.Ledger, x.LedgerWhy = routed.Ledger, routed.LedgerWhy
 		return nil
 	})
 	if err == nil {
 		o.log(ctx, tenant, actor, "bank.credit.identified", t.Ref, map[string]any{"ucc": c.UCC, "amount": t.Amount.String()})
-		o.AllocationMoneyIn(ctx, tenant, c.UCC, t.Amount, "BANK:"+t.Ref)
+		in := t
+		in.Date = o.now().Format("2006-01-02") // the day it reached the client's ledger
+		o.creditedToLedger(ctx, tenant, in, c.Name)
 	}
 	return t, err
 }
@@ -234,13 +257,19 @@ func (o *Ops) Funds(ctx context.Context, tenant, asOf string) (FundsPosition, er
 		return FundsPosition{}, err
 	}
 	f := FundsPosition{ClientBank: bal[ledger.BankClient].Dec(), WithCC: bal[ledger.CCCollateral].Dec(), Suspense: (-bal[ledger.SuspenseBank]).Dec()}
+	// Each client as a whole: with a separate commodity ledger the equity,
+	// commodity and awaiting ledgers are netted first.
+	net := map[string]money.Amount{}
 	for k, v := range bal {
-		if strings.HasPrefix(k, "CLIENT:") {
-			if v < 0 {
-				f.ClientCredits = f.ClientCredits.Add((-v).Dec())
-			} else {
-				f.ClientDebits = f.ClientDebits.Add(v.Dec())
-			}
+		if u, _, ok := ledger.ClientCode(k); ok {
+			net[u] += v
+		}
+	}
+	for _, v := range net {
+		if v < 0 {
+			f.ClientCredits = f.ClientCredits.Add((-v).Dec())
+		} else {
+			f.ClientDebits = f.ClientDebits.Add(v.Dec())
 		}
 	}
 	held := f.ClientBank.Add(f.WithCC).Sub(f.Suspense)

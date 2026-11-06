@@ -75,6 +75,8 @@ var bankCreditFields = []struct{ Key, Label string }{
 	{"path_mode", "Mode (NEFT, RTGS, IMPS, UPI)"},
 	{"path_payee_vpa", "UPI ID paid to (the firm's .brk@valid ID)"},
 	{"path_time", "Credit date and time"},
+	{"path_to_account", "Firm's account paid into (for the equity or commodity ledger)"},
+	{"path_narration", "Remitter's narration or remarks"},
 }
 
 func bankCreditConnFields() []ConnField {
@@ -124,6 +126,9 @@ var rePath = regexp.MustCompile(`^[A-Za-z0-9_$@-]+(\[\d+\])?(\.[A-Za-z0-9_$@-]+(
 // BankCredit is one credit as read from a notice.
 type BankCredit struct {
 	Ref, VirtualAccount, PayerAccount, PayerIFSC, PayerName, Mode, Time, UCC, PayeeVPA string
+	// The firm's account paid into and the remitter's narration, read for
+	// the ledger the money is for (segledger.go).
+	ToAccount, Narration string
 	Amount                                                                             money.Amount
 }
 
@@ -220,7 +225,8 @@ func (o *Ops) recordCredits(ctx context.Context, tenant string, c Connection, so
 			acct = "VPA"
 		}
 		t := BankTxn{ID: bc.Ref, Date: date, Time: tm, Mode: strings.ToUpper(firstOf(bc.Mode, "BANK")), Ref: bc.Ref, Remitter: bc.PayerName, Account: acct, Amount: bc.Amount,
-			Hint: ucc, VirtualAccount: bc.VirtualAccount, PayerIFSC: strings.ToUpper(bc.PayerIFSC), Source: source + " (live)", PayeeVPA: bc.PayeeVPA}
+			Hint: ucc, VirtualAccount: bc.VirtualAccount, PayerIFSC: strings.ToUpper(bc.PayerIFSC), Source: source + " (live)", PayeeVPA: bc.PayeeVPA,
+			ToAccount: strings.TrimSpace(bc.ToAccount), Narration: strings.TrimSpace(bc.Narration)}
 		if _, _, err := docs.Get[BankTxn](ctx, o.Docs, tenant, cBankTxn, t.ID); err == nil {
 			res.Duplicate++
 			continue
@@ -379,6 +385,7 @@ func parseMappedCredits(c Connection, body []byte) ([]BankCredit, error) {
 			VirtualAccount: jsonStr(r, c.Values["path_virtual_account"]), PayerAccount: jsonStr(r, c.Values["path_payer_account"]),
 			PayerIFSC: jsonStr(r, c.Values["path_payer_ifsc"]), PayerName: jsonStr(r, c.Values["path_payer_name"]),
 			Mode: jsonStr(r, c.Values["path_mode"]), Time: jsonStr(r, c.Values["path_time"]), PayeeVPA: jsonStr(r, c.Values["path_payee_vpa"]),
+			ToAccount: jsonStr(r, c.Values["path_to_account"]), Narration: jsonStr(r, c.Values["path_narration"]),
 		})
 	}
 	return out, nil

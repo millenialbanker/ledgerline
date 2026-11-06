@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"ledgerline/internal/docs"
-	"ledgerline/internal/ledger"
 	"ledgerline/internal/money"
 )
 
@@ -564,7 +563,7 @@ func (o *Ops) botAnswer(ctx context.Context, tenant, cmd string, c Client, date 
 		}
 		return fmt.Sprintf("Holdings of %s (%s):\n%s\nTotal ₹%s at the last price.", c.UCC, date, strings.Join(lines, "\n"), formatINR(total))
 	case "LEDGER":
-		st, err := o.App.Ledger.Statement(ctx, tenant, ledger.ClientAccount(c.UCC), "", date)
+		st, err := o.clientStatement(ctx, tenant, c.UCC, "", date)
 		if err != nil || len(st.Lines) == 0 {
 			return "No ledger entries yet."
 		}

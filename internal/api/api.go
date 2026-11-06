@@ -573,8 +573,9 @@ func (s *Server) trialBalance(w http.ResponseWriter, r *http.Request) {
 func (s *Server) statement(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	acct := q.Get("account")
+	byCode := false // ?ucc=: the client's comprehensive ledger
 	if acct == "" && q.Get("ucc") != "" {
-		acct = ledger.ClientAccount(strings.ToUpper(q.Get("ucc")))
+		acct, byCode = ledger.ClientAccount(strings.ToUpper(q.Get("ucc"))), true
 	}
 	if acct == "" {
 		writeErr(w, 400, "account_required", "Pass ?ucc=<client code> or ?account=<account code>.", nil)
@@ -588,7 +589,8 @@ func (s *Server) statement(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if u, isClient := strings.CutPrefix(acct, "CLIENT:"); isClient && !s.canSee(w, r, u) {
+	// Any of a client's ledgers (equity, commodity, awaiting allocation).
+	if u, _, isClient := ledger.ClientCode(acct); isClient && !s.canSee(w, r, u) {
 		return
 	} else if !isClient && s.scope(r) != nil {
 		if role, _ := s.ops.RoleOf(r.Context(), tenant(r), actor(r)); role == ops.RoleBranch || role == ops.RoleAP {
@@ -600,7 +602,13 @@ func (s *Server) statement(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 403, "forbidden", "This account is restricted.", nil)
 		return
 	}
-	st, err := s.app.Ledger.Statement(r.Context(), tenant(r), acct, from, to)
+	var st ledger.Statement
+	var err error
+	if u, _, _ := ledger.ClientCode(acct); byCode && s.ops != nil {
+		st, err = s.ops.ClientStatement(r.Context(), tenant(r), u, from, to)
+	} else {
+		st, err = s.app.Ledger.Statement(r.Context(), tenant(r), acct, from, to)
+	}
 	if err != nil {
 		fail(w, err, nil)
 		return

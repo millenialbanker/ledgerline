@@ -774,7 +774,11 @@ func (o *Ops) billingHooks(ctx context.Context, tenant, date string) (app.Pricin
 		}
 		return 1
 	}
-	return app.Pricing{Brokerage: brok, LotSize: lot, Classify: bb.setup.classify}, nil
+	p := app.Pricing{Brokerage: brok, LotSize: lot, Classify: bb.setup.classify}
+	if set, _ := o.Settings(ctx, tenant); set.sepCom() {
+		p.ClientAccount = set.clientAccountFor
+	}
+	return p, nil
 }
 
 // BrokerageView is the brokerage screen.

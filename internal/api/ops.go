@@ -67,6 +67,7 @@ func (s *Server) opsRoutes() {
 	s.exchangeReportingRoutes()
 	s.aiDisclosureRoutes()
 	s.mcxRoutes()
+	s.segLedgerRoutes()
 	R("GET /v1/me", s.me, false)
 	R("GET /v1/users", s.users, false)
 	R("PUT /v1/users/{id}", s.putUser, true)
@@ -1892,6 +1893,9 @@ func (s *Server) requestPayout(w http.ResponseWriter, r *http.Request) {
 		UCC    string       `json:"ucc"`
 		Amount money.Amount `json:"amount"`
 		RTGS   bool         `json:"rtgs"` // send by RTGS whatever the threshold
+		// Ledger to pay from (EQ or COM) with a separate commodity ledger;
+		// empty pays from either. A client's own request never names one.
+		Ledger string `json:"ledger"`
 	}
 	if !decode(w, r, &b) {
 		return
@@ -1913,7 +1917,10 @@ func (s *Server) requestPayout(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 422, "invalid", "RTGS needs at least ₹2,00,000", nil)
 		return
 	}
-	v, err := s.ops.RequestPayout(r.Context(), tenant(r), actor(r), b.Date, b.UCC, b.Amount, src)
+	if src == "Client" {
+		b.Ledger = ""
+	}
+	v, err := s.ops.RequestPayoutFrom(r.Context(), tenant(r), actor(r), b.Date, b.UCC, b.Amount, src, b.Ledger)
 	if err != nil {
 		fail(w, err, nil)
 		return

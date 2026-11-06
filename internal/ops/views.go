@@ -73,6 +73,9 @@ type ClientDetail struct {
 	Notes     []ContractNote      `json:"notes"`
 	Alerts    []Alert             `json:"alerts"`
 	Segments  map[string]string   `json:"segment_names"`
+	// Ledgers: the client's equity, commodity and awaiting balances, with
+	// a separate commodity ledger (segledger.go).
+	Ledgers *ClientLedgers `json:"ledgers,omitempty"`
 }
 
 // ClientDetail gathers a client's position for a date.
@@ -119,9 +122,14 @@ func (o *Ops) ClientDetail(ctx context.Context, tenant, ucc, date string) (Clien
 		}
 	}
 	sort.Slice(d.Trades, func(i, j int) bool { return d.Trades[i].TradeTime < d.Trades[j].TradeTime })
-	d.Statement, err = o.App.Ledger.Statement(ctx, tenant, ledger.ClientAccount(c.UCC), "", date)
+	d.Statement, err = o.staffStatement(ctx, tenant, c.UCC, "", date)
 	if err != nil {
 		return d, err
+	}
+	if o.sepCom(ctx, tenant) {
+		if d.Ledgers, err = o.clientLedgersView(ctx, tenant, c.UCC, date); err != nil {
+			return d, err
+		}
 	}
 	ns, _ := o.Notes(ctx, tenant, date)
 	for _, n := range ns {

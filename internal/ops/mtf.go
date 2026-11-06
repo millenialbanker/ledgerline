@@ -541,7 +541,7 @@ func (o *Ops) CloseMTF(ctx context.Context, tenant, actor, date, id string, qty 
 		q, _ := p.Funded.Dec().MulInt(qty).Quo(money.DecInt(p.Qty))
 		repay = q.Round(money.UnitPaisa)
 	}
-	funds, err := o.clientFunds(ctx, tenant, date, "")
+	funds, err := o.equityFunds(ctx, tenant, date, "")
 	if err != nil {
 		return p, err
 	}

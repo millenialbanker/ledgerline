@@ -142,9 +142,11 @@ func (o *Ops) Accounts(ctx context.Context, tenant, actor, asOf string) ([]Accou
 		add(code)
 	}
 	for _, code := range sortedKeys(bal) {
-		if strings.HasPrefix(code, "CLIENT:") {
+		if ledger.IsClientAccount(code) {
 			clients += bal[code]
-			nClients++
+			if strings.HasPrefix(code, ledger.ClientEquityPrefix) {
+				nClients++
+			}
 			continue
 		}
 		add(code)
@@ -163,7 +165,7 @@ func (o *Ops) SaveAccount(ctx context.Context, tenant, actor string, a Account) 
 	if _, err := ledger.TypeOf(a.Code); err != nil {
 		return a, invalid("%v; use a prefix such as EXPENSE:, INCOME:, BANK:, CASH:, ASSET:, LOAN:, PAYABLE:, RECEIVABLE: or EQUITY:", err)
 	}
-	if strings.HasPrefix(a.Code, "CLIENT:") || strings.HasPrefix(a.Code, "CC:") {
+	if ledger.IsClientAccount(a.Code) || strings.HasPrefix(a.Code, "CC:") {
 		return a, invalid("client and clearing accounts are created by the system")
 	}
 	if strings.TrimSpace(a.Name) == "" {
@@ -248,6 +250,12 @@ func (o *Ops) SaveVoucher(ctx context.Context, tenant, actor string, v Voucher) 
 	if err := o.require(ctx, tenant, actor, "Entering vouchers", RoleMaker, RoleChecker); err != nil {
 		return v, err
 	}
+	return o.saveVoucher(ctx, tenant, actor, v)
+}
+
+// saveVoucher is SaveVoucher once the actor may enter it (a transfer
+// between a client's ledgers is entered by Risk too, segledger.go).
+func (o *Ops) saveVoucher(ctx context.Context, tenant, actor string, v Voucher) (Voucher, error) {
 	series, ok := voucherSeries[v.Type]
 	if !ok {
 		return v, invalid("voucher type must be Payment, Receipt, Journal or Contra")
@@ -279,8 +287,11 @@ func (o *Ops) SaveVoucher(ctx context.Context, tenant, actor string, v Voucher) 
 		if !vis(l.Account) {
 			return v, fmt.Errorf("%w: you cannot post to %s", ErrForbidden, l.Account)
 		}
-		if strings.HasPrefix(l.Account, "CLIENT:") && v.Type != "Journal" {
+		if ledger.IsClientAccount(l.Account) && v.Type != "Journal" {
 			return v, invalid("client money moves through Receipts & payouts; use a journal voucher only for adjustments")
+		}
+		if _, kind, ok := ledger.ClientCode(l.Account); ok && kind != ledger.LedgerEquity && !o.sepCom(ctx, tenant) {
+			return v, invalid("line %d: %s is a separate commodity ledger account, and the firm keeps one ledger per client", i+1, l.Account)
 		}
 		if isMoneyAccount(l.Account) {
 			if l.Debit > 0 {
@@ -488,7 +499,7 @@ func (o *Ops) Financials(ctx context.Context, tenant, actor, from, to, branch st
 			return "Head office"
 		}
 		for _, p := range e.Postings {
-			if u, ok := strings.CutPrefix(p.Account, "CLIENT:"); ok {
+			if u, _, ok := ledger.ClientCode(p.Account); ok {
 				if b := cs[u].Branch; b != "" {
 					return b
 				}
@@ -545,15 +556,15 @@ func (o *Ops) Financials(ctx context.Context, tenant, actor, from, to, branch st
 		m[g][k] += v
 	}
 	var clientDr, clientCr money.Amount
+	// A client is a debtor or a creditor as a whole: with a separate
+	// commodity ledger the client's ledgers are netted first.
+	clientNet := map[string]money.Amount{}
 	for k, v := range bal {
 		t, _ := ledger.TypeOf(k)
 		switch {
-		case strings.HasPrefix(k, "CLIENT:"):
-			if v > 0 {
-				clientDr += v
-			} else {
-				clientCr += -v
-			}
+		case ledger.IsClientAccount(k):
+			u, _, _ := ledger.ClientCode(k)
+			clientNet[u] += v
 		case t == ledger.Income || t == ledger.Expense:
 			retained += -v
 		case t == ledger.Asset && v < 0:
@@ -564,6 +575,13 @@ func (o *Ops) Financials(ctx context.Context, tenant, actor, from, to, branch st
 			put(asset, accountGroup(k), k, v)
 		default:
 			put(liab, accountGroup(k), k, -v)
+		}
+	}
+	for _, v := range clientNet {
+		if v > 0 {
+			clientDr += v
+		} else {
+			clientCr += -v
 		}
 	}
 	put(asset, "Clients (sundry debtors)", "CLIENT:DR", clientDr)

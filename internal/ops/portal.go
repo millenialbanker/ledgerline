@@ -192,6 +192,19 @@ func (o *Ops) Portal(ctx context.Context, tenant, actor, date, ucc string) (Port
 		v.HoldValue = v.HoldValue.Add(h.Value)
 	}
 	v.Margin = d.Risk
+	if d.Ledgers != nil {
+		// A separate commodity ledger (segledger.go): the client sees one
+		// ledger, so the portal has the combined statement (no internal
+		// transfers) and the client's money and margin as a whole.
+		if d.Statement, err = o.clientStatement(ctx, tenant, ucc, "", date); err != nil {
+			return v, err
+		}
+		if d.Risk != nil {
+			m := *d.Risk
+			m.Funds, m.Required, m.Ledgers = m.Ledgers.Combined, m.allRequired(), nil
+			v.Margin = &m
+		}
+	}
 	lines := d.Statement.Lines
 	if len(lines) > 15 {
 		lines = lines[len(lines)-15:]
@@ -201,6 +214,7 @@ func (o *Ops) Portal(ctx context.Context, tenant, actor, date, ucc string) (Port
 		v.Ledger = -d.Statement.Lines[len(d.Statement.Lines)-1].Balance
 	}
 	v.Withdrawable, _ = o.Withdrawable(ctx, tenant, date, ucc)
+	v.Withdrawable.Ledgers = nil // one ledger for the client
 	ns, _ := docs.List[ContractNote](ctx, o.Docs, tenant, cNote, "")
 	for _, n := range ns {
 		if n.UCC == ucc {

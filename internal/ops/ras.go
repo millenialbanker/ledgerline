@@ -32,6 +32,10 @@ type RASRow struct {
 	LastActivity string `json:"last_activity,omitempty"`
 	IdleFrom     string `json:"idle_from,omitempty"`
 	IdleDue      string `json:"idle_due,omitempty"`
+	// With a separate commodity ledger (segledger.go): the retention kept
+	// in each ledger (its own margin and buffer).
+	retEq, retCom money.Dec
+	sep           bool
 }
 
 // rasIdleDays is the rule's period without a transaction: 30 calendar days.
@@ -166,7 +170,13 @@ func (o *Ops) RAS(ctx context.Context, tenant, asOf string) (RASView, error) {
 	}
 	funds := o.lastFundsIn(ctx, tenant, asOf)
 	for _, r := range risk.Rows {
-		if r.Funds.Sign() <= 0 {
+		// The client as a whole: with a separate commodity ledger, every
+		// ledger's money against every segment's margin.
+		credit, required := r.Funds, r.Required
+		if r.Ledgers != nil {
+			credit, required = r.Ledgers.Combined, r.allRequired()
+		}
+		if credit.Sign() <= 0 {
 			continue
 		}
 		c := clients[r.UCC]
@@ -174,19 +184,24 @@ func (o *Ops) RAS(ctx context.Context, tenant, asOf string) (RASView, error) {
 		if c.LastTrade > lt {
 			lt = c.LastTrade
 		}
-		row := RASRow{UCC: r.UCC, Name: c.Name, Preference: c.RAS, LastTrade: lt, Credit: r.Funds, Bank: c.Bank.Bank + " " + MaskAccount(c.Bank.Account)}
+		row := RASRow{UCC: r.UCC, Name: c.Name, Preference: c.RAS, LastTrade: lt, Credit: credit, Bank: c.Bank.Bank + " " + MaskAccount(c.Bank.Account)}
 		row.LastActivity = lt
 		if funds[r.UCC] > row.LastActivity {
 			row.LastActivity = funds[r.UCC]
 		}
 		// Open positions (margin required) count as a transaction until
 		// they expire or are closed.
-		if r.Required.Sign() <= 0 && row.LastActivity != "" && int64(daysBetween(row.LastActivity, asOf)) >= idleDays {
+		if required.Sign() <= 0 && row.LastActivity != "" && int64(daysBetween(row.LastActivity, asOf)) >= idleDays {
 			row.Idle30, row.Inactive = true, true
 			row.IdleFrom = addDays(row.LastActivity, int(idleDays))
 			row.IdleDue = addWorkingDays(set, row.IdleFrom, rasIdleWorkingDays)
 		}
-		row.Retention = r.Required.Pct(money.DecInt(100 + set.RASBufferPct)).CeilRupee()
+		row.Retention = required.Pct(money.DecInt(100 + set.RASBufferPct)).CeilRupee()
+		if r.Ledgers != nil {
+			row.sep = true
+			row.retEq = r.Required.Pct(money.DecInt(100 + set.RASBufferPct)).CeilRupee()
+			row.retCom = r.Ledgers.CommodityRequired.Pct(money.DecInt(100 + set.RASBufferPct)).CeilRupee()
+		}
 		row.Payout = money.Max(row.Credit.Sub(row.Retention), money.Dec{})
 		// No trade or receipt on record (such as a migrated balance): the
 		// 30 days cannot be counted, so it settles on the monthly date.
@@ -282,10 +297,16 @@ func (o *Ops) RunRAS(ctx context.Context, tenant, actor, asOf, settleDate string
 			continue
 		}
 		c := clients[r.UCC]
+		ps := []ledger.Posting{{Account: ledger.ClientAccount(r.UCC), Debit: amt, Memo: "Running account settlement payout"}, {Account: ledger.BankClient, Credit: amt}}
+		if r.sep {
+			if ps, err = o.rasPostings(ctx, tenant, actor, asOf, settleDate, r, amt); err != nil {
+				return b, err
+			}
+		}
 		e, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "RAS:" + settleDate + ":" + r.UCC, ValueDate: asOf,
 			Narration: fmt.Sprintf("Running account settlement for %s · payout to %s %s", settleDate, c.Bank.Bank, MaskAccount(c.Bank.Account)),
 			Source:    ledger.SourceRef{Kind: "RAS", ID: settleDate + "/" + r.UCC}, CreatedBy: actor,
-			Postings: []ledger.Posting{{Account: ledger.ClientAccount(r.UCC), Debit: amt, Memo: "Running account settlement payout"}, {Account: ledger.BankClient, Credit: amt}}})
+			Postings: ps})
 		if err != nil {
 			return b, err
 		}

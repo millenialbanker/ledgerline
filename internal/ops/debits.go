@@ -111,7 +111,7 @@ func (o *Ops) clientMoves(ctx context.Context, tenant, date string, skip map[str
 			continue
 		}
 		for _, p := range e.Postings {
-			if u, ok := strings.CutPrefix(p.Account, "CLIENT:"); ok && p.Credit != p.Debit {
+			if u, _, ok := ledger.ClientCode(p.Account); ok && p.Credit != p.Debit {
 				out[u] = append(out[u], clientMove{eff, p.Credit - p.Debit, e.Source.Kind, e.ID})
 			}
 		}

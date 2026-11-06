@@ -192,7 +192,7 @@ func (o *Ops) SettleDerivatives(ctx context.Context, tenant, actor, date string)
 			if net == 0 {
 				continue
 			}
-			client, cc := ledger.ClientAccount(ucc), ledger.ClearingAccount(exch, sg)
+			client, cc := in.set.clientAccountFor(ucc, exch, sg), ledger.ClearingAccount(exch, sg)
 			var ps []ledger.Posting
 			if net > 0 {
 				ps = []ledger.Posting{{Account: cc, Debit: net, Memo: label}, {Account: client, Credit: net, Memo: "Trade value / MTM"}}
@@ -220,11 +220,12 @@ func (o *Ops) SettleDerivatives(ctx context.Context, tenant, actor, date string)
 	}
 	for _, k := range sortedKeys(fees) {
 		ucc, seg, _ := strings.Cut(k, "|")
+		fexch, fsg, _ := strings.Cut(seg, "-")
 		f := fees[k]
 		gst := f.brok.Dec().Pct(o.App.Schedule.GSTPct).Round(money.UnitPaisa)
 		e, created, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "EXPBRK:" + date + ":" + ucc + ":" + seg, ValueDate: date,
 			Narration: fmt.Sprintf("Expiry brokerage %s %s: %s", seg, date, strings.Join(f.lines, "; ")), Source: ledger.SourceRef{Kind: "EXPBRK", ID: date + "/" + ucc + "/" + seg}, CreatedBy: actor,
-			Postings: []ledger.Posting{{Account: ledger.ClientAccount(ucc), Debit: f.brok + gst, Memo: "Brokerage, taxes and charges"},
+			Postings: []ledger.Posting{{Account: in.set.clientAccountFor(ucc, fexch, fsg), Debit: f.brok + gst, Memo: "Brokerage, taxes and charges"},
 				{Account: ledger.IncomeBrokerage, Credit: f.brok, Memo: "Brokerage"}, {Account: ledger.PayableGST, Credit: gst, Memo: "GST"}}})
 		if err != nil {
 			return res, fmt.Errorf("%s %s: %w", ucc, seg, err)

@@ -36,6 +36,10 @@ type Input struct {
 	// Classify gives a trade's channel and cases (auction, index, stock),
 	// most specific first. Billing adds rollover itself.
 	Classify func(t ingest.TradeEvent) (channel string, cases []string)
+	// ClientAccount, when set, is the client ledger a group's bill posts
+	// to (a firm with a separate commodity ledger posts MCX bills to
+	// CLIENTCOM:<ucc>); nil is ledger.ClientAccount.
+	ClientAccount func(ucc, exchange, segment string) string
 }
 
 // BrokerageFunc resolves a client's brokerage rule for an order.
@@ -281,6 +285,9 @@ func Build(in Input) (Output, error) {
 	for _, k := range keys {
 		g := groups[k]
 		client := ledger.ClientAccount(g.ucc)
+		if in.ClientAccount != nil {
+			client = in.ClientAccount(g.ucc, g.exch, g.seg)
+		}
 		cc := ledger.ClearingAccount(g.exch, g.seg)
 		net := g.net.Round(money.UnitPaisa)
 		var ps []ledger.Posting

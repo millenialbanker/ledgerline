@@ -188,7 +188,9 @@ func (o *Ops) ecmsHook(ctx context.Context, tenant, ip string, body []byte) (Ban
 			Ref:    firstOf(get(r, "User Reference Number"), seq),
 			Amount: parseAmountUnit(get(r, "Amount"), false), VirtualAccount: get(r, "Virtual Account"), PayerAccount: get(r, "Remitter Account"),
 			PayerIFSC: get(r, "Remitter IFSC", "IFSC Code"), PayerName: get(r, "Remitter Name"), Mode: mode,
-			Time: firstOf(get(r, "Transaction Date"), get(r, "Value Date")),
+			Time:      firstOf(get(r, "Transaction Date"), get(r, "Value Date")),
+			ToAccount: get(r, "Account number"),
+			Narration: strings.TrimSpace(get(r, "Narration", "Remarks", "Remitter Remarks", "Sender to Receiver Information", "Sender Receiver Info") + " " + get(r, "Transaction Description")),
 		})
 		seqs = append(seqs, seq)
 	}

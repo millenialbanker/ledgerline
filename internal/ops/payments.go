@@ -64,6 +64,10 @@ type Receipt struct {
 	ClearedOn   string       `json:"cleared_on,omitempty"`
 	Note        string       `json:"note,omitempty"`
 	Settled     string       `json:"settled,omitempty"` // gateway settlement reference
+	// Ledger is the client ledger the receipt is for, with a separate
+	// commodity ledger (segledger.go): "" (equity), COM, or UNALLOC for
+	// money that waits for Risk to allocate it.
+	Ledger string `json:"ledger,omitempty"`
 }
 
 // Public masks the account.
@@ -115,6 +119,13 @@ func (o *Ops) RecordReceipt(ctx context.Context, tenant, actor string, r Receipt
 	case !ledger.ValidDate(r.Date):
 		return r, invalid("date must be YYYY-MM-DD")
 	}
+	if k, ok := normLedger(r.Ledger); !ok || (k != ledger.LedgerEquity && !o.sepCom(ctx, tenant)) {
+		return r, invalid("a receipt is for the Equity or the Commodity ledger (Commodity only with a separate commodity ledger, in Settings)")
+	} else if k == ledger.LedgerEquity {
+		r.Ledger = ""
+	} else {
+		r.Ledger = k
+	}
 	r.FromAccount = strings.TrimSpace(r.FromAccount)
 	if r.Mode != "UPI" {
 		if r.FromAccount == "" {
@@ -148,7 +159,7 @@ func (o *Ops) RecordReceipt(ctx context.Context, tenant, actor string, r Receipt
 func (o *Ops) postReceipt(ctx context.Context, tenant, actor string, r Receipt, debit string) (ledger.Entry, error) {
 	e, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "RCV:" + r.ID, ValueDate: r.Date, CreatedBy: actor,
 		Narration: fmt.Sprintf("Funds received · %s %s", r.Mode, r.Ref), Source: ledger.SourceRef{Kind: "RECEIPT", ID: r.ID},
-		Postings: []ledger.Posting{{Account: debit, Debit: r.Amount}, {Account: ledger.ClientAccount(r.UCC), Credit: r.Amount, Memo: r.Mode + " " + r.Ref}}})
+		Postings: []ledger.Posting{{Account: debit, Debit: r.Amount}, {Account: ledger.ClientLedgerAccount(r.UCC, r.Ledger), Credit: r.Amount, Memo: r.Mode + " " + r.Ref}}})
 	return e, err
 }
 
@@ -189,7 +200,7 @@ func (o *Ops) DecideReceipt(ctx context.Context, tenant, actor, id string, appro
 	})
 	if err == nil {
 		o.log(ctx, tenant, actor, "receipt."+strings.ToLower(status), id, map[string]any{"ucc": r.UCC, "amount": r.Amount.String()})
-		if approve && status == "Credited" {
+		if approve && status == "Credited" && r.Ledger == "" {
 			o.AllocationMoneyIn(ctx, tenant, r.UCC, r.Amount, r.ID)
 		}
 		if approve {
@@ -232,7 +243,7 @@ func (o *Ops) ClearCheque(ctx context.Context, tenant, actor, id, date string, b
 			desc := "Cheque return charges · cheque " + r.Ref
 			e, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "BNC:" + r.ID, ValueDate: date, CreatedBy: actor, Narration: desc,
 				Source:   ledger.SourceRef{Kind: "CHARGE", ID: r.ID},
-				Postings: []ledger.Posting{{Account: ledger.ClientAccount(r.UCC), Debit: amt + gst}, {Account: IncomeCharges, Credit: amt}, {Account: ledger.PayableGST, Credit: gst}}})
+				Postings: []ledger.Posting{{Account: ledger.ClientLedgerAccount(r.UCC, r.Ledger), Debit: amt + gst}, {Account: IncomeCharges, Credit: amt}, {Account: ledger.PayableGST, Credit: gst}}})
 			if err != nil {
 				return r, err
 			}
@@ -253,7 +264,7 @@ func (o *Ops) ClearCheque(ctx context.Context, tenant, actor, id, date string, b
 	})
 	if err == nil {
 		o.log(ctx, tenant, actor, "cheque."+strings.ToLower(status), id, map[string]any{"ucc": r.UCC, "amount": r.Amount.String()})
-		if status == "Credited" {
+		if status == "Credited" && r.Ledger == "" {
 			o.AllocationMoneyIn(ctx, tenant, r.UCC, r.Amount, r.ID)
 		}
 	}
@@ -340,6 +351,20 @@ func (o *Ops) GatewayWebhook(ctx context.Context, tenant string, body []byte, si
 	}
 	r := Receipt{ID: id, Date: date, UCC: c.UCC, Name: c.Name, Mode: "Gateway", Ref: p.ID, FromAccount: p.VPA, Amount: money.Amount(p.Amount),
 		Status: "Credited", Maker: "gateway", Checker: "gateway", Note: "Paid online by " + p.Method}
+	var why string
+	if set.sepCom() {
+		// The payment's notes may say the ledger (notes.ledger) or carry a
+		// remark the keywords read; otherwise the client's default, or wait.
+		narr := strings.TrimSpace(p.Notes["ledger"] + " " + p.Notes["segment"] + " " + p.Notes["remarks"])
+		k, w := set.fundsInstruction(c, "", narr)
+		if k == "" {
+			k = ledger.LedgerAwaiting
+		}
+		r.Ledger, why = k, w
+		if k == ledger.LedgerEquity {
+			r.Ledger = ""
+		}
+	}
 	e, err := o.postReceipt(ctx, tenant, "gateway", r, ReceivableGateway)
 	if err != nil {
 		return r, false, err
@@ -349,7 +374,12 @@ func (o *Ops) GatewayWebhook(ctx context.Context, tenant string, body []byte, si
 		return r, false, err
 	}
 	o.log(ctx, tenant, "gateway", "receipt.gateway", r.ID, map[string]any{"ucc": r.UCC, "amount": r.Amount.String()})
-	o.AllocationMoneyIn(ctx, tenant, r.UCC, r.Amount, r.ID)
+	switch r.Ledger {
+	case "":
+		o.AllocationMoneyIn(ctx, tenant, r.UCC, r.Amount, r.ID)
+	case ledger.LedgerAwaiting:
+		o.awaitFunds(ctx, tenant, FundsAwaiting{ID: r.ID, Date: r.Date, UCC: r.UCC, Name: r.Name, Amount: r.Amount, Mode: "Gateway", Ref: r.Ref, Source: "Payment gateway", Why: why, Entry: r.Entry})
+	}
 	o.notify(ctx, tenant, "gateway", "receipt.credited", r.UCC, map[string]string{"amount": formatINR(r.Amount.Dec()), "mode": "online payment", "date": r.Date, "status": "credited"})
 	return r.Public(), true, nil
 }
@@ -414,6 +444,13 @@ type PayoutRequest struct {
 	UTR       string       `json:"utr,omitempty"`
 	ExpiresOn string       `json:"expires_on"`
 	RTGS      bool         `json:"rtgs,omitempty"` // to go by RTGS whatever the threshold
+	// Ledger is the ledger asked to pay from, with a separate commodity
+	// ledger (segledger.go): EQ, COM, or "" for either (each only up to
+	// its own credit).
+	Ledger string `json:"ledger,omitempty"`
+	// Transfer is the entry that moved a shortfall in from the other
+	// ledger before the payout, when the firm allows it.
+	Transfer string `json:"transfer,omitempty"`
 }
 
 // Withdrawable explains how much a client can take out today.
@@ -428,6 +465,18 @@ type Withdrawable struct {
 	Note       string       `json:"note,omitempty"`
 	Blocked    bool         `json:"blocked"`
 	BlockedWhy string       `json:"blocked_why,omitempty"`
+	// Ledgers, with a separate commodity ledger: what each ledger can pay
+	// on its own. Ledger and Available above are the client as a whole.
+	Ledgers *WithdrawLedgers `json:"ledgers,omitempty"`
+}
+
+// WithdrawLedgers is what each of a client's ledgers can pay out: its
+// credit less its own margin, uncleared cheques, interest and approved
+// payouts. Money awaiting allocation is paid out only once allocated.
+type WithdrawLedgers struct {
+	Equity    money.Amount `json:"equity"`
+	Commodity money.Amount `json:"commodity"`
+	Awaiting  money.Amount `json:"awaiting"`
 }
 
 // Withdrawable computes, across all segments, the funds a client may
@@ -440,11 +489,15 @@ func (o *Ops) Withdrawable(ctx context.Context, tenant, date, ucc string) (Withd
 		return w, err
 	}
 	w.Ledger = funds[ucc]
+	var comMargin money.Amount // MCX margin, with a separate commodity ledger
 	if rv, err := o.Risk(ctx, tenant, date); err == nil {
 		for _, r := range rv.Rows {
 			if r.UCC == ucc {
 				m := money.Max(r.Required.Sub(r.CollUsable), money.Dec{})
 				w.Margin = m.Round(money.UnitPaisa)
+				if r.Ledgers != nil {
+					comMargin = money.Max(r.Ledgers.CommodityRequired, money.Dec{}).Round(money.UnitPaisa)
+				}
 			}
 		}
 	} else {
@@ -466,6 +519,11 @@ func (o *Ops) Withdrawable(ctx context.Context, tenant, date, ucc string) (Withd
 		}
 	}
 	w.Available = w.Ledger - w.Margin - w.Uncleared - w.Accrued - w.Pending
+	if set, _ := o.Settings(ctx, tenant); set.sepCom() {
+		if err := o.withdrawableLedgers(ctx, tenant, date, &w, prs, comMargin); err != nil {
+			return w, err
+		}
+	}
 	if w.Blocked || w.Available < 0 {
 		w.Available = 0
 	}
@@ -487,7 +545,20 @@ func (o *Ops) PayoutRequests(ctx context.Context, tenant, date string) ([]Payout
 
 // RequestPayout records a withdrawal request. It is valid for two days.
 func (o *Ops) RequestPayout(ctx context.Context, tenant, actor, date, ucc string, amount money.Amount, source string) (PayoutRequest, error) {
+	return o.RequestPayoutFrom(ctx, tenant, actor, date, ucc, amount, source, "")
+}
+
+// RequestPayoutFrom is RequestPayout from one ledger (EQ or COM) with a
+// separate commodity ledger; "" pays from either.
+func (o *Ops) RequestPayoutFrom(ctx context.Context, tenant, actor, date, ucc string, amount money.Amount, source, from string) (PayoutRequest, error) {
 	ucc = strings.ToUpper(ucc)
+	if strings.TrimSpace(from) != "" {
+		k, ok := normLedger(from)
+		if !ok || !o.sepCom(ctx, tenant) {
+			return PayoutRequest{}, invalid("a payout is from the Equity or the Commodity ledger only with a separate commodity ledger (Settings)")
+		}
+		from = k
+	}
 	if source != "Client" {
 		if err := o.require(ctx, tenant, actor, "Entering a payout request", RoleMaker, RoleChecker, RoleBranch, RoleAP); err != nil {
 			return PayoutRequest{}, err
@@ -507,13 +578,16 @@ func (o *Ops) RequestPayout(ctx context.Context, tenant, actor, date, ucc string
 	if amount > w.Available {
 		return PayoutRequest{}, invalid("₹%s is more than the ₹%s available to withdraw", formatINR(amount.Dec()), formatINR(w.Available.Dec()))
 	}
+	if err := o.checkPayoutLedger(ctx, tenant, w, amount, from); err != nil {
+		return PayoutRequest{}, err
+	}
 	n, err := o.next(ctx, tenant, "payout", actor)
 	if err != nil {
 		return PayoutRequest{}, err
 	}
 	set, _ := o.Settings(ctx, tenant)
 	p := PayoutRequest{ID: fmt.Sprintf("PO-%06d", n), Date: date, UCC: ucc, Name: c.Name, Amount: amount, Source: source, Status: "Requested",
-		Available: w.Available, Maker: actor, ExpiresOn: set.NextBusinessDay(set.NextBusinessDay(date))}
+		Available: w.Available, Maker: actor, ExpiresOn: set.NextBusinessDay(set.NextBusinessDay(date)), Ledger: from}
 	if _, err := docs.Put(ctx, o.Docs, tenant, cPayout, p.ID, p, 0, actor); err != nil {
 		return p, err
 	}
@@ -553,6 +627,9 @@ func (o *Ops) DecidePayout(ctx context.Context, tenant, actor, date, id string, 
 		if p.Amount > w.Available {
 			return p, invalid("only ₹%s is available now (ledger %s, margin %s, uncleared %s, interest %s, other approved payouts %s); reject or ask for a smaller amount",
 				formatINR(w.Available.Dec()), w.Ledger, w.Margin, w.Uncleared, w.Accrued, w.Pending)
+		}
+		if err := o.checkPayoutLedger(ctx, tenant, w, p.Amount, p.Ledger); err != nil {
+			return p, err
 		}
 		status = "Approved"
 	} else if strings.TrimSpace(reason) == "" {
@@ -614,6 +691,13 @@ func (o *Ops) CreatePayoutBatch(ctx context.Context, tenant, actor, date string)
 		return PayoutBatch{}, err
 	}
 	set, _ := o.Settings(ctx, tenant)
+	if set.sepCom() {
+		// Every payout must be payable without taking a ledger below zero
+		// before any is posted.
+		if err := o.checkPayoutBatch(ctx, tenant, date, set, prs); err != nil {
+			return PayoutBatch{}, err
+		}
+	}
 	b := PayoutBatch{ID: fmt.Sprintf("PB-%06d", n), Date: date, Status: "Sent to bank", By: actor, Items: []PayoutItem{}}
 	for _, p := range prs {
 		if p.Status != "Approved" || p.Batch != "" {
@@ -627,9 +711,16 @@ func (o *Ops) CreatePayoutBatch(ctx context.Context, tenant, actor, date string)
 		if p.RTGS || p.Amount >= set.rtgsThreshold() {
 			mode = "RTGS"
 		}
+		ps := []ledger.Posting{{Account: ledger.ClientAccount(p.UCC), Debit: p.Amount, Memo: "Payout on request"}, {Account: ledger.BankClient, Credit: p.Amount}}
+		xfer := ""
+		if set.sepCom() {
+			if ps, xfer, err = o.payoutPostings(ctx, tenant, actor, date, set, p); err != nil {
+				return b, err
+			}
+		}
 		e, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "PAY:" + p.ID, ValueDate: date, CreatedBy: actor,
 			Narration: fmt.Sprintf("Funds payout %s to %s %s", p.ID, c.Bank.Bank, MaskAccount(c.Bank.Account)), Source: ledger.SourceRef{Kind: "PAYOUT", ID: p.ID},
-			Postings: []ledger.Posting{{Account: ledger.ClientAccount(p.UCC), Debit: p.Amount, Memo: "Payout on request"}, {Account: ledger.BankClient, Credit: p.Amount}}})
+			Postings: ps})
 		if err != nil {
 			return b, err
 		}
@@ -637,6 +728,9 @@ func (o *Ops) CreatePayoutBatch(ctx context.Context, tenant, actor, date string)
 		b.Total += p.Amount
 		if _, err := docs.Update(ctx, o.Docs, tenant, cPayout, p.ID, actor, func(x *PayoutRequest) error {
 			x.Batch, x.Entry = b.ID, e.ID
+			if xfer != "" {
+				x.Transfer = xfer
+			}
 			return nil
 		}); err != nil {
 			return b, err

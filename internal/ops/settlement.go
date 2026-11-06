@@ -126,7 +126,9 @@ func (o *Ops) Obligations(ctx context.Context, tenant, date string) (Settlement,
 			ob.Funds = ob.Funds.Add(t.Value())
 		}
 	}
-	funds, err := o.clientFunds(ctx, tenant, date, "")
+	// Equity obligations are funded from the equity ledger (a separate
+	// commodity ledger's money is not used without a transfer).
+	funds, err := o.equityFunds(ctx, tenant, date, "")
 	if err != nil {
 		return Settlement{}, err
 	}
@@ -191,7 +193,7 @@ func (o *Ops) Obligations(ctx context.Context, tenant, date string) (Settlement,
 			continue
 		}
 		for _, p := range e.Postings {
-			if p.Memo == "Trade value / MTM" && strings.HasPrefix(p.Account, "CLIENT:") {
+			if p.Memo == "Trade value / MTM" && ledger.IsClientAccount(p.Account) {
 				mtm[parts[1]+"|"+parts[2]] += p.Credit - p.Debit
 			}
 		}
@@ -317,7 +319,7 @@ func (o *Ops) ReleaseCUSPA(ctx context.Context, tenant, actor, id string) (CUSPA
 	if it.Status != "Held in CUSPA" {
 		return it, fmt.Errorf("%w: %s is %s", ErrState, id, it.Status)
 	}
-	funds, err := o.clientFunds(ctx, tenant, "", "")
+	funds, err := o.equityFunds(ctx, tenant, "", "")
 	if err != nil {
 		return it, err
 	}

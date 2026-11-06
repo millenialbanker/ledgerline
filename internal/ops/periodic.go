@@ -559,7 +559,7 @@ func quarterEndOf(q string) string {
 // cuspaReview releases paid-up CUSPA holdings and queues the overdue ones.
 func (o *Ops) cuspaReview(ctx context.Context, tenant, actor, date string) (string, []PeriodicFile, error) {
 	set, _ := o.Settings(ctx, tenant)
-	funds, err := o.clientFunds(ctx, tenant, "", "")
+	funds, err := o.equityFunds(ctx, tenant, "", "")
 	if err != nil {
 		return "", nil, err
 	}

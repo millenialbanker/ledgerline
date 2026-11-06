@@ -529,7 +529,7 @@ func (o *Ops) sendLedgerStatement(ctx context.Context, tenant, actor, from, to, 
 
 // closingLine is the closing balance, said in the statement's email.
 func (o *Ops) closingLine(ctx context.Context, tenant, ucc, from, to string) string {
-	st, err := o.App.Ledger.Statement(ctx, tenant, ledgerClient(ucc), from, to)
+	st, err := o.clientStatement(ctx, tenant, ucc, from, to)
 	if err != nil {
 		return ""
 	}

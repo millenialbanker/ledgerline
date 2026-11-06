@@ -220,6 +220,26 @@ type Settings struct {
 	// BackupFallbackCommodity is when, the morning after, a commodity part
 	// not yet closed is backed up anyway (MCX trades until 23:55).
 	BackupFallbackCommodity string `json:"backup_fallback_commodity"`
+	// Separate commodity ledger (segledger.go), for a firm that is only a
+	// trading member on a commodity exchange: each client has an equity
+	// ledger (NSE, BSE) and a commodity ledger (MCX), shown to the client
+	// as one. Off: one ledger, as always. Money received is put in a ledger
+	// by the first instruction that applies: the firm's receiving bank
+	// account (BankAccountLedgers: account number -> EQ, COM or ASK), a
+	// keyword in the narration (CommodityKeywords, EquityKeywords; the
+	// defaults when empty), the client's own default (Client.FundsLedger);
+	// otherwise it waits for Risk to choose, and after AllocateAfterMinutes
+	// (0: never) goes to AllocateAfterTo (EQ or COM; empty: keeps waiting).
+	// PayoutAutoTransfer lets a payout from one ledger take the shortfall
+	// from the other ledger by a recorded transfer; otherwise such a payout
+	// is refused until someone transfers.
+	SeparateCommodityLedger bool              `json:"separate_commodity_ledger,omitempty"`
+	BankAccountLedgers      map[string]string `json:"bank_account_ledgers,omitempty"`
+	CommodityKeywords       []string          `json:"commodity_keywords,omitempty"`
+	EquityKeywords          []string          `json:"equity_keywords,omitempty"`
+	AllocateAfterMinutes    int64             `json:"allocate_after_minutes,omitempty"`
+	AllocateAfterTo         string            `json:"allocate_after_to,omitempty"`
+	PayoutAutoTransfer      bool              `json:"payout_auto_transfer,omitempty"`
 	// From approved exchange holiday calendars (holidays.go), filled in
 	// when settings are loaded; never saved with them.
 	exTrading    map[string]string
@@ -521,11 +541,17 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	if err := checkHDFCSettings(&s); err != nil {
 		return err
 	}
+	if err := o.checkSegLedger(ctx, tenant, &s); err != nil {
+		return err
+	}
 	prev, _ := o.Settings(ctx, tenant)
 	if err := docs.Upsert(ctx, o.Docs, tenant, cSettings, "main", s, actor); err != nil {
 		return err
 	}
 	o.logClearing(ctx, tenant, actor, prev, s)
+	if prev.SeparateCommodityLedger != s.SeparateCommodityLedger {
+		o.log(ctx, tenant, actor, "settings.separate_commodity_ledger", "settings", map[string]any{"on": s.SeparateCommodityLedger})
+	}
 	o.log(ctx, tenant, actor, "settings.saved", "settings", map[string]any{"warn_util_pct": s.WarnUtilPct, "ras_buffer_pct": s.RASBufferPct, "penalty_pass_through": s.PenaltyPassThrough})
 	o.aiMarkState(ctx, tenant) // the AI features' on/off history (aicontrol.go)
 	return nil
@@ -652,21 +678,89 @@ func sortedKeys[V any](m map[string]V) []string {
 // clientFunds returns each client's funds with the broker as of a date:
 // positive means the broker holds the client's money (a credit balance).
 // With excludeBillsOn set, bills posted on that date are left out, which
-// gives the position before the day's obligations.
+// gives the position before the day's obligations. It is the client as a
+// whole: with a separate commodity ledger (segledger.go) the equity,
+// commodity and awaiting-allocation ledgers together; equityFunds and
+// clientLedgerFunds give one ledger. A firm with one ledger has only
+// CLIENT:<ucc>, so the figures are the same either way.
 func (o *Ops) clientFunds(ctx context.Context, tenant, asOf, excludeBillsOn string) (map[string]money.Amount, error) {
+	lf, err := o.clientLedgerFunds(ctx, tenant, asOf, excludeBillsOn)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]money.Amount, len(lf))
+	for u, f := range lf {
+		out[u] = f.Combined()
+	}
+	return out, nil
+}
+
+// LedgerFunds is a client's funds in each ledger, credit positive.
+type LedgerFunds struct {
+	Equity    money.Amount `json:"equity"`
+	Commodity money.Amount `json:"commodity"`
+	Awaiting  money.Amount `json:"awaiting"`
+	hasEquity bool // an equity posting was seen (clientLedgerFunds)
+}
+
+// Combined is the client's money across the ledgers.
+func (f LedgerFunds) Combined() money.Amount { return f.Equity + f.Commodity + f.Awaiting }
+
+// Of is one ledger's funds.
+func (f LedgerFunds) Of(kind string) money.Amount {
+	switch kind {
+	case ledger.LedgerCommodity:
+		return f.Commodity
+	case ledger.LedgerAwaiting:
+		return f.Awaiting
+	}
+	return f.Equity
+}
+
+// clientLedgerFunds is clientFunds ledger by ledger.
+func (o *Ops) clientLedgerFunds(ctx context.Context, tenant, asOf, excludeBillsOn string) (map[string]LedgerFunds, error) {
 	es, err := o.App.Ledger.Store.List(ctx, tenant, ledger.Filter{To: asOf})
 	if err != nil {
 		return nil, err
 	}
-	out := map[string]money.Amount{}
+	out := map[string]LedgerFunds{}
 	for _, e := range es {
 		if excludeBillsOn != "" && e.ValueDate == excludeBillsOn && (e.Source.Kind == "BILL" || e.Source.Kind == "REVERSAL") {
 			continue
 		}
 		for _, p := range e.Postings {
-			if u, ok := strings.CutPrefix(p.Account, "CLIENT:"); ok {
-				out[u] += p.Credit - p.Debit
+			u, kind, ok := ledger.ClientCode(p.Account)
+			if !ok {
+				continue
 			}
+			f := out[u]
+			switch kind {
+			case ledger.LedgerCommodity:
+				f.Commodity += p.Credit - p.Debit
+			case ledger.LedgerAwaiting:
+				f.Awaiting += p.Credit - p.Debit
+			default:
+				f.Equity += p.Credit - p.Debit
+				f.hasEquity = true
+			}
+			out[u] = f
+		}
+	}
+	return out, nil
+}
+
+// equityFunds is clientFunds for the equity ledger alone (CLIENT:<ucc>):
+// what the equity front end, NSE Clearing and equity settlement work
+// from. With one ledger it is the client's whole balance.
+func (o *Ops) equityFunds(ctx context.Context, tenant, asOf, excludeBillsOn string) (map[string]money.Amount, error) {
+	lf, err := o.clientLedgerFunds(ctx, tenant, asOf, excludeBillsOn)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]money.Amount, len(lf))
+	for u, f := range lf {
+		if f.hasEquity {
+			out[u] = f.Equity
 		}
 	}
 	return out, nil

@@ -1293,7 +1293,7 @@ func (o *Ops) InvokeNow(ctx context.Context, tenant, actor, id string) (PledgeRe
 // cplInvoke sends a due invocation, unless the debit has been paid since.
 func (o *Ops) cplInvoke(ctx context.Context, tenant, actor string, r PledgeRelease) (PledgeRelease, error) {
 	if r.Source == "Debit" {
-		funds, err := o.clientFunds(ctx, tenant, o.now().Format("2006-01-02"), "")
+		funds, err := o.equityFunds(ctx, tenant, o.now().Format("2006-01-02"), "")
 		if err == nil && funds[r.UCC] >= 0 {
 			r, err = docs.Update(ctx, o.Docs, tenant, cCPLRelease, r.ID, SystemActor, func(x *PledgeRelease) error {
 				x.Status, x.Note = "Cancelled", "the debit was paid within the notice period"

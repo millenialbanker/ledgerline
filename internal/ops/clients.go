@@ -95,6 +95,10 @@ type Client struct {
 	// PhysicalNotes: the client did not opt for electronic contract notes
 	// and statements; they are printed and sent by courier.
 	PhysicalNotes bool `json:"physical_notes,omitempty"`
+	// FundsLedger is where this client's money goes when it comes in with
+	// no other instruction, with a separate commodity ledger
+	// (segledger.go): EQ or COM; empty waits for a person to choose.
+	FundsLedger string `json:"funds_ledger,omitempty"`
 	// NoInsights: the client turned account insights off in the portal.
 	NoInsights bool `json:"no_insights,omitempty"`
 	// WAConsent records the client's WhatsApp choice: when, how and by whom.

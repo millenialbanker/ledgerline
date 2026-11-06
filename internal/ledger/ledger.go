@@ -55,6 +55,71 @@ const (
 // broker owes the client.
 func ClientAccount(ucc string) string { return "CLIENT:" + ucc }
 
+// A firm that is only a trading member on a commodity exchange (its
+// commodity trades are cleared by another clearing member and traded on
+// another front end) keeps each client's money in two ledgers: CLIENT:<ucc>
+// stays the equity ledger (NSE and BSE), so every reader of CLIENT: keeps
+// working unchanged, and CLIENTCOM:<ucc> is the commodity ledger (MCX).
+// Money received without an instruction saying which ledger it is for
+// waits in CLIENTUNALLOC:<ucc> until a person allocates it. The two new
+// prefixes do not start with "CLIENT:", so no existing
+// strings.CutPrefix(acct, "CLIENT:") reader can mistake them for a client
+// code: those readers see the equity ledger only. ClientCode reads all
+// three. Firms that do not separate the ledgers never post to the two new
+// accounts.
+const (
+	ClientEquityPrefix    = "CLIENT:"
+	ClientCommodityPrefix = "CLIENTCOM:"
+	ClientAwaitingPrefix  = "CLIENTUNALLOC:"
+)
+
+// Client ledger kinds, as ClientCode returns them.
+const (
+	LedgerEquity    = "EQ"
+	LedgerCommodity = "COM"
+	LedgerAwaiting  = "UNALLOC"
+)
+
+// ClientCommodityAccount is a client's commodity ledger.
+func ClientCommodityAccount(ucc string) string { return ClientCommodityPrefix + ucc }
+
+// ClientAwaitingAccount holds a client's money that is waiting to be
+// allocated to the equity or the commodity ledger.
+func ClientAwaitingAccount(ucc string) string { return ClientAwaitingPrefix + ucc }
+
+// ClientLedgerAccount is a client's account for a ledger kind; an empty
+// kind is the equity ledger.
+func ClientLedgerAccount(ucc, kind string) string {
+	switch kind {
+	case LedgerCommodity:
+		return ClientCommodityAccount(ucc)
+	case LedgerAwaiting:
+		return ClientAwaitingAccount(ucc)
+	}
+	return ClientAccount(ucc)
+}
+
+// ClientCode reads any of a client's ledger accounts: the client code and
+// the ledger kind (LedgerEquity, LedgerCommodity or LedgerAwaiting).
+func ClientCode(acct string) (ucc, kind string, ok bool) {
+	if u, ok := strings.CutPrefix(acct, ClientEquityPrefix); ok {
+		return u, LedgerEquity, true
+	}
+	if u, ok := strings.CutPrefix(acct, ClientCommodityPrefix); ok {
+		return u, LedgerCommodity, true
+	}
+	if u, ok := strings.CutPrefix(acct, ClientAwaitingPrefix); ok {
+		return u, LedgerAwaiting, true
+	}
+	return "", "", false
+}
+
+// IsClientAccount reports whether acct is one of a client's ledgers.
+func IsClientAccount(acct string) bool {
+	_, _, ok := ClientCode(acct)
+	return ok
+}
+
 // ClearingAccount is the settlement account with a clearing corporation for
 // one exchange segment, e.g. CC:NSE-CM.
 func ClearingAccount(exchange, segment string) string { return "CC:" + exchange + "-" + segment }
@@ -63,7 +128,7 @@ func ClearingAccount(exchange, segment string) string { return "CC:" + exchange 
 func ExchangeTxnPayable(exchange string) string { return "PAYABLE:EXCH_TXN:" + exchange }
 
 var prefixTypes = map[string]AccountType{
-	"CLIENT": Liability, "PAYABLE": Liability, "AP": Liability, "SUSPENSE": Liability, "LOAN": Liability,
+	"CLIENT": Liability, "CLIENTCOM": Liability, "CLIENTUNALLOC": Liability, "PAYABLE": Liability, "AP": Liability, "SUSPENSE": Liability, "LOAN": Liability,
 	"BANK": Asset, "CC": Asset, "RECEIVABLE": Asset, "CASH": Asset, "ASSET": Asset,
 	"INCOME": Income, "EXPENSE": Expense, "EQUITY": Equity,
 }
@@ -327,6 +392,10 @@ type StatementLine struct {
 	Debit     money.Amount `json:"debit"`
 	Credit    money.Amount `json:"credit"`
 	Balance   money.Amount `json:"balance"` // running debit-minus-credit
+	// Ledger is the client ledger a line of a combined client statement
+	// is in (LedgerEquity, LedgerCommodity, LedgerAwaiting), on staff
+	// views only; empty on an account's own statement.
+	Ledger string `json:"ledger,omitempty"`
 }
 
 // Statement is an account's movements between two dates with an opening
@@ -365,4 +434,81 @@ func (l *Ledger) Statement(ctx context.Context, tenant, account, from, to string
 	}
 	st.Closing = run
 	return st, nil
+}
+
+// ClientStatement is a client's comprehensive statement: the equity,
+// commodity and awaiting-allocation ledgers merged in posting order (value
+// date, then sequence, as Store.List returns them) with one running
+// balance, as account CLIENT:<ucc>. With staff false it is the client's
+// own view: an entry that only moves money between the client's own
+// ledgers (a transfer between equity and commodity, the allocation of
+// money that was waiting) nets to nothing for the client and is left out;
+// with staff true every line is kept and carries its ledger. A client
+// with only the equity ledger gets the same lines as Statement.
+func (l *Ledger) ClientStatement(ctx context.Context, tenant, ucc, from, to string, staff bool) (Statement, error) {
+	accts := []string{ClientAccount(ucc), ClientCommodityAccount(ucc), ClientAwaitingAccount(ucc)}
+	seen := map[string]bool{}
+	var es []Entry
+	for _, a := range accts {
+		xs, err := l.Store.List(ctx, tenant, Filter{Account: a, To: to})
+		if err != nil {
+			return Statement{}, err
+		}
+		for _, e := range xs {
+			if !seen[e.ID] {
+				seen[e.ID] = true
+				es = append(es, e)
+			}
+		}
+	}
+	sort.SliceStable(es, func(i, j int) bool {
+		if es[i].ValueDate != es[j].ValueDate {
+			return es[i].ValueDate < es[j].ValueDate
+		}
+		return es[i].Seq < es[j].Seq
+	})
+	mine := func(a string) (string, bool) {
+		u, kind, ok := ClientCode(a)
+		return kind, ok && u == ucc
+	}
+	st := Statement{Account: ClientAccount(ucc), From: from, To: to, Lines: []StatementLine{}}
+	run := money.Amount(0)
+	for _, e := range es {
+		if !staff && InternalClientEntry(e, ucc) {
+			continue
+		}
+		for _, p := range e.Postings {
+			kind, ok := mine(p.Account)
+			if !ok {
+				continue
+			}
+			run += p.Debit - p.Credit
+			if from != "" && e.ValueDate < from {
+				st.Opening = run
+				continue
+			}
+			ln := StatementLine{EntryID: e.ID, ValueDate: e.ValueDate, Narration: e.Narration, Memo: p.Memo, Debit: p.Debit, Credit: p.Credit, Balance: run}
+			if staff {
+				ln.Ledger = kind
+			}
+			st.Lines = append(st.Lines, ln)
+		}
+	}
+	st.Closing = run
+	return st, nil
+}
+
+// InternalClientEntry reports whether an entry only moves a client's money
+// between the client's own ledgers: it touches two or more of them and
+// nets to nothing across them.
+func InternalClientEntry(e Entry, ucc string) bool {
+	kinds := map[string]bool{}
+	var net money.Amount
+	for _, p := range e.Postings {
+		if u, kind, ok := ClientCode(p.Account); ok && u == ucc {
+			kinds[kind] = true
+			net += p.Debit - p.Credit
+		}
+	}
+	return len(kinds) > 1 && net == 0
 }

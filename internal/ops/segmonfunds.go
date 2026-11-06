@@ -220,7 +220,7 @@ func (o *Ops) segmonBalances(ctx context.Context, tenant, date string) (map[stri
 		if !posted[id] || r.Status != "Credited" || r.ClearedOn == "" || r.ClearedOn > date {
 			continue
 		}
-		acct := ledger.ClientAccount(r.UCC)
+		acct := ledger.ClientLedgerAccount(r.UCC, r.Ledger) // a commodity cheque is not in SEGMON
 		if r.ClearedOn < date {
 			open[acct] = open[acct].Add(r.Amount.Dec())
 		} else {
@@ -662,6 +662,19 @@ func (o *Ops) segmonBuild(ctx context.Context, tenant, date string, seq int) ([]
 	}
 	if len(rows) == 0 {
 		warn(SegmonIssue{Message: "no client has funds or collateral on this date: the file has only the header"})
+	}
+	// A separate commodity ledger (segledger.go): SEGMON reports the
+	// equity ledger, CLIENT:<ucc>; the commodity ledger's funds are with
+	// the commodity clearing member and reported to MCX. Money still
+	// awaiting allocation at the end of the day is in neither report.
+	if o.sepCom(ctx, tenant) {
+		if lf, err := o.clientLedgerFunds(ctx, tenant, date, ""); err == nil {
+			for _, u := range sortedKeys(lf) {
+				if a := lf[u].Awaiting; a != 0 {
+					warn(SegmonIssue{UCC: u, Message: fmt.Sprintf("₹%s received is still awaiting allocation to the equity or commodity ledger and is not in this report; allocate it on RMS and make the file again", formatINR(a.Dec()))})
+				}
+			}
+		}
 	}
 	chk.Rows, chk.Clients, chk.OK = len(out), len(uccs), len(chk.Errors) == 0
 	name, err := s.FileName(xfile.Vars{"date": date, "seq": fmt.Sprint(seq), "member_pan": pan})

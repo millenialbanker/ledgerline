@@ -456,7 +456,7 @@ func (o *Ops) repLedger(ctx context.Context, tenant string, r *ClientReport) err
 			if c.Status != "Active" || !r.has(c) {
 				continue
 			}
-			st, err := o.App.Ledger.Statement(ctx, tenant, ledger.ClientAccount(c.UCC), r.From, r.To)
+			st, err := o.clientStatement(ctx, tenant, c.UCC, r.From, r.To)
 			if err != nil {
 				return err
 			}
@@ -473,7 +473,7 @@ func (o *Ops) repLedger(ctx context.Context, tenant string, r *ClientReport) err
 		r.Notes = append(r.Notes, "Dr = client owes the broker; Cr = the broker holds the client's funds.")
 		return nil
 	}
-	st, err := o.App.Ledger.Statement(ctx, tenant, ledger.ClientAccount(r.UCC), r.From, r.To)
+	st, err := o.clientStatement(ctx, tenant, r.UCC, r.From, r.To)
 	if err != nil {
 		return err
 	}
@@ -644,10 +644,11 @@ var chargeHeads = []struct{ acct, label string }{
 
 func (o *Ops) bills(ctx context.Context, tenant, ucc, from, to string) (billTotals, error) {
 	acct := ledger.ClientAccount(ucc)
-	es, err := o.App.Ledger.Store.List(ctx, tenant, ledger.Filter{Account: acct, To: to})
+	es, err := o.clientEntries(ctx, tenant, ucc, to)
 	if err != nil {
 		return billTotals{}, err
 	}
+	mine := func(a string) bool { u, _, ok := ledger.ClientCode(a); return a == acct || (ok && u == ucc) }
 	byID := map[string]ledger.Entry{}
 	for _, e := range es {
 		byID[e.ID] = e
@@ -671,7 +672,7 @@ func (o *Ops) bills(ctx context.Context, tenant, ucc, from, to string) (billTota
 		}
 		for _, p := range e.Postings {
 			net := p.Credit.Dec().Sub(p.Debit.Dec())
-			if p.Account == acct && p.Memo == "Trade value / MTM" && !strings.HasSuffix(seg, "-CM") {
+			if mine(p.Account) && p.Memo == "Trade value / MTM" && !strings.HasSuffix(seg, "-CM") {
 				bt.derivBySeg[seg] = bt.derivBySeg[seg].Add(net)
 			}
 			for _, h := range chargeHeads {
@@ -783,7 +784,7 @@ func (o *Ops) repPortfolio(ctx context.Context, tenant string, r *ClientReport) 
 	if err != nil {
 		return err
 	}
-	st, err := o.App.Ledger.Statement(ctx, tenant, ledger.ClientAccount(r.UCC), "", r.To)
+	st, err := o.clientStatement(ctx, tenant, r.UCC, "", r.To)
 	if err != nil {
 		return err
 	}
@@ -1153,7 +1154,7 @@ func (r ClientReport) has(c Client) bool {
 // and not yet paid for, in the client unpaid securities pledgee account),
 // and the client's demat holdings.
 func (o *Ops) repFundsSecurities(ctx context.Context, tenant string, r *ClientReport) error {
-	st, err := o.App.Ledger.Statement(ctx, tenant, ledger.ClientAccount(r.UCC), r.From, r.To)
+	st, err := o.clientStatement(ctx, tenant, r.UCC, r.From, r.To)
 	if err != nil {
 		return err
 	}
@@ -1225,7 +1226,7 @@ func (o *Ops) repFundsSecurities(ctx context.Context, tenant string, r *ClientRe
 // fundsSecuritiesDue reports whether a client should get the statement for
 // the period: a balance, any movement, or securities with the broker.
 func (o *Ops) fundsSecuritiesDue(ctx context.Context, tenant, ucc, from, to string, cuspa map[string]bool) (bool, error) {
-	st, err := o.App.Ledger.Statement(ctx, tenant, ledger.ClientAccount(ucc), from, to)
+	st, err := o.clientStatement(ctx, tenant, ucc, from, to)
 	if err != nil {
 		return false, err
 	}

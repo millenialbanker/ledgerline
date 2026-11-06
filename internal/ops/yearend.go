@@ -12,7 +12,6 @@ import (
 
 	"ledgerline/internal/charges"
 	"ledgerline/internal/docs"
-	"ledgerline/internal/ledger"
 	"ledgerline/internal/money"
 )
 
@@ -215,7 +214,7 @@ func (o *Ops) YearEnd(ctx context.Context, tenant, ucc, fy, today string) (YearE
 			p.Charges = append(p.Charges, ChargeLine{h.label, v.Abs()})
 		}
 	}
-	st, err := o.App.Ledger.Statement(ctx, tenant, ledger.ClientAccount(c.UCC), "", p.To)
+	st, err := o.clientStatement(ctx, tenant, c.UCC, "", p.To)
 	if err == nil && len(st.Lines) > 0 {
 		p.Closing = st.Lines[len(st.Lines)-1].Balance.Dec().Neg()
 	}
