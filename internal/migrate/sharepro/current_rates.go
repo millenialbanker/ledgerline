@@ -470,13 +470,41 @@ func (c *cur) writeKYC(ctx context.Context) error {
 	}
 	type ck struct{ pan, num string }
 	var ckycs []ck
-	seen := map[string]bool{}
+	seen, hasCKYC := map[string]bool{}, map[string]bool{}
+	ckyc := func(pan, no string) {
+		if n := reDigits.ReplaceAllString(no, ""); len(n) == 14 && n == strings.TrimSpace(no) && !hasCKYC[pan] {
+			ckycs = append(ckycs, ck{pan, n})
+			hasCKYC[pan] = true
+		}
+	}
 	for _, u := range c.clientList() {
 		if !c.written[u] {
 			continue
 		}
-		pan := c.cm.clients[u].pan
+		cl := c.cm.clients[u]
+		pan := cl.pan
 		k, ok := c.cm.kycByPAN[pan]
+		var det dpDetail
+		if cl.dpOnly {
+			det = c.cm.dpDet[cl.dp.co+"|"+cl.dp.ben]
+		}
+		if cl.dpOnly && !seen[pan] && rePAN.MatchString(pan) {
+			// a DP-only client: the KYC register (by PAN) if it has the PAN,
+			// else the KRA status and CKYC number the DP recorded (CLLIST_DET)
+			if !ok {
+				seen[pan] = true
+				if st := dpKRAStatus(det.kraDesc); st != "" {
+					if err := cw.Write(rec(h, map[string]string{"PAN": pan, "Status": st, "Remarks": "SharePro DP account details (CLLIST_DET): " + strings.ToLower(det.kraDesc)})); err != nil {
+						cw.Close()
+						return err
+					}
+				} else if det.kraDesc != "" {
+					c.rep.infof("KRA status", u, "kra-status", "KRA status %q of the DP account details is not one Ledgerline knows; not migrated (Ledgerline asks the KRA)", det.kraDesc)
+				}
+				ckyc(pan, det.ckyc)
+				continue
+			}
+		}
 		if !ok || seen[pan] || !rePAN.MatchString(pan) {
 			continue
 		}
@@ -489,9 +517,8 @@ func (c *cur) writeKYC(ctx context.Context) error {
 		} else if k.status != "" {
 			c.rep.infof("KRA status", u, "kra-status", "KYC register status %q is not a KRA status; not migrated (Ledgerline asks the KRA)", k.status)
 		}
-		if n := reDigits.ReplaceAllString(k.kycno, ""); len(n) == 14 && n == strings.TrimSpace(k.kycno) {
-			ckycs = append(ckycs, ck{pan, n})
-		}
+		ckyc(pan, k.kycno)
+		ckyc(pan, det.ckyc) // a DP-only client's, when the register has none
 	}
 	if err := cw.Close(); err != nil {
 		return err

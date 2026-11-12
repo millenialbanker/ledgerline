@@ -27,7 +27,7 @@ const (
 	qRMs        = `/*sp:rms*/ SELECT %s FROM RMMAST ORDER BY rmcode`
 	qDealers    = `/*sp:dealers*/ SELECT %s FROM DLRMAST ORDER BY DLRCODE`
 	qBankNames  = `/*sp:bank-names*/ SELECT RTRIM(BANKCD) AS bankcd, RTRIM(DESCR) AS descr, RTRIM(RTGS) AS ifsc FROM BANKMAST`
-	qCheckDP    = `/*sp:check-dp-accounts*/ SELECT COUNT(*) AS n FROM CLLIST WHERE CO IN (%s)%s`
+	qCheckDP    = `/*sp:check-dp-accounts*/ SELECT COUNT(*) AS n FROM CLLIST l WHERE l.CO IN (%s)%s`
 )
 
 var (
@@ -170,8 +170,8 @@ func (c *cur) writeUCCDetails(ctx context.Context) error {
 	}
 	clientPOA := map[string]bool{}
 	for _, a := range c.cm.dp {
-		if a.ucc != "" && len(poa[a.co+"|"+a.ben]) > 0 {
-			clientPOA[a.ucc] = true
+		if a.client != "" && len(poa[a.co+"|"+a.ben]) > 0 {
+			clientPOA[a.client] = true
 		}
 	}
 	dl, _ := c.s.sel("DLMAST", "d", "SUBCD", "ADD1", "ADD2", "ADD3", "CITY", "PIN", "STATE", "STATECD", "COUNTRY", "RES_ADD1", "RES_ADD2", "RES_ADD3",
@@ -239,29 +239,51 @@ func (c *cur) writeUCCDetails(ctx context.Context) error {
 			v["PermAddress1"], v["PermAddress2"], v["PermAddress3"], v["PermCity"], v["PermPIN"] = pa.a1, pa.a2, pa.a3, pa.city, pa.pin
 			v["PermState"] = c.stateName(pa.state, pa.state)
 		}
-		// PINs are often typed "700 001" or "700001."
-		for _, f := range []string{"PIN", "PermPIN"} {
-			v[f] = normPIN(v[f])
-		}
-		for _, f := range []string{"Address1", "City", "State", "PIN"} {
-			if v[f] == "" {
-				c.clientErr(u, area, "missing-"+f, "Add it in SharePro (client master or KYC) before loading", "%s is missing", f)
-			}
-		}
-		if v["PIN"] != "" && !rePIN.MatchString(v["PIN"]) {
-			c.rep.warnf(area, u, "bad-pin", "Correct the PIN in SharePro", "PIN %q is not 6 digits", v["PIN"])
-		}
+		c.checkUCCDetail(area, u, v, "client master or KYC")
 		return cw.Write(rec(h, v))
 	})
 	if err != nil {
 		cw.Close()
 		return err
 	}
+	// DP-only clients, from the DP master (CLLIST, CLLIST_DET)
+	for _, u := range c.clientList() {
+		cl := c.cm.clients[u]
+		if !c.written[u] || !cl.dpOnly {
+			continue
+		}
+		v, m := c.dpOnlyUCC(cl, poa)
+		if m {
+			marital++
+		}
+		c.checkUCCDetail(area, u, v, "DP master")
+		if err := cw.Write(rec(h, v)); err != nil {
+			cw.Close()
+			return err
+		}
+	}
 	if marital > 0 {
 		c.rep.infof(area, "", "marital", "Marital status codes not mapped; confirm what 1 and 2 mean in SharePro (%d clients have one); Marital is left blank", marital)
 	}
 	c.rep.infof(area, "", "relations", "SharePro does not record whose mobile number and email they are (self, spouse, dependent...); MobileRelation and EmailRelation are empty")
 	return cw.Close()
+}
+
+// checkUCCDetail tidies the PINs and reports missing address fields (an
+// error for an active client, a warning for an inactive one).
+func (c *cur) checkUCCDetail(area, u string, v map[string]string, where string) {
+	// PINs are often typed "700 001" or "700001."
+	for _, f := range []string{"PIN", "PermPIN"} {
+		v[f] = normPIN(v[f])
+	}
+	for _, f := range []string{"Address1", "City", "State", "PIN"} {
+		if v[f] == "" {
+			c.clientErr(u, area, "missing-"+f, "Add it in SharePro ("+where+") before loading", "%s is missing", f)
+		}
+	}
+	if v["PIN"] != "" && !rePIN.MatchString(v["PIN"]) {
+		c.rep.warnf(area, u, "bad-pin", "Correct the PIN in SharePro", "PIN %q is not 6 digits", v["PIN"])
+	}
 }
 
 func (c *cur) bankPOA(u string) bool {
@@ -280,13 +302,13 @@ type contact struct{ ucc, name, desig, pan, addr, phone, email, din string }
 func (c *cur) writeContacts(ctx context.Context) error {
 	area := "Contact persons"
 	hasSlots := c.s.hasCol("DLMAST", "CONTACT2") || c.s.hasCol("DLMAST", "C_PAN1")
-	if !hasSlots && !c.s.has("HUFCOPER") && !c.s.has("CLAUTHMAST") {
+	if !hasSlots && !c.s.has("HUFCOPER") && !c.s.has("CLAUTHMAST") && !c.s.hasCol("CLLIST_DET", "Cp1_Name") {
 		c.rep.infof(area, "", "no-table", "This SharePro database has no table of directors, partners, karta or authorised signatories; UCC-CONTACTS is not written")
 		return nil
 	}
 	nonInd := func(u string) bool {
 		cl := c.cm.clients[u]
-		return c.written[u] && cl != nil && clientType(cl) != "Individual" && clientType(cl) != "NRI"
+		return c.written[u] && cl != nil && dpClientType(cl) != "Individual" && dpClientType(cl) != "NRI"
 	}
 	var out []contact
 	if hasSlots {
@@ -326,10 +348,21 @@ func (c *cur) writeContacts(ctx context.Context) error {
 			return err
 		}
 	}
+	// DP-only clients' contact persons (CLLIST_DET Cp1_ to Cp3_) [assumed]
+	for _, u := range c.clientList() {
+		if cl := c.cm.clients[u]; cl.dpOnly && nonInd(u) {
+			for _, x := range c.cm.dpDet[cl.dp.co+"|"+cl.dp.ben].contacts {
+				x.ucc = u
+				out = append(out, x)
+			}
+		}
+	}
+	// HUF coparceners and DP authorised persons of the DP accounts, trading
+	// and DP-only clients alike
 	dpUCC := map[string]string{}
 	for _, a := range c.cm.dp {
-		if a.ucc != "" {
-			dpUCC[a.co+"|"+a.ben] = a.ucc
+		if a.client != "" {
+			dpUCC[a.co+"|"+a.ben] = a.client
 		}
 	}
 	if c.s.has("HUFCOPER") {
@@ -607,23 +640,52 @@ func (c *cur) writeDPAccounts(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	dpOnly, skipped := 0, map[string]bool{}
-	for _, a := range c.cm.dp {
+	// every account of each client at this DP; one is the primary: the
+	// client master's demat account when it is one of them, else the oldest
+	// open one
+	var rows []*dpAcct
+	by := map[string][]*dpAcct{}
+	dpOnly, sub := 0, 0
+	for i := range c.cm.dp {
+		a := &c.cm.dp[i]
 		if !contains(dpc, a.co) {
 			continue
 		}
-		u := a.ucc
-		if u != "" && c.skipped[u] {
-			skipped[u] = true
+		if a.client == "" {
+			c.rep.errorf(area, a.boid, "no-code", "Give the account a trading code in SharePro (CLLIST.SUBCODE), or add the client in Ledgerline by hand", "DP account %s has no trading client and no client code could be made for it: %s; it is left out", a.boid, a.note)
 			continue
 		}
-		if u == "" {
-			u = a.ben
-			dpOnly++
+		if c.skipped[a.client] {
+			continue
 		}
+		if a.dpOnly {
+			dpOnly++
+			if a.sub != "" {
+				sub++
+			}
+		}
+		rows = append(rows, a)
+		by[a.client] = append(by[a.client], a)
+	}
+	primary, several := map[string]string{}, 0
+	for u, as := range by {
+		for _, a := range as {
+			if a.boid == c.demat[u] {
+				primary[u] = a.boid
+			}
+		}
+		if primary[u] == "" {
+			primary[u] = primaryOwn(as).boid
+		}
+		if len(as) > 1 {
+			several++
+		}
+	}
+	for _, a := range rows {
+		u := a.client
 		status, freeze := "Active", dpFreeze(a.suspFlag)
 		switch {
-		case a.closed || a.benStat == "3":
+		case a.isClosed():
 			status, freeze = "Closed", ""
 		case freeze != "" || a.benStat == "2":
 			status = "Frozen"
@@ -634,6 +696,14 @@ func (c *cur) writeDPAccounts(ctx context.Context) error {
 		reason := ""
 		if freeze != "" && a.suspRsn != "" && a.suspRsn != "0" {
 			reason = firstNonEmpty(reasons[a.suspRsn], a.suspRsn)
+		}
+		if status == "Frozen" && reason == "" && a.h != nil {
+			reason = a.h.statRsn // CLLIST.BENSTATRSN
+		}
+		if status == "Frozen" && reason == "" {
+			// Ledgerline needs a reason for a frozen account
+			reason = "Frozen in SharePro (no reason recorded)"
+			c.rep.warnf(area, u, "no-freeze-reason", "Add the freeze reason in Ledgerline's DP desk", "DP account %s is frozen in SharePro with no reason recorded; the reason is given as %q", a.boid, reason)
 		}
 		ddpi := "N"
 		for _, t := range poa[a.co+"|"+a.ben] {
@@ -648,8 +718,17 @@ func (c *cur) writeDPAccounts(ctx context.Context) error {
 		case "N", "0":
 			bsda = "N"
 		}
-		if err := cw.Write(rec(h, map[string]string{"UCC": u, "BOID": a.boid, "Depository": a.depository, "Status": status, "Opened": a.opened, "ClosedOn": a.closedOn,
-			"BSDA": bsda, "Freeze": freeze, "FreezeReason": reason, "DDPI": ddpi})); err != nil {
+		v := map[string]string{"UCC": u, "BOID": a.boid, "Depository": a.depository, "Status": status, "Opened": a.opened, "ClosedOn": a.closedOn,
+			"BSDA": bsda, "Freeze": freeze, "FreezeReason": reason, "DDPI": ddpi, "Primary": yn(a.boid == primary[u])}
+		if hd := a.h; hd != nil {
+			v["Holder2Name"], v["Holder2PAN"], v["Holder3Name"], v["Holder3PAN"] = hd.name2, hd.pan2, hd.name3, hd.pan3
+			for _, p := range [][2]string{{hd.name2, hd.pan2}, {hd.name3, hd.pan3}} {
+				if p[1] != "" && !rePAN.MatchString(p[1]) {
+					c.rep.warnf(area, u, "joint-pan", "Correct the joint holder's PAN in SharePro", "PAN %q of joint holder %s of DP account %s is not a valid PAN", p[1], p[0], a.boid)
+				}
+			}
+		}
+		if err := cw.Write(rec(h, v)); err != nil {
 			cw.Close()
 			return err
 		}
@@ -658,17 +737,19 @@ func (c *cur) writeDPAccounts(ctx context.Context) error {
 		return err
 	}
 	if dpOnly > 0 {
-		c.rep.infof(area, "", "dp-only", "%d DP accounts have no trading code in SharePro (DP-only clients); they are listed under their DP client code (BENACNUM)", dpOnly)
+		c.rep.infof(area, "", "dp-only", "%d DP accounts have no trading client in SharePro (DP-only clients); they are listed under the DP-only client's code (the DP client code BENACNUM, a client in CLIENT-MASTER with DPOnly = Y)", dpOnly)
 	}
-	excl := ""
-	if len(skipped) > 0 {
-		excl = " AND RTRIM(SUBCODE) NOT IN (" + inList(sortedKeys(skipped)) + ")"
+	if sub > 0 {
+		c.rep.infof(area, "", "sub-not-client", "%d of these accounts have a trading code (CLLIST.SUBCODE) that is not a client in SharePro's client master (DLMAST); they come across as DP-only clients", sub)
 	}
-	r, err := c.d.one(ctx, fmt.Sprintf(qCheckDP, inList(dpc), excl))
+	if several > 0 {
+		c.rep.infof(area, "", "several", "%d clients have more than one account at this DP: each account is a row, the primary one (the client master's demat account, else the oldest open one) marked Primary = Y", several)
+	}
+	r, err := c.d.one(ctx, fmt.Sprintf(qCheckDP, inList(dpc), c.dpExcl("l")))
 	if err != nil {
 		return err
 	}
-	c.rep.check(pkg.CheckDPAccounts, fmt.Sprint(i64(r, "n")), "DP accounts in SharePro (CLLIST), open and closed, including DP-only accounts")
+	c.rep.check(pkg.CheckDPAccounts, fmt.Sprint(i64(r, "n")), "DP accounts in SharePro (CLLIST), open and closed, of trading and DP-only clients")
 	return nil
 }
 

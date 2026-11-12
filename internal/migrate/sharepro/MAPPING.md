@@ -44,7 +44,9 @@ admin database every CO in the company database is one firm.
 Clients: `DLMAST` is shared by all COs. A client belongs to each firm in
 whose COs it has a `DLMAST_REG2` status or a `CLLIST` DP account (over all
 SharePro's firms, so choosing one firm never takes another's clients);
-clients with neither go to the first firm.
+clients with neither go to the first firm. A DP-only client (below)
+belongs to the firm whose company holds its DP account (the CO with
+`SYSTEM` CDSL).
 
 ## Go-live files (newest company database)
 
@@ -68,7 +70,8 @@ As-of date: `Plan.AsOf`, else the later of `MAX(JVFILE.VRDT)` and
 | Income | `AnnIncome` (as text) |
 | RAS | `DLRUNACMAST.SETTLETYPE` of the latest `ACC_YEAR`: 2 Quarterly, 3 Monthly [assumed: values 1, 2, 3 seen; 2 is most clients]; 1 and others blank, counted in an Info issue — **to be confirmed** |
 | Bank, IFSC, Account | the client's `BKMAST` row of `TYPE` Primary [verified], else the one whose `ACNO` is `DLMAST.BANKACNUM`, else the first open row; bank `BANKMAST.DESCR`, IFSC `BANKMAST.RTGS` (an IFSC for most banks [verified]; others are reported) |
-| Depository, DematID | `CLLIST` (`SUBCODE` = client) in the firm's COs: `FBENACNUM` (or `DPID`+`BENACNUM`); CDSL, or NSDL when it starts with IN; an open account is preferred |
+| Depository, DematID | the client's open `TYPE` Primary row of the client demat master `CDMAST` (`SUBCD`; BO ID `CLIENTID` when it is 16 digits or IN and 14, else `DPMAST.DPID` of `DPCODE` + `CLIENTID`; `TYPE` Pool rows left out) [assumed: CDMAST is the trading side's demat register, `TYPE` Primary/Secondary like `BKMAST`; columns verified]; else the client's oldest open account at the firm's DP in `CLLIST` (`SUBCODE` = client, by `ACTIVEDT`): `FBENACNUM` (or `DPID`+`BENACNUM`); else another open `CDMAST` row. CDSL, or NSDL when it starts with IN. A primary account at another DP (not in `CLLIST`) is counted (Info); further `CDMAST` accounts at other DPs are counted as dropped; rows with no usable BO ID are counted (Info) |
+| DPOnly | N (Y for DP-only clients, below) |
 | Nominee, NomineeName | "Opted in" and the first `DLMAST_NOMINEE.DESCR`, else `DLMAST.NomineeNm` |
 | KYCDate | `KYCMAST.DT_ACTIVE` / `COMMNCEDT` (via `KYCDTL.PANNO`), else `DLMAST.COMMNCEDT`, `ADD_DTTIME` |
 | Status | `Active` (the onboarding stage is complete for every migrated client) |
@@ -84,8 +87,11 @@ As-of date: `Plan.AsOf`, else the later of `MAX(JVFILE.VRDT)` and
 | Groups | `GROUPCD`, then each type's latest `DLGROUP.Code` (by `EffectDate`), `;`-separated [assumed: DLGROUP holds client group codes] |
 | Inactive, InactiveSince | Y and the latest status date for a client with no Active/Reactivated segment in the firm (or, with no status rows, a `CloseOutDt`) |
 
-AP, RM, Groups, Inactive and InactiveSince are not read by the import on
-this branch yet.
+DPOnly is not read by the import on this branch yet (being added, with
+several DP accounts per client and DP-only clients); the header test
+skips the columns `ops.MasterSources` does not describe yet
+(`optionalNotYetRead`). The DP-only clients' rows (below) follow the
+trading clients'.
 
 Dormant clients: `Plan.DormantMode` "inactive" (default) writes them with
 Inactive = Y; "skip" leaves them out of every client file (and their DP
@@ -95,7 +101,65 @@ for any balance, holding or position they have.
 Every row is checked against the import's rules (UCC, name, PAN, mobile,
 email, city, segment, bank, IFSC, account) and each failure is an Error
 issue with the client code: the import rejects the whole file on one bad
-row.
+row. An inactive client's failures (except the code and name) are
+Warnings: Ledgerline keeps the record as it is, marked incomplete.
+
+Check clients: `COUNT` of the firm's `DLMAST` clients (as assigned above;
+dormant ones left out in mode skip) plus `COUNT` of the firm's `CLLIST`
+accounts with no trading client (`NOT EXISTS` a `DLMAST.SUBCD` =
+`SUBCODE`; closed ones left out in mode skip).
+
+### DP-only clients (`CLLIST` accounts with no trading client)
+
+A demat account holder of the firm's DP with no trading account: a
+`CLLIST` account whose `SUBCODE` is blank or is not a client in `DLMAST`
+[verified: about half of the DP master's accounts, nearly all closed
+ones among them]. The link is `SUBCODE`, as before; `TRADINGID` is not
+used [assumed]. An account whose `SUBCODE` is not a client is counted
+(Info). Each account is a client of its own in every client file,
+`DPOnly` = Y, under the DP client code `BENACNUM` (8 digits, a valid
+UCC); when a trading client has that code or it is not 3–10 letters or
+digits, `DP` + the code (else the CO + the code), with a Warning; an
+account for which no code can be made is an Error and is left out. The
+same code is the client's in DP-ACCOUNTS, DP-HOLDINGS, the DP history and
+the DP documents. Columns verified to exist; their meaning is assumed
+unless marked.
+
+| CLIENT-MASTER | From |
+|---|---|
+| UCC | `BENACNUM` (see above) |
+| Name | `BEN1HOLDER` |
+| Type | 4th character of `ITPAN` as for trading clients (NRI when `BENTYPE` 3 or `BEN1CNTRY` is not India); without a PAN, `BENTYPE` (CDSL product number: 1 Individual, 3 NRI, 8 HUF, others Corporate) |
+| PAN, DOB | `ITPAN` (first holder), `DOB` |
+| Mobile | `FHOLDER_MOBILE` (digits; +91/0 removed) |
+| Email | `FHOLDER_EMAIL`, else `CUSTEMAIL` |
+| City | `BEN1CITY`, else `CCITY` |
+| Segments, RAS, Income, LastTrade, ECN, AP, RM | blank (Income: `CLLIST_DET.GROSSINCOME` codes are not confirmed; counted, Info) |
+| Risk | `CLRISKPROFILE` (LOW/MEDIUM/HIGH, as for trading clients) |
+| Bank, IFSC, Account | `BENBNKNAME` (else `BANKMAST.DESCR`), `BANKMAST.RTGS` of `CLLIST.BANKCD`, `BENBNKAC` without spaces and dashes |
+| Depository, DematID | CDSL (NSDL for IN…), `FBENACNUM` (or `DPID`+`BENACNUM`) |
+| Nominee, NomineeName, NominationDate | "Opted in" and the first `CDNOMREG` nominee (else `CLLIST.NOMFNAME`); earliest nomination date |
+| KYCDate | the KYC register's date for the PAN (`KYCMAST`, as for trading clients), else `ACTIVEDT` |
+| Status, API | Active, N |
+| Branch | `CLLIST.BRANCHID` |
+| State | `STATES.DESCR` of `CLLIST.StateCd`, else `BEN1STATE` |
+| Groups | `CLLIST.GROUPCD` |
+| Inactive, InactiveSince | Y and `BENCLOSEDT` for a closed account (`BENCLOSEDT` set or `BENSTAT` 3) [verified: BENSTAT 3 = closed]; a frozen account (`BENSTAT` 2) is not inactive. Closed accounts come across (the firm keeps their records for 8 years; their history and documents attach to them); dormant mode skip leaves them out like dormant trading clients |
+| DPOnly | Y |
+
+The client master's checks apply, as errors for an open account and
+warnings for a closed one; no segment is required.
+
+| File | From |
+|---|---|
+| UCC-DETAILS | Address1–3, City, PIN, Country: `BEN1ADD1`–`BEN1ADD4` (lines 3 and 4 joined), `BEN1CITY`, `BEN1PIN`, `BEN1CNTRY`, else `CADD1`–`CADD4`, `CCITY`, `CPIN`, `CCNTRY`; State as in the client master; PermAddress1–3, PermCity, PermState, PermCountry, PermPIN: `BEN1FADD1`–`3`, `BEN1FCITY`, `BEN1FSTATE`, `BEN1FCNTRY`, `BEN1FPIN` (permanent or foreign address); Gender `BOSEX`, else `CLLIST_DET.SEX`; Guardian `BEN1FATHUB`, else `FATHUSNAME`; Nationality `CLLIST_DET.NATION` (01 Indian, 02 `NATIONOTH`); Occupation `CLLIST_DET.OCCUPN` when a code 1–9 or 99, else `OCCUPNALL` (OccupationDetail `OCCUPNALL` beside a code); PEP `CLLIST_DET.PEP` (as for trading clients); IPV Y when `CLLIST_DET.IPV` is Y or `IPV_DATE`/`IPVDT` is set; AgreementDate `ACTIVEDT`; POASecurities from `CLPOALIST` of the account; CIN `CLLIST_DET.REGNO` when CIN-shaped; BankType `BENBNKTYPE` (10 SB, 11 CA). Marital blank and counted with the trading clients' (`MARITALSTATUS` codes not confirmed). Missing address fields as for trading clients |
+| NOMINEES | `CDNOMREG` rows of the account (`CO`, `BENACNUM`, by `NOMSLNO`): Name `FIRSTNM` `MIDNM` `LASTNM` (else `NOMFNAME`); Relation `BOREL` (CDSL codes: 1 Spouse, 2 Son, 3 Daughter, 4 Father, 5 Mother, 6 Brother, 7 Sister, 8 Grandson, 9 Granddaughter, 10 Grandfather, 11 Grandmother, 13 Other; 12 "not provided" blank; words kept); Share `SHAREPR`; IDType PAN and ID `PAN` when a valid PAN (others counted, Info); DOB `NomDob`; Guardian `NOMGRNAME`; Mobile `MOBILE` (0 blank), else `SMobile`; Email `Email`, else `PEMAIL`; Address `ADD1`–`ADD3`, `CITY`, `PIN`; DeclaredOn `NOMACTVDT`, else `ACTIVEDT`. `CDNOMREG.UID` is never selected |
+| CLIENT-BANKS | the DP bank account as in the client master, Primary Y, Active, MICR `MICRCODE`, Type `BENBNKTYPE` |
+| KRA-STATUS, CKYC-NUMBERS | the KYC register for the PAN as for trading clients; else `CLLIST_DET.KRASTATDES` (words: VALIDATED → Validated, REGISTERED/VERIFIED → Registered, HOLD, REJECT, PROCESS/PENDING/SUBMITTED) and `CLLIST_DET.CKYCNO` when 14 digits |
+| UCC-CONTACTS | non-individual DP-only clients: `CLLIST_DET` `Cp1_`–`Cp3_` (`Name`, `Desig`, `Din`, `Pan`, `Add`+`City`+`Pin`, `Phone`, `Email`), and `HUFCOPER`/`CLAUTHMAST` of the account as for trading clients |
+
+`CLLIST_DET.UID`, `FHADHARNOM`, `SHADHARNOM`, `THADHARNOM` are counted,
+never selected.
 
 ### UCC-DETAILS (`DLMAST` ⋈ `DLAGREE` on `Subcd`; KYC register via `DLAGREE.KycCd` or `KYCDTL.PANNO`)
 
@@ -159,16 +223,27 @@ the masters are reported. A code used by two kinds is written once.
 
 ### DP-ACCOUNTS (`CLLIST` of the firm's DP companies)
 
-UCC `SUBCODE`, or for DP-only accounts the DP client code `BENACNUM` (Info
+Every account of the firm's DP companies, several per client: UCC
+`SUBCODE` (the trading client), or the DP-only client's code (above; Info
 count); BOID `FBENACNUM` (or `DPID`+`BENACNUM`); Depository CDSL (NSDL for
 IN… BOIDs); Status Closed (`BENCLOSEDT` set or `BENSTAT` 3), Frozen
 (`SUSPFLAG` D/C/B or `BENSTAT` 2), else Active; Opened `ACTIVEDT`;
 ClosedOn `BENCLOSEDT`; BSDA `BSDA` Y/N; Freeze `SUSPFLAG` D Debit, C
-Credit, B/S/F/Y Both; FreezeReason `FREEZERSN.DESCR` of `SUSPRSNCD`; DDPI Y
-when an active `CLPOALIST` row's `PoaType` says DDPI [all assumed except
-BENSTAT 3 = closed]. `FHOLDER_ADHAR`, `SHOLDER_ADHAR`, `THOLDER_ADHAR` and
-`Web_Pwd` are counted, never selected. Check dp-accounts: `COUNT(*)` of
-these `CLLIST` rows (without skipped clients').
+Credit, B/S/F/Y Both; FreezeReason `FREEZERSN.DESCR` of `SUSPRSNCD`, else
+`BENSTATRSN`, else "Frozen in SharePro (no reason recorded)" with a
+Warning (Ledgerline needs a reason for a frozen account); DDPI Y when an
+active `CLPOALIST` row's `PoaType` says DDPI; Primary Y on one account per
+client: the client master's demat account when it is one of them, else
+the oldest open one (by `ACTIVEDT`), else the oldest; Holder2Name,
+Holder2PAN, Holder3Name, Holder3PAN `BEN2HOLDER`, `BEN2PAN`, `BEN3HOLDER`,
+`BEN3PAN` (a PAN that is not valid is a Warning) [all assumed except
+BENSTAT 3 = closed]. Clients with more than one account are counted
+(Info). A trading client's demat account at another DP (from `CDMAST`) is
+not an account of this DP: it is the client master's DematID only (Info).
+`FHOLDER_ADHAR`, `SHOLDER_ADHAR`, `THOLDER_ADHAR` and `Web_Pwd` are
+counted, never selected. Check dp-accounts: `COUNT(*)` of the DP
+companies' `CLLIST` rows, trading and DP-only clients' (without dormant
+trading clients' and, in mode skip, closed DP-only accounts).
 
 ### CLIENT-BANKS (`BKMAST` ⋈ `BANKMAST` on `BANKCD`)
 
@@ -256,16 +331,22 @@ line), opening-difference, client-debit-total and client-credit-total
 
 ### DP-HOLDINGS (`HOLD` at `MAX(HOLDDATE) <= as-of`, the firm's DP COs)
 
-UCC `CLLIST.SUBCODE` of (`CO`, `BENACNUM`); ISIN `ISINCD`; Symbol
-`ITC.NSE_ITEMCD` / `BSE_ITEMCD` via `ISINMAST.ITEMCD`; Qty `SUM(BALANCE)`
-[verified: BALANCE is the total]; Pledged `SUM(PLDGBAL)`; AvgCost empty.
-One row per client and ISIN. DP accounts with no trading code are reported
-(they are in DP-ACCOUNTS). Check dp-holding-quantity: `SUM(HOLD.BALANCE)` of
-the migrated clients' accounts.
+One row per client, DP account and ISIN: UCC the client of `CLLIST`
+(`CO`, `BENACNUM`), trading or DP-only; BOID its `FBENACNUM`; ISIN
+`ISINCD`; Symbol `ITC.NSE_ITEMCD` / `BSE_ITEMCD` via `ISINMAST.ITEMCD`; Qty
+`SUM(BALANCE)` [verified: BALANCE is the total]; Pledged `SUM(PLDGBAL)`
+(at most Qty); AvgCost empty. Quantities are exact, with their decimals
+(mutual fund units), trailing zeros trimmed (125.432, 100); fractional
+holdings are counted (Info). Accounts in `HOLD` but not in `CLLIST` are
+reported (Warning) and left out. Check dp-holding-quantity: the exact
+`SUM(HOLD.BALANCE)` of every `CLLIST` account of the DP companies at that
+date (without dormant trading clients' and, in mode skip, closed DP-only
+accounts).
 
 ### HOLDING-LOTS
 
-Not written: SharePro holds no purchase lots or cost for DP holdings.
+Not written: SharePro holds no purchase lots or cost for DP holdings (if
+it ever is, it takes BOID and exact quantities like DP-HOLDINGS).
 
 ### POSITIONS (`TRFILE` of FO, CD and COM COs, `TRDT <= as-of`, contract `ITC.EXP_DATE >= as-of`)
 
@@ -341,9 +422,9 @@ are skipped with an Info issue; columns that are missing come as empty.
 | TRADES | `TRFILE` with `ITC`, `ISINMAST`, `ICCLCONT` as for positions; Side by the sign of `QTY` [verified]; Price `ACT_RATE` [verified] else `RATE`; Brokerage `BRKG × |QTY|` (BRKG per unit [verified]); BillNo `CNTRNO`; OptionType blank (Info count) when call/put cannot be told |
 | CONTRACT-NOTES | distinct `TRFILE` (`CO`, `CNTRNO`, `TRDT`, `SUBCD`). SentOn, SentTo, Signed and DocumentID are empty: the mail archives are read after the company databases, so the register cannot be linked here. |
 | RECEIPTS-PAYMENTS | `BCFILE` rows with `P_R` R or P; Mode Cash (`TYPE` C), Cheque (`CHEQNO`), Online (`Gateway`), else bank transfer; Bank = the book's head name; Reference `BankRef`/`TXNNO`/`EcsRef` |
-| DP-TRANSACTIONS | `DPTRAN` of the DP COs; BOID `FBENACNUM`; UCC via `CLLIST`; Security `ISINLIST.ISINSHORT`; TxnType `TRANCODE`; Quantity `QTYBOOKED`, − for `DRCR` D; Reference `TXNID`/`DRFNO`/`INTERNALRF`; Counterparty `COUNTERDP`+`COUNTERBEN` or `CNTRCMBPID` |
+| DP-TRANSACTIONS | `DPTRAN` of the DP COs; BOID `FBENACNUM`; UCC via `CLLIST` (the year's `SUBCODE`; for an account with none, the client the go-live step gave the account — the DP-only client's code); Security `ISINLIST.ISINSHORT`; TxnType `TRANCODE`; Quantity `QTYBOOKED` exact (decimals kept), − for `DRCR` D; Reference `TXNID`/`DRFNO`/`INTERNALRF`; Counterparty `COUNTERDP`+`COUNTERBEN` or `CNTRCMBPID` |
 | DP-BILLS | `INVOICEHEAD` with `AutoType` CDSLBILL (also NSDLBILL, DPBILL) [verified]: `InvoiceNo`, `InvoiceDt`, `SubCode` (BO account or client), `GrossAmt`, GST parts, `NetAmt`. Period from/to empty. |
-| DP-HOLDINGS-YEAR-END | `HOLD` at the year's last `HOLDDATE`: Free `CURBAL`, Pledged `PLDGBAL`, Locked `BALANCE − CURBAL − PLDGBAL`, Total `BALANCE` [verified]; Rate the latest `DPPRICE.RATE` with `CLOSEDT` on or before the date for the ISIN (`HOLD.RATE` is never filled [verified]); Rate and Value empty without a price |
+| DP-HOLDINGS-YEAR-END | `HOLD` at the year's last `HOLDDATE`, per BOID; UCC as for DP-TRANSACTIONS; Free `CURBAL`, Pledged `PLDGBAL`, Locked `BALANCE − CURBAL − PLDGBAL`, Total `BALANCE` [verified], all exact; Rate the latest `DPPRICE.RATE` with `CLOSEDT` on or before the date for the ISIN (`HOLD.RATE` is never filled [verified]); Rate and Value empty without a price |
 
 ## Documents (mail databases in `Plan.Years`) [verified unless marked]
 
@@ -363,8 +444,10 @@ layout) is read too when it has rows, skipping attachments (`slno`,
   Bills → Bill; DPBLPRN2 → DP bill; blank with `idtype` DP CLIENT → DP
   statement; reKYC → KYC; anything else → Other;
 - `idtype` (any case): Client → UCC `id`; DP CLIENT → `id` is the DP
-  account, turned into the trading code through the newest company
-  database's `CLLIST`; Branchid, Group, SubBroker → the firm's records (Type
+  account (`BENACNUM` or `FBENACNUM`), turned into its client through the
+  newest company database's `CLLIST`: the trading code, or the DP-only
+  client's code for an account with no trading client; a DP account not in
+  `CLLIST` gets no UCC (Info count); Branchid, Group, SubBroker → the firm's records (Type
   Other, no UCC: payout reports of several clients, never shown to a
   client);
 - firm: the mail's company (`CO`) if the mail table has one (it does not in
@@ -383,7 +466,9 @@ layout) is read too when it has rows, skipping attachments (`slno`,
 | Field | Why |
 |---|---|
 | `DLMAST.Web_Pwd`, `CLLIST.Web_Pwd`, `SBMAST.Web_Pwd`, `RMMAST.Web_Pwd`, `DLRMAST.web_Pwd` | passwords: counted with `COUNT(...)`, never selected; users set new ones |
-| `CLLIST.FHOLDER_ADHAR`, `SHOLDER_ADHAR`, `THOLDER_ADHAR`, `CDNOMREG.UID`, `DLAGREE.UID`, `DLAGREE.NomineeAdhar`, `DLAGREE2.C_UID1`–`3`, `CLAUTHMAST.UID`, `BOMAST.FHUID` | full Aadhaar numbers: counted, never selected (Ledgerline keeps no client Aadhaar) |
+| `CLLIST.FHOLDER_ADHAR`, `SHOLDER_ADHAR`, `THOLDER_ADHAR`, `CLLIST_DET.UID`, `FHADHARNOM`, `SHADHARNOM`, `THADHARNOM`, `CDNOMREG.UID`, `DLAGREE.UID`, `DLAGREE.NomineeAdhar`, `DLAGREE2.C_UID1`–`3`, `CLAUTHMAST.UID`, `BOMAST.FHUID` | full Aadhaar numbers: counted, never selected (Ledgerline keeps no client Aadhaar) |
+| Further demat accounts at other DPs (`CDMAST` rows other than the primary) | the client master holds one demat account, DP-ACCOUNTS only this DP's: counted as dropped |
+| DP-only clients' income range (`CLLIST_DET.GROSSINCOME`) | codes not confirmed: counted (Info), Income blank |
 | staff passwords (`SHUSER`), `SYSTEMLOGFILES.Content`, OTP and token tables | never read |
 | Family (`DLMAST.FAMILYCD`) | no Ledgerline column: counted as dropped |
 | FATCA details | no import file |

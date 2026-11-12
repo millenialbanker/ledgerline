@@ -19,8 +19,9 @@ const (
 	srcBrokCards  = "BROKERAGE-CARDS"
 	srcBrokClient = "BROKERAGE-CLIENTS"
 
-	// Imports being added on the Ledgerline side (fixed layouts; not yet in
-	// ops.MasterSources on this branch).
+	// Imports added on the Ledgerline side for the migration (fixed
+	// layouts; pendingRequired holds them for a branch whose
+	// ops.MasterSources does not list them yet).
 	srcUCCDetails = "UCC-DETAILS"
 	srcContacts   = "UCC-CONTACTS"
 	srcBranches   = "BRANCHES"
@@ -29,17 +30,21 @@ const (
 )
 
 var headers = map[string][]string{
-	// Inactive and InactiveSince are not read by the import yet: they carry
-	// the "no active segment" state (Plan.DormantMode inactive).
+	// Inactive and InactiveSince carry the "no active segment" state
+	// (Plan.DormantMode inactive) and a closed DP-only account; DPOnly (Y/N)
+	// marks a demat account holder with no trading account (blank Segments
+	// and RAS).
 	srcClients: {"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account",
 		"Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock",
-		"Branch", "State", "GSTIN", "ECN", "NominationDate", "NominationMode", "AP", "RM", "Groups", "Inactive", "InactiveSince"},
+		"Branch", "State", "GSTIN", "ECN", "NominationDate", "NominationMode", "AP", "RM", "Groups", "Inactive", "InactiveSince", "DPOnly"},
 	srcBanks:     {"UCC", "Bank", "IFSC", "Account", "Primary", "Status", "Branch", "MICR", "Type", "AddedOn"},
 	srcNominees:  {"UCC", "Name", "Relation", "Share", "IDType", "ID", "DOB", "Guardian", "GuardianRelation", "Mobile", "Email", "Address", "DeclaredOn"},
 	srcSegStatus: {"UCC", "Segment", "Status", "EffectiveDate", "Reason"},
 	// Name is for people reading the file; the import ignores it.
-	srcOpening:   {"Account", "Debit", "Credit", "Since", "Name"},
-	srcHoldings:  {"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost"},
+	srcOpening: {"Account", "Debit", "Credit", "Since", "Name"},
+	// BOID: the DP account (blank = the client's primary account); Qty and
+	// Pledged exact, with decimals for mutual fund units
+	srcHoldings:  {"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost", "BOID"},
 	srcPositions: {"UCC", "Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "Qty", "AvgPrice"},
 	srcBrokRates: {"UCC", "From", "Product", "Mode", "Exchange", "Case", "Scrip", "Underlying", "Pct", "Flat", "PerLot", "PerShare",
 		"MinPerShare", "MinPerLot", "Min", "Max", "MinPerNote", "Basis", "Note"},
@@ -51,10 +56,12 @@ var headers = map[string][]string{
 		"Category", "Address2", "Address3", "Country", "PermAddress1", "PermAddress2", "PermAddress3", "PermCity", "PermState", "PermCountry", "PermPIN",
 		"Gender", "Guardian", "Marital", "Nationality", "Occupation", "OccupationDetail", "IncomeAsOn", "PEP", "IPV", "POAFunds", "POASecurities",
 		"UPI", "AgreementDate", "CIN", "BankType", "MobileRelation", "EmailRelation"},
-	srcContacts:   {"UCC", "Name", "Designation", "PAN", "Address", "Phone", "Email", "DIN"},
-	srcBranches:   {"Code", "Name", "City", "Manager", "Parent", "Kind", "Active"},
-	srcPartners:   {"Code", "Name", "Kind", "Branch", "Parent", "PAN", "GSTIN", "RegNo", "SharePct", "Bank", "Account", "IFSC", "Email", "Active"},
-	srcDPAccounts: {"UCC", "BOID", "Depository", "Status", "Opened", "ClosedOn", "BSDA", "Freeze", "FreezeReason", "DDPI"},
+	srcContacts: {"UCC", "Name", "Designation", "PAN", "Address", "Phone", "Email", "DIN"},
+	srcBranches: {"Code", "Name", "City", "Manager", "Parent", "Kind", "Active"},
+	srcPartners: {"Code", "Name", "Kind", "Branch", "Parent", "PAN", "GSTIN", "RegNo", "SharePct", "Bank", "Account", "IFSC", "Email", "Active"},
+	// several rows per client; Primary Y on one of them
+	srcDPAccounts: {"UCC", "BOID", "Depository", "Status", "Opened", "ClosedOn", "BSDA", "Freeze", "FreezeReason", "DDPI",
+		"Primary", "Holder2Name", "Holder2PAN", "Holder3Name", "Holder3PAN"},
 }
 
 // required columns of the imports not yet in ops.MasterSources (for the
@@ -68,10 +75,15 @@ var pendingRequired = map[string][]string{
 }
 
 // optionalNotYetRead are header columns the Ledgerline import does not read
-// yet on this branch (it ignores unknown columns).
+// (or ops.MasterSources does not describe) yet on this branch; the import
+// ignores unknown columns. DPOnly, Primary, the joint holders and BOID are
+// being added to the imports (several demat accounts per client, DP-only
+// clients).
 var optionalNotYetRead = map[string][]string{
-	srcClients: {"AP", "RM", "Groups", "Inactive", "InactiveSince"},
-	srcOpening: {"Name"},
+	srcClients:    {"AP", "RM", "Groups", "Inactive", "InactiveSince", "DPOnly"},
+	srcOpening:    {"Name"},
+	srcHoldings:   {"BOID"},
+	srcDPAccounts: {"Primary", "Holder2Name", "Holder2PAN", "Holder3Name", "Holder3PAN"},
 }
 
 // rec builds a row for a header from named values.

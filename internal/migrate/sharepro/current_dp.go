@@ -15,7 +15,7 @@ const (
 	qHold     = `/*sp:holdings*/ SELECT RTRIM(h.CO) AS co, RTRIM(h.BENACNUM) AS ben, RTRIM(h.ISINCD) AS isin, %s FROM HOLD h WHERE h.CO IN (%s) AND h.HOLDDATE >= '%s' AND h.HOLDDATE < '%s' GROUP BY h.CO, h.BENACNUM, h.ISINCD ORDER BY h.CO, h.BENACNUM, h.ISINCD`
 	qSymbols  = `/*sp:isin-symbols*/ SELECT RTRIM(x.ISINCD) AS isin, %s FROM ISINMAST x JOIN ITC i ON i.ITEMCD = x.ITEMCD`
 	// checks
-	qCheckHold = `/*sp:check-holdings*/ SELECT SUM(h.BALANCE) AS q FROM HOLD h JOIN CLLIST l ON l.CO = h.CO AND l.BENACNUM = h.BENACNUM WHERE h.CO IN (%s) AND h.HOLDDATE >= '%s' AND h.HOLDDATE < '%s' AND RTRIM(l.SUBCODE) IN (%s)`
+	qCheckHold = `/*sp:check-holdings*/ SELECT SUM(h.BALANCE) AS q FROM HOLD h JOIN CLLIST l ON l.CO = h.CO AND l.BENACNUM = h.BENACNUM WHERE h.CO IN (%s) AND h.HOLDDATE >= '%s' AND h.HOLDDATE < '%s'%s`
 	// derivative trades of contracts not yet expired
 	qPositions = `/*sp:positions*/ SELECT RTRIM(t.CO) AS co, RTRIM(t.SUBCD) AS subcd, RTRIM(t.ITEMCD) AS itemcd, t.TRDT AS trdt, t.QTY AS qty, CASE WHEN t.ACT_RATE > 0 THEN t.ACT_RATE ELSE t.RATE END AS price, %s FROM TRFILE t %s WHERE t.CO IN (%s) AND t.TRDT < '%s' AND i.exp_date >= '%s' ORDER BY t.SUBCD, t.CO, t.ITEMCD, %s`
 	qCheckPos  = `/*sp:check-positions*/ SELECT COUNT(*) AS n FROM (SELECT t.SUBCD, t.CO, t.ITEMCD FROM TRFILE t %s WHERE t.CO IN (%s) AND t.TRDT < '%s' AND i.exp_date >= '%s' GROUP BY t.SUBCD, t.CO, t.ITEMCD HAVING SUM(t.QTY) <> 0) x`
@@ -38,8 +38,8 @@ func (c *cur) symbols(ctx context.Context) map[string]string {
 }
 
 type holding struct {
-	ucc, isin  string
-	qty, pledg money.Dec
+	ucc, boid, isin string
+	qty, pledg      money.Dec
 }
 
 func (c *cur) writeHoldings(ctx context.Context) error {
@@ -73,13 +73,13 @@ func (c *cur) writeHoldings(ctx context.Context) error {
 	if day(hd) != day(c.asOf) {
 		c.rep.warnf(area, "", "hold-date", "Load the depository's holding file for the go-live date to bring them up to date", "The latest DP holdings in SharePro are of %s, not %s", day(hd), day(c.asOf))
 	}
-	ucc := map[string]string{}
-	for _, a := range c.cm.dp {
-		if a.ucc != "" {
-			ucc[a.co+"|"+a.ben] = a.ucc
-		}
+	acct := map[string]*dpAcct{}
+	for i := range c.cm.dp {
+		a := &c.cm.dp[i]
+		acct[a.co+"|"+a.ben] = a
 	}
 	syms := c.symbols(ctx)
+	// one row per client, DP account (BO ID) and ISIN
 	hs := map[string]*holding{}
 	unlinked, unlinkedQty := map[string]bool{}, money.Dec{}
 	list := "SUM(h.BALANCE) AS bal, SUM(h.PLDGBAL) AS pldg"
@@ -88,24 +88,25 @@ func (c *cur) writeHoldings(ctx context.Context) error {
 	}
 	err = c.d.query(ctx, fmt.Sprintf(qHold, list, inList(dpc), day(hd), day(hd.AddDate(0, 0, 1))), func(r migrate.Row) error {
 		key := str(r, "co") + "|" + upper(r, "ben")
-		u := ucc[key]
 		q := dec(r, "bal")
 		if q.IsZero() {
 			return nil
 		}
-		if u == "" {
+		a := acct[key]
+		if a == nil || a.client == "" {
 			unlinked[key] = true
 			unlinkedQty = unlinkedQty.Add(q)
 			return nil
 		}
+		u := a.client
 		if c.skipped[u] {
 			c.rep.errorf(area, u, "skipped-holding", "Migrate dormant clients as inactive (dormant mode: inactive)", "Dormant client left out of the client master holds %s of %s", q.String(), upper(r, "isin"))
 			return nil
 		}
-		k := u + "|" + upper(r, "isin")
+		k := u + "|" + a.boid + "|" + upper(r, "isin")
 		x := hs[k]
 		if x == nil {
-			x = &holding{ucc: u, isin: upper(r, "isin")}
+			x = &holding{ucc: u, boid: a.boid, isin: upper(r, "isin")}
 			hs[k] = x
 		}
 		x.qty = x.qty.Add(q)
@@ -116,13 +117,18 @@ func (c *cur) writeHoldings(ctx context.Context) error {
 		cw.Close()
 		return err
 	}
+	fractional := 0
 	for _, k := range sortedKeys(hs) {
 		x := hs[k]
 		if !c.written[x.ucc] {
 			c.rep.warnf(area, x.ucc, "not-client", "Check the trading code on the DP account (CLLIST.SUBCODE)", "DP account's trading code is not in the client master; its holdings are listed under it anyway")
 		}
 		pl := money.Min(x.pledg, x.qty)
-		if err := cw.Write(rec(h, map[string]string{"UCC": x.ucc, "ISIN": x.isin, "Symbol": syms[x.isin], "Qty": qtyInt(x.qty, c.rep, x.ucc), "Pledged": qtyInt(pl, c.rep, x.ucc)})); err != nil {
+		if !whole(x.qty) || !whole(pl) {
+			fractional++
+		}
+		// exact, as SharePro holds it (mutual fund units have decimals)
+		if err := cw.Write(rec(h, map[string]string{"UCC": x.ucc, "ISIN": x.isin, "Symbol": syms[x.isin], "Qty": qty(x.qty), "Pledged": qty(pl), "BOID": x.boid})); err != nil {
 			cw.Close()
 			return err
 		}
@@ -130,27 +136,22 @@ func (c *cur) writeHoldings(ctx context.Context) error {
 	if err := cw.Close(); err != nil {
 		return err
 	}
-	if len(unlinked) > 0 {
-		c.rep.warnf(area, "", "unlinked", "These are DP-only clients: load them when Ledgerline's DP master is set up", "%d DP accounts with holdings (%s shares and units) have no trading code in SharePro and are not in DP-HOLDINGS", len(unlinked), unlinkedQty.String())
+	if fractional > 0 {
+		c.rep.infof(area, "", "fractional", "%d holdings are fractional (mutual fund units); their quantities are written exactly, with their decimals", fractional)
 	}
-	clients := inList(sortedKeys(c.written))
-	r, err = c.d.one(ctx, fmt.Sprintf(qCheckHold, inList(dpc), day(hd), day(hd.AddDate(0, 0, 1)), clients))
+	if len(unlinked) > 0 {
+		c.rep.warnf(area, "", "unlinked", "Check these accounts in SharePro's DP master; load their holdings from the depository's holding file", "%d DP accounts with holdings (%s shares and units) are not in SharePro's DP master (CLLIST) and are not in DP-HOLDINGS", len(unlinked), unlinkedQty.String())
+	}
+	r, err = c.d.one(ctx, fmt.Sprintf(qCheckHold, inList(dpc), day(hd), day(hd.AddDate(0, 0, 1)), c.dpExcl("l")))
 	if err != nil {
 		return err
 	}
-	c.rep.check(pkg.CheckDPQuantity, dec(r, "q").String(), "Total DP holding (HOLD.BALANCE) on "+day(hd)+" of the DP accounts of migrated clients")
+	c.rep.check(pkg.CheckDPQuantity, dec(r, "q").String(), "Total DP holding (HOLD.BALANCE) on "+day(hd)+" of the accounts in the DP master (CLLIST), trading and DP-only clients'")
 	return nil
 }
 
-// qtyInt writes a quantity as a whole number (fractional units are
-// reported).
-func qtyInt(q money.Dec, rep *report, key string) string {
-	a := q.Round(money.UnitRupee)
-	if a.Dec().Cmp(q) != 0 {
-		rep.warnf("DP holdings", key, "fraction", "Check fractional units (mutual fund units) after loading", "Quantity %s is not a whole number; rounded to %d", q.String(), a.Paise()/100)
-	}
-	return fmt.Sprint(a.Paise() / 100)
-}
+// whole says whether a quantity has no fractional part.
+func whole(q money.Dec) bool { return q.Round(money.UnitRupee).Dec().Cmp(q) == 0 }
 
 // ---- open positions ----
 

@@ -148,9 +148,14 @@ func readCSV(t *testing.T, r *pkg.Reader, p string) (head []string, rows []map[s
 
 func runCurrent(t *testing.T, plan migrate.Plan) (*pkg.Reader, *fake) {
 	t.Helper()
+	return runCurrentOn(t, plan, companyFake("TT2627"))
+}
+
+// runCurrentOn runs the go-live step for firm 02 on a company database.
+func runCurrentOn(t *testing.T, plan migrate.Plan, co *fake) (*pkg.Reader, *fake) {
+	t.Helper()
 	m := New()
 	ctx := context.Background()
-	co := companyFake("TT2627")
 	if _, err := m.Firms(ctx, adminFake(), co); err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +262,7 @@ func TestCurrentContents(t *testing.T) {
 	for _, c := range cl {
 		by[c["UCC"]] = c
 	}
-	if len(cl) != 5 {
+	if len(cl) != 8 { // 5 trading clients and 3 DP-only ones
 		t.Fatalf("clients %d", len(cl))
 	}
 	if x := by["TEST001"]; x["AP"] != "SB01" || x["RM"] != "RM01" || x["Groups"] != "G1;FAM1" || x["RAS"] != "Monthly" {
@@ -295,7 +300,7 @@ func TestCurrentContents(t *testing.T) {
 	}
 	// banks
 	_, bk := readCSV(t, r, "firms/02/master/CLIENT-BANKS.csv")
-	if len(bk) != 6 || bk[0]["Primary"] != "Y" || bk[0]["IFSC"] != "TEST0000001" || bk[1]["Status"] != "Inactive" || bk[1]["Primary"] != "N" || bk[4]["Account"] != "12AB" {
+	if len(bk) != 9 || bk[0]["Primary"] != "Y" || bk[0]["IFSC"] != "TEST0000001" || bk[1]["Status"] != "Inactive" || bk[1]["Primary"] != "N" || bk[4]["Account"] != "12AB" {
 		t.Errorf("banks %v", bk)
 	}
 	if len(issues(r, "Client bank accounts", "IFSC")) == 0 {
@@ -303,7 +308,7 @@ func TestCurrentContents(t *testing.T) {
 	}
 	// nominees: only the last 4 digits of an Aadhaar
 	_, nm := readCSV(t, r, "firms/02/master/NOMINEES.csv")
-	if len(nm) != 1 || nm[0]["IDType"] != "AADHAAR" || nm[0]["ID"] != "4321" {
+	if len(nm) != 4 || nm[0]["IDType"] != "AADHAAR" || nm[0]["ID"] != "4321" { // and the DP-only clients' 3
 		t.Errorf("nominees %v", nm)
 	}
 	// segment status history
@@ -316,13 +321,27 @@ func TestCurrentContents(t *testing.T) {
 	if strings.Join(got, ",") != want {
 		t.Errorf("segment status\n got %s\nwant %s", strings.Join(got, ","), want)
 	}
-	// holdings: two DP accounts' rows are one per client and ISIN; the unlinked one is reported
+	// holdings: one row per client, DP account and ISIN, quantities exact;
+	// an account not in the DP master is reported
 	_, hd := readCSV(t, r, "firms/02/master/DP-HOLDINGS.csv")
-	if len(hd) != 1 || hd[0]["Qty"] != "100" || hd[0]["Pledged"] != "10" || hd[0]["Symbol"] != "TESTCO" {
+	hb := map[string]string{}
+	for _, x := range hd {
+		hb[x["UCC"]+"|"+x["BOID"]+"|"+x["ISIN"]] = x["Qty"] + "/" + x["Pledged"] + "/" + x["Symbol"]
+	}
+	for k, v := range map[string]string{"TEST001|1234567800000001|INE000A01011": "100/10/TESTCO", "TEST001|1234567800000002|INE000A01011": "20/0/TESTCO",
+		"00000009|1234567800000009|INE000A01011": "5/0/TESTCO", "00000009|1234567800000009|INF000A01015": "125.432/25.1/"} {
+		if hb[k] != v {
+			t.Errorf("holding %s = %q, want %q", k, hb[k], v)
+		}
+	}
+	if len(hd) != 4 {
 		t.Errorf("holdings %v", hd)
 	}
-	if len(issues(r, "DP holdings", "no trading code")) != 1 {
-		t.Error("unlinked DP account not reported")
+	if len(issues(r, "DP holdings", "not in SharePro's DP master")) != 1 {
+		t.Error("DP account missing from CLLIST not reported")
+	}
+	if len(issues(r, "DP holdings", "rounded")) != 0 || len(issues(r, "DP holdings", "1 holdings are fractional")) != 1 {
+		t.Errorf("fractional holdings: %+v", r.Manifest.Issues)
 	}
 	// positions: 30 long futures at 100 (FIFO), 50 short puts; the closed call is not there
 	_, ps := readCSV(t, r, "firms/02/master/POSITIONS.csv")
@@ -364,12 +383,14 @@ func TestCurrentContents(t *testing.T) {
 	// KRA and CKYC
 	_, kr := readCSV(t, r, "firms/02/master/KRA-STATUS.csv")
 	_, ck := readCSV(t, r, "firms/02/master/CKYC-NUMBERS.csv")
-	if len(kr) != 2 || kr[0]["Status"] != "Registered" || len(ck) != 1 || ck[0]["CKYCNumber"] != "12345678901234" {
+	if len(kr) != 3 || kr[0]["Status"] != "Registered" || len(ck) != 2 || ck[0]["CKYCNumber"] != "12345678901234" {
 		t.Errorf("kra %v ckyc %v", kr, ck)
 	}
 	// checks come from the server's own totals
-	for name, want := range map[string]string{pkg.CheckTBDebit: "5350.00", pkg.CheckTBCredit: "5350.00", pkg.CheckOpeningDifference: "150.00", pkg.CheckClients: "5", pkg.CheckClientDebit: "1200.00",
-		pkg.CheckClientCredit: "300.00", pkg.CheckDPAccounts: "4", pkg.CheckDPQuantity: "100", pkg.CheckBankAccounts: "6", pkg.CheckPositions: "3"} { // bank accounts: the rows listed for Ledgerline
+	// clients: DLMAST's 5 and the 3 DP-only; DP accounts and quantity: every
+	// account in CLLIST; bank accounts: the rows listed for Ledgerline
+	for name, want := range map[string]string{pkg.CheckTBDebit: "5350.00", pkg.CheckTBCredit: "5350.00", pkg.CheckOpeningDifference: "150.00", pkg.CheckClients: "8", pkg.CheckClientDebit: "1200.00",
+		pkg.CheckClientCredit: "300.00", pkg.CheckDPAccounts: "7", pkg.CheckDPQuantity: "250.432", pkg.CheckBankAccounts: "9", pkg.CheckPositions: "3"} {
 		if got := check(r, name); got != want {
 			t.Errorf("check %s = %s, want %s", name, got, want)
 		}
@@ -383,7 +404,8 @@ func TestCurrentContents(t *testing.T) {
 		dropped[d.Field] = d.Count
 	}
 	if dropped["Client web password"] != 2 || dropped["DP web password"] != 2 || dropped["Aadhaar number (first holder)"] != 2 || dropped["Aadhaar number (client agreement)"] != 2 ||
-		dropped["Dealer web password"] != 2 || dropped["Aadhaar number (contact person 1)"] != 2 {
+		dropped["Dealer web password"] != 2 || dropped["Aadhaar number (contact person 1)"] != 2 || dropped["DP nominee Aadhaar number"] != 2 ||
+		dropped["Aadhaar number (DP account details)"] != 2 || dropped["Aadhaar number (DP nominee 1, account details)"] != 2 || dropped["Aadhaar number (DP nominee 3, account details)"] != 2 {
 		t.Errorf("dropped %v", dropped)
 	}
 	if r.Manifest.Firms[0].AsOf != "2026-10-12" {
@@ -484,7 +506,7 @@ func TestUCCDetailsAndMasters(t *testing.T) {
 	for _, u := range ud {
 		by[u["UCC"]] = u
 	}
-	if len(ud) != 5 {
+	if len(ud) != 8 { // and the 3 DP-only clients
 		t.Fatalf("ucc details %v", ud)
 	}
 	a := by["TEST001"]
@@ -533,24 +555,40 @@ func TestUCCDetailsAndMasters(t *testing.T) {
 			t.Errorf("unknown AP written: %v", c["AP"])
 		}
 	}
-	// DP accounts, DP-only ones under the DP client code
+	// DP accounts: every account, DP-only ones under the DP-only client's
+	// code; one primary per client
 	_, dp := readCSV(t, r, "firms/02/master/DP-ACCOUNTS.csv")
 	got := map[string]string{}
 	for _, x := range dp {
-		got[x["BOID"]] = strings.Join([]string{x["UCC"], x["Depository"], x["Status"], x["Freeze"], x["FreezeReason"], x["DDPI"], x["BSDA"], x["ClosedOn"]}, "|")
+		got[x["BOID"]] = strings.Join([]string{x["UCC"], x["Depository"], x["Status"], x["Freeze"], x["FreezeReason"], x["DDPI"], x["BSDA"], x["ClosedOn"], x["Primary"]}, "|")
 	}
 	want := map[string]string{
-		"1234567800000001": "TEST001|CDSL|Active|||Y|N|",
-		"1234567800000009": "00000009|CDSL|Active|||N||",
-		"1234567800000004": "TEST004|CDSL|Frozen|Debit|TEST FREEZE|N||",
-		"1234567800000003": "TEST003|CDSL|Closed|||N||2024-01-01",
+		"1234567800000001": "TEST001|CDSL|Active|||Y|N||Y",
+		"1234567800000002": "TEST001|CDSL|Active|||N|||N",
+		"1234567800000009": "00000009|CDSL|Active|||N|Y||Y",
+		"1234567800000004": "TEST004|CDSL|Frozen|Debit|TEST FREEZE|N|||Y",
+		"1234567800000003": "TEST003|CDSL|Closed|||N||2024-01-01|Y",
+		"1234567800000010": "00000010|CDSL|Closed|||N||2023-03-31|Y",
+		"1234567800000011": "00000011|CDSL|Frozen|Both|Frozen in SharePro (no reason recorded)|N|||Y",
+	}
+	if len(dp) != len(want) {
+		t.Errorf("DP accounts %v", dp)
 	}
 	for k, v := range want {
 		if got[k] != v {
 			t.Errorf("DP account %s = %q, want %q", k, got[k], v)
 		}
 	}
-	if len(issues(r, "DP accounts", "DP-only")) != 1 {
+	if w := issues(r, "DP accounts", "no reason recorded"); len(w) != 1 || w[0].Key != "00000011" || w[0].Severity != "Warning" {
+		t.Errorf("frozen account with no reason %+v", w)
+	}
+	for _, k := range []string{"3 DP accounts have no trading client in SharePro (DP-only clients)", "1 of these accounts have a trading code (CLLIST.SUBCODE) that is not a client",
+		"1 clients have more than one account at this DP"} {
+		if len(issues(r, "DP accounts", k)) != 1 {
+			t.Errorf("DP accounts info %q: %+v", k, r.Manifest.Issues)
+		}
+	}
+	if len(issues(r, "DP accounts", "DP-only")) != 2 {
 		t.Error("DP-only accounts not counted")
 	}
 }
@@ -576,8 +614,16 @@ func TestFIFO(t *testing.T) {
 func TestDormantSkip(t *testing.T) {
 	r, _ := runCurrent(t, migrate.Plan{DormantMode: "skip"})
 	_, cl := readCSV(t, r, "firms/02/master/CLIENT-MASTER.csv")
-	if len(cl) != 3 || cl[0]["UCC"] != "TEST001" || cl[1]["UCC"] != "TEST004" || cl[2]["UCC"] != "TEST005" {
-		t.Fatalf("clients %v", cl)
+	// the closed DP-only account is left out too
+	var codes []string
+	for _, c := range cl {
+		codes = append(codes, c["UCC"])
+	}
+	if strings.Join(codes, ",") != "TEST001,TEST004,TEST005,00000009,00000011" {
+		t.Fatalf("clients %v", codes)
+	}
+	if len(issues(r, "Client master", "1 closed DP-only accounts were left out")) != 1 || len(issues(r, "Client master", "2 clients with no active segment were left out")) != 1 {
+		t.Errorf("skipped clients not counted: %+v", r.Manifest.Issues)
 	}
 	// the closed client's credit stays in the trial balance, with an error
 	_, ob := readCSV(t, r, "firms/02/master/OPENING-BALANCES.csv")
@@ -592,14 +638,17 @@ func TestDormantSkip(t *testing.T) {
 	if len(errs) != 1 || errs[0].Key != "TEST003" || errs[0].Severity != "Error" {
 		t.Errorf("skipped client with balance: %+v", errs)
 	}
-	if check(r, pkg.CheckClients) != "3" || check(r, pkg.CheckDPAccounts) != "3" {
+	if check(r, pkg.CheckClients) != "5" || check(r, pkg.CheckDPAccounts) != "5" {
 		t.Errorf("clients check %s, DP accounts %s", check(r, pkg.CheckClients), check(r, pkg.CheckDPAccounts))
 	}
 	_, dp := readCSV(t, r, "firms/02/master/DP-ACCOUNTS.csv")
 	for _, x := range dp {
-		if x["UCC"] == "TEST003" {
-			t.Error("skipped client's DP account written")
+		if x["UCC"] == "TEST003" || x["UCC"] == "00000010" {
+			t.Errorf("skipped client's DP account written: %v", x)
 		}
+	}
+	if len(dp) != 5 {
+		t.Errorf("DP accounts %v", dp)
 	}
 }
 
@@ -637,9 +686,25 @@ func TestSecretsNeverSelected(t *testing.T) {
 	if !sawCount {
 		t.Error("the secret columns were never counted")
 	}
+	// the DP master, its details and the DP nominations are read, without
+	// their Aadhaar columns
+	for _, tag := range []string{"dp-accounts", "dp-details", "dp-nominees"} {
+		qs := co.asked(tag)
+		if len(qs) == 0 {
+			t.Errorf("%s not read", tag)
+		}
+		for _, q := range qs {
+			for _, w := range []string{"ADHAR", "[UID]", ".UID", " UID", "WEB_PWD"} {
+				if strings.Contains(strings.ToUpper(q), w) {
+					t.Errorf("%s reads %s: %s", tag, w, q)
+				}
+			}
+		}
+	}
 	// the guard itself
 	for _, q := range []string{"SELECT Web_Pwd FROM DLMAST", "SELECT FHOLDER_ADHAR FROM CLLIST", "SELECT Content FROM SYSTEMLOGFILES", "SELECT PASSWORD FROM SHUSER", "SELECT UID FROM CDNOMREG",
-		"SELECT C_UID1 FROM DLAGREE2", "SELECT NomineeAdhar FROM DLAGREE", "SELECT web_Pwd FROM DLRMAST"} {
+		"SELECT C_UID1 FROM DLAGREE2", "SELECT NomineeAdhar FROM DLAGREE", "SELECT web_Pwd FROM DLRMAST", "SELECT [UID] AS [uid] FROM CLLIST_DET", "SELECT FHADHARNOM FROM CLLIST_DET",
+		"SELECT l.SHADHARNOM FROM CLLIST_DET l", "SELECT THADHARNOM AS x FROM CLLIST_DET", "SELECT n.UID FROM CDNOMREG n"} {
 		if unsafeColumn(q) == "" {
 			t.Errorf("guard let through %s", q)
 		}
@@ -794,10 +859,17 @@ func TestDocuments(t *testing.T) {
 		by[strings.SplitN(x["SourceRef"], ";", 2)[0]] = x
 	}
 	// 1 contract note, 2 ledger, 3 DP statement, 5 payout report (internal),
-	// 7 unknown client (first firm), 8 from the archive copy; 1 again in the
-	// archive copy is skipped; 4 is too large; 6 is the metals firm's
-	if len(idx) != 6 {
+	// 7 unknown client (first firm), 8 from the archive copy, 9 a DP-only
+	// client's DP statement; 1 again in the archive copy is skipped; 4 is
+	// too large; 6 is the metals firm's
+	if len(idx) != 7 {
 		t.Fatalf("documents %v", idx)
+	}
+	if x := by["SSMAIL2_ATTACHMENT:slno=9,attnumber=1"]; x["Type"] != pkg.DocDPStatement || x["UCC"] != "00000009" {
+		t.Errorf("DP-only client's statement %v", x)
+	}
+	if len(issues(r, "Documents", "DP master")) != 0 {
+		t.Errorf("DP documents without a client: %+v", r.Manifest.Issues)
 	}
 	cn := by["SSMAIL2_ATTACHMENT:slno=1,attnumber=1"]
 	if cn["Type"] != pkg.DocContractNote || cn["Signed"] != "Y" || cn["Format"] != "pdf" || cn["UCC"] != "TEST001" || cn["FY"] != "2026-27" || cn["RetainUntil"] != "2034-05-02" ||
@@ -851,7 +923,7 @@ func TestDocuments(t *testing.T) {
 			docs[c.Firm] = c.Value
 		}
 	}
-	if docs["02"] != "6" || docs["05"] != "1" {
+	if docs["02"] != "7" || docs["05"] != "1" {
 		t.Errorf("documents checks %v", docs)
 	}
 }
@@ -882,7 +954,7 @@ func TestDocumentsOtherFirm(t *testing.T) {
 			t.Error("the metals firm's document is in the securities firm")
 		}
 	}
-	if len(idx) != 6 || len(issues(r, "Documents", "firms not chosen")) != 1 {
+	if len(idx) != 7 || len(issues(r, "Documents", "firms not chosen")) != 1 {
 		t.Errorf("documents %d, issues %+v", len(idx), r.Manifest.Issues)
 	}
 }

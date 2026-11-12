@@ -92,12 +92,20 @@ func (h *hist) run(ctx context.Context) error {
 		return err
 	}
 	h.dp, h.byUCC = map[string]dpAcct{}, map[string]dpAcct{}
+	// an account with no trading code is the DP-only client's (its code as
+	// the go-live step gave it, from the newest year's DP master)
+	h.m.mu.Lock()
+	bo := h.m.boUCC
+	h.m.mu.Unlock()
 	if h.s.has("CLLIST") {
 		list, _ := h.s.sel("CLLIST", "", "CO", "DPID", "BENACNUM", "FBENACNUM", "SUBCODE")
 		if err := h.d.query(ctx, fmt.Sprintf(qDPAccts, list), func(r migrate.Row) error {
 			a := dpAcct{co: str(r, "co"), dpid: upper(r, "dpid"), ben: upper(r, "benacnum"), boid: upper(r, "fbenacnum"), ucc: upper(r, "subcode")}
 			if a.boid == "" {
 				a.boid = a.dpid + a.ben
+			}
+			if a.ucc == "" {
+				a.ucc = firstNonEmpty(bo[a.boid], bo[a.ben])
 			}
 			h.dp[a.co+"|"+a.ben] = a
 			if _, ok := h.byUCC[a.ucc]; !ok && a.ucc != "" {

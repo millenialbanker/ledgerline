@@ -142,7 +142,7 @@ func (m *Mapper) Documents(ctx context.Context, q migrate.Querier, k migrate.Kin
 		}
 	}
 	if dm.dpNoUCC > 0 {
-		rep.infof("Documents", "", "dp-no-ucc", "%d DP documents were sent to DP accounts with no trading code; they are archived without a client code (the DP account is in the source reference)", dm.dpNoUCC)
+		rep.infof("Documents", "", "dp-no-ucc", "%d DP documents were sent to DP accounts that are not in the newest year's DP master (CLLIST); they are archived without a client code (the DP account is in the source reference)", dm.dpNoUCC)
 	}
 	if dm.internal > 0 {
 		rep.infof("Documents", "", "internal", "%d documents were mailed to branches, groups or sub-brokers (payout reports covering several clients); they are archived as the firm's records, with no client code, so no client sees them", dm.internal)
@@ -246,6 +246,7 @@ func (dm *docRun) read(ctx context.Context, mt, fam string, seen map[string]bool
 		ucc, dpID := "", ""
 		switch idType {
 		case "DP CLIENT", "DPCLIENT", "DP":
+			// the account's trading client, or the DP-only client
 			dpID = strings.ToUpper(str(r, "id"))
 			ucc = dm.bo[dpID]
 			if ucc == "" {
