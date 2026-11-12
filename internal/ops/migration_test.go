@@ -302,12 +302,12 @@ func TestMigDryRunReportsEveryError(t *testing.T) {
 		}
 	}
 	for _, want := range []k{{"CLIENT-MASTER.csv", 4, "pan"}, {"CLIENT-MASTER.csv", 5, "mobile"}, {"CLIENT-MASTER.csv", 6, "ucc"},
-		{"CLIENT-BANKS.csv", 4, "ucc"}, {"CLIENT-BANKS.csv", 3, "banks.1.ifsc"}, {"OPENING-BALANCES.csv", 0, ""}} {
+		{"CLIENT-BANKS.csv", 4, "ucc"}, {"OPENING-BALANCES.csv", 0, ""}} {
 		if !got[want] {
 			t.Errorf("missing error %+v; got %v", want, errs)
 		}
 	}
-	if n != len(errs) || p.Check.Errors < 6 {
+	if n != len(errs) || p.Check.Errors < 5 {
 		t.Fatalf("count %d / %d / %d", n, len(errs), p.Check.Errors)
 	}
 	// Nothing was saved.

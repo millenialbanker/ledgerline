@@ -163,11 +163,13 @@ func TestIncompleteDryRunLaterFiles(t *testing.T) {
 				t.Errorf("%s: an error for the inactive client: %+v", r.Source, e)
 			}
 		}
-		if len(hard) == 0 {
+		if len(hard) == 0 && r.Source != "CLIENT-BANKS" && r.Source != "NOMINEES" {
 			t.Errorf("%s: the active client's problem is no error", r.Source)
 		}
 		for _, e := range warn {
-			if strings.Contains(e.Msg, "TA001") {
+			// an active client's invalid other account loads inactive, with a warning
+			// and a nominee relationship missing from an old nomination is asked for, not refused
+			if strings.Contains(e.Msg, "TA001") && !(r.Source == "CLIENT-BANKS" && strings.Contains(e.Msg, "inactive account")) && !(r.Source == "NOMINEES" && strings.Contains(e.Msg, "ask the client")) {
 				t.Errorf("%s: a warning for the active client: %+v", r.Source, e)
 			}
 		}
@@ -385,5 +387,33 @@ func TestIncompleteMigrationLoads(t *testing.T) {
 	}
 	if !ran {
 		t.Fatalf("no settlement due for TI001: %+v", v.Rows)
+	}
+}
+
+// An active client's nominee with an invalid email: the email is left out
+// and the nomination loads; a missing relationship marks the client
+// incomplete instead of stopping the load.
+func TestActiveNomineeLeniency(t *testing.T) {
+	o, ctx := migSetup(t)
+	cm := csvOf(cmCols, cmRow("TA001", "Test Client A", "ABCPA1234A", "9876500001"))
+	if _, err := o.LoadFile(ctx, MT, "adm.one", "CLIENT-MASTER", "", "c.csv", cm); err != nil {
+		t.Fatal(err)
+	}
+	nf := csvOf([]string{"UCC", "Name", "Relation", "Share", "IDType", "ID", "DOB", "Guardian", "GuardianRelation", "Email"},
+		[]string{"TA001", "Test Nominee One", "", "60", "", "", "", "", "", "not-an-email"},
+		[]string{"TA001", "Test Nominee Two", "Spouse", "40", "", "", "", "", "", "two@example.com"})
+	res, err := o.LoadFile(ctx, MT, "adm.one", "NOMINEES", "", "n.csv", nf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Warnings) < 2 {
+		t.Errorf("warnings %+v", res.Warnings)
+	}
+	c, _ := o.Client(ctx, MT, "TA001")
+	if len(c.Nominees) != 2 || c.Nominees[0].Email != "" || c.Nominees[1].Email != "two@example.com" {
+		t.Fatalf("nominees %+v", c.Nominees)
+	}
+	if !contains(c.Incomplete, "Nominee details") {
+		t.Errorf("incomplete %v", c.Incomplete)
 	}
 }

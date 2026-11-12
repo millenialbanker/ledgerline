@@ -496,7 +496,24 @@ func (c *cur) writePartners(ctx context.Context) error {
 		return err
 	}
 	codes := map[string]string{}
+	changed := 0
+	defer func() {
+		if changed > 0 {
+			c.rep.infof(area, "", "codes-changed", "%d partner codes were not 3 to 10 letters or digits; they come across tidied (punctuation removed, short codes prefixed AP or RM), and the clients' AP and RM codes the same way", changed)
+		}
+	}()
 	write := func(v map[string]string) error {
+		prefix := "AP"
+		if v["Kind"] != "Authorised person" {
+			prefix = "RM"
+		}
+		if pc := partnerCode(v["Code"], prefix); pc != v["Code"] {
+			changed++
+			v["Code"] = pc
+		}
+		if v["Code"] == "" {
+			return nil
+		}
 		if k, dup := codes[v["Code"]]; dup {
 			c.rep.warnf(area, v["Code"], "dup-code", "Give one of them another code in Ledgerline", "Code %s is both a %s and a %s; only the first is written", v["Code"], strings.ToLower(k), strings.ToLower(v["Kind"]))
 			return nil
@@ -680,4 +697,31 @@ func normPIN(p string) string {
 		return d.String()
 	}
 	return strings.TrimSpace(p)
+}
+
+// partnerCode turns a SharePro sub-broker, RM or dealer code into one
+// Ledgerline accepts (3 to 10 letters or digits): punctuation and spaces
+// are removed, a code shorter than 3 gets the prefix (AP or RM), a longer
+// one keeps its last 10 characters. Placeholders such as "." or "NA" give
+// "". The clients' AP and RM codes go through the same function, so they
+// still point at the partner.
+func partnerCode(raw, prefix string) string {
+	var b strings.Builder
+	for _, r := range strings.ToUpper(raw) {
+		if r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	c := b.String()
+	switch c {
+	case "", "NA", "NIL", "NONE", "0", "00", "000":
+		return ""
+	}
+	if len(c) < 3 {
+		c = prefix + c
+	}
+	if len(c) > 10 {
+		c = c[len(c)-10:]
+	}
+	return c
 }

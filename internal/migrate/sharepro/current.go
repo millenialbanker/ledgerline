@@ -863,7 +863,7 @@ func (c *cur) clientRow(cl *client, dm dpAcct) map[string]string {
 		"Bank": primary.bank, "IFSC": primary.ifsc, "Account": primary.account, "Depository": dm.depository, "DematID": dm.boid,
 		"Nominee": nom, "NomineeName": nomName, "KYCDate": kycDate, "Status": "Active", "API": "N", "LastTrade": c.cm.lastTrade[cl.ucc],
 		"Branch": cl.branch, "State": state, "ECN": yn(cl.econtract), "NominationDate": nomDate,
-		"AP": cl.sb, "RM": cl.rm, "Groups": strings.Join(c.cm.groups[cl.ucc], ";"),
+		"AP": partnerCode(cl.sb, "AP"), "RM": partnerCode(cl.rm, "RM"), "Groups": strings.Join(c.cm.groups[cl.ucc], ";"),
 	}
 }
 

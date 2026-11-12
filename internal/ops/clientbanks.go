@@ -708,8 +708,22 @@ func (o *Ops) prepareClientBanks(ctx context.Context, tenant, actor string, rows
 		for i := range bs {
 			bs[i].Primary = i == p
 		}
+		if !c.Inactive {
+			// An active client's other accounts that the previous system
+			// holds with an invalid number or IFSC (often masked numbers
+			// copied from the KRA) cannot receive payouts, which go only to
+			// the primary: they load as inactive accounts.
+			for i := range bs {
+				b := &bs[i]
+				if b.Primary || !b.active() || (reAcct.MatchString(b.Account) && reIFSC.MatchString(b.IFSC)) {
+					continue
+				}
+				b.Status, b.InactiveWhy = BankInactive, bankInvalidWhy
+				warn(rowLines[u][i], "Account", fmt.Sprintf("%s: account %s (%s) is not a valid account number and IFSC; it loads as an inactive account (payouts go only to the primary)", u, firstOf(MaskAccount(b.Account), "with no number"), firstOf(b.IFSC, "no IFSC")))
+			}
+		}
 		n := len(activeBanks(Client{Banks: bs}))
-		if n > limit && c.Inactive {
+		if n > limit {
 			// The primary and the first others up to the limit stay active;
 			// the rest are kept as inactive accounts.
 			k := 1
@@ -726,6 +740,11 @@ func (o *Ops) prepareClientBanks(ctx context.Context, tenant, actor string, rows
 			warn(lines[u], "Account", fmt.Sprintf("%s: %d active bank accounts; at most %d are allowed (Settings → Maximum bank accounts per client), so %d load as inactive accounts", u, n, limit, n-limit))
 		}
 		for _, f := range checkBanks(bs) {
+			if i := bankIndex(f.Field); !c.Inactive && i >= 0 && !bs[i].active() {
+				// an active client's inactive account: kept as it was
+				warn(lines[u], f.Field, u+": "+f.Msg+inactiveAcctNote)
+				continue
+			}
 			if c.Inactive {
 				note := incompleteNote
 				if i := bankIndex(f.Field); i >= 0 && !bs[i].active() {
@@ -737,9 +756,6 @@ func (o *Ops) prepareClientBanks(ctx context.Context, tenant, actor string, rows
 				continue
 			}
 			errs = append(errs, ingest.ParseError{Line: lines[u], Field: f.Field, Msg: u + ": " + f.Msg})
-		}
-		if n > limit && !c.Inactive {
-			errs = append(errs, ingest.ParseError{Line: lines[u], Field: "Account", Msg: fmt.Sprintf("%s: %d active bank accounts; at most %d are allowed (Settings → Maximum bank accounts per client); mark the others Inactive", u, n, limit)})
 		}
 		by[u] = bs
 	}

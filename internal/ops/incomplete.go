@@ -48,6 +48,10 @@ const inactiveAcctNote = " — an inactive account, kept as in the previous syst
 // was loaded as inactive because the client had more than the firm's limit.
 const bankOverLimitWhy = "More active accounts than the firm's limit when migrated"
 
+// bankInvalidWhy marks an active client's other account that came across
+// with an invalid number or IFSC.
+const bankInvalidWhy = "Invalid account number or IFSC in the previous system"
+
 // incompleteOrder is the order the labels are listed in.
 var incompleteOrder = []string{"Mobile", "Email", "PAN", "Client type", "Bank account number", "IFSC", "Bank name", "Bank accounts", "City", "Segments",
 	"Income proof", "Running account settlement", "Nominee details", "Address", "PIN", "State", "Contact persons", "UCC details", "Client details"}

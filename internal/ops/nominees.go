@@ -460,11 +460,28 @@ func (o *Ops) prepareNominees(ctx context.Context, tenant, actor string, rows []
 				continue
 			}
 		}
+		if !cl.Inactive {
+			// A nominee's email is optional: one the previous system holds
+			// in an invalid form is left out rather than stopping the load.
+			for i := range ns {
+				if e := strings.TrimSpace(ns[i].Email); e != "" && !reEmail.MatchString(strings.ToLower(e)) {
+					errs = append(errs, ingest.ParseError{Line: rowLines[u][i], Field: "Email", Msg: fmt.Sprintf("%s: nominee %d's email is not valid; it is left out (a nominee's email is optional)", u, i+1), Warning: true})
+					ns[i].Email = ""
+				}
+			}
+		}
 		c := Client{Nominees: ns}
 		normaliseNominees(&c)
 		// A migration file carries nominations already made, some under
 		// the old limit of 10: they load as they are and are flagged.
 		for _, f := range checkNominees(c.Nominees, now, legacyMaxNominees) {
+			if !cl.Inactive && strings.HasSuffix(f.Field, ".relation") {
+				// a nomination made long ago without the relationship stands;
+				// the relationship is asked for (the client is marked incomplete)
+				errs = append(errs, ingest.ParseError{Line: lines[u], Field: f.Field, Msg: u + ": " + f.Msg + " — kept as in the previous system; ask the client for it", Warning: true})
+				warned[u] = true
+				continue
+			}
 			if cl.Inactive && len(c.Nominees) <= legacyMaxNominees {
 				errs = append(errs, ingest.ParseError{Line: lines[u], Field: f.Field, Msg: u + ": " + f.Msg + incompleteNote, Warning: true})
 				warned[u] = true

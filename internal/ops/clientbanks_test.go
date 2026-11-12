@@ -340,18 +340,22 @@ func TestClientBanksImport(t *testing.T) {
 	if c4, _ := o.Client(ctx, T, "CB004"); c4.Bank.Account != "300000000004" || primaryBank(c4).Account != "300000000004" {
 		t.Fatalf("CB004: %+v", c4.Bank)
 	}
-	// Over the limit, or two primaries: refused.
+	// Over the limit: the accounts beyond it load as inactive accounts
+	// (a migration must not stop on them; receipts from them are flagged).
+	set, _ := o.Settings(ctx, T)
+	lim := set.maxClientBanks()
 	var rows strings.Builder
 	rows.WriteString(head)
-	for i := 0; i < 4; i++ {
+	for i := 0; i < lim+1; i++ {
 		fmt.Fprintf(&rows, "CB004,SBI,SBIN000000%d,30000000000%d,,SB,,\n", i, i)
 	}
-	if _, err := o.LoadFile(ctx, T, "priya.nair", "CLIENT-BANKS", "", "too_many.csv", []byte(rows.String())); err == nil {
-		t.Fatal("4 active accounts loaded")
+	if _, err := o.LoadFile(ctx, T, "priya.nair", "CLIENT-BANKS", "", "too_many.csv", []byte(rows.String())); err != nil {
+		t.Fatal(err)
 	}
-	if c4, _ := o.Client(ctx, T, "CB004"); len(activeBanks(c4)) != 1 {
-		t.Fatalf("rejected file changed CB004: %+v", c4.Banks)
+	if c4, _ := o.Client(ctx, T, "CB004"); len(c4.Banks) != lim+1 || len(activeBanks(c4)) != lim {
+		t.Fatalf("over the limit: %+v", c4.Banks)
 	}
+	// Two primaries: refused.
 	two := head + "CB004,SBI,SBIN0000004,300000000004,Y,SB,,\nCB004,SBI,SBIN0000004,300000000004,Y,SB,,\n"
 	if _, err := o.LoadFile(ctx, T, "priya.nair", "CLIENT-BANKS", "", "dup.csv", []byte(two)); err == nil {
 		t.Fatal("duplicate account loaded")

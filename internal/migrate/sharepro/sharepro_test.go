@@ -993,3 +993,14 @@ func TestNormPIN(t *testing.T) {
 		}
 	}
 }
+
+func TestPartnerCode(t *testing.T) {
+	for in, want := range map[string]string{"SB01": "SB01", "s/b-7": "SB7", "7": "AP7", ".": "", "na": "", "ABCDEFGHIJKL": "CDEFGHIJKL", " D 01 ": "D01"} {
+		if got := partnerCode(in, "AP"); got != want {
+			t.Errorf("partnerCode(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if partnerCode("9", "RM") != "RM9" {
+		t.Error("RM prefix")
+	}
+}
