@@ -27,6 +27,11 @@ type Mapper struct {
 	// boUCC maps a DP account (BENACNUM and FBENACNUM) to the trading
 	// code, from the newest company database (for DP mails).
 	boUCC map[string]string
+	// clientFirm and boFirm: the firm of each client and DP account, from
+	// the newest company database (documents go to the client's firm).
+	clientFirm, boFirm map[string]string
+	// branches from the admin database (BRANCHES)
+	branches []branchRec
 }
 
 // New returns the SharePro mapper.
@@ -68,16 +73,6 @@ const (
 	qJVYears    = `/*sp:jv-years*/ SELECT TOP 1 CASE WHEN MONTH(VRDT) >= 4 THEN YEAR(VRDT) ELSE YEAR(VRDT) - 1 END AS y, COUNT(*) AS n FROM JVFILE GROUP BY CASE WHEN MONTH(VRDT) >= 4 THEN YEAR(VRDT) ELSE YEAR(VRDT) - 1 END ORDER BY COUNT(*) DESC`
 	qAdminYears = `/*sp:admin-years*/ SELECT MAX(ACC_YEAR) AS last, MIN(ACC_YEAR) AS first FROM ACC_YEAR`
 )
-
-// mailTables finds the mail and attachment tables of a mail database.
-func mailTables(s *schema) (mail, att string) {
-	for _, t := range []string{"SSMAIL2", "SSMAIL", "XSSMAIL2", "XSSMAIL"} {
-		if s.has(t) && s.has(t+"_ATTACHMENT") && s.hasCol(t+"_ATTACHMENT", "CONTENTS") && s.hasCol(t, "SLNO") {
-			return t, t + "_ATTACHMENT"
-		}
-	}
-	return "", ""
-}
 
 func isAdmin(s *schema) bool { return s.has("COLIST") && s.has("ACC_YEAR") }
 func isCompany(s *schema) bool {
@@ -168,16 +163,21 @@ const (
 )
 
 type coRow struct {
-	co, descr, sebi string
-	inactive        bool
-	dp              bool
+	co, descr, sebi, system string
+	inactive                bool
+	dp                      bool
 }
 
 func (m *Mapper) Firms(ctx context.Context, admin, company migrate.Querier) ([]pkg.Firm, error) {
 	var fs []firmInfo
 	var err error
+	var brs []branchRec
 	if admin != nil {
 		fs, err = firmsFromAdmin(ctx, db{admin})
+		if err != nil {
+			return nil, err
+		}
+		brs, err = loadBranches(ctx, db{admin})
 		if err != nil {
 			return nil, err
 		}
@@ -203,6 +203,9 @@ func (m *Mapper) Firms(ctx context.Context, admin, company migrate.Querier) ([]p
 	}
 	m.mu.Lock()
 	m.firms = fs
+	if admin != nil {
+		m.branches = brs
+	}
 	m.mu.Unlock()
 	return toPkgFirms(fs), nil
 }
@@ -229,10 +232,10 @@ func firmsFromAdmin(ctx context.Context, d db) ([]firmInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	list, _ := s.sel("COLIST", "", "CO", "DESCR", "SEBI_REG", "Inactive", "CDSL_BEN", "NSDL_BEN", "DPID")
+	list, _ := s.sel("COLIST", "", "CO", "DESCR", "SEBI_REG", "SYSTEM", "Inactive", "CDSL_BEN", "NSDL_BEN", "DPID")
 	var rows []coRow
 	err = d.query(ctx, fmt.Sprintf(qAdminCOs, list), func(r migrate.Row) error {
-		rows = append(rows, coRow{co: str(r, "co"), descr: str(r, "descr"), sebi: upper(r, "sebi_reg"), inactive: flag(r, "inactive"),
+		rows = append(rows, coRow{co: str(r, "co"), descr: str(r, "descr"), sebi: upper(r, "sebi_reg"), system: upper(r, "system"), inactive: flag(r, "inactive"),
 			dp: flag(r, "cdsl_ben") || flag(r, "nsdl_ben")})
 		return nil
 	})
@@ -264,7 +267,11 @@ var (
 // LTD. (NSE)" and "ABC SECURITIES PVT LTD(C - MCX)" are both "ABC
 // SECURITIES PVT LTD".
 func entityName(descr string) string {
-	n := strings.ToUpper(reParen.ReplaceAllString(descr, " "))
+	n := strings.ToUpper(descr)
+	if i := strings.Index(n, "("); i >= 0 { // everything from the first bracket is the segment tag
+		n = n[:i]
+	}
+	n = strings.ReplaceAll(n, ".", "")
 	n = reNamePun.ReplaceAllString(n, " ")
 	n = strings.ReplaceAll(" "+n+" ", " PRIVATE ", " PVT ")
 	n = strings.ReplaceAll(n, " LIMITED ", " LTD ")
@@ -323,6 +330,7 @@ func segToken(t string) (coSeg, bool) {
 // groupCOs makes one firm per legal entity. The firm's code is the
 // lowest CO of the group.
 func groupCOs(rows []coRow, years map[string][]string) []firmInfo {
+	named := map[string]bool{}
 	by := map[string]*firmInfo{}
 	var order []string
 	for _, r := range rows {
@@ -340,11 +348,22 @@ func groupCOs(rows []coRow, years map[string][]string) []firmInfo {
 		if r.co < f.Code {
 			f.Code = r.co
 		}
-		f.Seg[r.co] = segFromName(r.descr, r.sebi, r.dp)
+		// COLIST.SYSTEM (NSE, NFO, BSE, CDSL, MCFO, NBFC, PMS...) says what the
+		// CO is; else the name's bracketed tag
+		if sg, ok := segToken(r.system); ok {
+			f.Seg[r.co] = sg
+		} else {
+			f.Seg[r.co] = segFromName(r.descr, r.sebi, r.dp)
+		}
 		f.Active[r.co] = !r.inactive
-		// the name as the old system writes it, from an active CO
-		if !r.inactive && strings.EqualFold(entityName(r.descr), key) {
-			f.Name = strings.TrimSpace(reParen.ReplaceAllString(r.descr, ""))
+		// the name as the old system writes it, from the first active CO
+		if !r.inactive && !named[key] {
+			named[key] = true
+			n := r.descr
+			if i := strings.Index(n, "("); i >= 0 {
+				n = n[:i]
+			}
+			f.Name = strings.TrimSpace(n)
 		}
 	}
 	var out []firmInfo
@@ -358,6 +377,13 @@ func groupCOs(rows []coRow, years map[string][]string) []firmInfo {
 		}
 		f.Years = sortedKeys(ys)
 		sort.Strings(f.COs)
+		active := false
+		for _, a := range f.Active {
+			active = active || a
+		}
+		if !active {
+			f.Name += " (inactive in SharePro)"
+		}
 		out = append(out, *f)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Code < out[j].Code })

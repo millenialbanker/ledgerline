@@ -16,7 +16,6 @@ const (
 	qSymbols  = `/*sp:isin-symbols*/ SELECT RTRIM(x.ISINCD) AS isin, %s FROM ISINMAST x JOIN ITC i ON i.ITEMCD = x.ITEMCD`
 	// checks
 	qCheckHold = `/*sp:check-holdings*/ SELECT SUM(h.BALANCE) AS q FROM HOLD h JOIN CLLIST l ON l.CO = h.CO AND l.BENACNUM = h.BENACNUM WHERE h.CO IN (%s) AND h.HOLDDATE >= '%s' AND h.HOLDDATE < '%s' AND RTRIM(l.SUBCODE) IN (%s)`
-	qCheckDP   = `/*sp:check-dp-accounts*/ SELECT COUNT(*) AS n FROM CLLIST WHERE CO IN (%s) AND RTRIM(SUBCODE) IN (%s) AND NOT (BENCLOSEDT > '1901-01-01')`
 	// derivative trades of contracts not yet expired
 	qPositions = `/*sp:positions*/ SELECT RTRIM(t.CO) AS co, RTRIM(t.SUBCD) AS subcd, RTRIM(t.ITEMCD) AS itemcd, t.TRDT AS trdt, t.QTY AS qty, CASE WHEN t.ACT_RATE > 0 THEN t.ACT_RATE ELSE t.RATE END AS price, %s FROM TRFILE t %s WHERE t.CO IN (%s) AND t.TRDT < '%s' AND i.exp_date >= '%s' ORDER BY t.SUBCD, t.CO, t.ITEMCD, %s`
 	qCheckPos  = `/*sp:check-positions*/ SELECT COUNT(*) AS n FROM (SELECT t.SUBCD, t.CO, t.ITEMCD FROM TRFILE t %s WHERE t.CO IN (%s) AND t.TRDT < '%s' AND i.exp_date >= '%s' GROUP BY t.SUBCD, t.CO, t.ITEMCD HAVING SUM(t.QTY) <> 0) x`
@@ -140,13 +139,6 @@ func (c *cur) writeHoldings(ctx context.Context) error {
 		return err
 	}
 	c.rep.check(pkg.CheckDPQuantity, dec(r, "q").String(), "Total DP holding (HOLD.BALANCE) on "+day(hd)+" of the DP accounts of migrated clients")
-	if c.s.hasCol("CLLIST", "BENCLOSEDT") {
-		r, err = c.d.one(ctx, fmt.Sprintf(qCheckDP, inList(dpc), clients))
-		if err != nil {
-			return err
-		}
-		c.rep.check(pkg.CheckDPAccounts, fmt.Sprint(i64(r, "n")), "Open DP accounts (CLLIST) of migrated clients; CLIENT-MASTER carries one demat account per client")
-	}
 	return nil
 }
 
@@ -177,45 +169,83 @@ func (c *cur) derivCOs() []string {
 	return out
 }
 
-// itcApply is the item master lookup for a trade (alias i), and the
-// contract master for the option type (alias k).
-func (c *cur) itcApply() (cols, apply string) {
-	il, _ := c.s.sel("ITC", "ITC", "INSTR_TYPE", "EXP_DATE", "CONT_RATE", "NSE_ITEMCD", "MCX_ITEMCD", "DESCR")
-	apply = " OUTER APPLY (SELECT TOP 1 " + il + " FROM ITC WHERE ITC.ITEMCD = t.ITEMCD) i"
-	cols = "i.instr_type, i.exp_date, i.cont_rate, i.nse_itemcd, i.mcx_itemcd, i.descr"
-	if c.s.has("ICCLCONT") {
-		kl, _ := c.s.sel("ICCLCONT", "ICCLCONT", "Cont_type", "AssetCd")
-		apply += " OUTER APPLY (SELECT TOP 1 " + kl + " FROM ICCLCONT WHERE ICCLCONT.Nse_itemcd = t.ITEMCD OR ICCLCONT.Bse_itemcd = t.ITEMCD) k"
-		cols += ", k.cont_type, k.assetcd"
+// itemApply joins the item master to trades (alias t): ITC as i, the
+// contract master ICCLCONT as k, ISINMAST as x. Verified against a real
+// database: ICCLCONT.Cont_type is M or W (not call or put); the option type
+// is read from the series and descriptions (optType).
+func itemApply(s *schema) (cols, apply string) {
+	col := func(table, alias, c, as string) string {
+		if s.hasCol(table, c) {
+			return alias + ".[" + c + "] AS " + as
+		}
+		return "NULL AS " + as
+	}
+	var ic, kc []string
+	for _, x := range [][2]string{{"INSTR_TYPE", "instr_type"}, {"EXP_DATE", "exp_date"}, {"CONT_RATE", "cont_rate"}, {"NSE_ITEMCD", "nse_itemcd"},
+		{"NSE_SERIES", "nse_series"}, {"MCX_ITEMCD", "mcx_itemcd"}, {"DESCR", "descr"}} {
+		ic = append(ic, col("ITC", "ITC", x[0], x[1]))
+	}
+	for _, x := range [][2]string{{"AssetCd", "assetcd"}, {"Nse_series", "k_series"}, {"ContDescr", "k_descr"}, {"Bfo_SrsCd", "k_srscd"}, {"ProductTp", "k_prod"}} {
+		kc = append(kc, col("ICCLCONT", "ICCLCONT", x[0], x[1]))
+	}
+	cols = "NULL AS instr_type, NULL AS exp_date, NULL AS cont_rate, NULL AS nse_itemcd, NULL AS nse_series, NULL AS mcx_itemcd, NULL AS descr"
+	if s.has("ITC") {
+		apply = " OUTER APPLY (SELECT TOP 1 " + strings.Join(ic, ", ") + " FROM ITC WHERE ITC.ITEMCD = t.ITEMCD) i"
+		cols = "i.instr_type, i.exp_date, i.cont_rate, i.nse_itemcd, i.nse_series, i.mcx_itemcd, i.descr"
+	}
+	if s.has("ICCLCONT") && s.hasCol("ICCLCONT", "Nse_itemcd") && s.hasCol("ICCLCONT", "Bse_itemcd") {
+		apply += " OUTER APPLY (SELECT TOP 1 " + strings.Join(kc, ", ") + " FROM ICCLCONT WHERE ICCLCONT.Nse_itemcd = t.ITEMCD OR ICCLCONT.Bse_itemcd = t.ITEMCD) k"
+		cols += ", k.assetcd, k.k_series, k.k_descr, k.k_srscd, k.k_prod"
 	} else {
-		cols += ", NULL AS cont_type, NULL AS assetcd"
+		cols += ", NULL AS assetcd, NULL AS k_series, NULL AS k_descr, NULL AS k_srscd, NULL AS k_prod"
 	}
 	return cols, apply
 }
 
-// instrument reads FUT, CE or PE and the underlying from the item master.
+// optType reads CE or PE from a series ("CE"), a description ("NIFTY
+// 29OCT 21000 PE") or a series code ending in CE or PE after a digit.
+func optType(vals ...string) string {
+	for _, v := range vals {
+		v = strings.ToUpper(strings.TrimSpace(v))
+		for _, w := range strings.Fields(v) {
+			switch w {
+			case "CE", "CA", "CALL":
+				return "CE"
+			case "PE", "PA", "PUT":
+				return "PE"
+			}
+		}
+		if n := len(v); n > 3 && v[n-3] >= '0' && v[n-3] <= '9' {
+			switch v[n-2:] {
+			case "CE":
+				return "CE"
+			case "PE":
+				return "PE"
+			}
+		}
+	}
+	return ""
+}
+
+// instrument reads FUT, CE or PE (empty when an option's type cannot be
+// told) and the underlying from the item master.
 func instrument(r migrate.Row) (typ, symbol string) {
 	it := upper(r, "instr_type")
+	if it == "" {
+		// ICCLCONT.ProductTp: SF, IF stock and index futures; SO, IO options
+		switch upper(r, "k_prod") {
+		case "SF", "IF":
+			it = "FUT"
+		case "SO", "IO":
+			it = "OPT"
+		}
+	}
 	descr := upper(r, "descr")
 	switch {
 	case strings.HasPrefix(it, "FUT"):
 		typ = "FUT"
 	case strings.HasPrefix(it, "OPT"):
-		switch ct := upper(r, "cont_type"); {
-		case strings.HasPrefix(ct, "C"):
-			typ = "CE"
-		case strings.HasPrefix(ct, "P"):
-			typ = "PE"
-		default:
-			for _, w := range strings.Fields(descr) {
-				switch w {
-				case "CE", "CA", "CALL":
-					typ = "CE"
-				case "PE", "PA", "PUT":
-					typ = "PE"
-				}
-			}
-		}
+		typ = optType(str(r, "nse_series"), str(r, "k_series"), str(r, "k_descr"), descr, str(r, "k_srscd"))
 	}
 	symbol = firstNonEmpty(upper(r, "assetcd"), upper(r, "nse_itemcd"), upper(r, "mcx_itemcd"))
 	if symbol == "" && descr != "" {
@@ -235,7 +265,7 @@ func (c *cur) writePositions(ctx context.Context) error {
 	if len(cos) == 0 || !c.s.has("TRFILE") || !c.s.has("ITC") {
 		return cw.Close()
 	}
-	cols, apply := c.itcApply()
+	cols, apply := itemApply(c.s)
 	next, asOf := day(c.asOf.AddDate(0, 0, 1)), day(c.asOf)
 	type posKey struct{ ucc, co, item string }
 	var curKey posKey
@@ -262,7 +292,7 @@ func (c *cur) writePositions(ctx context.Context) error {
 		}
 		typ, sym := instrument(meta)
 		if typ == "" {
-			c.rep.warnf(area, u, "instrument", "Add the position by hand or load the clearing corporation's position file", "Instrument type of item %s (%s) cannot be told; the position is left out", curKey.item, upper(meta, "instr_type"))
+			c.rep.warnf(area, u, "instrument", "Add the position by hand or load the clearing corporation's position file", "Instrument type of item %s (%s) cannot be told (an option's call or put is not in its series or description); the position is left out", curKey.item, upper(meta, "instr_type"))
 			return
 		}
 		avg, _ := val.Quo(net.Abs())

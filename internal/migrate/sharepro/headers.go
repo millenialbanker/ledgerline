@@ -18,6 +18,14 @@ const (
 	srcHoldLots   = "HOLDING-LOTS"
 	srcBrokCards  = "BROKERAGE-CARDS"
 	srcBrokClient = "BROKERAGE-CLIENTS"
+
+	// Imports being added on the Ledgerline side (fixed layouts; not yet in
+	// ops.MasterSources on this branch).
+	srcUCCDetails = "UCC-DETAILS"
+	srcContacts   = "UCC-CONTACTS"
+	srcBranches   = "BRANCHES"
+	srcPartners   = "PARTNERS"
+	srcDPAccounts = "DP-ACCOUNTS"
 )
 
 var headers = map[string][]string{
@@ -25,7 +33,7 @@ var headers = map[string][]string{
 	// the "no active segment" state (Plan.DormantMode inactive).
 	srcClients: {"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account",
 		"Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock",
-		"Branch", "State", "GSTIN", "ECN", "NominationDate", "NominationMode", "Inactive", "InactiveSince"},
+		"Branch", "State", "GSTIN", "ECN", "NominationDate", "NominationMode", "AP", "RM", "Groups", "Inactive", "InactiveSince"},
 	srcBanks:     {"UCC", "Bank", "IFSC", "Account", "Primary", "Status", "Branch", "MICR", "Type", "AddedOn"},
 	srcNominees:  {"UCC", "Name", "Relation", "Share", "IDType", "ID", "DOB", "Guardian", "GuardianRelation", "Mobile", "Email", "Address", "DeclaredOn"},
 	srcSegStatus: {"UCC", "Segment", "Status", "EffectiveDate", "Reason"},
@@ -38,21 +46,32 @@ var headers = map[string][]string{
 	srcInterest: {"UCC", "From", "Rate", "GraceDays", "Free", "Note"},
 	srcKRA:      {"PAN", "Status", "Remarks"},
 	srcCKYC:     {"PAN", "CKYCNumber"},
+
+	srcUCCDetails: {"UCC", "Address1", "City", "State", "PIN",
+		"Category", "Address2", "Address3", "Country", "PermAddress1", "PermAddress2", "PermAddress3", "PermCity", "PermState", "PermCountry", "PermPIN",
+		"Gender", "Guardian", "Marital", "Nationality", "Occupation", "OccupationDetail", "IncomeAsOn", "PEP", "IPV", "POAFunds", "POASecurities",
+		"UPI", "AgreementDate", "CIN", "BankType", "MobileRelation", "EmailRelation"},
+	srcContacts:   {"UCC", "Name", "Designation", "PAN", "Address", "Phone", "Email", "DIN"},
+	srcBranches:   {"Code", "Name", "City", "Manager", "Parent", "Kind", "Active"},
+	srcPartners:   {"Code", "Name", "Kind", "Branch", "Parent", "PAN", "GSTIN", "RegNo", "SharePct", "Bank", "Account", "IFSC", "Email", "Active"},
+	srcDPAccounts: {"UCC", "BOID", "Depository", "Status", "Opened", "ClosedOn", "BSDA", "Freeze", "FreezeReason", "DDPI"},
+}
+
+// required columns of the imports not yet in ops.MasterSources (for the
+// test; MasterSources is compared once it lists them).
+var pendingRequired = map[string][]string{
+	srcUCCDetails: {"UCC", "Address1", "City", "State", "PIN"},
+	srcContacts:   {"UCC", "Name", "Designation"},
+	srcBranches:   {"Code", "Name"},
+	srcPartners:   {"Code", "Name", "Kind"},
+	srcDPAccounts: {"UCC", "BOID", "Depository", "Status"},
 }
 
 // optionalNotYetRead are header columns the Ledgerline import does not read
-// yet (it ignores unknown columns).
+// yet on this branch (it ignores unknown columns).
 var optionalNotYetRead = map[string][]string{
-	srcClients: {"Inactive", "InactiveSince"},
+	srcClients: {"AP", "RM", "Groups", "Inactive", "InactiveSince"},
 	srcOpening: {"Name"},
-}
-
-func colIndex(h []string) map[string]int {
-	m := make(map[string]int, len(h))
-	for i, c := range h {
-		m[c] = i
-	}
-	return m
 }
 
 // rec builds a row for a header from named values.

@@ -74,15 +74,20 @@ func TestFirms(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fs) != 2 {
+	if len(fs) != 3 {
 		t.Fatalf("firms %+v", fs)
 	}
-	sec, met := fs[0], fs[1]
-	if sec.Code != "02" || !strings.Contains(sec.Name, "TT SECURITIES") || strings.Join(sec.Segments, ",") != "CDSL-DP,NSE-CM,NSE-FO" || strings.Join(sec.Years, ",") != "2025-26,2026-27" {
+	// "X PVT. LTD.", "X PVT. LTD", "X PVT. LTD (CDSL)", "X PVT. LTD(C - MCX)" are one firm
+	sec, met, cr := fs[0], fs[1], fs[2]
+	if sec.Code != "02" || sec.Name != "TT SECURITIES PVT. LTD." || strings.Join(sec.Segments, ",") != "CDSL-DP,MCX-CD,NSE-CM,NSE-FO" || strings.Join(sec.Years, ",") != "2025-26,2026-27" {
 		t.Errorf("securities firm %+v", sec)
 	}
+	// "X PVT. LTD (MCX)" and "X PVT. LTD.(SPOT)"
 	if met.Code != "05" || strings.Join(met.Segments, ",") != "MCX-COM" {
 		t.Errorf("metals firm %+v", met)
+	}
+	if cr.Code != "09" || !strings.HasSuffix(cr.Name, "(inactive in SharePro)") || len(cr.Segments) != 0 {
+		t.Errorf("inactive firm %+v", cr)
 	}
 	// without the admin database: one firm of every CO
 	m2 := New()
@@ -222,9 +227,25 @@ func TestCurrentHeaders(t *testing.T) {
 			}
 		}
 	}
-	for name := range headers {
-		if !ops.IsMasterSource(name) {
-			t.Errorf("%s is not a Ledgerline import", name)
+	// imports the Ledgerline side is adding: compared with MasterSources
+	// above once it lists them; until then with their fixed layouts
+	for name, want := range headers {
+		if ops.IsMasterSource(name) {
+			continue
+		}
+		req, ok := pendingRequired[name]
+		if !ok {
+			t.Errorf("%s is neither a Ledgerline import nor a pending one", name)
+			continue
+		}
+		p := "firms/02/master/" + name + ".csv"
+		if !r.Has(p) {
+			t.Errorf("%s not written", name)
+			continue
+		}
+		head, _ := readCSV(t, r, p)
+		if strings.Join(head, ",") != strings.Join(want, ",") || strings.Join(head[:len(req)], ",") != strings.Join(req, ",") {
+			t.Errorf("%s header %v", name, head)
 		}
 	}
 }
@@ -236,12 +257,24 @@ func TestCurrentContents(t *testing.T) {
 	for _, c := range cl {
 		by[c["UCC"]] = c
 	}
-	if len(cl) != 4 {
+	if len(cl) != 5 {
 		t.Fatalf("clients %d", len(cl))
+	}
+	if x := by["TEST001"]; x["AP"] != "SB01" || x["RM"] != "RM01" || x["Groups"] != "G1;FAM1" || x["RAS"] != "Monthly" {
+		t.Errorf("TEST001 AP/RM/groups/RAS %v", x)
+	}
+	if x := by["TEST002"]; x["RM"] != "D01" || x["RAS"] != "" || by["TEST003"]["RAS"] != "Quarterly" {
+		t.Errorf("TEST002 dealer as RM, unknown RAS code %v", x)
+	}
+	if len(issues(r, "Client master", "settlement type 1")) != 1 {
+		t.Error("unknown running-account code not reported")
+	}
+	if _, ok := by["TEST006"]; ok {
+		t.Error("the metals firm's client is in the securities firm")
 	}
 	a := by["TEST001"]
 	if a["Mobile"] != "9800000001" || a["Email"] != "asha@example.com" || a["Segments"] != "CM;FO" || a["IFSC"] != "TEST0000001" || a["DematID"] != "1234567800000001" ||
-		a["Risk"] != "Low" || a["Nominee"] != "Opted in" || a["Status"] != "Active" || a["Inactive"] != "" || a["State"] != "" && a["State"] != "WB" || a["KYCDate"] != "2020-02-01" {
+		a["Risk"] != "Low" || a["Nominee"] != "Opted in" || a["Status"] != "Active" || a["Inactive"] != "" || a["State"] != "West Bengal" || a["KYCDate"] != "2020-02-01" {
 		t.Errorf("TEST001 %v", a)
 	}
 	if by["TEST002"]["Inactive"] != "Y" || by["TEST002"]["InactiveSince"] != "2025-06-01" || by["TEST003"]["Inactive"] != "Y" {
@@ -262,7 +295,7 @@ func TestCurrentContents(t *testing.T) {
 	}
 	// banks
 	_, bk := readCSV(t, r, "firms/02/master/CLIENT-BANKS.csv")
-	if len(bk) != 5 || bk[0]["Primary"] != "Y" || bk[0]["IFSC"] != "TEST0000001" || bk[1]["Status"] != "Inactive" || bk[1]["Primary"] != "N" || bk[4]["Account"] != "12AB" {
+	if len(bk) != 6 || bk[0]["Primary"] != "Y" || bk[0]["IFSC"] != "TEST0000001" || bk[1]["Status"] != "Inactive" || bk[1]["Primary"] != "N" || bk[4]["Account"] != "12AB" {
 		t.Errorf("banks %v", bk)
 	}
 	if len(issues(r, "Client bank accounts", "IFSC")) == 0 {
@@ -279,7 +312,7 @@ func TestCurrentContents(t *testing.T) {
 	for _, s := range ss {
 		got = append(got, s["UCC"]+":"+s["Segment"]+":"+s["Status"]+":"+s["EffectiveDate"])
 	}
-	want := "TEST001:CM:Active:2021-01-01,TEST001:FO:Active:2021-01-01,TEST002:CM:Active:2020-01-01,TEST002:CM:Dormant:2025-06-01,TEST003:CM:Active:2019-01-01,TEST003:CM:Closed:2024-01-01,TEST004:CM:Active:2022-01-01"
+	want := "TEST001:CM:Active:2021-01-01,TEST001:FO:Active:2021-01-01,TEST002:CM:Active:2020-01-01,TEST002:CM:Dormant:2025-06-01,TEST003:CM:Active:2019-01-01,TEST003:CM:Closed:2024-01-01,TEST004:CM:Active:2022-01-01,TEST005:CM:Active:2023-01-01"
 	if strings.Join(got, ",") != want {
 		t.Errorf("segment status\n got %s\nwant %s", strings.Join(got, ","), want)
 	}
@@ -301,6 +334,9 @@ func TestCurrentContents(t *testing.T) {
 	}
 	if p := ps[1]; p["Type"] != "PE" || p["Qty"] != "-50" || p["Strike"] != "21000" {
 		t.Errorf("put %v", p)
+	}
+	if len(issues(r, "Open positions", "call or put")) != 1 {
+		t.Error("option of unknown type not reported")
 	}
 	// brokerage: versions per date, with OTHBRKG minimums on CO 02's lines
 	_, br := readCSV(t, r, "firms/02/master/BROKERAGE-CLIENT-RATES.csv")
@@ -328,12 +364,12 @@ func TestCurrentContents(t *testing.T) {
 	// KRA and CKYC
 	_, kr := readCSV(t, r, "firms/02/master/KRA-STATUS.csv")
 	_, ck := readCSV(t, r, "firms/02/master/CKYC-NUMBERS.csv")
-	if len(kr) != 1 || kr[0]["Status"] != "Registered" || len(ck) != 1 || ck[0]["CKYCNumber"] != "12345678901234" {
+	if len(kr) != 2 || kr[0]["Status"] != "Registered" || len(ck) != 1 || ck[0]["CKYCNumber"] != "12345678901234" {
 		t.Errorf("kra %v ckyc %v", kr, ck)
 	}
 	// checks come from the server's own totals
-	for name, want := range map[string]string{pkg.CheckTBDebit: "5200.00", pkg.CheckTBCredit: "5200.00", pkg.CheckClients: "4", pkg.CheckClientDebit: "1200.00",
-		pkg.CheckClientCredit: "300.00", pkg.CheckDPAccounts: "1", pkg.CheckDPQuantity: "100", pkg.CheckBankAccounts: "3", pkg.CheckPositions: "2"} {
+	for name, want := range map[string]string{pkg.CheckTBDebit: "5350.00", pkg.CheckTBCredit: "5350.00", pkg.CheckOpeningDifference: "150.00", pkg.CheckClients: "5", pkg.CheckClientDebit: "1200.00",
+		pkg.CheckClientCredit: "300.00", pkg.CheckDPAccounts: "4", pkg.CheckDPQuantity: "100", pkg.CheckBankAccounts: "3", pkg.CheckPositions: "3"} {
 		if got := check(r, name); got != want {
 			t.Errorf("check %s = %s, want %s", name, got, want)
 		}
@@ -346,7 +382,8 @@ func TestCurrentContents(t *testing.T) {
 	for _, d := range r.Manifest.Dropped {
 		dropped[d.Field] = d.Count
 	}
-	if dropped["Client web password"] != 2 || dropped["DP web password"] != 2 || dropped["Aadhaar number (first holder)"] != 2 {
+	if dropped["Client web password"] != 2 || dropped["DP web password"] != 2 || dropped["Aadhaar number (first holder)"] != 2 || dropped["Aadhaar number (client agreement)"] != 2 ||
+		dropped["Dealer web password"] != 2 || dropped["Aadhaar number (contact person 1)"] != 2 {
 		t.Errorf("dropped %v", dropped)
 	}
 	if r.Manifest.Firms[0].AsOf != "2026-10-12" {
@@ -368,8 +405,26 @@ func TestTrialBalanceAndSince(t *testing.T) {
 			cr += money.MustAmount(o["Credit"])
 		}
 	}
-	if dr != cr || dr != money.MustAmount("5200") {
+	if dr != cr || dr != money.MustAmount("5350") {
 		t.Fatalf("trial balance %s / %s: %v", dr, cr, ob)
+	}
+	// SharePro's openings do not balance: the difference is one suspense line, with a warning
+	if acct[DiffAccount]["Debit"] != "150.00" {
+		t.Errorf("difference line %v", acct[DiffAccount])
+	}
+	if w := issues(r, "Opening balances", "do not balance"); len(w) != 1 || w[0].Severity != "Warning" || !strings.Contains(w[0].Message, "02 -350.00, 03 200.00") {
+		t.Errorf("difference warning %+v", w)
+	}
+	// a client-coded head that is not the client ledger (margin deposits)
+	// stays one firm account, with a warning
+	if acct["PAYABLE:02-MRG"]["Credit"] != "150.00" {
+		t.Errorf("margin head %v", ob)
+	}
+	if w := issues(r, "Client ledgers", "not merged"); len(w) != 1 || w[0].Severity != "Warning" || !strings.Contains(w[0].Action, "CASH MARGIN DEPOSIT [CLIENTS]") || !strings.Contains(w[0].Message, "1 clients with a balance") {
+		t.Errorf("client-coded head warning %+v", w)
+	}
+	if len(issues(r, "Client ledgers", "merged into CLIENT")) != 2 {
+		t.Errorf("client ledger heads not listed: %+v", r.Manifest.Issues)
 	}
 	c1 := acct["CLIENT:TEST001"]
 	if c1["Debit"] != "1200.00" || c1["Since"] != "2026-04-05" {
@@ -386,8 +441,111 @@ func TestTrialBalanceAndSince(t *testing.T) {
 			t.Errorf("%s missing: %v", code, ob)
 		}
 	}
-	if len(issues(r, "Opening balances", "do not net to zero")) != 0 {
-		t.Error("balanced trial balance reported as unbalanced")
+}
+
+// A debit already due at the year start gets the year's first day, with
+// an Info issue counting such debits.
+func TestSinceBeforeYear(t *testing.T) {
+	m := New()
+	ctx := context.Background()
+	co := companyFake("TT2627")
+	co.on("trial-balance", migrate.Row{"co": "02", "accd": "62", "subcode": "TEST001", "b": "1500.00"}, migrate.Row{"co": "02", "accd": "CAP", "subcode": "", "b": "-1500.00"})
+	co.on("client-net", migrate.Row{"co": "02", "accd": "62", "subcode": "TEST001", "dr": "1200.00", "cr": ".00"})
+	co.on("client-days", migrate.Row{"co": "02", "accd": "62", "subcode": "TEST001", "vrdt": d("2026-04-05"), "dr": "1200.00", "cr": ".00"})
+	if _, err := m.Firms(ctx, adminFake(), co); err != nil {
+		t.Fatal(err)
+	}
+	k, _ := m.Classify(ctx, co)
+	r := build(t, func(w *pkg.Writer) {
+		if err := m.Current(ctx, co, k, migrate.Plan{Firms: []string{"02"}}, w, nil); err != nil {
+			t.Fatal(err)
+		}
+	})
+	_, ob := readCSV(t, r, "firms/02/master/OPENING-BALANCES.csv")
+	for _, o := range ob {
+		if o["Account"] == "CLIENT:TEST001" && o["Since"] != "2026-04-01" {
+			t.Errorf("since %v", o)
+		}
+	}
+	if len(issues(r, "Opening balances", "already due before the year began")) != 1 {
+		t.Error("old debits not counted")
+	}
+	for _, q := range co.queries {
+		if strings.Contains(q, "LY_ACCTOT") {
+			t.Errorf("LY_ACCTOT is incomplete and must not be used: %s", q)
+		}
+	}
+}
+
+func TestUCCDetailsAndMasters(t *testing.T) {
+	r, _ := runCurrent(t, migrate.Plan{})
+	_, ud := readCSV(t, r, "firms/02/master/UCC-DETAILS.csv")
+	by := map[string]map[string]string{}
+	for _, u := range ud {
+		by[u["UCC"]] = u
+	}
+	if len(ud) != 5 {
+		t.Fatalf("ucc details %v", ud)
+	}
+	a := by["TEST001"]
+	if a["Address1"] != "1 Test Lane" || a["Address2"] != "Floor 2" || a["State"] != "West Bengal" || a["PIN"] != "700001" || a["Gender"] != "Female" || a["Guardian"] != "Ravi Test" ||
+		a["Occupation"] != "2" || a["Marital"] != "" || a["Nationality"] != "Indian" || a["PEP"] != "N" || a["IPV"] != "Y" || a["POASecurities"] != "Y" || a["POAFunds"] != "Y" ||
+		a["AgreementDate"] != "2020-01-02" || a["PermAddress1"] != "2 Home Road" || a["PermPIN"] != "700002" || a["PermState"] != "West Bengal" || a["BankType"] != "SB" || a["Country"] != "India" {
+		t.Errorf("TEST001 %v", a)
+	}
+	b := by["TEST002"] // from the KYC register
+	if b["Address1"] != "5 Kyc Street" || b["City"] != "HOWRAH" || b["PIN"] != "711101" || b["PermAddress1"] != "6 Home Lane" || b["Gender"] != "Male" ||
+		b["Occupation"] != "Private Sector Service" || b["OccupationDetail"] != "S-01" || b["Guardian"] != "Old Test" || b["Marital"] != "" {
+		t.Errorf("TEST002 %v", b)
+	}
+	if by["TEST005"]["CIN"] != "U12345WB2020PTC000001" || by["TEST005"]["Category"] != "Body Corporate" {
+		t.Errorf("TEST005 %v", by["TEST005"])
+	}
+	if e := issues(r, "UCC details", "PIN is missing"); len(e) != 1 || e[0].Key != "TEST004" || e[0].Severity != "Error" {
+		t.Errorf("missing PIN %+v", e)
+	}
+	if len(issues(r, "UCC details", "Marital status codes not mapped")) != 1 {
+		t.Error("marital codes not reported")
+	}
+	// contact persons of the company only
+	_, cp := readCSV(t, r, "firms/02/master/UCC-CONTACTS.csv")
+	if len(cp) != 2 || cp[0]["UCC"] != "TEST005" || cp[0]["Name"] != "Ravi Director" || cp[0]["Designation"] != "Director" || cp[0]["PAN"] != "AAAPD0001D" ||
+		cp[0]["DIN"] != "01234567" || cp[0]["Address"] != "9 Road KOLKATA" || cp[0]["Email"] != "ravi@example.com" || cp[1]["Designation"] != "Authorised signatory" {
+		t.Errorf("contacts %v", cp)
+	}
+	// branches from the admin database
+	_, br := readCSV(t, r, "firms/02/master/BRANCHES.csv")
+	if len(br) != 3 || br[0]["Code"] != "HO" || br[0]["Manager"] != "Ravi Manager" || br[1]["Kind"] != "Zone" || br[1]["Parent"] != "HO" || br[2]["Active"] != "N" {
+		t.Errorf("branches %v", br)
+	}
+	// authorised persons, RMs and dealers
+	_, pt := readCSV(t, r, "firms/02/master/PARTNERS.csv")
+	if len(pt) != 3 || pt[0]["Code"] != "SB01" || pt[0]["Kind"] != "Authorised person" || pt[0]["IFSC"] != "TEST0000001" || pt[0]["Bank"] != "TEST BANK" || pt[0]["RegNo"] != "AP0001" ||
+		pt[1]["Code"] != "RM01" || pt[1]["Kind"] != "Relationship manager" || pt[2]["Code"] != "D01" || pt[2]["Active"] != "Y" {
+		t.Errorf("partners %v", pt)
+	}
+	if w := issues(r, "Authorised persons and RMs", "SB09"); len(w) != 1 || w[0].Key != "TEST002" {
+		t.Errorf("unknown AP %+v", w)
+	}
+	// DP accounts, DP-only ones under the DP client code
+	_, dp := readCSV(t, r, "firms/02/master/DP-ACCOUNTS.csv")
+	got := map[string]string{}
+	for _, x := range dp {
+		got[x["BOID"]] = strings.Join([]string{x["UCC"], x["Depository"], x["Status"], x["Freeze"], x["FreezeReason"], x["DDPI"], x["BSDA"], x["ClosedOn"]}, "|")
+	}
+	want := map[string]string{
+		"1234567800000001": "TEST001|CDSL|Active|||Y|N|",
+		"1234567800000009": "00000009|CDSL|Active|||N||",
+		"1234567800000004": "TEST004|CDSL|Frozen|Debit|TEST FREEZE|N||",
+		"1234567800000003": "TEST003|CDSL|Closed|||N||2024-01-01",
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("DP account %s = %q, want %q", k, got[k], v)
+		}
+	}
+	if len(issues(r, "DP accounts", "DP-only")) != 1 {
+		t.Error("DP-only accounts not counted")
 	}
 }
 
@@ -412,7 +570,7 @@ func TestFIFO(t *testing.T) {
 func TestDormantSkip(t *testing.T) {
 	r, _ := runCurrent(t, migrate.Plan{DormantMode: "skip"})
 	_, cl := readCSV(t, r, "firms/02/master/CLIENT-MASTER.csv")
-	if len(cl) != 2 || cl[0]["UCC"] != "TEST001" || cl[1]["UCC"] != "TEST004" {
+	if len(cl) != 3 || cl[0]["UCC"] != "TEST001" || cl[1]["UCC"] != "TEST004" || cl[2]["UCC"] != "TEST005" {
 		t.Fatalf("clients %v", cl)
 	}
 	// the closed client's credit stays in the trial balance, with an error
@@ -428,8 +586,14 @@ func TestDormantSkip(t *testing.T) {
 	if len(errs) != 1 || errs[0].Key != "TEST003" || errs[0].Severity != "Error" {
 		t.Errorf("skipped client with balance: %+v", errs)
 	}
-	if check(r, pkg.CheckClients) != "2" {
-		t.Errorf("clients check %s", check(r, pkg.CheckClients))
+	if check(r, pkg.CheckClients) != "3" || check(r, pkg.CheckDPAccounts) != "3" {
+		t.Errorf("clients check %s, DP accounts %s", check(r, pkg.CheckClients), check(r, pkg.CheckDPAccounts))
+	}
+	_, dp := readCSV(t, r, "firms/02/master/DP-ACCOUNTS.csv")
+	for _, x := range dp {
+		if x["UCC"] == "TEST003" {
+			t.Error("skipped client's DP account written")
+		}
 	}
 }
 
@@ -468,7 +632,8 @@ func TestSecretsNeverSelected(t *testing.T) {
 		t.Error("the secret columns were never counted")
 	}
 	// the guard itself
-	for _, q := range []string{"SELECT Web_Pwd FROM DLMAST", "SELECT FHOLDER_ADHAR FROM CLLIST", "SELECT Content FROM SYSTEMLOGFILES", "SELECT PASSWORD FROM SHUSER", "SELECT UID FROM CDNOMREG"} {
+	for _, q := range []string{"SELECT Web_Pwd FROM DLMAST", "SELECT FHOLDER_ADHAR FROM CLLIST", "SELECT Content FROM SYSTEMLOGFILES", "SELECT PASSWORD FROM SHUSER", "SELECT UID FROM CDNOMREG",
+		"SELECT C_UID1 FROM DLAGREE2", "SELECT NomineeAdhar FROM DLAGREE", "SELECT web_Pwd FROM DLRMAST"} {
 		if unsafeColumn(q) == "" {
 			t.Errorf("guard let through %s", q)
 		}
@@ -506,11 +671,13 @@ func TestHistoryStreams(t *testing.T) {
 	}
 	h.on("hist-bc", migrate.Row{"co": "02", "type": "", "tt": "B1", "p_r": "R", "vrno": "1", "vrdt": d("2025-05-02"), "accd": "62", "subcode": "TEST001", "narr": "receipt", "amtdr": ".00", "amtcr": "500.00", "cheqno": "123456", "idn": int64(1)})
 	h.on("hist-bills", migrate.Row{"co": "02", "stno": "2025081", "sttype": "N", "trdt": d("2025-05-01"), "subcd": "TEST001", "cntrno": int64(501), "turnover": "10000.00", "brokerage": "30.00", "sttax": "10.00", "cgst": "2.70", "sgst": "2.70", "netrecpay": "-10045.40", "npk": int64(7)})
-	h.on("hist-trades", migrate.Row{"co": "02", "stno": "2025081", "sttype": "N", "trdt": d("2025-05-01"), "subcd": "TEST001", "ctrdno": "T1", "ordno": "O1", "itemcd": "SC001", "qty": "-10", "act_rate": "1000.00", "brkg": "3.00", "cntrno": int64(501), "npk": int64(9), "nse_itemcd": "TESTCO", "isin": "INE000A01011"})
+	h.on("hist-trades", migrate.Row{"co": "02", "stno": "2025081", "sttype": "N", "trdt": d("2025-05-01"), "subcd": "TEST001", "ctrdno": "T1", "ordno": "O1", "itemcd": "SC001", "qty": "-10", "act_rate": "1000.00", "brkg": "3.00", "cntrno": int64(501), "npk": int64(9), "nse_itemcd": "TESTCO", "isin": "INE000A01011"},
+		migrate.Row{"co": "03", "trdt": d("2025-05-01"), "subcd": "TEST001", "itemcd": "OPT9", "qty": "75", "act_rate": "10.00", "k_prod": "IO", "exp_date": d("2025-05-29"), "cont_rate": "22000.00", "k_srscd": "NIFTY25MAY22000PE", "npk": int64(10)},
+		migrate.Row{"co": "03", "trdt": d("2025-05-01"), "subcd": "TEST001", "itemcd": "OPT8", "qty": "75", "act_rate": "10.00", "instr_type": "OPTSTK", "exp_date": d("2025-05-29"), "cont_rate": "500.00", "descr": "TESTCO MAY", "npk": int64(11)})
 	h.on("hist-contract-notes", migrate.Row{"co": "02", "cntrno": int64(501), "trdt": d("2025-05-01"), "subcd": "TEST001"})
 	h.on("hist-dp", migrate.Row{"co": "06", "trdt": d("2025-06-01"), "benacnum": "00000001", "isincd": "INE000A01011", "drcr": "D", "qtybooked": "5.000", "trancode": "ODTA", "npk": int64(3), "security": "TESTCO EQ"})
 	h.on("hist-hold-date", migrate.Row{"d": d("2026-03-31")})
-	h.on("hist-holdings", migrate.Row{"co": "06", "benacnum": "00000001", "isincd": "INE000A01011", "balance": "95.000", "curbal": "90.000", "pldgbal": "5.000", "rate": "12.50"})
+	h.on("hist-holdings", migrate.Row{"co": "06", "benacnum": "00000001", "isincd": "INE000A01011", "balance": "97.000", "curbal": "90.000", "pldgbal": "5.000", "price": "12.50"})
 	k, _ := m.Classify(ctx, h)
 	r := build(t, func(w *pkg.Writer) {
 		if err := m.History(ctx, h, k, migrate.Plan{Firms: []string{"02"}}, w, nil); err != nil {
@@ -537,7 +704,7 @@ func TestHistoryStreams(t *testing.T) {
 	if len(issues(r, "History ledger", "do not balance")) != 0 {
 		t.Error("balanced ledger reported unbalanced")
 	}
-	for kind, rows := range map[string]int{pkg.HistoryBills: 1, pkg.HistoryTrades: 1, pkg.HistoryContractNotes: 1, pkg.HistoryReceipts: 1, pkg.HistoryDP: 1, pkg.HistoryHoldings: 1, pkg.HistoryDPBills: 0} {
+	for kind, rows := range map[string]int{pkg.HistoryBills: 1, pkg.HistoryTrades: 3, pkg.HistoryContractNotes: 1, pkg.HistoryReceipts: 1, pkg.HistoryDP: 1, pkg.HistoryHoldings: 1, pkg.HistoryDPBills: 0} {
 		head, got := readCSV(t, r, "firms/02/history/2025-26/"+kind+".csv")
 		if strings.Join(head, ",") != strings.Join(pkg.HistoryColumns[kind], ",") || len(got) != rows {
 			t.Errorf("%s: header %v rows %d", kind, head, len(got))
@@ -546,6 +713,19 @@ func TestHistoryStreams(t *testing.T) {
 	_, tr := readCSV(t, r, "firms/02/history/2025-26/TRADES.csv")
 	if tr[0]["Side"] != "S" || tr[0]["Quantity"] != "10" || tr[0]["Brokerage"] != "30.00" || tr[0]["ISIN"] != "INE000A01011" {
 		t.Errorf("trade %v", tr[0])
+	}
+	if tr[1]["OptionType"] != "PE" || tr[1]["Strike"] != "22000" || tr[2]["OptionType"] != "" {
+		t.Errorf("option trades %v %v", tr[1], tr[2])
+	}
+	if len(issues(r, "History", "call or put is not")) != 1 {
+		t.Error("option of unknown type not reported")
+	}
+	_, ye := readCSV(t, r, "firms/02/history/2025-26/DP-HOLDINGS-YEAR-END.csv")
+	if y := ye[0]; y["Locked"] != "2" || y["Free"] != "90" || y["Rate"] != "12.5" || y["Value"] != "1212.50" {
+		t.Errorf("year-end holding %v", y)
+	}
+	if q := h.asked("hist-dp-bills"); len(q) != 1 || !strings.Contains(q[0], "IN ('CDSLBILL', 'NSDLBILL', 'DPBILL')") {
+		t.Errorf("DP bill query %v", q)
 	}
 	_, dp := readCSV(t, r, "firms/02/history/2025-26/DP-TRANSACTIONS.csv")
 	if dp[0]["Quantity"] != "-5" || dp[0]["UCC"] != "TEST001" || dp[0]["BOID"] != "1234567800000001" {
@@ -593,78 +773,155 @@ func TestDocuments(t *testing.T) {
 	ck, _ := m.Classify(ctx, co)
 	ml := mailFake()
 	k, _ := m.Classify(ctx, ml)
+	plan := migrate.Plan{Firms: []string{"02", "05"}, Documents: true}
 	r := build(t, func(w *pkg.Writer) {
-		if err := m.Current(ctx, co, ck, migrate.Plan{Firms: []string{"02"}}, w, nil); err != nil {
+		if err := m.Current(ctx, co, ck, plan, w, nil); err != nil {
 			t.Fatal(err)
 		}
-		if err := m.Documents(ctx, ml, k, migrate.Plan{Firms: []string{"02"}, Documents: true}, w, nil); err != nil {
+		if err := m.Documents(ctx, ml, k, plan, w, nil); err != nil {
 			t.Fatal(err)
 		}
 	})
 	_, idx := readCSV(t, r, "firms/02/documents/index.csv")
-	if len(idx) != 3 {
+	by := map[string]map[string]string{}
+	for _, x := range idx {
+		by[strings.SplitN(x["SourceRef"], ";", 2)[0]] = x
+	}
+	// 1 contract note, 2 ledger, 3 DP statement, 5 payout report (internal),
+	// 7 unknown client (first firm), 8 from the archive copy; 1 again in the
+	// archive copy is skipped; 4 is too large; 6 is the metals firm's
+	if len(idx) != 6 {
 		t.Fatalf("documents %v", idx)
 	}
-	cn := idx[0]
-	if cn["Type"] != pkg.DocContractNote || cn["Signed"] != "Y" || cn["Format"] != "pdf" || cn["UCC"] != "TEST001" || cn["FY"] != "2026-27" || cn["RetainUntil"] != "2034-05-02" || cn["To"] != "asha@example.com" {
+	cn := by["SSMAIL2_ATTACHMENT:slno=1,attnumber=1"]
+	if cn["Type"] != pkg.DocContractNote || cn["Signed"] != "Y" || cn["Format"] != "pdf" || cn["UCC"] != "TEST001" || cn["FY"] != "2026-27" || cn["RetainUntil"] != "2034-05-02" ||
+		cn["To"] != "asha@example.com" || !strings.HasSuffix(cn["SourceRef"], ";ReportCat=Contract") {
 		t.Errorf("contract note %v", cn)
 	}
-	b, err := r.ReadAll(cn["Path"], 1<<20)
+	rc, err := r.OpenDocument(cn["Path"], cn["SHA256"])
 	if err != nil {
-		b2, err2 := r.OpenDocument(cn["Path"], cn["SHA256"])
-		if err2 != nil {
-			t.Fatal(err, err2)
+		t.Fatal(err)
+	}
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(rc)
+	rc.Close()
+	if buf.String() != "%PDF-1.4 S" {
+		t.Errorf("stored %q, want the signed PDF", buf.String())
+	}
+	if x := by["SSMAIL2_ATTACHMENT:slno=2,attnumber=1"]; x["Type"] != pkg.DocStatement || x["Signed"] != "N" || x["Format"] != "pdf" || x["UCC"] != "TEST001" {
+		t.Errorf("ledger %v", x)
+	}
+	if x := by["SSMAIL2_ATTACHMENT:slno=3,attnumber=1"]; x["Type"] != pkg.DocDPStatement || x["UCC"] != "TEST001" || x["Format"] != "html" {
+		t.Errorf("dp statement %v", x)
+	}
+	if x := by["SSMAIL2_ATTACHMENT:slno=5,attnumber=1"]; x["Type"] != pkg.DocOther || x["UCC"] != "" || x["Subject"] != "Payout report" {
+		t.Errorf("internal mail %v", x)
+	}
+	if x := by["XSSMAIL2_ATTACHMENT:slno=8,attnumber=1"]; x["Type"] != pkg.DocMargin {
+		t.Errorf("archive copy %v", x)
+	}
+	if _, dup := by["XSSMAIL2_ATTACHMENT:slno=1,attnumber=1"]; dup {
+		t.Error("archive copy's duplicate archived")
+	}
+	// the metals firm's client's contract note goes to the metals firm
+	_, met := readCSV(t, r, "firms/05/documents/index.csv")
+	if len(met) != 1 || met[0]["UCC"] != "TEST006" {
+		t.Errorf("metals documents %v", met)
+	}
+	for _, kind := range []string{"larger than", "no attachment", "could not be tied to a firm", "branches, groups or sub-brokers"} {
+		if len(issues(r, "Documents", kind)) != 1 {
+			t.Errorf("issue %q: %+v", kind, r.Manifest.Issues)
 		}
-		buf := new(bytes.Buffer)
-		buf.ReadFrom(b2)
-		b2.Close()
-		b = buf.Bytes()
-	}
-	if string(b) != "%PDF-1.4 S" {
-		t.Errorf("stored %q, want the signed PDF", b)
-	}
-	if idx[1]["Type"] != pkg.DocStatement || idx[1]["Signed"] != "N" || idx[1]["Format"] != "pdf" {
-		t.Errorf("ledger %v", idx[1])
-	}
-	if idx[2]["Type"] != pkg.DocDPStatement || idx[2]["UCC"] != "TEST001" || idx[2]["Format"] != "htm" {
-		t.Errorf("dp statement %v", idx[2])
-	}
-	if len(issues(r, "Documents", "larger than")) != 1 || len(issues(r, "Documents", "no attachment")) != 1 {
-		t.Errorf("issues %+v", r.Manifest.Issues)
 	}
 	q := ml.asked("attachments")
 	// text columns are read as their bytes, not through the code page
-	if len(q) != 1 || !strings.Contains(q[0], "SUBSTRING(a.Signed, 1, 4) = '%PDF'") || !strings.Contains(q[0], fmt.Sprint(MaxAttachment)) ||
+	if len(q) != 2 || !strings.Contains(q[0], "SUBSTRING(a.Signed, 1, 4) = '%PDF'") || !strings.Contains(q[0], fmt.Sprint(MaxAttachment)) ||
 		!strings.Contains(q[0], "CAST(CAST(a.contents AS varchar(max)) AS varbinary(max))") {
 		t.Errorf("attachment query %v", q)
 	}
-	if check(r, pkg.CheckDocuments) != "3" {
-		t.Errorf("documents check %s", check(r, pkg.CheckDocuments))
+	docs := map[string]string{}
+	for _, c := range r.Manifest.Checks {
+		if c.Name == pkg.CheckDocuments {
+			docs[c.Firm] = c.Value
+		}
+	}
+	if docs["02"] != "6" || docs["05"] != "1" {
+		t.Errorf("documents checks %v", docs)
+	}
+}
+
+// Documents of a firm not chosen are left out, not put in the chosen one.
+func TestDocumentsOtherFirm(t *testing.T) {
+	m := New()
+	ctx := context.Background()
+	co := companyFake("TT2627")
+	if _, err := m.Firms(ctx, adminFake(), co); err != nil {
+		t.Fatal(err)
+	}
+	ck, _ := m.Classify(ctx, co)
+	ml := mailFake()
+	k, _ := m.Classify(ctx, ml)
+	plan := migrate.Plan{Firms: []string{"02"}, Documents: true}
+	r := build(t, func(w *pkg.Writer) {
+		if err := m.Current(ctx, co, ck, plan, w, nil); err != nil {
+			t.Fatal(err)
+		}
+		if err := m.Documents(ctx, ml, k, plan, w, nil); err != nil {
+			t.Fatal(err)
+		}
+	})
+	_, idx := readCSV(t, r, "firms/02/documents/index.csv")
+	for _, x := range idx {
+		if x["UCC"] == "TEST006" {
+			t.Error("the metals firm's document is in the securities firm")
+		}
+	}
+	if len(idx) != 6 || len(issues(r, "Documents", "firms not chosen")) != 1 {
+		t.Errorf("documents %d, issues %+v", len(idx), r.Manifest.Issues)
 	}
 }
 
 func TestDocType(t *testing.T) {
-	for _, c := range [][4]string{
-		{"Contract", "Client", "Contract Note", pkg.DocContractNote},
-		{"Margin2Clients", "Client", "", pkg.DocMargin},
-		{"", "DP CLIENT", "Transaction statement", pkg.DocDPStatement},
-		{"DPBLPRN2", "Client", "DP Bill", pkg.DocDPBill},
-		{"Vallan Bills", "Client", "", pkg.DocBill},
-		{"RunAcRep2Client", "Client", "", pkg.DocStatement},
-		{"Payout Report", "Branchid", "", pkg.DocOther},
+	for _, c := range [][3]string{
+		{"Contract", "Client", pkg.DocContractNote},
+		{"Margin2Clients", "Client", pkg.DocMargin},
+		{"Obligation Mrgn", "Client", pkg.DocMargin},
+		{"", "DP CLIENT", pkg.DocDPStatement},
+		{"", "Client", pkg.DocOther},
+		{"DPBLPRN2", "Client", pkg.DocDPBill},
+		{"Vallan Bills", "Client", pkg.DocBill},
+		{"RunAcRep2Client", "Client", pkg.DocStatement},
+		{"StandardUpload", "Client", pkg.DocStatement},
+		{"Trade Register", "Client", pkg.DocStatement},
+		{"reKYC", "", pkg.DocKYC},
+		{"ClientsAGTS", "Client", pkg.DocOther},
+		{"Payout Report", "Branchid", pkg.DocOther},
+		{"A/C Ledger", "SubBroker", pkg.DocOther},
 	} {
-		if got := docType(c[0], strings.ToUpper(c[1]), c[2], ""); got != c[3] {
+		if got := docType(c[0], c[1]); got != c[2] {
 			t.Errorf("%v: %s", c, got)
 		}
 	}
 }
 
-func TestEntityName(t *testing.T) {
-	a := entityName("ABC SECURITIES PVT. LTD. (NSE)")
-	for _, s := range []string{"ABC SECURITIES PVT LTD(C - MCX)", "ABC Securities Private Limited (CDSL)", "ABC SECURITIES PVT. LTD"} {
-		if entityName(s) != a {
-			t.Errorf("%q -> %q, want %q", s, entityName(s), a)
+func TestOptType(t *testing.T) {
+	for in, want := range map[string]string{"CE": "CE", "NIFTY 29OCT 21000 PE": "PE", "SENSEX24OCT80000CE": "CE", "TESTCO OCT": "", "PE": "PE", "RELIANCE": ""} {
+		if got := optType(in); got != want {
+			t.Errorf("%q: %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestEntityName(t *testing.T) {
+	a := entityName("ABC SECURITIES PVT. LTD.")
+	for _, v := range []string{"ABC SECURITIES PVT. LTD", "ABC SECURITIES PVT. LTD (CDSL)", "ABC SECURITIES PVT. LTD(C - MCX)", "ABC SECURITIES PVT. LTD.(SPOT)",
+		"ABC  Securities  Pvt Ltd (NSE)", "ABC Securities Private Limited (CDSL)"} {
+		if entityName(v) != a {
+			t.Errorf("%q -> %q, want %q", v, entityName(v), a)
+		}
+	}
+	if entityName("ABC METALS PVT. LTD.(SPOT)") == a {
+		t.Error("two companies merged")
 	}
 	if s := segFromName("ABC SECURITIES PVT. LTD(C - NSE)", "", false); s.label() != "NSE-CD" {
 		t.Errorf("currency %v", s)

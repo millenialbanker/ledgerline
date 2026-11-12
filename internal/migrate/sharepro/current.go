@@ -27,6 +27,8 @@ const (
 	qLYTrade   = `/*sp:ly-last-trade*/ SELECT RTRIM(subcd) AS subcd, MAX(trdt) AS last FROM LY_TRADES GROUP BY subcd`
 	qRunAc     = `/*sp:running-account*/ SELECT RTRIM(SUBCD) AS subcd, SETTLETYPE AS settletype, ROW_NUMBER() OVER (PARTITION BY SUBCD ORDER BY ACC_YEAR DESC) AS rn FROM DLRUNACMAST`
 	qStates    = `/*sp:states*/ SELECT RTRIM(STATECD) AS statecd, RTRIM(DESCR) AS descr FROM STATES`
+	// a client's latest group of each type
+	qGroups2 = `/*sp:client-groups*/ SELECT RTRIM(Subcd) AS subcd, RTRIM(Type) AS type, RTRIM(Code) AS code, ROW_NUMBER() OVER (PARTITION BY Subcd, Type ORDER BY %s DESC) AS rn FROM DLGROUP`
 	// counts of fields never migrated (the values are never read)
 	qCountSecret = `/*sp:count-secret*/ SELECT COUNT(CASE WHEN %s IS NOT NULL AND LEN(RTRIM(CAST(%s AS varchar(64)))) > 0 AND RTRIM(CAST(%s AS varchar(64))) <> '0' THEN 1 END) AS n FROM %s`
 )
@@ -41,6 +43,14 @@ var secretCols = []struct{ table, col, field, reason string }{
 	{"CLLIST", "SHOLDER_ADHAR", "Aadhaar number (second holder)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
 	{"CLLIST", "THOLDER_ADHAR", "Aadhaar number (third holder)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
 	{"CDNOMREG", "UID", "DP nominee Aadhaar number", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
+	{"DLRMAST", "web_Pwd", "Dealer web password", "Never migrated; staff set a new password"},
+	{"DLAGREE", "UID", "Aadhaar number (client agreement)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
+	{"DLAGREE", "NomineeAdhar", "Nominee Aadhaar number (client agreement)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
+	{"DLAGREE2", "C_UID1", "Aadhaar number (contact person 1)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
+	{"DLAGREE2", "C_UID2", "Aadhaar number (contact person 2)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
+	{"DLAGREE2", "C_UID3", "Aadhaar number (contact person 3)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
+	{"CLAUTHMAST", "UID", "Aadhaar number (DP authorised person)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
+	{"BOMAST", "FHUID", "Aadhaar number (DP account opening)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
 }
 
 // client is one client as read from SharePro (all firms).
@@ -54,11 +64,11 @@ type client struct {
 	econtract, noInterest                                                         bool
 }
 
-type kycRec struct{ kycno, status, active, commence string }
+type kycRec struct{ kyccd, kycno, status, active, commence string }
 
 type bankRec struct {
 	ucc, bank, ifsc, account, typ, micr, branch, added string
-	closed                                             bool
+	closed, poa, primary                               bool
 }
 
 type nomRec struct {
@@ -71,22 +81,25 @@ type statusEv struct {
 
 type dpAcct struct {
 	co, dpid, ben, boid, ucc, depository, opened string
+	closedOn, benStat, suspFlag, suspRsn, bsda   string
 	closed                                       bool
 }
 
 // common is what Current reads once for every firm.
 type common struct {
-	clients   map[string]*client
-	order     []string
-	kycByPAN  map[string]kycRec
-	banks     map[string][]bankRec
-	nominees  map[string][]nomRec
-	status    map[string][]statusEv
-	dp        []dpAcct
-	lastTrade map[string]string
-	runAc     map[string]string
-	states    map[string]string
-	missing   []string
+	clients    map[string]*client
+	order      []string
+	kycByPAN   map[string]kycRec
+	banks      map[string][]bankRec
+	nominees   map[string][]nomRec
+	status     map[string][]statusEv
+	dp         []dpAcct
+	lastTrade  map[string]string
+	runAc      map[string]string
+	states     map[string]string
+	groups     map[string][]string // client -> group codes (DLMAST.GROUPCD, then DLGROUP)
+	runAcOther map[string]int      // DLRUNACMAST.SETTLETYPE values not mapped
+	missing    []string
 }
 
 var errNoFirm = errors.New("sharepro: no firm to migrate (none of the chosen company codes is in this database)")
@@ -138,7 +151,33 @@ func (m *Mapper) Current(ctx context.Context, q migrate.Querier, k migrate.Kind,
 	m.boUCC = bo
 	m.mu.Unlock()
 	primary := firms[0].Code
-	assigned := assignClients(firms, cm)
+	// clients are assigned over every firm SharePro has, not only the
+	// chosen ones, so a chosen firm never takes another firm's clients
+	m.mu.Lock()
+	all := append([]firmInfo(nil), m.firms...)
+	m.mu.Unlock()
+	if len(all) == 0 {
+		all = firms
+	}
+	assigned := assignClients(all, cm)
+	// the firm of each client and DP account, over all firms, so documents
+	// of firms not chosen can be told apart
+	cf, bf := map[string]string{}, map[string]string{}
+	for _, f := range all {
+		for u := range assigned[f.Code] {
+			if _, ok := cf[u]; !ok {
+				cf[u] = f.Code
+			}
+		}
+		for _, a := range cm.dp {
+			if contains(f.COs, a.co) {
+				bf[a.ben], bf[a.boid] = f.Code, f.Code
+			}
+		}
+	}
+	m.mu.Lock()
+	m.clientFirm, m.boFirm = cf, bf
+	m.mu.Unlock()
 	for _, f := range firms {
 		rep := newReport(f.Code, k.FY)
 		for _, n := range f.Notes {
@@ -148,7 +187,7 @@ func (m *Mapper) Current(ctx context.Context, q migrate.Querier, k migrate.Kind,
 			rep.infof("Schema", mc, "missing-col", "Column %s is not in this SharePro database; the field is left empty", mc)
 		}
 		setAsOf(w, f, asOf)
-		c := &cur{m: m, d: d, s: s, k: k, plan: plan, w: w, p: p, f: f, cm: cm, rep: rep, asOf: asOf, primary: f.Code == primary, mine: assigned[f.Code]}
+		c := &cur{m: m, d: d, s: s, k: k, plan: plan, w: w, p: p, f: f, cm: cm, rep: rep, asOf: asOf, primary: f.Code == primary, home: f.Code == all[0].Code, mine: assigned[f.Code]}
 		err := c.run(ctx)
 		rep.flush(w, p)
 		if err != nil {
@@ -173,18 +212,18 @@ func setAsOf(w *pkg.Writer, f firmInfo, asOf time.Time) {
 
 func loadCommon(ctx context.Context, d db, s *schema) (*common, error) {
 	cm := &common{clients: map[string]*client{}, kycByPAN: map[string]kycRec{}, banks: map[string][]bankRec{}, nominees: map[string][]nomRec{},
-		status: map[string][]statusEv{}, lastTrade: map[string]string{}, runAc: map[string]string{}, states: map[string]string{}}
+		status: map[string][]statusEv{}, lastTrade: map[string]string{}, runAc: map[string]string{}, states: map[string]string{}, groups: map[string][]string{}, runAcOther: map[string]int{}}
 	regCols := []string{"REG_NSE", "REG_BSE", "REG_NFO", "REG_BFO", "REG_CNFO", "REG_CBFO", "REG_USFO", "REG_MCX", "REG_NCDEX", "REG_CMFO", "REG_NMCEIL", "REG_ICFO", "REG_KCFO", "REG_NSFO", "REG_DGCX"}
 	cols := append([]string{"SUBCD", "DESCR", "CLIENTTYPE", "PAN_NO", "BIRTH_DATE", "MOBILE", "EMAIL1", "CITY", "RES_CITY", "STATE", "STATECD", "COUNTRY",
 		"ADD1", "PIN", "BranchID", "SBCODE", "RMCODE", "GROUPCD", "FAMILYCD", "ClRiskProfile", "AnnIncome", "BANK", "BANKACNUM", "MICRNO", "BANKACTYPE",
 		"NomineeNm", "NomineeRel", "COMMNCEDT", "ADD_DTTIME", "CloseOutDt", "eContract", "KYCStatus", "TaxStatus", "CLIENTCAT", "GENDER", "OCCUPATION",
-		"CUST_UCC", "NoInterest"}, regCols...)
+		"CUST_UCC", "NoInterest", "DLRCODE"}, regCols...)
 	list, miss := s.sel("DLMAST", "", cols...)
 	cm.missing = append(cm.missing, miss...)
 	err := d.query(ctx, fmt.Sprintf(qClients, list), func(r migrate.Row) error {
 		c := &client{ucc: upper(r, "subcd"), name: str(r, "descr"), ctype: str(r, "clienttype"), pan: upper(r, "pan_no"), dob: date(r, "birth_date"),
 			mobile: str(r, "mobile"), email: strings.ToLower(str(r, "email1")), city: firstNonEmpty(str(r, "city"), str(r, "res_city")), state: str(r, "state"),
-			statecd: str(r, "statecd"), country: upper(r, "country"), address: str(r, "add1"), pin: str(r, "pin"), branch: str(r, "branchid"), sb: str(r, "sbcode"), rm: str(r, "rmcode"),
+			statecd: str(r, "statecd"), country: upper(r, "country"), address: str(r, "add1"), pin: str(r, "pin"), branch: str(r, "branchid"), sb: str(r, "sbcode"), rm: firstNonEmpty(str(r, "rmcode"), str(r, "dlrcode")),
 			group: str(r, "groupcd"), family: str(r, "familycd"), risk: str(r, "clriskprofile"), income: str(r, "annincome"), bank: str(r, "bank"),
 			bankAc: str(r, "bankacnum"), micr: str(r, "micrno"), bankType: str(r, "bankactype"), nominee: str(r, "nomineenm"), nomineeRel: str(r, "nomineerel"),
 			commence: date(r, "commncedt"), added: date(r, "add_dttime"), closeOut: date(r, "closeoutdt"), econtract: flag(r, "econtract"),
@@ -210,14 +249,14 @@ func loadCommon(ctx context.Context, d db, s *schema) (*common, error) {
 	}
 	if s.has("KYCMAST") && s.has("KYCDTL") {
 		if err := d.query(ctx, qKYC, func(r migrate.Row) error {
-			cm.kycByPAN[upper(r, "panno")] = kycRec{kycno: str(r, "kycno"), status: upper(r, "status"), active: date(r, "dt_active"), commence: date(r, "commncedt")}
+			cm.kycByPAN[upper(r, "panno")] = kycRec{kyccd: upper(r, "kyccd"), kycno: str(r, "kycno"), status: upper(r, "status"), active: date(r, "dt_active"), commence: date(r, "commncedt")}
 			return nil
 		}); err != nil {
 			return nil, err
 		}
 	}
 	if s.has("BKMAST") {
-		list, miss := s.sel("BKMAST", "b", "SUBCD", "ACNO", "ACTYPE", "Closed", "ADD_DTTIME")
+		list, miss := s.sel("BKMAST", "b", "SUBCD", "TYPE", "ACNO", "ACTYPE", "Closed", "ADD_DTTIME", "POA_RECVD")
 		cm.missing = append(cm.missing, miss...)
 		kl, miss := s.sel("BANKMAST", "k", "bank=k.DESCR", "ifsc=k.RTGS", "micr=k.MICRNO", "branch=k.BRANCH")
 		if !s.has("BANKMAST") {
@@ -229,8 +268,13 @@ func loadCommon(ctx context.Context, d db, s *schema) (*common, error) {
 			q = strings.Replace(q, " LEFT JOIN BANKMAST k ON k.BANKCD = b.BANKCD", "", 1)
 		}
 		if err := d.query(ctx, q, func(r migrate.Row) error {
-			b := bankRec{ucc: upper(r, "subcd"), bank: str(r, "bank"), ifsc: upper(r, "ifsc"), account: str(r, "acno"), typ: str(r, "actype"), micr: str(r, "micr"),
-				branch: str(r, "branch"), added: date(r, "add_dttime"), closed: flag(r, "closed")}
+			// BKMAST.TYPE is Primary, Secondary or Pool; a pool account is the
+			// firm's own, not the client's
+			if strings.EqualFold(str(r, "type"), "POOL") {
+				return nil
+			}
+			b := bankRec{primary: strings.EqualFold(str(r, "type"), "PRIMARY"), ucc: upper(r, "subcd"), bank: str(r, "bank"), ifsc: upper(r, "ifsc"), account: str(r, "acno"), typ: str(r, "actype"), micr: str(r, "micr"),
+				branch: str(r, "branch"), added: date(r, "add_dttime"), closed: flag(r, "closed"), poa: flag(r, "poa_recvd")}
 			cm.banks[b.ucc] = append(cm.banks[b.ucc], b)
 			return nil
 		}); err != nil {
@@ -274,11 +318,12 @@ func loadCommon(ctx context.Context, d db, s *schema) (*common, error) {
 		}
 	}
 	if s.has("CLLIST") {
-		list, miss := s.sel("CLLIST", "", "CO", "DPID", "BENACNUM", "FBENACNUM", "SUBCODE", "BENSTAT", "BENCLOSEDT", "ACTIVEDT")
+		list, miss := s.sel("CLLIST", "", "CO", "DPID", "BENACNUM", "FBENACNUM", "SUBCODE", "BENSTAT", "BENCLOSEDT", "ACTIVEDT", "SUSPFLAG", "SUSPRSNCD", "BSDA")
 		cm.missing = append(cm.missing, miss...)
 		if err := d.query(ctx, fmt.Sprintf(qDPAccts, list), func(r migrate.Row) error {
 			a := dpAcct{co: str(r, "co"), dpid: upper(r, "dpid"), ben: upper(r, "benacnum"), boid: upper(r, "fbenacnum"), ucc: upper(r, "subcode"),
-				opened: date(r, "activedt"), closed: date(r, "benclosedt") != ""}
+				opened: date(r, "activedt"), closedOn: date(r, "benclosedt"), closed: date(r, "benclosedt") != "", benStat: str(r, "benstat"),
+				suspFlag: upper(r, "suspflag"), suspRsn: str(r, "susprsncd"), bsda: upper(r, "bsda")}
 			if a.boid == "" {
 				a.boid = a.dpid + a.ben
 			}
@@ -315,6 +360,9 @@ func loadCommon(ctx context.Context, d db, s *schema) (*common, error) {
 		_ = d.query(ctx, qRunAc, func(r migrate.Row) error {
 			if i64(r, "rn") == 1 {
 				cm.runAc[upper(r, "subcd")] = rasOf(str(r, "settletype"))
+				if st := str(r, "settletype"); st != "" && st != "2" && st != "3" {
+					cm.runAcOther[st]++
+				}
 			}
 			return nil
 		})
@@ -324,6 +372,28 @@ func loadCommon(ctx context.Context, d db, s *schema) (*common, error) {
 			cm.states[upper(r, "statecd")] = str(r, "descr")
 			return nil
 		})
+	}
+	for _, u := range cm.order {
+		if g := codePart(cm.clients[u].group); cm.clients[u].group != "" {
+			cm.groups[u] = append(cm.groups[u], g)
+		}
+	}
+	if s.hasCol("DLGROUP", "Code") && s.hasCol("DLGROUP", "Subcd") {
+		if err := d.query(ctx, fmt.Sprintf(qGroups2, s.order("DLGROUP", "", "EffectDate")), func(r migrate.Row) error {
+			if i64(r, "rn") != 1 || str(r, "code") == "" {
+				return nil
+			}
+			u, g := upper(r, "subcd"), codePart(str(r, "code"))
+			for _, x := range cm.groups[u] {
+				if x == g {
+					return nil
+				}
+			}
+			cm.groups[u] = append(cm.groups[u], g)
+			return nil
+		}); err != nil {
+			return nil, err
+		}
 	}
 	return cm, nil
 }
@@ -341,13 +411,15 @@ func regSegment(col string) string {
 	return "COM"
 }
 
-// rasOf reads DLRUNACMAST.SETTLETYPE: 1 or 30 monthly, 3 or 90 quarterly.
+// rasOf reads DLRUNACMAST.SETTLETYPE. Values seen in a real database: 2
+// (most clients: quarterly, the default) and 3 (monthly), assumed; 1 is
+// not known and is left blank (to be confirmed).
 func rasOf(v string) string {
 	switch strings.TrimSpace(v) {
-	case "1", "30", "M":
-		return "Monthly"
-	case "2", "3", "90", "Q":
+	case "2":
 		return "Quarterly"
+	case "3":
+		return "Monthly"
 	}
 	return ""
 }
@@ -407,7 +479,8 @@ type cur struct {
 	cm      *common
 	rep     *report
 	asOf    time.Time
-	primary bool
+	primary bool // the first chosen firm (counts made once)
+	home    bool // the first firm: clients linked to no firm come here
 	mine    map[string]bool
 
 	written  map[string]bool // clients in the client master
@@ -441,6 +514,11 @@ func (c *cur) run(ctx context.Context) error {
 		{"Brokerage", c.writeBrokerage},
 		{"Client interest", c.writeInterest},
 		{"KRA and CKYC", c.writeKYC},
+		{"UCC details", c.writeUCCDetails},
+		{"Contact persons", c.writeContacts},
+		{"Branches", c.writeBranches},
+		{"Authorised persons and RMs", c.writePartners},
+		{"DP accounts", c.writeDPAccounts},
 	}
 	for _, st := range steps {
 		if err := ctx.Err(); err != nil {
@@ -455,9 +533,6 @@ func (c *cur) run(ctx context.Context) error {
 	c.rep.infof("Brokerage", "", "no-scrip-groups", "SharePro has no scrip groups for brokerage (DLGROUP holds client groups); SCRIP-GROUPS is not written")
 	if len(c.f.dpCOs()) > 0 {
 		c.rep.drop("DP tariff assignments (DPCLBASKET; tariffs in DPCLBSKT, DPCHARGE)", "Ledgerline has no import file for DP tariffs; set the DP tariff in Ledgerline", c.count(ctx, "DPCLBASKET"))
-	}
-	if c.primary {
-		c.rep.drop("Sub-broker and relationship manager masters (SBMAST, RMMAST)", "Ledgerline has no import file for these masters; the client's branch is in CLIENT-MASTER", c.count(ctx, "SBMAST")+c.count(ctx, "RMMAST"))
 	}
 	return nil
 }
@@ -691,8 +766,7 @@ func (c *cur) writeClients(ctx context.Context) error {
 			v["Inactive"], v["InactiveSince"] = "Y", since
 		}
 		c.validateClient(cl, v, pans)
-		for _, x := range []struct{ field, val string }{{"Address", cl.address}, {"PIN", cl.pin}, {"Gender", cl.gender}, {"Occupation", cl.occupation},
-			{"Sub-broker / authorised person", cl.sb}, {"Relationship manager", cl.rm}, {"Client group", cl.group}, {"Family", cl.family}} {
+		for _, x := range []struct{ field, val string }{{"Family", cl.family}} {
 			if x.val != "" {
 				noCol[x.field]++
 			}
@@ -712,6 +786,11 @@ func (c *cur) writeClients(ctx context.Context) error {
 	}
 	for _, f := range sortedKeys(noCol) {
 		c.rep.drop("Client "+strings.ToLower(f[:1])+f[1:], "Ledgerline's CLIENT-MASTER has no column for it yet; kept in SharePro's records", noCol[f])
+	}
+	for _, v := range sortedKeys(c.cm.runAcOther) {
+		if c.primary {
+			c.rep.infof("Client master", "", "ras-"+v, "%d clients have running-account settlement type %s (DLRUNACMAST.SETTLETYPE), whose meaning is not known; RAS is left blank (Ledgerline's default applies). Confirm with SharePro", c.cm.runAcOther[v], v)
+		}
 	}
 	if c.derivClients > 0 {
 		c.rep.infof("Client master", "", "income-proof", "%d clients have a derivatives segment: the import records their income proof as received; check it is on file", c.derivClients)
@@ -772,6 +851,7 @@ func (c *cur) clientRow(cl *client, dm dpAcct) map[string]string {
 		"Bank": primary.bank, "IFSC": primary.ifsc, "Account": primary.account, "Depository": dm.depository, "DematID": dm.boid,
 		"Nominee": nom, "NomineeName": nomName, "KYCDate": kycDate, "Status": "Active", "API": "N", "LastTrade": c.cm.lastTrade[cl.ucc],
 		"Branch": cl.branch, "State": state, "ECN": yn(cl.econtract), "NominationDate": nomDate,
+		"AP": cl.sb, "RM": cl.rm, "Groups": strings.Join(c.cm.groups[cl.ucc], ";"),
 	}
 }
 
@@ -779,6 +859,11 @@ func (c *cur) clientRow(cl *client, dm dpAcct) map[string]string {
 // account, else the first open one, else the client master's own.
 func (c *cur) primaryBank(cl *client) bankRec {
 	bs := c.cm.banks[cl.ucc]
+	for _, b := range bs {
+		if !b.closed && b.primary {
+			return b
+		}
+	}
 	acct := reDigits.ReplaceAllString(cl.bankAc, "")
 	for _, b := range bs {
 		if !b.closed && acct != "" && reDigits.ReplaceAllString(b.account, "") == acct {
@@ -871,7 +956,7 @@ func (c *cur) clientChecks(ctx context.Context) error {
 	switch {
 	case m <= 1 || firmLink == "":
 		conds = append(conds, "1 = 1")
-	case c.primary:
+	case c.home:
 		// clients linked to no firm at all come to the first firm
 		var all []string
 		c.m.mu.Lock()

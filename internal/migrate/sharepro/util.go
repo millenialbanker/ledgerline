@@ -337,7 +337,7 @@ func (r *report) flush(w *pkg.Writer, p migrate.Progress) {
 // Columns that are never read: client and staff passwords, Aadhaar numbers,
 // system log file contents. They may appear only inside COUNT(...) (to
 // count them) or RIGHT(...) (the last 4 digits).
-var forbiddenCol = regexp.MustCompile(`(?i)\b([A-Z0-9_]*PWD[A-Z0-9_]*|[A-Z0-9_]*PASSWORD[A-Z0-9_]*|[A-Z0-9_]*A{1,2}DHA{1,2}R[A-Z0-9_]*|[A-Z0-9_]*UID|CONTENT|[A-Z0-9_]*TOKEN[A-Z0-9_]*|[A-Z0-9_]*OTP[A-Z0-9_]*)\b`)
+var forbiddenCol = regexp.MustCompile(`(?i)\b([A-Z0-9_]*PWD[A-Z0-9_]*|[A-Z0-9_]*PASSWORD[A-Z0-9_]*|[A-Z0-9_]*A{1,2}DHA{1,2}R[A-Z0-9_]*|[A-Z0-9_]*UID[0-9]*|CONTENT|[A-Z0-9_]*TOKEN[A-Z0-9_]*|[A-Z0-9_]*OTP[A-Z0-9_]*)\b`)
 
 // stripAllowed removes COUNT(...) and RIGHT(...) calls, with nested
 // brackets, from a query.

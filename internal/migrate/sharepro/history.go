@@ -20,7 +20,7 @@ const (
 	qHistTrades   = `/*sp:hist-trades*/ SELECT %s FROM TRFILE t %s WHERE t.CO IN (%s) ORDER BY %s`
 	qHistCN       = `/*sp:hist-contract-notes*/ SELECT RTRIM(CO) AS co, CNTRNO AS cntrno, TRDT AS trdt, RTRIM(SUBCD) AS subcd FROM TRFILE WHERE CO IN (%s) AND CNTRNO > 0 GROUP BY CO, CNTRNO, TRDT, SUBCD ORDER BY TRDT, CO, CNTRNO`
 	qHistDP       = `/*sp:hist-dp*/ SELECT %s FROM DPTRAN d %s WHERE d.CO IN (%s) ORDER BY %s`
-	qHistDPBills  = `/*sp:hist-dp-bills*/ SELECT %s FROM INVOICEHEAD WHERE co IN (%s) AND (UPPER(AutoType) LIKE '%%CDSL%%' OR UPPER(AutoType) LIKE '%%NSDL%%' OR UPPER(AutoType) LIKE '%%DPBILL%%') ORDER BY InvoiceDt, InvoiceNo`
+	qHistDPBills  = `/*sp:hist-dp-bills*/ SELECT %s FROM INVOICEHEAD WHERE co IN (%s) AND UPPER(RTRIM(AutoType)) IN ('CDSLBILL', 'NSDLBILL', 'DPBILL') ORDER BY InvoiceDt, InvoiceNo`
 	qHistHoldDate = `/*sp:hist-hold-date*/ SELECT MAX(HOLDDATE) AS d FROM HOLD WHERE CO IN (%s) AND HOLDDATE < '%s'`
 	qHistHold     = `/*sp:hist-holdings*/ SELECT %s FROM HOLD h %s WHERE h.CO IN (%s) AND h.HOLDDATE >= '%s' AND h.HOLDDATE < '%s' ORDER BY h.BENACNUM, h.ISINCD`
 )
@@ -38,6 +38,8 @@ type hist struct {
 	dp    map[string]dpAcct // co|benacnum -> account
 	byUCC map[string]dpAcct // ucc -> first account
 	fy    string
+
+	noOptType int
 }
 
 func (m *Mapper) History(ctx context.Context, q migrate.Querier, k migrate.Kind, plan migrate.Plan, w *pkg.Writer, p migrate.Progress) error {
@@ -173,6 +175,7 @@ func (h *hist) ledger(ctx context.Context, cw *pkg.CSV) error {
 	if err := h.d.query(ctx, fmt.Sprintf(qHistJV, list, cos, h.s.order("JVFILE", "", "VRDT", "TT", "VRNO", "IDN")), func(r migrate.Row) error {
 		co := str(r, "co")
 		acct, name, ucc := h.chart.account(co, str(r, "accd"), str(r, "subcode"))
+		ucc = firstNonEmpty(ucc, h.chart.clientOf(co, str(r, "accd"), str(r, "subcode")))
 		vt := "Journal"
 		if t := str(r, "type"); t != "" {
 			vt += " " + t
@@ -190,6 +193,7 @@ func (h *hist) ledger(ctx context.Context, cw *pkg.CSV) error {
 		if err := h.d.query(ctx, fmt.Sprintf(qHistBC, list, cos, h.s.order("BCFILE", "", "VRDT", "TT", "VRNO", "IDN")), func(r migrate.Row) error {
 			co, tt := str(r, "co"), upper(r, "tt")
 			acct, name, ucc := h.chart.account(co, str(r, "accd"), str(r, "subcode"))
+			ucc = firstNonEmpty(ucc, h.chart.clientOf(co, str(r, "accd"), str(r, "subcode")))
 			_, seg := h.segName(co)
 			vt := bcType(upper(r, "type"), upper(r, "p_r"))
 			ref := fmt.Sprintf("BCFILE:%s:%s/%s:%s", co, tt, str(r, "vrno"), str(r, "idn"))
@@ -277,17 +281,7 @@ func (h *hist) bills(ctx context.Context, cw *pkg.CSV) error {
 
 // tradeApply joins the item master and ISIN to trades (alias t).
 func (h *hist) tradeApply() (cols, apply string) {
-	cols, apply = "NULL AS instr_type, NULL AS exp_date, NULL AS cont_rate, NULL AS nse_itemcd, NULL AS nse_series, NULL AS descr, NULL AS cont_type, NULL AS assetcd, NULL AS mcx_itemcd", ""
-	if h.s.has("ITC") {
-		il, _ := h.s.sel("ITC", "ITC", "INSTR_TYPE", "EXP_DATE", "CONT_RATE", "NSE_ITEMCD", "NSE_SERIES", "MCX_ITEMCD", "DESCR")
-		apply = " OUTER APPLY (SELECT TOP 1 " + il + " FROM ITC WHERE ITC.ITEMCD = t.ITEMCD) i"
-		cols = "i.instr_type, i.exp_date, i.cont_rate, i.nse_itemcd, i.nse_series, i.mcx_itemcd, i.descr, NULL AS cont_type, NULL AS assetcd"
-		if h.s.has("ICCLCONT") {
-			kl, _ := h.s.sel("ICCLCONT", "ICCLCONT", "Cont_type", "AssetCd")
-			apply += " OUTER APPLY (SELECT TOP 1 " + kl + " FROM ICCLCONT WHERE ICCLCONT.Nse_itemcd = t.ITEMCD OR ICCLCONT.Bse_itemcd = t.ITEMCD) k"
-			cols = strings.Replace(cols, "NULL AS cont_type, NULL AS assetcd", "k.cont_type, k.assetcd", 1)
-		}
-	}
+	cols, apply = itemApply(h.s)
 	if h.s.has("ISINMAST") {
 		apply += " OUTER APPLY (SELECT TOP 1 RTRIM(ISINCD) AS isin FROM ISINMAST WHERE ISINMAST.ITEMCD = t.ITEMCD) x"
 		cols += ", x.isin"
@@ -300,6 +294,11 @@ func (h *hist) tradeApply() (cols, apply string) {
 func (h *hist) trades(ctx context.Context, cw *pkg.CSV) error {
 	tl, _ := h.s.sel("TRFILE", "t", "CO", "STNO", "STTYPE", "TRDT", "SUBCD", "TRNO", "cTRDNO", "TRDNO", "ORDNO", "ITEMCD", "QTY", "ACT_RATE", "RATE", "BRKG", "CNTRNO", "NPK")
 	cols, apply := h.tradeApply()
+	defer func() {
+		if h.noOptType > 0 {
+			h.rep.infof("History", pkg.HistoryTrades, "option-type", "%d option trades: call or put is not in the series or descriptions of the item and contract masters; OptionType is left blank", h.noOptType)
+		}
+	}()
 	return h.d.query(ctx, fmt.Sprintf(qHistTrades, tl+", "+cols, apply, inList(h.f.COs), h.s.order("TRFILE", "t", "TRDT", "CO", "NPK")), func(r migrate.Row) error {
 		co := str(r, "co")
 		exch, seg := h.segName(co)
@@ -313,6 +312,9 @@ func (h *hist) trades(ctx context.Context, cw *pkg.CSV) error {
 			price = dec(r, "rate")
 		}
 		typ, sym := instrument(r)
+		if typ == "" && strings.HasPrefix(upper(r, "instr_type"), "OPT") {
+			h.noOptType++
+		}
 		opt := ""
 		if typ == "CE" || typ == "PE" {
 			opt = typ
@@ -367,7 +369,7 @@ func (h *hist) receipts(ctx context.Context, cw *pkg.CSV) error {
 			return nil
 		}
 		co, tt := str(r, "co"), upper(r, "tt")
-		_, _, ucc := h.chart.account(co, str(r, "accd"), str(r, "subcode"))
+		ucc := h.chart.clientOf(co, str(r, "accd"), str(r, "subcode"))
 		typ, amt := "Receipt", dec(r, "amtcr").Sub(dec(r, "amtdr"))
 		if pr == "P" {
 			typ, amt = "Payment", dec(r, "amtdr").Sub(dec(r, "amtcr"))
@@ -451,13 +453,25 @@ func (h *hist) holdings(ctx context.Context, cw *pkg.CSV) error {
 	if day(hd) != day(end) {
 		h.rep.infof("History", pkg.HistoryHoldings, "hold-date", "The year's last DP holdings in SharePro are of %s", day(hd))
 	}
-	list, _ := h.s.sel("HOLD", "h", "CO", "BENACNUM", "ISINCD", "BALANCE", "CURBAL", "PLDGBAL", "LOCINBAL", "FRZBAL", "RATE")
+	list, _ := h.s.sel("HOLD", "h", "CO", "BENACNUM", "ISINCD", "BALANCE", "CURBAL", "PLDGBAL")
 	sc, apply := h.isinApply("h")
+	// HOLD.RATE is never filled: the price is DPPRICE's latest close on or
+	// before the holding date
+	if h.s.hasCol("DPPRICE", "CLOSEDT") && h.s.hasCol("DPPRICE", "RATE") {
+		apply += fmt.Sprintf(" OUTER APPLY (SELECT TOP 1 p.RATE AS price FROM DPPRICE p WHERE p.ISINCD = h.ISINCD AND p.CLOSEDT < '%s' ORDER BY p.CLOSEDT DESC) pr", day(hd.AddDate(0, 0, 1)))
+		sc += ", pr.price"
+	} else {
+		sc += ", NULL AS price"
+	}
 	return h.d.query(ctx, fmt.Sprintf(qHistHold, list+", "+sc, apply, inList(dpc), day(hd), day(hd.AddDate(0, 0, 1))), func(r migrate.Row) error {
 		a := h.dp[str(r, "co")+"|"+upper(r, "benacnum")]
-		tot, rate := dec(r, "balance"), dec(r, "rate")
-		return hrow(cw, pkg.HistoryHoldings, map[string]string{"Date": day(hd), "BOID": firstNonEmpty(a.boid, upper(r, "benacnum")), "UCC": a.ucc, "ISIN": upper(r, "isincd"),
-			"Security": str(r, "security"), "Free": qty(dec(r, "curbal")), "Pledged": qty(dec(r, "pldgbal")), "Locked": qty(dec(r, "locinbal").Add(dec(r, "frzbal"))),
-			"Total": qty(tot), "Rate": num(rate), "Value": rupees(tot.Mul(rate))})
+		tot, rate := dec(r, "balance"), dec(r, "price")
+		free, pl := dec(r, "curbal"), dec(r, "pldgbal")
+		v := map[string]string{"Date": day(hd), "BOID": firstNonEmpty(a.boid, upper(r, "benacnum")), "UCC": a.ucc, "ISIN": upper(r, "isincd"),
+			"Security": str(r, "security"), "Free": qty(free), "Pledged": qty(pl), "Locked": qty(tot.Sub(free).Sub(pl)), "Total": qty(tot)}
+		if rate.Sign() > 0 {
+			v["Rate"], v["Value"] = num(rate), rupees(tot.Mul(rate))
+		}
+		return hrow(cw, pkg.HistoryHoldings, v)
 	})
 }

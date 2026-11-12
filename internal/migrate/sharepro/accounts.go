@@ -3,6 +3,7 @@ package sharepro
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"ledgerline/internal/migrate"
@@ -10,14 +11,19 @@ import (
 
 // The chart of accounts.
 //
-// SharePro posts to a ledger head (ACCD, per CO in MSFILE, with its group
-// in MASTMSFILE.AgrCode and the ACCTGROUP tree) and, for heads with a sub
-// ledger, a sub-account (SUBCODE, MLFILE). A client's trading ledger is the
-// head DLMAST.ACC_ACCD with the sub-account DLMAST.ACC_SUBCOD (or the
-// client code). In Ledgerline:
+// SharePro posts to a ledger head (ACCD; per company in MSFILE, with its
+// group in MASTMSFILE.AgrCode and the ACCTGROUP tree) and, for heads with
+// sub-ledgers, a sub-account (SUBCODE, MLFILE). MSFILE and MLFILE have one
+// row per branch. Verified against a real database: a client's ledger is
+// an MLFILE sub-account whose SUBCODE is the client code (DLMAST.SUBCD),
+// under a "client control" head of each company (DLMAST.ACC_ACCD is blank).
+// Several heads are client-coded (clients, NRI clients, DP clients, margin
+// deposits, per-client STT and stamp duty...). In Ledgerline:
 //
-//	client trading ledger          CLIENT:<client code>  (one account across the firm's COs)
-//	any other head or sub-account  <PREFIX>:<CO>-<ACCD>[-<SUBCODE>]
+//	client-coded head whose name says CLIENT (and not MARGIN, CONTROL or
+//	ADDBACK)                         CLIENT:<client code>, one account over the firm's companies
+//	other client-coded head          <PREFIX>:<CO>-<ACCD>, one firm account for the head
+//	any other head or sub-account    <PREFIX>:<CO>-<ACCD>[-<SUBCODE>]
 //
 // where PREFIX comes from the head's group: BANK, CASH, CC (exchange and
 // clearing accounts), RECEIVABLE, ASSET, PAYABLE, LOAN, EQUITY, INCOME,
@@ -27,14 +33,13 @@ const (
 	qGroups     = `/*sp:acctgroup*/ SELECT RTRIM(AgrCode) AS code, RTRIM(PAgrCode) AS parent, RTRIM(Descr) AS descr FROM ACCTGROUP`
 	qHeads      = `/*sp:mastmsfile*/ SELECT %s FROM MASTMSFILE`
 	qCOHeads    = `/*sp:msfile*/ SELECT %s FROM MSFILE`
-	qSubs       = `/*sp:mlfile*/ SELECT %s FROM MLFILE`
+	qSubs       = `/*sp:mlfile*/ SELECT RTRIM(co) AS co, RTRIM(ACCD) AS accd, RTRIM(SUBCODE) AS subcode, MAX(DESCR) AS descr FROM MLFILE GROUP BY co, ACCD, SUBCODE`
 	qAcTypes    = `/*sp:msactypes*/ SELECT RTRIM(accttype) AS accttype, lExchange AS lexchange FROM MSACTYPES`
-	qClientAcct = `/*sp:client-accounts*/ SELECT %s FROM DLMAST`
+	qClientAcct = `/*sp:client-accounts*/ SELECT RTRIM(SUBCD) AS subcd FROM DLMAST`
 )
 
 type head struct {
 	accd, descr, group, acType, bankCD, tt string
-	sub                                    bool
 }
 
 type chart struct {
@@ -43,16 +48,22 @@ type chart struct {
 	coHead    map[string]string    // co|accd -> descr (MSFILE)
 	subs      map[string]string    // co|accd|subcode -> descr (MLFILE)
 	exchTypes map[string]bool
-	// client ledgers: head|subcode -> client code
-	clientSub   map[string]string
-	clientHeads map[string]bool
-	bookHead    map[string]string // co|TT -> bank or cash head of that book
-	unknown     map[string]bool
+	isClient  map[string]bool   // client codes
+	coded     map[string]bool   // co|accd: client-coded head
+	merged    map[string]bool   // co|accd: client-coded head that is the client's ledger
+	bookHead  map[string]string // co|TT -> bank or cash head of that book
+	unknown   map[string]bool
+}
+
+// merges says whether a client-coded head is the client's own ledger.
+func merges(descr string) bool {
+	d := strings.ToUpper(descr)
+	return strings.Contains(d, "CLIENT") && !strings.Contains(d, "MARGIN") && !strings.Contains(d, "CONTROL") && !strings.Contains(d, "ADDBACK")
 }
 
 func loadChart(ctx context.Context, d db, s *schema, rep *report) (*chart, error) {
 	c := &chart{groups: map[string][2]string{}, heads: map[string]head{}, coHead: map[string]string{}, subs: map[string]string{},
-		exchTypes: map[string]bool{}, clientSub: map[string]string{}, clientHeads: map[string]bool{}, bookHead: map[string]string{}, unknown: map[string]bool{}}
+		exchTypes: map[string]bool{}, isClient: map[string]bool{}, coded: map[string]bool{}, merged: map[string]bool{}, bookHead: map[string]string{}, unknown: map[string]bool{}}
 	if s.has("ACCTGROUP") {
 		if err := d.query(ctx, qGroups, func(r migrate.Row) error {
 			c.groups[upper(r, "code")] = [2]string{upper(r, "parent"), upper(r, "descr")}
@@ -72,9 +83,9 @@ func loadChart(ctx context.Context, d db, s *schema, rep *report) (*chart, error
 		})
 	}
 	if s.has("MASTMSFILE") {
-		list, _ := s.sel("MASTMSFILE", "", "ACCD", "DESCR", "AgrCode", "ACCTTYPE", "BANKCD", "TT", "SUBLEDGER")
+		list, _ := s.sel("MASTMSFILE", "", "ACCD", "DESCR", "AgrCode", "ACCTTYPE", "BANKCD", "TT")
 		if err := d.query(ctx, fmt.Sprintf(qHeads, list), func(r migrate.Row) error {
-			h := head{accd: upper(r, "accd"), descr: str(r, "descr"), group: upper(r, "agrcode"), acType: upper(r, "accttype"), bankCD: str(r, "bankcd"), tt: upper(r, "tt"), sub: flag(r, "subledger")}
+			h := head{accd: upper(r, "accd"), descr: str(r, "descr"), group: upper(r, "agrcode"), acType: upper(r, "accttype"), bankCD: str(r, "bankcd"), tt: upper(r, "tt")}
 			c.heads[h.accd] = h
 			return nil
 		}); err != nil {
@@ -82,13 +93,15 @@ func loadChart(ctx context.Context, d db, s *schema, rep *report) (*chart, error
 		}
 	}
 	if s.has("MSFILE") {
-		list, _ := s.sel("MSFILE", "", "co", "ACCD", "DESCR", "TT", "SUBLEDGER")
+		list, _ := s.sel("MSFILE", "", "co", "ACCD", "DESCR", "TT")
 		if err := d.query(ctx, fmt.Sprintf(qCOHeads, list), func(r migrate.Row) error {
 			co, accd := str(r, "co"), upper(r, "accd")
-			c.coHead[co+"|"+accd] = str(r, "descr")
+			if c.coHead[co+"|"+accd] == "" {
+				c.coHead[co+"|"+accd] = str(r, "descr")
+			}
 			h, ok := c.heads[accd]
 			if !ok {
-				h = head{accd: accd, descr: str(r, "descr"), tt: upper(r, "tt"), sub: flag(r, "subledger")}
+				h = head{accd: accd, descr: str(r, "descr"), tt: upper(r, "tt")}
 				c.heads[accd] = h
 			}
 			if tt := firstNonEmpty(upper(r, "tt"), h.tt); tt != "" {
@@ -101,65 +114,41 @@ func loadChart(ctx context.Context, d db, s *schema, rep *report) (*chart, error
 			return nil, err
 		}
 	}
+	if err := d.query(ctx, qClientAcct, func(r migrate.Row) error {
+		c.isClient[upper(r, "subcd")] = true
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	tot, hit := map[string]int{}, map[string]int{}
 	if s.has("MLFILE") {
-		list, _ := s.sel("MLFILE", "", "co", "ACCD", "SUBCODE", "DESCR")
-		if err := d.query(ctx, fmt.Sprintf(qSubs, list), func(r migrate.Row) error {
-			c.subs[str(r, "co")+"|"+upper(r, "accd")+"|"+upper(r, "subcode")] = str(r, "descr")
+		if err := d.query(ctx, qSubs, func(r migrate.Row) error {
+			k := str(r, "co") + "|" + upper(r, "accd")
+			c.subs[k+"|"+upper(r, "subcode")] = str(r, "descr")
+			tot[k]++
+			if c.isClient[upper(r, "subcode")] {
+				hit[k]++
+			}
 			return nil
 		}); err != nil {
 			return nil, err
 		}
 	}
-	// client ledgers
-	list, _ := s.sel("DLMAST", "", "SUBCD", "ACC_ACCD", "ACC_SUBCOD")
-	type ca struct{ ucc, accd, sub string }
-	var cas []ca
-	if err := d.query(ctx, fmt.Sprintf(qClientAcct, list), func(r migrate.Row) error {
-		cas = append(cas, ca{upper(r, "subcd"), upper(r, "acc_accd"), upper(r, "acc_subcod")})
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-	for _, x := range cas {
-		if x.accd != "" {
-			c.clientHeads[x.accd] = true
-		}
-	}
-	if len(c.clientHeads) == 0 {
-		// No client head in the master: the heads most of whose
-		// sub-accounts are client codes.
-		isClient := map[string]bool{}
-		for _, x := range cas {
-			isClient[x.ucc] = true
-		}
-		tot, hit := map[string]int{}, map[string]int{}
-		for k := range c.subs {
-			p := strings.SplitN(k, "|", 3)
-			tot[p[1]]++
-			if isClient[p[2]] {
-				hit[p[1]]++
-			}
-		}
-		for h, n := range tot {
-			if hit[h]*2 > n {
-				c.clientHeads[h] = true
-			}
-		}
-		if len(c.clientHeads) > 0 {
-			rep.infof("Trial balance", "", "client-heads", "The client master names no ledger head for clients; the heads whose sub-accounts are mostly client codes are taken as client ledgers: %s", strings.Join(sortedKeys(c.clientHeads), ", "))
-		}
-	}
-	for _, x := range cas {
-		sub := firstNonEmpty(x.sub, x.ucc)
-		if x.accd != "" {
-			c.clientSub[x.accd+"|"+sub] = x.ucc
-		} else {
-			for h := range c.clientHeads {
-				c.clientSub[h+"|"+sub] = x.ucc
+	// a head is client-coded when most of its sub-accounts are client codes
+	for k, n := range tot {
+		if hit[k] > 0 && hit[k]*2 > n {
+			c.coded[k] = true
+			if merges(c.headName(k)) {
+				c.merged[k] = true
 			}
 		}
 	}
 	return c, nil
+}
+
+func (c *chart) headName(coAccd string) string {
+	co, accd, _ := strings.Cut(coAccd, "|")
+	return firstNonEmpty(c.coHead[co+"|"+accd], c.heads[accd].descr, accd)
 }
 
 // kindOf is the Ledgerline prefix of a ledger head.
@@ -221,26 +210,36 @@ func groupKind(code, descr string, h head) string {
 	return ""
 }
 
-// account maps a SharePro posting to a Ledgerline account. ucc is set for
-// a client's trading ledger.
+// account maps a SharePro posting to a Ledgerline account. ucc is set when
+// the account is the client's own ledger (CLIENT:<ucc>).
 func (c *chart) account(co, accd, sub string) (code, name, ucc string) {
 	accd, sub = strings.ToUpper(strings.TrimSpace(accd)), strings.ToUpper(strings.TrimSpace(sub))
-	if c.clientHeads[accd] && sub != "" {
-		if u, ok := c.clientSub[accd+"|"+sub]; ok {
-			return "CLIENT:" + codePart(u), firstNonEmpty(c.subs[co+"|"+accd+"|"+sub], u), u
-		}
+	k := co + "|" + accd
+	if sub != "" && c.isClient[sub] && c.coded[k] && c.merged[k] {
+		return "CLIENT:" + codePart(sub), firstNonEmpty(c.subs[k+"|"+sub], sub), sub
 	}
-	k := c.kindOf(accd)
-	if k == "SUSPENSE" {
+	kind := c.kindOf(accd)
+	if kind == "SUSPENSE" {
 		c.unknown[accd] = true
 	}
-	code = k + ":" + codePart(co) + "-" + codePart(accd)
-	name = firstNonEmpty(c.coHead[co+"|"+accd], c.heads[accd].descr, accd)
-	if sub != "" {
+	code = kind + ":" + codePart(co) + "-" + codePart(accd)
+	name = c.headName(k)
+	if sub != "" && !(c.coded[k] && c.isClient[sub]) {
+		// a sub-account of its own; a client's amount under a client-coded
+		// head that is not the client's ledger stays in the head's account
 		code += "-" + codePart(sub)
-		name = firstNonEmpty(c.subs[co+"|"+accd+"|"+sub], name+" / "+sub)
+		name = firstNonEmpty(c.subs[k+"|"+sub], name+" / "+sub)
 	}
 	return code, name, ""
+}
+
+// clientOf is the client a posting is for, whichever account it goes to.
+func (c *chart) clientOf(co, accd, sub string) string {
+	sub = strings.ToUpper(strings.TrimSpace(sub))
+	if sub != "" && c.isClient[sub] && c.coded[co+"|"+strings.ToUpper(strings.TrimSpace(accd))] {
+		return sub
+	}
+	return ""
 }
 
 // reportUnknown raises one warning per head whose type could not be told.
@@ -252,4 +251,30 @@ func (c *chart) reportUnknown(rep *report, area string) {
 	c.unknown = map[string]bool{}
 }
 
-func (c *chart) clientHeadList() []string { return sortedKeys(c.clientHeads) }
+// headsOf lists the client-coded heads of the given companies (co|accd),
+// merged ones or the others.
+func (c *chart) headsOf(cos []string, merged bool) []string {
+	in := map[string]bool{}
+	for _, co := range cos {
+		in[co] = true
+	}
+	var out []string
+	for k := range c.coded {
+		co, _, _ := strings.Cut(k, "|")
+		if in[co] && c.merged[k] == merged {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// accdsOf is the distinct ACCDs of co|accd keys.
+func accdsOf(keys []string) []string {
+	m := map[string]bool{}
+	for _, k := range keys {
+		_, a, _ := strings.Cut(k, "|")
+		m[a] = true
+	}
+	return sortedKeys(m)
+}

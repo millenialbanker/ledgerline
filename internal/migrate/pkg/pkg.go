@@ -181,6 +181,9 @@ const (
 	CheckDocuments    = "documents"
 	CheckBankAccounts = "client-bank-accounts"
 	CheckPositions    = "open-positions"
+	// CheckOpeningDifference is the balance (debit positive) of the
+	// suspense account that takes the old system's unbalanced openings.
+	CheckOpeningDifference = "opening-difference"
 )
 
 // Dropped is a field deliberately not carried over.
