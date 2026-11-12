@@ -45,8 +45,10 @@ require (
 )
 
 replace (
-	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c => ./third_party/stub/gopkg_in_yaml_v3
-	gopkg.in/yaml.v3 v3.0.1 => ./third_party/stub/gopkg_in_yaml_v3
+	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c => ./third_party/yaml.v3
+	gopkg.in/yaml.v3 v3.0.1 => ./third_party/yaml.v3
 )
 
 replace go4.org v0.0.0-20200411211856-f5505b9728dd => ./third_party/go4
+
+replace gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405 => ./third_party/check.v1
