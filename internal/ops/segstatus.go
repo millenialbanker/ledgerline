@@ -142,6 +142,7 @@ func (o *Ops) SetSegmentStatus(ctx context.Context, tenant, actor, ucc, seg, sta
 			return invalid("%s is already %s", strings.ToUpper(seg), c.SegmentStatus(strings.ToUpper(seg)))
 		}
 		change = c.SegHistory[n]
+		refreshIncomplete(c, nil) // a segment added completes "Segments" (incomplete.go)
 		return nil
 	})
 	if err != nil {
@@ -267,6 +268,7 @@ func (o *Ops) prepareSegmentStatus(ctx context.Context, tenant, actor string, ro
 					}
 					n += len(c.SegHistory) - before
 				}
+				refreshIncomplete(c, nil)
 				return nil
 			}); err != nil {
 				return n, skipped, err

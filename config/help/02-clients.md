@@ -177,6 +177,8 @@ An account with no activity (trades, IPO bids, mutual fund orders, KYC updates) 
 2. An Ops checker or compliance officer who didn't make the request approves it on [[inactive|Inactive accounts]].
 3. The inactivity clock restarts.
 
+A client migrated with **details missing from the previous system** (the client screen lists them) cannot be reactivated until each is completed: the request, and its approval, are refused until then. See *Put right what the migration check found*.
+
 **Flagging:** [[inactive|Inactive accounts]] lists accounts due; select them and **Flag selected inactive**, or let Autopilot do it.
 
 ## kra-status

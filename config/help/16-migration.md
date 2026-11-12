@@ -25,7 +25,7 @@ Moving a firm is done once, at go-live, in five steps.
 title: Put right what the migration check found
 screen: migrate
 roles: Admin
-ask: migration check errors; dry run errors; package has errors; why can't I propose the migration; client master rejected in migration; opening balances do not balance in migration; migration errors csv; fix migration errors; recommended action migration
+ask: migration check errors; dry run errors; package has errors; why can't I propose the migration; client master rejected in migration; opening balances do not balance in migration; migration errors csv; fix migration errors; recommended action migration; details missing from the previous system; inactive client incomplete; dormant clients missing mobile or pan; masked bank account in migration
 related: migrate-firm, file-rejected, migrate-reconcile
 
 The check is a dry run: it loads every go-live file into a sandbox exactly as a real load would, so a bank account is checked against the clients the same package brings and a brokerage card against its scrip groups. Nothing is saved.
@@ -38,6 +38,8 @@ The check is a dry run: it loads every go-live file into a sandbox exactly as a 
 - Warnings (for example a document for a client not in the client master) do not stop the load.
 - "The package is damaged" means a file does not match its checksum: copy the package again from the office.
 - The tool's own findings and the fields it left out on purpose are listed on the same screen.
+
+**Inactive clients with details missing.** Old records of clients who stopped trading years ago often lack details a new client must give: a blank mobile or PAN, a bank account number masked as the KRA shows it (xxxx1234), no segment, a nominee without a relationship, an address without its PIN. Those clients are still migrated, because their records, balances, holdings and documents must be kept. For a client marked **Inactive Y** in the client master, such a detail in the client master, bank accounts, nominees, UCC details or contact persons is a **warning**, not an error: the record loads as the old system had it, and the client is marked **Details missing**, listing what to complete (the clients list can show only those). The client cannot be reactivated until every one is completed: mobile, email and city with **Update contact details** on the client, bank accounts and nomination by a change request, the address, PIN and contact persons in the client's UCC details on [[uccapi|Exchange UCC]], and PAN, segments or other client-master details by loading a corrected client master row on [[files|Other uploads]]. Each detail can be completed on its own; the others stay listed until they are. A masked or missing bank account is never paid: running account settlement and payouts hold that client until the account is completed. Active clients are checked in full: the same problems are errors for them.
 
 ## migrate-reconcile
 title: Read the migration reconciliation

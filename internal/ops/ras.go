@@ -3,6 +3,7 @@ package ops
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
@@ -75,6 +76,10 @@ type RASBatch struct {
 	By      string       `json:"by"`
 	At      string       `json:"at"`
 	Entries []string     `json:"entries"`
+	// Held are the clients due a payout who were not paid because their
+	// bank account is incomplete (migrated as the previous system had it,
+	// incomplete.go); they are settled once it is completed.
+	Held []string `json:"held,omitempty"`
 }
 
 // RASItem is one payout in a batch.
@@ -298,6 +303,10 @@ func (o *Ops) RunRAS(ctx context.Context, tenant, actor, asOf, settleDate string
 		}
 		c := clients[r.UCC]
 		pb := primaryBank(c) // running account settlement pays the primary account (clientbanks.go)
+		if !payable(pb) {
+			b.Held = append(b.Held, fmt.Sprintf("%s: ₹%s not paid; the bank account %s (%s) is incomplete — complete the client's bank details, then settle", r.UCC, formatINR(amt.Dec()), firstOf(MaskAccount(pb.Account), "none"), firstOf(pb.IFSC, "no IFSC")))
+			continue
+		}
 		ps := []ledger.Posting{{Account: ledger.ClientAccount(r.UCC), Debit: amt, Memo: "Running account settlement payout"}, {Account: ledger.BankClient, Credit: amt}}
 		if r.sep {
 			if ps, err = o.rasPostings(ctx, tenant, actor, asOf, settleDate, r, amt); err != nil {
@@ -316,6 +325,9 @@ func (o *Ops) RunRAS(ctx context.Context, tenant, actor, asOf, settleDate string
 		b.Entries = append(b.Entries, e.ID)
 	}
 	if len(b.Items) == 0 {
+		if len(b.Held) > 0 {
+			return b, fmt.Errorf("%w: no payout can be made on %s: %s", ErrState, settleDate, strings.Join(b.Held, "; "))
+		}
 		return b, fmt.Errorf("%w: no unsettled payouts are due on %s", ErrState, settleDate)
 	}
 	id := settleDate + "|" + o.now().Format("150405.000")

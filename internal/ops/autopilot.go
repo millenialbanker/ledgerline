@@ -1381,7 +1381,11 @@ func (o *Ops) settleRAS(ctx context.Context, tenant, actor, date string) (string
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%d clients settled; statements: %s", len(b.Items), statementSummary(res)), nil
+	held := ""
+	if len(b.Held) > 0 {
+		held = fmt.Sprintf("; %d held until their bank account is completed", len(b.Held))
+	}
+	return fmt.Sprintf("%d clients settled%s; statements: %s", len(b.Items), held, statementSummary(res)), nil
 }
 
 func autoMonthly(r *runCtx) error {

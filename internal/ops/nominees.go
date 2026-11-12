@@ -416,6 +416,7 @@ func (o *Ops) prepareNominees(ctx context.Context, tenant, actor string, rows []
 	by := map[string][]Nominee{}
 	decl := map[string][2]string{}
 	lines := map[string]int{}
+	rowLines := map[string][]int{}
 	for _, r := range rows {
 		u := strings.ToUpper(r.get("UCC"))
 		if u == "" {
@@ -427,22 +428,48 @@ func (o *Ops) prepareNominees(ctx context.Context, tenant, actor string, rows []
 		if d := r.get("DeclaredOn"); d != "" || r.get("Mode") != "" {
 			decl[u] = [2]string{d, r.get("Mode")}
 		}
+		rowLines[u] = append(rowLines[u], r.line)
 		if lines[u] == 0 {
 			lines[u] = r.line
 		}
 	}
 	cs, _ := o.ClientMap(ctx, tenant)
 	now := o.now()
-	for u, ns := range by {
-		if _, ok := cs[u]; !ok {
+	warned := map[string]bool{} // inactive clients whose nominees load incomplete
+	for _, u := range sortedKeys(by) {
+		ns := by[u]
+		cl, ok := cs[u]
+		if !ok {
 			errs = append(errs, ingest.ParseError{Line: lines[u], Field: "UCC", Msg: u + " is not a client"})
 			continue
+		}
+		if cl.Inactive {
+			// An inactive client's nominees load as the previous system had
+			// them (incomplete.go); a row without even a name or relationship
+			// is left out.
+			var keep []Nominee
+			for i, n := range ns {
+				if strings.TrimSpace(n.Name) == "" && strings.TrimSpace(n.Relation) == "" {
+					errs = append(errs, ingest.ParseError{Line: rowLines[u][i], Field: "Name", Msg: u + ": a nominee row has neither a name nor a relationship; it is left out", Warning: true})
+					continue
+				}
+				keep = append(keep, n)
+			}
+			if ns = keep; len(ns) == 0 {
+				delete(by, u)
+				continue
+			}
 		}
 		c := Client{Nominees: ns}
 		normaliseNominees(&c)
 		// A migration file carries nominations already made, some under
 		// the old limit of 10: they load as they are and are flagged.
 		for _, f := range checkNominees(c.Nominees, now, legacyMaxNominees) {
+			if cl.Inactive && len(c.Nominees) <= legacyMaxNominees {
+				errs = append(errs, ingest.ParseError{Line: lines[u], Field: f.Field, Msg: u + ": " + f.Msg + incompleteNote, Warning: true})
+				warned[u] = true
+				continue
+			}
 			errs = append(errs, ingest.ParseError{Line: lines[u], Field: f.Field, Msg: u + ": " + f.Msg})
 		}
 		by[u] = c.Nominees
@@ -460,6 +487,10 @@ func (o *Ops) prepareNominees(ctx context.Context, tenant, actor string, rows []
 				if d, ok := decl[u]; ok {
 					c.NominationOn, c.NominationMode = firstOf(d[0], c.NominationOn), firstOf(d[1], c.NominationMode)
 				}
+				if warned[u] {
+					addIncomplete(c, "Nominee details")
+				}
+				refreshIncomplete(c, nil)
 				return nil
 			}); err != nil {
 				return n, 0, err

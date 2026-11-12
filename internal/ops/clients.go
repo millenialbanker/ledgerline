@@ -139,6 +139,12 @@ type Client struct {
 	// more than one (empty: Bank is the only one); Bank is always the
 	// primary. See clientbanks.go.
 	Banks []BankAccount `json:"banks,omitempty"`
+	// Incomplete lists, in words ("Mobile", "PAN", "Bank account number",
+	// "Address"…), the details the previous system did not have, or had in
+	// a form Ledgerline cannot accept, when an inactive client was migrated
+	// with them as they were. They are completed before the client may be
+	// reactivated; see incomplete.go.
+	Incomplete []string `json:"incomplete,omitempty"`
 }
 
 var (

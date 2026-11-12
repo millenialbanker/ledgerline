@@ -301,6 +301,10 @@ func (o *Ops) RequestReactivation(ctx context.Context, tenant, actor, date strin
 	if !c.Inactive {
 		return r, invalid("%s is not flagged inactive", c.UCC)
 	}
+	// Details the previous system did not have are completed first.
+	if err := incompleteErr(c); err != nil {
+		return r, err
+	}
 	all, _ := docs.List[Reactivation](ctx, o.Docs, tenant, cReactivation, "")
 	for _, x := range all {
 		if x.UCC == c.UCC && x.Status == "Pending" {
@@ -350,6 +354,11 @@ func (o *Ops) DecideReactivation(ctx context.Context, tenant, actor, date, id st
 		if cur, _, err := docs.Get[Reactivation](ctx, o.Docs, tenant, cReactivation, id); err == nil {
 			if err := o.legacyBlocksReactivation(ctx, tenant, cur.UCC, date); err != nil {
 				return Reactivation{}, err
+			}
+			if c, err := o.Client(ctx, tenant, cur.UCC); err == nil {
+				if err := incompleteErr(c); err != nil {
+					return Reactivation{}, err
+				}
 			}
 		}
 	}
@@ -420,7 +429,9 @@ func (o *Ops) UpdateContact(ctx context.Context, tenant, actor, date, ucc, email
 			c.City = city
 		}
 		c.Normalise()
-		if err := c.Validate(); err != nil {
+		// A client migrated with details missing is completed a detail at
+		// a time (incomplete.go).
+		if err := validateEdit(before, c); err != nil {
 			return err
 		}
 		if c.Email == before.Email && c.Mobile == before.Mobile && c.City == before.City {
