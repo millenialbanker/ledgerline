@@ -221,7 +221,7 @@ var breakNames = map[recon.BreakType][2]string{
 	recon.MissingInOMS:       {"Trade on the exchange but not in the OMS", "missing in oms; exchange trade not in oms; trade not in our system; extra exchange trade"},
 	recon.MissingInExchange:  {"OMS fill not on the exchange", "missing in exchange; oms trade not in exchange file; unconfirmed fill; trade not confirmed by exchange"},
 	recon.TradeNoMismatch:    {"Trade numbers differ", "trade number mismatch; trade no mismatch; different trade number"},
-	recon.UCCMismatch:        {"UCC mismatch (client code differs)", "ucc mismatch; client code mismatch; wrong client code; trade booked to wrong client; client code modification; punching error"},
+	recon.UCCMismatch:        {"UCC mismatch (client code differs)", "ucc mismatch; deal with ucc mismatch; fix ucc mismatch; client code mismatch; wrong client code; trade booked to wrong client; client code modification; punching error"},
 	recon.SideMismatch:       {"Buy/sell side differs", "side mismatch; buy sell mismatch; wrong side"},
 	recon.InstrumentMismatch: {"Contract or instrument differs", "instrument mismatch; wrong contract; wrong strike; wrong expiry; scrip mismatch"},
 	recon.QtyMismatch:        {"Quantity differs", "quantity mismatch; qty mismatch; wrong quantity; partial fill difference"},
