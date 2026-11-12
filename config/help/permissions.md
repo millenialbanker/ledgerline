@@ -51,10 +51,12 @@ Changing brokerage channels | Ops checker
 Changing brokerage plans | Ops checker
 Changing client brokerage rates | Ops checker
 Changing client groups | Ops maker, Ops checker
+Changing client interest rates | Ops checker
 Changing connections | Admin
 Changing missing-file alerts | Risk manager, Compliance officer
 Changing mutual fund settings | Compliance officer
 Changing order-to-trade ratio alerts | Compliance officer
+Changing scrip groups | Ops checker
 Changing settings | Admin
 Changing the AI inventory | Compliance officer
 Changing the DP tariff | Ops checker, Admin

@@ -25,7 +25,7 @@ import (
 // Loading a file twice changes nothing.
 
 // rateColumns are the optional columns that describe a rate line.
-var rateColumns = "Exchange, Channel and Case narrow a line (blank = all; Case is auction, rollover, expiry, exercise, assignment, index or stock); Mode is pct, flat, lower_of, per_lot, per_share or zero; Pct, Flat (₹ per order), PerLot, PerShare, MinPerShare, MinPerLot, Min and Max (₹ per order) as the mode needs"
+var rateColumns = "Exchange, Channel and Case narrow a line (blank = all; Case is auction, rollover, expiry, exercise, assignment, physical, index or stock); at most one of Scrip (cash market: symbol or ISIN), Group (a scrip group from SCRIP-GROUPS) and Underlying (derivatives, e.g. NIFTY) narrows it to those scrips; Mode is pct, flat, lower_of, per_lot, per_share or zero; Pct, Flat (₹ per order), PerLot, PerShare, MinPerShare, MinPerLot, Min and Max (₹ per order), MinPerNote (₹ per contract note) as the mode needs; Basis market applies the percent to the day's closing price, contract to the trade price (the strike for exercise and assignment), blank as usual"
 
 // productCode reads a product as a code (CM-DEL) or its name (Equity delivery).
 func productCode(s string) (charges.Bucket, bool) {
@@ -44,7 +44,16 @@ func rateLine(r row) (string, charges.BrokerageRule, error) {
 	if !ok {
 		return "", charges.BrokerageRule{}, fmt.Errorf("Product %q: use a product code such as CM-DEL, CM-INTRA, FO-FUT, FO-OPT, CD-FUT, CD-OPT, COM-FUT, COM-OPT", r.get("Product"))
 	}
-	k, err := charges.NewRateKey(string(b), r.get("Exchange"), r.get("Channel"), r.get("Case"))
+	target := ""
+	for _, c := range []struct{ col, kind string }{{"Scrip", "scrip"}, {"Group", "group"}, {"Underlying", "und"}} {
+		if v := strings.TrimSpace(r.get(c.col)); v != "" {
+			if target != "" {
+				return "", charges.BrokerageRule{}, fmt.Errorf("give one of Scrip, Group and Underlying, not more")
+			}
+			target = c.kind + ":" + v
+		}
+	}
+	k, err := charges.NewTargetKey(string(b), r.get("Exchange"), r.get("Channel"), r.get("Case"), target)
 	if err != nil {
 		return "", charges.BrokerageRule{}, err
 	}
@@ -64,7 +73,7 @@ func rateLine(r row) (string, charges.BrokerageRule, error) {
 		col string
 		d   *money.Dec
 	}{{"Pct", &rule.Pct}, {"Flat", &rule.Flat}, {"PerLot", &rule.PerLot}, {"PerShare", &rule.PerUnit},
-		{"MinPerShare", &rule.MinPerUnit}, {"MinPerLot", &rule.MinPerLot}, {"Min", &rule.Min}, {"Max", &rule.Max}} {
+		{"MinPerShare", &rule.MinPerUnit}, {"MinPerLot", &rule.MinPerLot}, {"Min", &rule.Min}, {"Max", &rule.Max}, {"MinPerNote", &rule.MinPerNote}} {
 		v := strings.TrimSpace(r.get(f.col))
 		if v == "" {
 			continue
@@ -77,6 +86,15 @@ func rateLine(r row) (string, charges.BrokerageRule, error) {
 	}
 	if mode == "" {
 		return "", rule, fmt.Errorf("Mode is empty")
+	}
+	switch b := strings.ToLower(strings.TrimSpace(r.get("Basis"))); b {
+	case "", "trade", "default":
+	case "market", "market rate", "mkt":
+		rule.Basis = charges.BasisMarket
+	case "contract", "contract rate":
+		rule.Basis = charges.BasisContract
+	default:
+		return "", rule, fmt.Errorf("Basis %q: use market or contract (blank for the trade price)", b)
 	}
 	// A single line checked on its own, so the row number points at it.
 	if _, err := cleanRules(map[string]charges.BrokerageRule{k.String(): rule}); err != nil {
@@ -133,6 +151,11 @@ func (o *Ops) prepareBrokerage(ctx context.Context, tenant, actor, source string
 			rules                map[string]charges.BrokerageRule
 		}
 		vers := map[string]*ver{}
+		known, err := o.groupNames(ctx, tenant)
+		if err != nil {
+			bad(1, "", "%v", err)
+			return nil, errs
+		}
 		for _, r := range rows {
 			from := strings.TrimSpace(r.get("From"))
 			if !validDate(from) {
@@ -169,6 +192,10 @@ func (o *Ops) prepareBrokerage(ctx context.Context, tenant, actor, source string
 			key, rule, err := rateLine(r)
 			if err != nil {
 				bad(r.line, "", "%v", err)
+				continue
+			}
+			if g := lineGroup(key); g != "" && !known[g] {
+				bad(r.line, "Group", "no scrip group %s; load SCRIP-GROUPS first", g)
 				continue
 			}
 			if _, dup := v.rules[key]; dup {
@@ -330,6 +357,8 @@ func brokerageSources() []masterSrc {
 		{"BROKERAGE-CARDS", "Rate cards with their history, one row per rate line (all the lines of a card with the same From make that version). Card is the card's code in the old system; optional Name and Note. " + rateColumns, []string{"Card", "From", "Product", "Mode"}, false, "Once at go-live, then on change"},
 		{"BROKERAGE-CLIENTS", "Which card each client is on, for every client whatever their status (active, inactive, suspended or closed), with history. UCC is a client code, DEFAULT for the firm default or GROUP:<name> for a client group; optional Segment (CM, FO, CD, COM) and Exchange put the card on one segment or one exchange only; a blank Card ends the earlier card from the date", []string{"UCC", "Card", "From"}, false, "Once at go-live, then on change"},
 		{"BROKERAGE-CLIENT-RATES", "A client's own rate lines, which win over their card for the orders they fit; all the lines of a client with the same From make that version, and a row with no Product and Mode ends them from the date. " + rateColumns, []string{"UCC", "From", "Product", "Mode"}, false, "Once at go-live, then on change"},
+		{"SCRIP-GROUPS", "Scrip groups that rate lines can be for (ETFs, a special list, the old system's scrip-group codes): one row per scrip, by symbol or ISIN (for derivatives, the underlying); optional From and To dates (inclusive) and Note. Each group in the file is replaced by its rows. Load before the cards that use them", []string{"Group", "Scrip"}, false, "Once at go-live, then on change"},
+		{"CLIENT-INTEREST", "A client's own interest rate on debit balances, overriding the firm's, with history: Rate (% a year), From; optional GraceDays (the client's own free days), Free (Y: no interest from the date), Note. A row with Rate, GraceDays and Free all blank ends the client's own terms from the date", []string{"UCC", "From"}, false, "Once at go-live, then on change"},
 		{"TERMINAL-CHANNELS", "Which trading channel each terminal's trades come through (replaces the list). Terminal is the terminal or CTCL ID in the exchange trade file, * matching any run of characters; Channel is a channel name such as dealer, online, mobile or algo", []string{"Terminal", "Channel"}, false, "Once, then on change"},
 	}
 }

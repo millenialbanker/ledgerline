@@ -93,7 +93,11 @@ func (o *Ops) PostDailyInterest(ctx context.Context, tenant, actor, upto string)
 	if upto < set.InterestDailyFrom {
 		return run, nil
 	}
-	rate, gstPct, grace := set.interestRate(), set.gstRate(), int(set.InterestGraceDays)
+	gstPct := set.gstRate()
+	ib, err := o.interestBook(ctx, tenant)
+	if err != nil {
+		return run, err
+	}
 	cs, err := o.ClientMap(ctx, tenant)
 	if err != nil {
 		return run, err
@@ -107,7 +111,7 @@ func (o *Ops) PostDailyInterest(ctx context.Context, tenant, actor, upto string)
 		return run, err
 	}
 	legacy := o.legacyOpen(ctx, tenant)
-	look := addDays(set.InterestDailyFrom, -grace)
+	look := addDays(set.InterestDailyFrom, -max(int(set.InterestGraceDays), ib.maxGrace()))
 	charged := map[string]bool{}
 	for _, u := range sortedKeys(moves) {
 		c, ok := cs[u]
@@ -135,9 +139,11 @@ func (o *Ops) PostDailyInterest(ctx context.Context, tenant, actor, upto string)
 			} else {
 				streak = 0
 			}
-			if d < set.InterestDailyFrom || b >= 0 || streak <= grace || covered(cov[u], d) {
+			terms := ib.on(u, d) // the client's own terms, else the firm's
+			if d < set.InterestDailyFrom || b >= 0 || streak <= int(terms.grace) || terms.free || covered(cov[u], d) {
 				continue
 			}
+			rate := terms.rate
 			if err := o.checkLock(ctx, tenant, d); err != nil {
 				return run, err
 			}
@@ -180,6 +186,7 @@ type dailySum struct {
 	Interest, GST money.Amount
 	First         string
 	MaxDebit      money.Amount
+	Dates         []string // the days charged, in order
 }
 
 func (o *Ops) dailyInterestSums(ctx context.Context, tenant, from, to string) (map[string]*dailySum, error) {
@@ -212,6 +219,7 @@ func (o *Ops) dailyInterestSums(ctx context.Context, tenant, from, to string) (m
 			out[p[2]] = s
 		}
 		s.Days++
+		s.Dates = append(s.Dates, p[0])
 		for _, x := range e.Postings {
 			switch x.Account {
 			case IncomeInterest:
@@ -233,9 +241,20 @@ func (o *Ops) interestDailyView(ctx context.Context, tenant string, v InterestVi
 	}
 	cs, _ := o.ClientMap(ctx, tenant)
 	invs, _ := docs.List[Invoice](ctx, o.Docs, tenant, cInvoice, "")
+	ib, err := o.interestBook(ctx, tenant)
+	if err != nil {
+		return v, err
+	}
 	for _, u := range sortedKeys(sums) {
 		s := sums[u]
 		r := InterestRow{UCC: u, Name: cs[u].Name, Tags: cs[u].Tags, DebitDays: s.Days, Interest: s.Interest, GST: s.GST, Total: s.Interest + s.GST, Status: "Posted daily", Entry: s.First}
+		var span rateSpan
+		for _, d := range s.Dates {
+			t := ib.on(u, d)
+			span.add(d, t.rate)
+			r.OwnRate = r.OwnRate || t.own
+		}
+		r.RatePct = span.String()
 		if r.Tags == nil {
 			r.Tags = []string{}
 		}
@@ -264,6 +283,10 @@ func (o *Ops) IssueDailyInterestInvoices(ctx context.Context, tenant, actor, mon
 	}
 	set, _ := o.Settings(ctx, tenant)
 	cs, _ := o.ClientMap(ctx, tenant)
+	ib, err := o.interestBook(ctx, tenant)
+	if err != nil {
+		return 0, err
+	}
 	n := 0
 	for _, u := range sortedKeys(sums) {
 		s := sums[u]
@@ -271,7 +294,11 @@ func (o *Ops) IssueDailyInterestInvoices(ctx context.Context, tenant, actor, mon
 		if _, _, err := docs.Get[map[string]string](ctx, o.Docs, tenant, cIntInvoice, key); err == nil {
 			continue
 		}
-		desc := fmt.Sprintf("Daily interest on debit balance, %s to %s @ %s%% p.a. (%d days, posted daily)", fmtShort(from), fmtShort(to), set.interestRate(), s.Days)
+		var span rateSpan
+		for _, d := range s.Dates {
+			span.add(d, ib.on(u, d).rate)
+		}
+		desc := fmt.Sprintf("Daily interest on debit balance, %s to %s %s (%d days, posted daily)", fmtShort(from), fmtShort(to), span.atRate(set.interestRate()), s.Days)
 		inv, err := o.issueInvoice(ctx, tenant, actor, Invoice{Date: to, UCC: u, Name: cs[u].Name, Kind: "Interest", Description: desc, SAC: "997119",
 			Taxable: s.Interest, GSTPct: set.gstRate(), GST: s.GST, Total: s.Interest + s.GST, Entry: s.First})
 		if err != nil {

@@ -128,11 +128,24 @@ func (o *Ops) SettleDerivatives(ctx context.Context, tenant, actor, date string)
 		if qty < 0 {
 			qty = -qty
 		}
-		rule, card, ok := bb.rule(p.UCC, charges.RateQuery{Bucket: b, Exchange: p.Exchange, Cases: []string{kase}, Strict: true})
+		parts := strings.Split(p.Instrument, "|")
+		// Stock derivatives settle by delivery: a line for physical delivery
+		// wins over the expiry, exercise or assignment line.
+		cases := []string{kase}
+		if !inst.Index && !bb.setup.isIndex(parts[0]) && p.Segment == "FO" {
+			cases = []string{charges.CasePhysical, kase}
+		}
+		rule, card, ok := bb.rule(p.UCC, charges.RateQuery{Bucket: b, Exchange: p.Exchange, Cases: cases, Strict: true, Targets: bb.targetsFor(p.Segment, parts[0])})
 		if !ok {
 			return
 		}
-		amt := rule.Compute(b, px.MulInt(qty), qty, max(inst.Lot, 1)).Round(money.UnitPaisa)
+		base := px.MulInt(qty)
+		if rule.Basis == charges.BasisContract && len(parts) >= 4 && (parts[1] == "CE" || parts[1] == "PE") {
+			if k, err := money.ParseDec(parts[3]); err == nil {
+				base = k.MulInt(qty) // the strike: the contract rate of an exercise
+			}
+		}
+		amt := rule.ComputeOn(b, base, px.MulInt(qty), qty, max(inst.Lot, 1)).Round(money.UnitPaisa)
 		if amt <= 0 {
 			return
 		}

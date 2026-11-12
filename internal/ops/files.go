@@ -239,6 +239,10 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		return o.prepareCompliance(ctx, tenant, actor, source, date, rows)
 	case "BROKERAGE-CARDS", "BROKERAGE-CLIENTS", "BROKERAGE-CLIENT-RATES", "TERMINAL-CHANNELS":
 		return o.prepareBrokerage(ctx, tenant, actor, source, rows)
+	case "SCRIP-GROUPS":
+		return o.prepareScripGroups(ctx, tenant, actor, rows)
+	case "CLIENT-INTEREST":
+		return o.prepareClientInterest(ctx, tenant, actor, rows)
 	case "NRI-CAUTION":
 		return o.loadNRICaution(ctx, tenant, actor, date, rows)
 	case "NOMINEES":

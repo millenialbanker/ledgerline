@@ -652,6 +652,11 @@ type Pricing struct {
 	// ClientAccount is the client ledger a segment's bill posts to (nil:
 	// CLIENT:<ucc>).
 	ClientAccount func(ucc, exchange, segment string) string
+	// Detail, Targets, MarketPrice and SquareOff: see billing.Input.
+	Detail      billing.DetailFunc
+	Targets     func(ingest.TradeEvent) charges.Targets
+	MarketPrice func(ingest.TradeEvent) (money.Dec, bool)
+	SquareOff   bool
 }
 
 // BuildBills runs billing.Build with the brokerage plans and lot sizes from
@@ -663,6 +668,7 @@ func (a *App) BuildBills(ctx context.Context, in billing.Input) (billing.Output,
 			return billing.Output{}, err
 		}
 		in.Brokerage, in.LotSize, in.Classify, in.ClientAccount = p.Brokerage, p.LotSize, p.Classify, p.ClientAccount
+		in.Detail, in.Targets, in.MarketPrice, in.SquareOff = p.Detail, p.Targets, p.MarketPrice, p.SquareOff
 	}
 	return billing.Build(in)
 }

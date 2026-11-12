@@ -165,8 +165,31 @@ On [[debits|Debtors & interest]]:
 - **Interest (delayed payment charges):** charged on each day's debit from the pay-in date, at the Settings rate after the grace days. Settings → Debit balances and interest → **Interest posting** decides how:
   - **Monthly** (the default): simple interest, posted with the month-end postings (a checker approves), with a GST invoice.
   - **Daily**: posted every day from the start date you set, on that day's debit including the interest and GST already posted, so interest earns interest from the second day. Autopilot posts it at the end of each day (weekends with the next run), or use **Post daily interest** on the Interest tab. Month end issues each client one tax invoice for the month.
+- **A client's own rate:** a client can pay their own rate, have their own grace days or pay no interest (see "client interest rate"). Each day is charged at the terms in force that day.
 - Clients in debit get reminders (Scheduled jobs → Debit reminders).
 - Old debits that no longer move can be kept apart as [[legacy|Legacy debts]]: no interest, no daily reminders, still blocked.
+
+## client-interest
+title: Give a client their own interest rate
+screen: debits
+roles: Ops checker
+ask: client interest rate; special interest rate for a client; lower interest for one client; client specific dpc rate; interest at 15 percent for a client; no interest for a client; waive interest for a client; staff no interest; own grace days; import client interest rates
+related: debit-interest, legacy-debts
+
+1. On [[debits|Debtors & interest]], click **Client interest rates** (or **Change** next to the interest line on the client's page).
+2. Choose the client and the **effective from** date, then either:
+   - a **rate** (% a year) instead of the firm's rate in Settings;
+   - **grace days** of their own;
+   - **no interest** for this client.
+3. Save. Changing terms needs an **Ops checker**.
+
+**How it is charged:** each day of debit is charged at the terms in force that day. A change in the middle of a month splits the month: for example 24% up to the 15th and 15% from the 16th. The narration and the tax invoice show the rate, such as "@ 15% p.a." or "@ 24% p.a. to 15-Oct, 15% p.a. from 16-Oct". Daily posting uses the client's rate for each day too.
+
+**To go back to the firm's terms:** save with rate and grace days blank and "no interest" unticked, from the date they end.
+
+The Debtors list shows each client's rate; the client's own terms are in bold. Legacy debts and clients in an exempt group in Settings are never charged, whatever their own terms say.
+
+**Bringing rates across:** load **CLIENT-INTEREST** on [[files|Files]] with columns UCC and From, and optional Rate, GraceDays, Free (Y for no interest) and Note. A row with Rate, GraceDays and Free all blank ends the client's own terms from that date. Loading the file twice changes nothing; a file with any bad row is refused, with the problems listed by row.
 
 ## legacy-debts
 title: Keep old client debits apart (legacy debts)

@@ -329,6 +329,11 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/brokerage/client/{ucc}", s.clientPlan, false)
 	R("POST /v1/brokerage/client-rates", s.saveClientRates, true)
 	R("POST /v1/brokerage/setup", s.saveBrokerageSetup, true)
+	R("POST /v1/brokerage/scrip-groups", s.saveScripGroup, true)
+	R("GET /v1/brokerage/preview", s.brokeragePreview, false)
+	R("GET /v1/interest/client-rates", s.clientInterests, false)
+	R("POST /v1/interest/client-rates", s.saveClientInterest, true)
+	R("GET /v1/interest/client/{ucc}", s.clientInterest, false)
 	R("GET /v1/alerts", s.alerts, false)
 	R("POST /v1/alerts/{id}/{action}", s.alertAction, true)
 	R("POST /v1/surveillance/run", s.runRules, true)
@@ -1425,6 +1430,60 @@ func (s *Server) saveBrokerageSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.SaveBrokerageSetup(r.Context(), tenant(r), actor(r), in)
+	ok(w, v, err)
+}
+
+func (s *Server) saveScripGroup(w http.ResponseWriter, r *http.Request) {
+	var in ops.ScripGroup
+	if !decode(w, r, &in) {
+		return
+	}
+	g, err := s.ops.SaveScripGroup(r.Context(), tenant(r), actor(r), in)
+	ok(w, g, err)
+}
+
+func (s *Server) brokeragePreview(w http.ResponseWriter, r *http.Request) {
+	ucc := strings.ToUpper(r.URL.Query().Get("ucc"))
+	if !s.canSee(w, r, ucc) {
+		return
+	}
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.PreviewBrokerage(r.Context(), tenant(r), ucc, d)
+	ok(w, v, err)
+}
+
+func (s *Server) clientInterests(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.ClientInterests(r.Context(), tenant(r))
+	if v == nil {
+		v = []ops.ClientInterest{}
+	}
+	ok(w, v, err)
+}
+
+func (s *Server) saveClientInterest(w http.ResponseWriter, r *http.Request) {
+	var in ops.ClientInterestInput
+	if !decode(w, r, &in) {
+		return
+	}
+	if !s.canSee(w, r, in.UCC) {
+		return
+	}
+	v, err := s.ops.SaveClientInterest(r.Context(), tenant(r), actor(r), in)
+	ok(w, v, err)
+}
+
+func (s *Server) clientInterest(w http.ResponseWriter, r *http.Request) {
+	if !s.canSee(w, r, r.PathValue("ucc")) {
+		return
+	}
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.ClientInterestOn(r.Context(), tenant(r), r.PathValue("ucc"), d)
 	ok(w, v, err)
 }
 

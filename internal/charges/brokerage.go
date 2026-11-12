@@ -31,7 +31,23 @@ type BrokerageRule struct {
 	MinPerLot  money.Dec `json:"min_per_lot,omitempty"`
 	Min        money.Dec `json:"min,omitempty"`
 	Max        money.Dec `json:"max,omitempty"`
+	// MinPerNote is a minimum for the whole contract note: when the
+	// brokerage of a client's segment bill for the day comes to less, the
+	// difference is charged (once, whichever lines priced the orders).
+	MinPerNote money.Dec `json:"min_per_note,omitempty"`
+	// Basis is the price a percent applies to: "" (the trade price; for
+	// expiry the settlement price, for exercise and assignment the
+	// underlying's price), BasisMarket (the day's closing or settlement
+	// price) or BasisContract (the trade price; the strike for exercise and
+	// assignment).
+	Basis string `json:"basis,omitempty"`
 }
+
+// Bases a percent can apply to.
+const (
+	BasisMarket   = "market"   // the market rate: closing / settlement price
+	BasisContract = "contract" // the contract rate: trade price, or the strike
+)
 
 // CMBrokerageCapPct is the cash-market ceiling on brokerage.
 var CMBrokerageCapPct = money.MustDec("2.5")
@@ -48,7 +64,7 @@ func (r BrokerageRule) Validate() error {
 		n string
 		d money.Dec
 	}{{"percent", r.Pct}, {"flat amount", r.Flat}, {"per-lot amount", r.PerLot}, {"per-share amount", r.PerUnit},
-		{"minimum per share", r.MinPerUnit}, {"minimum per lot", r.MinPerLot}, {"minimum", r.Min}, {"maximum", r.Max}} {
+		{"minimum per share", r.MinPerUnit}, {"minimum per lot", r.MinPerLot}, {"minimum", r.Min}, {"maximum", r.Max}, {"minimum per contract note", r.MinPerNote}} {
 		if err := neg(c.n, c.d); err != nil {
 			return err
 		}
@@ -84,12 +100,23 @@ func (r BrokerageRule) Validate() error {
 	if r.Min.Sign() > 0 && r.Max.Sign() > 0 && r.Min.Cmp(r.Max) > 0 {
 		return fmt.Errorf("the minimum is above the maximum")
 	}
+	switch r.Basis {
+	case "", BasisMarket, BasisContract:
+	default:
+		return fmt.Errorf("basis %q: use market (closing price) or contract (trade price)", r.Basis)
+	}
 	return nil
 }
 
 // Compute is the brokerage for an order of turnover v, quantity qty and lot
 // size lot (1 for equities).
 func (r BrokerageRule) Compute(b Bucket, v money.Dec, qty, lot int64) money.Dec {
+	return r.ComputeOn(b, v, v, qty, lot)
+}
+
+// ComputeOn is Compute with the percent applied to base (the order valued
+// at the rule's basis) while the cash-market cap stays on the traded value v.
+func (r BrokerageRule) ComputeOn(b Bucket, base, v money.Dec, qty, lot int64) money.Dec {
 	if lot <= 0 {
 		lot = 1
 	}
@@ -97,11 +124,11 @@ func (r BrokerageRule) Compute(b Bucket, v money.Dec, qty, lot int64) money.Dec 
 	var x money.Dec
 	switch r.Mode {
 	case PlanPct:
-		x = v.Pct(r.Pct)
+		x = base.Pct(r.Pct)
 	case PlanFlat:
 		x = r.Flat
 	case PlanLowerOf:
-		x = money.Min(r.Flat, v.Pct(r.Pct))
+		x = money.Min(r.Flat, base.Pct(r.Pct))
 	case PlanPerLot:
 		x = r.PerLot.MulInt(lots)
 	case PlanPerUnit:
@@ -155,6 +182,15 @@ func (r BrokerageRule) Describe() string {
 	}
 	if r.Max.Sign() > 0 {
 		s += ", max ₹" + r.Max.String() + " per order"
+	}
+	if r.MinPerNote.Sign() > 0 {
+		s += ", min ₹" + r.MinPerNote.String() + " per contract note"
+	}
+	switch r.Basis {
+	case BasisMarket:
+		s += ", on market rate"
+	case BasisContract:
+		s += ", on contract rate"
 	}
 	return s
 }

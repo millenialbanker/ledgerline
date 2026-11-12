@@ -40,10 +40,124 @@ type Input struct {
 	// to (a firm with a separate commodity ledger posts MCX bills to
 	// CLIENTCOM:<ucc>); nil is ledger.ClientAccount.
 	ClientAccount func(ucc, exchange, segment string) string
+	// Detail, when set, is used instead of Brokerage and also says which
+	// rate line priced the order (shown per order in Output.Orders).
+	Detail DetailFunc
+	// Targets gives a trade's scrip (symbol, ISIN), the scrip groups it is
+	// in and its underlying, for lines narrowed to them.
+	Targets func(t ingest.TradeEvent) charges.Targets
+	// MarketPrice is the day's closing (settlement) price of a trade's
+	// instrument, for lines charged on the market rate.
+	MarketPrice func(t ingest.TradeEvent) (money.Dec, bool)
+	// SquareOff splits cash-market trades into intraday and delivery by
+	// square-off instead of the trade file's product: the quantity a client
+	// both bought and sold in a scrip on an exchange and settlement the
+	// same day is intraday (the earliest trades first), the rest delivery.
+	SquareOff bool
 }
 
 // BrokerageFunc resolves a client's brokerage rule for an order.
 type BrokerageFunc = func(ucc string, q charges.RateQuery, date string) (rule charges.BrokerageRule, plan string, ok bool)
+
+// Applied is the rate line that priced an order.
+type Applied struct {
+	Rule charges.BrokerageRule
+	Plan string // the card's label, e.g. "Retail 2" or "Retail 2 + client rate"
+	Line string // the line's key, e.g. "FO-OPT|*|online|*|und:NIFTY"
+}
+
+// DetailFunc resolves a client's brokerage line for an order.
+type DetailFunc = func(ucc string, q charges.RateQuery, date string) (Applied, bool)
+
+// OrderBrokerage is how one executed order's brokerage was worked out.
+type OrderBrokerage struct {
+	UCC       string       `json:"ucc"`
+	Exchange  string       `json:"exchange"`
+	Segment   string       `json:"segment"`
+	Order     string       `json:"order"`
+	Product   string       `json:"product"`
+	Symbol    string       `json:"symbol"`
+	Channel   string       `json:"channel,omitempty"`
+	Cases     []string     `json:"cases,omitempty"`
+	Trades    []string     `json:"trades"`
+	Qty       int64        `json:"qty"`
+	Lot       int64        `json:"lot"`
+	Turnover  money.Dec    `json:"turnover"`
+	Base      money.Dec    `json:"base"` // the value the percent applied to
+	Plan      string       `json:"plan"`
+	Line      string       `json:"line,omitempty"`
+	LineName  string       `json:"line_name,omitempty"`
+	Rule      string       `json:"rule"`
+	Brokerage money.Amount `json:"brokerage"`
+}
+
+// SplitSquareOff gives each cash-market trade of date its intraday part:
+// per client, exchange, scrip and settlement type, the smaller of the
+// quantity bought and sold is intraday, taken from the earliest buys and
+// the earliest sells. A trade partly intraday becomes two (same trade
+// number): the intraday quantity with product MIS and the rest as it was.
+// Trades already marked MIS stay intraday and count towards the square-off.
+// split lists the trade keys that were divided.
+func SplitSquareOff(ts []ingest.TradeEvent, date string) (out []ingest.TradeEvent, split map[string]bool) {
+	type key struct{ ucc, exch, sym, sett string }
+	buys, sells := map[key]int64{}, map[key]int64{}
+	for _, t := range ts {
+		if t.Segment != "CM" || t.TradeDate != date {
+			continue
+		}
+		k := key{t.UCC, t.Exchange, t.Symbol, t.Settlement}
+		if t.Side == "B" {
+			buys[k] += t.Qty
+		} else {
+			sells[k] += t.Qty
+		}
+	}
+	idx := make([]int, len(ts))
+	for i := range idx {
+		idx[i] = i
+	}
+	sort.SliceStable(idx, func(a, b int) bool {
+		x, y := ts[idx[a]], ts[idx[b]]
+		if x.TradeTime != y.TradeTime {
+			return x.TradeTime < y.TradeTime
+		}
+		return x.TradeNo < y.TradeNo
+	})
+	left := map[string]int64{} // key|side -> intraday quantity still to take
+	for k, b := range buys {
+		sq := min(b, sells[k])
+		kk := k.ucc + "|" + k.exch + "|" + k.sym + "|" + k.sett
+		left[kk+"|B"], left[kk+"|S"] = sq, sq
+	}
+	intra := make([]int64, len(ts))
+	for _, i := range idx {
+		t := ts[i]
+		if t.Segment != "CM" || t.TradeDate != date {
+			continue
+		}
+		kk := t.UCC + "|" + t.Exchange + "|" + t.Symbol + "|" + t.Settlement + "|" + t.Side
+		q := min(left[kk], t.Qty)
+		intra[i] = q
+		left[kk] -= q
+	}
+	split = map[string]bool{}
+	for i, t := range ts {
+		switch q := intra[i]; {
+		case q == 0 || t.Product == "MIS":
+			out = append(out, t)
+		case q == t.Qty:
+			t.Product = "MIS"
+			out = append(out, t)
+		default:
+			a, b := t, t
+			a.Qty, a.Product = q, "MIS"
+			b.Qty = t.Qty - q
+			out = append(out, a, b)
+			split[TradeKey(t)] = true
+		}
+	}
+	return out, split
+}
 
 // Rollovers finds futures trades that move a position to a later expiry:
 // on the same day, the same client trades one expiry of an underlying on
@@ -89,6 +203,22 @@ func Rollovers(ts []ingest.TradeEvent) map[string]bool {
 	return out
 }
 
+func marketPrice(in Input, t ingest.TradeEvent) (money.Dec, bool) {
+	if in.MarketPrice == nil {
+		return money.Dec{}, false
+	}
+	return in.MarketPrice(t)
+}
+
+func sortedGroupKeys[V any](m map[string]V) []string {
+	ks := make([]string, 0, len(m))
+	for k := range m {
+		ks = append(ks, k)
+	}
+	sort.Strings(ks)
+	return ks
+}
+
 // Group summarises one client × exchange segment bill.
 type Group struct {
 	UCC      string            `json:"ucc"`
@@ -109,6 +239,10 @@ type Output struct {
 	// TradeBrokerage is each trade's share of its order's brokerage, keyed
 	// exchange|segment|trade number, when brokerage is charged per order.
 	TradeBrokerage map[string]money.Amount `json:"trade_brokerage,omitempty"`
+	// Orders say, per executed order, which rate line priced it (only when
+	// brokerage is charged per order). A contract-note minimum adds a line
+	// with Order "minimum per contract note".
+	Orders []OrderBrokerage `json:"orders,omitempty"`
 }
 
 // TradeKey identifies a trade in Output.TradeBrokerage.
@@ -138,6 +272,10 @@ func Build(in Input) (Output, error) {
 		chg            charges.Breakdown
 		n              int
 		plans          map[string]bool
+		minNote        money.Dec    // largest contract-note minimum of the lines used
+		minNoteLine    Applied      // the line it came from
+		lastTrade      string       // takes a note minimum's top-up
+		brokTrades     money.Amount // brokerage charged per order
 	}
 	groups := map[string]*acc{}
 	type order struct {
@@ -146,14 +284,28 @@ func Build(in Input) (Output, error) {
 		exch     string
 		channel  string
 		cases    []string
+		targets  charges.Targets
 		turnover money.Dec
+		market   money.Dec
+		noMarket bool
 		qty, lot int64
 		trades   []ingest.TradeEvent
+		no       string
 	}
 	orders := map[string]*order{}
 	var orderKeys []string
 	missing := map[string]bool{}
 	var rolls map[string]bool
+	if in.Detail != nil && in.Brokerage == nil {
+		in.Brokerage = func(ucc string, q charges.RateQuery, date string) (charges.BrokerageRule, string, bool) {
+			a, ok := in.Detail(ucc, q, date)
+			return a.Rule, a.Plan, ok
+		}
+	}
+	var split map[string]bool
+	if in.SquareOff {
+		in.Trades, split = SplitSquareOff(in.Trades, in.Date)
+	}
 	if in.Brokerage != nil {
 		var today []ingest.TradeEvent
 		for _, t := range in.Trades {
@@ -198,18 +350,31 @@ func Build(in Input) (Output, error) {
 			if rolls[TradeKey(t)] {
 				cases = append([]string{charges.CaseRollover}, cases...)
 			}
+			var tg charges.Targets
+			if in.Targets != nil {
+				tg = in.Targets(t)
+			}
+			no := ok
 			ok = k + "|" + string(b) + "|" + channel + "|" + strings.Join(cases, ",") + "|" + ok
+			if len(tg.Scrips)+len(tg.Groups) > 0 || tg.Underlying != "" {
+				ok += "|" + strings.Join(tg.Scrips, ",") + "|" + strings.Join(tg.Groups, ",") + "|" + tg.Underlying
+			}
 			o := orders[ok]
 			if o == nil {
 				lot := int64(1)
 				if in.LotSize != nil {
 					lot = in.LotSize(t)
 				}
-				o = &order{group: k, bucket: b, exch: t.Exchange, channel: channel, cases: cases, lot: lot}
+				o = &order{group: k, bucket: b, exch: t.Exchange, channel: channel, cases: cases, targets: tg, lot: lot, no: no}
 				orders[ok] = o
 				orderKeys = append(orderKeys, ok)
 			}
 			o.turnover = o.turnover.Add(t.Value())
+			if px, okp := marketPrice(in, t); okp {
+				o.market = o.market.Add(px.MulInt(t.Qty))
+			} else {
+				o.noMarket = true
+			}
 			o.qty += t.Qty
 			o.trades = append(o.trades, t)
 		}
@@ -239,41 +404,93 @@ func Build(in Input) (Output, error) {
 		return Output{}, fmt.Errorf("%w for %s", ErrMissingSettlementPrice, strings.Join(m, ", "))
 	}
 	var tradeBrok map[string]money.Amount
+	var orderLines []OrderBrokerage
 	if in.Brokerage != nil {
 		tradeBrok = map[string]money.Amount{}
 		sort.Strings(orderKeys)
 		for _, ok := range orderKeys {
 			o := orders[ok]
 			g := groups[o.group]
-			rule, plan, found := in.Brokerage(g.ucc, charges.RateQuery{Bucket: o.bucket, Exchange: o.exch, Channel: o.channel, Cases: o.cases}, in.Date)
+			q := charges.RateQuery{Bucket: o.bucket, Exchange: o.exch, Channel: o.channel, Cases: o.cases, Targets: o.targets}
+			var ap Applied
+			var found bool
+			if in.Detail != nil {
+				ap, found = in.Detail(g.ucc, q, in.Date)
+			} else {
+				ap.Rule, ap.Plan, found = in.Brokerage(g.ucc, q, in.Date)
+			}
 			if !found {
 				r, err := in.Schedule.Rule(o.bucket, o.exch, in.Date)
 				if err != nil {
 					return Output{}, fmt.Errorf("billing: %w", err)
 				}
-				rule, plan = charges.ScheduleBrokerage(r), "Schedule "+in.Schedule.Version
+				ap = Applied{Rule: charges.ScheduleBrokerage(r), Plan: "Schedule " + in.Schedule.Version}
 			}
+			rule, plan := ap.Rule, ap.Plan
 			if g.plans == nil {
 				g.plans = map[string]bool{}
 			}
 			g.plans[plan] = true
-			brok := rule.Compute(o.bucket, o.turnover, o.qty, o.lot).Round(money.UnitPaisa)
+			base := o.turnover
+			if rule.Basis == charges.BasisMarket && !o.noMarket {
+				base = o.market
+			}
+			brok := rule.ComputeOn(o.bucket, base, o.turnover, o.qty, o.lot).Round(money.UnitPaisa)
 			gst := brok.Dec().Pct(in.Schedule.GSTPct).Round(money.UnitPaisa)
 			g.chg.Brokerage += brok
 			g.chg.GST += gst
 			g.chg.Total += brok + gst
+			g.brokTrades += brok
+			if rule.MinPerNote.Cmp(g.minNote) > 0 {
+				g.minNote, g.minNoteLine = rule.MinPerNote, ap
+			}
 			// Share the order's brokerage across its trades by value; the
 			// last trade takes the rounding remainder.
 			left := brok
+			var nos []string
 			for i, t := range o.trades {
 				share := left
 				if i < len(o.trades)-1 && o.turnover.Sign() > 0 {
 					q, _ := t.Value().Mul(brok.Dec()).Quo(o.turnover)
 					share = q.Round(money.UnitPaisa)
 				}
-				tradeBrok[TradeKey(t)] = share
+				if split[TradeKey(t)] {
+					tradeBrok[TradeKey(t)] += share
+				} else {
+					tradeBrok[TradeKey(t)] = share
+				}
 				left -= share
+				nos = append(nos, t.TradeNo)
+				g.lastTrade = TradeKey(t)
 			}
+			ol := OrderBrokerage{UCC: g.ucc, Exchange: g.exch, Segment: g.seg, Order: o.no, Product: string(o.bucket), Symbol: o.trades[0].Symbol, Channel: o.channel, Cases: o.cases,
+				Trades: nos, Qty: o.qty, Lot: o.lot, Turnover: o.turnover, Base: base, Plan: plan, Line: ap.Line, Rule: rule.Describe(), Brokerage: brok}
+			if rk, err := charges.ParseRateKey(ap.Line); err == nil && ap.Line != "" {
+				ol.LineName = rk.Describe()
+			}
+			orderLines = append(orderLines, ol)
+		}
+		// A minimum per contract note tops the segment bill's brokerage up.
+		for _, k := range sortedGroupKeys(groups) {
+			g := groups[k]
+			if g.minNote.Sign() <= 0 {
+				continue
+			}
+			short := g.minNote.Round(money.UnitPaisa) - g.brokTrades
+			if short <= 0 {
+				continue
+			}
+			gst := short.Dec().Pct(in.Schedule.GSTPct).Round(money.UnitPaisa)
+			g.chg.Brokerage += short
+			g.chg.GST += gst
+			g.chg.Total += short + gst
+			tradeBrok[g.lastTrade] += short
+			ol := OrderBrokerage{UCC: g.ucc, Exchange: g.exch, Segment: g.seg, Order: "minimum per contract note", Trades: []string{}, Plan: g.minNoteLine.Plan, Line: g.minNoteLine.Line,
+				Rule: "min ₹" + g.minNote.String() + " per contract note", Brokerage: short}
+			if rk, err := charges.ParseRateKey(g.minNoteLine.Line); err == nil && g.minNoteLine.Line != "" {
+				ol.LineName = rk.Describe()
+			}
+			orderLines = append(orderLines, ol)
 		}
 	}
 	keys := make([]string, 0, len(groups))
@@ -281,7 +498,7 @@ func Build(in Input) (Output, error) {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	out := Output{Entries: []ledger.Entry{}, Groups: []Group{}, TradeBrokerage: tradeBrok}
+	out := Output{Entries: []ledger.Entry{}, Groups: []Group{}, TradeBrokerage: tradeBrok, Orders: orderLines}
 	for _, k := range keys {
 		g := groups[k]
 		client := ledger.ClientAccount(g.ucc)
