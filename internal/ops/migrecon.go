@@ -366,7 +366,9 @@ func (o *Ops) reconFigure(ctx context.Context, tenant string, m *Migration, c pk
 		got := map[string]int{}
 		for _, cl := range clients {
 			for _, b := range cl.Banks {
-				if b.Status == "" || b.Status == "Active" {
+				// An inactive client's accounts above the firm's limit were
+				// active in the old system and load as inactive (clientbanks.go).
+				if b.Status == "" || b.Status == "Active" || b.InactiveWhy == bankOverLimitWhy {
 					n++
 					got[cl.UCC]++
 				}

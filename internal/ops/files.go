@@ -312,6 +312,10 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 				partners[p.Code] = true
 			}
 		}
+		warn := func(l int, f, m string, a ...any) {
+			errs = append(errs, ingest.ParseError{Line: l, Field: f, Msg: fmt.Sprintf(m, a...), Warning: true})
+		}
+		var stored map[string]Client // read when a row leaves Inactive blank
 		for _, r := range rows {
 			c := Client{UCC: r.get("UCC"), Name: r.get("Name"), Type: r.get("Type"), PAN: r.get("PAN"), DOB: r.get("DOB"), Mobile: r.get("Mobile"), Email: r.get("Email"),
 				City: r.get("City"), Segments: strings.Split(r.get("Segments"), ";"), Risk: r.get("Risk"), Income: r.get("Income"), RAS: r.get("RAS"),
@@ -387,10 +391,27 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 			if !okStage {
 				bad(r.line, "Status", "must be one of %s", strings.Join(Stages, ", "))
 			}
+			// An inactive client (Inactive Y, or blank and inactive as
+			// stored) loads with the details the previous system had: what
+			// would be rejected is a warning, and the client is marked
+			// incomplete (incomplete.go). The UCC and the name must be right.
+			inactive := c.Inactive
+			if !given[c.UCC+"|inactive"] {
+				if stored == nil {
+					if stored, _ = o.ClientMap(ctx, tenant); stored == nil {
+						stored = map[string]Client{}
+					}
+				}
+				inactive = inactive || stored[c.UCC].Inactive
+			}
 			if err := c.Validate(); err != nil {
 				var ve *ValidationError
 				if errors.As(err, &ve) {
 					for _, f := range ve.Fields {
+						if inactive && clientGapLabel(f.Field) != "" {
+							warn(r.line, f.Field, "%s%s", f.Msg, incompleteNote)
+							continue
+						}
 						bad(r.line, f.Field, "%s", f.Msg)
 					}
 				}
@@ -402,7 +423,12 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 			for _, c := range cs {
 				// Groups, blocks, inactivity and other back-office fields are
 				// kept when a re-import does not carry them.
+				var was []string // the details listed as missing before
 				if old, _, err := docs.Get[Client](ctx, o.Docs, tenant, cClient, c.UCC); err == nil {
+					was = old.Incomplete
+					// An inactive client's detail the file has blank or
+					// wrong does not replace one on record that is right.
+					keepCompleted(&c, old)
 					// Groups from the file are added to the client's.
 					tags := append([]string{}, old.Tags...)
 					for _, t := range c.Tags {
@@ -449,6 +475,23 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 					if c.GSTIN == "" {
 						c.GSTIN = old.GSTIN
 					}
+				}
+				// What the previous system did not have: an inactive client's
+				// record as loaded is checked again (with the bank accounts and
+				// nominees kept from before); a client listed before is brought
+				// up to date. The exchange UCC details' labels stay.
+				switch {
+				case c.Inactive:
+					var keep []string
+					for _, l := range was {
+						if !clientLabels[l] {
+							keep = append(keep, l)
+						}
+					}
+					c.Incomplete = sortIncomplete(append(keep, clientGaps(c)...))
+				case len(was) > 0:
+					c.Incomplete = was
+					refreshIncomplete(&c, nil)
 				}
 				if err := docs.Upsert(ctx, o.Docs, tenant, cClient, c.UCC, c, actor); err != nil {
 					return n, 0, err

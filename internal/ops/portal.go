@@ -332,6 +332,8 @@ func changeOld(c Client, kind string) map[string]string {
 // applyChange changes the client as the request asks, and validates.
 func applyChange(c *Client, r ChangeRequest) error {
 	n := r.New
+	before := *c
+	before.Banks, before.Nominees = append([]BankAccount(nil), c.Banks...), append([]Nominee(nil), c.Nominees...)
 	switch r.Kind {
 	case "Email":
 		c.Email = strings.TrimSpace(n["email"])
@@ -356,7 +358,9 @@ func applyChange(c *Client, r ChangeRequest) error {
 		return invalid("change must be one of %s", strings.Join(ChangeKinds, ", "))
 	}
 	c.Normalise()
-	return c.Validate()
+	// A client migrated with details missing is completed a detail at a
+	// time (incomplete.go).
+	return validateEdit(before, c)
 }
 
 // RequestChange records a change request from the portal or from staff.

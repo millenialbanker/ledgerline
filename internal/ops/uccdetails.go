@@ -155,7 +155,8 @@ func (o *Ops) SaveUCCDetails(ctx context.Context, tenant, actor, ucc string, d U
 		return d, err
 	}
 	ucc = strings.ToUpper(strings.TrimSpace(ucc))
-	if _, err := o.Client(ctx, tenant, ucc); err != nil {
+	c, err := o.Client(ctx, tenant, ucc)
+	if err != nil {
 		return d, err
 	}
 	d.normalise()
@@ -166,6 +167,13 @@ func (o *Ops) SaveUCCDetails(ctx context.Context, tenant, actor, ucc string, d U
 	d.UpdatedBy, d.UpdatedAt = actor, o.now().Format(time.RFC3339)
 	if err := docs.Upsert(ctx, o.Docs, tenant, cUCCDetails, ucc, d, actor); err != nil {
 		return d, err
+	}
+	// Details missing from the previous system that are now given are no
+	// longer listed (incomplete.go).
+	if len(c.Incomplete) > 0 {
+		if err := o.noteIncomplete(ctx, tenant, actor, ucc, &d); err != nil {
+			return d, err
+		}
 	}
 	o.log(ctx, tenant, actor, "ucc.details.saved", ucc, nil)
 	return d, nil

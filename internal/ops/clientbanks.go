@@ -535,16 +535,19 @@ func uccBanks(c Client, exch string, bad func(string, ...any)) []BankAccount {
 // request, which must still be an active registered account, or else the
 // primary.
 func payoutBank(c Client, p PayoutRequest) (BankAccount, error) {
+	var b BankAccount
 	if strings.TrimSpace(p.ToAccount) != "" {
-		b, ok := registeredBank(c, p.ToAccount, p.ToIFSC)
-		if !ok {
+		var ok bool
+		if b, ok = registeredBank(c, p.ToAccount, p.ToIFSC); !ok {
 			return b, invalid("%s: account %s is not an active registered bank account of %s", p.ID, MaskAccount(p.ToAccount), c.UCC)
 		}
-		return b, nil
-	}
-	b := primaryBank(c)
-	if strings.TrimSpace(b.Account) == "" {
+	} else if b = primaryBank(c); strings.TrimSpace(b.Account) == "" {
 		return b, invalid("%s: %s has no registered bank account", p.ID, c.UCC)
+	}
+	if len(c.Incomplete) > 0 && !payable(b) {
+		// Migrated as the previous system had it (incomplete.go): held here
+		// rather than stopping the whole bank file (hdfcenet.go).
+		return b, invalid("%s: %s's bank account %s (%s) is incomplete; complete the client's bank details first", p.ID, c.UCC, MaskAccount(b.Account), firstOf(b.IFSC, "no IFSC"))
 	}
 	return b, nil
 }
@@ -624,8 +627,12 @@ func (o *Ops) SetPayoutAccount(ctx context.Context, tenant, actor, id, account, 
 // the record.
 func (o *Ops) prepareClientBanks(ctx context.Context, tenant, actor string, rows []row) (func() (int, int, error), []ingest.ParseError) {
 	var errs []ingest.ParseError
+	warn := func(l int, f, m string) {
+		errs = append(errs, ingest.ParseError{Line: l, Field: f, Msg: m, Warning: true})
+	}
 	by := map[string][]BankAccount{}
 	lines := map[string]int{}
+	rowLines := map[string][]int{}
 	for _, r := range rows {
 		u := strings.ToUpper(r.get("UCC"))
 		if u == "" {
@@ -639,6 +646,7 @@ func (o *Ops) prepareClientBanks(ctx context.Context, tenant, actor string, rows
 			b.VerifyMethod = "Migrated from the previous back office"
 		}
 		by[u] = append(by[u], b)
+		rowLines[u] = append(rowLines[u], r.line)
 		if lines[u] == 0 {
 			lines[u] = r.line
 		}
@@ -646,11 +654,43 @@ func (o *Ops) prepareClientBanks(ctx context.Context, tenant, actor string, rows
 	cs, _ := o.ClientMap(ctx, tenant)
 	set, _ := o.Settings(ctx, tenant)
 	limit := set.maxClientBanks()
+	warned := map[string]bool{} // inactive clients whose accounts load incomplete
 	for _, u := range sortedKeys(by) {
 		bs := by[u]
-		if _, ok := cs[u]; !ok {
+		c, ok := cs[u]
+		if !ok {
 			errs = append(errs, ingest.ParseError{Line: lines[u], Field: "UCC", Msg: u + " is not a client"})
 			continue
+		}
+		if c.Inactive {
+			// An inactive client's accounts load as the previous system had
+			// them (incomplete.go): only a row with no bank details at all, or
+			// the same account a second time, is left out, and a status other
+			// than Active or Inactive loads as Inactive.
+			var keep []BankAccount
+			seen := map[string]bool{}
+			for i, b := range bs {
+				l := rowLines[u][i]
+				k := b.Account + "|" + strings.ToUpper(b.IFSC)
+				switch {
+				case b.Bank == "" && b.IFSC == "" && b.Account == "":
+					warn(l, "Account", u+": the row has no bank details; it is left out")
+					continue
+				case seen[k]:
+					warn(l, "Account", fmt.Sprintf("%s: account %s (%s) is on an earlier row too; this row is left out", u, firstOf(MaskAccount(b.Account), "with no number"), b.IFSC))
+					continue
+				case b.Status != BankActive && b.Status != BankInactive:
+					warn(l, "Status", fmt.Sprintf("%s: status %q is neither Active nor Inactive; the account loads as Inactive", u, b.Status))
+					b.Status = BankInactive
+				}
+				seen[k] = true
+				keep = append(keep, b)
+			}
+			bs = keep
+			if len(bs) == 0 {
+				delete(by, u)
+				continue
+			}
 		}
 		p := -1
 		for i, b := range bs {
@@ -668,10 +708,37 @@ func (o *Ops) prepareClientBanks(ctx context.Context, tenant, actor string, rows
 		for i := range bs {
 			bs[i].Primary = i == p
 		}
+		n := len(activeBanks(Client{Banks: bs}))
+		if n > limit && c.Inactive {
+			// The primary and the first others up to the limit stay active;
+			// the rest are kept as inactive accounts.
+			k := 1
+			for i := range bs {
+				if !bs[i].active() || bs[i].Primary {
+					continue
+				}
+				if k < limit {
+					k++
+					continue
+				}
+				bs[i].Status, bs[i].InactiveWhy = BankInactive, bankOverLimitWhy
+			}
+			warn(lines[u], "Account", fmt.Sprintf("%s: %d active bank accounts; at most %d are allowed (Settings → Maximum bank accounts per client), so %d load as inactive accounts", u, n, limit, n-limit))
+		}
 		for _, f := range checkBanks(bs) {
+			if c.Inactive {
+				note := incompleteNote
+				if i := bankIndex(f.Field); i >= 0 && !bs[i].active() {
+					note = inactiveAcctNote
+				} else {
+					warned[u] = true
+				}
+				warn(lines[u], f.Field, u+": "+f.Msg+note)
+				continue
+			}
 			errs = append(errs, ingest.ParseError{Line: lines[u], Field: f.Field, Msg: u + ": " + f.Msg})
 		}
-		if n := len(activeBanks(Client{Banks: bs})); n > limit {
+		if n > limit && !c.Inactive {
 			errs = append(errs, ingest.ParseError{Line: lines[u], Field: "Account", Msg: fmt.Sprintf("%s: %d active bank accounts; at most %d are allowed (Settings → Maximum bank accounts per client); mark the others Inactive", u, n, limit)})
 		}
 		by[u] = bs
@@ -692,6 +759,10 @@ func (o *Ops) prepareClientBanks(ctx context.Context, tenant, actor string, rows
 					}
 				}
 				syncBanks(c)
+				if warned[u] {
+					addIncomplete(c, "Bank accounts")
+				}
+				refreshIncomplete(c, nil)
 				return nil
 			}); err != nil {
 				return n, 0, err

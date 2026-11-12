@@ -229,9 +229,11 @@ func (o *Ops) prepareImport(ctx context.Context, tenant, actor, source string, r
 		for c := range (&UCCDetails{}).uccColumns() {
 			cols = append(cols, c)
 		}
+		gaps := map[string][]string{} // inactive clients' details kept incomplete
 		for _, r := range rows {
 			u := strings.ToUpper(strings.TrimSpace(r.get("UCC")))
-			if _, ok := cs[u]; !ok {
+			cl, ok := cs[u]
+			if !ok {
 				bad(r.line, "UCC", "%s is not a client; load the client master first", u)
 				continue
 			}
@@ -253,20 +255,15 @@ func (o *Ops) prepareImport(ctx context.Context, tenant, actor, source string, r
 				*fs[c] = v
 			}
 			d.normalise()
-			for _, pr := range d.problems() {
+			// An inactive client's details load as the previous system had
+			// them, each problem a warning (incomplete.go).
+			for _, pr := range d.issues() {
+				if cl.Inactive {
+					warn(r.line, pr[0], "%s%s", pr[1], incompleteNote)
+					gaps[u] = append(gaps[u], uccGapLabel(pr[0]))
+					continue
+				}
 				bad(r.line, pr[0], "%s", pr[1])
-			}
-			for _, a := range []struct{ pin, country, field string }{{d.PIN, d.Country, "PIN"}, {d.PermPIN, d.PermCountry, "PermPIN"}} {
-				if a.pin != "" && inIndia(a.country) && !rePIN.MatchString(a.pin) {
-					bad(r.line, a.field, "an Indian PIN is 6 digits, got %q", a.pin)
-				}
-			}
-			if d.PIN == "" || d.Address1 == "" || d.City == "" || d.State == "" {
-				for _, c := range []string{"Address1", "City", "State", "PIN"} {
-					if *fs[c] == "" {
-						bad(r.line, c, "is required")
-					}
-				}
 			}
 			us = append(us, x)
 		}
@@ -282,6 +279,11 @@ func (o *Ops) prepareImport(ctx context.Context, tenant, actor, source string, r
 				d.UCC, d.UpdatedBy, d.UpdatedAt = x.ucc, actor, o.now().Format(time.RFC3339)
 				if err := docs.Upsert(ctx, o.Docs, tenant, cUCCDetails, x.ucc, d, actor); err != nil {
 					return n, 0, err
+				}
+				if len(gaps[x.ucc]) > 0 || len(cs[x.ucc].Incomplete) > 0 {
+					if err := o.noteIncomplete(ctx, tenant, actor, x.ucc, &d, gaps[x.ucc]...); err != nil {
+						return n, 0, err
+					}
 				}
 				n++
 			}
@@ -300,24 +302,27 @@ func (o *Ops) prepareImport(ctx context.Context, tenant, actor, source string, r
 		}
 		by := map[string][]UCCContact{}
 		var order []string
+		gaps := map[string]bool{} // inactive clients' contacts kept incomplete
 		for _, r := range rows {
 			u := strings.ToUpper(strings.TrimSpace(r.get("UCC")))
-			if _, ok := cs[u]; !ok {
+			cl, ok := cs[u]
+			if !ok {
 				bad(r.line, "UCC", "%s is not a client; load the client master first", u)
 				continue
 			}
 			c := UCCContact{Name: r.get("Name"), Designation: r.get("Designation"), PAN: strings.ToUpper(r.get("PAN")), Address: r.get("Address"), Phone: r.get("Phone"), Email: r.get("Email"), DIN: strings.ToUpper(r.get("DIN"))}
-			if strings.TrimSpace(c.Name) == "" {
-				bad(r.line, "Name", "is required")
+			if cl.Inactive && strings.TrimSpace(c.Name+c.Designation+c.PAN) == "" {
+				// Nothing to keep a contact person by (incomplete.go).
+				warn(r.line, "Name", "%s: the row has no name, designation or PAN; it is left out", u)
+				continue
 			}
-			if strings.TrimSpace(c.Designation) == "" {
-				bad(r.line, "Designation", "is required (partner, karta, director, trustee …)")
-			}
-			if c.PAN != "" && !rePAN.MatchString(c.PAN) {
-				bad(r.line, "PAN", "PAN must be 5 letters, 4 digits, 1 letter")
-			}
-			if c.Email != "" && !reEmail.MatchString(c.Email) {
-				bad(r.line, "Email", "is not a valid email address")
+			for _, pr := range contactIssues(c) {
+				if cl.Inactive {
+					warn(r.line, pr[0], "%s%s", pr[1], incompleteNote)
+					gaps[u] = true
+					continue
+				}
+				bad(r.line, pr[0], "%s", pr[1])
 			}
 			if by[u] == nil {
 				order = append(order, u)
@@ -336,6 +341,15 @@ func (o *Ops) prepareImport(ctx context.Context, tenant, actor, source string, r
 				d.UCC, d.UpdatedBy, d.UpdatedAt = u, actor, o.now().Format(time.RFC3339)
 				if err := docs.Upsert(ctx, o.Docs, tenant, cUCCDetails, u, d, actor); err != nil {
 					return n, 0, err
+				}
+				if gaps[u] || len(cs[u].Incomplete) > 0 {
+					var add []string
+					if gaps[u] {
+						add = []string{"Contact persons"}
+					}
+					if err := o.noteIncomplete(ctx, tenant, actor, u, &d, add...); err != nil {
+						return n, 0, err
+					}
 				}
 				n += len(by[u])
 			}

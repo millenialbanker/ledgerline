@@ -817,6 +817,10 @@ func (o *Ops) sandbox() *Ops {
 func migAction(msg, field string) string {
 	l := strings.ToLower(msg)
 	switch {
+	case strings.Contains(msg, incompleteNote):
+		return "Nothing to do before the load: the inactive client comes across marked incomplete; complete the detail in Ledgerline before reactivating them"
+	case strings.Contains(msg, inactiveAcctNote):
+		return "Nothing to do: the closed account is kept for the record and never used"
 	case strings.Contains(l, "is not a client") || strings.Contains(l, "load the client master first"):
 		return "Check the client code; if the client is missing from the old system's client master, add or fix them there and make the package again"
 	case strings.Contains(l, "load scrip-groups first") || strings.Contains(l, "no scrip group"):
