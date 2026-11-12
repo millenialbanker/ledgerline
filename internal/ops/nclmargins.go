@@ -889,7 +889,7 @@ func (o *Ops) NCLMarginsFetch(ctx context.Context, tenant, actor, seg, kind stri
 
 // nclmClientList is the active clients trading in a segment.
 func (o *Ops) nclmClientList(ctx context.Context, tenant, seg string) ([]string, error) {
-	cs, err := o.Clients(ctx, tenant)
+	cs, err := o.tradingClients(ctx, tenant)
 	if err != nil {
 		return nil, err
 	}

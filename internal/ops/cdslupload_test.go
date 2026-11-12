@@ -161,7 +161,7 @@ func TestCDSLDISMaster(t *testing.T) {
 	if !contains(i64s(b.Lost), fmt.Sprint(book.From)) {
 		t.Fatalf("cancelled slip not marked lost: %+v", b)
 	}
-	if _, err := o.EnterDIS(ctx, T, "priya.nair", DIS{UCC: c.UCC, Slip: book.From, Kind: "Off-market", ToBO: "1208160099999999", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: "INE000X01010", Qty: 1}}}); err == nil || !strings.Contains(err.Error(), "lost") {
+	if _, err := o.EnterDIS(ctx, T, "priya.nair", DIS{UCC: c.UCC, Slip: book.From, Kind: "Off-market", ToBO: "1208160099999999", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: "INE000X01010", Qty: dq(1)}}}); err == nil || !strings.Contains(err.Error(), "lost") {
 		t.Errorf("cancelled slip accepted: %v", err)
 	}
 	if w := cdslWork(t, o, "cdsldis", c.UCC+":"); len(w) != 1 || !strings.Contains(w[0].Detail, "used at CDSL") {

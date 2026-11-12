@@ -554,7 +554,7 @@ func (o *Ops) Debits(ctx context.Context, tenant, date string) (DebitView, error
 			c = &cover{}
 			cov[h.UCC] = c
 		}
-		pv, uv := i.LTP.MulInt(h.Pledged), i.LTP.MulInt(h.Qty-h.Pledged)
+		pv, uv := i.LTP.Mul(h.Pledged), i.LTP.Mul(h.Free())
 		c.pl, c.un = c.pl.Add(pv), c.un.Add(uv)
 		c.coll = c.coll.Add(pv.Add(uv).Pct(money.DecInt(100).Sub(i.HaircutPct)))
 	}

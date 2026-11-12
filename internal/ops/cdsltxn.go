@@ -443,7 +443,7 @@ func (o *Ops) cdxDISRows(ctx context.Context, tenant string, x cdslConn, ds []DI
 		for i, l := range d.Lines {
 			v := map[string]string{"BtchId": batch, "SndrId": sender, "BrnchId": "1", "CntrlSctiesDpstryPtcptRole": "DP", "TxnTyp": types[d.Kind],
 				"LineNb": fmt.Sprint(len(rows) + 1), "SeqNm": fmt.Sprintf("%04d", len(rows)+1), "SrcCntrlSctiesDpstryPtcpt": bo[2:8], "SrcClntIdOrBnfclOwnrId": bo,
-				"ISIN": l.ISIN, "Qty": fmt.Sprintf("%d.000", l.Qty), "BuySellInd": "S", "ExecDt": d.ExecDate, "DISTpInd": "NRM", "DISSrlNb": fmt.Sprintf("%012d", d.Slip),
+				"ISIN": l.ISIN, "Qty": l.Qty.Fixed(3), "BuySellInd": "S", "ExecDt": d.ExecDate, "DISTpInd": "NRM", "DISSrlNb": fmt.Sprintf("%012d", d.Slip),
 				"ReqRcvdDtFrBO": d.Received, "MkrOprId": d.Maker, "ChckrOprtrId": d.Checker, "IntlRefNb": d.ID, "SndrRefNb1": fmt.Sprintf("%s-%d", d.ID, i+1), "ChanlInd": "API"}
 			switch d.Kind {
 			case "Inter-depository":
@@ -927,7 +927,7 @@ func (o *Ops) StartDestat(ctx context.Context, tenant, actor, dpReqID, base stri
 	if err != nil {
 		return CDSLForm{}, err
 	}
-	bo := strings.TrimSpace(o.bo(ctx, tenant, cl).BOID)
+	bo := strings.TrimSpace(o.boFor(ctx, tenant, cl, r.BOID).BOID) // the account the request is for
 	if err := cdxOwnBO(x, bo); err != nil {
 		return CDSLForm{}, err
 	}

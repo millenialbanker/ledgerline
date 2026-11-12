@@ -93,15 +93,20 @@ func (o *Ops) PortalAccess(ctx context.Context, tenant, actor, ucc string, famil
 
 // PortalAccount is what a client sees about one of their accounts.
 type PortalAccount struct {
-	UCC         string            `json:"ucc"`
-	Name        string            `json:"name"`
-	PAN         string            `json:"pan"`
-	Email       string            `json:"email"`
-	Mobile      string            `json:"mobile"`
-	City        string            `json:"city"`
-	Bank        BankAccount       `json:"bank"`
-	Banks       []BankAccount     `json:"banks"` // all registered accounts, masked, primary first
-	Demat       Demat             `json:"demat"`
+	UCC    string        `json:"ucc"`
+	Name   string        `json:"name"`
+	PAN    string        `json:"pan"`
+	Email  string        `json:"email"`
+	Mobile string        `json:"mobile"`
+	City   string        `json:"city"`
+	Bank   BankAccount   `json:"bank"`
+	Banks  []BankAccount `json:"banks"` // all registered accounts, masked, primary first
+	Demat  Demat         `json:"demat"`
+	// Demats are all the client's demat accounts, the primary first, with
+	// each one's holders; DPOnly: a client of the DP only (no trading
+	// screens).
+	Demats      []DematRow        `json:"demats"`
+	DPOnly      bool              `json:"dp_only,omitempty"`
 	Segments    []string          `json:"segments"`
 	Nominee     string            `json:"nominee"`
 	NomineeName string            `json:"nominee_name,omitempty"`
@@ -115,20 +120,24 @@ type PortalAccount struct {
 
 // PortalView is a client's home screen.
 type PortalView struct {
-	Accounts     []PortalAccount        `json:"accounts"`
-	Account      PortalAccount          `json:"account"`
-	Ledger       money.Amount           `json:"ledger"`
-	Withdrawable Withdrawable           `json:"withdrawable"`
-	Holdings     []HoldingView          `json:"holdings"`
-	HoldValue    money.Dec              `json:"holdings_value"`
-	Positions    []PositionView         `json:"positions"`
-	Margin       *RiskRow               `json:"margin,omitempty"`
-	Notes        []ContractNote         `json:"notes"`
-	Payouts      []PayoutRequest        `json:"payouts"`
-	Changes      []ChangeRequest        `json:"changes"`
-	Tickets      []Ticket               `json:"tickets"`
-	Ledgerlines  []ledger.StatementLine `json:"ledger_lines"`
-	Firm         map[string]string      `json:"firm"`
+	Accounts     []PortalAccount `json:"accounts"`
+	Account      PortalAccount   `json:"account"`
+	Ledger       money.Amount    `json:"ledger"`
+	Withdrawable Withdrawable    `json:"withdrawable"`
+	Holdings     []HoldingView   `json:"holdings"`
+	HoldValue    money.Dec       `json:"holdings_value"`
+	// HoldingTotals add the client's demat accounts up; DPBills are the
+	// DP's monthly bills.
+	HoldingTotals []HoldingView          `json:"holding_totals"`
+	DPBills       []DPBill               `json:"dp_bills"`
+	Positions     []PositionView         `json:"positions"`
+	Margin        *RiskRow               `json:"margin,omitempty"`
+	Notes         []ContractNote         `json:"notes"`
+	Payouts       []PayoutRequest        `json:"payouts"`
+	Changes       []ChangeRequest        `json:"changes"`
+	Tickets       []Ticket               `json:"tickets"`
+	Ledgerlines   []ledger.StatementLine `json:"ledger_lines"`
+	Firm          map[string]string      `json:"firm"`
 	// Documents are the signed contract notes and statements sent to the
 	// client, newest first, each downloadable from the portal.
 	Documents []PortalDocument `json:"documents"`
@@ -153,7 +162,7 @@ func portalAccount(c Client) PortalAccount {
 		x.ProofDoc, x.Change = "", ""
 		bs = append(bs, x)
 	}
-	return PortalAccount{UCC: c.UCC, Name: c.Name, PAN: MaskPAN(c.PAN), Email: c.Email, Mobile: c.Mobile, City: c.City, Bank: b, Banks: bs, Demat: c.Demat,
+	return PortalAccount{UCC: c.UCC, Name: c.Name, PAN: MaskPAN(c.PAN), Email: c.Email, Mobile: c.Mobile, City: c.City, Bank: b, Banks: bs, Demat: c.Demat, DPOnly: c.DPOnly, Demats: []DematRow{},
 		Segments: c.Segments, Nominee: c.Nominee, NomineeName: c.NomineeName, Nominees: maskNominees(c.Nominees), RAS: c.RAS, Blocked: c.Blocked, Inactive: c.Inactive, WhatsApp: c.WhatsApp, Names: SegmentNames}
 }
 
@@ -193,7 +202,18 @@ func (o *Ops) Portal(ctx context.Context, tenant, actor, date, ucc string) (Port
 		return v, err
 	}
 	v.Account = portalAccount(d.Client)
-	v.Holdings, v.Positions = d.Holdings, d.Positions
+	// Holdings by demat account, with the accounts and their totals.
+	v.Account.Demats = d.Demats
+	v.Holdings, v.Positions, v.HoldingTotals = d.Holdings, d.Positions, d.HoldingTotals
+	v.DPBills = []DPBill{}
+	if bs, err := docs.List[DPBill](ctx, o.Docs, tenant, cDPBill, ""); err == nil {
+		for _, b := range bs {
+			if b.UCC == ucc {
+				v.DPBills = append(v.DPBills, b)
+			}
+		}
+		sort.Slice(v.DPBills, func(i, j int) bool { return v.DPBills[i].Month > v.DPBills[j].Month })
+	}
 	for _, h := range d.Holdings {
 		v.HoldValue = v.HoldValue.Add(h.Value)
 	}
@@ -278,7 +298,7 @@ func (o *Ops) Portal(ctx context.Context, tenant, actor, date, ucc string) (Port
 // ---- profile change requests ----
 
 // ChangeKinds are the details a client may ask to change.
-var ChangeKinds = []string{"Email", "Mobile", "Address", "Bank account", "Nomination"}
+var ChangeKinds = []string{"Email", "Mobile", "Address", "Bank account", "Demat account", "Nomination"}
 
 // ChangeRequest is a request to change a client's KYC or account details,
 // applied when a head-office checker approves it.
@@ -323,6 +343,8 @@ func changeOld(c Client, kind string) map[string]string {
 		return map[string]string{"city": c.City, "state": c.State}
 	case "Bank account":
 		return map[string]string{"bank": c.Bank.Bank, "ifsc": c.Bank.IFSC, "account": MaskAccount(c.Bank.Account)}
+	case "Demat account":
+		return map[string]string{"primary": primaryDemat(c).ID, "accounts": fmt.Sprint(len(activeDemats(c))), "payout": c.PayoutDemat}
 	case "Nomination":
 		return nominationOld(c)
 	}
@@ -347,6 +369,11 @@ func applyChange(c *Client, r ChangeRequest) error {
 	case "Bank account":
 		// Add, replace, deactivate or make primary (clientbanks.go).
 		if err := applyBankChange(c, r); err != nil {
+			return err
+		}
+	case "Demat account":
+		// Add, deactivate, make primary or choose for pay-outs (demats.go).
+		if err := applyDematChange(c, r); err != nil {
 			return err
 		}
 	case "Nomination":
@@ -399,6 +426,11 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 		}
 		bankAct = bankChangeAction(r)
 	}
+	if kind == "Demat account" {
+		if err := o.prepDematChange(ctx, tenant, c, r.New); err != nil {
+			return r, err
+		}
+	}
 	trial := c
 	if err := applyChange(&trial, r); err != nil {
 		return r, err
@@ -414,10 +446,27 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 			return r, err
 		}
 	}
-	if fmt.Sprint(changeOld(trial, kind)) == fmt.Sprint(r.Old) && kind != "Bank account" {
+	if fmt.Sprint(changeOld(trial, kind)) == fmt.Sprint(r.Old) && kind != "Bank account" && kind != "Demat account" {
 		return r, invalid("nothing would change")
 	}
-	if bankAct == BankDeactivate || bankAct == BankPrimary {
+	if kind == "Demat account" {
+		// The client's signed request, from staff (the portal login is the
+		// client's own); a new account at another DP needs its proof (the
+		// other DP's client master report or a statement).
+		if src != "Portal" || dematChangeAction(r) == DematAdd {
+			ds, _ := o.ClientDocs(ctx, tenant, ucc)
+			ok := false
+			for _, d := range ds {
+				ok = ok || (doc != "" && d.ID == doc && (dematChangeAction(r) != DematAdd || r.New["own_dp"] == "Y" || d.Kind == "Demat proof"))
+			}
+			if !ok {
+				if dematChangeAction(r) == DematAdd && r.New["own_dp"] != "Y" {
+					return r, invalid("attach a Demat proof document (the other DP's client master report or a statement of the account)")
+				}
+				return r, invalid("attach the client's signed request (letter or e-signed form) to change the client's demat accounts")
+			}
+		}
+	} else if bankAct == BankDeactivate || bankAct == BankPrimary {
 		// No new account, so no bank proof; from staff, the client's signed
 		// request (any document on the client's file) is its authorisation.
 		if src != "Portal" {
@@ -536,7 +585,7 @@ func (o *Ops) DecideChange(ctx context.Context, tenant, actor, id string, approv
 		return r.public(), invalid("give the reason for rejecting")
 	}
 	date := o.now().Format("2006-01-02")
-	var approved Client
+	var approved, beforeAll Client
 	if approve {
 		// The checker's approval is the account's verification (with the
 		// penny drop, when there was one).
@@ -545,8 +594,12 @@ func (o *Ops) DecideChange(ctx context.Context, tenant, actor, id string, approv
 		set, _ := o.Settings(ctx, tenant)
 		if _, err := docs.Update(ctx, o.Docs, tenant, cClient, r.UCC, actor, func(c *Client) error {
 			before := *c
+			beforeAll = *c
 			if err := applyChange(c, ar); err != nil {
 				return err
+			}
+			if r.Kind == "Demat account" {
+				approved = *c
 			}
 			if r.Kind == "Bank account" {
 				if err := bankLimitErr(before, *c, set.maxClientBanks()); err != nil {
@@ -565,6 +618,9 @@ func (o *Ops) DecideChange(ctx context.Context, tenant, actor, id string, approv
 	var uccMod []string
 	if approve && r.Kind == "Bank account" {
 		uccMod = o.bankChangeApproved(ctx, tenant, r, approved)
+	}
+	if approve && r.Kind == "Demat account" {
+		uccMod = o.dematChangeApproved(ctx, tenant, actor, r, beforeAll, approved)
 	}
 	r, err = docs.Update(ctx, o.Docs, tenant, cChange, id, actor, func(x *ChangeRequest) error {
 		x.Status, x.Checker, x.Reason, x.Decided = map[bool]string{true: "Approved", false: "Rejected"}[approve], actor, reason, o.now().Format(time.RFC3339)

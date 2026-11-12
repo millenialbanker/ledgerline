@@ -150,8 +150,8 @@ func TestCDSLMarginPledge(t *testing.T) {
 	// The client asks, a checker approves, the client confirms at CDSL.
 	p := cplPledged(t, o, ucc, 10)
 	h, _, _ := docs.Get[Holding](ctx, o.Docs, T, cHolding, holdingID(ucc, p.ISIN))
-	if p.ISIN == before.ISIN && h.Pledged != before.Pledged+10 {
-		t.Fatalf("pledged %d -> %d", before.Pledged, h.Pledged)
+	if p.ISIN == before.ISIN && wq(h.Pledged) != wq(before.Pledged)+10 {
+		t.Fatalf("pledged %v -> %v", before.Pledged, h.Pledged)
 	}
 	if p.Expiry != addDays(D, 365) {
 		t.Errorf("expiry %s", p.Expiry)
@@ -294,7 +294,7 @@ func TestCDSLUnpledgeAndInvocation(t *testing.T) {
 		t.Fatalf("sent: %+v", sent)
 	}
 	h1, _, _ := docs.Get[Holding](ctx, o.Docs, T, cHolding, holdingID(ucc, p.ISIN))
-	if h1.Pledged != h0.Pledged-8 || h1.Qty != h0.Qty {
+	if wq(h1.Pledged) != wq(h0.Pledged)-8 || wq(h1.Qty) != wq(h0.Qty) {
 		t.Fatalf("holding after unpledge %+v -> %+v", h0, h1)
 	}
 	a, _ := o.cplPSN(ctx, T, p.PSN)
@@ -329,7 +329,7 @@ func TestCDSLUnpledgeAndInvocation(t *testing.T) {
 		t.Fatalf("invoked: %+v %+v", r, sent)
 	}
 	h2, _, _ := docs.Get[Holding](ctx, o.Docs, T, cHolding, holdingID(ucc, p.ISIN))
-	if h2.Qty != h1.Qty-5 || h2.Pledged != h1.Pledged-5 {
+	if wq(h2.Qty) != wq(h1.Qty)-5 || wq(h2.Pledged) != wq(h1.Pledged)-5 {
 		t.Fatalf("holding after invocation %+v -> %+v", h1, h2)
 	}
 	// A debit paid during the notice cancels the invocation.
@@ -425,7 +425,7 @@ func TestCDSLRepledgeAndNormalPledge(t *testing.T) {
 	if free1 != free0 {
 		t.Errorf("free %d -> %d: pending and done lender pledges are both held", free0, free1)
 	}
-	if hh, _, _ := docs.Get[Holding](ctx, o.Docs, T, cHolding, holdingID("BH1002", lines[0].ISIN)); hh.Pledged != hs[0].Pledged && lines[0].ISIN == hs[0].ISIN {
+	if hh, _, _ := docs.Get[Holding](ctx, o.Docs, T, cHolding, holdingID("BH1002", lines[0].ISIN)); hh.Pledged.Cmp(hs[0].Pledged) != 0 && lines[0].ISIN == hs[0].ISIN {
 		t.Error("a lender pledge is not margin collateral")
 	}
 }

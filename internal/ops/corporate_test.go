@@ -55,8 +55,8 @@ func TestShortDeliveries(t *testing.T) {
 		t.Fatalf("buyer credited %s", d)
 	}
 	h1, _, _ := docs.Get[Holding](ctx, o.Docs, T, cHolding, holdingID("BH1011", buyer.ISIN))
-	if h1.Qty-h0.Qty != 125 {
-		t.Fatalf("buyer received %d shares, want 125", h1.Qty-h0.Qty)
+	if wq(h1.Qty)-wq(h0.Qty) != 125 {
+		t.Fatalf("buyer received %d shares, want 125", wq(h1.Qty)-wq(h0.Qty))
 	}
 	if !strings.HasPrefix(sh.Status, "Settled") {
 		t.Fatal(sh.Status)
@@ -94,7 +94,7 @@ func TestCorporateActionsAndBuyBack(t *testing.T) {
 	var infy Holding
 	hs, _ := o.Holdings(ctx, T, "BH1001")
 	for _, h := range hs {
-		if h.Qty-h.Pledged >= 20 {
+		if wq(h.Qty)-wq(h.Pledged) >= 20 {
 			infy = h
 			break
 		}
@@ -108,7 +108,7 @@ func TestCorporateActionsAndBuyBack(t *testing.T) {
 	var held int64
 	for _, l := range lots0 {
 		if l.ISIN == infy.ISIN {
-			held += l.Qty
+			held += wq(l.Qty)
 		}
 	}
 	// Bonus 1:1 with ex-date D.
@@ -122,8 +122,8 @@ func TestCorporateActionsAndBuyBack(t *testing.T) {
 			line = l
 		}
 	}
-	if line.NewShares != h0.Qty {
-		t.Fatalf("bonus entitlement %d, want %d", line.NewShares, h0.Qty)
+	if line.NewShares.Cmp(h0.Qty) != 0 {
+		t.Fatalf("bonus entitlement %v, want %v", line.NewShares, h0.Qty)
 	}
 	if _, err := o.ApplyCorpAction(ctx, T, "priya.nair", cas[0].ID); err == nil {
 		t.Fatal("maker applied a corporate action")
@@ -132,8 +132,8 @@ func TestCorporateActionsAndBuyBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	h1, _, _ := docs.Get[Holding](ctx, o.Docs, T, cHolding, holdingID("BH1001", infy.ISIN))
-	if h1.Qty != 2*h0.Qty {
-		t.Fatalf("holding after bonus %d, want %d", h1.Qty, 2*h0.Qty)
+	if wq(h1.Qty) != 2*wq(h0.Qty) {
+		t.Fatalf("holding after bonus %d, want %d", wq(h1.Qty), 2*wq(h0.Qty))
 	}
 	// Purchase lots: a nil-cost bonus lot dated the allotment date.
 	lots, _, _, _ := o.equityBook(ctx, T, "BH1001", D)
@@ -143,7 +143,7 @@ func TestCorporateActionsAndBuyBack(t *testing.T) {
 			bonus = &lots[i]
 		}
 	}
-	if held == 0 || bonus == nil || bonus.Qty != held {
+	if held == 0 || bonus == nil || wq(bonus.Qty) != held {
 		t.Fatalf("bonus lot = %+v, want %d shares", bonus, held)
 	}
 
@@ -183,7 +183,7 @@ func TestCorporateActionsAndBuyBack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := o.TenderBuyBack(ctx, T, "priya.nair", bb.ID, D, "BH1001", h1.Qty+1, false); err == nil {
+	if _, err := o.TenderBuyBack(ctx, T, "priya.nair", bb.ID, D, "BH1001", wq(h1.Qty)+1, false); err == nil {
 		t.Fatal("tender above free holding accepted")
 	}
 	if _, err := o.TenderBuyBack(ctx, T, "priya.nair", bb.ID, D, "BH1001", 20, false); err != nil {
@@ -202,8 +202,8 @@ func TestCorporateActionsAndBuyBack(t *testing.T) {
 		t.Fatalf("buy-back credit %s", d)
 	}
 	h2, _, _ := docs.Get[Holding](ctx, o.Docs, T, cHolding, holdingID("BH1001", infy.ISIN))
-	if h1.Qty-h2.Qty != 12 {
-		t.Fatalf("holding after buy-back %d", h2.Qty)
+	if wq(h1.Qty)-wq(h2.Qty) != 12 {
+		t.Fatalf("holding after buy-back %v", h2.Qty)
 	}
 	tb, _ := o.App.Ledger.TrialBalance(ctx, T, "")
 	if !tb.Balanced {
@@ -217,7 +217,7 @@ func TestMergerSymbolChangeRightsAndIPO(t *testing.T) {
 	hs, _ := o.Holdings(ctx, T, "BH1001")
 	var h Holding
 	for _, x := range hs {
-		if x.Qty >= 10 {
+		if wq(x.Qty) >= 10 {
 			h = x
 			break
 		}
@@ -230,7 +230,7 @@ func TestMergerSymbolChangeRightsAndIPO(t *testing.T) {
 	var q0 int64
 	for _, l := range lots0 {
 		if l.ISIN == h.ISIN {
-			cost0, q0 = cost0.Add(l.Price.MulInt(l.Qty)), q0+l.Qty
+			cost0, q0 = cost0.Add(l.Price.Mul(l.Qty)), q0+wq(l.Qty)
 		}
 	}
 	// Merger: 1 new share for every 2 held; ex-date the next day.
@@ -256,7 +256,7 @@ func TestMergerSymbolChangeRightsAndIPO(t *testing.T) {
 			nw = x
 		}
 	}
-	if old.Qty != 0 || nw.Qty != h.Qty/2 || nw.Symbol != "NEWCO" {
+	if wq(old.Qty) != 0 || wq(nw.Qty) != wq(h.Qty)/2 || nw.Symbol != "NEWCO" {
 		t.Fatalf("holdings old %+v new %+v", old, nw)
 	}
 	// Lots: same total cost, half the shares, under the new ISIN, original dates.
@@ -264,11 +264,11 @@ func TestMergerSymbolChangeRightsAndIPO(t *testing.T) {
 	var cost1 money.Dec
 	var q1 int64
 	for _, l := range lots1 {
-		if l.ISIN == h.ISIN && l.Qty > 0 {
+		if l.ISIN == h.ISIN && wq(l.Qty) > 0 {
 			t.Fatalf("old ISIN lot left: %+v", l)
 		}
 		if l.ISIN == newISIN {
-			cost1, q1 = cost1.Add(l.Price.MulInt(l.Qty)), q1+l.Qty
+			cost1, q1 = cost1.Add(l.Price.Mul(l.Qty)), q1+wq(l.Qty)
 		}
 	}
 	if q1 != q0/2 || cost1.Sub(cost0).Abs().Cmp(money.MustDec("1")) > 0 {
@@ -284,7 +284,7 @@ func TestMergerSymbolChangeRightsAndIPO(t *testing.T) {
 	}
 	after, _ = o.Holdings(ctx, T, "BH1001")
 	for _, x := range after {
-		if x.ISIN == newISIN && (x.Symbol != "NEWCOLTD" || x.Qty != h.Qty/2) {
+		if x.ISIN == newISIN && (x.Symbol != "NEWCOLTD" || wq(x.Qty) != wq(h.Qty)/2) {
 			t.Fatalf("symbol change %+v", x)
 		}
 	}
@@ -299,9 +299,9 @@ func TestMergerSymbolChangeRightsAndIPO(t *testing.T) {
 	after, _ = o.Holdings(ctx, T, "BH1001")
 	found := false
 	for _, x := range after {
-		found = found || (x.ISIN == "INE999Z20012" && x.Qty == h.Qty/2/5)
+		found = found || (x.ISIN == "INE999Z20012" && wq(x.Qty) == wq(h.Qty)/2/5)
 	}
-	if !found && h.Qty/2/5 > 0 {
+	if !found && wq(h.Qty)/2/5 > 0 {
 		t.Fatalf("rights entitlements not credited: %+v", after)
 	}
 	// IPO allotment posted as a purchase at the issue price.

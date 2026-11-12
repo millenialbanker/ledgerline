@@ -779,7 +779,7 @@ func (o *Ops) submitApplication(ctx context.Context, tenant string, a Applicatio
 		nom = "Opted out"
 	}
 	c := Client{Name: a.Name, Type: "Individual", PAN: a.PAN, DOB: a.DOB, Mobile: a.Mobile, Email: a.Email, City: a.City, State: a.State, Segments: a.Segments,
-		Risk: "Low", Income: a.Income, RAS: a.RAS, Bank: BankAccount{Bank: a.Bank, IFSC: a.IFSC, Account: a.Account}, Demat: Demat{a.Depository, a.DematID},
+		Risk: "Low", Income: a.Income, RAS: a.RAS, Bank: BankAccount{Bank: a.Bank, IFSC: a.IFSC, Account: a.Account}, Demat: Demat{Depository: a.Depository, ID: a.DematID},
 		Nominee: nom, NomineeName: a.NomineeName, Nominees: a.Nominees, NominationOn: o.now().Format("2006-01-02"), NominationMode: "Online with e-Sign", NomineesOnStatement: a.NomineesOnStatement && !a.NomineeOptOut, KYCRoute: kycRoute(a), IncomeProof: a.hasDoc("Income proof"), RiskDisclosure: true,
 		WhatsApp: a.WhatsApp, Partner: a.Partner, Tags: []string{"ONLINE"}}
 	if c.Demat.Depository == "" {

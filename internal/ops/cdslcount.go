@@ -196,7 +196,7 @@ func (o *Ops) cdslCountRun(ctx context.Context, tenant, actor string, x cdslConn
 		res.Notes = append(res.Notes, fmt.Sprintf("CDSL holds %d active demat accounts for this PAN: the client has another demat account", res.PAN))
 		if !bo.OtherDemat {
 			bo.OtherDemat = true
-			_ = docs.Upsert(ctx, o.Docs, tenant, cBO, bo.UCC, bo, actor)
+			_ = o.putBO(ctx, tenant, actor, bo)
 		}
 		if bo.BSDA {
 			res.Notes = append(res.Notes, "The account is a BSDA, which must be the investor's only demat account: review it")

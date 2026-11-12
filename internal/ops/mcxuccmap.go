@@ -73,6 +73,9 @@ var (
 type mcxUCCRecord struct {
 	Values   map[string]string // by the layout's key; absent is empty
 	Problems []string
+	// Warnings do not stop the record (more demat accounts than MCX's
+	// slots, demats.go).
+	Warnings []string
 	Summary  map[string]string // what MCX holds that a later change is judged against (status)
 }
 
@@ -455,21 +458,27 @@ func mcxUCCMap(c Client, src mcxUCCSources, last map[string]string, fileDate str
 		}
 	}
 
-	// Demat: optional at MCX; written when on record. CDSL: the 16-digit BO
-	// ID with the depository ID blank; NSDL: the DP ID (IN + 6) and the
-	// 8-digit client ID.
-	switch dep, id := strings.ToUpper(strings.TrimSpace(c.Demat.Depository)), strings.ToUpper(strings.TrimSpace(c.Demat.ID)); {
-	case id == "":
-	case dep == "CDSL" && reBSECDSLBO.MatchString(id):
-		v[mxDep1], v[mxBO1] = "2", id
-	case dep == "NSDL" && reBSENSDLBO.MatchString(id):
-		v[mxDep1], v[mxDepID1], v[mxBO1] = "1", id[:8], id[8:]
-	case dep == "CDSL":
-		bad("The CDSL demat account must be 16 digits starting with 1")
-	case dep == "NSDL":
-		bad("The NSDL demat account must be IN, 6 digits (the DP ID) and 8 digits (the client ID)")
-	default:
-		bad("The depository must be CDSL or NSDL")
+	// Demat: optional at MCX; written when on record: every active account,
+	// the primary first, up to MCX's 3. CDSL: the 16-digit BO ID with the
+	// depository ID blank; NSDL: the DP ID (IN + 6) and the 8-digit client
+	// ID.
+	var warns []string
+	for i, x := range uccDemats(c, "MCX", func(f string, a ...any) { warns = append(warns, fmt.Sprintf(f, a...)) }) {
+		n := fmt.Sprint(i + 1)
+		which := map[bool]string{true: "The", false: "Demat account " + n + ": the"}[i == 0]
+		switch dep, id := strings.ToUpper(strings.TrimSpace(x.Depository)), strings.ToUpper(strings.TrimSpace(x.ID)); {
+		case id == "":
+		case dep == "CDSL" && reBSECDSLBO.MatchString(id):
+			v["Depository"+n], v["BeneficiaryAccountId"+n] = "2", id
+		case dep == "NSDL" && reBSENSDLBO.MatchString(id):
+			v["Depository"+n], v["DepositoryId"+n], v["BeneficiaryAccountId"+n] = "1", id[:8], id[8:]
+		case dep == "CDSL":
+			bad("%s CDSL demat account must be 16 digits starting with 1", which)
+		case dep == "NSDL":
+			bad("%s NSDL demat account must be IN, 6 digits (the DP ID) and 8 digits (the client ID)", which)
+		default:
+			bad("%s depository must be CDSL or NSDL", which)
+		}
 	}
 
 	// Income (net worth is not held, so income only), declared within 18
@@ -576,7 +585,7 @@ func mcxUCCMap(c Client, src mcxUCCSources, last map[string]string, fileDate str
 			}
 		}
 	}
-	return mcxUCCRecord{Values: v, Problems: dedupe(probs), Summary: map[string]string{"status": v[mxStatus]}}
+	return mcxUCCRecord{Values: v, Problems: dedupe(probs), Summary: map[string]string{"status": v[mxStatus]}, Warnings: warns}
 }
 
 // stateCity is the State-City code of a state and city from MCX's master.

@@ -304,6 +304,9 @@ func (o *Ops) mcxUCCItems(ctx context.Context, tenant, date string) ([]mcxUCCIte
 	var out []mcxUCCItem
 	var baseline []Client
 	for _, c := range cs {
+		if c.DPOnly {
+			continue // a client of the DP only has no UCC (dponly.go)
+		}
 		r, ok := byUCC[c.UCC]
 		if !ok {
 			com := c.SegmentStatus("COM")
@@ -781,7 +784,7 @@ func (o *Ops) MCXUCCView(ctx context.Context, tenant, actor string) (MCXUCCView,
 			ref = ""
 		}
 		v.Clients = append(v.Clients, BSEUCCClientRow{UCC: it.c.UCC, Name: it.c.Name, PAN: MaskPAN(it.c.PAN), Action: it.reg.Action, Status: st, Reason: reason, Problems: probs,
-			PANStatus: it.reg.PANStatus, SentAt: it.reg.SentAt, ResultAt: it.reg.ResultAt, Ref: ref})
+			Warnings: it.rec.Warnings, PANStatus: it.reg.PANStatus, SentAt: it.reg.SentAt, ResultAt: it.reg.ResultAt, Ref: ref})
 	}
 	sort.SliceStable(v.Clients, func(i, j int) bool { return rank[v.Clients[i].Status] < rank[v.Clients[j].Status] })
 	if len(v.Clients) > 1000 {

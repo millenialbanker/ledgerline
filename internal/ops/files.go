@@ -62,14 +62,15 @@ func masterSources() []masterSrc {
 
 func baseSources() []masterSrc {
 	return []masterSrc{
-		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding). Optional columns: Branch, State (place of supply for GST), GSTIN; WhatsApp (Y), WAConsentDate and WAConsentRef for WhatsApp consent recorded in the previous system; ECN (N for a client who chose printed contract notes); NominationDate and NominationMode for the nomination or opt-out declaration; Inactive (Y or N, the exchanges' inactive flag) and InactiveSince; AP and RM (partner codes, which must be on record once there are partners: load PARTNERS first); Groups (client groups separated by ;, added to the client's groups). A blank optional cell keeps what a re-import finds stored", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
+		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding). Optional columns: Branch, State (place of supply for GST), GSTIN; WhatsApp (Y), WAConsentDate and WAConsentRef for WhatsApp consent recorded in the previous system; ECN (N for a client who chose printed contract notes); NominationDate and NominationMode for the nomination or opt-out declaration; Inactive (Y or N, the exchanges' inactive flag) and InactiveSince; AP and RM (partner codes, which must be on record once there are partners: load PARTNERS first); Groups (client groups separated by ;, added to the client's groups); DPOnly (Y for a client of the firm's DP only, with no trading account: Segments and RAS are then left blank, and the client's demat accounts come with DP-ACCOUNTS). A blank optional cell keeps what a re-import finds stored", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
 		{"CLIENT-BANKS", "Every registered bank account of each client, one row per account (migration: the previous back office's client bank master). The rows replace the client's accounts; Primary Y marks the primary (default payout) account, else the first active row; Status Active or Inactive. Optional columns: Branch, MICR, Type (SB, CA, NRE, NRO), VerifiedOn, VerifyMethod, AddedOn. At most the firm's limit of active accounts per client (Settings, 3 by default with MCX)", []string{"UCC", "Bank", "IFSC", "Account", "Primary"}, false, "Once at go-live, after the client master"},
+		{"CLIENT-DEMATS", "Every demat account of each client, one row per account, above all those with other DPs (migration: the previous back office's client demat master; the firm's own BO accounts come with DP-ACCOUNTS, loaded after this). Depository CDSL (DematID 16 digits) or NSDL (IN and 14 digits). The rows replace the client's list of demat accounts (the DP's own accounts of the client stay); optional Primary (Y or N; at most one per client; when none is given the client master's demat account stays the primary) and Status (Active or Inactive, Active when blank). An account at the firm's own DP should match its BO account (DP-ACCOUNTS); a BO ID belongs to one client", []string{"UCC", "Depository", "DematID"}, false, "Once at go-live, after the client master"},
 		{"NOMINEES", "Nominees of each client, up to 3 (replaces the client's list; a nomination of up to 10 made before 1 September 2026 loads as it is and is flagged for review). Name and Relation are required; IDType and ID are optional (PAN, DL, AADHAAR, of which only the last 4 digits are kept, or PASSPORT); leave Share blank for equal shares; a minor needs DOB (Guardian and GuardianRelation optional). Optional: Mobile, Email, Address, DeclaredOn, Mode", []string{"UCC", "Name", "Relation", "Share", "IDType", "ID", "DOB", "Guardian", "GuardianRelation"}, false, "Once at go-live, then on change"},
 		{"SEGMENT-STATUS", "Each client's status in each segment with its history, oldest first: Active, Reactivated, Suspended, Dormant or Closed (Segment CM, FO, CD or COM). Optional column Reason", []string{"UCC", "Segment", "Status", "EffectiveDate"}, false, "Once at go-live, then on change"},
 		{"OPENING-BALANCES", "Opening trial balance (migration); must balance. Optional column Since: for a client debit, the date it became due, so ageing, interest and debit blocks carry over. Optional column Legacy (Y): an old client debit to keep apart as a legacy debt (no interest, out of the daily debit work); a second person approves it on Legacy debts. With a separate commodity ledger, optional column Ledger (Equity or Commodity) puts a client's balance in that ledger (CLIENTCOM:<code> may also be given as the account)", []string{"Account", "Debit", "Credit"}, true, "Once at go-live"},
 		{"MARKET-DATA", "Contract master, prices and risk parameters (SPAN, VaR, haircuts)", []string{"Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "ISIN", "Company", "Lot", "LTP", "Close", "VaRPct", "ELMPct", "HaircutPct", "SPANPct", "ExposurePct", "Delta", "Underlying", "Index"}, true, "BOD and EOD"},
-		{"DP-HOLDINGS", "Client demat holdings and pledges from the depository", []string{"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost"}, false, "BOD"},
-		{"HOLDING-LOTS", "Purchase lots behind client holdings (quantity, buy date, buy price) for P&L and capital gains; from the previous back office", []string{"UCC", "ISIN", "Symbol", "Qty", "BuyDate", "BuyPrice"}, true, "Once at go-live (as at the day before)"},
+		{"DP-HOLDINGS", "Client demat holdings and pledges from the depository. Qty and Pledged to 4 decimal places (mutual fund units and some other securities are fractional). Optional column BOID: the demat account the holding is in, one of the client's (blank: the client's primary account; a client with several accounts has a row per account)", []string{"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost"}, false, "BOD"},
+		{"HOLDING-LOTS", "Purchase lots behind client holdings (quantity to 4 decimal places, buy date, buy price) for P&L and capital gains; from the previous back office. Optional column BOID: the demat account the lot was bought into (blank: not said; the lots are the client's across its accounts)", []string{"UCC", "ISIN", "Symbol", "Qty", "BuyDate", "BuyPrice"}, true, "Once at go-live (as at the day before)"},
 		{"POSITIONS", "Derivatives positions carried forward from the previous day", []string{"UCC", "Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "Qty", "AvgPrice"}, true, "BOD"},
 		{"PLEDGE-REQUESTS", "Margin pledge requests initiated by clients at the depository", []string{"RequestID", "UCC", "ISIN", "Symbol", "Qty", "Time"}, false, "Intraday"},
 		{"BANK-STMT", "Client bank account statement. With a separate commodity ledger, optional columns ToAccount (the firm's account paid into) and Narration say whether money is for equity or commodity", []string{"Date", "Time", "Mode", "Reference", "Remitter", "Account", "Amount", "DrCr"}, false, "Intraday and EOD"},
@@ -251,6 +252,13 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		}
 		return v
 	}
+	pqty := func(r row, f string) money.Dec {
+		q, err := parseQty(r.get(f))
+		if err != nil {
+			bad(r.line, f, "%v", err)
+		}
+		return q
+	}
 	pdate := func(r row, f string, optional bool) string {
 		s := r.get(f)
 		if s == "" && optional {
@@ -278,6 +286,8 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		return o.prepareNominees(ctx, tenant, actor, rows)
 	case "CLIENT-BANKS":
 		return o.prepareClientBanks(ctx, tenant, actor, rows)
+	case "CLIENT-DEMATS":
+		return o.prepareClientDemats(ctx, tenant, actor, rows)
 	case "SEGMENT-STATUS":
 		return o.prepareSegmentStatus(ctx, tenant, actor, rows)
 	case "CIRCULARS":
@@ -316,10 +326,12 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 			errs = append(errs, ingest.ParseError{Line: l, Field: f, Msg: fmt.Sprintf(m, a...), Warning: true})
 		}
 		var stored map[string]Client // read when a row leaves Inactive blank
+		var dematOwners map[string]string
+		fileDemats := map[string]string{}
 		for _, r := range rows {
 			c := Client{UCC: r.get("UCC"), Name: r.get("Name"), Type: r.get("Type"), PAN: r.get("PAN"), DOB: r.get("DOB"), Mobile: r.get("Mobile"), Email: r.get("Email"),
 				City: r.get("City"), Segments: strings.Split(r.get("Segments"), ";"), Risk: r.get("Risk"), Income: r.get("Income"), RAS: r.get("RAS"),
-				Bank: BankAccount{Bank: r.get("Bank"), IFSC: r.get("IFSC"), Account: r.get("Account")}, Demat: Demat{r.get("Depository"), r.get("DematID")},
+				Bank: BankAccount{Bank: r.get("Bank"), IFSC: r.get("IFSC"), Account: r.get("Account")}, Demat: Demat{Depository: r.get("Depository"), ID: r.get("DematID")},
 				Nominee: r.get("Nominee"), NomineeName: r.get("NomineeName"), KYCDate: pdate(r, "KYCDate", true), Status: r.get("Status"),
 				API: strings.EqualFold(r.get("API"), "Y"), LastTrade: pdate(r, "LastTrade", true), IncomeProof: true, RiskDisclosure: true, CreatedBy: "import",
 				Branch: r.get("Branch"), State: r.get("State"), GSTIN: strings.ToUpper(r.get("GSTIN"))}
@@ -333,6 +345,22 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 				} else {
 					c.setConsent(true, at, SrcMigrated, "import", firstOf(r.get("WAConsentRef"), "client master import"))
 				}
+			}
+			// A client of the DP only (no trading account, dponly.go): blank
+			// keeps what is stored.
+			switch v := strings.ToUpper(strings.TrimSpace(r.get("DPOnly"))); v {
+			case "Y", "YES":
+				c.DPOnly = true
+			case "N", "NO":
+			case "":
+				if stored == nil {
+					if stored, _ = o.ClientMap(ctx, tenant); stored == nil {
+						stored = map[string]Client{}
+					}
+				}
+				c.DPOnly = stored[strings.ToUpper(strings.TrimSpace(c.UCC))].DPOnly
+			default:
+				bad(r.line, "DPOnly", "must be Y or N, got %q", v)
 			}
 			// Inactivity, partner, RM and groups from the previous system.
 			if v := strings.ToUpper(strings.TrimSpace(r.get("Inactive"))); v != "" {
@@ -404,6 +432,28 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 				}
 				inactive = inactive || stored[c.UCC].Inactive
 			}
+			// A demat account belongs to one client.
+			if id := normDematID(c.Demat.ID); id != "" {
+				if dematOwners == nil {
+					if dematOwners = o.boClients(ctx, tenant); dematOwners == nil {
+						dematOwners = map[string]string{}
+					}
+				}
+				if w, dup := fileDemats[id]; dup && w != c.UCC {
+					if inactive {
+						warn(r.line, "DematID", "%s is also the demat account of %s in this file%s", id, w, incompleteNote)
+					} else {
+						bad(r.line, "DematID", "%s is also the demat account of %s in this file; a BO ID belongs to one client", id, w)
+					}
+				} else if w, taken := dematOwners[id]; taken && w != c.UCC {
+					if inactive {
+						warn(r.line, "DematID", "%s is the demat account of %s%s", id, w, incompleteNote)
+					} else {
+						bad(r.line, "DematID", "%s is already the demat account of %s; a BO ID belongs to one client", id, w)
+					}
+				}
+				fileDemats[id] = c.UCC
+			}
 			if err := c.Validate(); err != nil {
 				var ve *ValidationError
 				if errors.As(err, &ve) {
@@ -456,6 +506,19 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 						c.Banks = old.Banks
 						syncBanks(&c)
 					}
+					// So are its other demat accounts (CLIENT-DEMATS,
+					// DP-ACCOUNTS, changes); the file's is the primary, or,
+					// when the file has none, the primary stays.
+					if len(old.Demats) > 0 {
+						if c.Demat.ID == "" {
+							c.Demat = old.Demat
+						}
+						c.Demats, c.PayoutDemat = old.Demats, old.PayoutDemat
+						syncDemats(&c)
+						collapseDemats(&c)
+					} else if c.Demat.ID == "" && old.Demat.ID != "" {
+						c.Demat = old.Demat
+					}
 					if len(old.Nominees) > 0 && (c.Nominee == "" || c.Nominee == "Opted in") {
 						c.Nominees = old.Nominees
 						normaliseNominees(&c)
@@ -493,8 +556,18 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 					c.Incomplete = was
 					refreshIncomplete(&c, nil)
 				}
+				var wasPrimary Demat
+				if old, _, err := docs.Get[Client](ctx, o.Docs, tenant, cClient, c.UCC); err == nil {
+					wasPrimary = primaryDemat(old)
+				}
 				if err := docs.Upsert(ctx, o.Docs, tenant, cClient, c.UCC, c, actor); err != nil {
 					return n, 0, err
+				}
+				// A new primary takes the holdings kept for the primary.
+				if now := primaryDemat(c); wasPrimary.ID != "" && normDematID(wasPrimary.ID) != normDematID(now.ID) {
+					if err := o.moveHoldingsToPrimary(ctx, tenant, actor, c.UCC, wasPrimary.ID, now.ID); err != nil {
+						return n, 0, err
+					}
 				}
 				n++
 			}
@@ -651,30 +724,61 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 			return len(m.Instruments), 0, docs.Upsert(ctx, o.Docs, tenant, cMarket, date, m, actor)
 		}, errs
 	case "DP-HOLDINGS":
+		// Quantities to 4 decimal places (units in demat are fractional);
+		// BOID names the demat account (blank: the client's primary).
 		var hs []Holding
+		var cs map[string]Client
 		for _, r := range rows {
-			h := Holding{UCC: strings.ToUpper(r.get("UCC")), ISIN: strings.ToUpper(r.get("ISIN")), Symbol: strings.ToUpper(r.get("Symbol")), Qty: pint(r, "Qty", true), Pledged: pint(r, "Pledged", true), AvgCost: pdec(r, "AvgCost", true)}
-			if h.Pledged > h.Qty {
+			h := Holding{UCC: strings.ToUpper(r.get("UCC")), ISIN: strings.ToUpper(r.get("ISIN")), Symbol: strings.ToUpper(r.get("Symbol")), Qty: pqty(r, "Qty"), Pledged: pqty(r, "Pledged"), AvgCost: pdec(r, "AvgCost", true)}
+			if h.Pledged.Cmp(h.Qty) > 0 {
 				bad(r.line, "Pledged", "cannot exceed Qty")
+			}
+			if bo := normDematID(r.get("BOID")); bo != "" {
+				if cs == nil {
+					if cs, _ = o.ClientMap(ctx, tenant); cs == nil {
+						cs = map[string]Client{}
+					}
+				}
+				c, ok := cs[h.UCC]
+				if _, mine := dematOf(c, bo); !ok || !mine {
+					bad(r.line, "BOID", "%s is not a demat account of %s (load DP-ACCOUNTS or the client master first)", bo, h.UCC)
+				}
+				h.BOID = holdingAcct(c, bo)
 			}
 			hs = append(hs, h)
 		}
 		return func() (int, int, error) {
 			for _, h := range hs {
-				if err := docs.Upsert(ctx, o.Docs, tenant, cHolding, holdingID(h.UCC, h.ISIN), h, actor); err != nil {
+				if err := docs.Upsert(ctx, o.Docs, tenant, cHolding, holdingIDAt(h.UCC, h.ISIN, h.BOID), h, actor); err != nil {
 					return 0, 0, err
 				}
 			}
 			return len(hs), 0, nil
 		}, errs
 	case "HOLDING-LOTS":
+		var lotClients map[string]Client
 		books := map[string]*LotBook{}
 		var order []string
 		for _, r := range rows {
 			u := strings.ToUpper(r.get("UCC"))
-			l := Lot{ISIN: strings.ToUpper(r.get("ISIN")), Symbol: strings.ToUpper(r.get("Symbol")), Qty: pint(r, "Qty", false), Date: pdate(r, "BuyDate", false), Price: pdec(r, "BuyPrice", false)}
+			l := Lot{ISIN: strings.ToUpper(r.get("ISIN")), Symbol: strings.ToUpper(r.get("Symbol")), Qty: pqty(r, "Qty"), Date: pdate(r, "BuyDate", false), Price: pdec(r, "BuyPrice", false)}
+			if l.Qty.Sign() <= 0 {
+				bad(r.line, "Qty", "must be above zero")
+			}
 			if u == "" {
 				bad(r.line, "UCC", "is required")
+			}
+			if bo := normDematID(r.get("BOID")); bo != "" {
+				if lotClients == nil {
+					if lotClients, _ = o.ClientMap(ctx, tenant); lotClients == nil {
+						lotClients = map[string]Client{}
+					}
+				}
+				c, ok := lotClients[u]
+				if _, mine := dematOf(c, bo); !ok || !mine {
+					bad(r.line, "BOID", "%s is not a demat account of %s", bo, u)
+				}
+				l.BOID = bo
 			}
 			if l.ISIN == "" {
 				bad(r.line, "ISIN", "is required")

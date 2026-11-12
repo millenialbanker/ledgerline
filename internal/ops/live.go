@@ -252,9 +252,10 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 			}
 		}
 	}
+	// Whole units, every one of the client's accounts.
 	held := map[string]int64{}
 	for _, h := range in.holdings {
-		held[h.UCC+"|"+h.Symbol] += h.Qty
+		held[h.UCC+"|"+h.Symbol] += wholeUnits(h.Qty)
 	}
 	// With CDSL eDIS on, a client who has no DDPI can deliver only what was
 	// authorised by TPIN (cdsledis.go).
@@ -422,7 +423,7 @@ func (o *Ops) LimitFile(ctx context.Context, tenant, date string) ([]byte, error
 	if err != nil {
 		return nil, err
 	}
-	cs, _ := o.ClientMap(ctx, tenant)
+	cs, _ := o.tradingClientMap(ctx, tenant)
 	rows := [][]string{{"TradeDate", "ClientCode", "Cash", "CollateralAfterHaircut", "MarginBlocked", "Override", "NetLimit", "BuyAllowed", "Reason", "SegmentsAllowed"}}
 	for _, r := range rv.Rows {
 		buy, why := "Y", ""
@@ -540,7 +541,7 @@ func (o *Ops) finspotLimits(ctx context.Context, tenant, date string) (finspotCf
 	if err != nil {
 		return cfg, nil, err
 	}
-	cs, _ := o.ClientMap(ctx, tenant)
+	cs, _ := o.tradingClientMap(ctx, tenant)
 	out := map[string]finspotLimit{}
 	var long []string
 	for _, r := range rv.Rows {
@@ -593,9 +594,11 @@ func (o *Ops) HoldingsFile(ctx context.Context, tenant, date string) ([]byte, er
 		return all[k]
 	}
 	for _, h := range hs {
+		// Every account of the client, in whole units (front ends trade
+		// whole shares).
 		r := get(h.UCC, h.ISIN, h.Symbol)
-		r.demat += h.Qty
-		r.pledged += h.Pledged
+		r.demat += wholeUnits(h.Qty)
+		r.pledged += wholeUnits(h.Pledged)
 	}
 	ts, _ := o.exchangeTrades(ctx, tenant, prev)
 	_, look, _ := o.Market(ctx, tenant, prev)

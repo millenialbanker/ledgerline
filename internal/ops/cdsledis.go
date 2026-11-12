@@ -179,7 +179,10 @@ type EDISRequestLine struct {
 
 // EDISRequest is what the client (or staff) asks to authorise.
 type EDISRequest struct {
-	UCC      string            `json:"ucc"`
+	UCC string `json:"ucc"`
+	// BOID is the demat account the sale is delivered from (empty: the
+	// client's primary account).
+	BOID     string            `json:"bo_id,omitempty"`
 	ReqType  string            `json:"req_type"` // D (default), E, F
 	Exchange string            `json:"exchange"` // NSE, BSE
 	Lines    []EDISRequestLine `json:"lines"`
@@ -212,13 +215,19 @@ func (o *Ops) edisConn(ctx context.Context, tenant string) (cdslConn, error) {
 	return x, nil
 }
 
-// edisClient is the client and its BO ID, checked for eDIS.
-func (o *Ops) edisClient(ctx context.Context, tenant string, x cdslConn, ucc string) (Client, BOAccount, error) {
+// edisClient is the client and the BO account a sale is delivered from
+// (boid; blank: the primary), checked for eDIS.
+func (o *Ops) edisClient(ctx context.Context, tenant string, x cdslConn, ucc, boid string) (Client, BOAccount, error) {
 	c, err := o.Client(ctx, tenant, ucc)
 	if err != nil {
 		return c, BOAccount{}, invalid("client %s not found", ucc)
 	}
-	b := o.bo(ctx, tenant, c)
+	if boid = normDematID(boid); boid != "" {
+		if _, ok := dematOf(c, boid); !ok {
+			return c, BOAccount{}, invalid("%s is not a demat account of %s", cdslMaskBO(boid), c.UCC)
+		}
+	}
+	b := o.boFor(ctx, tenant, c, boid)
 	switch {
 	case b.Status == "Closed" || b.Status == "Not opened":
 		return c, b, fmt.Errorf("%w: the demat account is %s", ErrState, strings.ToLower(b.Status))
@@ -267,7 +276,7 @@ func (o *Ops) StartEDIS(ctx context.Context, tenant, actor string, in EDISReques
 	if err != nil {
 		return CDSLForm{}, EDISAuth{}, err
 	}
-	c, b, err := o.edisClient(ctx, tenant, x, in.UCC)
+	c, b, err := o.edisClient(ctx, tenant, x, in.UCC, in.BOID)
 	if err != nil {
 		return CDSLForm{}, EDISAuth{}, err
 	}
@@ -326,8 +335,9 @@ func (o *Ops) StartEDIS(ctx context.Context, tenant, actor string, in EDISReques
 		if fz, ok := o.cdslISINFrozen(ctx, tenant, b.BOID, l.ISIN, false); ok && fz.Full() {
 			return CDSLForm{}, a, fmt.Errorf("%w: %s is frozen for debits at CDSL in this account (%s)", ErrState, l.ISIN, fz.Why())
 		}
-		if free := o.freeBalance(ctx, tenant, c.UCC, l.ISIN); l.Qty > free {
-			return CDSLForm{}, a, invalid("only %d free in %s (after pledges and pending instructions)", max(free, 0), l.ISIN)
+		// A sale is in whole units; a fraction stays in the account.
+		if free := wholeUnits(o.freeBalanceIn(ctx, tenant, c, b.BOID, l.ISIN)); l.Qty > free {
+			return CDSLForm{}, a, invalid("only %d free in %s in demat account %s (after pledges and pending instructions)", max(free, 0), l.ISIN, cdslMaskBO(b.BOID))
 		}
 		el := EDISLine{ISIN: l.ISIN, Qty: l.Qty, Status: "Awaiting TPIN", SettleID: strings.TrimSpace(l.SettleID)}
 		if len(el.SettleID) > 13 {
@@ -339,7 +349,7 @@ func (o *Ops) StartEDIS(ctx context.Context, tenant, actor string, in EDISReques
 				return CDSLForm{}, a, invalid("the settlement date cannot be in the past")
 			}
 		}
-		if h, _, err := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingID(c.UCC, l.ISIN)); err == nil {
+		if h, _, err := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingIDAt(c.UCC, l.ISIN, holdingAcct(c, b.BOID))); err == nil {
 			el.Symbol = h.Symbol
 		}
 		if el.TxnReqID, err = o.cdxSeqID(ctx, tenant, "edistxn", 16); err != nil {
@@ -679,7 +689,7 @@ func (o *Ops) GenerateTPIN(ctx context.Context, tenant, actor, ucc, note string)
 	if err != nil {
 		return EDISPin{}, err
 	}
-	c, b, err := o.edisClient(ctx, tenant, x, ucc)
+	c, b, err := o.edisClient(ctx, tenant, x, ucc, "")
 	if err != nil {
 		return EDISPin{}, err
 	}
@@ -749,7 +759,7 @@ func (o *Ops) ChangeTPINForm(ctx context.Context, tenant, actor, ucc string) (CD
 	if err != nil {
 		return CDSLForm{}, err
 	}
-	c, b, err := o.edisClient(ctx, tenant, x, ucc)
+	c, b, err := o.edisClient(ctx, tenant, x, ucc, "")
 	if err != nil {
 		return CDSLForm{}, err
 	}
@@ -932,19 +942,24 @@ func (o *Ops) edisDeliverable(ctx context.Context, tenant, date string) (map[str
 	if !ok || !x.On(cdslFamEDIS) {
 		return nil, nil
 	}
+	// A client sells through eDIS when it has an open CDSL account at this
+	// DP and none of its accounts here has a DDPI the firm can deliver by.
 	need := map[string]bool{}
-	bos, _ := docs.List[BOAccount](ctx, o.Docs, tenant, cBO, "")
-	byUCC := map[string]BOAccount{}
-	for _, b := range bos {
-		byUCC[b.UCC] = b
-	}
+	idx := o.boIndex(ctx, tenant)
 	cs, _ := o.ClientMap(ctx, tenant)
 	for u, c := range cs {
-		b, ok := byUCC[u]
-		if !ok { // as o.bo reads an account with no DP record
-			b = BOAccount{UCC: u, BOID: c.Demat.ID, Depository: c.Demat.Depository, Status: "Active"}
+		bs := idx.of(c)
+		if len(bs) == 0 { // as o.bo reads an account with no DP record
+			bs = []BOAccount{{UCC: u, BOID: c.Demat.ID, Depository: c.Demat.Depository, Status: "Active"}}
 		}
-		if !b.DDPI && b.Status != "Closed" && (b.Depository == "" || strings.EqualFold(b.Depository, "CDSL")) && cdxBODP(b.BOID) == strings.TrimLeft(x.DPID, "0") {
+		here, ddpi := false, false
+		for _, b := range bs {
+			if b.Status != "Closed" && (b.Depository == "" || strings.EqualFold(b.Depository, "CDSL")) && cdxBODP(b.BOID) == strings.TrimLeft(x.DPID, "0") {
+				here = true
+				ddpi = ddpi || b.DDPI
+			}
+		}
+		if here && !ddpi {
 			need[u] = true
 		}
 	}
@@ -1073,7 +1088,7 @@ func (o *Ops) PortalEDIS(ctx context.Context, tenant, actor, ucc string) (Portal
 			v.Exchanges = append(v.Exchanges, e)
 		}
 	}
-	c, b, err := o.edisClient(ctx, tenant, x, ucc)
+	c, b, err := o.edisClient(ctx, tenant, x, ucc, "")
 	if err != nil {
 		v.Problem = strings.TrimPrefix(strings.TrimPrefix(err.Error(), ErrInvalid.Error()+": "), ErrState.Error()+": ")
 	}
@@ -1082,9 +1097,13 @@ func (o *Ops) PortalEDIS(ctx context.Context, tenant, actor, ucc string) (Portal
 	today := o.now().Format("2006-01-02")
 	v.SettleDate = set.NextBusinessDay(today)
 	_, auth := o.edisDeliverable(ctx, tenant, today)
+	// The primary account's holdings (sales are authorised in whole units).
 	hs, _ := o.Holdings(ctx, tenant, c.UCC)
 	for _, h := range hs {
-		if f := o.freeBalance(ctx, tenant, c.UCC, h.ISIN); f > 0 {
+		if h.BOID != "" {
+			continue
+		}
+		if f := wholeUnits(o.freeBalanceIn(ctx, tenant, c, b.BOID, h.ISIN)); f > 0 {
 			v.Holdings = append(v.Holdings, PortalEDISHolding{ISIN: h.ISIN, Symbol: h.Symbol, Free: f, Authorised: auth[c.UCC+"|"+h.ISIN]})
 		}
 	}

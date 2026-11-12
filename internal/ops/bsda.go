@@ -178,9 +178,9 @@ func (o *Ops) ApplyBSDAReview(ctx context.Context, tenant, actor, id string) (BS
 		if err != nil {
 			continue
 		}
-		b := o.bo(ctx, tenant, c)
+		b := o.boFor(ctx, tenant, c, l.BOID)
 		b.BSDA = l.To == "BSDA"
-		if err := docs.Upsert(ctx, o.Docs, tenant, cBO, b.UCC, b, actor); err != nil {
+		if err := o.putBO(ctx, tenant, actor, b); err != nil {
 			return rev, err
 		}
 		flag := "N"
@@ -229,7 +229,7 @@ func (o *Ops) SetBSDAChoice(ctx context.Context, tenant, actor, ucc string, optO
 	}
 	b := o.bo(ctx, tenant, c)
 	b.BSDAOptOut, b.OtherDemat = optOut, otherDemat
-	if err := docs.Upsert(ctx, o.Docs, tenant, cBO, b.UCC, b, actor); err != nil {
+	if err := o.putBO(ctx, tenant, actor, b); err != nil {
 		return b, err
 	}
 	o.log(ctx, tenant, actor, "dp.bsda_choice", b.UCC, map[string]any{"opt_out": optOut, "other_demat": otherDemat})

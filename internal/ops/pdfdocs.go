@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"ledgerline/internal/docs"
 	"ledgerline/internal/money"
 	"ledgerline/internal/pdf"
 )
@@ -204,31 +203,92 @@ func (o *Ops) rasStatement(ctx context.Context, tenant string, b RASBatch, it RA
 	return rep, nil
 }
 
-// DPStatement is a BO account's monthly transaction and holding statement.
+// DPStatement is the monthly transaction and holding statement of a
+// client's demat accounts with the DP: one statement for the client, with
+// each account's transactions and holdings in sections of their own when
+// there are several. The holders are named as on the account (a joint
+// account: "First, Second & Third").
 func (o *Ops) DPStatement(ctx context.Context, tenant, month, ucc string) (ClientReport, error) {
 	c, err := o.Client(ctx, tenant, ucc)
 	if err != nil {
 		return ClientReport{}, err
 	}
-	bo, _, err := docs.Get[BOAccount](ctx, o.Docs, tenant, cBO, c.UCC)
-	if err != nil {
+	bos := o.boAccountsOf(ctx, tenant, c.UCC)
+	if len(bos) == 0 {
 		return ClientReport{}, fmt.Errorf("%w: %s has no DP account here", ErrNotFound, ucc)
 	}
 	from := month + "-01"
 	to := addDays(addMonths(from, 1), -1)
-	rep := ClientReport{Kind: "dp", Title: "Statement of transactions and holdings (DP)", UCC: c.UCC, Name: c.Name, PAN: MaskPAN(c.PAN), From: from, To: to, Period: from + " to " + to, Generated: o.now().Format("02-Jan-2006 15:04 IST")}
+	var open []BOAccount
+	for _, b := range bos {
+		if b.Status != "Closed" || b.ClosedOn >= from {
+			open = append(open, b)
+		}
+	}
+	if len(open) == 0 {
+		open = bos[:1]
+	}
+	bo := open[0]
+	rep := ClientReport{Kind: "dp", Title: "Statement of transactions and holdings (DP)", UCC: c.UCC, Name: dematHolderNames(c.Name, bo.JointHolders), PAN: MaskPAN(c.PAN), From: from, To: to, Period: from + " to " + to, Generated: o.now().Format("02-Jan-2006 15:04 IST")}
+	tx, _ := o.DPTransactions(ctx, tenant, c.UCC)
+	txSec := func(b BOAccount, title string) Section {
+		sec := Section{Title: title, Columns: []Column{{"date", "Date", ColDate}, {"isin", "ISIN", ColText}, {"symbol", "Security", ColText}, {"kind", "Transaction", ColText}, {"ref", "Reference", ColText}, {"qty", "Quantity", ColQty}}, Empty: "No transactions in this period."}
+		acct := holdingAcct(c, b.BOID)
+		for _, t := range tx {
+			if t.Date >= from && t.Date <= to && holdingAcct(c, t.BOID) == acct {
+				sec.Rows = append(sec.Rows, []string{t.Date, t.ISIN, t.Symbol, t.Kind, t.Ref, fmtQty(t.Qty)})
+			}
+		}
+		return sec
+	}
+	if len(open) > 1 {
+		// Several accounts: each one's details, transactions and holdings.
+		rep.Name = c.Name
+		ids := []string{}
+		for _, b := range open {
+			ids = append(ids, b.BOID)
+		}
+		rep.Summary = []SummaryItem{{Label: "Demat accounts", Value: strings.Join(ids, ", "), Type: ColText}, {Label: "Nomination", Value: c.StatementNomination(), Type: ColText}}
+		_, look, _ := o.Market(ctx, tenant, to)
+		hs, _ := o.Holdings(ctx, tenant, c.UCC)
+		var total money.Dec
+		for _, b := range open {
+			who := dematHolderNames(c.Name, b.JointHolders)
+			head := fmt.Sprintf("%s %s · %s · %s", b.Depository, b.BOID, b.Status, who)
+			rep.Sections = append(rep.Sections, txSec(b, "Transactions · "+head))
+			hsec := Section{Title: "Holdings as on " + to + " · " + b.BOID, Columns: []Column{{"isin", "ISIN", ColText}, {"symbol", "Security", ColText}, {"qty", "Quantity", ColQty}, {"pledged", "Pledged", ColQty}, {"free", "Free", ColQty}, {"ltp", "Price", ColMoney}, {"value", "Value", ColMoney}}, Empty: "No securities in this account."}
+			acct := holdingAcct(c, b.BOID)
+			var sub money.Dec
+			for _, h := range hs {
+				if h.BOID != acct || h.Qty.Sign() <= 0 {
+					continue
+				}
+				ltp, val := "", ""
+				if i, ok := look.ByISIN(h.ISIN); ok {
+					v := h.Value(i.LTP)
+					sub = sub.Add(v)
+					ltp, val = d2s(i.LTP), d2s(v)
+				}
+				hsec.Rows = append(hsec.Rows, []string{h.ISIN, h.Symbol, fmtQty(h.Qty), fmtQty(h.Pledged), fmtQty(h.Free()), ltp, val})
+			}
+			if len(hsec.Rows) > 0 {
+				hsec.Totals = []string{"Total", "", "", "", "", "", d2s(sub)}
+			}
+			total = total.Add(sub)
+			rep.Sections = append(rep.Sections, hsec)
+		}
+		rep.Summary = append(rep.Summary, SummaryItem{Label: "Value of all accounts", Value: d2s(total), Type: ColMoney})
+		rep.Notes = []string{"Check this statement against your own records and report any difference to the DP within 30 days."}
+		return rep, nil
+	}
 	// Nomination: the nominees' names or Yes/No, as the client chose
 	// (SEBI nomination circular of 29 May 2026).
 	rep.Summary = []SummaryItem{{Label: "BO ID", Value: bo.BOID, Type: ColText}, {Label: "Depository", Value: bo.Depository, Type: ColText}, {Label: "Status", Value: bo.Status, Type: ColText},
 		{Label: "Nomination", Value: c.StatementNomination(), Type: ColText}}
-	tx, _ := o.DPTransactions(ctx, tenant, c.UCC)
-	sec := Section{Title: "Transactions", Columns: []Column{{"date", "Date", ColDate}, {"isin", "ISIN", ColText}, {"symbol", "Security", ColText}, {"kind", "Transaction", ColText}, {"ref", "Reference", ColText}, {"qty", "Quantity", ColQty}}, Empty: "No transactions in this period."}
-	for _, t := range tx {
-		if t.Date >= from && t.Date <= to {
-			sec.Rows = append(sec.Rows, []string{t.Date, t.ISIN, t.Symbol, t.Kind, t.Ref, fmt.Sprint(t.Qty)})
-		}
+	if len(bo.JointHolders) > 0 {
+		rep.Summary = append(rep.Summary, SummaryItem{Label: "Holders", Value: dematHolderNames(c.Name, bo.JointHolders), Type: ColText})
 	}
-	rep.Sections = append(rep.Sections, sec)
+	rep.Sections = append(rep.Sections, txSec(bo, "Transactions"))
 	if h, err := o.ClientReportFor(ctx, tenant, "holdings", c.UCC, "", to); err == nil {
 		for _, s := range h.Sections {
 			s.Title = "Holdings as on " + to

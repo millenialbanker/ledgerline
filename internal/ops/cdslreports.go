@@ -17,17 +17,6 @@ import (
 // The layouts were read from a DP's own files; CDSL has published no format
 // note for them, so fields without a known meaning are kept as they are.
 
-func (o *Ops) boClients(ctx context.Context, tenant string) map[string]string {
-	cs, _ := o.ClientMap(ctx, tenant)
-	by := map[string]string{}
-	for _, c := range cs {
-		if c.Demat.ID != "" {
-			by[normDematID(c.Demat.ID)] = c.UCC
-		}
-	}
-	return by
-}
-
 // ddmmyyyy turns 16102026 into 2026-10-16 ("" if it is not a date).
 func ddmmyyyy(s string) string {
 	s = strings.TrimSpace(s)

@@ -640,11 +640,13 @@ func (o *Ops) SendStatements(ctx context.Context, tenant, actor, kind, period st
 		if len(period) != 7 {
 			return res, invalid("give the month (YYYY-MM)")
 		}
-		bos, _ := docs.List[BOAccount](ctx, o.Docs, tenant, cBO, "")
-		for _, b := range bos {
-			if b.Status == "Closed" && b.ClosedOn < period+"-01" {
+		// One statement per client, covering all its accounts with the DP.
+		done := map[string]bool{}
+		for _, b := range o.boAccounts(ctx, tenant) {
+			if (b.Status == "Closed" && b.ClosedOn < period+"-01") || done[b.UCC] {
 				continue
 			}
+			done[b.UCC] = true
 			if o.delivered(ctx, tenant, kind, period, b.UCC) {
 				res.Skipped++
 				continue

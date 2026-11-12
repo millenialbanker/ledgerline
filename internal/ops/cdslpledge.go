@@ -489,20 +489,34 @@ type CDSLCall struct {
 type PledgeLine struct {
 	ISIN string `json:"isin"`
 	Qty  int64  `json:"qty"`
+	// BOID is the demat account pledged from (empty: the primary); one
+	// request pledges from one account.
+	BOID string `json:"bo_id,omitempty"`
 }
 
-// cplHolding gives a client's holding and how much is free to pledge:
-// quantity less what is pledged to the firm, to lenders, and in pledge
-// requests not finished.
+// cplFree gives a client's holding in the primary account and how much is
+// free to pledge (cplFreeIn).
 func (o *Ops) cplFree(ctx context.Context, tenant, ucc, isin, except string) (Holding, int64) {
-	h, _, _ := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingID(ucc, isin))
-	free := h.Qty - h.Pledged - o.cplEncumbered(ctx, tenant, ucc)[isin]
-	if c, err := o.Client(ctx, tenant, ucc); err == nil { // frozen at CDSL (cdslfreeze.go)
-		free -= o.cdslFrozenQty(ctx, tenant, o.bo(ctx, tenant, c).BOID, isin, h.Qty)
+	c, _ := o.Client(ctx, tenant, ucc)
+	if c.UCC == "" {
+		c.UCC = ucc
 	}
+	return o.cplFreeIn(ctx, tenant, c, "", isin, except)
+}
+
+// cplFreeIn gives a client's holding in one account and how much is free
+// to pledge from it, in whole units (a margin pledge takes whole shares and
+// leaves a fraction): quantity less what is pledged to the firm, to
+// lenders, and in pledge requests not finished.
+func (o *Ops) cplFreeIn(ctx context.Context, tenant string, c Client, boid, isin, except string) (Holding, int64) {
+	ucc, acct := c.UCC, holdingAcct(c, boid)
+	h, _, _ := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingIDAt(ucc, isin, acct))
+	// less what is frozen at CDSL (cdslfreeze.go)
+	frozen := o.cdslFrozenQty(ctx, tenant, o.boFor(ctx, tenant, c, boid).BOID, isin, h.Qty)
+	free := wholeUnits(h.Free().Sub(frozen)) - o.cplEncumbered(ctx, tenant, ucc)[isin]
 	ps, _ := docs.List[PledgeRequest](ctx, o.Docs, tenant, cPledge, "")
 	for _, p := range ps {
-		if p.ID != except && p.UCC == ucc && p.ISIN == isin && p.Via == cplVia && (p.Status == "Pending" || p.Status == "Awaiting client") {
+		if p.ID != except && p.UCC == ucc && holdingAcct(c, p.BOID) == acct && p.ISIN == isin && p.Via == cplVia && (p.Status == "Pending" || p.Status == "Awaiting client") {
 			free -= p.Qty
 		}
 	}
@@ -514,6 +528,15 @@ func (o *Ops) cplFree(ctx context.Context, tenant, ucc, isin, except string) (Ho
 // client's own login) or the desk. kind is MP (margin) or MF (MTF, with
 // the position). A checker then approves each request.
 func (o *Ops) RequestMarginPledge(ctx context.Context, tenant, actor, ucc, kind, mtfID string, lines []PledgeLine) ([]PledgeRequest, error) {
+	boid := ""
+	for _, l := range lines {
+		if b := normDematID(l.BOID); b != "" {
+			if boid != "" && b != boid {
+				return nil, invalid("one pledge request pledges from one demat account")
+			}
+			boid = b
+		}
+	}
 	role, err := o.RoleOf(ctx, tenant, actor)
 	if err != nil {
 		return nil, err
@@ -543,7 +566,12 @@ func (o *Ops) RequestMarginPledge(ctx context.Context, tenant, actor, ucc, kind,
 	if err != nil {
 		return nil, err
 	}
-	bo := o.bo(ctx, tenant, c)
+	if boid != "" {
+		if _, ok := dematOf(c, boid); !ok {
+			return nil, invalid("%s is not a demat account of %s", cdslMaskBO(boid), ucc)
+		}
+	}
+	bo := o.boFor(ctx, tenant, c, boid)
 	if c.Status != "Active" || bo.Status != "Active" || bo.debitFrozen() {
 		return nil, invalid("%s's account or demat account is not active for debits", ucc)
 	}
@@ -570,7 +598,7 @@ func (o *Ops) RequestMarginPledge(ctx context.Context, tenant, actor, ucc, kind,
 		if l.Qty <= 0 {
 			return nil, invalid("give the number of shares to pledge")
 		}
-		h, free := o.cplFree(ctx, tenant, ucc, l.ISIN, "")
+		h, free := o.cplFreeIn(ctx, tenant, c, bo.BOID, l.ISIN, "")
 		if l.Qty > free {
 			return nil, invalid("only %d %s are free to pledge", max(free, 0), firstOf(h.Symbol, l.ISIN))
 		}
@@ -578,7 +606,7 @@ func (o *Ops) RequestMarginPledge(ctx context.Context, tenant, actor, ucc, kind,
 		if err != nil {
 			return nil, err
 		}
-		p := PledgeRequest{ID: fmt.Sprintf("%s-%d", kind, n), UCC: ucc, ISIN: l.ISIN, Symbol: firstOf(h.Symbol, l.ISIN), Qty: l.Qty, Time: now.Format("2006-01-02 15:04"), Status: "Pending",
+		p := PledgeRequest{ID: fmt.Sprintf("%s-%d", kind, n), UCC: ucc, ISIN: l.ISIN, Symbol: firstOf(h.Symbol, l.ISIN), Qty: l.Qty, BOID: holdingAcct(c, bo.BOID), Time: now.Format("2006-01-02 15:04"), Status: "Pending",
 			Via: cplVia, Kind: kind, MTFID: mtfID, RequestedBy: actor}
 		if _, err := docs.Put(ctx, o.Docs, tenant, cPledge, p.ID, p, 0, actor); err != nil {
 			return nil, err
@@ -743,10 +771,11 @@ func (o *Ops) CDSLPledgeFormPage(ctx context.Context, tenant, token, base string
 	if len(ps) == 0 {
 		return fail("There is no approved pledge waiting for your confirmation.", ErrNotFound)
 	}
-	kind := firstOf(ps[0].Kind, "MP")
+	// One batch is one kind from one demat account.
+	kind, acct := firstOf(ps[0].Kind, "MP"), ps[0].BOID
 	var batch []PledgeRequest
 	for _, p := range ps {
-		if firstOf(p.Kind, "MP") == kind && len(batch) < 50 {
+		if firstOf(p.Kind, "MP") == kind && p.BOID == acct && len(batch) < 50 {
 			batch = append(batch, p)
 		}
 	}
@@ -754,7 +783,7 @@ func (o *Ops) CDSLPledgeFormPage(ctx context.Context, tenant, token, base string
 	if err != nil {
 		return fail("Your account could not be found.", err)
 	}
-	bo := o.bo(ctx, tenant, c)
+	bo := o.boFor(ctx, tenant, c, acct)
 	pledgee := cfg.PledgeeBOID
 	if kind == "MF" {
 		pledgee = cfg.MTFPledgeeBOID
@@ -968,7 +997,7 @@ func (o *Ops) cplApplyMP(ctx context.Context, tenant string, call CDSLCall, res 
 			continue // not in this reply
 		}
 		if ok {
-			if _, err := o.adjustHolding(ctx, tenant, SystemActor, p.UCC, p.ISIN, p.Symbol, 0, p.Qty); err != nil {
+			if _, err := o.adjustHoldingAt(ctx, tenant, SystemActor, p.UCC, p.BOID, p.ISIN, p.Symbol, money.Dec{}, money.DecInt(p.Qty)); err != nil {
 				o.raiseWork(ctx, tenant, "cdslpledge", p.ID+"-holding", "Pledge "+p.ID+" set up at CDSL but not in holdings", fmt.Sprintf("CDSL set up PSN %s for %d %s, but Ledgerline's holdings do not allow it (%v). Load the day's CDSL holding file.", l.PSN, p.Qty, p.Symbol, err), p.UCC, RoleRisk, "cdslpledge", "")
 			}
 			p, _ = docs.Update(ctx, o.Docs, tenant, cPledge, id, SystemActor, func(x *PledgeRequest) error {
@@ -1155,11 +1184,12 @@ type PortalPledgeView struct {
 
 // PortalPledgeH is a holding with what can be pledged.
 type PortalPledgeH struct {
-	ISIN    string `json:"isin"`
-	Symbol  string `json:"symbol"`
-	Qty     int64  `json:"qty"`
-	Pledged int64  `json:"pledged"`
-	Free    int64  `json:"free"`
+	ISIN    string    `json:"isin"`
+	Symbol  string    `json:"symbol"`
+	BOID    string    `json:"bo_id,omitempty"`
+	Qty     money.Dec `json:"qty"`
+	Pledged money.Dec `json:"pledged"`
+	Free    int64     `json:"free"` // whole units free to pledge
 }
 
 // PortalPledges builds the client's page.
@@ -1178,13 +1208,16 @@ func (o *Ops) PortalPledges(ctx context.Context, tenant, actor, ucc string) (Por
 	v := PortalPledgeView{UCC: ucc, Holdings: []PortalPledgeH{}, Requests: []PledgeRequest{}, Releases: []PledgeRelease{}, PSNs: []PSNAvail{}}
 	_, err = o.cplConnection(ctx, tenant, "MP")
 	v.Connected = err == nil
+	// Each demat account's holdings: a pledge is made from one account.
+	pc, _ := o.Client(ctx, tenant, ucc)
 	hs, _ := o.Holdings(ctx, tenant, ucc)
 	for _, h := range hs {
-		if h.Qty <= 0 {
+		if h.Qty.Sign() <= 0 {
 			continue
 		}
-		_, free := o.cplFree(ctx, tenant, ucc, h.ISIN, "")
-		v.Holdings = append(v.Holdings, PortalPledgeH{ISIN: h.ISIN, Symbol: h.Symbol, Qty: h.Qty, Pledged: h.Pledged, Free: max(free, 0)})
+		bo := holdingBO(pc, h)
+		_, free := o.cplFreeIn(ctx, tenant, pc, bo, h.ISIN, "")
+		v.Holdings = append(v.Holdings, PortalPledgeH{ISIN: h.ISIN, Symbol: h.Symbol, BOID: bo, Qty: h.Qty, Pledged: h.Pledged, Free: max(free, 0)})
 	}
 	ps, _ := docs.List[PledgeRequest](ctx, o.Docs, tenant, cPledge, "")
 	for _, p := range ps {

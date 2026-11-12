@@ -34,8 +34,8 @@ func TestEquityBookHandWorked(t *testing.T) {
 		t.Fatal(err)
 	}
 	book := LotBook{UCC: "BH9", AsOf: "2026-10-14", Lots: []Lot{
-		{ISIN: "INE009A01021", Symbol: "INFY", Qty: 100, Date: "2024-01-02", Price: money.MustDec("500")},
-		{ISIN: "INE009A01021", Symbol: "INFY", Qty: 50, Date: "2026-01-12", Price: money.MustDec("600")},
+		{ISIN: "INE009A01021", Symbol: "INFY", Qty: dq(100), Date: "2024-01-02", Price: money.MustDec("500")},
+		{ISIN: "INE009A01021", Symbol: "INFY", Qty: dq(50), Date: "2026-01-12", Price: money.MustDec("600")},
 	}}
 	if err := docs.Upsert(ctx, o.Docs, "t", cLot, "BH9", book, "test"); err != nil {
 		t.Fatal(err)
@@ -60,16 +60,16 @@ func TestEquityBookHandWorked(t *testing.T) {
 		t.Fatalf("sales %+v", sales)
 	}
 	for i, w := range ws {
-		if sales[i].Category != w.cat || sales[i].Qty != w.qty || sales[i].Gain.Cmp(money.MustDec(w.gain)) != 0 {
-			t.Errorf("sale %d = %s %d %s, want %s %d %s", i, sales[i].Category, sales[i].Qty, sales[i].Gain, w.cat, w.qty, w.gain)
+		if sales[i].Category != w.cat || wq(sales[i].Qty) != w.qty || sales[i].Gain.Cmp(money.MustDec(w.gain)) != 0 {
+			t.Errorf("sale %v = %s %v %s, want %s %v %s", i, sales[i].Category, sales[i].Qty, sales[i].Gain, w.cat, w.qty, w.gain)
 		}
 	}
-	if len(open) != 1 || open[0].Qty != 40 || open[0].Date != "2026-01-12" {
+	if len(open) != 1 || wq(open[0].Qty) != 40 || open[0].Date != "2026-01-12" {
 		t.Fatalf("open lots %+v", open)
 	}
 	// Up to the 15th only: the 16th's sale is not yet made.
 	open, sales, _, _ = o.equityBook(ctx, "t", "BH9", "2026-10-15")
-	if len(sales) != 2 || len(open) != 2 || open[0].Qty != 90 {
+	if len(sales) != 2 || len(open) != 2 || wq(open[0].Qty) != 90 {
 		t.Fatalf("as of 15th: open %+v sales %d", open, len(sales))
 	}
 }

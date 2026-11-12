@@ -115,8 +115,8 @@ func TestNSEHoldingAPI(t *testing.T) {
 	for _, c := range []Client{nseUCITestClient("HS001", "ABCPV1234K"), nseUCITestClient("HS002", "ABCPV1235K")} {
 		nseUCIAddClient(t, o, c, false)
 	}
-	_ = docs.Upsert(ctx, o.Docs, T, cHolding, holdingID("HS001", "INE000A01011"), Holding{UCC: "HS001", ISIN: "INE000A01011", Symbol: "AAA", Qty: 100, Pledged: 40}, "test")
-	_ = docs.Upsert(ctx, o.Docs, T, cHolding, holdingID("HS002", "INE000B01012"), Holding{UCC: "HS002", ISIN: "INE000B01012", Symbol: "BBB", Qty: 5}, "test")
+	_ = docs.Upsert(ctx, o.Docs, T, cHolding, holdingID("HS001", "INE000A01011"), Holding{UCC: "HS001", ISIN: "INE000A01011", Symbol: "AAA", Qty: dq(100), Pledged: dq(40)}, "test")
+	_ = docs.Upsert(ctx, o.Docs, T, cHolding, holdingID("HS002", "INE000B01012"), Holding{UCC: "HS002", ISIN: "INE000B01012", Symbol: "BBB", Qty: dq(5)}, "test")
 	if _, err := o.SaveConnection(ctx, T, "admin", connNSEHolding, map[string]string{"member": "90311", "send": "On", "url": srv.URL + "/inspectionapi"},
 		map[string]string{"password": "Hs@Pass12345", "secret_key": base64.StdEncoding.EncodeToString(key)}); err != nil {
 		t.Fatal(err)
@@ -164,7 +164,7 @@ func TestNSEHoldingAPI(t *testing.T) {
 	// A client without a PAN is caught before anything is sent.
 	bad := nseUCITestClient("HS003", "")
 	nseUCIAddClient(t, o, bad, false)
-	_ = docs.Upsert(ctx, o.Docs, T, cHolding, holdingID("HS003", "INE000C01013"), Holding{UCC: "HS003", ISIN: "INE000C01013", Symbol: "CCC", Qty: 1}, "test")
+	_ = docs.Upsert(ctx, o.Docs, T, cHolding, holdingID("HS003", "INE000C01013"), Holding{UCC: "HS003", ISIN: "INE000C01013", Symbol: "CCC", Qty: dq(1)}, "test")
 	n := len(f.uploads)
 	sub, _ = o.NSEHoldingSubmit(ctx, T, "priya.nair", W)
 	if sub.Status != "Not sent" || len(f.uploads) != n || len(sub.Errors) != 1 || !strings.Contains(sub.Errors[0].Plain, "HS003") {

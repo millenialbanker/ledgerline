@@ -45,15 +45,23 @@ const (
 	PayableDepository = "PAYABLE:DEPOSITORY"
 )
 
-// BOAccount is the DP's record of a client's demat account.
+// BOAccount is the DP's record of a client's demat account, stored by BO ID
+// (one client may have several; demats.go).
 type BOAccount struct {
 	UCC        string `json:"ucc"`
 	BOID       string `json:"bo_id"`
 	Depository string `json:"depository"`
-	Status     string `json:"status"`           // Active, Frozen, Closed
-	Freeze     string `json:"freeze,omitempty"` // Debit, Credit, Both
-	FreezeWhy  string `json:"freeze_reason,omitempty"`
-	BSDA       bool   `json:"bsda"`
+	// JointHolders are the second and third holders of a joint account
+	// (the client is the first holder).
+	JointHolders []JointHolder `json:"joint_holders,omitempty"`
+	// MovedTo marks a record of the time when BO accounts were kept by UCC:
+	// it was moved to the key its BO ID gives (demats.go) and is not an
+	// account.
+	MovedTo   string `json:"moved_to,omitempty"`
+	Status    string `json:"status"`           // Active, Frozen, Closed
+	Freeze    string `json:"freeze,omitempty"` // Debit, Credit, Both
+	FreezeWhy string `json:"freeze_reason,omitempty"`
+	BSDA      bool   `json:"bsda"`
 	// BSDAOptOut: the client chose a regular account although eligible;
 	// OtherDemat: the client has a demat account with another DP.
 	BSDAOptOut bool `json:"bsda_opt_out,omitempty"`
@@ -344,25 +352,22 @@ func (o *Ops) SaveDPTariff(ctx context.Context, tenant, actor string, t DPTariff
 	return t, nil
 }
 
-// bo returns a client's BO record, created from the client master on first use.
+// bo returns the DP's record of a client's primary demat account (for what
+// is about the client as a whole), made from the client master when there
+// is none; boFor (demats.go) is any one of the client's accounts.
 func (o *Ops) bo(ctx context.Context, tenant string, c Client) BOAccount {
-	b, _, err := docs.Get[BOAccount](ctx, o.Docs, tenant, cBO, c.UCC)
-	if err != nil {
-		b = BOAccount{UCC: c.UCC, BOID: c.Demat.ID, Depository: c.Demat.Depository, Status: "Active", Opened: c.KYCDate}
-		if c.Status != "Active" {
-			b.Status = "Not opened"
-		}
-	}
-	return b
+	return o.boFor(ctx, tenant, c, "")
 }
 
 // BORow is a BO account with its holdings.
 type BORow struct {
 	BOAccount
 	Name    string       `json:"name"`
+	Holders string       `json:"holders"`
+	Primary bool         `json:"primary"`
 	ISINs   int          `json:"isins"`
 	Value   money.Dec    `json:"value"`
-	Pledged int64        `json:"pledged_qty"`
+	Pledged money.Dec    `json:"pledged_qty"`
 	BSDAOK  bool         `json:"bsda_eligible"`
 	AMC     money.Amount `json:"amc_year"`
 	Ledger  money.Amount `json:"ledger"`
@@ -410,48 +415,69 @@ func (o *Ops) DP(ctx context.Context, tenant, date string) (DPView, error) {
 	type agg struct {
 		n   int
 		val money.Dec
-		pl  int64
+		pl  money.Dec
 	}
+	// By client and account (holdingIDAt's account part).
 	hv := map[string]*agg{}
 	for _, h := range hs {
-		a := hv[h.UCC]
+		k := h.UCC + "|" + h.BOID
+		a := hv[k]
 		if a == nil {
 			a = &agg{}
-			hv[h.UCC] = a
+			hv[k] = a
 		}
-		if h.Qty > 0 {
+		if h.Qty.Sign() > 0 {
 			a.n++
 		}
-		a.pl += h.Pledged
+		a.pl = a.pl.Add(h.Pledged)
 		if i, ok := look.ByISIN(h.ISIN); ok {
-			a.val = a.val.Add(i.LTP.MulInt(h.Qty))
+			a.val = a.val.Add(h.Value(i.LTP))
 		}
 	}
 	funds, _ := o.clientFunds(ctx, tenant, date, "")
+	idx := o.boIndex(ctx, tenant)
 	for _, u := range sortedKeys(cs) {
 		c := cs[u]
-		if c.Demat.ID == "" || c.Status != "Active" {
+		// Every one of the client's accounts with the DP (a client opening
+		// a trading account keeps them meanwhile); an active client with
+		// none on record shows its demat account from the client master.
+		bs := idx.of(c)
+		if c.Status != "Active" && len(bs) == 0 {
 			continue
 		}
-		b := o.bo(ctx, tenant, c)
-		r := BORow{BOAccount: b, Name: c.Name, Ledger: funds[u]}
-		if a := hv[u]; a != nil {
-			r.ISINs, r.Value, r.Pledged = a.n, a.val, a.pl
+		if len(bs) == 0 {
+			if c.Demat.ID == "" {
+				continue
+			}
+			bs = []BOAccount{o.bo(ctx, tenant, c)}
 		}
-		// BSDA: one demat account per PAN, holding value within the limit.
-		r.BSDAOK = r.Value.Cmp(t.BSDALimit.Dec()) <= 0
-		r.AMC = amcFor(t, b.BSDA, r.Value)
-		v.Counts[b.Status]++
-		if b.BSDA {
-			v.Counts["BSDA"]++
+		open := 0
+		for _, d := range demats(c) {
+			if d.Status != DematClosed {
+				open++
+			}
 		}
-		if r.BSDAOK && !b.BSDA && b.Status == "Active" {
-			v.Counts["Could be BSDA"]++
+		for _, b := range bs {
+			acct := holdingAcct(c, b.BOID)
+			r := BORow{BOAccount: b, Name: c.Name, Holders: dematHolderNames(c.Name, b.JointHolders), Primary: acct == "", Ledger: funds[u]}
+			if a := hv[u+"|"+acct]; a != nil {
+				r.ISINs, r.Value, r.Pledged = a.n, a.val, a.pl
+			}
+			// BSDA: one demat account per PAN, holding value within the limit.
+			r.BSDAOK = r.Value.Cmp(t.BSDALimit.Dec()) <= 0 && open <= 1 && len(b.JointHolders) == 0
+			r.AMC = amcFor(t, b.BSDA, r.Value)
+			v.Counts[b.Status]++
+			if b.BSDA {
+				v.Counts["BSDA"]++
+			}
+			if r.BSDAOK && !b.BSDA && b.Status == "Active" {
+				v.Counts["Could be BSDA"]++
+			}
+			if b.BSDA && !r.BSDAOK {
+				v.Counts["BSDA over limit"]++
+			}
+			v.Rows = append(v.Rows, r)
 		}
-		if b.BSDA && !r.BSDAOK {
-			v.Counts["BSDA over limit"]++
-		}
-		v.Rows = append(v.Rows, r)
 	}
 	v.DIS, _ = docs.List[DIS](ctx, o.Docs, tenant, cDIS, "")
 	sort.Slice(v.DIS, func(i, j int) bool { return v.DIS[i].ID > v.DIS[j].ID })
@@ -516,6 +542,11 @@ func (o *Ops) DP(ctx context.Context, tenant, date string) (DPView, error) {
 
 // SetBSDA converts an account to or from a Basic Services Demat Account.
 func (o *Ops) SetBSDA(ctx context.Context, tenant, actor, ucc string, on bool, date string) (BOAccount, error) {
+	return o.SetBSDAFor(ctx, tenant, actor, ucc, "", on, date)
+}
+
+// SetBSDAFor converts one of the client's accounts (blank: the primary).
+func (o *Ops) SetBSDAFor(ctx context.Context, tenant, actor, ucc, boid string, on bool, date string) (BOAccount, error) {
 	if err := o.require(ctx, tenant, actor, "Changing the account type", RoleChecker); err != nil {
 		return BOAccount{}, err
 	}
@@ -523,20 +554,23 @@ func (o *Ops) SetBSDA(ctx context.Context, tenant, actor, ucc string, on bool, d
 	if err != nil {
 		return BOAccount{}, err
 	}
-	b := o.bo(ctx, tenant, c)
+	b := o.boFor(ctx, tenant, c, boid)
 	if on {
 		v, err := o.DP(ctx, tenant, date)
 		if err != nil {
 			return b, err
 		}
 		for _, r := range v.Rows {
-			if r.UCC == c.UCC && !r.BSDAOK {
+			if r.UCC == c.UCC && normDematID(r.BOID) == normDematID(b.BOID) && !r.BSDAOK {
+				if len(activeDemats(c)) > 1 {
+					return b, invalid("a Basic Services Demat Account must be the client's only demat account; %s has %d", c.UCC, len(activeDemats(c)))
+				}
 				return b, invalid("holdings of ₹%s are above the BSDA limit of ₹%s", formatINR(r.Value), formatINR(v.Tariff.BSDALimit.Dec()))
 			}
 		}
 	}
 	b.BSDA = on
-	if err := docs.Upsert(ctx, o.Docs, tenant, cBO, b.UCC, b, actor); err != nil {
+	if err := o.putBO(ctx, tenant, actor, b); err != nil {
 		return b, err
 	}
 	o.log(ctx, tenant, actor, "dp.bsda", b.UCC, map[string]any{"bsda": on})
@@ -550,8 +584,11 @@ var OffMarketReasons = []string{"Gift", "Sale (off-market)", "Transfer to own ac
 
 // DISBook is a book of slips issued to a BO.
 type DISBook struct {
-	ID     string  `json:"id"`
-	UCC    string  `json:"ucc"`
+	ID  string `json:"id"`
+	UCC string `json:"ucc"`
+	// BOID is the demat account the book was issued for (empty: issued to
+	// the client before Ledgerline kept several accounts; any of them).
+	BOID   string  `json:"bo_id,omitempty"`
 	From   int64   `json:"from"`
 	To     int64   `json:"to"`
 	Issued string  `json:"issued"`
@@ -563,7 +600,7 @@ type DISBook struct {
 type DISLine struct {
 	ISIN   string    `json:"isin"`
 	Symbol string    `json:"symbol"`
-	Qty    int64     `json:"qty"`
+	Qty    money.Dec `json:"qty"` // exact: units in demat may be fractional
 	Value  money.Dec `json:"value"`
 }
 
@@ -597,8 +634,14 @@ type DIS struct {
 // HighValueDIS needs the client's confirmation on record (₹5 lakh).
 var HighValueDIS = money.DecInt(500000)
 
-// IssueDISBook issues a book of n slips to a client.
+// IssueDISBook issues a book of n slips for a client's primary account.
 func (o *Ops) IssueDISBook(ctx context.Context, tenant, actor, ucc string, n int64) (DISBook, error) {
+	return o.IssueDISBookFor(ctx, tenant, actor, ucc, "", n)
+}
+
+// IssueDISBookFor issues a book of n slips for one of the client's
+// accounts (blank: the primary).
+func (o *Ops) IssueDISBookFor(ctx context.Context, tenant, actor, ucc, boid string, n int64) (DISBook, error) {
 	if err := o.require(ctx, tenant, actor, "Issuing DIS books", RoleMaker, RoleChecker); err != nil {
 		return DISBook{}, err
 	}
@@ -606,8 +649,9 @@ func (o *Ops) IssueDISBook(ctx context.Context, tenant, actor, ucc string, n int
 	if err != nil {
 		return DISBook{}, err
 	}
-	if b := o.bo(ctx, tenant, c); b.Status != "Active" {
-		return DISBook{}, fmt.Errorf("%w: the demat account is %s", ErrState, strings.ToLower(b.Status))
+	bo := o.boFor(ctx, tenant, c, boid)
+	if bo.Status != "Active" {
+		return DISBook{}, fmt.Errorf("%w: the demat account is %s", ErrState, strings.ToLower(bo.Status))
 	}
 	if n < 1 || n > 100 {
 		return DISBook{}, invalid("a book has 1 to 100 slips")
@@ -623,7 +667,7 @@ func (o *Ops) IssueDISBook(ctx context.Context, tenant, actor, ucc string, n int
 	if err != nil {
 		return DISBook{}, err
 	}
-	b := DISBook{ID: fmt.Sprintf("DB-%05d", seq), UCC: c.UCC, From: next, To: next + n - 1, Issued: o.now().Format("2006-01-02"), Used: []int64{}, Lost: []int64{}}
+	b := DISBook{ID: fmt.Sprintf("DB-%05d", seq), UCC: c.UCC, BOID: normDematID(bo.BOID), From: next, To: next + n - 1, Issued: o.now().Format("2006-01-02"), Used: []int64{}, Lost: []int64{}}
 	if err := docs.Upsert(ctx, o.Docs, tenant, cDISBook, b.ID, b, actor); err != nil {
 		return b, err
 	}
@@ -631,43 +675,51 @@ func (o *Ops) IssueDISBook(ctx context.Context, tenant, actor, ucc string, n int
 	return b, nil
 }
 
-func (o *Ops) slipBook(ctx context.Context, tenant, ucc string, slip int64) (DISBook, bool) {
+func (o *Ops) slipBook(ctx context.Context, tenant, ucc, boid string, slip int64) (DISBook, bool) {
 	books, _ := docs.List[DISBook](ctx, o.Docs, tenant, cDISBook, "")
 	for _, b := range books {
-		if b.UCC == ucc && slip >= b.From && slip <= b.To {
+		if b.UCC == ucc && (b.BOID == "" || b.BOID == normDematID(boid)) && slip >= b.From && slip <= b.To {
 			return b, true
 		}
 	}
 	return DISBook{}, false
 }
 
-// freeBalance is what can be moved: holding less pledged and less
-// instructions not yet executed.
-func (o *Ops) freeBalance(ctx context.Context, tenant, ucc, isin string) int64 {
-	h, _, err := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingID(ucc, isin))
+// freeBalance is what can be moved from the client's primary account.
+func (o *Ops) freeBalance(ctx context.Context, tenant, ucc, isin string) money.Dec {
+	c, _ := o.Client(ctx, tenant, ucc)
+	return o.freeBalanceIn(ctx, tenant, c, "", isin)
+}
+
+// freeBalanceIn is what can be moved from one of the client's accounts
+// (blank: the primary): holding less pledged and less instructions from
+// that account not yet executed.
+func (o *Ops) freeBalanceIn(ctx context.Context, tenant string, c Client, boid, isin string) money.Dec {
+	acct := holdingAcct(c, boid)
+	h, _, err := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingIDAt(c.UCC, isin, acct))
 	if err != nil {
-		return 0
+		return money.Dec{}
 	}
-	free := h.Qty - h.Pledged
+	free := h.Free()
 	// A part of the ISIN frozen at CDSL cannot move (cdslfreeze.go).
-	if c, err := o.Client(ctx, tenant, ucc); err == nil {
-		free -= o.cdslFrozenQty(ctx, tenant, o.bo(ctx, tenant, c).BOID, isin, h.Qty)
-	}
+	bo := o.boFor(ctx, tenant, c, boid)
+	free = free.Sub(o.cdslFrozenQty(ctx, tenant, bo.BOID, isin, h.Qty))
 	ds, _ := docs.List[DIS](ctx, o.Docs, tenant, cDIS, "")
 	for _, d := range ds {
-		if d.UCC != ucc || (d.Status != "Entered" && d.Status != "Verified" && d.Status != "Uploaded") {
+		if d.UCC != c.UCC || holdingAcct(c, d.BOID) != acct || (d.Status != "Entered" && d.Status != "Verified" && d.Status != "Uploaded") {
 			continue
 		}
 		for _, l := range d.Lines {
 			if l.ISIN == isin {
-				free -= l.Qty
+				free = free.Sub(l.Qty)
 			}
 		}
 	}
 	return free
 }
 
-// EnterDIS records a slip received from a client.
+// EnterDIS records a slip received from a client. The slip debits the
+// demat account it names (BOID; blank: the client's primary account).
 func (o *Ops) EnterDIS(ctx context.Context, tenant, actor string, d DIS) (DIS, error) {
 	if err := o.require(ctx, tenant, actor, "Entering delivery instructions", RoleMaker, RoleChecker, RoleBranch); err != nil {
 		return d, err
@@ -676,16 +728,23 @@ func (o *Ops) EnterDIS(ctx context.Context, tenant, actor string, d DIS) (DIS, e
 	if err != nil {
 		return d, invalid("client %s not found", d.UCC)
 	}
-	b := o.bo(ctx, tenant, c)
+	if d.BOID = normDematID(d.BOID); d.BOID != "" {
+		if _, ok := dematOf(c, d.BOID); !ok {
+			return d, invalid("%s is not a demat account of %s", d.BOID, c.UCC)
+		}
+	}
+	b := o.boFor(ctx, tenant, c, d.BOID)
 	switch {
+	case b.BOID == "":
+		return d, fmt.Errorf("%w: %s has no demat account", ErrState, c.UCC)
 	case b.Status == "Closed":
 		return d, fmt.Errorf("%w: the demat account is closed", ErrState)
 	case b.debitFrozen():
 		return d, fmt.Errorf("%w: the demat account is frozen for debits (%s)", ErrState, b.freezeWhy())
 	}
-	book, ok := o.slipBook(ctx, tenant, c.UCC, d.Slip)
+	book, ok := o.slipBook(ctx, tenant, c.UCC, b.BOID, d.Slip)
 	if !ok {
-		return d, invalid("slip %d was not issued to %s", d.Slip, c.UCC)
+		return d, invalid("slip %d was not issued to %s for demat account %s", d.Slip, c.UCC, b.BOID)
 	}
 	if contains(i64s(book.Used), fmt.Sprint(d.Slip)) {
 		return d, invalid("slip %d has already been used", d.Slip)
@@ -735,20 +794,23 @@ func (o *Ops) EnterDIS(ctx context.Context, tenant, actor string, d DIS) (DIS, e
 	for i := range d.Lines {
 		l := &d.Lines[i]
 		l.ISIN = strings.ToUpper(strings.TrimSpace(l.ISIN))
-		if l.Qty <= 0 {
+		if l.Qty.Sign() <= 0 {
 			return d, invalid("quantity must be above zero")
+		}
+		if _, err := parseQty(l.Qty.String()); err != nil {
+			return d, invalid("quantity %s", err)
 		}
 		if fz, ok := o.cdslISINFrozen(ctx, tenant, b.BOID, l.ISIN, false); ok && fz.Full() {
 			return d, fmt.Errorf("%w: %s is frozen for debits at CDSL in this account (%s)", ErrState, l.ISIN, fz.Why())
 		}
-		if free := o.freeBalance(ctx, tenant, c.UCC, l.ISIN); l.Qty > free {
-			return d, invalid("only %d free in %s (after pledges and pending instructions)", max(free, 0), l.ISIN)
+		if free := o.freeBalanceIn(ctx, tenant, c, b.BOID, l.ISIN); l.Qty.Cmp(free) > 0 {
+			return d, invalid("only %s free in %s in demat account %s (after pledges and pending instructions)", fmtQty(money.Max(free, money.Dec{})), l.ISIN, b.BOID)
 		}
-		if h, _, err := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingID(c.UCC, l.ISIN)); err == nil {
+		if h, _, err := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingIDAt(c.UCC, l.ISIN, holdingAcct(c, b.BOID))); err == nil {
 			l.Symbol = h.Symbol
 		}
 		if i, ok := look.ByISIN(l.ISIN); ok {
-			l.Value = i.LTP.MulInt(l.Qty)
+			l.Value = i.LTP.Mul(l.Qty)
 		}
 		d.Value = d.Value.Add(l.Value)
 	}
@@ -827,7 +889,7 @@ func (o *Ops) DISBatch(ctx context.Context, tenant, actor, date string) ([]byte,
 			continue
 		}
 		for _, l := range d.Lines {
-			rows = append(rows, []string{batch, d.ID, fmt.Sprint(d.Slip), d.BOID, d.ToBO, d.Kind, d.ExecDate, l.ISIN, fmt.Sprint(l.Qty), d.Reason, d.Consideration.String()})
+			rows = append(rows, []string{batch, d.ID, fmt.Sprint(d.Slip), d.BOID, d.ToBO, d.Kind, d.ExecDate, l.ISIN, fmtQty(l.Qty), d.Reason, d.Consideration.String()})
 		}
 		if _, err := docs.Update(ctx, o.Docs, tenant, cDIS, d.ID, actor, func(x *DIS) error { x.Status, x.Batch = "Uploaded", batch; return nil }); err != nil {
 			return nil, n, err
@@ -859,8 +921,9 @@ func (o *Ops) ExecuteDIS(ctx context.Context, tenant, actor, id string, ok bool,
 	}
 	if ok {
 		// A freeze CDSL reported after the slip was verified stops it here.
-		if c, err := o.Client(ctx, tenant, d.UCC); err == nil {
-			if b := o.bo(ctx, tenant, c); b.debitFrozen() {
+		c, _ := o.Client(ctx, tenant, d.UCC)
+		if c.UCC != "" {
+			if b := o.boFor(ctx, tenant, c, d.BOID); b.debitFrozen() {
 				return d, fmt.Errorf("%w: the demat account is frozen for debits (%s); record the slip as failed", ErrState, b.freezeWhy())
 			}
 			for _, l := range d.Lines {
@@ -869,17 +932,19 @@ func (o *Ops) ExecuteDIS(ctx context.Context, tenant, actor, id string, ok bool,
 				}
 			}
 		}
+		// Out of the account the slip names only.
+		acct := holdingAcct(c, d.BOID)
 		for _, l := range d.Lines {
-			if _, err := docs.Update(ctx, o.Docs, tenant, cHolding, holdingID(d.UCC, l.ISIN), actor, func(h *Holding) error {
-				if h.Qty-h.Pledged < l.Qty {
-					return fmt.Errorf("%w: %s no longer has %d free in %s", ErrState, d.UCC, l.Qty, l.ISIN)
+			if _, err := docs.Update(ctx, o.Docs, tenant, cHolding, holdingIDAt(d.UCC, l.ISIN, acct), actor, func(h *Holding) error {
+				if h.Free().Cmp(l.Qty) < 0 {
+					return fmt.Errorf("%w: %s no longer has %s free in %s%s", ErrState, d.UCC, fmtQty(l.Qty), l.ISIN, acctNote(acct))
 				}
-				h.Qty -= l.Qty
+				h.Qty = h.Qty.Sub(l.Qty)
 				return nil
 			}); err != nil {
 				return d, err
 			}
-			if err := o.dpTxn(ctx, tenant, actor, DPTxn{Date: date, UCC: d.UCC, ISIN: l.ISIN, Symbol: l.Symbol, Qty: -l.Qty, Kind: d.Kind + " transfer", Ref: d.ID, Value: l.Value, Billable: true, Counterparty: []string{d.ToBO}}); err != nil {
+			if err := o.dpTxn(ctx, tenant, actor, DPTxn{Date: date, UCC: d.UCC, BOID: d.BOID, ISIN: l.ISIN, Symbol: l.Symbol, Qty: l.Qty.Neg(), Kind: d.Kind + " transfer", Ref: d.ID, Value: l.Value, Billable: true, Counterparty: []string{d.ToBO}}); err != nil {
 				return d, err
 			}
 		}
@@ -903,12 +968,15 @@ func (o *Ops) ExecuteDIS(ctx context.Context, tenant, actor, id string, ok bool,
 
 // DPTxn is a movement in a BO account.
 type DPTxn struct {
-	ID       string    `json:"id"`
-	Date     string    `json:"date"`
-	UCC      string    `json:"ucc"`
+	ID   string `json:"id"`
+	Date string `json:"date"`
+	UCC  string `json:"ucc"`
+	// BOID is the account moved in (empty: the client's primary account,
+	// as before several accounts were kept).
+	BOID     string    `json:"bo_id,omitempty"`
 	ISIN     string    `json:"isin"`
 	Symbol   string    `json:"symbol"`
-	Qty      int64     `json:"qty"` // + credit, − debit
+	Qty      money.Dec `json:"qty"` // + credit, − debit; exact
 	Kind     string    `json:"kind"`
 	Ref      string    `json:"ref"`
 	Value    money.Dec `json:"value"`
@@ -942,6 +1010,9 @@ func (o *Ops) DPTransactions(ctx context.Context, tenant, ucc string) ([]DPTxn, 
 
 // DPBillLine is one charge on a DP bill.
 type DPBillLine struct {
+	// BOID is the demat account the charge is for: a client with several
+	// accounts gets one bill with each account's lines.
+	BOID   string       `json:"bo_id,omitempty"`
 	What   string       `json:"what"`
 	Count  int64        `json:"count"`
 	Amount money.Amount `json:"amount"`
@@ -970,6 +1041,12 @@ type DPBill struct {
 // firm's own pool accounts) carry no debit or credit charge.
 // Bills are posted to the trading ledger with GST and an invoice. A month
 // is billed once.
+//
+// A client with several accounts with the DP gets one bill a month, with
+// each account's charges on lines of their own (DPBillLine.BOID): the bill
+// is the client's (it is posted to the client's ledger as one entry with
+// one tax invoice), as it was with one account, and its key (month|UCC)
+// still makes a month billable once.
 func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]DPBill, error) {
 	if err := o.require(ctx, tenant, actor, "DP billing", RoleChecker); err != nil {
 		return nil, err
@@ -988,57 +1065,86 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 	}
 	set, _ := o.Settings(ctx, tenant)
 	free := t.freeSet()
-	var out []DPBill
+	cs, _ := o.ClientMap(ctx, tenant)
+	// The billable accounts, client by client.
+	rows := map[string][]BORow{}
+	var order []string
 	for _, r := range v.Rows {
 		if r.Status == "Closed" || r.Status == "Not opened" {
 			continue
 		}
-		if _, _, err := docs.Get[DPBill](ctx, o.Docs, tenant, cDPBill, month+"|"+r.UCC); err == nil {
+		if rows[r.UCC] == nil {
+			order = append(order, r.UCC)
+		}
+		rows[r.UCC] = append(rows[r.UCC], r)
+	}
+	var out []DPBill
+	for _, u := range order {
+		rs := rows[u]
+		if _, _, err := docs.Get[DPBill](ctx, o.Docs, tenant, cDPBill, month+"|"+u); err == nil {
 			continue
 		}
-		b := DPBill{ID: month + "|" + r.UCC, Month: month, UCC: r.UCC, Name: r.Name}
-		if amc := r.AMC / 12; amc > 0 {
-			b.Lines = append(b.Lines, DPBillLine{What: map[bool]string{true: "Annual maintenance (BSDA), one month", false: "Annual maintenance, one month"}[r.BSDA], Count: 1, Amount: amc})
-		}
-		ts, _ := o.DPTransactions(ctx, tenant, r.UCC)
-		var debits, credits, offmkt int64
-		var omCharge money.Amount
-		var certs int64
-		for _, x := range ts {
-			if x.Date < month+"-01" || x.Date > end || !x.Billable {
-				continue
-			}
-			if _, ok := t.freeFor(free, x); ok && x.Certs == 0 {
-				b.Free++
-				continue
-			}
-			if x.Qty > 0 && x.Certs == 0 && !strings.HasPrefix(x.Kind, "IPO") {
-				credits++
-			}
-			if x.Qty < 0 {
-				debits++
-				if strings.HasPrefix(x.Kind, "Off-market") {
-					offmkt++
-					c := x.Value.Pct(t.OffMarketPct).Round(money.UnitPaisa)
-					if c < t.OffMarketMin {
-						c = t.OffMarketMin
-					}
-					omCharge += c
+		c := cs[u]
+		b := DPBill{ID: month + "|" + u, Month: month, UCC: u, Name: rs[0].Name}
+		ts, _ := o.DPTransactions(ctx, tenant, u)
+		several := len(rs) > 1
+		for _, r := range rs {
+			acct := holdingAcct(c, r.BOID)
+			label := func(what string) string {
+				if several {
+					return what + " · " + cdslMaskBO(r.BOID)
 				}
+				return what
 			}
-			certs += int64(x.Certs)
-		}
-		if debits > 0 {
-			b.Lines = append(b.Lines, DPBillLine{What: "Debit instructions (per ISIN)", Count: debits, Amount: t.DebitCharge * money.Amount(debits), Share: t.DepositoryShare * money.Amount(debits)})
-		}
-		if credits > 0 && t.CreditCharge > 0 {
-			b.Lines = append(b.Lines, DPBillLine{What: "Credit instructions (per ISIN)", Count: credits, Amount: t.CreditCharge * money.Amount(credits)})
-		}
-		if offmkt > 0 {
-			b.Lines = append(b.Lines, DPBillLine{What: "Off-market transfer charge", Count: offmkt, Amount: omCharge})
-		}
-		if certs > 0 {
-			b.Lines = append(b.Lines, DPBillLine{What: "Dematerialisation (per certificate)", Count: certs, Amount: t.DematCharge * money.Amount(certs)})
+			line := func(l DPBillLine) {
+				if several {
+					l.BOID = normDematID(r.BOID)
+				}
+				l.What = label(l.What)
+				b.Lines = append(b.Lines, l)
+			}
+			if amc := r.AMC / 12; amc > 0 {
+				line(DPBillLine{What: map[bool]string{true: "Annual maintenance (BSDA), one month", false: "Annual maintenance, one month"}[r.BSDA], Count: 1, Amount: amc})
+			}
+			var debits, credits, offmkt int64
+			var omCharge money.Amount
+			var certs int64
+			for _, x := range ts {
+				if x.Date < month+"-01" || x.Date > end || !x.Billable || holdingAcct(c, x.BOID) != acct {
+					continue
+				}
+				if _, ok := t.freeFor(free, x); ok && x.Certs == 0 {
+					b.Free++
+					continue
+				}
+				if x.Qty.Sign() > 0 && x.Certs == 0 && !strings.HasPrefix(x.Kind, "IPO") {
+					credits++
+				}
+				if x.Qty.Sign() < 0 {
+					debits++
+					if strings.HasPrefix(x.Kind, "Off-market") {
+						offmkt++
+						c := x.Value.Pct(t.OffMarketPct).Round(money.UnitPaisa)
+						if c < t.OffMarketMin {
+							c = t.OffMarketMin
+						}
+						omCharge += c
+					}
+				}
+				certs += int64(x.Certs)
+			}
+			if debits > 0 {
+				line(DPBillLine{What: "Debit instructions (per ISIN)", Count: debits, Amount: t.DebitCharge * money.Amount(debits), Share: t.DepositoryShare * money.Amount(debits)})
+			}
+			if credits > 0 && t.CreditCharge > 0 {
+				line(DPBillLine{What: "Credit instructions (per ISIN)", Count: credits, Amount: t.CreditCharge * money.Amount(credits)})
+			}
+			if offmkt > 0 {
+				line(DPBillLine{What: "Off-market transfer charge", Count: offmkt, Amount: omCharge})
+			}
+			if certs > 0 {
+				line(DPBillLine{What: "Dematerialisation (per certificate)", Count: certs, Amount: t.DematCharge * money.Amount(certs)})
+			}
 		}
 		if len(b.Lines) == 0 {
 			continue
@@ -1051,7 +1157,7 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 		b.GST = b.Taxable.Dec().Pct(set.gstRate()).Round(money.UnitPaisa)
 		b.Total = b.Taxable + b.GST
 		desc := "DP charges for " + month
-		ps := []ledger.Posting{{Account: ledger.ClientAccount(r.UCC), Debit: b.Total, Memo: desc}}
+		ps := []ledger.Posting{{Account: ledger.ClientAccount(u), Debit: b.Total, Memo: desc}}
 		for _, p := range []ledger.Posting{{Account: IncomeDP, Credit: b.Taxable - share}, {Account: PayableDepository, Credit: share}, {Account: ledger.PayableGST, Credit: b.GST}} {
 			if p.Credit > 0 {
 				ps = append(ps, p)
@@ -1062,7 +1168,7 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 		if err != nil {
 			return out, err
 		}
-		inv, err := o.issueInvoice(ctx, tenant, actor, Invoice{Date: end, UCC: r.UCC, Name: r.Name, Kind: "Depository", Description: desc, SAC: "997152",
+		inv, err := o.issueInvoice(ctx, tenant, actor, Invoice{Date: end, UCC: u, Name: b.Name, Kind: "Depository", Description: desc, SAC: "997152",
 			Taxable: b.Taxable, GSTPct: set.gstRate(), GST: b.GST, Total: b.Total, Entry: e.ID})
 		if err != nil {
 			return out, err
@@ -1081,10 +1187,13 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 
 // DPRequest is a demat, freeze, unfreeze, transmission or closure request.
 type DPRequest struct {
-	ID      string            `json:"id"`
-	Kind    string            `json:"kind"` // Demat, Freeze, Unfreeze, Transmission, Closure
-	UCC     string            `json:"ucc"`
-	Name    string            `json:"name"`
+	ID   string `json:"id"`
+	Kind string `json:"kind"` // Demat, Freeze, Unfreeze, Transmission, Closure
+	UCC  string `json:"ucc"`
+	Name string `json:"name"`
+	// BOID is the demat account the request is for (empty: the client's
+	// primary account).
+	BOID    string            `json:"bo_id,omitempty"`
 	Detail  map[string]string `json:"detail"`
 	Status  string            `json:"status"` // Pending, Sent to RTA, Sent to CDSL, Completed, Rejected
 	Maker   string            `json:"maker"`
@@ -1105,20 +1214,26 @@ func (o *Ops) RaiseDPRequest(ctx context.Context, tenant, actor string, r DPRequ
 	if err != nil {
 		return r, invalid("client %s not found", r.UCC)
 	}
-	b := o.bo(ctx, tenant, c)
+	if r.BOID = normDematID(r.BOID); r.BOID != "" {
+		if _, ok := dematOf(c, r.BOID); !ok {
+			return r, invalid("%s is not a demat account of %s", r.BOID, c.UCC)
+		}
+	}
+	b := o.boFor(ctx, tenant, c, r.BOID)
+	r.BOID = b.BOID
 	d := r.Detail
 	if d == nil {
 		d = map[string]string{}
 	}
 	switch r.Kind {
 	case "Demat":
-		var q int64
+		q, qerr := parseQty(d["qty"])
 		var certs int
-		fmt.Sscanf(d["qty"], "%d", &q)
 		fmt.Sscanf(d["certificates"], "%d", &certs)
 		// Units in a mutual fund statement of account (a folio) have no
-		// certificates; they go to CDSL by DESTAT (cdsltxn.go).
-		if d["isin"] == "" || (q <= 0 && !strings.EqualFold(d["qty"], "all")) || (certs <= 0 && d["folio"] == "") || d["drf"] == "" {
+		// certificates (and may be fractional); they go to CDSL by DESTAT
+		// (cdsltxn.go).
+		if d["isin"] == "" || ((qerr != nil || q.Sign() <= 0) && !strings.EqualFold(d["qty"], "all")) || (certs <= 0 && d["folio"] == "") || d["drf"] == "" {
 			return r, invalid("give the DRF number, ISIN, quantity and number of certificates (or the folio, for units)")
 		}
 	case "Freeze":
@@ -1139,8 +1254,9 @@ func (o *Ops) RaiseDPRequest(ctx context.Context, tenant, actor string, r DPRequ
 	case "Closure":
 		hs, _ := o.Holdings(ctx, tenant, c.UCC)
 		held := 0
+		acct := holdingAcct(c, b.BOID)
 		for _, h := range hs {
-			if h.Qty > 0 {
+			if h.BOID == acct && h.Qty.Sign() > 0 {
 				held++
 			}
 		}
@@ -1190,7 +1306,8 @@ func (o *Ops) ActOnDPRequest(ctx context.Context, tenant, actor, id, action, not
 	if err != nil {
 		return r, err
 	}
-	b := o.bo(ctx, tenant, c)
+	b := o.boFor(ctx, tenant, c, r.BOID)
+	acct := holdingAcct(c, b.BOID)
 	date := o.businessDate(ctx, tenant)
 	status := "Completed"
 	viaCDSL := false
@@ -1219,18 +1336,17 @@ func (o *Ops) ActOnDPRequest(ctx context.Context, tenant, actor, id, action, not
 			if r.Status != "Sent to RTA" {
 				return r, fmt.Errorf("%w: send the request to the RTA first", ErrState)
 			}
-			var q int64
+			q, _ := parseQty(r.Detail["qty"])
 			var certs int
-			fmt.Sscanf(r.Detail["qty"], "%d", &q)
 			fmt.Sscanf(r.Detail["certificates"], "%d", &certs)
 			isin := strings.ToUpper(r.Detail["isin"])
-			if _, err := upd(ctx, o.Docs, tenant, cHolding, holdingID(c.UCC, isin), actor, &Holding{UCC: c.UCC, ISIN: isin, Symbol: r.Detail["symbol"]}, func(h *Holding) error {
-				h.Qty += q
+			if _, err := upd(ctx, o.Docs, tenant, cHolding, holdingIDAt(c.UCC, isin, acct), actor, &Holding{UCC: c.UCC, ISIN: isin, Symbol: r.Detail["symbol"], BOID: acct}, func(h *Holding) error {
+				h.Qty = h.Qty.Add(q)
 				return nil
 			}); err != nil {
 				return r, err
 			}
-			if err := o.dpTxn(ctx, tenant, actor, DPTxn{Date: date, UCC: c.UCC, ISIN: isin, Symbol: r.Detail["symbol"], Qty: q, Kind: "Demat credit", Ref: r.ID, Billable: true, Certs: certs}); err != nil {
+			if err := o.dpTxn(ctx, tenant, actor, DPTxn{Date: date, UCC: c.UCC, BOID: b.BOID, ISIN: isin, Symbol: r.Detail["symbol"], Qty: q, Kind: "Demat credit", Ref: r.ID, Billable: true, Certs: certs}); err != nil {
 				return r, err
 			}
 		case "Freeze":
@@ -1238,24 +1354,28 @@ func (o *Ops) ActOnDPRequest(ctx context.Context, tenant, actor, id, action, not
 		case "Unfreeze":
 			b.Status, b.Freeze, b.FreezeWhy = "Active", "", ""
 		case "Transmission":
+			// The account's holdings go to the claimant's account for
+			// pay-outs (its primary unless the claimant chose another).
 			to := strings.ToUpper(r.Detail["to_ucc"])
+			tc, _ := o.Client(ctx, tenant, to)
+			toAcct := holdingAcct(tc, payoutDemat(tc).ID)
 			hs, _ := o.Holdings(ctx, tenant, c.UCC)
 			for _, h := range hs {
-				if h.Qty <= 0 {
+				if h.BOID != acct || h.Qty.Sign() <= 0 {
 					continue
 				}
-				if h.Pledged > 0 {
+				if h.Pledged.Sign() > 0 {
 					return r, fmt.Errorf("%w: %s has pledged %s; close the pledge first", ErrState, c.UCC, h.Symbol)
 				}
 				q := h.Qty
-				if _, err := docs.Update(ctx, o.Docs, tenant, cHolding, holdingID(c.UCC, h.ISIN), actor, func(x *Holding) error { x.Qty = 0; return nil }); err != nil {
+				if _, err := docs.Update(ctx, o.Docs, tenant, cHolding, holdingIDAt(c.UCC, h.ISIN, acct), actor, func(x *Holding) error { x.Qty = money.Dec{}; return nil }); err != nil {
 					return r, err
 				}
-				if _, err := upd(ctx, o.Docs, tenant, cHolding, holdingID(to, h.ISIN), actor, &Holding{UCC: to, ISIN: h.ISIN, Symbol: h.Symbol, AvgCost: h.AvgCost}, func(x *Holding) error { x.Qty += q; return nil }); err != nil {
+				if _, err := upd(ctx, o.Docs, tenant, cHolding, holdingIDAt(to, h.ISIN, toAcct), actor, &Holding{UCC: to, ISIN: h.ISIN, Symbol: h.Symbol, AvgCost: h.AvgCost, BOID: toAcct}, func(x *Holding) error { x.Qty = x.Qty.Add(q); return nil }); err != nil {
 					return r, err
 				}
-				_ = o.dpTxn(ctx, tenant, actor, DPTxn{Date: date, UCC: c.UCC, ISIN: h.ISIN, Symbol: h.Symbol, Qty: -q, Kind: "Transmission out", Ref: r.ID})
-				_ = o.dpTxn(ctx, tenant, actor, DPTxn{Date: date, UCC: to, ISIN: h.ISIN, Symbol: h.Symbol, Qty: q, Kind: "Transmission in", Ref: r.ID})
+				_ = o.dpTxn(ctx, tenant, actor, DPTxn{Date: date, UCC: c.UCC, BOID: b.BOID, ISIN: h.ISIN, Symbol: h.Symbol, Qty: q.Neg(), Kind: "Transmission out", Ref: r.ID})
+				_ = o.dpTxn(ctx, tenant, actor, DPTxn{Date: date, UCC: to, BOID: payoutDemat(tc).ID, ISIN: h.ISIN, Symbol: h.Symbol, Qty: q, Kind: "Transmission in", Ref: r.ID})
 			}
 			b.Status, b.Freeze, b.FreezeWhy = "Frozen", "Both", "Transmission completed ("+r.ID+")"
 		case "Closure":
@@ -1273,14 +1393,14 @@ func (o *Ops) ActOnDPRequest(ctx context.Context, tenant, actor, id, action, not
 			}
 			hs, _ := o.Holdings(ctx, tenant, c.UCC)
 			for _, h := range hs {
-				if h.Qty > 0 {
-					return r, fmt.Errorf("%w: %s still holds %s; execute the transfer first", ErrState, c.UCC, h.Symbol)
+				if h.BOID == acct && h.Qty.Sign() > 0 {
+					return r, fmt.Errorf("%w: %s still holds %s%s; execute the transfer first", ErrState, c.UCC, h.Symbol, acctNote(acct))
 				}
 			}
 			b.Status, b.ClosedOn = "Closed", date
 		}
 		if r.Kind != "Demat" && !viaCDSL {
-			if err := docs.Upsert(ctx, o.Docs, tenant, cBO, b.UCC, b, actor); err != nil {
+			if err := o.putBO(ctx, tenant, actor, b); err != nil {
 				return r, err
 			}
 		}

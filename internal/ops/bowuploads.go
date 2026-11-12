@@ -339,7 +339,7 @@ func (o *Ops) bowUserAdds(ctx context.Context, tenant string, cfg bowFilesCfg, o
 		return b, err
 	}
 	groups := bowList(firstOf(cfg.v["offline_groups"], "OFFLINE"))
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return b, err
 	}
@@ -477,7 +477,7 @@ func (o *Ops) bowDealerMapping(ctx context.Context, tenant string, cfg bowFilesC
 			byAP[p] = append(byAP[p], bowDealerID(ids, d))
 		}
 	}
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return b, err
 	}
@@ -606,7 +606,7 @@ func (o *Ops) bowNNF(ctx context.Context, tenant string, cfg bowFilesCfg, date s
 		}
 	}
 	if len(es) > 0 {
-		cs, err := o.ClientMap(ctx, tenant)
+		cs, err := o.tradingClientMap(ctx, tenant)
 		if err != nil {
 			return b, err
 		}
@@ -653,7 +653,7 @@ func (o *Ops) bowTradingRights(ctx context.Context, tenant string) (bowBuilt, er
 		b.Empty = "Nothing to send: the firm trades on none of BOW's exchanges (Settings → member codes and clearing)"
 		return b, nil
 	}
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return b, err
 	}
@@ -711,7 +711,7 @@ func (o *Ops) bowRiskPrefs(ctx context.Context, tenant string, cfg bowFilesCfg) 
 	if len(scope) != 3 {
 		return b, invalid("risk preferences Exchange, Market, Product: give three values (e.g. ALL,ALL,ALL)")
 	}
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return b, err
 	}
@@ -757,7 +757,7 @@ func (o *Ops) bowContractMargin(ctx context.Context, tenant string, cfg bowFiles
 	if len(ls) == 0 {
 		return b, bowNeed("Intraday Margin and Delivery Margin", "Contract margin lines")
 	}
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return b, err
 	}
@@ -834,7 +834,7 @@ func (o *Ops) bowRightLimits(ctx context.Context, tenant string, cfg bowFilesCfg
 	if len(ls) == 0 {
 		return b, bowNeed("Category, EXCHANGE, MARKET and SEGMENT", "Right limit lines")
 	}
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return b, err
 	}
@@ -895,7 +895,7 @@ func (o *Ops) bowProfiles(ctx context.Context, tenant string, cfg bowFilesCfg) (
 		b.Empty = "Nothing to send: no BOW profile names are set in Connections → BOW upload files (Profile names)"
 		return b, nil
 	}
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return b, err
 	}
@@ -916,7 +916,7 @@ func (o *Ops) bowProfiles(ctx context.Context, tenant string, cfg bowFilesCfg) (
 
 func (o *Ops) bowPAN(ctx context.Context, tenant string) (bowBuilt, error) {
 	b := bowBuilt{Tracked: true}
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return b, err
 	}
@@ -940,7 +940,7 @@ var reDigitsOnly = regexp.MustCompile(`^[0-9]{10,}$`)
 
 func (o *Ops) bowBanks(ctx context.Context, tenant string) (bowBuilt, error) {
 	b := bowBuilt{Tracked: true}
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return b, err
 	}
@@ -996,7 +996,7 @@ var bowKRACodes = map[string]string{"Validated": "A", "Registered": "A", "Reject
 
 func (o *Ops) bowKRA(ctx context.Context, tenant string) (bowBuilt, error) {
 	b := bowBuilt{Tracked: true}
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return b, err
 	}
@@ -1032,7 +1032,7 @@ func (o *Ops) bowCPCodes(ctx context.Context, tenant string) (bowBuilt, error) {
 	if err != nil {
 		return b, err
 	}
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return b, err
 	}

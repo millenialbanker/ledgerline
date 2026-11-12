@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ledgerline/internal/docs"
+	"ledgerline/internal/money"
 )
 
 // ---- CDSL APIs the client confirms with an OTP on CDSL's page ----
@@ -160,22 +161,24 @@ func (o *Ops) cdslFinishClosure(ctx context.Context, tenant, actor string, r *CD
 	if err != nil {
 		return err
 	}
-	b := o.bo(ctx, tenant, c)
+	// The account the request is for: its holdings only.
+	b := o.boFor(ctx, tenant, c, r.BOID)
+	acct := holdingAcct(c, b.BOID)
 	date := o.businessDate(ctx, tenant)
 	to := firstOf(r.Fields["destination"], r.Fields["transfer_to"])
 	hs, _ := o.Holdings(ctx, tenant, c.UCC)
 	for _, h := range hs {
-		if h.Qty <= 0 {
+		if h.BOID != acct || h.Qty.Sign() <= 0 {
 			continue
 		}
 		q := h.Qty
-		if _, err := docs.Update(ctx, o.Docs, tenant, cHolding, holdingID(c.UCC, h.ISIN), actor, func(x *Holding) error { x.Qty, x.Pledged = 0, 0; return nil }); err != nil {
+		if _, err := docs.Update(ctx, o.Docs, tenant, cHolding, holdingIDAt(c.UCC, h.ISIN, acct), actor, func(x *Holding) error { x.Qty, x.Pledged = money.Dec{}, money.Dec{}; return nil }); err != nil {
 			return err
 		}
-		_ = o.dpTxn(ctx, tenant, actor, DPTxn{Date: date, UCC: c.UCC, ISIN: h.ISIN, Symbol: h.Symbol, Qty: -q, Kind: "Account transfer out", Ref: r.ID})
+		_ = o.dpTxn(ctx, tenant, actor, DPTxn{Date: date, UCC: c.UCC, BOID: b.BOID, ISIN: h.ISIN, Symbol: h.Symbol, Qty: q.Neg(), Kind: "Account transfer out", Ref: r.ID})
 	}
 	b.Status, b.ClosedOn, b.Freeze, b.FreezeWhy = "Closed", date, "", ""
-	if err := docs.Upsert(ctx, o.Docs, tenant, cBO, b.UCC, b, actor); err != nil {
+	if err := o.putBO(ctx, tenant, actor, b); err != nil {
 		return err
 	}
 	if strings.HasPrefix(r.Source, "DPR-") {

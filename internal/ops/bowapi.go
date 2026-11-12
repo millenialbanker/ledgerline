@@ -734,7 +734,7 @@ func (o *Ops) bowLimits(ctx context.Context, tenant, date string) (map[string]BO
 			eq[u] = eq[u].Sub(v)
 		}
 	}
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -1216,7 +1216,7 @@ func (o *Ops) bowPush(ctx context.Context, tenant, actor, date, kind string, ucc
 	if err != nil {
 		return run, err
 	}
-	cs, _ := o.ClientMap(ctx, tenant)
+	cs, _ := o.tradingClientMap(ctx, tenant)
 	cctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 	c := &bowCall{ctx: cctx, tenant: tenant, x: x, now: o.now}
@@ -1547,7 +1547,7 @@ func (o *Ops) BOWLimitsView(ctx context.Context, tenant, actor, date string) (BO
 	if err != nil {
 		return v, err
 	}
-	cs, _ := o.ClientMap(ctx, tenant)
+	cs, _ := o.tradingClientMap(ctx, tenant)
 	users, m, _ := o.bowUsers(ctx, tenant, nil, cs, false)
 	v.MasterDate, v.MasterSize = m.Date, m.Total
 	ovs, _ := docs.List[BOWOverride](ctx, o.Docs, tenant, cBOWOverride, "")
@@ -1608,7 +1608,7 @@ func (o *Ops) BOWRefreshMaster(ctx context.Context, tenant, actor string) (int, 
 	if err != nil {
 		return 0, 0, err
 	}
-	cs, _ := o.ClientMap(ctx, tenant)
+	cs, _ := o.tradingClientMap(ctx, tenant)
 	cctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	c := &bowCall{ctx: cctx, tenant: tenant, x: x, now: o.now}

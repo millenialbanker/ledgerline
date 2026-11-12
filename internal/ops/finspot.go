@@ -250,7 +250,7 @@ func (o *Ops) FinspotHoldingFile(ctx context.Context, tenant, date string, t1 bo
 	}
 	set, _ := o.Settings(ctx, tenant)
 	prev := set.PrevBusinessDay(date)
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return "", nil, err
 	}
@@ -355,8 +355,8 @@ func trimDec(s string) string {
 // ends' holding files (Finspot's ISIN Holding, BOW's User Stock upload).
 type dematLine struct {
 	UCC, ISIN string
-	Demat     int64     // demat balance (margin-pledged included) less lender pledges and CDSL freezes
-	Pledged   int64     // margin-pledged, as the holding has it
+	Demat     int64     // demat balance (margin-pledged included) less lender pledges and CDSL freezes; whole units, all the client's accounts
+	Pledged   int64     // margin-pledged, as the holdings have it (whole units)
 	Cost      money.Dec // the holding's average cost (zero when unknown)
 	CUSPA     int64     // unpaid purchases held in CUSPA, sellable too
 	CUSPAVal  money.Dec // their value
@@ -381,25 +381,43 @@ func (o *Ops) sellableDemat(ctx context.Context, tenant, date string, cs map[str
 		}
 		return out[k]
 	}
+	// Every one of the client's accounts, added up. A sale is delivered in
+	// whole units from one account, so each account gives its whole units
+	// (a fraction, such as mutual fund units, is not sellable on the
+	// exchange); an account frozen for debits gives nothing.
 	frozenBO := map[string]bool{}
+	cost := map[string]money.Dec{}
+	held := map[string]money.Dec{}
 	for _, h := range hs {
-		c := cs[h.UCC]
-		if _, seen := frozenBO[h.UCC]; !seen {
-			frozenBO[h.UCC] = o.bo(ctx, tenant, c).debitFrozen()
+		c, ok := cs[h.UCC]
+		if !ok {
+			continue // not a trading client (a DP-only one, dponly.go)
 		}
-		if frozenBO[h.UCC] {
+		bo := normDematID(holdingBO(c, h))
+		fk := h.UCC + "|" + bo
+		if _, seen := frozenBO[fk]; !seen {
+			frozenBO[fk] = o.boFor(ctx, tenant, c, bo).debitFrozen()
+		}
+		if frozenBO[fk] {
 			continue
 		}
-		q := h.Qty - enc[h.UCC][h.ISIN]
-		q -= o.cdslFrozenQty(ctx, tenant, c.Demat.ID, h.ISIN, q)
+		q := h.Qty.Sub(o.cdslFrozenQty(ctx, tenant, bo, h.ISIN, h.Qty))
 		l := line(h.UCC, h.ISIN)
-		l.Demat += q
-		l.Pledged += h.Pledged
-		l.Cost = h.AvgCost
+		l.Demat += wholeUnits(q)
+		l.Pledged += wholeUnits(h.Pledged)
+		k := h.UCC + "|" + h.ISIN
+		cost[k], held[k] = cost[k].Add(h.AvgCost.Mul(h.Qty)), held[k].Add(h.Qty)
+	}
+	for k, l := range out {
+		// Shares pledged to lenders are the client's, from any account.
+		l.Demat -= enc[l.UCC][l.ISIN]
+		if held[k].Sign() > 0 {
+			l.Cost, _ = cost[k].Quo(held[k])
+		}
 	}
 	cu, _ := docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
 	for _, it := range cu {
-		if it.Status == "Held in CUSPA" && it.Date < date {
+		if _, ok := cs[it.UCC]; ok && it.Status == "Held in CUSPA" && it.Date < date {
 			l := line(it.UCC, it.ISIN)
 			l.CUSPA += it.Qty
 			l.CUSPAVal = l.CUSPAVal.Add(it.Value)
@@ -524,7 +542,7 @@ func (o *Ops) FinspotBlockFile(ctx context.Context, tenant, actor, date string) 
 	}
 	finspotMu.Lock()
 	defer finspotMu.Unlock()
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return "", nil, err
 	}
@@ -640,7 +658,7 @@ func (o *Ops) FinspotClientFile(ctx context.Context, tenant, actor, kind, date s
 	}
 	finspotMu.Lock()
 	defer finspotMu.Unlock()
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return "", nil, err
 	}

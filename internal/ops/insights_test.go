@@ -62,8 +62,8 @@ func TestTaxHarvestAndOutcome(t *testing.T) {
 	half, _ := gain.LTP.Quo(money.DecInt(2))
 	lossCost := loss.LTP.Add(loss.LTP.Pct(money.DecInt(50)))
 	book := LotBook{UCC: "BH9", AsOf: addDays(D, -1), Lots: []Lot{
-		{ISIN: gain.ISIN, Symbol: gain.Symbol, Qty: 100, Date: "2026-03-02", Price: half},
-		{ISIN: loss.ISIN, Symbol: loss.Symbol, Qty: 50, Date: "2026-02-02", Price: lossCost},
+		{ISIN: gain.ISIN, Symbol: gain.Symbol, Qty: dq(100), Date: "2026-03-02", Price: half},
+		{ISIN: loss.ISIN, Symbol: loss.Symbol, Qty: dq(50), Date: "2026-02-02", Price: lossCost},
 	}}
 	if err := docs.Upsert(ctx, o.Docs, T, cLot, "BH9", book, "test"); err != nil {
 		t.Fatal(err)
@@ -153,7 +153,7 @@ func TestBuyBackInsight(t *testing.T) {
 	var h Holding
 	var ltp money.Dec
 	for _, x := range hs {
-		if i, ok := look.ByISIN(x.ISIN); ok && x.Qty-x.Pledged >= 10 && i.LTP.Sign() > 0 {
+		if i, ok := look.ByISIN(x.ISIN); ok && wq(x.Qty)-wq(x.Pledged) >= 10 && i.LTP.Sign() > 0 {
 			h, ltp = x, i.LTP
 			break
 		}

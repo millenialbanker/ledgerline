@@ -325,13 +325,13 @@ func (o *Ops) refreshCDSLFreeze(ctx context.Context, tenant, actor, boid, ucc st
 	if ucc == "" {
 		return
 	}
-	b, _, err := docs.Get[BOAccount](ctx, o.Docs, tenant, cBO, ucc)
-	if err != nil {
+	b, ok := o.boAccount(ctx, tenant, boid)
+	if !ok || b.UCC != ucc {
 		c, cerr := o.Client(ctx, tenant, ucc)
 		if cerr != nil {
 			return
 		}
-		b = o.bo(ctx, tenant, c)
+		b = o.boFor(ctx, tenant, c, boid)
 	}
 	if normDematID(b.BOID) != normDematID(boid) {
 		return
@@ -358,8 +358,8 @@ func (o *Ops) refreshCDSLFreeze(ctx context.Context, tenant, actor, boid, ucc st
 		return
 	}
 	b.CDSLFreeze, b.CDSLFreezeWhy = nf, nw
-	if err := docs.Upsert(ctx, o.Docs, tenant, cBO, b.UCC, b, actor); err == nil {
-		o.log(ctx, tenant, actor, "dp.cdsl_freeze", b.UCC, map[string]any{"freeze": nf})
+	if err := o.putBO(ctx, tenant, actor, b); err == nil {
+		o.log(ctx, tenant, actor, "dp.cdsl_freeze", b.UCC, map[string]any{"freeze": nf, "bo": cdslMaskBO(b.BOID)})
 	}
 }
 
@@ -383,19 +383,20 @@ func (o *Ops) cdslISINFrozen(ctx context.Context, tenant, boid, isin string, cre
 
 // cdslFrozenQty is how much of a holding a debit freeze on the ISIN holds
 // (all of it for a full freeze).
-func (o *Ops) cdslFrozenQty(ctx context.Context, tenant, boid, isin string, held int64) int64 {
+func (o *Ops) cdslFrozenQty(ctx context.Context, tenant, boid, isin string, held money.Dec) money.Dec {
 	today := o.now().In(ist).Format("2006-01-02")
-	var q int64
+	var q money.Dec
+	held = money.Max(held, money.Dec{})
 	for _, f := range o.cdslFreezesOf(ctx, tenant, boid) {
 		if f.ISIN != strings.ToUpper(isin) || !f.blocking(today) || !f.debit() {
 			continue
 		}
 		if f.Full() {
-			return max(held, 0)
+			return held
 		}
-		q += f.Qty().Round(money.UnitRupee).Paise() / 100
+		q = q.Add(f.Qty())
 	}
-	return min(q, max(held, 0))
+	return money.Min(q, held)
 }
 
 // CDSLFreezeTick refreshes the accounts' CDSL freezes for expiry and
@@ -435,7 +436,10 @@ func (o *Ops) CDSLFreezes(ctx context.Context, tenant, actor, ucc string) ([]CDS
 		if err != nil {
 			return nil, err
 		}
-		fs = o.cdslFreezesOf(ctx, tenant, o.bo(ctx, tenant, c).BOID)
+		// Every one of the client's accounts.
+		for _, d := range demats(c) {
+			fs = append(fs, o.cdslFreezesOf(ctx, tenant, d.ID)...)
+		}
 	} else {
 		fs, _ = docs.List[CDSLFreeze](ctx, o.Docs, tenant, cCDSLFreeze, "")
 	}
@@ -465,7 +469,9 @@ func (o *Ops) settleFrozen(ctx context.Context, tenant string, ob Obligation, ac
 	if err != nil {
 		return ""
 	}
-	b := o.bo(ctx, tenant, c)
+	// A pay-out is credited to the account for pay-outs; a pay-in comes
+	// from the primary first.
+	b := o.boFor(ctx, tenant, c, map[bool]string{true: payoutDemat(c).ID, false: ""}[credit])
 	switch {
 	case credit && b.creditFrozen():
 		return fmt.Sprintf("%s's demat account is frozen for credits (%s): the pay-out of %s cannot be credited", ob.UCC, b.freezeWhy(), firstOf(ob.Symbol, ob.ISIN))

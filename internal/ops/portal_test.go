@@ -140,7 +140,7 @@ func TestClientPortal(t *testing.T) {
 	}
 	found := false
 	for _, l := range open {
-		found = found || (l.ISIN == "INE000Z01011" && l.Qty == 10)
+		found = found || (l.ISIN == "INE000Z01011" && wq(l.Qty) == 10)
 	}
 	if !found {
 		t.Fatal("outside buy not in lots")

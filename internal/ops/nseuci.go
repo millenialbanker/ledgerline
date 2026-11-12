@@ -480,6 +480,9 @@ type nseUCIRecord struct {
 type nseUCIMapped struct {
 	Records  []nseUCIRecord
 	Problems []string
+	// Warnings do not stop the record (more demat accounts than NSE's
+	// slots, demats.go).
+	Warnings []string
 }
 
 // nseUCIMap maps a client to NSE's records (one per segment) and checks
@@ -547,26 +550,37 @@ func nseUCIMap(c Client, d UCCDetails, a *Application, set Settings, member stri
 			}
 		}
 	}
-	// Demat (fields 14 to 17). For NSDL the 16-character ID is the DP ID
-	// (IN + 6) and the 8-digit client ID; for CDSL the 16-digit BO ID, with
-	// the depository ID left blank as the TDD asks of the 2nd to 5th demat
-	// accounts (it does not say so for the first: the safer reading).
-	dp, id := strings.ToUpper(strings.TrimSpace(c.Demat.Depository)), strings.ToUpper(strings.TrimSpace(c.Demat.ID))
+	// Demat (fields 14 to 17, and the 2nd to 5th accounts). Every active
+	// demat account, the primary first (P, the others S), up to NSE's 5.
+	// For NSDL the 16-character ID is the DP ID (IN + 6) and the 8-digit
+	// client ID; for CDSL the 16-digit BO ID, with the depository ID left
+	// blank as the TDD asks of the 2nd to 5th demat accounts (it does not say
+	// so for the first: the safer reading).
 	hasCash := false
 	for _, s := range c.Segments {
 		hasCash = hasCash || s == "CM"
 	}
-	switch {
-	case id == "":
-		if hasCash {
-			bad("Demat account: NSE needs it for the cash segment")
+	ds := uccDemats(c, "NSE", func(f string, x ...any) { m.Warnings = append(m.Warnings, fmt.Sprintf(f, x...)) })
+	if len(ds) == 0 && hasCash {
+		bad("Demat account: NSE needs it for the cash segment")
+	}
+	for i, x := range ds {
+		n, ps := "", "S"
+		if i > 0 {
+			n = fmt.Sprint(i + 1)
 		}
-	case dp == "NSDL" && len(id) == 16 && strings.HasPrefix(id, "IN") && allDigits(id[8:]):
-		b["ccdDeposName"], b["ccdDeposId"], b["ccdBenAcctNo"], b["ccdPriSecDp"] = "NSDL", id[:8], id[8:], "P"
-	case dp == "CDSL" && len(id) == 16 && allDigits(id) && strings.Trim(id, "0") != "":
-		b["ccdDeposName"], b["ccdBenAcctNo"], b["ccdPriSecDp"] = "CDSL", id, "P"
-	default:
-		bad("Demat account: %s ID must be %s", firstOf(dp, "the depository's"), map[bool]string{true: "IN, 6 characters and 8 digits", false: "16 digits"}[dp == "NSDL"])
+		if x.Primary || i == 0 {
+			ps = "P"
+		}
+		dp, id := strings.ToUpper(strings.TrimSpace(x.Depository)), strings.ToUpper(strings.TrimSpace(x.ID))
+		switch {
+		case dp == "NSDL" && len(id) == 16 && strings.HasPrefix(id, "IN") && allDigits(id[8:]):
+			b["ccdDeposName"+n], b["ccdDeposId"+n], b["ccdBenAcctNo"+n], b["ccdPriSecDp"+n] = "NSDL", id[:8], id[8:], ps
+		case dp == "CDSL" && len(id) == 16 && allDigits(id) && strings.Trim(id, "0") != "":
+			b["ccdDeposName"+n], b["ccdBenAcctNo"+n], b["ccdPriSecDp"+n] = "CDSL", id, ps
+		default:
+			bad("Demat account%s: %s ID must be %s", map[bool]string{true: "", false: " " + fmt.Sprint(i+1)}[i == 0], firstOf(dp, "the depository's"), map[bool]string{true: "IN, 6 characters and 8 digits", false: "16 digits"}[dp == "NSDL"])
+		}
 	}
 	// Date of birth or incorporation.
 	b["ccdDob"] = nseUCIDate(c.DOB)
@@ -1076,6 +1090,7 @@ type NSEUCIClientRow struct {
 	Status    string   `json:"status"`
 	Reason    string   `json:"reason"`
 	Problems  []string `json:"problems"`
+	Warnings  []string `json:"warnings,omitempty"`
 	PANStatus string   `json:"pan_status"`
 	SentAt    string   `json:"sent_at"`
 	ResultAt  string   `json:"result_at"`
@@ -1125,7 +1140,7 @@ type nseUCIItem struct {
 }
 
 func nseUCIInScope(c Client, hasReg bool) bool {
-	return hasReg || c.Status == "UCC upload" || c.Status == "Active"
+	return !c.DPOnly && (hasReg || c.Status == "UCC upload" || c.Status == "Active")
 }
 
 // nseUCIItems works out every client's state.
@@ -1162,7 +1177,7 @@ func (o *Ops) nseUCIItems(ctx context.Context, tenant, member string, only map[s
 				it.pending = append(it.pending, r)
 			}
 		}
-		row := NSEUCIClientRow{UCC: c.UCC, Name: c.Name, PAN: MaskPAN(c.PAN), Action: "Add", Problems: []string{}, SentAt: reg.SentAt, ResultAt: reg.ResultAt, Ref: reg.Ref}
+		row := NSEUCIClientRow{UCC: c.UCC, Name: c.Name, PAN: MaskPAN(c.PAN), Action: "Add", Problems: []string{}, Warnings: it.mapped.Warnings, SentAt: reg.SentAt, ResultAt: reg.ResultAt, Ref: reg.Ref}
 		if reg.Accepted {
 			row.Action = "Modify"
 		}

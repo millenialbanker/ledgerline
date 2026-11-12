@@ -333,6 +333,9 @@ type Ops struct {
 	DefaultEdition string
 	edMu           sync.Mutex
 	edCache        editionCache
+	// boKeyed are the firms whose BO accounts have been re-keyed by BO ID
+	// in this server run (demats.go).
+	boKeyed sync.Map
 	// HolidaySources fetch exchange holiday lists (holidays.go); none means
 	// lists are uploaded from the circulars only.
 	HolidaySources []HolidaySource

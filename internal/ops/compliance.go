@@ -70,7 +70,7 @@ type ClientDoc struct {
 }
 
 // DocKinds are the document kinds held for clients.
-var DocKinds = []string{"PAN card", "Address proof", "Photograph", "Signature", "Bank proof", "Income proof", "KYC form", "Account opening agreement", "DDPI / POA", "Nomination form", "IPV / VIPV record", "Other"}
+var DocKinds = []string{"PAN card", "Address proof", "Photograph", "Signature", "Bank proof", "Income proof", "KYC form", "Account opening agreement", "DDPI / POA", "Demat proof", "Nomination form", "IPV / VIPV record", "Other"}
 
 func reKYCYears(risk string) int {
 	switch risk {

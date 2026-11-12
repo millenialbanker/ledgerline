@@ -155,6 +155,7 @@ Matching stock SIP orders to trades | Ops maker, Ops checker, Risk manager
 Month-end postings | Ops checker
 Moving money between MCX and equity | Ops maker, Ops checker, Risk manager
 NRI registration | Ops checker, Compliance officer
+Opening a trading account | Ops maker, Ops checker
 Passing a margin penalty to a client | Risk manager, Compliance officer
 Pay-out hold rules | Risk manager
 Paying vendor bills | Ops maker, Ops checker

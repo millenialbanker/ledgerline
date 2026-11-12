@@ -334,16 +334,13 @@ func (o *Ops) sohToHoldings(ctx context.Context, tenant string, rows []xfile.Row
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	byBO := map[string]string{}
-	for _, c := range cs {
-		if c.Demat.ID != "" {
-			byBO[strings.TrimSpace(c.Demat.ID)] = c.UCC
-		}
-	}
+	// Each line's BO ID names the account, and through it the client: a
+	// client may have several accounts (demats.go).
+	byBO := o.boClients(ctx, tenant)
 	prev := map[string]Holding{}
 	if hs, err := o.Holdings(ctx, tenant, ""); err == nil {
 		for _, h := range hs {
-			prev[holdingID(h.UCC, h.ISIN)] = h
+			prev[holdingIDAt(h.UCC, h.ISIN, h.BOID)] = h
 		}
 	}
 	type agg struct{ qty, pledged money.Dec }
@@ -351,12 +348,13 @@ func (o *Ops) sohToHoldings(ctx context.Context, tenant string, rows []xfile.Row
 	var keys []string
 	skipped := 0
 	for _, r := range rows {
-		ucc, ok := byBO[strings.TrimSpace(r.Get("BnfclOwnrId"))]
+		bo := normDematID(r.Get("BnfclOwnrId"))
+		ucc, ok := byBO[bo]
 		if !ok {
 			skipped++
 			continue
 		}
-		k := ucc + "|" + strings.ToUpper(r.Get("ISIN"))
+		k := ucc + "|" + strings.ToUpper(r.Get("ISIN")) + "|" + holdingAcct(cs[ucc], bo)
 		a := sum[k]
 		if a == nil {
 			a = &agg{}
@@ -366,16 +364,20 @@ func (o *Ops) sohToHoldings(ctx context.Context, tenant string, rows []xfile.Row
 		a.qty = a.qty.Add(decOr0(r.Get("CurBal")))
 		a.pledged = a.pledged.Add(decOr0(r.Get("PldgdBal")))
 	}
-	out := [][]string{{"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost"}}
+	// Quantities exactly as CDSL gives them (units may be fractional, to 3
+	// decimal places), to the 4 the import keeps.
+	out := [][]string{{"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost", "BOID"}}
 	for _, k := range keys {
-		ucc, isin, _ := strings.Cut(k, "|")
-		p := prev[holdingID(ucc, isin)]
+		parts := strings.SplitN(k, "|", 3)
+		ucc, isin, acct := parts[0], parts[1], parts[2]
+		p := prev[holdingIDAt(ucc, isin, acct)]
 		sym := p.Symbol
 		if sym == "" {
 			sym = isin
 		}
 		cost := p.AvgCost.Fixed(2)
-		out = append(out, []string{ucc, isin, sym, sum[k].qty.Round(money.UnitRupee).Dec().Fixed(0), sum[k].pledged.Round(money.UnitRupee).Dec().Fixed(0), cost})
+		bo := firstOf(acct, normDematID(primaryDemat(cs[ucc]).ID))
+		out = append(out, []string{ucc, isin, sym, fmtQty(truncQty(sum[k].qty)), fmtQty(truncQty(sum[k].pledged)), cost, bo})
 	}
 	return csvBytesOf(out), len(keys), skipped, nil
 }
@@ -690,7 +692,9 @@ func (o *Ops) holdingStatementFile(ctx context.Context, tenant string, s *xfile.
 		return "", nil, err
 	}
 	cs, _ := o.ClientMap(ctx, tenant)
-	sort.SliceStable(hs, func(i, j int) bool { return holdingID(hs[i].UCC, hs[i].ISIN) < holdingID(hs[j].UCC, hs[j].ISIN) })
+	sort.SliceStable(hs, func(i, j int) bool {
+		return holdingIDAt(hs[i].UCC, hs[i].ISIN, hs[i].BOID) < holdingIDAt(hs[j].UCC, hs[j].ISIN, hs[j].BOID)
+	})
 	type item struct {
 		RecID           string `json:"recId"`
 		Dmat            string `json:"dmat"`
@@ -708,14 +712,19 @@ func (o *Ops) holdingStatementFile(ctx context.Context, tenant string, s *xfile.
 	}
 	d, _ := time.Parse("2006-01-02", date)
 	items := []item{}
+	// One item per demat account (the report is by account), with the
+	// quantities to the 3 decimal places the layout has.
 	for _, h := range hs {
-		if h.Qty <= 0 {
+		if h.Qty.Sign() <= 0 {
 			continue
 		}
 		c := cs[h.UCC]
-		q3 := func(n int64) string { return fmt.Sprintf("%d.000", n) }
-		items = append(items, item{RecID: fmt.Sprint(len(items) + 1), Dmat: c.Demat.ID, AccountType: "OWN", UCC: h.UCC, ClientName: c.Name, PAN: c.PAN, ISIN: h.ISIN,
-			SecurityType: "EQ", NameOfCommodity: "NA", UnitType: "NA", TotalPldgQty: q3(h.Pledged), FreeBalQty: q3(h.Qty - h.Pledged), TotalQty: q3(h.Qty)})
+		if c.DPOnly {
+			continue // not a trading client of the member
+		}
+		q3 := func(q money.Dec) string { return q.Fixed(3) }
+		items = append(items, item{RecID: fmt.Sprint(len(items) + 1), Dmat: holdingBO(c, h), AccountType: "OWN", UCC: h.UCC, ClientName: c.Name, PAN: c.PAN, ISIN: h.ISIN,
+			SecurityType: "EQ", NameOfCommodity: "NA", UnitType: "NA", TotalPldgQty: q3(h.Pledged), FreeBalQty: q3(h.Free()), TotalQty: q3(h.Qty)})
 	}
 	msg := struct {
 		MemberPan      string `json:"memberPan"`

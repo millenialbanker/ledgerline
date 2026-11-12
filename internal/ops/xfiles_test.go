@@ -123,7 +123,7 @@ func TestLoadCDSLHoldingAndPositions(t *testing.T) {
 	hs, _ := o.Holdings(ctx, T, c.UCC)
 	found := false
 	for _, x := range hs {
-		if x.ISIN == "INE000X01010" && x.Qty == 25 && x.Pledged == 5 {
+		if x.ISIN == "INE000X01010" && wq(x.Qty) == 25 && wq(x.Pledged) == 5 {
 			found = true
 		}
 	}

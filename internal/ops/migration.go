@@ -1003,6 +1003,22 @@ func (o *Ops) MigErrorsCSV(ctx context.Context, tenant, actor, id string, w io.W
 	return err
 }
 
+// groupINDec is groupIN for an exact quantity, with its decimals when it
+// has any (12,34,567.993).
+func groupINDec(q money.Dec) string {
+	s := q.String()
+	ip, frac, ok := strings.Cut(s, ".")
+	n, _ := strconv.ParseInt(ip, 10, 64)
+	out := groupIN(n)
+	if n == 0 && strings.HasPrefix(ip, "-") {
+		out = "-0"
+	}
+	if ok {
+		out += "." + frac
+	}
+	return out
+}
+
 // groupIN writes n with Indian digit grouping (12,34,567).
 func groupIN(n int64) string {
 	neg := n < 0

@@ -87,9 +87,12 @@ func (o *Ops) Obligations(ctx context.Context, tenant, date string) (Settlement,
 	if err != nil {
 		return Settlement{}, err
 	}
-	hold := map[string]Holding{}
+	// Every one of the client's accounts together, in whole units (a
+	// delivery is in whole shares; a fraction stays where it is).
+	hold := holdingsByClient(hs)
+	free := map[string]int64{}
 	for _, h := range hs {
-		hold[holdingID(h.UCC, h.ISIN)] = h
+		free[holdingID(h.UCC, h.ISIN)] += wholeUnits(h.Free())
 	}
 	states, err := docs.List[settleState](ctx, o.Docs, tenant, cSettle, date+"|")
 	if err != nil {
@@ -138,7 +141,7 @@ func (o *Ops) Obligations(ctx context.Context, tenant, date string) (Settlement,
 		ob := g[k]
 		ob.NetQty = ob.BuyQty - ob.SellQty
 		h := hold[holdingID(ob.UCC, ob.ISIN)]
-		ob.Holding, ob.Free = h.Qty, h.Qty-h.Pledged
+		ob.Holding, ob.Free = wholeUnits(h.Qty), free[holdingID(ob.UCC, ob.ISIN)]
 		switch {
 		case ob.NetQty < 0:
 			need := -ob.NetQty
@@ -233,26 +236,32 @@ func (o *Ops) SettleAction(ctx context.Context, tenant, actor, date, key, action
 		return *ob, fmt.Errorf("%w: %s", ErrState, why)
 	}
 	status := ""
+	// Pay-ins come out of the client's accounts, the primary first; pay-outs
+	// go to the account the client chose for pay-outs, else the primary.
+	cl, _ := o.Client(ctx, tenant, ob.UCC)
+	if cl.UCC == "" {
+		cl.UCC = ob.UCC
+	}
 	switch action {
 	case "payin":
-		if _, err := o.adjustHolding(ctx, tenant, actor, ob.UCC, ob.ISIN, ob.Symbol, ob.NetQty, 0); err != nil {
+		if err := o.debitAcross(ctx, tenant, actor, cl, ob.ISIN, ob.Symbol, -ob.NetQty); err != nil {
 			return *ob, err
 		}
 		status = "Paid in"
 	case "unpledge_payin":
 		need := -ob.NetQty
 		unpledge := need - ob.Free
-		if _, err := o.adjustHolding(ctx, tenant, actor, ob.UCC, ob.ISIN, ob.Symbol, 0, -unpledge); err != nil {
+		if err := o.unpledgeAcross(ctx, tenant, actor, cl, ob.ISIN, ob.Symbol, unpledge); err != nil {
 			return *ob, err
 		}
-		if _, err := o.adjustHolding(ctx, tenant, actor, ob.UCC, ob.ISIN, ob.Symbol, ob.NetQty, 0); err != nil {
+		if err := o.debitAcross(ctx, tenant, actor, cl, ob.ISIN, ob.Symbol, need); err != nil {
 			return *ob, err
 		}
 		status = "Paid in"
 	case "report_short":
 		// Deliver what is free; the remainder goes to auction.
 		if ob.Free > 0 {
-			if _, err := o.adjustHolding(ctx, tenant, actor, ob.UCC, ob.ISIN, ob.Symbol, -ob.Free, 0); err != nil {
+			if err := o.debitAcross(ctx, tenant, actor, cl, ob.ISIN, ob.Symbol, ob.Free); err != nil {
 				return *ob, err
 			}
 		}
@@ -271,7 +280,7 @@ func (o *Ops) SettleAction(ctx context.Context, tenant, actor, date, key, action
 		}
 		status = "Held in CUSPA"
 	case "payout":
-		if _, err := o.adjustHolding(ctx, tenant, actor, ob.UCC, ob.ISIN, ob.Symbol, ob.NetQty, 0); err != nil {
+		if _, err := o.adjustHoldingAt(ctx, tenant, actor, ob.UCC, holdingAcct(cl, payoutDemat(cl).ID), ob.ISIN, ob.Symbol, money.DecInt(ob.NetQty), money.Dec{}); err != nil {
 			return *ob, err
 		}
 		status = "Paid out"
@@ -326,7 +335,9 @@ func (o *Ops) ReleaseCUSPA(ctx context.Context, tenant, actor, id string) (CUSPA
 	if funds[it.UCC] < 0 {
 		return it, fmt.Errorf("%w: %s still owes %s; record the receipt first", ErrState, it.UCC, (-funds[it.UCC]).String())
 	}
-	if _, err := o.adjustHolding(ctx, tenant, actor, it.UCC, it.ISIN, it.Symbol, it.Qty, 0); err != nil {
+	// To the account the client chose for pay-outs, else the primary.
+	cl, _ := o.Client(ctx, tenant, it.UCC)
+	if _, err := o.adjustHoldingAt(ctx, tenant, actor, it.UCC, holdingAcct(cl, payoutDemat(cl).ID), it.ISIN, it.Symbol, money.DecInt(it.Qty), money.Dec{}); err != nil {
 		return it, err
 	}
 	it, err = docs.Update(ctx, o.Docs, tenant, cCUSPA, id, actor, func(x *CUSPAItem) error { x.Status = "Released"; return nil })

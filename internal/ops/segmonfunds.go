@@ -295,7 +295,7 @@ func (o *Ops) segmonData(ctx context.Context, tenant, date string) (map[string]*
 	if err != nil {
 		return nil, nil, err
 	}
-	cs, _ := o.ClientMap(ctx, tenant)
+	cs, _ := o.tradingClientMap(ctx, tenant)
 	al, err := o.Allocation(ctx, tenant, date)
 	if err != nil {
 		return nil, nil, err
@@ -313,8 +313,9 @@ func (o *Ops) segmonData(ctx context.Context, tenant, date string) (map[string]*
 		}
 		return c
 	}
+	dpOnly := o.dpOnlySet(ctx, tenant) // not trading clients (dponly.go)
 	for acct, b := range bals {
-		if u, ok := strings.CutPrefix(acct, "CLIENT:"); ok {
+		if u, ok := strings.CutPrefix(acct, "CLIENT:"); ok && !dpOnly[u] {
 			get(u).bal = *b
 		}
 	}
@@ -326,11 +327,11 @@ func (o *Ops) segmonData(ctx context.Context, tenant, date string) (map[string]*
 	}
 	// Pledged securities after haircut, G-secs and T-bills apart.
 	for _, h := range in.holdings {
-		if h.Pledged <= 0 {
+		if h.Pledged.Sign() <= 0 {
 			continue
 		}
 		if i, ok := in.look.ByISIN(h.ISIN); ok {
-			v := i.LTP.MulInt(h.Pledged).Pct(money.DecInt(100).Sub(i.HaircutPct)) // as live risk values it
+			v := i.LTP.Mul(h.Pledged).Pct(money.DecInt(100).Sub(i.HaircutPct)) // as live risk values it
 			c := get(h.UCC)
 			if strings.HasPrefix(strings.ToUpper(h.ISIN), "IN00") {
 				c.gsec = c.gsec.Add(v)

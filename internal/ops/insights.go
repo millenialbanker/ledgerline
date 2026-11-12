@@ -182,7 +182,7 @@ func capTax(st, lt money.Dec) money.Dec {
 type HarvestLot struct {
 	Symbol    string    `json:"symbol"`
 	ISIN      string    `json:"isin"`
-	Qty       int64     `json:"qty"`
+	Qty       money.Dec `json:"qty"`
 	BuyDate   string    `json:"buy_date"`
 	BuyPrice  money.Dec `json:"buy_price"`
 	LTP       money.Dec `json:"ltp"`
@@ -238,7 +238,7 @@ func (o *Ops) TaxPlan(ctx context.Context, tenant, ucc, date string) (TaxPlan, e
 	p.STCG, p.LTCG, p.Spec = g[CatSTCG], g[CatLTCG], g[CatSpec]
 	_, look, _ := o.Market(ctx, tenant, date)
 	for _, l := range open {
-		if l.Qty <= 0 {
+		if l.Qty.Sign() <= 0 {
 			continue
 		}
 		if l.Date == "" {
@@ -253,7 +253,7 @@ func (o *Ops) TaxPlan(ctx context.Context, tenant, ucc, date string) (TaxPlan, e
 			continue
 		}
 		term, _ := gainCategory(l.Date, date)
-		h := HarvestLot{Symbol: l.Symbol, ISIN: l.ISIN, Qty: l.Qty, BuyDate: l.Date, BuyPrice: l.Price, LTP: i.LTP, PnL: i.LTP.Sub(l.Price).MulInt(l.Qty), Term: "Short"}
+		h := HarvestLot{Symbol: l.Symbol, ISIN: l.ISIN, Qty: l.Qty, BuyDate: l.Date, BuyPrice: l.Price, LTP: i.LTP, PnL: i.LTP.Sub(l.Price).Mul(l.Qty), Term: "Short"}
 		if tb, err := time.Parse("2006-01-02", l.Date); err == nil {
 			h.LongOn = tb.AddDate(1, 0, 1).Format("2006-01-02")
 		}
@@ -263,7 +263,7 @@ func (o *Ops) TaxPlan(ctx context.Context, tenant, ucc, date string) (TaxPlan, e
 		switch {
 		case h.PnL.Sign() < 0:
 			p.Losses = append(p.Losses, h)
-			p.STTCost = p.STTCost.Add(i.LTP.MulInt(l.Qty).Mul(sttDelivery).MulInt(2))
+			p.STTCost = p.STTCost.Add(i.LTP.Mul(l.Qty).Mul(sttDelivery).MulInt(2))
 			if h.Term == "Long" {
 				p.LTLoss = p.LTLoss.Sub(h.PnL)
 			} else {
@@ -536,14 +536,15 @@ func autoBuyBack(r *runCtx) error {
 				tendered[x.UCC] = true
 			}
 		}
+		// The client's accounts together; tendered in whole shares.
 		hs, _ := r.o.Holdings(ctx, r.tenant, "")
-		for _, h := range hs {
-			free := h.Qty - h.Pledged
+		for _, h := range sumHoldings(hs) {
+			free := wholeUnits(h.Free())
 			c, okc := cs[h.UCC]
 			if h.ISIN != b.ISIN || free <= 0 || tendered[h.UCC] || !okc || c.Status != "Active" {
 				continue
 			}
-			value := i.LTP.MulInt(h.Qty)
+			value := h.Value(i.LTP)
 			cat, ratio := "General", b.GeneralRatio
 			if value.Cmp(smallHolder) <= 0 {
 				cat, ratio = "Small shareholder (reserved)", b.SmallRatio
@@ -556,7 +557,7 @@ func autoBuyBack(r *runCtx) error {
 			}
 			r.raise(ctx, Insight{Kind: "buyback", UCC: h.UCC, Name: c.Name, Period: b.ID, Due: b.Close, Symbols: []string{b.Symbol},
 				Title:  fmt.Sprintf("%s buy-back at ₹%s, %s%% above the market", b.Symbol, b.Price.Fixed(2), premPct.Fixed(1)),
-				Detail: fmt.Sprintf("Holds %d (%d free). Category: %s; entitlement %s. Tender by %s.", h.Qty, free, cat, entTxt, fmtDay(b.Close)),
+				Detail: fmt.Sprintf("Holds %s (%d free). Category: %s; entitlement %s. Tender by %s.", fmtQty(h.Qty), free, cat, entTxt, fmtDay(b.Close)),
 				Value:  gain,
 				Facts: map[string]string{"symbol": b.Symbol, "company": firstOf(b.Company, b.Symbol), "price": b.Price.Fixed(2), "ltp": i.LTP.Fixed(2), "premium_pct": premPct.Fixed(1),
 					"held": fmt.Sprint(free), "category": cat, "entitlement": entTxt, "record": fmtDay(b.Record), "close": fmtDay(b.Close)}},
@@ -717,19 +718,19 @@ func autoCorpAction(r *runCtx) error {
 		case "Split":
 			what = fmt.Sprintf("split from face value ₹%d to ₹%d", ca.RatioOld, ca.RatioNew)
 		}
-		for _, h := range hs {
+		for _, h := range sumHoldings(hs) {
 			c, ok := cs[h.UCC]
-			if h.ISIN != ca.ISIN || h.Qty <= 0 || !ok || c.Status != "Active" {
+			if h.ISIN != ca.ISIN || h.Qty.Sign() <= 0 || !ok || c.Status != "Active" {
 				continue
 			}
 			v := money.Dec{}
 			if ca.Type == "Dividend" {
-				v = ca.DPS.MulInt(h.Qty)
+				v = ca.DPS.Mul(h.Qty)
 			}
 			r.raise(ctx, Insight{Kind: "corp_action", UCC: h.UCC, Name: c.Name, Period: ca.ID, Due: ca.RecordDate, Symbols: []string{ca.Symbol}, Value: v,
 				Title:  fmt.Sprintf("%s: %s, record date %s", ca.Symbol, what, fmtDay(ca.RecordDate)),
-				Detail: fmt.Sprintf("Holds %d. Ex-date %s.", h.Qty, fmtDay(ca.ExDate)),
-				Facts:  map[string]string{"symbol": ca.Symbol, "what": what, "record": fmtDay(ca.RecordDate), "ex": fmtDay(ca.ExDate), "held": fmt.Sprint(h.Qty), "amount": rupees(v)}}, false)
+				Detail: fmt.Sprintf("Holds %s. Ex-date %s.", fmtQty(h.Qty), fmtDay(ca.ExDate)),
+				Facts:  map[string]string{"symbol": ca.Symbol, "what": what, "record": fmtDay(ca.RecordDate), "ex": fmtDay(ca.ExDate), "held": fmtQty(h.Qty), "amount": rupees(v)}}, false)
 		}
 	}
 	r.finishKind("corp_action")
@@ -781,7 +782,8 @@ func autoPledgeMargin(r *runCtx) error {
 	}
 	by := map[string]*acc{}
 	for _, h := range hs {
-		free := h.Qty - h.Pledged
+		// A margin pledge is in whole units, from each account.
+		free := wholeUnits(h.Free())
 		if free <= 0 {
 			continue
 		}
@@ -1154,16 +1156,23 @@ func (o *Ops) ClientInsights(ctx context.Context, tenant, actor, date, ucc strin
 		if b.Status != "Open" || date > b.Close {
 			continue
 		}
-		h, _, err := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingID(ucc, b.ISIN))
-		if err != nil || h.Qty <= 0 {
+		var h Holding
+		if hs, err := o.clientHoldings(ctx, tenant, ucc); err == nil {
+			for _, x := range hs {
+				if x.ISIN == b.ISIN {
+					h = x
+				}
+			}
+		}
+		if h.Qty.Sign() <= 0 {
 			continue
 		}
-		pb := PortalBuyBack{ID: b.ID, Symbol: b.Symbol, Company: firstOf(b.Company, b.Symbol), Price: b.Price, Close: b.Close, Free: h.Qty - h.Pledged, Open: date >= b.Open}
+		pb := PortalBuyBack{ID: b.ID, Symbol: b.Symbol, Company: firstOf(b.Company, b.Symbol), Price: b.Price, Close: b.Close, Free: wholeUnits(h.Free()), Open: date >= b.Open}
 		if i, ok := look.ByISIN(b.ISIN); ok {
 			pb.LTP = i.LTP
 		}
 		pb.Category, pb.Entitlement = "General", entitlement(pb.Free, b.GeneralRatio)
-		if pb.LTP.MulInt(h.Qty).Cmp(smallHolder) <= 0 {
+		if h.Value(pb.LTP).Cmp(smallHolder) <= 0 {
 			pb.Category, pb.Entitlement = "Small shareholder (reserved)", entitlement(pb.Free, b.SmallRatio)
 		}
 		for _, x := range b.Bids {

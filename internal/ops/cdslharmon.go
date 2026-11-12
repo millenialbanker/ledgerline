@@ -194,8 +194,8 @@ type CDSLCorpAction struct {
 func (o *Ops) loadCDSLCorpActions(ctx context.Context, tenant, actor, file string, rows []xfile.Row) (n, held int) {
 	hs, _ := o.Holdings(ctx, tenant, "")
 	hold := map[string]int{}
-	for _, h := range hs {
-		if h.Qty > 0 {
+	for _, h := range sumHoldings(hs) {
+		if h.Qty.Sign() > 0 {
 			hold[h.ISIN]++
 		}
 	}

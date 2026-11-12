@@ -270,7 +270,7 @@ func (o *Ops) bowFundFile(ctx context.Context, tenant, actor, date string, chang
 	if err != nil {
 		return "", nil, 0, err
 	}
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return "", nil, 0, err
 	}
@@ -359,7 +359,7 @@ type bowHold struct {
 func (o *Ops) bowHoldings(ctx context.Context, tenant, date string) ([]bowHold, []string, error) {
 	set, _ := o.Settings(ctx, tenant)
 	prev := set.PrevBusinessDay(date)
-	cs, err := o.ClientMap(ctx, tenant)
+	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -171,6 +171,9 @@ func (o *Ops) bseUCCLoadSources(ctx context.Context, tenant string, set Settings
 type bseUCCRecord struct {
 	Values   map[string]string // by JSON key; "" is sent as null and written empty
 	Problems []string
+	// Warnings do not stop the record (more demat accounts than BSE's
+	// slots, demats.go).
+	Warnings []string
 	Summary  map[string]string // the parts whose change needs a reason
 }
 
@@ -280,23 +283,38 @@ func bseUCCMap(c Client, src bseUCCSources, action string, last map[string]strin
 		bad("BSE needs a 10-digit mobile number for a client in India")
 	}
 
-	// Depository: one account, primary.
-	switch dep := strings.ToUpper(c.Demat.Depository); {
-	case c.Demat.ID == "":
+	// Depositories: every active demat account, the primary first (P, the
+	// others S), up to BSE's 5 (the DP field only in slots 1 to 3).
+	var warns []string
+	ds := uccDemats(c, "BSE", func(f string, x ...any) { warns = append(warns, fmt.Sprintf(f, x...)) })
+	if len(ds) == 0 {
 		bad("There is no demat account on record")
-	case dep == "CDSL" && reBSECDSLBO.MatchString(c.Demat.ID):
-		v["DEPOSITORYNAME1"], v["DEPOSITORYPARTICIPANT1"], v["BENEFICIALOWNACNTNO1"] = "CDSL", c.Demat.ID[:8], c.Demat.ID
-	case dep == "NSDL" && reBSENSDLBO.MatchString(c.Demat.ID):
-		v["DEPOSITORYNAME1"], v["DEMANTID1"], v["DEPOSITORYPARTICIPANT1"], v["BENEFICIALOWNACNTNO1"] = "NSDL", c.Demat.ID[:8], c.Demat.ID[:8], c.Demat.ID[8:]
-	case dep == "CDSL":
-		bad("The CDSL demat account must be 16 digits starting with 1")
-	case dep == "NSDL":
-		bad("The NSDL demat account must be IN, 6 digits (the DP ID) and 8 digits (the client ID)")
-	default:
-		bad("The depository must be CDSL or NSDL")
 	}
-	if v["DEPOSITORYNAME1"] != "" {
-		v["PRIMARYORSECONDARYDP1"] = "P"
+	for i, x := range ds {
+		n := fmt.Sprint(i + 1)
+		which := map[bool]string{true: "The", false: "Demat account " + n + ": the"}[i == 0]
+		id := x.ID
+		switch dep := strings.ToUpper(x.Depository); {
+		case dep == "CDSL" && reBSECDSLBO.MatchString(id):
+			v["DEPOSITORYNAME"+n], v["BENEFICIALOWNACNTNO"+n] = "CDSL", id
+			if i < 3 {
+				v["DEPOSITORYPARTICIPANT"+n] = id[:8]
+			}
+		case dep == "NSDL" && reBSENSDLBO.MatchString(id):
+			v["DEPOSITORYNAME"+n], v["DEMANTID"+n], v["BENEFICIALOWNACNTNO"+n] = "NSDL", id[:8], id[8:]
+			if i < 3 {
+				v["DEPOSITORYPARTICIPANT"+n] = id[:8]
+			}
+		case dep == "CDSL":
+			bad("%s CDSL demat account must be 16 digits starting with 1", which)
+		case dep == "NSDL":
+			bad("%s NSDL demat account must be IN, 6 digits (the DP ID) and 8 digits (the client ID)", which)
+		default:
+			bad("%s depository must be CDSL or NSDL", which)
+		}
+		if v["DEPOSITORYNAME"+n] != "" {
+			v["PRIMARYORSECONDARYDP"+n] = map[bool]string{true: "P", false: "S"}[i == 0]
+		}
 	}
 
 	// Bank: the primary account first (P), then the client's other active
@@ -511,7 +529,7 @@ func bseUCCMap(c Client, src bseUCCSources, action string, last map[string]strin
 			bad("%s has a character BSE does not take: only letters, digits, spaces and @ # $ & * ( ) - + = { } [ ] / \\ : \" , .", bseUCCLabel(k))
 		}
 	}
-	return bseUCCRecord{Values: v, Problems: dedupe(probs), Summary: sum}
+	return bseUCCRecord{Values: v, Problems: dedupe(probs), Summary: sum, Warnings: warns}
 }
 
 func bseUCCLabel(k string) string {

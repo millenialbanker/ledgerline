@@ -24,7 +24,8 @@ var (
 // PAN, the bank account masked as the KRA shows it, no segment.
 func inRow(ucc, inactive string) []string {
 	r := cmRow(ucc, "Test Dormant Client", "", "")
-	r[8], r[14] = "", "xxxx1234" // Segments, Account
+	r[8], r[14] = "", "xxxx1234"                // Segments, Account
+	r[16] = "12345678000099" + ucc[len(ucc)-2:] // its own demat account
 	return append(r, inactive, map[bool]string{true: "2023-03-31"}[inactive == "Y"])
 }
 
@@ -101,6 +102,7 @@ func TestIncompleteInactiveClientMaster(t *testing.T) {
 	}
 	// A later import with the details: nothing is missing any more.
 	full := append(cmRow("TI001", "Test Dormant Client", "ABCPI1234I", "9876500009"), "Y", "2023-03-31")
+	full[16] = "1234567800009901"
 	if r, err = o.LoadFile(ctx, MT, "adm.one", "CLIENT-MASTER", "", "cm3.csv", csvOf(inCols, full)); err != nil || len(r.Warnings) != 0 {
 		t.Fatalf("complete re-import: %v %+v %+v", err, r.Errors, r.Warnings)
 	}

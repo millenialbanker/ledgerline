@@ -72,9 +72,9 @@ type CorpAction struct {
 type CorpEntitle struct {
 	UCC        string       `json:"ucc"`
 	Name       string       `json:"name"`
-	Held       int64        `json:"held"`        // shares in demat on the record date
+	Held       money.Dec    `json:"held"`        // shares in demat on the record date (all the client's accounts; exact)
 	BrokerHeld int64        `json:"broker_held"` // shares with the broker (CUSPA)
-	NewShares  int64        `json:"new_shares"`  // bonus or split difference
+	NewShares  money.Dec    `json:"new_shares"`  // bonus or split difference
 	Dividend   money.Amount `json:"dividend"`    // on demat shares: paid by the company
 	ViaBroker  money.Amount `json:"via_broker"`  // on broker-held shares: passed on by the broker
 }
@@ -217,9 +217,11 @@ func (o *Ops) entitlements(ctx context.Context, tenant string, c CorpAction) ([]
 		}
 		return by[u]
 	}
+	// Per client: every one of the client's demat accounts together.
 	for _, h := range hs {
-		if h.ISIN == c.ISIN && h.Qty > 0 {
-			get(h.UCC).Held += h.Qty
+		if h.ISIN == c.ISIN && h.Qty.Sign() > 0 {
+			e := get(h.UCC)
+			e.Held = e.Held.Add(h.Qty)
 		}
 	}
 	cu, _ := docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
@@ -232,17 +234,17 @@ func (o *Ops) entitlements(ctx context.Context, tenant string, c CorpAction) ([]
 	var out []CorpEntitle
 	for _, u := range sortedKeys(by) {
 		e := by[u]
-		tot := e.Held + e.BrokerHeld
+		tot := e.Held.Add(money.DecInt(e.BrokerHeld))
 		switch c.Type {
 		case "Dividend":
-			e.Dividend = c.DPS.MulInt(e.Held).Round(money.UnitPaisa)
+			e.Dividend = c.DPS.Mul(e.Held).Round(money.UnitPaisa)
 			e.ViaBroker = c.DPS.MulInt(e.BrokerHeld).Round(money.UnitPaisa)
 		case "Bonus":
-			e.NewShares = tot * c.RatioNew / c.RatioOld
+			e.NewShares = ratioQty(tot, c.RatioNew, c.RatioOld)
 		case "Split":
-			e.NewShares = money.DecInt(tot).Mul(f).Round(money.UnitRupee).Paise()/100 - tot
+			e.NewShares = splitQty(tot, f).Sub(tot)
 		case "Merger", "Symbol change", "Rights":
-			e.NewShares = tot * c.RatioNew / c.RatioOld // shares of the new ISIN (rights: entitlements)
+			e.NewShares = ratioQty(tot, c.RatioNew, c.RatioOld) // shares of the new ISIN (rights: entitlements)
 		}
 		out = append(out, *e)
 	}
@@ -272,29 +274,30 @@ func (o *Ops) ApplyCorpAction(ctx context.Context, tenant, actor, id string) (Co
 			return c, err
 		}
 	} else if c.Type != "Dividend" {
+		// Each account's holding in its own account.
 		hs, _ := o.Holdings(ctx, tenant, "")
 		for _, h := range hs {
-			if h.ISIN != c.ISIN || h.Qty <= 0 {
+			if h.ISIN != c.ISIN || h.Qty.Sign() <= 0 {
 				continue
 			}
-			var add, addPl int64
+			var add, addPl money.Dec
 			avg := h.AvgCost
 			if c.Type == "Bonus" {
-				add = h.Qty * c.RatioNew / c.RatioOld
+				add = ratioQty(h.Qty, c.RatioNew, c.RatioOld)
 				// Average cost spreads over the larger holding.
-				if q, err := h.AvgCost.MulInt(h.Qty).Quo(money.DecInt(h.Qty + add)); err == nil {
+				if q, err := h.AvgCost.Mul(h.Qty).Quo(h.Qty.Add(add)); err == nil {
 					avg = q
 				}
 			} else {
-				add = money.DecInt(h.Qty).Mul(f).Round(money.UnitRupee).Paise()/100 - h.Qty
-				addPl = money.DecInt(h.Pledged).Mul(f).Round(money.UnitRupee).Paise()/100 - h.Pledged
+				add = splitQty(h.Qty, f).Sub(h.Qty)
+				addPl = splitQty(h.Pledged, f).Sub(h.Pledged)
 				if q, err := h.AvgCost.Quo(f); err == nil {
 					avg = q
 				}
 			}
-			if _, err := docs.Update(ctx, o.Docs, tenant, cHolding, holdingID(h.UCC, h.ISIN), actor, func(x *Holding) error {
-				x.Qty += add
-				x.Pledged += addPl
+			if _, err := docs.Update(ctx, o.Docs, tenant, cHolding, holdingIDAt(h.UCC, h.ISIN, h.BOID), actor, func(x *Holding) error {
+				x.Qty = x.Qty.Add(add)
+				x.Pledged = x.Pledged.Add(addPl)
 				x.AvgCost = avg
 				return nil
 			}); err != nil {
@@ -386,23 +389,23 @@ func applyCorpLots(open []Lot, cas []CorpAction, d string) []Lot {
 		if err != nil {
 			continue
 		}
-		var held int64
+		var held money.Dec
 		sym := c.Symbol
 		for i := range open {
 			if open[i].ISIN != c.ISIN {
 				continue
 			}
-			held += open[i].Qty
+			held = held.Add(open[i].Qty)
 			sym = open[i].Symbol
 			if c.Type == "Split" {
-				open[i].Qty = money.DecInt(open[i].Qty).Mul(f).Round(money.UnitRupee).Paise() / 100
+				open[i].Qty = splitQty(open[i].Qty, f)
 				if q, err := open[i].Price.Quo(f); err == nil {
 					open[i].Price = q
 				}
 			}
 		}
-		if c.Type == "Bonus" && held > 0 {
-			if n := held * c.RatioNew / c.RatioOld; n > 0 {
+		if c.Type == "Bonus" && held.Sign() > 0 {
+			if n := ratioQty(held, c.RatioNew, c.RatioOld); n.Sign() > 0 {
 				open = append(open, Lot{ISIN: c.ISIN, Symbol: sym, Qty: n, Date: c.allotDate(), Price: money.Dec{}})
 			}
 		}
@@ -412,38 +415,39 @@ func applyCorpLots(open []Lot, cas []CorpAction, d string) []Lot {
 
 // isinChangeLots replays a merger, symbol change or rights issue on lots.
 func isinChangeLots(open []Lot, c CorpAction) []Lot {
-	var held, given int64
+	var held, given money.Dec
 	var idx []int
 	for i := range open {
-		if open[i].ISIN == c.ISIN && open[i].Qty > 0 {
-			held += open[i].Qty
+		if open[i].ISIN == c.ISIN && open[i].Qty.Sign() > 0 {
+			held = held.Add(open[i].Qty)
 			idx = append(idx, i)
 		}
 	}
 	if c.Type == "Rights" {
-		if n := held * c.RatioNew / c.RatioOld; n > 0 {
+		if n := ratioQty(held, c.RatioNew, c.RatioOld); n.Sign() > 0 {
 			open = append(open, Lot{ISIN: c.NewISIN, Symbol: c.NewSymbol, Qty: n, Date: c.RecordDate})
 		}
 		return open
 	}
 	// New shares on the whole holding (as the company allots them), spread
 	// over the lots; each lot's cost and date carry over.
-	total := held * c.RatioNew / c.RatioOld
-	newQ := make([]int64, len(idx))
+	total := ratioQty(held, c.RatioNew, c.RatioOld)
+	newQ := make([]money.Dec, len(idx))
 	for k, i := range idx {
-		newQ[k] = open[i].Qty * c.RatioNew / c.RatioOld
-		given += newQ[k]
+		newQ[k] = ratioQty(open[i].Qty, c.RatioNew, c.RatioOld)
+		given = given.Add(newQ[k])
 	}
-	for k := 0; given < total && k < len(idx); k++ {
-		newQ[k]++
-		given++
+	one := money.DecInt(1)
+	for k := 0; given.Add(one).Cmp(total) <= 0 && k < len(idx); k++ {
+		newQ[k] = newQ[k].Add(one)
+		given = given.Add(one)
 	}
 	for k, i := range idx {
 		l := &open[i]
-		cost := l.Price.MulInt(l.Qty)
+		cost := l.Price.Mul(l.Qty)
 		l.ISIN, l.Symbol, l.Qty = c.NewISIN, c.NewSymbol, newQ[k]
-		if newQ[k] > 0 {
-			l.Price, _ = cost.Quo(money.DecInt(newQ[k]))
+		if newQ[k].Sign() > 0 {
+			l.Price, _ = cost.Quo(newQ[k])
 		}
 	}
 	return open
@@ -456,40 +460,42 @@ func (o *Ops) applyISINChange(ctx context.Context, tenant, actor string, c CorpA
 	if err != nil {
 		return err
 	}
+	// Each account's holding moves within its own account.
 	for _, h := range hs {
-		if h.ISIN != c.ISIN || h.Qty <= 0 {
+		if h.ISIN != c.ISIN || h.Qty.Sign() <= 0 {
 			continue
 		}
-		q := h.Qty * c.RatioNew / c.RatioOld
-		pl := h.Pledged * c.RatioNew / c.RatioOld
+		q := ratioQty(h.Qty, c.RatioNew, c.RatioOld)
+		pl := ratioQty(h.Pledged, c.RatioNew, c.RatioOld)
 		if c.Type == "Rights" {
-			if q > 0 {
-				if _, err := o.adjustHolding(ctx, tenant, actor, h.UCC, c.NewISIN, c.NewSymbol, q, 0); err != nil {
+			if q.Sign() > 0 {
+				if _, err := o.adjustHoldingAt(ctx, tenant, actor, h.UCC, h.BOID, c.NewISIN, c.NewSymbol, q, money.Dec{}); err != nil {
 					return err
 				}
 			}
 			continue
 		}
-		cost := h.AvgCost.MulInt(h.Qty)
-		if _, err := docs.Update(ctx, o.Docs, tenant, cHolding, holdingID(h.UCC, h.ISIN), actor, func(x *Holding) error {
-			x.Qty, x.Pledged = 0, 0 // the old ISIN is extinguished
+		cost := h.AvgCost.Mul(h.Qty)
+		if _, err := docs.Update(ctx, o.Docs, tenant, cHolding, holdingIDAt(h.UCC, h.ISIN, h.BOID), actor, func(x *Holding) error {
+			x.Qty, x.Pledged = money.Dec{}, money.Dec{} // the old ISIN is extinguished
 			return nil
 		}); err != nil {
 			return err
 		}
-		if q <= 0 {
+		if q.Sign() <= 0 {
 			continue
 		}
-		nh, _, gerr := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingID(h.UCC, c.NewISIN))
+		nk := holdingIDAt(h.UCC, c.NewISIN, h.BOID)
+		nh, _, gerr := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, nk)
 		if gerr != nil {
-			nh = Holding{UCC: h.UCC, ISIN: c.NewISIN, Symbol: c.NewSymbol}
+			nh = Holding{UCC: h.UCC, ISIN: c.NewISIN, Symbol: c.NewSymbol, BOID: h.BOID}
 		}
-		tc := nh.AvgCost.MulInt(nh.Qty).Add(cost)
-		nh.Qty += q
-		nh.Pledged += pl
+		tc := nh.AvgCost.Mul(nh.Qty).Add(cost)
+		nh.Qty = nh.Qty.Add(q)
+		nh.Pledged = nh.Pledged.Add(pl)
 		nh.Symbol = c.NewSymbol
-		nh.AvgCost, _ = tc.Quo(money.DecInt(nh.Qty))
-		if err := docs.Upsert(ctx, o.Docs, tenant, cHolding, holdingID(h.UCC, c.NewISIN), nh, actor); err != nil {
+		nh.AvgCost, _ = tc.Quo(nh.Qty)
+		if err := docs.Upsert(ctx, o.Docs, tenant, cHolding, nk, nh, actor); err != nil {
 			return err
 		}
 	}
@@ -662,9 +668,18 @@ func (o *Ops) TenderBuyBack(ctx context.Context, tenant, actor, id, date, ucc st
 	if qty < 0 {
 		return b, invalid("quantity cannot be negative")
 	}
-	h, _, _ := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingID(ucc, b.ISIN))
-	if qty > h.Qty-h.Pledged {
-		return b, invalid("%s has %d free %s shares; %d cannot be tendered", ucc, h.Qty-h.Pledged, b.Symbol, qty)
+	// Tendered through the exchange in whole shares, from any of the
+	// client's accounts.
+	var free int64
+	if hs, err := o.Holdings(ctx, tenant, ucc); err == nil {
+		for _, h := range hs {
+			if h.ISIN == b.ISIN {
+				free += wholeUnits(h.Free())
+			}
+		}
+	}
+	if qty > free {
+		return b, invalid("%s has %d free %s shares; %d cannot be tendered", ucc, free, b.Symbol, qty)
 	}
 	b, err = docs.Update(ctx, o.Docs, tenant, cBuyBack, id, actor, func(x *BuyBack) error {
 		for i := range x.Bids {
@@ -742,7 +757,8 @@ func (o *Ops) SettleBuyBack(ctx context.Context, tenant, actor, id, date, exchan
 		}
 		amt := b.Price.MulInt(a).Round(money.UnitPaisa)
 		b.Bids[i].Amount = amt
-		if _, err := o.adjustHolding(ctx, tenant, actor, x.UCC, b.ISIN, b.Symbol, -a, 0); err != nil {
+		xc, _ := o.Client(ctx, tenant, x.UCC)
+		if err := o.debitAcross(ctx, tenant, actor, xc, b.ISIN, b.Symbol, a); err != nil {
 			return b, err
 		}
 		if _, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "BB:" + b.ID + ":" + x.UCC, ValueDate: date, CreatedBy: actor,
@@ -757,4 +773,30 @@ func (o *Ops) SettleBuyBack(ctx context.Context, tenant, actor, id, date, exchan
 	}
 	o.log(ctx, tenant, actor, "buyback.settled", b.ID, map[string]any{"bids": len(b.Bids)})
 	return b, nil
+}
+
+// ratioQty is a corporate action's entitlement on a quantity at new:old.
+// On whole shares it is whole shares (the fraction is the company's to
+// settle in cash, as before); on fractional units it is exact to 4 decimal
+// places, rounded down.
+func ratioQty(q money.Dec, num, den int64) money.Dec {
+	if den == 0 {
+		return money.Dec{}
+	}
+	x, _ := q.MulInt(num).Quo(money.DecInt(den))
+	if isWhole(q) {
+		return money.DecInt(wholeUnits(x))
+	}
+	return truncQty(x)
+}
+
+// splitQty is a quantity after a split or consolidation by factor f: whole
+// shares round to whole shares (as before); fractional units are exact to
+// 4 decimal places, rounded down.
+func splitQty(q, f money.Dec) money.Dec {
+	x := q.Mul(f)
+	if isWhole(q) {
+		return money.DecInt(x.Round(money.UnitRupee).Paise() / 100)
+	}
+	return truncQty(x)
 }

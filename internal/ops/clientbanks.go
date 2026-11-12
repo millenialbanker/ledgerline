@@ -504,6 +504,9 @@ func bankLimitErr(before, after Client, limit int) error {
 // they are re-made from the client and sent as a change (each UCC page
 // shows the client as pending), and a work item says so.
 func (o *Ops) bankChangeApproved(ctx context.Context, tenant string, r ChangeRequest, c Client) []string {
+	if c.DPOnly {
+		return nil // no UCC at the exchanges (dponly.go)
+	}
 	set, _ := o.Settings(ctx, tenant)
 	var ex []string
 	for _, x := range []string{"NSE", "BSE", "MCX"} {

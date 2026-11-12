@@ -145,7 +145,7 @@ func (o *Ops) RAS(ctx context.Context, tenant, asOf string) (RASView, error) {
 	if err != nil {
 		return RASView{}, err
 	}
-	clients, err := o.ClientMap(ctx, tenant)
+	clients, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return RASView{}, err
 	}
@@ -288,7 +288,7 @@ func (o *Ops) RunRAS(ctx context.Context, tenant, actor, asOf, settleDate string
 	if err != nil {
 		return RASBatch{}, err
 	}
-	clients, err := o.ClientMap(ctx, tenant)
+	clients, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return RASBatch{}, err
 	}

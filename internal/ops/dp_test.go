@@ -14,7 +14,7 @@ func TestDP(t *testing.T) {
 	hs, _ := o.Holdings(ctx, T, "BH1001")
 	var h Holding
 	for _, x := range hs {
-		if x.Qty-x.Pledged >= 10 {
+		if wq(x.Qty)-wq(x.Pledged) >= 10 {
 			h = x
 			break
 		}
@@ -26,14 +26,14 @@ func TestDP(t *testing.T) {
 	if err != nil || book.To-book.From != 19 {
 		t.Fatalf("book: %+v %v", book, err)
 	}
-	dis := DIS{UCC: "BH1001", Slip: book.From, Kind: "Off-market", ToBO: "1208160099999999", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: h.ISIN, Qty: 10}}}
+	dis := DIS{UCC: "BH1001", Slip: book.From, Kind: "Off-market", ToBO: "1208160099999999", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: h.ISIN, Qty: dq(10)}}}
 	bad := dis
 	bad.Slip = book.To + 5
 	if _, err := o.EnterDIS(ctx, T, "priya.nair", bad); err == nil || !strings.Contains(err.Error(), "not issued") {
 		t.Fatalf("foreign slip: %v", err)
 	}
 	bad = dis
-	bad.Lines = []DISLine{{ISIN: h.ISIN, Qty: h.Qty + 1}}
+	bad.Lines = []DISLine{{ISIN: h.ISIN, Qty: h.Qty.Add(dq(1))}}
 	if _, err := o.EnterDIS(ctx, T, "priya.nair", bad); err == nil || !strings.Contains(err.Error(), "free") {
 		t.Fatalf("over free balance: %v", err)
 	}
@@ -63,8 +63,8 @@ func TestDP(t *testing.T) {
 		t.Fatal(err)
 	}
 	h2, _, _ := docs.Get[Holding](ctx, o.Docs, T, cHolding, holdingID("BH1001", h.ISIN))
-	if h2.Qty != h.Qty-10 {
-		t.Fatalf("holding %d -> %d", h.Qty, h2.Qty)
+	if wq(h2.Qty) != wq(h.Qty)-10 {
+		t.Fatalf("holding %v -> %v", h.Qty, h2.Qty)
 	}
 	// Billing for the month posts a balanced entry and an invoice.
 	bills, err := o.RunDPBilling(ctx, T, "farhan.khan", D[:7])
@@ -107,7 +107,7 @@ func TestDP(t *testing.T) {
 	before, _ := o.Holdings(ctx, T, "BH1004")
 	pledged := false
 	for _, x := range before {
-		pledged = pledged || x.Pledged > 0
+		pledged = pledged || wq(x.Pledged) > 0
 	}
 	_, err = o.ActOnDPRequest(ctx, T, "farhan.khan", tr.ID, "approve", "")
 	if pledged {
@@ -133,7 +133,7 @@ func TestDP(t *testing.T) {
 	if _, err := o.ActOnDPRequest(ctx, T, "farhan.khan", dm.ID, "approve", ""); err != nil {
 		t.Fatal(err)
 	}
-	if h, _, _ := docs.Get[Holding](ctx, o.Docs, T, cHolding, holdingID("BH1003", "INE999A01015")); h.Qty != 100 {
+	if h, _, _ := docs.Get[Holding](ctx, o.Docs, T, cHolding, holdingID("BH1003", "INE999A01015")); wq(h.Qty) != 100 {
 		t.Fatalf("demat credit: %+v", h)
 	}
 	_ = ledger.ValidDate

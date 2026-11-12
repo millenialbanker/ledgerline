@@ -90,7 +90,7 @@ func TestCDSLEDIS(t *testing.T) {
 		t.Fatalf("other account: %v", err)
 	}
 	big := req
-	big.Lines = []EDISRequestLine{{ISIN: h.ISIN, Qty: h.Qty + 1}}
+	big.Lines = []EDISRequestLine{{ISIN: h.ISIN, Qty: wq(h.Qty) + 1}}
 	if _, _, err := o.StartEDIS(ctx, T, "client.edis", big, ""); err == nil || !strings.Contains(err.Error(), "free") {
 		t.Fatalf("over holding: %v", err)
 	}

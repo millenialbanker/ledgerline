@@ -511,6 +511,9 @@ func (o *Ops) bseUCCItems(ctx context.Context, tenant string) ([]bseUCCItem, []C
 	var out []bseUCCItem
 	var baseline []Client
 	for _, c := range cs {
+		if c.DPOnly {
+			continue // a client of the DP only has no UCC (dponly.go)
+		}
 		r, ok := byUCC[c.UCC]
 		if !ok {
 			switch c.Status {
@@ -1032,6 +1035,7 @@ type BSEUCCClientRow struct {
 	Status    string   `json:"status"`
 	Reason    string   `json:"reason"`
 	Problems  []string `json:"problems"`
+	Warnings  []string `json:"warnings,omitempty"`
 	PANStatus string   `json:"pan_status"`
 	SentAt    string   `json:"sent_at"`
 	ResultAt  string   `json:"result_at"`
@@ -1110,7 +1114,7 @@ func (o *Ops) BSEUCCView(ctx context.Context, tenant, actor string) (BSEUCCView,
 			ref = ""
 		}
 		v.Clients = append(v.Clients, BSEUCCClientRow{UCC: it.c.UCC, Name: it.c.Name, PAN: MaskPAN(it.c.PAN), Action: it.reg.Action, Status: st, Reason: reason, Problems: probs,
-			PANStatus: it.reg.PANStatus, SentAt: it.reg.SentAt, ResultAt: it.reg.ResultAt, Ref: ref})
+			Warnings: it.rec.Warnings, PANStatus: it.reg.PANStatus, SentAt: it.reg.SentAt, ResultAt: it.reg.ResultAt, Ref: ref})
 	}
 	sort.SliceStable(v.Clients, func(i, j int) bool { return rank[v.Clients[i].Status] < rank[v.Clients[j].Status] })
 	if len(v.Clients) > 1000 {

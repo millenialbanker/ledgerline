@@ -446,12 +446,9 @@ func (o *Ops) loadCDSLTxns(ctx context.Context, tenant, actor string, rows []xfi
 	if err != nil {
 		return 0, 0, err
 	}
-	byBO := map[string]string{}
-	for _, c := range cs {
-		if c.Demat.ID != "" {
-			byBO[strings.TrimSpace(c.Demat.ID)] = c.UCC
-		}
-	}
+	// Every demat account of every client, and the DP's own BO accounts:
+	// a client may have several (demats.go).
+	byBO := o.boClients(ctx, tenant)
 	seen := map[string]bool{}
 	existing, _ := docs.List[DPTxn](ctx, o.Docs, tenant, cDPTxn, "")
 	for _, t := range existing {
@@ -461,7 +458,8 @@ func (o *Ops) loadCDSLTxns(ctx context.Context, tenant, actor string, rows []xfi
 	}
 	n, skipped := 0, 0
 	for _, r := range rows {
-		ucc, ok := byBO[strings.TrimSpace(r.Get("ClntId"))]
+		bo := normDematID(r.Get("ClntId"))
+		ucc, ok := byBO[bo]
 		cd := strings.ToUpper(r.Get("TxnCd"))
 		q, err := money.ParseDec(r.Get("Qty"))
 		if !ok || (cd != "CRD" && cd != "DBT") || err != nil {
@@ -474,11 +472,11 @@ func (o *Ops) loadCDSLTxns(ctx context.Context, tenant, actor string, rows []xfi
 			continue
 		}
 		seen[ref] = true
-		qty := q.Round(money.UnitRupee).Paise() / 100
+		qty := truncQty(q) // exact: units may be fractional
 		if cd == "DBT" {
-			qty = -qty
+			qty = qty.Neg()
 		}
-		t := DPTxn{Date: firstOf(anyDate(r.Get("ExecDt")), anyDate(r.Get("BizDt"))), UCC: ucc, ISIN: strings.ToUpper(r.Get("ISIN")), Qty: qty,
+		t := DPTxn{Date: firstOf(anyDate(r.Get("ExecDt")), anyDate(r.Get("BizDt"))), UCC: ucc, BOID: holdingAcct(cs[ucc], bo), ISIN: strings.ToUpper(r.Get("ISIN")), Qty: qty,
 			Kind: cdslTxnKind(r.Get("TxnTyp")), Ref: ref, Billable: !pledgeTxn[strings.ToUpper(r.Get("TxnTyp"))]}
 		// Only on-market settlement (pay-in IDO, pay-out NPY) carries the
 		// clearing member that marks the firm's own trades; off-market
@@ -693,10 +691,11 @@ func (o *Ops) ClearingData(ctx context.Context, tenant, date string) ([]CCSectio
 	rp := CCSection{ID: "repledge", Title: "Securities re-pledged to the clearing corporation", About: "Quantity NSE Clearing accepted as collateral per client and security against the quantity the client has pledged to the firm.",
 		Columns: []string{"Client", "Name", "ISIN", "Security", "Accepted (NCL)", "Pledged (Ledgerline)", "Haircut %", "Net value (NCL)"}}
 	if ds := o.ccData(ctx, tenant, "repledge", date, ""); len(ds) > 0 {
+		// A client's pledges from all its accounts, in whole units.
 		pl := map[string]int64{}
 		hs, _ := o.Holdings(ctx, tenant, "")
 		for _, h := range hs {
-			pl[h.UCC+"|"+h.ISIN] = h.Pledged
+			pl[h.UCC+"|"+h.ISIN] += wholeUnits(h.Pledged)
 		}
 		for _, d := range ds {
 			rp.Loaded, rp.File = true, d.File
@@ -942,7 +941,9 @@ func (o *Ops) disMasterFile(ctx context.Context, tenant string, s *xfile.Spec, s
 		if b.Issued > date || b.Issued <= addDays(date, -7) {
 			continue
 		}
-		bo := strings.TrimSpace(cs[b.UCC].Demat.ID)
+		// The account the book was issued for (the primary for a book
+		// issued before several accounts were kept).
+		bo := firstOf(b.BOID, normDematID(primaryDemat(cs[b.UCC]).ID))
 		if len(bo) != 16 {
 			continue
 		}

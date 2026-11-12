@@ -82,7 +82,7 @@ func cdxTestClient(t *testing.T, o *Ops, ctx context.Context) (Client, Holding) 
 		}
 		hs, _ := o.Holdings(ctx, T, c.UCC)
 		for _, h := range hs {
-			if o.freeBalance(ctx, T, c.UCC, h.ISIN) >= 20 {
+			if wq(o.freeBalance(ctx, T, c.UCC, h.ISIN)) >= 20 {
 				return c, h
 			}
 		}
@@ -125,7 +125,7 @@ func cdxTestDIS(t *testing.T, o *Ops, ctx context.Context, c Client, h Holding, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, err := o.EnterDIS(ctx, T, "priya.nair", DIS{UCC: c.UCC, Slip: book.From, Kind: "Off-market", ToBO: "1208160099999999", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: h.ISIN, Qty: qty}}})
+	d, err := o.EnterDIS(ctx, T, "priya.nair", DIS{UCC: c.UCC, Slip: book.From, Kind: "Off-market", ToBO: "1208160099999999", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: h.ISIN, Qty: dq(qty)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func TestCDSLTransactionUploadByAPI(t *testing.T) {
 	accept, reject = d1.ID, d2.ID
 	// Entered but not verified: never sent.
 	book, _ := o.IssueDISBook(ctx, T, "priya.nair", c.UCC, 1)
-	d3, err := o.EnterDIS(ctx, T, "priya.nair", DIS{UCC: c.UCC, Slip: book.From, Kind: "Off-market", ToBO: "1208160099999998", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: h.ISIN, Qty: 1}}})
+	d3, err := o.EnterDIS(ctx, T, "priya.nair", DIS{UCC: c.UCC, Slip: book.From, Kind: "Off-market", ToBO: "1208160099999998", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: h.ISIN, Qty: dq(1)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,8 +268,8 @@ func TestCDSLTransactionUploadByAPI(t *testing.T) {
 	if x, _, _ := docs.Get[DIS](ctx, o.Docs, T, cDIS, d2.ID); x.Status != "Failed" || !strings.Contains(x.Note, "R123") {
 		t.Fatalf("d2 %+v", x)
 	}
-	if h2, _, _ := docs.Get[Holding](ctx, o.Docs, T, cHolding, holdingID(c.UCC, h.ISIN)); h2.Qty != h.Qty-5 {
-		t.Fatalf("holding %d -> %d", h.Qty, h2.Qty)
+	if h2, _, _ := docs.Get[Holding](ctx, o.Docs, T, cHolding, holdingID(c.UCC, h.ISIN)); wq(h2.Qty) != wq(h.Qty)-5 {
+		t.Fatalf("holding %v -> %v", h.Qty, h2.Qty)
 	}
 	v, err := o.CDSLTxnScreen(ctx, T, "anita.rao")
 	if err != nil || len(v.Uploads) != 1 || !v.Families[cdslFamUpload] || v.DPID != "081600" {
@@ -303,7 +303,7 @@ func TestCDSLOnMarketSlip(t *testing.T) {
 	o, ctx := setup(t)
 	c, h := cdxTestClient(t, o, ctx)
 	book, _ := o.IssueDISBook(ctx, T, "priya.nair", c.UCC, 2)
-	in := DIS{UCC: c.UCC, Slip: book.From, Kind: "On-market", ToBO: "1100001100099999", Exchange: "NSE", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: h.ISIN, Qty: 2}}}
+	in := DIS{UCC: c.UCC, Slip: book.From, Kind: "On-market", ToBO: "1100001100099999", Exchange: "NSE", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: h.ISIN, Qty: dq(2)}}}
 	bad := in
 	bad.Settlement = ""
 	if _, err := o.EnterDIS(ctx, T, "priya.nair", bad); err == nil {

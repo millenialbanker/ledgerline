@@ -207,16 +207,21 @@ func (o *Ops) ipoClientErr(ctx context.Context, tenant string, c Client, cat IPO
 		return invalid("%s is not an active client", c.UCC)
 	case !rePAN.MatchString(c.PAN):
 		return invalid("%s has no valid PAN on record", c.UCC)
-	case strings.TrimSpace(c.Demat.ID) == "":
+	case strings.TrimSpace(payoutDemat(c).ID) == "":
 		return invalid("%s has no demat account on record: allotted shares are credited only to the bidder's own demat", c.UCC)
+	case c.DPOnly:
+		return invalid("%s is a DP-only client with no trading account: open a trading account to bid", c.UCC)
 	}
+	// Allotted shares are credited to the account the client chose for
+	// credits, else the primary (demats.go).
+	dm := payoutDemat(c)
 	if d, hit := o.IsDebarredPAN(ctx, tenant, c.PAN, date); hit {
 		return fmt.Errorf("%w: %s's PAN is debarred from the securities market (%s order %s)", ErrForbidden, c.UCC, d.Regulator, d.OrderNo)
 	}
-	if _, _, _, err := splitDemat(c.Demat); err != nil {
+	if _, _, _, err := splitDemat(dm); err != nil {
 		return err
 	}
-	if bo, _, err := docs.Get[BOAccount](ctx, o.Docs, tenant, cBO, c.UCC); err == nil && strings.EqualFold(normDematID(bo.BOID), normDematID(c.Demat.ID)) {
+	if bo, ok := o.boAccount(ctx, tenant, dm.ID); ok && bo.UCC == c.UCC {
 		switch {
 		case bo.Status == "Closed":
 			return invalid("%s's demat account is closed", c.UCC)
@@ -228,8 +233,15 @@ func (o *Ops) ipoClientErr(ctx context.Context, tenant string, c Client, cat IPO
 		return invalid("%s is for individuals; %s is a %s account", cat.Code, c.UCC, c.Type)
 	}
 	if cat.EligibleISIN != "" {
-		h, _, _ := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingID(c.UCC, cat.EligibleISIN))
-		if h.Qty <= 0 {
+		var held money.Dec
+		if hs, err := o.Holdings(ctx, tenant, c.UCC); err == nil {
+			for _, h := range hs {
+				if h.ISIN == cat.EligibleISIN {
+					held = held.Add(h.Qty)
+				}
+			}
+		}
+		if held.Sign() <= 0 {
 			return invalid("%s needs a holding of %s in the client's demat on the record date; none is on record", cat.Code, cat.EligibleISIN)
 		}
 	} else if cat.Declare != "" && !declared {
@@ -639,7 +651,7 @@ func (o *Ops) placeIPOBid(ctx context.Context, tenant, actor string, in IPOBidIn
 	if other, taken := o.panBid(ctx, tenant, iss, c.PAN, ""); taken {
 		return IPOApp{}, invalid("PAN %s already has a bid in %s (%s, %s): one application per PAN; modify or cancel that one", MaskPAN(c.PAN), iss.Name, other.ID, other.Status)
 	}
-	dep, dpid, ben, _ := splitDemat(c.Demat)
+	dep, dpid, ben, _ := splitDemat(payoutDemat(c))
 	a := IPOApp{UCC: c.UCC, Name: c.Name, Issue: iss.Name, IssueID: iss.ID, Exchange: ex, Category: cat.Code, Options: opts, Lots: lots, Amount: amount,
 		PAN: c.PAN, Depository: dep, DPID: dpid, BenID: ben, Status: BidDraft, Pending: "New", Mandate: "Pending", Allotment: "Awaiting", Date: today,
 		Source: map[bool]string{true: channelPortal, false: "Staff"}[byClient], By: actor, Created: now.Format(time.RFC3339)}

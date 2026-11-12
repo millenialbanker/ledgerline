@@ -281,16 +281,22 @@ func (o *Ops) reconFigure(ctx context.Context, tenant string, m *Migration, c pk
 		}
 		return strconv.Itoa(len(clients)), behind, true
 	case pkg.CheckDPAccounts:
-		// The DP's own records when DP-ACCOUNTS was loaded, else the clients
-		// with a demat account in the client master.
-		if bos, err := docs.List[BOAccount](ctx, o.Docs, tenant, cBO, ""); err == nil && len(bos) > 0 {
-			have := map[string]bool{}
+		// The DP's own records when DP-ACCOUNTS was loaded: every BO
+		// account of every client (trading or DP-only), whatever its status,
+		// several per client where a client has them; else the clients with
+		// a demat account in the client master.
+		if bos := o.boAccounts(ctx, tenant); len(bos) > 0 {
+			have := map[string]string{}
 			for _, b := range bos {
-				have[b.UCC] = true
+				have[normDematID(b.BOID)] = b.UCC
 			}
 			for _, r := range o.rawRows(ctx, tenant, m, "DP-ACCOUNTS", []string{"UCC", "BOID"}) {
-				if u := strings.ToUpper(r.get("UCC")); !have[u] {
-					behind = append(behind, MigReconDiff{Key: u, Expected: r.get("BOID"), Ledgerline: "no DP record (not a client here)"})
+				u, bo := strings.ToUpper(r.get("UCC")), normDematID(r.get("BOID"))
+				switch owner, ok := have[bo]; {
+				case !ok:
+					behind = append(behind, MigReconDiff{Key: u + " " + bo, Expected: "in DP-ACCOUNTS", Ledgerline: "no DP record (not a client here)"})
+				case owner != u:
+					behind = append(behind, MigReconDiff{Key: u + " " + bo, Expected: u, Ledgerline: "the account of " + owner})
 				}
 			}
 			return strconv.Itoa(len(bos)), behind, true
@@ -298,8 +304,8 @@ func (o *Ops) reconFigure(ctx context.Context, tenant string, m *Migration, c pk
 		n := 0
 		have := map[string]bool{}
 		for _, cl := range clients {
-			if strings.TrimSpace(cl.Demat.ID) != "" {
-				n++
+			if ds := demats(cl); len(ds) > 0 {
+				n += len(ds)
 				have[cl.UCC] = true
 			}
 		}
@@ -314,16 +320,19 @@ func (o *Ops) reconFigure(ctx context.Context, tenant string, m *Migration, c pk
 		if err != nil {
 			return "", nil, false
 		}
-		var q int64
-		got := map[string]int64{}
+		// Every holding of every account, exactly (units may be fractional).
+		var q money.Dec
+		got := map[string]money.Dec{}
 		for _, h := range hs {
-			q += h.Qty
-			got[h.UCC+" "+h.ISIN] += h.Qty
+			q = q.Add(h.Qty)
+			k := h.UCC + " " + h.ISIN
+			got[k] = got[k].Add(h.Qty)
 		}
-		want := map[string]int64{}
+		want := map[string]money.Dec{}
 		for _, r := range o.rawRows(ctx, tenant, m, "DP-HOLDINGS", []string{"UCC", "ISIN", "Qty"}) {
-			n, _ := strconv.ParseInt(r.get("Qty"), 10, 64)
-			want[strings.ToUpper(r.get("UCC"))+" "+strings.ToUpper(r.get("ISIN"))] += n
+			n, _ := money.ParseDec(firstOf(strings.TrimSpace(r.get("Qty")), "0"))
+			k := strings.ToUpper(r.get("UCC")) + " " + strings.ToUpper(r.get("ISIN"))
+			want[k] = want[k].Add(n)
 		}
 		if len(want) > 0 {
 			keys := map[string]bool{}
@@ -334,12 +343,12 @@ func (o *Ops) reconFigure(ctx context.Context, tenant string, m *Migration, c pk
 				keys[k] = true
 			}
 			for _, k := range sortedKeys(keys) {
-				if want[k] != got[k] {
-					behind = append(behind, MigReconDiff{Key: k, Expected: groupIN(want[k]), Ledgerline: groupIN(got[k])})
+				if want[k].Cmp(got[k]) != 0 {
+					behind = append(behind, MigReconDiff{Key: k, Expected: groupINDec(want[k]), Ledgerline: groupINDec(got[k])})
 				}
 			}
 		}
-		return strconv.FormatInt(q, 10), behind, true
+		return q.String(), behind, true
 	case pkg.CheckDocuments:
 		n := 0
 		per := map[string]int{}

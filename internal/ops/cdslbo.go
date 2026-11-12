@@ -985,11 +985,14 @@ func (o *Ops) cdslOpenCheck(ctx context.Context, tenant string, r *CDSLRequest) 
 		return boDetails{}, in, err
 	}
 	d, probs, warns := boBuild(in)
-	if in.C.Demat.ID != "" {
-		probs = append([]string{"The client already has a demat account (" + in.C.Demat.Depository + " " + in.C.Demat.ID + ")"}, probs...)
-	}
-	if in.C.Demat.Depository != "" && in.C.Demat.Depository != "CDSL" {
-		probs = append([]string{"The client's depository is " + in.C.Demat.Depository + ", not CDSL"}, probs...)
+	// A client may have several demat accounts (demats.go): one already on
+	// record is noted, not a reason to stop.
+	if ds := activeDemats(in.C); len(ds) > 0 {
+		var have []string
+		for _, x := range ds {
+			have = append(have, x.Depository+" "+x.ID)
+		}
+		warns = append([]string{"The client already has a demat account (" + strings.Join(have, ", ") + "); this opens another one"}, warns...)
 	}
 	if in.C.Status != "Active" {
 		probs = append(probs, "The client is "+in.C.Status+": a checker activates the client first")
@@ -1025,9 +1028,6 @@ func (o *Ops) NewCDSLRequest(ctx context.Context, tenant, actor string, in CDSLN
 	}
 	switch in.Kind {
 	case CDSLOpen:
-		if c.Demat.ID != "" {
-			return CDSLRequest{}, invalid("%s already has a demat account (%s %s)", c.UCC, c.Demat.Depository, c.Demat.ID)
-		}
 		if old, ok := o.cdslOpenFor(ctx, tenant, c.UCC); ok {
 			return CDSLRequest{}, invalid("an account opening for %s is already in hand (%s, %s)", c.UCC, old.ID, strings.ToLower(old.Status))
 		}
@@ -1044,10 +1044,8 @@ func (o *Ops) NewCDSLRequest(ctx context.Context, tenant, actor string, in CDSLN
 		return o.newBeneficiaryRequest(ctx, tenant, actor, c, in.Buyers)
 	case CDSLSetupUpload:
 		// A BO setup file made from the client (the BO setup upload API
-		// instead of BO online); a checker approves it.
-		if c.Demat.ID != "" {
-			return CDSLRequest{}, invalid("%s already has a demat account (%s %s)", c.UCC, c.Demat.Depository, c.Demat.ID)
-		}
+		// instead of BO online); a checker approves it. A client with a
+		// demat account already may open another.
 		x, ok := o.cdslConnFor(ctx, tenant)
 		if !ok {
 			return CDSLRequest{}, fmt.Errorf("%w: the CDSL APIs connection is not set (the DP ID)", ErrState)
@@ -1426,9 +1424,9 @@ func (o *Ops) ActOnCDSLRequest(ctx context.Context, tenant, actor, id, action, n
 		if err != nil {
 			return res, err
 		}
-		b := o.bo(ctx, tenant, c)
+		b := o.boFor(ctx, tenant, c, r.BOID)
 		b.Status = "Active"
-		if err := docs.Upsert(ctx, o.Docs, tenant, cBO, b.UCC, b, actor); err != nil {
+		if err := o.putBO(ctx, tenant, actor, b); err != nil {
 			return res, err
 		}
 		r.PendingActivation = false
@@ -1650,25 +1648,45 @@ func cdslFileReason(b []byte) string {
 	return ": " + s
 }
 
-// cdslApplyBOID puts a new BO ID on the client and the DP's BO record.
+// cdslApplyBOID records a new BO ID: the DP's BO record, and the client's
+// accounts (the new account is the primary when the client had none
+// active; a client with an account already keeps its primary).
 func (o *Ops) cdslApplyBOID(ctx context.Context, tenant, actor string, r *CDSLRequest, boid string, ack *CDSLFileRef) error {
-	c, err := docs.Update(ctx, o.Docs, tenant, cClient, r.UCC, actor, func(c *Client) error {
-		c.Demat = Demat{Depository: "CDSL", ID: boid}
-		return nil
-	})
+	c, err := o.Client(ctx, tenant, r.UCC)
 	if err != nil {
 		return err
 	}
-	b, _, gerr := docs.Get[BOAccount](ctx, o.Docs, tenant, cBO, c.UCC)
-	if gerr != nil {
-		b = BOAccount{UCC: c.UCC}
+	boid = normDematID(boid)
+	b, ok := o.boAccount(ctx, tenant, boid)
+	if !ok {
+		// A record kept for the client before the BO ID was known (BSDA
+		// choice and the like) carries over.
+		if x, _, gerr := docs.Get[BOAccount](ctx, o.Docs, tenant, cBO, "NOBO|"+c.UCC); gerr == nil && x.MovedTo == "" {
+			b = x
+		} else {
+			b = BOAccount{UCC: c.UCC}
+		}
 	}
-	b.BOID, b.Depository, b.Status, b.Opened, b.ClosedOn = boid, "CDSL", "Active", o.businessDate(ctx, tenant), ""
+	b.UCC, b.BOID, b.Depository, b.Status, b.Opened, b.ClosedOn = c.UCC, boid, "CDSL", "Active", o.businessDate(ctx, tenant), ""
 	if r.PendingActivation {
 		b.Status = "Pending activation"
 	}
-	if err := docs.Upsert(ctx, o.Docs, tenant, cBO, c.UCC, b, actor); err != nil {
+	if err := o.putBO(ctx, tenant, actor, b); err != nil {
 		return err
+	}
+	// The account with the firm's DP becomes the primary when the client's
+	// primary is with another DP (or there is none).
+	if p := o.withDemats(ctx, tenant, c); primaryDemat(p).ID == "" || !func() bool { d, _ := dematOf(p, primaryDemat(p).ID); return d.OwnDP }() {
+		if c, err = o.updateDemats(ctx, tenant, actor, c.UCC, func(x *Client) error {
+			if d, ok := dematOf(*x, boid); ok && d.active() {
+				x.Demat = d.details()
+				syncDemats(x)
+				collapseDemats(x)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
 	}
 	r.BOID = boid
 	if ack != nil {

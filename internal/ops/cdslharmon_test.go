@@ -37,7 +37,7 @@ func cdslLinkBO(t *testing.T, o *Ops, ucc, bo string) {
 	if _, err := docs.Update(ctx, o.Docs, T, cClient, ucc, "admin", func(c *Client) error { c.Demat = Demat{Depository: "CDSL", ID: bo}; return nil }); err != nil {
 		t.Fatal(err)
 	}
-	if err := docs.Upsert(ctx, o.Docs, T, cBO, ucc, BOAccount{UCC: ucc, BOID: bo, Depository: "CDSL", Status: "Active", Opened: "2024-01-01"}, "admin"); err != nil {
+	if err := o.putBO(ctx, T, "admin", BOAccount{UCC: ucc, BOID: bo, Depository: "CDSL", Status: "Active", Opened: "2024-01-01"}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -97,7 +97,7 @@ func TestCDSLClientMasterSample(t *testing.T) {
 		t.Errorf("not linked: %d", res[0].Skipped)
 	}
 	get := func(u string) BOAccount {
-		b, _, err := docs.Get[BOAccount](ctx, o.Docs, T, cBO, u)
+		b, _, err := testBO(ctx, o, T, u)
 		if err != nil || b.CDSL == nil {
 			t.Fatalf("%s: %+v %v", u, b, err)
 		}
@@ -132,7 +132,7 @@ func TestCDSLClientMasterSample(t *testing.T) {
 	if _, err := o.IssueDISBook(ctx, T, "priya.nair", frozen, 2); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := o.EnterDIS(ctx, T, "priya.nair", DIS{UCC: frozen, Slip: 1000001, Kind: "Off-market", ToBO: "1208160099999999", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: "INE000X01010", Qty: 1}}}); !errors.Is(err, ErrState) {
+	if _, err := o.EnterDIS(ctx, T, "priya.nair", DIS{UCC: frozen, Slip: 1000001, Kind: "Off-market", ToBO: "1208160099999999", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: "INE000X01010", Qty: dq(1)}}}); !errors.Is(err, ErrState) {
 		t.Errorf("DIS from a frozen account: %v", err)
 	}
 	if why := o.payoutRisk(ctx, T, c); !strings.Contains(why, "frozen for debits at CDSL") {
@@ -229,7 +229,7 @@ func TestCDSLFreezeMasterBlocksAndLifts(t *testing.T) {
 		}
 		hs, _ := o.Holdings(ctx, T, x.UCC)
 		for _, y := range hs {
-			if o.freeBalance(ctx, T, x.UCC, y.ISIN) >= 20 {
+			if wq(o.freeBalance(ctx, T, x.UCC, y.ISIN)) >= 20 {
 				c2, h2 = x, y
 			}
 		}
@@ -256,7 +256,7 @@ func TestCDSLFreezeMasterBlocksAndLifts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := o.EnterDIS(ctx, T, "priya.nair", DIS{UCC: c.UCC, Slip: book.From, Kind: "Off-market", ToBO: "1208160099999999", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: h.ISIN, Qty: 1}}}); !errors.Is(err, ErrState) {
+	if _, err := o.EnterDIS(ctx, T, "priya.nair", DIS{UCC: c.UCC, Slip: book.From, Kind: "Off-market", ToBO: "1208160099999999", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: h.ISIN, Qty: dq(1)}}}); !errors.Is(err, ErrState) {
 		t.Errorf("DIS: %v", err)
 	}
 	if _, err := o.RequestMarginPledge(ctx, T, "priya.nair", c.UCC, "MP", "", []PledgeLine{{ISIN: h.ISIN, Qty: 1}}); err == nil {
@@ -266,8 +266,8 @@ func TestCDSLFreezeMasterBlocksAndLifts(t *testing.T) {
 		t.Error("payout not held")
 	}
 	// A partial freeze takes its quantity out of the free balance; a credit freeze stops pay-outs.
-	if got := o.freeBalance(ctx, T, c2.UCC, h2.ISIN); got != free2-10 {
-		t.Errorf("free %d, was %d", got, free2)
+	if got := o.freeBalance(ctx, T, c2.UCC, h2.ISIN); got.Cmp(free2.Sub(dq(10))) != 0 {
+		t.Errorf("free %v, was %v", got, free2)
 	}
 	if why := o.settleFrozen(ctx, T, Obligation{UCC: c2.UCC, ISIN: h2.ISIN, Symbol: h2.Symbol}, "payout"); !strings.Contains(why, "frozen at CDSL") {
 		t.Errorf("pay-out: %q", why)
@@ -293,7 +293,7 @@ func TestCDSLFreezeMasterBlocksAndLifts(t *testing.T) {
 	if w := cdslWork(t, o, "cdslfreeze", "5001:set"); len(w) != 1 || w[0].Status != "Done" {
 		t.Errorf("the freeze item should close: %+v", w)
 	}
-	if _, err := o.EnterDIS(ctx, T, "priya.nair", DIS{UCC: c.UCC, Slip: book.From, Kind: "Off-market", ToBO: "1208160099999999", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: h.ISIN, Qty: 1}}}); err != nil {
+	if _, err := o.EnterDIS(ctx, T, "priya.nair", DIS{UCC: c.UCC, Slip: book.From, Kind: "Off-market", ToBO: "1208160099999999", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: h.ISIN, Qty: dq(1)}}}); err != nil {
 		t.Errorf("DIS after the freeze is lifted: %v", err)
 	}
 	fs, err := o.CDSLFreezes(ctx, T, "priya.nair", "")

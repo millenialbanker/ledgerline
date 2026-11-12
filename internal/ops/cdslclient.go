@@ -174,15 +174,9 @@ func (o *Ops) loadCDSLClientMaster(ctx context.Context, tenant, actor, file stri
 		}
 	}
 	res.Accounts = len(accts)
-	// BO ID → client: the BO account's BO ID, else the client's demat.
+	// BO ID → client: the BO account's BO ID, else any of the client's
+	// demat accounts (a client may have several).
 	ucc := o.boClients(ctx, tenant)
-	if bos, err := docs.List[BOAccount](ctx, o.Docs, tenant, cBO, ""); err == nil {
-		for _, b := range bos {
-			if id := normDematID(b.BOID); id != "" {
-				ucc[id] = b.UCC
-			}
-		}
-	}
 	cfg := o.CDSLPledgeSettings(ctx, tenant)
 	today := o.now().In(ist).Format("2006-01-02")
 	now := o.now().Format(time.RFC3339)
@@ -208,13 +202,14 @@ func (o *Ops) loadCDSLClientMaster(ctx context.Context, tenant, actor, file stri
 		if kind == "F" {
 			x.FullReq = req
 		}
-		b := o.bo(ctx, tenant, c)
+		// The line's own account, never the client's other ones.
+		b := o.boFor(ctx, tenant, c, a.bo)
 		if b.BOID == "" {
 			b.BOID, b.Depository = a.bo, "CDSL"
 		}
 		before := b
 		changes := o.cdslApplyAccount(ctx, tenant, &b, x, today)
-		if err := docs.Upsert(ctx, o.Docs, tenant, cBO, b.UCC, b, actor); err != nil {
+		if err := o.putBO(ctx, tenant, actor, b); err != nil {
 			return res, err
 		}
 		o.refreshCDSLFreeze(ctx, tenant, actor, a.bo, b.UCC)
@@ -468,15 +463,18 @@ func (o *Ops) cdslMissingFromFull(ctx context.Context, tenant, file, dp, req str
 	var miss []string
 	for _, u := range sortedKeys(cs) {
 		c := cs[u]
-		if c.Demat.ID == "" || !strings.EqualFold(firstOf(c.Demat.Depository, "CDSL"), "CDSL") {
-			continue
-		}
-		b := o.bo(ctx, tenant, c)
-		if b.Status == "Closed" || b.Status == "Not opened" || !reCDSLBO.MatchString(normDematID(b.BOID)) || dp != "" && cdxBODP(b.BOID) != dp {
-			continue
-		}
-		if b.CDSL == nil || b.CDSL.FullReq != req {
-			miss = append(miss, b.UCC)
+		// Every one of the client's CDSL accounts at this DP.
+		for _, d := range demats(c) {
+			if d.ID == "" || !strings.EqualFold(firstOf(d.Depository, "CDSL"), "CDSL") {
+				continue
+			}
+			b := o.boFor(ctx, tenant, c, d.ID)
+			if b.Status == "Closed" || b.Status == "Not opened" || !reCDSLBO.MatchString(normDematID(b.BOID)) || dp != "" && cdxBODP(b.BOID) != dp {
+				continue
+			}
+			if b.CDSL == nil || b.CDSL.FullReq != req {
+				miss = append(miss, b.UCC)
+			}
 		}
 	}
 	if len(miss) > 0 {

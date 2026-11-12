@@ -416,7 +416,7 @@ func TestIPOIssueAndBidRules(t *testing.T) {
 		t.Fatalf("15%% a year wins: %s", got)
 	}
 	// The shares arrive in the demat.
-	if err := docs.Upsert(ctx, o.Docs, T, cHolding, holdingID(cs[1].UCC, "INE999Z01011"), Holding{UCC: cs[1].UCC, ISIN: "INE999Z01011", Symbol: "FICTIPO", Qty: 300}, "test"); err != nil {
+	if err := docs.Upsert(ctx, o.Docs, T, cHolding, holdingID(cs[1].UCC, "INE999Z01011"), Holding{UCC: cs[1].UCC, ISIN: "INE999Z01011", Symbol: "FICTIPO", Qty: dq(300)}, "test"); err != nil {
 		t.Fatal(err)
 	}
 	if n, err := o.SyncIPOCredits(ctx, T, "priya.nair", iss.ID); err != nil || n != 1 {

@@ -24,9 +24,12 @@ import (
 type Lot struct {
 	ISIN   string    `json:"isin"`
 	Symbol string    `json:"symbol"`
-	Qty    int64     `json:"qty"`
+	Qty    money.Dec `json:"qty"`  // exact: units may be fractional
 	Date   string    `json:"date"` // acquisition date; "" if unknown
 	Price  money.Dec `json:"price"`
+	// BOID is the demat account the lot was bought into, when the file
+	// said (the lots are the client's, across accounts).
+	BOID string `json:"bo_id,omitempty"`
 }
 
 // LotBook is a client's open purchase lots as at the end of AsOf.
@@ -42,7 +45,7 @@ type Sale struct {
 	Date      string    `json:"date"`
 	ISIN      string    `json:"isin"`
 	Symbol    string    `json:"symbol"`
-	Qty       int64     `json:"qty"`
+	Qty       money.Dec `json:"qty"` // a fractional lot is sold in part
 	BuyDate   string    `json:"buy_date"`
 	BuyPrice  money.Dec `json:"buy_price"`
 	SellPrice money.Dec `json:"sell_price"`
@@ -70,14 +73,15 @@ func (o *Ops) equityBook(ctx context.Context, tenant, ucc, to string) (open []Lo
 	if gerr == nil {
 		open, asOf = append(open, book.Lots...), book.AsOf
 	} else if errors.Is(gerr, docs.ErrNotFound) {
-		// No lot file: fall back to demat balances at their average cost,
-		// acquisition dates unknown.
-		hs, herr := o.Holdings(ctx, tenant, ucc)
+		// No lot file: fall back to demat balances (all the client's
+		// accounts together) at their average cost, acquisition dates
+		// unknown.
+		hs, herr := o.clientHoldings(ctx, tenant, ucc)
 		if herr != nil {
 			return nil, nil, "", herr
 		}
 		for _, h := range hs {
-			if h.Qty > 0 {
+			if h.Qty.Sign() > 0 {
 				open = append(open, Lot{ISIN: h.ISIN, Symbol: h.Symbol, Qty: h.Qty, Price: h.AvgCost})
 			}
 		}
@@ -96,15 +100,15 @@ func (o *Ops) equityBook(ctx context.Context, tenant, ucc, to string) (open []Lo
 		if x.Date > asOf || x.Side != "B" {
 			continue
 		}
-		left := x.Qty
+		left := money.DecInt(x.Qty)
 		for i := range open {
-			if left == 0 {
+			if left.Sign() == 0 {
 				break
 			}
-			if l := &open[i]; l.Date == "" && l.Qty > 0 && (l.ISIN == x.ISIN || l.Symbol == x.Symbol) {
-				q := min(l.Qty, left)
-				l.Qty -= q
-				left -= q
+			if l := &open[i]; l.Date == "" && l.Qty.Sign() > 0 && (l.ISIN == x.ISIN || l.Symbol == x.Symbol) {
+				q := money.Min(l.Qty, left)
+				l.Qty = l.Qty.Sub(q)
+				left = left.Sub(q)
 				open = append(open, Lot{ISIN: l.ISIN, Symbol: l.Symbol, Qty: q, Date: x.Date, Price: x.Price})
 			}
 		}
@@ -188,28 +192,28 @@ func (o *Ops) equityBook(ctx context.Context, tenant, ucc, to string) (open []Lo
 			}
 			if m := min(a.bq, a.sq); m > 0 {
 				cost, proc := bp.MulInt(m), sp.MulInt(m)
-				sales = append(sales, Sale{Date: d, ISIN: isin, Symbol: a.sym, Qty: m, BuyDate: d, BuyPrice: bp, SellPrice: sp, Cost: cost, Proceeds: proc, Gain: proc.Sub(cost), Category: CatSpec})
+				sales = append(sales, Sale{Date: d, ISIN: isin, Symbol: a.sym, Qty: money.DecInt(m), BuyDate: d, BuyPrice: bp, SellPrice: sp, Cost: cost, Proceeds: proc, Gain: proc.Sub(cost), Category: CatSpec})
 			}
 			switch {
 			case a.bq > a.sq:
-				open = append(open, Lot{ISIN: isin, Symbol: a.sym, Qty: a.bq - a.sq, Date: d, Price: bp})
+				open = append(open, Lot{ISIN: isin, Symbol: a.sym, Qty: money.DecInt(a.bq - a.sq), Date: d, Price: bp})
 			case a.sq > a.bq:
-				left := a.sq - a.bq
-				for i := 0; i < len(open) && left > 0; i++ {
+				left := money.DecInt(a.sq - a.bq)
+				for i := 0; i < len(open) && left.Sign() > 0; i++ {
 					l := &open[i]
-					if l.ISIN != isin || l.Qty == 0 {
+					if l.ISIN != isin || l.Qty.Sign() == 0 {
 						continue
 					}
-					q := min(l.Qty, left)
-					cost, proc := l.Price.MulInt(q), sp.MulInt(q)
+					q := money.Min(l.Qty, left)
+					cost, proc := l.Price.Mul(q), sp.Mul(q)
 					s := Sale{Date: d, ISIN: isin, Symbol: a.sym, Qty: q, BuyDate: l.Date, BuyPrice: l.Price, SellPrice: sp, Cost: cost, Proceeds: proc, Gain: proc.Sub(cost)}
 					s.Category, s.Days = gainCategory(l.Date, d)
 					sales = append(sales, s)
-					l.Qty -= q
-					left -= q
+					l.Qty = l.Qty.Sub(q)
+					left = left.Sub(q)
 				}
-				if left > 0 {
-					proc := sp.MulInt(left)
+				if left.Sign() > 0 {
+					proc := sp.Mul(left)
 					sales = append(sales, Sale{Date: d, ISIN: isin, Symbol: a.sym, Qty: left, SellPrice: sp, Proceeds: proc, Category: CatUnknown})
 				}
 			}
@@ -222,7 +226,7 @@ func (o *Ops) equityBook(ctx context.Context, tenant, ucc, to string) (open []Lo
 func dropEmpty(open []Lot) []Lot {
 	kept := open[:0]
 	for _, l := range open {
-		if l.Qty > 0 {
+		if l.Qty.Sign() > 0 {
 			kept = append(kept, l)
 		}
 	}
@@ -507,7 +511,7 @@ func (o *Ops) repLedger(ctx context.Context, tenant string, r *ClientReport) err
 
 type holdLine struct {
 	isin, sym        string
-	qty, pledged     int64
+	qty, pledged     money.Dec // all the client's demat accounts together; exact
 	cost, ltp, value money.Dec
 	haircut          money.Dec
 	priced           bool
@@ -520,9 +524,9 @@ func (o *Ops) holdLines(ctx context.Context, tenant, ucc, asOn string) ([]holdLi
 	}
 	_, look, _ := o.Market(ctx, tenant, asOn)
 	dp, _ := o.Holdings(ctx, tenant, ucc)
-	pledged := map[string]int64{}
+	pledged := map[string]money.Dec{}
 	for _, h := range dp {
-		pledged[h.ISIN] = h.Pledged
+		pledged[h.ISIN] = pledged[h.ISIN].Add(h.Pledged)
 	}
 	g := map[string]*holdLine{}
 	var order []string
@@ -533,23 +537,23 @@ func (o *Ops) holdLines(ctx context.Context, tenant, ucc, asOn string) ([]holdLi
 			g[l.ISIN] = h
 			order = append(order, l.ISIN)
 		}
-		h.qty += l.Qty
-		h.cost = h.cost.Add(l.Price.MulInt(l.Qty))
+		h.qty = h.qty.Add(l.Qty)
+		h.cost = h.cost.Add(l.Price.Mul(l.Qty))
 	}
 	sort.Slice(order, func(i, j int) bool { return g[order[i]].sym < g[order[j]].sym })
 	out := make([]holdLine, 0, len(order))
 	for _, k := range order {
 		h := g[k]
-		if h.qty <= 0 {
+		if h.qty.Sign() <= 0 {
 			continue
 		}
-		h.pledged = min(pledged[h.isin], h.qty)
+		h.pledged = money.Min(pledged[h.isin], h.qty)
 		if i, ok := look.ByISIN(h.isin); ok {
 			h.ltp, h.haircut, h.priced = i.LTP, i.HaircutPct, true
 		} else if i, ok := look.Get("NSE", "CM", h.sym+"|EQ||"); ok {
 			h.ltp, h.haircut, h.priced = i.LTP, i.HaircutPct, true
 		}
-		h.value = h.ltp.MulInt(h.qty)
+		h.value = h.ltp.Mul(h.qty)
 		out = append(out, *h)
 	}
 	return out, lotsAsOf, nil
@@ -576,8 +580,8 @@ func (o *Ops) repHoldings(ctx context.Context, tenant string, r *ClientReport) e
 				n++
 			}
 			for _, h := range hs {
-				avg, _ := h.cost.Quo(money.DecInt(h.qty))
-				sec.Rows = append(sec.Rows, []string{c.UCC, c.Name, h.isin, h.sym, qty(h.qty), qty(h.pledged), d2s(avg), d2s(h.ltp), d2s(h.value)})
+				avg, _ := h.cost.Quo(h.qty)
+				sec.Rows = append(sec.Rows, []string{c.UCC, c.Name, h.isin, h.sym, fmtQty(h.qty), fmtQty(h.pledged), d2s(avg), d2s(h.ltp), d2s(h.value)})
 				tv = tv.Add(h.value)
 			}
 		}
@@ -606,13 +610,13 @@ func holdingSection(hs []holdLine) (Section, money.Dec, money.Dec) {
 		tc, tv = tc.Add(h.cost), tv.Add(h.value)
 	}
 	for _, h := range hs {
-		avg, _ := h.cost.Quo(money.DecInt(h.qty))
+		avg, _ := h.cost.Quo(h.qty)
 		pl := h.value.Sub(h.cost)
 		ltp, val := d2s(h.ltp), d2s(h.value)
 		if !h.priced {
 			ltp, val = "", ""
 		}
-		sec.Rows = append(sec.Rows, []string{h.isin, h.sym, qty(h.qty), qty(h.pledged), d2s(avg), d2s(h.cost), ltp, val, d2s(pl), pctOf(pl, h.cost), pctOf(h.value, tv)})
+		sec.Rows = append(sec.Rows, []string{h.isin, h.sym, fmtQty(h.qty), fmtQty(h.pledged), d2s(avg), d2s(h.cost), ltp, val, d2s(pl), pctOf(pl, h.cost), pctOf(h.value, tv)})
 	}
 	if len(hs) > 0 {
 		sec.Totals = []string{"Total", "", "", "", "", d2s(tc), "", d2s(tv), d2s(tv.Sub(tc)), pctOf(tv.Sub(tc), tc), "100.00"}
@@ -863,7 +867,7 @@ func (o *Ops) repPnL(ctx context.Context, tenant string, r *ClientReport) error 
 			if x.Category == CatUnknown {
 				cost, bp = "", ""
 			}
-			s.Rows = append(s.Rows, []string{x.Date, x.Symbol, x.ISIN, qty(x.Qty), x.BuyDate, bp, d2s(x.SellPrice), cost, d2s(x.Proceeds), d2s(x.Gain), days})
+			s.Rows = append(s.Rows, []string{x.Date, x.Symbol, x.ISIN, fmtQty(x.Qty), x.BuyDate, bp, d2s(x.SellPrice), cost, d2s(x.Proceeds), d2s(x.Gain), days})
 			tc, tp, tg = tc.Add(x.Cost), tp.Add(x.Proceeds), tg.Add(x.Gain)
 		}
 		if len(s.Rows) > 0 {
@@ -1188,8 +1192,8 @@ func (o *Ops) repFundsSecurities(ctx context.Context, tenant string, r *ClientRe
 	}
 	price := map[string]money.Dec{}
 	for _, h := range hs {
-		if h.qty > 0 && h.priced {
-			p, _ := h.value.Quo(money.DecInt(h.qty))
+		if h.qty.Sign() > 0 && h.priced {
+			p, _ := h.value.Quo(h.qty)
 			price[h.isin] = p
 		}
 	}
@@ -1198,9 +1202,9 @@ func (o *Ops) repFundsSecurities(ctx context.Context, tenant string, r *ClientRe
 		Note:  "Pledged securities stay in your demat account, pledged to the broker for margin. Securities bought and not fully paid for are held in the client unpaid securities pledgee account (CUSPA) and released when paid for, or sold after the period the rules allow."}
 	var bv money.Dec
 	for _, h := range hs {
-		if h.pledged > 0 {
-			v := price[h.isin].MulInt(h.pledged)
-			withBroker.Rows = append(withBroker.Rows, []string{h.isin, h.sym, "Margin pledge", "", qty(h.pledged), d2s(v)})
+		if h.pledged.Sign() > 0 {
+			v := price[h.isin].Mul(h.pledged)
+			withBroker.Rows = append(withBroker.Rows, []string{h.isin, h.sym, "Margin pledge", "", fmtQty(h.pledged), d2s(v)})
 			bv = bv.Add(v)
 		}
 	}
@@ -1241,7 +1245,7 @@ func (o *Ops) fundsSecuritiesDue(ctx context.Context, tenant, ucc, from, to stri
 	}
 	hs, _ := o.Holdings(ctx, tenant, ucc)
 	for _, h := range hs {
-		if h.Pledged > 0 {
+		if h.Pledged.Sign() > 0 {
 			return true, nil
 		}
 	}

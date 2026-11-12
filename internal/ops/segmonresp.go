@@ -226,7 +226,7 @@ func (o *Ops) SEGMONResponseFile(ctx context.Context, tenant, actor, date, name 
 	if err != nil {
 		return SegmonResponse{}, invalid("%v", err)
 	}
-	cs, _ := o.ClientMap(ctx, tenant)
+	cs, _ := o.tradingClientMap(ctx, tenant)
 	known := map[string]bool{}
 	for u := range cs {
 		known[u] = true

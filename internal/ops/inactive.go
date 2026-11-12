@@ -167,7 +167,7 @@ func (o *Ops) Dormancy(ctx context.Context, tenant, date string) (DormancyView, 
 	if err != nil {
 		return DormancyView{}, err
 	}
-	cm, err := o.ClientMap(ctx, tenant)
+	cm, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return DormancyView{}, err
 	}
@@ -185,13 +185,13 @@ func (o *Ops) Dormancy(ctx context.Context, tenant, date string) (DormancyView, 
 	_, look, _ := o.Market(ctx, tenant, date)
 	sec := map[string]money.Dec{}
 	nh := map[string]int{}
-	for _, h := range hs {
-		if h.Qty <= 0 {
+	for _, h := range sumHoldings(hs) {
+		if h.Qty.Sign() <= 0 {
 			continue
 		}
 		nh[h.UCC]++
 		if i, ok := look.ByISIN(h.ISIN); ok {
-			sec[h.UCC] = sec[h.UCC].Add(i.LTP.MulInt(h.Qty))
+			sec[h.UCC] = sec[h.UCC].Add(h.Value(i.LTP))
 		}
 	}
 	if v.Requests, err = docs.List[Reactivation](ctx, o.Docs, tenant, cReactivation, ""); err != nil {

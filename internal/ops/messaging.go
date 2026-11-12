@@ -544,16 +544,16 @@ func (o *Ops) botAnswer(ctx context.Context, tenant, cmd string, c Client, date 
 		_, look, _ := o.Market(ctx, tenant, date)
 		var lines []string
 		var total money.Dec
-		for _, h := range hs {
-			if h.Qty <= 0 {
+		for _, h := range sumHoldings(hs) {
+			if h.Qty.Sign() <= 0 {
 				continue
 			}
 			v := money.Dec{}
 			if i, ok := look.ByISIN(h.ISIN); ok {
-				v = i.LTP.MulInt(h.Qty)
+				v = h.Value(i.LTP)
 			}
 			total = total.Add(v)
-			lines = append(lines, fmt.Sprintf("%s %d · ₹%s", h.Symbol, h.Qty, formatINR(v)))
+			lines = append(lines, fmt.Sprintf("%s %s · ₹%s", h.Symbol, fmtQty(h.Qty), formatINR(v)))
 		}
 		if len(lines) == 0 {
 			return "You have no holdings in your demat account with us."
@@ -630,15 +630,22 @@ func (o *Ops) botAnswer(ctx context.Context, tenant, cmd string, c Client, date 
 			if b.Status != "Open" || date > b.Close {
 				continue
 			}
-			h, _, err := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, holdingID(c.UCC, b.ISIN))
-			if err != nil || h.Qty-h.Pledged <= 0 {
+			var free int64
+			if hs, err := o.Holdings(ctx, tenant, c.UCC); err == nil {
+				for _, h := range hs {
+					if h.ISIN == b.ISIN {
+						free += wholeUnits(h.Free())
+					}
+				}
+			}
+			if free <= 0 {
 				continue
 			}
 			ltp := "—"
 			if i, ok := look.ByISIN(b.ISIN); ok {
 				ltp = i.LTP.Fixed(2)
 			}
-			lines = append(lines, fmt.Sprintf("%s buy-back at ₹%s (last price ₹%s), closes %s; you hold %d free", b.Symbol, b.Price.Fixed(2), ltp, fmtDay(b.Close), h.Qty-h.Pledged))
+			lines = append(lines, fmt.Sprintf("%s buy-back at ₹%s (last price ₹%s), closes %s; you hold %d free", b.Symbol, b.Price.Fixed(2), ltp, fmtDay(b.Close), free))
 		}
 		if len(lines) == 0 {
 			return "No buy-back offers are open on shares you hold."

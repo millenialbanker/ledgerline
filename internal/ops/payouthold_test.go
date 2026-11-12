@@ -204,7 +204,7 @@ func TestPayoutHoldAutomatic(t *testing.T) {
 		t.Fatalf("oms release file %q", b)
 	}
 	// With the suffix and a pledged G-sec, the lines carry both.
-	docs.Upsert(ctx, o.Docs, T, cHolding, holdingID("AL1", "IN0020990011"), Holding{UCC: "AL1", ISIN: "IN0020990011", Symbol: "TESTGS", Qty: 10, Pledged: 10}, "test")
+	docs.Upsert(ctx, o.Docs, T, cHolding, holdingID("AL1", "IN0020990011"), Holding{UCC: "AL1", ISIN: "IN0020990011", Symbol: "TESTGS", Qty: dq(10), Pledged: dq(10)}, "test")
 	prev := set0(t, o).PrevBusinessDay(phP)
 	m, _, _ := o.Market(ctx, T, prev)
 	m.Date = prev

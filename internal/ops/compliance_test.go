@@ -28,7 +28,7 @@ func TestComplianceDesk(t *testing.T) {
 		t.Fatalf("alerts high=%v name=%v", hi, med)
 	}
 	// Onboarding the debarred PAN is refused.
-	nc := Client{Name: "X Y", Type: "Individual", PAN: a.PAN, Mobile: "9876543210", Email: "x@y.in", City: "Pune", Segments: []string{"CM"}, Bank: BankAccount{Bank: "HDFC", IFSC: "HDFC0001234", Account: "123456789012"}, Demat: Demat{"CDSL", "1208160012345678"}, RiskDisclosure: true, IncomeProof: true, Income: "5-10 L", RAS: "Quarterly"}
+	nc := Client{Name: "X Y", Type: "Individual", PAN: a.PAN, Mobile: "9876543210", Email: "x@y.in", City: "Pune", Segments: []string{"CM"}, Bank: BankAccount{Bank: "HDFC", IFSC: "HDFC0001234", Account: "123456789012"}, Demat: Demat{Depository: "CDSL", ID: "1208160012345678"}, RiskDisclosure: true, IncomeProof: true, Income: "5-10 L", RAS: "Quarterly"}
 	if _, err := o.CreateApplication(ctx, T, "priya.nair", nc); err == nil || !strings.Contains(err.Error(), "PAN") {
 		t.Fatalf("debarred onboarding: %v", err)
 	}

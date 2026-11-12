@@ -20,7 +20,7 @@ import (
 //   PARTNERS      authorised persons and relationship managers (after BRANCHES)
 //   UCC-DETAILS   each client's exchange UCC details (after the client master)
 //   UCC-CONTACTS  contact persons of non-individual clients
-//   DP-ACCOUNTS   the DP's record of each client's demat account
+//   DP-ACCOUNTS   the DP's record of each client's demat accounts
 //
 // Each is checked with the same rules as its screen (SaveBranch,
 // SavePartner, SaveUCCDetails, the DP desk), every row's problems are
@@ -32,7 +32,7 @@ func importSources() []masterSrc {
 		{"PARTNERS", "Authorised persons and relationship managers (migration: the previous back office's sub-broker or AP master). Code, Name and Kind (Authorised person or Relationship manager) are required; optional Branch, Parent (the partner it reports to), PAN, GSTIN, RegNo (exchange AP registration), SharePct (its share of brokerage, 0 to 100), Bank, Account, IFSC, Email and Active (Y or N, Y when blank). Load after the branches and before the client master, whose AP and RM columns name them", []string{"Code", "Name", "Kind"}, false, "Once at go-live, then on change"},
 		{"UCC-DETAILS", "Each client's details for the exchanges' UCC that the client master does not hold (migration): address in lines with PIN (6 digits in India), permanent address, gender, father's or spouse's name, marital status, nationality, occupation, PEP, IPV, POA, UPI, agreement date, CIN, bank account type, and whose the mobile and e-mail are. Required columns UCC, Address1, City, State, PIN; optional Category, Address2, Address3, Country, PermAddress1, PermAddress2, PermAddress3, PermCity, PermState, PermCountry, PermPIN, Gender, Guardian, Marital, Nationality, Occupation, OccupationDetail, IncomeAsOn, PEP, IPV, POAFunds, POASecurities, UPI, AgreementDate, CIN, BankType, MobileRelation, EmailRelation. A blank cell leaves what is stored; the client must exist (load after the client master)", []string{"UCC", "Address1", "City", "State", "PIN"}, false, "Once at go-live, then on change"},
 		{"UCC-CONTACTS", "Contact persons of non-individual clients for the exchanges' UCC: partners, karta, directors, trustees (migration). UCC, Name and Designation are required; optional PAN, Address, Phone, Email and DIN. A client's rows replace their contact persons, at most 5; the client must exist", []string{"UCC", "Name", "Designation"}, false, "Once at go-live, then on change"},
-		{"DP-ACCOUNTS", "The DP's record of each client's demat account (migration: the previous back office's DP client master). UCC, BOID, Depository (CDSL or NSDL) and Status (Active, Frozen, Closed or Not opened) are required; optional Opened and ClosedOn (dates), BSDA and DDPI (Y or N), Freeze (Debit, Credit or Both) and FreezeReason, both needed for a frozen account. One account per client; an account whose UCC is not a client here is reported and left out, as Ledgerline keeps demat accounts for its trading clients. Load after the client master", []string{"UCC", "BOID", "Depository", "Status"}, false, "Once at go-live, then on change"},
+		{"DP-ACCOUNTS", "The DP's record of each client's demat accounts (migration: the previous back office's DP client master), one row per account: a client may have several, and a DP-only client (DPOnly Y in the client master) has only these. UCC, BOID, Depository (CDSL or NSDL) and Status (Active, Frozen, Closed or Not opened) are required; optional Opened and ClosedOn (dates), BSDA and DDPI (Y or N), Freeze (Debit, Credit or Both) and FreezeReason, both needed for a frozen account; Primary (Y or N: the client's primary demat account; when no row of a client says Y, the client master's demat account if it is one of them and open, else the client's first open row); Holder2Name, Holder2PAN, Holder3Name and Holder3PAN for the second and third holders of a joint account. The UCC must be a client (trading or DP-only; load after the client master) and a BO ID belongs to one client", []string{"UCC", "BOID", "Depository", "Status"}, false, "Once at go-live, then on change"},
 	}
 }
 
@@ -357,105 +357,7 @@ func (o *Ops) prepareImport(ctx context.Context, tenant, actor, source string, r
 		}, errs
 
 	case "DP-ACCOUNTS":
-		if err := o.require(ctx, tenant, actor, "Loading DP accounts", RoleChecker); err != nil {
-			bad(1, "", "%v", err)
-			return nil, errs
-		}
-		cs, err := o.ClientMap(ctx, tenant)
-		if err != nil {
-			bad(1, "", "%v", err)
-			return nil, errs
-		}
-		var bs []BOAccount
-		lines, ids := map[string]int{}, map[string]string{}
-		for _, r := range rows {
-			u := strings.ToUpper(strings.TrimSpace(r.get("UCC")))
-			b := BOAccount{UCC: u, BOID: normDematID(r.get("BOID")), Depository: strings.ToUpper(strings.TrimSpace(r.get("Depository"))), Opened: r.get("Opened"), ClosedOn: r.get("ClosedOn"),
-				FreezeWhy: r.get("FreezeReason")}
-			for _, s := range BOStatuses {
-				if strings.EqualFold(s, strings.TrimSpace(r.get("Status"))) {
-					b.Status = s
-				}
-			}
-			for _, f := range FreezeTypes {
-				if strings.EqualFold(f, strings.TrimSpace(r.get("Freeze"))) {
-					b.Freeze = f
-				}
-			}
-			b.BSDA, b.DDPI = ynCell(r, "BSDA", false, bad), ynCell(r, "DDPI", false, bad)
-			c, isClient := cs[u]
-			switch {
-			case u == "":
-				bad(r.line, "UCC", "is required")
-			case !isClient:
-				// Ledgerline keeps demat accounts for its trading clients
-				// only (the DP desk lists clients with a demat account).
-				warn(r.line, "UCC", "%s is not a trading client here; the demat account %s is left out", u, b.BOID)
-				continue
-			}
-			switch b.Depository {
-			case "CDSL":
-				if !reCDSLBO.MatchString(b.BOID) {
-					bad(r.line, "BOID", "a CDSL BO ID is 16 digits, got %q", r.get("BOID"))
-				}
-			case "NSDL":
-				if !reNSDLBO.MatchString(b.BOID) {
-					bad(r.line, "BOID", "an NSDL account is IN and 14 digits (DP ID and client ID), got %q", r.get("BOID"))
-				}
-			default:
-				bad(r.line, "Depository", "must be CDSL or NSDL")
-			}
-			if b.Status == "" {
-				bad(r.line, "Status", "must be one of %s", strings.Join(BOStatuses, ", "))
-			}
-			if v := strings.TrimSpace(r.get("Freeze")); v != "" && b.Freeze == "" {
-				bad(r.line, "Freeze", "must be Debit, Credit or Both")
-			}
-			if b.Status == "Frozen" && (b.Freeze == "" || strings.TrimSpace(b.FreezeWhy) == "") {
-				bad(r.line, "Freeze", "a frozen account needs the freeze type (Debit, Credit or Both) and the reason")
-			}
-			if b.Status != "Frozen" && b.Status != "" && b.Freeze != "" {
-				bad(r.line, "Freeze", "only a frozen account has a freeze; the status is %s", b.Status)
-			}
-			for _, d := range []struct{ v, f string }{{b.Opened, "Opened"}, {b.ClosedOn, "ClosedOn"}} {
-				if d.v != "" && !validDate(d.v) {
-					bad(r.line, d.f, "must be YYYY-MM-DD, got %q", d.v)
-				}
-			}
-			if b.ClosedOn != "" && b.Status != "Closed" {
-				bad(r.line, "ClosedOn", "only a closed account has a closing date")
-			}
-			if l, dup := lines[u]; dup {
-				bad(r.line, "UCC", "%s already has a demat account on line %d; Ledgerline keeps one per client", u, l)
-			}
-			if o2, dup := ids[b.BOID]; dup && b.BOID != "" && o2 != u {
-				bad(r.line, "BOID", "%s is also the account of %s", b.BOID, o2)
-			}
-			lines[u], ids[b.BOID] = r.line, u
-			if c.Demat.ID != "" && normDematID(c.Demat.ID) != b.BOID {
-				warn(r.line, "BOID", "the client master gives %s's demat account as %s; the DP record keeps %s", u, c.Demat.ID, b.BOID)
-			}
-			bs = append(bs, b)
-		}
-		return func() (int, int, error) {
-			n, same := 0, 0
-			for _, b := range bs {
-				old, _, err := docs.Get[BOAccount](ctx, o.Docs, tenant, cBO, b.UCC)
-				if err == nil {
-					// What CDSL's own files said stays.
-					b.CDSL, b.CDSLFreeze, b.CDSLFreezeWhy, b.BSDAOptOut, b.OtherDemat = old.CDSL, old.CDSLFreeze, old.CDSLFreezeWhy, old.BSDAOptOut, old.OtherDemat
-					if sameJSON(old, b) {
-						same++
-						continue
-					}
-				}
-				if err := docs.Upsert(ctx, o.Docs, tenant, cBO, b.UCC, b, actor); err != nil {
-					return n, same, err
-				}
-				n++
-			}
-			return n, same, nil
-		}, errs
+		return o.prepareDPAccounts(ctx, tenant, actor, rows)
 	}
 	bad(1, "", "no loader for %s", source)
 	return nil, errs

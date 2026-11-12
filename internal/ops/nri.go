@@ -153,9 +153,9 @@ func (o *Ops) NRI(ctx context.Context, tenant, actor, date string) (NRIView, err
 	held := map[string]int64{}
 	hval := map[string]money.Dec{}
 	for _, h := range hs {
-		held[h.UCC+"|"+h.Symbol] += h.Qty
+		held[h.UCC+"|"+h.Symbol] += wholeUnits(h.Qty)
 		if i, ok := look.ByISIN(h.ISIN); ok {
-			hval[h.UCC] = hval[h.UCC].Add(i.LTP.MulInt(h.Qty))
+			hval[h.UCC] = hval[h.UCC].Add(h.Value(i.LTP))
 		}
 	}
 	rows := map[string]*NRIRow{}
@@ -265,7 +265,7 @@ type NRITDS struct {
 	Name     string       `json:"name"`
 	Date     string       `json:"date"`
 	Symbol   string       `json:"symbol"`
-	Qty      int64        `json:"qty"`
+	Qty      money.Dec    `json:"qty"`
 	Category string       `json:"category"`
 	Gain     money.Amount `json:"gain"`
 	Exempt   money.Amount `json:"exempt"`

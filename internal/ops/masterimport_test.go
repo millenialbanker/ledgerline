@@ -50,7 +50,7 @@ var (
 	goodDP = csvOf([]string{"UCC", "BOID", "Depository", "Status", "Opened", "ClosedOn", "BSDA", "Freeze", "FreezeReason", "DDPI"},
 		[]string{"TA001", "1234567800000001", "CDSL", "Active", "2020-01-01", "", "N", "", "", "Y"},
 		[]string{"TB002", "IN30000011112222", "NSDL", "Frozen", "2020-01-01", "", "", "Debit", "Made-up court order", ""},
-		[]string{"TZ999", "1234567800000099", "CDSL", "Active", "", "", "", "", "", ""}) // DP-only: reported, left out
+		[]string{"TA001", "1234567800000011", "CDSL", "Closed", "2019-01-01", "2021-06-30", "", "", "", ""}) // a second, closed account of TA001
 )
 
 func loadAll(t *testing.T, o *Ops, ctx context.Context, files [][2]string, data map[string][]byte) map[string]ingest.Result {
@@ -104,18 +104,22 @@ func TestImportOfficesPartnersDetailsDP(t *testing.T) {
 	if len(db.Contacts) != 2 || db.Contacts[0].DIN != "00000001" || db.PermPIN != "411003" {
 		t.Fatalf("TB002 details %+v", db)
 	}
-	bo, _, _ := docs.Get[BOAccount](ctx, o.Docs, MT, cBO, "TB002")
-	if bo.Status != "Frozen" || bo.Freeze != "Debit" || bo.BOID != "IN30000011112222" || bo.Depository != "NSDL" {
+	bo, _ := o.boAccount(ctx, MT, "IN30000011112222")
+	if bo.UCC != "TB002" || bo.Status != "Frozen" || bo.Freeze != "Debit" || bo.BOID != "IN30000011112222" || bo.Depository != "NSDL" {
 		t.Fatalf("bo %+v", bo)
 	}
-	if ba, _, _ := docs.Get[BOAccount](ctx, o.Docs, MT, cBO, "TA001"); !ba.DDPI || ba.BSDA {
+	if ba, _ := o.boAccount(ctx, MT, "1234567800000001"); ba.UCC != "TA001" || !ba.DDPI || ba.BSDA {
 		t.Fatalf("bo %+v", ba)
 	}
-	if _, _, err := docs.Get[BOAccount](ctx, o.Docs, MT, cBO, "TZ999"); err == nil {
-		t.Fatal("a demat account with no client was kept")
+	// TA001 has two accounts with the DP, the closed one kept for the record.
+	if bs := o.boAccountsOf(ctx, MT, "TA001"); len(bs) != 2 || bs[0].BOID != "1234567800000001" || bs[1].Status != "Closed" {
+		t.Fatalf("TA001's accounts %+v", bs)
 	}
-	if w := res["DP-ACCOUNTS"].Warnings; len(w) != 2 || w[0].Line != 3 && w[1].Line != 4 {
-		t.Fatalf("DP warnings %+v", w) // TB002's demat differs from the client master; TZ999 is no client
+	if a, _ := o.Client(ctx, MT, "TA001"); a.Demat.ID != "1234567800000001" || len(a.Demats) != 2 || a.Demats[1].Status != DematClosed || !a.Demats[1].OwnDP {
+		t.Fatalf("TA001's demats %+v %+v", a.Demat, a.Demats)
+	}
+	if w := res["DP-ACCOUNTS"].Warnings; len(w) != 1 || w[0].Line != 3 {
+		t.Fatalf("DP warnings %+v", w) // TB002's demat differs from the client master
 	}
 	// A blank cell keeps what is stored; a blank AP keeps the partner;
 	// groups add up.
@@ -205,8 +209,8 @@ func TestImportBadRowsAllReported(t *testing.T) {
 			[]wantErr{{2, "UCC"}, {3, "Name"}, {3, "Designation"}, {3, "PAN"}, {3, "Email"}, {9, "UCC"}}},
 		{"DP-ACCOUNTS", csvOf([]string{"UCC", "BOID", "Depository", "Status", "Opened", "ClosedOn", "BSDA", "Freeze", "FreezeReason", "DDPI"},
 			[]string{"TA001", "12345", "CDSL", "Open", "01/01/2020", "", "maybe", "", "", ""}, []string{"TB002", "1234567800000002", "XDSL", "Frozen", "", "", "", "", "", "Q"},
-			[]string{"TB002", "1234567800000003", "CDSL", "Active", "", "2025-01-01", "", "Debit", "x", ""}),
-			[]wantErr{{2, "BOID"}, {2, "Status"}, {2, "Opened"}, {2, "BSDA"}, {3, "Depository"}, {3, "Freeze"}, {3, "DDPI"}, {4, "Freeze"}, {4, "ClosedOn"}, {4, "UCC"}}},
+			[]string{"TB002", "1234567800000003", "CDSL", "Active", "", "2025-01-01", "", "Debit", "x", ""}, []string{"TZ999", "1234567800000099", "CDSL", "Active", "", "", "", "", "", ""}),
+			[]wantErr{{2, "BOID"}, {2, "Status"}, {2, "Opened"}, {2, "BSDA"}, {3, "Depository"}, {3, "Freeze"}, {3, "DDPI"}, {4, "Freeze"}, {4, "ClosedOn"}, {5, "UCC"}}},
 	}
 	for _, c := range cases {
 		r, err := o.LoadFile(ctx, MT, "adm.one", c.src, "", "bad.csv", c.data)
@@ -242,7 +246,7 @@ func TestImportDryRunChangesNothing(t *testing.T) {
 			}
 		}
 	}
-	if n := len(res[5].Errors); n != 2 || !res[5].Errors[0].Warning {
+	if n := len(res[5].Errors); n != 1 || !res[5].Errors[0].Warning {
 		t.Fatalf("dp warnings %+v", res[5].Errors)
 	}
 	if bs, _ := o.Branches(ctx, MT); len(bs) != 0 {

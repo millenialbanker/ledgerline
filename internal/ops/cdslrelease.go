@@ -542,9 +542,9 @@ func (o *Ops) RepledgeRecon(ctx context.Context, tenant, date string) ([]Repledg
 		return []RepledgeReconRow{}, loaded
 	}
 	hs, _ := o.Holdings(ctx, tenant, "")
-	for _, h := range hs {
+	for _, h := range sumHoldings(hs) {
 		if x, ok := rows[h.UCC+"|"+h.ISIN]; ok {
-			x.Pledged = h.Pledged
+			x.Pledged = wholeUnits(h.Pledged)
 		}
 	}
 	out := []RepledgeReconRow{}

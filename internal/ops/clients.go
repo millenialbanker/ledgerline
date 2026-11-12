@@ -47,13 +47,30 @@ type BankAccount struct {
 	InactiveWhy  string `json:"inactive_why,omitempty"`
 }
 
-// Demat is a client's demat account.
+// Demat is a client's demat account. Client.Demat is the primary account;
+// Client.Demats, once a client has more than one, lists every account
+// with its status (demats.go).
 type Demat struct {
 	Depository string `json:"depository"`
 	ID         string `json:"id"`
+	// In Client.Demats only: the primary account (the one the exchanges'
+	// UCC records list first and securities pay-outs credit), Active,
+	// Inactive or Closed, when it was added, and the change request that
+	// added or last changed it.
+	Primary     bool   `json:"primary,omitempty"`
+	Status      string `json:"status,omitempty"`
+	AddedOn     string `json:"added_on,omitempty"`
+	InactiveOn  string `json:"inactive_on,omitempty"`
+	InactiveWhy string `json:"inactive_why,omitempty"`
+	Change      string `json:"change,omitempty"`
+	// OwnDP: the account is with the firm's own DP (a BO account Ledgerline
+	// keeps), not with another DP. Worked out when the client is read
+	// (Ops.withDemats) and set by the DP-ACCOUNTS import.
+	OwnDP bool `json:"own_dp,omitempty"`
 }
 
-// Client is a trading client.
+// Client is a client of the firm: a trading client, or (DPOnly) a client
+// of the firm's DP with demat accounts and no trading account.
 type Client struct {
 	UCC            string       `json:"ucc"`
 	Name           string       `json:"name"`
@@ -139,6 +156,16 @@ type Client struct {
 	// more than one (empty: Bank is the only one); Bank is always the
 	// primary. See clientbanks.go.
 	Banks []BankAccount `json:"banks,omitempty"`
+	// Demats are all the client's demat accounts once there is more than
+	// one (empty: Demat is the only one); Demat is always the primary.
+	// PayoutDemat is the account the client chose for pay-outs of
+	// securities (empty: the primary). See demats.go.
+	Demats      []Demat `json:"demats,omitempty"`
+	PayoutDemat string  `json:"payout_demat,omitempty"`
+	// DPOnly: a client of the firm's DP only, with no trading account
+	// (dponly.go): no segments, no exchange UCC, front-office files,
+	// limits, contract notes or running account settlement.
+	DPOnly bool `json:"dp_only,omitempty"`
 	// Incomplete lists, in words ("Mobile", "PAN", "Bank account number",
 	// "Address"…), the details the previous system did not have, or had in
 	// a form Ledgerline cannot accept, when an inactive client was migrated
@@ -189,7 +216,7 @@ func (c *Client) Normalise() {
 	if c.Type == "" {
 		c.Type = "Individual"
 	}
-	if c.RAS == "" {
+	if c.RAS == "" && !c.DPOnly {
 		c.RAS = "Quarterly"
 	}
 	if c.Risk == "" {
@@ -199,9 +226,16 @@ func (c *Client) Normalise() {
 	if c.Nominee == "" {
 		c.Nominee = "Opted out"
 	}
+	c.Demat.ID = normDematID(c.Demat.ID)
+	c.Demat.Depository = strings.ToUpper(strings.TrimSpace(c.Demat.Depository))
 	if c.Demat.Depository == "" {
 		c.Demat.Depository = "CDSL"
+		if strings.HasPrefix(c.Demat.ID, "IN") {
+			c.Demat.Depository = "NSDL"
+		}
 	}
+	syncDemats(c)
+	c.PayoutDemat = normDematID(c.PayoutDemat)
 	seen := map[string]bool{}
 	var segs []string
 	for _, s := range c.Segments {
@@ -259,17 +293,36 @@ func (c Client) Validate() error {
 		add("bank.account", "Account number is 9 to 18 digits")
 	}
 	fe = append(fe, checkBanks(c.Banks)...)
-	if len(c.Segments) == 0 {
-		add("segments", "Choose at least one segment")
-	}
-	for _, s := range c.Segments {
-		if s != "CM" && !c.IncomeProof {
-			add("income_proof", "Derivatives segments need income proof")
-			break
+	fe = append(fe, checkDemats(c.Demats)...)
+	if c.PayoutDemat != "" {
+		if d, ok := dematOf(c, c.PayoutDemat); !ok || !d.active() {
+			add("payout_demat", "The account for pay-outs of securities must be an active demat account of the client")
 		}
 	}
-	if c.RAS != "Monthly" && c.RAS != "Quarterly" {
-		add("ras", "Running account settlement must be Monthly or Quarterly")
+	switch {
+	case c.DPOnly:
+		// A client of the DP only: no trading account, so no segments, no
+		// running account settlement and no derivatives income proof
+		// (dponly.go).
+		if len(c.Segments) > 0 {
+			add("segments", "A DP-only client has no trading segments; open a trading account to add them")
+		}
+		if c.RAS != "" && c.RAS != "Monthly" && c.RAS != "Quarterly" {
+			add("ras", "Running account settlement must be Monthly or Quarterly")
+		}
+	default:
+		if len(c.Segments) == 0 {
+			add("segments", "Choose at least one segment")
+		}
+		for _, s := range c.Segments {
+			if s != "CM" && !c.IncomeProof {
+				add("income_proof", "Derivatives segments need income proof")
+				break
+			}
+		}
+		if c.RAS != "Monthly" && c.RAS != "Quarterly" {
+			add("ras", "Running account settlement must be Monthly or Quarterly")
+		}
 	}
 	if c.Nominee == "Opted in" && strings.TrimSpace(c.NomineeName) == "" {
 		add("nominee_name", "Enter the nominee name")

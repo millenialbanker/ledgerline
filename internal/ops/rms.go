@@ -123,7 +123,7 @@ func (o *Ops) riskInput(ctx context.Context, tenant, date string) (riskInput, er
 	if in.set, err = o.Settings(ctx, tenant); err != nil {
 		return in, err
 	}
-	if in.clients, err = o.ClientMap(ctx, tenant); err != nil {
+	if in.clients, err = o.tradingClientMap(ctx, tenant); err != nil {
 		return in, err
 	}
 	if _, in.look, err = o.Market(ctx, tenant, date); err != nil && !strings.Contains(err.Error(), "market data not loaded") {
@@ -138,9 +138,18 @@ func (o *Ops) riskInput(ctx context.Context, tenant, date string) (riskInput, er
 	if in.holdings, err = o.Holdings(ctx, tenant, ""); err != nil {
 		return in, err
 	}
+	// Risk is about trading clients: a DP-only client's holdings are not
+	// collateral for anything (dponly.go).
+	kept := in.holdings[:0]
+	for _, h := range in.holdings {
+		if _, ok := in.clients[h.UCC]; ok {
+			kept = append(kept, h)
+		}
+	}
+	in.holdings = kept
 	var pledged []string
 	for _, h := range in.holdings {
-		if h.Pledged > 0 {
+		if h.Pledged.Sign() > 0 {
 			pledged = append(pledged, h.ISIN)
 		}
 	}
@@ -284,11 +293,11 @@ func (c collSplit) Total() money.Dec { return c.CashEq.Add(c.NonCash) }
 func (in riskInput) collateral() map[string]collSplit {
 	out := map[string]collSplit{}
 	for _, h := range in.holdings {
-		if h.Pledged <= 0 {
+		if h.Pledged.Sign() <= 0 {
 			continue
 		}
 		if i, ok := in.look.ByISIN(h.ISIN); ok {
-			v := i.LTP.MulInt(h.Pledged).Pct(money.DecInt(100).Sub(i.HaircutPct))
+			v := i.LTP.Mul(h.Pledged).Pct(money.DecInt(100).Sub(i.HaircutPct))
 			c := out[h.UCC]
 			if in.cashEq[h.ISIN] {
 				c.CashEq = c.CashEq.Add(v)

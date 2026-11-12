@@ -120,6 +120,14 @@ func (o *Ops) ReportRows(ctx context.Context, tenant, date, code string) ([][]st
 	if err != nil {
 		return nil, err
 	}
+	// Reports to the exchanges are about trading clients: a DP-only client
+	// (dponly.go) has no UCC, segments or running account.
+	trading := map[string]Client{}
+	for u, c := range clients {
+		if !c.DPOnly {
+			trading[u] = c
+		}
+	}
 	switch code {
 	case "funds_balance":
 		rv, err := o.Risk(ctx, tenant, date)
@@ -130,7 +138,7 @@ func (o *Ops) ReportRows(ctx context.Context, tenant, date, code string) ([][]st
 		hs, _ := o.Holdings(ctx, tenant, "")
 		held := map[string]bool{}
 		for _, h := range hs {
-			if h.Qty > 0 {
+			if h.Qty.Sign() > 0 {
 				held[h.UCC] = true
 			}
 		}
@@ -157,15 +165,15 @@ func (o *Ops) ReportRows(ctx context.Context, tenant, date, code string) ([][]st
 		if err != nil {
 			return nil, err
 		}
-		rows := [][]string{{"UCC", "Name", "ISIN", "Symbol", "Quantity", "Pledged"}}
+		rows := [][]string{{"UCC", "Name", "ISIN", "Symbol", "Quantity", "Pledged", "BOID"}}
 		for _, h := range hs {
-			rows = append(rows, []string{h.UCC, clients[h.UCC].Name, h.ISIN, h.Symbol, fmt.Sprint(h.Qty), fmt.Sprint(h.Pledged)})
+			rows = append(rows, []string{h.UCC, clients[h.UCC].Name, h.ISIN, h.Symbol, fmtQty(h.Qty), fmtQty(h.Pledged), holdingBO(clients[h.UCC], h)})
 		}
 		return rows, nil
 	case "ucc":
 		rows := [][]string{{"UCC", "Name", "PAN", "Category", "Segments", "Mobile", "Email", "Status"}}
-		for _, u := range sortedKeys(clients) {
-			c := clients[u]
+		for _, u := range sortedKeys(trading) {
+			c := trading[u]
 			switch {
 			case c.Status == "UCC upload" || c.KYCDate == date:
 				rows = append(rows, []string{c.UCC, c.Name, c.PAN, c.Type, strings.Join(c.Segments, "/"), c.Mobile, c.Email, c.Status})
@@ -249,11 +257,12 @@ func (o *Ops) ReportRows(ctx context.Context, tenant, date, code string) ([][]st
 				held[holdingID(it.UCC, it.ISIN)] += it.Qty
 			}
 		}
+		// The register of securities is the client's: its accounts added up.
 		seen := map[string]bool{}
-		for _, h := range hs {
+		for _, h := range sumHoldings(hs) {
 			id := holdingID(h.UCC, h.ISIN)
 			seen[id] = true
-			rows = append(rows, []string{date, h.UCC, clients[h.UCC].Name, h.ISIN, h.Symbol, fmt.Sprint(h.Qty), fmt.Sprint(h.Pledged), fmt.Sprint(held[id])})
+			rows = append(rows, []string{date, h.UCC, clients[h.UCC].Name, h.ISIN, h.Symbol, fmtQty(h.Qty), fmtQty(h.Pledged), fmt.Sprint(held[id])})
 		}
 		for _, it := range cu {
 			if id := holdingID(it.UCC, it.ISIN); it.Status == "Held in CUSPA" && !seen[id] {
@@ -312,8 +321,8 @@ func (o *Ops) ReportRows(ctx context.Context, tenant, date, code string) ([][]st
 		return rows, nil
 	case "segment_status":
 		rows := [][]string{{"UCC", "Name", "CM", "FO", "CD", "COM", "LastChange", "LastChangeOn", "Reason"}}
-		for _, u := range sortedKeys(clients) {
-			c := clients[u]
+		for _, u := range sortedKeys(trading) {
+			c := trading[u]
 			st := func(s string) string {
 				if x := c.SegmentStatus(s); x != "Not registered" {
 					return x
@@ -332,8 +341,8 @@ func (o *Ops) ReportRows(ctx context.Context, tenant, date, code string) ([][]st
 		return o.collateralReportRows(ctx, tenant, date)
 	case "no_ras_auth":
 		rows := [][]string{{"UCC", "Name", "PAN", "Status", "RunningAccountPreference"}}
-		for _, u := range sortedKeys(clients) {
-			c := clients[u]
+		for _, u := range sortedKeys(trading) {
+			c := trading[u]
 			if c.RAS != "Monthly" && c.RAS != "Quarterly" {
 				rows = append(rows, []string{u, c.Name, MaskPAN(c.PAN), c.Status, c.RAS})
 			}

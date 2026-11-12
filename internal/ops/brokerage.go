@@ -264,8 +264,12 @@ func (o *Ops) assignAs(ctx context.Context, tenant, actor string, in PlanAssignm
 		target = "tag:" + t
 	case strings.HasPrefix(target, "ucc:"):
 		u := strings.ToUpper(strings.TrimPrefix(target, "ucc:"))
-		if _, err := o.Client(ctx, tenant, u); err != nil {
+		c, err := o.Client(ctx, tenant, u)
+		if err != nil {
 			return PlanAssignment{}, err
+		}
+		if c.DPOnly && planID != "" {
+			return PlanAssignment{}, invalid("%s is a DP-only client with no trading account: a brokerage plan does not apply (open a trading account first)", u)
 		}
 		target = "ucc:" + u
 	default:
@@ -338,7 +342,7 @@ func (o *Ops) brokerageBook(ctx context.Context, tenant, date string) (*brokerag
 	if err != nil {
 		return nil, err
 	}
-	cm, err := o.ClientMap(ctx, tenant)
+	cm, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return nil, err
 	}

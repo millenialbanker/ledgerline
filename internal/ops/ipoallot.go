@@ -287,10 +287,8 @@ func (o *Ops) IPOReconciliation(ctx context.Context, tenant, actor, issueID stri
 	v := IPORecon{Issue: iss, Today: now.Format("2006-01-02"), Rows: []IPOReconRow{}}
 	credits, src := o.ipoCredits(ctx, tenant, iss)
 	ourDP := map[string]bool{}
-	if bos, _ := docs.List[BOAccount](ctx, o.Docs, tenant, cBO, ""); len(bos) > 0 {
-		for _, b := range bos {
-			ourDP[b.UCC] = true
-		}
+	for _, b := range o.boAccounts(ctx, tenant) {
+		ourDP[b.UCC] = true
 	}
 	f := o.ClientScope(ctx, tenant, actor)
 	set, _ := o.Settings(ctx, tenant)
@@ -345,15 +343,15 @@ func (o *Ops) ipoCredits(ctx context.Context, tenant string, iss IPOIssue) (map[
 	}
 	txns, _ := docs.List[DPTxn](ctx, o.Docs, tenant, cDPTxn, "")
 	for _, t := range txns {
-		if t.ISIN == iss.ISIN && t.Qty > 0 && t.Date >= iss.Close {
-			qty[t.UCC] += t.Qty
+		if t.ISIN == iss.ISIN && t.Qty.Sign() > 0 && t.Date >= iss.Close {
+			qty[t.UCC] += wholeUnits(t.Qty)
 			src[t.UCC] = "DP transaction " + t.ID + " (" + t.Kind + ", " + t.Date + ")"
 		}
 	}
 	hs, _ := docs.List[Holding](ctx, o.Docs, tenant, cHolding, "")
-	for _, h := range hs {
-		if h.ISIN == iss.ISIN && h.Qty > qty[h.UCC] && src[h.UCC] == "" {
-			qty[h.UCC] = h.Qty
+	for _, h := range sumHoldings(hs) {
+		if q := wholeUnits(h.Qty); h.ISIN == iss.ISIN && q > qty[h.UCC] && src[h.UCC] == "" {
+			qty[h.UCC] = q
 			src[h.UCC] = "demat holding"
 		}
 	}

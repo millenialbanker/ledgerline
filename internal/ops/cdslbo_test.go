@@ -220,7 +220,7 @@ func TestCDSLBOOnlineOpenAccount(t *testing.T) {
 	}
 	got, _ = o.cdslGet(ctx, T, r.ID)
 	nc, _ := o.Client(ctx, T, c.UCC)
-	b, _, _ := docs.Get[BOAccount](ctx, o.Docs, T, cBO, c.UCC)
+	b, _, _ := testBO(ctx, o, T, c.UCC)
 	if got.Status != crCompleted || got.BOID != "1201090000001234" || nc.Demat.ID != "1201090000001234" || b.BOID != "1201090000001234" || b.Status != "Active" || got.Reply == nil {
 		t.Fatalf("after call-back: %+v client %+v bo %+v", got, nc.Demat, b)
 	}
@@ -352,7 +352,7 @@ func TestCDSLActiveDematCount(t *testing.T) {
 	if strings.Contains(got.Request, "ABCPS7777S") || strings.Contains(got.Request, "9876500099") {
 		t.Error("the PAN and mobile must be masked in what is kept")
 	}
-	b, _, _ := docs.Get[BOAccount](ctx, o.Docs, T, cBO, c.UCC)
+	b, _, _ := testBO(ctx, o, T, c.UCC)
 	if !b.OtherDemat {
 		t.Error("two accounts for the PAN: the DP record should say the client has another demat account")
 	}
@@ -399,7 +399,7 @@ func TestCDSLTransferCumClosure(t *testing.T) {
 	o, ctx := newOps(t)
 	newFakeCDSL(t, o, cdslFamTransfer)
 	c := cdslTestClient(t, o, ctx, "ABCPT2222T", "Tara Kulkarni", "1201090000002222")
-	docs.Upsert(ctx, o.Docs, T, cHolding, holdingID(c.UCC, "INE002A01018"), Holding{UCC: c.UCC, ISIN: "INE002A01018", Symbol: "RELIANCE", Qty: 10}, "admin")
+	docs.Upsert(ctx, o.Docs, T, cHolding, holdingID(c.UCC, "INE002A01018"), Holding{UCC: c.UCC, ISIN: "INE002A01018", Symbol: "RELIANCE", Qty: dq(10)}, "admin")
 	dpr, err := o.RaiseDPRequest(ctx, T, "priya.nair", DPRequest{Kind: "Closure", UCC: c.UCC, Detail: map[string]string{"transfer_to": "1304140000000352"}})
 	if err != nil {
 		t.Fatal(err)
@@ -408,7 +408,7 @@ func TestCDSLTransferCumClosure(t *testing.T) {
 	if err != nil || dpr.Status != "Sent to CDSL" {
 		t.Fatalf("closure: %+v %v", dpr, err)
 	}
-	if b, _, _ := docs.Get[BOAccount](ctx, o.Docs, T, cBO, c.UCC); b.Status == "Closed" {
+	if b, _, _ := testBO(ctx, o, T, c.UCC); b.Status == "Closed" {
 		t.Fatal("closed before CDSL confirmed")
 	}
 	if _, err := o.ActOnDPRequest(ctx, T, "farhan.khan", dpr.ID, "approve", ""); err == nil {
@@ -462,11 +462,11 @@ func TestCDSLTransferCumClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	r, _ = o.cdslGet(ctx, T, r.ID)
-	b, _, _ := docs.Get[BOAccount](ctx, o.Docs, T, cBO, c.UCC)
+	b, _, _ := testBO(ctx, o, T, c.UCC)
 	d, _, _ := docs.Get[DPRequest](ctx, o.Docs, T, cDPReq, dpr.ID)
 	h, _, _ := docs.Get[Holding](ctx, o.Docs, T, cHolding, holdingID(c.UCC, "INE002A01018"))
-	if r.Status != crCompleted || r.CDSLRef != "6765756" || b.Status != "Closed" || d.Status != "Completed" || h.Qty != 0 || len(r.Warnings) != 0 {
-		t.Fatalf("completed: %+v bo %+v dp %+v holding %d", r, b, d, h.Qty)
+	if r.Status != crCompleted || r.CDSLRef != "6765756" || b.Status != "Closed" || d.Status != "Completed" || wq(h.Qty) != 0 || len(r.Warnings) != 0 {
+		t.Fatalf("completed: %+v bo %+v dp %+v holding %v", r, b, d, h.Qty)
 	}
 	// The link is spent.
 	if _, err := o.CDSLGoPage(ctx, T, tok); err == nil {

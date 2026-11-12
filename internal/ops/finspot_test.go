@@ -133,9 +133,9 @@ func TestFinspotD224Example(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	for _, h := range []Holding{{UCC: "D224", ISIN: gsec, Symbol: "TESTGS", Qty: 1000, Pledged: 1000}, // 1,00,000
-		{UCC: "D224", ISIN: fund, Symbol: "TESTLIQ", Qty: 60, Pledged: 50},        // 50 x 1000 x 90% = 45,000 ...
-		{UCC: "D224", ISIN: share, Symbol: "TESTSHR", Qty: 1200, Pledged: 1000}} { // 1000 x 500 x 95% = 4,75,000
+	for _, h := range []Holding{{UCC: "D224", ISIN: gsec, Symbol: "TESTGS", Qty: dq(1000), Pledged: dq(1000)}, // 1,00,000
+		{UCC: "D224", ISIN: fund, Symbol: "TESTLIQ", Qty: dq(60), Pledged: dq(50)},        // 50 x 1000 x 90% = 45,000 ...
+		{UCC: "D224", ISIN: share, Symbol: "TESTSHR", Qty: dq(1200), Pledged: dq(1000)}} { // 1000 x 500 x 95% = 4,75,000
 		docs.Upsert(ctx, o.Docs, T, cHolding, holdingID(h.UCC, h.ISIN), h, "test")
 	}
 	// ... and 50 more fund units' worth: 1,00,000 + 50,000 = 1,50,000 cash equivalent.
@@ -265,7 +265,7 @@ func TestFinspotHoldingFile(t *testing.T) {
 	hs, _ := o.Holdings(ctx, T, "")
 	var h Holding
 	for _, x := range hs {
-		if x.Qty > 0 && len(x.ISIN) == 12 {
+		if wq(x.Qty) > 0 && len(x.ISIN) == 12 {
 			h = x
 			break
 		}
@@ -300,8 +300,8 @@ func TestFinspotHoldingFile(t *testing.T) {
 		}
 		if v["AccountId"] == h.UCC && v["ISIN"] == h.ISIN {
 			found = true
-			if v["HoldingsQty"] != itoa(h.Qty+7) || v["POAFlag"] != "Y" {
-				t.Fatalf("holding %+v, want %d", v, h.Qty+7)
+			if v["HoldingsQty"] != itoa(wq(h.Qty)+7) || v["POAFlag"] != "Y" {
+				t.Fatalf("holding %+v, want %d", v, wq(h.Qty)+7)
 			}
 		}
 	}

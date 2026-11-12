@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"errors"
-	"ledgerline/internal/docs"
 	"strings"
 	"testing"
 )
@@ -194,5 +193,5 @@ func mustClient(t *testing.T, o *Ops, ucc string) Client {
 }
 
 func upsertBO(o *Ops, ctx context.Context, b BOAccount) error {
-	return docs.Upsert(ctx, o.Docs, T, cBO, b.UCC, b, "test")
+	return o.putBO(ctx, T, "test", b)
 }

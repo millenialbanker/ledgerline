@@ -154,19 +154,37 @@ func (m Market) SettlementPrices() map[string]money.Dec {
 
 // ---- holdings, pledges, carried positions ----
 
-// Holding is a client's demat balance in one ISIN.
+// Holding is a client's demat balance in one ISIN in one of the client's
+// demat accounts: BOID is empty for the primary account (and for holdings
+// loaded with no account named), else the account's BO ID (demats.go).
+//
+// Quantities are exact decimals: mutual fund units and some other
+// securities held in demat are fractional (CDSL's files carry up to 3
+// decimal places; up to 4 are kept). Stored whole numbers still read.
+// Exchange trades are in whole units: a sale, delivery or margin pledge
+// takes whole units and leaves the fraction (wholeUnits).
 type Holding struct {
 	UCC     string    `json:"ucc"`
 	ISIN    string    `json:"isin"`
 	Symbol  string    `json:"symbol"`
-	Qty     int64     `json:"qty"`
-	Pledged int64     `json:"pledged"`
+	Qty     money.Dec `json:"qty"`
+	Pledged money.Dec `json:"pledged"`
 	AvgCost money.Dec `json:"avg_cost"`
+	BOID    string    `json:"bo_id,omitempty"`
 }
 
+// Free is what is neither pledged nor otherwise held back.
+func (h Holding) Free() money.Dec { return h.Qty.Sub(h.Pledged) }
+
+// Value is the holding at a price, exact (round to paise at the end).
+func (h Holding) Value(price money.Dec) money.Dec { return price.Mul(h.Qty) }
+
+// holdingID is where a holding in the client's primary account is kept;
+// holdingIDAt (demats.go) any account's.
 func holdingID(ucc, isin string) string { return ucc + "|" + isin }
 
-// Holdings lists holdings, optionally for one client.
+// Holdings lists holdings, optionally for one client: one per account and
+// ISIN (sumHoldings adds a client's accounts up).
 func (o *Ops) Holdings(ctx context.Context, tenant, ucc string) ([]Holding, error) {
 	p := ""
 	if ucc != "" {
@@ -175,34 +193,22 @@ func (o *Ops) Holdings(ctx context.Context, tenant, ucc string) ([]Holding, erro
 	return docs.List[Holding](ctx, o.Docs, tenant, cHolding, p)
 }
 
+// adjustHolding changes a holding in the client's primary account by whole
+// units (settlement, pledges for margin).
 func (o *Ops) adjustHolding(ctx context.Context, tenant, actor, ucc, isin, sym string, dQty, dPledged int64) (Holding, error) {
-	id := holdingID(ucc, isin)
-	if _, _, err := docs.Get[Holding](ctx, o.Docs, tenant, cHolding, id); errors.Is(err, docs.ErrNotFound) {
-		if dQty < 0 || dPledged < 0 {
-			return Holding{}, fmt.Errorf("%w: %s holds no %s", ErrState, ucc, sym)
-		}
-		h := Holding{UCC: ucc, ISIN: isin, Symbol: sym}
-		if _, err := docs.Put(ctx, o.Docs, tenant, cHolding, id, h, 0, actor); err != nil && !errors.Is(err, docs.ErrStale) {
-			return Holding{}, err
-		}
-	}
-	return docs.Update(ctx, o.Docs, tenant, cHolding, id, actor, func(h *Holding) error {
-		h.Qty += dQty
-		h.Pledged += dPledged
-		if h.Pledged < 0 || h.Qty < 0 || h.Pledged > h.Qty {
-			return fmt.Errorf("%w: %s %s would hold %d with %d pledged", ErrState, ucc, sym, h.Qty, h.Pledged)
-		}
-		return nil
-	})
+	return o.adjustHoldingAt(ctx, tenant, actor, ucc, "", isin, sym, money.DecInt(dQty), money.DecInt(dPledged))
 }
 
 // PledgeRequest is a client's margin pledge request from the depository.
 type PledgeRequest struct {
-	ID        string `json:"id"`
-	UCC       string `json:"ucc"`
-	ISIN      string `json:"isin"`
-	Symbol    string `json:"symbol"`
-	Qty       int64  `json:"qty"`
+	ID     string `json:"id"`
+	UCC    string `json:"ucc"`
+	ISIN   string `json:"isin"`
+	Symbol string `json:"symbol"`
+	Qty    int64  `json:"qty"`
+	// BOID is the demat account the securities are pledged from (empty:
+	// the client's primary account).
+	BOID      string `json:"bo_id,omitempty"`
 	Time      string `json:"time"`
 	Status    string `json:"status"` // Pending, Accepted, Rejected; through CDSL's API also Awaiting client, Failed
 	PSN       string `json:"psn,omitempty"`
@@ -252,20 +258,24 @@ func (o *Ops) DecidePledge(ctx context.Context, tenant, actor, id string, accept
 		return o.decideAPIPledge(ctx, tenant, actor, p, accept, reason)
 	}
 	if accept {
+		// From the account the request names (the primary when none).
+		c, _ := o.Client(ctx, tenant, p.UCC)
+		acct := holdingAcct(c, p.BOID)
 		hs, err := o.Holdings(ctx, tenant, p.UCC)
 		if err != nil {
 			return p, err
 		}
+		// A margin pledge is in whole units; a fraction stays free.
 		free := int64(0)
 		for _, h := range hs {
-			if h.ISIN == p.ISIN {
-				free = h.Qty - h.Pledged
+			if h.ISIN == p.ISIN && h.BOID == acct {
+				free = wholeUnits(h.Free())
 			}
 		}
 		if p.Qty > free {
-			return p, fmt.Errorf("%w: only %d %s are free to pledge", ErrState, free, p.Symbol)
+			return p, fmt.Errorf("%w: only %d %s are free to pledge%s", ErrState, free, p.Symbol, acctNote(acct))
 		}
-		if _, err := o.adjustHolding(ctx, tenant, actor, p.UCC, p.ISIN, p.Symbol, 0, p.Qty); err != nil {
+		if _, err := o.adjustHoldingAt(ctx, tenant, actor, p.UCC, acct, p.ISIN, p.Symbol, money.Dec{}, money.DecInt(p.Qty)); err != nil {
 			return p, err
 		}
 	}

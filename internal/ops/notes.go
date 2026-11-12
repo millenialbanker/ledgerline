@@ -119,7 +119,7 @@ func (o *Ops) generateNotes(ctx context.Context, tenant, actor, date string, hel
 	if err != nil {
 		return 0, err
 	}
-	clients, err := o.ClientMap(ctx, tenant)
+	clients, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
 		return 0, err
 	}

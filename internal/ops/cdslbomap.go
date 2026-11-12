@@ -1051,7 +1051,7 @@ func (o *Ops) CDSLClosureFile(ctx context.Context, tenant, actor, id string) (st
 	if err != nil {
 		return "", nil, err
 	}
-	b := o.bo(ctx, tenant, c)
+	b := o.boFor(ctx, tenant, c, r.BOID) // the account being closed
 	at, _ := time.Parse(time.RFC3339, r.At)
 	to := strings.TrimSpace(r.Detail["transfer_to"])
 	v := map[string]string{"bo_id": b.BOID, "txn_type": "S", "initiated_by": "1", "reason": firstOf(r.Detail["reason_code"], "91"), "balances": "N",

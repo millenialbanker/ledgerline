@@ -54,7 +54,7 @@ func (o *Ops) ClientCollateral(ctx context.Context, tenant, date string) ([]Coll
 	if err != nil {
 		return nil, err
 	}
-	cs, _ := o.ClientMap(ctx, tenant)
+	cs, _ := o.tradingClientMap(ctx, tenant)
 	var out []CollateralRow
 	for _, a := range al {
 		if _, ok := CCSegments[a.Segment]; !ok {
