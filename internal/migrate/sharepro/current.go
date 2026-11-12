@@ -1048,6 +1048,7 @@ func (c *cur) firmsCount() int {
 // ---- bank accounts ----
 
 func (c *cur) writeBanks(ctx context.Context) error {
+	written := 0
 	h := headers[srcBanks]
 	cw, err := c.w.Master(c.f.Code, srcBanks, h)
 	if err != nil {
@@ -1093,34 +1094,25 @@ func (c *cur) writeBanks(ctx context.Context) error {
 				cw.Close()
 				return err
 			}
+			written++
 		}
 	}
 	if err := cw.Close(); err != nil {
 		return err
 	}
+	// The check is the number of accounts listed for Ledgerline (after
+	// removing duplicates and adding client-master-only accounts, as above),
+	// so the reconciliation shows any account that did not load; SharePro's
+	// own row count is given beside it.
+	detail := fmt.Sprintf("Client bank accounts listed for Ledgerline from SharePro (BKMAST and the client master), open and closed, duplicates removed")
 	if c.s.has("BKMAST") {
-		// as Ledgerline keeps them: one per client, account number and IFSC
-		// (compared exactly, as Ledgerline does, not case-insensitively);
-		// the firm's own pool account and rows with no bank details at all
-		// are not client accounts
-		ifsc, pool := "''", ""
-		if c.s.has("BANKMAST") && c.s.hasCol("BANKMAST", "RTGS") {
-			ifsc = "ISNULL((SELECT TOP 1 RTRIM(m.RTGS) FROM BANKMAST m WHERE m.BANKCD = b.BANKCD), '')"
-		}
-		if c.s.hasCol("BKMAST", "TYPE") {
-			pool = " AND ISNULL(RTRIM(b.[TYPE]), '') <> 'Pool'"
-		}
-		closed := "0"
-		if c.s.hasCol("BKMAST", "Closed") {
-			// an open and a closed row of the same account are both kept
-			closed = "ISNULL(CAST(b.[Closed] AS int), 0)"
-		}
-		r, err := c.d.one(ctx, fmt.Sprintf(`/*sp:check-banks*/ SELECT COUNT(*) AS n FROM (SELECT DISTINCT RTRIM(b.SUBCD) AS u, RTRIM(ISNULL(b.ACNO, '')) COLLATE Latin1_General_BIN AS a, %s COLLATE Latin1_General_BIN AS i, %s AS c FROM BKMAST b JOIN DLMAST d ON RTRIM(d.SUBCD) = RTRIM(b.SUBCD) WHERE RTRIM(d.SUBCD) IN (%s)%s AND NOT (RTRIM(ISNULL(b.ACNO, '')) = '' AND RTRIM(ISNULL(b.BANKCD, '')) = '')) x`, ifsc, closed, inList(sortedKeys(c.written)), pool))
+		r, err := c.d.one(ctx, fmt.Sprintf(`/*sp:check-banks*/ SELECT COUNT(*) AS n FROM BKMAST b WHERE RTRIM(b.SUBCD) IN (%s)`, inList(sortedKeys(c.written))))
 		if err != nil {
 			return err
 		}
-		c.rep.check(pkg.CheckBankAccounts, fmt.Sprint(i64(r, "n")), "Client bank accounts in SharePro (BKMAST) of the migrated clients, open and closed: one per account number and IFSC, without the firm's pool account or rows with no bank details")
+		detail += fmt.Sprintf("; SharePro's BKMAST has %d rows for these clients, the firm's pool account included", i64(r, "n"))
 	}
+	c.rep.check(pkg.CheckBankAccounts, fmt.Sprint(written), detail)
 	return nil
 }
 

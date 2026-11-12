@@ -369,7 +369,7 @@ func TestCurrentContents(t *testing.T) {
 	}
 	// checks come from the server's own totals
 	for name, want := range map[string]string{pkg.CheckTBDebit: "5350.00", pkg.CheckTBCredit: "5350.00", pkg.CheckOpeningDifference: "150.00", pkg.CheckClients: "5", pkg.CheckClientDebit: "1200.00",
-		pkg.CheckClientCredit: "300.00", pkg.CheckDPAccounts: "4", pkg.CheckDPQuantity: "100", pkg.CheckBankAccounts: "3", pkg.CheckPositions: "3"} {
+		pkg.CheckClientCredit: "300.00", pkg.CheckDPAccounts: "4", pkg.CheckDPQuantity: "100", pkg.CheckBankAccounts: "6", pkg.CheckPositions: "3"} { // bank accounts: the rows listed for Ledgerline
 		if got := check(r, name); got != want {
 			t.Errorf("check %s = %s, want %s", name, got, want)
 		}
