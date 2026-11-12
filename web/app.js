@@ -797,8 +797,8 @@ V.debits = {
   },
   html: d => {
     const v = d.deb, risk = has('Risk manager'), long = v.rows.filter(r => r.days >= v.block_days && !r.legacy).length;
-    return ph('Debtors & interest', `Clients whose ledger is in debit after the pay-in date. A bill dated T is due on T+1, so it counts against the client from the next day. Clients in debit for ${v.block_days} days or more are blocked from buying in the trading front end until they clear the debit; interest (delayed payment charges) is charged on the overdue debit at the firm’s rate.`,
-      `<button class="btn" data-act="dl" data-id="/v1/debits/block-file?date=${S.date}" data-name="debit_block_${S.date}.csv">Block / unblock file</button>${risk ? `<button class="btn pri" data-act="debitBlock" ${v.to_block + v.to_unblock ? '' : 'disabled'}>Apply blocks (${v.to_block} block · ${v.to_unblock} unblock)</button>` : ''}`) +
+    return ph('Debtors & interest', `Clients whose ledger is in debit after the pay-in date. A bill dated T is due on T+1, so it counts against the client from the next day. Clients in debit for ${v.block_days} days or more are blocked from buying in the trading front end until they clear the debit; interest (delayed payment charges) is charged on the overdue debit at the firm’s rate, or at the client’s own rate where one is set.`,
+      `${has('Ops checker') ? '<button class="btn" data-act="clientInterest">Client interest rates</button>' : ''}<button class="btn" data-act="dl" data-id="/v1/debits/block-file?date=${S.date}" data-name="debit_block_${S.date}.csv">Block / unblock file</button>${risk ? `<button class="btn pri" data-act="debitBlock" ${v.to_block + v.to_unblock ? '' : 'disabled'}>Apply blocks (${v.to_block} block · ${v.to_unblock} unblock)</button>` : ''}`) +
     `<div class="kpis">${kpi('Clients in debit', v.rows.filter(r => num(r.debit) > 0 && !r.legacy).length, inr(v.debit) + ' overdue', v.rows.length ? 'warn' : 'good')}${kpi(`In debit ≥ ${v.block_days} days`, long, 'continuous debit', long ? 'bad' : 'good')}${kpi('To block / unblock', `${v.to_block} / ${v.to_unblock}`, 'front-end buying', v.to_block ? 'bad' : '')}${kpi('Not covered by securities', inr(v.shortfall), 'debit above holdings after haircut', num(v.shortfall) ? 'bad' : 'good')}${kpi('Interest accrued', inr(v.accrued, 2), 'this month, not yet posted')}</div>
     ${v.legacy_count ? `<div class="note">${v.legacy_count} legacy debt${v.legacy_count === 1 ? '' : 's'} (${inr(v.legacy_debit)}) are kept out of these figures, the interest and the reminders, and stay blocked for buying: see <a href="#legacy" data-act="go" data-id="legacy">Legacy debts</a>.</div>` : ''}
     <div class="panel"><div class="hd"><div class="tools">${segBtns('debTab', [['cd', 'Continuous debit'], ['age', 'Debit ageing'], ['stock', 'Debtors’ stock'], ['int', 'Interest']])}${UI.debTab !== 'int' ? `<input class="in" data-ui="debQ" data-part="deb-t" placeholder="Filter name, UCC or group" value="${esc(UI.debQ)}">` : ''}</div></div><div id="deb-t">${P['deb-t'](d)}</div></div>`;
@@ -813,7 +813,7 @@ P['deb-t'] = d => {
   if (UI.debTab === 'stock') return tbl([['Client'], ['Overdue debit', 'r'], ['Pledged', 'r'], ['Other holdings', 'r'], ['Value after haircut', 'r'], ['Cover', 'r'], ['Not covered', 'r'], ['Days', 'r']], rows.filter(r => num(r.debit) > 0).sort((a, b) => num(b.shortfall) - num(a.shortfall)).map(r => `<tr><td>${who(r)}</td><td class="r">${nf(r.debit, 2)}</td><td class="r">${nf(r.pledged)}</td><td class="r">${nf(r.unpledged)}</td><td class="r">${nf(r.collateral)}</td><td class="r ${num(r.cover_pct) < 100 ? 'neg' : 'pos'}">${nf(r.cover_pct)}%</td><td class="r ${num(r.shortfall) ? 'neg' : ''}">${num(r.shortfall) ? nf(r.shortfall, 2) : '—'}</td><td class="r">${r.days}</td></tr>`),
     { tall: true, empty: 'No client is in debit.' }) + '<div class="pad"><span class="dim small">Holdings valued at the last price less the VaR haircut. Only pledged securities (or those under a DDPI/POA) can be sold to recover a debit; “Other holdings” shows what more the client holds.</span></div>';
   if (UI.debTab === 'int') return P['int-t'](d.intr);
-  return tbl([['Client'], ['In debit since'], ['Days', 'r'], ['Overdue debit', 'r'], ['Ledger now', 'r'], ['Interest this month', 'r'], ['Front end'], ['Action']], rows.map(r => `<tr><td>${who(r)}</td><td class="n">${r.since ? fmtDate(r.since) : '—'}</td><td class="r ${r.days >= v.block_days ? 'neg' : ''}">${r.days || '—'}</td><td class="r">${num(r.debit) ? nf(r.debit, 2) : '—'}</td><td class="r ${sgn(r.ledger)}">${nf(r.ledger, 2)}</td><td class="r">${num(r.accrued) ? nf(r.accrued, 2) : '—'}</td><td>${r.blocked ? pill('Buy blocked', 'bad') + `<div class="dim small wrap">${esc(r.blocked_by)}</div>` : pill('Open', 'good')}</td><td>${r.action ? pill(r.action, r.action === 'Block' ? 'bad' : 'good') : ''}</td></tr>`),
+  return tbl([['Client'], ['In debit since'], ['Days', 'r'], ['Overdue debit', 'r'], ['Ledger now', 'r'], ['Interest this month', 'r'], ['Front end'], ['Action']], rows.map(r => `<tr><td>${who(r)}</td><td class="n">${r.since ? fmtDate(r.since) : '—'}</td><td class="r ${r.days >= v.block_days ? 'neg' : ''}">${r.days || '—'}</td><td class="r">${num(r.debit) ? nf(r.debit, 2) : '—'}</td><td class="r ${sgn(r.ledger)}">${nf(r.ledger, 2)}</td><td class="r">${num(r.accrued) ? nf(r.accrued, 2) : '—'}<div class="dim small">${r.own_interest ? '<b>' + esc(r.interest_rate || '') + '</b>' : esc(r.interest_rate || '')}</div></td><td>${r.blocked ? pill('Buy blocked', 'bad') + `<div class="dim small wrap">${esc(r.blocked_by)}</div>` : pill('Open', 'good')}</td><td>${r.action ? pill(r.action, r.action === 'Block' ? 'bad' : 'good') : ''}</td></tr>`),
     { tall: true, empty: 'No client is in debit after pay-in.' });
 };
 P['int-t'] = iv => {
@@ -821,7 +821,7 @@ P['int-t'] = iv => {
   return `<div class="pad" style="padding-bottom:0"><div class="tools"><label class="dim small">Period</label><input class="in sm" type="date" id="int-from" value="${esc(iv.from)}"><span class="dim">to</span><input class="in sm" type="date" id="int-to" value="${esc(iv.to)}"><button class="btn sm" data-act="intPeriod">Show</button>
     <span class="dim small" style="margin-left:auto">${iv.error ? '' : `${esc(iv.rate_pct)}% a year · ${iv.grace_days || 0} grace days · GST ${esc(iv.gst_pct)}% · minimum ${inr(iv.minimum, 2)}${(iv.exempt_tags || []).length ? ' · exempt: ' + iv.exempt_tags.map(esc).join(', ') : ''}`}</span>
     ${can && to.length ? `<button class="btn sm pri" data-act="postInterest">Post interest for ${to.length} client${to.length > 1 ? 's' : ''} (${inr(iv.to_post, 2)})</button>` : ''}${can && iv.posting === 'daily' ? `<button class="btn sm pri" data-act="postDailyInterest">Post daily interest up to ${fmtDate(S.date)}</button>` : ''}</div></div>
-    ${iv.error ? `<div class="bd">${errHTML({ message: iv.error })}</div>` : tbl([['Client'], ['Days charged', 'r'], ['Average debit', 'r'], ['Interest', 'r'], ['GST', 'r'], ['Total', 'r'], ['Status'], ['Invoice']], rows.map(r => `<tr><td><button class="linkish mono" data-act="client" data-id="${r.ucc}">${r.ucc}</button> ${esc(r.name)}${r.tags.map(t => ` <span class="gtag">${esc(t)}</span>`).join('')}</td><td class="r">${r.debit_days}</td><td class="r">${nf(r.avg_debit, 2)}<div class="dim small">peak ${nf(r.max_debit)}</div></td><td class="r">${nf(r.interest, 2)}</td><td class="r">${nf(r.gst, 2)}</td><td class="r"><b>${nf(r.total, 2)}</b></td><td>${pill(r.status, r.status === 'To post' ? 'warn' : r.status.startsWith('Posted') ? 'good' : 'nt')}</td><td class="n dim">${esc(r.invoice || '')}</td></tr>`),
+    ${iv.error ? `<div class="bd">${errHTML({ message: iv.error })}</div>` : tbl([['Client'], ['Days charged', 'r'], ['Average debit', 'r'], ['Interest', 'r'], ['GST', 'r'], ['Total', 'r'], ['Status'], ['Invoice']], rows.map(r => `<tr><td><button class="linkish mono" data-act="client" data-id="${r.ucc}">${r.ucc}</button> ${esc(r.name)}${r.tags.map(t => ` <span class="gtag">${esc(t)}</span>`).join('')}</td><td class="r">${r.debit_days}</td><td class="r">${nf(r.avg_debit, 2)}<div class="dim small">peak ${nf(r.max_debit)}</div></td><td class="r">${nf(r.interest, 2)}${r.rate_pct ? `<div class="dim small">${r.own_rate ? '<b>' : ''}@ ${esc(r.rate_pct)}${/%/.test(r.rate_pct) ? '' : '%'}${r.own_rate ? ' (own)</b>' : ''}</div>` : ''}</td><td class="r">${nf(r.gst, 2)}</td><td class="r"><b>${nf(r.total, 2)}</b></td><td>${pill(r.status, r.status === 'To post' ? 'warn' : r.status.startsWith('Posted') ? 'good' : 'nt')}</td><td class="n dim">${esc(r.invoice || '')}</td></tr>`),
       { tall: true, empty: 'No overdue debit in this period.', foot: rows.length ? `<tfoot><tr><td colspan="3">Total</td><td class="r">${nf(sum(rows, r => num(r.interest)), 2)}</td><td class="r">${nf(sum(rows, r => num(r.gst)), 2)}</td><td class="r">${nf(sum(rows, r => num(r.total)), 2)}</td><td colspan="2"></td></tr></tfoot>` : '' })}
     <div class="pad"><span class="dim small">${iv.posting === 'daily' ? 'Posted every day on that day’s overdue debit, which includes the interest and GST already posted, so interest earns interest from the second day. Autopilot posts it at the end of each day (weekends with the next run); month end issues each client one tax invoice (SAC 997119) for the month.' : 'Simple interest on each day’s overdue debit (interest already charged does not earn interest). Posting debits the client, credits interest income and GST payable, and issues a tax invoice (SAC 997119). Periods already charged are never charged again.'}</span></div>`;
 };
@@ -1718,6 +1718,7 @@ async function clientDrawer(ucc) {
     <div><small class="dim">Branch and partner</small><div>${esc(c.branch || 'No branch')}${c.partner ? ' · AP ' + esc(c.partner) : ''}${c.rm ? ' · RM ' + esc(c.rm) : ''}${c.referred_by ? ` · referred by <button class="linkish mono" data-act="client" data-id="${c.referred_by}">${c.referred_by}</button>` : ''}${has('Ops checker', 'Admin') ? ` <button class="btn sm" data-act="mapClient" data-id="${c.ucc}">Change</button>` : ''}${c.private ? ' ' + pill('Private', 'warn') : ''}${has('Admin', 'Compliance officer') ? ` <button class="linkish" data-act="privacy" data-id="${c.ucc}" data-p="${c.private ? 0 : 1}">${c.private ? 'Make visible to all' : 'Make private'}</button>` : ''}</div></div>
     <div><small class="dim">WhatsApp</small><div>${waConsentLine(c)}${has('Ops maker', 'Ops checker', 'Compliance officer', 'Branch staff', 'Authorised person') ? ` <button class="btn sm" data-act="waConsent" data-id="${c.ucc}" data-on="${c.whatsapp ? 0 : 1}">${c.whatsapp ? 'Record opt-out' : 'Record consent'}</button>` : ''}</div></div>
     ${bp ? `<div><small class="dim">Brokerage plan</small><div><b>${esc(bp.plan.plan_name)}</b> <span class="dim">· ${esc(bp.plan.source)}${bp.plan.from ? ' since ' + fmtDate(bp.plan.from) : ''}</span>${(bp.plan.segments || []).map(x => ` <span class="tag">${esc(scopeLabel(x.scope))}: ${esc(x.plan_name)}</span>`).join('')}${bp.plan.override ? ' <span class="tag">own rates</span>' : ''} <button class="linkish" data-act="go" data-id="brokerage">Plans</button></div><div class="dim small">${['CM-DEL', 'CM-INTRA', 'FO-FUT', 'FO-OPT'].map(k => `${{ 'CM-DEL': 'Delivery', 'CM-INTRA': 'Intraday', 'FO-FUT': 'Futures', 'FO-OPT': 'Options' }[k]}: ${esc(bp.rates[k] || '—')}`).join(' · ')}</div></div>` : ''}</div>
+    <div id="cl-int"></div>
     ${r ? `<div class="kv"><div><small>Ledger</small><b class="mono ${sgn(r.funds)}">${inr(r.funds, 2)}</b></div><div><small>UPI blocked</small><b class="mono">${inr(r.upi)}</b></div><div><small>Collateral (usable)</small><b class="mono">${inr(r.collateral_usable)}</b></div><div><small>Margin required</small><b class="mono">${inr(r.required)}</b></div><div><small>Free</small><b class="mono ${sgn(r.free)}">${inr(r.free)}</b></div><div><small>OMS limit</small><b class="mono">${inr(r.limit)}</b></div></div>` : '<div class="note">Not active yet. Limits and the ledger start at activation.</div>'}
     ${d.ledgers ? ledgersBlock(c, d.ledgers, r) : ''}
     <div class="kv"><div><small>PAN</small><b class="mono"><span id="rv-pan">${esc(c.pan)}</span>${revealBtn(c.ucc, 'pan')}</b></div><div><small>Bank</small><b>${esc(c.bank.bank)} · <span id="rv-account">${esc(c.bank.account)}</span>${revealBtn(c.ucc, 'account')}</b></div><div><small>IFSC</small><b class="mono">${esc(c.bank.ifsc)}</b></div><div><small>Demat</small><b class="mono">${esc(c.demat.depository)} ${esc(c.demat.id)}</b></div><div id="cdsl-dc"></div><div><small>Income</small><b>${esc(c.income)}</b></div><div><small>RAS</small><b>${esc(c.ras)}</b></div><div><small>Contract notes</small><b>${c.physical_notes ? 'Printed, by courier' : 'Electronic (signed PDF)'}</b></div><div><small>KYC date</small><b>${fmtDate(c.kyc_date)}</b></div><div><small>Email</small><b>${esc(c.email)}</b></div><div><small>Last trade</small><b>${fmtDate(c.last_trade) || '—'}</b></div></div>
@@ -1735,6 +1736,12 @@ async function clientDrawer(ucc) {
   </div><div class="ft"><button class="btn" data-act="crFor" data-id="${c.ucc}">Statements &amp; reports</button><button class="btn" data-act="openLedger" data-id="${c.ucc}">Full ledger</button>${c.status === 'Active' && has('Ops checker') ? `<button class="btn" data-act="portalAccess" data-id="${c.ucc}">Portal access</button>` : ''}${c.status === 'Active' && has('Risk manager') ? `<button class="btn ${c.blocked ? '' : 'bad'}" data-act="kill" data-id="${c.ucc}" data-b="${c.blocked ? 0 : 1}">${c.blocked ? 'Unblock' : 'Kill switch'}</button>` : ''}<button class="btn pri" data-act="close">Done</button></div>`, true);
   if (c.demat?.depository === 'CDSL' && c.demat.id && typeof cdslDematCheck === 'function') cdslDematCheck(c.ucc); // CDSL's active demat count (cdslreq.js)
   if (typeof bseBlockedCheck === 'function') bseBlockedCheck(c.ucc); // BSE's not-permitted reasons (uccapi.js)
+  clientTermsLine(c.ucc);
+}
+// The client's interest terms and own brokerage lines, under the plan line.
+async function clientTermsLine(ucc) {
+  const v = await get(`/v1/interest/client/${encodeURIComponent(ucc)}?date=${S.date}`).catch(() => null), el = $('cl-int'); if (!v || !el) return;
+  el.innerHTML = `<div><small class="dim">Interest on debit balances</small><div><b>${v.free ? 'No interest' : esc(v.rate_pct) + '% a year'}</b>${v.grace_days ? ` <span class="dim">· ${v.grace_days} grace days</span>` : ''} <span class="dim">· ${v.own ? 'client’s own terms' + (v.since ? ' since ' + fmtDate(v.since) : '') : 'firm’s rate'}</span>${v.exempt ? ' ' + pill(v.exempt, 'nt') : ''}${has('Ops checker') ? ` <button class="btn sm" data-act="clientInterest" data-id="${esc(ucc)}">Change</button>` : ''} <button class="linkish" data-act="bkPreview" data-id="${esc(ucc)}">Brokerage preview</button></div></div>`;
 }
 const drcr = a => { const n = num(a); return n === 0 ? '0.00' : nf(Math.abs(n), 2) + (n < 0 ? ' Cr' : ' Dr'); };
 // The client's equity, commodity and awaiting ledgers (separate commodity
@@ -1935,35 +1942,48 @@ V.charges = {
     <div class="fld"><label for="cq">Quantity</label><input class="in" id="cq" type="number" min="1" data-calc="qty" value="${esc(c.qty)}"></div>
     <div class="fld"><label for="cp">Price (₹)</label><input class="in" id="cp" inputmode="decimal" data-calc="price" value="${esc(c.price)}"></div>
     ${/OPT|FUT/.test(c.bucket) ? `<div class="fld"><label for="cl">Lot size</label><input class="in" id="cl" type="number" min="1" data-calc="lot" value="${esc(c.lot || 1)}"></div>` : ''}
+    <div class="fld"><label for="csym">${/^CM/.test(c.bucket) ? 'Scrip (symbol, optional)' : 'Underlying (optional)'}</label><input class="in mono" id="csym" data-calc="symbol" value="${esc(c.symbol || '')}" placeholder="${/^CM/.test(c.bucket) ? 'RELIANCE' : 'NIFTY'}"></div>
+    <div class="fld"><label for="cch">Channel</label><input class="in" id="cch" data-calc="channel" value="${esc(c.channel || '')}" placeholder="Default channel"></div>
   </div></div></div><div class="panel"><div class="hd"><h3>Breakdown</h3><small>${S.me?.sample_rates ? 'Sample rates' : esc(S.me?.schedule || '')}</small></div><div id="calc-out"><p class="loading" style="padding:14px">Calculating…</p></div></div></div>`; }
 };
 let calcT;
 async function calc() {
   const c = UI.calc, out = $('calc-out'); if (!out) return;
   try {
-    const r = await post('/v1/charges/quote', { bucket: c.bucket, exchange: c.exchange, side: c.side, qty: parseInt(c.qty, 10) || 0, price: String(c.price || '0'), date: S.date, ucc: c.ucc || '', lot: parseInt(c.lot, 10) || 1 });
+    const r = await post('/v1/charges/quote', { bucket: c.bucket, exchange: c.exchange, side: c.side, qty: parseInt(c.qty, 10) || 0, price: String(c.price || '0'), date: S.date, ucc: c.ucc || '', lot: parseInt(c.lot, 10) || 1, symbol: (c.symbol || '').trim(), channel: (c.channel || '').trim().toLowerCase() });
     const b = r.breakdown, total = num(b.total), v = num(b.turnover);
     out.innerHTML = tbl([['Component'], ['₹', 'r']], [['Turnover', b.turnover], ['Brokerage', b.brokerage], ['STT / CTT', b.stt], ['Exchange transaction charge', b.exchange_txn], ['SEBI turnover fee', b.sebi_fee], ['Stamp duty', b.stamp_duty], ['GST (18%)', b.gst]].map(x => `<tr><td>${x[0]}</td><td class="r">${nf(x[1], 2)}</td></tr>`),
       { foot: `<tfoot><tr><td>Total charges</td><td class="r">${nf(total, 2)}</td></tr><tr><td>${c.side === 'B' ? 'Net payable' : 'Net receivable'}</td><td class="r">${nf(c.side === 'B' ? v + total : v - total, 2)}</td></tr><tr><td>Breakeven move per unit</td><td class="r">${nf(total * 2 / Math.max(1, +c.qty), 4)}</td></tr></tfoot>` }) +
-      `<div class="bd">${r.plan ? `<div><b>Plan: ${esc(r.plan)}</b></div>` : (c.ucc ? '<div class="dim small">No plan sets this product for the client; the schedule applies.</div>' : '')}<span class="dim" style="font-size:12px">Rule ${esc(b.rule)}</span></div>`;
+      `<div class="bd">${r.plan ? `<div><b>Plan: ${esc(r.plan)}</b>${r.line_name ? ` <span class="dim">· line ${esc(r.line_name)}</span>` : ''}</div>` : (c.ucc ? '<div class="dim small">No plan sets this product for the client; the schedule applies.</div>' : '')}<span class="dim" style="font-size:12px">Rule ${esc(b.rule)}</span></div>`;
   } catch (e) { out.innerHTML = `<div class="bd">${errHTML(e)}</div>`; }
 }
 
 /* ---------- brokerage plans ---------- */
 const MODES = [['pct', '% of turnover'], ['flat', '₹ per order'], ['lower_of', 'Lower of ₹ per order or %'], ['per_lot', '₹ per lot'], ['per_unit', '₹ per share'], ['zero', 'Free']];
-const RATE_FIELDS = [['pct', '%'], ['flat', '₹ / order'], ['per_lot', '₹ / lot'], ['per_unit', '₹ / share'], ['min_per_unit', 'Min ₹ / share'], ['min_per_lot', 'Min ₹ / lot'], ['min', 'Min ₹ / order'], ['max', 'Max ₹ / order']];
+const RATE_FIELDS = [['pct', '%'], ['flat', '₹ / order'], ['per_lot', '₹ / lot'], ['per_unit', '₹ / share'], ['min_per_unit', 'Min ₹ / share'], ['min_per_lot', 'Min ₹ / lot'], ['min', 'Min ₹ / order'], ['max', 'Max ₹ / order'], ['min_per_note', 'Min ₹ / note']];
+const BASES = [['', 'Trade price'], ['market', 'Market rate'], ['contract', 'Contract rate']];
 const BK_EXCH = ['NSE', 'BSE', 'MCX', 'NCDEX'];
-// A rate key is PRODUCT or PRODUCT|EXCHANGE|CHANNEL|CASE ("*" = all).
-const rk = k => { const p = k.split('|'); return { b: p[0], x: p[1] || '*', ch: p[2] || '*', cs: p[3] || '*' }; };
-const rkJoin = (b, x, ch, cs) => (x === '*' && ch === '*' && cs === '*') ? b : [b, x, ch, cs].join('|');
+// A rate key is PRODUCT, PRODUCT|EXCHANGE|CHANNEL|CASE or
+// PRODUCT|EXCHANGE|CHANNEL|CASE|TARGET ("*" = all; TARGET is scrip:X,
+// group:X or und:X).
+const rk = k => { const p = k.split('|'); return { b: p[0], x: p[1] || '*', ch: p[2] || '*', cs: p[3] || '*', tg: p[4] || '*' }; };
+const rkJoin = (b, x, ch, cs, tg) => (tg && tg !== '*') ? [b, x, ch, cs, tg].join('|') : (x === '*' && ch === '*' && cs === '*') ? b : [b, x, ch, cs].join('|');
+const tgLabel = t => t.startsWith('scrip:') ? t.slice(6) : t.startsWith('group:') ? 'group ' + t.slice(6) : t.startsWith('und:') ? t.slice(4) + ' (underlying)' : t;
+// What a person types for a target: RELIANCE, ETF or NIFTY alone means the
+// scrip (cash market), else the underlying; group:… for a scrip group.
+const tgRead = (b, v) => { v = v.trim(); if (!v || v === '*') return '*'; if (/^(scrip|group|und|underlying|isin|symbol):/i.test(v)) { const [k, ...n] = v.split(':'); const kind = { underlying: 'und', isin: 'scrip', symbol: 'scrip' }[k.toLowerCase()] || k.toLowerCase(); return kind + ':' + n.join(':').trim().toUpperCase(); } return (b.startsWith('CM-') ? 'scrip:' : 'und:') + v.toUpperCase(); };
 function rkLabel(d, k) {
   const r = rk(k), name = d.products.find(p => p.bucket === r.b)?.name || r.b, bits = [];
+  if (r.tg !== '*') bits.push(tgLabel(r.tg));
   if (r.x !== '*') bits.push(r.x);
   if (r.ch !== '*') bits.push(r.ch);
   if (r.cs !== '*') bits.push(d.cases.find(c => c.case === r.cs)?.name || r.cs);
   return `${esc(name)}${bits.length ? ` <span class="dim">· ${bits.map(esc).join(' · ')}</span>` : ''}`;
 }
-function rkSort(d, keys) { const o = b => d.products.findIndex(p => p.bucket === b); return keys.slice().sort((a, b) => { const x = rk(a), y = rk(b); return o(x.b) - o(y.b) || (x.cs + x.ch + x.x).localeCompare(y.cs + y.ch + y.x); }); }
+// Lines in the order they are tried within a product: scrip, group,
+// underlying, then the rest.
+const tgRank = t => t.startsWith('scrip:') ? 0 : t.startsWith('group:') ? 1 : t.startsWith('und:') ? 2 : 3;
+function rkSort(d, keys) { const o = b => d.products.findIndex(p => p.bucket === b); return keys.slice().sort((a, b) => { const x = rk(a), y = rk(b); return o(x.b) - o(y.b) || tgRank(x.tg) - tgRank(y.tg) || x.tg.localeCompare(y.tg) || (x.cs + x.ch + x.x).localeCompare(y.cs + y.ch + y.x); }); }
 const scopeLabel = s => !s ? 'All segments' : s.replace('-', ' on ');
 V.brokerage = {
   load: async () => { const [d] = await Promise.all([get(`/v1/brokerage?date=${S.date}`), clientCache()]); return d; },
@@ -1976,13 +1996,12 @@ V.brokerage = {
     const sched = b => { const r = d.schedule.filter(x => x.bucket === b); return r.length ? r.map(x => (x.exchange === '*' ? '' : x.exchange + ': ') + x.describe).join('; ') : '—'; };
     const lines = (desc, empty) => { const ks = rkSort(d, Object.keys(desc || {})); return tbl([['Rate line'], ['Brokerage']], ks.map(k => `<tr><td>${rkLabel(d, k)}</td><td>${esc(desc[k])}</td></tr>`), { empty }); };
     const cl = u => `<button class="linkish mono" data-act="client" data-id="${u}">${u}</button> <span class="dim">${esc(CL.rows.find(c => c.ucc === u)?.name || '')}</span>`;
-    return ph('Brokerage plans', 'A plan (rate card) holds rate lines: a rate for a product, optionally only on one exchange, one trading channel, or one case (auction, rollover, futures expiry, option exercise or assignment, index or stock derivatives). For an order the most specific line wins: case, then channel, then exchange. Each client pays from their own card if one is set, else their group’s (the most recently assigned), else the firm default, else the charge schedule; a card can be set for one segment or one exchange only, and a client’s own rate lines win over their card. Brokerage is charged per executed order from the effective date; days already billed change only if rebilled. Statutory charges always come from the schedule.',
-      can ? '<button class="btn" data-act="bkSetup">Channels</button><button class="btn" data-act="clientRates">Client rates</button><button class="btn" data-act="planNew">New plan</button><button class="btn pri" data-act="assign">Assign a plan</button>' : '') +
+    return ph('Brokerage plans', 'A plan (rate card) holds rate lines: a rate for a product, optionally only for one scrip, scrip group or underlying, on one exchange, one trading channel, or one case (auction, rollover, futures expiry, option exercise or assignment, physical delivery, index or stock derivatives). For an order the most specific line wins: scrip, then scrip group, then underlying; then case, then channel, then exchange. Each client pays from their own card if one is set, else their group’s (the most recently assigned), else the firm default, else the charge schedule; a card can be set for one segment or one exchange only, and a client’s own rate lines win over their card. Brokerage is charged per executed order from the effective date; days already billed change only if rebilled. Statutory charges always come from the schedule.',
+      '<button class="btn" data-act="bkPreview">Brokerage preview</button>' + (can ? '<button class="btn" data-act="bkSetup">Channels</button><button class="btn" data-act="scripGroups">Scrip groups</button><button class="btn" data-act="clientRates">Client rates</button><button class="btn" data-act="planNew">New plan</button><button class="btn pri" data-act="assign">Assign a plan</button>' : '')) +
     `<div class="kpis">${kpi('Plans', d.plans.length, 'with dated versions')}${kpi('Firm default', def?.plan ? esc(plan(def.plan)?.name || def.plan) : 'Schedule', def?.from ? 'since ' + fmtDate(def.from) : 'no default plan')}${kpi('Groups on a plan', groups.filter(g => g.cur?.plan).length, d.tags.length + ' groups in use')}${kpi('Client cards', clientCards.length, 'set per client or segment')}${kpi('Client rates', d.overrides.filter(o => o.current && Object.keys(o.current.rules).length).length, 'clients with their own lines')}${kpi('On the schedule', onSched, 'no plan applies', onSched ? 'warn' : '')}</div>
-    <div class="plans">${d.plans.map(p => `<div class="panel plan"><div class="hd"><div><h3>${esc(p.name)}</h3><small>${esc(p.note || '')}${p.note ? ' · ' : ''}<span class="mono">${esc(p.id)}</span></small></div><div class="split"><span class="pill acc">${p.clients} client${p.clients === 1 ? '' : 's'}</span>${can ? `<button class="btn sm" data-act="planEdit" data-id="${esc(p.id)}">Edit rates</button>` : ''}</div></div>
-      ${lines(p.describe, 'No rate lines: every product uses the charge schedule')}
-      ${d.products.filter(x => !Object.keys(p.describe).some(k => rk(k).b === x.bucket)).length ? `<div class="bd small dim">Charge schedule for ${d.products.filter(x => !Object.keys(p.describe).some(k => rk(k).b === x.bucket)).map(x => esc(x.name) + ' (' + esc(sched(x.bucket)) + ')').join(', ')}</div>` : ''}
-      <div class="bd small dim">${p.current ? `In force since ${fmtDate(p.current.from)} · set by ${esc(p.current.by)}` : 'Not yet in force'}${p.upcoming ? ` · <b>new rates from ${fmtDate(p.upcoming.from)}</b>` : ''} · ${p.versions.length} version${p.versions.length === 1 ? '' : 's'}</div></div>`).join('') || '<div class="panel"><div class="empty">No plans yet. Create one, or load BROKERAGE-CARDS on Files, then assign it to the firm, a group or a client.</div></div>'}</div>
+    ${d.plans.length > 4 ? `<div class="tools" style="margin:0 0 8px"><input class="in" data-ui="bkPlanQ" data-part="bk-plans" placeholder="Find a plan by name or ID, or a line by scrip, group or channel" value="${esc(UI.bkPlanQ || '')}" style="min-width:28em"><span class="dim small">${d.plans.length} plans</span></div>` : ''}
+    <div class="plans" id="bk-plans">${P['bk-plans'](d)}</div>
+    ${d.scrip_groups.length ? `<div class="panel"><div class="hd"><h3>Scrip groups</h3><small>Named lists of scrips a line can be for</small>${can ? '<button class="btn sm" data-act="scripGroups">Change</button>' : ''}</div><div class="bd small">${d.scrip_groups.map(g => `<span class="tag">${esc(g.name)}</span> <span class="dim">${g.members.length} scrip${g.members.length === 1 ? '' : 's'}${g.note ? ' · ' + esc(g.note) : ''}</span>`).join(' &nbsp; ')}</div></div>` : ''}
     <div class="grid g2">
       <div class="panel"><div class="hd"><h3>Firm default and groups</h3><small>Plan in force on ${fmtDate(S.date)}</small></div>${tbl([['Applies to'], ['Clients', 'r'], ['Plan'], ['Since'], ['']],
         [`<tr><td><b>Firm default</b></td><td class="r">${d.effective.length}</td><td>${def?.plan ? esc(plan(def.plan)?.name || def.plan) : '<span class="dim">Charge schedule</span>'}</td><td class="n dim">${def ? fmtDate(def.from) : ''}</td><td>${can ? `<button class="btn sm" data-act="assign" data-id="default">Change</button>` : ''}</td></tr>`].concat(groups.map(g => `<tr><td><button class="gtag" data-act="filterTag" data-id="${esc(g.tag)}">${esc(g.tag)}</button></td><td class="r">${g.clients}</td><td>${g.cur?.plan ? esc(plan(g.cur.plan)?.name || g.cur.plan) : '<span class="dim">Firm default</span>'}</td><td class="n dim">${g.cur?.plan ? fmtDate(g.cur.from) : ''}</td><td><div class="split">${can ? `<button class="btn sm" data-act="assign" data-id="tag:${esc(g.tag)}">${g.cur?.plan ? 'Change' : 'Set plan'}</button>${g.cur?.plan ? `<button class="btn sm" data-act="unassign" data-id="tag:${esc(g.tag)}">Remove</button>` : ''}` : ''}</div></td></tr>`)).concat(segCards.map(x => `<tr><td>${who(x.target)} <span class="tag">${esc(scopeLabel(x.scope))}</span></td><td class="r"></td><td>${esc(plan(x.plan)?.name || x.plan)}</td><td class="n dim">${fmtDate(x.from)}</td><td>${can ? `<button class="btn sm" data-act="unassign" data-id="${esc(x.target)}" data-scope="${esc(x.scope)}">Remove</button>` : ''}</td></tr>`)), { empty: 'No groups' })}</div>
@@ -1994,6 +2013,17 @@ V.brokerage = {
     <div class="panel"><div class="hd"><h3>Change history</h3><small>Every assignment is kept; the latest one on or before a date applies</small></div>${tbl([['ID'], ['Applies to'], ['Segment'], ['Plan'], ['From'], ['By'], ['At']], d.assignments.slice().reverse().map(a => `<tr><td class="n dim">${a.id}</td><td>${who(a.target)}</td><td>${esc(scopeLabel(a.scope))}${a.exclusive ? ' <span class="tag">scheme</span>' : ''}</td><td>${a.plan ? esc(plan(a.plan)?.name || a.plan) : '<span class="dim">Removed</span>'}</td><td class="n">${fmtDate(a.from)}</td><td>${esc(a.by)}</td><td class="n dim">${esc(a.at)}</td></tr>`), { tall: true, empty: 'No assignments yet' })}</div>`;
   }
 };
+// The plan cards, filtered by name, ID or what their lines are for.
+P['bk-plans'] = d => {
+  const can = has('Ops checker'), q = (UI.bkPlanQ || '').trim().toLowerCase();
+  const sched = b => { const r = d.schedule.filter(x => x.bucket === b); return r.length ? r.map(x => (x.exchange === '*' ? '' : x.exchange + ': ') + x.describe).join('; ') : '—'; };
+  const lines = (desc, empty) => { const ks = rkSort(d, Object.keys(desc || {})); return tbl([['Rate line'], ['Brokerage']], ks.map(k => `<tr><td>${rkLabel(d, k)}</td><td>${esc(desc[k])}</td></tr>`), { empty, tall: ks.length > 12 }); };
+  const ps = d.plans.filter(p => !q || (p.name + ' ' + p.id + ' ' + (p.note || '') + ' ' + Object.keys(p.describe).join(' ')).toLowerCase().includes(q));
+  return ps.map(p => `<div class="panel plan"><div class="hd"><div><h3>${esc(p.name)}</h3><small>${esc(p.note || '')}${p.note ? ' · ' : ''}<span class="mono">${esc(p.id)}</span></small></div><div class="split"><span class="pill acc">${p.clients} client${p.clients === 1 ? '' : 's'}</span>${can ? `<button class="btn sm" data-act="planEdit" data-id="${esc(p.id)}">Edit rates</button>` : ''}</div></div>
+      ${lines(p.describe, 'No rate lines: every product uses the charge schedule')}
+      ${d.products.filter(x => !Object.keys(p.describe).some(k => rk(k).b === x.bucket)).length ? `<div class="bd small dim">Charge schedule for ${d.products.filter(x => !Object.keys(p.describe).some(k => rk(k).b === x.bucket)).map(x => esc(x.name) + ' (' + esc(sched(x.bucket)) + ')').join(', ')}</div>` : ''}
+      <div class="bd small dim">${p.current ? `In force since ${fmtDate(p.current.from)} · set by ${esc(p.current.by)}` : 'Not yet in force'}${p.upcoming ? ` · <b>new rates from ${fmtDate(p.upcoming.from)}</b>` : ''} · ${p.versions.length} version${p.versions.length === 1 ? '' : 's'}</div></div>`).join('') || (d.plans.length ? '<div class="panel"><div class="empty">No plan matches.</div></div>' : '<div class="panel"><div class="empty">No plans yet. Create one, or load BROKERAGE-CARDS on Files, then assign it to the firm, a group or a client.</div></div>');
+};
 P['bk-t'] = d => {
   const q = UI.bkQ.trim().toLowerCase();
   const rows = d.effective.filter(e => (!q || (e.ucc + ' ' + e.name + ' ' + e.tags.join(' ')).toLowerCase().includes(q)) && (!UI.bkPlan || (UI.bkPlan === '-' ? !e.plan : e.plan === UI.bkPlan)));
@@ -2003,24 +2033,32 @@ P['bk-t'] = d => {
 function rateEditor(d, rules) {
   const opts = (xs, v) => xs.map(([k, l]) => `<option value="${esc(k)}" ${v === k ? 'selected' : ''}>${esc(l)}</option>`).join('');
   const row = (k, r) => { const x = rk(k || (d.products[0].bucket));
-    return `<tr><td><select class="in sm re-b">${opts(d.products.map(p => [p.bucket, p.name]), x.b)}</select></td><td><select class="in sm re-x">${opts([['*', 'All']].concat(BK_EXCH.map(e => [e, e])), x.x)}</select></td><td><select class="in sm re-ch">${opts([['*', 'All']].concat(d.setup.channels.map(c => [c, c])), x.ch)}</select></td><td><select class="in sm re-cs">${opts([['*', 'All']].concat(d.cases.map(c => [c.case, c.name])), x.cs)}</select></td><td><select class="in sm re-mode">${opts(MODES, r.mode)}</select></td>${RATE_FIELDS.map(([f]) => `<td><input class="in sm re-${f}" inputmode="decimal" value="${esc(r[f] && r[f] !== '0' ? r[f] : '')}" aria-label="${f}"></td>`).join('')}<td><button class="btn sm" type="button" data-re="del" aria-label="Remove line">×</button></td></tr>`; };
+    return `<tr><td><select class="in sm re-b">${opts(d.products.map(p => [p.bucket, p.name]), x.b)}</select></td><td><input class="in sm re-tg" list="re-tgl" value="${esc(x.tg === '*' ? '' : x.tg)}" placeholder="All" aria-label="Scrip, group or underlying" style="min-width:9em"></td><td><select class="in sm re-x">${opts([['*', 'All']].concat(BK_EXCH.map(e => [e, e])), x.x)}</select></td><td><select class="in sm re-ch">${opts([['*', 'All']].concat(d.setup.channels.map(c => [c, c])), x.ch)}</select></td><td><select class="in sm re-cs">${opts([['*', 'All']].concat(d.cases.map(c => [c.case, c.name])), x.cs)}</select></td><td><select class="in sm re-mode">${opts(MODES, r.mode)}</select></td>${RATE_FIELDS.map(([f]) => `<td><input class="in sm re-${f}" inputmode="decimal" value="${esc(r[f] && r[f] !== '0' ? r[f] : '')}" aria-label="${f}"></td>`).join('')}<td><select class="in sm re-basis" aria-label="Basis">${opts(BASES, r.basis || '')}</select></td><td><button class="btn sm" type="button" data-re="del" aria-label="Remove line">×</button></td></tr>`; };
   const ks = rkSort(d, Object.keys(rules || {}));
-  return `<div class="tw"><table class="tbl ret"><thead><tr><th>Product</th><th>Exchange</th><th>Channel</th><th>Case</th><th>Charge</th>${RATE_FIELDS.map(([, l]) => `<th class="r">${l}</th>`).join('')}<th></th></tr></thead><tbody>${ks.map(k => row(k, rules[k])).join('')}</tbody></table></div>
+  return `<div class="tools" style="margin-bottom:6px"><input class="in sm" id="re-q" placeholder="Filter lines: product, scrip, group, channel…" style="min-width:22em"><span class="dim small" id="re-n">${ks.length} line${ks.length === 1 ? '' : 's'}</span></div>
+    <datalist id="re-tgl">${(d.scrip_groups || []).map(g => `<option value="group:${esc(g.name)}">${esc(g.note || g.members.length + ' scrips')}</option>`).join('')}</datalist>
+    <div class="tw"><table class="tbl ret"><thead><tr><th>Product</th><th>Scrip / group / underlying</th><th>Exchange</th><th>Channel</th><th>Case</th><th>Charge</th>${RATE_FIELDS.map(([, l]) => `<th class="r">${l}</th>`).join('')}<th>% on</th><th></th></tr></thead><tbody>${ks.map(k => row(k, rules[k])).join('')}</tbody></table></div>
     <div class="split" style="margin:8px 0"><button class="btn sm" type="button" data-re="add">Add a rate line</button></div><template id="re-blank">${row('', { mode: 'pct' })}</template>
-    <p class="dim small">Fill only what the charge uses: % for “% of turnover”, ₹/order for flat, both for “lower of”, ₹/lot or ₹/share for those. Minimums per share and per lot grow with the order; min and max per order bound it. For an order the most specific line wins: case, then channel, then exchange. Expiry, exercise and assignment are charged only where a line for them exists. Products with no line use the charge schedule. Cash-market brokerage never exceeds 2.5% of the order value.</p>`;
+    <p class="dim small">Fill only what the charge uses: % for “% of turnover”, ₹/order for flat, both for “lower of”, ₹/lot or ₹/share for those. Minimums per share and per lot grow with the order; min and max per order bound it; min per note tops up the client’s contract note for the segment. <b>Scrip / group / underlying</b> narrows a line: a cash-market symbol or ISIN (RELIANCE), <span class="mono">group:</span> a scrip group, or for derivatives the underlying (NIFTY). For an order the most specific line wins: the scrip, then its group, then the underlying; then the case; then the channel; then the exchange. “% on” market rate applies the percent to the day’s closing price, contract rate to the trade price (the strike for exercise). Expiry, exercise, assignment and physical delivery are charged only where a line for them exists. Products with no line use the charge schedule. Cash-market brokerage never exceeds 2.5% of the order value.</p>`;
 }
 function rateEditorWire(form) {
   form.addEventListener('click', e => { const b = e.target.closest('[data-re]'); if (!b) return;
     if (b.dataset.re === 'del') b.closest('tr').remove();
     if (b.dataset.re === 'add') form.querySelector('.ret tbody').insertAdjacentHTML('beforeend', $('re-blank').innerHTML); });
+  const q = form.querySelector('#re-q');
+  if (q) q.addEventListener('input', () => { const s = q.value.trim().toLowerCase(); let n = 0;
+    form.querySelectorAll('.ret tbody tr').forEach(tr => { const txt = [...tr.querySelectorAll('select, input')].map(x => x.tagName === 'SELECT' ? x.selectedOptions[0]?.text || '' : x.value).join(' ').toLowerCase(); const show = !s || txt.includes(s); tr.hidden = !show; if (show) n++; });
+    form.querySelector('#re-n').textContent = n + ' shown'; });
 }
 function rateEditorRead(form) {
   const rules = {};
   for (const tr of form.querySelectorAll('.ret tbody tr')) {
-    const k = rkJoin(tr.querySelector('.re-b').value, tr.querySelector('.re-x').value, tr.querySelector('.re-ch').value, tr.querySelector('.re-cs').value);
-    if (rules[k]) throw { message: 'Two lines are for the same product, exchange, channel and case' };
+    const b = tr.querySelector('.re-b').value;
+    const k = rkJoin(b, tr.querySelector('.re-x').value, tr.querySelector('.re-ch').value, tr.querySelector('.re-cs').value, tgRead(b, tr.querySelector('.re-tg').value));
+    if (rules[k]) throw { message: 'Two lines are for the same product, scrip, exchange, channel and case' };
     const r = { mode: tr.querySelector('.re-mode').value };
     RATE_FIELDS.forEach(([f]) => { const v = tr.querySelector('.re-' + f).value.trim(); if (v) r[f] = v; });
+    const basis = tr.querySelector('.re-basis').value; if (basis) r.basis = basis;
     rules[k] = r;
   }
   return rules;
@@ -2060,14 +2098,72 @@ function bkSetupModal() {
   modal(mhd('Trading channels', 'Name the channels you price separately. Each trade gets a channel from its terminal (CTCL) ID: the first rule that matches, else the default. * matches any run of characters. Terminal rules can also be loaded as TERMINAL-CHANNELS on Files.') + `<form class="bd" id="bsf">
     <div class="form"><div class="fld"><label for="bs-ch">Channels</label><input class="in" id="bs-ch" value="${esc(s.channels.join(', '))}" placeholder="dealer, online, mobile"></div><div class="fld"><label for="bs-def">Default channel</label><input class="in" id="bs-def" value="${esc(s.default_channel)}"></div>
     <div class="fld full"><label for="bs-t">Terminal rules, one per line: terminal = channel</label><textarea class="in mono" id="bs-t" rows="6" placeholder="1234567*=online">${esc(s.terminals.map(t => t.terminal + ' = ' + t.channel).join('\n'))}</textarea></div>
-    <div class="fld"><label for="bs-auc">Auction settlement types</label><input class="in" id="bs-auc" value="${esc(s.auction_settlements.join(', '))}"></div><div class="fld"><label for="bs-idx">More index underlyings</label><input class="in" id="bs-idx" value="${esc(s.index_underlyings.join(', '))}" placeholder="NIFTY, BANKNIFTY, SENSEX and others are built in"></div></div>
+    <div class="fld"><label for="bs-auc">Auction settlement types</label><input class="in" id="bs-auc" value="${esc(s.auction_settlements.join(', '))}"></div><div class="fld"><label for="bs-idx">More index underlyings</label><input class="in" id="bs-idx" value="${esc(s.index_underlyings.join(', '))}" placeholder="NIFTY, BANKNIFTY, SENSEX and others are built in"></div>
+    <div class="fld full"><label for="bs-intra">Cash-market intraday</label><select class="in" id="bs-intra"><option value="" ${s.intraday_by ? '' : 'selected'}>From the trade file’s product (MIS)</option><option value="squareoff" ${s.intraday_by === 'squareoff' ? 'selected' : ''}>By square-off: what a client bought and sold in a scrip the same day</option></select></div></div>
     <div id="bs-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Save</button></div></form>`);
   const list = v => v.split(',').map(x => x.trim()).filter(Boolean);
   $('bsf').onsubmit = async e => {
     e.preventDefault();
     const terminals = $('bs-t').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const [t, c] = l.split('='); return { terminal: (t || '').trim(), channel: (c || '').trim() }; });
-    try { await post('/v1/brokerage/setup', { channels: list($('bs-ch').value), default_channel: $('bs-def').value, terminals, auction_settlements: list($('bs-auc').value), index_underlyings: list($('bs-idx').value) }); closeModal(); toast('Channels saved'); render({ keep: true }); }
+    try { await post('/v1/brokerage/setup', { channels: list($('bs-ch').value), default_channel: $('bs-def').value, terminals, auction_settlements: list($('bs-auc').value), index_underlyings: list($('bs-idx').value), intraday_by: $('bs-intra').value }); closeModal(); toast('Channels saved'); render({ keep: true }); }
     catch (err) { $('bs-err').innerHTML = errHTML(err); }
+  };
+}
+// Scrip groups: one group at a time, members one per line as
+// "SCRIP" or "SCRIP from [to]" (dates YYYY-MM-DD).
+function scripGroupsModal(name) {
+  const gs = C.brokerage.scrip_groups, g = gs.find(x => x.name === name);
+  const memText = g ? g.members.map(m => m.scrip + (m.from && m.from !== '2000-01-01' ? ' ' + m.from : '') + (m.to ? ' ' + m.to : '')).join('\n') : '';
+  wideModal(mhd('Scrip groups', 'A rate line can be for a scrip group: ETFs, illiquid scrips, the old system’s scrip-group codes. A line for the scrip itself still wins over its group. Large lists load as SCRIP-GROUPS on Files.') + `<form class="bd" id="sgf">
+    <div class="tools" style="margin-bottom:8px">${gs.map(x => `<button type="button" class="gtag ${x.name === name ? 'on' : ''}" data-sg="${esc(x.name)}">${esc(x.name)} · ${x.members.length}</button>`).join('')}<button type="button" class="btn sm" data-sg="">New group</button></div>
+    <div class="form"><div class="fld"><label for="sg-n">Name</label><input class="in mono" id="sg-n" value="${esc(g?.name || '')}" ${g ? 'readonly' : ''} placeholder="ETF"></div><div class="fld"><label for="sg-note">Note</label><input class="in" id="sg-note" value="${esc(g?.note || '')}"></div>
+    <div class="fld full"><label for="sg-m">Scrips, one per line: symbol or ISIN (for derivatives, the underlying), optionally a from and a to date</label><textarea class="in mono" id="sg-m" rows="10" placeholder="NIFTYBEES&#10;INE002A01018 2026-04-01&#10;GOLDBEES 2026-04-01 2026-12-31">${esc(memText)}</textarea></div></div>
+    <div id="sg-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Close</button><button class="btn pri" type="submit">Save group</button></div></form>`);
+  $('sgf').addEventListener('click', e => { const b = e.target.closest('[data-sg]'); if (b) scripGroupsModal(b.dataset.sg); });
+  $('sgf').onsubmit = async e => {
+    e.preventDefault();
+    const members = $('sg-m').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const [scrip, from, to] = l.split(/[\s,]+/); return { scrip, from: from || '', to: to || '' }; });
+    try { await post('/v1/brokerage/scrip-groups', { name: $('sg-n').value, note: $('sg-note').value, members }); toast('Scrip group saved'); C.brokerage = await V.brokerage.load(); scripGroupsModal($('sg-n').value.trim().toUpperCase()); render({ keep: true }); }
+    catch (err) { $('sg-err').innerHTML = errHTML(err); }
+  };
+}
+// Which rate line priced each of a client's orders on the day, as billing
+// works it out.
+async function bkPreviewModal(ucc) {
+  await clientCache();
+  wideModal(mhd('Brokerage preview', 'Each order of the client on the day, the rate line that priced it and why. Nothing is posted.') + `<div class="bd"><div class="form"><div class="fld"><label for="bp-ucc-q">Client</label>${cpick('bp-ucc', ucc)}</div><div class="fld"><label for="bp-date">Trade date</label><input class="in" type="date" id="bp-date" value="${esc(S.date)}"></div></div>
+    <div class="split" style="margin:8px 0"><button class="btn pri" type="button" id="bp-go">Show</button></div><div id="bp-out"></div></div>`);
+  const run = async () => {
+    const u = $('bp-ucc').value, out = $('bp-out'); if (!u) { out.innerHTML = errHTML({ message: 'Choose the client' }); return; }
+    out.innerHTML = '<p class="loading">Pricing…</p>';
+    try {
+      const v = await get(`/v1/brokerage/preview?ucc=${encodeURIComponent(u)}&date=${$('bp-date').value}`);
+      out.innerHTML = `<div class="dim small" style="margin-bottom:6px">On <b>${esc(v.plan.plan_name)}</b> (${esc(v.plan.source)})${v.plan.override ? ' with their own rate lines' : ''}.</div>` + (v.note ? `<div class="note">${esc(v.note)}</div>` : tbl([['Order'], ['Contract'], ['Channel'], ['Qty', 'r'], ['Turnover', 'r'], ['Line that applied'], ['Rate'], ['Brokerage', 'r']],
+        v.orders.map(o => `<tr><td class="mono small">${esc(o.order)}<div class="dim">${(o.trades || []).map(esc).join(', ')}</div></td><td>${esc(o.symbol || '')} <span class="dim small">${esc(o.product || '')}${(o.cases || []).length ? ' · ' + o.cases.map(esc).join(', ') : ''}</span></td><td>${esc(o.channel || '')}</td><td class="r">${o.qty ? nf(o.qty) : ''}${o.lot > 1 ? `<div class="dim small">${nf(o.qty / o.lot, 2)} lots</div>` : ''}</td><td class="r">${o.turnover ? nf(o.turnover, 2) : ''}${o.base && num(o.base) !== num(o.turnover) ? `<div class="dim small">% on ${nf(o.base, 2)}</div>` : ''}</td><td>${o.line_name ? esc(o.line_name) : '<span class="dim">' + (o.line ? esc(o.line) : 'Charge schedule') + '</span>'}<div class="dim small">${esc(o.plan)}</div></td><td class="small">${esc(o.rule)}</td><td class="r"><b>${nf(o.brokerage, 2)}</b></td></tr>`),
+        { tall: true, empty: 'No orders.', foot: `<tfoot><tr><td colspan="7">Brokerage</td><td class="r">${nf(v.brokerage, 2)}</td></tr></tfoot>` }));
+    } catch (e) { out.innerHTML = errHTML(e); }
+  };
+  $('bp-go').onclick = run;
+  if (ucc) run();
+}
+// A client's own interest terms (rate, grace days, no interest) from a date.
+async function clientInterestModal(ucc) {
+  await clientCache();
+  const v = ucc ? await get(`/v1/interest/client/${encodeURIComponent(ucc)}?date=${S.date}`).catch(() => null) : null;
+  const cur = v && v.own ? (v.history || []).filter(h => h.from <= S.date).slice(-1)[0] : null;
+  modal(mhd('Client interest' + (ucc ? ' · ' + esc(ucc) : ''), 'The client’s own interest on debit balances, instead of the firm’s rate in Settings, from the effective date. Leave rate and grace days blank and untick “no interest” to go back to the firm’s terms. Legacy debts and exempt groups are never charged.') + `<form class="bd" id="cif">
+    <div class="form"><div class="fld"><label for="ci-ucc-q">Client</label>${cpick('ci-ucc', ucc || '')}</div><div class="fld"><label for="ci-from">Effective from</label><input class="in" type="date" id="ci-from" value="${esc(S.date)}" required></div>
+    <div class="fld"><label for="ci-rate">Rate (% a year)</label><input class="in" id="ci-rate" inputmode="decimal" value="${esc(cur?.rate_pct || '')}" placeholder="Firm’s rate"></div><div class="fld"><label for="ci-grace">Grace days</label><input class="in" id="ci-grace" type="number" min="0" value="${cur?.grace_days ?? ''}" placeholder="Firm’s"></div>
+    <div class="fld full"><label><input type="checkbox" id="ci-free" ${cur?.free ? 'checked' : ''}> No interest for this client</label></div>
+    <div class="fld full"><label for="ci-note">Note</label><input class="in" id="ci-note" value="${esc(cur?.note || '')}" placeholder="Why, e.g. agreed with the client on …"></div></div>
+    ${v && (v.history || []).length ? tbl([['From'], ['Terms'], ['By']], v.history.slice().reverse().map(h => `<tr><td class="n">${fmtDate(h.from)}</td><td>${h.free ? 'No interest' : [h.rate_pct ? esc(h.rate_pct) + '% a year' : '', h.grace_days != null ? h.grace_days + ' grace days' : ''].filter(Boolean).join(', ') || 'Firm’s terms'}${h.note ? `<div class="dim small">${esc(h.note)}</div>` : ''}</td><td class="dim small">${esc(h.by || '')}</td></tr>`)) : ''}
+    <div id="ci-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Save</button></div></form>`);
+  $('cif').onsubmit = async e => {
+    e.preventDefault();
+    const u = $('ci-ucc').value; if (!u) { $('ci-err').innerHTML = errHTML({ message: 'Choose the client' }); return; }
+    const g = $('ci-grace').value.trim();
+    try { await post('/v1/interest/client-rates', { ucc: u, from: $('ci-from').value, rate_pct: $('ci-rate').value.trim(), grace_days: g === '' ? null : parseInt(g, 10), free: $('ci-free').checked, note: $('ci-note').value }); closeModal(); toast('Interest terms saved'); if (S.view === 'debits') render({ keep: true }); }
+    catch (err) { $('ci-err').innerHTML = errHTML(err); }
   };
 }
 function assignModal(target, scope) {
@@ -2689,6 +2785,9 @@ const A = {
   assign: (target, el) => assignModal(target || '', el?.dataset.scope || ''),
   clientRates: ucc => clientRatesModal(ucc || ''),
   bkSetup: () => bkSetupModal(),
+  scripGroups: () => scripGroupsModal(),
+  bkPreview: ucc => bkPreviewModal(ucc || ''),
+  clientInterest: ucc => clientInterestModal(ucc || ''),
   unassign: (target, el) => { const scope = el?.dataset.scope || ''; confirmModal('Remove plan · ' + target.replace(/^(ucc|tag):/, '') + (scope ? ' · ' + scopeLabel(scope) : ''), 'From the date below this ' + (target === 'default' ? 'firm-wide card' : target.startsWith('ucc:') ? 'client' : 'group') + ' falls back to the next rule' + (scope ? ' (the all-segments plan, then group, then firm default).' : ' (group, then firm default).'), `<div class="fld"><label for="un-from">Effective from</label><input class="in" type="date" id="un-from" value="${esc(S.date)}"></div>`,
     'Remove', () => act(() => post('/v1/brokerage/assignments', { target, scope, plan: '', from: $('un-from').value }), 'Plan removed'), true); },
   umenu: (id, el, e) => { const m = $('umenu'); m.hidden = !m.hidden; },

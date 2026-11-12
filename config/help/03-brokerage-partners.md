@@ -35,6 +35,7 @@ related: change-brokerage, client-rates, trading-channels
 
 1. On [[brokerage|Brokerage plans]], click **New plan** and give it a name.
 2. Add a **rate line** for each rate. A line is a product (delivery, intraday, futures or options in equity, currency or commodity), optionally narrowed to:
+   - **Scrip / group / underlying:** one cash-market scrip by symbol or ISIN (RELIANCE), a scrip group (`group:ETF`, see "scrip groups"), or for derivatives one underlying (NIFTY).
    - **Exchange:** for example a lower delivery rate on BSE.
    - **Channel:** dealer, online, mobile, or your own channels (see "trading channels").
    - **Case:**
@@ -42,16 +43,25 @@ related: change-brokerage, client-rates, trading-channels
      - **rollover** (both legs of a futures position moved to a later expiry the same day)
      - **futures expiry**
      - **option exercise** (long) or **option assignment** (short)
-     - **index** or **stock** derivatives
+     - **physical delivery** (stock futures and options settled by delivery at expiry)
+     - **index** or **stock** derivatives (index futures, stock futures, index options, stock options)
 3. Choose the charge:
    - **% of turnover**, **₹ per order**, **lower of % or ₹ per order**, **₹ per lot** (derivatives) or **₹ per share**, or **free**.
-   - Optional **minimum per share** (for example 3 paise) or **minimum per lot**. These grow with the order.
+   - Optional **minimum per share** (for example 2 paise) or **minimum per lot** (for example ₹60 a lot on options). These grow with the order.
    - Optional **minimum** and **maximum per order**.
-4. Save, then assign it.
+   - Optional **minimum per contract note**: if the client's brokerage for the segment that day comes to less, the difference is added once.
+   - **% on:** the trade price (usual), the **market rate** (the day's closing price) or the **contract rate** (the trade price; the strike for exercise and assignment).
+4. Save, then assign it. Use the filter above the lines to find a line in a long plan.
 
-**Which line applies to an order:** the most specific one that fits. A matching case comes first, then a matching channel, then a matching exchange; the plain product line comes last. A product with no line uses the charge schedule.
+**Which line applies to an order:** the most specific one that fits, in this order:
+1. a line for the scrip itself, then for a scrip group it is in, then for the underlying, then lines for no particular scrip;
+2. within those, a matching case (auction, rollover and so on, then index or stock);
+3. then a matching channel;
+4. then a matching exchange.
 
-**At expiry:** brokerage on futures expiry, exercise and assignment is charged only where the plan has a line for that case. It is posted when derivatives are settled. A % rate applies to the settlement value (settlement price, or the underlying's price for options, times the quantity).
+So "NIFTY options" beats "index options online", which beats "index options", which beats "options". A product with no line uses the charge schedule. **Brokerage preview** (on the page, or on the client's page) shows for each of a client's orders on a day the line that priced it.
+
+**At expiry:** brokerage on futures expiry, exercise, assignment and physical delivery is charged only where the plan has a line for that case; for stock derivatives a physical delivery line wins over the expiry, exercise or assignment line. It is posted when derivatives are settled. A % rate applies to the settlement value (settlement price, or the underlying's price for options, times the quantity), or to the strike with "contract rate".
 
 To change rates later, **Edit rates** with an effective date. Earlier days keep the old rates, so history stays correct.
 
@@ -81,6 +91,39 @@ related: brokerage-plans, brokerage-import
 
 Each trade gets its channel from the terminal (CTCL) ID in the exchange trade file: the first rule that matches, else the default. Auction trades are recognised by the settlement type in the trade file. Index derivatives are recognised by the underlying; NIFTY, BANKNIFTY, SENSEX and the other main indices are built in, and you can add more.
 
+**Cash-market intraday:** choose how intraday trades are told apart.
+- **From the trade file's product** (the default): trades marked MIS are intraday.
+- **By square-off:** the quantity a client both bought and sold in a scrip on one exchange and settlement the same day is intraday, taken from the earliest buys and sells; the rest is delivery. A trade can be split, part intraday and part delivery. Statutory charges follow the same split.
+
+## scrip-groups
+title: Price a list of scrips separately (scrip groups)
+screen: brokerage
+roles: Ops checker
+ask: scrip group; brokerage on etf; special brokerage rate on etfs; etf rate; special rate for some scrips; brokerage by stock; brokerage for one scrip; stock wise brokerage; scrip wise brokerage; illiquid scrips brokerage; brokerage on nifty options only
+related: brokerage-plans, brokerage-import
+
+1. On [[brokerage|Brokerage plans]], click **Scrip groups**.
+2. Name the group (for example ETF) and list its scrips, one per line, by symbol or ISIN. A scrip can have a from date and a to date.
+3. In a plan, add a line with **Scrip / group / underlying** set to `group:ETF`.
+
+For one scrip alone, write the scrip itself (RELIANCE or its ISIN) in the line; for derivatives, the underlying (NIFTY). A line for the scrip wins over one for its group, which wins over one for the underlying and over lines for no particular scrip. If a scrip is in two groups, the group first by name applies.
+
+Large lists load as **SCRIP-GROUPS** on [[files|Files]]: columns Group and Scrip, optional From, To and Note.
+
+## brokerage-preview
+title: See which rate applied to a trade
+screen: brokerage
+roles: Ops maker, Ops checker
+ask: which brokerage rate applied; why this brokerage; brokerage preview; which rate line; brokerage breakup per trade; check brokerage for a client's trades
+related: brokerage-plans, charges-check, correct-bill
+
+1. On [[brokerage|Brokerage plans]] click **Brokerage preview**, or open the client and click **Brokerage preview**.
+2. Choose the client and the trade date and click **Show**.
+
+Each order is listed with its product, channel, cases (auction, rollover, index or stock), quantity and turnover, the plan, the **line that applied** and the brokerage, worked out exactly as billing does. Nothing is posted. A minimum per contract note shows as its own line.
+
+To price an order that has not happened, use [[charges|Charges calculator]] with the client, the scrip or underlying and the channel.
+
 ## brokerage-import
 title: Bring brokerage rates across from another back office
 screen: files
@@ -90,9 +133,12 @@ related: brokerage-plans, client-rates, trading-channels, load-files
 
 Load these files on [[files|Files]], in this order. A converter for the old system writes them; loading a file twice changes nothing. Loading needs an **Ops checker**.
 
-1. **BROKERAGE-CARDS:** every rate card with its history, one row per rate line. Columns:
+1. **SCRIP-GROUPS** (if the cards use them): Group and Scrip, optional From, To and Note.
+1. **BROKERAGE-CARDS:** every rate card (basket) with its history, one row per rate line. Columns:
    - Card, From, Product and Mode.
-   - Optional Name, Exchange, Channel, Case, Pct, Flat, PerLot, PerShare, MinPerShare, MinPerLot, Min and Max.
+   - Optional Name, Exchange, Channel, Case (auction, rollover, expiry, exercise, assignment, physical, index or stock), Pct, Flat, PerLot, PerShare, MinPerShare, MinPerLot, Min, Max and MinPerNote.
+   - At most one of Scrip (symbol or ISIN), Group (a scrip group) and Underlying (NIFTY).
+   - Basis: market (the day's closing price) or contract (the trade price; the strike for exercise); blank for the trade price.
    - All the lines of a card with the same From make that version.
 2. **BROKERAGE-CLIENTS:** which card each client is on, with history. It covers every client whatever their status: active, inactive, suspended or closed. Columns:
    - UCC, Card and From.
@@ -102,7 +148,9 @@ Load these files on [[files|Files]], in this order. A converter for the old syst
 3. **BROKERAGE-CLIENT-RATES:** clients' own rate lines, in the same columns as the cards, keyed by UCC.
 4. **TERMINAL-CHANNELS:** Terminal and Channel.
 
-Load the client master first: rows for unknown clients are refused, and so is the whole file.
+Load the client master first: rows for unknown clients are refused, and so is the whole file. Every problem is listed with its row number (an unknown product, a scrip on a derivative line, a group not loaded, a bad date), and nothing in the file is loaded until it is clean.
+
+Clients' own interest rates load as **CLIENT-INTEREST** (see "client interest rate").
 
 ## charges-check
 title: Check a charge a client disputes

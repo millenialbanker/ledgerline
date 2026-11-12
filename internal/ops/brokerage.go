@@ -11,9 +11,11 @@ import (
 	"strings"
 
 	"ledgerline/internal/app"
+	"ledgerline/internal/billing"
 	"ledgerline/internal/charges"
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
+	"ledgerline/internal/money"
 )
 
 // ---- brokerage plans ----
@@ -148,6 +150,9 @@ func (o *Ops) SavePlan(ctx context.Context, tenant, actor string, in PlanInput) 
 	}
 	rules, err := cleanRules(in.Rules)
 	if err != nil {
+		return Plan{}, err
+	}
+	if err := o.checkGroups(ctx, tenant, rules); err != nil {
 		return Plan{}, err
 	}
 	p, _, err := o.savePlanVersion(ctx, tenant, actor, in, rules)
@@ -317,6 +322,9 @@ type brokerageBook struct {
 	overrides map[string]OverrideVersion // ucc -> lines in force
 	setup     BrokerageSetup
 	sched     string
+	groups    map[string][]string // scrip -> scrip groups in force
+	look      Lookup              // the day's instruments (ISINs, closing prices)
+	mktDate   string              // the date the instruments are for
 }
 
 func latestKey(target, scope string) string { return target + "#" + scope }
@@ -342,7 +350,13 @@ func (o *Ops) brokerageBook(ctx context.Context, tenant, date string) (*brokerag
 	if err != nil {
 		return nil, err
 	}
-	bb := &brokerageBook{date: date, plans: map[string]Plan{}, latest: map[string]PlanAssignment{}, clients: cm, overrides: map[string]OverrideVersion{}, setup: setup, sched: o.App.Schedule.Version}
+	gs, err := o.ScripGroups(ctx, tenant)
+	if err != nil {
+		return nil, err
+	}
+	m, look, _ := o.Market(ctx, tenant, date)
+	bb := &brokerageBook{date: date, plans: map[string]Plan{}, latest: map[string]PlanAssignment{}, clients: cm, overrides: map[string]OverrideVersion{}, setup: setup, sched: o.App.Schedule.Version,
+		groups: groupsOn(gs, date), look: look, mktDate: m.Date}
 	for _, p := range ps {
 		bb.plans[p.ID] = p
 	}
@@ -477,6 +491,12 @@ func (bb *brokerageBook) scopesFor(seg string) []string {
 // card's, most specific line first; at equal specificity the client's own
 // line wins.
 func (bb *brokerageBook) rule(ucc string, q charges.RateQuery) (charges.BrokerageRule, string, bool) {
+	a, ok := bb.match(ucc, q)
+	return a.Rule, a.Plan, ok
+}
+
+// match is rule with the key of the line that applied.
+func (bb *brokerageBook) match(ucc string, q charges.RateQuery) (billing.Applied, bool) {
 	ov, hasOv := bb.overrides[ucc]
 	var card *candidate
 	var lines map[string]charges.BrokerageRule
@@ -498,16 +518,16 @@ func (bb *brokerageBook) rule(ucc string, q charges.RateQuery) (charges.Brokerag
 				if card != nil {
 					label = card.plan.Name + " + client rate"
 				}
-				return r, label, true
+				return billing.Applied{Rule: r, Plan: label, Line: k}, true
 			}
 		}
 		if card != nil {
 			if r, ok := lines[k]; ok {
-				return r, card.plan.Name, true
+				return billing.Applied{Rule: r, Plan: card.plan.Name, Line: k}, true
 			}
 		}
 	}
-	return charges.BrokerageRule{}, "", false
+	return billing.Applied{}, false
 }
 
 // ---- client overrides: a client's own rate lines ----
@@ -575,6 +595,9 @@ func (o *Ops) saveOverrideChanged(ctx context.Context, tenant, actor string, in 
 	if err != nil {
 		return ClientOverride{}, false, err
 	}
+	if err := o.checkGroups(ctx, tenant, rules); err != nil {
+		return ClientOverride{}, false, err
+	}
 	v := OverrideVersion{From: in.From, Rules: rules, Note: strings.TrimSpace(in.Note), By: actor, At: o.now().Format("2006-01-02 15:04")}
 	changed := true
 	c, err := upd(ctx, o.Docs, tenant, cBrokOverride, in.UCC, actor, &ClientOverride{UCC: in.UCC}, func(c *ClientOverride) error {
@@ -627,9 +650,20 @@ type BrokerageSetup struct {
 	AuctionSettlements []string `json:"auction_settlements"`
 	// IndexUnderlyings are added to the built-in list of index underlyings.
 	IndexUnderlyings []string `json:"index_underlyings"`
-	By               string   `json:"by,omitempty"`
-	At               string   `json:"at,omitempty"`
+	// IntradayBy decides which cash-market trades are intraday: "product"
+	// (the default: the trade file's product, MIS) or "squareoff" (the
+	// quantity a client bought and sold in a scrip the same day, as most
+	// back offices do; see billing.SplitSquareOff).
+	IntradayBy string `json:"intraday_by,omitempty"`
+	By         string `json:"by,omitempty"`
+	At         string `json:"at,omitempty"`
 }
+
+// How cash-market trades are told apart as intraday.
+const (
+	IntradayByProduct   = "product"
+	IntradayBySquareOff = "squareoff"
+)
 
 // DefaultBrokerageSetup is used until the firm saves its own.
 func DefaultBrokerageSetup() BrokerageSetup {
@@ -710,6 +744,13 @@ func (o *Ops) saveBrokerageSetup(ctx context.Context, tenant, actor string, s Br
 		return out
 	}
 	s.AuctionSettlements, s.IndexUnderlyings = up(s.AuctionSettlements), up(s.IndexUnderlyings)
+	switch s.IntradayBy = strings.ToLower(strings.TrimSpace(s.IntradayBy)); s.IntradayBy {
+	case "", IntradayByProduct:
+		s.IntradayBy = ""
+	case IntradayBySquareOff:
+	default:
+		return s, invalid("intraday by %q: use product (the trade file's product) or squareoff", s.IntradayBy)
+	}
 	s.By, s.At = actor, o.now().Format("2006-01-02 15:04")
 	if err := docs.Upsert(ctx, o.Docs, tenant, cBrokSetup, "setup", s, actor); err != nil {
 		return s, err
@@ -733,6 +774,18 @@ func (s BrokerageSetup) channelOf(terminal string) string {
 	return s.DefaultChannel
 }
 
+// isIndex says whether an underlying is an index (built in or the firm's).
+func (s BrokerageSetup) isIndex(sym string) bool {
+	for _, l := range [][]string{charges.IndexUnderlyings, s.IndexUnderlyings} {
+		for _, u := range l {
+			if sym == u {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // classify gives a trade's channel and cases (auction; index or stock).
 func (s BrokerageSetup) classify(t ingest.TradeEvent) (string, []string) {
 	var cases []string
@@ -745,16 +798,25 @@ func (s BrokerageSetup) classify(t ingest.TradeEvent) (string, []string) {
 		}
 	case "FO":
 		kind := charges.CaseStock
-		for _, l := range [][]string{charges.IndexUnderlyings, s.IndexUnderlyings} {
-			for _, u := range l {
-				if t.Symbol == u {
-					kind = charges.CaseIndex
-				}
-			}
+		if s.isIndex(t.Symbol) {
+			kind = charges.CaseIndex
 		}
 		cases = append(cases, kind)
 	}
 	return s.channelOf(t.Terminal), cases
+}
+
+// marketPrice is the day's closing price of a trade's instrument (the
+// market rate), when the day's market data is loaded.
+func (bb *brokerageBook) marketPrice(t ingest.TradeEvent) (money.Dec, bool) {
+	if bb.mktDate != bb.date {
+		return money.Dec{}, false
+	}
+	i, ok := bb.look.ForTrade(t)
+	if !ok || i.Close.Sign() <= 0 {
+		return money.Dec{}, false
+	}
+	return i.Close, true
 }
 
 // billingHooks plugs plans, lot sizes and trade classes into billing and
@@ -764,7 +826,7 @@ func (o *Ops) billingHooks(ctx context.Context, tenant, date string) (app.Pricin
 	if err != nil {
 		return app.Pricing{}, err
 	}
-	_, look, _ := o.Market(ctx, tenant, date)
+	look := bb.look
 	brok := func(ucc string, q charges.RateQuery, d string) (charges.BrokerageRule, string, bool) {
 		return bb.rule(ucc, q)
 	}
@@ -774,7 +836,11 @@ func (o *Ops) billingHooks(ctx context.Context, tenant, date string) (app.Pricin
 		}
 		return 1
 	}
-	p := app.Pricing{Brokerage: brok, LotSize: lot, Classify: bb.setup.classify}
+	p := app.Pricing{Brokerage: brok, LotSize: lot, Classify: bb.setup.classify,
+		Detail:      func(ucc string, q charges.RateQuery, d string) (billing.Applied, bool) { return bb.match(ucc, q) },
+		Targets:     bb.tradeTargets,
+		MarketPrice: bb.marketPrice,
+		SquareOff:   bb.setup.IntradayBy == IntradayBySquareOff}
 	if set, _ := o.Settings(ctx, tenant); set.sepCom() {
 		p.ClientAccount = set.clientAccountFor
 	}
@@ -797,6 +863,8 @@ type BrokerageView struct {
 	Setup     BrokerageSetup `json:"setup"`
 	Cases     []CaseName     `json:"cases"`
 	Segments  []string       `json:"segments"`
+	// ScripGroups are the firm's named scrip lists lines can be for.
+	ScripGroups []ScripGroup `json:"scrip_groups"`
 }
 
 // OverrideView is a client's own rate lines with the version in force.
@@ -860,6 +928,12 @@ func (o *Ops) Brokerage(ctx context.Context, tenant, date string) (BrokerageView
 		v.Current[t] = PlanCurrent{a.PlanID, a.From}
 	}
 	v.Setup, v.Segments, v.Overrides = bb.setup, Segments, []OverrideView{}
+	if v.ScripGroups, err = o.ScripGroups(ctx, tenant); err != nil {
+		return v, err
+	}
+	if v.ScripGroups == nil {
+		v.ScripGroups = []ScripGroup{}
+	}
 	for _, c := range charges.CaseNames {
 		cn := CaseName{Case: c.Case, Name: c.Name, Products: []string{}}
 		for _, b := range charges.Buckets {
@@ -979,4 +1053,82 @@ func (o *Ops) QuoteRule(ctx context.Context, tenant, ucc string, q charges.RateQ
 	}
 	r, name, ok := bb.rule(strings.ToUpper(ucc), q)
 	return r, name, ok, nil
+}
+
+// QuoteLine is QuoteRule for an order in one scrip (or on one underlying):
+// lines for the scrip, its groups or the underlying apply, and the key of
+// the line that priced it is returned.
+func (o *Ops) QuoteLine(ctx context.Context, tenant, ucc, symbol string, q charges.RateQuery, date string) (billing.Applied, bool, error) {
+	bb, err := o.brokerageBook(ctx, tenant, date)
+	if err != nil {
+		return billing.Applied{}, false, err
+	}
+	if q.Channel == "" {
+		q.Channel = bb.setup.DefaultChannel
+	}
+	if symbol = strings.ToUpper(strings.TrimSpace(symbol)); symbol != "" {
+		q.Targets = bb.targetsFor(segmentOf(q.Bucket), symbol)
+		if segmentOf(q.Bucket) == "FO" && len(q.Cases) == 0 {
+			kind := charges.CaseStock
+			if bb.setup.isIndex(symbol) {
+				kind = charges.CaseIndex
+			}
+			q.Cases = []string{kind}
+		}
+	}
+	a, ok := bb.match(strings.ToUpper(ucc), q)
+	return a, ok, nil
+}
+
+// BrokeragePreview is which rate line priced each of a client's orders on a
+// date, worked out exactly as billing does.
+type BrokeragePreview struct {
+	UCC       string                   `json:"ucc"`
+	Name      string                   `json:"name"`
+	Date      string                   `json:"date"`
+	Plan      EffectivePlan            `json:"plan"`
+	Orders    []billing.OrderBrokerage `json:"orders"`
+	Brokerage money.Amount             `json:"brokerage"`
+	Note      string                   `json:"note,omitempty"`
+}
+
+// PreviewBrokerage prices a client's exchange trades of a date (posted or
+// not) and lists the line used for each order.
+func (o *Ops) PreviewBrokerage(ctx context.Context, tenant, ucc, date string) (BrokeragePreview, error) {
+	ucc = strings.ToUpper(strings.TrimSpace(ucc))
+	c, err := o.Client(ctx, tenant, ucc)
+	if err != nil {
+		return BrokeragePreview{}, err
+	}
+	ep, _, err := o.ClientBrokerage(ctx, tenant, ucc, date)
+	if err != nil {
+		return BrokeragePreview{}, err
+	}
+	v := BrokeragePreview{UCC: ucc, Name: c.Name, Date: date, Plan: ep, Orders: []billing.OrderBrokerage{}}
+	all, err := o.exchangeTrades(ctx, tenant, date)
+	if err != nil {
+		return v, err
+	}
+	var mine []ingest.TradeEvent
+	for _, t := range all {
+		if t.UCC == ucc {
+			mine = append(mine, t)
+		}
+	}
+	if len(mine) == 0 {
+		v.Note = "No exchange trades for this client on this date. Use the charges calculator to price an order."
+		return v, nil
+	}
+	m, _, _ := o.Market(ctx, tenant, date)
+	out, err := o.App.BuildBills(ctx, billing.Input{Tenant: tenant, Date: date, Actor: "preview", Trades: mine, SettlementPrices: m.SettlementPrices(), Schedule: o.App.Schedule})
+	if err != nil {
+		return v, err
+	}
+	if out.Orders != nil {
+		v.Orders = out.Orders
+	}
+	for _, x := range v.Orders {
+		v.Brokerage += x.Brokerage
+	}
+	return v, nil
 }

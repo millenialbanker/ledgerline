@@ -157,9 +157,15 @@ type InterestRow struct {
 	Interest  money.Amount `json:"interest"`
 	GST       money.Amount `json:"gst"`
 	Total     money.Amount `json:"total"`
-	Status    string       `json:"status"` // To post, Posted, Exempt, Below minimum, Legacy debt
+	Status    string       `json:"status"` // To post, Posted, Exempt, No interest (client), Below minimum, Legacy debt
 	Entry     string       `json:"entry,omitempty"`
 	Invoice   string       `json:"invoice,omitempty"`
+	// RatePct is the rate charged (% a year): "15", or "24% to 14-Nov, 15
+	// from 15-Nov" when it changed in the period. OwnRate: the client's own
+	// terms applied on at least one day.
+	RatePct   string `json:"rate_pct,omitempty"`
+	OwnRate   bool   `json:"own_rate,omitempty"`
+	Narration string `json:"-"` // "@ 15% p.a." for the ledger and invoice
 }
 
 // InterestView is the interest run for a period.
@@ -276,8 +282,13 @@ func (o *Ops) Interest(ctx context.Context, tenant, from, to string) (InterestVi
 	for _, i := range invs {
 		invByEntry[i.Entry] = i.No
 	}
-	// Look back far enough to know how long each spell has run for grace.
-	look := addDays(from, -int(set.InterestGraceDays))
+	ib, err := o.interestBook(ctx, tenant)
+	if err != nil {
+		return v, err
+	}
+	// Look back far enough to know how long each spell has run for grace
+	// (the longest grace any client has).
+	look := addDays(from, -max(int(set.InterestGraceDays), ib.maxGrace()))
 	for _, u := range sortedKeys(moves) {
 		bals := dailyBalances(moves[u], look, to)
 		lead := daysBetween(look, from)
@@ -288,27 +299,46 @@ func (o *Ops) Interest(ctx context.Context, tenant, from, to string) (InterestVi
 				r.Tags = []string{}
 			}
 		}
-		streak := 0
+		streak, freeDays := 0, 0
+		var rateDays money.Dec // Σ debit × rate: each day at the rate in force that day
+		var span rateSpan
 		for i, b := range bals {
 			if b < 0 {
 				streak++
 			} else {
 				streak = 0
 			}
-			if i < lead || b >= 0 || streak <= int(set.InterestGraceDays) {
+			if i < lead || b >= 0 {
+				continue
+			}
+			d := addDays(look, i)
+			terms := ib.on(u, d)
+			if streak <= int(terms.grace) {
+				continue
+			}
+			if terms.free {
+				freeDays++
 				continue
 			}
 			r.DebitDays++
 			r.Product += -b
+			rateDays = rateDays.Add((-b).Dec().Mul(terms.rate))
+			span.add(d, terms.rate)
+			r.OwnRate = r.OwnRate || terms.own
 			if -b > r.MaxDebit {
 				r.MaxDebit = -b
 			}
 		}
-		if r.DebitDays == 0 {
+		if r.DebitDays == 0 && freeDays == 0 {
 			continue
 		}
-		r.AvgDebit = divInt(r.Product.Dec(), int64(r.DebitDays)).Round(money.UnitPaisa)
-		r.Interest = divInt(r.Product.Dec().Mul(v.RatePct), 100*365).Round(money.UnitPaisa)
+		r.RatePct, r.Narration = span.String(), span.atRate(v.RatePct)
+		if r.DebitDays == 0 {
+			r.RatePct, r.OwnRate = "0", true
+		} else {
+			r.AvgDebit = divInt(r.Product.Dec(), int64(r.DebitDays)).Round(money.UnitPaisa)
+		}
+		r.Interest = divInt(rateDays, 100*365).Round(money.UnitPaisa)
 		r.GST = r.Interest.Dec().Pct(v.GSTPct).Round(money.UnitPaisa)
 		r.Total = r.Interest + r.GST
 		for per, id := range posted[u] {
@@ -329,6 +359,8 @@ func (o *Ops) Interest(ctx context.Context, tenant, from, to string) (InterestVi
 			r.Status = "Legacy debt" // not charged: see legacy.go
 		case hasAnyTag(r.Tags, v.Exempt):
 			r.Status = "Exempt"
+		case r.DebitDays == 0:
+			r.Status = "No interest (client)"
 		case r.Interest < v.Minimum:
 			r.Status = "Below minimum"
 		default:
@@ -371,7 +403,11 @@ func (o *Ops) PostInterest(ctx context.Context, tenant, actor, from, to string) 
 		if r.Status != "To post" {
 			continue
 		}
-		desc := fmt.Sprintf("Interest on debit balance %s to %s @ %s%% p.a. (%d days, average debit ₹%s)", fmtShort(from), fmtShort(to), v.RatePct, r.DebitDays, r.AvgDebit)
+		at := r.Narration
+		if at == "" {
+			at = fmt.Sprintf("@ %s%% p.a.", v.RatePct)
+		}
+		desc := fmt.Sprintf("Interest on debit balance %s to %s %s (%d days, average debit ₹%s)", fmtShort(from), fmtShort(to), at, r.DebitDays, r.AvgDebit)
 		e, created, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "INT:" + from + ":" + to + ":" + r.UCC, ValueDate: to,
 			Narration: desc, Source: ledger.SourceRef{Kind: "INTEREST", ID: from + "/" + to + "/" + r.UCC}, CreatedBy: actor,
 			Postings: []ledger.Posting{{Account: ledger.ClientAccount(r.UCC), Debit: r.Total, Memo: "Interest and GST"},
@@ -452,6 +488,10 @@ type DebitRow struct {
 	BlockedBy  string         `json:"blocked_by,omitempty"`
 	Action     string         `json:"action"`           // Block, Unblock or ""
 	Legacy     bool           `json:"legacy,omitempty"` // an open legacy debt: kept out of the totals and reminders, still blocked
+	// InterestRate is the interest the client pays on the date: "24% p.a."
+	// or the client's own terms; OwnInterest marks their own terms.
+	InterestRate string `json:"interest_rate,omitempty"`
+	OwnInterest  bool   `json:"own_interest,omitempty"`
 }
 
 // DebitView is the debtors screen.
@@ -528,6 +568,10 @@ func (o *Ops) Debits(ctx context.Context, tenant, date string) (DebitView, error
 		}
 	}
 	legacy := o.legacyOpen(ctx, tenant)
+	ib, err := o.interestBook(ctx, tenant)
+	if err != nil {
+		return v, err
+	}
 	for _, u := range sortedKeys(cs) {
 		c := cs[u]
 		ms := moves[u]
@@ -540,6 +584,8 @@ func (o *Ops) Debits(ctx context.Context, tenant, date string) (DebitView, error
 			continue
 		}
 		r := DebitRow{UCC: u, Name: c.Name, Tags: c.Tags, Ledger: funds[u], Blocked: c.Blocked, Ageing: make([]money.Amount, len(AgeBuckets)), Legacy: legacy[u] && bal < 0}
+		terms := ib.on(u, date)
+		r.InterestRate, r.OwnInterest = terms.describe(), terms.own
 		totals := v.Totals
 		if r.Legacy {
 			totals = make([]money.Amount, len(AgeBuckets)) // not in the firm's ageing

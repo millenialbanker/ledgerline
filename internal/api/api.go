@@ -449,6 +449,8 @@ func (s *Server) quote(w http.ResponseWriter, r *http.Request) {
 		Lot     int64    `json:"lot"`
 		Channel string   `json:"channel"`
 		Cases   []string `json:"cases"`
+		Symbol  string   `json:"symbol"` // the scrip or underlying, for lines narrowed to it
+		Market  string   `json:"market_price"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -457,16 +459,19 @@ func (s *Server) quote(w http.ResponseWriter, r *http.Request) {
 	if leg.Date == "" {
 		leg.Date = time.Now().In(time.FixedZone("IST", 19800)).Format("2006-01-02")
 	}
-	plan := ""
+	plan, line, lineName := "", "", ""
 	var rule charges.BrokerageRule
 	if body.UCC != "" && s.ops != nil {
-		rl, name, ok, err := s.ops.QuoteRule(r.Context(), tenant(r), body.UCC, charges.RateQuery{Bucket: leg.Bucket, Exchange: leg.Exchange, Channel: body.Channel, Cases: body.Cases}, leg.Date)
+		a, ok, err := s.ops.QuoteLine(r.Context(), tenant(r), body.UCC, body.Symbol, charges.RateQuery{Bucket: leg.Bucket, Exchange: leg.Exchange, Channel: body.Channel, Cases: body.Cases}, leg.Date)
 		if err != nil {
 			fail(w, err, nil)
 			return
 		}
 		if ok {
-			rule, plan, leg.NoBrokerage = rl, name, true
+			rule, plan, leg.NoBrokerage, line = a.Rule, a.Plan, true, a.Line
+			if k, err := charges.ParseRateKey(a.Line); err == nil {
+				lineName = k.Describe()
+			}
 		}
 	}
 	b, err := s.app.Schedule.Compute(leg)
@@ -475,12 +480,17 @@ func (s *Server) quote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if leg.NoBrokerage {
-		brok := rule.Compute(leg.Bucket, leg.Price.MulInt(leg.Qty), leg.Qty, max(body.Lot, 1)).Round(money.UnitPaisa)
+		v := leg.Price.MulInt(leg.Qty)
+		base := v
+		if mp, err := money.ParseDec(body.Market); err == nil && body.Market != "" && rule.Basis == charges.BasisMarket {
+			base = mp.MulInt(leg.Qty)
+		}
+		brok := rule.ComputeOn(leg.Bucket, base, v, leg.Qty, max(body.Lot, 1)).Round(money.UnitPaisa)
 		gst := brok.Dec().Pct(s.app.Schedule.GSTPct).Round(money.UnitPaisa)
 		b.Brokerage, b.GST, b.Total = brok, b.GST+gst, b.Total+brok+gst
 		b.Rule = "Plan " + plan + " · " + rule.Describe() + " · statutory " + b.Rule
 	}
-	writeJSON(w, 200, map[string]any{"breakdown": b, "plan": plan, "schedule": s.app.Schedule.Version, "sample_rates": s.app.Schedule.Sample})
+	writeJSON(w, 200, map[string]any{"breakdown": b, "plan": plan, "line": line, "line_name": lineName, "schedule": s.app.Schedule.Version, "sample_rates": s.app.Schedule.Sample})
 }
 
 func (s *Server) postJournal(w http.ResponseWriter, r *http.Request) {
@@ -669,7 +679,7 @@ var scopedRoutes = map[string]bool{
 	"GET /v1/client-reports/{kind}": true, "GET /v1/ledger/statement": true, "GET /v1/notes": true,
 	"GET /v1/notes/{date}/{ucc}/document": true, "GET /v1/receipts": true, "POST /v1/receipts": true, "GET /v1/payouts": true,
 	"GET /v1/payouts/withdrawable": true, "POST /v1/payouts": true, "GET /v1/debits": true, "GET /v1/rms": true,
-	"GET /v1/tags": true, "GET /v1/brokerage/client/{ucc}": true, "GET /v1/partners": true, "GET /v1/settings": true,
+	"GET /v1/tags": true, "GET /v1/brokerage/client/{ucc}": true, "GET /v1/interest/client/{ucc}": true, "GET /v1/partners": true, "GET /v1/settings": true,
 	"GET /v1/prepaid": true, "POST /v1/prepaid/subscriptions": true,
 	"GET /v1/clients/{ucc}/documents": true, "POST /v1/clients/{ucc}/documents": true, "GET /v1/clients/{ucc}/documents/{id}": true,
 	"GET /v1/changes": true, "POST /v1/changes": true, "GET /v1/tickets": true, "POST /v1/tickets": true, "POST /v1/tickets/{id}": true,
