@@ -149,7 +149,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 <table><tr><th>File</th><th>Holds</th><th class="n">Documents</th>{{if .Beside}}<th class="n">Size</th>{{end}}</tr>
 {{range .Parts}}<tr><td>{{base .Path}}</td><td>{{if .Note}}{{.Note}}{{else}}Everything{{end}}</td><td class="n">{{int .Docs}}</td>{{if $.Beside}}<td class="n">{{size .Bytes}}</td>{{end}}</tr>{{end}}
 </table>
-<div class="box">Next step: in Ledgerline, open Go-live → Migrate and upload {{if gt (len .Parts) 1}}every part of {{end}}this package. Ledgerline asks for the passphrase chosen in the tool; keep the passphrase separate from the file.</div>
+<div class="box">Next step: in Ledgerline, open Files → Migration from old system and upload {{if gt (len .Parts) 1}}every part of {{end}}this package. Ledgerline asks for the passphrase chosen in the tool; keep the passphrase separate from the file.</div>
 <p>{{if .Errors}}<b>{{int .Errors}} error(s)</b> and {{end}}{{int .Warnings}} warning(s) are listed under Issues below.</p>
 
 <h2>What was read</h2>

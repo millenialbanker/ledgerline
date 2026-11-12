@@ -3,11 +3,11 @@ Ledgy help articles: the migration tool that moves an office from SharePro (or a
 # Migration tool
 
 ## migration-tool
-title: Move from SharePro with the migration tool
+title: Make the migration package with the migration tool
 screen: files
 roles: Admin
-ask: migration tool; migrate from sharepro; move from sharepro to ledgerline; sharepro migration; how do i migrate; import old back office; go live migration; migration package; llmig file; ledgerline-migrate; convert sharepro data; bring old data into ledgerline; switch back office
-related: migration-backups, migration-passphrase, migration-not-migrated, migration-mac, migration-download
+ask: migration tool; download the migration tool; ledgerline-migrate; run the migration tool; make the migration package; read sharepro backups; convert sharepro backup; restore sharepro backup for migration; drop backups into the tool
+related: migrate-firm, migration-backups, migration-passphrase, migrate-not-carried, migration-mac, migration-download
 
 The **Ledgerline migration tool** runs at your office, on your own computer. It reads your SharePro backups and writes one locked file, the **migration package** (.llmig), which you then upload into Ledgerline. Nothing is sent anywhere while it works.
 
@@ -17,7 +17,7 @@ The **Ledgerline migration tool** runs at your office, on your own computer. It 
 4. **What we found** lists every database: the company years (named like NC2627 for 2026-27), the mail archives (NCMAIL2627) and the admin database (shadmin). Years beyond the range you choose are shown as skipped. If the newest backup is more than 2 days old, take a fresh backup in SharePro first.
 5. **Choose** the firms, the years of history (1 to 8), whether to include archived documents, what to do with dormant clients, where to save, and a passphrase.
 6. When the package is ready, the tool shows the checks Ledgerline will verify and any issues with what to do. A printable **report** is saved beside the package.
-7. In Ledgerline, open Go-live → Migrate and upload the package. Ledgerline asks for the passphrase and recalculates every check (trial balance, client balances, holdings) before anything goes live.
+7. In Ledgerline, open [[migrate|Files → Migration from old system]] and upload the package. Ledgerline asks for the passphrase and recalculates every check (trial balance, client balances, holdings) before anything goes live.
 
 The tool restores each backup into a temporary copy on SQL Server, reads it, and deletes the copy and all its work files at the end, also when you cancel. It never writes to SharePro's own databases. A large office's archived documents may come out as several parts (4 GB each by default); upload every part.
 
@@ -50,20 +50,6 @@ The tool locks the package with a **passphrase** you choose (at least 12 charact
 - Ledgerline asks for the passphrase when you upload the package. **Without it the package cannot be opened**, not by you, not by Ledgerline, not by anyone. The tool does not keep it.
 - Give the passphrase to the person loading the package separately from the file: say it on the phone or in person, not in the same e-mail or chat as the file.
 - If it is lost, run the tool again on the same backups with a new passphrase.
-
-## migration-not-migrated
-title: What the migration never carries over
-screen: files
-roles: Admin, Compliance officer
-ask: is aadhaar migrated; passwords migrated; what is not migrated; dropped fields; fields left out migration; sharepro passwords; client login passwords; full aadhaar number
-related: migration-tool
-
-Some things are never put in the package, whatever the old system holds:
-
-- **Passwords** of every kind: users' and clients' logins, transaction PINs, e-mail and SFTP passwords. Users and clients set new ones in Ledgerline.
-- **Full Aadhaar numbers**. Only what the law allows is kept (the last four digits); the KYC records themselves are kept as they are.
-
-The tool's report lists every other field it left out, with the reason and how many records had it, under **Fields left out**.
 
 ## migration-mac
 title: Running the migration tool on a Mac

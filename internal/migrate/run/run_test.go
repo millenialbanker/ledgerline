@@ -222,7 +222,7 @@ func TestRunOnePackage(t *testing.T) {
 		t.Errorf("dropped %+v", man.Dropped)
 	}
 	rep, _ := os.ReadFile(res.Report)
-	for _, want := range []string{"6,001.50", "Client password", "History 2022-23", "Contract note", "SHA-256", "Take", "Go-live → Migrate", "Older than the 8 years"} {
+	for _, want := range []string{"6,001.50", "Client password", "History 2022-23", "Contract note", "SHA-256", "Take", "Files → Migration from old system", "Older than the 8 years"} {
 		if want == "Take" {
 			continue
 		}

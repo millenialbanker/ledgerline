@@ -7,11 +7,11 @@ title: Move a firm from its old back office to Ledgerline
 screen: migrate
 roles: Admin, Ops checker
 ask: migrate from sharepro; migration from old back office; move from old software; how to migrate; go live from another back office; load old back office data; migration package; llmig file; upload migration package; switch from sharepro to ledgerline; bring clients and balances across
-related: migrate-check, migrate-reconcile, migrate-undo, migrate-not-carried, before-ledgerline, old-documents-archive
+related: migration-tool, migration-backups, migrate-check, migrate-reconcile, migrate-undo, migrate-not-carried, before-ledgerline, old-documents-archive
 
 Moving a firm is done once, at go-live, in five steps.
 
-1. **Run the migration tool at the office.** It reads the old system's backups (SharePro first) and writes one encrypted file, the package (.llmig), with a passphrase you choose. A large office may get several parts, for example the documents of earlier years in parts of their own. Keep the passphrase apart from the file.
+1. **Run the migration tool at the office** (see *Make the migration package with the migration tool*). It reads the old system's backups (SharePro first) and writes one encrypted file, the package (.llmig), with a passphrase you choose. A large office may get several parts, for example the documents of earlier years in parts of their own. Keep the passphrase apart from the file.
 2. **Upload** on [[migrate|Files → Migration from old system]] (Admin). Click **Upload package** and choose the file. It goes up in pieces; if the connection drops, choose the same file again and the upload carries on from where it stopped. Upload each part the same way; the screen shows which parts are here. The largest package the firm accepts is in [[settings|Settings]].
 3. **Check** it with the passphrase. Nothing changes: every file's checksum is checked, and every go-live file (client master, bank accounts, nominees, brokerage, opening balances, holdings, positions) goes through the same checks as a normal import, in the order it would load. **Every** problem is listed at once, with the file, row, field, what is wrong and what to do. Put them right in the old system, make the package again, and check again until it is clean. A package can hold several old companies: pick the one this firm on Ledgerline is; the others can be loaded into their own firms with the same package.
 4. **Propose** the load (Admin): tick the files, and give the date the balances are as of (the old system's last closed day). Then a **different person** (another Admin or an Ops checker) approves it with the passphrase and the load starts: go-live files first, then the earlier years, then the documents. The screen shows the progress; if the server restarts, click **Resume** and type the passphrase.
@@ -74,7 +74,7 @@ related: migrate-firm, migrate-reconcile
 title: What is never migrated
 screen: migrate
 roles: Admin, Compliance officer
-ask: are passwords migrated; is aadhaar migrated; what is not migrated; what does the migration leave out; client web passwords after migration; full aadhaar number migration; dropped fields migration
+ask: are passwords migrated; is aadhaar migrated; passwords migrated; client login passwords; full aadhaar number; fields left out migration; what is not migrated; what does the migration leave out; client web passwords after migration; full aadhaar number migration; dropped fields migration
 related: migrate-firm, reset-password
 
 Some things are never brought across, whatever the old system holds:
