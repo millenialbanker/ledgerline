@@ -1099,11 +1099,21 @@ func (c *cur) writeBanks(ctx context.Context) error {
 		return err
 	}
 	if c.s.has("BKMAST") {
-		r, err := c.d.one(ctx, fmt.Sprintf(`/*sp:check-banks*/ SELECT COUNT(*) AS n FROM (SELECT DISTINCT RTRIM(b.SUBCD) AS u, RTRIM(b.ACNO) AS a, RTRIM(b.BANKCD) AS k FROM BKMAST b JOIN DLMAST d ON RTRIM(d.SUBCD) = RTRIM(b.SUBCD) WHERE RTRIM(d.SUBCD) IN (%s)) x`, inList(sortedKeys(c.written))))
+		// as Ledgerline keeps them: one per client, account number and IFSC;
+		// the firm's own pool account and rows with no bank details at all
+		// are not client accounts
+		ifsc, pool := "''", ""
+		if c.s.has("BANKMAST") && c.s.hasCol("BANKMAST", "RTGS") {
+			ifsc = "ISNULL((SELECT TOP 1 RTRIM(m.RTGS) FROM BANKMAST m WHERE m.BANKCD = b.BANKCD), '')"
+		}
+		if c.s.hasCol("BKMAST", "TYPE") {
+			pool = " AND ISNULL(RTRIM(b.[TYPE]), '') <> 'Pool'"
+		}
+		r, err := c.d.one(ctx, fmt.Sprintf(`/*sp:check-banks*/ SELECT COUNT(*) AS n FROM (SELECT DISTINCT RTRIM(b.SUBCD) AS u, RTRIM(ISNULL(b.ACNO, '')) AS a, %s AS i FROM BKMAST b JOIN DLMAST d ON RTRIM(d.SUBCD) = RTRIM(b.SUBCD) WHERE RTRIM(d.SUBCD) IN (%s)%s AND NOT (RTRIM(ISNULL(b.ACNO, '')) = '' AND RTRIM(ISNULL(b.BANKCD, '')) = '')) x`, ifsc, inList(sortedKeys(c.written)), pool))
 		if err != nil {
 			return err
 		}
-		c.rep.check(pkg.CheckBankAccounts, fmt.Sprint(i64(r, "n")), "Client bank accounts in SharePro (BKMAST) of the migrated clients, open and closed")
+		c.rep.check(pkg.CheckBankAccounts, fmt.Sprint(i64(r, "n")), "Client bank accounts in SharePro (BKMAST) of the migrated clients, open and closed: one per account number and IFSC, without the firm's pool account or rows with no bank details")
 	}
 	return nil
 }
