@@ -273,6 +273,20 @@ func (o *Ops) reconFigure(ctx context.Context, tenant string, m *Migration, c pk
 		}
 		return strconv.Itoa(len(clients)), behind, true
 	case pkg.CheckDPAccounts:
+		// The DP's own records when DP-ACCOUNTS was loaded, else the clients
+		// with a demat account in the client master.
+		if bos, err := docs.List[BOAccount](ctx, o.Docs, tenant, cBO, ""); err == nil && len(bos) > 0 {
+			have := map[string]bool{}
+			for _, b := range bos {
+				have[b.UCC] = true
+			}
+			for _, r := range o.rawRows(ctx, tenant, m, "DP-ACCOUNTS", []string{"UCC", "BOID"}) {
+				if u := strings.ToUpper(r.get("UCC")); !have[u] {
+					behind = append(behind, MigReconDiff{Key: u, Expected: r.get("BOID"), Ledgerline: "no DP record (not a client here)"})
+				}
+			}
+			return strconv.Itoa(len(bos)), behind, true
+		}
 		n := 0
 		have := map[string]bool{}
 		for _, cl := range clients {

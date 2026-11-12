@@ -111,6 +111,14 @@ type BOCDSL struct {
 	At       string   `json:"at"`
 }
 
+// BOStatuses are the states of a BO account; FreezeTypes what a freeze
+// stops. A freeze needs its type and reason (RaiseDPRequest, the
+// DP-ACCOUNTS import).
+var (
+	BOStatuses  = []string{"Active", "Frozen", "Closed", "Not opened"}
+	FreezeTypes = []string{"Debit", "Credit", "Both"}
+)
+
 // BOPOALink is one POA or DDPI linked to the account at CDSL.
 type BOPOALink struct {
 	Type     string `json:"type,omitempty"`      // POA / DDPI type
@@ -1114,7 +1122,7 @@ func (o *Ops) RaiseDPRequest(ctx context.Context, tenant, actor string, r DPRequ
 			return r, invalid("give the DRF number, ISIN, quantity and number of certificates (or the folio, for units)")
 		}
 	case "Freeze":
-		if !contains([]string{"Debit", "Credit", "Both"}, d["type"]) || strings.TrimSpace(d["reason"]) == "" {
+		if !contains(FreezeTypes, d["type"]) || strings.TrimSpace(d["reason"]) == "" {
 			return r, invalid("give the freeze type (Debit, Credit or Both) and the reason")
 		}
 	case "Unfreeze":

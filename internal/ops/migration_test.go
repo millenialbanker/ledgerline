@@ -118,6 +118,8 @@ func mkPkg(t *testing.T, s mspec) []byte {
 			ob = append(ob, []string{"CLIENT:TA001", "10.00", ""})
 		}
 		writeCSV(t, w, "01", "OPENING-BALANCES", ob)
+		writeCSV(t, w, "01", "BRANCHES", [][]string{{"Code", "Name", "Parent"}, {"PUN", "Test Pune Branch", "WEST"}, {"WEST", "Test West Zone", ""}})
+		writeCSV(t, w, "01", "DP-ACCOUNTS", [][]string{{"UCC", "BOID", "Depository", "Status"}, {"TA001", "1234567800000001", "CDSL", "Active"}, {"TB002", "1234567800000002", "CDSL", "Active"}})
 		writeCSV(t, w, "01", "DP-HOLDINGS", [][]string{{"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost"}, {"TA001", "INE000A01010", "TESTCO", "100", "0", "10.50"}, {"TB002", "INE000B01010", "TESTB", "50", "0", "20"}})
 	}
 	if s.history {
@@ -379,7 +381,7 @@ func TestMigLoadReconcileHistoryArchiveUndo(t *testing.T) {
 			t.Fatalf("step %+v", s)
 		}
 	}
-	want := "CLIENT-MASTER CLIENT-BANKS SCRIP-GROUPS BROKERAGE-CARDS OPENING-BALANCES DP-HOLDINGS LEDGER LEDGER CONTRACT-NOTES documents"
+	want := "BRANCHES CLIENT-MASTER CLIENT-BANKS SCRIP-GROUPS BROKERAGE-CARDS DP-ACCOUNTS OPENING-BALANCES DP-HOLDINGS LEDGER LEDGER CONTRACT-NOTES documents"
 	if strings.Join(order, " ") != want {
 		t.Fatalf("order %v", order)
 	}
@@ -658,7 +660,8 @@ func TestMigResumeAfterRestart(t *testing.T) {
 func TestMigrationOrder(t *testing.T) {
 	ord := strings.Join(migrationOrder(), " ")
 	for _, pair := range [][2]string{{"CLIENT-MASTER", "CLIENT-BANKS"}, {"CLIENT-MASTER", "BROKERAGE-CLIENTS"}, {"SCRIP-GROUPS", "BROKERAGE-CARDS"},
-		{"BROKERAGE-CARDS", "BROKERAGE-CLIENTS"}, {"CLIENT-MASTER", "CLIENT-INTEREST"}, {"CLIENT-MASTER", "OPENING-BALANCES"}, {"DP-HOLDINGS", "HOLDING-LOTS"}} {
+		{"BROKERAGE-CARDS", "BROKERAGE-CLIENTS"}, {"CLIENT-MASTER", "CLIENT-INTEREST"}, {"CLIENT-MASTER", "OPENING-BALANCES"}, {"DP-HOLDINGS", "HOLDING-LOTS"},
+		{"BRANCHES", "PARTNERS"}, {"PARTNERS", "CLIENT-MASTER"}, {"CLIENT-MASTER", "UCC-DETAILS"}, {"UCC-DETAILS", "UCC-CONTACTS"}, {"CLIENT-MASTER", "DP-ACCOUNTS"}, {"DP-ACCOUNTS", "DP-HOLDINGS"}} {
 		if strings.Index(ord, pair[0]) > strings.Index(ord, pair[1]) {
 			t.Errorf("%s after %s", pair[0], pair[1])
 		}

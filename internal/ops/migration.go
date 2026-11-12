@@ -626,7 +626,11 @@ func (o *Ops) checkFirm(ctx context.Context, tenant, actor string, r *pkg.Reader
 		chk.Files[idx[x.Name]].Checked = true
 		chk.Files[idx[x.Name]].Rows = x.Rows
 		for _, e := range x.Errors {
-			add(x.Name, MigError{Source: x.Source, Line: e.Line, Field: e.Field, Message: e.Msg})
+			sev := ""
+			if e.Warning {
+				sev = "Warning"
+			}
+			add(x.Name, MigError{Source: x.Source, Line: e.Line, Field: e.Field, Message: e.Msg, Severity: sev})
 		}
 	}
 	// Clients the go-live files bring, for the history and document checks.
@@ -742,7 +746,7 @@ type DryResult struct {
 	Name   string              `json:"name"`
 	Source string              `json:"source"`
 	Rows   int                 `json:"rows"`
-	Errors []ingest.ParseError `json:"errors"`
+	Errors []ingest.ParseError `json:"errors"` // warnings too (Warning set)
 }
 
 // DryRunFiles checks go-live files exactly as LoadFile would and reports
@@ -773,8 +777,9 @@ func (o *Ops) DryRunFiles(ctx context.Context, tenant, actor string, files []Dry
 		case spec.NeedDate && !ledger.ValidDate(f.Date):
 			res.Errors = append(res.Errors, ingest.ParseError{Msg: f.Source + " needs the business date (YYYY-MM-DD)"})
 		default:
-			n, apply, errs := sb.checkRows(ctx, tenant, actor, spec, f.Date, f.Data, true)
+			n, apply, errs, warns := sb.checkRows(ctx, tenant, actor, spec, f.Date, f.Data, true)
 			res.Rows, res.Errors = n, append(res.Errors, errs...)
+			res.Errors = append(res.Errors, warns...)
 			if apply != nil {
 				if err := sandboxApply(apply); err != nil && len(errs) == 0 {
 					res.Errors = append(res.Errors, ingest.ParseError{Msg: "the rows are valid, but loading them would fail: " + strings.TrimPrefix(err.Error(), "invalid: ")})

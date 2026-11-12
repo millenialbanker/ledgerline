@@ -246,6 +246,8 @@ func TestQuestions(t *testing.T) {
 		{"client ledger for 2024-25 from the old system", "", "before-ledgerline"},
 		{"find an old contract note from sharepro", "", "old-documents-archive"},
 		{"put an archived document on legal hold", "", "old-documents-archive"},
+		{"import the branch master and sub brokers from sharepro", "", "migrate-masters"},
+		{"import dp accounts bo accounts from the old back office", "", "migrate-masters"},
 	}
 	fails := 0
 	for _, c := range cases {

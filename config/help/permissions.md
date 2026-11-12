@@ -131,6 +131,7 @@ Identifying a bank credit | Ops checker
 Importing dealers and terminals | Ops maker, Compliance officer
 Invoking pledges | Risk manager
 Issuing DIS books | Ops maker, Ops checker
+Loading DP accounts | Ops checker
 Loading MF files | Ops maker, Ops checker
 Loading brokerage rates | Ops checker
 Loading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer

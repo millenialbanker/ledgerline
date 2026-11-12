@@ -116,3 +116,23 @@ The archive holds the documents the old system sent (contract notes, statements,
 - Each document is kept **until its retention date**: the date in the package, or eight years from the document's date. It cannot be deleted before then.
 - A Compliance officer can put a document on **legal hold** (give the matter or order); while on hold it cannot be deleted at all.
 - After the retention date a Compliance officer may delete it, with a reason; it is then not shown or served to anyone.
+
+## migrate-masters
+title: Bring branches, partners, UCC details and demat accounts across
+screen: files
+roles: Admin, Ops checker
+ask: import branches; import branch master; import partners; import authorised persons; import sub brokers; import ap master; import ucc details; import client address for ucc; import contact persons directors; import dp accounts; import bo accounts; migrate demat accounts; client groups in client master import; inactive clients in migration
+related: migrate-firm, migrate-check, add-branch, add-ap
+
+Besides clients, balances and holdings, the old back office keeps data Ledgerline also holds. The migration tool writes each as a go-live file; they can also be loaded by hand on [[files|Files → Other uploads]]. They load in this order:
+
+1. **BRANCHES**: the offices and their tree (Code, Name; optional City, Manager, Kind, Parent, Active). A parent may come further down the file.
+2. **PARTNERS**: authorised persons and relationship managers (Code, Name, Kind; optional Branch, Parent, PAN, GSTIN, RegNo, SharePct, bank details, Email, Active).
+3. **CLIENT-MASTER**, which may also carry **Inactive** and **InactiveSince**, **AP** and **RM** (partner codes, checked against the partners once there are any) and **Groups** (separated by ;, added to the client's groups).
+4. **UCC-DETAILS**: the exchanges' UCC details (address in lines with PIN, permanent address, gender, father's or spouse's name, occupation, PEP, IPV, POA and the rest). A blank cell leaves what is stored.
+5. **UCC-CONTACTS**: contact persons of firms and companies (UCC, Name, Designation; optional PAN, Address, Phone, Email, DIN). A client's rows replace their contacts, at most 5.
+6. **DP-ACCOUNTS**: the DP's record of each demat account (UCC, BOID, Depository, Status; optional Opened, ClosedOn, BSDA, Freeze and FreezeReason, DDPI).
+
+- Each file is checked with the same rules as its screen, and every problem is listed at once.
+- A demat account whose UCC is not a client here is reported as a warning and left out: Ledgerline keeps demat accounts for its trading clients.
+- Loading a file again changes nothing.

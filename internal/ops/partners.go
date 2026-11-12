@@ -129,34 +129,9 @@ func (o *Ops) SaveBranch(ctx context.Context, tenant, actor string, b Branch) (B
 	if err := o.require(ctx, tenant, actor, "Managing branches", RoleAdmin, RoleChecker); err != nil {
 		return b, err
 	}
-	b.Code = strings.TrimSpace(b.Code)
-	if b.Code == "" || strings.TrimSpace(b.Name) == "" {
-		return b, invalid("branch code and name are required")
-	}
-	if b.Kind == "" {
-		b.Kind = "Branch"
-	}
-	if !contains(BranchKinds, b.Kind) {
-		return b, invalid("kind must be one of %s", strings.Join(BranchKinds, ", "))
-	}
-	if b.Parent != "" {
-		bs, _ := o.Branches(ctx, tenant)
-		found := false
-		for _, x := range bs {
-			found = found || x.Code == b.Parent
-		}
-		if !found {
-			return b, invalid("parent office %s does not exist", b.Parent)
-		}
-		for _, x := range bs {
-			if x.Code == b.Code {
-				x.Parent = b.Parent
-			}
-		}
-		bs = append(bs, b)
-		if contains(branchTree(bs)[b.Code][1:], b.Parent) || b.Parent == b.Code {
-			return b, invalid("%s cannot report to an office under it", b.Code)
-		}
+	bs, _ := o.Branches(ctx, tenant)
+	if err := checkBranch(&b, bs); err != nil {
+		return b, err
 	}
 	if err := docs.Upsert(ctx, o.Docs, tenant, cBranch, b.Code, b, actor); err != nil {
 		return b, err
@@ -165,46 +140,54 @@ func (o *Ops) SaveBranch(ctx context.Context, tenant, actor string, b Branch) (B
 	return b, nil
 }
 
+// checkBranch normalises an office and checks it against all the firm's
+// offices (all may hold its own earlier record, and the other offices of
+// an import). SaveBranch and the BRANCHES import share it.
+func checkBranch(b *Branch, all []Branch) error {
+	b.Code = strings.TrimSpace(b.Code)
+	if b.Code == "" || strings.TrimSpace(b.Name) == "" {
+		return invalid("branch code and name are required")
+	}
+	if b.Kind == "" {
+		b.Kind = "Branch"
+	}
+	if !contains(BranchKinds, b.Kind) {
+		return invalid("kind must be one of %s", strings.Join(BranchKinds, ", "))
+	}
+	if b.Parent != "" {
+		found := false
+		for _, x := range all {
+			found = found || x.Code == b.Parent
+		}
+		if !found {
+			return invalid("parent office %s does not exist", b.Parent)
+		}
+		bs := []Branch{}
+		for _, x := range all {
+			if x.Code != b.Code {
+				bs = append(bs, x)
+			}
+		}
+		bs = append(bs, *b)
+		if contains(branchTree(bs)[b.Code][1:], b.Parent) || b.Parent == b.Code {
+			return invalid("%s cannot report to an office under it", b.Code)
+		}
+	}
+	return nil
+}
+
 // SavePartner adds or changes a partner.
 func (o *Ops) SavePartner(ctx context.Context, tenant, actor string, p Partner) (Partner, error) {
 	if err := o.require(ctx, tenant, actor, "Managing partners", RoleAdmin, RoleChecker); err != nil {
 		return p, err
 	}
-	p.Code = strings.ToUpper(strings.TrimSpace(p.Code))
-	if !reUCC.MatchString(p.Code) {
-		return p, invalid("partner code must be 3–10 letters or digits")
-	}
-	ok := false
-	for _, k := range PartnerKinds {
-		ok = ok || k == p.Kind
-	}
-	if !ok || strings.TrimSpace(p.Name) == "" {
-		return p, invalid("name and kind (Authorised person or Relationship manager) are required")
-	}
-	if p.SharePct.Sign() < 0 || p.SharePct.Cmp(money.DecInt(100)) > 0 {
-		return p, invalid("share must be between 0 and 100%")
-	}
-	if p.PAN != "" && !rePAN.MatchString(strings.ToUpper(p.PAN)) {
-		return p, invalid("PAN is not valid")
-	}
-	if p.GSTIN != "" && !reGSTIN.MatchString(strings.ToUpper(p.GSTIN)) {
-		return p, invalid("GSTIN is not valid")
-	}
-	p.PAN, p.GSTIN = strings.ToUpper(p.PAN), strings.ToUpper(p.GSTIN)
-	if p.Parent == p.Code {
-		return p, invalid("a partner cannot report to itself")
-	}
-	// No cycles in the hierarchy.
 	all, _ := docs.List[Partner](ctx, o.Docs, tenant, cPartner, "")
 	parent := map[string]string{}
 	for _, x := range all {
 		parent[x.Code] = x.Parent
 	}
-	parent[p.Code] = p.Parent
-	for cur, n := p.Parent, 0; cur != ""; cur, n = parent[cur], n+1 {
-		if cur == p.Code || n > 50 {
-			return p, invalid("that reporting line would make a loop")
-		}
+	if probs := checkPartner(&p, parent); len(probs) > 0 {
+		return p, invalid("%s", probs[0][1])
 	}
 	p.Clients, p.Downline, p.Brokerage, p.Team = 0, nil, 0, 0
 	if err := docs.Upsert(ctx, o.Docs, tenant, cPartner, p.Code, p, actor); err != nil {
@@ -212,6 +195,52 @@ func (o *Ops) SavePartner(ctx context.Context, tenant, actor string, p Partner) 
 	}
 	o.log(ctx, tenant, actor, "partner.saved", p.Code, map[string]any{"kind": p.Kind, "share_pct": p.SharePct.String()})
 	return p, nil
+}
+
+// checkPartner normalises a partner and lists what is wrong with it, as
+// (field, message). parent is every partner's reporting line (the code it
+// reports to). SavePartner and the PARTNERS import share it.
+func checkPartner(p *Partner, parent map[string]string) [][2]string {
+	var out [][2]string
+	add := func(f, m string) { out = append(out, [2]string{f, m}) }
+	p.Code = strings.ToUpper(strings.TrimSpace(p.Code))
+	if !reUCC.MatchString(p.Code) {
+		add("Code", "partner code must be 3–10 letters or digits")
+	}
+	ok := false
+	for _, k := range PartnerKinds {
+		ok = ok || k == p.Kind
+	}
+	if !ok || strings.TrimSpace(p.Name) == "" {
+		add("Kind", "name and kind (Authorised person or Relationship manager) are required")
+	}
+	if p.SharePct.Sign() < 0 || p.SharePct.Cmp(money.DecInt(100)) > 0 {
+		add("SharePct", "share must be between 0 and 100%")
+	}
+	if p.PAN != "" && !rePAN.MatchString(strings.ToUpper(p.PAN)) {
+		add("PAN", "PAN is not valid")
+	}
+	if p.GSTIN != "" && !reGSTIN.MatchString(strings.ToUpper(p.GSTIN)) {
+		add("GSTIN", "GSTIN is not valid")
+	}
+	p.PAN, p.GSTIN = strings.ToUpper(p.PAN), strings.ToUpper(p.GSTIN)
+	if p.Parent == p.Code {
+		add("Parent", "a partner cannot report to itself")
+		return out
+	}
+	// No cycles in the hierarchy.
+	up := map[string]string{}
+	for k, v := range parent {
+		up[k] = v
+	}
+	up[p.Code] = p.Parent
+	for cur, n := p.Parent, 0; cur != ""; cur, n = up[cur], n+1 {
+		if cur == p.Code || n > 50 {
+			add("Parent", "that reporting line would make a loop")
+			break
+		}
+	}
+	return out
 }
 
 // clientBrokerage sums brokerage earned per client in from..to from bills
