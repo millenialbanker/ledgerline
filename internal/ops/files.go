@@ -57,12 +57,12 @@ type masterSrc struct {
 }
 
 func masterSources() []masterSrc {
-	return append(baseSources(), brokerageSources()...)
+	return append(append(baseSources(), brokerageSources()...), importSources()...)
 }
 
 func baseSources() []masterSrc {
 	return []masterSrc{
-		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding). Optional columns: Branch, State (place of supply for GST), GSTIN; WhatsApp (Y), WAConsentDate and WAConsentRef for WhatsApp consent recorded in the previous system; ECN (N for a client who chose printed contract notes); NominationDate and NominationMode for the nomination or opt-out declaration", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
+		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding). Optional columns: Branch, State (place of supply for GST), GSTIN; WhatsApp (Y), WAConsentDate and WAConsentRef for WhatsApp consent recorded in the previous system; ECN (N for a client who chose printed contract notes); NominationDate and NominationMode for the nomination or opt-out declaration; Inactive (Y or N, the exchanges' inactive flag) and InactiveSince; AP and RM (partner codes, which must be on record once there are partners: load PARTNERS first); Groups (client groups separated by ;, added to the client's groups). A blank optional cell keeps what a re-import finds stored", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
 		{"CLIENT-BANKS", "Every registered bank account of each client, one row per account (migration: the previous back office's client bank master). The rows replace the client's accounts; Primary Y marks the primary (default payout) account, else the first active row; Status Active or Inactive. Optional columns: Branch, MICR, Type (SB, CA, NRE, NRO), VerifiedOn, VerifyMethod, AddedOn. At most the firm's limit of active accounts per client (Settings, 3 by default with MCX)", []string{"UCC", "Bank", "IFSC", "Account", "Primary"}, false, "Once at go-live, after the client master"},
 		{"NOMINEES", "Nominees of each client, up to 3 (replaces the client's list; a nomination of up to 10 made before 1 September 2026 loads as it is and is flagged for review). Name and Relation are required; IDType and ID are optional (PAN, DL, AADHAAR, of which only the last 4 digits are kept, or PASSPORT); leave Share blank for equal shares; a minor needs DOB (Guardian and GuardianRelation optional). Optional: Mobile, Email, Address, DeclaredOn, Mode", []string{"UCC", "Name", "Relation", "Share", "IDType", "ID", "DOB", "Guardian", "GuardianRelation"}, false, "Once at go-live, then on change"},
 		{"SEGMENT-STATUS", "Each client's status in each segment with its history, oldest first: Active, Reactivated, Suspended, Dormant or Closed (Segment CM, FO, CD or COM). Optional column Reason", []string{"UCC", "Segment", "Status", "EffectiveDate"}, false, "Once at go-live, then on change"},
@@ -127,20 +127,19 @@ func (o *Ops) LoadFile(ctx context.Context, tenant, actor, source, date, name st
 		return ingest.Result{}, err
 	}
 	res := ingest.Result{File: rf, Adapter: source + "@1.0", Errors: []ingest.ParseError{}}
-	rows, perrs := parseCSV(data, spec.Columns)
-	res.Errors = append(res.Errors, perrs...)
-	var apply func() (int, int, error)
-	if len(perrs) == 0 {
-		apply, res.Errors = o.prepare(ctx, tenant, actor, source, date, rows)
+	parsed, apply, errs, warns := o.checkRows(ctx, tenant, actor, spec, date, data, false)
+	res.Errors, res.Warnings = append(res.Errors, errs...), warns
+	logDetail := map[string]any{"source": source, "name": name, "parsed": parsed, "row_errors": len(res.Errors)}
+	if len(warns) > 0 {
+		logDetail["warnings"] = len(warns)
 	}
-	logDetail := map[string]any{"source": source, "name": name, "parsed": len(rows), "row_errors": len(res.Errors)}
 	if len(res.Errors) > 0 {
 		err := fmt.Errorf("%w: %d row error(s) in %s", ingest.ErrRejected, len(res.Errors), source)
 		logDetail["error"] = err.Error()
 		o.log(ctx, tenant, actor, "file.rejected", rf.ID, logDetail)
 		return res, err
 	}
-	res.Parsed = len(rows)
+	res.Parsed = parsed
 	res.Added, res.DuplicateRows, err = apply()
 	logDetail["added"], logDetail["duplicates"] = res.Added, res.DuplicateRows
 	if err != nil {
@@ -150,6 +149,34 @@ func (o *Ops) LoadFile(ctx context.Context, tenant, actor, source, date, name st
 	}
 	o.log(ctx, tenant, actor, "file.ingested", rf.ID, logDetail)
 	return res, nil
+}
+
+// checkRows reads a master file and validates every row, returning the
+// number of rows read and the function that applies them. LoadFile and the
+// migration dry run (DryRunFiles) both use it, so a dry run checks exactly
+// what a real load would. With all set (dry runs), the rows that could be
+// read are validated even when other lines could not, so every error in
+// the file is reported at once; a real load stops at unreadable lines.
+// Rows marked as warnings (ParseError.Warning) are returned apart: they do
+// not reject the file.
+func (o *Ops) checkRows(ctx context.Context, tenant, actor string, spec MasterSource, date string, data []byte, all bool) (int, func() (int, int, error), []ingest.ParseError, []ingest.ParseError) {
+	rows, perrs := parseCSV(data, spec.Columns)
+	errs := append([]ingest.ParseError{}, perrs...)
+	var apply func() (int, int, error)
+	if len(perrs) == 0 || (all && len(rows) > 0) {
+		var more []ingest.ParseError
+		apply, more = o.prepare(ctx, tenant, actor, spec.Name, date, rows)
+		errs = append(errs, more...)
+	}
+	var hard, warns []ingest.ParseError
+	for _, e := range errs {
+		if e.Warning {
+			warns = append(warns, e)
+		} else {
+			hard = append(hard, e)
+		}
+	}
+	return len(rows), apply, hard, warns
 }
 
 func parseCSV(data []byte, cols []string) ([]row, []ingest.ParseError) {
@@ -241,6 +268,8 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		return o.prepareBrokerage(ctx, tenant, actor, source, rows)
 	case "SCRIP-GROUPS":
 		return o.prepareScripGroups(ctx, tenant, actor, rows)
+	case "BRANCHES", "PARTNERS", "UCC-DETAILS", "UCC-CONTACTS", "DP-ACCOUNTS":
+		return o.prepareImport(ctx, tenant, actor, source, rows)
 	case "CLIENT-INTEREST":
 		return o.prepareClientInterest(ctx, tenant, actor, rows)
 	case "NRI-CAUTION":
@@ -276,6 +305,13 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		var cs []Client
 		seen := map[string]bool{}
 		ecnGiven := map[string]string{} // the ECN column as given, so a blank keeps the earlier choice
+		given := map[string]bool{}      // optional cells given, by UCC|field
+		partners := map[string]bool{}
+		if ps, err := docs.List[Partner](ctx, o.Docs, tenant, cPartner, ""); err == nil {
+			for _, p := range ps {
+				partners[p.Code] = true
+			}
+		}
 		for _, r := range rows {
 			c := Client{UCC: r.get("UCC"), Name: r.get("Name"), Type: r.get("Type"), PAN: r.get("PAN"), DOB: r.get("DOB"), Mobile: r.get("Mobile"), Email: r.get("Email"),
 				City: r.get("City"), Segments: strings.Split(r.get("Segments"), ";"), Risk: r.get("Risk"), Income: r.get("Income"), RAS: r.get("RAS"),
@@ -292,6 +328,38 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 					bad(r.line, "WAConsentDate", "WhatsApp consent migrated from the previous system needs the date it was given")
 				} else {
 					c.setConsent(true, at, SrcMigrated, "import", firstOf(r.get("WAConsentRef"), "client master import"))
+				}
+			}
+			// Inactivity, partner, RM and groups from the previous system.
+			if v := strings.ToUpper(strings.TrimSpace(r.get("Inactive"))); v != "" {
+				switch v {
+				case "Y", "YES":
+					c.Inactive = true
+				case "N", "NO":
+				default:
+					bad(r.line, "Inactive", "must be Y or N, got %q", v)
+				}
+				given[strings.ToUpper(strings.TrimSpace(r.get("UCC")))+"|inactive"] = true
+			}
+			if c.InactiveSince = pdate(r, "InactiveSince", true); c.InactiveSince != "" && !c.Inactive {
+				bad(r.line, "InactiveSince", "only an inactive client (Inactive Y) has an inactive date")
+			}
+			c.Partner, c.RM = strings.ToUpper(strings.TrimSpace(r.get("AP"))), strings.ToUpper(strings.TrimSpace(r.get("RM")))
+			for _, x := range []struct{ code, col string }{{c.Partner, "AP"}, {c.RM, "RM"}} {
+				if x.code != "" && len(partners) > 0 && !partners[x.code] {
+					bad(r.line, x.col, "%s is not a partner on record; load PARTNERS first or correct the code", x.code)
+				}
+			}
+			for _, g := range strings.Split(r.get("Groups"), ";") {
+				if g = NormaliseTag(g); g == "" {
+					continue
+				}
+				if !validTag.MatchString(g) {
+					bad(r.line, "Groups", "group %q: use letters, digits, - and _ (up to 24)", g)
+					continue
+				}
+				if !contains(c.Tags, g) {
+					c.Tags = append(c.Tags, g)
 				}
 			}
 			c.PhysicalNotes = strings.EqualFold(r.get("ECN"), "N")
@@ -335,11 +403,26 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 				// Groups, blocks, inactivity and other back-office fields are
 				// kept when a re-import does not carry them.
 				if old, _, err := docs.Get[Client](ctx, o.Docs, tenant, cClient, c.UCC); err == nil {
-					if len(c.Tags) == 0 {
-						c.Tags = old.Tags
+					// Groups from the file are added to the client's.
+					tags := append([]string{}, old.Tags...)
+					for _, t := range c.Tags {
+						if !contains(tags, t) {
+							tags = append(tags, t)
+						}
 					}
+					c.Tags = tags
 					c.Blocked, c.BlockedReason = old.Blocked, old.BlockedReason
-					c.Inactive, c.InactiveSince, c.ReactivatedOn, c.KYCUpdatedOn = old.Inactive, old.InactiveSince, old.ReactivatedOn, old.KYCUpdatedOn
+					if !given[c.UCC+"|inactive"] {
+						c.Inactive, c.InactiveSince = old.Inactive, old.InactiveSince
+					}
+					c.ReactivatedOn, c.KYCUpdatedOn = old.ReactivatedOn, old.KYCUpdatedOn
+					if c.Partner == "" {
+						c.Partner = old.Partner
+					}
+					if c.RM == "" {
+						c.RM = old.RM
+					}
+					c.ReferredBy, c.ReferredFrom = old.ReferredBy, old.ReferredFrom
 					c.SegStatus, c.SegHistory = old.SegStatus, old.SegHistory
 					// The client's other bank accounts (CLIENT-BANKS, changes)
 					// are kept; the file's account is the primary.

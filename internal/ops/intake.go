@@ -32,7 +32,7 @@ type IntakeResult struct {
 }
 
 // intakeOrder loads masters before what depends on them.
-var intakeOrder = []string{"CLIENT-MASTER", "CLIENT-BANKS", "NOMINEES", "SEGMENT-STATUS", "OPENING-BALANCES", "MARKET-DATA", "DP-HOLDINGS", "HOLDING-LOTS", "POSITIONS", "DEBARRED-LIST", "KRA-STATUS", "CKYC-NUMBERS", "NRI-CAUTION", "MTF-ELIGIBLE"}
+var intakeOrder = []string{"BRANCHES", "PARTNERS", "CLIENT-MASTER", "CLIENT-BANKS", "NOMINEES", "SEGMENT-STATUS", "UCC-DETAILS", "UCC-CONTACTS", "DP-ACCOUNTS", "OPENING-BALANCES", "MARKET-DATA", "DP-HOLDINGS", "HOLDING-LOTS", "POSITIONS", "DEBARRED-LIST", "KRA-STATUS", "CKYC-NUMBERS", "NRI-CAUTION", "MTF-ELIGIBLE"}
 
 var reDateInName = regexp.MustCompile(`(20\d\d)-?(\d\d)-?(\d\d)`)
 
@@ -63,6 +63,8 @@ func (o *Ops) DetectSource(name string, data []byte) string {
 		has[h] = true
 	}
 	best, bestN, bestScore := "", 0, -1
+	lname := strings.ToLower(name)
+	named := false // a master whose columns are all there and whose name the file carries
 	for _, m := range MasterSources() {
 		ok := true
 		for _, c := range m.Columns {
@@ -71,11 +73,11 @@ func (o *Ops) DetectSource(name string, data []byte) string {
 				break
 			}
 		}
-		if ok && len(m.Columns) > bestN {
-			best, bestN = m.Name, len(m.Columns)
+		hit := ok && strings.Contains(lname, strings.ToLower(m.Name))
+		if ok && (hit && !named || len(m.Columns) > bestN && (hit || !named)) {
+			best, bestN, named = m.Name, len(m.Columns), named || hit
 		}
 	}
-	lname := strings.ToLower(name)
 	for _, s := range o.App.Ingest.Registry.List() {
 		if !s.Header {
 			// No header: recognise by name and delimiter.

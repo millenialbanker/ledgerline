@@ -128,3 +128,18 @@ func TestBadPaths(t *testing.T) {
 		t.Fatal("short passphrase")
 	}
 }
+
+func TestCheckPassphrase(t *testing.T) {
+	for _, big := range []int{1, 40000} {
+		b := build(t, 1, big)
+		if err := CheckPassphrase(bytes.NewReader(b), "correct horse battery"); err != nil {
+			t.Fatalf("right passphrase (%d rows): %v", big, err)
+		}
+		if err := CheckPassphrase(bytes.NewReader(b), "wrong passphrase!"); err != ErrPassphrase {
+			t.Fatalf("wrong passphrase: %v", err)
+		}
+	}
+	if err := CheckPassphrase(strings.NewReader("garbage"), "x"); err == nil {
+		t.Fatal("garbage accepted")
+	}
+}

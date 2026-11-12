@@ -2,6 +2,7 @@ package ops
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -110,6 +111,35 @@ func (d *UCCDetails) normalise() {
 	d.Contacts = cs
 }
 
+// maxUCCContacts is how many contact persons a client's details hold.
+const maxUCCContacts = 5
+
+// problems lists what is wrong with normalised details, as (field,
+// message). SaveUCCDetails and the UCC-DETAILS and UCC-CONTACTS imports
+// share it.
+func (d UCCDetails) problems() [][2]string {
+	var out [][2]string
+	for _, x := range []struct{ v, field, what string }{{d.IncomeAsOn, "IncomeAsOn", "income declared on"}, {d.AgreementDate, "AgreementDate", "agreement date"}} {
+		if x.v != "" && !validDate(x.v) {
+			out = append(out, [2]string{x.field, fmt.Sprintf("the %s is a date (YYYY-MM-DD)", x.what)})
+		}
+	}
+	if len(d.Contacts) > maxUCCContacts {
+		out = append(out, [2]string{"Contacts", "give at most 5 contact persons"})
+	}
+	return out
+}
+
+// uccColumns are the UCC-DETAILS import's columns and the fields they fill.
+func (d *UCCDetails) uccColumns() map[string]*string {
+	return map[string]*string{"Category": &d.Category, "Address1": &d.Address1, "Address2": &d.Address2, "Address3": &d.Address3, "City": &d.City, "State": &d.State,
+		"Country": &d.Country, "PIN": &d.PIN, "PermAddress1": &d.PermAddress1, "PermAddress2": &d.PermAddress2, "PermAddress3": &d.PermAddress3, "PermCity": &d.PermCity,
+		"PermState": &d.PermState, "PermCountry": &d.PermCountry, "PermPIN": &d.PermPIN, "Gender": &d.Gender, "Guardian": &d.Guardian, "Marital": &d.Marital,
+		"Nationality": &d.Nationality, "Occupation": &d.Occupation, "OccupationDetail": &d.OccupationDetail, "IncomeAsOn": &d.IncomeAsOn, "PEP": &d.PEP, "IPV": &d.IPV,
+		"POAFunds": &d.POAFunds, "POASecurities": &d.POASecurities, "UPI": &d.UPI, "AgreementDate": &d.AgreementDate, "CIN": &d.CIN, "BankType": &d.BankType,
+		"MobileRelation": &d.MobileRelation, "EmailRelation": &d.EmailRelation}
+}
+
 // UCCDetailsFor returns the details kept for a client (empty when none).
 func (o *Ops) UCCDetailsFor(ctx context.Context, tenant, ucc string) UCCDetails {
 	ucc = strings.ToUpper(strings.TrimSpace(ucc))
@@ -130,13 +160,8 @@ func (o *Ops) SaveUCCDetails(ctx context.Context, tenant, actor, ucc string, d U
 	}
 	d.normalise()
 	d.UCC = ucc
-	for _, x := range []struct{ v, what string }{{d.IncomeAsOn, "income declared on"}, {d.AgreementDate, "agreement date"}} {
-		if x.v != "" && !validDate(x.v) {
-			return d, invalid("the %s is a date (YYYY-MM-DD)", x.what)
-		}
-	}
-	if len(d.Contacts) > 5 {
-		return d, invalid("give at most 5 contact persons")
+	if probs := d.problems(); len(probs) > 0 {
+		return d, invalid("%s", probs[0][1])
 	}
 	d.UpdatedBy, d.UpdatedAt = actor, o.now().Format(time.RFC3339)
 	if err := docs.Upsert(ctx, o.Docs, tenant, cUCCDetails, ucc, d, actor); err != nil {

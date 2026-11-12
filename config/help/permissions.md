@@ -13,6 +13,7 @@ Applying corporate actions | Ops checker
 Applying pay-out holds | Ops checker, Risk manager
 Applying the BSDA review | Ops checker
 Approving a margin penalty pass-through | Ops checker, Risk manager, Compliance officer
+Approving a migration load | Ops checker
 Approving a move between MCX and equity | Ops checker, Risk manager
 Approving a receipt | Ops checker
 Approving allocation | Ops checker, Risk manager
@@ -72,6 +73,7 @@ Checking PAN status at BSE | Ops maker, Ops checker
 Checking PAN status at the exchange | Ops maker, Ops checker, Compliance officer
 Checking UCC status at MCX | Ops maker, Ops checker, Compliance officer
 Checking a backup | Ops checker, Compliance officer
+Checking a migration package | Admin
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
 Claiming IPO commission | Ops checker
 Clearing cheques | Ops maker, Ops checker
@@ -111,6 +113,7 @@ Entering pledges to lenders | Ops maker, Ops checker
 Entering unpledge requests | Ops maker, Ops checker, Risk manager
 Entering vouchers | Ops maker, Ops checker
 Exporting dealers with PANs | Ops maker, Compliance officer
+Exporting migrated history | Ops checker, Compliance officer
 Fetching files from MCX's SFTP | Ops maker, Ops checker, Risk manager
 Fetching files from NSE's extranet | Ops maker, Ops checker, Risk manager
 Fetching margins from NSE Clearing | Ops maker, Ops checker, Risk manager
@@ -123,10 +126,12 @@ Gateway settlement | Ops checker
 Generating contract notes | Ops maker, Ops checker
 Generating reports | Ops maker, Ops checker, Risk manager, Compliance officer
 Giving clients portal access | Ops checker, Admin
+Holding or deleting archived documents | Compliance officer
 Identifying a bank credit | Ops checker
 Importing dealers and terminals | Ops maker, Compliance officer
 Invoking pledges | Risk manager
 Issuing DIS books | Ops maker, Ops checker
+Loading DP accounts | Ops checker
 Loading MF files | Ops maker, Ops checker
 Loading brokerage rates | Ops checker
 Loading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -163,12 +168,14 @@ Posting referral rewards | Ops checker
 Prepaid schemes | Ops checker, Admin
 Preparing margin penalties | Ops checker, Risk manager, Compliance officer
 Producing the payout bank file | Ops maker, Ops checker
+Proposing a migration load | Admin
 Proposing legacy debts | Ops maker, Ops checker, Risk manager, Compliance officer
 Pushing limits to BOW | Risk manager
 Raising CDSL requests | Ops maker, Ops checker
 Raising pledge invocations | Risk manager
 Raising stock SIP top-up debits | Ops maker, Ops checker
 Re-pledging clients' collateral | Ops maker, Risk manager
+Reconciling a migration | Ops checker, Compliance officer
 Recording CDSL results | Ops checker, Risk manager
 Recording DP responses | Ops maker, Ops checker
 Recording IPO bid status | Ops maker, Ops checker
@@ -220,6 +227,7 @@ Running stock SIP instalments | Ops maker, Ops checker, Risk manager
 Running surveillance rules | Ops checker, Compliance officer
 Scanning vendor bills | Ops maker, Ops checker
 Scheduling jobs | Admin
+Searching the document archive | Ops maker, Ops checker, Risk manager, Compliance officer
 See full client identifiers | Ops checker, Compliance officer
 Seeing mail sent to staff | Compliance officer, Admin
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
@@ -261,9 +269,11 @@ Testing connections | Admin
 Testing templates | Ops checker, Compliance officer
 The kill switch | Risk manager
 Transferring between a client's ledgers | Ops maker, Ops checker, Risk manager
+Undoing a migration | Admin
 Unmarking a legacy debt | Ops checker, Compliance officer
 Updating KYC details | Ops maker, Ops checker
 Updating MF profiles | Ops maker, Ops checker, Compliance officer
+Uploading a migration package | Admin
 Uploading delivery instructions | Ops maker, Ops checker
 Uploading stock SIP scrip lists | Risk manager, Compliance officer
 Upstreaming funds | Ops checker
@@ -294,6 +304,7 @@ Viewing the AI answer log | Compliance officer
 Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Viewing the compliance calendar | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
+Viewing the migration | Ops checker, Compliance officer
 Viewing the signing certificate | Ops checker, Compliance officer, Admin
 Viewing the surveillance report | Ops checker, Compliance officer
 Viewing vendor bills | Ops maker, Ops checker, Compliance officer

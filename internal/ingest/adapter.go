@@ -58,6 +58,9 @@ type ParseError struct {
 	Line  int    `json:"line"`
 	Field string `json:"field,omitempty"`
 	Msg   string `json:"message"`
+	// Warning marks a row that is reported but does not reject the file
+	// (it is skipped, or loads as it is).
+	Warning bool `json:"warning,omitempty"`
 }
 
 func (e ParseError) Error() string { return fmt.Sprintf("line %d %s: %s", e.Line, e.Field, e.Msg) }
@@ -453,6 +456,8 @@ type Result struct {
 	Added         int          `json:"added"`
 	DuplicateRows int          `json:"duplicate_rows"`
 	Errors        []ParseError `json:"errors"`
+	// Warnings are rows reported but loaded (or skipped) all the same.
+	Warnings []ParseError `json:"warnings,omitempty"`
 }
 
 // Ingest keeps the raw bytes, parses them with the named layout (latest

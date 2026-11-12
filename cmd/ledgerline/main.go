@@ -154,6 +154,13 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	} else {
 		log.Warn("BACKUPS ARE OFF: set LEDGERLINE_BACKUP_DIR to a folder on a separate disk")
 	}
+	// Work folder: migration packages being uploaded and checked, per firm
+	// (LEDGERLINE_WORK_DIR; a disk with room for the largest package twice).
+	if dir := os.Getenv("LEDGERLINE_WORK_DIR"); dir != "" {
+		o.WorkDir = dir
+	} else if !dev {
+		log.Warn("migration uploads go to a temporary folder: set LEDGERLINE_WORK_DIR to a folder with room for the packages")
+	}
 	// Exchange holidays: NSE's lists are fetched from its API (BSE follows
 	// them); MCX's come from its circular. LEDGERLINE_HOLIDAY_FETCH=off
 	// stops fetching; LEDGERLINE_NSE_URL points at a gateway or mirror.

@@ -236,6 +236,18 @@ func TestQuestions(t *testing.T) {
 		{"mcx peak margin file not loading", "", "mcx-files"},
 		{"web allocation deallocation report mcxccl", "", "mcx-files"},
 		{"check real files locally with ledgerctl check-file", "", "check-file"},
+		// Migration from the old back office.
+		{"how do we migrate from sharepro", "", "migrate-firm"},
+		{"upload the llmig migration package", "", "migrate-firm"},
+		{"the migration check shows errors in the client master", "", "migrate-check"},
+		{"trial balance does not match after migration", "", "migrate-reconcile"},
+		{"undo the migration we loaded with the wrong date", "", "migrate-undo"},
+		{"are client passwords and aadhaar migrated", "", "migrate-not-carried"},
+		{"client ledger for 2024-25 from the old system", "", "before-ledgerline"},
+		{"find an old contract note from sharepro", "", "old-documents-archive"},
+		{"put an archived document on legal hold", "", "old-documents-archive"},
+		{"import the branch master and sub brokers from sharepro", "", "migrate-masters"},
+		{"import dp accounts bo accounts from the old back office", "", "migrate-masters"},
 	}
 	fails := 0
 	for _, c := range cases {
