@@ -410,9 +410,13 @@ func (o *Ops) hdfcRows(ctx context.Context, tenant string, set Settings, b Payou
 		typ := hdfcTxnType(set, it)
 		ifsc := strings.ToUpper(strings.TrimSpace(it.IFSC))
 		acct := strings.TrimSpace(it.Account)
-		// Only the client's registered bank account (as for receipts).
-		if acct != c.Bank.Account || ifsc != strings.ToUpper(c.Bank.IFSC) {
-			bad(it, "account %s %s is not the client's registered bank account (now %s %s)", MaskAccount(acct), ifsc, MaskAccount(c.Bank.Account), strings.ToUpper(c.Bank.IFSC))
+		// Only an active registered bank account of the client (as for
+		// receipts): the one chosen for the payout or the primary
+		// (clientbanks.go).
+		reg, isReg := registeredBank(c, acct, ifsc)
+		if !isReg || ifsc == "" {
+			pb := primaryBank(c)
+			bad(it, "account %s %s is not the client's registered bank account (primary now %s %s)", MaskAccount(acct), ifsc, MaskAccount(pb.Account), strings.ToUpper(pb.IFSC))
 		}
 		if len(ifsc) != 11 || !reIFSC.MatchString(ifsc) {
 			bad(it, "IFSC %q is not valid (11 characters, the 5th is 0)", ifsc)
@@ -443,7 +447,7 @@ func (o *Ops) hdfcRows(ctx context.Context, tenant string, set Settings, b Payou
 		case typ == "R" && it.Amount < rtgsMinimum:
 			bad(it, "RTGS needs at least ₹2,00,000; ₹%s goes by NEFT", formatINR(it.Amount.Dec()))
 		}
-		name, bank, branch := hdfcClean(c.Name), hdfcClean(it.Bank), hdfcClean(c.Bank.Branch)
+		name, bank, branch := hdfcClean(c.Name), hdfcClean(it.Bank), hdfcClean(firstOf(reg.Branch, it.Branch))
 		email := strings.TrimSpace(c.Email)
 		if name == "" {
 			bad(it, "beneficiary name is empty")

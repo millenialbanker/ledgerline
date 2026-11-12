@@ -529,6 +529,24 @@ func nseUCIMap(c Client, d UCCDetails, a *Application, set Settings, member stri
 	if acct := c.Bank.Account; len(acct) < 1 || len(acct) > 30 || digitsOf(acct) == "" || strings.Trim(digitsOf(acct), "0") == "" || strings.Trim(acct, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz") != "" {
 		bad("Bank account number: up to 30 letters and digits, with digits that are not all zeros")
 	}
+	// The client's other active registered accounts as banks 2 to 5,
+	// secondary (S); the primary is bank 1 (clientbanks.go).
+	if bs := uccBanks(c, "NSE", bad); len(bs) > 1 {
+		for i, x := range bs[1:] {
+			n := fmt.Sprint(i + 2)
+			nm := strings.Join(strings.Fields(strings.ReplaceAll(x.Bank, ",", " ")), " ")
+			b["ccdBankName"+n], b["ccdBankIfsc"+n], b["ccdBankAcctNo"+n], b["ccdPriSecBnk"+n] = nm, x.IFSC, x.Account, "S"
+			if l := runes(nm); l < 3 || l > 60 || !hasLetter(nm) {
+				bad("Bank %s name: 3 to 60 characters, not only numbers", n)
+			}
+			if !reIFSC.MatchString(x.IFSC) {
+				bad("Bank %s IFSC: 4 letters, a zero, then 6 letters or digits", n)
+			}
+			if acct := x.Account; len(acct) < 1 || len(acct) > 30 || digitsOf(acct) == "" || strings.Trim(digitsOf(acct), "0") == "" || strings.Trim(acct, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz") != "" {
+				bad("Bank %s account number: up to 30 letters and digits, with digits that are not all zeros", n)
+			}
+		}
+	}
 	// Demat (fields 14 to 17). For NSDL the 16-character ID is the DP ID
 	// (IN + 6) and the 8-digit client ID; for CDSL the 16-digit BO ID, with
 	// the depository ID left blank as the TDD asks of the 2nd to 5th demat

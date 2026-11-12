@@ -129,10 +129,11 @@ func (o *Ops) RecordReceipt(ctx context.Context, tenant, actor string, r Receipt
 	r.FromAccount = strings.TrimSpace(r.FromAccount)
 	if r.Mode != "UPI" {
 		if r.FromAccount == "" {
-			r.FromAccount = c.Bank.Account
+			r.FromAccount = primaryBank(c).Account
 		}
-		if r.FromAccount != c.Bank.Account {
-			return r, invalid("account %s is not the client's registered bank account; third-party funds cannot be accepted", MaskAccount(r.FromAccount))
+		// Any active registered account of the client (clientbanks.go).
+		if _, ok := registeredBank(c, r.FromAccount, ""); !ok {
+			return r, invalid("account %s is not an active registered bank account of the client; third-party funds cannot be accepted", MaskAccount(r.FromAccount))
 		}
 	} else if !strings.Contains(r.FromAccount, "@") {
 		return r, invalid("give the client's UPI ID (VPA) for a UPI receipt")
@@ -451,6 +452,11 @@ type PayoutRequest struct {
 	// Transfer is the entry that moved a shortfall in from the other
 	// ledger before the payout, when the firm allows it.
 	Transfer string `json:"transfer,omitempty"`
+	// ToAccount and ToIFSC are the registered account chosen for this
+	// payout, with the reason (empty: the primary account).
+	ToAccount string `json:"to_account,omitempty"`
+	ToIFSC    string `json:"to_ifsc,omitempty"`
+	ToReason  string `json:"to_reason,omitempty"`
 }
 
 // Withdrawable explains how much a client can take out today.
@@ -551,6 +557,13 @@ func (o *Ops) RequestPayout(ctx context.Context, tenant, actor, date, ucc string
 // RequestPayoutFrom is RequestPayout from one ledger (EQ or COM) with a
 // separate commodity ledger; "" pays from either.
 func (o *Ops) RequestPayoutFrom(ctx context.Context, tenant, actor, date, ucc string, amount money.Amount, source, from string) (PayoutRequest, error) {
+	return o.RequestPayoutTo(ctx, tenant, actor, date, ucc, amount, source, from, "", "", "")
+}
+
+// RequestPayoutTo is RequestPayoutFrom to a chosen registered bank account
+// of the client (toAccount, toIFSC), with the reason when it is not the
+// primary; empty toAccount pays the primary account.
+func (o *Ops) RequestPayoutTo(ctx context.Context, tenant, actor, date, ucc string, amount money.Amount, source, from, toAccount, toIFSC, toReason string) (PayoutRequest, error) {
 	ucc = strings.ToUpper(ucc)
 	if strings.TrimSpace(from) != "" {
 		k, ok := normLedger(from)
@@ -571,6 +584,12 @@ func (o *Ops) RequestPayoutFrom(ctx context.Context, tenant, actor, date, ucc st
 	if amount <= 0 {
 		return PayoutRequest{}, invalid("amount must be above zero")
 	}
+	var to BankAccount
+	if strings.TrimSpace(toAccount) != "" {
+		if to, err = checkPayoutTo(c, toAccount, toIFSC, toReason); err != nil {
+			return PayoutRequest{}, err
+		}
+	}
 	w, err := o.Withdrawable(ctx, tenant, date, ucc)
 	if err != nil {
 		return PayoutRequest{}, err
@@ -588,6 +607,9 @@ func (o *Ops) RequestPayoutFrom(ctx context.Context, tenant, actor, date, ucc st
 	set, _ := o.Settings(ctx, tenant)
 	p := PayoutRequest{ID: fmt.Sprintf("PO-%06d", n), Date: date, UCC: ucc, Name: c.Name, Amount: amount, Source: source, Status: "Requested",
 		Available: w.Available, Maker: actor, ExpiresOn: set.NextBusinessDay(set.NextBusinessDay(date)), Ledger: from}
+	if to.Account != "" {
+		p.ToAccount, p.ToIFSC, p.ToReason = to.Account, to.IFSC, strings.TrimSpace(toReason)
+	}
 	if _, err := docs.Put(ctx, o.Docs, tenant, cPayout, p.ID, p, 0, actor); err != nil {
 		return p, err
 	}
@@ -657,6 +679,9 @@ type PayoutBatch struct {
 	Status  string         `json:"status"` // Sent to bank, Confirmed
 	By      string         `json:"by"`
 	Results map[string]int `json:"results,omitempty"`
+	// Held are approved payouts left out because their account is no
+	// longer an active registered account of the client.
+	Held []string `json:"held,omitempty"`
 }
 
 // PayoutItem is one transfer in a batch.
@@ -667,6 +692,7 @@ type PayoutItem struct {
 	Bank    string       `json:"bank"`
 	IFSC    string       `json:"ifsc"`
 	Account string       `json:"account"`
+	Branch  string       `json:"branch,omitempty"`
 	Amount  money.Amount `json:"amount"`
 	Mode    string       `json:"mode"` // NEFT or RTGS (from the RTGS threshold, or marked RTGS)
 	Entry   string       `json:"entry"`
@@ -707,6 +733,13 @@ func (o *Ops) CreatePayoutBatch(ctx context.Context, tenant, actor, date string)
 		if err != nil {
 			continue
 		}
+		// The chosen registered account, or the primary (clientbanks.go);
+		// one no longer active is held back, not paid elsewhere.
+		to, err := payoutBank(c, p)
+		if err != nil {
+			b.Held = append(b.Held, err.Error())
+			continue
+		}
 		mode := "NEFT"
 		if p.RTGS || p.Amount >= set.rtgsThreshold() {
 			mode = "RTGS"
@@ -719,12 +752,12 @@ func (o *Ops) CreatePayoutBatch(ctx context.Context, tenant, actor, date string)
 			}
 		}
 		e, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "PAY:" + p.ID, ValueDate: date, CreatedBy: actor,
-			Narration: fmt.Sprintf("Funds payout %s to %s %s", p.ID, c.Bank.Bank, MaskAccount(c.Bank.Account)), Source: ledger.SourceRef{Kind: "PAYOUT", ID: p.ID},
+			Narration: fmt.Sprintf("Funds payout %s to %s %s", p.ID, to.Bank, MaskAccount(to.Account)), Source: ledger.SourceRef{Kind: "PAYOUT", ID: p.ID},
 			Postings: ps})
 		if err != nil {
 			return b, err
 		}
-		b.Items = append(b.Items, PayoutItem{Request: p.ID, UCC: p.UCC, Name: c.Name, Bank: c.Bank.Bank, IFSC: c.Bank.IFSC, Account: c.Bank.Account, Amount: p.Amount, Mode: mode, Entry: e.ID, Status: "Sent"})
+		b.Items = append(b.Items, PayoutItem{Request: p.ID, UCC: p.UCC, Name: c.Name, Bank: to.Bank, IFSC: to.IFSC, Account: to.Account, Branch: to.Branch, Amount: p.Amount, Mode: mode, Entry: e.ID, Status: "Sent"})
 		b.Total += p.Amount
 		if _, err := docs.Update(ctx, o.Docs, tenant, cPayout, p.ID, actor, func(x *PayoutRequest) error {
 			x.Batch, x.Entry = b.ID, e.ID
@@ -737,6 +770,9 @@ func (o *Ops) CreatePayoutBatch(ctx context.Context, tenant, actor, date string)
 		}
 	}
 	if len(b.Items) == 0 {
+		if len(b.Held) > 0 {
+			return b, fmt.Errorf("%w: no approved payouts to release (held: %s)", ErrState, strings.Join(b.Held, "; "))
+		}
 		return b, fmt.Errorf("%w: no approved payouts to release", ErrState)
 	}
 	if _, err := docs.Put(ctx, o.Docs, tenant, cPOBatch, b.ID, b, 0, actor); err != nil {

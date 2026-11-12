@@ -162,6 +162,7 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/payouts/withdrawable", s.withdrawable, false)
 	R("POST /v1/payouts", s.requestPayout, true)
 	R("POST /v1/payouts/{id}/decide", s.decidePayout, true)
+	R("POST /v1/payouts/{id}/account", s.payoutAccount, true)
 	R("POST /v1/payouts/batches", s.payoutBatch, true)
 	R("GET /v1/payouts/batches/{id}/file", s.payoutFile, false)
 	R("POST /v1/payouts/batches/{id}/confirm", s.confirmPayouts, true)
@@ -1900,6 +1901,12 @@ func (s *Server) requestPayout(w http.ResponseWriter, r *http.Request) {
 		// Ledger to pay from (EQ or COM) with a separate commodity ledger;
 		// empty pays from either. A client's own request never names one.
 		Ledger string `json:"ledger"`
+		// ToAccount (full or masked, with ToIFSC) chooses another of the
+		// client's active registered bank accounts, with ToReason; empty
+		// pays the primary account.
+		ToAccount string `json:"to_account"`
+		ToIFSC    string `json:"to_ifsc"`
+		ToReason  string `json:"to_reason"`
 	}
 	if !decode(w, r, &b) {
 		return
@@ -1924,7 +1931,7 @@ func (s *Server) requestPayout(w http.ResponseWriter, r *http.Request) {
 	if src == "Client" {
 		b.Ledger = ""
 	}
-	v, err := s.ops.RequestPayoutFrom(r.Context(), tenant(r), actor(r), b.Date, b.UCC, b.Amount, src, b.Ledger)
+	v, err := s.ops.RequestPayoutTo(r.Context(), tenant(r), actor(r), b.Date, b.UCC, b.Amount, src, b.Ledger, b.ToAccount, b.ToIFSC, b.ToReason)
 	if err != nil {
 		fail(w, err, nil)
 		return
@@ -1936,6 +1943,21 @@ func (s *Server) requestPayout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, 201, v)
+}
+
+// payoutAccount chooses which registered bank account a payout not yet
+// released goes to (empty: the primary).
+func (s *Server) payoutAccount(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Account string `json:"account"`
+		IFSC    string `json:"ifsc"`
+		Reason  string `json:"reason"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SetPayoutAccount(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Account, b.IFSC, b.Reason)
+	ok(w, v, err)
 }
 
 func (s *Server) decidePayout(w http.ResponseWriter, r *http.Request) {

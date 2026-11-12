@@ -63,6 +63,7 @@ func masterSources() []masterSrc {
 func baseSources() []masterSrc {
 	return []masterSrc{
 		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding). Optional columns: Branch, State (place of supply for GST), GSTIN; WhatsApp (Y), WAConsentDate and WAConsentRef for WhatsApp consent recorded in the previous system; ECN (N for a client who chose printed contract notes); NominationDate and NominationMode for the nomination or opt-out declaration", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
+		{"CLIENT-BANKS", "Every registered bank account of each client, one row per account (migration: the previous back office's client bank master). The rows replace the client's accounts; Primary Y marks the primary (default payout) account, else the first active row; Status Active or Inactive. Optional columns: Branch, MICR, Type (SB, CA, NRE, NRO), VerifiedOn, VerifyMethod, AddedOn. At most the firm's limit of active accounts per client (Settings, 3 by default with MCX)", []string{"UCC", "Bank", "IFSC", "Account", "Primary"}, false, "Once at go-live, after the client master"},
 		{"NOMINEES", "Nominees of each client, up to 3 (replaces the client's list; a nomination of up to 10 made before 1 September 2026 loads as it is and is flagged for review). Name and Relation are required; IDType and ID are optional (PAN, DL, AADHAAR, of which only the last 4 digits are kept, or PASSPORT); leave Share blank for equal shares; a minor needs DOB (Guardian and GuardianRelation optional). Optional: Mobile, Email, Address, DeclaredOn, Mode", []string{"UCC", "Name", "Relation", "Share", "IDType", "ID", "DOB", "Guardian", "GuardianRelation"}, false, "Once at go-live, then on change"},
 		{"SEGMENT-STATUS", "Each client's status in each segment with its history, oldest first: Active, Reactivated, Suspended, Dormant or Closed (Segment CM, FO, CD or COM). Optional column Reason", []string{"UCC", "Segment", "Status", "EffectiveDate"}, false, "Once at go-live, then on change"},
 		{"OPENING-BALANCES", "Opening trial balance (migration); must balance. Optional column Since: for a client debit, the date it became due, so ageing, interest and debit blocks carry over. Optional column Legacy (Y): an old client debit to keep apart as a legacy debt (no interest, out of the daily debit work); a second person approves it on Legacy debts. With a separate commodity ledger, optional column Ledger (Equity or Commodity) puts a client's balance in that ledger (CLIENTCOM:<code> may also be given as the account)", []string{"Account", "Debit", "Credit"}, true, "Once at go-live"},
@@ -242,6 +243,8 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		return o.loadNRICaution(ctx, tenant, actor, date, rows)
 	case "NOMINEES":
 		return o.prepareNominees(ctx, tenant, actor, rows)
+	case "CLIENT-BANKS":
+		return o.prepareClientBanks(ctx, tenant, actor, rows)
 	case "SEGMENT-STATUS":
 		return o.prepareSegmentStatus(ctx, tenant, actor, rows)
 	case "CIRCULARS":
@@ -334,6 +337,12 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 					c.Blocked, c.BlockedReason = old.Blocked, old.BlockedReason
 					c.Inactive, c.InactiveSince, c.ReactivatedOn, c.KYCUpdatedOn = old.Inactive, old.InactiveSince, old.ReactivatedOn, old.KYCUpdatedOn
 					c.SegStatus, c.SegHistory = old.SegStatus, old.SegHistory
+					// The client's other bank accounts (CLIENT-BANKS, changes)
+					// are kept; the file's account is the primary.
+					if len(old.Banks) > 0 {
+						c.Banks = old.Banks
+						syncBanks(&c)
+					}
 					if len(old.Nominees) > 0 && (c.Nominee == "" || c.Nominee == "Opted in") {
 						c.Nominees = old.Nominees
 						normaliseNominees(&c)

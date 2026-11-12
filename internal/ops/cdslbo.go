@@ -1871,6 +1871,9 @@ func (o *Ops) cdslCaptureModifications(ctx context.Context, tenant string, x cds
 		if ch.Status != "Approved" || !cdslNotBefore(ch.Decided, since) || !contains(cdslModifyKinds, ch.Kind) {
 			continue
 		}
+		if ch.Kind == "Bank account" && !bankChangeTouchesPrimary(ch) {
+			continue // a secondary trading account: the BO's bank is the primary (clientbanks.go)
+		}
 		if _, ok := o.cdslBySource(ctx, tenant, ch.ID); ok {
 			continue
 		}

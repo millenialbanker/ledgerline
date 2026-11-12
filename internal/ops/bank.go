@@ -75,7 +75,8 @@ func (o *Ops) matchCredit(ctx context.Context, tenant, actor string, t BankTxn, 
 	o.tagUPI(ctx, tenant, &t)
 	var byAcct *Client
 	for i := range clients {
-		if clients[i].Bank.Account != "" && clients[i].Bank.Account == t.Account {
+		// Any active registered account of the client (clientbanks.go).
+		if _, ok := registeredBank(clients[i], t.Account, ""); ok {
 			byAcct = &clients[i]
 		}
 	}

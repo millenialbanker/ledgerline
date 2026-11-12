@@ -164,6 +164,11 @@ type Settings struct {
 	// ManagementEmails get scheduled-job results and alerts.
 	ManagementEmails   []string `json:"management_emails"`
 	PayoutDebitAccount string   `json:"payout_debit_account"` // client bank account payouts are made from
+	// MaxClientBanks is how many active bank accounts a client may have
+	// registered (0: the fewest bank slots in the UCC record of the
+	// exchanges the firm trades on, 3 with MCX, otherwise 5; see
+	// clientbanks.go).
+	MaxClientBanks int64 `json:"max_client_banks,omitempty"`
 	// HDFC Bank ENet payout file (hdfcenet.go): the firm's ENet client ID
 	// and the file name template (default {hdfc_client_id}{date:0201}.{seq:3}),
 	// the sequence (running across days, the default, or daily), the
@@ -540,6 +545,9 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	}
 	if err := checkHDFCSettings(&s); err != nil {
 		return err
+	}
+	if s.MaxClientBanks < 0 || s.MaxClientBanks > maxUCCBankSlots {
+		return invalid("bank accounts per client must be 1 to %d (no exchange's UCC record holds more), or 0 for the default", maxUCCBankSlots)
 	}
 	if err := o.checkSegLedger(ctx, tenant, &s); err != nil {
 		return err

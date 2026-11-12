@@ -184,7 +184,7 @@ func (o *Ops) RAS(ctx context.Context, tenant, asOf string) (RASView, error) {
 		if c.LastTrade > lt {
 			lt = c.LastTrade
 		}
-		row := RASRow{UCC: r.UCC, Name: c.Name, Preference: c.RAS, LastTrade: lt, Credit: credit, Bank: c.Bank.Bank + " " + MaskAccount(c.Bank.Account)}
+		row := RASRow{UCC: r.UCC, Name: c.Name, Preference: c.RAS, LastTrade: lt, Credit: credit, Bank: primaryBank(c).Bank + " " + MaskAccount(primaryBank(c).Account)}
 		row.LastActivity = lt
 		if funds[r.UCC] > row.LastActivity {
 			row.LastActivity = funds[r.UCC]
@@ -297,6 +297,7 @@ func (o *Ops) RunRAS(ctx context.Context, tenant, actor, asOf, settleDate string
 			continue
 		}
 		c := clients[r.UCC]
+		pb := primaryBank(c) // running account settlement pays the primary account (clientbanks.go)
 		ps := []ledger.Posting{{Account: ledger.ClientAccount(r.UCC), Debit: amt, Memo: "Running account settlement payout"}, {Account: ledger.BankClient, Credit: amt}}
 		if r.sep {
 			if ps, err = o.rasPostings(ctx, tenant, actor, asOf, settleDate, r, amt); err != nil {
@@ -304,13 +305,13 @@ func (o *Ops) RunRAS(ctx context.Context, tenant, actor, asOf, settleDate string
 			}
 		}
 		e, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "RAS:" + settleDate + ":" + r.UCC, ValueDate: asOf,
-			Narration: fmt.Sprintf("Running account settlement for %s · payout to %s %s", settleDate, c.Bank.Bank, MaskAccount(c.Bank.Account)),
+			Narration: fmt.Sprintf("Running account settlement for %s · payout to %s %s", settleDate, pb.Bank, MaskAccount(pb.Account)),
 			Source:    ledger.SourceRef{Kind: "RAS", ID: settleDate + "/" + r.UCC}, CreatedBy: actor,
 			Postings: ps})
 		if err != nil {
 			return b, err
 		}
-		b.Items = append(b.Items, RASItem{UCC: r.UCC, Name: c.Name, Bank: c.Bank.Bank, IFSC: c.Bank.IFSC, Account: c.Bank.Account, Amount: amt, Credit: r.Credit, Retained: r.Credit.Sub(amt.Dec())})
+		b.Items = append(b.Items, RASItem{UCC: r.UCC, Name: c.Name, Bank: pb.Bank, IFSC: pb.IFSC, Account: pb.Account, Amount: amt, Credit: r.Credit, Retained: r.Credit.Sub(amt.Dec())})
 		b.Total += amt
 		b.Entries = append(b.Entries, e.ID)
 	}
