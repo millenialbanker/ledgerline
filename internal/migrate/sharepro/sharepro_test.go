@@ -389,8 +389,8 @@ func TestCurrentContents(t *testing.T) {
 	// checks come from the server's own totals
 	// clients: DLMAST's 5 and the 3 DP-only; DP accounts and quantity: every
 	// account in CLLIST; bank accounts: the rows listed for Ledgerline
-	for name, want := range map[string]string{pkg.CheckTBDebit: "5350.00", pkg.CheckTBCredit: "5350.00", pkg.CheckOpeningDifference: "150.00", pkg.CheckClients: "8", pkg.CheckClientDebit: "1200.00",
-		pkg.CheckClientCredit: "300.00", pkg.CheckDPAccounts: "7", pkg.CheckDPQuantity: "250.432", pkg.CheckBankAccounts: "9", pkg.CheckPositions: "3"} {
+	for name, want := range map[string]string{pkg.CheckTBDebit: "5595.00", pkg.CheckTBCredit: "5595.00", pkg.CheckOpeningDifference: "150.00", pkg.CheckClients: "8", pkg.CheckClientDebit: "1415.00",
+		pkg.CheckClientCredit: "310.00", pkg.CheckDPAccounts: "8", pkg.CheckDPQuantity: "250.432", pkg.CheckBankAccounts: "9", pkg.CheckPositions: "3"} {
 		if got := check(r, name); got != want {
 			t.Errorf("check %s = %s, want %s", name, got, want)
 		}
@@ -427,7 +427,7 @@ func TestTrialBalanceAndSince(t *testing.T) {
 			cr += money.MustAmount(o["Credit"])
 		}
 	}
-	if dr != cr || dr != money.MustAmount("5350") {
+	if dr != cr || dr != money.MustAmount("5595") {
 		t.Fatalf("trial balance %s / %s: %v", dr, cr, ob)
 	}
 	// SharePro's openings do not balance: the difference is one suspense line, with a warning
@@ -449,7 +449,8 @@ func TestTrialBalanceAndSince(t *testing.T) {
 		t.Errorf("client ledger heads not listed: %+v", r.Manifest.Issues)
 	}
 	c1 := acct["CLIENT:TEST001"]
-	if c1["Debit"] != "1200.00" || c1["Since"] != "2026-04-05" {
+	// and its two DP accounts' DP ledgers (head 64 of CO 06), 50 and 20
+	if c1["Debit"] != "1270.00" || c1["Since"] != "2026-04-05" {
 		t.Errorf("TEST001 %v", c1)
 	}
 	if c := acct["CLIENT:TEST003"]; c["Credit"] != "300.00" || c["Since"] != "" {
@@ -570,6 +571,7 @@ func TestUCCDetailsAndMasters(t *testing.T) {
 		"1234567800000003": "TEST003|CDSL|Closed|||N||2024-01-01|Y",
 		"1234567800000010": "00000010|CDSL|Closed|||N||2023-03-31|Y",
 		"1234567800000011": "00000011|CDSL|Frozen|Both|Frozen in SharePro (no reason recorded)|N|||Y",
+		"1234567800000012": "TEST005|CDSL|Active|||N|||Y", // by TRADINGID
 	}
 	if len(dp) != len(want) {
 		t.Errorf("DP accounts %v", dp)
@@ -588,7 +590,7 @@ func TestUCCDetailsAndMasters(t *testing.T) {
 			t.Errorf("DP accounts info %q: %+v", k, r.Manifest.Issues)
 		}
 	}
-	if len(issues(r, "DP accounts", "DP-only")) != 2 {
+	if len(issues(r, "DP accounts", "DP-only")) != 3 { // and the TRADINGID links ("not DP-only clients")
 		t.Error("DP-only accounts not counted")
 	}
 }
@@ -634,11 +636,12 @@ func TestDormantSkip(t *testing.T) {
 	if !found {
 		t.Error("skipped client's balance left out of the trial balance")
 	}
+	// and the closed DP-only client's advance (its DP ledger)
 	errs := issues(r, "Opening balances", "Dormant client left out")
-	if len(errs) != 1 || errs[0].Key != "TEST003" || errs[0].Severity != "Error" {
+	if len(errs) != 2 || errs[0].Key != "00000010" || errs[1].Key != "TEST003" || errs[0].Severity != "Error" || errs[1].Severity != "Error" {
 		t.Errorf("skipped client with balance: %+v", errs)
 	}
-	if check(r, pkg.CheckClients) != "5" || check(r, pkg.CheckDPAccounts) != "5" {
+	if check(r, pkg.CheckClients) != "5" || check(r, pkg.CheckDPAccounts) != "6" {
 		t.Errorf("clients check %s, DP accounts %s", check(r, pkg.CheckClients), check(r, pkg.CheckDPAccounts))
 	}
 	_, dp := readCSV(t, r, "firms/02/master/DP-ACCOUNTS.csv")
@@ -647,7 +650,7 @@ func TestDormantSkip(t *testing.T) {
 			t.Errorf("skipped client's DP account written: %v", x)
 		}
 	}
-	if len(dp) != 5 {
+	if len(dp) != 6 {
 		t.Errorf("DP accounts %v", dp)
 	}
 }

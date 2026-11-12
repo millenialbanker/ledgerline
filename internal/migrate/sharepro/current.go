@@ -97,6 +97,8 @@ type dpAcct struct {
 	client string
 	dpOnly bool
 	sub    string    // CLLIST.SUBCODE as given, when it is not a client in DLMAST
+	tid    string    // CLLIST.TRADINGID
+	byTID  bool      // linked to its trading client by TRADINGID (no SUBCODE)
 	note   string    // why the DP-only client's code is not the DP client code
 	h      *dpHolder // the holders' details (go-live step only)
 }
@@ -125,7 +127,6 @@ type common struct {
 	// DP-only accounts (co|benacnum)
 	boids      map[string]bool
 	cdmast     map[string][]cdRec
-	cdBad      int
 	dpDet      map[string]dpDetail
 	dpNomNoPAN int // DP nominees whose PAN is not a valid PAN (left out)
 }
@@ -348,10 +349,10 @@ func loadCommon(ctx context.Context, d db, s *schema) (*common, error) {
 		}
 	}
 	if s.has("CLLIST") {
-		list, miss := s.sel("CLLIST", "", append([]string{"CO", "DPID", "BENACNUM", "FBENACNUM", "SUBCODE", "BENSTAT", "BENCLOSEDT", "ACTIVEDT", "SUSPFLAG", "SUSPRSNCD", "BSDA"}, holderCols...)...)
+		list, miss := s.sel("CLLIST", "", append([]string{"CO", "DPID", "BENACNUM", "FBENACNUM", "SUBCODE", "TRADINGID", "BENSTAT", "BENCLOSEDT", "ACTIVEDT", "SUSPFLAG", "SUSPRSNCD", "BSDA"}, holderCols...)...)
 		cm.missing = append(cm.missing, miss...)
 		if err := d.query(ctx, fmt.Sprintf(qDPAccts, list), func(r migrate.Row) error {
-			a := dpAcct{co: str(r, "co"), dpid: upper(r, "dpid"), ben: upper(r, "benacnum"), boid: upper(r, "fbenacnum"), ucc: upper(r, "subcode"),
+			a := dpAcct{co: str(r, "co"), dpid: upper(r, "dpid"), ben: upper(r, "benacnum"), boid: upper(r, "fbenacnum"), ucc: upper(r, "subcode"), tid: upper(r, "tradingid"),
 				opened: date(r, "activedt"), closedOn: date(r, "benclosedt"), closed: date(r, "benclosedt") != "", benStat: str(r, "benstat"),
 				suspFlag: upper(r, "suspflag"), suspRsn: str(r, "susprsncd"), bsda: upper(r, "bsda"), h: readHolder(r)}
 			if a.boid == "" {
@@ -559,6 +560,7 @@ func (c *cur) run(ctx context.Context) error {
 		{"Authorised persons and RMs", c.writePartners},
 		{"Client master", c.writeClients},
 		{"Client bank accounts", c.writeBanks},
+		{"Client demat accounts", c.writeClientDemats},
 		{"Nominees", c.writeNominees},
 		{"Segment status", c.writeSegStatus},
 		{"Opening balances", c.writeOpening},
@@ -789,7 +791,7 @@ func (c *cur) writeClients(ctx context.Context) error {
 	pans := map[string]string{}
 	noCol := map[string]int{}
 	n := 0
-	otherDP, otherDPOwn, otherDropped := 0, 0, 0
+	otherDP, otherDPOwn := 0, 0
 	for _, u := range c.clientList() {
 		cl := c.cm.clients[u]
 		if strings.HasSuffix(u, "\x00dup") {
@@ -809,14 +811,13 @@ func (c *cur) writeClients(ctx context.Context) error {
 			continue
 		}
 		dorm, since := c.dormant(u)
-		dm, other, dropped := c.clientDemat(u, own[u])
+		dm, other := c.clientDemat(u, own[u])
 		if other {
 			otherDP++
 			if len(own[u]) > 0 {
 				otherDPOwn++
 			}
 		}
-		otherDropped += dropped
 		c.demat[u] = dm.boid
 		v := c.clientRow(cl, dm)
 		v["DPOnly"] = "N"
@@ -886,12 +887,8 @@ func (c *cur) writeClients(ctx context.Context) error {
 		c.rep.infof("Client master", "", "dp-only-income", "%d DP-only clients have an income range code in the DP account details (CLLIST_DET.GROSSINCOME) whose meaning is not confirmed; Income is left blank. Confirm the codes with SharePro", c.dpOnlyIncome)
 	}
 	if otherDP > 0 {
-		c.rep.infof("Client master", "", "other-dp", "%d trading clients' primary demat account in SharePro's client demat master (CDMAST) is at another DP: it is the client master's demat account (DematID) and is not in DP-ACCOUNTS, which holds this DP's own accounts. %d of them also have an account at this DP (in DP-ACCOUNTS, the oldest open one marked primary)", otherDP, otherDPOwn)
+		c.rep.infof("Client master", "", "other-dp", "%d trading clients' primary demat account in SharePro's client demat master (CDMAST) is at another DP: it is the client master's demat account (DematID) and in CLIENT-DEMATS, not in DP-ACCOUNTS, which holds this DP's own accounts. %d of them also have an account at this DP (in DP-ACCOUNTS, the oldest open one marked primary)", otherDP, otherDPOwn)
 	}
-	if c.primary && c.cm.cdBad > 0 {
-		c.rep.infof("Client master", "", "cdmast-bad", "%d rows of SharePro's client demat master (CDMAST) have no usable BO ID (DPMAST.DPID and CDMAST.CLIENTID do not make 16 digits, or IN and 14); they are not used", c.cm.cdBad)
-	}
-	c.rep.drop("Further demat accounts at other DPs (CDMAST rows that are not the client's primary)", "Ledgerline's client master holds one demat account per client and DP-ACCOUNTS only this DP's own accounts", otherDropped)
 	return c.clientChecks(ctx)
 }
 

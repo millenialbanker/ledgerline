@@ -23,6 +23,10 @@ import (
 //	client-coded head whose name says CLIENT (and not MARGIN, CONTROL or
 //	ADDBACK)                         CLIENT:<client code>, one account over the firm's companies
 //	other client-coded head          <PREFIX>:<CO>-<ACCD>, one firm account for the head
+//	DP client head (sub-ledgers by DP client code, CLLIST.BENACNUM), its
+//	name saying CLIENT or ADVANCE    CLIENT:<the DP account's client>, the
+//	                                 trading client or the DP-only client
+//	other DP client head             <PREFIX>:<CO>-<ACCD>, one firm account for the head
 //	any other head or sub-account    <PREFIX>:<CO>-<ACCD>[-<SUBCODE>]
 //
 // where PREFIX comes from the head's group: BANK, CASH, CC (exchange and
@@ -53,6 +57,82 @@ type chart struct {
 	merged    map[string]bool   // co|accd: client-coded head that is the client's ledger
 	bookHead  map[string]string // co|TT -> bank or cash head of that book
 	unknown   map[string]bool
+
+	// DP ledgers: heads whose sub-ledgers are DP client codes (CLLIST.BENACNUM)
+	// of the firm's DP accounts [verified: CDSL CLIENTS, CDSL OVERDUE CLIENT,
+	// ADVANCE DP TRAN CHARGE]. owner maps a DP client code to its client (the
+	// trading client, or the DP-only client); "" when it has none or two.
+	owner    map[string]string
+	dpCoded  map[string]bool   // co|accd
+	dpMerged map[string]bool   // co|accd: the client's ledger
+	dpSubs   map[string][2]int // co|accd -> sub-ledgers mapped to a client, not mapped
+}
+
+// addOwner records a DP client code's client; a code of two clients has
+// none.
+func addOwner(m map[string]string, ben, u string) {
+	ben = strings.ToUpper(strings.TrimSpace(ben))
+	if ben == "" {
+		return
+	}
+	if old, ok := m[ben]; ok && old != u {
+		m[ben] = ""
+		return
+	}
+	m[ben] = u
+}
+
+// dpLedgers finds the heads whose sub-ledgers are (mostly) DP client codes
+// of the firm's DP accounts. Such a head whose name says CLIENT (as for
+// client-coded heads) or ADVANCE (an advance from the client) is the
+// client's own ledger: each sub-ledger goes to its client's ledger, several
+// DP accounts of a client adding up.
+func (c *chart) dpLedgers(owners map[string]string) {
+	c.owner, c.dpCoded, c.dpMerged, c.dpSubs = owners, map[string]bool{}, map[string]bool{}, map[string][2]int{}
+	tot, hit := map[string]int{}, map[string]int{}
+	for k := range c.subs {
+		co, rest, _ := strings.Cut(k, "|")
+		accd, sub, _ := strings.Cut(rest, "|")
+		hk := co + "|" + accd
+		if c.coded[hk] || sub == "" {
+			continue
+		}
+		tot[hk]++
+		if _, ok := owners[sub]; ok {
+			hit[hk]++
+		}
+	}
+	for hk, n := range tot {
+		if hit[hk] > 0 && hit[hk]*2 > n {
+			c.dpCoded[hk] = true
+			if name := strings.ToUpper(c.headName(hk)); merges(name) || strings.Contains(name, "ADVANCE") {
+				c.dpMerged[hk] = true
+			}
+		}
+	}
+	for k := range c.subs {
+		co, rest, _ := strings.Cut(k, "|")
+		accd, sub, _ := strings.Cut(rest, "|")
+		hk := co + "|" + accd
+		if !c.dpCoded[hk] || sub == "" {
+			continue
+		}
+		x := c.dpSubs[hk]
+		if owners[sub] != "" {
+			x[0]++
+		} else {
+			x[1]++
+		}
+		c.dpSubs[hk] = x
+	}
+}
+
+// dpOwner is the client of a sub-ledger of a DP-coded head, or "".
+func (c *chart) dpOwner(k, sub string) string {
+	if sub == "" || !c.dpCoded[k] {
+		return ""
+	}
+	return c.owner[sub]
 }
 
 // merges says whether a client-coded head is the client's own ledger.
@@ -218,13 +298,18 @@ func (c *chart) account(co, accd, sub string) (code, name, ucc string) {
 	if sub != "" && c.isClient[sub] && c.coded[k] && c.merged[k] {
 		return "CLIENT:" + codePart(sub), firstNonEmpty(c.subs[k+"|"+sub], sub), sub
 	}
+	// a DP account's sub-ledger (DP client code) under a DP client head
+	dpU := c.dpOwner(k, sub)
+	if dpU != "" && c.dpMerged[k] {
+		return "CLIENT:" + codePart(dpU), firstNonEmpty(c.subs[k+"|"+sub], dpU), dpU
+	}
 	kind := c.kindOf(accd)
 	if kind == "SUSPENSE" {
 		c.unknown[accd] = true
 	}
 	code = kind + ":" + codePart(co) + "-" + codePart(accd)
 	name = c.headName(k)
-	if sub != "" && !(c.coded[k] && c.isClient[sub]) {
+	if sub != "" && !(c.coded[k] && c.isClient[sub]) && dpU == "" {
 		// a sub-account of its own; a client's amount under a client-coded
 		// head that is not the client's ledger stays in the head's account
 		code += "-" + codePart(sub)
@@ -236,10 +321,11 @@ func (c *chart) account(co, accd, sub string) (code, name, ucc string) {
 // clientOf is the client a posting is for, whichever account it goes to.
 func (c *chart) clientOf(co, accd, sub string) string {
 	sub = strings.ToUpper(strings.TrimSpace(sub))
-	if sub != "" && c.isClient[sub] && c.coded[co+"|"+strings.ToUpper(strings.TrimSpace(accd))] {
+	k := co + "|" + strings.ToUpper(strings.TrimSpace(accd))
+	if sub != "" && c.isClient[sub] && c.coded[k] {
 		return sub
 	}
-	return ""
+	return c.dpOwner(k, sub)
 }
 
 // reportUnknown raises one warning per head whose type could not be told.
@@ -262,6 +348,20 @@ func (c *chart) headsOf(cos []string, merged bool) []string {
 	for k := range c.coded {
 		co, _, _ := strings.Cut(k, "|")
 		if in[co] && c.merged[k] == merged {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// dpHeadsOf lists the DP client heads of the given companies (co|accd),
+// merged ones or the others.
+func (c *chart) dpHeadsOf(cos []string, merged bool) []string {
+	var out []string
+	for k := range c.dpCoded {
+		co, _, _ := strings.Cut(k, "|")
+		if contains(cos, co) && c.dpMerged[k] == merged {
 			out = append(out, k)
 		}
 	}

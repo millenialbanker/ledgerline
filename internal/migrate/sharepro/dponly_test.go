@@ -190,30 +190,27 @@ func TestSeveralDPAccounts(t *testing.T) {
 			t.Errorf("%s has %d primary accounts", u, n)
 		}
 	}
-	if len(primaries) != 6 {
+	if len(primaries) != 7 {
 		t.Errorf("clients with a primary account %v", primaries)
 	}
-	// TEST005's primary demat account is at another DP (CDMAST)
+	// TEST005's primary demat account is at another DP (CDMAST); its account
+	// at this DP (linked by TRADINGID) is the DP's primary
 	_, cl := readCSV(t, r, "firms/02/master/CLIENT-MASTER.csv")
 	cm := rowsBy(cl, "UCC")
 	if cm["TEST005"]["DematID"] != "8765432100001234" || cm["TEST005"]["Depository"] != "CDSL" || cm["TEST001"]["DematID"] != "1234567800000001" {
 		t.Errorf("client master demat accounts %v %v", cm["TEST005"], cm["TEST001"])
 	}
 	for _, x := range dp {
-		if x["UCC"] == "TEST005" || strings.HasPrefix(x["BOID"], "87654321") {
+		if strings.HasPrefix(x["BOID"], "87654321") || strings.HasPrefix(x["BOID"], "IN") {
 			t.Errorf("another DP's account in DP-ACCOUNTS: %v", x)
 		}
 	}
+	if by["1234567800000012"]["UCC"] != "TEST005" || by["1234567800000012"]["Primary"] != "Y" {
+		t.Errorf("TEST005's account by TRADINGID %v", by["1234567800000012"])
+	}
 	if len(issues(r, "Client master", "1 trading clients' primary demat account in SharePro's client demat master (CDMAST) is at another DP")) != 1 ||
-		len(issues(r, "Client master", "0 of them also have")) != 1 || len(issues(r, "Client master", "1 rows of SharePro's client demat master")) != 1 {
+		len(issues(r, "Client master", "1 of them also have")) != 1 {
 		t.Errorf("other-DP accounts not reported: %+v", r.Manifest.Issues)
-	}
-	dropped := map[string]int{}
-	for _, d := range r.Manifest.Dropped {
-		dropped[d.Field] = d.Count
-	}
-	if dropped["Further demat accounts at other DPs (CDMAST rows that are not the client's primary)"] != 1 {
-		t.Errorf("dropped %v", dropped)
 	}
 
 	// CDMAST names the second account: it is the primary
@@ -239,8 +236,11 @@ func TestSeveralDPAccounts(t *testing.T) {
 	_, dp = readCSV(t, r, "firms/02/master/DP-ACCOUNTS.csv")
 	by = rowsBy(dp, "BOID")
 	_, cl = readCSV(t, r, "firms/02/master/CLIENT-MASTER.csv")
-	if by["1234567800000002"]["Primary"] != "Y" || rowsBy(cl, "UCC")["TEST001"]["DematID"] != "1234567800000002" || rowsBy(cl, "UCC")["TEST005"]["DematID"] != "" {
+	if by["1234567800000002"]["Primary"] != "Y" || rowsBy(cl, "UCC")["TEST001"]["DematID"] != "1234567800000002" || rowsBy(cl, "UCC")["TEST005"]["DematID"] != "1234567800000012" {
 		t.Errorf("oldest open account not the primary: %v", dp)
+	}
+	if _, rows := readCSV(t, r, "firms/02/master/CLIENT-DEMATS.csv"); len(rows) != 0 {
+		t.Errorf("client demat accounts without CDMAST %v", rows)
 	}
 	if len(co.asked("client-demat")) != 0 {
 		t.Error("CDMAST read when the database has none")

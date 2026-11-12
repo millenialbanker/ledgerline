@@ -645,7 +645,7 @@ func (c *cur) writeDPAccounts(ctx context.Context) error {
 	// open one
 	var rows []*dpAcct
 	by := map[string][]*dpAcct{}
-	dpOnly, sub := 0, 0
+	dpOnly, sub, tid := 0, 0, 0
 	for i := range c.cm.dp {
 		a := &c.cm.dp[i]
 		if !contains(dpc, a.co) {
@@ -663,6 +663,9 @@ func (c *cur) writeDPAccounts(ctx context.Context) error {
 			if a.sub != "" {
 				sub++
 			}
+		}
+		if a.byTID {
+			tid++
 		}
 		rows = append(rows, a)
 		by[a.client] = append(by[a.client], a)
@@ -741,6 +744,9 @@ func (c *cur) writeDPAccounts(ctx context.Context) error {
 	}
 	if sub > 0 {
 		c.rep.infof(area, "", "sub-not-client", "%d of these accounts have a trading code (CLLIST.SUBCODE) that is not a client in SharePro's client master (DLMAST); they come across as DP-only clients", sub)
+	}
+	if tid > 0 {
+		c.rep.infof(area, "", "tradingid", "%d DP accounts with no trading code (CLLIST.SUBCODE) are linked to their trading client by CLLIST.TRADINGID, a client in DLMAST; they are that client's accounts, not DP-only clients", tid)
 	}
 	if several > 0 {
 		c.rep.infof(area, "", "several", "%d clients have more than one account at this DP: each account is a row, the primary one (the client master's demat account, else the oldest open one) marked Primary = Y", several)

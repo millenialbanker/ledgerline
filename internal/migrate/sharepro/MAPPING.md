@@ -70,7 +70,7 @@ As-of date: `Plan.AsOf`, else the later of `MAX(JVFILE.VRDT)` and
 | Income | `AnnIncome` (as text) |
 | RAS | `DLRUNACMAST.SETTLETYPE` of the latest `ACC_YEAR`: 2 Quarterly, 3 Monthly [assumed: values 1, 2, 3 seen; 2 is most clients]; 1 and others blank, counted in an Info issue — **to be confirmed** |
 | Bank, IFSC, Account | the client's `BKMAST` row of `TYPE` Primary [verified], else the one whose `ACNO` is `DLMAST.BANKACNUM`, else the first open row; bank `BANKMAST.DESCR`, IFSC `BANKMAST.RTGS` (an IFSC for most banks [verified]; others are reported) |
-| Depository, DematID | the client's open `TYPE` Primary row of the client demat master `CDMAST` (`SUBCD`; BO ID `CLIENTID` when it is 16 digits or IN and 14, else `DPMAST.DPID` of `DPCODE` + `CLIENTID`; `TYPE` Pool rows left out) [assumed: CDMAST is the trading side's demat register, `TYPE` Primary/Secondary like `BKMAST`; columns verified]; else the client's oldest open account at the firm's DP in `CLLIST` (`SUBCODE` = client, by `ACTIVEDT`): `FBENACNUM` (or `DPID`+`BENACNUM`); else another open `CDMAST` row. CDSL, or NSDL when it starts with IN. A primary account at another DP (not in `CLLIST`) is counted (Info); further `CDMAST` accounts at other DPs are counted as dropped; rows with no usable BO ID are counted (Info) |
+| Depository, DematID | the client's first open `TYPE` Primary row of the client demat master `CDMAST` (account ID as in CLIENT-DEMATS) [verified: `TYPE` Primary, Secondary, Pool]; else the client's oldest open account at the firm's DP in `CLLIST` (by `ACTIVEDT`): `FBENACNUM` (or `DPID`+`BENACNUM`); else another open `CDMAST` row. CDSL, or NSDL when it starts with IN. A primary account at another DP (not in `CLLIST`) is counted (Info) |
 | DPOnly | N (Y for DP-only clients, below) |
 | Nominee, NomineeName | "Opted in" and the first `DLMAST_NOMINEE.DESCR`, else `DLMAST.NomineeNm` |
 | KYCDate | `KYCMAST.DT_ACTIVE` / `COMMNCEDT` (via `KYCDTL.PANNO`), else `DLMAST.COMMNCEDT`, `ADD_DTTIME` |
@@ -107,16 +107,18 @@ Warnings: Ledgerline keeps the record as it is, marked incomplete.
 Check clients: `COUNT` of the firm's `DLMAST` clients (as assigned above;
 dormant ones left out in mode skip) plus `COUNT` of the firm's `CLLIST`
 accounts with no trading client (`NOT EXISTS` a `DLMAST.SUBCD` =
-`SUBCODE`; closed ones left out in mode skip).
+`SUBCODE`, nor one = `TRADINGID`; closed ones left out in mode skip).
 
 ### DP-only clients (`CLLIST` accounts with no trading client)
 
 A demat account holder of the firm's DP with no trading account: a
 `CLLIST` account whose `SUBCODE` is blank or is not a client in `DLMAST`
 [verified: about half of the DP master's accounts, nearly all closed
-ones among them]. The link is `SUBCODE`, as before; `TRADINGID` is not
-used [assumed]. An account whose `SUBCODE` is not a client is counted
-(Info). Each account is a client of its own in every client file,
+ones among them]. The link is `SUBCODE`; an account with no client in
+`SUBCODE` whose `TRADINGID` is a client in `DLMAST` is that trading
+client's (not DP-only; Info count) [verified: a few accounts with no
+`SUBCODE` have `TRADINGID` set]. An account whose `SUBCODE` is not a
+client is counted (Info). Each account is a client of its own in every client file,
 `DPOnly` = Y, under the DP client code `BENACNUM` (8 digits, a valid
 UCC); when a trading client has that code or it is not 3–10 letters or
 digits, `DP` + the code (else the CO + the code), with a Warning; an
@@ -238,12 +240,30 @@ the oldest open one (by `ACTIVEDT`), else the oldest; Holder2Name,
 Holder2PAN, Holder3Name, Holder3PAN `BEN2HOLDER`, `BEN2PAN`, `BEN3HOLDER`,
 `BEN3PAN` (a PAN that is not valid is a Warning) [all assumed except
 BENSTAT 3 = closed]. Clients with more than one account are counted
-(Info). A trading client's demat account at another DP (from `CDMAST`) is
-not an account of this DP: it is the client master's DematID only (Info).
+(Info); so are accounts linked to their client by `TRADINGID`. A trading
+client's demat account at another DP (from `CDMAST`) is not an account of
+this DP: it is in CLIENT-DEMATS (and the client master's DematID when it
+is the primary).
 `FHOLDER_ADHAR`, `SHOLDER_ADHAR`, `THOLDER_ADHAR` and `Web_Pwd` are
 counted, never selected. Check dp-accounts: `COUNT(*)` of the DP
 companies' `CLLIST` rows, trading and DP-only clients' (without dormant
 trading clients' and, in mode skip, closed DP-only accounts).
+
+### CLIENT-DEMATS (`CDMAST` ⋈ `DPMAST` on `DPCODE`) [verified]
+
+Every demat account of each migrated client in the trading side's client
+demat master, at this DP or another: UCC `CDMAST.SUBCD`; DematID: CDSL
+`DPMAST.DPID` (8 digits) + `CLIENTID` (8 digits); NSDL (`DPID` starting
+IN, or 6 characters with NSDL in `DPMAST.DESCR`) IN + the 6-character DP
+ID + `CLIENTID`; a `CLIENTID` already holding the whole ID is taken as it
+is; Depository CDSL or NSDL accordingly; Primary Y on the client master's
+demat account when it is an open `TYPE` Primary row (a second open
+primary is a Warning); Status Inactive when `Closed`, else Active. `TYPE`
+Pool rows (the firm's own) are left out. A client's rows of the same
+account are one row (Info count). A row whose ID cannot be made (DP code
+not in `DPMAST`, client ID not 8 digits, wrong length) is left out with a
+Warning, an Error for an active client's open primary. Not yet in
+`ops.MasterSources` on this branch (the import is being added).
 
 ### CLIENT-BANKS (`BKMAST` ⋈ `BANKMAST` on `BANKCD`)
 
@@ -296,6 +316,22 @@ Account codes:
     `<PREFIX>:<CO>-<ACCD>`, with a Warning per head (clients with a balance,
     their debits and credits) asking the accountant to decide;
   - every client-coded head is listed in the report (Info for merged ones);
+- DP client heads [verified: in the CDSL company, and a few in a cash
+  company, `64` CDSL CLIENTS with a sub-ledger per DP account, trading and
+  DP-only clients' alike; `2ODCL` CDSL OVERDUE CLIENT; `2ADVTR` ADVANCE DP
+  TRAN CHARGE]: a head (not client-coded) whose sub-accounts are (mostly)
+  DP client codes (`CLLIST.BENACNUM`) of the firm's DP companies.
+  - a sub-account is the DP account's client's: its trading client
+    (`SUBCODE`, else `TRADINGID`, when a client in `DLMAST`), else the DP-only
+    client; a code of two clients, or not in `CLLIST`, has none;
+  - a DP client head whose name contains CLIENT (as above) or ADVANCE (an
+    advance from the client) is the client's ledger → `CLIENT:<client>`,
+    with the client's trading ledger and its other DP accounts' (they add
+    up); another DP client head → one firm account `<PREFIX>:<CO>-<ACCD>`
+    with a Warning;
+  - a sub-account with no client stays `<PREFIX>:<CO>-<ACCD>-<SUBCODE>`;
+  - each DP client head is reported: sub-ledgers that went to a client and
+    those that did not, with their balances (a Warning when any did not);
 - any other head or sub-account — `<PREFIX>:<CO>-<ACCD>[-<SUBCODE>]`,
   PREFIX from the head's group (`MASTMSFILE.AgrCode` up the `ACCTGROUP`
   tree, `PAgrCode`): CASHINHAND → BANK (with `BANKCD` or "BANK" in the
@@ -315,9 +351,10 @@ openings, so a year was not fully closed]. The difference goes to one line
 from SharePro"), with a Warning giving the amount and the split by company,
 and the check `opening-difference` (the account's balance, debit positive).
 
-Since (client debits): the year's lines of the client ledger heads
-(`JVFILE` and `BCFILE`, from the year's start to the as-of date) netted per
-day, first in first out — each credit pays the oldest debit — starting from
+Since (client debits): the year's lines of the client ledger heads (DP
+client heads included; `JVFILE` and `BCFILE`, from the year's start to the
+as-of date, in date order) netted per day and sub-account, first in first
+out over the client's ledger — each credit pays the oldest debit — starting from
 the year's opening balance (balance minus the year's movement) dated the
 year's first day. A debit already due at the year start keeps the year's
 first day, counted in an Info issue: `LY_ACCTOT` is incomplete [verified]
@@ -327,7 +364,11 @@ Checks, all summed on the server from the same openings and movements,
 client ledgers merged by the same rule (pairs of company and head):
 trial-balance-debit and trial-balance-credit (including the difference
 line), opening-difference, client-debit-total and client-credit-total
-(merged client heads only).
+(merged client heads and merged DP client heads). The DP client heads'
+sub-accounts are joined on the server to `CLLIST.BENACNUM` of the firm's
+DP companies and keyed by the account's client (the trading code, or the
+DP client code of a DP-only client; a code of two clients left out), so a
+client's trading ledger and DP accounts add up as Ledgerline holds them.
 
 ### DP-HOLDINGS (`HOLD` at `MAX(HOLDDATE) <= as-of`, the firm's DP COs)
 
@@ -417,7 +458,7 @@ are skipped with an Info issue; columns that are missing come as empty.
 
 | File | From |
 |---|---|
-| LEDGER | `JVFILE` (VoucherType "Journal" + `TYPE`, VoucherNo `TT/VRNO`, account as in OPENING-BALANCES, UCC the client of any client-coded head, `NARR`, `AMTDR`, `AMTCR`) and `BCFILE` (Receipt/Payment/Contra/Cash by `TYPE`, `P_R`; `CHEQNO`, `VALUEDT`) with the bank or cash book's own side, which `BCFILE` does not store as a line, on the head whose `MSFILE.TT`/`MASTMSFILE.TT` is the voucher's `TT` [assumed]. SourceRef table:CO:TT/VRNO:IDN. An unbalanced year is a warning. |
+| LEDGER | `JVFILE` (VoucherType "Journal" + `TYPE`, VoucherNo `TT/VRNO`, account as in OPENING-BALANCES, UCC the client of any client-coded head or DP client head (a DP account's client as the go-live step gave it, else the year's `CLLIST.SUBCODE`), `NARR`, `AMTDR`, `AMTCR`) and `BCFILE` (Receipt/Payment/Contra/Cash by `TYPE`, `P_R`; `CHEQNO`, `VALUEDT`) with the bank or cash book's own side, which `BCFILE` does not store as a line, on the head whose `MSFILE.TT`/`MASTMSFILE.TT` is the voucher's `TT` [assumed]. SourceRef table:CO:TT/VRNO:IDN. An unbalanced year is a warning. |
 | BILLS | `SETTNET` per client and settlement (not `INVOICEHEAD`, whose `CONTRACT` rows are the GST invoices of contract notes): BillNo CO-`cntrno` (or `stno sttype/subcd`), `Turnover`, `Brokerage`, `STTax`, `Trancharge`+`Clrcharge`, `SebiChg`, `BNoteStamp`, `CGST`+`SGST`+`IGST`+`UTGST`+`ServiceTax`, other charges (`DematCh`, `DeliveryCh`, `Penalty`, `AddlBrkg`, `RmsCharge`, `IPFT`, `OthCharge`), `NetRecPay` [assumed] |
 | TRADES | `TRFILE` with `ITC`, `ISINMAST`, `ICCLCONT` as for positions; Side by the sign of `QTY` [verified]; Price `ACT_RATE` [verified] else `RATE`; Brokerage `BRKG × |QTY|` (BRKG per unit [verified]); BillNo `CNTRNO`; OptionType blank (Info count) when call/put cannot be told |
 | CONTRACT-NOTES | distinct `TRFILE` (`CO`, `CNTRNO`, `TRDT`, `SUBCD`). SentOn, SentTo, Signed and DocumentID are empty: the mail archives are read after the company databases, so the register cannot be linked here. |
@@ -467,7 +508,6 @@ layout) is read too when it has rows, skipping attachments (`slno`,
 |---|---|
 | `DLMAST.Web_Pwd`, `CLLIST.Web_Pwd`, `SBMAST.Web_Pwd`, `RMMAST.Web_Pwd`, `DLRMAST.web_Pwd` | passwords: counted with `COUNT(...)`, never selected; users set new ones |
 | `CLLIST.FHOLDER_ADHAR`, `SHOLDER_ADHAR`, `THOLDER_ADHAR`, `CLLIST_DET.UID`, `FHADHARNOM`, `SHADHARNOM`, `THADHARNOM`, `CDNOMREG.UID`, `DLAGREE.UID`, `DLAGREE.NomineeAdhar`, `DLAGREE2.C_UID1`–`3`, `CLAUTHMAST.UID`, `BOMAST.FHUID` | full Aadhaar numbers: counted, never selected (Ledgerline keeps no client Aadhaar) |
-| Further demat accounts at other DPs (`CDMAST` rows other than the primary) | the client master holds one demat account, DP-ACCOUNTS only this DP's: counted as dropped |
 | DP-only clients' income range (`CLLIST_DET.GROSSINCOME`) | codes not confirmed: counted (Info), Income blank |
 | staff passwords (`SHUSER`), `SYSTEMLOGFILES.Content`, OTP and token tables | never read |
 | Family (`DLMAST.FAMILYCD`) | no Ledgerline column: counted as dropped |

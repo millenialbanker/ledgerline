@@ -21,21 +21,24 @@ import (
 
 const (
 	// opening and movements, one row per (co, accd, subcode) part
-	qBalACCTOT  = `SELECT RTRIM(co) AS co, RTRIM(accd) AS accd, RTRIM(ISNULL(subcode, '')) AS subcode, amtdr - amtcr AS b FROM ACCTOT WHERE co IN (%s) AND vrdt <= '%s'`
-	qBalMLFILE  = `SELECT RTRIM(co) AS co, RTRIM(ACCD) AS accd, RTRIM(ISNULL(SUBCODE, '')) AS subcode, AMTDROB - AMTCROB AS b FROM MLFILE WHERE co IN (%s)`
-	qBalMSFILE  = `SELECT RTRIM(m.co) AS co, RTRIM(m.ACCD) AS accd, '' AS subcode, m.AMTDROB - m.AMTCROB AS b FROM MSFILE m WHERE m.co IN (%s)%s`
-	qNotInSubs  = ` AND NOT EXISTS (SELECT 1 FROM MLFILE l WHERE l.co = m.co AND l.ACCD = m.ACCD)`
-	qTB         = `/*sp:trial-balance*/ SELECT t.co, t.accd, t.subcode, SUM(t.b) AS b FROM (%s) t GROUP BY t.co, t.accd, t.subcode`
-	qClientNet  = `/*sp:client-net*/ SELECT RTRIM(x.CO) AS co, RTRIM(x.ACCD) AS accd, RTRIM(x.SUBCODE) AS subcode, SUM(x.AMTDR) AS dr, SUM(x.AMTCR) AS cr FROM (%s) x GROUP BY x.CO, x.ACCD, x.SUBCODE`
-	qClientDays = `/*sp:client-days*/ SELECT RTRIM(x.CO) AS co, RTRIM(x.ACCD) AS accd, RTRIM(x.SUBCODE) AS subcode, x.VRDT AS vrdt, SUM(x.AMTDR) AS dr, SUM(x.AMTCR) AS cr FROM (%s) x GROUP BY x.SUBCODE, x.CO, x.ACCD, x.VRDT ORDER BY x.SUBCODE, x.VRDT`
+	qBalACCTOT = `SELECT RTRIM(co) AS co, RTRIM(accd) AS accd, RTRIM(ISNULL(subcode, '')) AS subcode, amtdr - amtcr AS b FROM ACCTOT WHERE co IN (%s) AND vrdt <= '%s'`
+	qBalMLFILE = `SELECT RTRIM(co) AS co, RTRIM(ACCD) AS accd, RTRIM(ISNULL(SUBCODE, '')) AS subcode, AMTDROB - AMTCROB AS b FROM MLFILE WHERE co IN (%s)`
+	qBalMSFILE = `SELECT RTRIM(m.co) AS co, RTRIM(m.ACCD) AS accd, '' AS subcode, m.AMTDROB - m.AMTCROB AS b FROM MSFILE m WHERE m.co IN (%s)%s`
+	qNotInSubs = ` AND NOT EXISTS (SELECT 1 FROM MLFILE l WHERE l.co = m.co AND l.ACCD = m.ACCD)`
+	qTB        = `/*sp:trial-balance*/ SELECT t.co, t.accd, t.subcode, SUM(t.b) AS b FROM (%s) t GROUP BY t.co, t.accd, t.subcode`
+	qClientNet = `/*sp:client-net*/ SELECT RTRIM(x.CO) AS co, RTRIM(x.ACCD) AS accd, RTRIM(x.SUBCODE) AS subcode, SUM(x.AMTDR) AS dr, SUM(x.AMTCR) AS cr FROM (%s) x GROUP BY x.CO, x.ACCD, x.SUBCODE`
+	// by date: a client's ledger spans several sub-codes (its DP accounts')
+	qClientDays = `/*sp:client-days*/ SELECT RTRIM(x.CO) AS co, RTRIM(x.ACCD) AS accd, RTRIM(x.SUBCODE) AS subcode, x.VRDT AS vrdt, SUM(x.AMTDR) AS dr, SUM(x.AMTCR) AS cr FROM (%s) x GROUP BY x.SUBCODE, x.CO, x.ACCD, x.VRDT ORDER BY x.VRDT, x.SUBCODE, x.CO, x.ACCD`
 	// the year's client ledger lines (FIFO for the date each debit became due)
 	qClientMoves = `SELECT CO, ACCD, SUBCODE, VRDT, AMTDR, AMTCR FROM JVFILE WHERE CO IN (%[1]s) AND ACCD IN (%[2]s) AND VRDT <= '%[3]s' AND VRDT >= '%[4]s'` +
 		` UNION ALL SELECT co AS CO, ACCD, SUBCODE, VRDT, AMTDR, AMTCR FROM BCFILE WHERE co IN (%[1]s) AND ACCD IN (%[2]s) AND VRDT <= '%[3]s' AND VRDT >= '%[4]s'`
 	// checks: the same trial balance added up on the server, client
 	// ledgers merged as Ledgerline holds them
-	qClientSet      = `SELECT DISTINCT RTRIM(SUBCD) AS u FROM DLMAST`
-	qCheckTB        = `/*sp:check-tb*/ SELECT SUM(CASE WHEN b > 0 THEN b ELSE 0 END) AS dr, SUM(CASE WHEN b < 0 THEN -b ELSE 0 END) AS cr FROM (SELECT %[1]s AS k, SUM(t.b) AS b FROM (%[2]s) t LEFT JOIN (%[3]s) d ON d.u = t.subcode AND t.subcode <> '' GROUP BY %[1]s) x`
-	qCheckClientBal = `/*sp:check-client-balances*/ SELECT SUM(CASE WHEN b > 0 THEN b ELSE 0 END) AS dr, SUM(CASE WHEN b < 0 THEN -b ELSE 0 END) AS cr FROM (SELECT d.u AS k, SUM(t.b) AS b FROM (%[1]s) t JOIN (%[2]s) d ON d.u = t.subcode WHERE (t.co + '|' + t.accd) IN (%[3]s) GROUP BY d.u) x`
+	qClientSet = `SELECT DISTINCT RTRIM(SUBCD) AS u FROM DLMAST`
+	// %[4]s joins the DP client codes' clients (o.ben, o.u), see dpOwnerSQL
+	qCheckTB        = `/*sp:check-tb*/ SELECT SUM(CASE WHEN b > 0 THEN b ELSE 0 END) AS dr, SUM(CASE WHEN b < 0 THEN -b ELSE 0 END) AS cr FROM (SELECT %[1]s AS k, SUM(t.b) AS b FROM (%[2]s) t LEFT JOIN (%[3]s) d ON d.u = t.subcode AND t.subcode <> ''%[4]s GROUP BY %[1]s) x`
+	qCheckClientBal = `/*sp:check-client-balances*/ SELECT SUM(CASE WHEN b > 0 THEN b ELSE 0 END) AS dr, SUM(CASE WHEN b < 0 THEN -b ELSE 0 END) AS cr FROM (SELECT y.k, SUM(y.b) AS b FROM (SELECT 'C|' + d.u AS k, t.b FROM (%[1]s) t JOIN (%[2]s) d ON d.u = t.subcode WHERE (t.co + '|' + t.accd) IN (%[3]s)%[4]s) y GROUP BY y.k) x`
+	qCheckClientDP  = ` UNION ALL SELECT o.u AS k, t.b FROM (%[1]s) t JOIN (%[2]s) o ON o.ben = t.subcode WHERE (t.co + '|' + t.accd) IN (%[3]s)`
 )
 
 // DiffAccount takes the difference when SharePro's openings do not balance.
@@ -71,11 +74,33 @@ type headStat struct {
 	dr, cr  money.Dec
 }
 
+// add counts a sub-ledger's balance (st may be nil).
+func (st *headStat) add(b money.Dec) *headStat {
+	if st == nil {
+		st = &headStat{}
+	}
+	st.clients++
+	if b.Sign() > 0 {
+		st.dr = st.dr.Add(b)
+	} else {
+		st.cr = st.cr.Add(b.Neg())
+	}
+	return st
+}
+
 func (c *cur) writeOpening(ctx context.Context) error {
 	ch, err := loadChart(ctx, c.d, c.s, c.rep)
 	if err != nil {
 		return err
 	}
+	// the DP accounts' ledgers, by DP client code, go to their clients
+	owners := map[string]string{}
+	for _, a := range c.cm.dp {
+		if contains(c.f.dpCOs(), a.co) {
+			addOwner(owners, a.ben, a.client)
+		}
+	}
+	ch.dpLedgers(owners)
 	c.chart = ch
 	area := "Opening balances"
 	src := c.balSource()
@@ -88,22 +113,15 @@ func (c *cur) writeOpening(ctx context.Context) error {
 	bals := map[string]*acctBal{}
 	byCO := map[string]money.Dec{}
 	stats := map[string]*headStat{} // client-coded head -> clients' balances in it
+	unm := map[string]*headStat{}   // DP client head -> balances of sub-ledgers with no client
 	err = c.d.query(ctx, fmt.Sprintf(qTB, src), func(r migrate.Row) error {
 		co, accd, sub := str(r, "co"), upper(r, "accd"), upper(r, "subcode")
 		code, name, ucc := ch.account(co, accd, sub)
 		b := dec(r, "b")
 		if u := ch.clientOf(co, accd, sub); u != "" && !b.IsZero() {
-			st := stats[co+"|"+accd]
-			if st == nil {
-				st = &headStat{}
-				stats[co+"|"+accd] = st
-			}
-			st.clients++
-			if b.Sign() > 0 {
-				st.dr = st.dr.Add(b)
-			} else {
-				st.cr = st.cr.Add(b.Neg())
-			}
+			stats[co+"|"+accd] = stats[co+"|"+accd].add(b)
+		} else if ch.dpCoded[co+"|"+accd] && sub != "" && !b.IsZero() {
+			unm[co+"|"+accd] = unm[co+"|"+accd].add(b)
 		}
 		a := bals[code]
 		if a == nil {
@@ -119,6 +137,7 @@ func (c *cur) writeOpening(ctx context.Context) error {
 	}
 	ch.reportUnknown(c.rep, area)
 	c.reportClientHeads(ch, stats)
+	c.reportDPHeads(ch, stats, unm)
 	since, err := c.dueDates(ctx, ch, bals)
 	if err != nil {
 		return err
@@ -229,13 +248,54 @@ func (c *cur) reportClientHeads(ch *chart, stats map[string]*headStat) {
 	}
 }
 
+// reportDPHeads lists every DP client head of the firm (sub-ledgers by DP
+// client code): how many sub-ledgers went to their client's ledger and how
+// many did not (a warning, with their totals).
+func (c *cur) reportDPHeads(ch *chart, stats, unm map[string]*headStat) {
+	area := "Client ledgers"
+	z := func(st *headStat) *headStat {
+		if st == nil {
+			return &headStat{}
+		}
+		return st
+	}
+	for _, merged := range []bool{true, false} {
+		for _, k := range ch.dpHeadsOf(c.f.COs, merged) {
+			co, accd, _ := strings.Cut(k, "|")
+			n, st, un := ch.dpSubs[k], z(stats[k]), z(unm[k])
+			head, _, _ := ch.account(co, accd, "")
+			where := "their client's ledger, CLIENT:<client code> (the trading client, or the DP-only client; several accounts of a client add up)"
+			if !merged {
+				where = "one account " + head + " (the head is not a client ledger by its name)"
+			}
+			msg := fmt.Sprintf("Head %s of company %s (%s) holds the DP accounts' ledgers by DP client code (CLLIST.BENACNUM): %d sub-ledgers are accounts of the firm's DP and go to %s; %d of them with a balance, debits %s, credits %s.",
+				accd, co, ch.headName(k), n[0], where, st.clients, st.dr.Fixed(2), st.cr.Fixed(2))
+			if n[1] > 0 {
+				msg += fmt.Sprintf(" %d sub-ledgers are not (the code is not in the DP master, or belongs to two clients): %d with a balance, debits %s, credits %s, migrated as sub-accounts %s-<code>",
+					n[1], un.clients, un.dr.Fixed(2), un.cr.Fixed(2), head)
+			} else {
+				msg += " Every sub-ledger is an account of the firm's DP"
+			}
+			switch {
+			case n[1] > 0:
+				c.rep.warnf(area, k, "dp-head-unmapped", "Find the clients of these DP client codes in SharePro and move their balances by journal after go-live", "%s", msg)
+			case !merged:
+				c.rep.warnf(area, k, "dp-head-other", fmt.Sprintf("Decide with your accountant whether each client's amount in %s belongs in the client's ledger; if so, post a journal after go-live", ch.headName(k)), "%s", msg)
+			default:
+				c.rep.infof(area, k, "dp-head", "%s", msg)
+			}
+		}
+	}
+}
+
 // dueDates works out, for each client in debit, the date the debit
 // became due: the year's movements are taken first in, first out (each
 // credit pays the oldest debit), the year's opening balance being the
 // oldest. Earlier years' bill dates are not used: LY_ACCTOT is incomplete.
 func (c *cur) dueDates(ctx context.Context, ch *chart, bals map[string]*acctBal) (map[string]string, error) {
 	out := map[string]string{}
-	heads := accdsOf(ch.headsOf(c.f.COs, true))
+	// the client ledger heads, the DP client heads among them
+	heads := accdsOf(append(ch.headsOf(c.f.COs, true), ch.dpHeadsOf(c.f.COs, true)...))
 	if len(heads) == 0 || !c.s.has("JVFILE") || !c.s.has("BCFILE") {
 		c.rep.warnf("Opening balances", "", "no-due-dates", "Ageing and interest start from the go-live date", "No client ledger heads were found in this database; the Since dates are not given")
 		return out, nil
@@ -344,9 +404,23 @@ func pairList(keys []string) string { return inList(keys) }
 
 func (c *cur) tbChecks(ctx context.Context, ch *chart, src string) error {
 	merged, other := ch.headsOf(c.f.COs, true), ch.headsOf(c.f.COs, false)
-	key := fmt.Sprintf("CASE WHEN d.u IS NOT NULL AND (t.co + '|' + t.accd) IN (%s) THEN 'C|' + d.u WHEN d.u IS NOT NULL AND (t.co + '|' + t.accd) IN (%s) THEN t.co + '|' + t.accd ELSE t.co + '|' + t.accd + '|' + t.subcode END",
-		pairList(merged), pairList(other))
-	r, err := c.d.one(ctx, fmt.Sprintf(qCheckTB, key, src, qClientSet))
+	dpMerged, dpOther := ch.dpHeadsOf(c.f.COs, true), ch.dpHeadsOf(c.f.COs, false)
+	// the DP client heads: a DP account's sub-ledger is its client's (o.u:
+	// 'C|' + the trading code, the key of the client's own ledger, or 'D|' +
+	// the DP client code for a DP-only client)
+	dpKey, dpJoin, dpClient := "", "", ""
+	if len(dpMerged)+len(dpOther) > 0 {
+		owners := c.dpOwnerSQL()
+		dpKey = fmt.Sprintf(" WHEN o.u IS NOT NULL AND (t.co + '|' + t.accd) IN (%s) THEN o.u WHEN o.u IS NOT NULL AND (t.co + '|' + t.accd) IN (%s) THEN t.co + '|' + t.accd",
+			pairList(dpMerged), pairList(dpOther))
+		dpJoin = " LEFT JOIN (" + owners + ") o ON o.ben = t.subcode AND t.subcode <> ''"
+		if len(dpMerged) > 0 {
+			dpClient = fmt.Sprintf(qCheckClientDP, src, owners, pairList(dpMerged))
+		}
+	}
+	key := fmt.Sprintf("CASE WHEN d.u IS NOT NULL AND (t.co + '|' + t.accd) IN (%s) THEN 'C|' + d.u WHEN d.u IS NOT NULL AND (t.co + '|' + t.accd) IN (%s) THEN t.co + '|' + t.accd%s ELSE t.co + '|' + t.accd + '|' + t.subcode END",
+		pairList(merged), pairList(other), dpKey)
+	r, err := c.d.one(ctx, fmt.Sprintf(qCheckTB, key, src, qClientSet, dpJoin))
 	if err != nil {
 		return err
 	}
@@ -361,11 +435,11 @@ func (c *cur) tbChecks(ctx context.Context, ch *chart, src string) error {
 	c.rep.check(pkg.CheckTBDebit, rupees0(dr), detail+"; including "+DiffAccount)
 	c.rep.check(pkg.CheckTBCredit, rupees0(cr), detail+"; including "+DiffAccount)
 	c.rep.check(pkg.CheckOpeningDifference, rupees0(diff), "Balance of "+DiffAccount+" (debit positive): SharePro's debits minus credits do not net to zero by this amount")
-	r, err = c.d.one(ctx, fmt.Sprintf(qCheckClientBal, src, qClientSet, pairList(merged)))
+	r, err = c.d.one(ctx, fmt.Sprintf(qCheckClientBal, src, qClientSet, pairList(merged), dpClient))
 	if err != nil {
 		return err
 	}
-	c.rep.check(pkg.CheckClientDebit, rupees0(dec(r, "dr")), "Client ledgers in debit, as of "+day(c.asOf)+" (client-coded heads named CLIENT only)")
-	c.rep.check(pkg.CheckClientCredit, rupees0(dec(r, "cr")), "Client ledgers in credit, as of "+day(c.asOf)+" (client-coded heads named CLIENT only)")
+	c.rep.check(pkg.CheckClientDebit, rupees0(dec(r, "dr")), "Client ledgers in debit, as of "+day(c.asOf)+" (client-coded heads named CLIENT, and the DP client heads by DP client code, each DP account's to its client)")
+	c.rep.check(pkg.CheckClientCredit, rupees0(dec(r, "cr")), "Client ledgers in credit, as of "+day(c.asOf)+" (client-coded heads named CLIENT, and the DP client heads by DP client code, each DP account's to its client)")
 	return nil
 }

@@ -92,11 +92,13 @@ func (h *hist) run(ctx context.Context) error {
 		return err
 	}
 	h.dp, h.byUCC = map[string]dpAcct{}, map[string]dpAcct{}
-	// an account with no trading code is the DP-only client's (its code as
-	// the go-live step gave it, from the newest year's DP master)
+	// a DP account's client is the one the go-live step gave it (the newest
+	// year's DP master: the trading client by SUBCODE or TRADINGID, else the
+	// DP-only client), else the year's SUBCODE
 	h.m.mu.Lock()
-	bo := h.m.boUCC
+	bo, known := h.m.boUCC, h.m.clientFirm
 	h.m.mu.Unlock()
+	owners := map[string]string{}
 	if h.s.has("CLLIST") {
 		list, _ := h.s.sel("CLLIST", "", "CO", "DPID", "BENACNUM", "FBENACNUM", "SUBCODE")
 		if err := h.d.query(ctx, fmt.Sprintf(qDPAccts, list), func(r migrate.Row) error {
@@ -104,18 +106,25 @@ func (h *hist) run(ctx context.Context) error {
 			if a.boid == "" {
 				a.boid = a.dpid + a.ben
 			}
-			if a.ucc == "" {
-				a.ucc = firstNonEmpty(bo[a.boid], bo[a.ben])
-			}
+			a.ucc = firstNonEmpty(bo[a.boid], a.ucc, bo[a.ben])
 			h.dp[a.co+"|"+a.ben] = a
 			if _, ok := h.byUCC[a.ucc]; !ok && a.ucc != "" {
 				h.byUCC[a.ucc] = a
+			}
+			if contains(h.f.dpCOs(), a.co) {
+				u := a.ucc
+				if known != nil && known[u] == "" {
+					u = "" // not a client of the migration
+				}
+				addOwner(owners, a.ben, u)
 			}
 			return nil
 		}); err != nil {
 			return err
 		}
 	}
+	// the DP accounts' ledgers (by DP client code) go to their clients
+	h.chart.dpLedgers(owners)
 	steps := []struct {
 		name, kind, table string
 		fn                func(context.Context, *pkg.CSV) error

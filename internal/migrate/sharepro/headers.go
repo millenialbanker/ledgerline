@@ -27,6 +27,7 @@ const (
 	srcBranches   = "BRANCHES"
 	srcPartners   = "PARTNERS"
 	srcDPAccounts = "DP-ACCOUNTS"
+	srcDemats     = "CLIENT-DEMATS"
 )
 
 var headers = map[string][]string{
@@ -62,6 +63,8 @@ var headers = map[string][]string{
 	// several rows per client; Primary Y on one of them
 	srcDPAccounts: {"UCC", "BOID", "Depository", "Status", "Opened", "ClosedOn", "BSDA", "Freeze", "FreezeReason", "DDPI",
 		"Primary", "Holder2Name", "Holder2PAN", "Holder3Name", "Holder3PAN"},
+	// every demat account of a client (CDMAST), at this DP or another
+	srcDemats: {"UCC", "Depository", "DematID", "Primary", "Status"},
 }
 
 // required columns of the imports not yet in ops.MasterSources (for the
@@ -72,6 +75,7 @@ var pendingRequired = map[string][]string{
 	srcBranches:   {"Code", "Name"},
 	srcPartners:   {"Code", "Name", "Kind"},
 	srcDPAccounts: {"UCC", "BOID", "Depository", "Status"},
+	srcDemats:     {"UCC", "Depository", "DematID"},
 }
 
 // optionalNotYetRead are header columns the Ledgerline import does not read
@@ -84,6 +88,7 @@ var optionalNotYetRead = map[string][]string{
 	srcOpening:    {"Name"},
 	srcHoldings:   {"BOID"},
 	srcDPAccounts: {"Primary", "Holder2Name", "Holder2PAN", "Holder3Name", "Holder3PAN"},
+	srcDemats:     {"Primary", "Status"},
 }
 
 // rec builds a row for a header from named values.
