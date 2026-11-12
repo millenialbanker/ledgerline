@@ -757,7 +757,7 @@ func TestHistoryMissingTables(t *testing.T) {
 		t.Errorf("missing table not reported: %+v", r.Manifest.Issues)
 	}
 	for _, q := range h.asked("hist-trades") {
-		if strings.Contains(q, "[NPK]") || strings.Contains(q, "t.NPK") || !strings.Contains(q, "NULL AS npk") {
+		if strings.Contains(q, "[NPK]") || strings.Contains(q, "t.NPK") || !strings.Contains(q, "NULL AS [npk]") {
 			t.Errorf("missing column selected: %s", q)
 		}
 	}
@@ -925,5 +925,71 @@ func TestEntityName(t *testing.T) {
 	}
 	if s := segFromName("ABC SECURITIES PVT. LTD(C - NSE)", "", false); s.label() != "NSE-CD" {
 		t.Errorf("currency %v", s)
+	}
+}
+
+// A client with no segment registered at all cannot trade: it comes across
+// inactive, and its missing or invalid details are warnings, not errors.
+func TestNoSegmentClientInactive(t *testing.T) {
+	m := New()
+	ctx := context.Background()
+	co := companyFake("TT2627")
+	clients := co.rows["clients"]("")
+	for _, r := range clients {
+		if r["subcd"] == "TEST004" {
+			for _, k := range []string{"reg_nse", "reg_bse", "reg_nfo", "reg_mcx"} {
+				r[k] = false
+			}
+		}
+	}
+	co.on("clients", clients...)
+	var st []migrate.Row
+	for _, r := range co.rows["segment-status"]("") {
+		if r["subcd"] != "TEST004" {
+			st = append(st, r)
+		}
+	}
+	co.on("segment-status", st...)
+	if _, err := m.Firms(ctx, adminFake(), co); err != nil {
+		t.Fatal(err)
+	}
+	k, err := m.Classify(ctx, co)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := build(t, func(w *pkg.Writer) {
+		w.Manifest().Firms = []pkg.Firm{{Code: "02", Name: "TT SECURITIES"}}
+		if err := m.Current(ctx, co, k, migrate.Plan{Firms: []string{"02"}}, w, nil); err != nil {
+			t.Fatal(err)
+		}
+	})
+	_, cl := readCSV(t, r, "firms/02/master/CLIENT-MASTER.csv")
+	found := false
+	for _, c := range cl {
+		if c["UCC"] == "TEST004" {
+			found = true
+			if c["Inactive"] != "Y" || c["Segments"] != "" {
+				t.Errorf("TEST004 with no segment: %v", c)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("TEST004 left out")
+	}
+	for _, i := range r.Manifest.Issues {
+		if i.Key == "TEST004" && i.Severity == "Error" {
+			t.Errorf("inactive client's detail reported as an error: %+v", i)
+		}
+	}
+	if len(issues(r, "Client master", "no segment registered at all")) != 1 {
+		t.Errorf("no-segment clients not counted: %+v", r.Manifest.Issues)
+	}
+}
+
+func TestNormPIN(t *testing.T) {
+	for in, want := range map[string]string{"700 001": "700001", "700001.": "700001", " 700-001 ": "700001", "70001": "70001", "PIN": "PIN", "": ""} {
+		if got := normPIN(in); got != want {
+			t.Errorf("normPIN(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

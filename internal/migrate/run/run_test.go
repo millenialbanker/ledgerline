@@ -178,6 +178,11 @@ func TestRunOnePackage(t *testing.T) {
 	if man.Part != nil || man.Source.System != "Fake" || man.Source.Server != `localhost\SQLEXPRESS` || len(man.Firms) != 2 {
 		t.Errorf("manifest %+v", man.Source)
 	}
+	for _, f := range man.Firms {
+		if f.AsOf != "2026-10-30" {
+			t.Errorf("firm %s: the as-of date the mapper gave was lost: %q", f.Code, f.AsOf)
+		}
+	}
 	used := 0
 	for _, b := range man.Source.Backups {
 		if b.Used {

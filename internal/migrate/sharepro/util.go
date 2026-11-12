@@ -459,14 +459,16 @@ func (s *schema) sel(table, a string, cols ...string) (list string, missing []st
 		if n, e, ok := strings.Cut(c, "="); ok { // "alias=expression" for computed columns
 			name, expr = n, e
 		}
+		// aliases are bracketed: SharePro has columns named like reserved
+		// words (PERCENT, KEY, to, read, user, FILE, OF)
 		if expr != "" {
-			parts = append(parts, expr+" AS "+name)
+			parts = append(parts, expr+" AS ["+name+"]")
 			continue
 		}
 		if s.hasCol(table, c) {
-			parts = append(parts, pre+"["+c+"] AS "+strings.ToLower(c))
+			parts = append(parts, pre+"["+c+"] AS ["+strings.ToLower(c)+"]")
 		} else {
-			parts = append(parts, "NULL AS "+strings.ToLower(c))
+			parts = append(parts, "NULL AS ["+strings.ToLower(c)+"]")
 			missing = append(missing, table+"."+c)
 		}
 	}

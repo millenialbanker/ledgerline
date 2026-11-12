@@ -239,9 +239,13 @@ func (c *cur) writeUCCDetails(ctx context.Context) error {
 			v["PermAddress1"], v["PermAddress2"], v["PermAddress3"], v["PermCity"], v["PermPIN"] = pa.a1, pa.a2, pa.a3, pa.city, pa.pin
 			v["PermState"] = c.stateName(pa.state, pa.state)
 		}
+		// PINs are often typed "700 001" or "700001."
+		for _, f := range []string{"PIN", "PermPIN"} {
+			v[f] = normPIN(v[f])
+		}
 		for _, f := range []string{"Address1", "City", "State", "PIN"} {
 			if v[f] == "" {
-				c.rep.errorf(area, u, "missing-"+f, "Add it in SharePro (client master or KYC) before loading", "%s is missing", f)
+				c.clientErr(u, area, "missing-"+f, "Add it in SharePro (client master or KYC) before loading", "%s is missing", f)
 			}
 		}
 		if v["PIN"] != "" && !rePIN.MatchString(v["PIN"]) {
@@ -657,4 +661,23 @@ func (c *cur) writeDPAccounts(ctx context.Context) error {
 	}
 	c.rep.check(pkg.CheckDPAccounts, fmt.Sprint(i64(r, "n")), "DP accounts in SharePro (CLLIST), open and closed, including DP-only accounts")
 	return nil
+}
+
+// normPIN takes the digits of a PIN written with spaces, dots or dashes;
+// anything that is not then 6 digits is returned as it was, to be reported.
+func normPIN(p string) string {
+	var d strings.Builder
+	for _, r := range p {
+		switch {
+		case r >= '0' && r <= '9':
+			d.WriteRune(r)
+		case r == ' ' || r == '.' || r == '-':
+		default:
+			return strings.TrimSpace(p)
+		}
+	}
+	if d.Len() == 6 {
+		return d.String()
+	}
+	return strings.TrimSpace(p)
 }

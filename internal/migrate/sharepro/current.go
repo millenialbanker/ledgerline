@@ -486,8 +486,11 @@ type cur struct {
 	written  map[string]bool // clients in the client master
 	skipped  map[string]bool // dormant clients left out (DormantMode skip)
 	inactive map[string]string
-	chart    *chart
-	segCache map[string]segH
+	// noSegInactive counts clients made inactive because no segment is
+	// registered for them at all
+	noSegInactive int
+	chart         *chart
+	segCache      map[string]segH
 
 	derivClients int
 }
@@ -754,6 +757,13 @@ func (c *cur) writeClients(ctx context.Context) error {
 			continue
 		}
 		dorm, since := c.dormant(u)
+		v := c.clientRow(cl, demat[u])
+		if !dorm && v["Segments"] == "" {
+			// no segment registered at all: the client cannot trade, so it
+			// comes across inactive like a dormant one
+			dorm, since = true, cl.closeOut
+			c.noSegInactive++
+		}
 		if dorm {
 			if c.plan.DormantMode == "skip" {
 				c.skipped[u] = true
@@ -761,7 +771,6 @@ func (c *cur) writeClients(ctx context.Context) error {
 			}
 			c.inactive[u] = since
 		}
-		v := c.clientRow(cl, demat[u])
 		if dorm {
 			v["Inactive"], v["InactiveSince"] = "Y", since
 		}
@@ -800,6 +809,9 @@ func (c *cur) writeClients(ctx context.Context) error {
 	}
 	if len(c.inactive) > 0 {
 		c.rep.infof("Client master", "", "inactive", "%d clients with no active segment are migrated marked inactive (Inactive = Y)", len(c.inactive))
+		if c.noSegInactive > 0 {
+			c.rep.infof("Client master", "", "inactive-noseg", "%d of them have no segment registered at all in SharePro", c.noSegInactive)
+		}
 	}
 	return c.clientChecks(ctx)
 }
@@ -878,9 +890,30 @@ func (c *cur) primaryBank(cl *client) bankRec {
 	return bankRec{bank: cl.bank, account: cl.bankAc, micr: cl.micr}
 }
 
+// clientErr reports a problem with one client's details: an error for an
+// active client, a warning for an inactive one, whose record Ledgerline
+// keeps as it is (marked incomplete until the details are completed).
+func (c *cur) clientErr(u, area, kind, action, f string, a ...any) {
+	if _, in := c.inactive[u]; in {
+		c.rep.warnf(area, u, kind+"-inactive", "Kept as in SharePro; complete it in Ledgerline before reactivating the client", f, a...)
+		return
+	}
+	c.rep.errorf(area, u, kind, action, f, a...)
+}
+
 func (c *cur) validateClient(cl *client, v map[string]string, pans map[string]string) {
 	u := cl.ucc
 	fix := "Correct it in SharePro (or in the file) before loading; the client master is loaded only when every row is valid"
+	// an inactive client's missing or invalid details do not stop the
+	// load: Ledgerline keeps the record as it is, marked incomplete, and
+	// asks for the details before the client is reactivated
+	soft := v["Inactive"] == "Y"
+	errorf := c.rep.errorf
+	if soft {
+		errorf = func(area, key, kind, _, f string, a ...any) {
+			c.rep.warnf(area, key, kind+"-inactive", "Kept as in SharePro; complete it in Ledgerline before reactivating the client", f, a...)
+		}
+	}
 	if !reUCC.MatchString(u) {
 		c.rep.errorf("Client master", u, "bad-ucc", fix, "Client code %q is not 3 to 10 letters or digits", u)
 	}
@@ -889,9 +922,9 @@ func (c *cur) validateClient(cl *client, v map[string]string, pans map[string]st
 	}
 	switch {
 	case cl.pan == "":
-		c.rep.errorf("Client master", u, "no-pan", fix, "PAN is missing")
+		errorf("Client master", u, "no-pan", fix, "PAN is missing")
 	case !rePAN.MatchString(cl.pan):
-		c.rep.errorf("Client master", u, "bad-pan", fix, "PAN %q is not a valid PAN", cl.pan)
+		errorf("Client master", u, "bad-pan", fix, "PAN %q is not a valid PAN", cl.pan)
 	default:
 		if other, dup := pans[cl.pan]; dup {
 			c.rep.warnf("Client master", u, "dup-pan", "Check whether the two codes are the same person", "PAN is also on client %s", other)
@@ -899,30 +932,30 @@ func (c *cur) validateClient(cl *client, v map[string]string, pans map[string]st
 			pans[cl.pan] = u
 		}
 		if t := cl.pan[3]; t != 'P' && t != 'H' && t != 'C' {
-			c.rep.errorf("Client master", u, "pan-type", "Ledgerline client types are Individual, HUF, Corporate and NRI; decide how to hold this client before loading",
+			errorf("Client master", u, "pan-type", "Ledgerline client types are Individual, HUF, Corporate and NRI; decide how to hold this client before loading",
 				"PAN holder type %c (firm, trust, AOP, body of individuals...) has no Ledgerline client type", t)
 		}
 	}
 	if !reMobile.MatchString(v["Mobile"]) {
-		c.rep.errorf("Client master", u, "bad-mobile", fix, "Mobile %q is not a 10-digit Indian mobile number", cl.mobile)
+		errorf("Client master", u, "bad-mobile", fix, "Mobile %q is not a 10-digit Indian mobile number", cl.mobile)
 	}
 	if !reEmail.MatchString(v["Email"]) {
-		c.rep.errorf("Client master", u, "bad-email", fix, "Email %q is not valid", v["Email"])
+		errorf("Client master", u, "bad-email", fix, "Email %q is not valid", v["Email"])
 	}
 	if v["City"] == "" {
-		c.rep.errorf("Client master", u, "no-city", fix, "City is missing")
+		errorf("Client master", u, "no-city", fix, "City is missing")
 	}
 	if v["Segments"] == "" {
-		c.rep.errorf("Client master", u, "no-segment", fix, "No segment is registered (REG_ flags and DLMAST_REG2 are empty for this firm)")
+		errorf("Client master", u, "no-segment", fix, "No segment is registered (REG_ flags and DLMAST_REG2 are empty for this firm)")
 	}
 	if strings.TrimSpace(v["Bank"]) == "" {
-		c.rep.errorf("Client master", u, "no-bank", fix, "Bank name is missing")
+		errorf("Client master", u, "no-bank", fix, "Bank name is missing")
 	}
 	if !reIFSC.MatchString(v["IFSC"]) {
-		c.rep.errorf("Client master", u, "bad-ifsc", fix, "IFSC %q is not valid (BANKMAST.RTGS of the client's bank)", v["IFSC"])
+		errorf("Client master", u, "bad-ifsc", fix, "IFSC %q is not valid (BANKMAST.RTGS of the client's bank)", v["IFSC"])
 	}
 	if !reAcct.MatchString(v["Account"]) {
-		c.rep.errorf("Client master", u, "bad-account", fix, "Bank account number %q is not 9 to 18 digits", v["Account"])
+		errorf("Client master", u, "bad-account", fix, "Bank account number %q is not 9 to 18 digits", v["Account"])
 	}
 	if v["Segments"] != "" && v["Segments"] != "CM" {
 		c.derivClients++
@@ -1041,10 +1074,10 @@ func (c *cur) writeBanks(ctx context.Context) error {
 			seen[k] = true
 			acct := strings.NewReplacer(" ", "", "-", "").Replace(strings.TrimSpace(b.account))
 			if !reAcct.MatchString(acct) {
-				c.rep.errorf("Client bank accounts", u, "bad-account", "Correct the account number in SharePro", "Bank account %s is not 9 to 18 digits", maskAcct(b.account))
+				c.clientErr(u, "Client bank accounts", "bad-account", "Correct the account number in SharePro", "Bank account %s is not 9 to 18 digits", maskAcct(b.account))
 			}
 			if !reIFSC.MatchString(b.ifsc) {
-				c.rep.errorf("Client bank accounts", u, "bad-ifsc", "Correct the bank's IFSC (BANKMAST.RTGS)", "IFSC %q of account %s is not valid", b.ifsc, maskAcct(b.account))
+				c.clientErr(u, "Client bank accounts", "bad-ifsc", "Correct the bank's IFSC (BANKMAST.RTGS)", "IFSC %q of account %s is not valid", b.ifsc, maskAcct(b.account))
 			}
 			status := "Active"
 			if b.closed {
@@ -1135,7 +1168,7 @@ func (c *cur) writeNominees(ctx context.Context) error {
 				id = id[len(id)-4:]
 			}
 			if n.rel == "" {
-				c.rep.errorf("Nominees", u, "no-relation", "Add the relationship in SharePro", "Nominee %s has no relationship", n.name)
+				c.clientErr(u, "Nominees", "no-relation", "Add the relationship in SharePro", "Nominee %s has no relationship", n.name)
 			}
 			if err := cw.Write(rec(h, map[string]string{"UCC": u, "Name": n.name, "Relation": n.rel, "Share": n.share, "IDType": it, "ID": id, "DOB": n.dob,
 				"Guardian": n.guardian, "GuardianRelation": n.grel, "Mobile": cleanMobile(n.mobile), "Email": n.email, "Address": n.addr, "DeclaredOn": n.date})); err != nil {

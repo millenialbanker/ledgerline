@@ -399,7 +399,31 @@ func (r *runner) copyStep(ctx context.Context, area string, rd *pkg.Reader) erro
 	for _, d := range m.Dropped {
 		p1.w.AddDropped(d.Firm, d.Field, d.Reason, d.Count)
 	}
+	// the mapper records each firm's as-of date in the step's manifest
+	for _, sf := range m.Firms {
+		if sf.AsOf != "" {
+			r.setAsOf(sf.Code, sf.AsOf)
+		}
+	}
 	return nil
+}
+
+// setAsOf carries a firm's as-of date into the survey (for parts started
+// later) and into every part already started.
+func (r *runner) setAsOf(code, asOf string) {
+	for i := range r.o.Survey.Firms {
+		if r.o.Survey.Firms[i].Code == code {
+			r.o.Survey.Firms[i].AsOf = asOf
+		}
+	}
+	for _, p := range r.parts {
+		fs := p.w.Manifest().Firms
+		for i := range fs {
+			if fs[i].Code == code {
+				fs[i].AsOf = asOf
+			}
+		}
+	}
 }
 
 func copyFile(ctx context.Context, p *part, rd *pkg.Reader, f pkg.File) error {

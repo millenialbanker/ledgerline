@@ -167,6 +167,13 @@ func (m *Mapper) Current(ctx context.Context, q migrate.Querier, k migrate.Kind,
 		return errors.New("the client master table is missing")
 	}
 	p.Step("Client master")
+	// as the real mappers do: the firm's balances are as of the newest year's last day
+	for _, f := range plan.Firms {
+		w.Manifest().Firms = append(w.Manifest().Firms, pkg.Firm{Code: f, AsOf: "2026-10-30"})
+	}
+	if len(plan.Firms) == 0 {
+		w.Manifest().Firms = append(w.Manifest().Firms, pkg.Firm{Code: "01", AsOf: "2026-10-30"}, pkg.Firm{Code: "02", AsOf: "2026-10-30"})
+	}
 	byFirm := map[string][][]string{}
 	var order []string
 	total := map[string]int64{}
