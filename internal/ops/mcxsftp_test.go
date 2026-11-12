@@ -30,8 +30,8 @@ func TestMCXSFTPFetch(t *testing.T) {
 	}
 	pm := xwrite(t, "mcx-product-master", []xfile.Row{productRow("FUTCOM", sym, "", exp, "", "1001", "0", "100", "N"), productRow("FUTCOM", sym, "", exp, "", "1002", "1001", "100", "N")}...)
 	put("Common/MCX_ProductMaster.csv", pm, time.Time{})
-	put("Common/MCXRPF-20261016-1100-01-I.spn", []byte("<spn/>"), time.Time{})                          // risk parameters: not read
-	put("Common/Bhavcopy_MCX_CO_0_0_0_20260930_F_0000.csv", []byte("x"), time.Now().AddDate(0, 0, -30)) // old
+	put("Common/MCXRPF-20261016-1100-01-I.spn", []byte("<spn/>"), time.Time{})                       // risk parameters: not read
+	put("Common/Bhavcopy_MCX_CO_0_0_0_20260930_F_0000.csv", []byte("x"), o.Now().AddDate(0, 0, -30)) // old, relative to the test date
 	mrg := xwrite(t, "mcx-margin-tm",
 		xr("10", "Date", "16102026", "CM ID", "1234", "TM ID", "56845", "Number of Detail Records at Summary - End Client Level", "1", "Actual Margin Levied", "1000.00"),
 		xr("30", "TM ID", "56845", "Account Type", "C", "Account ID", "MC001", "Actual Margin Levied", "1000.00"))

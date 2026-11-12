@@ -356,8 +356,10 @@ func (o *Ops) sipCharges(ctx context.Context, tenant string, cfg SIPSettings, uc
 // margin could not be worked out.
 func (o *Ops) sipFreeFunds(ctx context.Context, tenant, date string) (map[string]money.Dec, string) {
 	out := map[string]money.Dec{}
-	// Shares are bought from the equity ledger.
-	funds, err := o.equityFunds(ctx, tenant, date, date)
+	// Shares are bought from the equity ledger (never with MCX money
+	// earmarked in one ledger, mcxearmark.go).
+	set, _ := o.Settings(ctx, tenant)
+	funds, err := o.limitFunds(ctx, tenant, set, date, date)
 	if err != nil {
 		return out, "funds could not be read: " + err.Error()
 	}

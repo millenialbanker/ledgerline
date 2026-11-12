@@ -24,6 +24,65 @@ func (s *Server) segLedgerRoutes() {
 	s.route("POST /v1/clients/{ucc}/ledger-transfer", s.ledgerTransfer, true)
 	s.route("POST /v1/clients/{ucc}/funds-ledger", s.clientFundsLedger, true)
 	s.route("GET /v1/bow-funds", s.bowFunds, false)
+	// One ledger with MCX money earmarked (ops/mcxearmark.go): RMS moves
+	// between MCX money and equity money.
+	s.route("GET /v1/mcx-moves", s.mcxMoves, false)
+	s.route("POST /v1/clients/{ucc}/mcx-move", s.mcxMove, true)
+	s.route("POST /v1/mcx-moves/{id}/decide", s.decideMCXMove, true)
+}
+
+// mcxMoves lists moves between MCX and equity money (?ucc= for one client).
+func (s *Server) mcxMoves(w http.ResponseWriter, r *http.Request) {
+	u := r.URL.Query().Get("ucc")
+	if u != "" && !s.canSee(w, r, u) {
+		return
+	}
+	v, err := s.ops.MCXMoves(r.Context(), tenant(r), u)
+	if f := s.scope(r); f != nil && err == nil {
+		out := v[:0]
+		for _, m := range v {
+			if f(m.UCC) {
+				out = append(out, m)
+			}
+		}
+		v = out
+	}
+	ok(w, v, err)
+}
+
+// mcxMove asks to move a client's money: {"to":"MCX"|"EQ","amount":...}.
+func (s *Server) mcxMove(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		To     string       `json:"to"`
+		Amount money.Amount `json:"amount"`
+		Date   string       `json:"date"`
+		Note   string       `json:"note"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if !s.canSee(w, r, r.PathValue("ucc")) {
+		return
+	}
+	v, err := s.ops.RequestMCXMove(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), b.To, b.Date, b.Amount, b.Note)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	writeJSON(w, 201, v)
+}
+
+// decideMCXMove approves or rejects a move: {"approve":true,"reason":""}.
+func (s *Server) decideMCXMove(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Approve bool   `json:"approve"`
+		Reason  string `json:"reason"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.DecideMCXMove(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Approve, b.Reason)
+	ok(w, v, err)
 }
 
 // fundsAwaiting lists money awaiting allocation (?all=1 with allocated).

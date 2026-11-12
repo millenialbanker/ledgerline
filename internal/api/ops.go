@@ -389,6 +389,10 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 	if set.SeparateCommodityLedger && role != ops.RoleClient {
 		me["separate_commodity_ledger"] = true // staff screens show the equity and commodity ledgers
 	}
+	if !set.SeparateCommodityLedger && len(set.MCXOnlyBankAccounts) > 0 && role != ops.RoleClient {
+		me["mcx_earmark"] = true // staff screens show MCX money and equity money (ops/mcxearmark.go)
+		me["mcx_accounts"] = set.MCXOnlyBankAccounts
+	}
 	writeJSON(w, 200, me)
 }
 

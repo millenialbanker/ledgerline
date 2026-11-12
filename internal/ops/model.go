@@ -240,6 +240,12 @@ type Settings struct {
 	AllocateAfterMinutes    int64             `json:"allocate_after_minutes,omitempty"`
 	AllocateAfterTo         string            `json:"allocate_after_to,omitempty"`
 	PayoutAutoTransfer      bool              `json:"payout_auto_transfer,omitempty"`
+	// MCXOnlyBankAccounts are the firm's bank accounts money paid into
+	// counts for MCX only, with one ledger per client (mcxearmark.go): it
+	// is earmarked as MCX money, never in an equity limit. MCX payouts are
+	// made from the first. Not used with the separate commodity ledger
+	// (map the account to Commodity in BankAccountLedgers there).
+	MCXOnlyBankAccounts []string `json:"mcx_only_bank_accounts,omitempty"`
 	// From approved exchange holiday calendars (holidays.go), filled in
 	// when settings are loaded; never saved with them.
 	exTrading    map[string]string
@@ -544,6 +550,9 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	if err := o.checkSegLedger(ctx, tenant, &s); err != nil {
 		return err
 	}
+	if err := o.checkMCXAccounts(ctx, tenant, &s); err != nil {
+		return err
+	}
 	prev, _ := o.Settings(ctx, tenant)
 	if err := docs.Upsert(ctx, o.Docs, tenant, cSettings, "main", s, actor); err != nil {
 		return err
@@ -551,6 +560,13 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	o.logClearing(ctx, tenant, actor, prev, s)
 	if prev.SeparateCommodityLedger != s.SeparateCommodityLedger {
 		o.log(ctx, tenant, actor, "settings.separate_commodity_ledger", "settings", map[string]any{"on": s.SeparateCommodityLedger})
+	}
+	if strings.Join(prev.MCXOnlyBankAccounts, ",") != strings.Join(s.MCXOnlyBankAccounts, ",") {
+		masked := make([]string, len(s.MCXOnlyBankAccounts))
+		for i, a := range s.MCXOnlyBankAccounts {
+			masked[i] = MaskAccount(a)
+		}
+		o.log(ctx, tenant, actor, "settings.mcx_only_bank_accounts", "settings", map[string]any{"accounts": masked})
 	}
 	o.log(ctx, tenant, actor, "settings.saved", "settings", map[string]any{"warn_util_pct": s.WarnUtilPct, "ras_buffer_pct": s.RASBufferPct, "penalty_pass_through": s.PenaltyPassThrough})
 	o.aiMarkState(ctx, tenant) // the AI features' on/off history (aicontrol.go)

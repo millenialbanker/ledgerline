@@ -195,14 +195,14 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 	if err != nil {
 		return v, err
 	}
-	sep := in.set.sepCom()
+	sep := in.set.segApart() // separate ledgers, or MCX money earmarked (mcxearmark.go)
 	var lf map[string]LedgerFunds
 	if sep {
-		if lf, err = o.clientLedgerFunds(ctx, tenant, date, date); err != nil {
+		if lf, err = o.segFunds(ctx, tenant, in.set, date, date); err != nil {
 			return v, err
 		}
 	}
-	isCom := func(exch, seg string) bool { return sep && in.set.segmentLedger(exch, seg) == ledger.LedgerCommodity }
+	isCom := func(exch, seg string) bool { return sep && in.set.viewLedger(exch, seg) == ledger.LedgerCommodity }
 	// Charges on trades not yet billed.
 	unbilled, unbilledCom := map[string]money.Dec{}, map[string]money.Dec{}
 	if len(trades) > 0 {
@@ -489,10 +489,11 @@ type finspotLimit struct {
 // ledger, CLIENT:<ucc>, only: with one ledger that is the whole balance;
 // with a separate commodity ledger (segledger.go) the commodity balance
 // and money awaiting allocation are never in it (bowFunds has the
-// commodity side).
+// commodity side). With one ledger and an MCX-only bank account it is the
+// ledger less the MCX money earmarked (mcxearmark.go).
 func (o *Ops) finspotFunds(ctx context.Context, tenant, date string) (map[string]money.Dec, error) {
 	set, _ := o.Settings(ctx, tenant)
-	f, err := o.equityFunds(ctx, tenant, set.PrevBusinessDay(date), "")
+	f, err := o.limitFunds(ctx, tenant, set, set.PrevBusinessDay(date), "")
 	if err != nil {
 		return nil, err
 	}

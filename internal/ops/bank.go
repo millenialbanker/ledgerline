@@ -44,6 +44,9 @@ type BankTxn struct {
 	Narration string `json:"narration,omitempty"`
 	Ledger    string `json:"ledger,omitempty"`
 	LedgerWhy string `json:"ledger_why,omitempty"`
+	// Earmark is "MCX" for money paid into an MCX-only bank account with
+	// one ledger (mcxearmark.go): MCX money, never in an equity limit.
+	Earmark string `json:"earmark,omitempty"`
 }
 
 // Public masks the remitter account.
@@ -81,7 +84,9 @@ func (o *Ops) matchCredit(ctx context.Context, tenant, actor string, t BankTxn, 
 	}
 	entry := ledger.Entry{Tenant: tenant, ValueDate: t.Date, CreatedBy: actor, Source: ledger.SourceRef{Kind: "BANK", ID: t.Ref}}
 	set, _ := o.Settings(ctx, tenant)
-	if !set.sepCom() {
+	if set.mcxOnly(t.ToAccount) {
+		t.Earmark, t.Narration = EarmarkMCX, "" // MCX money (mcxearmark.go)
+	} else if !set.sepCom() {
 		t.ToAccount, t.Narration = "", "" // kept only where they decide the ledger
 	}
 	if byAcct != nil {
@@ -211,6 +216,9 @@ func (o *Ops) IdentifyCredit(ctx context.Context, tenant, actor, id, ucc string,
 	t, err = docs.Update(ctx, o.Docs, tenant, cBankTxn, id, actor, func(x *BankTxn) error {
 		x.Status, x.UCC, x.By, x.EntryID = "Identified", c.UCC, actor, e.ID
 		x.Ledger, x.LedgerWhy = routed.Ledger, routed.LedgerWhy
+		if set, _ := o.Settings(ctx, tenant); set.mcxOnly(x.ToAccount) {
+			x.Earmark = EarmarkMCX
+		}
 		return nil
 	})
 	if err == nil {

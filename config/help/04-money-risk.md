@@ -509,3 +509,45 @@ related: commodity-ledger, funds-awaiting-allocation, payout
 3. The client does not see it: it moves money between the client's own ledgers and nets to nothing in the client's statement.
 
 **Payouts.** Receipts & payouts lets you pay from Equity, Commodity or either ledger. *Either* pays from each ledger only up to its own credit. A payout from one ledger that the ledger cannot pay on its own is **refused** with the shortfall to transfer, unless Settings lets payouts **transfer the shortfall** from the other ledger (recorded as a transfer entry on the payout). Running account settlement settles the client as a whole: a ledger in debit is first made good from the other, and no ledger is left below zero.
+
+## mcx-only-bank-account
+title: Keep MCX money out of equity limits with one ledger (MCX-only bank account)
+screen: settings
+roles: Admin, Risk manager, Ops checker
+ask: mcx only bank account; mcx bank account; commodity bank account; funds received in mcx account; mcx money in finspot; earmark mcx money; mcx earmark; mcx money earmarked; one ledger mcx and equity; commodity money with one ledger; finspot limit includes commodity money; mcx collection account
+related: mcx-earmark-move, commodity-ledger, bod-files, payout
+
+**Who needs it.** A firm that keeps **one ledger per client** (Settings → *Separate commodity ledger* off) but collects money for MCX in a bank account of its own. Money a client pays into that account is for MCX only: it must never lift the Finspot limit or go to NSE Clearing.
+
+**Switching it on.** On [[settings|Settings]] (Admin), under **MCX-only bank accounts**, enter the account numbers, one per line. With no account entered nothing changes. With the separate commodity ledger on the setting is not used: map the account to Commodity under *Money paid into these firm bank accounts* instead, which already does this.
+
+**What it does.** The client keeps one ledger (`CLIENT:<code>`) and sees one ledger: statements, the portal, SMS and WhatsApp balances, running account settlement, debit ageing and interest are all unchanged. Ledgerline works out each client's **MCX money (earmarked)** from that ledger:
+- plus money paid into an MCX-only account (e-CMS, bank statement credits with the ToAccount column, gateway payments whose notes give `to_account`, receipts entered by hand with *Paid into* the MCX-only account);
+- plus MCX profits, less MCX losses and charges (bills, carried futures MTM and expiry charges of MCX trades): losses take from the MCX money first;
+- less payouts of MCX money (from the MCX-only account), plus a returned one;
+- plus or minus moves approved on RMS.
+
+It never goes below zero (an MCX loss larger than the MCX money is borne by the client's other money) and is never more than the client's credit. **Equity money** is the ledger less the MCX money.
+
+**Where each is used.** Equity money only: the Finspot RMS line (column 5) and pay-out hold lines, equity risk and limits, NSE Clearing allocation, cash and F&O margin reporting, N-MASS, SEGMON and stock SIP orders. MCX money: the MCX allocation and MCXCCL margin reporting, MCX margin on RMS and live risk, and the BOW commodity funds file. Money paid into the MCX-only account is never sent to NSE Clearing as money in.
+
+**Example.** A client has ₹10,000 of equity money and ₹2,00,000 of MCX money. ₹5,000 by e-CMS into the usual account: Finspot column 5 becomes ₹15,000. The same ₹5,000 into the MCX-only account: Finspot stays ₹10,000 and the MCX money is ₹2,05,000. An MCX loss of ₹50,000 brings the MCX money to ₹1,55,000; Finspot is unchanged.
+
+**Payouts.** In Receipts & payouts choose *Pay from*: **Equity money** (the usual payout account) may not use MCX money; a larger request is refused with the amount to move first. **MCX money** is paid from the first MCX-only account and uses the MCX money first, then equity money, within what the client may withdraw. A payout the client asks for on the portal is equity money.
+
+**Turning it off** is refused while any client has MCX money earmarked: move it to equity on RMS first.
+
+Good to know: the earmark is a figure, not a posting. Money already in the ledger when you switch it on is equity money; earmark a client's existing MCX money with a move to MCX (see *Move money between MCX money and equity money*).
+
+## mcx-earmark-move
+title: Move money between MCX money and equity money (one ledger)
+screen: rms
+roles: Risk manager, Ops maker, Ops checker
+ask: move mcx money to equity; move equity money to mcx; release mcx earmark; use mcx money for equity; mcx profit to equity with one ledger; payout refused mcx money; equity payout refused earmarked; earmark opening mcx balance
+related: mcx-only-bank-account, payout
+
+1. In the client drawer, under the balance, click **Move MCX money to equity** or **Move equity money to MCX** (or **Move** on the client's line on [[rms|RMS & limits]]), give the amount and a note.
+2. A second person, an Ops checker or Risk manager, approves it under RMS → **Moves between MCX money and equity money** (or in the drawer). The person who asked cannot.
+3. It counts from its date: the next Finspot BOD limit file and NSE Clearing allocation carry it.
+
+Nothing is posted: the client's ledger, statement and balance do not change; only which side the money counts for. A move cannot take more than the side it comes from has. Every request and decision is in the audit trail.

@@ -68,6 +68,11 @@ type Receipt struct {
 	// commodity ledger (segledger.go): "" (equity), COM, or UNALLOC for
 	// money that waits for Risk to allocate it.
 	Ledger string `json:"ledger,omitempty"`
+	// ToAccount is the firm's bank account the money was paid into;
+	// Earmark is "MCX" when that is an MCX-only account with one ledger
+	// (mcxearmark.go): MCX money, never in an equity limit.
+	ToAccount string `json:"to_account,omitempty"`
+	Earmark   string `json:"earmark,omitempty"`
 }
 
 // Public masks the account.
@@ -125,6 +130,10 @@ func (o *Ops) RecordReceipt(ctx context.Context, tenant, actor string, r Receipt
 		r.Ledger = ""
 	} else {
 		r.Ledger = k
+	}
+	r.ToAccount, r.Earmark = strings.TrimSpace(r.ToAccount), ""
+	if set, _ := o.Settings(ctx, tenant); set.mcxOnly(r.ToAccount) {
+		r.Earmark = EarmarkMCX
 	}
 	r.FromAccount = strings.TrimSpace(r.FromAccount)
 	if r.Mode != "UPI" {
@@ -200,7 +209,7 @@ func (o *Ops) DecideReceipt(ctx context.Context, tenant, actor, id string, appro
 	})
 	if err == nil {
 		o.log(ctx, tenant, actor, "receipt."+strings.ToLower(status), id, map[string]any{"ucc": r.UCC, "amount": r.Amount.String()})
-		if approve && status == "Credited" && r.Ledger == "" {
+		if approve && status == "Credited" && r.Ledger == "" && r.Earmark == "" {
 			o.AllocationMoneyIn(ctx, tenant, r.UCC, r.Amount, r.ID)
 		}
 		if approve {
@@ -264,7 +273,7 @@ func (o *Ops) ClearCheque(ctx context.Context, tenant, actor, id, date string, b
 	})
 	if err == nil {
 		o.log(ctx, tenant, actor, "cheque."+strings.ToLower(status), id, map[string]any{"ucc": r.UCC, "amount": r.Amount.String()})
-		if status == "Credited" && r.Ledger == "" {
+		if status == "Credited" && r.Ledger == "" && r.Earmark == "" {
 			o.AllocationMoneyIn(ctx, tenant, r.UCC, r.Amount, r.ID)
 		}
 	}
@@ -352,6 +361,9 @@ func (o *Ops) GatewayWebhook(ctx context.Context, tenant string, body []byte, si
 	r := Receipt{ID: id, Date: date, UCC: c.UCC, Name: c.Name, Mode: "Gateway", Ref: p.ID, FromAccount: p.VPA, Amount: money.Amount(p.Amount),
 		Status: "Credited", Maker: "gateway", Checker: "gateway", Note: "Paid online by " + p.Method}
 	var why string
+	if a := strings.TrimSpace(p.Notes["to_account"]); a != "" && set.mcxOnly(a) {
+		r.ToAccount, r.Earmark = a, EarmarkMCX // paid for the MCX-only account (mcxearmark.go)
+	}
 	if set.sepCom() {
 		// The payment's notes may say the ledger (notes.ledger) or carry a
 		// remark the keywords read; otherwise the client's default, or wait.
@@ -374,10 +386,11 @@ func (o *Ops) GatewayWebhook(ctx context.Context, tenant string, body []byte, si
 		return r, false, err
 	}
 	o.log(ctx, tenant, "gateway", "receipt.gateway", r.ID, map[string]any{"ucc": r.UCC, "amount": r.Amount.String()})
-	switch r.Ledger {
-	case "":
+	switch {
+	case r.Earmark != "": // MCX money is never allocated to NSE Clearing
+	case r.Ledger == "":
 		o.AllocationMoneyIn(ctx, tenant, r.UCC, r.Amount, r.ID)
-	case ledger.LedgerAwaiting:
+	case r.Ledger == ledger.LedgerAwaiting:
 		o.awaitFunds(ctx, tenant, FundsAwaiting{ID: r.ID, Date: r.Date, UCC: r.UCC, Name: r.Name, Amount: r.Amount, Mode: "Gateway", Ref: r.Ref, Source: "Payment gateway", Why: why, Entry: r.Entry})
 	}
 	o.notify(ctx, tenant, "gateway", "receipt.credited", r.UCC, map[string]string{"amount": formatINR(r.Amount.Dec()), "mode": "online payment", "date": r.Date, "status": "credited"})
@@ -451,6 +464,12 @@ type PayoutRequest struct {
 	// Transfer is the entry that moved a shortfall in from the other
 	// ledger before the payout, when the firm allows it.
 	Transfer string `json:"transfer,omitempty"`
+	// With the MCX earmark (mcxearmark.go): Earmark "MCX" (and Ledger
+	// COM) for a payout of MCX money, made from the firm's MCX-only bank
+	// account DebitAccount; otherwise it is equity money, from the usual
+	// payout account (Settings.PayoutDebitAccount).
+	Earmark      string `json:"earmark,omitempty"`
+	DebitAccount string `json:"debit_account,omitempty"`
 }
 
 // Withdrawable explains how much a client can take out today.
@@ -519,8 +538,8 @@ func (o *Ops) Withdrawable(ctx context.Context, tenant, date, ucc string) (Withd
 		}
 	}
 	w.Available = w.Ledger - w.Margin - w.Uncleared - w.Accrued - w.Pending
-	if set, _ := o.Settings(ctx, tenant); set.sepCom() {
-		if err := o.withdrawableLedgers(ctx, tenant, date, &w, prs, comMargin); err != nil {
+	if set, _ := o.Settings(ctx, tenant); set.segApart() {
+		if err := o.withdrawableLedgers(ctx, tenant, set, date, &w, prs, comMargin); err != nil {
 			return w, err
 		}
 	}
@@ -552,12 +571,23 @@ func (o *Ops) RequestPayout(ctx context.Context, tenant, actor, date, ucc string
 // separate commodity ledger; "" pays from either.
 func (o *Ops) RequestPayoutFrom(ctx context.Context, tenant, actor, date, ucc string, amount money.Amount, source, from string) (PayoutRequest, error) {
 	ucc = strings.ToUpper(ucc)
+	set, _ := o.Settings(ctx, tenant)
 	if strings.TrimSpace(from) != "" {
 		k, ok := normLedger(from)
-		if !ok || !o.sepCom(ctx, tenant) {
+		if !ok || !set.segApart() {
 			return PayoutRequest{}, invalid("a payout is from the Equity or the Commodity ledger only with a separate commodity ledger (Settings)")
 		}
 		from = k
+	}
+	earmark, debitAcct := "", ""
+	if set.mcxEarmark() {
+		// One ledger with MCX money earmarked: COM pays MCX money from the
+		// MCX-only bank account; anything else is equity money.
+		if from == ledger.LedgerCommodity {
+			earmark, debitAcct = EarmarkMCX, set.mcxPayoutAccount()
+		} else {
+			from = ""
+		}
 	}
 	if source != "Client" {
 		if err := o.require(ctx, tenant, actor, "Entering a payout request", RoleMaker, RoleChecker, RoleBranch, RoleAP); err != nil {
@@ -585,9 +615,8 @@ func (o *Ops) RequestPayoutFrom(ctx context.Context, tenant, actor, date, ucc st
 	if err != nil {
 		return PayoutRequest{}, err
 	}
-	set, _ := o.Settings(ctx, tenant)
 	p := PayoutRequest{ID: fmt.Sprintf("PO-%06d", n), Date: date, UCC: ucc, Name: c.Name, Amount: amount, Source: source, Status: "Requested",
-		Available: w.Available, Maker: actor, ExpiresOn: set.NextBusinessDay(set.NextBusinessDay(date)), Ledger: from}
+		Available: w.Available, Maker: actor, ExpiresOn: set.NextBusinessDay(set.NextBusinessDay(date)), Ledger: from, Earmark: earmark, DebitAccount: debitAcct}
 	if _, err := docs.Put(ctx, o.Docs, tenant, cPayout, p.ID, p, 0, actor); err != nil {
 		return p, err
 	}
@@ -674,6 +703,9 @@ type PayoutItem struct {
 	UTR     string       `json:"utr,omitempty"`
 	// InstrRef is the HDFC ENet instruction reference, given once (hdfcenet.go).
 	InstrRef string `json:"instr_ref,omitempty"`
+	// DebitAccount is the firm account paid from when it is not the usual
+	// one (MCX money from the MCX-only account, mcxearmark.go).
+	DebitAccount string `json:"debit_account,omitempty"`
 }
 
 // CreatePayoutBatch pays every approved request: debits each client,
@@ -724,7 +756,7 @@ func (o *Ops) CreatePayoutBatch(ctx context.Context, tenant, actor, date string)
 		if err != nil {
 			return b, err
 		}
-		b.Items = append(b.Items, PayoutItem{Request: p.ID, UCC: p.UCC, Name: c.Name, Bank: c.Bank.Bank, IFSC: c.Bank.IFSC, Account: c.Bank.Account, Amount: p.Amount, Mode: mode, Entry: e.ID, Status: "Sent"})
+		b.Items = append(b.Items, PayoutItem{Request: p.ID, UCC: p.UCC, Name: c.Name, Bank: c.Bank.Bank, IFSC: c.Bank.IFSC, Account: c.Bank.Account, Amount: p.Amount, Mode: mode, Entry: e.ID, Status: "Sent", DebitAccount: p.DebitAccount})
 		b.Total += p.Amount
 		if _, err := docs.Update(ctx, o.Docs, tenant, cPayout, p.ID, actor, func(x *PayoutRequest) error {
 			x.Batch, x.Entry = b.ID, e.ID
@@ -762,7 +794,7 @@ func (o *Ops) PayoutFile(ctx context.Context, tenant, id string) ([]byte, error)
 	set, _ := o.Settings(ctx, tenant)
 	rows := [][]string{{"TxnType", "DebitAccount", "BeneficiaryName", "BeneficiaryAccount", "IFSC", "Amount", "ValueDate", "Reference", "Narration"}}
 	for _, it := range b.Items {
-		rows = append(rows, []string{it.Mode, set.PayoutDebitAccount, it.Name, it.Account, it.IFSC, it.Amount.String(), b.Date, it.Request, "Payout " + it.UCC})
+		rows = append(rows, []string{it.Mode, firstOf(it.DebitAccount, set.PayoutDebitAccount), it.Name, it.Account, it.IFSC, it.Amount.String(), b.Date, it.Request, "Payout " + it.UCC})
 	}
 	return CSV(rows), nil
 }

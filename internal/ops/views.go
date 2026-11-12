@@ -76,6 +76,9 @@ type ClientDetail struct {
 	// Ledgers: the client's equity, commodity and awaiting balances, with
 	// a separate commodity ledger (segledger.go).
 	Ledgers *ClientLedgers `json:"ledgers,omitempty"`
+	// Earmark: the client's MCX money and equity money in one ledger,
+	// with an MCX-only bank account (mcxearmark.go).
+	Earmark *ClientEarmark `json:"earmark,omitempty"`
 }
 
 // ClientDetail gathers a client's position for a date.
@@ -128,6 +131,11 @@ func (o *Ops) ClientDetail(ctx context.Context, tenant, ucc, date string) (Clien
 	}
 	if o.sepCom(ctx, tenant) {
 		if d.Ledgers, err = o.clientLedgersView(ctx, tenant, c.UCC, date); err != nil {
+			return d, err
+		}
+	}
+	if set, _ := o.Settings(ctx, tenant); set.mcxEarmark() {
+		if d.Earmark, err = o.clientEarmarkView(ctx, tenant, set, c.UCC, date); err != nil {
 			return d, err
 		}
 	}
