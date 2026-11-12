@@ -246,6 +246,33 @@ func TestNames(t *testing.T) {
 	}
 }
 
+type leftServer struct{ fakeServer }
+
+func (l *leftServer) Rows(ctx context.Context, q string, args ...any) ([]migrate.Row, error) {
+	if strings.Contains(q, "create_date") {
+		now := time.Date(2026, 11, 12, 10, 0, 0, 0, time.UTC)
+		return []migrate.Row{
+			{"name": "LLMIG_abc123_NC2627", "create_date": now.Add(-48 * time.Hour)},
+			{"name": "LLMIG_def456_NC2526", "create_date": now.Add(-time.Hour)}, // another run at work
+			{"name": "LLMIG_notours", "create_date": now.Add(-48 * time.Hour)},
+		}, nil
+	}
+	return l.fakeServer.Rows(ctx, q, args...)
+}
+
+func TestAdoptLeftovers(t *testing.T) {
+	s := &leftServer{}
+	r := &Restorer{S: s}
+	got, err := r.AdoptLeftovers(context.Background(), 24*time.Hour, time.Date(2026, 11, 12, 10, 0, 0, 0, time.UTC))
+	if err != nil || len(got) != 1 || got[0] != "LLMIG_abc123_NC2627" {
+		t.Fatalf("%v %v", got, err)
+	}
+	r.Cleanup(false)
+	if len(s.execs) != 1 || s.execs[0] != DropSQL("LLMIG_abc123_NC2627") {
+		t.Errorf("%v", s.execs)
+	}
+}
+
 func TestListDatabases(t *testing.T) {
 	f := newFake()
 	f.dbs = []migrate.Row{{"name": "shadmin", "bytes": int64(8 << 20)}, {"name": "NC2627", "bytes": int64(4 << 30)}}

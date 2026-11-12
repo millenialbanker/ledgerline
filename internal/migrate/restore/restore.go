@@ -506,6 +506,31 @@ func (r *Restorer) Cleanup(keep bool) []error {
 	return errs
 }
 
+// AdoptLeftovers finds temporary databases an earlier run left behind (the
+// tool was closed before it could remove them), created more than
+// olderThan ago so another run still at work is not touched, and adds them
+// to the ones Cleanup drops. It returns their names.
+func (r *Restorer) AdoptLeftovers(ctx context.Context, olderThan time.Duration, now time.Time) ([]string, error) {
+	rows, err := r.S.Rows(ctx, `SELECT name, create_date FROM sys.databases WHERE name LIKE 'LLMIG[_]%'`)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, row := range rows {
+		n := str(row, "name")
+		t, _ := row["create_date"].(time.Time)
+		if !IsTemp(n) || t.IsZero() || now.Sub(t) < olderThan {
+			continue
+		}
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	r.mu.Lock()
+	r.created = append(r.created, out...)
+	r.mu.Unlock()
+	return out, nil
+}
+
 // ListDatabases lists the user databases on the server (for "Use databases
 // already on this server"), leaving out the tool's own temporary ones.
 func ListDatabases(ctx context.Context, s Server) ([]migrate.Database, error) {

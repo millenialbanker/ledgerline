@@ -331,6 +331,13 @@ func (s *Session) use(ctx context.Context, db DB, e sqlserver.Endpoint) error {
 		r.Copy = copyInto
 	}
 	s.restorer = r
+	if !docker {
+		s.server.Warnings = nil
+		// copies left by an earlier run that was closed too early
+		if left, err := r.AdoptLeftovers(ctx, 24*time.Hour, s.Now()); err == nil && len(left) > 0 {
+			s.server.Warnings = append(s.server.Warnings, fmt.Sprintf("%d temporary copies left on this SQL Server by an earlier run of the tool (named LLMIG_…) are removed when you finish.", len(left)))
+		}
+	}
 	s.server.Status = "ready"
 	s.server.Label = e.String()
 	s.server.Product = info.Name()
