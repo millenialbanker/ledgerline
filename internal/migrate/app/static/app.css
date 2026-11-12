@@ -34,6 +34,8 @@ h1{font-size:22px;margin:0}h2{font-size:16px;margin:0 0 8px}
 p{margin:0 0 8px}.dim{color:var(--ink2)}.small{font-size:12.5px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow)}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+section>*+*{margin-top:18px}
+.card .row+p,.card .row+.row,.card p+.row{margin-top:10px}
 .grow{flex:1}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--line2);background:var(--panel);border-radius:7px;cursor:pointer;font-size:14px;font-weight:500;white-space:nowrap}
 .btn:hover{border-color:var(--ink3)}
