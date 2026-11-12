@@ -64,7 +64,7 @@ function migDetail(d, x) {
     <div class="grid g2"><div>${'<h4>Backups read</h4>'}${tbl([['File'], ['Database'], ['Role'], ['Year'], ['Backup date'], ['Used']], (m.source.backups || []).map(b => `<tr><td class="small wrap">${esc(b.file || '—')}</td><td class="mono small">${esc(b.database)}</td><td>${esc(b.role)}</td><td>${esc(b.fy || '')}</td><td class="n">${b.backup_date && !b.backup_date.startsWith('0001') ? fmtDate(b.backup_date.slice(0, 10)) : '—'}</td><td>${b.used ? 'Yes' : `No${b.note ? ' · ' + esc(b.note) : ''}`}</td></tr>`), { empty: 'None listed' })}</div>
       <div>${'<h4>Firms in the package</h4>'}${tbl([['Code'], ['Name'], ['Segments'], ['Years'], ['As of']], m.firms.map(f => `<tr><td class="mono">${esc(f.code)}</td><td>${esc(f.name)}</td><td class="small">${esc((f.segments || []).join(', '))}</td><td class="small">${esc((f.years || []).join(', '))}</td><td class="n">${fmtDate(f.as_of)}</td></tr>`))}<div class="dim small">This firm loads one of them. The others can be loaded into other firms on Ledgerline with the same package.</div></div></div>
     <h4>Files · ${nf(m.files.length)}</h4>${tbl([['Path'], ['Kind'], ['Type'], ['Year'], ['Rows', 'r'], ['Size', 'r'], ['Dry run']], fileRows, { tall: true })}
-    <div class="grid g2"><div><h4>What the old system shows</h4>${tbl([['Check'], ['Firm'], ['Year'], ['Value', 'r']], (m.checks || []).map(k => `<tr><td>${esc(k.name)}${k.detail ? `<div class="dim small">${esc(k.detail)}</div>` : ''}</td><td class="mono">${esc(k.firm || '')}</td><td>${esc(k.fy || '')}</td><td class="r mono">${esc(k.value)}</td></tr>`), { empty: 'The tool recorded no totals' })}</div>
+    <div class="grid g2"><div><h4>What the old system shows</h4>${tbl([['Check'], ['Firm'], ['Year'], ['Value', 'r']], (m.checks || []).map(k => `<tr><td>${esc(MIG_CHECKS[k.name] || k.name)}${k.detail ? `<div class="dim small">${esc(k.detail)}</div>` : ''}</td><td class="mono">${esc(k.firm || '')}</td><td>${esc(k.fy || '')}</td><td class="r mono">${/^-?\d+\.\d\d$/.test(k.value || '') ? inr(k.value, 2) : /^-?\d+$/.test(k.value || '') ? nf(k.value) : esc(k.value)}</td></tr>`), { empty: 'The tool recorded no totals' })}</div>
       <div><h4>Left out on purpose</h4>${tbl([['Field'], ['Why'], ['Count', 'r']], (m.dropped || []).map(k => `<tr><td>${esc(k.field)}</td><td class="small wrap">${esc(k.reason)}</td><td class="r">${nf(k.count)}</td></tr>`), { empty: 'Nothing' })}<div class="dim small">Passwords and full Aadhaar numbers are never migrated.</div></div></div>
     <h4>What the migration tool found · ${nf((m.issues || []).length)}</h4>${tbl([['Severity'], ['Area'], ['Record'], ['Problem'], ['What to do']], (m.issues || []).map(i => `<tr><td>${pill(i.severity, i.severity === 'Error' ? 'bad' : i.severity === 'Warning' ? 'warn' : 'nt')}</td><td>${esc(i.area)}${i.fy ? ' · ' + esc(i.fy) : ''}</td><td class="mono small">${esc(i.key || '')}</td><td class="small wrap">${esc(i.message)}</td><td class="small wrap">${esc(i.action || '')}</td></tr>`), { tall: true, empty: 'Nothing' })}
     ${c ? `<h4>Dry run · ${nf(x.error_count)} problems${UI.migErrOnly ? ' in ' + esc(UI.migErrOnly) + ' <button class="linkish" data-act="migErrFile" data-id="">show all</button>' : ''}</h4>
@@ -86,7 +86,7 @@ function migCard(d, m) {
   const undo = m.undo ? `<div class="note ${m.undo.status === 'Done' ? '' : 'warn'}">Undo ${esc(m.undo.status.toLowerCase())}: asked by ${esc(m.undo.proposed_by)} ${migWhen(m.undo.proposed_at)} · ${esc(m.undo.reason)}${m.undo.decided_by ? ` · decided by ${esc(m.undo.decided_by)}${m.undo.note ? ' · ' + esc(m.undo.note) : ''}` : ''}${m.undo.status === 'Done' ? ` · ${nf(m.undo.reversed)} opening entries reversed; history and archived documents taken out` : ''}</div>` : '';
   return `<div class="panel"><div class="hd"><h3>Migration ${esc(m.id)} · ${esc(m.system)} firm ${esc(m.firm)} ${esc(m.firm_name)}</h3><small>${migPill(m.status)} balances as of ${fmtDate(m.as_of)}</small></div><div class="bd">
     <div class="small">${who}</div>${m.error ? `<div class="note bad">${esc(m.error)}</div>` : ''}${undo}
-    ${m.steps.length ? `<div class="tools">${bar(m.steps.length ? done / m.steps.length : 0)}<span class="dim small">${nf(done)} of ${nf(m.steps.length)} steps · ${nf(m.docs)} documents archived</span></div>` : `<div class="dim small">${nf(m.files.length)} files ticked: ${esc(m.files.map(f => f.split('/').slice(2).join('/')).join(', '))}</div>`}
+    ${m.steps.length ? `<div class="tools">${migBar(m.steps.length ? done / m.steps.length : 0, m.status)}<span class="dim small">${nf(done)} of ${nf(m.steps.length)} steps · ${nf(m.docs)} documents archived</span></div>` : `<div class="dim small">${nf(m.files.length)} files ticked: ${esc(m.files.map(f => f.split('/').slice(2).join('/')).join(', '))}</div>`}
     ${m.steps.length ? `<details ${['Loading', 'Failed', 'Interrupted'].includes(m.status) ? 'open' : ''}><summary class="small">Load steps in order</summary>${tbl([['#', 'r'], ['Step'], ['File'], ['Rows', 'r'], ['Status']], steps)}</details>` : ''}
     ${m.recon ? migRecon(m) : ''}
     ${acts ? `<div class="ft" style="padding:8px 0 0;border:0">${acts}</div>` : ''}</div></div>`;
@@ -106,6 +106,10 @@ function migHistFiles(d) {
 
 /* ---------- chunked, resumable upload ---------- */
 const MIG_LS = 'ledgerline-mig-upload';
+// MIG_CHECKS names the totals the old system shows (as on the reconciliation).
+const MIG_CHECKS = { 'trial-balance-debit': 'Trial balance: total debits', 'trial-balance-credit': 'Trial balance: total credits', clients: 'Clients', 'client-debit-total': 'Clients in debit: total', 'client-credit-total': 'Clients in credit: total', 'dp-accounts': 'Demat accounts', 'dp-holding-quantity': 'Demat holdings: total quantity', documents: 'Archived documents', 'client-bank-accounts': 'Client bank accounts', 'open-positions': 'Open positions', 'opening-difference': 'Difference in opening balances (to be confirmed by the accountant)' };
+// migBar is a progress bar: green while going and when done, red only if the load failed.
+const migBar = (u, status) => `<div class="bar ${status === 'Failed' ? 'bad' : 'good'}" title="${pct(u)}"><i style="width:${Math.min(100, u * 100).toFixed(1)}%"></i></div>`;
 async function migSha(buf) {
   if (!window.crypto?.subtle) return '';
   const h = await crypto.subtle.digest('SHA-256', buf);
@@ -135,7 +139,7 @@ async function migUpload(file) {
         } catch (e) { if (tries >= 3) throw e; await new Promise(r => setTimeout(r, 1500 * (tries + 1))); }
       }
       sent++;
-      say(`Uploading <b>${esc(file.name)}</b>: ${nf(sent)} of ${nf(total)} chunks (${nf(100 * sent / total, 0)}%). If the connection drops, choose the same file again and the upload carries on.<div style="margin-top:6px">${bar(sent / total)}</div>`);
+      say(`Uploading <b>${esc(file.name)}</b>: ${nf(sent)} of ${nf(total)} chunks (${nf(100 * sent / total, 0)}%). If the connection drops, choose the same file again and the upload carries on.<div style="margin-top:6px">${migBar(sent / total)}</div>`);
     }
     await post(`/v1/migration/uploads/${encodeURIComponent(id)}/complete`);
     localStorage.removeItem(MIG_LS);

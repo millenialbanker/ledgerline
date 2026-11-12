@@ -61,12 +61,16 @@ var reconLabels = map[string]string{
 	pkg.CheckTBDebit: "Trial balance: total debits", pkg.CheckTBCredit: "Trial balance: total credits", pkg.CheckClients: "Clients",
 	pkg.CheckClientDebit: "Clients in debit: total", pkg.CheckClientCredit: "Clients in credit: total", pkg.CheckDPAccounts: "Demat accounts",
 	pkg.CheckDPQuantity: "Demat holdings: total quantity", pkg.CheckDocuments: "Archived documents", pkg.CheckBankAccounts: "Client bank accounts",
-	pkg.CheckPositions: "Open positions",
+	pkg.CheckPositions: "Open positions", pkg.CheckOpeningDifference: "Difference in opening balances (to be confirmed by the accountant)",
 }
 
-var reconMoney = map[string]bool{pkg.CheckTBDebit: true, pkg.CheckTBCredit: true, pkg.CheckClientDebit: true, pkg.CheckClientCredit: true}
+var reconMoney = map[string]bool{pkg.CheckTBDebit: true, pkg.CheckTBCredit: true, pkg.CheckClientDebit: true, pkg.CheckClientCredit: true, pkg.CheckOpeningDifference: true}
 
 const reconBehindMax = 200
+
+// openingDiffAccount holds a difference the old system's opening
+// balances carried, until the firm's accountant confirms it.
+const openingDiffAccount = "SUSPENSE:OPENING-DIFFERENCE"
 
 // ReconcileMigration works the figures out again and stores the result.
 func (o *Ops) ReconcileMigration(ctx context.Context, tenant, actor, id string) (Migration, error) {
@@ -253,6 +257,10 @@ func (o *Ops) reconFigure(ctx context.Context, tenant string, m *Migration, c pk
 			return dr.String(), behind, true
 		}
 		return cr.String(), behind, true
+	case pkg.CheckOpeningDifference:
+		// the balance of the old system's unexplained opening difference,
+		// debit positive, as the migration tool wrote it
+		return bal[openingDiffAccount].String(), nil, true
 	case pkg.CheckClients:
 		have := map[string]bool{}
 		for _, cl := range clients {
