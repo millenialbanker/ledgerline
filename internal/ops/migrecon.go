@@ -364,21 +364,16 @@ func (o *Ops) reconFigure(ctx context.Context, tenant string, m *Migration, c pk
 	case pkg.CheckBankAccounts:
 		n := 0
 		got := map[string]int{}
+		// Every registered account counts, active or not, as the old
+		// system's figure does: accounts can load inactive (closed in the
+		// old system, over the firm's limit, or with an invalid number).
 		for _, cl := range clients {
-			for _, b := range cl.Banks {
-				// An inactive client's accounts above the firm's limit were
-				// active in the old system and load as inactive (clientbanks.go).
-				if b.Status == "" || b.Status == "Active" || b.InactiveWhy == bankOverLimitWhy {
-					n++
-					got[cl.UCC]++
-				}
-			}
+			n += len(cl.Banks)
+			got[cl.UCC] += len(cl.Banks)
 		}
 		want := map[string]int{}
 		for _, r := range o.rawRows(ctx, tenant, m, "CLIENT-BANKS", []string{"UCC"}) {
-			if s := r.get("Status"); s == "" || strings.EqualFold(s, "Active") {
-				want[strings.ToUpper(r.get("UCC"))]++
-			}
+			want[strings.ToUpper(r.get("UCC"))]++
 		}
 		if len(want) > 0 {
 			for _, u := range sortedKeys(want) {
