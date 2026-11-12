@@ -123,6 +123,40 @@ A client may register more than one bank account. Money is taken only from the c
 6. **Payouts** and running account settlement go to the primary. To pay another registered account, choose it on the payout request and give the reason; a payout to an account removed in the meantime is held back from the batch.
 7. Migrating: load **CLIENT-BANKS** on [[files|Files]] after the client master, one row per account (UCC, Bank, IFSC, Account, Primary Y/N, optional Type, Status, Branch, MICR).
 
+## client-demat-accounts
+title: More than one demat account for a client
+screen: clients
+roles: Ops maker, Ops checker, Branch staff
+ask: add demat account; second demat account; two demat accounts; multiple demat accounts; several demat accounts; make demat account primary; primary demat account; deactivate demat account; demat account with another dp; other dp demat; pay out shares to another demat account; holdings of second demat account; which demat account; joint holders; joint demat account
+related: client-bank-accounts, dp-only-clients, dis, ucc-upload, cdsl-client-master
+
+A client may have more than one demat account: several with the firm's own DP, or accounts with other DPs. One is the **primary**: the exchanges' UCC records list it first, and pay-outs of securities go to it unless another account is chosen for them. The exchanges take 5 demat accounts in the UCC record (NSE and BSE) and 3 at MCX; a client with more active accounts is sent with the first ones (the primary first) and the UCC page warns about the rest.
+
+1. Open the client: **Demat accounts** lists every account with its depository and BO ID, **Our DP** or **Another DP**, the holders (the first holder and up to two joint holders, as "Asha Test, Bina Test & Chetan Test"), the **Primary** badge, its status (Active, Inactive, Closed), the DP's own status or freeze for an account with the firm's DP, and its holdings.
+2. **Add demat account**: the depository and the BO ID (CDSL: 16 digits; NSDL: IN, the DP ID and the client ID, 16 characters), and the proof: for another DP's account its client master report or a statement; for an account with the firm's DP, the client's signed request. A BO ID belongs to one client: an ID already on another client is refused.
+3. **Make primary**, **Mark inactive** or **Pay-outs here**: attach the client's signed request. The primary cannot be marked inactive; make another the primary first. Marking inactive here does not close the account at the depository: a closure is a [[dp|DP request]].
+4. An **Ops checker** who didn't raise it approves it on [[changes|Change requests]]. A work item reminds you to send the **UCC modification** to each exchange (not for a client of the DP only, nor for a change of the pay-out account). When the primary changes, the holdings Ledgerline kept for the primary stay with that account.
+5. **Holdings are kept per account.** The client screen shows each account's holdings with an **All accounts** total; the portal groups them by account. Margin, collateral, the client's holding value and the exchange holding statement add the accounts up.
+6. **Instructions name the account.** A delivery instruction slip, an eDIS authorisation, a margin pledge, a closure or a transmission acts on one account, the primary unless you choose another, and only that account's free balance counts. A DIS book is issued for one account. Sales delivered by DDPI are taken from the primary first, then the others.
+7. **Fractions.** Demat quantities can have decimals (units of mutual funds held in demat, up to 4 decimals): statements and the portal show them as they are, values are worked out exactly and rounded to paise at the end. Trades, deliveries, pledges and eDIS work in whole units, so a holding of 125.432 can be sold or pledged up to 125. Finspot's and BOW's holdings files take whole units: each account's fraction is left out of them. The NSE holding statement takes 3 decimals.
+8. Migrating: **DP-ACCOUNTS** lists the DP's accounts (several rows for a client, **Primary** Y on one, the joint holders in **Holder2Name**, **Holder2PAN**, **Holder3Name**, **Holder3PAN**); **CLIENT-DEMATS** lists every demat account the client registered, with other DPs too (UCC, Depository, DematID; optional Primary, Status). **DP-HOLDINGS** and **HOLDING-LOTS** take an optional **BOID** column for a holding in an account other than the primary. See [[files|Files → Other uploads]].
+
+## dp-only-clients
+title: Clients of the DP only (no trading account)
+screen: clients
+roles: Ops maker, Ops checker
+ask: dp only client; demat only client; demat account without trading account; open only demat account; client has only demat account; no trading account; depository only client; convert dp client to trading; open a trading account for dp client; dp client wants to trade; dp only badge
+related: client-demat-accounts, new-client, activate-client, dp-billing
+
+A client of the firm's DP only has demat accounts with the DP and no trading account. The client list and the client screen show a **DP only** badge; **DP only** on the client list shows just them.
+
+- **What applies**: KYC, KRA and CKYC, PMLA checks, nominees, the client's documents, the DP's accounts, holdings and statements, DP billing (the DP bill is posted to the client's ledger like any other), receipts and payouts of a credit balance, and the portal (holdings, DP bills, ledger, documents).
+- **What is left out**: segments and the exchanges' UCC records, Finspot and BOW files and limits, RMS, contract notes and trading bills, running account settlement, margin reporting and SEGMON, the exchanges' inactivity rule, brokerage plans, and the portal's trading screens (contract notes, IPO, mutual funds, SIPs, eDIS and margin pledges).
+
+1. **New client**: tick **A client of our DP only** on the segments step. No segments, running account settlement or risk disclosure are asked for, and income proof is not needed. There is no UCC upload stage: after KYC verification the client goes straight to Active, activated by an Ops checker who did not create the application. Open the demat account with the DP as usual ([[dp|Demat accounts & DIS]]).
+2. **Open a trading account** (client screen, Ops maker or Ops checker): choose the segments and running account settlement and confirm the risk disclosure (and the income proof for derivatives). The client moves to the **UCC upload** stage, the exchanges' UCC pages send it as a new client, and a checker who did not make the request activates it.
+3. Migrating: in **CLIENT-MASTER**, **DPOnly** Y marks such a client (segments left blank). **DP-ACCOUNTS** must then give the client a demat account with the firm's DP; the import warns when it does not.
+
 ## client-groups
 title: Put clients in groups
 screen: clients

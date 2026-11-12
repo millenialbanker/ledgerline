@@ -122,6 +122,7 @@ V.pedis = {
 
 const edisStaffForm = () => `<div class="grid g2"><div class="fld"><label for="edis-ucc">Client code</label><input class="in mono" id="edis-ucc" autocapitalize="characters"></div>
   <div class="fld"><label for="edis-ex">Exchange</label><select class="in" id="edis-ex"><option>NSE</option><option>BSE</option></select></div>
+  <div class="fld"><label for="edis-bo">Demat account (BO ID; blank: the primary)</label><input class="in mono" id="edis-bo" maxlength="16"></div><div class="fld"></div>
   <div class="fld"><label for="edis-isin">ISIN</label><input class="in mono" id="edis-isin" autocapitalize="characters"></div><div class="fld"><label for="edis-qty">Quantity</label><input class="in mono" id="edis-qty" inputmode="numeric"></div></div>
   <div class="dim small">The client must be present: CDSL's page asks for the client's TPIN and the OTP sent to the client's mobile.</div>`;
 
@@ -138,7 +139,7 @@ Object.assign(A, {
   cdxSubToggle: id => { const s = C.cdsltxn.report_subscriptions.find(x => x.id === id); act(() => post('/v1/cdsl/reports/subscriptions', { ...s, active: !s.active }), s.active ? 'Daily setup stopped' : 'Daily setup started'); },
   cdxSFTP: () => act(() => post('/v1/cdsl/reports/sftp'), r => `${(r.loaded || []).length} new file(s)`),
   edisNew: () => confirmModal('Authorise a sale for a client', 'Pre-trade authorisation through CDSL eDIS.', edisStaffForm(), 'Go to CDSL', async () => {
-    const r = await post('/v1/cdsl/edis', { ucc: $('edis-ucc').value.trim().toUpperCase(), exchange: $('edis-ex').value, lines: [{ isin: $('edis-isin').value.trim().toUpperCase(), qty: parseInt($('edis-qty').value || '0', 10) || 0 }] });
+    const r = await post('/v1/cdsl/edis', { ucc: $('edis-ucc').value.trim().toUpperCase(), bo_id: $('edis-bo').value.trim(), exchange: $('edis-ex').value, lines: [{ isin: $('edis-isin').value.trim().toUpperCase(), qty: parseInt($('edis-qty').value || '0', 10) || 0 }] });
     cdxGo(r.form);
   }),
   edisTPIN: () => confirmModal('Generate a TPIN', 'CDSL sends the new TPIN to the mobile and e-mail it has for the account. Only when the client asked for it.', '<div class="fld"><label for="edis-pu">Client code</label><input class="in mono" id="edis-pu"></div><div class="fld"><label for="edis-pn">How the client asked (call reference, letter, visit)</label><input class="in" id="edis-pn"></div>', 'Ask CDSL',

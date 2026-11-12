@@ -101,6 +101,7 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/ledgy/feedback", s.ledgyFeedback, true)
 	R("GET /v1/ledgy/gaps", s.ledgyGaps, false)
 	R("POST /v1/clients/{ucc}/advance", s.advance, true)
+	R("POST /v1/clients/{ucc}/trading-account", s.openTradingAccount, true)
 	R("POST /v1/clients/{ucc}/block", s.block, true)
 	R("GET /v1/market", s.market, false)
 	R("GET /v1/collateral", s.collateral, false)
@@ -543,6 +544,19 @@ func (s *Server) createClient(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 201, v.Public())
+}
+
+// openTradingAccount opens a trading account for a client of the DP only.
+func (s *Server) openTradingAccount(w http.ResponseWriter, r *http.Request) {
+	var b ops.TradingAccount
+	if !decode(w, r, &b) {
+		return
+	}
+	if !s.canSee(w, r, r.PathValue("ucc")) {
+		return
+	}
+	v, err := s.ops.OpenTradingAccount(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), b)
+	ok(w, v.Public(), err)
 }
 
 func (s *Server) advance(w http.ResponseWriter, r *http.Request) {
@@ -2943,11 +2957,12 @@ func (s *Server) dpBSDA(w http.ResponseWriter, r *http.Request) {
 	var b struct {
 		On   bool   `json:"on"`
 		Date string `json:"date"`
+		BOID string `json:"bo_id"` // which of the client's accounts (blank: the primary)
 	}
 	if !decode(w, r, &b) {
 		return
 	}
-	v, err := s.ops.SetBSDA(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), b.On, b.Date)
+	v, err := s.ops.SetBSDAFor(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), b.BOID, b.On, b.Date)
 	ok(w, v, err)
 }
 
@@ -2955,11 +2970,12 @@ func (s *Server) dpBook(w http.ResponseWriter, r *http.Request) {
 	var b struct {
 		UCC   string `json:"ucc"`
 		Slips int64  `json:"slips"`
+		BOID  string `json:"bo_id"` // the account the book is for (blank: the primary)
 	}
 	if !decode(w, r, &b) {
 		return
 	}
-	v, err := s.ops.IssueDISBook(r.Context(), tenant(r), actor(r), b.UCC, b.Slips)
+	v, err := s.ops.IssueDISBookFor(r.Context(), tenant(r), actor(r), b.UCC, b.BOID, b.Slips)
 	ok(w, v, err)
 }
 

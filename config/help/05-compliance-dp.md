@@ -190,7 +190,7 @@ related: dp-requests
 On [[dp|Demat accounts & DIS]]:
 
 1. **Issue DIS book** to the client (slip numbers are registered).
-2. A maker **Enters a slip**: slip number, ISIN, quantity, target account.
+2. A maker **Enters a slip**: slip number, the client's demat account it debits (the primary unless another is chosen), ISIN, quantity (up to 4 decimals for units held in demat), target account. Only that account's free balance counts, and a slip from a book issued for another account is refused.
 3. A checker **Verifies** it against the slip register, the signature and the free balance (large values need a second check), or **Rejects** it.
 4. Verified slips go in the upload batch; mark **Executed** or **Failed** from the depository's response.
 

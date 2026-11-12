@@ -140,6 +140,15 @@ func (o *Ops) ClientDetail(ctx context.Context, tenant, ucc, date string) (Clien
 	}
 	_, look, _ := o.Market(ctx, tenant, date)
 	d.Holdings = holdingViews(c, hs, look)
+	// By account, the primary first, so that each account's holdings are
+	// shown together.
+	sort.SliceStable(d.Holdings, func(i, j int) bool {
+		a, b := d.Holdings[i], d.Holdings[j]
+		if a.Primary != b.Primary {
+			return a.Primary
+		}
+		return a.Account < b.Account
+	})
 	for _, v := range holdingViews(c, sumHoldings(hs), look) {
 		v.Account, v.Primary = "", false
 		d.HoldingTotals = append(d.HoldingTotals, v)

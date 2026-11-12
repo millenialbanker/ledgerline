@@ -376,7 +376,9 @@ func (o *Ops) createApplication(ctx context.Context, tenant, actor string, c Cli
 	if c.Nominee == "" {
 		c.Nominee = "Opted out"
 	}
-	if !c.RiskDisclosure {
+	// The risk disclosure document is about trading: a client of the DP
+	// only acknowledges it when opening a trading account (dponly.go).
+	if !c.RiskDisclosure && !c.DPOnly {
 		return Client{}, &ValidationError{[]FieldError{{"risk_disclosure", "Risk disclosure acknowledgement is required"}}}
 	}
 	if err := c.Validate(); err != nil {
@@ -416,7 +418,7 @@ func (o *Ops) createApplication(ctx context.Context, tenant, actor string, c Cli
 	if _, err := docs.Put(ctx, o.Docs, tenant, cClient, c.UCC, c, 0, actor); err != nil {
 		return Client{}, err
 	}
-	o.log(ctx, tenant, actor, "client.application.created", c.UCC, map[string]any{"pan": MaskPAN(c.PAN), "segments": c.Segments})
+	o.log(ctx, tenant, actor, "client.application.created", c.UCC, map[string]any{"pan": MaskPAN(c.PAN), "segments": c.Segments, "dp_only": c.DPOnly})
 	return c, nil
 }
 
@@ -440,6 +442,9 @@ func (o *Ops) AdvanceStage(ctx context.Context, tenant, actor, ucc string) (Clie
 		return Client{}, fmt.Errorf("%w: %s is %s and cannot be advanced", ErrState, ucc, c.Status)
 	}
 	next := Stages[i+1]
+	if next == "UCC upload" && c.DPOnly {
+		next = "Active" // no trading account, so nothing goes to the exchanges' UCC (dponly.go)
+	}
 	if next == "Active" {
 		if err := o.require(ctx, tenant, actor, "Activating a client", RoleChecker); err != nil {
 			return Client{}, err

@@ -130,11 +130,13 @@ Besides clients, balances and holdings, the old back office keeps data Ledgerlin
 
 1. **BRANCHES**: the offices and their tree (Code, Name; optional City, Manager, Kind, Parent, Active). A parent may come further down the file.
 2. **PARTNERS**: authorised persons and relationship managers (Code, Name, Kind; optional Branch, Parent, PAN, GSTIN, RegNo, SharePct, bank details, Email, Active).
-3. **CLIENT-MASTER**, which may also carry **Inactive** and **InactiveSince**, **AP** and **RM** (partner codes, checked against the partners once there are any) and **Groups** (separated by ;, added to the client's groups).
+3. **CLIENT-MASTER**, which may also carry **Inactive** and **InactiveSince**, **AP** and **RM** (partner codes, checked against the partners once there are any), **Groups** (separated by ;, added to the client's groups) and **DPOnly** (Y for a client of the DP only, with no segments). Its demat account becomes the client's primary; a demat account already on another client is refused (a warning for an inactive client).
+   **CLIENT-DEMATS** (after CLIENT-BANKS) lists every demat account a client registered, with the firm's DP or another (UCC, Depository, DematID; optional Primary Y on at most one row, Status Active or Inactive). A client's rows replace their demat accounts; with no Primary the client master's account stays the primary.
 4. **UCC-DETAILS**: the exchanges' UCC details (address in lines with PIN, permanent address, gender, father's or spouse's name, occupation, PEP, IPV, POA and the rest). A blank cell leaves what is stored.
 5. **UCC-CONTACTS**: contact persons of firms and companies (UCC, Name, Designation; optional PAN, Address, Phone, Email, DIN). A client's rows replace their contacts, at most 5.
-6. **DP-ACCOUNTS**: the DP's record of each demat account (UCC, BOID, Depository, Status; optional Opened, ClosedOn, BSDA, Freeze and FreezeReason, DDPI).
+6. **DP-ACCOUNTS**: the DP's record of each demat account (UCC, BOID, Depository, Status; optional Opened, ClosedOn, BSDA, Freeze and FreezeReason, DDPI, Primary, and the joint holders Holder2Name, Holder2PAN, Holder3Name, Holder3PAN). A client may have several rows; Primary Y on one makes it the primary demat account.
 
 - Each file is checked with the same rules as its screen, and every problem is listed at once.
-- A demat account whose UCC is not a client here is reported as a warning and left out: Ledgerline keeps demat accounts for its trading clients.
+- A demat account whose UCC is not a client here is an error: load the client master first (a client of the DP only comes in with DPOnly Y). A BO ID on two clients is an error too.
+- The reconciliation counts every BO account and compares holdings quantity by quantity, decimals included.
 - Loading a file again changes nothing.
