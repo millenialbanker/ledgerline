@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="ll-token" content="__TOKEN__">
+<title>Ledgerline migration</title>
+<link rel="stylesheet" href="/app.css?t=__TOKEN__">
+</head>
+<body>
+<header>
+  <div class="mark"><i></i><i></i><i></i></div>
+  <div><b>Ledgerline migration</b><small id="sub">Moves your old back office into Ledgerline. Nothing leaves this computer.</small></div>
+  <nav class="steps" id="steps">
+    <span data-s="drop">1 Backups</span><span data-s="found">2 What we found</span><span data-s="choose">3 Choose</span><span data-s="working">4 Working</span><span data-s="done">5 Done</span>
+  </nav>
+</header>
+<main>
+  <div id="gone" class="note bad hidden"><b>The migration tool has stopped.</b> Start it again to carry on. You can close this tab.</div>
+
+  <!-- a) Drop your backups here -->
+  <section id="s-drop" class="hidden">
+    <div class="card" id="server">
+      <h2>SQL Server</h2>
+      <p id="srv-msg" class="dim">Looking for SQL Server on this computer…</p>
+      <div id="srv-warn"></div>
+      <div id="srv-login" class="hidden">
+        <div class="row">
+          <label class="field"><span>Server</span><select id="srv-ep"></select></label>
+          <label class="field"><span>Or type it</span><input type="text" id="srv-inst" placeholder="localhost\SQLEXPRESS" autocomplete="off"></label>
+          <label class="field"><span>Login</span><input type="text" id="srv-user" placeholder="sa" autocomplete="off"></label>
+          <label class="field"><span>Password</span><input type="password" id="srv-pass" autocomplete="off"></label>
+        </div>
+        <div class="row"><button class="btn pri" id="srv-connect">Connect</button><button class="btn" id="srv-retry">Look again</button></div>
+      </div>
+      <div id="srv-none" class="hidden row"><button class="btn" id="srv-retry2">Try again</button><button class="btn" id="srv-showlogin">Enter a SQL Server login</button><button class="btn pri hidden" id="dk-check">Check Docker</button></div>
+      <div id="srv-docker" class="hidden">
+        <div class="row"><button class="btn" id="dk-retry">Try again</button><button class="btn pri hidden" id="dk-start">Start SQL Server</button></div>
+        <p class="dim small" id="dk-eula">Starting it accepts Microsoft's licence terms for SQL Server Express. The free Express edition holds up to 10 GB per database. The container is removed when you finish; the downloaded SQL Server is kept so the next run starts quickly.</p>
+        <details><summary>Advanced</summary>
+          <label class="check"><input type="checkbox" id="dk-dev"><span><b>Use SQL Server Developer edition for this test copy</b><br><span class="dim small">Microsoft licenses Developer edition for development and testing only, not production use. Check with your IT before using it.</span></span></label>
+        </details>
+      </div>
+      <div id="srv-ready" class="hidden row"><button class="btn sm" id="srv-change">Use another SQL Server</button><button class="btn sm" id="live-list">Use databases already on this server</button></div>
+      <div id="live" class="hidden">
+        <h2 data-mt>Databases on this server</h2>
+        <p class="dim small">Read in place: nothing on them is changed. Tick the SharePro databases (company years like NC2627, mail archives like NCMAIL2627, shadmin).</p>
+        <table><thead><tr><th></th><th>Database</th><th class="n">Size</th></tr></thead><tbody id="live-rows"></tbody></table>
+        <div class="row" data-mt><button class="btn pri" id="live-use">Use the ticked databases</button></div>
+      </div>
+    </div>
+
+    <div class="drop" id="dropzone">
+      <h2>Drop your backups here</h2>
+      <p class="dim">The latest SharePro backup and the archives of up to 8 earlier years: .7z, .zip or .bak files, or whole folders of them.</p>
+      <div class="row" data-mt data-center>
+        <button class="btn" id="browse">Choose files</button>
+        <button class="btn" id="browse-dir">Choose a folder</button>
+        <input type="file" id="pick" multiple class="hidden">
+        <input type="file" id="pick-dir" webkitdirectory multiple class="hidden">
+      </div>
+      <p class="dim small" id="free" data-mt></p>
+    </div>
+
+    <div class="card hidden" id="files-card">
+      <h2>Files</h2>
+      <table><thead><tr><th>File</th><th class="n">Size</th><th>Status</th><th></th></tr></thead><tbody id="files"></tbody></table>
+      <div id="pw-box"></div>
+      <div id="scan-box" class="hidden" data-mt>
+        <p id="scan-step" class="dim"></p>
+        <div class="bar" id="scan-bar"><i></i></div>
+      </div>
+      <p id="scan-err" class="note bad hidden" data-mt></p>
+      <div class="row" data-mt><button class="btn pri" id="scan">Continue</button><button class="btn bad hidden" id="scan-cancel">Cancel</button><span class="dim small" id="scan-why"></span></div>
+    </div>
+  </section>
+
+  <!-- b) What we found -->
+  <section id="s-found" class="hidden">
+    <div class="card">
+      <h1>What we found</h1>
+      <p class="dim">One row for each database. Rows marked Skip are not read; you may skip any other row too.</p>
+      <div id="found-warn"></div>
+      <table><thead><tr><th>File</th><th>Database</th><th>What it is</th><th>Year</th><th>Backup date</th><th class="n">Size</th><th>Use</th><th></th></tr></thead><tbody id="found"></tbody></table>
+      <div class="row" data-mt><button class="btn" id="found-back">Back</button><span class="grow"></span><button class="btn pri" id="found-next">Continue</button></div>
+    </div>
+  </section>
+
+  <!-- c) Choose -->
+  <section id="s-choose" class="hidden">
+    <div class="card">
+      <h1>Choose what to migrate</h1>
+      <div class="field"><span>Firms</span><div class="firms" id="firms"></div></div>
+      <div class="two">
+        <div>
+          <label class="field"><span>Years of history</span>
+            <select id="years"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option selected>8</option></select>
+            <span class="dim small">Counting back from the newest year. Ledgerline keeps them read-only.</span></label>
+          <div class="field"><span>Archived documents</span>
+            <label class="check"><input type="checkbox" id="docs" checked><span>Include the contract notes and statements SharePro mailed (from its mail archives)</span></label></div>
+          <div class="field"><span>Dormant clients</span>
+            <label class="check"><input type="radio" name="dormant" value="inactive" checked><span>Migrate them as inactive</span></label>
+            <label class="check"><input type="radio" name="dormant" value="skip"><span>Leave them out</span></label></div>
+        </div>
+        <div>
+          <label class="field"><span>Where to save the package</span>
+            <input type="text" id="out" class="wide" autocomplete="off">
+            <span class="dim small" id="out-info"></span></label>
+          <label class="field"><span>Passphrase</span>
+            <input type="password" id="pp1" class="wide" autocomplete="new-password">
+            <span class="strength" id="pp-strength"></span></label>
+          <label class="field"><span>Passphrase again</span>
+            <input type="password" id="pp2" class="wide" autocomplete="new-password">
+            <label class="check small"><input type="checkbox" id="pp-show"><span>Show the passphrase</span></label></label>
+          <p class="note small">The package is locked with this passphrase. Ledgerline asks for it when you upload the package; <b>without it the package cannot be opened</b>, not even by Ledgerline. It is not stored anywhere. Use at least 12 characters (a few unrelated words work well) and give it to the person loading the package separately from the file.</p>
+        </div>
+      </div>
+      <details><summary>Advanced</summary>
+        <label class="field"><span>Largest package size (GB)</span><input type="number" id="maxpart" value="4" min="0.1" step="0.5" data-w120>
+          <span class="dim small">Masters and history are always in part 1; archived documents go on into further parts when a part reaches this size.</span></label>
+        <label class="check"><input type="checkbox" id="keep"><span>Keep the restored copies of the databases on SQL Server afterwards (normally they are removed)</span></label>
+      </details>
+      <p id="choose-err" class="note bad hidden"></p>
+      <div class="row" data-mt><button class="btn" id="choose-back">Back</button><span class="grow"></span><button class="btn pri" id="start">Make the package</button></div>
+    </div>
+  </section>
+
+  <!-- d) Working -->
+  <section id="s-working" class="hidden">
+    <div class="card">
+      <h1>Making the package</h1>
+      <p class="big" id="w-step"></p>
+      <div class="row"><div class="bar grow" id="w-bar"><i></i></div><span class="num small" id="w-count"></span></div>
+      <p id="w-err" class="note bad hidden" data-mt></p>
+      <h2 data-mt>Steps</h2>
+      <ol class="steplist" id="w-steps"></ol>
+      <h2 data-mt>Log</h2>
+      <div class="log" id="w-log"></div>
+      <div class="row" data-mt><button class="btn bad" id="w-cancel">Cancel</button><button class="btn hidden" id="w-back">Back to the choices</button><button class="btn hidden" id="w-restart">Start again</button></div>
+    </div>
+  </section>
+
+  <!-- e) Done -->
+  <section id="s-done" class="hidden">
+    <div class="card">
+      <h1>The package is ready</h1>
+      <table><thead><tr><th>File</th><th>Holds</th><th class="n">Documents</th><th class="n">Size</th></tr></thead><tbody id="d-parts"></tbody></table>
+      <div class="note good" data-mt><b>Next step:</b> In Ledgerline, open Go-live → Migrate and upload this package. Keep the passphrase separate from the file.</div>
+      <div class="row" data-mt><button class="btn pri" id="d-open">Open the report folder</button><span class="dim small" id="d-report"></span></div>
+    </div>
+    <div class="card"><h2>Issues</h2><div id="d-issues"></div></div>
+    <div class="card"><h2>Checks Ledgerline will verify</h2><table><thead><tr><th>Firm</th><th>Year</th><th>Check</th><th class="n">Value</th></tr></thead><tbody id="d-checks"></tbody></table></div>
+    <div class="two">
+      <div class="card"><h2>Fields left out</h2><table><thead><tr><th>Firm</th><th>Field</th><th>Why</th><th class="n">Records</th></tr></thead><tbody id="d-dropped"></tbody></table>
+        <p class="dim small" data-mt>Passwords and full Aadhaar numbers are never migrated.</p></div>
+      <div class="card"><h2>Archived documents</h2><table><thead><tr><th>Firm</th><th>Year</th><th>Type</th><th class="n">Count</th></tr></thead><tbody id="d-docs"></tbody></table></div>
+    </div>
+    <div class="row"><span class="grow"></span><button class="btn" id="d-quit">Finish and close the tool</button></div>
+  </section>
+
+  <section id="s-bye" class="hidden"><div class="card"><h1>Finished</h1><p>The tool has removed its temporary copies and work files. You can close this tab.</p></div></section>
+</main>
+<script src="/app.js?t=__TOKEN__"></script>
+</body>
+</html>
