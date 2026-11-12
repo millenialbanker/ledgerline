@@ -1110,7 +1110,12 @@ func (c *cur) writeBanks(ctx context.Context) error {
 		if c.s.hasCol("BKMAST", "TYPE") {
 			pool = " AND ISNULL(RTRIM(b.[TYPE]), '') <> 'Pool'"
 		}
-		r, err := c.d.one(ctx, fmt.Sprintf(`/*sp:check-banks*/ SELECT COUNT(*) AS n FROM (SELECT DISTINCT RTRIM(b.SUBCD) AS u, RTRIM(ISNULL(b.ACNO, '')) COLLATE Latin1_General_BIN AS a, %s COLLATE Latin1_General_BIN AS i FROM BKMAST b JOIN DLMAST d ON RTRIM(d.SUBCD) = RTRIM(b.SUBCD) WHERE RTRIM(d.SUBCD) IN (%s)%s AND NOT (RTRIM(ISNULL(b.ACNO, '')) = '' AND RTRIM(ISNULL(b.BANKCD, '')) = '')) x`, ifsc, inList(sortedKeys(c.written)), pool))
+		closed := "0"
+		if c.s.hasCol("BKMAST", "Closed") {
+			// an open and a closed row of the same account are both kept
+			closed = "ISNULL(CAST(b.[Closed] AS int), 0)"
+		}
+		r, err := c.d.one(ctx, fmt.Sprintf(`/*sp:check-banks*/ SELECT COUNT(*) AS n FROM (SELECT DISTINCT RTRIM(b.SUBCD) AS u, RTRIM(ISNULL(b.ACNO, '')) COLLATE Latin1_General_BIN AS a, %s COLLATE Latin1_General_BIN AS i, %s AS c FROM BKMAST b JOIN DLMAST d ON RTRIM(d.SUBCD) = RTRIM(b.SUBCD) WHERE RTRIM(d.SUBCD) IN (%s)%s AND NOT (RTRIM(ISNULL(b.ACNO, '')) = '' AND RTRIM(ISNULL(b.BANKCD, '')) = '')) x`, ifsc, closed, inList(sortedKeys(c.written)), pool))
 		if err != nil {
 			return err
 		}
