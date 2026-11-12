@@ -140,6 +140,7 @@ Managing branches | Ops checker, Admin
 Managing message channels and desks | Admin
 Managing partners | Ops checker, Admin
 Managing the firm's saved logins | Admin
+Mapping clients to BOW | Risk manager
 Mapping clients | Ops checker, Admin
 Marking a dealer as left | Compliance officer
 Marking a report uploaded | Ops checker, Compliance officer
@@ -161,6 +162,7 @@ Prepaid schemes | Ops checker, Admin
 Preparing margin penalties | Ops checker, Risk manager, Compliance officer
 Producing the payout bank file | Ops maker, Ops checker
 Proposing legacy debts | Ops maker, Ops checker, Risk manager, Compliance officer
+Pushing limits to BOW | Risk manager
 Raising CDSL requests | Ops maker, Ops checker
 Raising pledge invocations | Risk manager
 Raising stock SIP top-up debits | Ops maker, Ops checker
@@ -246,6 +248,7 @@ Setting up public issues | Ops maker, Ops checker
 Setting up stock SIPs | Compliance officer
 Settlement actions | Ops maker, Ops checker
 Settling a buy-back | Ops checker
+Signing in to BOW | Risk manager
 Square-off | Risk manager
 Submitting the holding statement to NSE | Ops maker, Ops checker, Compliance officer
 Switching AI off or on | Compliance officer
@@ -267,6 +270,7 @@ Verifying delivery instructions | Ops checker
 View data protection | Compliance officer
 Viewing AI controls | Compliance officer
 Viewing AI usage | Compliance officer
+Viewing BOW limits | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing BSE UCC registrations | Ops maker, Ops checker, Compliance officer
 Viewing CDSL API transactions | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing CDSL demat account counts | Ops maker, Ops checker, Risk manager, Compliance officer

@@ -294,6 +294,8 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.nseUCITick(ctx, tenant, now)
 	o.bseUCCTick(ctx, tenant, now)
 	o.mcxUCCAPITick(ctx, tenant, now)
+	// Client limits to BOW (BOLTPlusOnWeb) by its API, when switched on.
+	o.bowTick(ctx, tenant, now)
 	// Holding statement to NSE by API, when switched on.
 	o.nseHoldingTick(ctx, tenant, now)
 	// Dealers: NISM certificate expiry and open terminals of dealers who left.

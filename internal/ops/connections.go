@@ -288,6 +288,11 @@ func (o *Ops) SaveConnection(ctx context.Context, tenant, actor, id string, valu
 			return ConnectionView{}, err
 		}
 	}
+	if id == connBOW {
+		if err := checkBOWConn(nc); err != nil {
+			return ConnectionView{}, err
+		}
+	}
 	if id == connVerify {
 		if err := checkVerifyConn(nc); err != nil {
 			return ConnectionView{}, err
@@ -367,6 +372,8 @@ func (o *Ops) TestConnection(ctx context.Context, tenant, actor, id string) (Con
 		}
 	case id == connMCXUCC: // a token and MCX's health check
 		status, problem = o.mcxUCCAPITest(ctx, tenant, c)
+	case id == connBOW: // the sign-in and a harmless list
+		status, problem = o.bowTest(ctx, tenant, c)
 	case p.Test == "https" && c.Values["url"] != "":
 		status, problem = o.checkAddress(ctx, c.Values["url"])
 	case id == connVerify && verifyBases[c.Values["provider"]][0] != "":
