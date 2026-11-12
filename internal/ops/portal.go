@@ -100,6 +100,7 @@ type PortalAccount struct {
 	Mobile      string            `json:"mobile"`
 	City        string            `json:"city"`
 	Bank        BankAccount       `json:"bank"`
+	Banks       []BankAccount     `json:"banks"` // all registered accounts, masked, primary first
 	Demat       Demat             `json:"demat"`
 	Segments    []string          `json:"segments"`
 	Nominee     string            `json:"nominee"`
@@ -147,7 +148,12 @@ type PortalDocument struct {
 func portalAccount(c Client) PortalAccount {
 	b := c.Bank
 	b.Account = MaskAccount(b.Account)
-	return PortalAccount{UCC: c.UCC, Name: c.Name, PAN: MaskPAN(c.PAN), Email: c.Email, Mobile: c.Mobile, City: c.City, Bank: b, Demat: c.Demat,
+	var bs []BankAccount
+	for _, x := range maskBanks(registeredBanks(c)) {
+		x.ProofDoc, x.Change = "", ""
+		bs = append(bs, x)
+	}
+	return PortalAccount{UCC: c.UCC, Name: c.Name, PAN: MaskPAN(c.PAN), Email: c.Email, Mobile: c.Mobile, City: c.City, Bank: b, Banks: bs, Demat: c.Demat,
 		Segments: c.Segments, Nominee: c.Nominee, NomineeName: c.NomineeName, Nominees: maskNominees(c.Nominees), RAS: c.RAS, Blocked: c.Blocked, Inactive: c.Inactive, WhatsApp: c.WhatsApp, Names: SegmentNames}
 }
 
@@ -225,6 +231,7 @@ func (o *Ops) Portal(ctx context.Context, tenant, actor, date, ucc string) (Port
 	ps, _ := docs.List[PayoutRequest](ctx, o.Docs, tenant, cPayout, "")
 	for _, p := range ps {
 		if p.UCC == ucc {
+			p.ToAccount = MaskAccount(p.ToAccount)
 			v.Payouts = append(v.Payouts, p)
 		}
 	}
@@ -301,6 +308,9 @@ type ChangeRequest struct {
 	// Check is the live bank account check of a new bank account, when the
 	// firm has a verification provider connected.
 	Check *AppCheck `json:"check,omitempty"`
+	// UCCModify are the exchanges whose UCC record an approved bank
+	// account change modifies (clientbanks.go).
+	UCCModify []string `json:"ucc_modify,omitempty"`
 }
 
 func changeOld(c Client, kind string) map[string]string {
@@ -333,7 +343,10 @@ func applyChange(c *Client, r ChangeRequest) error {
 			c.State = s
 		}
 	case "Bank account":
-		c.Bank = BankAccount{Bank: strings.TrimSpace(n["bank"]), IFSC: strings.ToUpper(strings.TrimSpace(n["ifsc"])), Account: strings.TrimSpace(n["account"])}
+		// Add, replace, deactivate or make primary (clientbanks.go).
+		if err := applyBankChange(c, r); err != nil {
+			return err
+		}
 	case "Nomination":
 		if err := nominationChange(c, n); err != nil {
 			return err
@@ -375,9 +388,22 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 	if r.New == nil {
 		r.New = map[string]string{}
 	}
+	bankAct := ""
+	if kind == "Bank account" {
+		if err := prepBankChange(c, r.New); err != nil {
+			return r, err
+		}
+		bankAct = bankChangeAction(r)
+	}
 	trial := c
 	if err := applyChange(&trial, r); err != nil {
 		return r, err
+	}
+	if kind == "Bank account" {
+		set, _ := o.Settings(ctx, tenant)
+		if err := bankLimitErr(c, trial, set.maxClientBanks()); err != nil {
+			return r, err
+		}
 	}
 	if kind == "Nomination" && r.New["nominee"] == "Opted in" {
 		if err := o.checkNominationConsent(ctx, tenant, ucc, r.New); err != nil {
@@ -387,7 +413,20 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 	if fmt.Sprint(changeOld(trial, kind)) == fmt.Sprint(r.Old) && kind != "Bank account" {
 		return r, invalid("nothing would change")
 	}
-	if kind == "Bank account" || kind == "Address" {
+	if bankAct == BankDeactivate || bankAct == BankPrimary {
+		// No new account, so no bank proof; from staff, the client's signed
+		// request (any document on the client's file) is its authorisation.
+		if src != "Portal" {
+			ds, _ := o.ClientDocs(ctx, tenant, ucc)
+			ok := false
+			for _, d := range ds {
+				ok = ok || (doc != "" && d.ID == doc)
+			}
+			if !ok {
+				return r, invalid("attach the client's signed request (letter or e-signed form) to remove an account or change the primary account")
+			}
+		}
+	} else if kind == "Bank account" || kind == "Address" {
 		need := map[string]string{"Bank account": "Bank proof", "Address": "Address proof"}[kind]
 		ds, _ := o.ClientDocs(ctx, tenant, ucc)
 		ok := false
@@ -408,10 +447,10 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 			return r, invalid("a %s change for %s is already waiting for approval (%s)", strings.ToLower(kind), ucc, x.ID)
 		}
 	}
-	if kind == "Bank account" && o.verifier(ctx, tenant) != nil {
+	if (bankAct == BankReplace || bankAct == BankAdd) && o.verifier(ctx, tenant) != nil {
 		// The account is checked in the client's name before a checker sees
 		// it; one the bank says is closed or wrong is not taken.
-		ck := o.checkBank(ctx, tenant, nil, trial.Bank.Account, trial.Bank.IFSC, c.Name)
+		ck := o.checkBank(ctx, tenant, nil, strings.TrimSpace(r.New["account"]), strings.ToUpper(strings.TrimSpace(r.New["ifsc"])), c.Name)
 		ck.At = o.now().Format(time.RFC3339)
 		if ck.Status == "Failed" {
 			return r, invalid("%s", ck.Detail)
@@ -493,10 +532,23 @@ func (o *Ops) DecideChange(ctx context.Context, tenant, actor, id string, approv
 		return r.public(), invalid("give the reason for rejecting")
 	}
 	date := o.now().Format("2006-01-02")
+	var approved Client
 	if approve {
+		// The checker's approval is the account's verification (with the
+		// penny drop, when there was one).
+		ar := r
+		ar.Checker, ar.Decided = actor, o.now().Format(time.RFC3339)
+		set, _ := o.Settings(ctx, tenant)
 		if _, err := docs.Update(ctx, o.Docs, tenant, cClient, r.UCC, actor, func(c *Client) error {
-			if err := applyChange(c, r); err != nil {
+			before := *c
+			if err := applyChange(c, ar); err != nil {
 				return err
+			}
+			if r.Kind == "Bank account" {
+				if err := bankLimitErr(before, *c, set.maxClientBanks()); err != nil {
+					return err
+				}
+				approved = *c
 			}
 			// A change of KYC details goes to the KRA, and counts as
 			// account activity under the inactivity rules.
@@ -506,8 +558,13 @@ func (o *Ops) DecideChange(ctx context.Context, tenant, actor, id string, approv
 			return r.public(), err
 		}
 	}
+	var uccMod []string
+	if approve && r.Kind == "Bank account" {
+		uccMod = o.bankChangeApproved(ctx, tenant, r, approved)
+	}
 	r, err = docs.Update(ctx, o.Docs, tenant, cChange, id, actor, func(x *ChangeRequest) error {
 		x.Status, x.Checker, x.Reason, x.Decided = map[bool]string{true: "Approved", false: "Rejected"}[approve], actor, reason, o.now().Format(time.RFC3339)
+		x.UCCModify = uccMod
 		return nil
 	})
 	if err == nil {

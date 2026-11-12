@@ -95,16 +95,33 @@ Tell me the client code (for example "why is BH1003 blocked?") and I'll check th
 title: Change a client's mobile, email, address, bank or nominee
 screen: changes
 roles: Ops maker, Ops checker
-ask: change mobile number; change email; update address; change bank account; add bank account; change nominee; update client details; modify client details; client changed phone
-related: kra-status, contract-notes
+ask: change mobile number; change email; update address; change bank account; change nominee; update client details; modify client details; client changed phone
+related: kra-status, contract-notes, client-bank-accounts
 
 1. Open the client and click **Update contact details**, or let the client raise it from their portal.
 2. A **new mobile or email** is confirmed with a code sent to the new number or address before it can be approved.
-3. A **bank account** change needs proof (cancelled cheque or statement) and should be verified by a penny drop.
+3. A **bank account** change needs proof (cancelled cheque or statement) and should be verified by a penny drop. A client can have more than one account: see [[client-bank-accounts|More than one bank account]].
 4. An **Ops checker** who didn't raise the request approves it on [[changes|Change requests]].
 5. Approved changes apply at once, go into the audit trail, and are in the next KRA upload file.
 
 Never change a bank account on a phone call alone. That's the commonest fraud route.
+
+## client-bank-accounts
+title: More than one bank account for a client
+screen: clients
+roles: Ops maker, Ops checker, Branch staff
+ask: add bank account; second bank account; multiple bank accounts; add another bank account; make bank account primary; remove bank account; deactivate bank account; payout to other bank account; how many bank accounts can a client have; secondary bank account
+related: change-contact, unknown-credit, ucc-upload
+
+A client may register more than one bank account. Money is taken only from the client's registered accounts and paid only to them (SEBI Master Circular for Stock Brokers of 17 June 2025, paras 28.2 and 29.1). SEBI sets no number; the exchanges' UCC records do: BSE and NSE take 5 accounts, MCX 3. **Settings → Maximum bank accounts per client** is 3 by default when you trade on MCX (otherwise 5) so every account can be reported to every exchange.
+
+1. Open the client: **Bank accounts** lists every account (numbers masked) with the **Primary** badge, status and how it was verified.
+2. **Add bank account**: attach the bank proof (cancelled cheque or bank statement in the client's name). With a verification provider connected the account is checked by a penny drop first.
+3. **Make primary** or **Remove**: attach the client's signed request (a letter or e-signed form). From the portal, the client's own login is the request. The primary account cannot be removed; make another the primary first.
+4. An **Ops checker** who didn't raise it approves it on [[changes|Change requests]]. The account becomes Active (or Inactive), a work item reminds you to send the **UCC modification** to each exchange, and the UCC pages list the client as changed (primary first, then the others as secondary). A primary change also goes to CDSL.
+5. **Receipts and bank statement credits** from any active registered account are matched to the client; from any other account (or a removed one) they are third-party money and are returned.
+6. **Payouts** and running account settlement go to the primary. To pay another registered account, choose it on the payout request and give the reason; a payout to an account removed in the meantime is held back from the batch.
+7. Migrating: load **CLIENT-BANKS** on [[files|Files]] after the client master, one row per account (UCC, Bank, IFSC, Account, Primary Y/N, optional Type, Status, Branch, MICR).
 
 ## client-groups
 title: Put clients in groups

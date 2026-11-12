@@ -77,6 +77,8 @@ var bseUCCMaxLen = map[string]int{
 	"CLIENTCODE": 10, "PANNO": 10, "ADDRESS1": 150, "ADDRESS2": 150, "COUNTRY": 25, "STATE": 25, "CITY": 25, "PINCODE": 10, "EMAIL": 50, "MOBILENUMBER": 17,
 	"FNOCPCODE": 14, "DEPOSITORYPARTICIPANT1": 50, "BANKNAME1": 255, "ACCOUNTNO1": 19, "UPDATEREASON": 100, "CLIENTNAME": 85, "PERCOUNTRY": 25, "PERSTATE": 25,
 	"PERCITY": 25, "PERPINCODE": 10, "BENEFICIALOWNACNTNO1": 16, "DEMANTID1": 8, "BANKBRANCHIFSCCODE1": 11,
+	"BANKNAME2": 255, "ACCOUNTNO2": 19, "BANKBRANCHIFSCCODE2": 11, "BANKNAME3": 255, "ACCOUNTNO3": 19, "BANKBRANCHIFSCCODE3": 11,
+	"BANKNAME4": 255, "ACCOUNTNO4": 19, "BANKBRANCHIFSCCODE4": 11, "BANKNAME5": 255, "ACCOUNTNO5": 19, "BANKBRANCHIFSCCODE5": 11,
 }
 
 // The free-text fields take letters, digits, spaces and these.
@@ -297,26 +299,38 @@ func bseUCCMap(c Client, src bseUCCSources, action string, last map[string]strin
 		v["PRIMARYORSECONDARYDP1"] = "P"
 	}
 
-	// Bank: one account, primary. BSE refuses commas in the bank's name.
-	bank := strings.Join(strings.Fields(strings.ReplaceAll(c.Bank.Bank, ",", " ")), " ")
-	acct := strings.TrimSpace(c.Bank.Account)
-	digits := strings.Map(func(r rune) rune {
-		if r >= '0' && r <= '9' {
-			return r
-		}
-		return -1
-	}, acct)
-	switch {
-	case bank == "" || !reBSEBankName.MatchString(bank):
-		bad("The bank's name is missing")
-	case acct == "" || len(acct) > 19 || strings.Trim(acct, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789") != "":
-		bad("The bank account number is missing, longer than 19 characters or has characters other than letters and digits")
-	case strings.Trim(digits, "0") == "":
-		bad("The bank account number has no digits other than zeros")
-	case !reIFSC.MatchString(c.Bank.IFSC):
-		bad("The IFSC is not 4 letters, 0 and 6 letters or digits")
+	// Bank: the primary account first (P), then the client's other active
+	// registered accounts (S), up to BSE's 5 (clientbanks.go). BSE refuses
+	// commas in the bank's name.
+	banks := []BankAccount{c.Bank}
+	if bs := uccBanks(c, "BSE", bad); len(bs) > 1 {
+		banks = append(banks, bs[1:]...)
 	}
-	v["BANKNAME1"], v["ACCOUNTNO1"], v["BANKBRANCHIFSCCODE1"], v["PRIMARYORSECONDARYBANK1"] = bank, acct, c.Bank.IFSC, "P"
+	for i, b := range banks {
+		n, pre := fmt.Sprint(i+1), ""
+		if i > 0 {
+			pre = fmt.Sprintf("Bank account %d: ", i+1)
+		}
+		bank := strings.Join(strings.Fields(strings.ReplaceAll(b.Bank, ",", " ")), " ")
+		acct := strings.TrimSpace(b.Account)
+		digits := strings.Map(func(r rune) rune {
+			if r >= '0' && r <= '9' {
+				return r
+			}
+			return -1
+		}, acct)
+		switch {
+		case bank == "" || !reBSEBankName.MatchString(bank):
+			bad(pre + "The bank's name is missing")
+		case acct == "" || len(acct) > 19 || strings.Trim(acct, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789") != "":
+			bad(pre + "The bank account number is missing, longer than 19 characters or has characters other than letters and digits")
+		case strings.Trim(digits, "0") == "":
+			bad(pre + "The bank account number has no digits other than zeros")
+		case !reIFSC.MatchString(b.IFSC):
+			bad(pre + "The IFSC is not 4 letters, 0 and 6 letters or digits")
+		}
+		v["BANKNAME"+n], v["ACCOUNTNO"+n], v["BANKBRANCHIFSCCODE"+n], v["PRIMARYORSECONDARYBANK"+n] = bank, acct, b.IFSC, map[bool]string{true: "P", false: "S"}[i == 0]
+	}
 
 	// Dates.
 	if c.KYCDate != "" {

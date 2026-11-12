@@ -18,7 +18,10 @@ var Stages = []string{"Application", "KYC verification", "UCC upload", "Active"}
 // Segment names.
 var SegmentNames = map[string]string{"CM": "Equity cash", "FO": "Equity F&O", "CD": "Currency", "COM": "Commodity"}
 
-// BankAccount is a client's registered bank account.
+// BankAccount is a client's registered bank account. Client.Bank is the
+// primary account; Client.Banks, once a client has more than one, lists
+// every registered account with its status and verification
+// (clientbanks.go).
 type BankAccount struct {
 	Bank    string `json:"bank"`
 	IFSC    string `json:"ifsc"`
@@ -26,6 +29,22 @@ type BankAccount struct {
 	// Branch is the bank branch's name, when known (the HDFC payout file
 	// carries it).
 	Branch string `json:"branch,omitempty"`
+	MICR   string `json:"micr,omitempty"`
+	// Type is SB, CA, NRE or NRO.
+	Type string `json:"type,omitempty"`
+	// In Client.Banks only: the primary (default payout) account, Active or
+	// Inactive, how and when the account was verified, when it was added,
+	// the proof document and the change request that added or last
+	// changed it.
+	Primary      bool   `json:"primary,omitempty"`
+	Status       string `json:"status,omitempty"`
+	VerifiedOn   string `json:"verified_on,omitempty"`
+	VerifyMethod string `json:"verify_method,omitempty"`
+	AddedOn      string `json:"added_on,omitempty"`
+	ProofDoc     string `json:"proof_doc,omitempty"`
+	Change       string `json:"change,omitempty"`
+	InactiveOn   string `json:"inactive_on,omitempty"`
+	InactiveWhy  string `json:"inactive_why,omitempty"`
 }
 
 // Demat is a client's demat account.
@@ -116,6 +135,10 @@ type Client struct {
 	// Dormant, Reactivated, Closed) and SegHistory every change to it.
 	SegStatus  map[string]SegmentState `json:"seg_status,omitempty"`
 	SegHistory []SegmentChange         `json:"seg_history,omitempty"`
+	// Banks are all the client's registered bank accounts once there is
+	// more than one (empty: Bank is the only one); Bank is always the
+	// primary. See clientbanks.go.
+	Banks []BankAccount `json:"banks,omitempty"`
 }
 
 var (
@@ -153,6 +176,7 @@ func (c *Client) Normalise() {
 	c.PAN = strings.ToUpper(strings.TrimSpace(c.PAN))
 	c.Bank.IFSC = strings.ToUpper(strings.TrimSpace(c.Bank.IFSC))
 	c.Bank.Account = strings.TrimSpace(c.Bank.Account)
+	syncBanks(c)
 	c.Email = strings.TrimSpace(strings.ToLower(c.Email))
 	c.Mobile = strings.TrimSpace(c.Mobile)
 	c.City = strings.TrimSpace(c.City)
@@ -228,6 +252,7 @@ func (c Client) Validate() error {
 	if !reAcct.MatchString(c.Bank.Account) {
 		add("bank.account", "Account number is 9 to 18 digits")
 	}
+	fe = append(fe, checkBanks(c.Banks)...)
 	if len(c.Segments) == 0 {
 		add("segments", "Choose at least one segment")
 	}
@@ -415,6 +440,7 @@ func (o *Ops) SetBlocked(ctx context.Context, tenant, actor, ucc string, blocked
 // Public returns a copy safe for display: account numbers and PAN masked.
 func (c Client) Public() Client {
 	c.Bank.Account = MaskAccount(c.Bank.Account)
+	c.Banks = maskBanks(registeredBanks(c))
 	c.PAN = MaskPAN(c.PAN)
 	c.Nominees = maskNominees(c.Nominees)
 	return c

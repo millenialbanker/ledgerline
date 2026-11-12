@@ -52,7 +52,8 @@ const (
 
 // mcxUCCMax is each written field's maximum length (section 1.1).
 var mcxUCCMax = map[string]int{mxCode: 10, mxName: 150, mxGuardian: 150, mxEmail: 60, mxAddr1: 255, mxAddr2: 255, mxAddr3: 255, mxStateCity: 50, mxPin: 6,
-	mxPAddr1: 255, mxPAddr2: 255, mxPAddr3: 255, mxPStateCity: 50, mxPPin: 6, mxMobile: 10, mxBank1: 60, mxBranch1: 255, mxAcct1: 25, mxBO1: 16, mxOccDetail: 75, mxRemarks: 200}
+	mxPAddr1: 255, mxPAddr2: 255, mxPAddr3: 255, mxPStateCity: 50, mxPPin: 6, mxMobile: 10, mxBank1: 60, mxBranch1: 255, mxAcct1: 25, mxBO1: 16, mxOccDetail: 75, mxRemarks: 200,
+	"BankName2": 60, "BankBranch2": 255, "BankAccountNumber2": 25, "BankName3": 60, "BankBranch3": 255, "BankAccountNumber3": 25}
 
 var mcxUCCLabel = map[string]string{mxCode: "The client code", mxName: "The name", mxGuardian: "The father's or spouse's name", mxEmail: "The e-mail address",
 	mxAddr1: "Address line 1", mxAddr2: "Address line 2", mxAddr3: "Address line 3", mxPAddr1: "Permanent address line 1", mxPAddr2: "Permanent address line 2",
@@ -88,8 +89,10 @@ func (r mcxUCCRecord) Masked() map[string]string {
 	for k, v := range r.Values {
 		out[k] = v
 	}
-	if out[mxAcct1] != "" {
-		out[mxAcct1] = MaskAccount(out[mxAcct1])
+	for _, k := range []string{mxAcct1, "BankAccountNumber2", "BankAccountNumber3"} {
+		if out[k] != "" {
+			out[k] = MaskAccount(out[k])
+		}
 	}
 	if out[mxPAN] != "" {
 		out[mxPAN] = MaskPAN(out[mxPAN])
@@ -150,6 +153,21 @@ func mcxBankType(s string) string {
 	case "11", "current", "cb", "ca":
 		return "11"
 	case "99", "other", "others":
+		return "99"
+	}
+	return ""
+}
+
+// mcxTypeOfBank is MCX's account type for a registered account's type: 10
+// savings, 11 current, 99 others (NRE and NRO; confirm with the broker how
+// they report them).
+func mcxTypeOfBank(t string) string {
+	switch normBankType(t) {
+	case "SB":
+		return "10"
+	case "CA":
+		return "11"
+	case "NRE", "NRO":
 		return "99"
 	}
 	return ""
@@ -406,9 +424,35 @@ func mcxUCCMap(c Client, src mcxUCCSources, last map[string]string, fileDate str
 			bt = "11"
 		}
 	}
+	if bt == "" {
+		bt = mcxTypeOfBank(c.Bank.Type)
+	}
 	v[mxAcctType1] = bt
 	if bt == "" {
 		bad("The bank account type (savings or current) is not on record: set it under Exchange UCC details")
+	}
+	// The client's other active registered accounts as banks 2 and 3
+	// (MCX holds 3; clientbanks.go), in the file and so in the API.
+	if bs := uccBanks(c, "MCX", bad); len(bs) > 1 {
+		for i, x := range bs[1:] {
+			n := fmt.Sprint(i + 2)
+			nm, ac := mcxClean(x.Bank), strings.TrimSpace(x.Account)
+			v["BankName"+n], v["BankAccountNumber"+n], v["BankAccountType"+n] = nm, ac, mcxTypeOfBank(x.Type)
+			if runes(nm) < 3 || !hasLetter(nm) || strings.HasPrefix(nm, "-") {
+				bad("Bank account %s: the bank's name is missing or not a name (3 to 60 characters)", n)
+			}
+			if ac == "" || digitsOf(ac) == "" || strings.Trim(digitsOf(ac), "0") == "" || strings.Trim(ac, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789") != "" {
+				bad("Bank account %s: the account number is missing, all zeros or has characters other than letters and digits", n)
+			}
+			if !reIFSC.MatchString(x.IFSC) {
+				bad("Bank account %s: the IFSC is not 4 letters, 0 and 6 letters or digits", n)
+			} else {
+				v["BankBranch"+n] = mcxClean(strings.TrimSpace(x.Branch + " IFSC " + x.IFSC))
+			}
+			if v["BankAccountType"+n] == "" {
+				bad("Bank account %s: the account type (SB, CA, NRE or NRO) is not on record", n)
+			}
+		}
 	}
 
 	// Demat: optional at MCX; written when on record. CDSL: the 16-digit BO
