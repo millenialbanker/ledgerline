@@ -1,0 +1,37 @@
+{
+ "id": "bow-dealer-mapping",
+ "title": "Client dealer mapping (BOW front end, EMPLOYEE_USER_MAPPINGS_UPLOAD)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request (new or changed clients)",
+ "purpose": "Maps clients to the dealers (employees) who may trade for them; a client may have several dealers (one line each). The dealers are those of the client's authorised person in the dealer register and the firm's dealers for every client (Connections → BOW upload files). BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_CLIENT_DEALER_MAPPING_\\d{8}\\.txt"
+ ],
+ "template": "BOW_CLIENT_DEALER_MAPPING_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "Client ID",
+   "key": "ClientID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC"
+  },
+  {
+   "name": "Employee ID/Dealer Id",
+   "key": "DealerID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The dealer's BOW dealer ID"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (client dealer mapping)",
+ "source": "BOW File_Formats.xlsx, sheet EMPLOYEE_USER_MAPPINGS_UPLOAD"
+}

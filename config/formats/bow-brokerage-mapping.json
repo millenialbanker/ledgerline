@@ -1,0 +1,37 @@
+{
+ "id": "bow-brokerage-mapping",
+ "title": "Brokerage plan client mapping (BOW front end, BROKERAGE MASTER CLIENT MAPPING)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request (new or changed clients)",
+ "purpose": "Puts each active client on their brokerage plan (the plan that applies to them in every segment: their own, their group's or the firm default); clients on the charge schedule alone are left out. Segment cards cannot be mapped (BOW takes one plan per client) and are counted in the note. New or changed clients since the last file. BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_BROKERAGE_CLIENT_MAPPING_\\d{8}\\.txt"
+ ],
+ "template": "BOW_BROKERAGE_CLIENT_MAPPING_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "Backoffice ID",
+   "key": "BackofficeID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC"
+  },
+  {
+   "name": "Plan Name",
+   "key": "PlanName",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The plan's name as in the brokerage master"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (brokerage client mapping)",
+ "source": "BOW File_Formats.xlsx, sheet BROKERAGE MASTER CLIENT MAPPING"
+}

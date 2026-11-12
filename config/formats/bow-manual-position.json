@@ -1,0 +1,146 @@
+{
+ "id": "bow-manual-position",
+ "title": "Manual position file (BOW front end, MANUAL POSITION FILE)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "BOD",
+ "purpose": "Each client's carried-forward derivatives positions at the previous business day's close, net: a long position as buy quantity and value, a short one as sell (value = quantity × average price, the premium for options). BOW takes either this file or the exchange position file, not both. BOW's sheet shows the sample in columns; the file is comma-separated like BOW's other uploads. BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_MANUAL_POSITION_\\d{8}\\.txt"
+ ],
+ "template": "BOW_MANUAL_POSITION_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "BSE Member ID",
+   "key": "MemberID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The firm's BSE member code (Settings)"
+  },
+  {
+   "name": "Exchange Market Segment",
+   "key": "ExchangeMarket",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 12 BSE F&O, 22 NSE F&O, 14 BSE currency, 24 NSE currency, 13 BSE commodity, 23 NSE commodity, 53 MCX, 33 NCDEX",
+   "codes": {
+    "12": "BSE FAO",
+    "22": "NSE FAO",
+    "14": "BSE CDS",
+    "24": "NSE CDS",
+    "13": "BSE Commodity",
+    "23": "NSE Commodity",
+    "53": "MCX",
+    "33": "NCDEX"
+   }
+  },
+  {
+   "name": "Product Type",
+   "key": "ProductType",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 1 margin / intraday, 2 CNC / delivery (BOW's default). Connections → BOW upload files (default 2)",
+   "codes": {
+    "1": "Margin / Intraday",
+    "2": "CNC / Delivery"
+   }
+  },
+  {
+   "name": "ClientID",
+   "key": "ClientID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC"
+  },
+  {
+   "name": "DealerId",
+   "key": "DealerID",
+   "type": "str",
+   "note": "NOT NULL in BOW's sheet. For a dealer-wise position; blank is the client (as BOW's samples)"
+  },
+  {
+   "name": "Instrument Name",
+   "key": "InstrumentName",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. BSE IF, SF, IO, SO; NSE FUTIDX, FUTSTK, OPTIDX, OPTSTK; FUTCUR, OPTCUR; FUTCOM, OPTFUT"
+  },
+  {
+   "name": "Symbol",
+   "key": "Symbol",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The exchange's symbol (BSE's own for BSE)"
+  },
+  {
+   "name": "Filler",
+   "key": "Filler8",
+   "type": "blank"
+  },
+  {
+   "name": "Expiry Date",
+   "key": "ExpiryDate",
+   "type": "date",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Expiry date (BOW's sheet holds a date cell shown d-mmm-yy); written DD-MON-YYYY",
+   "layout": "02-Jan-2006"
+  },
+  {
+   "name": "Strike Price",
+   "key": "StrikePrice",
+   "type": "dec",
+   "note": "Options only; blank for futures"
+  },
+  {
+   "name": "Option Type",
+   "key": "OptionType",
+   "type": "str",
+   "note": "CE or PE; blank for futures"
+  },
+  {
+   "name": "Buy Qty",
+   "key": "BuyQty",
+   "type": "int",
+   "note": "Net buy quantity of a long position (lots for BSE, NSE and MCX commodities)"
+  },
+  {
+   "name": "Buy Value",
+   "key": "BuyValue",
+   "type": "dec",
+   "note": "Net buy value (premium for options): quantity × average price"
+  },
+  {
+   "name": "Sell Qty",
+   "key": "SellQty",
+   "type": "int",
+   "note": "Net sell quantity of a short position"
+  },
+  {
+   "name": "Sell Value",
+   "key": "SellValue",
+   "type": "dec",
+   "note": "Net sell value"
+  },
+  {
+   "name": "Remarks",
+   "key": "Remarks",
+   "type": "str"
+  },
+  {
+   "name": "Filler",
+   "key": "Filler17",
+   "type": "int",
+   "note": "Default 1",
+   "const": "1"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (manual position)",
+ "source": "BOW File_Formats.xlsx, sheet MANUAL POSITION FILE"
+}

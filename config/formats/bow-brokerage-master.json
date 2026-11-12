@@ -1,0 +1,257 @@
+{
+ "id": "bow-brokerage-master",
+ "title": "Brokerage master (BOW front end, BROKERAGE MASTER)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request (when plans change)",
+ "purpose": "The firm's brokerage plans for BOW's charge estimates: one line per plan rate line in force on the date, for the BOW channel (Connections → BOW upload files, default online, else the all-channels line), with STT, transaction charges, GST, SEBI fee and stamp duty from the charge schedule. Ledgerline's plan modes map to BOW's types: percent 1, flat per order 2, lower of flat and percent 3, percent with a minimum per order 4, per lot 5, no brokerage 1 with 0. Lines BOW cannot express (per share, a maximum per order, minimums per share, lot or contract note, settlement cases such as expiry, scrip groups) are left out and listed in the note. BOW's sheet shows its sample in columns; the file is comma-separated like BOW's other uploads. BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_BROKERAGE_MASTER_\\d{8}\\.txt"
+ ],
+ "template": "BOW_BROKERAGE_MASTER_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "PlanName",
+   "key": "PlanName",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The brokerage plan's name in Ledgerline (commas removed)"
+  },
+  {
+   "name": "Exchange",
+   "key": "Exchange",
+   "type": "str",
+   "note": "BSE, NSE, MCX, NCDEX: the rate line's exchange, or each exchange the firm trades the segment on for a line for all exchanges"
+  },
+  {
+   "name": "Market",
+   "key": "Market",
+   "type": "str",
+   "note": "EQUITY, DERIVATIVES, CURRENCY, COMMODITIES"
+  },
+  {
+   "name": "Segment",
+   "key": "Segment",
+   "type": "str",
+   "note": "EQUITY, FUTURES or OPTIONS"
+  },
+  {
+   "name": "Instrument_Series_Name",
+   "key": "InstrumentSeries",
+   "type": "str",
+   "note": "Series or group for cash; the instrument for derivatives (FUTIDX, FUTSTK, OPTIDX, OPTSTK on NSE; IF, SF, IO, SO on BSE) for lines for index or stock derivatives only; blank = all"
+  },
+  {
+   "name": "ProductId",
+   "key": "ProductID",
+   "type": "str",
+   "note": "INTRA, CNC or ALL: CM intraday INTRA, CM delivery CNC, derivatives ALL"
+  },
+  {
+   "name": "Symbol",
+   "key": "Symbol",
+   "type": "str",
+   "note": "A line for one scrip or underlying only"
+  },
+  {
+   "name": "Buy BrokerageType",
+   "key": "BuyType",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 1 % of value per order, 2 flat per order, 3 lower of % and flat, 4 higher of % and the amount, 5 flat per lot, 6 monthly or yearly charge",
+   "codes": {
+    "1": "% of value per order",
+    "2": "Flat per order",
+    "3": "Minimum of % or flat per order",
+    "4": "Maximum of % or flat per order",
+    "5": "Flat per lot",
+    "6": "Monthly or yearly charge"
+   }
+  },
+  {
+   "name": "Value1_Buy",
+   "key": "Value1Buy",
+   "type": "dec",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The percent (0.03 = 0.03%)"
+  },
+  {
+   "name": "Value2_Buy",
+   "key": "Value2Buy",
+   "type": "dec",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The rupee amount"
+  },
+  {
+   "name": "Sell BrokerageType",
+   "key": "SellType",
+   "type": "int",
+   "note": "As Buy BrokerageType"
+  },
+  {
+   "name": "Value1_Sell",
+   "key": "Value1Sell",
+   "type": "dec"
+  },
+  {
+   "name": "Value2_Sell",
+   "key": "Value2Sell",
+   "type": "dec"
+  },
+  {
+   "name": "STT_CTT_Buy",
+   "key": "STTBuy",
+   "type": "dec",
+   "note": "STT / CTT on buys, % (charge schedule)"
+  },
+  {
+   "name": "STT_CTT_Sell",
+   "key": "STTSell",
+   "type": "dec",
+   "note": "STT / CTT on sells, % (charge schedule)"
+  },
+  {
+   "name": "Tran_Charges",
+   "key": "TranCharges",
+   "type": "dec",
+   "note": "Exchange transaction charges, % (charge schedule)"
+  },
+  {
+   "name": "GST",
+   "key": "GST",
+   "type": "dec",
+   "note": "GST % (charge schedule)"
+  },
+  {
+   "name": "SEBI Charges",
+   "key": "SEBICharges",
+   "type": "dec",
+   "note": "SEBI fee, % (₹10 a crore = 0.0001; charge schedule)"
+  },
+  {
+   "name": "StampChargesType",
+   "key": "StampType",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 1 % of value",
+   "codes": {
+    "1": "% of value per order"
+   }
+  },
+  {
+   "name": "StampCharges Value1",
+   "key": "StampValue1",
+   "type": "dec",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Stamp duty on buys, % (charge schedule)"
+  },
+  {
+   "name": "StampCharges Value2",
+   "key": "StampValue2",
+   "type": "dec",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 0"
+  },
+  {
+   "name": "Buy DP_Clearing_Type",
+   "key": "BuyDPType",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 1 % of value, 2 flat per order, 3 lower of, 4 higher of. 1 with 0: no DP charge on buys",
+   "aliases": [
+    "Buy DP_Clearing_Type "
+   ]
+  },
+  {
+   "name": "Buy DP_Clearing_Value1",
+   "key": "BuyDPValue1",
+   "type": "dec",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 0",
+   "aliases": [
+    "Buy DP_Clearing_Value1 "
+   ]
+  },
+  {
+   "name": "Buy DP_Clearing_Value2",
+   "key": "BuyDPValue2",
+   "type": "dec",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 0"
+  },
+  {
+   "name": "Sell DP_Clearing_Type",
+   "key": "SellDPType",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 2 (flat per order) with the firm's DP charge per sell on delivery lines (Connections → BOW upload files); 1 with 0 otherwise"
+  },
+  {
+   "name": "Sell DP_Clearing_Value1",
+   "key": "SellDPValue1",
+   "type": "dec",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 0"
+  },
+  {
+   "name": "Sell DP_Clearing_Value2",
+   "key": "SellDPValue2",
+   "type": "dec",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The DP charge per sell, ₹"
+  },
+  {
+   "name": "Filler1",
+   "key": "Filler1",
+   "type": "blank"
+  },
+  {
+   "name": "Filler2",
+   "key": "Filler2",
+   "type": "blank"
+  },
+  {
+   "name": "Filler3",
+   "key": "Filler3",
+   "type": "blank"
+  },
+  {
+   "name": "BM_Disclaimer_Message1",
+   "key": "Disclaimer1",
+   "type": "str",
+   "note": "50 characters at most (Connections → BOW upload files)"
+  },
+  {
+   "name": "BM_Disclaimer_Message2",
+   "key": "Disclaimer2",
+   "type": "str",
+   "note": "50 characters at most"
+  },
+  {
+   "name": "BM_Disclaimer_Message3",
+   "key": "Disclaimer3",
+   "type": "str",
+   "note": "50 characters at most"
+  },
+  {
+   "name": "DELETE_FLAG",
+   "key": "DeleteFlag",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Y delete the plan; N (or anything else) add or update",
+   "codes": {
+    "Y": "Delete",
+    "N": "Add / update"
+   }
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (brokerage master)",
+ "source": "BOW File_Formats.xlsx, sheet BROKERAGE MASTER"
+}

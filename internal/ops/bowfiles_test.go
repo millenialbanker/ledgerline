@@ -32,7 +32,8 @@ func readBOW(t *testing.T, id, name string, b []byte) *xfile.Table {
 		if len(b) == 0 {
 			break
 		}
-		if strings.Contains(l, "\n") || strings.Count(l, ",") != len(s.Columns)-1 {
+		n := strings.Count(l, s.Delimiter) + 1
+		if strings.Contains(l, "\n") || n != len(s.Columns) && !(s.TrailingEmpty && n < len(s.Columns)) {
 			t.Fatalf("%s line %d: %q, want %d fields", id, i+1, l, len(s.Columns))
 		}
 	}
@@ -54,11 +55,15 @@ func TestBOWRupees(t *testing.T) {
 	}
 }
 
-// The funds file: every active client, one figure (Securities +
-// Commodities) in whole rupees, debits kept, blocked and inactive 0; then
-// the file of changed clients only.
+// The funds file in the old back office's shape (the single combined
+// line): every active client, one figure (Securities + Commodities) in
+// whole rupees, debits kept, blocked and inactive 0, in the broker's 20
+// fields; then the file of changed clients only.
 func TestBOWFundFile(t *testing.T) {
 	o, ctx := newOps(t)
+	if _, err := o.SaveConnection(ctx, T, "admin", connBOWFiles, map[string]string{"deposit_shape": bowShapeSingle}, nil); err != nil {
+		t.Fatal(err)
+	}
 	o.Now = func() time.Time { return time.Date(2026, 10, 16, 8, 13, 39, 0, ist) }
 	for _, c := range []Client{
 		{UCC: "ON01", Name: "One", Status: "Active", Segments: []string{"CM", "COM"}},
@@ -97,21 +102,24 @@ func TestBOWFundFile(t *testing.T) {
 	got := map[string]string{}
 	for _, r := range tb.Rows {
 		v := r.Values
-		got[v["ClientCode"]] = v["CashDeposit"]
-		want := map[string]string{"Const6": "0", "Const7": "0", "Const8": "0", "Const10": "1", "Const11": "0", "Const16": "1", "Const17": "1", "Const18": "0", "Const19": "1", "Const20": "Y"}
+		got[v["ClientID"]] = v["TotalDeposit"]
+		if r.Fields != 20 {
+			t.Fatalf("%d fields, the broker's file has 20", r.Fields)
+		}
+		want := map[string]string{"Filler6": "0", "Filler7": "0", "Filler8": "0", "Factor": "1", "AdhocMargin": "0", "AddIntoEffective": "1", "MTMFactor": "1", "EffectiveAmount": "0", "AddIntoMTM": "1", "AddEntry": "Y"}
 		for k, x := range want {
 			if v[k] != x {
-				t.Fatalf("%s %s = %q", v["ClientCode"], k, v[k])
+				t.Fatalf("%s %s = %q", v["ClientID"], k, v[k])
 			}
 		}
-		for _, k := range []string{"Blank2", "Blank3", "Blank4", "Blank9", "Blank12", "Blank13", "Blank14", "Blank15"} {
+		for _, k := range []string{"Filler2", "Exchange", "Market", "Category", "ManualCollateral", "OtherDeposit", "Filler14", "Filler15", "Product"} {
 			if v[k] != "" {
-				t.Fatalf("%s %s = %q", v["ClientCode"], k, v[k])
+				t.Fatalf("%s %s = %q", v["ClientID"], k, v[k])
 			}
 		}
-		l := lims[v["ClientCode"]]
-		if l.Why == "" && l.Securities.Add(l.Commodities).Sign() > 0 && v["CashDeposit"] != strconv.FormatInt(bowRupees(l.Securities.Add(l.Commodities)), 10) {
-			t.Fatalf("%s: %s, Securities %s + Commodities %s", v["ClientCode"], v["CashDeposit"], l.Securities, l.Commodities)
+		l := lims[v["ClientID"]]
+		if l.Why == "" && l.Securities.Add(l.Commodities).Sign() > 0 && v["TotalDeposit"] != strconv.FormatInt(bowRupees(l.Securities.Add(l.Commodities)), 10) {
+			t.Fatalf("%s: %s, Securities %s + Commodities %s", v["ClientID"], v["TotalDeposit"], l.Securities, l.Commodities)
 		}
 	}
 	if len(tb.Rows) != active {
@@ -137,19 +145,30 @@ func TestBOWFundFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	tb = readBOW(t, "bow-fund", name2, b2)
-	if len(tb.Rows) != 2 || tb.Rows[0].Values["ClientCode"] != "ON01" || tb.Rows[0].Values["CashDeposit"] != "0" || tb.Rows[1].Values["ClientCode"] != "ON05" || tb.Rows[1].Values["CashDeposit"] != "0" {
+	if len(tb.Rows) != 2 || tb.Rows[0].Values["ClientID"] != "ON01" || tb.Rows[0].Values["TotalDeposit"] != "0" || tb.Rows[1].Values["ClientID"] != "ON05" || tb.Rows[1].Values["TotalDeposit"] != "0" {
 		t.Fatalf("changed file %q", b2)
 	}
 	if _, b2, _ = o.BOWFundFile(ctx, T, "anita.rao", D, true); len(b2) != 0 {
 		t.Fatalf("changed again %q", b2)
 	}
 	_, b, _ = o.BOWFundFile(ctx, T, "anita.rao", D, false)
-	if strings.Contains(string(b), "ON05,") || !strings.Contains(string(b), "ON01,,,,0,") || !strings.Contains(string(b), "ON02,,,,-2500,") {
+	if strings.Contains(string(b), "ON05,") || !strings.Contains(string(b), "ON01,,,,0,") || !strings.Contains(string(b), "\r\nON02,,,,-2500,0,0,0,,1,0,,,,,1,1,0,1,Y\r\n") {
 		t.Fatalf("full file %q", b)
+	}
+	// Changing the shape changes every client's lines.
+	if _, err := o.SaveConnection(ctx, T, "admin", connBOWFiles, map[string]string{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	_, b2, _ = o.BOWFundFile(ctx, T, "anita.rao", D, true)
+	if tb = readBOW(t, "bow-fund", name2, b2); len(tb.Rows) != 8 || tb.Rows[0].Values["Category"] != "securities" || tb.Rows[1].Values["Category"] != "commodities" {
+		t.Fatalf("changed file after the shape %q", b2)
 	}
 }
 
-// With an MCX-only bank account the one figure is Securities + Commodities.
+// With an MCX-only bank account the default file has a securities and a
+// commodities line per client, so the MCX money never raises the equity
+// limit; with a user-level line as well, it carries their sum; the single
+// combined line has Securities + Commodities.
 func TestBOWFundFileEarmark(t *testing.T) {
 	o, ctx := emSetup(t, true)
 	o.Now = func() time.Time { return time.Date(2026, 10, 30, 8, 13, 0, 0, ist) }
@@ -162,14 +181,47 @@ func TestBOWFundFileEarmark(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tb := readBOW(t, "bow-fund", name, b)
-	got := map[string]string{}
-	for _, r := range tb.Rows {
-		got[r.Values["ClientCode"]] = r.Values["CashDeposit"]
+	lines := func(b []byte) map[string]string {
+		tb := readBOW(t, "bow-fund", name, b)
+		got := map[string]string{}
+		for _, r := range tb.Rows {
+			v := r.Values
+			if v["Exchange"] != "" || v["Market"] != "" || r.Fields != 20 || v["Factor"] != "1" || v["AddEntry"] != "Y" {
+				t.Fatalf("line %+v", v)
+			}
+			got[v["ClientID"]+"|"+v["Category"]] = v["TotalDeposit"]
+		}
+		return got
 	}
-	if got["BJ01"] != "210000" || got["BJ02"] != "50000" {
+	got := lines(b)
+	if got["BJ01|securities"] != "10000" || got["BJ01|commodities"] != "200000" || got["BJ01|"] != "" || got["BJ02|securities"] == "" {
 		t.Fatalf("funds %v", got)
 	}
+	if !strings.Contains("\r\n"+string(b), "\r\nBJ01,,,,10000,0,0,0,securities,1,0,,,,,1,1,0,1,Y\r\nBJ01,,,,200000,0,0,0,commodities,1,0,,,,,1,1,0,1,Y\r\n") {
+		t.Fatalf("two lines %q", b)
+	}
+	for k := range got {
+		if !strings.HasSuffix(k, "|securities") && !strings.HasSuffix(k, "|commodities") {
+			t.Fatalf("line %s", k)
+		}
+	}
+	o.SaveConnection(ctx, T, "admin", connBOWFiles, map[string]string{"deposit_shape": bowShapeThree}, nil)
+	_, b, _ = o.BOWFundFile(ctx, T, "anita.rao", next, false)
+	if got = lines(b); got["BJ01|securities"] != "10000" || got["BJ01|commodities"] != "200000" || got["BJ01|"] != "210000" {
+		t.Fatalf("funds %v", got)
+	}
+	o.SaveConnection(ctx, T, "admin", connBOWFiles, map[string]string{"deposit_shape": bowShapeSingle}, nil)
+	_, b, _ = o.BOWFundFile(ctx, T, "anita.rao", next, false)
+	if got = lines(b); got["BJ01|"] != "210000" || got["BJ02|"] != "50000" || got["BJ01|securities"] != "" {
+		t.Fatalf("funds %v", got)
+	}
+	// A product makes the lines 21 fields.
+	o.SaveConnection(ctx, T, "admin", connBOWFiles, map[string]string{"deposit_product": "Delivery"}, nil)
+	_, b, _ = o.BOWFundFile(ctx, T, "anita.rao", next, false)
+	if !strings.Contains("\r\n"+string(b), "\r\nBJ01,,,,10000,0,0,0,securities,1,0,,,,,1,1,0,1,Y,Delivery\r\n") {
+		t.Fatalf("product %q", b)
+	}
+	readBOW(t, "bow-fund", name, b)
 }
 
 // The holdings file: DP quantity as Finspot's ISIN Holding, pool quantity
@@ -272,8 +324,8 @@ func TestBOWHoldingFile(t *testing.T) {
 	poolLines, costLine, bseLine := 0, false, false
 	for _, r := range tb.Rows {
 		v := r.Values
-		isin := byCode[firstOf(v["Symbol"], v["BSECode"])]
-		k := v["ClientCode"] + "|" + isin
+		isin := byCode[firstOf(v["NSESymbol"], v["BSEScripCode"])]
+		k := v["BackOfficeID"] + "|" + isin
 		if isin == "" || seen[k] {
 			t.Fatalf("line %+v: unknown or repeated", v)
 		}
@@ -281,37 +333,37 @@ func TestBOWHoldingFile(t *testing.T) {
 		if isin == none {
 			t.Fatalf("a security in neither master is written: %+v", v)
 		}
-		if (v["Symbol"] == "") != (v["Series"] == "") || v["DPCFSHaircutPct"] != "0" || v["PoolCFSHaircutPct"] != "0" {
+		if (v["NSESymbol"] == "") != (v["Series"] == "") || v["DPCFSHaircut"] != "0" || v["PoolCFSHaircut"] != "0" {
 			t.Fatalf("%+v", v)
 		}
 		wantDP := dp[k]
 		if wantDP == "" {
 			wantDP = "0"
 		}
-		if v["DPQty"] != wantDP {
-			t.Fatalf("%s DP %s, Finspot %s", k, v["DPQty"], wantDP)
+		if v["DPQuantity"] != wantDP {
+			t.Fatalf("%s DP %s, Finspot %s", k, v["DPQuantity"], wantDP)
 		}
 		wantPool := max(pool[k], 0)
-		if v["PoolQty"] != fmt.Sprintf("%d.00", wantPool) {
-			t.Fatalf("%s pool %s, want %d", k, v["PoolQty"], wantPool)
+		if v["PoolQuantity"] != fmt.Sprintf("%d.00", wantPool) {
+			t.Fatalf("%s pool %s, want %d", k, v["PoolQuantity"], wantPool)
 		}
-		if v["DPQty"] == "0" && wantPool == 0 {
+		if v["DPQuantity"] == "0" && wantPool == 0 {
 			t.Fatalf("a line with no quantity: %+v", v)
 		}
 		if wantPool > 0 {
 			poolLines++
 			avg, _ := val[k].Quo(money.DecInt(bought[k]))
-			if v["PoolAvgPrice"] != avg.Fixed(2) {
-				t.Fatalf("%s pool avg %s, want %s", k, v["PoolAvgPrice"], avg.Fixed(2))
+			if v["PoolAvePrice"] != avg.Fixed(2) {
+				t.Fatalf("%s pool avg %s, want %s", k, v["PoolAvePrice"], avg.Fixed(2))
 			}
-		} else if v["PoolAvgPrice"] != "0.00" {
+		} else if v["PoolAvePrice"] != "0.00" {
 			t.Fatalf("%+v", v)
 		}
 		if k == h.UCC+"|"+h.ISIN {
-			costLine = v["DPAvgPrice"] == "1043.26" && v["Series"] == "EQ"
+			costLine = v["DPAvePrice"] == "1043.26" && v["Series"] == "EQ"
 		}
 		if isin == bseOnly {
-			bseLine = v["Symbol"] == "" && v["BSECode"] != ""
+			bseLine = v["NSESymbol"] == "" && v["BSEScripCode"] != ""
 		}
 	}
 	if poolLines == 0 || !costLine || !bseLine {
@@ -324,11 +376,11 @@ func TestBOWHoldingFile(t *testing.T) {
 		}
 	}
 	// The firm's credit-for-sale haircuts.
-	if _, err := o.SaveConnection(ctx, T, "admin", connBOWFiles, map[string]string{"dp_haircut": "10", "pool_haircut": "100"}, nil); err != nil {
+	if _, err := o.SaveConnection(ctx, T, "admin", connBOWFiles, map[string]string{"dp_haircut": "10.5", "pool_haircut": "100"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	_, b, _ = o.BOWHoldingFile(ctx, T, next)
-	if tb = readBOW(t, "bow-dp-holding", name, b); tb.Rows[0].Values["DPCFSHaircutPct"] != "10" || tb.Rows[0].Values["PoolCFSHaircutPct"] != "100" {
+	if tb = readBOW(t, "bow-dp-holding", name, b); tb.Rows[0].Values["DPCFSHaircut"] != "10.5" || tb.Rows[0].Values["PoolCFSHaircut"] != "100" {
 		t.Fatalf("haircuts %+v", tb.Rows[0].Values)
 	}
 }

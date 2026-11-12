@@ -1,0 +1,89 @@
+{
+ "id": "bow-only-dp-holding",
+ "title": "DP holding upload (BOW front end, ONLY DP HOLDING)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "BOD",
+ "purpose": "Each client's sellable demat holdings with average price and credit-for-sale haircut, without the pool: 10 fields, one line per client per security with a DP quantity (as the combined file's DP part). BOW takes user deposit and user stock files during market hours too (other files 17:30 to 08:00).",
+ "names": [
+  "BOW_ONLY_DP_HOLDING_\\d{8}\\.txt"
+ ],
+ "template": "BOW_ONLY_DP_HOLDING_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "BackOffice ID",
+   "key": "BackOfficeID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC"
+  },
+  {
+   "name": "NSE Symbol",
+   "key": "NSESymbol",
+   "type": "str",
+   "note": "NOT NULL in BOW's sheet. NSE symbol (NSE security master); blank when the security has only a BSE code (as the broker's file)"
+  },
+  {
+   "name": "Series",
+   "key": "Series",
+   "type": "str",
+   "note": "NOT NULL in BOW's sheet. NSE series (EQ, BE, BZ, SM, GB …); blank when the symbol is blank"
+  },
+  {
+   "name": "BSE Scrip  Code",
+   "key": "BSEScripCode",
+   "type": "str",
+   "note": "NOT NULL in BOW's sheet. BSE scrip code (BSE scrip file); sometimes blank",
+   "aliases": [
+    "BSE Scrip Code"
+   ]
+  },
+  {
+   "name": "DPQuantity",
+   "key": "DPQuantity",
+   "type": "int",
+   "note": "NOT NULL in BOW's sheet. Holding quantity from the DP: the sellable demat quantity (as Finspot's ISIN Holding)"
+  },
+  {
+   "name": "Filler1",
+   "key": "Filler1",
+   "type": "blank"
+  },
+  {
+   "name": "DPAvePrice",
+   "key": "DPAvePrice",
+   "type": "dec",
+   "note": "NOT NULL in BOW's sheet. The client's average price of the demat holding (Holding.AvgCost; 0.00 when unknown)",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Filler2",
+   "key": "Filler2",
+   "type": "blank"
+  },
+  {
+   "name": "Filler3",
+   "key": "Filler3",
+   "type": "blank"
+  },
+  {
+   "name": "DPCFSHaircut",
+   "key": "DPCFSHaircut",
+   "type": "dec",
+   "note": "NOT NULL in BOW's sheet. Credit-for-sale haircut % on the DP holding (10 means 90% of the sell value is available). The firm's value in Connections → BOW upload files (default 0, as the broker's file)",
+   "aliases": [
+    "DPCFSHaircut %"
+   ]
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (only DP holding)",
+ "source": "BOW File_Formats.xlsx, sheet ONLY DP HOLDING"
+}

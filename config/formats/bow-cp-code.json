@@ -1,0 +1,62 @@
+{
+ "id": "bow-cp-code",
+ "title": "CP code mapping (BOW front end, CP CODE MAPPING)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request (new or changed clients)",
+ "purpose": "The custodial participant (CP) code of each NRI client trading derivatives (NRI details), for each BSE and NSE derivatives segment the firm trades; default Y. New or changed clients since the last file. BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_CP_CODE_MAPPING_\\d{8}\\.txt"
+ ],
+ "template": "BOW_CP_CODE_MAPPING_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "Backoffice ID",
+   "key": "BackofficeID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC"
+  },
+  {
+   "name": "Exchange",
+   "key": "Exchange",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. BSE or NSE"
+  },
+  {
+   "name": "Market",
+   "key": "Market",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. DERIVATIVE"
+  },
+  {
+   "name": "CP Code",
+   "key": "CPCode",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Custodial participant code"
+  },
+  {
+   "name": "Default",
+   "key": "Default",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Y default, N remove the default",
+   "codes": {
+    "Y": "Default",
+    "N": "Not default"
+   }
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (CP code mapping)",
+ "source": "BOW File_Formats.xlsx, sheet CP CODE MAPPING"
+}

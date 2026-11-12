@@ -642,6 +642,11 @@ type BOWLimit struct {
 	// equity and commodity money of the open segments, debits kept; 0
 	// whenever the limits are 0 (blocked, inactive …).
 	Net money.Dec `json:"-"`
+	// NetSec and NetCom are Net's two parts (the equity money of the open
+	// equity segments, the commodity money of an open commodity segment),
+	// for the funds file's securities and commodities lines.
+	NetSec money.Dec `json:"-"`
+	NetCom money.Dec `json:"-"`
 }
 
 // bowMoneyKinds are the ledger entries that move a client's money during
@@ -758,15 +763,16 @@ func (o *Ops) bowLimits(ctx context.Context, tenant, date string) (map[string]BO
 			l = BOWLimit{Why: "no segment open"}
 		default:
 			if equityOpen {
-				l.Net = eq[u]
+				l.NetSec = eq[u]
 			} else {
 				l.Securities = zero
 			}
 			if comOpen {
-				l.Net = l.Net.Add(com[u])
+				l.NetCom = com[u]
 			} else {
 				l.Commodities = zero
 			}
+			l.Net = l.NetSec.Add(l.NetCom)
 		}
 		out[u] = l
 	}

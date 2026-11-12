@@ -1,0 +1,44 @@
+{
+ "id": "bow-slb-holding",
+ "title": "SLB holding upload (BOW front end, SLB_HOLDING_UPLOAD)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request",
+ "purpose": "Each client's securities lending and borrowing (SLB) holding by ISIN, pipe-separated. Ledgerline does not keep SLB positions, so the file is written empty with a note. BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_SLB_HOLDING_\\d{8}\\.txt"
+ ],
+ "template": "BOW_SLB_HOLDING_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "Client ID",
+   "key": "ClientID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC"
+  },
+  {
+   "name": "ISIN",
+   "key": "ISIN",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. ISIN of the SLB stock"
+  },
+  {
+   "name": "Quantity",
+   "key": "Quantity",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Quantity"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": "|",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (SLB holding)",
+ "source": "BOW File_Formats.xlsx, sheet SLB_HOLDING_UPLOAD"
+}

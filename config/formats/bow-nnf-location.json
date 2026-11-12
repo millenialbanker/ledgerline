@@ -1,0 +1,68 @@
+{
+ "id": "bow-nnf-location",
+ "title": "NNF location and exchange identifiers (BOW front end, NNF_LOCATION_EXCHANGE_IDENTIFER)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request (new or changed users)",
+ "purpose": "The exchange trader ID, broker ID and location (CTCL / terminal) ID per exchange and market for each BOW login: dealers from the dealer register (each open terminal with a location ID, trader ID = the terminal's trading ID or its terminal ID), clients from the firm's client trader and location IDs per exchange market in Connections → BOW upload files (for the clients with that segment open). Broker ID is the firm's member code for the exchange (Settings). BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_NNF_LOCATION_\\d{8}\\.txt"
+ ],
+ "template": "BOW_NNF_LOCATION_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "Exchange",
+   "key": "Exchange",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. BSE, NSE, MCX, NCDEX",
+   "aliases": [
+    "Exchange "
+   ]
+  },
+  {
+   "name": "Market",
+   "key": "Market",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. EQUITY, DERIVATIVE, CURRENCY, COMMODITIES (also SLB, ITP …)"
+  },
+  {
+   "name": "Trader Id",
+   "key": "TraderID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Trader ID for the exchange and market (for BSE e.g. member code + 00901 for equity)"
+  },
+  {
+   "name": "Broker Id",
+   "key": "BrokerID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The firm's member code on the exchange (Settings → member codes)"
+  },
+  {
+   "name": "Location ID",
+   "key": "LocationID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. CTCL / terminal (NNF location) ID registered with the exchange"
+  },
+  {
+   "name": "Dealer ID/Client ID",
+   "key": "LoginID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC or the dealer's BOW dealer ID"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (NNF location)",
+ "source": "BOW File_Formats.xlsx, sheet NNF_LOCATION_EXCHANGE_IDENTIFER"
+}

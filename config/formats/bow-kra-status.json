@@ -1,0 +1,43 @@
+{
+ "id": "bow-kra-status",
+ "title": "KRA status upload (BOW front end, KRA STATUS)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request (new or changed clients)",
+ "purpose": "Each active client's KRA status: S submitted (under process), R rejected, H on hold, A accepted (validated or registered at the KRA; such clients get no KRA pop-up in BOW). Clients whose KRA status Ledgerline has not loaded (or not available at the KRA) are left out and counted in the note; new or changed clients since the last file. BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_KRA_STATUS_\\d{8}\\.txt"
+ ],
+ "template": "BOW_KRA_STATUS_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "BackOffice ID",
+   "key": "BackOfficeID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC"
+  },
+  {
+   "name": "KRA STATUS",
+   "key": "KRAStatus",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. S, R, H or A",
+   "codes": {
+    "S": "Submitted",
+    "R": "Rejected",
+    "H": "Hold",
+    "A": "Accepted"
+   }
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (KRA status)",
+ "source": "BOW File_Formats.xlsx, sheet KRA STATUS"
+}

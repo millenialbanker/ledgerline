@@ -1,146 +1,184 @@
 {
  "id": "bow-fund",
- "title": "Client funds upload (BOW front end, BOW_FUND)",
+ "title": "Client deposit upload (BOW front end, DEPOSIT_UPLOAD / BOW_FUND)",
  "party": "Front end (BOW)",
  "direction": "out",
  "when": "BOD, 08:13; again in the morning for changed clients",
- "purpose": "Each client's funds (user deposit) for BOW (BOLTPlusOnWeb, BSE's front end from MarketPlace Tech), uploaded in the BOW Admin terminal: the file the broker's current back office writes. One line per client, comma-separated, no header, CRLF, 20 fields; the client code and the cash deposit in whole rupees (may be negative, a debit) are the only values, every other field is blank or a constant. It is a user-level deposit (category, exchange and market blank), so it carries ONE figure per client: Securities + Commodities as Ledgerline's BOW limits compute them, a blocked, inactive or not active client 0. The BOW API push (Connections → BOW limits API) is preferred: it sets Securities and Commodities separately, which this file cannot. Ledgerline writes every active client (and 0 once for a client no longer active who was last sent a non-zero figure), or only the clients whose figure changed since the last file (the broker's second, small morning file).",
+ "purpose": "Each client's funds (user deposit) for BOW (BOLTPlusOnWeb, BSE's front end from MarketPlace Tech), uploaded in the BOW Admin terminal. Comma-separated, no header, CRLF, 21 fields (the broker's file stops at 20, without Product). Because the deposit has a Category, the file separates equity and commodity money: by default Ledgerline writes TWO lines per client, category securities with the client's Securities and category commodities with the Commodities (exchange and market blank: every exchange of that category), as the BOW limits API computes them, so commodity money never raises the equity limit. Connections → BOW upload files can add a user-level line (category blank, their sum) or write the single combined user-level line of the old back office (category blank, Securities + Commodities). Whole rupees, debits kept (negative), a blocked, inactive or not active client 0. Ledgerline writes every active client (and 0 once for a client no longer active who was last sent a non-zero figure), or only the clients whose figures changed since the last file (the broker's second, small morning file). BOW takes user deposit and user stock files during market hours too (other files 17:30 to 08:00).",
  "names": [
   "BOW_FUND_\\d{2}-\\d{2}-\\d{2} \\d{2}_\\d{2}_\\d{2} [AP]M\\.csv"
  ],
  "template": "BOW_FUND_{date:02-01-06} {time}.csv",
  "columns": [
   {
-   "name": "Client code",
-   "key": "ClientCode",
+   "name": "Client ID",
+   "key": "ClientID",
    "type": "str",
    "required": true,
-   "note": "The client's UCC (BOW's back-office ID), not the BOW login (CLIENT-T…)"
+   "note": "NOT NULL in BOW's sheet. The client's UCC (BOW's back-office ID), not the BOW login (CLIENT-T…)"
   },
   {
-   "name": "Field 2",
-   "key": "Blank2",
+   "name": "Filler",
+   "key": "Filler2",
    "type": "blank",
-   "note": "Blank in the broker's file; probably the deposit category (blank = all: user level, EditUserDeposit UDCategory). Meaning unconfirmed"
+   "note": "Should be blank"
   },
   {
-   "name": "Field 3",
-   "key": "Blank3",
-   "type": "blank",
-   "note": "Blank in the broker's file; probably the exchange (blank at user level, UDExchange). Meaning unconfirmed"
+   "name": "Exchange",
+   "key": "Exchange",
+   "type": "str",
+   "note": "NOT NULL in BOW's sheet. BSE, NSE, MCX or NCDEX; blank = every exchange (the broker's file and BOW's own sample leave it blank). Ledgerline: blank",
+   "codes": {
+    "BSE": "BSE",
+    "NSE": "NSE",
+    "MCX": "MCX",
+    "NCDEX": "NCDEX"
+   }
   },
   {
-   "name": "Field 4",
-   "key": "Blank4",
-   "type": "blank",
-   "note": "Blank in the broker's file; probably the market or segment (blank at user level, UDMarket / UDSEGMENT). Meaning unconfirmed"
+   "name": "Market",
+   "key": "Market",
+   "type": "str",
+   "note": "NOT NULL in BOW's sheet. EQ, FO, CUR …; blank = every market. Ledgerline: blank"
   },
   {
-   "name": "Cash deposit",
-   "key": "CashDeposit",
+   "name": "Total Deposit",
+   "key": "TotalDeposit",
    "type": "int",
    "required": true,
-   "note": "Funds in whole rupees (not × 10,000 as the API takes them), integer, may be negative (debit); mostly 0. The cash deposit (EditUserDeposit UDAmount1). Ledgerline writes Securities + Commodities (signed: a debit in one ledger reduces the other), rounded down to the rupee; 0 for a blocked, inactive or not active client"
+   "note": "NOT NULL in BOW's sheet. The deposit in whole rupees (not × 10,000 as the API takes it); may be negative (a debit). Ledgerline: Securities (equity money) on the securities line, Commodities on the commodities line, their sum on a user-level line; rounded down to the rupee; 0 for a blocked, inactive or not active client"
   },
   {
-   "name": "Field 6",
-   "key": "Const6",
+   "name": "Filler",
+   "key": "Filler6",
    "type": "int",
-   "const": "0",
-   "note": "Always 0 in the broker's file: observed constant; meaning unconfirmed. Perhaps the adhoc deposit (UDADHOCMARGIN)."
+   "note": "NOT NULL in BOW's sheet. Should be 0",
+   "const": "0"
   },
   {
-   "name": "Field 7",
-   "key": "Const7",
+   "name": "Filler",
+   "key": "Filler7",
    "type": "int",
-   "const": "0",
-   "note": "Always 0 in the broker's file: observed constant; meaning unconfirmed. Perhaps another deposit amount (UDAmount3)."
+   "note": "NOT NULL in BOW's sheet. Should be 0",
+   "const": "0"
   },
   {
-   "name": "Field 8",
-   "key": "Const8",
+   "name": "Filler",
+   "key": "Filler8",
    "type": "int",
-   "const": "0",
-   "note": "Always 0 in the broker's file: observed constant; meaning unconfirmed. Perhaps another deposit amount."
+   "note": "NOT NULL in BOW's sheet. Should be 0",
+   "const": "0"
   },
   {
-   "name": "Field 9",
-   "key": "Blank9",
-   "type": "blank",
-   "note": "Blank in the broker's file; perhaps the valid-till date (UDValidTill). Meaning unconfirmed"
-  },
-  {
-   "name": "Field 10",
-   "key": "Const10",
-   "type": "int",
-   "const": "1",
-   "note": "Always 1 in the broker's file: observed constant; meaning unconfirmed. Probably the multiplier (UDAmount2, 1 in units rather than × 10,000) or the row state (UDROWSTATE 1 = add)."
-  },
-  {
-   "name": "Field 11",
-   "key": "Const11",
-   "type": "int",
-   "const": "0",
-   "note": "Always 0 in the broker's file: observed constant; meaning unconfirmed. Perhaps the MTM factor or the adhoc deposit."
-  },
-  {
-   "name": "Field 12",
-   "key": "Blank12",
-   "type": "blank",
-   "note": "Blank in the broker's file. Meaning unconfirmed"
-  },
-  {
-   "name": "Field 13",
-   "key": "Blank13",
-   "type": "blank",
-   "note": "Blank in the broker's file. Meaning unconfirmed"
-  },
-  {
-   "name": "Field 14",
-   "key": "Blank14",
-   "type": "blank",
-   "note": "Blank in the broker's file. Meaning unconfirmed"
-  },
-  {
-   "name": "Field 15",
-   "key": "Blank15",
-   "type": "blank",
-   "note": "Blank in the broker's file. Meaning unconfirmed"
-  },
-  {
-   "name": "Field 16",
-   "key": "Const16",
-   "type": "int",
-   "const": "1",
-   "note": "Always 1 in the broker's file: observed constant; meaning unconfirmed. A flag; perhaps consider adhoc deposit for margin (UDFIELD6 = 1)."
-  },
-  {
-   "name": "Field 17",
-   "key": "Const17",
-   "type": "int",
-   "const": "1",
-   "note": "Always 1 in the broker's file: observed constant; meaning unconfirmed. A flag."
-  },
-  {
-   "name": "Field 18",
-   "key": "Const18",
-   "type": "int",
-   "const": "0",
-   "note": "Always 0 in the broker's file: observed constant; meaning unconfirmed. A flag; perhaps consider adhoc deposit for MTM limits (UDFIELD7 = 0)."
-  },
-  {
-   "name": "Field 19",
-   "key": "Const19",
-   "type": "int",
-   "const": "1",
-   "note": "Always 1 in the broker's file: observed constant; meaning unconfirmed. A flag; perhaps the row state (1 = add)."
-  },
-  {
-   "name": "Field 20",
-   "key": "Const20",
+   "name": "Category",
+   "key": "Category",
    "type": "str",
-   "const": "Y",
-   "note": "Always Y in the broker's file: observed constant; meaning unconfirmed. Perhaps 'replace the existing deposit' or 'active'."
+   "note": "NOT NULL in BOW's sheet. securities or commodities (lower case, as in BOW's samples); blank in the broker's file = user level, one combined figure. Ledgerline: securities and commodities lines by default; blank for the single combined line or the user-level line",
+   "codes": {
+    "securities": "Securities (equity, F&O, currency)",
+    "commodities": "Commodities",
+    "": "User level (all categories)"
+   }
+  },
+  {
+   "name": "Factor",
+   "key": "Factor",
+   "type": "dec",
+   "note": "NOT NULL in BOW's sheet. Factor (multiplier) on the deposit. Ledgerline: 1"
+  },
+  {
+   "name": "Adhoc Margin",
+   "key": "AdhocMargin",
+   "type": "dec",
+   "note": "NOT NULL in BOW's sheet. Adhoc margin. Ledgerline: 0"
+  },
+  {
+   "name": "Manual Collateral Amount",
+   "key": "ManualCollateral",
+   "type": "dec",
+   "note": "Manual collateral value (previously a filler); blank in the broker's file. Ledgerline: blank",
+   "aliases": [
+    "Manual Collateral Amount (Previous it was Filler)"
+   ]
+  },
+  {
+   "name": "Other Deposit Amount",
+   "key": "OtherDeposit",
+   "type": "dec",
+   "note": "Other deposit amount (previously a filler); blank in the broker's file. Ledgerline: blank",
+   "aliases": [
+    "Other Deposit Amount (Previous it was Filler)"
+   ]
+  },
+  {
+   "name": "Filler",
+   "key": "Filler14",
+   "type": "blank",
+   "note": "Should be blank"
+  },
+  {
+   "name": "Filler",
+   "key": "Filler15",
+   "type": "blank",
+   "note": "Should be blank"
+  },
+  {
+   "name": "Add Adhoc/ManualColletra/Other Deposits into Effective Deposits",
+   "key": "AddIntoEffective",
+   "type": "int",
+   "note": "Bit flags: 1 add the adhoc amount, 2 the manual collateral, 4 the other deposits into the effective deposit (3, 5, 6, 7 combinations; 0 none). Ledgerline: 1 (as the broker's file)",
+   "codes": {
+    "0": "None",
+    "1": "Adhoc",
+    "2": "Manual collateral",
+    "3": "Adhoc + manual collateral",
+    "4": "Other deposits",
+    "5": "Adhoc + other deposits",
+    "6": "Manual collateral + other deposits",
+    "7": "All three"
+   }
+  },
+  {
+   "name": "Mark to Market Factor",
+   "key": "MTMFactor",
+   "type": "dec",
+   "note": "Mark-to-market factor (multiplier). Ledgerline: 1 (as the broker's file)"
+  },
+  {
+   "name": "Effective Amount",
+   "key": "EffectiveAmount",
+   "type": "dec",
+   "note": "Effective amount. Ledgerline: 0 (as the broker's file)"
+  },
+  {
+   "name": "Add Adhoc/ManualColletra/Other Deposits into MTM Limit",
+   "key": "AddIntoMTM",
+   "type": "int",
+   "note": "Bit flags as field 16, into the MTM limit. Ledgerline: 1 (as the broker's file)",
+   "codes": {
+    "0": "None",
+    "1": "Adhoc",
+    "2": "Manual collateral",
+    "4": "Other deposits"
+   }
+  },
+  {
+   "name": "Add entry flag",
+   "key": "AddEntry",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Y add the entry, N not. Ledgerline: Y",
+   "codes": {
+    "Y": "Yes",
+    "N": "No"
+   }
+  },
+  {
+   "name": "Product",
+   "key": "Product",
+   "type": "str",
+   "note": "NOT NULL in BOW's sheet. Delivery, Intraday …; the broker's file has no such field (its lines stop at 20 fields) and BOW takes them. Ledgerline: left out (20 fields) unless Product is set in Connections → BOW upload files",
+   "may_omit": true
   }
  ],
  "compress": "none",
@@ -150,6 +188,7 @@
  "crlf": true,
  "final_eol": true,
  "confirmed": true,
- "linked": "Live RMS → Front-office files → BOW funds file (all clients, or changed only)",
- "source": "real BOW upload files from the broker (structure only), 9 Nov 2026; field meanings partly from BOW API v1.0.5"
+ "linked": "Live RMS → Front-office files → BOW uploads (BOW funds file: all clients, or changed only)",
+ "source": "BOW File_Formats.xlsx, sheet DEPOSIT_UPLOAD (21 fields); shape (20 fields, no Product) from the broker's real BOW upload files (structure only), 9 Nov 2026",
+ "trailing_empty": true
 }

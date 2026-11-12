@@ -1,0 +1,130 @@
+{
+ "id": "bow-trading-rights",
+ "title": "Trading rights upload (BOW front end, TRADING_RIGHTS_UPLOAD)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request (new or changed clients)",
+ "purpose": "What each client may do per category, exchange and market: one line per client per BOW exchange segment the firm trades on, permission YYYYYYYYYYNY (buy, sell, modify, cancel, square off for self and others; no pro orders; broadcast) when the client's segment is open and NNNNNNNNNNNY (blocked, with the reason in Remarks) when it is not registered, suspended, dormant or closed, or the client is not active. Written for clients new or changed since the last file; delete flag N. BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_TRADING_RIGHTS_\\d{8}\\.txt"
+ ],
+ "template": "BOW_TRADING_RIGHTS_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "Client ID",
+   "key": "ClientID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC"
+  },
+  {
+   "name": "Default",
+   "key": "Default2",
+   "type": "int",
+   "note": "Default value 1",
+   "const": "1"
+  },
+  {
+   "name": "Default",
+   "key": "Default3",
+   "type": "int",
+   "note": "Default value 1",
+   "const": "1"
+  },
+  {
+   "name": "Permission",
+   "key": "Permission",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 12 Y/N flags: buy self, sell self, modify self, cancel self, square-off self, buy others, sell others, modify others, cancel others, square-off others, pro orders allowed, broadcast allowed"
+  },
+  {
+   "name": "Category",
+   "key": "Category",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. SECURITIES or commodities (as in BOW's samples)"
+  },
+  {
+   "name": "Exchange",
+   "key": "Exchange",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. BSE, NSE, MCX, NCDEX (blank in one of BOW's samples: all)"
+  },
+  {
+   "name": "Market",
+   "key": "Market",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. EQUITY, DERIVATIVE, CURRENCY, COMMODITIES"
+  },
+  {
+   "name": "Segment",
+   "key": "Segment",
+   "type": "str",
+   "note": "EQUITY for the cash market; blank = every segment of the market"
+  },
+  {
+   "name": "Symbol",
+   "key": "Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Series",
+   "key": "Series",
+   "type": "str"
+  },
+  {
+   "name": "Instrument Name",
+   "key": "InstrumentName",
+   "type": "str"
+  },
+  {
+   "name": "Expiry Date",
+   "key": "ExpiryDate",
+   "type": "str"
+  },
+  {
+   "name": "Strike Price",
+   "key": "StrikePrice",
+   "type": "str"
+  },
+  {
+   "name": "Opt Type",
+   "key": "OptType",
+   "type": "str"
+  },
+  {
+   "name": "Remarks",
+   "key": "Remarks",
+   "type": "str",
+   "note": "Why the client is blocked"
+  },
+  {
+   "name": "Product",
+   "key": "Product",
+   "type": "str",
+   "note": "Intraday or Delivery; blank = all"
+  },
+  {
+   "name": "Delete Flag",
+   "key": "DeleteFlag",
+   "type": "str",
+   "note": "N for a new record, Y to delete the same record",
+   "codes": {
+    "N": "Add",
+    "Y": "Delete"
+   }
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (trading rights)",
+ "source": "BOW File_Formats.xlsx, sheet TRADING_RIGHTS_UPLOAD"
+}

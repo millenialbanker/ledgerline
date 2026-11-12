@@ -1,0 +1,65 @@
+{
+ "id": "bow-dp-stocks",
+ "title": "Holding (DP stocks) upload (BOW front end, HOLDING_DPSTOCKS_UPLOAD)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "BOD",
+ "purpose": "The older stock upload: each client's demat quantity per security, without prices or haircuts; 6 fields. BOW takes user deposit and user stock files during market hours too (other files 17:30 to 08:00).",
+ "names": [
+  "BOW_HOLDING_DPSTOCKS_\\d{8}\\.txt"
+ ],
+ "template": "BOW_HOLDING_DPSTOCKS_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "Client ID",
+   "key": "ClientID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC"
+  },
+  {
+   "name": "BSE / NSE Symbol",
+   "key": "Symbol",
+   "type": "str",
+   "note": "NOT NULL in BOW's sheet. NSE symbol; blank when the security has only a BSE code (as BOW's sample)"
+  },
+  {
+   "name": "Series",
+   "key": "Series",
+   "type": "str",
+   "note": "NOT NULL in BOW's sheet. NSE series; blank with the symbol"
+  },
+  {
+   "name": "Quantity",
+   "key": "Quantity",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Holding quantity from the DP (sellable demat quantity)"
+  },
+  {
+   "name": "FILLER",
+   "key": "Filler",
+   "type": "int",
+   "note": "0",
+   "const": "0"
+  },
+  {
+   "name": "BSE Scrip  Code",
+   "key": "BSEScripCode",
+   "type": "str",
+   "note": "NOT NULL in BOW's sheet. BSE scrip code; blank when the BSE scrip file has none",
+   "aliases": [
+    "BSE Scrip Code"
+   ]
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (holding DP stocks)",
+ "source": "BOW File_Formats.xlsx, sheet HOLDING_DPSTOCKS_UPLOAD"
+}

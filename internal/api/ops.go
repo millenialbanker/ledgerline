@@ -10,6 +10,7 @@ import (
 	"io"
 	"ledgerline/internal/backup"
 	"net/http"
+	neturl "net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -3219,17 +3220,22 @@ func (s *Server) frontOffice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.HasPrefix(kind, "bow-") {
-		// BOW upload files (bowfiles.go), named as the broker's back office
-		// names them; ?changed=1 for the funds of changed clients only.
-		name, f, err := s.ops.BOWFile(r.Context(), tenant(r), actor(r), kind, d, r.URL.Query().Get("changed") == "1")
+		// BOW upload files (bowfiles.go, bowuploads.go) in the layouts of
+		// BOW's format workbook; ?changed=1 for the funds of changed clients
+		// only, ?all=1 for every client in the client files. X-Note (URL
+		// escaped) says what was left out, or that there was nothing to send.
+		u, err := s.ops.BOWUploadFile(r.Context(), tenant(r), actor(r), kind, d, r.URL.Query().Get("changed") == "1", r.URL.Query().Get("all") == "1")
 		if err != nil {
 			fail(w, err, nil)
 			return
 		}
-		s.app.Log(r.Context(), tenant(r), actor(r), "frontoffice."+kind, d, map[string]any{"file": name})
+		s.app.Log(r.Context(), tenant(r), actor(r), "frontoffice."+kind, d, map[string]any{"file": u.Name, "lines": u.Lines})
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
-		w.Write(f)
+		w.Header().Set("Content-Disposition", `attachment; filename="`+u.Name+`"`)
+		if u.Note != "" {
+			w.Header().Set("X-Note", neturl.PathEscape(u.Note))
+		}
+		w.Write(u.Data)
 		return
 	}
 	switch kind {

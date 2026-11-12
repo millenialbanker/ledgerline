@@ -1,0 +1,128 @@
+{
+ "id": "bow-ibt-users",
+ "title": "Internet client addition (BOW front end, IBT_USER_ADDITION_UPLOAD)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request (new or changed clients)",
+ "purpose": "Creates internet (IBT) client logins in BOW, uploaded from the BOW Admin terminal's upload menu INTERNET RETAIL CLIENTS (the admin chooses the login permissions: thick client, web, mobile). One line per active client that is new or changed since the last file (or every one), except the clients in the offline (CTCL) client groups. Comma-separated, no header, 15 fields (BOW still takes the older 13). Passwords are never written: the Password field is left empty though BOW wants one, so set it in BOW. BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_IBT_USER_ADDITION_\\d{8}\\.txt"
+ ],
+ "template": "BOW_IBT_USER_ADDITION_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "Client ID/Login ID",
+   "key": "LoginID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC (10 characters at most)"
+  },
+  {
+   "name": "Owner Id",
+   "key": "OwnerID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The admin ID (e.g. T1001) or mini admin ID (miniadmin-T1001) the user is created under: Owner Id in Connections → BOW upload files"
+  },
+  {
+   "name": "Client ID/Login ID",
+   "key": "UserID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Repeats the client ID (as in BOW's samples)"
+  },
+  {
+   "name": "User Type",
+   "key": "UserType",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 1 for a client",
+   "const": "1"
+  },
+  {
+   "name": "Password",
+   "key": "Password",
+   "type": "str",
+   "note": "NOT NULL in BOW's sheet. BOW wants an initial password (8 characters or more with a letter, a digit and a special character). Ledgerline NEVER writes passwords: the field is left empty; set it in BOW (or in the file just before uploading)"
+  },
+  {
+   "name": "First Name",
+   "key": "FirstName",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The first word of the client's name"
+  },
+  {
+   "name": "Last Name",
+   "key": "LastName",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The rest of the name (the first name again when the name is one word)"
+  },
+  {
+   "name": "Email Id",
+   "key": "Email",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. E-mail from the client master"
+  },
+  {
+   "name": "Default Marketwatch",
+   "key": "DefaultMarketwatch",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Always N",
+   "const": "N"
+  },
+  {
+   "name": "Mobile No",
+   "key": "Mobile",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Mobile number"
+  },
+  {
+   "name": "Default Role (Blank)",
+   "key": "DefaultRole",
+   "type": "blank",
+   "note": "Blank"
+  },
+  {
+   "name": "Pan Card No",
+   "key": "PAN",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. PAN"
+  },
+  {
+   "name": "Broker Id (Blank)",
+   "key": "BrokerID",
+   "type": "blank",
+   "note": "Blank"
+  },
+  {
+   "name": "MarginProductPref",
+   "key": "MarginProductPref",
+   "type": "str",
+   "note": "May be blank: BOW's product preference value for margin (e.g. 1099511627775 = all), from Connections → BOW upload files",
+   "may_omit": true
+  },
+  {
+   "name": "DeliveryProductPref",
+   "key": "DeliveryProductPref",
+   "type": "str",
+   "note": "May be blank: BOW's product preference value for delivery, from Connections → BOW upload files",
+   "may_omit": true
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (IBT user addition)",
+ "source": "BOW File_Formats.xlsx, sheet IBT_USER_ADDITION_UPLOAD",
+ "trailing_empty": true
+}

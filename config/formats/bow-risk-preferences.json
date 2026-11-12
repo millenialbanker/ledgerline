@@ -1,0 +1,197 @@
+{
+ "id": "bow-risk-preferences",
+ "title": "Risk preferences upload (BOW front end, RISK_PREFFRENCES)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request (new or changed clients)",
+ "purpose": "Which profits and losses BOW counts against margin, MTM or both, per client, exchange, market and product: the firm's nine values (Connections → BOW upload files) for every active client new or changed since the last file. The ninth-from-last field is named 'Consider Realised Loss' twice in BOW's sheet; by its place and description it is the unrealised loss. BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_RISK_PREFERENCES_\\d{8}\\.txt"
+ ],
+ "template": "BOW_RISK_PREFERENCES_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "Client Code",
+   "key": "ClientCode",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC"
+  },
+  {
+   "name": "Exchange",
+   "key": "Exchange",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. BSE, NSE, MCX, NCDEX or ALL. Connections → BOW upload files (default ALL)"
+  },
+  {
+   "name": "Market",
+   "key": "Market",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. EQUITY, COMMODITIES … or ALL (default ALL)"
+  },
+  {
+   "name": "Product",
+   "key": "Product",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. INTRADAY, DELIVERY or ALL (default ALL)"
+  },
+  {
+   "name": "Consider Realised Profit",
+   "key": "RealisedProfit",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 1 margin, 2 MTM, 3 both. The firm's value in Connections → BOW upload files (Risk preferences)",
+   "codes": {
+    "1": "Margin",
+    "2": "MTM",
+    "3": "Both"
+   }
+  },
+  {
+   "name": "Consider Realised Loss",
+   "key": "RealisedLoss",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 1 margin, 2 MTM, 3 both. The firm's value in Connections → BOW upload files (Risk preferences)",
+   "codes": {
+    "1": "Margin",
+    "2": "MTM",
+    "3": "Both"
+   }
+  },
+  {
+   "name": "Consider Unrealised Profit",
+   "key": "UnrealisedProfit",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 1 margin, 2 MTM, 3 both. The firm's value in Connections → BOW upload files (Risk preferences)",
+   "codes": {
+    "1": "Margin",
+    "2": "MTM",
+    "3": "Both"
+   }
+  },
+  {
+   "name": "Consider Unrealised Loss",
+   "key": "UnrealisedLoss",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 1 margin, 2 MTM, 3 both. The firm's value in Connections → BOW upload files (Risk preferences)",
+   "codes": {
+    "1": "Margin",
+    "2": "MTM",
+    "3": "Both"
+   },
+   "aliases": [
+    "Consider Realised Loss"
+   ]
+  },
+  {
+   "name": "Consider Realised P&L for Options",
+   "key": "OptionsRealisedPL",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 1 margin, 2 MTM, 3 both. The firm's value in Connections → BOW upload files (Risk preferences)",
+   "codes": {
+    "1": "Margin",
+    "2": "MTM",
+    "3": "Both"
+   }
+  },
+  {
+   "name": "Consider Unrealised P&L for Option Buy",
+   "key": "OptionBuyUnrealisedPL",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 1 margin, 2 MTM, 3 both. The firm's value in Connections → BOW upload files (Risk preferences)",
+   "codes": {
+    "1": "Margin",
+    "2": "MTM",
+    "3": "Both"
+   }
+  },
+  {
+   "name": "Consider UnRealised P&L For Options SELL",
+   "key": "OptionSellUnrealisedPL",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 1 margin, 2 MTM, 3 both. The firm's value in Connections → BOW upload files (Risk preferences)",
+   "codes": {
+    "1": "Margin",
+    "2": "MTM",
+    "3": "Both"
+   }
+  },
+  {
+   "name": "Consider Net Realised Loss",
+   "key": "NetRealisedLoss",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 1 margin, 2 MTM, 3 both. The firm's value in Connections → BOW upload files (Risk preferences)",
+   "codes": {
+    "1": "Margin",
+    "2": "MTM",
+    "3": "Both"
+   }
+  },
+  {
+   "name": "Consider Net UnRealised Loss",
+   "key": "NetUnrealisedLoss",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 1 margin, 2 MTM, 3 both. The firm's value in Connections → BOW upload files (Risk preferences)",
+   "codes": {
+    "1": "Margin",
+    "2": "MTM",
+    "3": "Both"
+   }
+  },
+  {
+   "name": "Filler 1",
+   "key": "Filler1",
+   "type": "blank"
+  },
+  {
+   "name": "Filler 2",
+   "key": "Filler2",
+   "type": "blank"
+  },
+  {
+   "name": "Filler 3",
+   "key": "Filler3",
+   "type": "blank"
+  },
+  {
+   "name": "Filler 4",
+   "key": "Filler4",
+   "type": "blank"
+  },
+  {
+   "name": "Filler 5",
+   "key": "Filler5",
+   "type": "blank"
+  },
+  {
+   "name": "Delete Flag",
+   "key": "DeleteFlag",
+   "type": "str",
+   "note": "Blank for a new record, 1 to delete the same record",
+   "codes": {
+    "": "Add",
+    "1": "Delete"
+   }
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (risk preferences)",
+ "source": "BOW File_Formats.xlsx, sheet RISK_PREFFRENCES"
+}

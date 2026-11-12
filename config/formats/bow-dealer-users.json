@@ -1,0 +1,113 @@
+{
+ "id": "bow-dealer-users",
+ "title": "Dealer addition (BOW front end, DEALER ID_ADDITION_UPLOAD)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request (new or changed dealers)",
+ "purpose": "Creates dealer logins in BOW (upload menu DEALERS / EMPLOYEE; dealers log in through the thick client only). One line per active dealer in Ledgerline's dealer register that is new or changed since the last file. 13 fields; passwords never written. BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_DEALER_ADDITION_\\d{8}\\.txt"
+ ],
+ "template": "BOW_DEALER_ADDITION_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "Dealer Id",
+   "key": "LoginID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The dealer's BOW dealer ID (Connections → BOW upload files, or the Ledgerline dealer ID without the hyphen; 10 characters at most)"
+  },
+  {
+   "name": "Owner Id",
+   "key": "OwnerID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The admin ID (e.g. T1001) or mini admin ID (miniadmin-T1001) the user is created under: Owner Id in Connections → BOW upload files"
+  },
+  {
+   "name": "Dealer Id",
+   "key": "UserID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Repeats the dealer ID (as in BOW's samples)"
+  },
+  {
+   "name": "User Type",
+   "key": "UserType",
+   "type": "int",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. 2 for a dealer",
+   "const": "2"
+  },
+  {
+   "name": "Password",
+   "key": "Password",
+   "type": "str",
+   "note": "NOT NULL in BOW's sheet. BOW wants an initial password (8 characters or more with a letter, a digit and a special character). Ledgerline NEVER writes passwords: the field is left empty; set it in BOW (or in the file just before uploading)"
+  },
+  {
+   "name": "First Name",
+   "key": "FirstName",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The first word of the dealer's name"
+  },
+  {
+   "name": "Last Name",
+   "key": "LastName",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The rest of the name (the first name again when the name is one word)"
+  },
+  {
+   "name": "Email Id",
+   "key": "Email",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. E-mail from the dealer register"
+  },
+  {
+   "name": "Default Marketwatch",
+   "key": "DefaultMarketwatch",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Always N",
+   "const": "N"
+  },
+  {
+   "name": "Mobile No",
+   "key": "Mobile",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Mobile number"
+  },
+  {
+   "name": "Default Role (Blank)",
+   "key": "DefaultRole",
+   "type": "blank",
+   "note": "Blank"
+  },
+  {
+   "name": "Pan Card No",
+   "key": "PAN",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. PAN"
+  },
+  {
+   "name": "Broker Id (Blank)",
+   "key": "BrokerID",
+   "type": "blank",
+   "note": "Blank"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (dealer addition)",
+ "source": "BOW File_Formats.xlsx, sheet DEALER ID_ADDITION_UPLOAD"
+}

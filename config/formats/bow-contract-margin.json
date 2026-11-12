@@ -1,0 +1,105 @@
+{
+ "id": "bow-contract-margin",
+ "title": "Contract margin upload (BOW front end, CONTRACT_MARGIN)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request (new or changed clients)",
+ "purpose": "Intraday and delivery margin multipliers per client, exchange, market and segment (100 / leverage: 20 is 5 times, 100 no leverage), from the firm's contract margin lines in Connections → BOW upload files, for each active client with the segment open; new or changed clients since the last file. BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_CONTRACT_MARGIN_\\d{8}\\.txt"
+ ],
+ "template": "BOW_CONTRACT_MARGIN_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "Backoffice Id",
+   "key": "BackofficeID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC"
+  },
+  {
+   "name": "Exchange",
+   "key": "Exchange",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. BSE, NSE, MCX, NCDEX"
+  },
+  {
+   "name": "Market",
+   "key": "Market",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. EQUITY, DERIVATIVE, CURRENCY, COMMODITIES"
+  },
+  {
+   "name": "Segment",
+   "key": "Segment",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. EQUITY, FUTURES, OPTIONS, COMMODITIES-FUTURES …"
+  },
+  {
+   "name": "Symbol",
+   "key": "Symbol",
+   "type": "str"
+  },
+  {
+   "name": "Series",
+   "key": "Series",
+   "type": "str"
+  },
+  {
+   "name": "Instrument Name",
+   "key": "InstrumentName",
+   "type": "str"
+  },
+  {
+   "name": "Expiry Date",
+   "key": "ExpiryDate",
+   "type": "str"
+  },
+  {
+   "name": "Strike Price",
+   "key": "StrikePrice",
+   "type": "str"
+  },
+  {
+   "name": "Option Type",
+   "key": "OptionType",
+   "type": "str"
+  },
+  {
+   "name": "Intraday Margin",
+   "key": "IntradayMargin",
+   "type": "dec",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Intraday margin multiplier: 100 / leverage (20 for 5 times)"
+  },
+  {
+   "name": "Delivery Margin",
+   "key": "DeliveryMargin",
+   "type": "dec",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Delivery margin multiplier: 100 / leverage (100 for none)"
+  },
+  {
+   "name": "Filler",
+   "key": "Filler13",
+   "type": "blank"
+  },
+  {
+   "name": "Filler",
+   "key": "Filler14",
+   "type": "blank"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (contract margin)",
+ "source": "BOW File_Formats.xlsx, sheet CONTRACT_MARGIN"
+}

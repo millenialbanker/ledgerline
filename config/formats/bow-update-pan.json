@@ -1,0 +1,37 @@
+{
+ "id": "bow-update-pan",
+ "title": "PAN update (BOW front end, UPDATE_PAN)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request (new or changed clients)",
+ "purpose": "Each client's PAN, for clients created in BOW before PAN was compulsory: every active client with a valid PAN that is new or changed since the last file. BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_UPDATE_PAN_\\d{8}\\.txt"
+ ],
+ "template": "BOW_UPDATE_PAN_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "Client ID",
+   "key": "ClientID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC"
+  },
+  {
+   "name": "PAN NO",
+   "key": "PAN",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. PAN from the client master"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (PAN update)",
+ "source": "BOW File_Formats.xlsx, sheet UPDATE_PAN"
+}

@@ -1,0 +1,66 @@
+{
+ "id": "bow-bank",
+ "title": "Client bank upload (BOW front end, BANK UPLOAD)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request (new or changed clients)",
+ "purpose": "Each active client's registered bank accounts, primary first, with their status: one line per account, for clients new or changed since the last file. The account number must be digits only, at least 10 (shorter ones are left out and named in the note); the branch is the bank branch's name, or the IFSC when Ledgerline has no branch name. BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_BANK_\\d{8}\\.txt"
+ ],
+ "template": "BOW_BANK_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "BackOffice ID",
+   "key": "BackOfficeID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC"
+  },
+  {
+   "name": "Bank Name",
+   "key": "BankName",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Bank name",
+   "aliases": [
+    "Bank Name "
+   ]
+  },
+  {
+   "name": "Account No",
+   "key": "AccountNo",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Account number: digits only, at least 10"
+  },
+  {
+   "name": "Branch Name",
+   "key": "BranchName",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. Branch name (the IFSC when the branch is not known)"
+  },
+  {
+   "name": "Status",
+   "key": "Status",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. active, inactive or suspended",
+   "codes": {
+    "active": "Active",
+    "inactive": "Inactive",
+    "suspended": "Suspended"
+   }
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (bank)",
+ "source": "BOW File_Formats.xlsx, sheet BANK UPLOAD"
+}

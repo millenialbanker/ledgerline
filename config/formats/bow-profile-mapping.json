@@ -1,0 +1,72 @@
+{
+ "id": "bow-profile-mapping",
+ "title": "Profile mapping upload (BOW front end, PROFILE_MAPPING_UPLOAD)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request (new or changed clients)",
+ "purpose": "Puts each client on the firm's BOW profiles (trading rights, contract margin, right limits, user configuration, MTM, IP and exchange identifier profiles, made in BOW), from the profile names in Connections → BOW upload files; every active client new or changed since the last file. With no profile names set the file is empty. BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_PROFILE_MAPPING_\\d{8}\\.txt"
+ ],
+ "template": "BOW_PROFILE_MAPPING_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "Login Id",
+   "key": "LoginID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC"
+  },
+  {
+   "name": "TR Profile",
+   "key": "TRProfile",
+   "type": "str",
+   "note": "Trading rights profile name"
+  },
+  {
+   "name": "CM Profile",
+   "key": "CMProfile",
+   "type": "str",
+   "note": "Contract margin profile name"
+  },
+  {
+   "name": "RL Profile",
+   "key": "RLProfile",
+   "type": "str",
+   "note": "Right limit profile name"
+  },
+  {
+   "name": "UCON Profile",
+   "key": "UCONProfile",
+   "type": "str",
+   "note": "User configuration profile name"
+  },
+  {
+   "name": "MTM Profile",
+   "key": "MTMProfile",
+   "type": "str",
+   "note": "MTM profile name"
+  },
+  {
+   "name": "IP Profile",
+   "key": "IPProfile",
+   "type": "str",
+   "note": "IP profile name"
+  },
+  {
+   "name": "Exc. Ide Profile.",
+   "key": "ExcIdeProfile",
+   "type": "str",
+   "note": "Exchange user identifier profile name"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (profile mapping)",
+ "source": "BOW File_Formats.xlsx, sheet PROFILE_MAPPING_UPLOAD"
+}

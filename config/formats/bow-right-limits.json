@@ -1,0 +1,185 @@
+{
+ "id": "bow-right-limits",
+ "title": "Right limits upload (BOW front end, RIGHT_LIMITS)",
+ "party": "Front end (BOW)",
+ "direction": "out",
+ "when": "On request (new or changed clients)",
+ "purpose": "Order and exposure limits per client, category, exchange, market and segment (maximum order quantity and value, turnover, exposure, buy and sell amounts), from the firm's right limit lines in Connections → BOW upload files, for each active client with the category open; new or changed clients since the last file. BOW's samples end some lines with an extra comma (27 fields); Ledgerline writes 26. BOW's file uploader takes it from 17:30 to 08:00.",
+ "names": [
+  "BOW_RIGHT_LIMITS_\\d{8}\\.txt"
+ ],
+ "template": "BOW_RIGHT_LIMITS_{date:02012006}.txt",
+ "columns": [
+  {
+   "name": "Client ID/ Dealer ID",
+   "key": "LoginID",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. The client's UCC",
+   "aliases": [
+    "Client ID/Dealer ID"
+   ]
+  },
+  {
+   "name": "USERLEVEL",
+   "key": "UserLevel",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. USER (user level) or Group",
+   "codes": {
+    "USER": "User",
+    "Group": "User group"
+   }
+  },
+  {
+   "name": "Category",
+   "key": "Category",
+   "type": "str",
+   "note": "NOT NULL in BOW's sheet. Securities or COMMODITIES (blank in one of BOW's samples)"
+  },
+  {
+   "name": "EXCHANGE",
+   "key": "Exchange",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. BSE, NSE, MCX, NCDEX"
+  },
+  {
+   "name": "MARKET",
+   "key": "Market",
+   "type": "str",
+   "required": true,
+   "note": "NOT NULL in BOW's sheet. EQ, CUR, CF …"
+  },
+  {
+   "name": "SEGMENT",
+   "key": "Segment",
+   "type": "str",
+   "note": "NOT NULL in BOW's sheet. EQ …; blank in some of BOW's samples"
+  },
+  {
+   "name": "SYMBOL",
+   "key": "Symbol",
+   "type": "str"
+  },
+  {
+   "name": "SERIES",
+   "key": "Series",
+   "type": "str"
+  },
+  {
+   "name": "INSTRUMENTNAME",
+   "key": "InstrumentName",
+   "type": "str"
+  },
+  {
+   "name": "EXPIRYDATE",
+   "key": "ExpiryDate",
+   "type": "str"
+  },
+  {
+   "name": "STRIKEPRICE",
+   "key": "StrikePrice",
+   "type": "str"
+  },
+  {
+   "name": "OPTIONTYPE",
+   "key": "OptionType",
+   "type": "str"
+  },
+  {
+   "name": "MaxOrderQuantity",
+   "key": "MaxOrderQuantity",
+   "type": "dec",
+   "note": "Limit set for the client (blank: none). From the firm's right limit lines in Connections → BOW upload files"
+  },
+  {
+   "name": "MaxOrderValue",
+   "key": "MaxOrderValue",
+   "type": "dec",
+   "note": "Limit set for the client (blank: none). From the firm's right limit lines in Connections → BOW upload files"
+  },
+  {
+   "name": "TradeTurnoverLimit",
+   "key": "TradeTurnoverLimit",
+   "type": "dec",
+   "note": "Limit set for the client (blank: none). From the firm's right limit lines in Connections → BOW upload files"
+  },
+  {
+   "name": "TurnoverLimit",
+   "key": "TurnoverLimit",
+   "type": "dec",
+   "note": "Limit set for the client (blank: none). From the firm's right limit lines in Connections → BOW upload files"
+  },
+  {
+   "name": "TradeGrossExposure",
+   "key": "TradeGrossExposure",
+   "type": "dec",
+   "note": "Limit set for the client (blank: none). From the firm's right limit lines in Connections → BOW upload files"
+  },
+  {
+   "name": "TradeNetExposure",
+   "key": "TradeNetExposure",
+   "type": "dec",
+   "note": "Limit set for the client (blank: none). From the firm's right limit lines in Connections → BOW upload files"
+  },
+  {
+   "name": "GrossExposure",
+   "key": "GrossExposure",
+   "type": "dec",
+   "note": "Limit set for the client (blank: none). From the firm's right limit lines in Connections → BOW upload files"
+  },
+  {
+   "name": "NetExposure",
+   "key": "NetExposure",
+   "type": "dec",
+   "note": "Limit set for the client (blank: none). From the firm's right limit lines in Connections → BOW upload files"
+  },
+  {
+   "name": "BuyAmount",
+   "key": "BuyAmount",
+   "type": "dec",
+   "note": "Limit set for the client (blank: none). From the firm's right limit lines in Connections → BOW upload files"
+  },
+  {
+   "name": "SellAmount",
+   "key": "SellAmount",
+   "type": "dec",
+   "note": "Limit set for the client (blank: none). From the firm's right limit lines in Connections → BOW upload files"
+  },
+  {
+   "name": "BuyOutstandingAmount",
+   "key": "BuyOutstandingAmount",
+   "type": "dec",
+   "note": "Limit set for the client (blank: none). From the firm's right limit lines in Connections → BOW upload files"
+  },
+  {
+   "name": "SellOutstandingAmount",
+   "key": "SellOutstandingAmount",
+   "type": "dec",
+   "note": "Limit set for the client (blank: none). From the firm's right limit lines in Connections → BOW upload files"
+  },
+  {
+   "name": "TotalBuyAmount",
+   "key": "TotalBuyAmount",
+   "type": "dec",
+   "note": "Limit set for the client (blank: none). From the firm's right limit lines in Connections → BOW upload files"
+  },
+  {
+   "name": "TotalSellAmount",
+   "key": "TotalSellAmount",
+   "type": "dec",
+   "note": "Limit set for the client (blank: none). From the firm's right limit lines in Connections → BOW upload files"
+  }
+ ],
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW uploads (right limits)",
+ "source": "BOW File_Formats.xlsx, sheet RIGHT_LIMITS",
+ "trailing_empty": true
+}
