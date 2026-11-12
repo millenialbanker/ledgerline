@@ -190,7 +190,9 @@ func TestSeveralDPAccounts(t *testing.T) {
 			t.Errorf("%s has %d primary accounts", u, n)
 		}
 	}
-	if len(primaries) != 7 {
+	// a client whose accounts are all closed (TEST003, the closed DP-only
+	// 00000010) has no primary
+	if len(primaries) != 5 || primaries["TEST003"] != 0 || primaries["00000010"] != 0 {
 		t.Errorf("clients with a primary account %v", primaries)
 	}
 	// TEST005's primary demat account is at another DP (CDMAST); its account

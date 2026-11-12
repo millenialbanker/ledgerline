@@ -1267,7 +1267,7 @@ function dematChangeModal(ucc, action, target) {
     <div class="fld full"><label><input type="checkbox" id="dm-primary"> Make it the primary account</label></div>`
       : `<div class="fld full"><b class="mono">${esc(target)}</b></div>${action === 'deactivate' ? '<div class="fld full"><label for="dm-reason">Reason</label><input class="in" id="dm-reason" placeholder="e.g. no longer used by the client"></div>' : ''}`}
     <div class="fld full"><label for="dm-doc">${add ? 'Proof of the account (the DP’s client master report or a statement; for an account with our DP, the client’s signed request)' : 'The client’s signed request (letter or e-signed form)'} · PDF, JPEG or PNG</label><input class="in" type="file" id="dm-doc" accept="application/pdf,image/jpeg,image/png" required></div>
-    <div class="note full">A BO ID belongs to one client. Marking an account inactive here does not close it at the depository: a closure is a DP request.</div></div>
+    <div class="note full">An account already on another client can be added only to a code with the same PAN. Marking an account inactive here does not close it at the depository: a closure is a DP request.</div></div>
     <div id="dm-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Submit request</button></div></form>`);
   $('dmf').onsubmit = async e => {
     e.preventDefault();

@@ -34,7 +34,7 @@ func TestSeveralDematAccounts(t *testing.T) {
 	if _, err := o.RequestChange(ctx, T, "priya.nair", "BH1001", "Demat account", map[string]string{"action": "add", "id": prim}, doc.ID); err == nil {
 		t.Fatal("the same account added twice")
 	}
-	if _, err := o.RequestChange(ctx, T, "priya.nair", "BH1002", "Demat account", map[string]string{"action": "add", "id": second}, ""); err == nil || !strings.Contains(err.Error(), "belongs to one client") {
+	if _, err := o.RequestChange(ctx, T, "priya.nair", "BH1002", "Demat account", map[string]string{"action": "add", "id": second}, ""); err == nil || !strings.Contains(err.Error(), "whose PAN is different") {
 		t.Fatalf("another client's BO ID: %v", err)
 	}
 	ch, err := o.RequestChange(ctx, T, "priya.nair", "BH1001", "Demat account", map[string]string{"action": "add", "id": other}, doc.ID)

@@ -43,7 +43,15 @@ import (
 //     names (the primary by default), a margin pledge is made from one
 //     account, and a securities pay-out is credited to the account the
 //     client chose for pay-outs, else the primary.
-//   - A BO ID belongs to one client. Adding an account, making another the
+//   - A BO account of the firm's DP belongs to one client (DP-ACCOUNTS,
+//     BOAccount.UCC). A demat account may still be named by more than one
+//     client, as the previous back office had it: a joint or family
+//     account, or the same person's other code; the imports load such an
+//     account with a warning, and staff add another client's account only
+//     to a code of the same PAN. Where a file names only a BO ID, the
+//     account's client is the DP's record of it, else the client whose
+//     primary it is, else the first by code (boClients).
+//   - Adding an account, making another the
 //     primary or marking one inactive is a change of the client's details
 //     made the way a bank account change is: requested by the client or by
 //     staff with the client's signed request, approved by a second person,
@@ -533,15 +541,19 @@ func (x boIdx) of(c Client) []BOAccount {
 }
 
 // boClients maps every demat account Ledgerline knows (the DP's BO
-// accounts and every client's accounts) to its client, by normalised ID.
+// accounts and every client's accounts) to its client, by normalised ID:
+// for an account more than one client names, the DP's record of it, else
+// the client whose primary it is, else the first by code.
 func (o *Ops) boClients(ctx context.Context, tenant string) map[string]string {
 	cs, _ := o.ClientMap(ctx, tenant)
 	by := map[string]string{}
+	prim := map[string]bool{}
 	for _, u := range sortedKeys(cs) {
+		p := normDematID(primaryDemat(cs[u]).ID)
 		for _, d := range demats(cs[u]) {
 			if id := normDematID(d.ID); id != "" {
-				if _, taken := by[id]; !taken {
-					by[id] = u
+				if _, taken := by[id]; !taken || (id == p && !prim[id]) {
+					by[id], prim[id] = u, id == p
 				}
 			}
 		}
@@ -1003,4 +1015,18 @@ func maskJoint(jh []JointHolder) []JointHolder {
 		out[i] = j
 	}
 	return out
+}
+
+// sharedDematMsg is the warning for a demat account another client also
+// names: the same PAN (the client's other code) or another (a joint or
+// family account, which the client should hold).
+func sharedDematMsg(id, other, otherPAN, pan string, inFile bool) string {
+	where := ""
+	if inFile {
+		where = " in this file"
+	}
+	if pan != "" && pan == otherPAN {
+		return fmt.Sprintf("%s is also the demat account of %s%s, the same PAN (the client's other code)", id, other, where)
+	}
+	return fmt.Sprintf("%s is also the demat account of %s%s, whose PAN is different: a joint or family account; check the client is a holder of it before pay-outs go to it", id, other, where)
 }

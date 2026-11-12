@@ -99,6 +99,7 @@ type dpAcct struct {
 	sub    string    // CLLIST.SUBCODE as given, when it is not a client in DLMAST
 	tid    string    // CLLIST.TRADINGID
 	byTID  bool      // linked to its trading client by TRADINGID (no SUBCODE)
+	byCD   int       // linked by CDMAST: the number of trading codes of the first holder's PAN listing it (no SUBCODE or TRADINGID)
 	note   string    // why the DP-only client's code is not the DP client code
 	h      *dpHolder // the holders' details (go-live step only)
 }
@@ -126,6 +127,7 @@ type common struct {
 	// demat accounts in the client demat master (CDMAST); CLLIST_DET of the
 	// DP-only accounts (co|benacnum)
 	boids      map[string]bool
+	boClosed   map[string]bool // BO IDs of the closed CLLIST accounts
 	cdmast     map[string][]cdRec
 	dpDet      map[string]dpDetail
 	dpNomNoPAN int // DP nominees whose PAN is not a valid PAN (left out)
@@ -243,7 +245,7 @@ func setAsOf(w *pkg.Writer, f firmInfo, asOf time.Time) {
 func loadCommon(ctx context.Context, d db, s *schema) (*common, error) {
 	cm := &common{clients: map[string]*client{}, kycByPAN: map[string]kycRec{}, banks: map[string][]bankRec{}, nominees: map[string][]nomRec{},
 		status: map[string][]statusEv{}, lastTrade: map[string]string{}, runAc: map[string]string{}, states: map[string]string{}, groups: map[string][]string{}, runAcOther: map[string]int{},
-		boids: map[string]bool{}, cdmast: map[string][]cdRec{}, dpDet: map[string]dpDetail{}}
+		boids: map[string]bool{}, boClosed: map[string]bool{}, cdmast: map[string][]cdRec{}, dpDet: map[string]dpDetail{}}
 	regCols := []string{"REG_NSE", "REG_BSE", "REG_NFO", "REG_BFO", "REG_CNFO", "REG_CBFO", "REG_USFO", "REG_MCX", "REG_NCDEX", "REG_CMFO", "REG_NMCEIL", "REG_ICFO", "REG_KCFO", "REG_NSFO", "REG_DGCX"}
 	cols := append([]string{"SUBCD", "DESCR", "CLIENTTYPE", "PAN_NO", "BIRTH_DATE", "MOBILE", "EMAIL1", "CITY", "RES_CITY", "STATE", "STATECD", "COUNTRY",
 		"ADD1", "PIN", "BranchID", "SBCODE", "RMCODE", "GROUPCD", "FAMILYCD", "ClRiskProfile", "AnnIncome", "BANK", "BANKACNUM", "MICRNO", "BANKACTYPE",
@@ -364,15 +366,23 @@ func loadCommon(ctx context.Context, d db, s *schema) (*common, error) {
 			}
 			cm.dp = append(cm.dp, a)
 			cm.boids[a.boid] = true
+			if a.isClosed() {
+				cm.boClosed[a.boid] = true
+			}
 			return nil
 		}); err != nil {
+			return nil, err
+		}
+		// the trading clients' demat accounts (CDMAST) before the DP-only
+		// clients: an account with no trading code that a trading client
+		// of the first holder's PAN lists is that client's
+		if err := loadClientDemat(ctx, d, s, cm); err != nil {
 			return nil, err
 		}
 		if err := loadDPOnly(ctx, d, s, cm); err != nil {
 			return nil, err
 		}
-	}
-	if err := loadClientDemat(ctx, d, s, cm); err != nil {
+	} else if err := loadClientDemat(ctx, d, s, cm); err != nil {
 		return nil, err
 	}
 	lastTrade := func(q string) error {

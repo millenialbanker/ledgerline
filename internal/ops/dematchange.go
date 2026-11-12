@@ -50,15 +50,22 @@ func (o *Ops) prepDematChange(ctx context.Context, tenant string, c Client, n ma
 		if d, ok := dematOf(c, id); ok && d.active() {
 			return invalid("%s is already a demat account of %s", id, c.UCC)
 		}
-		if w, ok := o.boClients(ctx, tenant)[id]; ok && w != c.UCC {
-			return invalid("%s is the demat account of %s; a BO ID belongs to one client", id, w)
+		// Another client's account is added only for the same person (the
+		// same PAN, the client's other code); the import of the previous
+		// system's records is what keeps a joint or family account named
+		// by two clients.
+		samePAN := func(w string) bool {
+			cs, _ := o.ClientMap(ctx, tenant)
+			return c.PAN != "" && cs[w].PAN == c.PAN
+		}
+		if w, ok := o.boClients(ctx, tenant)[id]; ok && w != c.UCC && !samePAN(w) {
+			return invalid("%s is the demat account of %s, whose PAN is different; a demat account is added only to its holder's own codes", id, w)
 		}
 		own := o.firmDP(ctx, tenant).owns(id)
 		if b, ok := o.boAccount(ctx, tenant, id); ok {
-			if b.UCC != c.UCC {
-				return invalid("%s is the DP's account of %s", id, b.UCC)
-			}
-			own = true
+			// the DP's account of another code of the same person is that
+			// code's: here it is a demat account like another DP's
+			own = b.UCC == c.UCC
 		}
 		n["own_dp"] = map[bool]string{true: "Y", false: "N"}[own]
 	case DematDeactivate, DematPrimary:
@@ -200,7 +207,7 @@ func (o *Ops) prepareClientDemats(ctx context.Context, tenant, actor string, row
 	by := map[string][]Demat{}
 	primary := map[string]string{}
 	var order []string
-	seen := map[string]string{}
+	seen, firstIn := map[string]bool{}, map[string]string{}
 	for _, r := range rows {
 		u := strings.ToUpper(strings.TrimSpace(r.get("UCC")))
 		c, ok := cs[u]
@@ -236,17 +243,22 @@ func (o *Ops) prepareClientDemats(ctx context.Context, tenant, actor string, row
 		if m := dematIDError(d.Depository, d.ID); m != "" {
 			lenient("DematID", "%s, got %q", m, r.get("DematID"))
 		}
-		if w, ok := seen[d.ID]; ok {
-			if w == u {
-				warn(r.line, "DematID", "%s: %s is on an earlier row too; this row is left out", u, d.ID)
-			} else {
-				bad(r.line, "DematID", "%s is also the demat account of %s in this file; a BO ID belongs to one client", d.ID, w)
-			}
+		// The same account on a row of another client (a joint or family
+		// account, or the same person's other code, as the previous back
+		// office had it) loads with a warning; the firm's own BO account
+		// still has one owner (DP-ACCOUNTS).
+		if seen[u+"|"+d.ID] {
+			warn(r.line, "DematID", "%s: %s is on an earlier row too; this row is left out", u, d.ID)
 			continue
 		}
-		seen[d.ID] = u
-		if w, ok := owner[d.ID]; ok && w != u {
-			bad(r.line, "DematID", "%s is already the demat account of %s; a BO ID belongs to one client", d.ID, w)
+		seen[u+"|"+d.ID] = true
+		if w, ok := firstIn[d.ID]; ok && w != u {
+			warn(r.line, "DematID", "%s", sharedDematMsg(d.ID, w, cs[w].PAN, c.PAN, true))
+		} else if w, ok := owner[d.ID]; ok && w != u {
+			warn(r.line, "DematID", "%s", sharedDematMsg(d.ID, w, cs[w].PAN, c.PAN, false))
+		}
+		if _, ok := firstIn[d.ID]; !ok {
+			firstIn[d.ID] = u
 		}
 		if b, ok := bos.byBOID[d.ID]; ok {
 			d.OwnDP = b.UCC == u

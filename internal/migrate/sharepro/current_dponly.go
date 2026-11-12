@@ -92,6 +92,28 @@ type cdRec struct {
 	primary, closed       bool
 }
 
+// shut: the row is closed, or the account is the firm's DP's and closed
+// there (CLLIST).
+func (x cdRec) shut(cm *common) bool { return x.closed || cm.boClosed[x.boid] }
+
+// cdmastHolders lists, for each BO ID, the trading clients that name it in
+// CDMAST and whose PAN is pan's, sorted by code.
+func cdmastHolders(cm *common) map[string][]string {
+	out := map[string][]string{}
+	for _, u := range sortedKeys(cm.cdmast) {
+		cl := cm.clients[u]
+		if cl == nil || cl.pan == "" {
+			continue
+		}
+		for _, x := range cm.cdmast[u] {
+			if x.bad == "" && !contains(out[x.boid], u) {
+				out[x.boid] = append(out[x.boid], u)
+			}
+		}
+	}
+	return out
+}
+
 // loadDPOnly links each CLLIST account to its client and makes a client of
 // every account with no trading client.
 func loadDPOnly(ctx context.Context, d db, s *schema, cm *common) error {
@@ -100,6 +122,7 @@ func loadDPOnly(ctx context.Context, d db, s *schema, cm *common) error {
 		used[u] = true
 	}
 	var only []*dpAcct
+	listed := cdmastHolders(cm)
 	for i := range cm.dp {
 		a := &cm.dp[i]
 		if a.ucc != "" && cm.clients[a.ucc] != nil {
@@ -115,6 +138,22 @@ func loadDPOnly(ctx context.Context, d db, s *schema, cm *common) error {
 		if a.tid != "" && cm.clients[a.tid] != nil {
 			a.ucc, a.client, a.sub, a.byTID = a.tid, a.tid, "", true
 			continue
+		}
+		// else the trading client that lists the account as its demat
+		// account in CDMAST and has the first holder's PAN (the smallest
+		// code when the person has several) [verified: most accounts with
+		// no SUBCODE, above all closed ones, are listed so]
+		if a.h != nil && a.h.pan1 != "" {
+			var same []string
+			for _, u := range listed[a.boid] {
+				if cm.clients[u].pan == a.h.pan1 {
+					same = append(same, u)
+				}
+			}
+			if len(same) > 0 {
+				a.ucc, a.client, a.sub, a.byCD = same[0], same[0], "", len(same)
+				continue
+			}
 		}
 		a.dpOnly = true
 		code, note := dpOnlyCode(a, used)
@@ -404,9 +443,11 @@ func primaryOwn(as []*dpAcct) *dpAcct {
 }
 
 // clientDemat is a trading client's demat account in the client master:
-// its open primary account in CDMAST, else its primary account at the
-// firm's DP, else another open CDMAST account. other says the account is
-// not at this DP (not in CLLIST).
+// its open primary account in CDMAST, else its oldest open account at the
+// firm's DP, else another open CDMAST account, else (all closed) its oldest
+// account at the firm's DP. An account closed at the firm's DP (CLLIST)
+// counts as closed whatever CDMAST says. other says the account is not at
+// this DP (not in CLLIST).
 func (c *cur) clientDemat(u string, own []*dpAcct) (dm dpAcct, other bool) {
 	var cds []cdRec
 	for _, x := range c.cm.cdmast[u] {
@@ -414,22 +455,27 @@ func (c *cur) clientDemat(u string, own []*dpAcct) (dm dpAcct, other bool) {
 			cds = append(cds, x)
 		}
 	}
+	// an account closed at the firm's DP is not picked while the client
+	// has an open one
 	var pick *cdRec
 	for i := range cds {
-		if cds[i].primary && !cds[i].closed {
+		if cds[i].primary && !cds[i].shut(c.cm) {
 			pick = &cds[i]
 			break
 		}
 	}
 	if pick == nil {
-		if p := primaryOwn(own); p != nil {
+		if p := primaryOwn(own); p != nil && !p.isClosed() {
 			dm = dpAcct{boid: p.boid, depository: p.depository}
 		} else {
 			for i := range cds {
-				if !cds[i].closed {
+				if !cds[i].shut(c.cm) {
 					pick = &cds[i]
 					break
 				}
+			}
+			if pick == nil && p != nil {
+				dm = dpAcct{boid: p.boid, depository: p.depository} // all closed: the oldest
 			}
 		}
 	}
@@ -445,7 +491,8 @@ func (c *cur) clientDemat(u string, own []*dpAcct) (dm dpAcct, other bool) {
 // same account are one row; Primary Y is the client master's demat account
 // (an open TYPE Primary row; a second open primary is reported); Status
 // Inactive for a closed row. A row whose account ID cannot be made is left
-// out with a warning (an error for an active client's open primary).
+// out with a warning (an error for an active client's open primary). An
+// account closed at the firm's DP is Inactive here (DP-ACCOUNTS closes it).
 func (c *cur) writeClientDemats(ctx context.Context) error {
 	area := "Client demat accounts"
 	h := headers[srcDemats]
@@ -483,8 +530,8 @@ func (c *cur) writeClientDemats(ctx context.Context) error {
 			} else {
 				dups++
 			}
-			a.open = a.open || !x.closed
-			if x.primary && !x.closed {
+			a.open = a.open || !x.shut(c.cm)
+			if x.primary && !x.shut(c.cm) {
 				a.primary = true
 				primaries[x.boid] = true
 			}
@@ -627,9 +674,9 @@ func isClientSQL(a, col string) string {
 	return fmt.Sprintf("EXISTS (SELECT 1 FROM DLMAST dm WHERE RTRIM(dm.SUBCD) = RTRIM(%s.%s) AND RTRIM(dm.SUBCD) <> '')", a, col)
 }
 
-// noTradingSQL: a CLLIST account (alias a) with no trading client, as the
-// reader decides it (neither SUBCODE nor TRADINGID is a client in DLMAST).
-func (c *cur) noTradingSQL(a string) string {
+// noCodeSQL: neither SUBCODE nor TRADINGID of the CLLIST account (alias
+// a) is a client in DLMAST.
+func (c *cur) noCodeSQL(a string) string {
 	var not []string
 	for _, col := range []string{"SUBCODE", "TRADINGID"} {
 		if c.s.hasCol("CLLIST", col) {
@@ -642,13 +689,57 @@ func (c *cur) noTradingSQL(a string) string {
 	return strings.Join(not, " AND ")
 }
 
+// noTradingSQL: a CLLIST account (alias a) with no trading client, as the
+// reader decides it (neither SUBCODE nor TRADINGID is a client in DLMAST,
+// and no trading client of the first holder's PAN lists it in CDMAST).
+func (c *cur) noTradingSQL(a string) string {
+	out := c.noCodeSQL(a)
+	if cd := c.cdmastCodeSQL(a); cd != "" {
+		out += " AND " + cd + " IS NULL"
+	}
+	return out
+}
+
+// boidSQL is the CLLIST account's BO ID as the reader makes it.
+func boidSQL(a string) string {
+	return fmt.Sprintf("CASE WHEN RTRIM(ISNULL(%[1]s.FBENACNUM, '')) <> '' THEN RTRIM(%[1]s.FBENACNUM) ELSE RTRIM(%[1]s.DPID) + RTRIM(%[1]s.BENACNUM) END", a)
+}
+
+// cdmastCodeSQL is the trading client that lists the CLLIST account (alias
+// a) as its demat account in CDMAST and whose PAN is the first holder's,
+// the smallest code when several are (as loadDPOnly picks it); NULL when
+// none. Empty when the tables lack the columns.
+func (c *cur) cdmastCodeSQL(a string) string {
+	for _, tc := range [][2]string{{"CDMAST", "SUBCD"}, {"CDMAST", "CLIENTID"}, {"CLLIST", "ITPAN"}, {"CLLIST", "FBENACNUM"}, {"CLLIST", "DPID"}, {"DLMAST", "PAN_NO"}} {
+		if !c.s.hasCol(tc[0], tc[1]) {
+			return ""
+		}
+	}
+	id := "REPLACE(RTRIM(cd.CLIENTID), ' ', '')"
+	match := id + " = " + boidSQL(a)
+	join := ""
+	if c.s.hasCol("CDMAST", "DPCODE") && c.s.hasCol("DPMAST", "DPCODE") && c.s.hasCol("DPMAST", "DPID") {
+		join = " LEFT JOIN DPMAST cp ON cp.DPCODE = cd.DPCODE"
+		match = fmt.Sprintf("(%s OR (LEN(%s) = 8 AND REPLACE(RTRIM(cp.DPID), ' ', '') + %s = %s))", match, id, id, boidSQL(a))
+	}
+	if c.s.hasCol("CDMAST", "TYPE") {
+		match += " AND UPPER(RTRIM(ISNULL(cd.TYPE, ''))) <> 'POOL'"
+	}
+	return fmt.Sprintf("(SELECT MIN(UPPER(RTRIM(cd.SUBCD))) FROM CDMAST cd%s JOIN DLMAST cdm ON RTRIM(cdm.SUBCD) = RTRIM(cd.SUBCD) AND RTRIM(cdm.SUBCD) <> '' WHERE %s AND UPPER(LTRIM(RTRIM(cdm.PAN_NO))) = UPPER(LTRIM(RTRIM(%s.ITPAN))) AND LTRIM(RTRIM(ISNULL(%s.ITPAN, ''))) <> '')",
+		join, match, a, a)
+}
+
 // dpOwnerSQL lists each DP client code (BENACNUM) of the firm's DP
 // accounts with its client as the trial balance checks key it: 'C|' + the
-// trading code (SUBCODE, else TRADINGID, when a client), else 'D|' + the
+// trading code (SUBCODE, else TRADINGID, when a client, else the trading
+// client of the first holder's PAN listing it in CDMAST), else 'D|' + the
 // DP client code (a DP-only client). A code of two clients is left out, as
 // the reader leaves it.
 func (c *cur) dpOwnerSQL() string {
 	u := "'D|' + RTRIM(l.BENACNUM)"
+	if cd := c.cdmastCodeSQL("l"); cd != "" {
+		u = fmt.Sprintf("CASE WHEN %[1]s IS NOT NULL THEN 'C|' + %[1]s ELSE %[2]s END", cd, u)
+	}
 	for _, col := range []string{"TRADINGID", "SUBCODE"} { // innermost first
 		if c.s.hasCol("CLLIST", col) {
 			u = fmt.Sprintf("CASE WHEN %s THEN 'C|' + RTRIM(l.%s) ELSE %s END", isClientSQL("l", col), col, u)
@@ -689,6 +780,10 @@ func (c *cur) dpExcl(a string) string {
 		if c.s.hasCol("CLLIST", "TRADINGID") {
 			// an account linked by TRADINGID (its SUBCODE no client)
 			out += fmt.Sprintf(" AND NOT (NOT %s AND ISNULL(RTRIM(%s.TRADINGID), '') IN (%s))", isClientSQL(a, "SUBCODE"), a, inList(tr))
+		}
+		if cd := c.cdmastCodeSQL(a); cd != "" {
+			// an account linked by CDMAST (neither code a client)
+			out += fmt.Sprintf(" AND NOT (%s AND ISNULL(%s, '') IN (%s))", c.noCodeSQL(a), cd, inList(tr))
 		}
 	}
 	if c.plan.DormantMode == "skip" {

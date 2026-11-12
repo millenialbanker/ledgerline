@@ -645,7 +645,7 @@ func (c *cur) writeDPAccounts(ctx context.Context) error {
 	// open one
 	var rows []*dpAcct
 	by := map[string][]*dpAcct{}
-	dpOnly, sub, tid := 0, 0, 0
+	dpOnly, sub, tid, byCD, byCDMany := 0, 0, 0, 0, 0
 	for i := range c.cm.dp {
 		a := &c.cm.dp[i]
 		if !contains(dpc, a.co) {
@@ -667,18 +667,27 @@ func (c *cur) writeDPAccounts(ctx context.Context) error {
 		if a.byTID {
 			tid++
 		}
+		if a.byCD > 0 {
+			byCD++
+			if a.byCD > 1 {
+				byCDMany++
+				c.rep.warnf(area, a.client, "cdmast-codes", "Check which code the account belongs to in Ledgerline", "DP account %s has no trading code in SharePro (CLLIST); %d trading codes of the first holder's PAN list it as a demat account (CDMAST): it is %s's, the first of them, and on the others' lists of demat accounts", a.boid, a.byCD, a.client)
+			}
+		}
 		rows = append(rows, a)
 		by[a.client] = append(by[a.client], a)
 	}
+	// The primary account is an open one: a client whose accounts are all
+	// closed (a closed DP-only account) has none.
 	primary, several := map[string]string{}, 0
 	for u, as := range by {
 		for _, a := range as {
-			if a.boid == c.demat[u] {
+			if a.boid == c.demat[u] && !a.isClosed() {
 				primary[u] = a.boid
 			}
 		}
-		if primary[u] == "" {
-			primary[u] = primaryOwn(as).boid
+		if p := primaryOwn(as); primary[u] == "" && !p.isClosed() {
+			primary[u] = p.boid
 		}
 		if len(as) > 1 {
 			several++
@@ -747,6 +756,9 @@ func (c *cur) writeDPAccounts(ctx context.Context) error {
 	}
 	if tid > 0 {
 		c.rep.infof(area, "", "tradingid", "%d DP accounts with no trading code (CLLIST.SUBCODE) are linked to their trading client by CLLIST.TRADINGID, a client in DLMAST; they are that client's accounts, not DP-only clients", tid)
+	}
+	if byCD > 0 {
+		c.rep.infof(area, "", "cdmast-link", "%d DP accounts with no trading code in SharePro's DP master (CLLIST.SUBCODE, TRADINGID) are listed as a demat account in the client demat master (CDMAST) by a trading client whose PAN is the account's first holder's; they are that client's accounts, not DP-only clients (%d of them are listed by more than one code of the same PAN: the first code has it)", byCD, byCDMany)
 	}
 	if several > 0 {
 		c.rep.infof(area, "", "several", "%d clients have more than one account at this DP: each account is a row, the primary one (the client master's demat account, else the oldest open one) marked Primary = Y", several)

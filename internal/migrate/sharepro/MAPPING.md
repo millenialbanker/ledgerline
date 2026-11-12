@@ -107,7 +107,9 @@ Warnings: Ledgerline keeps the record as it is, marked incomplete.
 Check clients: `COUNT` of the firm's `DLMAST` clients (as assigned above;
 dormant ones left out in mode skip) plus `COUNT` of the firm's `CLLIST`
 accounts with no trading client (`NOT EXISTS` a `DLMAST.SUBCD` =
-`SUBCODE`, nor one = `TRADINGID`; closed ones left out in mode skip).
+`SUBCODE`, nor one = `TRADINGID`, nor a `CDMAST` row of the account with
+a `DLMAST` client whose `PAN_NO` is `ITPAN`; closed ones left out in mode
+skip).
 
 ### DP-only clients (`CLLIST` accounts with no trading client)
 
@@ -117,7 +119,13 @@ A demat account holder of the firm's DP with no trading account: a
 ones among them]. The link is `SUBCODE`; an account with no client in
 `SUBCODE` whose `TRADINGID` is a client in `DLMAST` is that trading
 client's (not DP-only; Info count) [verified: a few accounts with no
-`SUBCODE` have `TRADINGID` set]. An account whose `SUBCODE` is not a
+`SUBCODE` have `TRADINGID` set]. Else an account that a trading client
+lists as a demat account in `CDMAST` (the account's BO ID, Pool rows left
+out) and whose `DLMAST.PAN_NO` is the first holder's `CLLIST.ITPAN` is
+that client's, the smallest code when the person has several (Info count;
+several codes a Warning) [verified: most accounts with no `SUBCODE`,
+nearly all closed, are listed so by their holder's trading code]. An
+account whose `SUBCODE` is not a
 client is counted (Info). Each account is a client of its own in every client file,
 `DPOnly` = Y, under the DP client code `BENACNUM` (8 digits, a valid
 UCC); when a trading client has that code or it is not 3–10 letters or
@@ -235,8 +243,9 @@ Credit, B/S/F/Y Both; FreezeReason `FREEZERSN.DESCR` of `SUSPRSNCD`, else
 `BENSTATRSN`, else "Frozen in SharePro (no reason recorded)" with a
 Warning (Ledgerline needs a reason for a frozen account); DDPI Y when an
 active `CLPOALIST` row's `PoaType` says DDPI; Primary Y on one account per
-client: the client master's demat account when it is one of them, else
-the oldest open one (by `ACTIVEDT`), else the oldest; Holder2Name,
+client: the client master's demat account when it is one of them and
+open, else the oldest open one (by `ACTIVEDT`); a client whose accounts
+are all closed has none (Primary N); Holder2Name,
 Holder2PAN, Holder3Name, Holder3PAN `BEN2HOLDER`, `BEN2PAN`, `BEN3HOLDER`,
 `BEN3PAN` (a PAN that is not valid is a Warning) [all assumed except
 BENSTAT 3 = closed]. Clients with more than one account are counted
@@ -259,7 +268,14 @@ ID + `CLIENTID`; a `CLIENTID` already holding the whole ID is taken as it
 is; Depository CDSL or NSDL accordingly; Primary Y on the client master's
 demat account when it is an open `TYPE` Primary row (a second open
 primary is a Warning); Status Inactive when `Closed`, else Active. `TYPE`
-Pool rows (the firm's own) are left out. A client's rows of the same
+Pool rows (the firm's own) are left out. An account of the firm's DP
+closed in `CLLIST` is Inactive and not the primary, whatever `CDMAST`
+says [verified: most `CDMAST` primaries of closed DP accounts are not
+marked `Closed`]; the client master's DematID is then the client's open
+account, else (all closed) its oldest at the firm's DP. The same account
+on two clients (a joint or family account, or one person's two codes
+[verified: some 330 other-DP and 60 own-DP IDs, about half with one PAN])
+loads with a Warning in Ledgerline. A client's rows of the same
 account are one row (Info count). A row whose ID cannot be made (DP code
 not in `DPMAST`, client ID not 8 digits, wrong length) is left out with a
 Warning, an Error for an active client's open primary. Not yet in
@@ -322,7 +338,8 @@ Account codes:
   TRAN CHARGE]: a head (not client-coded) whose sub-accounts are (mostly)
   DP client codes (`CLLIST.BENACNUM`) of the firm's DP companies.
   - a sub-account is the DP account's client's: its trading client
-    (`SUBCODE`, else `TRADINGID`, when a client in `DLMAST`), else the DP-only
+    (`SUBCODE`, else `TRADINGID`, when a client in `DLMAST`, else the
+    `CDMAST` client of the first holder's PAN, as above), else the DP-only
     client; a code of two clients, or not in `CLLIST`, has none;
   - a DP client head whose name contains CLIENT (as above) or ADVANCE (an
     advance from the client) is the client's ledger → `CLIENT:<client>`,

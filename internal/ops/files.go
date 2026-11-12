@@ -64,7 +64,7 @@ func baseSources() []masterSrc {
 	return []masterSrc{
 		{"CLIENT-MASTER", "Client master import (migration or bulk onboarding). Optional columns: Branch, State (place of supply for GST), GSTIN; WhatsApp (Y), WAConsentDate and WAConsentRef for WhatsApp consent recorded in the previous system; ECN (N for a client who chose printed contract notes); NominationDate and NominationMode for the nomination or opt-out declaration; Inactive (Y or N, the exchanges' inactive flag) and InactiveSince; AP and RM (partner codes, which must be on record once there are partners: load PARTNERS first); Groups (client groups separated by ;, added to the client's groups); DPOnly (Y for a client of the firm's DP only, with no trading account: Segments and RAS are then left blank, and the client's demat accounts come with DP-ACCOUNTS). A blank optional cell keeps what a re-import finds stored", []string{"UCC", "Name", "Type", "PAN", "DOB", "Mobile", "Email", "City", "Segments", "Risk", "Income", "RAS", "Bank", "IFSC", "Account", "Depository", "DematID", "Nominee", "NomineeName", "KYCDate", "Status", "API", "LastTrade", "UPIBlock"}, false, "Once, then on change"},
 		{"CLIENT-BANKS", "Every registered bank account of each client, one row per account (migration: the previous back office's client bank master). The rows replace the client's accounts; Primary Y marks the primary (default payout) account, else the first active row; Status Active or Inactive. Optional columns: Branch, MICR, Type (SB, CA, NRE, NRO), VerifiedOn, VerifyMethod, AddedOn. At most the firm's limit of active accounts per client (Settings, 3 by default with MCX)", []string{"UCC", "Bank", "IFSC", "Account", "Primary"}, false, "Once at go-live, after the client master"},
-		{"CLIENT-DEMATS", "Every demat account of each client, one row per account, above all those with other DPs (migration: the previous back office's client demat master; the firm's own BO accounts come with DP-ACCOUNTS, loaded after this). Depository CDSL (DematID 16 digits) or NSDL (IN and 14 digits). The rows replace the client's list of demat accounts (the DP's own accounts of the client stay); optional Primary (Y or N; at most one per client; when none is given the client master's demat account stays the primary) and Status (Active or Inactive, Active when blank). An account at the firm's own DP should match its BO account (DP-ACCOUNTS); a BO ID belongs to one client", []string{"UCC", "Depository", "DematID"}, false, "Once at go-live, after the client master"},
+		{"CLIENT-DEMATS", "Every demat account of each client, one row per account, above all those with other DPs (migration: the previous back office's client demat master; the firm's own BO accounts come with DP-ACCOUNTS, loaded after this). Depository CDSL (DematID 16 digits) or NSDL (IN and 14 digits). The rows replace the client's list of demat accounts (the DP's own accounts of the client stay); optional Primary (Y or N; at most one per client; when none is given the client master's demat account stays the primary) and Status (Active or Inactive, Active when blank). An account at the firm's own DP should match its BO account (DP-ACCOUNTS); an account another client also names (a joint or family account, or the same PAN's other code) loads with a warning", []string{"UCC", "Depository", "DematID"}, false, "Once at go-live, after the client master"},
 		{"NOMINEES", "Nominees of each client, up to 3 (replaces the client's list; a nomination of up to 10 made before 1 September 2026 loads as it is and is flagged for review). Name and Relation are required; IDType and ID are optional (PAN, DL, AADHAAR, of which only the last 4 digits are kept, or PASSPORT); leave Share blank for equal shares; a minor needs DOB (Guardian and GuardianRelation optional). Optional: Mobile, Email, Address, DeclaredOn, Mode", []string{"UCC", "Name", "Relation", "Share", "IDType", "ID", "DOB", "Guardian", "GuardianRelation"}, false, "Once at go-live, then on change"},
 		{"SEGMENT-STATUS", "Each client's status in each segment with its history, oldest first: Active, Reactivated, Suspended, Dormant or Closed (Segment CM, FO, CD or COM). Optional column Reason", []string{"UCC", "Segment", "Status", "EffectiveDate"}, false, "Once at go-live, then on change"},
 		{"OPENING-BALANCES", "Opening trial balance (migration); must balance. Optional column Since: for a client debit, the date it became due, so ageing, interest and debit blocks carry over. Optional column Legacy (Y): an old client debit to keep apart as a legacy debt (no interest, out of the daily debit work); a second person approves it on Legacy debts. With a separate commodity ledger, optional column Ledger (Equity or Commodity) puts a client's balance in that ledger (CLIENTCOM:<code> may also be given as the account)", []string{"Account", "Debit", "Credit"}, true, "Once at go-live"},
@@ -328,6 +328,7 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		var stored map[string]Client // read when a row leaves Inactive blank
 		var dematOwners map[string]string
 		fileDemats := map[string]string{}
+		filePAN := map[string]string{}
 		for _, r := range rows {
 			c := Client{UCC: r.get("UCC"), Name: r.get("Name"), Type: r.get("Type"), PAN: r.get("PAN"), DOB: r.get("DOB"), Mobile: r.get("Mobile"), Email: r.get("Email"),
 				City: r.get("City"), Segments: strings.Split(r.get("Segments"), ";"), Risk: r.get("Risk"), Income: r.get("Income"), RAS: r.get("RAS"),
@@ -432,7 +433,11 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 				}
 				inactive = inactive || stored[c.UCC].Inactive
 			}
-			// A demat account belongs to one client.
+			// A demat account another client also names (a joint or family
+			// account, or the same person's other code, as the previous
+			// back office had it) loads with a warning; the firm's own BO
+			// account still has one owner (DP-ACCOUNTS).
+			filePAN[c.UCC] = c.PAN
 			if id := normDematID(c.Demat.ID); id != "" {
 				if dematOwners == nil {
 					if dematOwners = o.boClients(ctx, tenant); dematOwners == nil {
@@ -440,19 +445,18 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 					}
 				}
 				if w, dup := fileDemats[id]; dup && w != c.UCC {
-					if inactive {
-						warn(r.line, "DematID", "%s is also the demat account of %s in this file%s", id, w, incompleteNote)
-					} else {
-						bad(r.line, "DematID", "%s is also the demat account of %s in this file; a BO ID belongs to one client", id, w)
-					}
+					warn(r.line, "DematID", "%s", sharedDematMsg(id, w, filePAN[w], c.PAN, true))
 				} else if w, taken := dematOwners[id]; taken && w != c.UCC {
-					if inactive {
-						warn(r.line, "DematID", "%s is the demat account of %s%s", id, w, incompleteNote)
-					} else {
-						bad(r.line, "DematID", "%s is already the demat account of %s; a BO ID belongs to one client", id, w)
+					if stored == nil {
+						if stored, _ = o.ClientMap(ctx, tenant); stored == nil {
+							stored = map[string]Client{}
+						}
 					}
+					warn(r.line, "DematID", "%s", sharedDematMsg(id, w, firstOf(filePAN[w], stored[w].PAN), c.PAN, false))
 				}
-				fileDemats[id] = c.UCC
+				if _, dup := fileDemats[id]; !dup {
+					fileDemats[id] = c.UCC
+				}
 			}
 			if err := c.Validate(); err != nil {
 				var ve *ValidationError

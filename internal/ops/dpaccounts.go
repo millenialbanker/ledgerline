@@ -32,9 +32,15 @@ func (o *Ops) prepareDPAccounts(ctx context.Context, tenant, actor string, rows 
 		bad(1, "", "%v", err)
 		return nil, errs
 	}
-	// Who each account already belongs to: the DP's records and every
-	// client's list (a BO ID belongs to one client).
-	owner := o.boClients(ctx, tenant)
+	// Who each account already belongs to: the DP's records (a BO account
+	// of the DP has one owner; another client may still name it in its
+	// list, a joint or family account or the same person's other code).
+	owner := map[string]string{}
+	for _, b := range o.boAccounts(ctx, tenant) {
+		if id := normDematID(b.BOID); id != "" {
+			owner[id] = b.UCC
+		}
+	}
 	type acct struct {
 		b       BOAccount
 		line    int
@@ -105,7 +111,14 @@ func (o *Ops) prepareDPAccounts(ctx context.Context, tenant, actor string, rows 
 			bad(r.line, "ClosedOn", "only a closed account has a closing date")
 		}
 		if a.primary && (b.Status == "Closed" || b.Status == "Not opened") {
-			bad(r.line, "Primary", "the primary demat account must be open; %s is %s", b.BOID, strings.ToLower(b.Status))
+			if c.Inactive {
+				// as the previous system had it: the account loads, not as
+				// the primary
+				warn(r.line, "Primary", "the primary demat account must be open; %s is %s and is not made the primary%s", b.BOID, strings.ToLower(b.Status), incompleteNote)
+				a.primary = false
+			} else {
+				bad(r.line, "Primary", "the primary demat account must be open; %s is %s", b.BOID, strings.ToLower(b.Status))
+			}
 		}
 		// Joint holders: names, and PANs checked when given (as the
 		// previous system had them for an inactive client).
@@ -134,12 +147,12 @@ func (o *Ops) prepareDPAccounts(ctx context.Context, tenant, actor string, rows 
 				if o2 == u {
 					bad(r.line, "BOID", "%s is also on line %d", b.BOID, idLine[b.BOID])
 				} else {
-					bad(r.line, "BOID", "%s is also the account of %s (line %d); a BO ID belongs to one client", b.BOID, o2, idLine[b.BOID])
+					bad(r.line, "BOID", "%s is also the account of %s (line %d); a BO account of the DP belongs to one client", b.BOID, o2, idLine[b.BOID])
 				}
 				continue
 			}
 			if w, ok := owner[b.BOID]; ok && w != u {
-				bad(r.line, "BOID", "%s is already the demat account of %s; a BO ID belongs to one client", b.BOID, w)
+				bad(r.line, "BOID", "%s is already the DP's account of %s; a BO account of the DP belongs to one client", b.BOID, w)
 			}
 			ids[b.BOID], idLine[b.BOID] = u, r.line
 		}

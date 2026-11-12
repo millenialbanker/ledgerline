@@ -568,8 +568,8 @@ func TestUCCDetailsAndMasters(t *testing.T) {
 		"1234567800000002": "TEST001|CDSL|Active|||N|||N",
 		"1234567800000009": "00000009|CDSL|Active|||N|Y||Y",
 		"1234567800000004": "TEST004|CDSL|Frozen|Debit|TEST FREEZE|N|||Y",
-		"1234567800000003": "TEST003|CDSL|Closed|||N||2024-01-01|Y",
-		"1234567800000010": "00000010|CDSL|Closed|||N||2023-03-31|Y",
+		"1234567800000003": "TEST003|CDSL|Closed|||N||2024-01-01|N", // a closed account is no primary
+		"1234567800000010": "00000010|CDSL|Closed|||N||2023-03-31|N",
 		"1234567800000011": "00000011|CDSL|Frozen|Both|Frozen in SharePro (no reason recorded)|N|||Y",
 		"1234567800000012": "TEST005|CDSL|Active|||N|||Y", // by TRADINGID
 	}
