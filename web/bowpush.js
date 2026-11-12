@@ -9,6 +9,18 @@ Object.assign(UI, { bowQ: '', bowF: 'All' });
 /* The BOW upload files (bowfiles.go): funds (all, or changed since the last
    file) and holdings, named as the broker's back office names them. */
 const bowFileBtns = (sm = '') => `<div class="tools"><button class="btn${sm}" data-act="dl" data-id="/v1/frontoffice/bow-funds-file?date=${S.date}" data-name="BOW_FUND.csv">BOW funds file</button><button class="btn${sm}" data-act="dl" data-id="/v1/frontoffice/bow-funds-file?date=${S.date}&changed=1" data-name="BOW_FUND.csv">BOW funds, changed clients</button><button class="btn${sm}" data-act="dl" data-id="/v1/frontoffice/bow-holdings?date=${S.date}" data-name="BOW_DP_Holding_Combined_Upload.TXT">BOW holdings file</button></div>`;
+/* Every other upload of BOW's format workbook (bowuploads.go), by layout id.
+   The client and user files carry the new and changed since the last file;
+   "Every client" sends them all. */
+const BOW_UPLOADS = [
+  ['Users', [['bow-ibt-users', 'IBT users'], ['bow-offline-users', 'Offline (CTCL) users'], ['bow-dealer-users', 'Dealers'], ['bow-dealer-mapping', 'Client–dealer mapping'], ['bow-nnf-location', 'NNF location IDs']]],
+  ['Rights and limits', [['bow-trading-rights', 'Trading rights'], ['bow-risk-preferences', 'Risk preferences'], ['bow-contract-margin', 'Contract margin'], ['bow-right-limits', 'Right limits'], ['bow-profile-mapping', 'Profile mapping']]],
+  ['Holdings', [['bow-only-dp-holding', 'DP holding only'], ['bow-only-pool-holding', 'T1 pool only'], ['bow-dp-stocks', 'DP stocks (old)'], ['bow-slb-holding', 'SLB holding']]],
+  ['Client details', [['bow-update-pan', 'PAN update'], ['bow-bank', 'Banks'], ['bow-kra-status', 'KRA status'], ['bow-cp-code', 'CP codes']]],
+  ['Brokerage and positions', [['bow-brokerage-master', 'Brokerage master'], ['bow-brokerage-mapping', 'Plan mapping'], ['bow-manual-position', 'Manual positions']]],
+];
+const bowUploadBtns = () => `<label class="check small"><input type="checkbox" id="bow-all"> Every client (not only new and changed)</label>` +
+  BOW_UPLOADS.map(([g, ks]) => `<div class="tools"><span class="dim small" style="min-width:150px">${g}</span>${ks.map(([k, l]) => `<button class="btn sm" data-act="bowDl" data-id="/v1/frontoffice/${k}?date=${S.date}" data-name="${k}.txt">${l}</button>`).join('')}</div>`).join('');
 const BOW_ST = { Pushed: 'good', Unchanged: 'good', Removed: 'nt', Failed: 'bad', 'Not in BOW': 'warn' };
 const bowRisk = () => has('Risk manager');
 const bowStamp = t => t ? `${fmtDate(t.slice(0, 10))} ${t.slice(11, 16)}` : '—';
@@ -55,6 +67,7 @@ P['bow-t'] = d => {
 };
 
 Object.assign(A, {
+  bowDl: (path, el) => download(path + ($('bow-all')?.checked ? '&all=1' : ''), el.dataset.name),
   bowPush: id => act(() => post('/v1/bow/push', { date: S.date, uccs: id ? [id] : [] }), v => v.stopped ? 'Stopped: ' + v.stopped : `${v.pushed} pushed, ${v.unchanged} unchanged, ${v.failed} failed${(v.not_mapped || []).length ? ', ' + v.not_mapped.length + ' not in BOW' : ''}`),
   bowMaster: () => act(() => post('/v1/bow/master', {}), v => `BOW client list: ${v.users} users, ${v.matched} matched to clients`),
   bowSignIn: async () => {
