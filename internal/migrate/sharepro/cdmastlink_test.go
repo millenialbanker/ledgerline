@@ -63,3 +63,29 @@ func TestCDMASTLinksDPAccount(t *testing.T) {
 		t.Error("the DP-only clients' check does not follow the CDMAST link")
 	}
 }
+
+// A client with more contact persons than Ledgerline keeps: the client
+// master's first, then the DP's authorised persons, up to 5; the rest are
+// reported.
+func TestContactPersonsCapped(t *testing.T) {
+	co := companyFake("TT2627")
+	var auth []migrate.Row
+	for _, n := range []string{"Auth One", "Auth Two", "Auth Three", "Auth Four", "Auth Five"} {
+		auth = append(auth, migrate.Row{"co": "06", "benacnum": "00000012", "authperson": n})
+	}
+	co.on("dp-authorised", auth...)
+	r, _ := runCurrentOn(t, migrate.Plan{}, co)
+	_, rows := readCSV(t, r, "firms/02/master/UCC-CONTACTS.csv")
+	var names []string
+	for _, x := range rows {
+		if x["UCC"] == "TEST005" {
+			names = append(names, x["Name"])
+		}
+	}
+	if strings.Join(names, ",") != "Ravi Director,Sita Partner,Auth One,Auth Two,Auth Three" {
+		t.Errorf("TEST005's contact persons %v", names)
+	}
+	if is := issues(r, "Contact persons", "2 more contact persons"); len(is) != 1 || is[0].Key != "TEST005" {
+		t.Errorf("left-out contact persons not reported: %+v", is)
+	}
+}

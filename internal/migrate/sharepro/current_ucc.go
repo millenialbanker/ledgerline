@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"ledgerline/internal/migrate"
@@ -400,13 +401,48 @@ func (c *cur) writeContacts(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	seen := map[string]bool{}
+	// Ledgerline (and the exchanges' UCC) keep up to 5 contact persons: the
+	// client master's and the DP's directors, partners and the karta first,
+	// then the DP's authorised persons, then the other coparceners; the
+	// rest stay in SharePro (Warning).
+	rank := func(x contact) int {
+		switch x.desig {
+		case "Coparcener":
+			return 2
+		case "Authorised signatory (DP)":
+			return 1
+		}
+		return 0
+	}
+	byClient, clients := map[string][]contact{}, []string(nil)
+	for _, x := range out {
+		if byClient[x.ucc] == nil {
+			clients = append(clients, x.ucc)
+		}
+		byClient[x.ucc] = append(byClient[x.ucc], x)
+	}
+	out = out[:0]
+	for _, u := range clients {
+		xs := byClient[u]
+		sort.SliceStable(xs, func(i, j int) bool { return rank(xs[i]) < rank(xs[j]) })
+		out = append(out, xs...)
+	}
+	seen, kept, left := map[string]bool{}, map[string]int{}, map[string]int{}
+	var leftOrder []string
 	for _, x := range out {
 		k := x.ucc + "|" + strings.ToUpper(x.name)
 		if seen[k] {
 			continue
 		}
 		seen[k] = true
+		if kept[x.ucc] == maxContacts {
+			if left[x.ucc] == 0 {
+				leftOrder = append(leftOrder, x.ucc)
+			}
+			left[x.ucc]++
+			continue
+		}
+		kept[x.ucc]++
 		if x.pan != "" && !rePAN.MatchString(x.pan) {
 			c.rep.warnf(area, x.ucc, "bad-pan", "Correct the contact person's PAN in SharePro", "PAN %q of %s is not a valid PAN", x.pan, x.name)
 		}
@@ -415,8 +451,16 @@ func (c *cur) writeContacts(ctx context.Context) error {
 			return err
 		}
 	}
+	for _, u := range leftOrder {
+		c.rep.warnf(area, u, "too-many", "Add them in Ledgerline's client details if they must be on record (the exchanges' UCC takes 5)",
+			"The client has %d more contact persons (coparceners or authorised persons) than the %d Ledgerline keeps; they are left out", left[u], maxContacts)
+	}
 	return cw.Close()
 }
+
+// maxContacts is how many contact persons Ledgerline keeps for a client
+// (ops.maxUCCContacts).
+const maxContacts = 5
 
 // ---- branches ----
 
