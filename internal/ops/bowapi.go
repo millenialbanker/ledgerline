@@ -150,7 +150,7 @@ func (x bowConn) fp() string {
 	return hex.EncodeToString(s[:])
 }
 
-var reHHMM = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
+var reBOWHHMM = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 
 func bowMult(s, what string) (money.Dec, error) {
 	s = strings.TrimSpace(s)
@@ -183,7 +183,7 @@ func parseBOWConn(c Connection) (bowConn, error) {
 			return x, err
 		}
 	}
-	if !reHHMM.MatchString(x.bodAt) || x.bodAt >= bowDayStart {
+	if !reBOWHHMM.MatchString(x.bodAt) || x.bodAt >= bowDayStart {
 		return x, invalid("the start-of-day push time is HH:MM before %s", bowDayStart)
 	}
 	if e := strings.TrimSpace(c.Values["every"]); e != "" {
@@ -474,7 +474,7 @@ func (c *bowCall) req(name, ucc, summary string, f url.Values) ([][]string, erro
 type BOWSession struct {
 	SignedIn  bool   `json:"signed_in"`
 	At        string `json:"at,omitempty"`
-	OTP       bool   `json:"otp"`              // two-factor on
+	OTP       bool   `json:"otp"` // two-factor on
 	OTPSentAt string `json:"otp_sent_at,omitempty"`
 	Message   string `json:"message,omitempty"` // BOW's words
 }
@@ -511,7 +511,9 @@ func (o *Ops) BOWSignIn(ctx context.Context, tenant, actor, otp string) (BOWSess
 	cctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	c := &bowCall{ctx: cctx, tenant: tenant, x: x, now: o.now}
-	defer func() { o.log(ctx, tenant, actor, "bow.signin", connBOW, map[string]any{"step": map[bool]string{true: "otp", false: "password"}[otp != ""], "calls": len(c.calls)}) }()
+	defer func() {
+		o.log(ctx, tenant, actor, "bow.signin", connBOW, map[string]any{"step": map[bool]string{true: "otp", false: "password"}[otp != ""], "calls": len(c.calls)})
+	}()
 	fail := func(err error) (BOWSession, error) {
 		var st *bowStop
 		if errors.As(err, &st) && st.auth {
@@ -645,14 +647,17 @@ var bowMoneyKinds = map[string]bool{"RECEIPT": true, "BANK": true, "GATEWAY": tr
 // bowLimits are every client's BOW deposits for a trading date as things
 // stand now: the start-of-day balance (the same basis as Finspot's RMS
 // limit, finspotFunds: the ledger at the end of the previous business day
-// less cheques not yet cleared), plus money in and out posted since (the
-// money kinds above), less pay-out holds in effect (equity only). With a
-// separate commodity ledger (segledger.go) Securities is the equity ledger
-// and Commodities the commodity ledger (bowFunds); with one ledger,
-// Commodities is 0.
+// less cheques not yet cleared, and the BOW commodity funds file, bowFunds),
+// plus money in and out posted since (the money kinds above), less pay-out
+// holds in effect (equity only).
 //
-// TODO: after the MCX earmark merges: Commodities = MCX money, Securities =
-// equity money (ledger − MCX money).
+// Securities is equity money and Commodities MCX money, kept apart as the
+// firm keeps them (Settings.segApart): with a separate commodity ledger
+// (segledger.go) the equity and commodity ledgers; with one ledger and an
+// MCX-only bank account (mcxearmark.go) the ledger less the MCX earmark and
+// the earmark (today's money counts as MCX money when it is an MCX entry,
+// mcxEntries, and approved RMS moves dated today shift it); otherwise the
+// whole ledger is Securities and Commodities is 0.
 //
 // A blocked, inactive or not active client gets 0 on both, a client without
 // an open commodity segment 0 Commodities, one without an open equity
@@ -663,13 +668,13 @@ func (o *Ops) bowLimits(ctx context.Context, tenant, date string) (map[string]BO
 		return nil, invalid("give a date (YYYY-MM-DD)")
 	}
 	set, _ := o.Settings(ctx, tenant)
-	sep := set.sepCom()
+	apart, earmark := set.segApart(), set.mcxEarmark()
 	eq, err := o.finspotFunds(ctx, tenant, date)
 	if err != nil {
 		return nil, err
 	}
 	com := map[string]money.Dec{}
-	if sep {
+	if apart {
 		if com, err = o.bowFunds(ctx, tenant, date); err != nil {
 			return nil, err
 		}
@@ -679,10 +684,28 @@ func (o *Ops) bowLimits(ctx context.Context, tenant, date string) (map[string]BO
 	if err != nil {
 		return nil, err
 	}
+	var mcxIDs map[string]bool
+	if earmark {
+		if mcxIDs, err = o.mcxEntries(ctx, tenant); err != nil {
+			return nil, err
+		}
+		ms, _ := docs.List[MCXMove](ctx, o.Docs, tenant, cMCXMove, "")
+		for _, m := range ms {
+			if m.Status != "Approved" || m.Date <= prev || m.Date > date {
+				continue
+			}
+			d := m.Amount.Dec()
+			if m.To != EarmarkMCX {
+				d = d.Neg()
+			}
+			com[m.UCC], eq[m.UCC] = com[m.UCC].Add(d), eq[m.UCC].Sub(d)
+		}
+	}
 	for _, e := range es {
 		if !bowMoneyKinds[e.Source.Kind] {
 			continue
 		}
+		mcx := earmark && (mcxIDs[e.ID] || (e.ReversalOf != "" && mcxIDs[e.ReversalOf]))
 		for _, p := range e.Postings {
 			u, kind, ok := ledger.ClientCode(p.Account)
 			if !ok {
@@ -690,7 +713,7 @@ func (o *Ops) bowLimits(ctx context.Context, tenant, date string) (map[string]BO
 			}
 			d := (p.Credit - p.Debit).Dec()
 			switch {
-			case kind == ledger.LedgerCommodity && sep:
+			case kind == ledger.LedgerCommodity && apart, kind == ledger.LedgerEquity && mcx:
 				com[u] = com[u].Add(d)
 			case kind == ledger.LedgerEquity:
 				eq[u] = eq[u].Add(d)
@@ -997,7 +1020,11 @@ func bowListRows(recs [][]string) map[string]bowExisting {
 		}
 		return ""
 	}
-	for _, r := range recs[hi+1:] {
+	// After the headers: column types, widths and positions, then the data.
+	if hi+4 > len(recs) {
+		return out
+	}
+	for _, r := range recs[hi+4:] {
 		id := col(r, 0)
 		if id == "" || strings.Trim(id, "0123456789") != "" {
 			continue
@@ -1455,14 +1482,14 @@ func (o *Ops) bowTick(ctx context.Context, tenant string, now time.Time) {
 
 // BOWRow is a client on the BOW panel.
 type BOWRow struct {
-	UCC         string         `json:"ucc"`
-	Name        string         `json:"name"`
-	Limit       BOWLimit       `json:"limit"` // as computed now
-	Last        BOWClientState `json:"last"`
-	User        *BOWUser       `json:"user,omitempty"`
-	ByHand      bool           `json:"by_hand,omitempty"` // BOW user set by hand
-	Queued      bool           `json:"queued,omitempty"`
-	Differs     bool           `json:"differs,omitempty"` // the limit differs from the last push
+	UCC     string         `json:"ucc"`
+	Name    string         `json:"name"`
+	Limit   BOWLimit       `json:"limit"` // as computed now
+	Last    BOWClientState `json:"last"`
+	User    *BOWUser       `json:"user,omitempty"`
+	ByHand  bool           `json:"by_hand,omitempty"` // BOW user set by hand
+	Queued  bool           `json:"queued,omitempty"`
+	Differs bool           `json:"differs,omitempty"` // the limit differs from the last push
 }
 
 // BOWView is the BOW panel on Live RMS.
@@ -1497,8 +1524,8 @@ func (o *Ops) BOWLimitsView(ctx context.Context, tenant, actor, date string) (BO
 	date = firstOf(date, o.now().Format("2006-01-02"))
 	v := BOWView{Date: date, Status: cn.Status, Problem: cn.Problem, Env: map[bool]string{true: "Live", false: "UAT"}[x.live], Auto: x.auto, BODAt: x.bodAt,
 		Every: int(x.every / time.Minute), Session: o.bowSessionState(tenant, x), SecMult: x.secMult.String(), ComMult: x.comMult.String()}
-	if !o.sepCom(ctx, tenant) {
-		v.Note = "One client ledger: the whole balance goes to Securities and Commodities is 0. Turn on Separate commodity ledger in Settings for MCX money to go to Commodities."
+	if set, _ := o.Settings(ctx, tenant); !set.segApart() {
+		v.Note = "One client ledger and no MCX-only bank account: the whole balance goes to Securities and Commodities is 0, so BOW gives no MCX limit. Set the MCX-only bank account (or a separate commodity ledger) in Settings for MCX money to go to Commodities."
 	}
 	st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cBOWState, "state", bowStateDoc{})
 	v.BODDone = st.BODDate == date
@@ -1536,7 +1563,9 @@ func (o *Ops) BOWLimitsView(ctx context.Context, tenant, actor, date string) (BO
 		v.Rows = append(v.Rows, r)
 	}
 	runs, _ := docs.List[BOWPushRun](ctx, o.Docs, tenant, cBOWRun, "")
-	sort.Slice(runs, func(i, j int) bool { return runs[i].At > runs[j].At || (runs[i].At == runs[j].At && runs[i].ID > runs[j].ID) })
+	sort.Slice(runs, func(i, j int) bool {
+		return runs[i].At > runs[j].At || (runs[i].At == runs[j].At && runs[i].ID > runs[j].ID)
+	})
 	if len(runs) > 10 {
 		runs = runs[:10]
 	}

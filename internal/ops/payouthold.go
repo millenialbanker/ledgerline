@@ -832,6 +832,7 @@ func (o *Ops) submitHold(ctx context.Context, tenant, actor, id string) {
 	if err != nil || h.Status != PHApproved {
 		return
 	}
+	defer o.bowLimitChanged(ctx, tenant, h.UCC, "pay-out hold") // BOW limits (bowapi.go)
 	set, _ := o.Settings(ctx, tenant)
 	api := o.allocAPIOn(ctx, tenant, set)
 	wait := func(why string) {
@@ -1037,6 +1038,7 @@ func (o *Ops) submitRelease(ctx context.Context, tenant, actor, id string) {
 	if err != nil || !phInEffect[h.Status] || h.Status == PHReleasing || h.Status == PHReleaseNMASS || h.Status == PHSending {
 		return // a hold still being sent is released once its result is in
 	}
+	defer o.bowLimitChanged(ctx, tenant, h.UCC, "pay-out release") // BOW limits (bowapi.go)
 	var amount money.Dec
 	var parts []string
 	for _, p := range h.Parts {

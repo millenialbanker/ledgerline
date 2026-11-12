@@ -419,6 +419,7 @@ func inFlight(ms []AllocMessage, seg, ucc string) bool {
 // cheque cleared, online payment) for their allocation, when the firm has
 // switched on automatic allocation. It never sends a lower level.
 func (o *Ops) AllocationMoneyIn(ctx context.Context, tenant, ucc string, amount money.Amount, ref string) {
+	o.bowLimitChanged(ctx, tenant, ucc, "money in "+ref) // BOW limits (bowapi.go)
 	set, _ := o.Settings(ctx, tenant)
 	if !set.AllocAutoPush || amount <= 0 {
 		return
