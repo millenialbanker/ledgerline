@@ -88,3 +88,20 @@ type NopProgress struct{}
 func (NopProgress) Step(string)        {}
 func (NopProgress) Count(int, int)     {}
 func (NopProgress) Log(string, string) {}
+
+var mappers = map[string]Mapper{}
+
+// Register makes a Mapper available to the tool (called from init).
+func Register(m Mapper) { mappers[m.Name()] = m }
+
+// Mappers lists the registered mappers.
+func Mappers() []Mapper {
+	out := make([]Mapper, 0, len(mappers))
+	for _, m := range mappers {
+		out = append(out, m)
+	}
+	return out
+}
+
+// MapperFor returns the named mapper, or nil.
+func MapperFor(name string) Mapper { return mappers[name] }

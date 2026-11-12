@@ -922,3 +922,24 @@ func (c *checked) Read(p []byte) (int, error) {
 }
 
 func (c *checked) Close() error { return c.rc.Close() }
+
+// HistoryColumns are the headers of each history file. Amounts are rupees
+// with two decimals, dates YYYY-MM-DD, quantities signed where noted. A
+// column with nothing to put in it is left empty.
+var HistoryColumns = map[string][]string{
+	// one row per ledger line; Account is a Ledgerline account (CLIENT:<ucc>,
+	// BANK:<code>, or the firm's own account code), UCC set on client lines
+	HistoryLedger: {"Date", "VoucherType", "VoucherNo", "Account", "AccountName", "UCC", "Segment", "Narration", "Debit", "Credit", "ChequeNo", "ValueDate", "SourceRef"},
+	// one row per bill (client, settlement, segment)
+	HistoryBills: {"BillNo", "BillDate", "Exchange", "Segment", "Settlement", "UCC", "Turnover", "Brokerage", "STT", "ExchangeCharges", "SEBIFees", "StampDuty", "GST", "OtherCharges", "NetAmount", "DueDate", "SourceRef"},
+	// one row per trade as billed; Side B or S
+	HistoryTrades: {"TradeDate", "Exchange", "Segment", "Settlement", "UCC", "TradeNo", "OrderNo", "Symbol", "Series", "ISIN", "Instrument", "Expiry", "Strike", "OptionType", "Side", "Quantity", "Price", "Brokerage", "BillNo", "SourceRef"},
+	// contract note register; DocumentID is the document's ID in the index when the note itself is archived
+	HistoryContractNotes: {"CNNo", "Date", "UCC", "Exchange", "Segment", "SentOn", "SentTo", "Signed", "DocumentID", "SourceRef"},
+	// Type Receipt or Payment
+	HistoryReceipts: {"Date", "Type", "VoucherNo", "UCC", "Amount", "Mode", "Bank", "ChequeNo", "Reference", "Narration", "SourceRef"},
+	// Quantity signed: + credit to the account, - debit
+	HistoryDP:       {"Date", "BOID", "UCC", "ISIN", "Security", "TxnType", "Quantity", "Reference", "Counterparty", "Narration", "SourceRef"},
+	HistoryDPBills:  {"BillNo", "BillDate", "BOID", "UCC", "PeriodFrom", "PeriodTo", "Amount", "GST", "Total", "SourceRef"},
+	HistoryHoldings: {"Date", "BOID", "UCC", "ISIN", "Security", "Free", "Pledged", "Locked", "Total", "Rate", "Value"},
+}
