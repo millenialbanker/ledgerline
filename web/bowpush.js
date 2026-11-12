@@ -6,6 +6,9 @@
    Loaded after app.js; it wraps the Live RMS screen so app.js is unchanged. */
 
 Object.assign(UI, { bowQ: '', bowF: 'All' });
+/* The BOW upload files (bowfiles.go): funds (all, or changed since the last
+   file) and holdings, named as the broker's back office names them. */
+const bowFileBtns = (sm = '') => `<div class="tools"><button class="btn${sm}" data-act="dl" data-id="/v1/frontoffice/bow-funds-file?date=${S.date}" data-name="BOW_FUND.csv">BOW funds file</button><button class="btn${sm}" data-act="dl" data-id="/v1/frontoffice/bow-funds-file?date=${S.date}&changed=1" data-name="BOW_FUND.csv">BOW funds, changed clients</button><button class="btn${sm}" data-act="dl" data-id="/v1/frontoffice/bow-holdings?date=${S.date}" data-name="BOW_DP_Holding_Combined_Upload.TXT">BOW holdings file</button></div>`;
 const BOW_ST = { Pushed: 'good', Unchanged: 'good', Removed: 'nt', Failed: 'bad', 'Not in BOW': 'warn' };
 const bowRisk = () => has('Risk manager');
 const bowStamp = t => t ? `${fmtDate(t.slice(0, 10))} ${t.slice(11, 16)}` : '—';
@@ -28,7 +31,7 @@ function bowPanel(b) {
   const sign = s.signed_in ? pill('Signed in ' + bowStamp(s.at), 'good') : s.otp ? pill('Not signed in today', 'warn') : pill('Signs in by itself (no OTP)', 'nt');
   const diff = b.rows.filter(r => r.differs).length, failed = b.rows.filter(r => r.last.status === 'Failed').length;
   return `<div class="panel"><div class="hd"><h3>BOW limits</h3><small>BOLTPlusOnWeb ${esc(b.env)} · Securities × ${esc(b.sec_mult)}, Commodities × ${esc(b.com_mult)}</small>
-      <div class="tools">${bowRisk() ? `${s.otp && !s.signed_in ? '<button class="btn sm pri" data-act="bowSignIn">Sign in to BOW</button>' : ''}<button class="btn sm" data-act="bowMaster">Refresh BOW client list</button><button class="btn sm pri" data-act="bowPush" data-id="">Push to BOW now</button>` : ''}</div></div>
+      <div class="tools">${bowRisk() ? `${s.otp && !s.signed_in ? '<button class="btn sm pri" data-act="bowSignIn">Sign in to BOW</button>' : ''}<button class="btn sm" data-act="bowMaster">Refresh BOW client list</button><button class="btn sm pri" data-act="bowPush" data-id="">Push to BOW now</button>` : ''}</div>${bowFileBtns(' sm')}</div>
     <div class="bd"><div class="note">${pill('Connection: ' + b.status, b.status === 'Working' ? 'good' : b.status === 'Problem' ? 'bad' : 'nt')}${b.problem ? ` <span class="small ${b.status === 'Problem' ? 'neg' : 'dim'}">${esc(b.problem)}</span>` : ''} · ${sign} ·
       ${b.auto ? pill(`Automatic: start of day ${esc(b.bod_at)}${b.bod_done ? ' ✓' : ''}, then changes every ${b.every} min to 23:30`, 'acc') : pill('Automatic pushes off (Connections)', 'warn')}
       · BOW client list ${b.master_date ? fmtDate(b.master_date) + ' (' + b.master_size + ' users)' : 'not fetched yet'}

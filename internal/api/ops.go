@@ -3218,6 +3218,20 @@ func (s *Server) frontOffice(w http.ResponseWriter, r *http.Request) {
 		w.Write(f)
 		return
 	}
+	if strings.HasPrefix(kind, "bow-") {
+		// BOW upload files (bowfiles.go), named as the broker's back office
+		// names them; ?changed=1 for the funds of changed clients only.
+		name, f, err := s.ops.BOWFile(r.Context(), tenant(r), actor(r), kind, d, r.URL.Query().Get("changed") == "1")
+		if err != nil {
+			fail(w, err, nil)
+			return
+		}
+		s.app.Log(r.Context(), tenant(r), actor(r), "frontoffice."+kind, d, map[string]any{"file": name})
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+		w.Write(f)
+		return
+	}
 	switch kind {
 	case "limits":
 		f, err = s.ops.LimitFile(r.Context(), tenant(r), d)

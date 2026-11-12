@@ -1,78 +1,117 @@
 {
  "id": "bow-dp-holding",
- "title": "Client holding upload (BOW front end)",
+ "title": "Client holding upload (BOW front end, User Stock upload)",
  "party": "Front end (BOW)",
  "direction": "out",
- "when": "BOD, 07:55",
- "purpose": "Demat holdings incl. the T1 pool, per client.",
+ "when": "BOD, 08:17",
+ "purpose": "Each client's sellable holdings for BOW, uploaded in the BOW Admin terminal (User Stock upload): BOW's API cannot write holdings, so this file is the only route. The file the broker's current back office writes: comma-separated, no header, CRLF, 16 fields, one line per client per security. DP quantity is the sellable demat quantity as Finspot's ISIN Holding has it (margin-pledged shares included, less lender pledges and CDSL freezes, plus unpaid purchases held in CUSPA; nothing for an account frozen for debits); pool quantity is the previous business day's delivery (CNC) buys less sells, not yet received (as Finspot's T1 file). Symbol and series come from the NSE security master, the BSE code from the BSE scrip file (both loaded on Exchange files). Lines with no DP and no pool quantity are left out. Field meanings follow BOW's List User Stocks reply (DP qty, pool qty, DP and pool credit-for-sale haircut %, DP and pool average price).",
  "names": [
   "BOW_DP_Holding_Combined_Upload_\\d{8}\\.txt"
  ],
  "template": "BOW_DP_Holding_Combined_Upload_{date:02012006}.TXT",
  "columns": [
   {
-   "name": "ClientCode",
-   "type": "str"
+   "name": "Client code",
+   "key": "ClientCode",
+   "type": "str",
+   "required": true,
+   "note": "The client's UCC"
   },
   {
-   "name": "Field2",
-   "type": "str"
+   "name": "Symbol",
+   "key": "Symbol",
+   "type": "str",
+   "note": "NSE symbol (NSE security master); blank when the security has only a BSE code"
   },
   {
-   "name": "Field3",
-   "type": "str"
+   "name": "Series",
+   "key": "Series",
+   "type": "str",
+   "note": "NSE series (EQ, BE, BZ, SM, GB, E1, N2 …); blank when the symbol is blank"
   },
   {
-   "name": "Field4",
-   "type": "str"
+   "name": "BSE scrip code",
+   "key": "BSECode",
+   "type": "str",
+   "note": "BSE scrip code (6 digits, BSE scrip file); sometimes blank"
   },
   {
-   "name": "Field5",
-   "type": "str"
+   "name": "DP quantity",
+   "key": "DPQty",
+   "type": "int",
+   "note": "Sellable demat quantity (List User Stocks: DP)"
   },
   {
-   "name": "Field6",
-   "type": "str"
+   "name": "Field 6",
+   "key": "Blank6",
+   "type": "blank",
+   "note": "Blank in the broker's file. Meaning unconfirmed"
   },
   {
-   "name": "Field7",
-   "type": "str"
+   "name": "DP average price",
+   "key": "DPAvgPrice",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true,
+   "note": "The client's average price of the demat holding (differs per client for the same security; List User Stocks: DPAvgPrice, for reference only). Ledgerline writes the holding's average cost (0.00 when it has none)"
   },
   {
-   "name": "Field8",
-   "type": "str"
+   "name": "Field 8",
+   "key": "Blank8",
+   "type": "blank",
+   "note": "Blank in the broker's file. Meaning unconfirmed"
   },
   {
-   "name": "Field9",
-   "type": "str"
+   "name": "Field 9",
+   "key": "Blank9",
+   "type": "blank",
+   "note": "Blank in the broker's file. Meaning unconfirmed"
   },
   {
-   "name": "Field10",
-   "type": "str"
+   "name": "DP CFS haircut %",
+   "key": "DPCFSHaircutPct",
+   "type": "int",
+   "note": "0 in the broker's file. By its place (after the DP fields) probably the DP credit-for-sale haircut % (List User Stocks: DPCFSHaircut%; 10 means only 90% of the sell value is available); position inferred, meaning unconfirmed. Ledgerline writes the firm's value from Connections → BOW upload files (default 0)"
   },
   {
-   "name": "Field11",
-   "type": "str"
+   "name": "Pool quantity",
+   "key": "PoolQty",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true,
+   "note": "T1 / pool quantity with 2 decimals (e.g. 100.00); 0.00 on almost every line (List User Stocks: POOL). Ledgerline writes the previous business day's delivery buys less sells, not yet received"
   },
   {
-   "name": "Field12",
-   "type": "str"
+   "name": "Field 12",
+   "key": "Blank12",
+   "type": "blank",
+   "note": "Blank in the broker's file. Meaning unconfirmed"
   },
   {
-   "name": "Field13",
-   "type": "str"
+   "name": "Pool average price",
+   "key": "PoolAvgPrice",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true,
+   "note": "Pool average price, 0.00 with no pool (List User Stocks: PoolAvgPrice). Ledgerline writes the average price of the previous day's delivery buys"
   },
   {
-   "name": "Field14",
-   "type": "str"
+   "name": "Field 14",
+   "key": "Blank14",
+   "type": "blank",
+   "note": "Blank in the broker's file. Meaning unconfirmed"
   },
   {
-   "name": "Field15",
-   "type": "str"
+   "name": "Field 15",
+   "key": "Blank15",
+   "type": "blank",
+   "note": "Blank in the broker's file. Meaning unconfirmed"
   },
   {
-   "name": "Field16",
-   "type": "str"
+   "name": "Pool CFS haircut %",
+   "key": "PoolCFSHaircutPct",
+   "type": "int",
+   "note": "0 in the broker's file. Probably the pool credit-for-sale haircut % (List User Stocks: PoolCFSHaircut%; 100 means no credit for sale, the T1 use); position inferred, meaning unconfirmed. Ledgerline writes the firm's value from Connections → BOW upload files (default 0)"
   }
  ],
  "compress": "none",
@@ -81,6 +120,7 @@
  "header": false,
  "crlf": true,
  "final_eol": true,
- "confirmed": false,
- "linked": ""
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW holdings file",
+ "source": "real BOW upload files from the broker (structure only), 9 Nov 2026; field meanings partly from BOW API v1.0.5"
 }

@@ -285,6 +285,11 @@ var DailyFiles = []DailyFile{
 	// → Finspot uploads is saved; finspot.go): the BOD files it uploads.
 	{ID: "finspot-limit", Title: "Finspot BOD limit file (RMS Limits)", Format: "finspot-rms-limit", Party: "Finspot", Segments: []string{"CM", "FO", "CD", "COM"}, Direction: "out", At: "08:50"},
 	{ID: "finspot-holding", Title: "Finspot BOD holding file (ISIN Holding)", Format: "finspot-dp-holding", Party: "Finspot", Segments: []string{"CM"}, Direction: "out", At: "08:54"},
+	// BOW (BOLTPlusOnWeb), for a firm with the BOW limits API or BOW upload
+	// files connection saved (bowfiles.go): the funds file (the fallback of
+	// the API push) and the holding file (the only route for holdings).
+	{ID: "bow-fund", Title: "BOW funds file (BOW_FUND)", Format: "bow-fund", Party: "BOW", Segments: []string{"CM", "FO", "CD", "COM"}, Direction: "out", At: "08:13"},
+	{ID: "bow-holding", Title: "BOW holding file (BOW_DP_Holding_Combined_Upload)", Format: "bow-dp-holding", Party: "BOW", Segments: []string{"CM"}, Direction: "out", At: "08:17"},
 }
 
 // cdslDPFirm says whether the firm is a CDSL DP, for the checklist.
@@ -388,6 +393,7 @@ func (o *Ops) DailyFileChecklist(ctx context.Context, tenant, date string) (File
 	now := o.now().In(ist).Format("2006-01-02 15:04")
 	dp := o.cdslDPFirm(ctx, tenant, set)
 	finspot := o.finspotChecklist(ctx, tenant)
+	bow := o.bowFilesChecklist(ctx, tenant)
 	for _, f := range DailyFiles {
 		var serves []string
 		if f.Party == "CDSL" && dp {
@@ -398,6 +404,12 @@ func (o *Ops) DailyFileChecklist(ctx context.Context, tenant, date string) (File
 				continue
 			}
 			serves = []string{"Trading front end"}
+		}
+		if f.Party == "BOW" {
+			if !bow {
+				continue
+			}
+			serves = []string{"Trading front end (BOW)"}
 		}
 		for _, c := range act {
 			if !contains(f.Segments, c.Segment) {

@@ -618,9 +618,10 @@ func (o *Ops) bowFunds(ctx context.Context, tenant, date string) (map[string]mon
 }
 
 // BOWFundsFile lists every active client's commodity funds for the
-// commodity front end (BOW). BOW's own upload layout (bow-fund) is not
-// confirmed column by column, so this is a plain CSV of client code and
-// commodity funds, to be keyed or mapped into BOW's file.
+// commodity front end (BOW): a plain CSV of client code and commodity
+// funds, for checking. BOW's own upload (BOW_FUND, bow-fund) is written by
+// BOWFundFile (bowfiles.go), with one figure per client (Securities +
+// Commodities), as the file is a user-level deposit.
 func (o *Ops) BOWFundsFile(ctx context.Context, tenant, date string) ([]byte, error) {
 	set, _ := o.Settings(ctx, tenant)
 	if !set.segApart() {

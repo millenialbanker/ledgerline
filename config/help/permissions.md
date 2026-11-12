@@ -95,6 +95,7 @@ Downloading exchange files | Ops maker, Ops checker, Risk manager, Compliance of
 Downloading pay-out hold files | Ops maker, Ops checker, Risk manager
 Downloading periodic files | Ops maker, Ops checker, Compliance officer
 Downloading stock SIP basket files | Ops maker, Ops checker, Risk manager
+Downloading the BOW funds file | Ops maker, Ops checker, Risk manager
 Downloading the collateral file | Ops maker, Ops checker, Risk manager, Compliance officer
 Editing exchange UCC details | Ops maker, Ops checker
 Editing exchange disclosures | Compliance officer

@@ -638,6 +638,10 @@ type BOWLimit struct {
 	Commodities money.Dec `json:"commodities"`
 	Close       bool      `json:"close,omitempty"` // closed: remove the rows
 	Why         string    `json:"why,omitempty"`   // why 0 (blocked, inactive …)
+	// Net is the signed funds of the BOW funds file (bowfiles.go): the
+	// equity and commodity money of the open segments, debits kept; 0
+	// whenever the limits are 0 (blocked, inactive …).
+	Net money.Dec `json:"-"`
 }
 
 // bowMoneyKinds are the ledger entries that move a client's money during
@@ -753,10 +757,14 @@ func (o *Ops) bowLimits(ctx context.Context, tenant, date string) (map[string]BO
 		case !equityOpen && !comOpen:
 			l = BOWLimit{Why: "no segment open"}
 		default:
-			if !equityOpen {
+			if equityOpen {
+				l.Net = eq[u]
+			} else {
 				l.Securities = zero
 			}
-			if !comOpen {
+			if comOpen {
+				l.Net = l.Net.Add(com[u])
+			} else {
 				l.Commodities = zero
 			}
 		}

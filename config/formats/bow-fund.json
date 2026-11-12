@@ -1,94 +1,146 @@
 {
  "id": "bow-fund",
- "title": "Client funds upload (BOW front end)",
+ "title": "Client funds upload (BOW front end, BOW_FUND)",
  "party": "Front end (BOW)",
  "direction": "out",
- "when": "BOD",
- "purpose": "Funds per client for the front end.",
+ "when": "BOD, 08:13; again in the morning for changed clients",
+ "purpose": "Each client's funds (user deposit) for BOW (BOLTPlusOnWeb, BSE's front end from MarketPlace Tech), uploaded in the BOW Admin terminal: the file the broker's current back office writes. One line per client, comma-separated, no header, CRLF, 20 fields; the client code and the cash deposit in whole rupees (may be negative, a debit) are the only values, every other field is blank or a constant. It is a user-level deposit (category, exchange and market blank), so it carries ONE figure per client: Securities + Commodities as Ledgerline's BOW limits compute them, a blocked, inactive or not active client 0. The BOW API push (Connections → BOW limits API) is preferred: it sets Securities and Commodities separately, which this file cannot. Ledgerline writes every active client (and 0 once for a client no longer active who was last sent a non-zero figure), or only the clients whose figure changed since the last file (the broker's second, small morning file).",
  "names": [
-  "BOW_FUND_.*\\.csv"
+  "BOW_FUND_\\d{2}-\\d{2}-\\d{2} \\d{2}_\\d{2}_\\d{2} [AP]M\\.csv"
  ],
  "template": "BOW_FUND_{date:02-01-06} {time}.csv",
  "columns": [
   {
-   "name": "ClientCode",
-   "type": "str"
+   "name": "Client code",
+   "key": "ClientCode",
+   "type": "str",
+   "required": true,
+   "note": "The client's UCC (BOW's back-office ID), not the BOW login (CLIENT-T…)"
   },
   {
-   "name": "Field2",
-   "type": "str"
+   "name": "Field 2",
+   "key": "Blank2",
+   "type": "blank",
+   "note": "Blank in the broker's file; probably the deposit category (blank = all: user level, EditUserDeposit UDCategory). Meaning unconfirmed"
   },
   {
-   "name": "Field3",
-   "type": "str"
+   "name": "Field 3",
+   "key": "Blank3",
+   "type": "blank",
+   "note": "Blank in the broker's file; probably the exchange (blank at user level, UDExchange). Meaning unconfirmed"
   },
   {
-   "name": "Field4",
-   "type": "str"
+   "name": "Field 4",
+   "key": "Blank4",
+   "type": "blank",
+   "note": "Blank in the broker's file; probably the market or segment (blank at user level, UDMarket / UDSEGMENT). Meaning unconfirmed"
   },
   {
-   "name": "Field5",
-   "type": "str"
+   "name": "Cash deposit",
+   "key": "CashDeposit",
+   "type": "int",
+   "required": true,
+   "note": "Funds in whole rupees (not × 10,000 as the API takes them), integer, may be negative (debit); mostly 0. The cash deposit (EditUserDeposit UDAmount1). Ledgerline writes Securities + Commodities (signed: a debit in one ledger reduces the other), rounded down to the rupee; 0 for a blocked, inactive or not active client"
   },
   {
-   "name": "Field6",
-   "type": "str"
+   "name": "Field 6",
+   "key": "Const6",
+   "type": "int",
+   "const": "0",
+   "note": "Always 0 in the broker's file: observed constant; meaning unconfirmed. Perhaps the adhoc deposit (UDADHOCMARGIN)."
   },
   {
-   "name": "Field7",
-   "type": "str"
+   "name": "Field 7",
+   "key": "Const7",
+   "type": "int",
+   "const": "0",
+   "note": "Always 0 in the broker's file: observed constant; meaning unconfirmed. Perhaps another deposit amount (UDAmount3)."
   },
   {
-   "name": "Field8",
-   "type": "str"
+   "name": "Field 8",
+   "key": "Const8",
+   "type": "int",
+   "const": "0",
+   "note": "Always 0 in the broker's file: observed constant; meaning unconfirmed. Perhaps another deposit amount."
   },
   {
-   "name": "Field9",
-   "type": "str"
+   "name": "Field 9",
+   "key": "Blank9",
+   "type": "blank",
+   "note": "Blank in the broker's file; perhaps the valid-till date (UDValidTill). Meaning unconfirmed"
   },
   {
-   "name": "Field10",
-   "type": "str"
+   "name": "Field 10",
+   "key": "Const10",
+   "type": "int",
+   "const": "1",
+   "note": "Always 1 in the broker's file: observed constant; meaning unconfirmed. Probably the multiplier (UDAmount2, 1 in units rather than × 10,000) or the row state (UDROWSTATE 1 = add)."
   },
   {
-   "name": "Field11",
-   "type": "str"
+   "name": "Field 11",
+   "key": "Const11",
+   "type": "int",
+   "const": "0",
+   "note": "Always 0 in the broker's file: observed constant; meaning unconfirmed. Perhaps the MTM factor or the adhoc deposit."
   },
   {
-   "name": "Field12",
-   "type": "str"
+   "name": "Field 12",
+   "key": "Blank12",
+   "type": "blank",
+   "note": "Blank in the broker's file. Meaning unconfirmed"
   },
   {
-   "name": "Field13",
-   "type": "str"
+   "name": "Field 13",
+   "key": "Blank13",
+   "type": "blank",
+   "note": "Blank in the broker's file. Meaning unconfirmed"
   },
   {
-   "name": "Field14",
-   "type": "str"
+   "name": "Field 14",
+   "key": "Blank14",
+   "type": "blank",
+   "note": "Blank in the broker's file. Meaning unconfirmed"
   },
   {
-   "name": "Field15",
-   "type": "str"
+   "name": "Field 15",
+   "key": "Blank15",
+   "type": "blank",
+   "note": "Blank in the broker's file. Meaning unconfirmed"
   },
   {
-   "name": "Field16",
-   "type": "str"
+   "name": "Field 16",
+   "key": "Const16",
+   "type": "int",
+   "const": "1",
+   "note": "Always 1 in the broker's file: observed constant; meaning unconfirmed. A flag; perhaps consider adhoc deposit for margin (UDFIELD6 = 1)."
   },
   {
-   "name": "Field17",
-   "type": "str"
+   "name": "Field 17",
+   "key": "Const17",
+   "type": "int",
+   "const": "1",
+   "note": "Always 1 in the broker's file: observed constant; meaning unconfirmed. A flag."
   },
   {
-   "name": "Field18",
-   "type": "str"
+   "name": "Field 18",
+   "key": "Const18",
+   "type": "int",
+   "const": "0",
+   "note": "Always 0 in the broker's file: observed constant; meaning unconfirmed. A flag; perhaps consider adhoc deposit for MTM limits (UDFIELD7 = 0)."
   },
   {
-   "name": "Field19",
-   "type": "str"
+   "name": "Field 19",
+   "key": "Const19",
+   "type": "int",
+   "const": "1",
+   "note": "Always 1 in the broker's file: observed constant; meaning unconfirmed. A flag; perhaps the row state (1 = add)."
   },
   {
-   "name": "Field20",
-   "type": "str"
+   "name": "Field 20",
+   "key": "Const20",
+   "type": "str",
+   "const": "Y",
+   "note": "Always Y in the broker's file: observed constant; meaning unconfirmed. Perhaps 'replace the existing deposit' or 'active'."
   }
  ],
  "compress": "none",
@@ -97,6 +149,7 @@
  "header": false,
  "crlf": true,
  "final_eol": true,
- "confirmed": false,
- "linked": ""
+ "confirmed": true,
+ "linked": "Live RMS → Front-office files → BOW funds file (all clients, or changed only)",
+ "source": "real BOW upload files from the broker (structure only), 9 Nov 2026; field meanings partly from BOW API v1.0.5"
 }

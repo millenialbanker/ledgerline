@@ -262,60 +262,29 @@ func (o *Ops) FinspotHoldingFile(ctx context.Context, tenant, date string, t1 bo
 		return "", nil, err
 	}
 	if t1 {
-		ts, err := o.exchangeTrades(ctx, tenant, prev)
+		buys, err := o.t1Buys(ctx, tenant, prev, look)
 		if err != nil {
 			return "", nil, err
 		}
-		for _, t := range ts {
-			if t.Segment != "CM" || t.Product != "CNC" {
-				continue
-			}
-			isin := ""
-			if i, ok := look.ForTrade(t); ok {
-				isin = i.ISIN
-			}
-			if isin == "" {
-				continue // the upload is by ISIN
-			}
-			if t.Side == "B" {
-				qty[t.UCC+"|"+isin] += t.Qty
-			} else {
-				qty[t.UCC+"|"+isin] -= t.Qty
-			}
+		for k, b := range buys {
+			qty[k] = b.Net
 		}
 	} else {
-		hs, err := o.Holdings(ctx, tenant, "")
+		lines, err := o.sellableDemat(ctx, tenant, date, cs)
 		if err != nil {
 			return "", nil, err
 		}
-		enc := o.cplEncumberedAll(ctx, tenant)
 		var pl []string
-		for _, h := range hs {
-			if h.Pledged > 0 {
-				pl = append(pl, h.ISIN)
+		for _, l := range lines {
+			if l.Pledged > 0 {
+				pl = append(pl, l.ISIN)
 			}
 		}
 		cashEq := o.cashEquivalentISINs(ctx, tenant, pl)
-		frozenBO := map[string]bool{}
-		for _, h := range hs {
-			c := cs[h.UCC]
-			if _, seen := frozenBO[h.UCC]; !seen {
-				frozenBO[h.UCC] = o.bo(ctx, tenant, c).debitFrozen()
-			}
-			if frozenBO[h.UCC] {
-				continue
-			}
-			q := h.Qty - enc[h.UCC][h.ISIN]
-			q -= o.cdslFrozenQty(ctx, tenant, c.Demat.ID, h.ISIN, q)
-			qty[h.UCC+"|"+h.ISIN] += q
-			if h.Pledged > 0 && !cashEq[h.ISIN] && finspotBlockWhy(c) == "" {
-				pledged[h.UCC+"|"+h.ISIN] += min(h.Pledged, max(q, 0))
-			}
-		}
-		cu, _ := docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
-		for _, it := range cu {
-			if it.Status == "Held in CUSPA" && it.Date < date {
-				qty[it.UCC+"|"+it.ISIN] += it.Qty
+		for k, l := range lines {
+			qty[k] = l.Demat + l.CUSPA
+			if l.Pledged > 0 && !cashEq[l.ISIN] && finspotBlockWhy(cs[l.UCC]) == "" {
+				pledged[k] = min(l.Pledged, max(l.Demat, 0))
 			}
 		}
 	}
@@ -380,6 +349,107 @@ func trimDec(s string) string {
 		s = strings.TrimRight(strings.TrimRight(s, "0"), ".")
 	}
 	return s
+}
+
+// dematLine is one client's sellable quantity of one ISIN for the front
+// ends' holding files (Finspot's ISIN Holding, BOW's User Stock upload).
+type dematLine struct {
+	UCC, ISIN string
+	Demat     int64     // demat balance (margin-pledged included) less lender pledges and CDSL freezes
+	Pledged   int64     // margin-pledged, as the holding has it
+	Cost      money.Dec // the holding's average cost (zero when unknown)
+	CUSPA     int64     // unpaid purchases held in CUSPA, sellable too
+	CUSPAVal  money.Dec // their value
+}
+
+// sellableDemat is every client's sellable demat quantity by UCC|ISIN, as
+// of the morning of date: the demat balance (margin-pledged shares
+// included: the pledge is released when they are sold), less shares
+// pledged to lenders and shares frozen at CDSL, nothing for an account
+// frozen for debits; and unpaid purchases held in CUSPA before date.
+func (o *Ops) sellableDemat(ctx context.Context, tenant, date string, cs map[string]Client) (map[string]*dematLine, error) {
+	hs, err := o.Holdings(ctx, tenant, "")
+	if err != nil {
+		return nil, err
+	}
+	enc := o.cplEncumberedAll(ctx, tenant)
+	out := map[string]*dematLine{}
+	line := func(u, isin string) *dematLine {
+		k := u + "|" + isin
+		if out[k] == nil {
+			out[k] = &dematLine{UCC: u, ISIN: isin}
+		}
+		return out[k]
+	}
+	frozenBO := map[string]bool{}
+	for _, h := range hs {
+		c := cs[h.UCC]
+		if _, seen := frozenBO[h.UCC]; !seen {
+			frozenBO[h.UCC] = o.bo(ctx, tenant, c).debitFrozen()
+		}
+		if frozenBO[h.UCC] {
+			continue
+		}
+		q := h.Qty - enc[h.UCC][h.ISIN]
+		q -= o.cdslFrozenQty(ctx, tenant, c.Demat.ID, h.ISIN, q)
+		l := line(h.UCC, h.ISIN)
+		l.Demat += q
+		l.Pledged += h.Pledged
+		l.Cost = h.AvgCost
+	}
+	cu, _ := docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
+	for _, it := range cu {
+		if it.Status == "Held in CUSPA" && it.Date < date {
+			l := line(it.UCC, it.ISIN)
+			l.CUSPA += it.Qty
+			l.CUSPAVal = l.CUSPAVal.Add(it.Value)
+		}
+	}
+	return out, nil
+}
+
+// t1Buy is one client's delivery trades of one ISIN on a day.
+type t1Buy struct {
+	Net    int64     // buys less sells (may be negative)
+	Bought int64     // bought
+	Value  money.Dec // value bought
+}
+
+// t1Buys are a day's delivery (CNC) cash-market trades by UCC|ISIN: the
+// T1 quantity the front ends let a client sell before pay-out. Trades whose
+// instrument has no ISIN in the market data are left out (the uploads are
+// by ISIN).
+func (o *Ops) t1Buys(ctx context.Context, tenant, day string, look Lookup) (map[string]*t1Buy, error) {
+	ts, err := o.exchangeTrades(ctx, tenant, day)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]*t1Buy{}
+	for _, t := range ts {
+		if t.Segment != "CM" || t.Product != "CNC" {
+			continue
+		}
+		isin := ""
+		if i, ok := look.ForTrade(t); ok {
+			isin = i.ISIN
+		}
+		if isin == "" {
+			continue
+		}
+		k := t.UCC + "|" + isin
+		if out[k] == nil {
+			out[k] = &t1Buy{}
+		}
+		b := out[k]
+		if t.Side == "B" {
+			b.Net += t.Qty
+			b.Bought += t.Qty
+			b.Value = b.Value.Add(t.Price.MulInt(t.Qty))
+		} else {
+			b.Net -= t.Qty
+		}
+	}
+	return out, nil
 }
 
 // cplEncumberedAll is cplEncumbered for every client: UCC -> ISIN -> qty.

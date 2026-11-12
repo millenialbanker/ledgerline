@@ -57,7 +57,8 @@ type XFormat struct {
 
 // xWrittenOn are outgoing files Ledgerline writes on another screen, not
 // from Exchange files.
-var xWrittenOn = map[string]string{"hdfc-enet-payout": "Receipts & payouts → payout batches (HDFC ENet file)", "cdsl-bo-upload": "Depository → CDSL requests"}
+var xWrittenOn = map[string]string{"hdfc-enet-payout": "Receipts & payouts → payout batches (HDFC ENet file)", "cdsl-bo-upload": "Depository → CDSL requests",
+	"bow-fund": "Live RMS → Front-office files (BOW funds file)", "bow-dp-holding": "Live RMS → Front-office files (BOW holdings file)"}
 
 // xWriters are the outgoing files Ledgerline writes.
 var xWriters = map[string]bool{"ncl-allocation": true, "ncl-allocation-api": true, "holding-statement-api": true, "segmon-client-funds": true, "ncl-client-collateral": true, "ncl-cuspa-mtf-payout": true, "ncl-margin-reporting": true, "ncl-margin-reporting-fo": true, "mcx-margin-reporting": true, "ncl-short-allocation-reporting": true, "ncl-shortage-reporting": true, "cdsl-txn-upload": true, "bse-ucc": true, "mcx-ucc": true}
