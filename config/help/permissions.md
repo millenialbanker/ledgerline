@@ -13,6 +13,7 @@ Applying corporate actions | Ops checker
 Applying pay-out holds | Ops checker, Risk manager
 Applying the BSDA review | Ops checker
 Approving a margin penalty pass-through | Ops checker, Risk manager, Compliance officer
+Approving a move between MCX and equity | Ops checker, Risk manager
 Approving a receipt | Ops checker
 Approving allocation | Ops checker, Risk manager
 Approving an override | Ops checker, Risk manager
@@ -142,6 +143,7 @@ Marking a dealer as left | Compliance officer
 Marking a report uploaded | Ops checker, Compliance officer
 Matching stock SIP orders to trades | Ops maker, Ops checker, Risk manager
 Month-end postings | Ops checker
+Moving money between MCX and equity | Ops maker, Ops checker, Risk manager
 NRI registration | Ops checker, Compliance officer
 Passing a margin penalty to a client | Risk manager, Compliance officer
 Pay-out hold rules | Risk manager

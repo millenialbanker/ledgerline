@@ -262,6 +262,9 @@ func (o *Ops) routeCredit(set Settings, c Client, t *BankTxn) string {
 // for the equity ledger (or with one ledger, any money) may be allocated
 // to NSE Clearing at once; money with no instruction waits for Risk.
 func (o *Ops) creditedToLedger(ctx context.Context, tenant string, t BankTxn, name string) {
+	if t.Earmark == EarmarkMCX {
+		return // MCX money is never allocated to NSE Clearing
+	}
 	switch t.Ledger {
 	case "", ledger.LedgerEquity:
 		o.AllocationMoneyIn(ctx, tenant, t.UCC, t.Amount, "BANK:"+t.Ref)
@@ -582,7 +585,7 @@ func (o *Ops) unclearedBy(ctx context.Context, tenant string) map[string]LedgerF
 			continue
 		}
 		f := out[r.UCC]
-		if r.Ledger == ledger.LedgerCommodity {
+		if r.Ledger == ledger.LedgerCommodity || r.Earmark == EarmarkMCX {
 			f.Commodity += r.Amount
 		} else {
 			f.Equity += r.Amount
@@ -598,7 +601,7 @@ func (o *Ops) unclearedBy(ctx context.Context, tenant string) map[string]LedgerF
 // in it.
 func (o *Ops) bowFunds(ctx context.Context, tenant, date string) (map[string]money.Dec, error) {
 	set, _ := o.Settings(ctx, tenant)
-	lf, err := o.clientLedgerFunds(ctx, tenant, set.PrevBusinessDay(date), "")
+	lf, err := o.segFunds(ctx, tenant, set, set.PrevBusinessDay(date), "")
 	if err != nil {
 		return nil, err
 	}
@@ -620,8 +623,8 @@ func (o *Ops) bowFunds(ctx context.Context, tenant, date string) (map[string]mon
 // commodity funds, to be keyed or mapped into BOW's file.
 func (o *Ops) BOWFundsFile(ctx context.Context, tenant, date string) ([]byte, error) {
 	set, _ := o.Settings(ctx, tenant)
-	if !set.sepCom() {
-		return nil, invalid("commodity funds are kept apart only with a separate commodity ledger (Settings)")
+	if !set.segApart() {
+		return nil, invalid("commodity funds are kept apart only with a separate commodity ledger or an MCX-only bank account (Settings)")
 	}
 	f, err := o.bowFunds(ctx, tenant, date)
 	if err != nil {
@@ -766,8 +769,8 @@ func (f *LedgerFunds) add(kind string, a money.Amount) {
 // withdrawableLedgers fills in what each ledger can pay on its own, and
 // the client's total: money awaiting allocation is not paid out until it
 // is allocated, and MCX margin is kept in the commodity ledger.
-func (o *Ops) withdrawableLedgers(ctx context.Context, tenant, date string, w *Withdrawable, prs []PayoutRequest, comMargin money.Amount) error {
-	lf, err := o.clientLedgerFunds(ctx, tenant, date, "")
+func (o *Ops) withdrawableLedgers(ctx context.Context, tenant string, set Settings, date string, w *Withdrawable, prs []PayoutRequest, comMargin money.Amount) error {
+	lf, err := o.segFunds(ctx, tenant, set, date, "")
 	if err != nil {
 		return err
 	}
@@ -778,11 +781,11 @@ func (o *Ops) withdrawableLedgers(ctx context.Context, tenant, date string, w *W
 		if p.UCC != w.UCC || p.Status != "Approved" || p.Batch != "" {
 			continue
 		}
-		switch p.Ledger {
-		case ledger.LedgerEquity:
-			eqPend += p.Amount
-		case ledger.LedgerCommodity:
+		switch {
+		case p.Ledger == ledger.LedgerCommodity:
 			comPend += p.Amount
+		case p.Ledger == ledger.LedgerEquity, set.mcxEarmark(): // with the earmark, any other payout is equity money
+			eqPend += p.Amount
 		}
 	}
 	eqMargin := w.Margin
@@ -803,6 +806,10 @@ func (o *Ops) withdrawableLedgers(ctx context.Context, tenant, date string, w *W
 // cannot pay on its own, unless the firm lets payouts transfer the
 // shortfall from the other ledger.
 func (o *Ops) checkPayoutLedger(ctx context.Context, tenant string, w Withdrawable, amount money.Amount, from string) error {
+	set, _ := o.Settings(ctx, tenant)
+	if set.mcxEarmark() {
+		return checkEarmarkPayout(w, amount, from)
+	}
 	if w.Ledgers == nil || from == "" {
 		return nil
 	}
@@ -814,7 +821,6 @@ func (o *Ops) checkPayoutLedger(ctx context.Context, tenant string, w Withdrawab
 	if amount <= have {
 		return nil
 	}
-	set, _ := o.Settings(ctx, tenant)
 	if set.PayoutAutoTransfer && amount-max(have, 0) <= max(otherHave, 0) {
 		return nil
 	}

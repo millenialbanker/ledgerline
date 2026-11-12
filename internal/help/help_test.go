@@ -191,6 +191,8 @@ func TestQuestions(t *testing.T) {
 		{"finspot limit jumped after receipt because of mcx balance", "", "commodity-ledger"},
 		{"ecms credit is awaiting allocation, choose equity or commodity", "", "funds-awaiting-allocation"},
 		{"move money from commodity to equity ledger", "", "ledger-transfer"},
+		{"funds received in mcx only bank account in finspot limit", "", "mcx-only-bank-account"},
+		{"move mcx money to equity", "", "mcx-earmark-move"},
 		{"unknown credit in bank statement", "", "unknown-credit"},
 		{"cheque bounced", "", "cheque-return"},
 		{"payout says only 5000 available", "", "payout"},

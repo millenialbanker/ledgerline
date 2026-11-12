@@ -78,6 +78,9 @@ type RiskLedgers struct {
 	CommodityRequired money.Dec `json:"commodity_required"`
 	CommodityFree     money.Dec `json:"commodity_free"`
 	CommodityStatus   string    `json:"commodity_status"`
+	// Earmark: one ledger, Commodity is the MCX money earmarked and
+	// Equity the rest (mcxearmark.go), not separate ledgers.
+	Earmark bool `json:"earmark,omitempty"`
 }
 
 // allRequired is the margin the client needs across every segment.
@@ -406,10 +409,12 @@ func (o *Ops) Risk(ctx context.Context, tenant, date string) (RiskView, error) {
 		funds[u] -= a
 	}
 	// A separate commodity ledger: the row is the equity ledger against
-	// NSE and BSE positions; the commodity side goes in Ledgers.
+	// NSE and BSE positions; the commodity side goes in Ledgers. With one
+	// ledger and MCX money earmarked (mcxearmark.go) the same, from the
+	// ledger less the earmark and the earmark.
 	var lf map[string]LedgerFunds
-	if in.set.sepCom() {
-		if lf, err = o.clientLedgerFunds(ctx, tenant, date, ""); err != nil {
+	if in.set.segApart() {
+		if lf, err = o.segFunds(ctx, tenant, in.set, date, ""); err != nil {
 			return RiskView{}, err
 		}
 		for u, a := range o.unclearedBy(ctx, tenant) {
@@ -441,10 +446,10 @@ func (o *Ops) Risk(ctx context.Context, tenant, date string) (RiskView, error) {
 		if lf != nil {
 			f := lf[u]
 			r.Funds = f.Equity.Dec()
-			r.Ledgers = &RiskLedgers{Equity: f.Equity.Dec(), Commodity: f.Commodity.Dec(), Awaiting: f.Awaiting.Dec(), Combined: f.Combined().Dec()}
+			r.Ledgers = &RiskLedgers{Equity: f.Equity.Dec(), Commodity: f.Commodity.Dec(), Awaiting: f.Awaiting.Dec(), Combined: f.Combined().Dec(), Earmark: in.set.mcxEarmark()}
 		}
 		for _, p := range pos[u] {
-			if r.Ledgers != nil && in.set.segmentLedger(p.Exchange, p.Segment) == ledger.LedgerCommodity {
+			if r.Ledgers != nil && in.set.viewLedger(p.Exchange, p.Segment) == ledger.LedgerCommodity {
 				r.Ledgers.CommodityRequired = r.Ledgers.CommodityRequired.Add(p.Margin)
 				continue
 			}
@@ -749,8 +754,8 @@ func (o *Ops) Margins(ctx context.Context, tenant, date string) (MarginReport, e
 		return MarginReport{}, err
 	}
 	var preL map[string]LedgerFunds
-	if in.set.sepCom() {
-		if preL, err = o.clientLedgerFunds(ctx, tenant, date, date); err != nil {
+	if in.set.segApart() {
+		if preL, err = o.segFunds(ctx, tenant, in.set, date, date); err != nil {
 			return MarginReport{}, err
 		}
 	}
@@ -805,7 +810,7 @@ func (o *Ops) Margins(ctx context.Context, tenant, date string) (MarginReport, e
 		for _, s := range snaps {
 			sr := snapReq{eq: s.cm[u]}
 			for _, p := range s.pos[u] {
-				if preL != nil && in.set.segmentLedger(p.Exchange, p.Segment) == ledger.LedgerCommodity {
+				if preL != nil && in.set.viewLedger(p.Exchange, p.Segment) == ledger.LedgerCommodity {
 					sr.com = sr.com.Add(p.Margin)
 				} else {
 					sr.eq = sr.eq.Add(p.Margin)

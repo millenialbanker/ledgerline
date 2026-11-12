@@ -244,6 +244,26 @@ func (o *Ops) segmonBalances(ctx context.Context, tenant, date string) (map[stri
 		_, p2 := walk(true)
 		b.B, b.Peak = end, money.Max(p1, p2)
 	}
+	// One ledger with MCX money earmarked (mcxearmark.go): the MCX money
+	// is with the commodity clearing member and reported to MCX, not in
+	// SEGMON. The balance is less the day's earmark; the clear balance is
+	// at most that, and the peak is less the earmark too.
+	if set, _ := o.Settings(ctx, tenant); set.mcxEarmark() {
+		em, err := o.mcxEarmarks(ctx, tenant, date, "")
+		if err != nil {
+			return nil, err
+		}
+		for u, e := range em {
+			b := out[ledger.ClientAccount(u)]
+			if b == nil || e.MCX <= 0 {
+				continue
+			}
+			m := e.MCX.Dec()
+			b.A = b.A.Sub(m)
+			b.B = money.Min(b.B, b.A)
+			b.Peak = money.Max(b.Peak.Sub(m), b.B)
+		}
+	}
 	return out, nil
 }
 
