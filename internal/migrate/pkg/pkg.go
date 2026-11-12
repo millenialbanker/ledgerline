@@ -943,3 +943,60 @@ var HistoryColumns = map[string][]string{
 	HistoryDPBills:  {"BillNo", "BillDate", "BOID", "UCC", "PeriodFrom", "PeriodTo", "Amount", "GST", "Total", "SourceRef"},
 	HistoryHoldings: {"Date", "BOID", "UCC", "ISIN", "Security", "Free", "Pledged", "Locked", "Total", "Rate", "Value"},
 }
+
+// ---- helpers for Ledgerline ----
+
+// SetTestCost lowers the scrypt cost so tests in other packages can build
+// and open packages quickly. Never call it outside tests.
+func SetTestCost() { scryptN = 1 << 10 }
+
+// CheckPassphrase reads a package's header and first chunk and reports
+// whether the passphrase opens it (ErrPassphrase if not), without
+// decrypting the rest. It lets a server answer "wrong passphrase" at once
+// before a long Open of a large package.
+func CheckPassphrase(src io.Reader, passphrase string) error {
+	br := bufio.NewReaderSize(src, 1<<20)
+	mg := make([]byte, len(Magic))
+	if _, err := io.ReadFull(br, mg); err != nil || string(mg) != Magic {
+		return errors.New("this is not a Ledgerline migration package (.llmig)")
+	}
+	var l [4]byte
+	if _, err := io.ReadFull(br, l[:]); err != nil {
+		return errors.New("the package is cut short")
+	}
+	hl := binary.BigEndian.Uint32(l[:])
+	if hl == 0 || hl > maxHeader {
+		return errors.New("this is not a Ledgerline migration package (.llmig)")
+	}
+	hb := make([]byte, hl)
+	if _, err := io.ReadFull(br, hb); err != nil {
+		return errors.New("the package is cut short")
+	}
+	var h header
+	if err := json.Unmarshal(hb, &h); err != nil || h.Format != 1 || len(h.Prefix) != 7 {
+		return errors.New("this package was made by a newer migration tool; update Ledgerline")
+	}
+	key, err := deriveKey(passphrase, h)
+	if err != nil {
+		return err
+	}
+	blk, _ := aes.NewCipher(key)
+	aead, _ := cipher.NewGCM(blk)
+	if _, err := io.ReadFull(br, l[:]); err != nil {
+		return errors.New("the package is empty or cut short")
+	}
+	cl := binary.BigEndian.Uint32(l[:])
+	if cl < 16 || cl > maxChunk {
+		return ErrPassphrase
+	}
+	ct := make([]byte, cl)
+	if _, err := io.ReadFull(br, ct); err != nil {
+		return errors.New("the package is cut short")
+	}
+	_, more := br.Peek(1)
+	last := more != nil
+	if _, err := aead.Open(nil, nonce(h.Prefix, 0, last), ct, hb); err != nil {
+		return ErrPassphrase
+	}
+	return nil
+}

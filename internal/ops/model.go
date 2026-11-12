@@ -169,6 +169,9 @@ type Settings struct {
 	// exchanges the firm trades on, 3 with MCX, otherwise 5; see
 	// clientbanks.go).
 	MaxClientBanks int64 `json:"max_client_banks,omitempty"`
+	// MigrationMaxGB is the largest migration package (.llmig) the firm may
+	// upload, in GB (0: 100 GB). See migration.go.
+	MigrationMaxGB int64 `json:"migration_max_gb,omitempty"`
 	// HDFC Bank ENet payout file (hdfcenet.go): the firm's ENet client ID
 	// and the file name template (default {hdfc_client_id}{date:0201}.{seq:3}),
 	// the sequence (running across days, the default, or daily), the
@@ -354,6 +357,15 @@ type Ops struct {
 	BackupSync bool
 	bkMu       sync.Mutex
 	bkRunning  map[string]bool
+	// WorkDir is the server's working folder; each firm has its own folder
+	// in it for uploads in progress (migration packages). Empty means a
+	// folder in the system's temporary directory.
+	WorkDir string
+	// MigrateSync runs migration checks, loads and undos before replying
+	// (tests); otherwise they run in the background.
+	MigrateSync bool
+	migMu       sync.Mutex
+	migRun      map[string]bool
 }
 
 // New builds Ops and installs the client-code-modification hook on the app.
@@ -551,6 +563,9 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	}
 	if err := checkHDFCSettings(&s); err != nil {
 		return err
+	}
+	if s.MigrationMaxGB < 0 || s.MigrationMaxGB > 2000 {
+		return invalid("the largest migration package must be between 1 and 2,000 GB (0 for the default of 100 GB)")
 	}
 	if s.MaxClientBanks < 0 || s.MaxClientBanks > maxUCCBankSlots {
 		return invalid("bank accounts per client must be 1 to %d (no exchange's UCC record holds more), or 0 for the default", maxUCCBankSlots)

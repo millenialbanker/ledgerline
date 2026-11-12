@@ -127,20 +127,16 @@ func (o *Ops) LoadFile(ctx context.Context, tenant, actor, source, date, name st
 		return ingest.Result{}, err
 	}
 	res := ingest.Result{File: rf, Adapter: source + "@1.0", Errors: []ingest.ParseError{}}
-	rows, perrs := parseCSV(data, spec.Columns)
-	res.Errors = append(res.Errors, perrs...)
-	var apply func() (int, int, error)
-	if len(perrs) == 0 {
-		apply, res.Errors = o.prepare(ctx, tenant, actor, source, date, rows)
-	}
-	logDetail := map[string]any{"source": source, "name": name, "parsed": len(rows), "row_errors": len(res.Errors)}
+	parsed, apply, errs := o.checkRows(ctx, tenant, actor, spec, date, data, false)
+	res.Errors = append(res.Errors, errs...)
+	logDetail := map[string]any{"source": source, "name": name, "parsed": parsed, "row_errors": len(res.Errors)}
 	if len(res.Errors) > 0 {
 		err := fmt.Errorf("%w: %d row error(s) in %s", ingest.ErrRejected, len(res.Errors), source)
 		logDetail["error"] = err.Error()
 		o.log(ctx, tenant, actor, "file.rejected", rf.ID, logDetail)
 		return res, err
 	}
-	res.Parsed = len(rows)
+	res.Parsed = parsed
 	res.Added, res.DuplicateRows, err = apply()
 	logDetail["added"], logDetail["duplicates"] = res.Added, res.DuplicateRows
 	if err != nil {
@@ -150,6 +146,24 @@ func (o *Ops) LoadFile(ctx context.Context, tenant, actor, source, date, name st
 	}
 	o.log(ctx, tenant, actor, "file.ingested", rf.ID, logDetail)
 	return res, nil
+}
+
+// checkRows reads a master file and validates every row, returning the
+// number of rows read and the function that applies them. LoadFile and the
+// migration dry run (DryRunFiles) both use it, so a dry run checks exactly
+// what a real load would. With all set (dry runs), the rows that could be
+// read are validated even when other lines could not, so every error in
+// the file is reported at once; a real load stops at unreadable lines.
+func (o *Ops) checkRows(ctx context.Context, tenant, actor string, spec MasterSource, date string, data []byte, all bool) (int, func() (int, int, error), []ingest.ParseError) {
+	rows, perrs := parseCSV(data, spec.Columns)
+	errs := append([]ingest.ParseError{}, perrs...)
+	var apply func() (int, int, error)
+	if len(perrs) == 0 || (all && len(rows) > 0) {
+		var more []ingest.ParseError
+		apply, more = o.prepare(ctx, tenant, actor, spec.Name, date, rows)
+		errs = append(errs, more...)
+	}
+	return len(rows), apply, errs
 }
 
 func parseCSV(data []byte, cols []string) ([]row, []ingest.ParseError) {
