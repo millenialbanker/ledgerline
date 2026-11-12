@@ -43,6 +43,10 @@ var secretCols = []struct{ table, col, field, reason string }{
 	{"CLLIST", "SHOLDER_ADHAR", "Aadhaar number (second holder)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
 	{"CLLIST", "THOLDER_ADHAR", "Aadhaar number (third holder)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
 	{"CDNOMREG", "UID", "DP nominee Aadhaar number", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
+	{"CLLIST_DET", "UID", "Aadhaar number (DP account details)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
+	{"CLLIST_DET", "FHADHARNOM", "Aadhaar number (DP nominee 1, account details)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
+	{"CLLIST_DET", "SHADHARNOM", "Aadhaar number (DP nominee 2, account details)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
+	{"CLLIST_DET", "THADHARNOM", "Aadhaar number (DP nominee 3, account details)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
 	{"DLRMAST", "web_Pwd", "Dealer web password", "Never migrated; staff set a new password"},
 	{"DLAGREE", "UID", "Aadhaar number (client agreement)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
 	{"DLAGREE", "NomineeAdhar", "Nominee Aadhaar number (client agreement)", "Full Aadhaar numbers are never migrated (UIDAI rules)"},
@@ -62,6 +66,10 @@ type client struct {
 	address, pin                                                                  string
 	reg                                                                           map[string]bool // Ledgerline segments registered
 	econtract, noInterest                                                         bool
+	// dpOnly: a demat account holder of the firm's DP with no trading
+	// account (not in DLMAST); dp is that account (current_dponly.go)
+	dpOnly bool
+	dp     *dpAcct
 }
 
 type kycRec struct{ kyccd, kycno, status, active, commence string }
@@ -83,7 +91,20 @@ type dpAcct struct {
 	co, dpid, ben, boid, ucc, depository, opened string
 	closedOn, benStat, suspFlag, suspRsn, bsda   string
 	closed                                       bool
+	// client is the Ledgerline client the account belongs to: its trading
+	// client (ucc) or, for an account with no trading client, the DP-only
+	// client's code (dpOnly). Empty when no code could be made.
+	client string
+	dpOnly bool
+	sub    string    // CLLIST.SUBCODE as given, when it is not a client in DLMAST
+	tid    string    // CLLIST.TRADINGID
+	byTID  bool      // linked to its trading client by TRADINGID (no SUBCODE)
+	note   string    // why the DP-only client's code is not the DP client code
+	h      *dpHolder // the holders' details (go-live step only)
 }
+
+// isClosed: BENCLOSEDT set or BENSTAT 3.
+func (a dpAcct) isClosed() bool { return a.closed || a.benStat == "3" }
 
 // common is what Current reads once for every firm.
 type common struct {
@@ -100,6 +121,14 @@ type common struct {
 	groups     map[string][]string // client -> group codes (DLMAST.GROUPCD, then DLGROUP)
 	runAcOther map[string]int      // DLRUNACMAST.SETTLETYPE values not mapped
 	missing    []string
+
+	// DP accounts: BO IDs of every CLLIST account; the trading clients'
+	// demat accounts in the client demat master (CDMAST); CLLIST_DET of the
+	// DP-only accounts (co|benacnum)
+	boids      map[string]bool
+	cdmast     map[string][]cdRec
+	dpDet      map[string]dpDetail
+	dpNomNoPAN int // DP nominees whose PAN is not a valid PAN (left out)
 }
 
 var errNoFirm = errors.New("sharepro: no firm to migrate (none of the chosen company codes is in this database)")
@@ -140,11 +169,12 @@ func (m *Mapper) Current(ctx context.Context, q migrate.Querier, k migrate.Kind,
 	if err != nil {
 		return err
 	}
+	// DP account -> client (trading or DP-only), for DP mails and history
 	bo := map[string]string{}
 	for _, a := range cm.dp {
-		if a.ucc != "" {
-			bo[a.ben] = a.ucc
-			bo[a.boid] = a.ucc
+		if a.client != "" {
+			bo[a.ben] = a.client
+			bo[a.boid] = a.client
 		}
 	}
 	m.mu.Lock()
@@ -212,7 +242,8 @@ func setAsOf(w *pkg.Writer, f firmInfo, asOf time.Time) {
 
 func loadCommon(ctx context.Context, d db, s *schema) (*common, error) {
 	cm := &common{clients: map[string]*client{}, kycByPAN: map[string]kycRec{}, banks: map[string][]bankRec{}, nominees: map[string][]nomRec{},
-		status: map[string][]statusEv{}, lastTrade: map[string]string{}, runAc: map[string]string{}, states: map[string]string{}, groups: map[string][]string{}, runAcOther: map[string]int{}}
+		status: map[string][]statusEv{}, lastTrade: map[string]string{}, runAc: map[string]string{}, states: map[string]string{}, groups: map[string][]string{}, runAcOther: map[string]int{},
+		boids: map[string]bool{}, cdmast: map[string][]cdRec{}, dpDet: map[string]dpDetail{}}
 	regCols := []string{"REG_NSE", "REG_BSE", "REG_NFO", "REG_BFO", "REG_CNFO", "REG_CBFO", "REG_USFO", "REG_MCX", "REG_NCDEX", "REG_CMFO", "REG_NMCEIL", "REG_ICFO", "REG_KCFO", "REG_NSFO", "REG_DGCX"}
 	cols := append([]string{"SUBCD", "DESCR", "CLIENTTYPE", "PAN_NO", "BIRTH_DATE", "MOBILE", "EMAIL1", "CITY", "RES_CITY", "STATE", "STATECD", "COUNTRY",
 		"ADD1", "PIN", "BranchID", "SBCODE", "RMCODE", "GROUPCD", "FAMILYCD", "ClRiskProfile", "AnnIncome", "BANK", "BANKACNUM", "MICRNO", "BANKACTYPE",
@@ -318,12 +349,12 @@ func loadCommon(ctx context.Context, d db, s *schema) (*common, error) {
 		}
 	}
 	if s.has("CLLIST") {
-		list, miss := s.sel("CLLIST", "", "CO", "DPID", "BENACNUM", "FBENACNUM", "SUBCODE", "BENSTAT", "BENCLOSEDT", "ACTIVEDT", "SUSPFLAG", "SUSPRSNCD", "BSDA")
+		list, miss := s.sel("CLLIST", "", append([]string{"CO", "DPID", "BENACNUM", "FBENACNUM", "SUBCODE", "TRADINGID", "BENSTAT", "BENCLOSEDT", "ACTIVEDT", "SUSPFLAG", "SUSPRSNCD", "BSDA"}, holderCols...)...)
 		cm.missing = append(cm.missing, miss...)
 		if err := d.query(ctx, fmt.Sprintf(qDPAccts, list), func(r migrate.Row) error {
-			a := dpAcct{co: str(r, "co"), dpid: upper(r, "dpid"), ben: upper(r, "benacnum"), boid: upper(r, "fbenacnum"), ucc: upper(r, "subcode"),
+			a := dpAcct{co: str(r, "co"), dpid: upper(r, "dpid"), ben: upper(r, "benacnum"), boid: upper(r, "fbenacnum"), ucc: upper(r, "subcode"), tid: upper(r, "tradingid"),
 				opened: date(r, "activedt"), closedOn: date(r, "benclosedt"), closed: date(r, "benclosedt") != "", benStat: str(r, "benstat"),
-				suspFlag: upper(r, "suspflag"), suspRsn: str(r, "susprsncd"), bsda: upper(r, "bsda")}
+				suspFlag: upper(r, "suspflag"), suspRsn: str(r, "susprsncd"), bsda: upper(r, "bsda"), h: readHolder(r)}
 			if a.boid == "" {
 				a.boid = a.dpid + a.ben
 			}
@@ -332,10 +363,17 @@ func loadCommon(ctx context.Context, d db, s *schema) (*common, error) {
 				a.depository = "NSDL"
 			}
 			cm.dp = append(cm.dp, a)
+			cm.boids[a.boid] = true
 			return nil
 		}); err != nil {
 			return nil, err
 		}
+		if err := loadDPOnly(ctx, d, s, cm); err != nil {
+			return nil, err
+		}
+	}
+	if err := loadClientDemat(ctx, d, s, cm); err != nil {
+		return nil, err
 	}
 	lastTrade := func(q string) error {
 		return d.query(ctx, q, func(r migrate.Row) error {
@@ -426,7 +464,8 @@ func rasOf(v string) string {
 
 // assignClients: a client belongs to every firm in whose COs it has a
 // segment status or a DP account; clients with neither go to the first
-// firm.
+// firm. A DP-only client belongs to the firm whose company holds its DP
+// account.
 func assignClients(firms []firmInfo, cm *common) map[string]map[string]bool {
 	out := map[string]map[string]bool{}
 	coFirm := map[string]string{}
@@ -450,8 +489,8 @@ func assignClients(firms []firmInfo, cm *common) map[string]map[string]bool {
 		}
 	}
 	for _, a := range cm.dp {
-		if f, ok := coFirm[a.co]; ok && a.ucc != "" {
-			out[f][a.ucc] = true
+		if f, ok := coFirm[a.co]; ok && a.client != "" {
+			out[f][a.client] = true
 		}
 	}
 	for _, u := range cm.order {
@@ -496,6 +535,12 @@ type cur struct {
 	segCache     map[string]segH
 
 	derivClients int
+	// demat is each client's demat account in the client master (DematID)
+	demat map[string]string
+	// DP-only clients written, closed ones among them (Inactive = Y),
+	// closed ones left out (dormant mode skip)
+	dpOnlyN, dpOnlyClosed, dpOnlySkipped int
+	dpOnlyIncome                         int // with an income range code in CLLIST_DET
 }
 
 type segH struct {
@@ -504,7 +549,7 @@ type segH struct {
 }
 
 func (c *cur) run(ctx context.Context) error {
-	c.written, c.skipped, c.inactive, c.segCache = map[string]bool{}, map[string]bool{}, map[string]string{}, map[string]segH{}
+	c.written, c.skipped, c.inactive, c.segCache, c.demat = map[string]bool{}, map[string]bool{}, map[string]string{}, map[string]segH{}, map[string]string{}
 	c.countSecrets(ctx)
 	steps := []struct {
 		name string
@@ -515,6 +560,7 @@ func (c *cur) run(ctx context.Context) error {
 		{"Authorised persons and RMs", c.writePartners},
 		{"Client master", c.writeClients},
 		{"Client bank accounts", c.writeBanks},
+		{"Client demat accounts", c.writeClientDemats},
 		{"Nominees", c.writeNominees},
 		{"Segment status", c.writeSegStatus},
 		{"Opening balances", c.writeOpening},
@@ -741,18 +787,11 @@ func (c *cur) writeClients(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	demat := map[string]dpAcct{}
-	for _, a := range c.cm.dp {
-		if a.ucc == "" || !contains(c.f.COs, a.co) {
-			continue
-		}
-		if old, ok := demat[a.ucc]; !ok || (old.closed && !a.closed) {
-			demat[a.ucc] = a
-		}
-	}
+	own := c.ownAccounts(c.f.COs)
 	pans := map[string]string{}
 	noCol := map[string]int{}
 	n := 0
+	otherDP, otherDPOwn := 0, 0
 	for _, u := range c.clientList() {
 		cl := c.cm.clients[u]
 		if strings.HasSuffix(u, "\x00dup") {
@@ -760,8 +799,28 @@ func (c *cur) writeClients(ctx context.Context) error {
 				"Client code appears twice in DLMAST; the second record is left out")
 			continue
 		}
+		if cl.dpOnly {
+			ok, err := c.writeDPOnlyClient(cw, h, cl, pans)
+			if err != nil {
+				cw.Close()
+				return err
+			}
+			if ok {
+				n++
+			}
+			continue
+		}
 		dorm, since := c.dormant(u)
-		v := c.clientRow(cl, demat[u])
+		dm, other := c.clientDemat(u, own[u])
+		if other {
+			otherDP++
+			if len(own[u]) > 0 {
+				otherDPOwn++
+			}
+		}
+		c.demat[u] = dm.boid
+		v := c.clientRow(cl, dm)
+		v["DPOnly"] = "N"
 		if !dorm && v["Segments"] == "" {
 			// no segment registered at all: the client cannot trade, so it
 			// comes across inactive like a dormant one
@@ -808,14 +867,27 @@ func (c *cur) writeClients(ctx context.Context) error {
 	if c.derivClients > 0 {
 		c.rep.infof("Client master", "", "income-proof", "%d clients have a derivatives segment: the import records their income proof as received; check it is on file", c.derivClients)
 	}
-	if len(c.skipped) > 0 {
-		c.rep.infof("Client master", "", "skipped", "%d clients with no active segment were left out (dormant mode: skip)", len(c.skipped))
+	if k := len(c.skipped) - c.dpOnlySkipped; k > 0 {
+		c.rep.infof("Client master", "", "skipped", "%d clients with no active segment were left out (dormant mode: skip)", k)
 	}
-	if len(c.inactive) > 0 {
-		c.rep.infof("Client master", "", "inactive", "%d clients with no active segment are migrated marked inactive (Inactive = Y)", len(c.inactive))
+	if k := len(c.inactive) - c.dpOnlyClosed; k > 0 {
+		c.rep.infof("Client master", "", "inactive", "%d clients with no active segment are migrated marked inactive (Inactive = Y)", k)
 		if c.noSegInactive > 0 {
 			c.rep.infof("Client master", "", "inactive-noseg", "%d of them have no segment registered at all in SharePro", c.noSegInactive)
 		}
+	}
+	if c.dpOnlyN > 0 {
+		c.rep.infof("Client master", "", "dp-only", "%d DP-only clients (demat accounts of the firm's DP with no trading account in SharePro) are in the client master with DPOnly = Y, under the DP client code (CLLIST.BENACNUM): no segments, no running-account settlement; %d of them are closed accounts, marked inactive (Inactive = Y, InactiveSince the closing date) and kept for their records",
+			c.dpOnlyN, c.dpOnlyClosed)
+	}
+	if c.dpOnlySkipped > 0 {
+		c.rep.infof("Client master", "", "dp-only-skipped", "%d closed DP-only accounts were left out of the client files (dormant mode: skip)", c.dpOnlySkipped)
+	}
+	if c.dpOnlyIncome > 0 {
+		c.rep.infof("Client master", "", "dp-only-income", "%d DP-only clients have an income range code in the DP account details (CLLIST_DET.GROSSINCOME) whose meaning is not confirmed; Income is left blank. Confirm the codes with SharePro", c.dpOnlyIncome)
+	}
+	if otherDP > 0 {
+		c.rep.infof("Client master", "", "other-dp", "%d trading clients' primary demat account in SharePro's client demat master (CDMAST) is at another DP: it is the client master's demat account (DematID) and in CLIENT-DEMATS, not in DP-ACCOUNTS, which holds this DP's own accounts. %d of them also have an account at this DP (in DP-ACCOUNTS, the oldest open one marked primary)", otherDP, otherDPOwn)
 	}
 	return c.clientChecks(ctx)
 }
@@ -839,36 +911,47 @@ func (c *cur) clientRow(cl *client, dm dpAcct) map[string]string {
 	k := c.cm.kycByPAN[cl.pan]
 	kycDate := firstNonEmpty(k.active, k.commence, cl.commence, cl.added)
 	primary := c.primaryBank(cl)
-	risk := ""
-	switch strings.ToUpper(cl.risk) {
-	case "LOW", "L":
-		risk = "Low"
-	case "MEDIUM", "M", "MODERATE":
-		risk = "Medium"
-	case "HIGH", "H":
-		risk = "High"
-	}
-	nom, nomName := "", ""
-	if ns := c.cm.nominees[cl.ucc]; len(ns) > 0 {
-		nom, nomName = "Opted in", ns[0].name
-	} else if cl.nominee != "" {
-		nom, nomName = "Opted in", cl.nominee
-	}
-	nomDate := ""
-	for _, nn := range c.cm.nominees[cl.ucc] {
-		if nn.date != "" && (nomDate == "" || nn.date < nomDate) {
-			nomDate = nn.date
-		}
-	}
+	nom, nomName, nomDate := c.nomination(cl)
 	state := firstNonEmpty(c.cm.states[strings.ToUpper(cl.statecd)], cl.state)
 	return map[string]string{
 		"UCC": cl.ucc, "Name": cl.name, "Type": clientType(cl), "PAN": cl.pan, "DOB": cl.dob, "Mobile": cleanMobile(cl.mobile), "Email": cl.email,
-		"City": cl.city, "Segments": strings.Join(sl, ";"), "Risk": risk, "Income": cl.income, "RAS": c.cm.runAc[cl.ucc],
+		"City": cl.city, "Segments": strings.Join(sl, ";"), "Risk": riskOf(cl.risk), "Income": cl.income, "RAS": c.cm.runAc[cl.ucc],
 		"Bank": primary.bank, "IFSC": primary.ifsc, "Account": primary.account, "Depository": dm.depository, "DematID": dm.boid,
 		"Nominee": nom, "NomineeName": nomName, "KYCDate": kycDate, "Status": "Active", "API": "N", "LastTrade": c.cm.lastTrade[cl.ucc],
 		"Branch": cl.branch, "State": state, "ECN": yn(cl.econtract), "NominationDate": nomDate,
 		"AP": c.knownPartner(cl.ucc, cl.sb, "AP"), "RM": c.knownPartner(cl.ucc, cl.rm, "RM"), "Groups": strings.Join(c.cm.groups[cl.ucc], ";"),
 	}
+}
+
+// riskOf maps SharePro's risk profile (DLMAST.ClRiskProfile,
+// CLLIST.CLRISKPROFILE) to Ledgerline's.
+func riskOf(s string) string {
+	switch strings.ToUpper(strings.TrimSpace(s)) {
+	case "LOW", "L":
+		return "Low"
+	case "MEDIUM", "M", "MODERATE":
+		return "Medium"
+	case "HIGH", "H":
+		return "High"
+	}
+	return ""
+}
+
+// nomination: "Opted in" and the first nominee's name when the client has
+// nominees (or a nominee name in the client master), and the earliest
+// declaration date.
+func (c *cur) nomination(cl *client) (nom, name, date string) {
+	if ns := c.cm.nominees[cl.ucc]; len(ns) > 0 {
+		nom, name = "Opted in", ns[0].name
+	} else if cl.nominee != "" {
+		nom, name = "Opted in", cl.nominee
+	}
+	for _, nn := range c.cm.nominees[cl.ucc] {
+		if nn.date != "" && (date == "" || nn.date < date) {
+			date = nn.date
+		}
+	}
+	return nom, name, date
 }
 
 // primaryBank: the BKMAST account that is the client master's bank
@@ -949,7 +1032,8 @@ func (c *cur) validateClient(cl *client, v map[string]string, pans map[string]st
 	if v["City"] == "" {
 		errorf("Client master", u, "no-city", fix, "City is missing")
 	}
-	if v["Segments"] == "" {
+	// a DP-only client trades in no segment
+	if v["Segments"] == "" && v["DPOnly"] != "Y" {
 		errorf("Client master", u, "no-segment", fix, "No segment is registered (REG_ flags and DLMAST_REG2 are empty for this firm)")
 	}
 	if strings.TrimSpace(v["Bank"]) == "" {
@@ -1025,7 +1109,34 @@ func (c *cur) clientChecks(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	c.rep.check(pkg.CheckClients, fmt.Sprint(i64(r, "n")), "Clients in SharePro's client master (DLMAST) for this firm")
+	n, detail := i64(r, "n"), "Clients in SharePro's client master (DLMAST) for this firm"
+	if c.s.has("CLLIST") {
+		// DP-only clients: the firm's CLLIST accounts with no trading client
+		dc := []string{c.noTradingSQL("l")}
+		switch {
+		case m <= 1:
+		case c.home:
+			var all []string
+			c.m.mu.Lock()
+			for _, f := range c.m.firms {
+				all = append(all, f.COs...)
+			}
+			c.m.mu.Unlock()
+			dc = append(dc, fmt.Sprintf("(l.CO IN (%s) OR l.CO NOT IN (%s))", cos, inList(all)))
+		default:
+			dc = append(dc, fmt.Sprintf("l.CO IN (%s)", cos))
+		}
+		if c.plan.DormantMode == "skip" {
+			dc = append(dc, "NOT "+c.closedSQL("l"))
+		}
+		r, err := c.d.one(ctx, fmt.Sprintf(qCheckDPOnly, strings.Join(dc, " AND ")))
+		if err != nil {
+			return err
+		}
+		n += i64(r, "n")
+		detail += fmt.Sprintf(", and %d DP-only clients (accounts in the DP master CLLIST with no trading client)", i64(r, "n"))
+	}
+	c.rep.check(pkg.CheckClients, fmt.Sprint(n), detail)
 	return nil
 }
 
@@ -1104,7 +1215,7 @@ func (c *cur) writeBanks(ctx context.Context) error {
 	// removing duplicates and adding client-master-only accounts, as above),
 	// so the reconciliation shows any account that did not load; SharePro's
 	// own row count is given beside it.
-	detail := fmt.Sprintf("Client bank accounts listed for Ledgerline from SharePro (BKMAST and the client master), open and closed, duplicates removed")
+	detail := "Client bank accounts listed for Ledgerline from SharePro (BKMAST, the client master and, for DP-only clients, the DP master CLLIST), open and closed, duplicates removed"
 	if c.s.has("BKMAST") {
 		r, err := c.d.one(ctx, fmt.Sprintf(`/*sp:check-banks*/ SELECT COUNT(*) AS n FROM BKMAST b WHERE RTRIM(b.SUBCD) IN (%s)`, inList(sortedKeys(c.written))))
 		if err != nil {
@@ -1188,6 +1299,9 @@ func (c *cur) writeNominees(ctx context.Context) error {
 				return err
 			}
 		}
+	}
+	if c.primary && c.cm.dpNomNoPAN > 0 {
+		c.rep.infof("Nominees", "", "dp-nominee-pan", "%d DP-only clients' nominees (CDNOMREG) have a PAN that is not a valid PAN; it is left out", c.cm.dpNomNoPAN)
 	}
 	return cw.Close()
 }

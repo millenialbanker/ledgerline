@@ -2,6 +2,7 @@ package sharepro
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 	"sync"
@@ -100,7 +101,9 @@ func d(s string) time.Time {
 // TEST002 Bina Test (dormant), TEST003 Chetan Test (closed, in credit),
 // TEST004 Dev Test (bad PAN, IFSC, PIN; frozen DP account), TEST005 Test
 // Traders (a company with contact persons), TEST006 Esha Test (a client of
-// the metals firm).
+// the metals firm). DP-only clients (DP accounts with no trading client):
+// 00000009 Gita Test (open), 00000010 Kiran Test (closed), 00000011 Lal
+// Test (frozen; its trading code is not a client).
 
 func adminFake() *fake {
 	f := newFake("TTADMIN")
@@ -154,7 +157,18 @@ func companyFake(name string) *fake {
 	f.table("DLGROUP", "EffectDate,Type,Code,Subcd")
 	f.table("BKMAST", "TYPE,SUBCD,ACNO,ACTYPE,Closed,BANKCD,ADD_DTTIME,POA_RECVD")
 	f.table("BANKMAST", "BANKCD,DESCR,RTGS,MICRNO,BRANCH")
-	f.table("CLLIST", "CO,DPID,BENACNUM,FBENACNUM,SUBCODE,BENSTAT,BENCLOSEDT,ACTIVEDT,SUSPFLAG,SUSPRSNCD,BSDA,Web_Pwd,FHOLDER_ADHAR")
+	f.table("CLLIST", "CO,DPID,BENACNUM,FBENACNUM,SUBCODE,TRADINGID,BENSTAT,BENCLOSEDT,ACTIVEDT,SUSPFLAG,SUSPRSNCD,BSDA,Web_Pwd,FHOLDER_ADHAR,"+strings.Join(holderCols, ","))
+	dpDet := "CO,BENACNUM,SEX,MARITALSTATUS,NATION,NATIONOTH,OCCUPN,OCCUPNALL,GROSSINCOME,PEP,CKYCNO,KRASTATDES,IPV,IPV_DATE,IPVDT,REGNO,UID,FHADHARNOM,SHADHARNOM,THADHARNOM"
+	for i := 1; i <= 3; i++ {
+		for _, c := range []string{"Name", "Desig", "Din", "Pan", "Add", "City", "Pin", "Phone", "Email"} {
+			dpDet += fmt.Sprintf(",Cp%d_%s", i, c)
+		}
+	}
+	f.table("CLLIST_DET", dpDet)
+	f.table("CDNOMREG", "CO,NOMREGNO,BENACNUM,NOMSLNO,BOREL,SHAREPR,FIRSTNM,MIDNM,LASTNM,NOMFNAME,NOMGRNAME,ADD1,ADD2,ADD3,CITY,PIN,MOBILE,SMobile,Email,PEMAIL,PAN,UID,NomDob,NOMACTVDT")
+	f.table("CDMAST", "TYPE,EXCHANGE,SUBCD,DPCODE,CLIENTID,CmBpId,CLIENTNAME,POA_RECVD,Closed")
+	// DPMAST: D1 to D4; D7 and D9 are not in it
+	f.table("DPMAST", "DPCODE,DESCR,DPID")
 	f.table("CLPOALIST", "co,benacnum,poaid,poaimg,PoaType,PoaSetupDt,PoaDeacDt")
 	f.table("FREEZERSN", "FREEZERSN,DESCR")
 	f.table("HUFCOPER", "CO,BenAcNum,CoPerName,KRTAREL,Status")
@@ -254,19 +268,87 @@ func companyFake(name string) *fake {
 		migrate.Row{"co": "02", "subcd": "TEST005", "status": "ACTIVE", "effectdate": d("2023-01-01")},
 		migrate.Row{"co": "05", "subcd": "TEST006", "status": "ACTIVE", "effectdate": d("2023-01-01")},
 	)
+	// DP accounts (CLLIST, CO 06): TEST001 has two (the second a joint
+	// account); 00000009 (Gita Test, open), 00000010 (Kiran Test, closed)
+	// and 00000011 (Lal Test, frozen, its trading code not a client) have
+	// no trading client: DP-only clients
+	acct := func(ben, sub string, extra migrate.Row) migrate.Row {
+		r := migrate.Row{"co": "06", "dpid": "12345678", "benacnum": ben, "fbenacnum": "12345678" + ben, "subcode": sub, "benclosedt": d("1900-01-01"), "benstat": "1"}
+		for k, v := range extra {
+			r[k] = v
+		}
+		return r
+	}
+	holder := func(name, pan, mobile, email, add1, pin, bankAc string, extra migrate.Row) migrate.Row {
+		r := migrate.Row{"ben1holder": name, "itpan": pan, "fholder_mobile": mobile, "custemail": email, "ben1add1": add1, "ben1city": "KOLKATA", "ben1pin": pin,
+			"statecd": "WB", "ben1cntry": "INDIA", "benbnkname": "TEST BANK", "benbnkac": bankAc, "bankcd": "TB001", "benbnktype": int64(10), "branchid": "HO", "bentype": int64(1)}
+		for k, v := range extra {
+			r[k] = v
+		}
+		return r
+	}
 	f.on("dp-accounts",
-		migrate.Row{"co": "06", "dpid": "12345678", "benacnum": "00000001", "fbenacnum": "1234567800000001", "subcode": "TEST001", "activedt": d("2020-01-01"), "benclosedt": d("1900-01-01"), "benstat": "1", "suspflag": "0", "bsda": "N"},
-		migrate.Row{"co": "06", "dpid": "12345678", "benacnum": "00000009", "fbenacnum": "1234567800000009", "subcode": "", "benclosedt": d("1900-01-01"), "benstat": "1"},
-		migrate.Row{"co": "06", "dpid": "12345678", "benacnum": "00000004", "fbenacnum": "1234567800000004", "subcode": "TEST004", "benclosedt": d("1900-01-01"), "benstat": "1", "suspflag": "D", "susprsncd": "12"},
-		migrate.Row{"co": "06", "dpid": "12345678", "benacnum": "00000003", "fbenacnum": "1234567800000003", "subcode": "TEST003", "benclosedt": d("2024-01-01"), "benstat": "3"},
+		acct("00000001", "TEST001", migrate.Row{"activedt": d("2020-01-01"), "suspflag": "0", "bsda": "N"}),
+		acct("00000009", "", holder("Gita Test", "AAAPT0009G", "+91-9800000009", "GITA@EXAMPLE.COM", "9 DP Road", "700 009", "1234 5678 9009", migrate.Row{
+			"activedt": d("2021-02-01"), "bsda": "Y", "ben1fathub": "Hari Test", "dob": d("1985-07-01"), "bosex": "F", "ben1add2": "Block B", "ben1add3": "Near Park", "ben1add4": "Ward 5",
+			"ben1state": "WEST BENGAL", "ben1fadd1": "9 Village Road", "ben1fcity": "HOWRAH", "ben1fstate": "WB", "ben1fpin": "711109", "clriskprofile": "HIGH", "micrcode": "700000009", "groupcd": "DPG"})),
+		acct("00000004", "TEST004", migrate.Row{"suspflag": "D", "susprsncd": "12"}),
+		acct("00000003", "TEST003", migrate.Row{"benclosedt": d("2024-01-01"), "benstat": "3"}),
+		acct("00000002", "TEST001", migrate.Row{"activedt": d("2022-06-01"), "ben2holder": "Ravi Test", "ben2pan": "AAAPT0011K", "ben3holder": "Mira Test", "ben3pan": "BADPAN3"}),
+		acct("00000010", "", holder("Kiran Test", "AAAPT0010K", "", "kiran@example.com", "10 Old Lane", "700010", "555566667777", migrate.Row{
+			"activedt": d("2015-04-01"), "benclosedt": d("2023-03-31"), "benstat": "3", "bankcd": "ZZ999", "benbnkname": "OTHER BANK", "tradingid": "NOSUCH"})),
+		acct("00000011", "OLD999", holder("Lal Test", "AAAPT0013L", "9800000013", "lal@example.com", "11 New Lane", "700011", "123456780013", migrate.Row{
+			"activedt": d("2019-01-01"), "benstat": "2", "susprsncd": "0"})),
+		// no trading code, but TRADINGID is TEST005's: TEST005's account
+		acct("00000012", "", migrate.Row{"tradingid": "TEST005", "activedt": d("2018-01-01"), "ben1holder": "Test Traders Pvt Ltd"}),
+	)
+	f.on("dp-details",
+		migrate.Row{"co": "06", "benacnum": "00000001", "sex": "M"}, // a trading client's: not used
+		migrate.Row{"co": "06", "benacnum": "00000009", "sex": "F", "maritalstatus": "01", "nation": "01", "occupn": "01", "pep": "N", "ckycno": "98765432109876",
+			"krastatdes": "KRA VALIDATED", "ipv_date": d("2021-01-20"), "grossincome": "6"},
+		migrate.Row{"co": "06", "benacnum": "00000010", "occupn": "06"},
+	)
+	f.on("dp-nominees",
+		migrate.Row{"co": "06", "benacnum": "00000001", "nomslno": "01", "borel": "01", "firstnm": "Not Used"},
+		migrate.Row{"co": "06", "benacnum": "00000009", "nomslno": "01", "borel": "06", "sharepr": "60.00", "firstnm": "Raju", "lastnm": "Test", "nomdob": d("2010-01-01"),
+			"nomgrname": "Hari Test", "add1": "9 DP Road", "city": "KOLKATA", "pin": "700009", "mobile": "9800000019", "nomactvdt": d("2021-02-01")},
+		migrate.Row{"co": "06", "benacnum": "00000009", "nomslno": "02", "borel": "01", "sharepr": "40.00", "firstnm": "Lata", "midnm": "", "lastnm": "Test", "pan": "AAAPT0019R", "mobile": "0"},
+		migrate.Row{"co": "06", "benacnum": "00000010", "nomslno": "01", "borel": "04", "firstnm": "Old Test", "pan": "BADPAN"},
+	)
+	// the client demat master: TEST001's primary is its own account at this
+	// DP (listed twice), others at another CDSL DP and (closed) at an NSDL DP;
+	// TEST005's primary is at another DP, a second at an NSDL DP whose ID is
+	// kept without IN; TEST003's and TEST004's cannot be made into IDs
+	f.on("client-demat",
+		migrate.Row{"subcd": "TEST001", "type": "Primary", "dpcode": "D1", "dpid": "12345678", "dpname": "TT SECURITIES (CDSL)", "clientid": "00000001", "closed": false},
+		migrate.Row{"subcd": "TEST001", "type": "Secondary", "dpcode": "D2", "dpid": "87654321", "dpname": "OTHER DP", "clientid": "00000777", "closed": false},
+		migrate.Row{"subcd": "TEST001", "type": "Secondary", "dpcode": "D3", "dpid": "IN300123", "dpname": "NSDL DP", "clientid": "10000001", "closed": true},
+		migrate.Row{"subcd": "TEST001", "type": "Secondary", "dpcode": "D1", "dpid": "12345678", "dpname": "TT SECURITIES (CDSL)", "clientid": "00000001", "closed": false},
+		migrate.Row{"subcd": "TEST005", "type": "Primary", "dpcode": "D2", "dpid": "87654321", "dpname": "OTHER DP", "clientid": "00001234", "closed": false},
+		migrate.Row{"subcd": "TEST005", "type": "Secondary", "dpcode": "D4", "dpid": "300456", "dpname": "AN NSDL DP", "clientid": "20000002", "closed": false},
+		migrate.Row{"subcd": "TEST002", "type": "Pool", "dpcode": "D1", "dpid": "12345678", "clientid": "00000555", "closed": false},
+		migrate.Row{"subcd": "TEST003", "type": "Primary", "dpcode": "D9", "clientid": "BAD", "closed": false},
+		migrate.Row{"subcd": "TEST004", "type": "Primary", "dpcode": "D7", "clientid": "00000004", "closed": false},
 	)
 	f.on("dp-poa", migrate.Row{"co": "06", "benacnum": "00000001", "poatype": "DDPI"})
 	f.on("freeze-reasons", migrate.Row{"code": "12", "descr": "TEST FREEZE"})
+	// 8 accounts; less a dormant trading client's (NOT IN) and, in dormant
+	// mode skip, the closed DP-only one (BENCLOSEDT)
 	f.rows["check-dp-accounts"] = func(q string) []migrate.Row {
+		n := int64(8)
 		if strings.Contains(q, "NOT IN") {
-			return []migrate.Row{{"n": int64(3)}}
+			n--
 		}
-		return []migrate.Row{{"n": int64(4)}}
+		if strings.Contains(q, "BENCLOSEDT") {
+			n--
+		}
+		return []migrate.Row{{"n": n}}
+	}
+	f.rows["check-dp-only-clients"] = func(q string) []migrate.Row {
+		if strings.Contains(q, "BENCLOSEDT") {
+			return []migrate.Row{{"n": int64(2)}}
+		}
+		return []migrate.Row{{"n": int64(3)}}
 	}
 	f.on("sub-brokers", migrate.Row{"sbcode": "SB01", "branchid": "HO", "descr": "Test AP One", "sebiregno": "AP0001", "bankcd": "TB001", "acno": "111122223333", "pan_no": "AAAPA0001A", "email": "AP@EXAMPLE.COM"})
 	f.on("rms", migrate.Row{"rmcode": "RM01", "descr": "Test RM", "branchid": "HO"})
@@ -291,17 +373,31 @@ func companyFake(name string) *fake {
 		migrate.Row{"accd": "CAP", "descr": "CAPITAL A/C", "agrcode": "CAPITAL"},
 		migrate.Row{"accd": "BRKINC", "descr": "BROKERAGE", "agrcode": "3INCOME"},
 		migrate.Row{"accd": "NSECL", "descr": "NSE CLEARING", "agrcode": "CASSETS", "accttype": "EXCH"},
+		// the DP company's heads of DP accounts, by DP client code
+		migrate.Row{"accd": "64", "descr": "CDSL CLIENTS", "agrcode": "SDEBTORS"},
+		migrate.Row{"accd": "2ODCL", "descr": "CDSL OVERDUE CLIENT", "agrcode": "SDEBTORS"},
+		migrate.Row{"accd": "2ADVTR", "descr": "ADVANCE DP TRAN CHARGE [Adjustable]", "agrcode": "CLIB"},
+		migrate.Row{"accd": "DPBANK", "descr": "DP BANK A/C", "agrcode": "CASHINHAND", "bankcd": "TB001", "tt": "B6"},
 	)
 	f.on("msfile",
 		migrate.Row{"co": "02", "accd": "BANK1", "descr": "TEST BANK A/C", "tt": "B1"},
 		migrate.Row{"co": "02", "accd": "62", "descr": "CLIENTS"}, migrate.Row{"co": "03", "accd": "62", "descr": "CLIENTS"},
-		migrate.Row{"co": "02", "accd": "MRG", "descr": "CASH MARGIN DEPOSIT [CLIENTS]"})
+		migrate.Row{"co": "02", "accd": "MRG", "descr": "CASH MARGIN DEPOSIT [CLIENTS]"},
+		migrate.Row{"co": "06", "accd": "64", "descr": "CDSL CLIENTS"}, migrate.Row{"co": "06", "accd": "2ODCL", "descr": "CDSL OVERDUE CLIENT"},
+		migrate.Row{"co": "06", "accd": "2ADVTR", "descr": "ADVANCE DP TRAN CHARGE [Adjustable]"}, migrate.Row{"co": "06", "accd": "DPBANK", "descr": "DP BANK A/C", "tt": "B6"})
 	var subs []migrate.Row
 	for _, u := range []string{"TEST001", "TEST002", "TEST003", "TEST004", "TEST005"} {
 		subs = append(subs, migrate.Row{"co": "02", "accd": "62", "subcode": u, "descr": u})
 	}
 	subs = append(subs, migrate.Row{"co": "03", "accd": "62", "subcode": "TEST001", "descr": "Asha Test"},
 		migrate.Row{"co": "02", "accd": "MRG", "subcode": "TEST001", "descr": "Asha Test"})
+	// DP accounts' ledgers by DP client code: TEST001's two accounts, the
+	// DP-only clients', TEST005's (by TRADINGID) and one code not in CLLIST
+	for _, ben := range []string{"00000001", "00000002", "00000009", "00000010", "00000012", "00000077"} {
+		subs = append(subs, migrate.Row{"co": "06", "accd": "64", "subcode": ben, "descr": "DP " + ben})
+	}
+	subs = append(subs, migrate.Row{"co": "06", "accd": "2ODCL", "subcode": "00000009", "descr": "Gita Test"},
+		migrate.Row{"co": "06", "accd": "2ADVTR", "subcode": "00000010", "descr": "Kiran Test"}, migrate.Row{"co": "06", "accd": "2ADVTR", "subcode": "00000009", "descr": "Gita Test"})
 	f.on("mlfile", subs...)
 	// opening (MLFILE/MSFILE) plus movements (ACCTOT), as the server adds them up
 	f.on("trial-balance",
@@ -314,19 +410,35 @@ func companyFake(name string) *fake {
 		migrate.Row{"co": "02", "accd": "CAP", "subcode": "", "b": "-4000.00"},
 		migrate.Row{"co": "02", "accd": "BRKINC", "subcode": "", "b": "-900.00"},
 		migrate.Row{"co": "02", "accd": "NSECL", "subcode": "", "b": ".00"},
+		// the DP company (nets to zero)
+		migrate.Row{"co": "06", "accd": "64", "subcode": "00000001", "b": "50.00"},
+		migrate.Row{"co": "06", "accd": "64", "subcode": "00000002", "b": "20.00"},
+		migrate.Row{"co": "06", "accd": "64", "subcode": "00000009", "b": "120.00"},
+		migrate.Row{"co": "06", "accd": "64", "subcode": "00000077", "b": "30.00"},
+		migrate.Row{"co": "06", "accd": "2ODCL", "subcode": "00000009", "b": "25.00"},
+		migrate.Row{"co": "06", "accd": "2ADVTR", "subcode": "00000010", "b": "-10.00"},
+		migrate.Row{"co": "06", "accd": "DPBANK", "subcode": "", "b": "-235.00"},
 	)
 	f.on("client-net",
 		migrate.Row{"co": "02", "accd": "62", "subcode": "TEST001", "dr": "1500.00", "cr": "500.00"},
 		migrate.Row{"co": "03", "accd": "62", "subcode": "TEST001", "dr": "200.00", "cr": ".00"},
-		migrate.Row{"co": "02", "accd": "62", "subcode": "TEST003", "dr": ".00", "cr": "300.00"})
+		migrate.Row{"co": "02", "accd": "62", "subcode": "TEST003", "dr": ".00", "cr": "300.00"},
+		migrate.Row{"co": "06", "accd": "64", "subcode": "00000001", "dr": "50.00", "cr": ".00"},
+		migrate.Row{"co": "06", "accd": "64", "subcode": "00000002", "dr": "20.00", "cr": ".00"},
+		migrate.Row{"co": "06", "accd": "64", "subcode": "00000009", "dr": "120.00", "cr": ".00"},
+		migrate.Row{"co": "06", "accd": "2ODCL", "subcode": "00000009", "dr": "25.00", "cr": ".00"})
 	f.on("client-days",
 		migrate.Row{"co": "02", "accd": "62", "subcode": "TEST001", "vrdt": d("2026-04-05"), "dr": "1000.00", "cr": ".00"},
 		migrate.Row{"co": "02", "accd": "62", "subcode": "TEST001", "vrdt": d("2026-05-10"), "dr": ".00", "cr": "500.00"},
 		migrate.Row{"co": "02", "accd": "62", "subcode": "TEST001", "vrdt": d("2026-06-01"), "dr": "500.00", "cr": ".00"},
 		migrate.Row{"co": "03", "accd": "62", "subcode": "TEST001", "vrdt": d("2026-06-01"), "dr": "200.00", "cr": ".00"},
-		migrate.Row{"co": "02", "accd": "62", "subcode": "TEST003", "vrdt": d("2026-05-01"), "dr": ".00", "cr": "300.00"})
-	f.on("check-tb", migrate.Row{"dr": "5200.00", "cr": "5350.00"})
-	f.on("check-client-balances", migrate.Row{"dr": "1200.00", "cr": "300.00"})
+		migrate.Row{"co": "06", "accd": "64", "subcode": "00000001", "vrdt": d("2026-07-01"), "dr": "50.00", "cr": ".00"},
+		migrate.Row{"co": "06", "accd": "64", "subcode": "00000002", "vrdt": d("2026-07-02"), "dr": "20.00", "cr": ".00"},
+		migrate.Row{"co": "02", "accd": "62", "subcode": "TEST003", "vrdt": d("2026-05-01"), "dr": ".00", "cr": "300.00"},
+		migrate.Row{"co": "06", "accd": "64", "subcode": "00000009", "vrdt": d("2026-08-01"), "dr": "120.00", "cr": ".00"},
+		migrate.Row{"co": "06", "accd": "2ODCL", "subcode": "00000009", "vrdt": d("2026-09-01"), "dr": "25.00", "cr": ".00"})
+	f.on("check-tb", migrate.Row{"dr": "5445.00", "cr": "5595.00"})
+	f.on("check-client-balances", migrate.Row{"dr": "1415.00", "cr": "310.00"})
 	f.rows["check-clients"] = func(q string) []migrate.Row {
 		if strings.Contains(q, "NOT ((EXISTS") {
 			return []migrate.Row{{"n": int64(3)}}
@@ -338,9 +450,12 @@ func companyFake(name string) *fake {
 	f.on("hold-date", migrate.Row{"d": d("2026-10-09")})
 	f.on("holdings",
 		migrate.Row{"co": "06", "ben": "00000001", "isin": "INE000A01011", "bal": "100.000", "pldg": "10.000"},
-		migrate.Row{"co": "06", "ben": "00000009", "isin": "INE000A01011", "bal": "5.000", "pldg": ".000"})
+		migrate.Row{"co": "06", "ben": "00000002", "isin": "INE000A01011", "bal": "20.000", "pldg": ".000"},
+		migrate.Row{"co": "06", "ben": "00000009", "isin": "INE000A01011", "bal": "5.000", "pldg": ".000"},
+		migrate.Row{"co": "06", "ben": "00000009", "isin": "INF000A01015", "bal": "125.4320", "pldg": "25.1000"}, // mutual fund units
+		migrate.Row{"co": "06", "ben": "00000099", "isin": "INE000A01011", "bal": "7.000", "pldg": ".000"})       // not in CLLIST
 	f.on("isin-symbols", migrate.Row{"isin": "INE000A01011", "nse_itemcd": "TESTCO"})
-	f.on("check-holdings", migrate.Row{"q": "100.000"})
+	f.on("check-holdings", migrate.Row{"q": "250.4320"})
 	f.on("positions",
 		migrate.Row{"co": "03", "subcd": "TEST001", "itemcd": "FUT1", "trdt": d("2026-10-01"), "qty": "50", "price": "100.00", "instr_type": "FUTIDX", "exp_date": d("2026-10-29"), "assetcd": "NIFTY"},
 		migrate.Row{"co": "03", "subcd": "TEST001", "itemcd": "FUT1", "trdt": d("2026-10-02"), "qty": "-20", "price": "110.00", "instr_type": "FUTIDX", "exp_date": d("2026-10-29"), "assetcd": "NIFTY"},
@@ -405,6 +520,7 @@ func mailFake() *fake {
 			att(5, "PAYOUT.htm", "HO", "Branchid", "Payout Report", "Payout report", "<html>p</html>", 0),
 			att(6, "CN_TEST006.htm", "TEST006", "Client", "Contract", "Contract Note 601", "%PDF-1.4 T", 1),
 			att(7, "MISC.htm", "ZZZ999", "Client", "", "Something", "<html>z</html>", 0),
+			att(9, "DPSTMT.htm", "1234567800000009", "DP CLIENT", "", "Transaction Statement", "<html>d</html>", 0), // a DP-only client's
 		}
 	}
 	return f
