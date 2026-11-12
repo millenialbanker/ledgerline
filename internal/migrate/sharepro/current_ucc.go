@@ -564,16 +564,8 @@ func (c *cur) writePartners(ctx context.Context) error {
 	if err := cw.Close(); err != nil {
 		return err
 	}
-	for _, u := range c.clientList() {
-		cl := c.cm.clients[u]
-		if !c.written[u] {
-			continue
-		}
-		for _, x := range []struct{ code, kind string }{{strings.ToUpper(cl.sb), "authorised person"}, {strings.ToUpper(cl.rm), "relationship manager"}} {
-			if x.code != "" && codes[x.code] == "" {
-				c.rep.warnf(area, u, "unknown-"+x.kind, "Add it to the master in SharePro or in Ledgerline", "The client's %s %s is not in SharePro's master", x.kind, x.code)
-			}
-		}
+	if len(codes) > 0 {
+		c.partnerCodes = codes
 	}
 	c.rep.infof(area, "", "share", "SharePro keeps the authorised person's brokerage share per client (DLMAST.SBROK_PER); PARTNERS has no SharePct")
 	return nil

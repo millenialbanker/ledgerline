@@ -524,8 +524,14 @@ func TestUCCDetailsAndMasters(t *testing.T) {
 		pt[1]["Code"] != "RM01" || pt[1]["Kind"] != "Relationship manager" || pt[2]["Code"] != "D01" || pt[2]["Active"] != "Y" {
 		t.Errorf("partners %v", pt)
 	}
-	if w := issues(r, "Authorised persons and RMs", "SB09"); len(w) != 1 || w[0].Key != "TEST002" {
+	if w := issues(r, "Client master", "SB09"); len(w) != 1 || w[0].Key != "TEST002" {
 		t.Errorf("unknown AP %+v", w)
+	}
+	_, cm := readCSV(t, r, "firms/02/master/CLIENT-MASTER.csv")
+	for _, c := range cm {
+		if c["UCC"] == "TEST002" && c["AP"] != "" {
+			t.Errorf("unknown AP written: %v", c["AP"])
+		}
 	}
 	// DP accounts, DP-only ones under the DP client code
 	_, dp := readCSV(t, r, "firms/02/master/DP-ACCOUNTS.csv")

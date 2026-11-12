@@ -489,8 +489,11 @@ type cur struct {
 	// noSegInactive counts clients made inactive because no segment is
 	// registered for them at all
 	noSegInactive int
-	chart         *chart
-	segCache      map[string]segH
+	// partnerCodes are the partner codes written to PARTNERS (code → kind);
+	// nil when SharePro has no partner masters
+	partnerCodes map[string]string
+	chart        *chart
+	segCache     map[string]segH
 
 	derivClients int
 }
@@ -507,6 +510,9 @@ func (c *cur) run(ctx context.Context) error {
 		name string
 		fn   func(context.Context) error
 	}{
+		// partners first: the client master's AP and RM codes must be on record
+		{"Branches", c.writeBranches},
+		{"Authorised persons and RMs", c.writePartners},
 		{"Client master", c.writeClients},
 		{"Client bank accounts", c.writeBanks},
 		{"Nominees", c.writeNominees},
@@ -519,8 +525,6 @@ func (c *cur) run(ctx context.Context) error {
 		{"KRA and CKYC", c.writeKYC},
 		{"UCC details", c.writeUCCDetails},
 		{"Contact persons", c.writeContacts},
-		{"Branches", c.writeBranches},
-		{"Authorised persons and RMs", c.writePartners},
 		{"DP accounts", c.writeDPAccounts},
 	}
 	for _, st := range steps {
@@ -863,7 +867,7 @@ func (c *cur) clientRow(cl *client, dm dpAcct) map[string]string {
 		"Bank": primary.bank, "IFSC": primary.ifsc, "Account": primary.account, "Depository": dm.depository, "DematID": dm.boid,
 		"Nominee": nom, "NomineeName": nomName, "KYCDate": kycDate, "Status": "Active", "API": "N", "LastTrade": c.cm.lastTrade[cl.ucc],
 		"Branch": cl.branch, "State": state, "ECN": yn(cl.econtract), "NominationDate": nomDate,
-		"AP": partnerCode(cl.sb, "AP"), "RM": partnerCode(cl.rm, "RM"), "Groups": strings.Join(c.cm.groups[cl.ucc], ";"),
+		"AP": c.knownPartner(cl.ucc, cl.sb, "AP"), "RM": c.knownPartner(cl.ucc, cl.rm, "RM"), "Groups": strings.Join(c.cm.groups[cl.ucc], ";"),
 	}
 }
 
@@ -1211,4 +1215,21 @@ func (c *cur) writeSegStatus(ctx context.Context) error {
 		c.rep.infof("Segment status", co, "co-no-segment", "Statuses of SharePro company %s (%s) are not an exchange segment and are not migrated", co, firstNonEmpty(c.f.Seg[co].label(), "unknown segment"))
 	}
 	return cw.Close()
+}
+
+// knownPartner gives a client's AP or RM code as written to PARTNERS. A
+// code that is not in SharePro's masters is left blank with a warning, as
+// Ledgerline refuses a client pointing at a partner it does not have.
+func (c *cur) knownPartner(ucc, raw, prefix string) string {
+	code := partnerCode(raw, prefix)
+	if code == "" || c.partnerCodes == nil {
+		return code
+	}
+	if c.partnerCodes[code] == "" {
+		kind := map[string]string{"AP": "authorised person", "RM": "relationship manager"}[prefix]
+		c.rep.warnf("Client master", ucc, "unknown-"+kind, "Add it to the masters in SharePro, or set it in Ledgerline after the load",
+			"The client's %s %s is not in SharePro's masters; it is left blank", kind, strings.TrimSpace(raw))
+		return ""
+	}
+	return code
 }
