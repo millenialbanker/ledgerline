@@ -271,6 +271,9 @@ trading clients' and, in mode skip, closed DP-only accounts).
 | OwnFlat … OwnMax | the `CM*` set (transfers linked to the firm's own trades); all zero: free |
 | SpecialFlat … SpecialMax | the `SP*` set, kept for the record, not billed (Warning sp-rates with the count of lines where it differs) |
 | AM, 0015 | the version's annual maintenance and, on top for a body corporate, corporate maintenance (`MAX(FLAT, MIN)`) |
+| PLG, PLGM (pledge, margin pledge created) | the `2230` row (CDSL's credit pledge balance) |
+| UNP, UNPM, INV, INVM (unpledge, margin unpledge, pledge and margin pledge invoked) | the `2280` row (debit pledge balance: SharePro charges closures and invocations on it) |
+| Charged | N when `DPTRTYPE.CHARGE_ON` is blank for `2230` or `2280` (SharePro does not charge it); the own-trade and SP rates are not kept on pledge lines |
 | DP-TARIFF-ACCOUNTS BOID, Plan, From | `DPCLBASKET` rows (`BENACNUM`, `BASKETCD`, `EffectDate`, 1900-01-01 kept as from the start) of the accounts in DP-ACCOUNTS |
 | AMCPaidUpto | `MAX(DPAMCDB.AMDATETO)` where `AMTDR > 0` (9999-01-01: paid for life), on the account's first row |
 
@@ -278,8 +281,11 @@ Rows keyed by an account (account-specific tariffs) are counted (Info),
 not migrated. Assignments to a basket not in `DPCLBSKT` or blank, to a
 basket with no rates, or with a NULL `EffectDate` are left out (Warning
 each); accounts with no basket pay the firm tariff (Info). `DPTRTYPE`
-is the code master and is not read. Checks: dp-tariff-versions
-(distinct basket and `EFFECTDATE` in `DPCHARGE`), dp-tariff-accounts
+gives only `CHARGE_ON` for 2230 and 2280. SharePro's own pledge instruction codes (MPGD, MPGA, MPUS, MPUA, PLGD, PLGA, PLGR, UPGC, CNFA, CNFR: pledges set up through its DP module) are not migrated (Info with the count of those with a rate).
+
+**To fill in after loading** (manifest `fill_in`): always the firm-wide DP tariff (SharePro has none: accounts on no basket pay Ledgerline's firm tariff); the pledge charges when no basket has a 2230 or 2280 row, or `DPTRTYPE` does not say whether they are charged (with the plans concerned); both when the backup has no `DPCLBSKT` or `DPCHARGE`. Ledgerline raises a to-do for each and holds DP billing until they are filled in.
+
+Checks: dp-tariff-versions (distinct basket and `EFFECTDATE` in `DPCHARGE`), dp-tariff-accounts
 (DP accounts with a basket that has rates, effective on the as-of date)
 and dp-amc-paid-ahead (those accounts with maintenance paid beyond the
 as-of date).

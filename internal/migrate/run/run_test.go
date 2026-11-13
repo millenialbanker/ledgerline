@@ -445,3 +445,17 @@ func TestGroupIssues(t *testing.T) {
 		t.Errorf("%+v", g)
 	}
 }
+
+// The report lists what the firm fills in on Ledgerline after loading.
+func TestReportFillIn(t *testing.T) {
+	res := &Result{Manifest: pkg.Manifest{FillIn: []pkg.FillIn{{Firm: "01", Item: pkg.FillDPPledgeCharges, Why: "No pledge rows.", Plans: []string{"B001", "C003"}}}}}
+	h := string(Report(res, Options{Now: func() time.Time { return time.Date(2026, 11, 13, 10, 0, 0, 0, time.UTC) }}, true))
+	for _, w := range []string{"To fill in on Ledgerline after loading", "The DP&#39;s pledge charges", "No pledge rows.", "B001, C003"} {
+		if !strings.Contains(h, w) {
+			t.Errorf("report lacks %q", w)
+		}
+	}
+	if h := string(Report(&Result{}, Options{Now: time.Now}, true)); strings.Contains(h, "To fill in") {
+		t.Error("an empty fill-in section")
+	}
+}

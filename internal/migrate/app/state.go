@@ -32,10 +32,17 @@ type ResultView struct {
 	Report  string           `json:"report"`
 	Folder  string           `json:"folder"`
 	Checks  []CheckView      `json:"checks"`
+	FillIn  []FillInView     `json:"fill_in"`
 	Groups  []run.IssueGroup `json:"groups"`
 	Errors  int              `json:"errors"`
 	Dropped []pkg.Dropped    `json:"dropped"`
 	Docs    []run.DocCount   `json:"docs"`
+}
+
+// FillInView is something to fill in on Ledgerline after loading.
+type FillInView struct {
+	pkg.FillIn
+	Label string `json:"label"`
 }
 
 // CheckView is a check with its label.
@@ -131,6 +138,9 @@ func (s *Session) State() State {
 		v := &ResultView{Parts: r.Parts, Report: r.Report, Folder: filepath.Dir(r.Report), Groups: run.GroupIssues(r.Manifest.Issues), Dropped: r.Manifest.Dropped, Docs: r.Docs}
 		for _, c := range r.Manifest.Checks {
 			v.Checks = append(v.Checks, CheckView{Check: c, Label: run.CheckLabel(c.Name)})
+		}
+		for _, f := range r.Manifest.FillIn {
+			v.FillIn = append(v.FillIn, FillInView{FillIn: f, Label: run.FillInLabel(f.Item)})
 		}
 		for _, i := range r.Manifest.Issues {
 			if i.Severity == "Error" {

@@ -606,6 +606,7 @@ func (o *Ops) runLoad(ctx context.Context, tenant, actor, id, passphrase string)
 	if rc, err := o.reconcile(ctx, tenant, actor, &m); err == nil {
 		m.Recon = rc
 	}
+	o.dpAskFillIns(ctx, tenant, actor, &m)
 	o.saveMig(ctx, tenant, actor, &m)
 	o.log(ctx, tenant, actor, "migration.loaded", id, map[string]any{"firm": m.Firm, "steps": len(m.Steps), "documents": m.Docs, "entries": len(m.Entries)})
 }

@@ -258,6 +258,7 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/dp", s.dpDesk, false)
 	R("POST /v1/dp/tariff", s.dpTariff, true)
 	R("POST /v1/dp/plan", s.dpPlan, true)
+	R("POST /v1/dp/plans/pledge-charges", s.dpPlanPledge, true)
 	R("POST /v1/dp/accounts/{ucc}/bsda", s.dpBSDA, true)
 	R("POST /v1/dp/books", s.dpBook, true)
 	R("POST /v1/dp/dis", s.dpEnterDIS, true)
@@ -2964,6 +2965,19 @@ func (s *Server) dpPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.SetDPPlan(r.Context(), tenant(r), actor(r), b.BOID, b.Plan, b.From)
+	ok(w, v, err)
+}
+
+func (s *Server) dpPlanPledge(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Plan  string             `json:"plan"`
+		From  string             `json:"from"`
+		Lines []ops.DPChargeLine `json:"lines"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SetDPPlanPledge(r.Context(), tenant(r), actor(r), b.Plan, b.From, b.Lines)
 	ok(w, v, err)
 }
 

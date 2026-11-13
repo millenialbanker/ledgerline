@@ -38,6 +38,17 @@ func CheckLabel(name string) string {
 	return name
 }
 
+// FillInLabel is what the firm is asked to fill in, for people.
+func FillInLabel(item string) string {
+	switch item {
+	case pkg.FillDPFirmTariff:
+		return "The firm's DP tariff (maintenance, transaction and pledge charges for accounts on no plan)"
+	case pkg.FillDPPledgeCharges:
+		return "The DP's pledge charges (pledge, margin pledge, unpledge, invocation)"
+	}
+	return item
+}
+
 // IssueGroup is the issues of one area.
 type IssueGroup struct {
 	Area   string
@@ -99,6 +110,7 @@ type reportData struct {
 	Backups  []pkg.Backup
 	Firms    []pkg.Firm
 	Checks   []pkg.Check
+	FillIn   []pkg.FillIn
 	Groups   []IssueGroup
 	Errors   int
 	Warnings int
@@ -115,6 +127,8 @@ var funcs = template.FuncMap{
 	"size":   Size,
 	"base":   filepath.Base,
 	"label":  CheckLabel,
+	"fillin": FillInLabel,
+	"join":   strings.Join,
 	"date": func(t time.Time) string {
 		if t.IsZero() {
 			return ""
@@ -151,6 +165,11 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 </table>
 <div class="box">Next step: in Ledgerline, open Files → Migration from old system and upload {{if gt (len .Parts) 1}}every part of {{end}}this package. Ledgerline asks for the passphrase chosen in the tool; keep the passphrase separate from the file.</div>
 <p>{{if .Errors}}<b>{{int .Errors}} error(s)</b> and {{end}}{{int .Warnings}} warning(s) are listed under Issues below.</p>
+{{if .FillIn}}
+<h2>To fill in on Ledgerline after loading</h2>
+<p class="meta">The backup does not say these. After the load Ledgerline asks for them (a to-do and a note on the DP desk) and holds DP billing until they are filled in.</p>
+<table><tr><th>Firm</th><th>What</th><th>Why</th><th>Plans</th></tr>
+{{range .FillIn}}<tr><td>{{.Firm}}</td><td>{{fillin .Item}}</td><td>{{.Why}}</td><td>{{join .Plans ", "}}</td></tr>{{end}}</table>{{end}}
 
 <h2>What was read</h2>
 <table><tr><th>File</th><th>Database</th><th>What it is</th><th>Year</th><th>Backup date</th><th class="n">Size</th><th>Used</th></tr>
@@ -204,6 +223,7 @@ func Report(res *Result, o Options, beside bool) []byte {
 		Backups: m.Source.Backups,
 		Firms:   m.Firms,
 		Checks:  m.Checks,
+		FillIn:  m.FillIn,
 		Groups:  GroupIssues(m.Issues),
 		Dropped: m.Dropped,
 		Steps:   res.Steps,

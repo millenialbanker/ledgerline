@@ -341,6 +341,8 @@ func companyFake(name string) *fake {
 	f.table("DPCHARGE", "CO,EFFECTDATE,BENACNUM,TRANCODE,RATE,MIN,MAX,FLAT,PERIOD,MAILCHG,SPRATE,SPMIN,SPMAX,SPFLAT,CMRATE,CMMIN,CMMAX,CMFLAT")
 	f.table("DPCLBASKET", "CO,BENACNUM,EffectDate,BASKETCD")
 	f.table("DPAMCDB", "CO,TRANCODE,AMDATE,AMDATETO,BENACNUM,AMTDR")
+	f.table("DPTRTYPE", "SYSTEM,TRANCODE,DESCR,TYPE,CHARGE_ON")
+	f.on("dp-trtype", migrate.Row{"code": "2230", "chargeon": ""}, migrate.Row{"code": "2280", "chargeon": "BEN"})
 	f.on("dp-baskets",
 		migrate.Row{"co": "06", "basketcd": "B001", "descr": "Standard", "type": "BEN", "period": "Yearly"},
 		migrate.Row{"co": "06", "basketcd": "P001", "descr": "Pool accounts", "type": "CM", "period": "Monthly"},
@@ -366,6 +368,10 @@ func companyFake(name string) *fake {
 		ch("B001", "2020-08-01", "ODTA", migrate.Row{"rate": "0.02", "min": "15", "sprate": "0.01", "cmmin": "12"}),
 		ch("B001", "2020-08-01", "901", migrate.Row{"rate": "3", "mailchg": "40"}),
 		ch("B001", "2020-08-01", "2201", migrate.Row{"rate": "4"}),
+		ch("B001", "2020-08-01", "2230", migrate.Row{"rate": "0.1", "min": "50"}), // the depository's pledge rows
+		ch("B001", "2020-08-01", "2280", migrate.Row{"rate": "0.1", "min": "50", "cmmin": "5"}),
+		ch("B001", "2020-08-01", "MPGD", migrate.Row{"min": "25"}), // SharePro's own pledge instruction code
+		ch("B001", "2020-08-01", "CNFA", migrate.Row{}),
 		ch("B001", "2026-04-01", "AM", migrate.Row{"flat": "300"}),
 		ch("B001", "2026-04-01", "IDEL", migrate.Row{"flat": "25"}),
 		ch("P001", "2019-01-01", "DCM", migrate.Row{"flat": "5"}),

@@ -10,6 +10,7 @@ import (
 
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ledger"
+	"ledgerline/internal/migrate/pkg"
 	"ledgerline/internal/money"
 )
 
@@ -195,10 +196,13 @@ type DPTariff struct {
 	BSDAAMCYear     money.Amount `json:"bsda_amc_year"`    // BSDA above the nil slab
 	DebitCharge     money.Amount `json:"debit_charge"`     // per debit instruction per ISIN
 	DepositoryShare money.Amount `json:"depository_share"` // of the debit charge, payable to the depository
-	PledgeCharge    money.Amount `json:"pledge_charge"`    // per pledge creation or closure per ISIN
-	DematCharge     money.Amount `json:"demat_per_cert"`   // per certificate
-	OffMarketPct    money.Dec    `json:"offmarket_pct"`    // % of value for off-market transfers
-	OffMarketMin    money.Amount `json:"offmarket_min"`
+	PledgeCharge    money.Amount `json:"pledge_charge"`    // before PledgeCharges: per pledge creation or closure per ISIN
+	// PledgeCharges are the charges on pledge events (PledgeEvents), per
+	// ISIN per instruction; an event with no line is free.
+	PledgeCharges []DPChargeLine `json:"pledge_charges"`
+	DematCharge   money.Amount   `json:"demat_per_cert"` // per certificate
+	OffMarketPct  money.Dec      `json:"offmarket_pct"`  // % of value for off-market transfers
+	OffMarketMin  money.Amount   `json:"offmarket_min"`
 	// CreditCharge is per credit (receipt) per ISIN; usually nil.
 	CreditCharge money.Amount `json:"credit_charge"`
 	// ChargeFree are accounts, such as the firm's own pool (CM) accounts
@@ -269,7 +273,20 @@ type CMSeen struct {
 // DefaultDPTariff is a typical discount-broker DP tariff.
 func DefaultDPTariff() DPTariff {
 	return DPTariff{AMCYear: 30000, BSDALowLimit: 40000000, BSDALimit: 100000000, BSDAAMCYear: 10000, DebitCharge: 1350, DepositoryShare: 350,
-		PledgeCharge: 2000, DematCharge: 15000, OffMarketPct: money.MustDec("0.03"), OffMarketMin: 2500, From: "2026-04-01"}
+		PledgeCharges: legacyPledgeCharges(2000), DematCharge: 15000, OffMarketPct: money.MustDec("0.03"), OffMarketMin: 2500, From: "2026-04-01"}
+}
+
+// legacyPledgeCharges is the pledge table of a tariff saved with one
+// pledge charge, "per pledge creation or closure per ISIN".
+func legacyPledgeCharges(a money.Amount) []DPChargeLine {
+	out := []DPChargeLine{}
+	if a <= 0 {
+		return out
+	}
+	for _, e := range []string{PledgeCreated, MarginPledgeCreated, PledgeClosed, MarginPledgeClosed} {
+		out = append(out, DPChargeLine{Code: e, Name: dpChargeCodes[e], DPRate: DPRate{Flat: a}})
+	}
+	return out
 }
 
 // DPTariffNow returns the tariff in force.
@@ -280,6 +297,9 @@ func (o *Ops) DPTariffNow(ctx context.Context, tenant string) (DPTariff, error) 
 	}
 	if t.ChargeFreeCMs == nil {
 		t.ChargeFreeCMs = []string{}
+	}
+	if t.PledgeCharges == nil {
+		t.PledgeCharges = legacyPledgeCharges(t.PledgeCharge)
 	}
 	return t, err
 }
@@ -304,6 +324,14 @@ func (o *Ops) SaveDPTariff(ctx context.Context, tenant, actor string, t DPTariff
 	if t.CreditCharge < 0 {
 		return t, invalid("charges cannot be negative")
 	}
+	if t.PledgeCharges == nil {
+		t.PledgeCharges = legacyPledgeCharges(t.PledgeCharge)
+	}
+	pl, err := cleanPledgeLines(t.PledgeCharges)
+	if err != nil {
+		return t, err
+	}
+	t.PledgeCharges, t.PledgeCharge = pl, 0
 	seen := map[string]bool{}
 	var free []ChargeFreeAccount
 	for _, a := range t.ChargeFree {
@@ -354,6 +382,11 @@ func (o *Ops) SaveDPTariff(ctx context.Context, tenant, actor string, t DPTariff
 		return t, err
 	}
 	o.log(ctx, tenant, actor, "dp.tariff", "main", map[string]any{"from": t.From})
+	// the firm's tariff, its pledge charges included, is filled in
+	o.dpFilledIn(ctx, tenant, actor, pkg.FillDPFirmTariff, "")
+	if x, _, err := docs.Get[DPFillIn](ctx, o.Docs, tenant, cDPFillIn, pkg.FillDPPledgeCharges); err == nil && x.Done == "" && len(x.Plans) == 0 {
+		o.dpFilledIn(ctx, tenant, actor, pkg.FillDPPledgeCharges, "")
+	}
 	return t, nil
 }
 
@@ -383,10 +416,15 @@ type BORow struct {
 
 // DPView is the DP desk.
 type DPView struct {
-	Date    string         `json:"date"`
-	Rows    []BORow        `json:"rows"`
-	Tariff  DPTariff       `json:"tariff"`
-	Plans   []DPPlan       `json:"plans"`
+	Date   string   `json:"date"`
+	Rows   []BORow  `json:"rows"`
+	Tariff DPTariff `json:"tariff"`
+	Plans  []DPPlan `json:"plans"`
+	// PledgeEvents are the rows of the pledge charges tables.
+	PledgeEvents []PledgeEvent `json:"pledge_events"`
+	// FillIn is what the old system's backup did not say and the firm is
+	// to fill in before DP billing.
+	FillIn  []DPFillIn     `json:"fill_in"`
 	Counts  map[string]int `json:"counts"`
 	DIS     []DIS          `json:"dis"`
 	Books   []DISBook      `json:"books"`
@@ -415,6 +453,8 @@ func (o *Ops) DP(ctx context.Context, tenant, date string) (DPView, error) {
 		return v, err
 	}
 	v.Tariff = t
+	v.PledgeEvents = pledgeEventList()
+	v.FillIn = o.DPFillIns(ctx, tenant)
 	if v.Plans, _ = o.DPPlans(ctx, tenant); v.Plans == nil {
 		v.Plans = []DPPlan{}
 	}
@@ -1013,6 +1053,11 @@ type DPTxn struct {
 	// ClearingMember is the clearing member of an on-market settlement
 	// transaction (pay-in or pay-out), as the depository reports it.
 	ClearingMember string `json:"clearing_member,omitempty"`
+	// Pledge is a pledge event (PledgeEvents): a pledge created, closed or
+	// invoked, billed on the tariff's pledge charges. Qty is the quantity
+	// pledged, closed or invoked, not a move of the free balance; Value the
+	// pledge value the depository reports.
+	Pledge string `json:"pledge,omitempty"`
 }
 
 func (o *Ops) dpTxn(ctx context.Context, tenant, actor string, t DPTxn) error {
@@ -1074,6 +1119,9 @@ type DPBill struct {
 // still makes a month billable once.
 func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]DPBill, error) {
 	if err := o.require(ctx, tenant, actor, "DP billing", RoleChecker); err != nil {
+		return nil, err
+	}
+	if err := o.dpBillingHeld(ctx, tenant); err != nil {
 		return nil, err
 	}
 	if !ledger.ValidDate(month + "-01") {
@@ -1180,6 +1228,9 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 			if certs > 0 {
 				line(DPBillLine{What: "Dematerialisation (per certificate)", Count: certs, Amount: t.DematCharge * money.Amount(certs)})
 			}
+			pledgeCharges(t.PledgeCharges, ts, func(x DPTxn) bool {
+				return x.Date >= month+"-01" && x.Date <= end && holdingAcct(c, x.BOID) == acct
+			}, line)
 		}
 		if len(b.Lines) == 0 {
 			continue

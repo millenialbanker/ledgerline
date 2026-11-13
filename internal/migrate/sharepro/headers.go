@@ -69,7 +69,7 @@ var headers = map[string][]string{
 	srcDemats: {"UCC", "Depository", "DematID", "Primary", "Status"},
 	// one row per charge of a tariff version (DPCLBSKT baskets, DPCHARGE
 	// rates); Own* the CM rate set, Special* the SP set (kept, not billed)
-	srcDPTariffs: {"Plan", "From", "Code", "Name", "Pool", "AMCBilling", "Charge", "Flat", "Pct", "PerUnit", "Min", "Max",
+	srcDPTariffs: {"Plan", "From", "Code", "Name", "Pool", "AMCBilling", "Charge", "Charged", "Flat", "Pct", "PerUnit", "Min", "Max",
 		"OwnFlat", "OwnPct", "OwnPerUnit", "OwnMin", "OwnMax", "Mail", "SpecialFlat", "SpecialPct", "SpecialPerUnit", "SpecialMin", "SpecialMax"},
 	// each account's basket history (DPCLBASKET) and AMC paid-up date (DPAMCDB)
 	srcDPPlanAcct: {"BOID", "Plan", "From", "AMCPaidUpto"},

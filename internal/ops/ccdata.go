@@ -438,9 +438,12 @@ func (o *Ops) addRefData(ctx context.Context, tenant, date string, l *Lookup) {
 
 // loadCDSLTxns adds CDSL's transactions of the firm's DP clients to the DP
 // transaction register: credits and debits (TxnCd CRD/DBT) by demat
-// account, with the counterparty accounts; earmarks and other non-balance
-// records are left out. Debits and credits are billable (pledges are not);
-// those to or from the firm's charge-free pool accounts are not charged.
+// account, with the counterparty accounts, and pledge events (a pledge
+// created, closed or invoked: cdslPledgeEvent); earmarks and other
+// non-balance records are left out. Debits and credits are billable (moves
+// into or out of a pledge are not; the pledge events are charged on the
+// tariff's pledge charges); those to or from the firm's charge-free pool
+// accounts are not charged.
 func (o *Ops) loadCDSLTxns(ctx context.Context, tenant, actor string, rows []xfile.Row) (int, int, error) {
 	cs, err := o.ClientMap(ctx, tenant)
 	if err != nil {
@@ -462,6 +465,26 @@ func (o *Ops) loadCDSLTxns(ctx context.Context, tenant, actor string, rows []xfi
 		ucc, ok := byBO[bo]
 		cd := strings.ToUpper(r.Get("TxnCd"))
 		q, err := money.ParseDec(r.Get("Qty"))
+		if ev := cdslPledgeEvent(r.Get("TxnTyp"), cd, r.Get("PldgIdr"), r.Get("OrdSttsTo")); ok && err == nil && ev != "" {
+			// a pledge created, closed or invoked: charged on the tariff's
+			// pledge charges, not a move of the free balance
+			ref := "CDSL:" + r.Get("TxnID") + ":" + r.Get("LineNb") + ":" + r.Get("ISIN") + ":" + cd
+			if seen[ref] {
+				skipped++
+				continue
+			}
+			seen[ref] = true
+			t := DPTxn{Date: firstOf(anyDate(r.Get("ExecDt")), anyDate(r.Get("BizDt"))), UCC: ucc, BOID: holdingAcct(cs[ucc], bo), ISIN: strings.ToUpper(r.Get("ISIN")),
+				Qty: truncQty(q).Abs(), Kind: dpChargeCodes[ev], Ref: ref, Pledge: ev, Value: cdslPledgeValue(r, q)}
+			if ref, _, err := docs.Get[SecRef](ctx, o.Docs, tenant, cSecRef, t.ISIN); err == nil {
+				t.Symbol = firstOf(ref.Symbol, ref.Name)
+			}
+			if err := o.dpTxn(ctx, tenant, actor, t); err != nil {
+				return n, skipped, err
+			}
+			n++
+			continue
+		}
 		if !ok || (cd != "CRD" && cd != "DBT") || err != nil {
 			skipped++
 			continue
@@ -498,6 +521,21 @@ func (o *Ops) loadCDSLTxns(ctx context.Context, tenant, actor string, rows []xfi
 		n++
 	}
 	return n, skipped, nil
+}
+
+// cdslPledgeValue is a pledge row's value: the pledge value CDSL reports
+// (Cnsdrtn), else its valuation, else the quantity at the ISIN's closing
+// price in the row.
+func cdslPledgeValue(r xfile.Row, q money.Dec) money.Dec {
+	for _, c := range []string{"Cnsdrtn", "TxnValtn"} {
+		if v, err := money.ParseDec(strings.TrimSpace(r.Get(c))); err == nil && v.Sign() > 0 {
+			return v
+		}
+	}
+	if p, err := money.ParseDec(strings.TrimSpace(r.Get("ClsPric"))); err == nil && p.Sign() > 0 {
+		return q.Abs().Mul(p)
+	}
+	return money.Dec{}
 }
 
 // pledgeTxn are CDSL transaction types charged as pledges, not transfers.

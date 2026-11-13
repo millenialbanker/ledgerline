@@ -343,7 +343,7 @@ func (o *Ops) ipoCredits(ctx context.Context, tenant string, iss IPOIssue) (map[
 	}
 	txns, _ := docs.List[DPTxn](ctx, o.Docs, tenant, cDPTxn, "")
 	for _, t := range txns {
-		if t.ISIN == iss.ISIN && t.Qty.Sign() > 0 && t.Date >= iss.Close {
+		if t.ISIN == iss.ISIN && t.Qty.Sign() > 0 && t.Date >= iss.Close && t.Pledge == "" {
 			qty[t.UCC] += wholeUnits(t.Qty)
 			src[t.UCC] = "DP transaction " + t.ID + " (" + t.Kind + ", " + t.Date + ")"
 		}

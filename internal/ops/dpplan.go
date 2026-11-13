@@ -10,6 +10,7 @@ import (
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/ledger"
+	"ledgerline/internal/migrate/pkg"
 	"ledgerline/internal/money"
 )
 
@@ -91,6 +92,9 @@ type DPChargeLine struct {
 	// Special is another rate set the old system kept (SharePro's SP
 	// rates), kept for the record; Ledgerline does not bill it.
 	Special *DPRate `json:"special,omitempty"`
+	// Off: not charged; the rates are kept (a pledge event the firm does
+	// not charge for, as the old system had it).
+	Off bool `json:"off,omitempty"`
 }
 
 // DPPlanVersion is a plan's rates from a date.
@@ -150,10 +154,227 @@ func (b BOAccount) planAt(date string) string {
 	return p
 }
 
+// Pledge events: the depository's pledge transactions a firm charges for,
+// by Ledgerline's own codes, as lines of the firm tariff or of a plan. They
+// are read from the depository's transaction file (cdslPledgeEvent): the
+// one row of a pledge's steps that moves the pledged balance.
+const (
+	PledgeCreated       = "PLG"  // pledge created (the pledgee accepted)
+	MarginPledgeCreated = "PLGM" // margin pledge to the broker created
+	MarginRepledge      = "RPLG" // margin pledge re-pledged to the clearing corporation
+	PledgeClosed        = "UNP"  // unpledge: the pledge closed, by request or automatically
+	MarginPledgeClosed  = "UNPM" // margin unpledge
+	PledgeInvoked       = "INV"  // the pledgee invoked the pledge (confiscation)
+	MarginPledgeInvoked = "INVM" // the broker invoked a margin pledge
+)
+
+// PledgeEvents lists the pledge events in the order the tariff tables show.
+var PledgeEvents = []string{PledgeCreated, MarginPledgeCreated, MarginRepledge, PledgeClosed, MarginPledgeClosed, PledgeInvoked, MarginPledgeInvoked}
+
+func isPledgeEvent(code string) bool {
+	for _, e := range PledgeEvents {
+		if e == code {
+			return true
+		}
+	}
+	return false
+}
+
+// PledgeEvent is a pledge event's code and name, for the tariff tables.
+type PledgeEvent struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+}
+
+func pledgeEventList() []PledgeEvent {
+	out := make([]PledgeEvent, 0, len(PledgeEvents))
+	for _, e := range PledgeEvents {
+		out = append(out, PledgeEvent{e, dpChargeCodes[e]})
+	}
+	return out
+}
+
+// cdslPledgeEvent is the pledge event a row of CDSL's transaction file
+// (COD, UDiFF) records, or "". A pledge's maker, checker and pledgee steps
+// are rows of their own; only the row that moves the pledged balance is an
+// event: TxnCd CPLBL (credit pledge balance) when the pledge is created,
+// CRPLBL when a margin pledge is re-pledged, DPLBL (debit pledge balance)
+// when it is closed or invoked. TxnTyp PIC or PIV, or an invocation
+// status, tells an invocation from a closure; PldgIdr MP (or a margin
+// pledge status) a margin pledge from a normal one.
+func cdslPledgeEvent(txnTyp, txnCd, pldgIdr, status string) string {
+	tp, cd, idr, st := strings.ToUpper(strings.TrimSpace(txnTyp)), strings.ToUpper(strings.TrimSpace(txnCd)), strings.ToUpper(strings.TrimSpace(pldgIdr)), strings.ToUpper(strings.TrimSpace(status))
+	margin := idr == "MP" || idr == "M2" || idr == "M3" || strings.HasPrefix(st, "MP") || cdslMarginPledgeStatus[st]
+	switch cd {
+	case "CPLBL":
+		if margin {
+			return MarginPledgeCreated
+		}
+		return PledgeCreated
+	case "CRPLBL":
+		return MarginRepledge
+	case "DPLBL":
+		if tp == "PIC" || tp == "PIV" || cdslInvokedStatus[st] {
+			if margin {
+				return MarginPledgeInvoked
+			}
+			return PledgeInvoked
+		}
+		if margin {
+			return MarginPledgeClosed
+		}
+		return PledgeClosed
+	}
+	return ""
+}
+
+// CDSL's statuses (OrdSttsTo) of margin pledge steps whose code does not
+// start with MP, and of invocations (confiscations).
+var (
+	cdslMarginPledgeStatus = map[string]bool{"PACPB": true, "PACPEB": true, "PCADPB": true, "PCAPEB": true, "PCSPGM": true, "MUAPCP": true}
+	cdslInvokedStatus      = map[string]bool{"CONFCT": true, "PINV": true, "PCINV": true, "PCADPB": true, "PCAPEB": true, "RCADPB": true, "RCAPEB": true, "RCARPB": true,
+		"RCPEBC": true, "MRCDPEB": true, "MRCDRPB": true}
+)
+
+// pledgeCharges bills an account's pledge events in a month on the pledge
+// lines given (the firm tariff's or the plan version's): per ISIN per
+// instruction. An event with no line, or a line not charged, is free.
+func pledgeCharges(lines []DPChargeLine, ts []DPTxn, in func(DPTxn) bool, line func(DPBillLine)) {
+	type agg struct {
+		n   int64
+		amt money.Amount
+	}
+	by := map[string]*agg{}
+	find := func(code string) (DPChargeLine, bool) {
+		for _, l := range lines {
+			if l.Code == code {
+				return l, true
+			}
+		}
+		return DPChargeLine{}, false
+	}
+	for _, x := range ts {
+		if x.Pledge == "" || !in(x) {
+			continue
+		}
+		l, ok := find(x.Pledge)
+		if !ok || l.Off {
+			continue
+		}
+		amt := l.DPRate.charge(x.Value.Abs(), 0)
+		if amt <= 0 {
+			continue
+		}
+		if by[x.Pledge] == nil {
+			by[x.Pledge] = &agg{}
+		}
+		by[x.Pledge].n++
+		by[x.Pledge].amt += amt
+	}
+	for _, c := range PledgeEvents {
+		if a := by[c]; a != nil {
+			l, _ := find(c)
+			line(DPBillLine{What: firstOf(l.Name, dpChargeCodes[c]) + " (per ISIN)", Count: a.n, Amount: a.amt})
+		}
+	}
+}
+
+// cleanPledgeLines checks a table of pledge charges and keeps the rows
+// with a rate or marked not charged, in the events' order.
+func cleanPledgeLines(in []DPChargeLine) ([]DPChargeLine, error) {
+	by := map[string]DPChargeLine{}
+	for _, l := range in {
+		l.Code = strings.ToUpper(strings.TrimSpace(l.Code))
+		name := dpChargeCodes[l.Code]
+		switch {
+		case !isPledgeEvent(l.Code):
+			return nil, invalid("%q is not a pledge charge: use one of %s", l.Code, strings.Join(PledgeEvents, ", "))
+		case l.Flat < 0 || l.Min < 0 || l.Max < 0 || l.Pct.Sign() < 0 || l.PerUnit != 0:
+			return nil, invalid("%s: charges cannot be negative", name)
+		case l.Pct.Cmp(money.MustDec("100")) > 0:
+			return nil, invalid("%s: the %% of value must be from 0 to 100", name)
+		case l.Max > 0 && l.Max < l.Min:
+			return nil, invalid("%s: the maximum is below the minimum", name)
+		}
+		if _, dup := by[l.Code]; dup {
+			return nil, invalid("%s is in the table twice", name)
+		}
+		l.Name, l.Own, l.Mail, l.Special = name, nil, 0, nil
+		by[l.Code] = l
+	}
+	out := []DPChargeLine{}
+	for _, c := range PledgeEvents {
+		if l, ok := by[c]; ok && (!l.DPRate.zero() || l.Off) {
+			out = append(out, l)
+		}
+	}
+	return out, nil
+}
+
+// SetDPPlanPledge sets a plan's pledge charges from a date: the version
+// that starts on it, or a new one copied from the version in force, and
+// every later version get the table's pledge lines.
+func (o *Ops) SetDPPlanPledge(ctx context.Context, tenant, actor, code, from string, lines []DPChargeLine) (DPPlan, error) {
+	if err := o.require(ctx, tenant, actor, "Changing the DP tariff", RoleAdmin, RoleChecker); err != nil {
+		return DPPlan{}, err
+	}
+	code = strings.ToUpper(strings.TrimSpace(code))
+	p, _, err := docs.Get[DPPlan](ctx, o.Docs, tenant, cDPPlan, code)
+	if err != nil {
+		return p, fmt.Errorf("%w: no DP tariff plan %s", ErrNotFound, code)
+	}
+	if !ledger.ValidDate(from) {
+		return p, invalid("give the date the pledge charges apply from (YYYY-MM-DD)")
+	}
+	pl, err := cleanPledgeLines(lines)
+	if err != nil {
+		return p, err
+	}
+	starts := false
+	for _, v := range p.Versions {
+		starts = starts || v.From == from
+	}
+	if !starts {
+		base := p.at(from)
+		if base == nil && len(p.Versions) > 0 {
+			base = &p.Versions[0]
+		}
+		nv := DPPlanVersion{From: from, Lines: []DPChargeLine{}}
+		if base != nil {
+			nv.AMCYear, nv.CorporateAMCYear = base.AMCYear, base.CorporateAMCYear
+			nv.Lines = append(nv.Lines, base.Lines...)
+		}
+		p.Versions = append(p.Versions, nv)
+		sort.Slice(p.Versions, func(i, j int) bool { return p.Versions[i].From < p.Versions[j].From })
+	}
+	for i := range p.Versions {
+		v := &p.Versions[i]
+		if v.From < from {
+			continue
+		}
+		keep := []DPChargeLine{}
+		for _, l := range v.Lines {
+			if !isPledgeEvent(l.Code) {
+				keep = append(keep, l)
+			}
+		}
+		v.Lines = append(keep, pl...)
+		sort.Slice(v.Lines, func(a, b int) bool { return v.Lines[a].Code < v.Lines[b].Code })
+	}
+	if err := docs.Upsert(ctx, o.Docs, tenant, cDPPlan, code, p, actor); err != nil {
+		return p, err
+	}
+	o.log(ctx, tenant, actor, "dp.plan_pledge", code, map[string]any{"from": from, "lines": len(pl)})
+	o.dpFilledIn(ctx, tenant, actor, pkg.FillDPPledgeCharges, code)
+	return p, nil
+}
+
 // dpChargeCodes are the depository transaction types a plan line can name
 // (CDSL's codes; NSDL's are taken as their CDSL equivalents), with what
 // Ledgerline bills on each.
 var dpChargeCodes = map[string]string{
+	PledgeCreated: "Pledge created", MarginPledgeCreated: "Margin pledge created", MarginRepledge: "Margin re-pledge (to the clearing corporation)",
+	PledgeClosed: "Unpledge (pledge closed)", MarginPledgeClosed: "Margin unpledge", PledgeInvoked: "Pledge invoked", MarginPledgeInvoked: "Margin pledge invoked",
 	"DCM": "Delivery to a clearing member (pay-in)", "DCCH": "Delivery to the clearing corporation", "DOWN": "Delivery to an account of this DP",
 	"DOTH": "Delivery to another DP's account", "MDEL": "Market delivery", "ODTA": "Off-market delivery (within the depository)",
 	"ODTR": "Off-market delivery (to the other depository)", "RCCH": "Receipt from the clearing corporation (pay-out)", "ROWN": "Receipt from an account of this DP",
@@ -261,7 +482,7 @@ func (o *Ops) SetDPPlan(ctx context.Context, tenant, actor, boid, plan, from str
 
 func dpPlanSources() []masterSrc {
 	return []masterSrc{
-		{"DP-TARIFFS", "The DP's tariff plans (migration: the previous back office's tariff baskets), one row per charge of a plan version: Plan (its code), From (the date the version applies from) and Code (the depository's transaction type: DCM, DOWN, DOTH, ODTA, ODTR, RCCH, 2201 demat, 2230 pledge, MPGD margin pledge, IFAL failure, SETL settlement and so on; AM is the annual maintenance and 0015 the corporate maintenance on top). Optional: Name (the plan's), Pool (Y for the firm's own pool or clearing member accounts), AMCBilling (Monthly or Yearly: a year in advance on each account's cycle), Charge (the line's name), Flat, Pct (% of value), PerUnit (per certificate), Min and Max (per instruction), OwnFlat, OwnPct, OwnPerUnit, OwnMin and OwnMax (transfers linked to the firm's own trades; blank: free), Mail (courier per request) and SpecialFlat, SpecialPct, SpecialPerUnit, SpecialMin and SpecialMax (another rate set of the old system, kept for the record). The plans in the file replace those stored with the same code", []string{"Plan", "From", "Code"}, false, "Once at go-live, then on change"},
+		{"DP-TARIFFS", "The DP's tariff plans (migration: the previous back office's tariff baskets), one row per charge of a plan version: Plan (its code), From (the date the version applies from) and Code (the depository's transaction type: DCM, DOWN, DOTH, ODTA, ODTR, RCCH, 2201 demat, 2230 pledge, MPGD margin pledge, IFAL failure, SETL settlement and so on; AM is the annual maintenance and 0015 the corporate maintenance on top; the pledge events PLG pledge created, PLGM margin pledge created, RPLG margin re-pledge, UNP unpledge, UNPM margin unpledge, INV pledge invoked and INVM margin pledge invoked, per ISIN). Optional: Name (the plan's), Pool (Y for the firm's own pool or clearing member accounts), AMCBilling (Monthly or Yearly: a year in advance on each account's cycle), Charge (the line's name), Charged (N: not charged, the rates kept), Flat, Pct (% of value), PerUnit (per certificate), Min and Max (per instruction), OwnFlat, OwnPct, OwnPerUnit, OwnMin and OwnMax (transfers linked to the firm's own trades; blank: free), Mail (courier per request) and SpecialFlat, SpecialPct, SpecialPerUnit, SpecialMin and SpecialMax (another rate set of the old system, kept for the record). The plans in the file replace those stored with the same code", []string{"Plan", "From", "Code"}, false, "Once at go-live, then on change"},
 		{"DP-TARIFF-ACCOUNTS", "Which tariff plan each DP account is on (migration), one row per change: BOID, Plan and From are required; optional AMCPaidUpto (the date the account's annual maintenance is paid up to, so a yearly plan bills the next year when it falls due). An account's rows replace its plan history; the plan must be on record (DP-TARIFFS) and the account a BO account of the DP (DP-ACCOUNTS)", []string{"BOID", "Plan", "From"}, false, "Once at go-live, then on change"},
 	}
 }
@@ -368,7 +589,7 @@ func (o *Ops) prepareDPTariffs(ctx context.Context, tenant, actor string, rows [
 		if _, known := dpChargeCodes[lc]; !known {
 			warn(r.line, "Code", "%s is not a depository transaction type Ledgerline bills on; the charge is kept on the plan for the record", lc)
 		}
-		l := DPChargeLine{Code: lc, Name: firstOf(strings.TrimSpace(r.get("Charge")), dpChargeCodes[lc]), DPRate: main, Mail: amountCell(r, "Mail", bad)}
+		l := DPChargeLine{Code: lc, Name: firstOf(strings.TrimSpace(r.get("Charge")), dpChargeCodes[lc]), DPRate: main, Mail: amountCell(r, "Mail", bad), Off: !ynCell(r, "Charged", true, bad)}
 		if own := rate("Own"); !own.zero() {
 			l.Own = &own
 		}
@@ -585,5 +806,6 @@ func dpPlanBill(p DPPlan, v DPPlanVersion, t DPTariff, free map[string]string, r
 		l, _ := v.line(c)
 		line(DPBillLine{What: firstOf(l.Name, firstOf(dpChargeCodes[c], c)), Count: by[c].n, Amount: by[c].amt})
 	}
+	pledgeCharges(v.Lines, ts, func(x DPTxn) bool { return x.Date >= month+"-01" && x.Date <= end && mine(x) }, line)
 	return paid
 }

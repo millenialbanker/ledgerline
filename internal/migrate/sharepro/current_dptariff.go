@@ -48,10 +48,30 @@ var dpRateCodes = map[string]bool{"2201": true, "2205": true, "901": true, "902"
 var nsdlCodes = map[string]string{"1908": "MPGD", "1911": "MPUS", "2908": "MPGD", "2911": "MPUS", "901": "2201", "902": "2205", "908": "2230",
 	"911": "2280", "IDEL": "ODTR", "IREC": "ORTR", "ODEL": "ODTA", "OREC": "ORTA", "PIN": "DCM", "POUT": "RCCH", "INST": "SETL"}
 
+// SharePro charges the depository's pledge rows by the CDSL code they
+// carry: 2230 (credit pledge balance: a pledge or margin pledge created)
+// and 2280 (debit pledge balance: closed or invoked), each only if its
+// DPTRTYPE row says whom to charge (CHARGE_ON). Ledgerline's pledge events
+// take those rates and that choice.
+var pledgeEventsOf = map[string][]string{"2230": {"PLG", "PLGM"}, "2280": {"UNP", "UNPM", "INV", "INVM"}}
+
+// pledgeInstrCodes are SharePro's own pledge instruction codes (pledges set
+// up through its DP module), not the depository's rows: not migrated.
+var pledgeInstrCodes = map[string]bool{"MPGD": true, "MPGA": true, "MPUS": true, "MPUA": true, "PLGD": true, "PLGA": true, "PLGR": true, "UPGC": true,
+	"CNFA": true, "CNFR": true}
+
+const qDPTrType = `/*sp:dp-trtype*/ SELECT RTRIM(TRANCODE) AS code, RTRIM(ISNULL(CAST(CHARGE_ON AS varchar(20)), '')) AS chargeon FROM DPTRTYPE
+	WHERE RTRIM(TRANCODE) IN ('2230', '2280', '908', '911')`
+
 func (c *cur) writeDPTariffs(ctx context.Context) error {
 	area := "DP tariffs"
 	dpc := c.f.dpCOs()
-	if len(dpc) == 0 || !c.s.has("DPCLBSKT") || !c.s.has("DPCHARGE") {
+	if len(dpc) == 0 {
+		return nil
+	}
+	if !c.s.has("DPCLBSKT") || !c.s.has("DPCHARGE") {
+		c.rep.ask(pkg.FillDPFirmTariff, "The backup has no DP tariff (DPCLBSKT, DPCHARGE): every DP account pays Ledgerline's firm tariff, which still has Ledgerline's sample rates. Set the firm's maintenance, transaction and pledge charges.")
+		c.rep.ask(pkg.FillDPPledgeCharges, "The backup has no DP tariff, so what the firm charges on pledges, unpledges and invocations is not known.")
 		return nil
 	}
 	cos := inList(dpc)
@@ -67,6 +87,30 @@ func (c *cur) writeDPTariffs(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
+	// whether SharePro charges the pledge rows (2230, 2280): DPTRTYPE's
+	// CHARGE_ON; no row, or no DPTRTYPE: charged
+	charged := map[string]bool{"2230": true, "2280": true}
+	chargeKnown := map[string]bool{}
+	if c.s.hasCol("DPTRTYPE", "CHARGE_ON") {
+		on := map[string]bool{}
+		seenType := map[string]bool{}
+		if err := c.d.query(ctx, qDPTrType, func(r migrate.Row) error {
+			code := upper(r, "code")
+			if m, ok := nsdlCodes[code]; ok {
+				code = m
+			}
+			seenType[code] = true
+			on[code] = on[code] || str(r, "chargeon") != ""
+			return nil
+		}); err != nil {
+			return err
+		}
+		for code := range charged {
+			if seenType[code] {
+				charged[code], chargeKnown[code] = on[code], true
+			}
+		}
+	}
 	// the rates of each basket version; rows keyed by an account (an
 	// account-specific tariff) are counted, not migrated
 	cl, _ := c.s.sel("DPCHARGE", "", "BENACNUM", "EFFECTDATE", "TRANCODE", "RATE", "MIN", "MAX", "FLAT", "MAILCHG",
@@ -77,7 +121,9 @@ func (c *cur) writeDPTariffs(ctx context.Context) error {
 	}
 	var lines []line
 	accountTariffs := map[string]bool{}
-	dupes := 0
+	dupes, instr := 0, 0
+	pledgeRates := map[string]bool{} // 2230, 2280 with a rate
+	pledgePlans := map[string]bool{} // baskets with pledge rows (2230, 2280)
 	seen := map[string]bool{}
 	if err := c.d.query(ctx, fmt.Sprintf(qDPCharges, cl, cos), func(r migrate.Row) error {
 		plan, code := upper(r, "benacnum"), upper(r, "trancode")
@@ -90,6 +136,12 @@ func (c *cur) writeDPTariffs(ctx context.Context) error {
 			code = mapped
 		}
 		if from == "" || code == "" {
+			return nil
+		}
+		if pledgeInstrCodes[code] {
+			if !dec(r, "rate").IsZero() || !dec(r, "flat").IsZero() || !dec(r, "min").IsZero() || !dec(r, "max").IsZero() {
+				instr++
+			}
 			return nil
 		}
 		if k := plan + "|" + from + "|" + code; seen[k] {
@@ -108,11 +160,35 @@ func (c *cur) writeDPTariffs(ctx context.Context) error {
 		pct, unit := rate("")
 		spPct, spUnit := rate("sp")
 		cmPct, cmUnit := rate("cm")
-		lines = append(lines, line{plan, from, code, map[string]string{
+		v := map[string]string{
 			"Flat": rupees(dec(r, "flat")), "Pct": pct, "PerUnit": unit, "Min": rupees(dec(r, "min")), "Max": rupees(dec(r, "max")), "Mail": rupees(dec(r, "mailchg")),
 			"OwnFlat": rupees(dec(r, "cmflat")), "OwnPct": cmPct, "OwnPerUnit": cmUnit, "OwnMin": rupees(dec(r, "cmmin")), "OwnMax": rupees(dec(r, "cmmax")),
 			"SpecialFlat": rupees(dec(r, "spflat")), "SpecialPct": spPct, "SpecialPerUnit": spUnit, "SpecialMin": rupees(dec(r, "spmin")), "SpecialMax": rupees(dec(r, "spmax")),
-		}})
+		}
+		if evs, ok := pledgeEventsOf[code]; ok {
+			// the depository's pledge rows: Ledgerline's pledge events,
+			// charged as SharePro charges them; the own-trade and SP rates
+			// do not apply to pledges
+			for _, k := range []string{"OwnFlat", "OwnPct", "OwnPerUnit", "OwnMin", "OwnMax", "SpecialFlat", "SpecialPct", "SpecialPerUnit", "SpecialMin", "SpecialMax"} {
+				delete(v, k)
+			}
+			if v["Flat"] != "" || v["Pct"] != "" || v["Min"] != "" || v["Max"] != "" {
+				pledgeRates[code] = true
+			}
+			pledgePlans[plan] = true
+			if !charged[code] {
+				v["Charged"] = "N"
+			}
+			for _, e := range evs {
+				w := map[string]string{}
+				for k, x := range v {
+					w[k] = x
+				}
+				lines = append(lines, line{plan, from, e, w})
+			}
+			return nil
+		}
+		lines = append(lines, line{plan, from, code, v})
 		return nil
 	}); err != nil {
 		return err
@@ -140,7 +216,7 @@ func (c *cur) writeDPTariffs(ctx context.Context) error {
 		v["Plan"], v["From"], v["Code"], v["Name"] = l.plan, l.from, l.code, b.name
 		v["Pool"] = yn(b.typ == "CM")
 		v["AMCBilling"] = map[bool]string{true: "Yearly", false: "Monthly"}[b.period == "yearly"]
-		if v["SpecialFlat"] != v["Flat"] || v["SpecialPct"] != v["Pct"] || v["SpecialPerUnit"] != v["PerUnit"] || v["SpecialMin"] != v["Min"] || v["SpecialMax"] != v["Max"] {
+		if _, sp := v["SpecialPct"]; sp && (v["SpecialFlat"] != v["Flat"] || v["SpecialPct"] != v["Pct"] || v["SpecialPerUnit"] != v["PerUnit"] || v["SpecialMin"] != v["Min"] || v["SpecialMax"] != v["Max"]) {
 			special++
 		}
 		if err := cw.Write(rec(h, v)); err != nil {
@@ -167,6 +243,28 @@ func (c *cur) writeDPTariffs(ctx context.Context) error {
 	}
 	if dupes > 0 {
 		c.rep.infof(area, "", "nsdl-codes", "%d NSDL charge codes are the same charge as a CDSL code of the version; the first is kept", dupes)
+	}
+	if instr > 0 {
+		c.rep.infof(area, "", "pledge-instructions", "%d charges on SharePro's own pledge instruction codes (MPGD, MPUS, CNFA and so on) are not migrated: Ledgerline charges the depository's pledge events (a pledge created, closed or invoked) at SharePro's 2230 and 2280 rates", instr)
+	}
+	// What the backup cannot say, the firm fills in after the load.
+	switch plans := sortedKeys(written); {
+	case len(plans) == 0:
+	case len(pledgePlans) == 0:
+		c.rep.ask(pkg.FillDPPledgeCharges, "SharePro's tariff baskets have no pledge or unpledge charges (2230, 2280), so what the firm charges on pledges, unpledges and invocations is not known.", plans...)
+	case len(pledgeRates) > 0 && (!chargeKnown["2230"] || !chargeKnown["2280"]):
+		var ps []string
+		for _, p := range plans {
+			if pledgePlans[p] {
+				ps = append(ps, p)
+			}
+		}
+		c.rep.ask(pkg.FillDPPledgeCharges, "SharePro's transaction types (DPTRTYPE) do not say whether pledges are charged: the plans have SharePro's pledge and unpledge rates, charged. Confirm or change them.", ps...)
+	}
+	if len(pledgeRates) > 0 && chargeKnown["2230"] && chargeKnown["2280"] {
+		yes := map[bool]string{true: "charged", false: "not charged (no CHARGE_ON in DPTRTYPE)"}
+		c.rep.warnf(area, "", "pledge-charges", "Confirm with the office which pledge events they charge; change them on the DP desk (Billing & tariff, each plan's pledge charges)",
+			"SharePro charges pledges on the depository's rows: pledge and margin pledge created (2230) %s; pledge closed or invoked (2280) %s. The plans' pledge charges are set the same way, at the 2230 and 2280 rates", yes[charged["2230"]], yes[charged["2280"]])
 	}
 	c.rep.infof(area, "", "plans", "%d tariff plans (SharePro baskets) with %d dated versions; AMC (AM) and corporate AMC (0015) are each version's maintenance, billed a year in advance on yearly baskets", len(written), len(versions))
 
@@ -253,6 +351,7 @@ func (c *cur) writeDPTariffs(ctx context.Context) error {
 	if n := len(byBen) - len(onPlan); n > 0 {
 		c.rep.infof(area, "", "no-basket", "%d DP accounts have no basket in SharePro (DPCLBASKET); they pay the firm tariff in Ledgerline until put on a plan", n)
 	}
+	c.rep.ask(pkg.FillDPFirmTariff, fmt.Sprintf("SharePro has no firm-wide DP tariff: each account is on a tariff basket. Accounts on no plan (%d now, and new accounts unless you put them on a plan) pay Ledgerline's firm tariff, which still has Ledgerline's sample rates. Set the firm's maintenance, transaction and pledge charges.", len(byBen)-len(onPlan)))
 	if notDP > 0 {
 		c.rep.infof(area, "", "not-dp", "%d basket assignments are for accounts not migrated as DP accounts; they are left out", notDP)
 	}

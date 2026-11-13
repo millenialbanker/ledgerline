@@ -75,6 +75,7 @@ type mspec struct {
 	checks   []pkg.Check
 	bigB     int // extra ledger lines for TB002
 	tbDebitX string
+	fillIn   []pkg.FillIn
 }
 
 func writeCSV(t *testing.T, w *pkg.Writer, firm, src string, rows [][]string) {
@@ -156,6 +157,9 @@ func mkPkg(t *testing.T, s mspec) []byte {
 	}
 	for _, c := range s.checks {
 		w.AddCheck(c)
+	}
+	for _, f := range s.fillIn {
+		w.AddFillIn(f)
 	}
 	w.AddDropped("01", "Client web password", "never migrated", 2)
 	w.AddIssue(pkg.Issue{Firm: "01", Severity: "Warning", Area: "Client master", Key: "TA001", Message: "made-up warning", Action: "none"})
@@ -673,5 +677,62 @@ func TestMigrationOrder(t *testing.T) {
 	}
 	if groupIN(123456789) != "12,34,56,789" || groupIN(999) != "999" || groupIN(1000) != "1,000" {
 		t.Fatal(groupIN(123456789))
+	}
+}
+
+// What the old system's backup did not say about the DP's charges, the
+// firm is asked to fill in after the load: a to-do each, a note on the DP
+// desk, and DP billing waits until the firm tariff and every plan's pledge
+// charges are filled in.
+func TestMigDPFillIn(t *testing.T) {
+	o, ctx := migSetup(t)
+	fill := []pkg.FillIn{{Firm: "01", Item: pkg.FillDPFirmTariff, Why: "No firm-wide tariff in the old system."},
+		{Firm: "01", Item: pkg.FillDPPledgeCharges, Why: "No pledge charges in the old system."}, {Firm: "02", Item: pkg.FillDPFirmTariff, Why: "Another firm's."}}
+	p := checked(t, o, ctx, mkPkg(t, mspec{masters: true, checks: goodChecks("2500.00", ""), fillIn: fill}), "office.llmig")
+	m, err := o.ProposeMigration(ctx, MT, "adm.one", MigProposal{Package: p.ID, Firm: "01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m, err = o.DecideMigration(ctx, MT, "chk.one", m.ID, true, mPass, ""); err != nil || m.Status != MigLoaded {
+		t.Fatalf("load %s %v", m.Status, err)
+	}
+	xs := o.DPFillIns(ctx, MT)
+	if len(xs) != 2 || xs[1].Item != pkg.FillDPPledgeCharges || strings.Join(xs[1].Plans, ",") != "B001" {
+		t.Fatalf("to fill in %+v", xs)
+	}
+	ws, _ := o.WorkItems(ctx, MT, "")
+	open := 0
+	for _, w := range ws {
+		if w.Process == "dpfillin" && w.Status == "Open" {
+			open++
+		}
+	}
+	if open != 2 {
+		t.Fatalf("%d to-dos", open)
+	}
+	if v, _ := o.DP(ctx, MT, mAsOf); len(v.FillIn) != 2 {
+		t.Fatalf("DP desk %+v", v.FillIn)
+	}
+	if _, err := o.RunDPBilling(ctx, MT, "chk.one", "2026-10"); err == nil || !strings.Contains(err.Error(), "fill in the firm's DP tariff; fill in the DP's pledge charges (plans B001)") {
+		t.Fatalf("billing not held: %v", err)
+	}
+	if _, err := o.SetDPPlanPledge(ctx, MT, "chk.one", "B001", "2020-08-01", []DPChargeLine{{Code: PledgeCreated, DPRate: DPRate{Flat: 2000}}}); err != nil {
+		t.Fatal(err)
+	}
+	tf, _ := o.DPTariffNow(ctx, MT)
+	if _, err := o.SaveDPTariff(ctx, MT, "chk.one", tf); err != nil {
+		t.Fatal(err)
+	}
+	if xs := o.DPFillIns(ctx, MT); len(xs) != 0 {
+		t.Fatalf("still to fill in %+v", xs)
+	}
+	if _, err := o.RunDPBilling(ctx, MT, "chk.one", "2026-10"); err != nil {
+		t.Fatal(err)
+	}
+	ws, _ = o.WorkItems(ctx, MT, "")
+	for _, w := range ws {
+		if w.Process == "dpfillin" && w.Status == "Open" {
+			t.Fatalf("to-do left open %+v", w)
+		}
 	}
 }

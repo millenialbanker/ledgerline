@@ -253,10 +253,14 @@ With CDSL's account transfer cum closure API switched on, an approved closure of
 title: Run DP billing
 screen: dp
 roles: Ops checker
-ask: dp charges; dp bill; amc charges; dp tariff; depository charges; pool account; free dp charges for trades through us; no dp charge on pay-in; credit charges; debit charges
+ask: dp charges; dp bill; amc charges; dp tariff; depository charges; pool account; free dp charges for trades through us; no dp charge on pay-in; credit charges; debit charges; pledge charges; unpledge charges; invocation charges; margin pledge charge; dp billing waits; fill in before the first dp bill
 related: dis, dp-tariff-plans
 
 On [[dp|Demat accounts & DIS]]: set the tariff (**Save tariff**), then **Run DP billing** each month. Charges are debited to the trading ledger with GST.
+
+**Pledge charges.** The tariff's table **Pledge, unpledge and invocation charges** has a row for each pledge event: pledge created, margin pledge created, margin re-pledge, unpledge, margin unpledge, pledge invoked, margin pledge invoked. Give a flat amount per ISIN, a % of the pledge value, a minimum and a maximum; a blank row is free, and **Not charged** keeps the rates without billing them. Ledgerline reads each event from CDSL's transaction file: a pledge's maker, checker and pledgee steps are separate rows, and only the row that moves the pledged balance is charged, once per ISIN.
+
+**After a migration**, if the old system's backup did not say the firm's DP tariff or its pledge charges, the DP desk shows **Fill in before the first DP bill** and the Ops checker gets a to-do. DP billing waits until the firm tariff is saved and each listed plan's pledge charges are filled in.
 
 **Charge-free accounts.** List the firm's own pool (CM) accounts, one per line, as CDSL or NSDL, then the account ID, then a label:
 - **CDSL:** the 16-digit BO ID.
@@ -270,7 +274,7 @@ You can list as many as you need. Transfers to or from these accounts carry no d
 title: DP tariff plans and annual maintenance
 screen: dp
 roles: Ops checker, Admin
-ask: dp tariff plan; tariff basket; basket from sharepro; change dp tariff of an account; different dp charges for some clients; amc paid up to; amc paid in advance; yearly amc; lifetime amc; corporate amc; dp plan history; which tariff is a client on; staff dp tariff; zero dp charges for some accounts
+ask: dp tariff plan; pledge charges of a plan; edit pledge charges; tariff basket; basket from sharepro; change dp tariff of an account; different dp charges for some clients; amc paid up to; amc paid in advance; yearly amc; lifetime amc; corporate amc; dp plan history; which tariff is a client on; staff dp tariff; zero dp charges for some accounts
 related: dp-billing, migrate-reconcile
 
 Most DPs charge some accounts differently: staff, a group of clients, pool accounts. These are **tariff plans** (SharePro calls them baskets). An account on a plan pays the plan's rates; every other account pays the firm tariff.
@@ -278,7 +282,8 @@ Most DPs charge some accounts differently: staff, a group of clients, pool accou
 1. **The plans.** On [[dp|Demat accounts & DIS]] → **Billing & tariff**, **Tariff plans** lists each plan with its accounts, maintenance and charges. A plan has dated versions; the bill uses the version in force in the month billed. Plans come with the migration (DP-TARIFFS) or on **Files → Other uploads**.
 2. **Charges.** Each line is a depository transaction type (off-market delivery, pay-in, demat and so on): a flat amount, a % of value or an amount per certificate, with a minimum and maximum. A demat request adds the courier charge once. **Own trades** is the rate for transfers to or from the firm's pool accounts or clearing member; blank means free.
 3. **Maintenance.** On a yearly plan the account pays a year in advance when its **AMC paid up to** date falls due, from the day after it; the date then moves on a year. **For life** means never billed again. A body corporate also pays the plan's corporate maintenance. On a monthly plan it pays a twelfth each month.
-4. **Move an account to another plan.** In the accounts table, **Tariff → change** (Ops checker or Admin): pick the plan, or the firm tariff, and the date it applies from. Earlier plans stay in the account's history, so a past month bills as it was.
+4. **Pledge charges.** Each plan has its own table of pledge charges (pledge, margin pledge, re-pledge, unpledge, invocation). **Edit pledge charges** (Ops checker or Admin) sets them from a date, for that date's version and the plan's later ones. From SharePro they come at its pledge (2230) and unpledge (2280) rates, charged or not as SharePro's transaction types say; invocations take the unpledge rate, as SharePro charges them.
+5. **Move an account to another plan.** In the accounts table, **Tariff → change** (Ops checker or Admin): pick the plan, or the firm tariff, and the date it applies from. Earlier plans stay in the account's history, so a past month bills as it was.
 
 - After a migration, the reconciliation checks the plan versions, the accounts on a plan and those with maintenance paid ahead against the old system.
 - Reloading the DP's accounts (DP-ACCOUNTS) keeps each account's plans and paid-up date.

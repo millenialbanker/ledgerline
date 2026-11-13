@@ -108,6 +108,9 @@ type Manifest struct {
 	Checks  []Check   `json:"checks"`
 	Dropped []Dropped `json:"dropped,omitempty"`
 	Issues  []Issue   `json:"issues,omitempty"`
+	// FillIn is what the old system's backup does not say and the firm
+	// fills in on Ledgerline after the load.
+	FillIn []FillIn `json:"fill_in,omitempty"`
 }
 
 // Part says which part of a split package this is.
@@ -209,6 +212,24 @@ type Issue struct {
 	Message  string `json:"message"`
 	Action   string `json:"action,omitempty"`
 }
+
+// FillIn is something the old system's backup does not say, which the
+// firm fills in on Ledgerline after the load: Ledgerline asks for it and
+// holds what depends on it (DP billing) until it is done.
+type FillIn struct {
+	Firm string `json:"firm,omitempty"`
+	Item string `json:"item"` // FillDPFirmTariff, FillDPPledgeCharges
+	Why  string `json:"why"`  // what the backup lacks
+	// Plans are, for FillDPPledgeCharges, the DP tariff plans whose pledge
+	// charges are not known (none: every plan's).
+	Plans []string `json:"plans,omitempty"`
+}
+
+// The things a firm may be asked to fill in after the load.
+const (
+	FillDPFirmTariff    = "dp-firm-tariff"    // the firm-wide DP tariff (accounts on no plan)
+	FillDPPledgeCharges = "dp-pledge-charges" // what the DP charges on pledges, unpledges and invocations
+)
 
 // ---- key and chunks ----
 
@@ -585,6 +606,13 @@ func (w *Writer) AddCheck(c Check) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.man.Checks = append(w.man.Checks, c)
+}
+
+// AddFillIn asks the firm to fill something in after the load.
+func (w *Writer) AddFillIn(f FillIn) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.man.FillIn = append(w.man.FillIn, f)
 }
 
 func (w *Writer) AddIssue(i Issue) {

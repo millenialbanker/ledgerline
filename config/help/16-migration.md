@@ -17,6 +17,7 @@ Moving a firm is done once, at go-live, in five steps.
 4. **Propose** the load (Admin): tick the files, and give the date the balances are as of (the old system's last closed day). Then a **different person** (another Admin or an Ops checker) approves it with the passphrase and the load starts: go-live files first, then the earlier years, then the documents. The screen shows the progress; if the server restarts, click **Resume** and type the passphrase.
 5. **Reconcile.** When the load ends Ledgerline compares its own figures with the old system's (trial balance, clients, client balances, demat holdings, bank accounts, DP tariff plans, positions, documents). See [[migrate|the reconciliation]].
 
+- What the old system's backup does not say (for SharePro: the firm-wide DP tariff, and pledge charges it has no rates for) is listed in the tool's report and on the package as **To fill in on Ledgerline after loading**. After the load the Ops checker gets a to-do for each, and DP billing waits until they are filled in on the DP desk.
 - Ledgerline refuses to load into a firm that already has its own ledger entries (it looks live), unless you confirm **This firm is not live yet**.
 - A package is loaded once. Loading it again is refused unless the earlier load was undone.
 - The passphrase is typed each time the package is opened. It is never stored or written to any log.

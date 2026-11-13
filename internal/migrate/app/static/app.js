@@ -442,6 +442,8 @@ function renderDone() {
         el('td', {}, el('span', { class: 'pill ' + ({ Error: 'bad', Warning: 'warn' }[i.severity] || 'dim') }, i.severity)),
         el('td', {}, i.firm || ''), el('td', {}, i.fy || ''), el('td', {}, i.key || ''), el('td', {}, i.message), el('td', {}, i.action || '')))))])
     : el('p', { class: 'dim' }, 'No issues.'));
+  show('d-fillcard', (r.fill_in || []).length > 0);
+  fill('d-fillin', (r.fill_in || []).map((f) => el('tr', {}, el('td', {}, f.firm || ''), el('td', {}, f.label), el('td', {}, f.why), el('td', {}, (f.plans || []).join(', ')))));
   fill('d-checks', (r.checks || []).map((c) => el('tr', {}, el('td', {}, c.firm || ''), el('td', {}, c.fy || ''), el('td', {}, c.label), el('td', { class: 'n' }, indian(c.value)))));
   fill('d-dropped', (r.dropped || []).length ? r.dropped.map((d) => el('tr', {}, el('td', {}, d.firm || ''), el('td', {}, d.field), el('td', {}, d.reason), el('td', { class: 'n' }, indian(d.count))))
     : el('tr', {}, el('td', { colspan: 4, class: 'dim' }, 'None.')));

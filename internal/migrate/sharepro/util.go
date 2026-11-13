@@ -253,6 +253,7 @@ type report struct {
 	issues   []pkg.Issue
 	dropped  []pkg.Dropped
 	checks   []pkg.Check
+	fillIn   []pkg.FillIn
 	counts   map[string]int
 	extra    map[string]int
 }
@@ -289,6 +290,11 @@ func (r *report) drop(field, reason string, n int) {
 		return
 	}
 	r.dropped = append(r.dropped, pkg.Dropped{Firm: r.firm, Field: field, Reason: reason, Count: n})
+}
+
+// ask asks the firm to fill something in on Ledgerline after the load.
+func (r *report) ask(item, why string, plans ...string) {
+	r.fillIn = append(r.fillIn, pkg.FillIn{Firm: r.firm, Item: item, Why: why, Plans: plans})
 }
 
 func (r *report) check(name, value, detail string) {
@@ -328,7 +334,10 @@ func (r *report) flush(w *pkg.Writer, p migrate.Progress) {
 	for _, c := range r.checks {
 		w.AddCheck(c)
 	}
-	r.issues, r.dropped, r.checks = nil, nil, nil
+	for _, f := range r.fillIn {
+		w.AddFillIn(f)
+	}
+	r.issues, r.dropped, r.checks, r.fillIn = nil, nil, nil, nil
 	r.counts, r.extra = map[string]int{}, map[string]int{}
 }
 
