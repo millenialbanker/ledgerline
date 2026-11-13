@@ -25,17 +25,18 @@ Moving a firm is done once, at go-live, in five steps.
 title: Put right what the migration check found
 screen: migrate
 roles: Admin
-ask: migration check errors; dry run errors; package has errors; why can't I propose the migration; client master rejected in migration; opening balances do not balance in migration; migration errors csv; fix migration errors; recommended action migration; details missing from the previous system; inactive client incomplete; dormant clients missing mobile or pan; masked bank account in migration
+ask: migration check errors; dry run errors; list of clients to fix; clients with details missing list; two active codes same pan; package has errors; why can't I propose the migration; client master rejected in migration; opening balances do not balance in migration; migration errors csv; fix migration errors; recommended action migration; details missing from the previous system; inactive client incomplete; dormant clients missing mobile or pan; masked bank account in migration
 related: migrate-firm, file-rejected, migrate-reconcile
 
 The check is a dry run: it loads every go-live file into a sandbox exactly as a real load would, so a bank account is checked against the clients the same package brings and a brokerage card against its scrip groups. Nothing is saved.
 
 1. Open the package on [[migrate|Migration from old system]]. Files with problems show their count; click it to see only that file's.
-2. Each line gives the **file, row, field, the problem and a recommended action**. **Download every problem (CSV)** to work through them in a spreadsheet; the screen shows the first 2,000.
+2. Each line gives the **file, row, client, field, the problem and a recommended action**; "(missing)" beside the field means the old system has nothing there, rather than something not valid. **Download every problem (CSV)** to work through them in a spreadsheet; the screen shows the first 2,000. **Clients to fix (CSV)** lists the same problems one client a row (code, name, whether the client is active in the old system, and each detail to put right in plain words), with a Yes column for each kind of detail (mobile, email, PAN, bank account, IFSC, nominee, address…) so the office can filter, say, every client without a mobile. **With warnings** adds the problems that do not stop the load.
 3. Correct the records **in the old system** (or the tool's settings), make the package again with the tool, upload it and check again.
 
 - A go-live file with errors cannot be proposed. You can untick it and load it later on [[files|Other uploads]] once it is right.
 - Warnings (for example a document for a client not in the client master) do not stop the load.
+- **One PAN, two active codes.** The exchanges allow one active code per individual client with a trading member (NSE circular NSE/ISC/48573, June 2021; NRI, PMS and institutional clients are exempt). Where the client master has two or more active codes of an individual client with the same PAN, each one gets a warning naming the others: keep one active and mark the rest inactive, in the old system or in Ledgerline after the load.
 - "The package is damaged" means a file does not match its checksum: copy the package again from the office.
 - The tool's own findings and the fields it left out on purpose are listed on the same screen.
 

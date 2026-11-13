@@ -128,6 +128,12 @@ type MigError struct {
 	Message  string `json:"message"`
 	Action   string `json:"action"`
 	Severity string `json:"severity"` // Error, Warning
+	// The client of a go-live row's problem, from the package's client
+	// master (migfix.go), and whether the value is missing there.
+	UCC          string `json:"ucc,omitempty"`
+	Client       string `json:"client,omitempty"`
+	ClientStatus string `json:"client_status,omitempty"`
+	Blank        bool   `json:"blank,omitempty"`
 }
 
 type migErrDoc struct {
@@ -622,6 +628,7 @@ func (o *Ops) checkFirm(ctx context.Context, tenant, actor string, r *pkg.Reader
 	if err != nil {
 		add("", MigError{Message: err.Error()})
 	}
+	rowClients, cm := migRowClients(dry)
 	for _, x := range res {
 		chk.Files[idx[x.Name]].Checked = true
 		chk.Files[idx[x.Name]].Rows = x.Rows
@@ -630,8 +637,23 @@ func (o *Ops) checkFirm(ctx context.Context, tenant, actor string, r *pkg.Reader
 			if e.Warning {
 				sev = "Warning"
 			}
-			add(x.Name, MigError{Source: x.Source, Line: e.Line, Field: e.Field, Message: e.Msg, Severity: sev})
+			me := MigError{Source: x.Source, Line: e.Line, Field: e.Field, Message: e.Msg, Severity: sev}
+			tagMigError(&me, rowClients[x.Name], cm)
+			add(x.Name, me)
 		}
+	}
+	// One active trading code per individual client and PAN.
+	for _, d := range dry {
+		if d.Source != "CLIENT-MASTER" {
+			continue
+		}
+		migActiveCodesPerPAN(cm, rowClients[d.Name], func(line int, u, other string) {
+			e := MigError{Source: d.Source, Line: line, Field: "PAN", Severity: "Warning",
+				Message: fmt.Sprintf("%s: the PAN is also on active client code %s; the exchanges allow one active code per individual client (NSE/ISC/48573)", u, other),
+				Action:  "Keep one code active and mark the others inactive in the old system (or in Ledgerline after the load); trade only on the active code"}
+			tagMigError(&e, rowClients[d.Name], cm)
+			add(d.Name, e)
+		})
 	}
 	// Clients the go-live files bring, for the history and document checks.
 	clients := map[string]bool{}

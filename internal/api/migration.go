@@ -24,6 +24,7 @@ func (s *Server) migrationRoutes() {
 	R("GET /v1/migration/packages/{id}", s.migPackage, false)
 	R("GET /v1/migration/packages/{id}/errors", s.migErrors, false)
 	R("GET /v1/migration/packages/{id}/errors.csv", s.migErrorsCSV, false)
+	R("GET /v1/migration/packages/{id}/clients-to-fix.csv", s.migClientsToFixCSV, false)
 	R("POST /v1/migration/packages/{id}/check", s.migCheck, true)
 	R("POST /v1/migration/packages/{id}/discard", s.migDiscard, true)
 	R("POST /v1/migration/proposals", s.migPropose, true)
@@ -126,6 +127,14 @@ func (s *Server) migErrors(w http.ResponseWriter, r *http.Request) {
 func (s *Server) migErrorsCSV(w http.ResponseWriter, r *http.Request) {
 	csvHead(w, "migration-check-"+r.PathValue("id")+".csv")
 	if err := s.ops.MigErrorsCSV(r.Context(), tenant(r), actor(r), r.PathValue("id"), w); err != nil {
+		w.Header().Del("Content-Disposition")
+		fail(w, err, nil)
+	}
+}
+
+func (s *Server) migClientsToFixCSV(w http.ResponseWriter, r *http.Request) {
+	csvHead(w, "migration-clients-to-fix-"+r.PathValue("id")+".csv")
+	if err := s.ops.MigClientsToFixCSV(r.Context(), tenant(r), actor(r), r.PathValue("id"), r.URL.Query().Get("warnings") == "1", w); err != nil {
 		w.Header().Del("Content-Disposition")
 		fail(w, err, nil)
 	}
