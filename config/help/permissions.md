@@ -43,6 +43,7 @@ Cancelling a payout bank file | Ops checker
 Changing AI masking | Admin
 Changing CDSL account details | Ops maker, Ops checker
 Changing CDSL pledge settings | Risk manager, Compliance officer
+Changing a DP account's tariff plan | Ops checker, Admin
 Changing a segment's status | Ops checker, Compliance officer
 Changing a stock SIP | Ops maker, Ops checker
 Changing an investor's MF route | Compliance officer

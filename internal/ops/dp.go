@@ -82,6 +82,11 @@ type BOAccount struct {
 	// DP's own freeze request, so an unfreeze here cannot lift CDSL's.
 	CDSLFreeze    string `json:"cdsl_freeze,omitempty"`
 	CDSLFreezeWhy string `json:"cdsl_freeze_reason,omitempty"`
+	// Plans is the account's DP tariff plan history (dpplan.go; none: the
+	// firm's tariff); AMCPaidUpto the date its annual maintenance is paid
+	// up to, for a plan that bills it a year in advance.
+	Plans       []DPPlanAt `json:"plans,omitempty"`
+	AMCPaidUpto string     `json:"amc_paid_upto,omitempty"`
 }
 
 // BOCDSL is the account as CDSL's client master (CLN_MSTR) shows it.
@@ -371,6 +376,9 @@ type BORow struct {
 	BSDAOK  bool         `json:"bsda_eligible"`
 	AMC     money.Amount `json:"amc_year"`
 	Ledger  money.Amount `json:"ledger"`
+	// Plan is the account's DP tariff plan on the date ("": the firm's
+	// tariff).
+	Plan string `json:"plan,omitempty"`
 }
 
 // DPView is the DP desk.
@@ -378,6 +386,7 @@ type DPView struct {
 	Date    string         `json:"date"`
 	Rows    []BORow        `json:"rows"`
 	Tariff  DPTariff       `json:"tariff"`
+	Plans   []DPPlan       `json:"plans"`
 	Counts  map[string]int `json:"counts"`
 	DIS     []DIS          `json:"dis"`
 	Books   []DISBook      `json:"books"`
@@ -406,6 +415,13 @@ func (o *Ops) DP(ctx context.Context, tenant, date string) (DPView, error) {
 		return v, err
 	}
 	v.Tariff = t
+	if v.Plans, _ = o.DPPlans(ctx, tenant); v.Plans == nil {
+		v.Plans = []DPPlan{}
+	}
+	plans := map[string]DPPlan{}
+	for _, p := range v.Plans {
+		plans[p.Code] = p
+	}
 	cs, err := o.ClientMap(ctx, tenant)
 	if err != nil {
 		return v, err
@@ -466,6 +482,15 @@ func (o *Ops) DP(ctx context.Context, tenant, date string) (DPView, error) {
 			// BSDA: one demat account per PAN, holding value within the limit.
 			r.BSDAOK = r.Value.Cmp(t.BSDALimit.Dec()) <= 0 && open <= 1 && len(b.JointHolders) == 0
 			r.AMC = amcFor(t, b.BSDA, r.Value)
+			if r.Plan = b.planAt(date); r.Plan != "" {
+				if pv := plans[r.Plan].at(date); pv != nil && !b.BSDA {
+					r.AMC = pv.AMCYear
+					if c.Type == "Corporate" {
+						r.AMC += pv.CorporateAMCYear
+					}
+				}
+				v.Counts["On a tariff plan"]++
+			}
 			v.Counts[b.Status]++
 			if b.BSDA {
 				v.Counts["BSDA"]++
@@ -1066,6 +1091,7 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 	set, _ := o.Settings(ctx, tenant)
 	free := t.freeSet()
 	cs, _ := o.ClientMap(ctx, tenant)
+	plans := o.dpPlanMap(ctx, tenant)
 	// The billable accounts, client by client.
 	rows := map[string][]BORow{}
 	var order []string
@@ -1088,6 +1114,7 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 		b := DPBill{ID: month + "|" + u, Month: month, UCC: u, Name: rs[0].Name}
 		ts, _ := o.DPTransactions(ctx, tenant, u)
 		several := len(rs) > 1
+		paidUpto := map[string]string{} // BO ID: new AMC paid-up date
 		for _, r := range rs {
 			acct := holdingAcct(c, r.BOID)
 			label := func(what string) string {
@@ -1102,6 +1129,14 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 				}
 				l.What = label(l.What)
 				b.Lines = append(b.Lines, l)
+			}
+			// On a tariff plan: the plan's charges (dpplan.go).
+			if p, ok := plans[r.planAt(end)]; ok && p.at(end) != nil {
+				mine := func(x DPTxn) bool { return holdingAcct(c, x.BOID) == acct }
+				if np := dpPlanBill(p, *p.at(end), t, free, r, c.Type == "Corporate", month, end, ts, mine, line, &b.Free); np != "" {
+					paidUpto[r.BOID] = np
+				}
+				continue
 			}
 			if amc := r.AMC / 12; amc > 0 {
 				line(DPBillLine{What: map[bool]string{true: "Annual maintenance (BSDA), one month", false: "Annual maintenance, one month"}[r.BSDA], Count: 1, Amount: amc})
@@ -1176,6 +1211,14 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 		b.Invoice, b.Entry = inv.No, e.ID
 		if err := docs.Upsert(ctx, o.Docs, tenant, cDPBill, b.ID, b, actor); err != nil {
 			return out, err
+		}
+		for bo, p := range paidUpto {
+			if a, ok := o.boAccount(ctx, tenant, bo); ok && p > a.AMCPaidUpto {
+				a.AMCPaidUpto = p
+				if err := docs.Upsert(ctx, o.Docs, tenant, cBO, boKey(a), a, actor); err != nil {
+					return out, err
+				}
+			}
 		}
 		out = append(out, b)
 	}

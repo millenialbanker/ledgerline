@@ -720,6 +720,10 @@ func (c *cur) writeDPAccounts(ctx context.Context) error {
 		}
 		rows = append(rows, a)
 		by[a.client] = append(by[a.client], a)
+		if c.dpWritten == nil {
+			c.dpWritten = map[string]bool{}
+		}
+		c.dpWritten[a.boid] = true
 	}
 	// The primary account is an open one: a client whose accounts are all
 	// closed (a closed DP-only account) has none.

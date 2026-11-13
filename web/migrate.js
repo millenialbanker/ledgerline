@@ -108,7 +108,7 @@ function migHistFiles(d) {
 /* ---------- chunked, resumable upload ---------- */
 const MIG_LS = 'ledgerline-mig-upload';
 // MIG_CHECKS names the totals the old system shows (as on the reconciliation).
-const MIG_CHECKS = { 'trial-balance-debit': 'Trial balance: total debits', 'trial-balance-credit': 'Trial balance: total credits', clients: 'Clients', 'client-debit-total': 'Clients in debit: total', 'client-credit-total': 'Clients in credit: total', 'dp-accounts': 'Demat accounts', 'dp-holding-quantity': 'Demat holdings: total quantity', documents: 'Archived documents', 'client-bank-accounts': 'Client bank accounts', 'open-positions': 'Open positions', 'opening-difference': 'Difference in opening balances (to be confirmed by the accountant)' };
+const MIG_CHECKS = { 'trial-balance-debit': 'Trial balance: total debits', 'trial-balance-credit': 'Trial balance: total credits', clients: 'Clients', 'client-debit-total': 'Clients in debit: total', 'client-credit-total': 'Clients in credit: total', 'dp-accounts': 'Demat accounts', 'dp-holding-quantity': 'Demat holdings: total quantity', documents: 'Archived documents', 'client-bank-accounts': 'Client bank accounts', 'open-positions': 'Open positions', 'opening-difference': 'Difference in opening balances (to be confirmed by the accountant)', 'dp-tariff-versions': 'DP tariff plan versions', 'dp-tariff-accounts': 'DP accounts on a tariff plan', 'dp-amc-paid-ahead': 'DP accounts with maintenance paid ahead' };
 // migBar is a progress bar: green while going and when done, red only if the load failed.
 const migBar = (u, status) => `<div class="bar ${status === 'Failed' ? 'bad' : 'good'}" title="${pct(u)}"><i style="width:${Math.min(100, u * 100).toFixed(1)}%"></i></div>`;
 async function migSha(buf) {

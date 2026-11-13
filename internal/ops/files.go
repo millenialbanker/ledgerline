@@ -57,7 +57,7 @@ type masterSrc struct {
 }
 
 func masterSources() []masterSrc {
-	return append(append(baseSources(), brokerageSources()...), importSources()...)
+	return append(append(append(baseSources(), brokerageSources()...), importSources()...), dpPlanSources()...)
 }
 
 func baseSources() []masterSrc {
@@ -276,7 +276,7 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		return o.prepareBrokerage(ctx, tenant, actor, source, rows)
 	case "SCRIP-GROUPS":
 		return o.prepareScripGroups(ctx, tenant, actor, rows)
-	case "BRANCHES", "PARTNERS", "UCC-DETAILS", "UCC-CONTACTS", "DP-ACCOUNTS":
+	case "BRANCHES", "PARTNERS", "UCC-DETAILS", "UCC-CONTACTS", "DP-ACCOUNTS", "DP-TARIFFS", "DP-TARIFF-ACCOUNTS":
 		return o.prepareImport(ctx, tenant, actor, source, rows)
 	case "CLIENT-INTEREST":
 		return o.prepareClientInterest(ctx, tenant, actor, rows)

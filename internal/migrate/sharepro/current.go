@@ -551,6 +551,8 @@ type cur struct {
 	// closed ones left out (dormant mode skip)
 	dpOnlyN, dpOnlyClosed, dpOnlySkipped int
 	dpOnlyIncome                         int // with an income range code in CLLIST_DET
+	// dpWritten are the BO IDs written to DP-ACCOUNTS
+	dpWritten map[string]bool
 }
 
 type segH struct {
@@ -582,6 +584,7 @@ func (c *cur) run(ctx context.Context) error {
 		{"UCC details", c.writeUCCDetails},
 		{"Contact persons", c.writeContacts},
 		{"DP accounts", c.writeDPAccounts},
+		{"DP tariffs", c.writeDPTariffs},
 	}
 	for _, st := range steps {
 		if err := ctx.Err(); err != nil {
@@ -594,9 +597,6 @@ func (c *cur) run(ctx context.Context) error {
 	}
 	c.rep.infof("Holding lots", "", "no-lots", "SharePro keeps no purchase lots or average cost for DP holdings; HOLDING-LOTS is not written and DP-HOLDINGS has no AvgCost. Load purchase history from the client's broker statements if needed")
 	c.rep.infof("Brokerage", "", "no-scrip-groups", "SharePro has no scrip groups for brokerage (DLGROUP holds client groups); SCRIP-GROUPS is not written")
-	if len(c.f.dpCOs()) > 0 {
-		c.rep.drop("DP tariff assignments (DPCLBASKET; tariffs in DPCLBSKT, DPCHARGE)", "Ledgerline has no import file for DP tariffs; set the DP tariff in Ledgerline", c.count(ctx, "DPCLBASKET"))
-	}
 	return nil
 }
 

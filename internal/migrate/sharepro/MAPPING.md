@@ -258,6 +258,32 @@ counted, never selected. Check dp-accounts: `COUNT(*)` of the DP
 companies' `CLLIST` rows, trading and DP-only clients' (without dormant
 trading clients' and, in mode skip, closed DP-only accounts).
 
+### DP-TARIFFS, DP-TARIFF-ACCOUNTS (`DPCLBSKT`, `DPCHARGE`, `DPCLBASKET`, `DPAMCDB`) [verified: counts]
+
+| Ledgerline | SharePro |
+|---|---|
+| Plan, Name | `DPCLBSKT.BASKETCD`, `DESCR` |
+| Pool | Y when `DPCLBSKT.TYPE` is CM (clearing member and pool accounts) |
+| AMCBilling | Yearly when `DPCLBSKT.PERIOD` is Yearly, else Monthly |
+| From, Code | `DPCHARGE.EFFECTDATE`, `TRANCODE` of the rows whose `BENACNUM` is a basket code; NSDL codes as the CDSL code of the same charge (901 → 2201, ODEL → ODTA, PIN → DCM, …; the first of a pair is kept) |
+| Flat, Min, Max, Mail | `FLAT`, `MIN`, `MAX`, `MAILCHG` |
+| Pct or PerUnit | `RATE`: per certificate on demat and remat (2201, 2205, 901, 902), else % of value |
+| OwnFlat … OwnMax | the `CM*` set (transfers linked to the firm's own trades); all zero: free |
+| SpecialFlat … SpecialMax | the `SP*` set, kept for the record, not billed (Warning sp-rates with the count of lines where it differs) |
+| AM, 0015 | the version's annual maintenance and, on top for a body corporate, corporate maintenance (`MAX(FLAT, MIN)`) |
+| DP-TARIFF-ACCOUNTS BOID, Plan, From | `DPCLBASKET` rows (`BENACNUM`, `BASKETCD`, `EffectDate`) of the accounts in DP-ACCOUNTS |
+| AMCPaidUpto | `MAX(DPAMCDB.AMDATETO)` where `AMTDR > 0` (9999-01-01: paid for life), on the account's first row |
+
+Rows keyed by an account (account-specific tariffs) are counted (Info),
+not migrated. Assignments to a basket not in `DPCLBSKT` or blank, to a
+basket with no rates, or with no `EffectDate` are left out (Warning
+each); accounts with no basket pay the firm tariff (Info). `DPTRTYPE`
+is the code master and is not read. Checks: dp-tariff-versions
+(distinct basket and `EFFECTDATE` in `DPCHARGE`), dp-tariff-accounts
+(DP accounts with a basket that has rates, effective on the as-of date)
+and dp-amc-paid-ahead (those accounts with maintenance paid beyond the
+as-of date).
+
 ### CLIENT-DEMATS (`CDMAST` ⋈ `DPMAST` on `DPCODE`) [verified]
 
 Every demat account of each migrated client in the trading side's client
@@ -529,5 +555,5 @@ layout) is read too when it has rows, skipping attachments (`slno`,
 | staff passwords (`SHUSER`), `SYSTEMLOGFILES.Content`, OTP and token tables | never read |
 | Family (`DLMAST.FAMILYCD`) | no Ledgerline column: counted as dropped |
 | FATCA details | no import file |
-| DP tariff (`DPCLBSKT`, `DPCHARGE`, `DPCLBASKET`, `DPTRTYPE`) | no import file: counted as dropped |
+| account-specific DP tariffs (`DPCHARGE` rows keyed by an account) | counted (Info); the accounts pay their plan's rates |
 | online account opening and re-KYC documents (`EKYC_documents`, `REKYC_*`) | not read (identity documents; to be handled with the KYC records) |

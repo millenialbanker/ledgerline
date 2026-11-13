@@ -121,6 +121,9 @@ func mkPkg(t *testing.T, s mspec) []byte {
 		writeCSV(t, w, "01", "BRANCHES", [][]string{{"Code", "Name", "Parent"}, {"PUN", "Test Pune Branch", "WEST"}, {"WEST", "Test West Zone", ""}})
 		writeCSV(t, w, "01", "DP-ACCOUNTS", [][]string{{"UCC", "BOID", "Depository", "Status"}, {"TA001", "1234567800000001", "CDSL", "Active"}, {"TB002", "1234567800000002", "CDSL", "Active"}})
 		writeCSV(t, w, "01", "DP-HOLDINGS", [][]string{{"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost"}, {"TA001", "INE000A01010", "TESTCO", "100", "0", "10.50"}, {"TB002", "INE000B01010", "TESTB", "50", "0", "20"}})
+		writeCSV(t, w, "01", "DP-TARIFFS", [][]string{{"Plan", "From", "Code", "Name", "AMCBilling", "Flat", "Min"}, {"B001", "2020-08-01", "AM", "Standard", "Yearly", "200", ""},
+			{"B001", "2026-04-01", "AM", "Standard", "Yearly", "300", ""}, {"B001", "2026-04-01", "ODTA", "", "", "", "15"}})
+		writeCSV(t, w, "01", "DP-TARIFF-ACCOUNTS", [][]string{{"BOID", "Plan", "From", "AMCPaidUpto"}, {"1234567800000001", "B001", "2021-01-01", "2027-03-31"}, {"1234567800000002", "B001", "2026-11-01", ""}})
 	}
 	if s.history {
 		h, _ := w.History("01", "2024-25", pkg.HistoryLedger, pkg.HistoryColumns[pkg.HistoryLedger])
@@ -330,7 +333,8 @@ func TestMigDryRunReportsEveryError(t *testing.T) {
 func goodChecks(tbDebit, docs string) []pkg.Check {
 	return []pkg.Check{{Firm: "01", Name: pkg.CheckTBDebit, Value: tbDebit}, {Firm: "01", Name: pkg.CheckTBCredit, Value: "2500.00"}, {Firm: "01", Name: pkg.CheckClients, Value: "2"},
 		{Firm: "01", Name: pkg.CheckClientDebit, Value: "1,500.00"}, {Firm: "01", Name: pkg.CheckClientCredit, Value: "2500.00"}, {Firm: "01", Name: pkg.CheckDPAccounts, Value: "2"},
-		{Firm: "01", Name: pkg.CheckDPQuantity, Value: "150"}, {Firm: "01", Name: pkg.CheckBankAccounts, Value: "2"}, {Firm: "01", Name: "brokerage-total", Value: "99"},
+		{Firm: "01", Name: pkg.CheckDPQuantity, Value: "150"}, {Firm: "01", Name: pkg.CheckDPTariffVersions, Value: "2"},
+		{Firm: "01", Name: pkg.CheckDPTariffAccounts, Value: "1"}, {Firm: "01", Name: pkg.CheckDPAMCPaidAhead, Value: "1"}, {Firm: "01", Name: pkg.CheckBankAccounts, Value: "2"}, {Firm: "01", Name: "brokerage-total", Value: "99"},
 		{Firm: "02", Name: pkg.CheckClients, Value: "7"}}
 }
 
@@ -381,7 +385,7 @@ func TestMigLoadReconcileHistoryArchiveUndo(t *testing.T) {
 			t.Fatalf("step %+v", s)
 		}
 	}
-	want := "BRANCHES CLIENT-MASTER CLIENT-BANKS SCRIP-GROUPS BROKERAGE-CARDS DP-ACCOUNTS OPENING-BALANCES DP-HOLDINGS LEDGER LEDGER CONTRACT-NOTES documents"
+	want := "BRANCHES CLIENT-MASTER CLIENT-BANKS SCRIP-GROUPS BROKERAGE-CARDS DP-ACCOUNTS DP-TARIFFS DP-TARIFF-ACCOUNTS OPENING-BALANCES DP-HOLDINGS LEDGER LEDGER CONTRACT-NOTES documents"
 	if strings.Join(order, " ") != want {
 		t.Fatalf("order %v", order)
 	}
@@ -390,7 +394,7 @@ func TestMigLoadReconcileHistoryArchiveUndo(t *testing.T) {
 	}
 	// Reconciliation: every known check passes; the unknown one is shown.
 	rc := m.Recon
-	if rc == nil || rc.Failed != 0 || rc.Passed != 9 || rc.Unknown != 1 {
+	if rc == nil || rc.Failed != 0 || rc.Passed != 12 || rc.Unknown != 1 {
 		t.Fatalf("recon %+v", rc)
 	}
 	for _, r := range rc.Rows {
@@ -661,7 +665,8 @@ func TestMigrationOrder(t *testing.T) {
 	ord := strings.Join(migrationOrder(), " ")
 	for _, pair := range [][2]string{{"CLIENT-MASTER", "CLIENT-BANKS"}, {"CLIENT-MASTER", "BROKERAGE-CLIENTS"}, {"SCRIP-GROUPS", "BROKERAGE-CARDS"},
 		{"BROKERAGE-CARDS", "BROKERAGE-CLIENTS"}, {"CLIENT-MASTER", "CLIENT-INTEREST"}, {"CLIENT-MASTER", "OPENING-BALANCES"}, {"DP-HOLDINGS", "HOLDING-LOTS"},
-		{"BRANCHES", "PARTNERS"}, {"PARTNERS", "CLIENT-MASTER"}, {"CLIENT-MASTER", "UCC-DETAILS"}, {"UCC-DETAILS", "UCC-CONTACTS"}, {"CLIENT-MASTER", "DP-ACCOUNTS"}, {"DP-ACCOUNTS", "DP-HOLDINGS"}} {
+		{"BRANCHES", "PARTNERS"}, {"PARTNERS", "CLIENT-MASTER"}, {"CLIENT-MASTER", "UCC-DETAILS"}, {"UCC-DETAILS", "UCC-CONTACTS"}, {"CLIENT-MASTER", "DP-ACCOUNTS"}, {"DP-ACCOUNTS", "DP-HOLDINGS"},
+		{"DP-ACCOUNTS", "DP-TARIFFS"}, {"DP-TARIFFS", "DP-TARIFF-ACCOUNTS"}} {
 		if strings.Index(ord, pair[0]) > strings.Index(ord, pair[1]) {
 			t.Errorf("%s after %s", pair[0], pair[1])
 		}

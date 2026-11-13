@@ -231,6 +231,7 @@ func (o *Ops) prepareDPAccounts(ctx context.Context, tenant, actor string, rows 
 				if old, ok := o.boAccount(ctx, tenant, b.BOID); ok {
 					// What CDSL's own files said stays.
 					b.CDSL, b.CDSLFreeze, b.CDSLFreezeWhy, b.BSDAOptOut, b.OtherDemat = old.CDSL, old.CDSLFreeze, old.CDSLFreezeWhy, old.BSDAOptOut, old.OtherDemat
+					b.Plans, b.AMCPaidUpto = old.Plans, old.AMCPaidUpto // DP-TARIFF-ACCOUNTS
 					if len(b.JointHolders) == 0 {
 						b.JointHolders = old.JointHolders // blank holder cells keep what is stored
 					}

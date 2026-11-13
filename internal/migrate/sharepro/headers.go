@@ -28,6 +28,8 @@ const (
 	srcPartners   = "PARTNERS"
 	srcDPAccounts = "DP-ACCOUNTS"
 	srcDemats     = "CLIENT-DEMATS"
+	srcDPTariffs  = "DP-TARIFFS"
+	srcDPPlanAcct = "DP-TARIFF-ACCOUNTS"
 )
 
 var headers = map[string][]string{
@@ -65,6 +67,12 @@ var headers = map[string][]string{
 		"Primary", "Holder2Name", "Holder2PAN", "Holder3Name", "Holder3PAN"},
 	// every demat account of a client (CDMAST), at this DP or another
 	srcDemats: {"UCC", "Depository", "DematID", "Primary", "Status"},
+	// one row per charge of a tariff version (DPCLBSKT baskets, DPCHARGE
+	// rates); Own* the CM rate set, Special* the SP set (kept, not billed)
+	srcDPTariffs: {"Plan", "From", "Code", "Name", "Pool", "AMCBilling", "Charge", "Flat", "Pct", "PerUnit", "Min", "Max",
+		"OwnFlat", "OwnPct", "OwnPerUnit", "OwnMin", "OwnMax", "Mail", "SpecialFlat", "SpecialPct", "SpecialPerUnit", "SpecialMin", "SpecialMax"},
+	// each account's basket history (DPCLBASKET) and AMC paid-up date (DPAMCDB)
+	srcDPPlanAcct: {"BOID", "Plan", "From", "AMCPaidUpto"},
 }
 
 // required columns of the imports not yet in ops.MasterSources (for the

@@ -62,6 +62,7 @@ var reconLabels = map[string]string{
 	pkg.CheckClientDebit: "Clients in debit: total", pkg.CheckClientCredit: "Clients in credit: total", pkg.CheckDPAccounts: "Demat accounts",
 	pkg.CheckDPQuantity: "Demat holdings: total quantity", pkg.CheckDocuments: "Archived documents", pkg.CheckBankAccounts: "Client bank accounts",
 	pkg.CheckPositions: "Open positions", pkg.CheckOpeningDifference: "Difference in opening balances (to be confirmed by the accountant)",
+	pkg.CheckDPTariffVersions: "DP tariff plan versions", pkg.CheckDPTariffAccounts: "DP accounts on a tariff plan", pkg.CheckDPAMCPaidAhead: "DP accounts with maintenance paid ahead",
 }
 
 var reconMoney = map[string]bool{pkg.CheckTBDebit: true, pkg.CheckTBCredit: true, pkg.CheckClientDebit: true, pkg.CheckClientCredit: true, pkg.CheckOpeningDifference: true}
@@ -412,6 +413,37 @@ func (o *Ops) reconFigure(ctx context.Context, tenant string, m *Migration, c pk
 			}
 		}
 		return strconv.Itoa(len(ps)), behind, true
+	case pkg.CheckDPTariffVersions:
+		ps, err := o.DPPlans(ctx, tenant)
+		if err != nil {
+			return "", nil, false
+		}
+		have := map[string]bool{}
+		n := 0
+		for _, p := range ps {
+			for _, v := range p.Versions {
+				have[p.Code+" "+v.From] = true
+				n++
+			}
+		}
+		file := map[string]bool{}
+		for _, r := range o.rawRows(ctx, tenant, m, "DP-TARIFFS", []string{"Plan", "From"}) {
+			if k := strings.ToUpper(r.get("Plan")) + " " + r.get("From"); !file[k] {
+				file[k] = true
+				if !have[k] {
+					behind = append(behind, MigReconDiff{Key: k, Expected: "in DP-TARIFFS", Ledgerline: "missing"})
+				}
+			}
+		}
+		return strconv.Itoa(n), behind, true
+	case pkg.CheckDPTariffAccounts, pkg.CheckDPAMCPaidAhead:
+		n := 0
+		for _, b := range o.boAccounts(ctx, tenant) {
+			if c.Name == pkg.CheckDPTariffAccounts && b.planAt(m.AsOf) != "" || c.Name == pkg.CheckDPAMCPaidAhead && b.AMCPaidUpto > m.AsOf {
+				n++
+			}
+		}
+		return strconv.Itoa(n), behind, true
 	}
 	return "", nil, false
 }

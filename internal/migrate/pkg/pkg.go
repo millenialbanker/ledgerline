@@ -184,6 +184,11 @@ const (
 	// CheckOpeningDifference is the balance (debit positive) of the
 	// suspense account that takes the old system's unbalanced openings.
 	CheckOpeningDifference = "opening-difference"
+	// DP tariffs: plan versions, accounts on a plan at the as-of date, and
+	// accounts whose annual maintenance is paid beyond it.
+	CheckDPTariffVersions = "dp-tariff-versions"
+	CheckDPTariffAccounts = "dp-tariff-accounts"
+	CheckDPAMCPaidAhead   = "dp-amc-paid-ahead"
 )
 
 // Dropped is a field deliberately not carried over.

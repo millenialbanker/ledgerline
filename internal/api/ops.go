@@ -257,6 +257,7 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/portal/buyback/{id}/tender", s.portalTender, true)
 	R("GET /v1/dp", s.dpDesk, false)
 	R("POST /v1/dp/tariff", s.dpTariff, true)
+	R("POST /v1/dp/plan", s.dpPlan, true)
 	R("POST /v1/dp/accounts/{ucc}/bsda", s.dpBSDA, true)
 	R("POST /v1/dp/books", s.dpBook, true)
 	R("POST /v1/dp/dis", s.dpEnterDIS, true)
@@ -2950,6 +2951,19 @@ func (s *Server) dpTariff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.SaveDPTariff(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) dpPlan(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		BOID string `json:"bo_id"`
+		Plan string `json:"plan"` // blank: the firm's tariff
+		From string `json:"from"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SetDPPlan(r.Context(), tenant(r), actor(r), b.BOID, b.Plan, b.From)
 	ok(w, v, err)
 }
 

@@ -21,6 +21,8 @@ import (
 //   UCC-DETAILS   each client's exchange UCC details (after the client master)
 //   UCC-CONTACTS  contact persons of non-individual clients
 //   DP-ACCOUNTS   the DP's record of each client's demat accounts
+//   DP-TARIFFS, DP-TARIFF-ACCOUNTS  the DP's tariff plans and each
+//                 account's plan (dpplan.go)
 //
 // Each is checked with the same rules as its screen (SaveBranch,
 // SavePartner, SaveUCCDetails, the DP desk), every row's problems are
@@ -358,6 +360,10 @@ func (o *Ops) prepareImport(ctx context.Context, tenant, actor, source string, r
 
 	case "DP-ACCOUNTS":
 		return o.prepareDPAccounts(ctx, tenant, actor, rows)
+	case "DP-TARIFFS":
+		return o.prepareDPTariffs(ctx, tenant, actor, rows)
+	case "DP-TARIFF-ACCOUNTS":
+		return o.prepareDPTariffAccounts(ctx, tenant, actor, rows)
 	}
 	bad(1, "", "no loader for %s", source)
 	return nil, errs
