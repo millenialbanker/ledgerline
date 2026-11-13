@@ -399,6 +399,9 @@ func (r *runner) copyStep(ctx context.Context, area string, rd *pkg.Reader) erro
 	for _, d := range m.Dropped {
 		p1.w.AddDropped(d.Firm, d.Field, d.Reason, d.Count)
 	}
+	for _, f := range m.FillIn {
+		p1.w.AddFillIn(f)
+	}
 	// the mapper records each firm's as-of date in the step's manifest
 	for _, sf := range m.Firms {
 		if sf.AsOf != "" {

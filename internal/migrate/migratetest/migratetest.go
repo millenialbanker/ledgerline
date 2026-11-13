@@ -211,6 +211,7 @@ func (m *Mapper) Current(ctx context.Context, q migrate.Querier, k migrate.Kind,
 		w.AddCheck(pkg.Check{Firm: f, Name: pkg.CheckClientDebit, Value: fmt.Sprintf("%d.%02d", total[f]/100, total[f]%100)})
 		w.AddDropped(f, "Client password", "Passwords are never migrated", len(byFirm[f]))
 		w.AddIssue(pkg.Issue{Firm: f, Severity: "Warning", Area: "Client master", Key: byFirm[f][0][0], Message: "No PAN on record", Action: "Add the PAN in Ledgerline after loading"})
+		w.AddFillIn(pkg.FillIn{Firm: f, Item: pkg.FillDPFirmTariff, Why: "No firm-wide DP tariff"})
 	}
 	return nil
 }

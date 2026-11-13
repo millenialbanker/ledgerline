@@ -223,6 +223,9 @@ func TestRunOnePackage(t *testing.T) {
 	if checks["01/clients"] != "3" || checks["02/client-debit-total"] != "6001.50" {
 		t.Errorf("checks %v", checks)
 	}
+	if len(man.FillIn) != 2 || man.FillIn[0].Item != pkg.FillDPFirmTariff {
+		t.Errorf("fill in %+v", man.FillIn)
+	}
 	if len(man.Dropped) != 2 || man.Dropped[0].Count != 3 {
 		t.Errorf("dropped %+v", man.Dropped)
 	}
