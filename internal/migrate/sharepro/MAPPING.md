@@ -265,18 +265,18 @@ trading clients' and, in mode skip, closed DP-only accounts).
 | Plan, Name | `DPCLBSKT.BASKETCD`, `DESCR` |
 | Pool | Y when `DPCLBSKT.TYPE` is CM (clearing member and pool accounts) |
 | AMCBilling | Yearly when `DPCLBSKT.PERIOD` is Yearly, else Monthly |
-| From, Code | `DPCHARGE.EFFECTDATE`, `TRANCODE` of the rows whose `BENACNUM` is a basket code; NSDL codes as the CDSL code of the same charge (901 → 2201, ODEL → ODTA, PIN → DCM, …; the first of a pair is kept) |
+| From, Code | `DPCHARGE.EFFECTDATE` (1900-01-01, SharePro's "no date", is kept: in force from the start), `TRANCODE` of the rows whose `BENACNUM` is a basket code; NSDL codes as the CDSL code of the same charge (901 → 2201, ODEL → ODTA, PIN → DCM, …; the first of a pair is kept) |
 | Flat, Min, Max, Mail | `FLAT`, `MIN`, `MAX`, `MAILCHG` |
 | Pct or PerUnit | `RATE`: per certificate on demat and remat (2201, 2205, 901, 902), else % of value |
 | OwnFlat … OwnMax | the `CM*` set (transfers linked to the firm's own trades); all zero: free |
 | SpecialFlat … SpecialMax | the `SP*` set, kept for the record, not billed (Warning sp-rates with the count of lines where it differs) |
 | AM, 0015 | the version's annual maintenance and, on top for a body corporate, corporate maintenance (`MAX(FLAT, MIN)`) |
-| DP-TARIFF-ACCOUNTS BOID, Plan, From | `DPCLBASKET` rows (`BENACNUM`, `BASKETCD`, `EffectDate`) of the accounts in DP-ACCOUNTS |
+| DP-TARIFF-ACCOUNTS BOID, Plan, From | `DPCLBASKET` rows (`BENACNUM`, `BASKETCD`, `EffectDate`, 1900-01-01 kept as from the start) of the accounts in DP-ACCOUNTS |
 | AMCPaidUpto | `MAX(DPAMCDB.AMDATETO)` where `AMTDR > 0` (9999-01-01: paid for life), on the account's first row |
 
 Rows keyed by an account (account-specific tariffs) are counted (Info),
 not migrated. Assignments to a basket not in `DPCLBSKT` or blank, to a
-basket with no rates, or with no `EffectDate` are left out (Warning
+basket with no rates, or with a NULL `EffectDate` are left out (Warning
 each); accounts with no basket pay the firm tariff (Info). `DPTRTYPE`
 is the code master and is not read. Checks: dp-tariff-versions
 (distinct basket and `EFFECTDATE` in `DPCHARGE`), dp-tariff-accounts

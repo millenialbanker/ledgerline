@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"ledgerline/internal/migrate"
 	"ledgerline/internal/migrate/pkg"
@@ -84,7 +85,7 @@ func (c *cur) writeDPTariffs(ctx context.Context) error {
 			accountTariffs[plan] = true
 			return nil
 		}
-		from := date(r, "effectdate")
+		from := sinceDate(r, "effectdate")
 		if mapped, ok := nsdlCodes[code]; ok {
 			code = mapped
 		}
@@ -199,7 +200,7 @@ func (c *cur) writeDPTariffs(ctx context.Context) error {
 	if c.s.has("DPCLBASKET") {
 		al, _ := c.s.sel("DPCLBASKET", "", "BENACNUM", "EffectDate", "BASKETCD")
 		if err := c.d.query(ctx, fmt.Sprintf(qDPBskAccts, al, cos), func(r migrate.Row) error {
-			x := asg{upper(r, "benacnum"), date(r, "effectdate"), upper(r, "basketcd")}
+			x := asg{upper(r, "benacnum"), sinceDate(r, "effectdate"), upper(r, "basketcd")}
 			switch {
 			case byBen[x.ben] == nil:
 				notDP++
@@ -276,6 +277,27 @@ func (c *cur) writeDPTariffs(ctx context.Context) error {
 }
 
 // decStr is a decimal as written, "" when zero.
+// fromStart is the From of a tariff version or basket assignment SharePro
+// dates 1900-01-01: in force from the start.
+const fromStart = "1900-01-01"
+
+// sinceDate reads an effective date where SharePro's "no date" (1900-01-01)
+// means from the start; only a NULL is no date.
+func sinceDate(r migrate.Row, col string) string {
+	if s := date(r, col); s != "" {
+		return s
+	}
+	switch v := r[col].(type) {
+	case time.Time:
+		return fromStart
+	case string:
+		if s := strings.TrimSpace(v); strings.HasPrefix(s, "1900-") || strings.HasPrefix(s, "1899-") {
+			return fromStart
+		}
+	}
+	return ""
+}
+
 func decStr(d money.Dec) string {
 	if d.IsZero() {
 		return ""

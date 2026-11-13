@@ -332,9 +332,11 @@ func companyFake(name string) *fake {
 	)
 	f.on("dp-poa", migrate.Row{"co": "06", "benacnum": "00000001", "poatype": "DDPI"})
 	// DP tariffs: basket B001 (yearly) with two versions, P001 a pool
-	// basket, E001 with no rates; an account-keyed tariff; NSDL's demat code
-	// beside CDSL's; account baskets with an unknown, a blank, an empty and
-	// an undated basket and one for an account not in CLLIST
+	// basket (its first version dated SharePro's "no date"), Z001 with only
+	// such a version, E001 with no rates; an account-keyed tariff; NSDL's
+	// demat code beside CDSL's; account baskets with an unknown, a blank, an
+	// empty and an undated basket, one dated "no date" and one for an
+	// account not in CLLIST
 	f.table("DPCLBSKT", "CO,BASKETCD,DESCR,TYPE,PERIOD,CUSTPERIOD,CHARGEHOW")
 	f.table("DPCHARGE", "CO,EFFECTDATE,BENACNUM,TRANCODE,RATE,MIN,MAX,FLAT,PERIOD,MAILCHG,SPRATE,SPMIN,SPMAX,SPFLAT,CMRATE,CMMIN,CMMAX,CMFLAT")
 	f.table("DPCLBASKET", "CO,BENACNUM,EffectDate,BASKETCD")
@@ -343,6 +345,7 @@ func companyFake(name string) *fake {
 		migrate.Row{"co": "06", "basketcd": "B001", "descr": "Standard", "type": "BEN", "period": "Yearly"},
 		migrate.Row{"co": "06", "basketcd": "P001", "descr": "Pool accounts", "type": "CM", "period": "Monthly"},
 		migrate.Row{"co": "06", "basketcd": "E001", "descr": "Unused", "type": "BEN", "period": "Monthly"},
+		migrate.Row{"co": "06", "basketcd": "Z001", "descr": "Closed accounts", "type": "BEN", "period": "Yearly"},
 	)
 	ch := func(basket, from, code string, v migrate.Row) migrate.Row {
 		r := migrate.Row{"co": "06", "benacnum": basket, "effectdate": d(from), "trancode": code}
@@ -366,6 +369,8 @@ func companyFake(name string) *fake {
 		ch("B001", "2026-04-01", "AM", migrate.Row{"flat": "300"}),
 		ch("B001", "2026-04-01", "IDEL", migrate.Row{"flat": "25"}),
 		ch("P001", "2019-01-01", "DCM", migrate.Row{"flat": "5"}),
+		ch("P001", "1900-01-01", "DCM", migrate.Row{"flat": "4"}), // SharePro's "no date": from the start
+		ch("Z001", "1900-01-01", "AM", migrate.Row{}),
 		ch("00000001", "2020-08-01", "AM", migrate.Row{"flat": "100"}),
 	)
 	f.on("dp-basket-accounts",
@@ -375,6 +380,7 @@ func companyFake(name string) *fake {
 		migrate.Row{"co": "06", "benacnum": "00000002", "effectdate": d("2022-06-01"), "basketcd": "COO3"},
 		migrate.Row{"co": "06", "benacnum": "00000002", "effectdate": d("2022-07-01"), "basketcd": ""},
 		migrate.Row{"co": "06", "benacnum": "00000003", "effectdate": d("2020-01-01"), "basketcd": "E001"},
+		migrate.Row{"co": "06", "benacnum": "00000003", "effectdate": d("1900-01-01"), "basketcd": "Z001"},
 		migrate.Row{"co": "06", "benacnum": "00000004", "basketcd": "B001"},
 		migrate.Row{"co": "06", "benacnum": "00000099", "effectdate": d("2020-01-01"), "basketcd": "B001"},
 	)
@@ -383,8 +389,8 @@ func companyFake(name string) *fake {
 		migrate.Row{"benacnum": "00000009", "upto": d("9999-01-01")},
 		migrate.Row{"benacnum": "00000004", "upto": d("2027-03-31")},
 	)
-	f.on("check-dp-tariff-versions", migrate.Row{"n": int64(3)})
-	f.on("check-dp-tariff-accounts", migrate.Row{"n": int64(2)})
+	f.on("check-dp-tariff-versions", migrate.Row{"n": int64(5)})
+	f.on("check-dp-tariff-accounts", migrate.Row{"n": int64(3)})
 	f.on("check-dp-amc-ahead", migrate.Row{"n": int64(2)})
 	f.on("freeze-reasons", migrate.Row{"code": "12", "descr": "TEST FREEZE"})
 	// 8 accounts; less a dormant trading client's (NOT IN) and, in dormant
