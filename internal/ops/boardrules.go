@@ -19,9 +19,12 @@ import (
 // automation, made by the board's admins and members (observers read it):
 //
 //   - Rules: when something happens to a card (added to the board or a
-//     list, moved into or out of a list, a label or member added, a due
-//     date set, marked complete, a checklist completed, archived, a comment
-//     posted) and the card meets the conditions, do the actions in order.
+//     list, moved into or out of a list or to its top or bottom, renamed, a
+//     label or member added, a due date set, marked complete or not, a
+//     checklist completed, an item ticked, unticked or added, an attachment
+//     added, a custom field set, archived or unarchived, a comment posted),
+//     by anyone, a given person, the rule's maker or someone else, and the
+//     card meets the conditions, do the actions in order.
 //   - Card buttons: named buttons in the card window that do the actions
 //     on that card.
 //   - Board buttons: named buttons in the board header that do the actions
@@ -102,37 +105,49 @@ type BoardAuto struct {
 
 // AutoTrigger is what sets a rule off.
 type AutoTrigger struct {
-	// Event: card_added, card_moved_in, card_moved_out, label_added,
-	// label_removed, member_added, due_set, card_done, checklist_done,
-	// card_archived, comment_posted.
+	// Event: card_added, card_moved_in, card_moved_out, card_moved_end,
+	// card_renamed, label_added, label_removed, member_added, due_set,
+	// card_done, card_undone, checklist_done, item_checked, item_unchecked,
+	// item_added, attachment_added, field_set, card_archived,
+	// card_unarchived, comment_posted.
 	Event  string `json:"event"`
-	List   string `json:"list,omitempty"`   // card_added, card_moved_in, card_moved_out ("" any list)
+	List   string `json:"list,omitempty"`   // card_added, card_moved_in, card_moved_out, card_moved_end ("" any list)
 	Label  string `json:"label,omitempty"`  // label_added, label_removed ("" any label)
 	Member string `json:"member,omitempty"` // member_added ("" anyone)
-	Words  string `json:"words,omitempty"`  // comment_posted: only comments containing these words
-	By     string `json:"by,omitempty"`     // only when this person does it ("" anyone)
+	Words  string `json:"words,omitempty"`  // comment_posted, item_*, attachment_added: only text containing these words
+	Pos    string `json:"pos,omitempty"`    // card_moved_end: top or bottom
+	Field  string `json:"field,omitempty"`  // field_set: the custom field ("" any)
+	Value  string `json:"value,omitempty"`  // field_set: only when set to this ("" any value)
+	// By: "" anyone (automation too), a person, or "!" and a person: any
+	// person but them (the console's "by someone else" is "!" and the
+	// rule's maker).
+	By string `json:"by,omitempty"`
 }
 
 // AutoCond is a condition the card must meet.
 type AutoCond struct {
 	// Kind: has_label, lacks_label, has_member, lacks_member, in_list,
 	// not_in_list, title_contains, has_due, no_due, overdue, complete,
-	// not_complete.
+	// not_complete, items_all_done, items_some_done, items_none_done.
 	Kind  string `json:"kind"`
 	Value string `json:"value,omitempty"` // a label, person ("" anyone), list or words
 }
 
 // AutoAction is one thing automation does.
 type AutoAction struct {
-	// Kind, on the card: move, copy, add_label, remove_label, add_member,
-	// remove_member, join, set_due, clear_due, mark_done, mark_undone,
-	// add_checklist, comment, archive. On the board: create_card, move_all,
-	// archive_list. Either: sort_list, notify.
+	// Kind, on the card: move, move_top, move_bottom, copy, copy_board,
+	// add_label, remove_label, remove_labels, add_member, remove_member,
+	// remove_members, join, add_watcher, set_due, clear_due, mark_done,
+	// mark_undone, add_checklist, check_all, uncheck_all, set_field,
+	// comment, archive. On the board: create_card, move_all, archive_list.
+	// Either: sort_list, notify, email.
 	Kind        string   `json:"kind"`
-	List        string   `json:"list,omitempty"`  // move, copy, create_card, sort_list, archive_list; move_all: to
+	Board       string   `json:"board,omitempty"` // copy_board: the other board
+	List        string   `json:"list,omitempty"`  // move, copy, copy_board, create_card, sort_list, archive_list; move_all: to
 	From        string   `json:"from,omitempty"`  // move_all
-	Top         bool     `json:"top,omitempty"`   // move, copy, create_card: at the top of the list
+	Top         bool     `json:"top,omitempty"`   // move, copy, copy_board, create_card: at the top of the list
 	Label       string   `json:"label,omitempty"` // add_label, remove_label
+	Field       string   `json:"field,omitempty"` // set_field (Text is the value; "" clears it)
 	Member      string   `json:"member,omitempty"`
 	Days        int      `json:"days,omitempty"` // set_due, create_card: due in so many days
 	Time        string   `json:"time,omitempty"` // HH:MM ("" a date without a time)
@@ -140,8 +155,8 @@ type AutoAction struct {
 	Due         bool     `json:"due,omitempty"`   // create_card: give it a due date
 	Name        string   `json:"name,omitempty"`  // add_checklist, create_card: the checklist's name
 	Items       []string `json:"items,omitempty"` // add_checklist, create_card: checklist items
-	Text        string   `json:"text,omitempty"`  // comment, notify (the message), create_card (the title)
-	To          []string `json:"to,omitempty"`    // notify: people, "card_members", "watchers"
+	Text        string   `json:"text,omitempty"`  // comment, notify and email (the message), create_card (the title), set_field (the value)
+	To          []string `json:"to,omitempty"`    // notify, email: people, "card_members", "watchers"
 	By          string   `json:"by,omitempty"`    // sort_list: due, title, newest, oldest
 	Labels      []string `json:"labels,omitempty"`
 	Members     []string `json:"members,omitempty"`
@@ -220,18 +235,25 @@ var errBANoChange = errors.New("no change")
 var (
 	baKinds = map[string]string{AutoRule: "rule", AutoCardButton: "card button", AutoBoardButton: "board button", AutoScheduled: "scheduled command", AutoDueDate: "due-date command"}
 	// baEventOf maps a rule's trigger to the board event it listens for.
+	// card_moved_end also listens for card.reordered (a move within a list).
 	baEventOf = map[string]string{
-		"card_added": "card.created", "card_moved_in": "card.moved", "card_moved_out": "card.moved",
-		"label_added": "card.label_added", "label_removed": "card.label_removed", "member_added": "card.member_added",
-		"due_set": "card.due_set", "card_done": "card.due_done", "checklist_done": "checklist.done",
-		"card_archived": "card.archived", "comment_posted": "comment.added",
+		"card_added": "card.created", "card_moved_in": "card.moved", "card_moved_out": "card.moved", "card_moved_end": "card.moved",
+		"card_renamed": "card.renamed", "label_added": "card.label_added", "label_removed": "card.label_removed", "member_added": "card.member_added",
+		"due_set": "card.due_set", "card_done": "card.due_done", "card_undone": "card.due_undone", "checklist_done": "checklist.done",
+		"item_checked": "checklist.item_done", "item_unchecked": "checklist.item_undone", "item_added": "checklist.item_added",
+		"attachment_added": "card.attachment_added", "field_set": "card.field_set",
+		"card_archived": "card.archived", "card_unarchived": "card.unarchived", "comment_posted": "comment.added",
 	}
-	baConds     = []string{"has_label", "lacks_label", "has_member", "lacks_member", "in_list", "not_in_list", "title_contains", "has_due", "no_due", "overdue", "complete", "not_complete"}
-	baCardOnly  = map[string]bool{"move": true, "copy": true, "add_label": true, "remove_label": true, "add_member": true, "remove_member": true, "join": true, "set_due": true, "clear_due": true, "mark_done": true, "mark_undone": true, "add_checklist": true, "comment": true, "archive": true}
+	baConds = []string{"has_label", "lacks_label", "has_member", "lacks_member", "in_list", "not_in_list", "title_contains", "has_due", "no_due", "overdue", "complete", "not_complete",
+		"items_all_done", "items_some_done", "items_none_done"}
+	baCardOnly = map[string]bool{"move": true, "move_top": true, "move_bottom": true, "copy": true, "copy_board": true, "add_label": true, "remove_label": true, "remove_labels": true,
+		"add_member": true, "remove_member": true, "remove_members": true, "join": true, "add_watcher": true, "set_due": true, "clear_due": true, "mark_done": true, "mark_undone": true,
+		"add_checklist": true, "check_all": true, "uncheck_all": true, "set_field": true, "comment": true, "archive": true}
 	baBoardOnly = map[string]bool{"create_card": true, "move_all": true, "archive_list": true}
 	// A Ledgerline board's cards follow their records: automation may not
-	// move, copy, archive or create them.
-	baNotLedgerline = map[string]bool{"move": true, "copy": true, "archive": true, "create_card": true, "move_all": true, "archive_list": true}
+	// move them to another list, copy, archive or create them (moving one
+	// to the top or bottom of its own list is fine).
+	baNotLedgerline = map[string]bool{"move": true, "copy": true, "copy_board": true, "archive": true, "create_card": true, "move_all": true, "archive_list": true}
 	baSorts         = map[string]string{"due": "due date", "title": "title", "newest": "newest first", "oldest": "oldest first"}
 	baUnits         = map[string]time.Duration{"minutes": time.Minute, "hours": time.Hour, "days": 24 * time.Hour}
 	baHHMM          = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
@@ -298,7 +320,7 @@ func (o *Ops) SaveBoardAuto(ctx context.Context, tenant, actor, board string, in
 	if err != nil {
 		return BoardAuto{}, err
 	}
-	if err := o.baCheck(ctx, tenant, b, &in); err != nil {
+	if err := o.baCheck(ctx, tenant, actor, b, &in); err != nil {
 		return BoardAuto{}, err
 	}
 	now := o.now().Format(time.RFC3339)
@@ -472,7 +494,7 @@ func (o *Ops) baButtonCards(ctx context.Context, tenant string, b Board, a Board
 
 // ---- checking what a person saves ----
 
-func (o *Ops) baCheck(ctx context.Context, tenant string, b Board, a *BoardAuto) error {
+func (o *Ops) baCheck(ctx context.Context, tenant, actor string, b Board, a *BoardAuto) error {
 	var err error
 	if a.Name, err = textField("name", a.Name, 120, true); err != nil {
 		return err
@@ -511,11 +533,33 @@ func (o *Ops) baCheck(ctx context.Context, tenant string, b Board, a *BoardAuto)
 		}
 		n := AutoTrigger{Event: t.Event, By: strings.TrimSpace(t.By)}
 		switch t.Event {
-		case "card_added", "card_moved_in", "card_moved_out":
+		case "card_added", "card_moved_in", "card_moved_out", "card_moved_end":
 			if n.List = t.List; n.List != "" {
 				if err := list(n.List, "for the rule"); err != nil {
 					return err
 				}
+			}
+			if t.Event == "card_moved_end" {
+				if t.Pos != "top" && t.Pos != "bottom" {
+					return invalid("choose the top or the bottom of the list")
+				}
+				n.Pos = t.Pos
+			}
+		case "item_checked", "item_unchecked", "item_added", "attachment_added":
+			if n.Words, err = textField("words", t.Words, 200, false); err != nil {
+				return err
+			}
+		case "field_set":
+			if n.Field = t.Field; n.Field != "" {
+				f, ok := boardField(b, n.Field)
+				if !ok {
+					return invalid("no such custom field on this board")
+				}
+				if n.Value, err = fieldValue(f, t.Value); err != nil {
+					return err
+				}
+			} else if strings.TrimSpace(t.Value) != "" {
+				return invalid("choose the custom field the value is for")
 			}
 		case "label_added", "label_removed":
 			if n.Label = t.Label; n.Label != "" {
@@ -535,7 +579,7 @@ func (o *Ops) baCheck(ctx context.Context, tenant string, b Board, a *BoardAuto)
 			}
 		}
 		if n.By != "" {
-			if err := person(n.By); err != nil {
+			if err := person(strings.TrimPrefix(n.By, "!")); err != nil {
 				return err
 			}
 		}
@@ -669,10 +713,10 @@ func (o *Ops) baCheck(ctx context.Context, tenant string, b Board, a *BoardAuto)
 	acts := []AutoAction{}
 	for _, x := range a.Actions {
 		if b.Kind == BoardLedgerline && baNotLedgerline[x.Kind] {
-			return invalid("on a Ledgerline board cards follow their records: automation can label, assign, date, check off, comment on and sort cards and notify people, but not move, copy, archive or create cards")
+			return invalid("on a Ledgerline board cards follow their records: automation can label, assign, date, check off, comment on and sort cards, move them up or down their list and notify or email people, but not move them to another list, copy, archive or create cards")
 		}
 		if !hasCard && baCardOnly[x.Kind] {
-			return invalid("a scheduled command has no card to act on: it can create a card, move or archive a list's cards, sort a list or notify people")
+			return invalid("a scheduled command has no card to act on: it can create a card, move or archive a list's cards, sort a list, or notify or email people")
 		}
 		n := AutoAction{Kind: x.Kind}
 		switch x.Kind {
@@ -691,7 +735,36 @@ func (o *Ops) baCheck(ctx context.Context, tenant string, b Board, a *BoardAuto)
 				return err
 			}
 			n.Member = x.Member
-		case "join", "clear_due", "mark_done", "mark_undone", "archive":
+		case "add_watcher":
+			if err := person(x.Member); err != nil {
+				return err
+			}
+			n.Member = x.Member
+		case "join", "clear_due", "mark_done", "mark_undone", "archive", "move_top", "move_bottom", "remove_labels", "remove_members", "check_all", "uncheck_all":
+		case "copy_board":
+			if x.Board == b.ID || x.Board == "" {
+				return invalid("choose another board to copy the card to (the copy action copies within this board)")
+			}
+			to, _, err := o.boardFor(ctx, tenant, actor, x.Board, BoardAdmin, BoardMember)
+			if err != nil {
+				return invalid("you cannot add cards to that board, so automation cannot copy cards there for you")
+			}
+			if to.Kind == BoardLedgerline || to.Template {
+				return invalid("cards are copied to team boards only")
+			}
+			if l, ok := boardList(to, x.List); !ok || l.Archived {
+				return invalid("choose an open list on %s for the copies", to.Name)
+			}
+			n.Board, n.List, n.Top = x.Board, x.List, x.Top
+		case "set_field":
+			f, ok := boardField(b, x.Field)
+			if !ok {
+				return invalid("choose the custom field to set")
+			}
+			if n.Text, err = fieldValue(f, x.Text); err != nil {
+				return err
+			}
+			n.Field = x.Field
 		case "set_due":
 			if err := baDueOK(x); err != nil {
 				return err
@@ -721,11 +794,11 @@ func (o *Ops) baCheck(ctx context.Context, tenant string, b Board, a *BoardAuto)
 				return invalid("choose the list to sort")
 			}
 			n.List = x.List
-		case "notify":
+		case "notify", "email":
 			for _, u := range x.To {
 				if u == "card_members" || u == "watchers" {
 					if !hasCard {
-						return invalid("a scheduled command has no card: notify people by name")
+						return invalid("a scheduled command has no card: %s people by name", map[bool]string{true: "email", false: "notify"}[x.Kind == "email"])
 					}
 				} else if err := person(u); err != nil {
 					return err
@@ -735,7 +808,7 @@ func (o *Ops) baCheck(ctx context.Context, tenant string, b Board, a *BoardAuto)
 				}
 			}
 			if len(n.To) == 0 {
-				return invalid("choose who to notify")
+				return invalid("choose who to %s", map[bool]string{true: "email", false: "notify"}[x.Kind == "email"])
 			}
 			if n.Text, err = textField("message", x.Text, 1000, false); err != nil {
 				return err
@@ -829,8 +902,27 @@ func baItems(in []string, required bool) ([]string, error) {
 
 // ---- matching ----
 
+// baByOK reports whether the person who did it matches a trigger's By.
+func baByOK(by, actor string) bool {
+	switch {
+	case by == "":
+		return true
+	case strings.HasPrefix(by, "!"):
+		// Someone else: a person other than the one named, not automation.
+		return actor != by[1:] && !strings.HasPrefix(actor, "system:")
+	}
+	return by == actor
+}
+
+func baWordsIn(words, text string) bool {
+	return words == "" || strings.Contains(strings.ToLower(text), strings.ToLower(words))
+}
+
 func baTriggerOK(t *AutoTrigger, ev BoardEvent) bool {
-	if t == nil || baEventOf[t.Event] != ev.Kind || (t.By != "" && t.By != ev.Actor) {
+	if t == nil || !baByOK(t.By, ev.Actor) {
+		return false
+	}
+	if baEventOf[t.Event] != ev.Kind && !(t.Event == "card_moved_end" && ev.Kind == "card.reordered") {
 		return false
 	}
 	d := ev.Data
@@ -841,15 +933,52 @@ func baTriggerOK(t *AutoTrigger, ev BoardEvent) bool {
 		return t.List == "" || d["to_list"] == t.List
 	case "card_moved_out":
 		return t.List == "" || d["from_list"] == t.List
+	case "card_moved_end":
+		// Whether it is now at the top or bottom is checked on the card.
+		return t.List == "" || firstOf(d["to_list"], d["list"]) == t.List
 	case "label_added", "label_removed":
 		return t.Label == "" || d["label"] == t.Label
 	case "member_added":
 		return t.Member == "" || d["member"] == t.Member
+	case "item_checked", "item_unchecked", "item_added":
+		return baWordsIn(t.Words, d["text"])
+	case "attachment_added":
+		return baWordsIn(t.Words, d["name"])
+	case "field_set":
+		// Set or changed to a value; clearing a field does not count.
+		return d["value"] != "" && (t.Field == "" || d["field"] == t.Field) && (t.Value == "" || strings.EqualFold(d["value"], t.Value))
 	case "comment_posted":
 		// A comment automation posts does not set off comment rules.
-		return !strings.HasPrefix(ev.Actor, "system:") && (t.Words == "" || strings.Contains(strings.ToLower(d["text"]), strings.ToLower(t.Words)))
+		return !strings.HasPrefix(ev.Actor, "system:") && baWordsIn(t.Words, d["text"])
 	}
 	return true
+}
+
+// baAtEnd reports whether an open card is at the top (or bottom) of its list.
+func (o *Ops) baAtEnd(ctx context.Context, tenant string, c Card, top bool) bool {
+	cs, _ := o.boardCards(ctx, tenant, c.Board)
+	for _, x := range cs {
+		if x.ID == c.ID || x.List != c.List || x.Archived {
+			continue
+		}
+		if (top && x.Pos < c.Pos) || (!top && x.Pos > c.Pos) {
+			return false
+		}
+	}
+	return !c.Archived
+}
+
+// baItemsDone counts a card's checklist items, and those done.
+func baItemsDone(c Card) (done, all int) {
+	for _, cl := range c.Checklists {
+		for _, it := range cl.Items {
+			all++
+			if it.Done {
+				done++
+			}
+		}
+	}
+	return done, all
 }
 
 func baCondsOK(cs []AutoCond, c Card, now time.Time) bool {
@@ -881,6 +1010,15 @@ func baCondsOK(cs []AutoCond, c Card, now time.Time) bool {
 			ok = c.DueDone
 		case "not_complete":
 			ok = !c.DueDone
+		case "items_all_done":
+			done, all := baItemsDone(c)
+			ok = all > 0 && done == all
+		case "items_some_done":
+			done, all := baItemsDone(c)
+			ok = done > 0 && done < all
+		case "items_none_done":
+			done, _ := baItemsDone(c)
+			ok = done == 0
 		default:
 			ok = false
 		}
@@ -902,6 +1040,7 @@ type baRunner struct {
 	by     string // the person who set it off ("" none)
 	now    time.Time
 	set    *Settings
+	users  []User
 	did    []string
 	cards  []Card // a board button's cards, for notify
 }
@@ -960,11 +1099,21 @@ func (r *baRunner) dueIn(days int, at string, working bool) string {
 	return d
 }
 
-// expand fills in {card}, {no}, {list}, {due}, {board}, {user}, {date} and {rule}.
+// expand fills in {card}, {no}, {list}, {due}, {board}, {user}, {date} and
+// {rule}, and Trello's names for them: {cardname}, {cardlink},
+// {boardname}, {listname}, {username} and {duedate}.
 func (r *baRunner) expand(s string, c *Card) string {
-	rep := []string{"{board}", r.b.Name, "{date}", r.now.In(ist).Format("02 Jan 2006"), "{user}", firstOf(r.by, "Automation"), "{rule}", r.a.Name}
+	if !strings.Contains(s, "{") {
+		return s
+	}
+	user := firstOf(r.by, "Automation")
+	rep := []string{"{board}", r.b.Name, "{boardname}", r.b.Name, "{date}", r.now.In(ist).Format("02 Jan 2006"), "{user}", user, "{username}", user, "{rule}", r.a.Name}
 	if c != nil {
-		rep = append(rep, "{card}", c.Title, "{no}", fmt.Sprintf("#%d", c.No), "{list}", r.listName(c.List), "{due}", baDueShown(c.Due))
+		rep = append(rep, "{card}", c.Title, "{cardname}", c.Title, "{no}", fmt.Sprintf("#%d", c.No), "{list}", r.listName(c.List), "{listname}", r.listName(c.List),
+			"{due}", baDueShown(c.Due), "{duedate}", baDueShown(c.Due))
+		if strings.Contains(s, "{cardlink}") {
+			rep = append(rep, "{cardlink}", r.o.BoardCardLink(r.ctx, r.tenant, r.b.ID, c.ID))
+		}
 	}
 	return strings.NewReplacer(rep...).Replace(s)
 }
@@ -1073,6 +1222,18 @@ func (r *baRunner) do(a AutoAction, c *Card) error {
 			return err
 		}
 		r.note("moved #%d to %s", c.No, r.listName(a.List))
+	case "move_top", "move_bottom":
+		top := a.Kind == "move_top"
+		where := map[bool]string{true: "top", false: "bottom"}[top]
+		if c.Archived || o.baAtEnd(ctx, t, *c, top) {
+			r.note("#%d was already at the %s of %s", c.No, where, r.listName(c.List))
+			return nil
+		}
+		// The card stays in its list, so a linked card's record is not touched.
+		if _, err := o.MoveCard(ctx, t, act, board, c.ID, CardMove{List: c.List, Pos: r.top(c.List, top)}); err != nil {
+			return err
+		}
+		r.note("moved #%d to the %s of %s", c.No, where, r.listName(c.List))
 	case "copy":
 		var pos *float64
 		if a.Top {
@@ -1084,6 +1245,95 @@ func (r *baRunner) do(a AutoAction, c *Card) error {
 			return err
 		}
 		r.note("copied #%d to %s as #%d", c.No, r.listName(a.List), nc.No)
+	case "copy_board":
+		return r.copyToBoard(a, c)
+	case "remove_labels":
+		if len(c.Labels) == 0 {
+			r.note("#%d had no labels", c.No)
+			return nil
+		}
+		ls := []string{}
+		if err := patch(CardPatch{Labels: &ls}); err != nil {
+			return err
+		}
+		r.note("removed every label from #%d", c.No)
+	case "remove_members":
+		if len(c.Members) == 0 {
+			r.note("#%d had no members", c.No)
+			return nil
+		}
+		ms := []string{}
+		if err := patch(CardPatch{Members: &ms}); err != nil {
+			return err
+		}
+		r.note("took everyone off #%d", c.No)
+	case "add_watcher":
+		if contains(c.Watchers, a.Member) {
+			r.note("%s already watched #%d", a.Member, c.No)
+			return nil
+		}
+		if !r.sees(a.Member) {
+			return invalid("%s can no longer see this board", a.Member)
+		}
+		if _, err := docs.Update(ctx, o.Docs, t, cBoardCard, cardKey(board, c.ID), act, func(x *Card) error {
+			if x.Deleted {
+				return errCardGone
+			}
+			if !contains(x.Watchers, a.Member) {
+				x.Watchers = append(x.Watchers, a.Member)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		o.boardLog(ctx, t, act, r.b, c.ID, "card.watcher_added", fmt.Sprintf("made %s watch #%d", a.Member, c.No), nil)
+		r.note("made %s watch #%d", a.Member, c.No)
+	case "check_all", "uncheck_all":
+		v := a.Kind == "check_all"
+		n := 0
+		for _, cl := range c.Checklists {
+			for _, it := range cl.Items {
+				if it.Done == v {
+					continue
+				}
+				if _, err := o.EditChecklist(ctx, t, act, board, c.ID, ChecklistOp{Op: "update_item", Checklist: cl.ID, Item: it.ID, Done: &v}); err != nil {
+					return err
+				}
+				n++
+			}
+		}
+		word := map[bool]string{true: "ticked", false: "unticked"}[v]
+		if n == 0 {
+			r.note("every item on #%d was already %s", c.No, word)
+			return nil
+		}
+		r.note("%s %d item%s on #%d", word, n, plural(n), c.No)
+	case "set_field":
+		f, ok := boardField(r.b, a.Field)
+		if !ok {
+			return invalid("the custom field is no longer on this board")
+		}
+		v := a.Text
+		if f.Type == "text" {
+			v = clip(r.expand(v, c), 499)
+		}
+		vals := copyMap(c.Fields)
+		if vals == nil {
+			vals = map[string]string{}
+		}
+		if vals[a.Field] == v {
+			r.note("%s on #%d was already %s", f.Name, c.No, firstOf(v, "empty"))
+			return nil
+		}
+		vals[a.Field] = v
+		if err := patch(CardPatch{Fields: &vals}); err != nil {
+			return err
+		}
+		if v == "" {
+			r.note("cleared %s on #%d", f.Name, c.No)
+		} else {
+			r.note("set %s on #%d to %s", f.Name, c.No, clip(v, 60))
+		}
 	case "add_label":
 		if contains(c.Labels, a.Label) {
 			r.note("#%d already had the %s", c.No, baLabelName(r.b, a.Label))
@@ -1203,7 +1453,7 @@ func (r *baRunner) do(a AutoAction, c *Card) error {
 			return err
 		}
 		r.note("sorted %s by %s", r.listName(l), baSorts[firstOf(a.By, "due")])
-	case "notify":
+	case "notify", "email":
 		return r.notify(a, c)
 	case "create_card":
 		b, _, err := docs.Get[Board](ctx, o.Docs, t, cBoard, board)
@@ -1272,18 +1522,52 @@ func (r *baRunner) do(a AutoAction, c *Card) error {
 	return nil
 }
 
-// notify tells the people named, and the card's members or watchers when
-// asked (except the person who set it off: they know).
-func (r *baRunner) notify(a AutoAction, c *Card) error {
-	us, _ := r.o.Users(r.ctx, r.tenant)
-	sees := func(id string) bool {
-		for _, u := range us {
-			if u.ID == id {
-				return u.Active && u.Role != RoleClient && boardRole(r.b, u) != ""
-			}
+// sees reports whether a person can still see the board.
+func (r *baRunner) sees(id string) bool {
+	if r.users == nil {
+		r.users, _ = r.o.Users(r.ctx, r.tenant)
+		if r.users == nil {
+			r.users = []User{}
 		}
-		return len(us) == 0
 	}
+	for _, u := range r.users {
+		if u.ID == id {
+			return u.Active && u.Role != RoleClient && boardRole(r.b, u) != ""
+		}
+	}
+	return len(r.users) == 0
+}
+
+// copyToBoard copies the card to a list on another team board, if the
+// person who last saved the automation can still add cards there.
+func (r *baRunner) copyToBoard(a AutoAction, c *Card) error {
+	if c.Link != nil {
+		return invalid("#%d is linked to %s: automation does not copy linked cards to other boards", c.No, c.Link.Label)
+	}
+	owner := firstOf(r.a.UpdatedBy, r.a.CreatedBy)
+	to, _, err := r.o.boardFor(r.ctx, r.tenant, owner, a.Board, BoardAdmin, BoardMember)
+	if err != nil {
+		return invalid("%s can no longer add cards to the other board, so the copy was not made: %s", owner, baErrText(err))
+	}
+	var pos *float64
+	if a.Top {
+		z := 0.0
+		pos = &z
+	}
+	nc, err := r.o.CopyCard(r.ctx, r.tenant, AutomationActor, r.b.ID, c.ID, CardMove{Board: to.ID, List: a.List, Pos: pos}, "", []string{"checklists", "members"})
+	if err != nil {
+		return err
+	}
+	l, _ := boardList(to, a.List)
+	r.note("copied #%d to %s on %s as #%d", c.No, l.Name, to.Name, nc.No)
+	return nil
+}
+
+// notify tells the people named, and the card's members or watchers when
+// asked (except the person who set it off: they know). email does the same
+// and asks for the notices to be emailed (boardnotify.go).
+func (r *baRunner) notify(a AutoAction, c *Card) error {
+	sees := r.sees
 	cards := r.cards
 	if c != nil {
 		cards = []Card{*c}
@@ -1327,6 +1611,11 @@ func (r *baRunner) notify(a AutoAction, c *Card) error {
 	card := ""
 	if c != nil {
 		card = c.ID
+	}
+	if a.Kind == "email" {
+		r.o.boardNotifyEmail(r.ctx, r.tenant, AutomationActor, r.b, card, to, clip(text, 1000))
+		r.note("emailed %s (with their next board email)", strings.Join(to, ", "))
+		return nil
 	}
 	r.o.boardNotifyKind(r.ctx, r.tenant, AutomationActor, r.b, card, NoticeAutomation, to, clip(text, 1000))
 	r.note("notified %s", strings.Join(to, ", "))
@@ -1507,6 +1796,9 @@ func baOnEvent(ctx context.Context, o *Ops, tenant string, ev BoardEvent) {
 		if !baCondsOK(a.Conditions, c, now) {
 			continue
 		}
+		if a.Trigger.Event == "card_moved_end" && !o.baAtEnd(ctx, tenant, c, a.Trigger.Pos == "top") {
+			continue
+		}
 		why := baWhy(b, a.Trigger, ev)
 		if st.depth >= baMaxDepth {
 			run := BoardAutoRun{Board: b.ID, Auto: a.ID, Kind: a.Kind, Name: a.Name, Card: c.ID, CardNo: c.No, Title: clip(c.Title, 120), By: firstOf(by, st.by), Why: why, At: now.Format(time.RFC3339),
@@ -1534,6 +1826,32 @@ func baWhy(b Board, t *AutoTrigger, ev BoardEvent) string {
 		s = "moved into " + list("to_list")
 	case "card_moved_out":
 		s = "moved out of " + list("from_list")
+	case "card_moved_end":
+		k := "to_list"
+		if ev.Data[k] == "" {
+			k = "list"
+		}
+		s = "moved to the " + t.Pos + " of " + list(k)
+	case "card_renamed":
+		s = "renamed"
+	case "card_undone":
+		s = "marked not complete"
+	case "item_checked":
+		s = "item “" + clip(ev.Data["text"], 60) + "” ticked"
+	case "item_unchecked":
+		s = "item “" + clip(ev.Data["text"], 60) + "” unticked"
+	case "item_added":
+		s = "item “" + clip(ev.Data["text"], 60) + "” added"
+	case "attachment_added":
+		s = clip(ev.Data["name"], 60) + " attached"
+	case "field_set":
+		name := "a custom field"
+		if f, ok := boardField(b, ev.Data["field"]); ok {
+			name = f.Name
+		}
+		s = name + " set to " + clip(ev.Data["value"], 60)
+	case "card_unarchived":
+		s = "sent back to the board"
 	case "label_added":
 		s = "the " + baLabelName(b, ev.Data["label"]) + " added"
 	case "label_removed":
