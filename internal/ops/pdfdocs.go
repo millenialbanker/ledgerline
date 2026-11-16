@@ -107,8 +107,11 @@ func (o *Ops) notePDF(ctx context.Context, tenant, date, ucc, part string) (pdf.
 	}
 	g.Totals = []string{"Net " + dir + " client", "", "", "", "", "", "", "", formatINR(v.Net.Abs())}
 	r.Sections = []pdf.Table{t, g}
-	r.Notes = []string{"Positive amounts are payable to the client; negative amounts are payable by the client. Futures are marked to market at the day's settlement price.",
-		"This contract note is issued subject to the rules, bye-laws and regulations of the exchanges and SEBI, and to the arbitration provisions of the exchanges."}
+	for _, x := range v.Remarks {
+		r.Notes = append(r.Notes, "Remark: "+x)
+	}
+	r.Notes = append(r.Notes, "Positive amounts are payable to the client; negative amounts are payable by the client. Futures are marked to market at the day's settlement price.",
+		"This contract note is issued subject to the rules, bye-laws and regulations of the exchanges and SEBI, and to the arbitration provisions of the exchanges.")
 	return r, v, nil
 }
 

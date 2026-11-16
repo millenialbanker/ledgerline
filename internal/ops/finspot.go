@@ -358,7 +358,7 @@ type dematLine struct {
 	Demat     int64     // demat balance (margin-pledged included) less lender pledges and CDSL freezes; whole units, all the client's accounts
 	Pledged   int64     // margin-pledged, as the holdings have it (whole units)
 	Cost      money.Dec // the holding's average cost (zero when unknown)
-	CUSPA     int64     // unpaid purchases held in CUSPA, sellable too
+	CUSPA     int64     // unpaid purchases held in CUSPA, and invoked ones waiting for sale: sellable too
 	CUSPAVal  money.Dec // their value
 }
 
@@ -417,10 +417,14 @@ func (o *Ops) sellableDemat(ctx context.Context, tenant, date string, cs map[str
 	}
 	cu, _ := docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
 	for _, it := range cu {
-		if _, ok := cs[it.UCC]; ok && it.Status == "Held in CUSPA" && it.Date < date {
-			l := line(it.UCC, it.ISIN)
-			l.CUSPA += it.Qty
-			l.CUSPAVal = l.CUSPAVal.Add(it.Value)
+		// Held in CUSPA, and invoked shares waiting to be sold under the
+		// client's code (blocked for early pay-in).
+		if q := it.Qty + it.unsold(); q > 0 && it.Date < date {
+			if _, ok := cs[it.UCC]; ok {
+				l := line(it.UCC, it.ISIN)
+				l.CUSPA += q
+				l.CUSPAVal = l.CUSPAVal.Add(it.costOf(q))
+			}
 		}
 	}
 	return out, nil

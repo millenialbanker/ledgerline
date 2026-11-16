@@ -416,6 +416,15 @@ func (o *Ops) carryOut(ctx context.Context, tenant, actor, date string, p Propos
 		_, err = o.PostDailyInterest(ctx, tenant, actor, a["date"])
 	case "ras.settle":
 		_, err = o.settleRAS(ctx, tenant, actor, a["date"])
+	case "cuspa.notice", "cuspa.invoke":
+		var r CUSPABulkResult
+		if r, err = o.CUSPABulk(ctx, tenant, actor, CUSPABulkReq{Date: date, Action: strings.TrimPrefix(p.Kind, "cuspa."), IDs: strings.Split(a["ids"], ",")}); err == nil && r.Done == 0 {
+			why := "nothing to do"
+			if len(r.Lines) > 0 {
+				why = r.Lines[0].Why
+			}
+			err = fmt.Errorf("%w: %s", ErrState, why)
+		}
 	case "penalty.pass":
 		_, err = o.DecidePenaltyPass(ctx, tenant, actor, a["id"], true, "")
 	default:

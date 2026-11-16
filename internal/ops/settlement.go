@@ -27,6 +27,9 @@ type Obligation struct {
 	Free     int64     `json:"free"`
 	Status   string    `json:"status"`
 	Action   string    `json:"action,omitempty"` // what the user can do next
+	// FromCUSPA is the part of a sale delivered from the client's invoked
+	// CUSPA shares, blocked for early pay-in (cuspa.go).
+	FromCUSPA int64 `json:"from_cuspa,omitempty"`
 }
 
 type settleState struct {
@@ -35,18 +38,29 @@ type settleState struct {
 	At     string `json:"at"`
 }
 
-// CUSPAItem is a client's unpaid purchase held in the client unpaid
-// securities pledgee account.
+// CUSPAItem is a client's unpaid purchase pledged to the client unpaid
+// securities pledgee account (cuspa.go has the rules).
 type CUSPAItem struct {
-	ID     string    `json:"id"`
-	Date   string    `json:"date"`
-	UCC    string    `json:"ucc"`
-	ISIN   string    `json:"isin"`
-	Symbol string    `json:"symbol"`
-	Qty    int64     `json:"qty"`
-	Value  money.Dec `json:"value"`
-	Status string    `json:"status"` // Held in CUSPA, Released
-	By     string    `json:"by"`
+	ID       string    `json:"id"`
+	Date     string    `json:"date"` // trade date
+	UCC      string    `json:"ucc"`
+	Exchange string    `json:"exchange,omitempty"`
+	ISIN     string    `json:"isin"`
+	Symbol   string    `json:"symbol"`
+	Qty      int64     `json:"qty"`   // still held in CUSPA
+	Value    money.Dec `json:"value"` // unpaid purchase value of the whole line
+	Status   string    `json:"status"`
+	By       string    `json:"by"`
+	PayOut   string    `json:"pay_out,omitempty"` // the pay-out day (day 0)
+	Released int64     `json:"released,omitempty"`
+	Invoked  int64     `json:"invoked,omitempty"`
+	Sold     int64     `json:"sold,omitempty"`
+	// NoticeOn is the day the client was given notice before invocation.
+	NoticeOn  string       `json:"notice_on,omitempty"`
+	NoticeBy  string       `json:"notice_by,omitempty"`
+	InvokedOn string       `json:"invoked_on,omitempty"`
+	SoldOn    string       `json:"sold_on,omitempty"`
+	Events    []CUSPAEvent `json:"events,omitempty"`
 }
 
 // Settlement is the settlement page for a trade date.
@@ -90,6 +104,11 @@ func (o *Ops) Obligations(ctx context.Context, tenant, date string) (Settlement,
 	// Every one of the client's accounts together, in whole units (a
 	// delivery is in whole shares; a fraction stays where it is).
 	hold := holdingsByClient(hs)
+	cuspaItems, err := docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
+	if err != nil {
+		return Settlement{}, err
+	}
+	early := cuspaEarlyPayIn(cuspaItems, date)
 	free := map[string]int64{}
 	for _, h := range hs {
 		free[holdingID(h.UCC, h.ISIN)] += wholeUnits(h.Free())
@@ -145,7 +164,14 @@ func (o *Ops) Obligations(ctx context.Context, tenant, date string) (Settlement,
 		switch {
 		case ob.NetQty < 0:
 			need := -ob.NetQty
+			id := holdingID(ob.UCC, ob.ISIN)
+			if c := min(early[id], need); c > 0 {
+				early[id] -= c
+				ob.FromCUSPA, need = c, need-c
+			}
 			switch {
+			case need == 0:
+				ob.Status = "Early pay-in (CUSPA)"
 			case need > ob.Holding:
 				ob.Status, ob.Action = "Short delivery", "report_short"
 			case need > ob.Free:
@@ -206,8 +232,8 @@ func (o *Ops) Obligations(ctx context.Context, tenant, date string) (Settlement,
 		out.MTM = append(out.MTM, SegmentMTM{UCC: u, Name: clients[u].Name, Segment: seg, Amount: mtm[k].Dec()})
 	}
 	sort.SliceStable(out.MTM, func(i, j int) bool { return out.MTM[i].Amount.Cmp(out.MTM[j].Amount) < 0 })
-	out.CUSPA, err = docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
-	return out, err
+	out.CUSPA = cuspaItems
+	return out, nil
 }
 
 // SettleAction applies one settlement step to an obligation:
@@ -244,12 +270,12 @@ func (o *Ops) SettleAction(ctx context.Context, tenant, actor, date, key, action
 	}
 	switch action {
 	case "payin":
-		if err := o.debitAcross(ctx, tenant, actor, cl, ob.ISIN, ob.Symbol, -ob.NetQty); err != nil {
+		if err := o.debitAcross(ctx, tenant, actor, cl, ob.ISIN, ob.Symbol, -ob.NetQty-ob.FromCUSPA); err != nil {
 			return *ob, err
 		}
 		status = "Paid in"
 	case "unpledge_payin":
-		need := -ob.NetQty
+		need := -ob.NetQty - ob.FromCUSPA
 		unpledge := need - ob.Free
 		if err := o.unpledgeAcross(ctx, tenant, actor, cl, ob.ISIN, ob.Symbol, unpledge); err != nil {
 			return *ob, err
@@ -265,7 +291,7 @@ func (o *Ops) SettleAction(ctx context.Context, tenant, actor, date, key, action
 				return *ob, err
 			}
 		}
-		if _, err := o.recordShortage(ctx, tenant, actor, date, st, *ob, -ob.NetQty-max(ob.Free, 0)); err != nil {
+		if _, err := o.recordShortage(ctx, tenant, actor, date, st, *ob, -ob.NetQty-ob.FromCUSPA-max(ob.Free, 0)); err != nil {
 			return *ob, err
 		}
 		status = "Short reported"
@@ -274,7 +300,9 @@ func (o *Ops) SettleAction(ctx context.Context, tenant, actor, date, key, action
 		if err != nil {
 			return *ob, err
 		}
-		it := CUSPAItem{ID: fmt.Sprintf("CU-%05d", n), Date: date, UCC: ob.UCC, ISIN: ob.ISIN, Symbol: ob.Symbol, Qty: ob.NetQty, Value: ob.Funds.Neg(), Status: "Held in CUSPA", By: actor}
+		it := CUSPAItem{ID: fmt.Sprintf("CU-%05d", n), Date: date, UCC: ob.UCC, Exchange: ob.Exchange, ISIN: ob.ISIN, Symbol: ob.Symbol, Qty: ob.NetQty, Value: ob.Funds.Neg(),
+			Status: CUSPAHeld, By: actor, PayOut: st.PayIn}
+		it.Events = []CUSPAEvent{o.cuspaEvent(date, "Pledged", ob.NetQty, actor, "unpaid purchase, pay-out "+st.PayIn)}
 		if _, err := docs.Put(ctx, o.Docs, tenant, cCUSPA, it.ID, it, 0, actor); err != nil {
 			return *ob, err
 		}
@@ -316,34 +344,20 @@ func (o *Ops) SettleAllReady(ctx context.Context, tenant, actor, date string) (i
 	return n, nil
 }
 
-// ReleaseCUSPA releases unpaid securities to the client after funds arrive.
+// ReleaseCUSPA releases a CUSPA line's whole quantity to the client
+// (CUSPABulk "release" for one line, on today's date).
 func (o *Ops) ReleaseCUSPA(ctx context.Context, tenant, actor, id string) (CUSPAItem, error) {
-	if err := o.require(ctx, tenant, actor, "Releasing CUSPA securities", RoleMaker, RoleChecker); err != nil {
+	r, err := o.CUSPABulk(ctx, tenant, actor, CUSPABulkReq{Date: o.now().Format("2006-01-02"), Action: "release", IDs: []string{id}})
+	if err != nil {
 		return CUSPAItem{}, err
 	}
+	if len(r.Lines) == 1 && !r.Lines[0].OK {
+		if r.Lines[0].Why == "no such CUSPA line" {
+			return CUSPAItem{}, fmt.Errorf("%w: CUSPA line %s", ErrNotFound, id)
+		}
+		return CUSPAItem{}, fmt.Errorf("%w: %s: %s", ErrState, id, r.Lines[0].Why)
+	}
 	it, _, err := docs.Get[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, id)
-	if err != nil {
-		return it, err
-	}
-	if it.Status != "Held in CUSPA" {
-		return it, fmt.Errorf("%w: %s is %s", ErrState, id, it.Status)
-	}
-	funds, err := o.equityFunds(ctx, tenant, "", "")
-	if err != nil {
-		return it, err
-	}
-	if funds[it.UCC] < 0 {
-		return it, fmt.Errorf("%w: %s still owes %s; record the receipt first", ErrState, it.UCC, (-funds[it.UCC]).String())
-	}
-	// To the account the client chose for pay-outs, else the primary.
-	cl, _ := o.Client(ctx, tenant, it.UCC)
-	if _, err := o.adjustHoldingAt(ctx, tenant, actor, it.UCC, holdingAcct(cl, payoutDemat(cl).ID), it.ISIN, it.Symbol, money.DecInt(it.Qty), money.Dec{}); err != nil {
-		return it, err
-	}
-	it, err = docs.Update(ctx, o.Docs, tenant, cCUSPA, id, actor, func(x *CUSPAItem) error { x.Status = "Released"; return nil })
-	if err == nil {
-		o.log(ctx, tenant, actor, "cuspa.released", id, map[string]any{"ucc": it.UCC, "qty": it.Qty, "symbol": it.Symbol})
-	}
 	return it, err
 }
 

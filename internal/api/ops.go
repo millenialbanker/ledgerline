@@ -136,6 +136,9 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/settlement", s.settlement, false)
 	R("POST /v1/settlement/action", s.settleAction, true)
 	R("POST /v1/settlement/settle-ready", s.settleReady, true)
+	R("GET /v1/cuspa", s.cuspaAgeing, false)
+	R("POST /v1/cuspa/bulk", s.cuspaBulk, true)
+	R("GET /v1/cuspa/file", s.cuspaFile, false)
 	R("POST /v1/cuspa/{id}/release", s.releaseCUSPA, true)
 	R("GET /v1/notes", s.notes, false)
 	R("POST /v1/notes/generate", s.generateNotes, true)
@@ -913,6 +916,37 @@ func (s *Server) settleReady(w http.ResponseWriter, r *http.Request) {
 	}
 	n, err := s.ops.SettleAllReady(r.Context(), tenant(r), actor(r), b.Date)
 	ok(w, map[string]int{"settled": n}, err)
+}
+
+func (s *Server) cuspaAgeing(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.CUSPAAgeing(r.Context(), tenant(r), d)
+	ok(w, v, err)
+}
+
+func (s *Server) cuspaBulk(w http.ResponseWriter, r *http.Request) {
+	var b ops.CUSPABulkReq
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.CUSPABulk(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) cuspaFile(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	name, b, err := s.ops.CUSPAFile(r.Context(), tenant(r), d, r.URL.Query().Get("kind"))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	sendFile(w, name, "text/csv; charset=utf-8", b)
 }
 
 func (s *Server) releaseCUSPA(w http.ResponseWriter, r *http.Request) {

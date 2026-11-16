@@ -175,14 +175,38 @@ Notes for clients with an open client code change are held until the change is s
 title: Handle settlement, short deliveries and CUSPA
 screen: settlement
 roles: Ops maker, Ops checker
-ask: settlement obligation; pay in pay out; short delivery; auction; client did not deliver shares; cuspa; unpaid securities; release securities; close out short delivery
-related: run-billing, debit-interest
+ask: settlement obligation; pay in pay out; short delivery; auction; client did not deliver shares; close out short delivery
+related: run-billing, debit-interest, cuspa
 
 On [[settlement|Settlement]]:
 
 - **Obligations:** what the firm pays in to and receives from the clearing corporation for each settlement, client by client.
 - **Short delivery:** a client sold shares they didn't deliver. The exchange auctions them; when the auction result arrives, click **Close out** to post the auction or close-out price difference to the client.
-- **CUSPA (client unpaid securities):** shares bought by clients who haven't paid are held in the CUSPA account. When the client pays, click **Release**. Shares unpaid beyond the allowed days are sold as per the rules.
+- **CUSPA (client unpaid securities):** a buy the client has not paid for goes to CUSPA from the obligations tab (**To CUSPA**). The **Unpaid securities** tab works it: see **Unpaid securities (CUSPA)** on [[settlement|Settlement]].
+
+## cuspa
+title: Unpaid securities (CUSPA): ageing, release, notice and sale
+screen: settlement
+roles: Ops maker, Ops checker, Risk manager
+ask: cuspa; unpaid securities; client unpaid securities pledgee account; release cuspa; release unpaid shares; sell unpaid shares; invoke cuspa; cuspa ageing; 2.25 times; cuspa limit; auto release by depository; notice before sale of unpaid shares; how many days to pay for shares; cuspa sell list; early pay-in cuspa
+related: settlement, periodic-work
+
+Since 31 October 2026 (SEBI's CUSPA framework; NSE circulars 35/2026 and 41/2026) shares a client has not paid for are paid out to the client's demat account and pledged to the firm's CUSPA. Counting the pay-out day as day 0:
+
+1. **The client pays by day N**, the firm's period: Settings → Risk and settlement, **days to pay after pay-out**, 1 to 5 (5 when not set).
+2. **Every day the value kept may be at most 2.25 × (margin − ledger balance).** The value is the price less haircut, as for a margin pledge (purchase cost when there is no price); the ledger balance counts every ledger except MTF, a debit as negative; the margin is the end-of-day margin in all segments. What is over is released by the next trading day, oldest pledge first; everything is released once the ledger covers the margin.
+3. **Notice before sale.** The client is emailed and texted (template **cuspa.notice** on Client messages) with the amount due, the pay-by date and when the shares may be sold. It is recorded on the line.
+4. **Invoke up to day 5**, after the payment period and the notice, only as much as covers the debit. The invoked shares are blocked for early pay-in: sell them under the client's code (the firm's own code if the account is frozen). The contract note carries a remark and the proceeds go to the client's ledger.
+5. **Day 6:** what is neither released nor invoked is released by the depository at the end of the day.
+
+On [[settlement|Settlement]] → **Unpaid securities**:
+
+- **Lines** shows every CUSPA line with its pay-out day, age (day 0 to 6), pay-by date, last day to invoke, pledge value, the client's ledger and what to do next. Filter by stage (in period, pay by today, unpaid, last day to invoke, depository releases, to sell, over the limit, closed), search by client, scrip or line, filter by client group and sort by any column. Click a line for its history.
+- **Select lines** and use the bar: **Release** (the whole quantity; before the client has paid, a checker or risk manager), **Release excess** (only what is over the limit), **Send notice**, **Invoke** (checker or risk manager) and **Mark sold**. Each shows first what it will do, line by line, and why a line is left out.
+- **Clients' limit** shows each client's ledger balance, margin, pledge value, limit and excess.
+- **Sell list** is the invoked shares to sell; **Depository list** is the day's releases and invocations to give on the depository's system.
+
+The **daily CUSPA review** on [[periodic|Periodic work]] (each trading day, before the market opens) releases what is over each client's limit, records the depository's day-6 releases, finds the sale of invoked shares in the trades, and puts in the work queue the notices (**Send notice** in one click), the invocations due (with the last day) and the sales to place. A line the depository released while the client still owes is listed for recovery like any debit.
 
 ## eod-close
 title: Close the day (equity and commodity)
@@ -345,13 +369,14 @@ roles: Ops maker, Ops checker, Compliance officer
 ask: periodic work; weekly statement; statement of funds and securities; monthly statement; month end; quarterly; bsda review; running account settlement; complaints disclosure; settlement master; ccil prices; g-sec prices; cuspa; mtf payout reporting; unpaidmtf
 related: exchange-files
 
-On [[periodic|Periodic work]] every task that is not daily is listed with the period it covers (the week to Friday, the month just ended, the quarter), when it is due and whether it is done. Work done on its own screen or by Autopilot counts.
+On [[periodic|Periodic work]] every task is listed with the period it covers (the week to Friday, the month just ended, the quarter), when it is due and whether it is done. Work done on its own screen or by Autopilot counts.
 
-1. **Weekly**: the statement of funds and securities to clients (Saturday); unpaid securities in CUSPA released to clients who have paid, and those still unpaid after the allowed days (Settings, 7 by default) queued for sale.
-2. **Each settlement day**: the CUSPA and MTF pay-out reporting file for NSE Clearing (UNPAIDMTF), which needs the month's settlement master loaded on [[xfiles|Exchange files]].
-3. **Monthly**: month-end postings (interest, MTF interest, DP bills, AP commission), statements of account, DP statements and the complaints disclosure; checks that the coming month's settlement master and CCIL's month-end G-sec and T-bill prices (MTMPRICE, .xls as published) are loaded.
-4. **Running account settlement** on the exchanges' RAS dates (the Friday and/or Saturday of their joint annual calendar, separately for monthly and quarterly clients; kept on [[circulars|Circulars & calendar]] → *RAS dates & profile*), with the statements. A client with a credit balance and no transaction for 30 days (no trade and no funds received, and no open position or margin) is settled within 3 working days, whatever they chose, not on the monthly or quarterly date (NSE/INSP/53820); [[ras|Running account]] marks such clients with the date their money is due back.
-5. **Quarterly BSDA review**: proposes conversions on the [[dp|Depository]] screen (BSDA review tab); a different checker applies it, the depository modification file is kept and clients are emailed. Record a client's choice to stay regular, or a demat account with another DP, so the review leaves them out.
+1. **Daily (trading days)**: the CUSPA review of unpaid securities: releases over the 2.25× limit, the depository's day-6 releases, sales of invoked shares, and the notices and invocations due ([[settlement|Settlement]] → Unpaid securities).
+2. **Weekly**: the statement of funds and securities to clients (Saturday).
+3. **Each settlement day**: the CUSPA and MTF pay-out reporting file for NSE Clearing (UNPAIDMTF), which needs the month's settlement master loaded on [[xfiles|Exchange files]].
+4. **Monthly**: month-end postings (interest, MTF interest, DP bills, AP commission), statements of account, DP statements and the complaints disclosure; checks that the coming month's settlement master and CCIL's month-end G-sec and T-bill prices (MTMPRICE, .xls as published) are loaded.
+5. **Running account settlement** on the exchanges' RAS dates (the Friday and/or Saturday of their joint annual calendar, separately for monthly and quarterly clients; kept on [[circulars|Circulars & calendar]] → *RAS dates & profile*), with the statements. A client with a credit balance and no transaction for 30 days (no trade and no funds received, and no open position or margin) is settled within 3 working days, whatever they chose, not on the monthly or quarterly date (NSE/INSP/53820); [[ras|Running account]] marks such clients with the date their money is due back.
+6. **Quarterly BSDA review**: proposes conversions on the [[dp|Depository]] screen (BSDA review tab); a different checker applies it, the depository modification file is kept and clients are emailed. Record a client's choice to stay regular, or a demat account with another DP, so the review leaves them out.
 
 **Run now** runs a task by hand. The **Periodic work** scheduled job (on [[jobs|Scheduled jobs]], every morning) runs the ones that can run by themselves and puts the rest in the work queue: a review to approve, a file to load, a return to upload.
 

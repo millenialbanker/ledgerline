@@ -308,6 +308,7 @@ body.signed-out .side,body.signed-out .top{display:none}body.signed-out .app{dis
 .cr-client{min-width:300px;flex:1}
 .gtag{display:inline-block;font:600 11px var(--f-mono);letter-spacing:.03em;padding:2px 7px;border-radius:5px;background:var(--accent-soft);color:var(--accent);border:0;cursor:pointer;margin:1px 2px 1px 0}
 span.gtag{cursor:default}
+.tbl th .srt{background:none;border:0;padding:0;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;cursor:pointer}.tbl th .srt:hover{color:var(--ink)}
 .bulkbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;background:var(--accent-soft);border-bottom:1px solid var(--line)}.bulkbar .in{width:180px;height:30px}
 tr.sel td{background:var(--accent-soft)}
 .grouprow{display:grid;grid-template-columns:1fr 1.4fr;gap:16px;padding:10px 0;border-bottom:1px solid var(--line)}

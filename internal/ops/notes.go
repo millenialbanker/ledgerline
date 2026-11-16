@@ -245,6 +245,7 @@ td.n{font-family:ui-monospace,Menlo,monospace}tfoot td{font-weight:700;border-to
 <table><thead><tr><th>Order no.</th><th>Trade no.</th><th>Time</th><th>Exchange</th><th>Security / contract</th><th>B/S</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Brokerage</th><th class="r">Net total</th></tr></thead><tbody>
 {{range .Lines}}<tr><td class="n">{{.OrderNo}}</td><td class="n">{{.TradeNo}}</td><td class="n">{{.Time}}</td><td>{{.Seg}}</td><td>{{.Name}}</td><td>{{.Side}}</td><td class="r n">{{.Qty}}</td><td class="r n">{{.Price}}</td><td class="r n">{{amt .Brok}}</td><td class="r n">{{inr .Net}}</td></tr>{{end}}
 </tbody></table>
+{{range .Remarks}}<p class="note"><b>Remark:</b> {{.}}</p>{{end}}
 <h2>Obligation and charges by segment</h2>
 <table><thead><tr><th>Segment</th><th class="r">Pay-in / pay-out (incl. MTM)</th><th class="r">Brokerage</th><th class="r">Exchange charges</th><th class="r">STT / CTT</th><th class="r">SEBI fee</th><th class="r">Stamp duty</th><th class="r">GST</th><th class="r">Net</th></tr></thead><tbody>
 {{range .Groups}}<tr><td>{{.Exchange}}-{{.Segment}}</td><td class="r n">{{amt .TradeNet}}</td><td class="r n">{{amt .Charges.Brokerage}}</td><td class="r n">{{amt .Charges.ExchTxn}}</td><td class="r n">{{amt .Charges.STT}}</td><td class="r n">{{amt .Charges.SEBIFee}}</td><td class="r n">{{amt .Charges.Stamp}}</td><td class="r n">{{amt .Charges.GST}}</td><td class="r n">{{amt .Net}}</td></tr>{{end}}
@@ -268,6 +269,9 @@ type noteView struct {
 	Groups  []billing.Group
 	Net     money.Dec
 	Members []string
+	// Remarks are printed under the trades: the sale of invoked CUSPA
+	// shares (cuspa.go).
+	Remarks []string
 }
 
 func (o *Ops) noteView(ctx context.Context, tenant, date, ucc, part string) (noteView, error) {
@@ -312,7 +316,7 @@ func (o *Ops) noteView(ctx context.Context, tenant, date, ucc, part string) (not
 	for _, k := range sortedKeys(set.MemberCodes) {
 		members = append(members, k+" "+set.MemberCodes[k])
 	}
-	return noteView{Note: n, Client: c, Set: set, Lines: lines, Groups: out.Groups, Net: net, Members: members}, nil
+	return noteView{Note: n, Client: c, Set: set, Lines: lines, Groups: out.Groups, Net: net, Members: members, Remarks: o.cuspaNoteRemarks(ctx, tenant, date, n.UCC, trades)}, nil
 }
 
 // RenderNote is the contract note as a web page (for the screen and print).
@@ -325,7 +329,7 @@ func (o *Ops) RenderNote(ctx context.Context, tenant, date, ucc, part string) ([
 	err = noteTmpl.Execute(&buf, map[string]any{
 		"Note": v.Note, "Client": v.Client, "PAN": MaskPAN(v.Client.PAN), "Firm": v.Set.Firm, "SEBIReg": v.Set.SEBIReg, "Members": "Member codes " + strings.Join(v.Members, " · "),
 		"Compliance": v.Set.ComplianceEmail, "PayIn": v.Set.NextSettlementDay(date), "Lines": v.Lines, "Groups": v.Groups,
-		"Payable": v.Net.Sign() < 0, "NetAbs": v.Net.Abs(), "Sample": o.App.Schedule.Sample, "Schedule": o.App.Schedule.Version,
+		"Payable": v.Net.Sign() < 0, "NetAbs": v.Net.Abs(), "Sample": o.App.Schedule.Sample, "Schedule": o.App.Schedule.Version, "Remarks": v.Remarks,
 	})
 	return buf.Bytes(), err
 }

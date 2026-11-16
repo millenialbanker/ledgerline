@@ -127,10 +127,12 @@ Gateway settlement | Ops checker
 Generating contract notes | Ops maker, Ops checker
 Generating reports | Ops maker, Ops checker, Risk manager, Compliance officer
 Giving clients portal access | Ops checker, Admin
+Giving notice before invoking CUSPA securities | Ops maker, Ops checker, Risk manager
 Holding or deleting archived documents | Compliance officer
 Identifying a bank credit | Ops checker
 Importing dealers and terminals | Ops maker, Compliance officer
 Invoking pledges | Risk manager
+Invoking unpaid CUSPA securities for sale | Ops checker, Risk manager
 Issuing DIS books | Ops maker, Ops checker
 Loading DP accounts | Ops checker
 Loading MF files | Ops maker, Ops checker
@@ -202,11 +204,13 @@ Recording recovery of a legacy debt | Ops maker, Ops checker, Risk manager, Comp
 Recording the BSDA choice | Ops maker, Ops checker
 Recording the funds pay-out | Ops checker, Risk manager
 Recording the holding statement sent to BSE | Ops maker, Ops checker, Compliance officer
+Recording the sale of invoked CUSPA securities | Ops maker, Ops checker, Risk manager
 Referring an alert to the exchange | Compliance officer
 Registering a stock SIP for a client | Ops maker, Ops checker
 Registering clients on MF platforms | Ops maker, Ops checker
 Rejecting an application | Ops checker, Compliance officer
-Releasing CUSPA securities | Ops maker, Ops checker
+Releasing CUSPA securities before the client has paid | Ops checker, Risk manager
+Releasing CUSPA securities | Ops maker, Ops checker, Risk manager
 Releasing clearing deposits | Ops checker
 Releasing payouts | Ops checker
 Removing the signing certificate | Admin

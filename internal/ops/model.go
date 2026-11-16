@@ -101,8 +101,9 @@ type Settings struct {
 	PenaltyPassThrough bool              `json:"penalty_pass_through"`
 	RASMonthly         string            `json:"ras_monthly"`
 	RASQuarterly       string            `json:"ras_quarterly"`
-	// CUSPADays: trading days after pay-out within which unpaid purchases
-	// held in CUSPA must be paid for before they are sold (default 7).
+	// CUSPADays: the firm's payment period for unpaid purchases pledged to
+	// CUSPA, in trading days after pay-out: 1 to 5 (SEBI's maximum), 5
+	// when not set (cuspa.go).
 	CUSPADays       int            `json:"cuspa_days,omitempty"`
 	Holidays        []string       `json:"holidays"` // typed in by the firm; exchange calendars add to these
 	SnapshotTimes   []string       `json:"snapshot_times"`
@@ -518,6 +519,9 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	}
 	if s.RASBufferPct < 0 || s.RASBufferPct > 100 {
 		return invalid("RAS buffer must be between 0 and 100")
+	}
+	if s.CUSPADays < 0 || s.CUSPADays > cuspaInvokeDays {
+		return invalid("the payment period for unpaid securities (CUSPA) is 1 to %d trading days after pay-out", cuspaInvokeDays)
 	}
 	for _, x := range []struct{ name, v string }{{"interest rate", s.InterestPctPA}, {"GST rate", s.GSTPct}, {"interest minimum", s.InterestMinimum}, {"TDS rate", s.TDSCommissionPct}, {"referral reward", s.ReferralPct}, {"interest minimum", s.LeadIncentive}} {
 		if x.v == "" {

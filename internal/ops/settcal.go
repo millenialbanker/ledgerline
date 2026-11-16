@@ -207,8 +207,8 @@ func (o *Ops) cuspaMTFFile(ctx context.Context, tenant string, s *xfile.Spec, se
 	}
 	cu, _ := docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
 	for _, it := range cu {
-		if it.Date == date && it.Status == "Held in CUSPA" {
-			add(it.UCC, it.ISIN, it.Symbol, "T", it.Qty)
+		if it.Date == date && it.total() > 0 {
+			add(it.UCC, it.ISIN, it.Symbol, "T", it.total())
 		}
 	}
 	ms, _ := docs.List[MTFPosition](ctx, o.Docs, tenant, cMTFPos, "")
