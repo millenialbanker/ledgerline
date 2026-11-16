@@ -27,7 +27,8 @@ related: boards-card-window, boards-shortcuts, boards-overview
 
 - **Add a card**: **Add a card** at the foot of a list, type the title and press Enter. The box stays open for the next card; Esc closes it.
 - **Add a list**: **Add another list** at the right end of the board.
-- **Move cards and lists** by dragging them. On a phone or tablet, press and hold a card to pick it up. Without a mouse, open the card's **⋯** and choose **Move**, then the board, list and position. A Ledgerline board may refuse a move; the message says why and the card goes back.
+- **Move cards and lists** by dragging them. On a phone or tablet, press and hold a card to pick it up. Without a mouse, open the card's **⋯** (quick edit) and choose **Move**, then the board, list and position. A Ledgerline board may refuse a move; the message says why and the card goes back.
+- **Quick edit**: a card's **⋯**, a right-click on the card, or **e** changes it without opening it (see **Quick edit, undo and redo**). Most changes show **Undo** for a few seconds.
 - **Rename a list** by clicking its name. The list's **⋯** menu adds a card, moves all its cards to another list, sorts it (due date, title, newest, oldest), sets a colour, sets a **card limit**, moves the list left or right, archives all its cards, or archives the list.
 - A **card limit** is a soft limit: when a list holds more cards, its count shows as, say, 5/4 in orange. Cards are never refused.
 - The card's front shows its labels (click one to show or hide label names), number, title, due date (grey; orange when due within a day; red when overdue; green when complete), and whether it has a description, comments, attachments, checklist items done, votes and members.
@@ -44,7 +45,7 @@ Click a card to open it. The address in the browser then points at the card, so 
 
 - **Title**: click it to change it. **in list …** under it moves the card.
 - **Members**, **Labels** and **Dates** sit at the top; **Add to card** on the right adds them. Dates have a start, a due date with an optional time (IST) and a reminder; members and watchers are told when the reminder time comes. Tick the box by the date to mark the card complete.
-- **Description**: plain text with **bold** (two stars either side), _italic_ (underscores), `code` (back-ticks), links and lists (lines starting with a dash or a number). Ctrl+Enter saves.
+- **Description**: the toolbar above the box adds bold, italic, strikethrough, headings, lists, quotes, code, links, mentions and emoji; you can also type the markdown yourself (see **Formatting descriptions and comments**). A link to another card shows as a chip with its number, title and list. Ctrl+Enter saves.
 - **Checklists**: add as many as you need; tick items, click one to edit it, give it a person or a due date, and reorder by dragging or with the up and down buttons. **Hide checked items** keeps the list short; the bar shows how much is done.
 - **Attachments**: **Attachment** uploads files (up to 15 MB each) or attaches a link. You can also drop files on the window or paste a screenshot. An image can be the card's **cover**; **Cover** also offers colours and a full-card cover.
 - **Comments**: type @ and a name to mention someone (they are told); edit or delete your own; react with 👍 👀 ✅ 🎉 ❤️ 😂 🙏 ❗. **Show details** mixes in the card's activity.
@@ -78,11 +79,68 @@ The bell on the boards screens shows how many notifications you have not read. Y
 title: Keyboard shortcuts on boards
 screen: boards
 roles: Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff, Authorised person, Admin
-ask: board keyboard shortcuts; trello shortcuts; boards hotkeys; keyboard on boards; shortcut to add a card; how to use boards without a mouse
-related: boards-lists-cards, boards-filters-search
+ask: board keyboard shortcuts; trello shortcuts; boards hotkeys; keyboard on boards; shortcut to add a card; how to use boards without a mouse; select a card with the keyboard; arrow keys on a board; switch board shortcut; toggle labels with number keys; copy and paste a card
+related: boards-quick-edit, boards-adding-cards, boards-lists-cards
 
-Shortcuts work when you are not typing in a box. Press **?** on a board to see them.
+Shortcuts work when you are not typing in a box. Press **?** on a board to see them all.
 
-- On a board: **n** adds a card to the list under the pointer (or the first list), **f** opens the filter, **q** shows only cards assigned to you, **x** clears filters, **/** searches cards, **Esc** closes a menu, window or composer.
-- In a card: **d** dates, **l** labels, **m** members, **c** archive or restore, **Space** joins or leaves the card, **Ctrl+Enter** saves a description or comment.
-- Every button, list and card can be reached with Tab. A card's **⋯** menu moves or copies it without dragging; a list's **⋯** menu moves the list left or right.
+- **Moving around**: the arrow keys, or **h j k l**, select a card (up and down a list, or across lists); the selected card has a blue ring. **Enter** opens it. **b** switches to another board, **/** searches cards on every board, **w** shows or hides the board menu, **Esc** closes a menu, window or composer, or clears the selection.
+- **On the board**: **n** adds a card to the list under the pointer (or the first list), **f** opens the filter, **q** shows only cards assigned to you, **x** clears filters, **;** shows or hides label names, **z** undoes your last change and **Shift+Z** redoes it.
+- **On the selected card** (or the card under the pointer, or the open card): **e** quick edit, **t** edit the title, **1** to **0** add or remove the board's first ten labels (in the order of the board's labels), **d** dates, **m** members, **s** watch, **v** vote, **c** archive. In an open card **l** opens labels and **Space** joins or leaves.
+- **Ctrl+C** (**⌘C** on a Mac) copies the selected card; **Ctrl+V** pastes a copy into the list under the pointer, or after the selected card, on this or another board in the same browser tab. The copy keeps the checklists, members and (on the same board) labels. Cards are not pasted onto Ledgerline boards: their cards are Ledgerline's own records.
+- While typing: **Ctrl+Enter** saves a description or comment; in a description **Ctrl+B** bold, **Ctrl+I** italic, **Ctrl+K** link.
+- Every button, list and card can be reached with Tab. Quick edit moves or copies a card without dragging; a list's **⋯** menu moves the list left or right.
+
+## boards-quick-edit
+title: Quick edit, undo and redo
+screen: boards
+roles: Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff, Authorised person, Admin
+ask: quick edit a card; edit a card without opening it; right click a card; rename a card from the list; card menu on the board; undo on a board; undo a card move; undo archive card; i archived a card by mistake; restore a card i just archived; undo label change; redo on a board; why can't i undo
+related: boards-shortcuts, boards-lists-cards, boards-card-window
+
+**Quick edit** changes a card from the board. Open it with the card's **⋯**, a right-click on the card, or **e** on the selected card (or the card under the pointer).
+
+- The title becomes a box: type and press **Enter** (or **Save**) to rename the card; **Esc** closes quick edit without saving.
+- Beside it: **Open card**, **Edit labels**, **Change members**, **Change cover**, **Edit dates**, **Move**, **Copy**, **Copy link**, **Mirror** (to another board) and **Archive**. Each opens the same choices as the card window.
+- Observers (and everyone on a closed board) see only **Open card** and **Copy link**. A card that follows a Ledgerline record cannot be renamed or archived here: its title and list come from the record. A mirror's title and dates are changed on the original.
+- On a phone, quick edit opens from the bottom of the screen.
+
+**Undo**: after a change made on the board screen, a message with **Undo** appears for a few seconds, and **z** undoes your last change on that board (**Shift+Z** redoes it). Undo works for moving a card (dragging too), archiving a card or a list, labels, members, dates, the title, the description, marking a card complete, moving all cards in a list, sorting a list and archiving all its cards.
+
+- Each browser tab keeps its own list of the last 30 changes for each board; it is gone when the page is reloaded.
+- Undo puts the card back as it was before your change. If someone has changed the same thing since, it says the card was changed since and changes nothing, so their work is not overwritten.
+- Moves of cards on a Ledgerline board are not undone: they act on Ledgerline's own records. Move the card back, or work the record in Ledgerline. Moves to another board are not undone either; move the card back from that board.
+
+## boards-adding-cards
+title: Add cards quickly: labels, people, several lines and files
+screen: boards
+roles: Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff, Authorised person, Admin
+ask: add a label while adding a card; hashtag label in card title; add a member while adding a card; add card at the top of a list; add many cards at once; paste a list of tasks; paste several lines into a card; one card per line; drop a file on a list; make a card from a file; drag a file onto the board
+related: boards-lists-cards, boards-shortcuts, boards-quick-edit
+
+In a list's **Add a card** box:
+
+- **#** adds a label: type **#** and pick one from the list, or type its name (**#DP billing**, **#urgent**; spaces can also be written as _ or -). A label without a name goes by its colour (**#green**).
+- **@** adds a member: **@farhan** or **@farhan.khan**. They are told they were added.
+- **^** sets the card's place: **^top**, **^bottom** or a position such as **^3**.
+- These words are taken out of the title, so "Fix bill #DP billing @farhan ^top" makes the card "Fix bill" at the top of the list, with the label and the member. Words that match no label or person stay in the title.
+- **Pasting several lines** asks "Make N cards, one per line?". **Make N cards** adds one card for each line (up to 100, each with its own #, @ and ^); **Make one card** puts the lines into the box as one title.
+- **Files dropped on a list** (not on a card) make a new card named after the first file, with every file attached (up to 15 MB each). Files dropped on a card are attached to it.
+
+## boards-formatting
+title: Formatting descriptions and comments
+screen: boards
+roles: Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff, Authorised person, Admin
+ask: format a card description; bold text in a card; heading in a card description; table in a card description; code block in a card; strikethrough on a card; link to another card; card link chip; emoji in a comment; emoji shortcodes on boards; numbered list in a description; quote in a comment
+related: boards-card-window, boards-shortcuts
+
+The toolbar above a card's description adds bold, italic, strikethrough, a heading, bulleted and numbered lists, a quote, code, a link, a mention and emoji. You can also type it yourself; descriptions and comments show the same way:
+
+- Two stars on each side make text **bold**; `_italic_` and `~~strike~~` work the same way, and back-ticks show `code`.
+- A line starting `#`, `##` or `###` and a space is a heading; `>` a quote; `-` a bulleted list; `1.` a numbered list; `---` on its own a dividing line.
+- Three back-ticks on a line of their own start and end a block of code, shown exactly as typed.
+- A table: a line of headings between pipes, a line of dashes, then the rows, for example `| Exchange | Trades |`, `|---|--:|`, `| NSE | 120 |`. A colon on the right of the dashes aligns that column right; on both sides, centre.
+- Links: a web address, or `[text](https://…)`. A link to a card (from **Copy link**) shows as a chip with the card's number, title and list when you can see that card; otherwise it stays a plain link.
+- Emoji: the smiley on the toolbar, or a short code such as `:tada:`, `:white_check_mark:`, `:warning:` or `:thumbsup:`.
+- **@** and a name mentions someone. In a comment they are told; in a description it only shows their name.
+- Everything is shown as text: no web page code runs, and links go only to web addresses and to Ledgerline's own screens.
