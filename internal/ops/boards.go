@@ -410,6 +410,9 @@ func (o *Ops) boardUser(ctx context.Context, tenant, actor string) (User, error)
 
 // boardRole is a person's role on a board ("" when they cannot see it).
 func boardRole(b Board, u User) string {
+	if b.Kind == BoardInbox { // a person's own Inbox (boardplanner.go): no one else, admins included
+		return inboxRole(b, u)
+	}
 	if b.Kind == BoardLedgerline && (u.Role == RoleBranch || u.Role == RoleAP) {
 		return "" // Ledgerline boards hold head-office records
 	}
@@ -488,6 +491,7 @@ func (o *Ops) boardNotify(ctx context.Context, tenant, actor string, b Board, ca
 // users, except the one who acted.
 func (o *Ops) boardNotifyKind(ctx context.Context, tenant, actor string, b Board, card, kind string, users []string, text string) {
 	seen := map[string]bool{}
+	users = inboxOnly(b, users) // an Inbox's notices go to its owner only
 	for _, u := range users {
 		if u == "" || u == actor || seen[u] || strings.HasPrefix(u, "system:") {
 			continue
@@ -580,7 +584,7 @@ func (o *Ops) Boards(ctx context.Context, tenant, actor string) ([]BoardSummary,
 	out := []BoardSummary{}
 	for _, b := range bs {
 		r := boardRole(b, u)
-		if r == "" || b.Deleted {
+		if r == "" || b.Deleted || b.Kind == BoardInbox { // the Inbox is shown on its own (boardplanner.go)
 			continue
 		}
 		lists := 0
@@ -771,6 +775,9 @@ func (o *Ops) UpdateBoard(ctx context.Context, tenant, actor, id string, in Boar
 	if err != nil {
 		return b, err
 	}
+	if err := inboxFixed(b, in); err != nil {
+		return b, err
+	}
 	var changes []string
 	b, err = docs.Update(ctx, o.Docs, tenant, cBoard, id, actor, func(x *Board) error {
 		if in.Name != "" && in.Name != x.Name {
@@ -905,8 +912,10 @@ func (o *Ops) UpdateBoard(ctx context.Context, tenant, actor, id string, in Boar
 
 // SetBoardClosed closes or reopens a board (board admins).
 func (o *Ops) SetBoardClosed(ctx context.Context, tenant, actor, id string, closed bool) (Board, error) {
-	if _, _, err := o.boardFor(ctx, tenant, actor, id, BoardAdmin); err != nil {
+	if b, _, err := o.boardFor(ctx, tenant, actor, id, BoardAdmin); err != nil {
 		return Board{}, err
+	} else if b.Kind == BoardInbox {
+		return Board{}, invalid("your Inbox stays open")
 	}
 	b, err := docs.Update(ctx, o.Docs, tenant, cBoard, id, actor, func(x *Board) error {
 		x.Closed, x.UpdatedAt = closed, o.now().Format(time.RFC3339)
@@ -1070,6 +1079,9 @@ func (o *Ops) AddList(ctx context.Context, tenant, actor, board, name string, po
 	}
 	if b.Kind == BoardLedgerline {
 		return BoardList{}, invalid("a Ledgerline board's lists are its records' stages")
+	}
+	if b.Kind == BoardInbox {
+		return BoardList{}, invalid("your Inbox has one list; move cards to a board to sort them")
 	}
 	n, err := textField("list name", name, 120, true)
 	if err != nil {
@@ -1441,6 +1453,9 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 				r, err := o.RoleOf(ctx, tenant, m)
 				if err != nil || r == RoleClient {
 					return invalid("%s is not a staff user", m)
+				}
+				if b.Kind == BoardInbox && m != inboxOwner(b) {
+					return invalid("only you can be on a card in your Inbox; move it to a board to add people")
 				}
 				if !contains(x.Members, m) {
 					newMembers = append(newMembers, m)
@@ -2330,6 +2345,7 @@ func (o *Ops) SearchCards(ctx context.Context, tenant, actor, q string) ([]CardH
 	if err != nil {
 		return nil, err
 	}
+	bs = append(bs, o.inboxSummary(ctx, tenant, actor)...) // and the person's own Inbox
 	out := []CardHit{}
 	for _, s := range bs {
 		b, _, err := docs.Get[Board](ctx, o.Docs, tenant, cBoard, s.ID)

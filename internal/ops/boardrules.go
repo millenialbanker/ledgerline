@@ -298,6 +298,9 @@ func (o *Ops) SaveBoardAuto(ctx context.Context, tenant, actor, board string, in
 	if err != nil {
 		return BoardAuto{}, err
 	}
+	if b.Kind == BoardInbox { // automation acts as Ledgerline, which may not see an Inbox
+		return BoardAuto{}, invalid("automation does not run on your Inbox; move the card to a board first")
+	}
 	if err := o.baCheck(ctx, tenant, b, &in); err != nil {
 		return BoardAuto{}, err
 	}
