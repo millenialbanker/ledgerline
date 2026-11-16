@@ -37,8 +37,8 @@ const bxMe = () => S.me?.actor || '';
 const bxName = (id, ctx) => (ctx?.users || []).find(u => u.id === id)?.name || (typeof meUser === 'function' && meUser()?.id === id ? meUser().name : '') || id;
 const bxColor = c => BX_COLORS[c] || BX_COLORS.blue;
 const bxPlural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-// PUT replaces the board's description too, so send it as it is.
-const bxPut = (ctx, patch) => api('PUT', `/v1/boards/${bxEnc(ctx.board.id)}`, { name: ctx.board.name, description: ctx.board.description || '', ...patch });
+// Board changes go through PUT; the patch carries only what changes.
+const bxPut = (ctx, patch) => api('PUT', `/v1/boards/${bxEnc(ctx.board.id)}`, { ...patch });
 const bxPatchCard = (card, patch) => api('PATCH', `/v1/boards/${bxEnc(card.board)}/cards/${bxEnc(card.id)}`, patch);
 async function bxRefresh(card) {
   try { await Promise.resolve(BOARDS.reload()); } catch (e) {}

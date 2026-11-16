@@ -102,13 +102,13 @@ func TestBoardTemplatesUse(t *testing.T) {
 	}
 
 	// The firm's own template: an admin marks the board; others see it in the gallery once it is firm-wide.
-	if _, err := o.UpdateBoard(ctx, T, maker, b.ID, BoardInput{Template: &yes, Description: b.Description}); err != nil {
+	if _, err := o.UpdateBoard(ctx, T, maker, b.ID, BoardInput{Template: &yes}); err != nil {
 		t.Fatal(err)
 	}
 	if g, _ := o.BoardTemplates(ctx, T, checker); len(g) != len(boardTemplates) {
 		t.Fatalf("checker sees a private template: %d", len(g))
 	}
-	if _, err := o.UpdateBoard(ctx, T, maker, b.ID, BoardInput{Visibility: "firm", Description: b.Description}); err != nil {
+	if _, err := o.UpdateBoard(ctx, T, maker, b.ID, BoardInput{Visibility: "firm"}); err != nil {
 		t.Fatal(err)
 	}
 	g, _ = o.BoardTemplates(ctx, T, checker)

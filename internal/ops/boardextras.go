@@ -411,7 +411,7 @@ func (o *Ops) UseBoardTemplate(ctx context.Context, tenant, actor, id string, in
 		return b, err
 	}
 	if b.Visibility != vis {
-		if b, err = o.UpdateBoard(ctx, tenant, actor, b.ID, BoardInput{Visibility: vis, Description: b.Description}); err != nil {
+		if b, err = o.UpdateBoard(ctx, tenant, actor, b.ID, BoardInput{Visibility: vis}); err != nil {
 			return b, err
 		}
 	}
@@ -421,7 +421,7 @@ func (o *Ops) UseBoardTemplate(ctx context.Context, tenant, actor, id string, in
 }
 
 func (o *Ops) boardFromBuiltin(ctx context.Context, tenant, actor string, t boardTpl, name, vis string, withCards bool) (Board, error) {
-	b, err := o.CreateBoard(ctx, tenant, actor, BoardInput{Name: name, Description: t.About, Visibility: vis, Background: t.Color, Lists: t.Lists})
+	b, err := o.CreateBoard(ctx, tenant, actor, BoardInput{Name: name, Description: &t.About, Visibility: vis, Background: t.Color, Lists: t.Lists})
 	if err != nil {
 		return b, err
 	}
