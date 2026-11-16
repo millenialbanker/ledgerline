@@ -28,6 +28,7 @@
 .bio-drop small{font-size:12.5px}
 .bio-drop:hover,.bio-drop.over{border-color:var(--b-acc);background:var(--b-acc-soft)}
 .bio-drop.busy{cursor:progress;opacity:.85}
+.bio-imp-from{margin:-4px 0 12px;font-size:12.5px;color:var(--b-ink2)}
 .bio-imp-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px}
 .bio-imp-l,.bio-imp-r{display:flex;flex-direction:column;gap:8px;min-width:0}
 .bio-imp-l .bx-lab,.bio-imp-r .bx-lab{margin:6px 0 0}
@@ -45,17 +46,17 @@
 .bio-ltag{position:absolute;top:-7px;right:6px;padding:0 6px;border-radius:6px;background:var(--b-ink2);color:var(--b-surf);font-size:10px;font-weight:600;line-height:14px}
 .bio-notes{margin:0;padding-left:18px;display:grid;gap:3px;font-size:12.5px;color:var(--b-ink2)}
 .bio-members{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border:1px solid var(--b-line);border-radius:12px;overflow:hidden}
-.bio-mrow{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1.2fr);gap:10px;align-items:center;padding:9px 12px;background:var(--b-surf)}
+.bio-mrow{display:grid;grid-template-columns:auto minmax(0,.85fr) minmax(0,1.35fr);gap:10px;align-items:center;padding:9px 12px;background:var(--b-surf)}
 .bio-mrow + .bio-mrow{border-top:1px solid var(--b-line)}
 .bio-av{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--b-acc-soft);color:var(--b-acc);font-size:11.5px;font-weight:700}
 .bio-mwho{display:flex;flex-direction:column;min-width:0}
 .bio-mwho b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bio-mwho small,.bio-msel small{font-size:11.5px;color:var(--b-ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bio-mwho small,.bio-msel small{font-size:11.5px;color:var(--b-ink3)}
 .bio-msel{display:flex;flex-direction:column;gap:3px;min-width:0}
 .bio-msel small{color:var(--b-done)}
 .bio-msel small.off{color:var(--b-ink3)}
 @media (max-width:760px){.bio-imp-grid{grid-template-columns:1fr}.bio-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:600px){.bio-mrow{grid-template-columns:auto minmax(0,1fr)}.bio-msel{grid-column:1/-1}.bio-bar{align-items:stretch}.bio-imp-b{width:100%;justify-content:center}}
+@media (max-width:600px){.bio-stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}.bio-stat{padding:6px 7px}.bio-stat b{font-size:15px}.bio-stat span{font-size:11px}.bio-stat small{font-size:10px}.bio-mrow{grid-template-columns:auto minmax(0,1fr)}.bio-msel{grid-column:1/-1}.bio-bar{align-items:stretch}.bio-imp-b{width:100%;justify-content:center}}
 
 /* ---- collections ---- */
 .bio-cman,.bio-cpick{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
@@ -94,6 +95,7 @@ body.bio-printing{overflow:hidden}
 .bio-ptools .btn{display:inline-flex;align-items:center;gap:6px}
 .bio-paper{max-width:1100px;margin:20px auto 40px;padding:32px 36px;background:#fff;border-radius:6px;box-shadow:0 1px 3px rgba(16,24,40,.12),0 12px 32px -12px rgba(16,24,40,.2);font-size:12.5px;line-height:1.45}
 .bio-ph{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;padding-bottom:14px;margin-bottom:16px;border-bottom:2px solid #101828}
+.bio-ph .bio-plabs{margin:6px 0 0}
 .bio-ph h1{margin:0;font-size:22px;line-height:1.25;font-weight:700}
 .bio-pkick{margin:0 0 2px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#667085}
 .bio-pdesc{margin:6px 0 0;color:#475467;max-width:64ch;white-space:pre-wrap}

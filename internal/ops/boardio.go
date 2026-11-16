@@ -531,10 +531,11 @@ type TrelloMember struct {
 
 // TrelloListPreview is one list of the export.
 type TrelloListPreview struct {
-	Name     string   `json:"name"`
-	Archived bool     `json:"archived"`
-	Cards    int      `json:"cards"`
-	Titles   []string `json:"titles"` // the first few open cards
+	Name          string   `json:"name"`
+	Archived      bool     `json:"archived"`
+	Cards         int      `json:"cards"`          // open cards
+	ArchivedCards int      `json:"archived_cards"` // archived cards
+	Titles        []string `json:"titles"`         // the first few open cards
 }
 
 // TrelloPreview is what an import would make, before it is made.
@@ -643,7 +644,11 @@ func (o *Ops) PreviewTrelloImport(ctx context.Context, tenant, actor string, raw
 			p.CardsArchived++
 		}
 		if lp := byList[string(c.IDList)]; lp != nil {
-			lp.Cards++
+			if c.Closed {
+				lp.ArchivedCards++
+			} else {
+				lp.Cards++
+			}
 			if !c.Closed && len(lp.Titles) < 3 {
 				lp.Titles = append(lp.Titles, cleanText(firstOf(string(c.Name), "Untitled card"), 80))
 			}
@@ -677,9 +682,9 @@ func (o *Ops) PreviewTrelloImport(ctx context.Context, tenant, actor string, raw
 		g, why := guessUser(m, us)
 		p.Members = append(p.Members, TrelloMember{ID: string(m.ID), Name: cleanText(string(m.FullName), 120), Username: cleanText(string(m.Username), 60), Type: firstOf(t.MemberType[string(m.ID)], "normal"), Guess: g, Why: why})
 	}
-	p.Notes = append(p.Notes, "The board is made private: you are its admin, and the people you map become its members (Trello admins as admins, observers as observers).")
+	p.Notes = append(p.Notes, "The board is made private: you are its admin, and the people you map become its members (Trello admins as admins, observers as observers). They get one notice that they were added; nothing else in the import notifies anyone.")
 	if p.Comments > 0 {
-		p.Notes = append(p.Notes, "Comments are posted by you, each saying who wrote it in Trello and when. Nobody is notified.")
+		p.Notes = append(p.Notes, "Comments are posted by you, each saying who wrote it in Trello and when.")
 	}
 	if p.Attachments > 0 {
 		p.Notes = append(p.Notes, "Attachments are added as links to their Trello addresses. The files are not copied, so opening one needs access to the Trello board.")

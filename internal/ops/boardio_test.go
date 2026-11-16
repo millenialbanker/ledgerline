@@ -105,7 +105,7 @@ func TestBoardTrelloImport(t *testing.T) {
 		p.Labels != 4 || p.Fields != 5 || p.Comments != 2 || p.Attachments != 1 || p.Covers != 2 {
 		t.Fatalf("preview counts %+v", p)
 	}
-	if p.ListPreview[0].Name != "To do" || p.ListPreview[3].Name != "Old ideas" || !p.ListPreview[3].Archived || p.ListPreview[0].Cards != 2 {
+	if p.ListPreview[0].Name != "To do" || p.ListPreview[3].Name != "Old ideas" || !p.ListPreview[3].Archived || p.ListPreview[0].Cards != 2 || p.ListPreview[2].Cards != 0 || p.ListPreview[2].ArchivedCards != 1 {
 		t.Fatalf("lists in order %+v", p.ListPreview)
 	}
 	guess := map[string]TrelloMember{}
@@ -122,7 +122,7 @@ func TestBoardTrelloImport(t *testing.T) {
 		t.Fatalf("no guess %+v", g)
 	}
 	notes := strings.Join(p.Notes, " ")
-	if !strings.Contains(notes, "not copied") || !strings.Contains(notes, "1 card in no list") || !strings.Contains(notes, "posted by you") {
+	if !strings.Contains(notes, "not copied") || !strings.Contains(notes, "1 card in no list") || !strings.Contains(notes, "posted by you") || !strings.Contains(notes, "one notice") {
 		t.Fatalf("preview notes %s", notes)
 	}
 	for _, u := range p.Users {

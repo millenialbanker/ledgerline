@@ -55,23 +55,44 @@ function bxFieldText(f, v) {
   return v;
 }
 
-/* A small popover anchored to a button, above the card window. */
+/* A small popover anchored to a button, above the card window. It is placed
+   again whenever its content changes (content that loads later, such as the
+   mirror's boards, can make it taller), so it always stays on the screen:
+   below the button if it fits, else above, else on the roomier side with
+   its body scrolling. */
 function bxPop(anchor, title, body, w = 304) {
   bxPopClose();
   const p = document.createElement('div');
   p.className = 'bx-pop'; p.id = 'bx-pop'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', title);
-  p.style.width = Math.min(w, innerWidth - 16) + 'px';
   p.innerHTML = `<div class="bx-pop-hd"><b>${esc(title)}</b><button class="bx-x" data-act="bxPopClose" aria-label="Close">×</button></div><div class="bx-pop-bd" id="bx-pop-bd">${body}</div>`;
   document.body.appendChild(p);
-  const r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: innerWidth / 2 - w / 2, top: 96, bottom: 96 };
-  const left = Math.min(Math.max(8, r.left), innerWidth - p.offsetWidth - 8);
-  let top = r.bottom + 6;
-  if (top + p.offsetHeight > innerHeight - 8) top = Math.max(8, r.top - p.offsetHeight - 6);
-  p.style.left = left + 'px'; p.style.top = top + 'px';
+  bxPop.at = { anchor, w };
+  bxPopPlace();
+  bxPop.mo?.disconnect();
+  bxPop.mo = new MutationObserver(() => bxPopPlace());
+  bxPop.mo.observe(p.querySelector('.bx-pop-bd'), { childList: true, subtree: true, characterData: true });
   if (anchor && anchor.setAttribute) anchor.setAttribute('aria-expanded', 'true');
   return p;
 }
-function bxPopClose() { const p = document.getElementById('bx-pop'); if (p) p.remove(); }
+function bxPopPlace() {
+  const p = document.getElementById('bx-pop'), at = bxPop.at || {};
+  if (!p) return;
+  const a = at.anchor, w = at.w || 304;
+  const r = a && a.getBoundingClientRect && document.contains(a) ? a.getBoundingClientRect() : { left: innerWidth / 2 - w / 2, top: 96, bottom: 96 };
+  p.style.width = Math.min(w, innerWidth - 16) + 'px';
+  p.style.maxHeight = '';
+  const h = p.offsetHeight, below = innerHeight - r.bottom - 14, above = r.top - 14;
+  let top;
+  if (h <= below) top = r.bottom + 6;
+  else if (h <= above) top = r.top - h - 6;
+  else if (below >= above) { p.style.maxHeight = Math.max(160, below) + 'px'; top = r.bottom + 6; }
+  else { p.style.maxHeight = above + 'px'; top = r.top - Math.min(h, above) - 6; }
+  top = Math.min(Math.max(8, top), Math.max(8, innerHeight - p.offsetHeight - 8));
+  const left = Math.min(Math.max(8, r.left), Math.max(8, innerWidth - p.offsetWidth - 8));
+  p.style.left = left + 'px'; p.style.top = top + 'px';
+}
+function bxPopClose() { const p = document.getElementById('bx-pop'); bxPop.mo?.disconnect(); bxPop.mo = null; if (p) p.remove(); }
+addEventListener('resize', () => bxPopPlace());
 document.addEventListener('mousedown', e => { const p = document.getElementById('bx-pop'); if (p && !p.contains(e.target)) p.remove(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('bx-pop')) { e.stopPropagation(); e.preventDefault(); bxPopClose(); } }, true);
 
@@ -521,9 +542,10 @@ async function bxAIRun(card, kind) {
     const r = await post(bxAIUrl(card, kind === 'summary' ? '/summary' : '/checklist'), {});
     UI.bxAIRes[card.id] = { kind, text: r.text || '', items: r.items || [], picked: new Set((r.items || []).map((_, i) => i)), by: r.by, note: r.note };
   } catch (e) {
-    // The gate refused (or the provider failed): its reason, and nothing else.
+    // The gate refused (or the provider failed): its reason, and nothing
+    // else. A refusal also takes the AI buttons away until it allows again.
     UI.bxAIRes[card.id] = { kind, refused: e.message };
-    if (e.status === 422 || e.status === 403) UI.bxAI[card.id] = { on: false, why: e.message, at: Date.now() };
+    if (e.status === 422 || e.status === 403) { UI.bxAI[card.id] = { on: false, why: e.message, at: Date.now() }; bxCwRepaint(); }
   }
   bxAIPaint(card.id);
   setTimeout(() => document.querySelector(`#bx-ai-${CSS.escape(card.id)} [data-autofocus]`)?.focus({ preventScroll: true }), 0);

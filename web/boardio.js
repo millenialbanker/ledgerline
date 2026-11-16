@@ -138,13 +138,14 @@ function bioImpPaint() {
   }
   const p = s.p, users = p.users || [];
   const tile = (n, label, sub) => `<div class="bio-stat"><b>${Number(n).toLocaleString('en-IN')}</b><span>${label}</span>${sub ? `<small>${sub}</small>` : ''}</div>`;
-  const lists = (p.list_preview || []).map(l => `<div class="bio-lcol${l.archived ? ' arch' : ''}"><div class="bio-lname" title="${esc(l.name)}">${esc(l.name)}</div>${l.titles.map(t => `<div class="bio-lcard">${esc(t)}</div>`).join('')}${l.cards > l.titles.length ? `<div class="bio-lmore">${l.titles.length ? '+' + (l.cards - l.titles.length) + ' more' : bioPl(l.cards, 'card')}</div>` : ''}${!l.cards ? '<div class="bio-lmore">No cards</div>' : ''}${l.archived ? '<span class="bio-ltag">Archived</span>' : ''}</div>`).join('');
+  const lists = (p.list_preview || []).map(l => `<div class="bio-lcol${l.archived ? ' arch' : ''}"><div class="bio-lname" title="${esc(l.name)}">${esc(l.name)}</div>${l.titles.map(t => `<div class="bio-lcard">${esc(t)}</div>`).join('')}${l.cards > l.titles.length ? `<div class="bio-lmore">+${l.cards - l.titles.length} more</div>` : ''}${l.archived_cards ? `<div class="bio-lmore">${bioPl(l.archived_cards, 'archived card')}</div>` : ''}${!l.cards && !l.archived_cards ? '<div class="bio-lmore">No cards</div>' : ''}${l.archived ? '<span class="bio-ltag">Archived</span>' : ''}</div>`).join('');
   const opt = (m, u) => `<option value="${esc(u.id)}" ${s.map[m.id] === u.id ? 'selected' : ''}>${esc(u.name)} · ${esc(u.role)}</option>`;
   const why = m => s.map[m.id] ? (s.map[m.id] === m.guess ? `Matched by ${esc(m.why || 'name')}` : 'Chosen by you') : 'Left off: their cards keep no member';
   const members = (p.members || []).map(m => `<li class="bio-mrow"><span class="bio-av" aria-hidden="true">${esc(initials(m.name || m.username))}</span>
       <span class="bio-mwho"><b>${esc(m.name || m.username)}</b><small>${m.username ? '@' + esc(m.username) + ' · ' : ''}${esc({ admin: 'Trello admin', observer: 'Trello observer' }[m.type] || 'Trello member')}</small></span>
       <span class="bio-msel"><label class="bd-sr" for="bio-mm-${esc(m.id)}">Ledgerline user for ${esc(m.name || m.username)}</label><select class="in" id="bio-mm-${esc(m.id)}" data-biomm="${esc(m.id)}"><option value="">Leave off</option>${users.map(u => opt(m, u)).join('')}</select><small class="${s.map[m.id] ? '' : 'off'}">${why(m)}</small></span></li>`).join('');
-  el.innerHTML = `<div class="bio-imp-grid"><div class="bio-imp-l">
+  el.innerHTML = `<div class="bio-imp-from">From <b>${esc(s.file || 'the Trello export')}</b> · <button class="bd-lnk" data-act="bioImpBack">Choose another file</button></div>
+    <div class="bio-imp-grid"><div class="bio-imp-l">
       <div class="fld"><label for="bio-imp-name">Name of the new board</label><input class="in" id="bio-imp-name" maxlength="120" value="${esc(s.name)}"></div>
       <div class="bx-lab">What comes over</div>
       <div class="bio-stats">${tile(p.lists, 'Lists', p.lists_archived ? `${p.lists_archived} archived` : '')}${tile(p.cards, 'Cards', p.cards_archived ? `${p.cards_archived} archived` : '')}${tile(p.checklists, 'Checklists', bioPl(p.items, 'item'))}${tile(p.labels, 'Labels')}${tile(p.fields, 'Custom fields')}${tile(p.comments, 'Comments')}${tile(p.attachments, 'Attachments', 'as links')}${tile((p.members || []).length, 'Members')}</div>
@@ -155,7 +156,7 @@ function bioImpPaint() {
       <p class="dim small" style="margin:0 0 8px">Choose the Ledgerline user for each Trello member, or leave them off. The people you choose join the board and keep their cards and checklist items.</p>
       ${members ? `<ul class="bio-members">${members}</ul>` : '<div class="bx-empty">The export lists no members.</div>'}
     </div></div><div id="bio-imp-err">${s.err ? errHTML(s.err) : ''}</div>`;
-  ft.innerHTML = `<button class="btn" data-act="bioImpBack">Choose another file</button><span class="bd-sp"></span><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="bioImpGo" ${s.busy ? 'disabled' : ''}>${s.busy ? 'Importing…' : 'Import board'}</button>`;
+  ft.innerHTML = `<button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="bioImpGo" ${s.busy ? 'disabled' : ''}>${s.busy ? 'Importing…' : 'Import board'}</button>`;
 }
 async function bioImpRead(f) {
   const s = UI.bioImp; if (!s) return;
@@ -207,6 +208,13 @@ function bioPrintClose() {
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('bio-print')) { e.stopPropagation(); e.preventDefault(); bioPrintClose(); } }, true);
 
+// A description as plain text for a short excerpt: markdown marks taken out.
+function bioPlain(t, n) {
+  const s = String(t || '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\*\*|__|`/g, '').replace(/(^|\s)_([^_]+)_/g, '$1$2').replace(/^\s*[-*]\s+/gm, '• ').replace(/\n{2,}/g, '\n').trim();
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+// A moment in full (IST), for paper.
+const bioAbs = iso => { const t = new Date(iso); return isNaN(t) ? '' : t.toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }); };
 const bioWho = id => (typeof bdName === 'function' ? bdName(id) : id);
 const bioDate = s => (typeof bdDateTxt === 'function' ? bdDateTxt(s) : s);
 function bioLabelsHTML(ids, b) {
@@ -229,15 +237,16 @@ function bioCardBits(c, b) {
   return bits;
 }
 function bioPrintBoard(ctx) {
-  const b = ctx.board, cards = ctx.cards || [], lists = (b.lists || []).filter(l => !l.archived).sort((x, y) => x.pos - y.pos);
+  const b = ctx.board, lists = (b.lists || []).filter(l => !l.archived).sort((x, y) => x.pos - y.pos), shown = new Set(lists.map(l => l.id));
+  const cards = (ctx.cards || []).filter(c => shown.has(c.list)), every = (ctx.all || []).filter(c => shown.has(c.list));
   const front = (b.fields || []).filter(f => f.on_front);
   const html = `<header class="bio-ph"><div><p class="bio-pkick">Board</p><h1>${esc(b.name)}</h1>${b.description ? `<p class="bio-pdesc">${esc(b.description)}</p>` : ''}</div>
-      <p class="bio-pstamp">${bioStamp()}<br>${bioPl(cards.length, 'card')} in ${bioPl(lists.length, 'list')}${ctx.filtering ? ` · filtered: ${cards.length} of ${(ctx.all || []).length} cards` : ''}</p></header>
+      <p class="bio-pstamp">${bioStamp()}<br>${bioPl(cards.length, 'card')} in ${bioPl(lists.length, 'list')}${ctx.filtering ? ` · filtered: ${cards.length} of ${every.length}` : ''}</p></header>
     <div class="bio-plists">${lists.map(l => {
       const cs = cards.filter(c => c.list === l.id).sort((x, y) => x.pos - y.pos);
       return `<section class="bio-plist"><h2>${esc(l.name)}<span>${cs.length}</span></h2>${cs.map(c => {
-        const bits = bioCardBits(c, b), fv = front.map(f => c.fields?.[f.id] ? `<span><i>${esc(f.name)}:</i> ${esc(f.type === 'checkbox' ? 'Yes' : c.fields[f.id])}</span>` : '').join('');
-        return `<article class="bio-pcard">${bioLabelsHTML(c.labels, b)}<h3><span class="bio-pno">#${c.no}</span> ${esc(c.title)}</h3>${bits.length ? `<p class="bio-pmeta">${bits.join(' · ')}</p>` : ''}${fv ? `<p class="bio-pfv">${fv}</p>` : ''}${c.description ? `<p class="bio-pcdesc">${esc(c.description.length > 280 ? c.description.slice(0, 279) + '…' : c.description)}</p>` : ''}</article>`;
+        const bits = bioCardBits(c, b), fv = front.map(f => c.fields?.[f.id] ? `<span><i>${esc(f.name)}:</i> ${esc(f.type === 'checkbox' ? 'Yes' : f.type === 'date' ? bioDate(c.fields[f.id]) : c.fields[f.id])}</span>` : '').join('');
+        return `<article class="bio-pcard">${bioLabelsHTML(c.labels, b)}<h3><span class="bio-pno">#${c.no}</span> ${esc(c.title)}</h3>${bits.length ? `<p class="bio-pmeta">${bits.join(' · ')}</p>` : ''}${fv ? `<p class="bio-pfv">${fv}</p>` : ''}${c.description ? `<p class="bio-pcdesc">${esc(bioPlain(c.description, 280))}</p>` : ''}</article>`;
       }).join('') || '<p class="bio-pnone">No cards</p>'}</section>`;
     }).join('')}</div>`;
   bioPrintShow('Print view: ' + b.name, html, () => api('POST', `/v1/boards/${bioEnc(b.id)}/printed`, {}).catch(() => {}));
@@ -245,16 +254,16 @@ function bioPrintBoard(ctx) {
 function bioPrintCard(card, ctx) {
   const b = ctx?.board || BD.v.board, l = (b.lists || []).find(x => x.id === card.list);
   const dl = [['List', l?.name || ''], ['Members', (card.members || []).map(bioWho).join(', ')], ['Starts', card.start ? bioDate(card.start) : ''], ['Due', card.due ? bioDate(card.due) + (card.due_done ? ' (complete)' : '') : ''],
-    ['Added', `${typeof bdWhen === 'function' ? bdWhen(card.created_at) : card.created_at} by ${bioWho(card.created_by)}`]].filter(x => x[1]);
+    ['Added', `${bioAbs(card.created_at)} by ${bioWho(card.created_by)}`]].filter(x => x[1]);
   const fields = (b.fields || []).filter(f => card.fields?.[f.id]);
   const md = t => typeof bdMd === 'function' ? bdMd(t) : `<p>${esc(t)}</p>`;
   const html = `<header class="bio-ph"><div><p class="bio-pkick">${esc(b.name)}</p><h1><span class="bio-pno">#${card.no}</span> ${esc(card.title)}</h1>${bioLabelsHTML(card.labels, b)}</div><p class="bio-pstamp">${bioStamp()}${card.archived ? '<br><b>Archived card</b>' : ''}</p></header>
     <dl class="bio-pdl">${dl.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
     ${card.description ? `<section class="bio-psec"><h2>Description</h2><div class="bio-pmd">${md(card.description)}</div></section>` : ''}
-    ${fields.length ? `<section class="bio-psec"><h2>Custom fields</h2><dl class="bio-pdl">${fields.map(f => `<dt>${esc(f.name)}</dt><dd>${esc(f.type === 'checkbox' ? 'Yes' : card.fields[f.id])}</dd>`).join('')}</dl></section>` : ''}
+    ${fields.length ? `<section class="bio-psec"><h2>Custom fields</h2><dl class="bio-pdl">${fields.map(f => `<dt>${esc(f.name)}</dt><dd>${esc(f.type === 'checkbox' ? 'Yes' : f.type === 'date' ? bioDate(card.fields[f.id]) : card.fields[f.id])}</dd>`).join('')}</dl></section>` : ''}
     ${(card.checklists || []).map(cl => { const its = cl.items || [], d = its.filter(i => i.done).length; return `<section class="bio-psec"><h2>${esc(cl.name)} <span>${d}/${its.length}</span></h2><ul class="bio-pcl">${its.map(i => `<li class="${i.done ? 'done' : ''}"><span class="bio-pbox" aria-hidden="true">${i.done ? '✓' : ''}</span>${esc(i.text)}${i.member ? ` <i>· ${esc(bioWho(i.member))}</i>` : ''}${i.due ? ` <i>· due ${esc(bioDate(i.due))}</i>` : ''}<span class="bd-sr">${i.done ? ' (done)' : ' (not done)'}</span></li>`).join('')}</ul></section>`; }).join('')}
     ${(card.attachments || []).length ? `<section class="bio-psec"><h2>Attachments</h2><ul class="bio-patt">${card.attachments.map(a => `<li>${esc(a.name)}${a.url ? ` <i>${esc(a.url)}</i>` : ''}</li>`).join('')}</ul></section>` : ''}
-    ${(card.comments || []).length ? `<section class="bio-psec"><h2>Comments</h2><ol class="bio-pcm">${card.comments.map(cm => `<li><p class="bio-pcm-h"><b>${esc(bioWho(cm.by))}</b> · ${esc(typeof bdWhen === 'function' ? bdWhen(cm.at) : cm.at)}</p><div class="bio-pmd">${md(cm.text)}</div></li>`).join('')}</ol></section>` : ''}`;
+    ${(card.comments || []).length ? `<section class="bio-psec"><h2>Comments</h2><ol class="bio-pcm">${card.comments.map(cm => `<li><p class="bio-pcm-h"><b>${esc(bioWho(cm.by))}</b> · ${esc(bioAbs(cm.at))}</p><div class="bio-pmd">${md(cm.text)}</div></li>`).join('')}</ol></section>` : ''}`;
   bioPrintShow(`Print view: #${card.no}`, html, () => api('POST', `/v1/boards/${bioEnc(card.board)}/printed`, { card: card.id }).catch(() => {}));
 }
 

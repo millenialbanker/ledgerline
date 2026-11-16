@@ -24,6 +24,8 @@
          Extra buttons beside "Add card" in a list's composer.
      BOARDS.homeSections.push({ id, order, render(home) -> html, load?() -> Promise })
          Sections on the boards home page.
+     BOARDS.homeFilter = board -> bool, or null
+         Narrows the boards the home shows (boardio.js sets it for a collection).
      BOARDS.reload()          reloads the open board
      BOARDS.ctx()             the open board's context
      BOARDS.openCard(b, c)    opens a card window
@@ -426,8 +428,9 @@ function bdTile(b) {
   </div>`;
 }
 function bdHomeInner() {
-  const bs = BD.home || [], open = bs.filter(b => !b.closed);
-  const home = Object.assign(bs.slice(), { boards: bs, notices: BD.notices });
+  // BOARDS.homeFilter (boardio.js: a collection) narrows the home's boards; home.all keeps every one.
+  const all = BD.home || [], bs = BOARDS.homeFilter ? all.filter(BOARDS.homeFilter) : all, open = bs.filter(b => !b.closed);
+  const home = Object.assign(bs.slice(), { boards: bs, all, notices: BD.notices });
   const sec = (id, title, sub, body) => `<section class="bd-sec" aria-labelledby="bd-sec-${id}"><div class="bd-sec-h"><h2 id="bd-sec-${id}">${title}</h2>${sub ? `<p>${sub}</p>` : ''}</div>${body}</section>`;
   const grid = (xs, extra = '') => `<div class="bd-tiles">${xs.map(bdTile).join('')}${extra}</div>`;
   const secs = [];
