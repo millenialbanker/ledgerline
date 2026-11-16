@@ -133,7 +133,7 @@ const GROUPS = {
   regg: ['Regulatory reports', [['reports', 'Regulatory reports'], ['exdisc', 'Exchange disclosures'], ['aictl', 'AI controls']]],
 };
 const NAV = [
-  ['Overview', [['dashboard', 'Dashboard'], ['chat', 'Team messages'], ['@automation'], ['@calendar']]],
+  ['Overview', [['dashboard', 'Dashboard'], ['boards', 'Boards'], ['chat', 'Team messages'], ['@automation'], ['@calendar']]],
   ['Operations', [['@filesg'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['@clientsg'], ['corp', 'Corporate actions'], ['@docsg']]],
   ['Risk', [['@riskg'], ['@collg'], ['@debtg'], ['mtf', 'Margin trading (MTF)']]],
   ['Accounts', [['ledger', 'Ledger'], ['@moneyg'], ['books', 'Firm accounts & GST'], ['@brokg']]],
@@ -153,7 +153,7 @@ const clientUser = () => S.me?.role === 'Client';
 const VIEWS = [...NAV_VIEWS.map(v => v[0]), ...PORTAL_VIEWS, 'support'];
 try { const h = location.hash.slice(1); if (VIEWS.includes(h)) S.view = h; } catch (e) {}
 
-const SCOPED_VIEWS = ['chat', 'rpa', 'support', 'yearend', 'insights', 'clients', 'statements', 'notes', 'money', 'debits', 'rms', 'partners', 'prepaid', 'changes', 'helpdesk', 'crm', 'ipo'];
+const SCOPED_VIEWS = ['chat', 'boards', 'rpa', 'support', 'yearend', 'insights', 'clients', 'statements', 'notes', 'money', 'debits', 'rms', 'partners', 'prepaid', 'changes', 'helpdesk', 'crm', 'ipo'];
 const scopedUser = () => ['Branch staff', 'Authorised person'].includes(S.me?.role);
 const edition = () => S.me?.edition?.id || 'autopilot';
 function editionNote(d) {

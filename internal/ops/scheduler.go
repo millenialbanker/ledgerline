@@ -275,6 +275,9 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	// Money awaiting allocation to the equity or commodity ledger, past
 	// the firm's time limit, goes where the firm said (segledger.go).
 	o.fundsAllocTick(ctx, tenant, now)
+	// Boards: due-date reminders, then automation rules' scheduled and
+	// due-date commands (boards.go, boardrules.go).
+	o.boardsTick(ctx, tenant, now)
 	// Client allocation: results of requests sent to NSE Clearing are
 	// fetched and applied, and money in is sent, while the allocation
 	// window is open. Runs only when the firm switched sending on.

@@ -45,6 +45,7 @@ func (s *Server) opsRoutes() {
 	}
 	R := func(p string, h http.HandlerFunc, m bool) { s.route(p, h, m) }
 	s.chatRoutes()
+	s.boardRoutes()
 	s.supportRoutes()
 	s.rpaRoutes()
 	s.dispatchRoutes()
