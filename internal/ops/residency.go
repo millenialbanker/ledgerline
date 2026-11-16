@@ -87,7 +87,12 @@ func (o *Ops) ResidencyLines() []ResidencyLine {
 	} else {
 		lines = append(lines, ResidencyLine{What: "Online account opening checks", Where: "Not connected (simulated or checked by staff)", Status: "none"})
 	}
-	lines = append(lines,
+	feeds := ResidencyLine{What: "Calendar feeds of board cards", Where: "The calendar service a person subscribes with (such as Google Calendar or Outlook)", Status: "check",
+		Note: "Off unless an Admin switches them on; the calendar service that fetches them decides where they are kept. Card titles and due dates only. Not allowed in India-only mode."}
+	if r.IndiaOnly {
+		feeds.Where, feeds.Status, feeds.Note = "Off: not allowed in India-only mode", "none", "Every feed is an empty calendar."
+	}
+	lines = append(lines, feeds,
 		ResidencyLine{What: "Email, SMS and WhatsApp", Where: "Not connected: messages kept in the outbox here", Status: "none", Note: "When connecting: email through an Indian region (Amazon SES Mumbai), an Indian SMS provider. WhatsApp messages pass through Meta's servers; send account details there only with the client's consent."},
 	)
 	return lines

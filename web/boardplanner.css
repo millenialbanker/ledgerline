@@ -104,6 +104,22 @@
 .bp-warn+p{margin:0 0 12px}
 .bp-addfeed>span{font-size:13px;color:var(--ink2);white-space:nowrap}
 
+/* an Inbox opened for review */
+.bp-rv{display:flex;flex-direction:column;gap:12px;max-height:min(70vh,720px);overflow:auto}
+.bp-rv-l{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.bp-rv-c{padding:10px 12px;border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;gap:6px}
+.bp-rv-h{display:flex;align-items:baseline;gap:6px 10px;flex-wrap:wrap}
+.bp-rv-d{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;color:var(--ink2)}
+.bp-rv-i,.bp-rv-cm{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:13px}
+.bp-rv-i li{display:flex;align-items:center;gap:6px}
+.bp-rv-i .bv-i{width:14px;height:14px;color:var(--b-done)}
+.bp-rv-box{width:12px;height:12px;border:1.5px solid var(--line2,#98A2B3);border-radius:3px;flex:none}
+.bp-rv-cm li{padding:6px 8px;background:var(--b-ground);border-radius:8px}
+.bp-rv-cm li div{white-space:pre-wrap;overflow-wrap:anywhere}
+.bp-rv-a summary{cursor:pointer;font-size:13px;font-weight:600}
+.bp-rv-a ul{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:13px}
+.bp-rv .bv-due{--st:var(--b-wait)}
+
 @media (max-width:1100px){.bp-wrap{grid-template-columns:minmax(0,1fr) 260px}}
 @media (max-width:760px){
   .bp-wrap{grid-template-columns:minmax(0,1fr)}

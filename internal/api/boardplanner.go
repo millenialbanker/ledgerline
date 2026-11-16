@@ -25,6 +25,7 @@ func init() {
 	boardRouteHooks = append(boardRouteHooks, func(s *Server, R func(p string, h http.HandlerFunc, m bool)) {
 		R("GET /v1/board-inbox", s.bpInbox, false)
 		R("POST /v1/board-inbox/cards", s.bpInboxAdd, true)
+		R("POST /v1/board-inbox/review", s.bpInboxReview, true) // compliance or Admin: read-only, with a reason (audited)
 		R("GET /v1/board-planner", s.bpPlanner, false)
 		R("POST /v1/board-planner/blocks", s.bpBlockAdd, true)
 		R("PATCH /v1/board-planner/blocks/{id}", s.bpBlockEdit, true)
@@ -52,6 +53,18 @@ func (s *Server) bpInboxAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.AddInboxCard(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) bpInboxReview(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		User   string `json:"user"`
+		Reason string `json:"reason"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.OpenInboxForReview(r.Context(), tenant(r), actor(r), b.User, b.Reason)
 	ok(w, v, err)
 }
 
