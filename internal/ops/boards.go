@@ -395,6 +395,9 @@ func (o *Ops) boardUser(ctx context.Context, tenant, actor string) (User, error)
 
 // boardRole is a person's role on a board ("" when they cannot see it).
 func boardRole(b Board, u User) string {
+	if b.Kind == BoardLedgerline && (u.Role == RoleBranch || u.Role == RoleAP) {
+		return "" // Ledgerline boards hold head-office records
+	}
 	for _, m := range b.Members {
 		if m.User == u.ID {
 			return m.Role
