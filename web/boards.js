@@ -52,7 +52,12 @@ const BOARDS = {
      again clears it. ctx.el is the view's #bv-root once it is on the page.
    - A mirror card (card.mirror) has its title, description and dates
      read-only here; they are changed on the original.
-   - The card window keeps location.hash at #boards/<board>/<card>. */
+   - The card window keeps location.hash at #boards/<board>/<card>.
+   - boardux.js (quick edit, keyboard, undo, the editor and its markdown,
+     bdMd and bdInline) hooks in with BOARDS.onApi (after each change this
+     screen makes: method, path, body, result), BOARDS.onPaint (after each
+     draw), BOARDS.compose(text, list) (the composer's #label @person ^top)
+     and BOARDS.quickEdit(card, anchor). */
 
 /* ---------- state ---------- */
 Object.assign(UI, { bdBoard: '', bdView: {}, bdF: bdF0(), bdNames: false, bdHideDone: {}, bdDetails: false });
@@ -145,7 +150,12 @@ function bdMid(a, b) {
   if (b == null) return a + 1024;
   return (a + b) / 2;
 }
-async function bdApi(method, path, body, raw) { BD.inflight++; BD.ver++; try { return await api(method, path, body, raw); } finally { BD.inflight--; BD.ver++; } }
+// Hooks (boardux.js): onApi after each change made here, onPaint after each draw.
+BOARDS.onApi = []; BOARDS.onPaint = [];
+async function bdApi(method, path, body, raw) {
+  BD.inflight++; BD.ver++;
+  try { const r = await api(method, path, body, raw); BOARDS.onApi.forEach(f => bdSafe(() => { f(method, path, body, r); }, 'change hook')); return r; } finally { BD.inflight--; BD.ver++; }
+}
 const bdPost = (p, b) => bdApi('POST', p, b || {});
 const bdPutBoard = patch => bdApi('PUT', bdURL(), { description: BD.v.board.description || '', ...patch });
 
@@ -173,33 +183,7 @@ function bdWhen(iso) {
 }
 const bdBytes = n => n >= 1 << 20 ? (n / (1 << 20)).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
 
-/* A small, safe markdown subset: **bold**, _italic_, `code`, links, lists.
-   Everything is escaped first; only these tags are made. */
-function bdInline(s, mentions) {
-  const codes = [];
-  let h = esc(s).replace(/`([^`]+)`/g, (_, c) => { codes.push(c); return `\u0000${codes.length - 1}\u0000`; });
-  h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, t, u) => `<a href="${u}" target="_blank" rel="noopener noreferrer">${t}</a>`);
-  h = h.replace(/(^|[\s(])(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g, (_, p, u) => `${p}<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
-  h = h.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
-  h = h.replace(/(^|[\s(])_([^_]+)_(?=$|[\s).,;:!?])/g, '$1<i>$2</i>');
-  if (mentions) h = h.replace(/(^|[\s(])@([a-z0-9][a-z0-9._-]*[a-z0-9]|[a-z0-9])/g, (all, p, id) => { const u = bdUsers().find(x => x.id === id); return u ? `${p}<span class="bd-mention${id === bdMe() ? ' me' : ''}" title="@${esc(id)}">@${esc(u.name)}</span>` : all; });
-  return h.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[+i]}</code>`);
-}
-function bdMd(t, mentions) {
-  const lines = String(t || '').replace(/\r\n/g, '\n').split('\n');
-  let out = '', list = '', para = [];
-  const flushP = () => { if (para.length) { out += `<p>${para.map(x => bdInline(x, mentions)).join('<br>')}</p>`; para = []; } };
-  const flushL = () => { if (list) { out += `</${list}>`; list = ''; } };
-  for (const ln of lines) {
-    let m;
-    if ((m = /^\s*[-*]\s+(.*)$/.exec(ln))) { flushP(); if (list !== 'ul') { flushL(); out += '<ul>'; list = 'ul'; } out += `<li>${bdInline(m[1], mentions)}</li>`; }
-    else if ((m = /^\s*\d+[.)]\s+(.*)$/.exec(ln))) { flushP(); if (list !== 'ol') { flushL(); out += '<ol>'; list = 'ol'; } out += `<li>${bdInline(m[1], mentions)}</li>`; }
-    else if (!ln.trim()) { flushP(); flushL(); }
-    else { flushL(); para.push(ln); }
-  }
-  flushP(); flushL();
-  return out;
-}
+/* The safe markdown (bdMd, bdInline) is in boardux.js, with the editor. */
 
 /* Repaint without losing focus, the caret or the window's scroll. */
 function bdFocusKey(a) {
@@ -316,6 +300,7 @@ function bdAfter() {
   if (BD.card && BD.cd && document.querySelector('#mroot .bd-cw')) bdCwPaint();
   if (BD.deep && BD.v) { const c = BD.deep; BD.deep = ''; bdOpenCard(c); }
   document.querySelectorAll('#bd-root .bd-auto').forEach(bdGrow);
+  BOARDS.onPaint.forEach(f => bdSafe(() => { f(); }, 'paint hook'));
 }
 function bdHash() {
   if (S.view !== 'boards') return;
@@ -717,9 +702,9 @@ function bdCwHTML() {
 function bdDescHTML(c, can) {
   const ed = BD.cw.desc && can;
   const body = ed
-    ? `<label class="bd-sr" for="cw-desc">Description</label><textarea id="cw-desc" class="in bd-auto bd-desc-in" data-bdd="desc-${esc(c.id)}" data-center="bdDescSave" data-esc="bdDescCancel" rows="5" maxlength="20000" placeholder="Add a more detailed description…">${esc(bdDraft('desc-' + c.id, c.description || ''))}</textarea>
-      <div class="bd-row"><button class="btn pri sm" data-act="bdDescSave">Save</button><button class="btn sm" data-act="bdDescCancel">Cancel</button><span class="bd-hint">**bold**, _italic_, \`code\`, links and lists. Ctrl+Enter saves.</span></div>`
-    : c.description ? `<div class="bd-md">${bdMd(c.description)}</div>` : can ? `<button class="bd-desc-empty" data-act="bdDescEdit">Add a more detailed description…</button>` : '<p class="bd-mute">No description.</p>';
+    ? `<label class="bd-sr" for="cw-desc">Description</label>${buEdBar('cw-desc')}<textarea id="cw-desc" class="in bd-auto bd-desc-in" data-bdd="desc-${esc(c.id)}" data-center="bdDescSave" data-esc="bdDescCancel" data-mention="1" data-bued="1" rows="5" maxlength="20000" placeholder="Add a more detailed description…">${esc(bdDraft('desc-' + c.id, c.description || ''))}</textarea>
+      <div class="bd-row"><button class="btn pri sm" data-act="bdDescSave">Save</button><button class="btn sm" data-act="bdDescCancel">Cancel</button><span class="bd-hint">Markdown: **bold**, _italic_, ~~strike~~, # headings, &gt; quotes, \`\`\` code, | tables, :smile: emoji. Ctrl+Enter saves.</span></div>`
+    : c.description ? `<div class="bd-md">${bdMd(c.description, true)}</div>` : can ? `<button class="bd-desc-empty" data-act="bdDescEdit">Add a more detailed description…</button>` : '<p class="bd-mute">No description.</p>';
   return `<section class="bd-cs"><div class="bd-cs-hd">${bdI('desc')}<h3>Description</h3><span class="bd-sp"></span>${can && !ed && c.description ? '<button class="btn sm" data-act="bdDescEdit">Edit</button>' : ''}</div>${body}</section>`;
 }
 function bdAttsHTML(c, can) {
@@ -808,11 +793,13 @@ function bdGot(c) {
   if (BD.pop?.live) bdPopRefresh();
   bdSoon();
 }
-async function bdPatch(p, id) { try { bdGot(await bdApi('PATCH', bdCURL(id || BD.card), p)); return true; } catch (e) { toast(e.message, true); bdCwPaint(); return false; } }
-async function bdToggle(what, on) { try { bdGot(await bdPost(bdCURL(BD.card, '/toggle'), { what, on })); } catch (e) { toast(e.message, true); bdCwPaint(); } }
+// The card being changed: the open card, or (quick edit) BD.cd without a window.
+const bdCid = () => BD.card || BD.cd?.id || '';
+async function bdPatch(p, id) { try { bdGot(await bdApi('PATCH', bdCURL(id || bdCid()), p)); return true; } catch (e) { toast(e.message, true); bdCwPaint(); return false; } }
+async function bdToggle(what, on) { try { bdGot(await bdPost(bdCURL(bdCid(), '/toggle'), { what, on })); } catch (e) { toast(e.message, true); bdCwPaint(); } }
 async function bdCl(op) { try { bdGot(await bdPost(bdCURL(BD.card, '/checklists'), op)); return true; } catch (e) { toast(e.message, true); bdCwPaint(); return false; } }
-async function bdUpload(files) {
-  const id = BD.card; if (!id) return;
+async function bdUpload(files, cid) {
+  const id = cid || BD.card; if (!id) return;
   for (const f of files) {
     if (f.size > 15 << 20) { toast(`${f.name} is over 15 MB`, true); continue; }
     const name = f.name && f.name !== 'image.png' ? f.name : `pasted-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}.${(f.type.split('/')[1] || 'png').replace('jpeg', 'jpg')}`;
@@ -1023,13 +1010,7 @@ function bdCopyModal() {
     <label class="check full"><input type="checkbox" id="cb-cards" checked><span>Keep the cards <span class="dim small">(open cards with their checklists and labels; not comments or attachments)</span></span></label></div><div id="cb-err"></div></div>
     <div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="bdCopyGo">Copy board</button></div>`);
 }
-function bdKeysModal() {
-  const k = (keys, what) => `<tr><td>${keys.map(x => `<kbd class="bd-kbd">${x}</kbd>`).join(' ')}</td><td>${what}</td></tr>`;
-  modal(mhd('Keyboard shortcuts', 'Shortcuts work when you are not typing in a box.') + `<div class="bd"><div class="grid g2">
-    <div><h3 class="bd-kh">On a board</h3><table class="bd-keys"><tbody>${k(['n'], 'Add a card to the list under the pointer (or the first list)')}${k(['f'], 'Filter cards')}${k(['q'], 'Show only cards assigned to me')}${k(['x'], 'Clear filters')}${k(['/'], 'Search cards on every board')}${k(['?'], 'Show these shortcuts')}${k(['Esc'], 'Close a menu, a window or a composer')}</tbody></table></div>
-    <div><h3 class="bd-kh">In a card</h3><table class="bd-keys"><tbody>${k(['d'], 'Dates')}${k(['l'], 'Labels')}${k(['m'], 'Members')}${k(['c'], 'Archive or restore')}${k(['Space'], 'Join or leave the card')}${k(['Ctrl', 'Enter'], 'Save a description or a comment')}</tbody></table></div></div>
-    <p class="dim small" style="margin:0">Drag cards and lists with the mouse. On a phone or tablet, press and hold a card to pick it up. Without a mouse, open a card’s ⋯ menu and choose Move.</p></div>`);
-}
+/* The shortcuts window (bdKeysModal) is in boardux.js, with the keys. */
 
 /* ---------- actions ---------- */
 Object.assign(A, {
@@ -1214,7 +1195,7 @@ Object.assign(A, {
     if (!title || !list) { t?.focus(); return; }
     BD.drafts.comp = ''; t.value = '';
     try {
-      const c = await bdPost(bdURL('/cards'), { list, title });
+      const c = await bdPost(bdURL('/cards'), { list, ...(BOARDS.compose ? BOARDS.compose(title, list) : { title }) });
       BD.v.cards.push(c); bdPaint();
       const body = document.querySelector(`.bd-lbody[data-list="${CSS.escape(list)}"]`); if (body) body.scrollTop = body.scrollHeight;
       $('bd-comp')?.focus(); bdSoon();
@@ -1224,15 +1205,8 @@ Object.assign(A, {
 
   /* cards in lists */
   bdCard: id => bdOpenCard(id),
-  bdCardMenu: (id, el) => {
-    const c = BD.v.cards.find(x => x.id === id); if (!c) return;
-    bdPop('cq-' + id, el, `Card #${c.no}`, () => `<div class="bd-menu" role="menu"><button class="bd-mi" role="menuitem" data-act="bdCqOpen" data-id="${esc(id)}">${bdI('card')}<span>Open card</span></button>
-      ${bdCan() ? `<button class="bd-mi" role="menuitem" data-act="bdCqMove" data-id="${esc(id)}">${bdI('arrow')}<span>Move…</span></button><button class="bd-mi" role="menuitem" data-act="bdCqCopy" data-id="${esc(id)}">${bdI('copy')}<span>Copy…</span></button><button class="bd-mi" role="menuitem" data-act="bdCqArchive" data-id="${esc(id)}">${bdI('archive')}<span>Archive</span></button>` : ''}</div>`);
-  },
-  bdCqOpen: id => { bdPopClose(true); bdOpenCard(id); },
-  bdCqMove: id => { const a = BD.pop?.anchor; bdPopClose(true); bdMoveOpen(id, 'move', a && document.contains(a) ? a : document.querySelector(`[data-popkey="cq-${CSS.escape(id)}"]`)); },
-  bdCqCopy: id => { const a = BD.pop?.anchor; bdPopClose(true); bdMoveOpen(id, 'copy', a && document.contains(a) ? a : document.querySelector(`[data-popkey="cq-${CSS.escape(id)}"]`)); },
-  bdCqArchive: async id => { bdPopClose(true); try { const c = await bdApi('PATCH', bdCURL(id), { archived: true }); bdGot(c); toast(`Archived #${c.no}`); } catch (e) { toast(e.message, true); } },
+  // The card's ⋯ opens quick edit (boardux.js).
+  bdCardMenu: (id, el) => { bdPopClose(true); BOARDS.quickEdit?.(id, el); },
 
   /* card window */
   bdTitleEdit: () => { if (BD.cd?.mirror) return; BD.cw.title = true; delete BD.drafts['cw-title']; bdCwPaint(); const t = $('cw-title'); if (t) { t.focus(); t.select(); } },
@@ -1656,46 +1630,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowDown' && el.id === 'bd-search' && BD.sresOpen) { e.preventDefault(); document.querySelector('#bd-sres .bd-sr-hit')?.focus(); }
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && el.classList?.contains('bd-sr-hit')) { e.preventDefault(); const sib = e.key === 'ArrowDown' ? el.nextElementSibling : el.previousElementSibling; (sib?.classList.contains('bd-sr-hit') ? sib : e.key === 'ArrowUp' ? $('bd-search') : null)?.focus(); }
 });
-/* Shortcuts, like Trello's. Capture, so they come before the console's own
-   keys (/ for client search, ? for Ledgy) while on the boards screen. */
-window.addEventListener('keydown', e => {
-  if (S.view !== 'boards' || !S.me || !$('bd-root')) return;
-  const t = e.target, typing = /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable;
-  const stop = () => { e.preventDefault(); e.stopImmediatePropagation(); };
-  if (e.key === 'Escape') {
-    if (BD.drag) { bdDragCancel(); stop(); return; }
-    if (BD.ac) { bdAcClose(); stop(); return; }
-    if (BD.pop) { bdPopClose(); stop(); return; }
-    if (t.dataset?.esc && A[t.dataset.esc]) { A[t.dataset.esc](t.dataset.id, t, e); stop(); return; }
-    if (BD.sresOpen) { BD.sresOpen = false; bdSresPaint(); stop(); return; }
-    if (t.id === 'bd-search') { t.blur(); stop(); return; }
-    if (typing && t.closest('.bd-cw')) { t.blur(); document.querySelector('#mroot .bd-cw')?.focus({ preventScroll: true }); stop(); return; }
-    // Esc in another board file's own popover (on the page, outside the
-    // window) is that popover's: the card window stays open.
-    if (BD.card && t !== document.body && !t.closest?.('#mroot,#bd-root')) { modalLocked = true; setTimeout(() => { modalLocked = false; }, 0); }
-    return; // the console closes the window
-  }
-  if (typing || e.ctrlKey || e.metaKey || e.altKey || BD.drag) return;
-  const other = document.querySelector('#mroot .ov') && !document.querySelector('#mroot .bd-cw');
-  if (other || (t !== document.body && !t.closest?.('#mroot,#bd-root'))) return;
-  const k = e.key;
-  if (k === '/') { stop(); bdPopClose(true); closeModal(); const s = $('bd-search'); if (s) { s.focus(); s.select(); } return; }
-  if (k === '?') { stop(); bdPopClose(true); bdKeysModal(); return; }
-  if (BD.card && BD.cd) {
-    const run = (act, sel) => { const b = document.querySelector(`.bd-cw ${sel || `[data-act="${act}"]`}`); if (b && !b.disabled) { stop(); A[act](b.dataset.id, b, e); } };
-    if (k === 'd') run('bdPickDates', '#cw-sb-dates');
-    else if (k === 'l') run('bdPickLabels', '#cw-sb-labels');
-    else if (k === 'm') run('bdPickMembers', '#cw-sb-members');
-    else if (k === 'c' && bdCan()) { stop(); BD.cd.archived ? A.bdRestoreCard() : A.bdArchiveCard(); }
-    else if (k === ' ' && bdCan() && !/^(BUTTON|A|SUMMARY)$/.test(t.tagName)) { stop(); A.bdJoin(); }
-    return;
-  }
-  if (!UI.bdBoard || !BD.v || BD.pop) return;
-  if (k === 'f') { stop(); A.bdFilter(); }
-  else if (k === 'q') { stop(); const me = bdMe(), f = UI.bdF; f.members = f.members.includes(me) ? f.members.filter(x => x !== me) : [...f.members, me]; bdPaint(); toast(f.members.includes(me) ? 'Showing cards assigned to you' : 'Showing everyone’s cards'); }
-  else if (k === 'x') { if (bdFCount()) { stop(); A.bdFClear(); } }
-  else if (k === 'n' && bdCan() && bdViewId() === 'board') { const ls = bdLists(), l = ls.find(x => x.id === BD.hover) || ls[0]; if (l) { stop(); A.bdComp(l.id); } }
-}, true);
+/* Shortcuts, like Trello's: boardux.js (with the selection, quick edit and undo). */
 /* Files dropped on, or pasted into, the card window are attached to the card. */
 const bdFileDrag = e => BD.card && bdCan() && [...(e.dataTransfer?.types || [])].includes('Files') && e.target.closest?.('#mroot .bd-ov');
 document.addEventListener('dragover', e => { if (bdFileDrag(e)) { e.preventDefault(); document.querySelector('.bd-cw')?.classList.add('drop'); } });
