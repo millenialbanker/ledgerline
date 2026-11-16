@@ -191,7 +191,7 @@ func TestLedgerlineBoardSync(t *testing.T) {
 	if _, err := o.EditChecklist(ctx, T, "priya.nair", brk, c.ID, ChecklistOp{Op: "add_list", Name: "Fix"}); err != nil {
 		t.Fatal(err)
 	}
-	b, err = o.UpdateBoard(ctx, T, "admin", brk, BoardInput{Description: b.Description, Labels: append(append([]BoardLabel{}, b.Labels...), BoardLabel{Name: "Call dealer", Color: "pink"})})
+	b, err = o.UpdateBoard(ctx, T, "admin", brk, BoardInput{Labels: append(append([]BoardLabel{}, b.Labels...), BoardLabel{Name: "Call dealer", Color: "pink"})})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +261,7 @@ func TestLedgerlineBoardSync(t *testing.T) {
 	}
 
 	// Branch staff added to a Ledgerline board are taken off it.
-	if _, err := o.UpdateBoard(ctx, T, "admin", work, BoardInput{Description: v.Board.Description, Members: []BoardPerson{{"meera.iyer", BoardMember}}}); err != nil {
+	if _, err := o.UpdateBoard(ctx, T, "admin", work, BoardInput{Members: []BoardPerson{{"meera.iyer", BoardMember}}}); err != nil {
 		t.Fatal(err)
 	}
 	step(time.Minute)
