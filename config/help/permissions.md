@@ -259,6 +259,7 @@ Setting the firm's default dashboard | Admin
 Setting the signing certificate | Admin
 Setting the signing service | Admin
 Setting up CDSL reports | Ops maker, Ops checker, Compliance officer
+Setting up Ledgerline boards | Admin
 Setting up a stock SIP top-up mandate | Ops maker, Ops checker
 Setting up public issues | Ops maker, Ops checker
 Setting up stock SIPs | Compliance officer
