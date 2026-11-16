@@ -74,7 +74,11 @@ const brTk = (cls, text) => `<span class="br-tk ${cls}">${esc(text)}</span>`;
 const brTkList = (ctx, id) => brTk('br-tk-list', brListName(ctx, id));
 const brTkWho = id => brTk('br-tk-who', '@' + id);
 const brTkText = s => brTk('br-tk-text', '“' + brClip(s, 90) + '”');
-function brTkLabel(ctx, id) { const l = brLabels(ctx).find(x => x.id === id); if (!l) return brTk('br-tk-gone', 'a deleted'); return `<span class="br-tk br-tk-label br-lc-${esc(l.color)}">${esc(l.name || l.color)}</span>`; }
+// Label colours come from boards.js (30 of them): a dot in the label's colour, then its name.
+const brLabelHex = c => (BOARDS.labelHex ? BOARDS.labelHex(c) : '#98A2B3');
+const brLabelText = l => l.name || (BOARDS.labelName ? BOARDS.labelName(l.color) : l.color);
+const brDot = c => `<i class="br-dot" style="background:${esc(brLabelHex(c))}" aria-hidden="true"></i>`;
+function brTkLabel(ctx, id) { const l = brLabels(ctx).find(x => x.id === id); if (!l) return brTk('br-tk-gone', 'a deleted'); return `<span class="br-tk br-tk-label">${brDot(l.color)}${esc(brLabelText(l))}</span>`; }
 function brAnd(xs) { xs = xs.filter(Boolean); return xs.length < 2 ? (xs[0] || '') : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1]; }
 function brByText(by) {
   const me = S.me?.actor || '';
@@ -446,7 +450,7 @@ async function brLoadBoardLists(id) {
   (UI.brDraft?.actions || []).forEach(a => { if (a.kind === 'copy_board' && a.board === id && !UI.brBoardLists[id].some(l => l.id === a.list)) a.list = UI.brBoardLists[id][0]?.id || ''; });
   if ($('br-root')) brRenderBody();
 }
-const brLabelOpts = (ctx, extra) => [...(extra || []), ...brLabels(ctx).map(l => [l.id, (l.name || '') + (l.name ? ' · ' : '') + l.color])];
+const brLabelOpts = (ctx, extra) => [...(extra || []), ...brLabels(ctx).map(l => [l.id, l.name ? `${l.name} · ${(BOARDS.labelName ? BOARDS.labelName(l.color) : l.color).toLowerCase()}` : brLabelText(l)])];
 const brWhoOpts = (ctx, extra) => [...(extra || []), ...brPeople(ctx).map(u => [u.id, `${u.name || u.id} (@${u.id})`])];
 
 function brEditorHTML() {
@@ -568,7 +572,7 @@ function brActMore(ctx, d, a, i) {
       return `${brMulti(p('to'), a.to, [...who.map(([k, l]) => [k, l, 'br-chip-k']), ...brPeople(ctx).map(u => [u.id, '@' + esc(u.id)])])}${brTxt(p('text'), a.text, 'Message (optional): e.g. {cardname} needs you', 'Message', 'br-full')}${a.kind === 'email' ? '<p class="br-hint">Each person gets it in the bell and by email within about 5 minutes, unless they have no email address in their notification settings, paused email or chose never.</p>' : ''}`;
     }
     case 'create_card': return `<div class="br-sub">${brTxt(p('text'), a.text, 'Card title, e.g. Daily recon {date}', 'Card title', 'br-full')}
-      ${brLabels(ctx).length ? `<div class="br-subl"><span>Labels</span>${brMulti(p('labels'), a.labels, brLabels(ctx).map(l => [l.id, esc(l.name || l.color), 'br-lc-' + l.color]))}</div>` : ''}
+      ${brLabels(ctx).length ? `<div class="br-subl"><span>Labels</span>${brMulti(p('labels'), a.labels, brLabels(ctx).map(l => [l.id, brDot(l.color) + esc(brLabelText(l))]))}</div>` : ''}
       <div class="br-subl"><span>Members</span>${brMulti(p('members'), a.members, brPeople(ctx).map(u => [u.id, '@' + esc(u.id)]))}</div>
       <div class="br-line">${brChk(p('due'), a.due, 'Due')}${a.due ? `<span class="br-w">in</span>${brNum(p('days'), a.days, 0, 365, 'Days')}${brSel(p('working_days'), a.working_days ? '1' : '', [['', 'days'], ['1', 'working days']], 'Days or working days')}<span class="br-w">at</span>${brTimeIn(p('time'), a.time, 'Time')}` : ''}</div>
       <div class="br-subl"><span>Checklist</span>${brTxt(p('name'), a.name, 'Checklist name (optional)', 'Checklist name')}</div>
