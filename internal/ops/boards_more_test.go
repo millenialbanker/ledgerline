@@ -546,6 +546,19 @@ func TestBoardPermissions(t *testing.T) {
 	}
 }
 
+// A new card's members are staff, as when they are changed later.
+func TestBoardAddCardMembersStaff(t *testing.T) {
+	o, ctx := setup(t)
+	b, _ := o.CreateBoard(ctx, T, "priya.nair", BoardInput{Name: "Members"})
+	if _, err := o.AddCard(ctx, T, "priya.nair", b.ID, CardInput{List: b.Lists[0].ID, Title: "x", Members: []string{"no.such.person"}}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("a card took someone who is not staff: %v", err)
+	}
+	c, err := o.AddCard(ctx, T, "priya.nair", b.ID, CardInput{List: b.Lists[0].ID, Title: "x", Members: []string{"farhan.khan", "farhan.khan", ""}})
+	if err != nil || len(c.Members) != 1 {
+		t.Fatalf("%+v %v", c.Members, err)
+	}
+}
+
 func TestBoardLabelColours(t *testing.T) {
 	o, ctx := setup(t)
 	b, _ := o.CreateBoard(ctx, T, "priya.nair", BoardInput{Name: "Colours"})

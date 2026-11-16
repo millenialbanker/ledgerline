@@ -1316,6 +1316,13 @@ func (o *Ops) AddCard(ctx context.Context, tenant, actor, board string, in CardI
 		c = Card{Title: firstOf(strings.TrimSpace(in.Title), t.Title), Description: t.Description, Labels: t.Labels, Members: t.Members, Checklists: copyChecklists(t.Checklists, true),
 			Fields: copyMap(t.Fields), Cover: t.Cover, Location: t.Location}
 	}
+	// Members are staff, as UpdateCard checks.
+	c.Members = nonEmptyUniq(c.Members)
+	for _, m := range c.Members {
+		if r, err := o.RoleOf(ctx, tenant, m); err != nil || r == RoleClient {
+			return Card{}, invalid("%s is not a staff user", m)
+		}
+	}
 	pos := math.NaN()
 	if in.Pos != nil {
 		pos = *in.Pos
