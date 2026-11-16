@@ -395,7 +395,8 @@ function buTarget() {
   return id ? buCard(id) : null;
 }
 function buNav(dx, dy) {
-  const ls = [...document.querySelectorAll('#bd-board .bd-list')].map(l => [...l.querySelectorAll('.bd-cards > .bd-card')]).filter(cs => cs.length);
+  // A collapsed list (a strip, no cards shown) is skipped.
+  const ls = [...document.querySelectorAll('#bd-board .bd-list:not(.collapsed)')].map(l => [...l.querySelectorAll('.bd-cards > .bd-card')]).filter(cs => cs.length);
   if (!ls.length) return false;
   const cur = buCardEl(BU.sel) || document.activeElement?.closest?.('#bd-board .bd-card') || buCardEl(BU.hover);
   let li = cur ? ls.findIndex(cs => cs.includes(cur)) : -1, ci = li >= 0 ? ls[li].indexOf(cur) : 0;
@@ -742,7 +743,7 @@ function bdKeysModal() {
   const m = buMod();
   modal(mhd('Keyboard shortcuts', 'Shortcuts work when you are not typing in a box.') + `<div class="bd"><div class="bu-keys">
     ${sec('Moving around', [k(['←', '↑', '↓', '→'], 'Select a card: up and down a list, or across lists'), k(['h', 'j', 'k', 'l'], 'The same as the arrows (left, down, up, right)'), k(['Enter'], 'Open the selected card'), k(['b'], 'Switch to another board'), k(['/'], 'Search cards on every board'), k(['w'], 'Show or hide the board menu'), k(['?'], 'Show these shortcuts'), k(['Esc'], 'Close a menu, a window or a composer, or clear the selection')])}
-    ${sec('On the board', [k(['n'], 'Add a card to the list under the pointer (or the first list)'), k(['f'], 'Filter cards'), k(['q'], 'Show only cards assigned to me'), k(['x'], 'Clear filters'), k([';'], 'Show or hide label names'), k(['z'], 'Undo your last change'), k(['Shift', 'z'], 'Redo it'), k([m, 'V'], 'Paste a copied card into the list under the pointer, or after the selected card')])}
+    ${sec('On the board', [k(['n'], 'Add a card to the list under the pointer (opening it if collapsed), or the first open list'), k(['f'], 'Filter cards'), k(['q'], 'Show only cards assigned to me'), k(['x'], 'Clear filters'), k([';'], 'Show or hide label names'), k(['z'], 'Undo your last change'), k(['Shift', 'z'], 'Redo it'), k([m, 'V'], 'Paste a copied card into the list under the pointer, or after the selected card')])}
     ${sec('On the selected or open card', [k(['e'], 'Quick edit (on the board)'), k(['t'], 'Edit the title'), k(['1', '…', '0'], 'Add or remove the board’s first ten labels'), k(['d'], 'Dates'), k(['m'], 'Members'), k(['l'], 'Labels (in an open card)'), k(['s'], 'Watch or stop watching'), k(['v'], 'Vote, or take your vote back'), k(['c'], 'Archive (or restore an open card)'), k(['Space'], 'Join or leave (in an open card)'), k([m, 'C'], 'Copy the card')])}
     ${sec('While typing', [k([m, 'Enter'], 'Save a description or a comment'), k([m, 'B'], 'Bold, in a description'), k([m, 'I'], 'Italic'), k([m, 'K'], 'Link'), k(['#'], 'In a new card’s title: add a label'), k(['@'], 'In a new card’s title: add a member. In a comment: mention someone'), k(['^'], 'In a new card’s title: ^top, ^bottom or ^3 for its place')])}
   </div><p class="dim small" style="margin:0">Drag cards and lists with the mouse; on a phone or tablet, press and hold a card to pick it up. A card’s ⋯, or a right-click on it, opens quick edit, which also moves and copies it.</p></div>`);
@@ -877,7 +878,14 @@ window.addEventListener('keydown', e => {
   if (k === 'f') { stop(); A.bdFilter(); return; }
   if (k === 'q') { stop(); const me = bdMe(), f = UI.bdF; f.members = f.members.includes(me) ? f.members.filter(x => x !== me) : [...f.members, me]; bdPaint(); toast(f.members.includes(me) ? 'Showing cards assigned to you' : 'Showing everyone’s cards'); return; }
   if (k === 'x') { if (bdFCount()) { stop(); A.bdFClear(); } return; }
-  if (k === 'n') { if (bdCan() && onBoard) { const ls = bdLists(), l = ls.find(x => x.id === BD.hover) || ls[0]; if (l) { stop(); A.bdComp(l.id); } } return; }
+  if (k === 'n') {
+    // The list under the pointer (expanded first if it is collapsed), else the first open list.
+    if (bdCan() && onBoard) {
+      const ls = bdLists(), h = ls.find(x => x.id === BD.hover), l = h || ls.find(x => !bdCollapsed(x.id)) || ls[0];
+      if (l) { stop(); if (bdCollapsed(l.id)) A.bdListCollapse(l.id); A.bdComp(l.id); }
+    }
+    return;
+  }
   if (k === 'w') { const mb = document.querySelector('#bd-root [data-act="bdMenu"]'); if (mb) { stop(); A.bdMenu('', mb); } return; }
   if (k === ';') { stop(); A.bdLabNames(); return; }
   if (k === 'z' || k === 'Z') { stop(); buUndo('', k === 'Z'); return; }

@@ -270,6 +270,7 @@ Signing in to BOW | Risk manager
 Square-off | Risk manager
 Submitting the holding statement to NSE | Ops maker, Ops checker, Compliance officer
 Switching AI off or on | Compliance officer
+Switching board email for the firm | Admin
 Switching the autopilot schedule | Admin
 Taking a backup | Admin
 Tendering for a client | Ops maker, Ops checker

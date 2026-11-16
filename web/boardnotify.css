@@ -1,0 +1,64 @@
+/* Boards: notification settings (web/boardnotify.js): the foot of the bell
+   panel and the Notification settings window. App colours; one accent. */
+
+/* ---- the foot of the bell panel ---- */
+.bn-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between;margin-top:2px;padding-top:10px;border-top:1px solid var(--b-line)}
+.bn-sum{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--b-ink3);min-width:0}
+.bn-sum .bd-i{width:15px;height:15px;flex:none}
+.bn-sum.on{color:var(--b-ink2)}
+.bn-sum.on .bd-i{color:var(--b-acc)}
+.bn-foot .btn{display:inline-flex;align-items:center;gap:6px}
+.bn-foot .btn .bd-i{width:15px;height:15px}
+
+/* ---- the window ---- */
+.md.bn-md{max-width:580px}
+.bn-bd{gap:18px!important}
+.bn-wait{margin:0;color:var(--ink3)}
+.bn-sec{margin:0;padding:0;border:0;min-width:0;display:flex;flex-direction:column;gap:8px}
+.bn-sec h3,.bn-fs legend{margin:0;padding:0;font-size:13px;font-weight:700;color:var(--ink);letter-spacing:.01em}
+.bn-fs legend{margin-bottom:8px}
+.bn-fs[disabled]{opacity:.55}
+.bn-p{margin:0;color:var(--ink2);font-size:13.5px;line-height:1.45}
+.bn-hint{margin:0;color:var(--ink3);font-size:12.5px;line-height:1.45}
+.bn-what{padding-top:12px;border-top:1px solid var(--line)}
+.bn-err{margin:0;color:var(--bad);font-size:13px;font-weight:500}
+.bn-dev{margin:0;padding:6px 10px;border-radius:8px;background:var(--warn-soft);color:var(--warn);font-size:12.5px}
+.bn-note{padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.45;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-left:3px solid}
+.bn-note.bad{background:var(--bad-soft);color:var(--bad);border-color:var(--bad)}
+.bn-note.warn{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
+.bn-inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bn-inline .in{flex:1 1 220px;min-width:0;height:36px}
+.bn-inline .in.bn-code{flex:0 0 150px;letter-spacing:.2em;font-variant-numeric:tabular-nums}
+.bn-links{display:flex;gap:14px;flex-wrap:wrap}
+.bn-addr{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--sunk)}
+.bn-addr-v{display:flex;align-items:center;gap:8px;min-width:0;overflow-wrap:anywhere}
+.bn-addr-v b{color:var(--ink);font-weight:600}
+.bn-ok{font-size:11.5px;font-weight:600;color:var(--good);background:var(--good-soft);padding:2px 8px;border-radius:999px;white-space:nowrap}
+.bn-sp{flex:1}
+.md .btn.bn-ghost{background:none;border-color:transparent;color:var(--ink2)}
+.md .btn.bn-ghost:hover{background:var(--sunk);color:var(--bad)}
+.bn-opts,.bn-kinds{display:flex;flex-direction:column;gap:6px}
+.bn-kinds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.bn-opt,.bn-kind{display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;background:var(--panel);min-width:0}
+.bn-opt:hover,.bn-kind:hover{border-color:var(--line2)}
+.bn-opt.on{border-color:var(--accent);background:var(--accent-soft)}
+.bn-opt input,.bn-kind input{margin:2px 0 0;width:16px;height:16px;accent-color:var(--accent);flex:none}
+.bn-opt>span,.bn-kind>span{display:flex;flex-direction:column;gap:1px;min-width:0;font-size:13.5px;color:var(--ink)}
+.bn-opt>span>b,.bn-kind>span>b{font-weight:600}
+.bn-opt small,.bn-kind small{font-size:12px;color:var(--ink2);line-height:1.4}
+.bn-opt:has(input:focus-visible),.bn-kind:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.bn-at{display:inline-flex;align-items:center;gap:6px;font-weight:400;color:var(--ink2)}
+.bn-at .in.bn-time{height:30px;width:112px;padding:2px 8px}
+.bn-sent{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.bn-sent li{display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:10px;padding:8px 12px;font-size:12.5px;color:var(--ink2);border-top:1px solid var(--line);align-items:center}
+.bn-sent li:first-child{border-top:0}
+.bn-sent li>span:nth-child(2){overflow-wrap:anywhere}
+.bn-res{font-weight:600;white-space:nowrap}
+.bn-res.ok{color:var(--good)}
+.bn-res.bad{color:var(--bad);white-space:normal}
+.bn-firm{padding:12px;border:1px dashed var(--line2);border-radius:10px}
+@media (max-width:600px){
+  .bn-kinds{grid-template-columns:1fr}
+  .bn-sent li{grid-template-columns:1fr;gap:2px}
+  .bn-inline .in.bn-code{flex:1 1 140px}
+}

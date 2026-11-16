@@ -285,7 +285,7 @@ type boardFileDoc struct {
 type BoardEvent struct {
 	Board string            `json:"board"`
 	Card  string            `json:"card,omitempty"`
-	Kind  string            `json:"kind"` // card.created, card.moved, card.label_added, card.member_added, card.due_set, card.due_done, checklist.done, card.archived, comment.added, card.updated
+	Kind  string            `json:"kind"` // card.created, card.moved, card.reordered, card.renamed, card.label_added, card.label_removed, card.member_added, card.due_set, card.due_done, card.due_undone, card.field_set, card.attachment_added, checklist.done, checklist.item_done, checklist.item_undone, checklist.item_added, card.archived, card.unarchived, comment.added, card.updated
 	Actor string            `json:"actor"`
 	Data  map[string]string `json:"data,omitempty"` // e.g. from_list, to_list, label, member, checklist
 }
@@ -1472,6 +1472,7 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 			}
 			if t != x.Title {
 				logs = append(logs, [2]string{"card.renamed", "renamed #" + fmt.Sprint(x.No) + " to " + clip(t, 80)})
+				ev("card.renamed", map[string]string{"from": x.Title})
 				x.Title = t
 			}
 		}
@@ -1557,6 +1558,8 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 				logs = append(logs, [2]string{"card.due_done", fmt.Sprintf("marked #%d complete", x.No)})
 				ev("card.due_done", nil)
 				watchNews = append(watchNews, fmt.Sprintf("%s marked %s complete on %s", actor, clip(x.Title, 80), b.Name))
+			} else {
+				ev("card.due_undone", nil)
 			}
 		}
 		if p.Reminder != nil {
@@ -1594,6 +1597,11 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 					vals[id] = v
 				}
 			}
+			for _, f := range b.Fields {
+				if x.Fields[f.ID] != vals[f.ID] {
+					ev("card.field_set", map[string]string{"field": f.ID, "value": vals[f.ID]})
+				}
+			}
 			x.Fields = vals
 		}
 		if p.Location != nil {
@@ -1628,6 +1636,7 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 				ev("card.archived", nil)
 			} else {
 				logs = append(logs, [2]string{"card.restored", fmt.Sprintf("restored #%d", x.No)})
+				ev("card.unarchived", nil)
 			}
 		}
 		x.UpdatedAt = o.now().Format(time.RFC3339)
@@ -1791,6 +1800,7 @@ func (o *Ops) MoveCard(ctx context.Context, tenant, actor, board, card string, m
 		o.boardEvent(ctx, tenant, BoardEvent{Board: board, Card: card, Kind: "card.moved", Actor: actor, Data: map[string]string{"from_list": from.ID, "to_list": to.ID}})
 	} else {
 		o.boardLog(ctx, tenant, actor, b, card, "card.reordered", fmt.Sprintf("moved #%d within %s", c.No, to.Name), nil)
+		o.boardEvent(ctx, tenant, BoardEvent{Board: board, Card: card, Kind: "card.reordered", Actor: actor, Data: map[string]string{"list": to.ID}})
 	}
 	return c, nil
 }
@@ -2005,6 +2015,7 @@ func (o *Ops) EditChecklist(ctx context.Context, tenant, actor, board, card stri
 	}
 	var done []string // checklists completed by this change
 	var logText string
+	var evs []BoardEvent // items ticked, unticked or added
 	var from []Checklist // add_list copying from another card: that card's checklists
 	if op.Op == "add_list" && op.CopyFrom != "" && op.CopyCard != "" && op.CopyCard != card {
 		src, _, err := docs.Get[Card](ctx, o.Docs, tenant, cBoardCard, cardKey(board, op.CopyCard))
@@ -2019,7 +2030,7 @@ func (o *Ops) EditChecklist(ctx context.Context, tenant, actor, board, card stri
 		if x.Deleted {
 			return errCardGone
 		}
-		done, logText = nil, ""
+		done, logText, evs = nil, "", nil
 		find := func() (*Checklist, error) {
 			for i := range x.Checklists {
 				if x.Checklists[i].ID == op.Checklist {
@@ -2083,6 +2094,7 @@ func (o *Ops) EditChecklist(ctx context.Context, tenant, actor, board, card stri
 				return err
 			}
 			cl.Items = append(cl.Items, CheckItem{ID: boardID("I-", 4), Text: t})
+			evs = append(evs, BoardEvent{Board: board, Card: card, Kind: "checklist.item_added", Actor: actor, Data: map[string]string{"checklist": cl.ID, "item": cl.Items[len(cl.Items)-1].ID, "text": t}})
 		case "update_item", "delete_item", "move_item":
 			cl, err := find()
 			if err != nil {
@@ -2124,6 +2136,7 @@ func (o *Ops) EditChecklist(ctx context.Context, tenant, actor, board, card stri
 				}
 				if op.Done != nil && *op.Done != it.Done {
 					it.Done = *op.Done
+					evs = append(evs, BoardEvent{Board: board, Card: card, Kind: map[bool]string{true: "checklist.item_done", false: "checklist.item_undone"}[it.Done], Actor: actor, Data: map[string]string{"checklist": cl.ID, "item": it.ID, "text": it.Text}})
 					if it.Done {
 						logText = fmt.Sprintf("completed %s on #%d", clip(it.Text, 80), x.No)
 						all := true
@@ -2147,6 +2160,9 @@ func (o *Ops) EditChecklist(ctx context.Context, tenant, actor, board, card stri
 	}
 	if logText != "" {
 		o.boardLog(ctx, tenant, actor, b, card, "checklist."+op.Op, logText, nil)
+	}
+	for _, e := range evs {
+		o.boardEvent(ctx, tenant, e)
 	}
 	for _, id := range done {
 		o.boardEvent(ctx, tenant, BoardEvent{Board: board, Card: card, Kind: "checklist.done", Actor: actor, Data: map[string]string{"checklist": id}})
@@ -2355,6 +2371,7 @@ func (o *Ops) AttachFile(ctx context.Context, tenant, actor, board, card, name s
 	})
 	if err == nil {
 		o.boardLog(ctx, tenant, actor, b, card, "card.attached", fmt.Sprintf("attached %s to #%d", name, c.No), nil)
+		o.boardEvent(ctx, tenant, BoardEvent{Board: board, Card: card, Kind: "card.attachment_added", Actor: actor, Data: map[string]string{"name": name}})
 	}
 	return c, err
 }
@@ -2384,6 +2401,7 @@ func (o *Ops) AttachLink(ctx context.Context, tenant, actor, board, card, url, n
 	})
 	if err == nil {
 		o.boardLog(ctx, tenant, actor, b, card, "card.attached", fmt.Sprintf("attached a link to #%d", c.No), nil)
+		o.boardEvent(ctx, tenant, BoardEvent{Board: board, Card: card, Kind: "card.attachment_added", Actor: actor, Data: map[string]string{"name": n}})
 	}
 	return c, err
 }
