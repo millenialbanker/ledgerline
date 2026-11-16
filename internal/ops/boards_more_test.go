@@ -386,6 +386,24 @@ func TestBoardMentionGroups(t *testing.T) {
 	if ns := bmSince(t, o, ctx, comp, v0); len(ns) != 1 {
 		t.Fatalf("not a watcher of the card, but told about @card %+v", ns)
 	}
+
+	// On a Ledgerline board the members come from their roles: @board tells
+	// head office, not branch staff.
+	ll := bmLedgerline(t, o, ctx)
+	lc, err := o.AddCard(ctx, T, "admin", ll.ID, CardInput{List: "L-open", Title: "Check the pay-in shortfall"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	k1, b1 := bmCount(t, o, ctx, checker), bmCount(t, o, ctx, "meera.iyer")
+	if _, err := o.AddComment(ctx, T, maker, ll.ID, lc.ID, "@board this needs someone today"); err != nil {
+		t.Fatal(err)
+	}
+	if ns := bmSince(t, o, ctx, checker, k1); len(ns) != 1 || !strings.Contains(ns[0].Text, "mentioned @board") {
+		t.Fatalf("head office on a Ledgerline board %+v", ns)
+	}
+	if bmCount(t, o, ctx, "meera.iyer") != b1 {
+		t.Fatal("branch staff told about a Ledgerline board")
+	}
 }
 
 func TestBoardPermissions(t *testing.T) {

@@ -134,6 +134,7 @@ Importing dealers and terminals | Ops maker, Compliance officer
 Invoking pledges | Risk manager
 Invoking unpaid CUSPA securities for sale | Ops checker, Risk manager
 Issuing DIS books | Ops maker, Ops checker
+Joining a firm-wide board | Ops maker, Ops checker, Risk manager, Compliance officer
 Loading DP accounts | Ops checker
 Loading MF files | Ops maker, Ops checker
 Loading brokerage rates | Ops checker

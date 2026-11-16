@@ -129,6 +129,10 @@ func (o *Ops) JoinBoard(ctx context.Context, tenant, actor, id string) (Board, e
 	if err := boardCanJoin(b, v); err != nil {
 		return Board{}, err
 	}
+	// Head office only (branch and partner staff do not see firm-wide boards).
+	if err := o.require(ctx, tenant, actor, "Joining a firm-wide board", RoleMaker, RoleChecker, RoleRisk, RoleCompliance); err != nil {
+		return Board{}, err
+	}
 	b, err = docs.Update(ctx, o.Docs, tenant, cBoard, id, actor, func(x *Board) error {
 		for _, m := range x.Members {
 			if m.User == actor {
@@ -222,8 +226,9 @@ func (o *Ops) SetBoardMembers(ctx context.Context, tenant, actor, id string, mem
 // ---- watching ----
 
 // boardGroup is who an @board or @card in a comment tells: every admin
-// and member of the board, or the card's members and watchers, as long as
-// they can still see the board.
+// and member of the board (on a Ledgerline board, whose members come from
+// their roles, everyone whose role works it), or the card's members and
+// watchers, as long as they can still see the board.
 func boardGroup(b Board, c Card, g string, us []User) []string {
 	var ids []string
 	switch g {
@@ -231,6 +236,13 @@ func boardGroup(b Board, c Card, g string, us []User) []string {
 		for _, m := range b.Members {
 			if m.Role == BoardAdmin || m.Role == BoardMember {
 				ids = append(ids, m.User)
+			}
+		}
+		if b.Kind == BoardLedgerline {
+			for _, u := range us {
+				if r := boardRole(b, u); u.Role != RoleClient && (r == BoardAdmin || r == BoardMember) {
+					ids = append(ids, u.ID)
+				}
 			}
 		}
 	case "card":
