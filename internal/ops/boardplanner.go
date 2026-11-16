@@ -37,7 +37,13 @@ import (
 // board, for Google Calendar or Outlook, at a long random address. Only
 // the address's hash is kept. Feeds are off until the firm's Admin
 // switches them on, for the firm or for one board: card titles may name
-// clients, and a feed takes them out of Ledgerline.
+// clients, and a feed takes them out of Ledgerline. In India-only mode
+// they cannot be switched on and every feed is an empty calendar.
+//
+// An Inbox is private in normal use, but it is part of the firm's records:
+// the compliance officer or an Admin may open one read-only, giving a
+// reason that goes to the sealed audit trail; its owner is told
+// (OpenInboxForReview).
 
 const (
 	BoardInbox = "inbox"
@@ -207,6 +213,75 @@ func (o *Ops) AddInboxCard(ctx context.Context, tenant, actor string, in CardInp
 	}
 	top := 0.0
 	return o.AddCard(ctx, tenant, actor, b.ID, CardInput{List: inboxList(b), Title: in.Title, Description: in.Description, Due: in.Due, Pos: &top})
+}
+
+// InboxReview is a person's Inbox as the compliance officer or an Admin
+// sees it: every card, archived ones too, and what happened to them. It is
+// read-only: the reviewer gets no role on the Inbox.
+type InboxReview struct {
+	Owner     string          `json:"owner"`
+	OwnerName string          `json:"owner_name"`
+	Board     string          `json:"board"`
+	Cards     []Card          `json:"cards"`
+	Activity  []BoardActivity `json:"activity"` // newest first, the last 300
+	At        string          `json:"at"`
+}
+
+// OpenInboxForReview lets the compliance officer or an Admin read a
+// person's Inbox, for a stated reason: an Inbox is part of the firm's
+// records (an inspection may ask for it). The opening and its reason go to
+// the sealed audit trail, and the owner is told who opened it and why.
+// Nothing can be changed through it.
+func (o *Ops) OpenInboxForReview(ctx context.Context, tenant, actor, owner, reason string) (InboxReview, error) {
+	if err := o.require(ctx, tenant, actor, "Opening a person's Inbox (read-only, with a reason)", RoleCompliance); err != nil {
+		return InboxReview{}, err
+	}
+	if boardActorSystem(actor) {
+		return InboxReview{}, fmt.Errorf("%w: a person opens an Inbox, giving a reason", ErrForbidden)
+	}
+	reason = strings.TrimSpace(reason)
+	if utf8.RuneCountInString(reason) < 5 {
+		return InboxReview{}, invalid("give the reason for opening the Inbox (it is recorded, and its owner is told)")
+	}
+	if owner == actor {
+		return InboxReview{}, invalid("this is your own Inbox: open it from the boards home")
+	}
+	us, _ := o.Users(ctx, tenant)
+	var who, me User
+	for _, u := range us {
+		switch u.ID {
+		case owner:
+			who = u
+		case actor:
+			me = u
+		}
+	}
+	if who.ID == "" || who.Role == RoleClient {
+		return InboxReview{}, fmt.Errorf("%w: %s is not a staff user", ErrNotFound, owner)
+	}
+	b, _, err := docs.Get[Board](ctx, o.Docs, tenant, cBoard, inboxID(owner))
+	if err != nil || b.Kind != BoardInbox || b.CreatedBy != owner {
+		return InboxReview{}, fmt.Errorf("%w: %s has not used an Inbox", ErrNotFound, firstOf(who.Name, owner))
+	}
+	cs, err := o.boardCards(ctx, tenant, b.ID)
+	if err != nil {
+		return InboxReview{}, err
+	}
+	as, err := docs.List[BoardActivity](ctx, o.Docs, tenant, cBoardAct, b.ID+"|")
+	if err != nil {
+		return InboxReview{}, err
+	}
+	v := InboxReview{Owner: owner, OwnerName: firstOf(who.Name, owner), Board: b.ID, Cards: cs, Activity: []BoardActivity{}, At: o.now().Format(time.RFC3339)}
+	if v.Cards == nil {
+		v.Cards = []Card{}
+	}
+	for i := len(as) - 1; i >= 0 && len(v.Activity) < 300; i-- {
+		v.Activity = append(v.Activity, as[i])
+	}
+	o.log(ctx, tenant, actor, "board.inbox_opened", b.ID, map[string]any{"owner": owner, "reason": trim(reason, 500), "cards": len(cs)})
+	role := map[string]string{RoleCompliance: "Compliance", RoleAdmin: "Admin"}[me.Role]
+	o.boardNotifyKind(ctx, tenant, actor, b, "", NoticeOther, []string{owner}, fmt.Sprintf("%s (%s) opened your Inbox: %s", firstOf(me.Name, actor), firstOf(role, me.Role), clip(reason, 300)))
+	return v, nil
 }
 
 // ---- Planner ----
@@ -666,6 +741,7 @@ type BoardFeedBoard struct {
 // BoardFeedsView is the calendar feed settings a person sees.
 type BoardFeedsView struct {
 	FirmOn    bool             `json:"firm_on"`
+	Blocked   string           `json:"blocked,omitempty"` // why feeds cannot be switched on here (India-only mode)
 	FirmBy    string           `json:"firm_by,omitempty"`
 	FirmAt    string           `json:"firm_at,omitempty"`
 	CanSwitch bool             `json:"can_switch"` // the firm's Admin
@@ -685,12 +761,27 @@ func feedHash(token string) string {
 	return hex.EncodeToString(h[:])
 }
 
+// feedsBlocked says why no calendar feed may go out at all ("" when they may).
+func (o *Ops) feedsBlocked() string {
+	if o.Residency.IndiaOnly {
+		return "Calendar feeds are not allowed in India-only mode: Google Calendar or Outlook fetch them and keep them outside India, and card titles can name clients."
+	}
+	return ""
+}
+
+// feedCfg is the firm's switch (off, whatever it says, in India-only mode).
 func (o *Ops) feedCfg(ctx context.Context, tenant string) boardFeedCfg {
 	c, _, _ := docs.GetOr(ctx, o.Docs, tenant, cBoardFeedCfg, "firm", boardFeedCfg{})
+	if o.feedsBlocked() != "" {
+		c.On = false
+	}
 	return c
 }
 
-func boardFeedOn(b Board) bool { return b.Settings[boardFeedSetting] == "on" }
+// boardFeedOn is a board's own switch (off in India-only mode).
+func (o *Ops) boardFeedOn(b Board) bool {
+	return b.Settings[boardFeedSetting] == "on" && o.feedsBlocked() == ""
+}
 
 // BoardFeeds is the person's calendar feeds and whether feeds are on.
 func (o *Ops) BoardFeeds(ctx context.Context, tenant, actor string) (BoardFeedsView, error) {
@@ -699,7 +790,7 @@ func (o *Ops) BoardFeeds(ctx context.Context, tenant, actor string) (BoardFeedsV
 		return BoardFeedsView{}, err
 	}
 	cfg := o.feedCfg(ctx, tenant)
-	v := BoardFeedsView{FirmOn: cfg.On, FirmBy: cfg.By, FirmAt: cfg.At, CanSwitch: u.Role == RoleAdmin && !boardActorSystem(u.ID), Feeds: []BoardFeed{}, Boards: []BoardFeedBoard{}}
+	v := BoardFeedsView{FirmOn: cfg.On, FirmBy: cfg.By, FirmAt: cfg.At, Blocked: o.feedsBlocked(), CanSwitch: u.Role == RoleAdmin && !boardActorSystem(u.ID), Feeds: []BoardFeed{}, Boards: []BoardFeedBoard{}}
 	bs, err := o.Boards(ctx, tenant, actor)
 	if err != nil {
 		return v, err
@@ -713,7 +804,7 @@ func (o *Ops) BoardFeeds(ctx context.Context, tenant, actor string) (BoardFeedsV
 		if err != nil {
 			continue
 		}
-		fb := BoardFeedBoard{ID: b.ID, Name: b.Name, On: boardFeedOn(b), Allowed: cfg.On || boardFeedOn(b)}
+		fb := BoardFeedBoard{ID: b.ID, Name: b.Name, On: o.boardFeedOn(b), Allowed: cfg.On || o.boardFeedOn(b)}
 		names[b.ID] = fb
 		if !s.Closed {
 			v.Boards = append(v.Boards, fb)
@@ -752,6 +843,9 @@ func (o *Ops) CreateBoardFeed(ctx context.Context, tenant, actor, scope, board s
 	}
 	cfg := o.feedCfg(ctx, tenant)
 	off := fmt.Errorf("%w: calendar feeds are off. The firm's Admin can switch them on, for the firm or for a board", ErrForbidden)
+	if why := o.feedsBlocked(); why != "" {
+		off = fmt.Errorf("%w: %s", ErrForbidden, why)
+	}
 	out := BoardFeed{Scope: scope, Allowed: true}
 	switch scope {
 	case "mine":
@@ -767,7 +861,7 @@ func (o *Ops) CreateBoardFeed(ctx context.Context, tenant, actor, scope, board s
 		if b.Kind == BoardInbox {
 			return BoardFeed{}, "", invalid("your Inbox's cards are in your My cards feed")
 		}
-		if !cfg.On && !boardFeedOn(b) {
+		if !cfg.On && !o.boardFeedOn(b) {
 			return BoardFeed{}, "", off
 		}
 		out.BoardName = b.Name
@@ -837,6 +931,9 @@ func (o *Ops) SetFirmFeeds(ctx context.Context, tenant, actor string, on bool) e
 	if err := o.require(ctx, tenant, actor, "Switching calendar feeds on or off", RoleAdmin); err != nil {
 		return err
 	}
+	if why := o.feedsBlocked(); why != "" && on {
+		return invalid("%s", why)
+	}
 	if err := docs.Upsert(ctx, o.Docs, tenant, cBoardFeedCfg, "firm", boardFeedCfg{On: on, By: actor, At: o.now().Format(time.RFC3339)}, actor); err != nil {
 		return err
 	}
@@ -848,6 +945,9 @@ func (o *Ops) SetFirmFeeds(ctx context.Context, tenant, actor string, on bool) e
 func (o *Ops) SetBoardFeed(ctx context.Context, tenant, actor, board string, on bool) (Board, error) {
 	if err := o.require(ctx, tenant, actor, "Switching a board's calendar feed on or off", RoleAdmin); err != nil {
 		return Board{}, err
+	}
+	if why := o.feedsBlocked(); why != "" && on {
+		return Board{}, invalid("%s", why)
 	}
 	b, _, err := o.boardFor(ctx, tenant, actor, board)
 	if err != nil {
@@ -957,7 +1057,7 @@ func (o *Ops) BoardFeedICS(ctx context.Context, tenant, token, base string) ([]b
 		if err == nil {
 			name = "Ledgerline: " + b.Name
 		}
-		if err == nil && b.Kind != BoardInbox && !b.Closed && !b.Template && (cfg.On || boardFeedOn(b)) {
+		if err == nil && b.Kind != BoardInbox && !b.Closed && !b.Template && (cfg.On || o.boardFeedOn(b)) {
 			cs, _ := o.boardCards(ctx, tenant, b.ID)
 			for _, c := range cs {
 				if c.Mirror == nil {

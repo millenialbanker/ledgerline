@@ -102,6 +102,18 @@ func TestBoardPlannerAPI(t *testing.T) {
 	if code := call("admin", "GET", "/v1/boards/"+iv.Board, nil, nil); code != 404 {
 		t.Fatalf("admin opened priya's inbox: %d", code)
 	}
+	// Compliance may read it, giving a reason; branch staff may not.
+	review := map[string]string{"user": "priya.nair", "reason": "Exchange inspection of client instructions"}
+	if code := call("meera.iyer", "POST", "/v1/board-inbox/review", review, nil); code != 403 {
+		t.Fatalf("branch staff opened an inbox: %d", code)
+	}
+	if code := call("vikram.shah", "POST", "/v1/board-inbox/review", map[string]string{"user": "priya.nair"}, nil); code == 200 {
+		t.Fatal("opened an inbox with no reason")
+	}
+	var rv ops.InboxReview
+	if code := call("vikram.shah", "POST", "/v1/board-inbox/review", review, &rv); code != 200 || len(rv.Cards) != 1 || rv.Cards[0].Title != "Ring the auditor" {
+		t.Fatalf("compliance review: %d %+v", code, rv)
+	}
 
 	// The Planner: a block, moved; another person cannot touch it.
 	var pb ops.PlanBlock

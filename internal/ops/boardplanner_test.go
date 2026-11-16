@@ -603,3 +603,171 @@ func TestBoardICSFolding(t *testing.T) {
 	_ = fmt.Sprint
 	_ = docs.ErrNotFound
 }
+
+// In India-only mode no calendar feed goes out: feeds cannot be switched
+// on, and feeds made before are empty calendars.
+func TestBoardFeedsIndiaOnly(t *testing.T) {
+	o, ctx := setup(t)
+	o.Now = func() time.Time { return time.Date(2026, 11, 18, 11, 0, 0, 0, ist) }
+	me, admin := "priya.nair", "admin"
+	b, _ := o.CreateBoard(ctx, T, me, BoardInput{Name: "Close", Visibility: "private"})
+	o.AddCard(ctx, T, me, b.ID, CardInput{List: b.Lists[0].ID, Title: "Client Z-1234 margin call", Members: []string{me}, Due: "2026-11-19"})
+	if err := o.SetFirmFeeds(ctx, T, admin, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.SetBoardFeed(ctx, T, admin, b.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	_, mt, err := o.CreateBoardFeed(ctx, T, me, "mine", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, bt, _ := o.CreateBoardFeed(ctx, T, me, "board", b.ID)
+
+	o.Residency = Residency{IndiaOnly: true, Region: "AWS Mumbai (ap-south-1)"}
+	for _, tok := range []string{mt, bt} {
+		body, err := o.BoardFeedICS(ctx, T, tok, "https://bo.example.test")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cal := parseICS(t, string(body)); len(cal.events) != 0 || strings.Contains(string(body), "Z-1234") {
+			t.Fatalf("a feed in India-only mode has %d events", len(cal.events))
+		}
+	}
+	if err := o.SetFirmFeeds(ctx, T, admin, true); err == nil || !strings.Contains(err.Error(), "India-only") {
+		t.Fatalf("feeds switched on in India-only mode: %v", err)
+	}
+	if _, err := o.SetBoardFeed(ctx, T, admin, b.ID, true); err == nil || !strings.Contains(err.Error(), "India-only") {
+		t.Fatalf("a board's feed switched on in India-only mode: %v", err)
+	}
+	if _, _, err := o.CreateBoardFeed(ctx, T, me, "mine", ""); !errors.Is(err, ErrForbidden) || !strings.Contains(err.Error(), "India-only") {
+		t.Fatalf("a feed made in India-only mode: %v", err)
+	}
+	// Switching off still works; the settings say why they are off.
+	if err := o.SetFirmFeeds(ctx, T, admin, false); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := o.BoardFeeds(ctx, T, me); v.FirmOn || !strings.Contains(v.Blocked, "India-only") || len(v.Feeds) != 2 || v.Feeds[0].Allowed || v.Feeds[1].Allowed {
+		t.Fatalf("feeds view %+v", v)
+	}
+	// Where data goes: the feeds' line says so.
+	line := func() ResidencyLine {
+		for _, l := range o.ResidencyLines() {
+			if l.What == "Calendar feeds of board cards" {
+				return l
+			}
+		}
+		t.Fatal("no residency line for calendar feeds")
+		return ResidencyLine{}
+	}
+	if l := line(); l.Status != "none" || !strings.Contains(l.Where, "India-only") {
+		t.Fatalf("india-only line %+v", l)
+	}
+	o.Residency = Residency{}
+	if l := line(); l.Status != "check" || !strings.Contains(l.Note, "Off unless an Admin switches them on") {
+		t.Fatalf("line %+v", l)
+	}
+}
+
+// The compliance officer or an Admin may open a person's Inbox, read-only,
+// giving a reason that is audited; the owner is told. No one else may.
+func TestBoardInboxReview(t *testing.T) {
+	o, ctx := setup(t)
+	o.Now = func() time.Time { return time.Date(2026, 11, 18, 11, 0, 0, 0, ist) }
+	me, comp, admin := "priya.nair", "vikram.shah", "admin"
+	c, err := o.AddInboxCard(ctx, T, me, CardInput{Title: "Client Z-1234 asked to sell 100 shares tomorrow"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ib := inboxID(me)
+	o.AddComment(ctx, T, me, ib, c.ID, "called back at 4 pm")
+	yes := true
+	old, _ := o.AddInboxCard(ctx, T, me, CardInput{Title: "Old note"})
+	o.UpdateCard(ctx, T, me, ib, old.ID, CardPatch{Archived: &yes})
+	reason := "NSE inspection: produce staff notes of client instructions"
+
+	// Other roles may not, Branch and AP staff included, whatever the reason.
+	for _, who := range []string{"farhan.khan", "anita.rao", "meera.iyer", "sunrise.ap", AutomationActor} {
+		if _, err := o.OpenInboxForReview(ctx, T, who, me, reason); err == nil {
+			t.Fatalf("%s opened priya's Inbox", who)
+		}
+	}
+	// Not without a reason.
+	for _, r := range []string{"", "  ", "why"} {
+		if _, err := o.OpenInboxForReview(ctx, T, comp, me, r); err == nil {
+			t.Fatalf("opened with the reason %q", r)
+		}
+	}
+	if _, err := o.OpenInboxForReview(ctx, T, comp, "farhan.khan", reason); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("an Inbox never used: %v", err)
+	}
+	before, _ := o.App.Audit.List(ctx, T, 0)
+	for _, e := range before {
+		if e.Action == "board.inbox_opened" {
+			t.Fatal("a refused opening was recorded as an opening")
+		}
+	}
+	notes0, _, _ := o.BoardNotices(ctx, T, me, 0)
+
+	v, err := o.OpenInboxForReview(ctx, T, comp, me, reason)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Owner != me || v.OwnerName != "Priya Nair" || v.Board != ib || len(v.Cards) != 2 || len(v.Activity) == 0 {
+		t.Fatalf("review %+v", v)
+	}
+	var got Card
+	for _, x := range v.Cards {
+		if x.ID == c.ID {
+			got = x
+		}
+	}
+	if got.Title != c.Title || len(got.Comments) != 1 {
+		t.Fatalf("card in review %+v", got)
+	}
+	// The sealed audit trail has who, whose and why.
+	evs, _ := o.App.Audit.List(ctx, T, 0)
+	found := false
+	for _, e := range evs {
+		found = found || (e.Action == "board.inbox_opened" && e.Actor == comp && e.Object == ib && fmt.Sprint(e.Detail["owner"]) == me && fmt.Sprint(e.Detail["reason"]) == reason)
+	}
+	if !found {
+		t.Fatal("opening the Inbox not audited with the reason")
+	}
+	// The owner is told who and why.
+	notes, _, _ := o.BoardNotices(ctx, T, me, 0)
+	if len(notes) != len(notes0)+1 || notes[0].Text != "Vikram Shah (Compliance) opened your Inbox: "+reason || notes[0].By != comp {
+		t.Fatalf("owner's notice %+v", notes)
+	}
+	if _, err := o.OpenInboxForReview(ctx, T, admin, me, "Internal audit of the AP desk"); err != nil {
+		t.Fatal(err)
+	}
+	if notes, _, _ = o.BoardNotices(ctx, T, me, 0); !strings.HasPrefix(notes[0].Text, "Administrator (Admin) opened your Inbox: ") {
+		t.Fatalf("admin's notice %q", notes[0].Text)
+	}
+	// Read-only: the reviewer still has no way in to change anything.
+	if _, err := o.GetBoard(ctx, T, comp, ib, false); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("the reviewer opened the Inbox as a board: %v", err)
+	}
+	if _, err := o.UpdateCard(ctx, T, comp, ib, c.ID, CardPatch{Title: bpPtr("changed")}); err == nil {
+		t.Fatal("the reviewer changed a card")
+	}
+	if _, err := o.AddComment(ctx, T, comp, ib, c.ID, "seen"); err == nil {
+		t.Fatal("the reviewer commented")
+	}
+	b, _ := o.CreateBoard(ctx, T, comp, BoardInput{Name: "Review", Visibility: "private"})
+	if _, err := o.MoveCard(ctx, T, comp, ib, c.ID, CardMove{Board: b.ID, List: b.Lists[0].ID}); err == nil {
+		t.Fatal("the reviewer moved a card out")
+	}
+	if _, _, err := o.GetCard(ctx, T, comp, ib, c.ID); err == nil {
+		t.Fatal("the reviewer read a card through the board")
+	}
+	// The reviewer sees nothing of the Inbox elsewhere either.
+	if hits, _ := o.SearchCards(ctx, T, comp, "Z-1234"); len(hits) != 0 {
+		t.Fatalf("the reviewer's search %+v", hits)
+	}
+	// Not one's own.
+	if _, err := o.OpenInboxForReview(ctx, T, comp, comp, reason); err == nil {
+		t.Fatal("opened one's own Inbox for review")
+	}
+}

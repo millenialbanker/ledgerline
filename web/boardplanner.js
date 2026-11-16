@@ -369,12 +369,12 @@ function bpFeedsHTML(board) {
   if (!v) return '<div class="bd"><p class="bv-dim">Loading…</p></div>';
   const mine = v.feeds.find(f => f.scope === 'mine'), bfs = v.feeds.filter(f => f.scope === 'board'), bi = board ? v.boards.find(b => b.id === board) : null;
   const firm = `<section class="bp-fs"><h3>For the firm</h3>${v.firm_on ? `<p>Calendar feeds are <b>on</b> for the firm${v.firm_by ? `, since ${esc(bvFmt(bvStamp(v.firm_at), { noTime: 1 }))} (${esc(bdName(v.firm_by))})` : ''}.</p>` : `<p>Calendar feeds are <b>off</b> for the firm${v.boards.some(b => b.on) ? ', except on boards the Admin allowed one by one' : ''}.</p>`}
-    ${v.can_switch ? `<button class="btn sm" data-act="bpFirm" data-id="${v.firm_on ? 'off' : 'on'}">${v.firm_on ? 'Switch off for the firm' : 'Switch on for the firm'}</button>` : `<p class="bv-dim bv-small">The firm’s Admin switches them on or off.</p>`}</section>`;
+    ${v.blocked ? '' : v.can_switch ? `<button class="btn sm" data-act="bpFirm" data-id="${v.firm_on ? 'off' : 'on'}">${v.firm_on ? 'Switch off for the firm' : 'Switch on for the firm'}</button>` : `<p class="bv-dim bv-small">The firm’s Admin switches them on or off.</p>`}</section>`;
   let body;
   if (board) {
     const allowed = v.firm_on || bi?.on;
     body = `<section class="bp-fs"><h3>This board</h3><p>${bi?.on ? 'The Admin allowed feeds of this board.' : v.firm_on ? 'Allowed, as feeds are on for the firm.' : 'Feeds of this board are off.'}</p>
-      ${v.can_switch ? `<button class="btn sm" data-act="bpBoardFeedSw" data-id="${esc(board)}" data-on="${bi?.on ? '0' : '1'}">${bi?.on ? 'Stop feeds of this board' : 'Allow feeds of this board'}</button>` : ''}
+      ${v.can_switch && !v.blocked ? `<button class="btn sm" data-act="bpBoardFeedSw" data-id="${esc(board)}" data-on="${bi?.on ? '0' : '1'}">${bi?.on ? 'Stop feeds of this board' : 'Allow feeds of this board'}</button>` : ''}
       <ul class="bp-frs">${bpFeedRow('This board’s due dates', bfs.find(f => f.board === board), 'board', board, allowed)}</ul></section>`;
   } else {
     const opts = v.boards.filter(b => b.allowed && !bfs.some(f => f.board === b.id));
@@ -382,7 +382,8 @@ function bpFeedsHTML(board) {
       ${bfs.map(f => bpFeedRow(f.board_name || 'A board you can no longer see', f, 'board', f.board, f.allowed)).join('')}</ul>
       ${opts.length ? `<div class="bp-row bp-addfeed"><span aria-hidden="true">A board’s feed</span><label class="bv-sr" for="bp-fb">A board’s feed</label><select id="bp-fb" class="in sm">${opts.map(b => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('')}</select><button class="btn sm" data-act="bpFeedNewSel">Get address</button></div>` : ''}</section>`;
   }
-  return `<div class="bd bp-feeds">${bpNewHTML()}${body}${firm}<p class="bv-dim bv-small">A feed has each card’s due date as an event (all day when it has no time), its title, its board and list, and a link back here. Stop a feed and its address stops working at once.</p></div><div class="ft"><button class="btn pri" data-act="close">Done</button></div>`;
+  const blocked = v.blocked ? `<div class="note warn" role="status">${esc(v.blocked)} Feeds made before are empty calendars.</div>` : '';
+  return `<div class="bd bp-feeds">${blocked}${bpNewHTML()}${body}${firm}<p class="bv-dim bv-small">A feed has each card’s due date as an event (all day when it has no time), its title, its board and list, and a link back here. Stop a feed and its address stops working at once.</p></div><div class="ft"><button class="btn pri" data-act="close">Done</button></div>`;
 }
 async function bpFeedsModal(board) {
   UI.bpNew = null; UI.bpFeedsBoard = board || '';
@@ -408,6 +409,36 @@ function bpSwitchOn(what, run) {
   };
 }
 BV_HOME.buttons.push(() => clientUser() ? '' : `<button class="btn sm" data-act="bpFeeds">${BV_I.cal}Calendar feeds</button>`);
+/* ---------- an Inbox opened for review (compliance officer or Admin) ----------
+   An Inbox is private in normal use but part of the firm's records. The
+   compliance officer or an Admin can read one, giving a reason: the server
+   records it in the sealed audit trail and tells the owner. Nothing can be
+   changed from here. */
+const bpCanReview = () => !clientUser() && !scopedUser() && has('Compliance officer');
+function bpReviewAsk() {
+  const me = S.me?.actor, us = (S.me?.users || []).filter(u => u.active && u.id !== me && u.role !== 'Client').sort((a, b) => a.name.localeCompare(b.name));
+  modal(mhd('Open a person’s Inbox', 'Read-only, for an inspection, a complaint or an investigation.') + `<div class="bd">
+    <div class="note warn" style="margin:0 0 12px">Inboxes are private. Opening one is recorded in the audit trail with your reason, and its owner is told who opened it and why. You can read it, not change it.</div>
+    <div class="fld"><label for="bp-rv-u">Whose Inbox</label><select id="bp-rv-u" class="in"><option value="">Choose a person</option>${us.map(u => `<option value="${esc(u.id)}">${esc(u.name)} · ${esc(u.role)}</option>`).join('')}</select></div>
+    <div class="fld"><label for="bp-rv-r">Reason (recorded, and shown to the owner)</label><textarea id="bp-rv-r" class="in" rows="3" maxlength="500" placeholder="For example: NSE inspection asked for staff notes of client instructions"></textarea></div><div id="bp-rv-err"></div></div>
+    <div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="bpReviewGo">Open read-only</button></div>`);
+}
+function bpReviewHTML(v) {
+  const when = s => s ? esc(bvFmt(bvStamp(s))) : '';
+  const card = c => {
+    const items = (c.checklists || []).flatMap(cl => (cl.items || []).map(i => `<li>${i.done ? BV_I.check : '<span class="bp-rv-box" aria-hidden="true"></span>'}<span>${esc(i.text)}</span><span class="bv-sr">${i.done ? ', done' : ', not done'}</span></li>`));
+    return `<li class="bp-rv-c"><div class="bp-rv-h"><b>${esc(c.title)}</b><span class="bv-dim bv-small">#${c.no} · added ${when(c.created_at)}${c.archived ? ' · <span class="bv-tag bv-tag-dim">Archived</span>' : ''}</span>${c.due ? bpDue(c) : ''}</div>
+      ${c.description ? `<div class="bp-rv-d">${esc(c.description)}</div>` : ''}
+      ${items.length ? `<ul class="bp-rv-i" aria-label="Checklist">${items.join('')}</ul>` : ''}
+      ${(c.attachments || []).length ? `<p class="bv-small"><b>Attachments:</b> ${c.attachments.map(a => esc(a.name)).join(', ')}</p>` : ''}
+      ${(c.comments || []).length ? `<ul class="bp-rv-cm" aria-label="Comments">${c.comments.map(m => `<li><span class="bv-dim bv-small">${esc(bdName(m.by))} · ${when(m.at)}</span><div>${esc(m.text)}</div></li>`).join('')}</ul>` : ''}</li>`;
+  };
+  return mhd(`${esc(v.owner_name)}’s Inbox`, `Read-only · opened ${esc(bvFmt(bvStamp(v.at)))} · recorded in the audit trail`) + `<div class="bd bp-rv">
+    ${v.cards.length ? `<ul class="bp-rv-l">${v.cards.map(card).join('')}</ul>` : '<p class="bv-dim">The Inbox has no cards. Cards moved to boards are on those boards; the activity below says where.</p>'}
+    <details class="bp-rv-a"><summary>Activity (${v.activity.length})</summary><ul>${v.activity.map(a => `<li><span class="bv-dim bv-small">${when(a.at)} · ${esc(bdName(a.by))}</span> ${esc(a.text)}</li>`).join('')}</ul></details></div>
+    <div class="ft"><button class="btn pri" data-act="close">Done</button></div>`;
+}
+BV_HOME.buttons.push(() => bpCanReview() ? `<button class="btn sm" data-act="bpReview">${BV_I.alert}Open a person’s Inbox</button>` : '');
 BOARDS.boardMenu.push({ id: 'bp-feed', label: 'Calendar feed', icon: 'clock', order: 75, show: ctx => ctx.board.kind !== 'inbox' && !ctx.board.template, run: ctx => bpFeedsModal(ctx.board.id) });
 
 /* ---------- actions ---------- */
@@ -446,6 +477,14 @@ Object.assign(A, {
     catch (e) { toast(e.message, true); }
   },
   bpBlockDel: id => { const b = bpBlock(id); if (b) bpBlockDel(b); },
+  bpReview: () => bpReviewAsk(),
+  bpReviewGo: async () => {
+    const user = $('bp-rv-u')?.value, reason = ($('bp-rv-r')?.value || '').trim();
+    if (!user) { $('bp-rv-err').innerHTML = '<div class="note bad">Choose whose Inbox to open.</div>'; $('bp-rv-u').focus(); return; }
+    if (reason.length < 5) { $('bp-rv-err').innerHTML = '<div class="note bad">Give the reason; it is recorded and shown to the owner.</div>'; $('bp-rv-r').focus(); return; }
+    try { const v = await post('/v1/board-inbox/review', { user, reason }); modal(bpReviewHTML(v)); }
+    catch (e) { $('bp-rv-err').innerHTML = errHTML(e); }
+  },
   bpFeeds: () => bpFeedsModal(''),
   bpFeedsBack: () => bpFeedsModal(UI.bpFeedsBoard),
   bpFeedNew: async (scope, el) => {
