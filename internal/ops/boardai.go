@@ -66,8 +66,12 @@ func (o *Ops) cardAIFor(ctx context.Context, tenant, actor, board, card string) 
 	if err != nil {
 		return Card{}, b, v, err
 	}
-	if b.Kind != BoardTeam {
+	switch b.Kind {
+	case BoardTeam:
+	case BoardLedgerline:
 		return c, b, v, invalid("AI is not used on Ledgerline boards: their cards are the firm's own records")
+	default:
+		return c, b, v, invalid("AI on cards is for team boards; move the card to a team board to use it")
 	}
 	return c, b, v, nil
 }

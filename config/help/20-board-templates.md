@@ -110,7 +110,7 @@ While a team board has email-to-board on, every card on it has its own address, 
 2. Have the firm's mail provider post mail for that address the same way as the board's (board menu → **Email-to-board**).
 3. Each email becomes a comment on the card, by Ledgerline, saying who sent it and with the subject and text. Attachments that pass the same checks as an upload are attached to the card; the comment lists any that are not. The delivery is recorded in the board's activity, and a message sent twice is added once.
 
-The address is the card's own: it shows nothing of the board's address, and it changes when the board gets a new address. An archived card, a closed board and Ledgerline boards take no mail. Anyone who has the address can comment on the card, so keep it within the firm.
+The address is the card's own: it shows nothing of the board's address, and it changes when the board gets a new address. An archived card, a closed board, Ledgerline boards and your Inbox take no mail. Anyone who has the address can comment on the card, so keep it within the firm.
 
 ## card-stickers
 title: Stickers on cards
@@ -141,4 +141,4 @@ When the firm allows it, the card window has two AI actions under **Actions**:
 
 Before anything is sent, client names and codes, PAN, Aadhaar-like numbers, phone numbers, emails, bank account numbers and staff names are replaced by tokens; the reply has them put back. Every call goes through the firm's AI controls, is charged from the AI credit and is written to the AI answer log.
 
-The actions show only while AI may be used: an Admin switches on **AI on board cards** in [[settings|Settings]], and AI must not be switched off on [[aictl|AI controls]]. They are never offered on Ledgerline boards, whose cards are the firm's records. If AI is refused when you press one (for example, AI was switched off a moment ago), the reason is shown and nothing else happens.
+The actions show only while AI may be used: an Admin switches on **AI on board cards** in [[settings|Settings]], and AI must not be switched off on [[aictl|AI controls]]. They are offered on team boards only: never on Ledgerline boards, whose cards are the firm's records, nor in your Inbox. If AI is refused when you press one (for example, AI was switched off a moment ago), the reason is shown and nothing else happens.

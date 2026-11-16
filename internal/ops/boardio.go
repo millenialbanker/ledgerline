@@ -1309,10 +1309,14 @@ func updateOr[T any](ctx context.Context, s docs.Store, tenant, coll, id, actor 
 
 // BoardViewed notes that the person opened a board.
 func (o *Ops) BoardViewed(ctx context.Context, tenant, actor, id string) error {
-	if _, _, err := o.boardFor(ctx, tenant, actor, id); err != nil {
+	b, _, err := o.boardFor(ctx, tenant, actor, id)
+	if err != nil {
 		return err
 	}
-	_, err := updateOr(ctx, o.Docs, tenant, cBoardRecent, actor, actor, func() boardRecentDoc { return boardRecentDoc{User: actor} }, func(d *boardRecentDoc) error {
+	if b.Kind == BoardInbox { // the Inbox has its own place on the home
+		return nil
+	}
+	_, err = updateOr(ctx, o.Docs, tenant, cBoardRecent, actor, actor, func() boardRecentDoc { return boardRecentDoc{User: actor} }, func(d *boardRecentDoc) error {
 		d.Boards = append([]string{id}, toggleIn(d.Boards, id, false)...)
 		if len(d.Boards) > boardRecentKept {
 			d.Boards = d.Boards[:boardRecentKept]
@@ -1521,6 +1525,9 @@ func (o *Ops) SetBoardInCollection(ctx context.Context, tenant, actor, id, board
 			return BoardCollectionView{}, fmt.Errorf("%w: only a board's admins can add it to a collection or take it out", ErrForbidden)
 		}
 		return BoardCollectionView{}, err
+	}
+	if b.Kind == BoardInbox && on {
+		return BoardCollectionView{}, invalid("an Inbox is yours alone and goes in no collection")
 	}
 	changed := false
 	c, err := docs.Update(ctx, o.Docs, tenant, cBoardColl, id, actor, func(x *BoardCollection) error {

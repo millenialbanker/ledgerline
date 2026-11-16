@@ -256,8 +256,8 @@ function brHeaderInner(ctx) {
 }
 function brPaintHeader() { const el = $('br-hbs'); if (el) el.innerHTML = brHeaderInner(brCtx()); }
 
-BOARDS.boardMenu.push({ id: 'br-automation', icon: 'bolt', label: 'Automation', order: 40, run: ctx => brOpen(ctx) });
-BOARDS.headerButtons.push({ id: 'br-board-buttons', order: 60, render: ctx => { brEnsure(ctx); return `<span class="br-hbs" id="br-hbs">${brHeaderInner(ctx)}</span>`; } });
+BOARDS.boardMenu.push({ id: 'br-automation', icon: 'bolt', label: 'Automation', order: 40, show: ctx => ctx.board.kind !== 'inbox', run: ctx => brOpen(ctx) });
+BOARDS.headerButtons.push({ id: 'br-board-buttons', order: 60, render: ctx => { if (ctx.board.kind === 'inbox') return ''; brEnsure(ctx); return `<span class="br-hbs" id="br-hbs">${brHeaderInner(ctx)}</span>`; } });
 
 function brRunText(run) {
   if (!run) return '';
@@ -701,7 +701,7 @@ function brRepsEnsure(ctx) {
 }
 
 BOARDS.cardButtons.push({ id: 'br-repeat', icon: 'repeat', label: 'Repeat', group: 'actions', order: 25,
-  show: (c, ctx) => !!ctx?.canEdit && ctx.board.kind !== 'ledgerline' && !c.link && !c.mirror && !c.archived,
+  show: (c, ctx) => !!ctx?.canEdit && !['ledgerline', 'inbox'].includes(ctx.board.kind) && !c.link && !c.mirror && !c.archived,
   run: (c, ctx, el) => brRepOpen(c, ctx, el) });
 BOARDS.cardBadges.push(c => {
   const r = brRepOf(c); if (!r || r.ended) return '';

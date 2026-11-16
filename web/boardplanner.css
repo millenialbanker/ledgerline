@@ -1,0 +1,115 @@
+/* Boards: boardplanner (Inbox, Planner, calendar feeds). web/boardplanner.js.
+   Builds on boardviews.css (.bv colours, the week-by-hour grid). */
+
+/* Inbox panel (boards home) and the Planner's side */
+.bp-inbox .bv-my-hd p kbd,.bp-root kbd{font-family:var(--f-mono);font-size:11px;padding:0 5px;border:1px solid var(--bv-line2);border-bottom-width:2px;border-radius:4px;background:var(--bv-surface)}
+.bp-add{display:flex;gap:6px;align-items:center}
+.bp-add .in{flex:1;min-width:0;height:34px}
+.bp-ilist{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:6px}
+.bp-side .bp-ilist{grid-template-columns:minmax(0,1fr)}
+.bp-sc{display:flex;align-items:flex-start;gap:6px;padding:7px 8px 7px 6px;background:var(--bv-surface);border:1px solid var(--bv-line);border-radius:10px;min-width:0}
+.bp-sc-nd{padding-left:10px}
+.bp-sc[draggable=true]{cursor:grab}
+.bp-sc[draggable=true]:hover{border-color:var(--bv-line2);box-shadow:var(--bv-shadow)}
+.bp-sc.bv-dragging{opacity:.45}
+.bp-grip{flex:none;color:var(--bv-ink3);line-height:0;margin-top:1px}
+.bp-grip .bd-i{width:16px;height:16px}
+.bp-sc-b{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.bp-sc-t{all:unset;cursor:pointer;font-weight:500;font-size:13px;line-height:1.35;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.bp-sc-t:hover{color:var(--bv-acc);text-decoration:underline;text-underline-offset:2px}
+.bp-sc-t:focus-visible{outline:2px solid var(--bv-acc);outline-offset:2px;border-radius:3px}
+.bp-sc-m{font-size:11.5px;color:var(--bv-ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bp-sc-f{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.bp-sc-a{display:flex;gap:4px;flex:none}
+.bp-sc-a .btn{padding:2px 8px;font-size:12px}
+.bp-tag{font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:9px;background:var(--bv-acc-soft);color:var(--bv-acc)}
+.bp-empty{margin:0}
+.bp-inbox>.bv-more{align-self:flex-start;margin:0}
+
+/* Move to a board */
+.bp-mv{display:flex;flex-direction:column;gap:8px}
+.bp-mv .fld{display:flex;flex-direction:column;gap:4px;margin:0}
+.bp-mv label{font-size:12px;color:var(--b-ink2);font-weight:500}
+.bp-mv .btn{align-self:flex-start}
+.bp-row{display:flex;gap:6px;align-items:center}
+.bp-row .in{flex:1;min-width:0}
+
+/* Planner */
+.bp-wrap{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;align-items:start}
+.bp-main{min-width:0;display:flex;flex-direction:column;gap:8px}
+.bp-sum{margin:0}
+.bp-cal{--bv-g:52px;background:var(--bv-surface);border:1px solid var(--bv-line);border-radius:12px;overflow:hidden}
+.bp-scroll{max-height:max(440px,calc(100vh - 260px))}
+.bp-ads{flex:1;display:flex;min-width:0}
+.bp-ad{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding:4px;border-right:1px solid var(--bv-line);min-height:26px}
+.bp-ad:last-child{border-right:0}
+.bp-ad.bv-today{background:color-mix(in srgb,var(--bv-acc) 4%,transparent)}
+.bp-adc{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:4px;min-width:0;height:22px;padding:0 6px 0 5px;border-radius:6px;background:var(--bv-surface);border:1px solid var(--bv-line);border-left:3px solid var(--st);font-size:12px}
+.bp-adc span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.bp-adc b{font-size:11px;color:var(--bv-ink2);flex:none}
+.bp-adc .bv-i{width:12px;height:12px;color:var(--st)}
+.bp-adc:hover{border-color:var(--bv-line2)}
+.bp-adc:focus-visible{outline:2px solid var(--bv-acc)}
+/* a card's due time: a flag on the hour, behind the blocks */
+.bp-due{all:unset;box-sizing:border-box;position:absolute;right:3px;left:3px;z-index:1;display:flex;align-items:center;gap:4px;height:20px;margin-top:-10px;padding:0 6px;border-radius:10px;background:color-mix(in srgb,var(--st) 12%,var(--bv-surface));border:1px dashed color-mix(in srgb,var(--st) 60%,var(--bv-line));font-size:11px;color:var(--bv-ink);cursor:pointer;min-width:0}
+.bp-due b{font-weight:600;font-variant-numeric:tabular-nums;flex:none}
+.bp-due span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bp-due .bv-i{width:11px;height:11px;color:var(--st);flex:none}
+.bp-due:hover{z-index:4;border-style:solid}
+.bp-due:focus-visible{outline:2px solid var(--bv-acc);z-index:4}
+/* plan blocks */
+.bp-blk{position:absolute;left:3px;right:3px;z-index:2;box-sizing:border-box;display:flex;flex-direction:column;gap:1px;padding:3px 7px 6px;border-radius:7px;background:var(--bv-acc);color:var(--bv-on-acc);box-shadow:0 1px 2px rgba(16,24,40,.18);font-size:12px;line-height:1.25;cursor:grab;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+.bp-blk-tm{font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;opacity:.9;white-space:nowrap;flex:none}
+.bp-blk-t{font-weight:600;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.bp-blk-m{font-size:11px;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bp-blk.bp-short{flex-direction:row;align-items:center;gap:6px;padding-top:0;padding-bottom:0}
+.bp-blk.bp-short .bp-blk-t{-webkit-line-clamp:1;white-space:nowrap;text-overflow:ellipsis;display:block}
+.bp-blk.bp-gone{background:var(--bv-none)}
+.bp-blk:hover{filter:brightness(1.08)}
+.bp-blk:focus-visible{outline:3px solid var(--bv-ink);outline-offset:1px}
+.bp-blk.bp-dragging{cursor:grabbing;box-shadow:var(--bv-shadow);z-index:5;opacity:.92}
+.bp-rs{position:absolute;left:0;right:0;bottom:0;height:7px;cursor:ns-resize}
+.bp-rs::after{content:"";position:absolute;left:50%;bottom:2px;width:18px;height:2px;margin-left:-9px;border-radius:1px;background:currentColor;opacity:.55}
+.bp-short .bp-rs::after{display:none}
+.bp-ghost{position:absolute;z-index:4;box-sizing:border-box;border:2px dashed var(--bv-acc);border-radius:7px;background:color-mix(in srgb,var(--bv-acc) 12%,transparent);font-size:11px;font-weight:600;color:var(--bv-acc);padding:2px 6px;pointer-events:none}
+.bp-side{display:flex;flex-direction:column;gap:12px;position:sticky;top:12px;max-height:calc(100vh - 120px);overflow:auto;background:var(--bv-surface);border:1px solid var(--bv-line);border-radius:12px;padding:12px}
+.bp-sec{display:flex;flex-direction:column;gap:8px}
+.bp-sec h3{margin:0;font-size:13.5px;font-weight:600;display:flex;align-items:center}
+.bp-sec>p{margin:-4px 0 0}
+.bp-sec+.bp-sec{border-top:1px solid var(--bv-line);padding-top:12px}
+.bp-daypick{display:flex;width:100%}
+.bp-daypick button{flex:1;display:flex;flex-direction:column;align-items:center;padding:4px 0;font-size:12px;line-height:1.15}
+.bp-daypick small{font-size:11px;opacity:.8}
+.bp-hint b{color:var(--bv-ink2)}
+.bp-pm-h{margin:0 0 8px;font-size:13px;line-height:1.4}
+.bp-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.bp-form .fld{margin:0}
+
+/* calendar feeds */
+.bp-feeds{display:flex;flex-direction:column;gap:14px}
+.bp-fs h3{margin:0 0 6px;font-size:14px;font-weight:600}
+.bp-fs p{margin:0 0 8px;font-size:13px}
+.bp-fs+.bp-fs{border-top:1px solid var(--line);padding-top:12px}
+.bp-frs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.bp-fr{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);border-radius:10px}
+.bp-fr-n{display:flex;flex-direction:column;gap:2px;min-width:0}
+.bp-fr-n small{font-size:12px}
+.bp-fr-a{display:flex;gap:6px}
+.bp-addfeed{margin-top:8px}
+.bp-new{padding:10px 12px;border-radius:10px;background:var(--b-acc-soft);border:1px solid color-mix(in srgb,var(--b-acc) 30%,transparent)}
+.bp-new p{margin:0 0 8px;font-size:13px}
+.bp-new p:last-child{margin:8px 0 0}
+.bp-new .in{font-size:12px}
+.bp-warn{margin:0 0 10px}
+.bp-warn+p{margin:0 0 12px}
+.bp-addfeed>span{font-size:13px;color:var(--ink2);white-space:nowrap}
+
+@media (max-width:1100px){.bp-wrap{grid-template-columns:minmax(0,1fr) 260px}}
+@media (max-width:760px){
+  .bp-wrap{grid-template-columns:minmax(0,1fr)}
+  .bp-side{position:static;max-height:none}
+  .bp-hint{display:none}
+  .bp-form{grid-template-columns:minmax(0,1fr)}
+}
+@media (prefers-reduced-motion:reduce){.bp-blk,.bp-sc{transition:none}}
+@media (forced-colors:active){.bp-blk,.bp-due,.bp-adc,.bp-ghost{forced-color-adjust:auto;border:1px solid CanvasText}}

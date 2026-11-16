@@ -300,6 +300,9 @@ func (o *Ops) rpCheck(ctx context.Context, tenant, actor string, b Board, c Card
 	if b.Template {
 		return invalid("cards on a template board do not repeat; make a board from the template first")
 	}
+	if b.Kind == BoardInbox {
+		return invalid("cards in your Inbox do not repeat; move the card to a board first")
+	}
 	if c.Link != nil {
 		return invalid("#%d is linked to %s: a card that follows a Ledgerline record does not repeat", c.No, c.Link.Label)
 	}

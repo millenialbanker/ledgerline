@@ -1188,6 +1188,8 @@ func (o *Ops) CardEmail(ctx context.Context, tenant, actor, board, card string) 
 		return CardEmailInfo{}, fmt.Errorf("%w: only the board's members see a card's email address (your role on it: %s)", ErrForbidden, v.board)
 	}
 	switch {
+	case b.Kind == BoardInbox:
+		return CardEmailInfo{Why: "Cards in your Inbox take no email. Move the card to a team board to give it an address."}, nil
 	case b.Kind != BoardTeam:
 		return CardEmailInfo{Why: "Cards on Ledgerline boards take no email."}, nil
 	case b.EmailKey == "":
@@ -1207,8 +1209,8 @@ func (o *Ops) cardInboundMail(ctx context.Context, tenant, key string, raw []byt
 	if !ok {
 		return Card{}, false, fmt.Errorf("%w: no card takes mail at this address", ErrNotFound)
 	}
-	if b.Kind != BoardTeam {
-		return Card{}, false, invalid("email to a card is for team boards; Ledgerline boards take no email")
+	if b.Kind != BoardTeam { // Ledgerline boards and Inboxes take no mail
+		return Card{}, false, invalid("email to a card is for team boards; Ledgerline boards and Inboxes take no email")
 	}
 	if b.Closed {
 		return Card{}, false, fmt.Errorf("%w: the board %s is closed and takes no mail", ErrState, b.Name)
