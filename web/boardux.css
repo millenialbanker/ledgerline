@@ -1,0 +1,127 @@
+/* Boards: quick edit, keyboard, undo and the editor (web/boardux.js).
+   Uses the core's colours (boards.css); every class starts bu-. */
+
+/* the keyboard selection */
+.bd-card.bu-sel{border-color:var(--b-acc);box-shadow:0 0 0 2px var(--b-acc)}
+.bd-card.bu-sel .bd-copen:focus-visible::after{outline:none}
+
+/* quick edit */
+.bu-qe{position:fixed;inset:0;z-index:56}
+.bu-qe-bg{position:absolute;inset:0;background:rgba(9,12,18,.62)}
+.bu-qe-box{position:absolute;display:flex;align-items:flex-start;gap:8px}
+.bu-qe-box.flip{flex-direction:row-reverse}
+.bu-qe-card{display:flex;flex-direction:column;gap:8px;min-width:0}
+.bu-qe-front.bd-card{cursor:default;user-select:text;-webkit-user-select:text;border-color:transparent;box-shadow:0 10px 30px -8px rgba(0,0,0,.45);overflow:visible}
+.bu-qe-front.bd-card:hover{border-color:transparent}
+.bu-qe-front .bd-cin{gap:7px}
+.bu-qe-tw .bd-ct{padding-right:0}
+.bu-qe-tin{display:block;width:100%;min-height:76px;max-height:240px;resize:none;border:1px solid var(--b-acc);border-radius:8px;padding:6px 8px;font:inherit;font-size:14px;font-weight:500;line-height:1.38;background:var(--b-surf);color:var(--b-ink)}
+.bu-qe-tin:focus{outline:3px solid color-mix(in srgb,var(--b-acc) 22%,transparent);outline-offset:0}
+.bu-qe-save{display:flex;align-items:center;gap:10px}
+.bu-qe-save .btn.pri{background:var(--b-acc);border-color:var(--b-acc);border-radius:8px}
+.bu-qe-save .bd-hint,.bu-qe-note{color:#F2F4F7;font-size:12px;margin:0;padding:3px 8px;border-radius:6px;background:rgba(16,24,40,.82);align-self:flex-start}
+.bu-qe-acts{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:max-content;max-width:220px}
+.bu-qe-box.flip .bu-qe-acts{align-items:flex-end}
+.bu-qb{display:inline-flex;align-items:center;gap:8px;min-height:32px;padding:5px 12px 5px 10px;border:0;border-radius:8px;background:rgba(16,24,40,.82);color:#fff;font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;animation:bu-in .14s ease-out both}
+.bu-qb:hover,.bu-qb:focus-visible{background:rgba(16,24,40,.96);transform:translateX(3px)}
+.bu-qe-box.flip .bu-qb:hover,.bu-qe-box.flip .bu-qb:focus-visible{transform:translateX(-3px)}
+.bu-qb:focus-visible{outline:2px solid #fff;outline-offset:1px}
+.bu-qb .bd-i{color:#D0D5DD}
+.bu-qb[data-id="archive"]:hover{background:#7A271A}
+@keyframes bu-in{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+/* on a phone: a sheet with the title and the actions */
+.bu-qe.sheet .bu-qe-box{left:0;right:0;bottom:0;top:auto;flex-direction:column;align-items:stretch;gap:12px;background:var(--b-surf);border-radius:16px 16px 0 0;padding:16px 14px calc(72px + env(safe-area-inset-bottom,0px));max-height:90vh;overflow:auto;box-shadow:0 -12px 32px -12px rgba(0,0,0,.4)}
+.bu-qe.sheet .bu-qe-card{width:auto!important}
+.bu-qe.sheet .bu-qe-front.bd-card{box-shadow:none;border-color:var(--b-line)}
+.bu-qe.sheet .bu-qe-save .bd-hint,.bu-qe.sheet .bu-qe-note{color:var(--b-ink3);background:none;padding:0}
+.bu-qe.sheet .bu-qe-acts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:auto;max-width:none;gap:6px}
+.bu-qe.sheet .bu-qb{background:var(--b-ground);color:var(--b-ink);border:1px solid var(--b-line);min-height:40px;white-space:normal;text-align:left;animation:none}
+.bu-qe.sheet .bu-qb:hover,.bu-qe.sheet .bu-qb:focus-visible{transform:none;background:var(--b-hover)}
+.bu-qe.sheet .bu-qb:focus-visible{outline-color:var(--b-acc)}
+.bu-qe.sheet .bu-qb .bd-i{color:var(--b-ink2)}
+
+/* the undo toast */
+.toast .bu-tbtn{display:inline-flex;align-items:center;gap:5px;margin-left:12px;padding:3px 9px;border:1px solid color-mix(in srgb,currentColor 40%,transparent);border-radius:6px;background:none;color:inherit;font:inherit;font-weight:600;cursor:pointer;vertical-align:middle}
+.toast .bu-tbtn:hover{background:color-mix(in srgb,currentColor 14%,transparent)}
+.toast .bu-tbtn:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.toast .bu-tbtn .bd-i{width:14px;height:14px}
+
+/* files dragged over a list */
+.bd-list.bu-drop{outline:2px dashed var(--b-acc);outline-offset:-2px;background:color-mix(in srgb,var(--b-acc-soft) 70%,var(--b-ground))}
+.bd-list.bu-drop .bd-lbody::after{content:"Drop to make a card with these files";display:block;padding:10px;border-radius:8px;text-align:center;font-size:12.5px;font-weight:600;color:var(--b-acc);background:var(--b-surf);border:1px dashed color-mix(in srgb,var(--b-acc) 45%,transparent)}
+.bd-card.bu-drop-c{outline:2px dashed var(--b-acc);outline-offset:2px}
+
+/* the composer's autocomplete and pasted lines */
+.bu-cac{max-height:300px;overflow:auto}
+.bu-cac .bd-pill{height:24px}
+.bu-paste-l{margin:0;padding-left:22px;color:var(--b-ink2);font-size:13px;display:flex;flex-direction:column;gap:2px;max-height:150px;overflow:auto}
+.bu-paste-l li{overflow-wrap:anywhere}
+.bu-paste-l .bd-mute{list-style:none;margin-left:-22px}
+
+/* the board switcher */
+.bu-sw{display:flex;flex-direction:column;gap:10px}
+.bu-sw .bu-sw-q{flex:none;max-width:none;min-width:0;order:0}
+.bu-sw-l{display:flex;flex-direction:column;gap:10px;max-height:min(56vh,460px);overflow:auto;margin:0 -6px;padding:0 6px}
+.bu-sw-g{display:flex;flex-direction:column;gap:1px}
+.bu-sw-h{font-size:11.5px;font-weight:600;color:var(--b-ink3);text-transform:uppercase;letter-spacing:.06em;padding:2px 8px 4px}
+.bu-sw-o{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:8px;border-radius:8px;text-align:left;cursor:pointer;color:var(--b-ink);font:inherit;min-height:40px}
+.bu-sw-o:hover{background:var(--b-ground)}
+.bu-sw-o.on{background:var(--b-acc-soft);box-shadow:inset 2px 0 0 var(--b-acc)}
+.bu-sw-c{width:26px;height:20px;border-radius:5px;background:linear-gradient(135deg,var(--cb) 0 45%,var(--c) 45%);border:1px solid color-mix(in srgb,var(--c) 40%,transparent);flex:none}
+.bu-sw-n{flex:1;min-width:0;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bu-sw-m{font-size:12px;color:var(--b-ink3);white-space:nowrap}
+
+/* the shortcuts window */
+.md.bu-keys-md{max-width:960px}
+.bu-keys{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 28px}
+.bu-keys .bd-keys td:first-child{width:118px}
+
+/* the description's toolbar */
+.bu-tb{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:3px;margin-bottom:6px;border:1px solid var(--b-line);border-radius:9px;background:var(--b-ground)}
+.bu-tb-b{width:30px;height:28px;display:inline-grid;place-items:center;border:0;border-radius:6px;background:none;color:var(--b-ink2);cursor:pointer;padding:0}
+.bu-tb-b:hover{background:var(--b-surf);color:var(--b-ink);box-shadow:0 0 0 1px var(--b-line)}
+.bu-tb-b .bd-i{width:16px;height:16px}
+.bu-tb-sep{width:1px;height:18px;background:var(--b-line2);margin:0 4px}
+.bu-emos{display:grid;grid-template-columns:repeat(8,1fr);gap:2px}
+.bu-emob{height:34px;border:1px solid transparent;border-radius:7px;background:none;font-size:18px;cursor:pointer;padding:0}
+.bu-emob:hover,.bu-emob:focus-visible{background:var(--b-ground);border-color:var(--b-line)}
+
+/* the markdown */
+.bd-md .bu-h{margin:14px 0 6px;line-height:1.3;font-weight:650;color:var(--b-ink)}
+.bd-md .bu-h:first-child{margin-top:0}
+.bd-md h4.bu-h{font-size:17px}
+.bd-md h5.bu-h{font-size:15px}
+.bd-md h6.bu-h{font-size:13.5px;color:var(--b-ink2)}
+.bd-md blockquote{margin:0 0 8px;padding:2px 0 2px 12px;border-left:3px solid var(--b-line2);color:var(--b-ink2)}
+.bd-md blockquote p{margin-bottom:4px}
+.bd-md .bu-pre{margin:0 0 8px;padding:10px 12px;background:var(--b-ground);border:1px solid var(--b-line);border-radius:8px;overflow:auto;font-size:12.5px;line-height:1.5}
+.bd-md .bu-pre code{background:none;border:0;padding:0;font-size:inherit;white-space:pre}
+.bd-md hr{border:0;border-top:1px solid var(--b-line2);margin:12px 0}
+.bd-md s{color:var(--b-ink3)}
+.bd-md .bu-tw{overflow-x:auto;margin:0 0 8px;border:1px solid var(--b-line);border-radius:8px}
+.bd-md .bu-tbl{border-collapse:collapse;width:100%;font-size:13px}
+.bd-md .bu-tbl th,.bd-md .bu-tbl td{padding:6px 10px;border-bottom:1px solid var(--b-line);border-right:1px solid var(--b-line);text-align:left;vertical-align:top}
+.bd-md .bu-tbl th:last-child,.bd-md .bu-tbl td:last-child{border-right:0}
+.bd-md .bu-tbl tbody tr:last-child td{border-bottom:0}
+.bd-md .bu-tbl th{background:var(--b-ground);font-weight:600;color:var(--b-ink2);white-space:nowrap}
+.bd-md .bu-tbl .bu-c{text-align:center}
+.bd-md .bu-tbl .bu-r{text-align:right;font-variant-numeric:tabular-nums}
+.bu-emo{font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+.bd-md a.bu-ilink{color:var(--b-acc)}
+/* a smart link to a card */
+.bd-md a.bu-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;vertical-align:middle;padding:2px 8px 2px 6px;margin:1px 0;border:1px solid var(--b-line2);border-radius:7px;background:var(--b-surf);color:var(--b-ink);text-decoration:none;font-size:13px;line-height:1.4;box-shadow:0 1px 0 var(--b-line)}
+.bd-md a.bu-chip:hover{border-color:color-mix(in srgb,var(--b-acc) 50%,var(--b-line2));background:var(--b-acc-soft)}
+.bd-md a.bu-chip .bd-i{width:14px;height:14px;color:var(--b-acc)}
+.bu-chip-no{font-size:12px;color:var(--b-ink3);font-weight:500}
+.bu-chip-t{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bu-chip-l{font-size:12px;color:var(--b-ink2);padding-left:6px;border-left:1px solid var(--b-line2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.bu-chip-a{font-size:11px;font-weight:600;padding:0 5px;border-radius:4px;background:var(--b-attn-soft);color:var(--b-attn-ink)}
+
+@media (max-width:600px){
+  .bu-keys{grid-template-columns:minmax(0,1fr)}
+  .bu-sw-m{display:none}
+  .bu-tb-b{width:34px;height:32px}
+  .bu-emos{grid-template-columns:repeat(6,1fr)}
+  .bu-emob{height:40px}
+}
+@media (prefers-reduced-motion:reduce){.bu-qb{animation:none}.bu-qb:hover,.bu-qb:focus-visible{transform:none}}
