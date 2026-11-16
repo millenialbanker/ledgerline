@@ -723,7 +723,7 @@ function brRepSection(card, ctx) {
 
 function brRepDraft(card, r) {
   if (r && !r.ended) {
-    return { every: r.every, days: r.days || [], which: r.which || 'day', day: r.day || 1, month: r.month || 1, at: r.at, list: r.list || '', due: !!r.due, due_days: r.due_days || 0, due_time: r.due_time || '',
+    return { every: r.every, days: r.days?.length ? r.days : [new Date(brToday() + 'T12:00:00').getDay()], which: r.which || 'day', day: r.day || 1, month: r.month || 1, at: r.at, list: r.list || '', due: !!r.due, due_days: r.due_days || 0, due_time: r.due_time || '',
       working_days: !!r.working_days, end: r.end_after ? 'after' : r.end_on ? 'on' : 'never', end_after: r.end_after || 12, end_on: r.end_on || '' };
   }
   const due = /^(\d{4})-(\d{2})-(\d{2})/.exec(card.due || '') || /^(\d{4})-(\d{2})-(\d{2})/.exec(brToday());

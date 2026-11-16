@@ -210,11 +210,11 @@
 
 /* ---- the card repeater: the repeat window, the card's Repeat section and
    its badge, in the boards' own palette (they sit on the card window) ---- */
-.bd-pop.br-rep-pop{width:420px}
+.bd-pop.br-rep-pop:not(.sheet){width:420px}
 .br-rep{display:flex;flex-direction:column;gap:12px}
 .br-rep .fld{display:flex;flex-direction:column;gap:4px;margin:0;min-width:0}
 .br-rep .fld>label,.br-rep-fs legend{font-size:12px;font-weight:600;color:var(--b-ink2)}
-.br-rep-row{display:grid;grid-template-columns:minmax(0,1fr) 116px;gap:8px;align-items:end}
+.br-rep-row{display:grid;grid-template-columns:minmax(0,1fr) 128px;gap:8px;align-items:end}
 .br-rep-fs{border:0;padding:0;margin:0;min-width:0;display:flex;flex-direction:column;gap:2px}
 .br-rep-fs legend{padding:0;margin-bottom:6px}
 .br-rep-days{display:flex;flex-wrap:wrap;gap:4px}
@@ -248,7 +248,7 @@
 .bd-pop .btn.br-ghost{border-color:transparent;background:none;color:var(--b-ink2)}
 .bd-pop .btn.br-ghost:hover{background:var(--b-hover);color:var(--b-bad)}
 @media (max-width:600px){
-  .br-rep-row{grid-template-columns:minmax(0,1fr) 104px}
+  .br-rep-row{grid-template-columns:minmax(0,1fr) 124px}
 }
 .br-rep-pair{display:flex;gap:6px;min-width:0}
 .bd-pop-bd .br-rep-pair .in{flex:1 1 auto;min-width:0;width:auto}

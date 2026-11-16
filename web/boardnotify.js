@@ -115,7 +115,7 @@ function bnBodyHTML() {
   if ((d.recent || []).length) parts.push(`<section class="bn-sec" aria-labelledby="bn-h-sent"><h3 id="bn-h-sent">Sent lately</h3><ul class="bn-sent">${d.recent.map(r => `<li><span>${esc(bnWhen(r.at))}</span><span>${r.count} notification${r.count === 1 ? '' : 's'} to ${esc(r.to)}</span><span class="bn-res${/^Sent/.test(r.result) ? ' ok' : ' bad'}">${esc(r.result)}</span></li>`).join('')}</ul></section>`);
 
   // The firm.
-  if (d.can_firm) parts.push(`<section class="bn-sec bn-firm" aria-labelledby="bn-h-firm"><h3 id="bn-h-firm">For the whole firm</h3><div class="bn-inline"><span class="bn-p">Board notifications by email are <b>${d.firm_off ? 'off' : 'on'}</b> for everyone.</span><button class="btn sm${d.firm_off ? '' : ' bn-ghost'}" data-act="bnFirm" aria-pressed="${!d.firm_off}">${d.firm_off ? 'Switch on' : 'Switch off'}</button></div><p class="bn-hint">Admins only. Switched back on, it emails what comes in from then on.</p></section>`);
+  if (d.can_firm) parts.push(`<section class="bn-sec bn-firm" aria-labelledby="bn-h-firm"><h3 id="bn-h-firm">For the whole firm</h3><div class="bn-inline"><span class="bn-p">Board notifications by email are <b>${d.firm_off ? 'off' : 'on'}</b> for everyone.</span><button class="btn sm" data-act="bnFirm">${d.firm_off ? 'Switch on' : 'Switch off'}</button></div><p class="bn-hint">Admins only. Switched back on, it emails what comes in from then on.</p></section>`);
 
   parts.push('<p class="bn-hint bn-what">Each email holds the board’s name, the card’s number and title, the notification and a link to the card. Nothing else from the card is sent: no description, attachments or other comments.</p>');
   return parts.join('');
