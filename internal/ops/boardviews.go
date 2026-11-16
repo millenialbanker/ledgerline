@@ -453,15 +453,16 @@ func cardDueStatus(c Card, now time.Time) string {
 	return "later"
 }
 
-// labelName is how a label is called: its name, or its colour.
+// labelName is how a label is called: its name, or its colour ("Bold green").
 func labelName(l BoardLabel) string {
 	if l.Name != "" {
 		return l.Name
 	}
-	if l.Color == "" {
+	c := labelColorName(l.Color)
+	if c == "" {
 		return "Label"
 	}
-	return strings.ToUpper(l.Color[:1]) + l.Color[1:]
+	return strings.ToUpper(c[:1]) + c[1:]
 }
 
 func lowerSet(xs []string) map[string]bool {

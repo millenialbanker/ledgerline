@@ -338,6 +338,18 @@ func TestBoardCrossCards(t *testing.T) {
 	check(XCardsQuery{Labels: []string{"red"}}, "Post interest")
 	check(XCardsQuery{Labels: []string{"_none"}, Due: []string{"soon", "later"}}, "DP bills", "Farhan's secret")
 	check(XCardsQuery{From: "2026-11-18", To: "2026-11-30"}, "DP bills", "Farhan's secret")
+	// Labels in the 30 shades are named by shade when they have no name.
+	nb, err := o.UpdateBoard(ctx, T, other, priv.ID, BoardInput{Labels: []BoardLabel{{Color: "green_bold"}, {Color: "sky_subtle", Name: "Waiting"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs, _ := o.boardCards(ctx, T, priv.ID)
+	if _, err := o.UpdateCard(ctx, T, other, priv.ID, cs[0].ID, CardPatch{Labels: &[]string{nb.Labels[0].ID, nb.Labels[1].ID}}); err != nil {
+		t.Fatal(err)
+	}
+	if lv, _ := o.CrossCards(ctx, T, other, XCardsQuery{Labels: []string{"bold green"}}); lv.Total != 1 || lv.Labels[0].Name != "Bold green" || lv.Labels[0].Color != "green_bold" {
+		t.Fatalf("shaded labels %+v %+v", lv.Labels, lv.Cards)
+	}
 	if _, err := o.CrossCards(ctx, T, other, XCardsQuery{From: "18/11/2026"}); err == nil {
 		t.Fatal("a bad date accepted")
 	}

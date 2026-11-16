@@ -99,9 +99,10 @@ const BV_I = {
 const bvStIcon = st => ({ done: BV_I.check, overdue: BV_I.alert, soon: BV_I.clock }[st] || '');
 const bvStKey = st => ({ done: BV_I.check, overdue: BV_I.alert, soon: BV_I.clock, later: BV_I.cal, none: BV_I.dash }[st]);
 // Label colours (the board's colour names).
-const BV_LC = { green: '#1F845A', yellow: '#CF9F02', orange: '#E56910', red: '#C9372C', purple: '#6E5DC6', blue: '#0C66E4', sky: '#227D9B', lime: '#5B7F24', pink: '#AE4787', black: '#626F86' };
-const bvLName = l => l ? (l.name || (l.color ? l.color[0].toUpperCase() + l.color.slice(1) : 'Label')) : '';
-const bvLChip = l => `<span class="bv-lb" style="--c:${BV_LC[l.color] || '#98A2B3'}">${esc(bvLName(l))}</span>`;
+// Label colours: the board's 30 ("green_subtle", "green", "green_bold" …), from boards.js.
+const bvLHex = c => (BOARDS.labelHex ? BOARDS.labelHex(c) : '') || '#98A2B3';
+const bvLName = l => l ? (l.name || (l.color ? (BOARDS.labelName ? BOARDS.labelName(l.color) : l.color) : 'Label')) : '';
+const bvLChip = l => `<span class="bv-lb" style="--c:${bvLHex(l.color)}">${esc(bvLName(l))}</span>`;
 const bvUser = (M, id) => M.userById[id]?.name || id;
 const bvAv = (M, id) => { const n = bvUser(M, id); return `<span class="bv-av" role="img" aria-label="${esc(n)}" title="${esc(n)}">${esc(initials(n))}</span>`; };
 const bvLabels = (c, M) => (c.labels || []).map(id => M.labelById[id]).filter(Boolean);
@@ -769,7 +770,7 @@ function bvDashRows(ctx, M, d, data) {
     return { rows, sub: bvPlural(rows.reduce((s, r) => s + r.n, 0), 'card'), empty: 'No lists.' };
   }
   if (data === 'label') {
-    const lb = base('label'), rows = M.labels.map(l => ({ kind: 'label', id: l.id, label: bvLName(l), color: BV_LC[l.color] || 'var(--bv-none)', sw: true, n: count(lb, c => (c.labels || []).includes(l.id)) })).filter(r => r.n || (d && d.kind === 'label' && d.id === r.id));
+    const lb = base('label'), rows = M.labels.map(l => ({ kind: 'label', id: l.id, label: bvLName(l), color: bvLHex(l.color), sw: true, n: count(lb, c => (c.labels || []).includes(l.id)) })).filter(r => r.n || (d && d.kind === 'label' && d.id === r.id));
     const no = count(lb, c => !bvLabels(c, M).length);
     if (no) rows.push({ kind: 'label', id: '', label: 'No label', color: 'var(--bv-none)', sw: true, n: no });
     return { rows, sub: 'A card with two labels counts under both', empty: 'No cards.' };
@@ -938,7 +939,7 @@ function bvMyRender() {
 function bvMyCard(c) {
   const st = bvStatus(c), ls = c.labels || [];
   return `<li><button class="bv-mc bv-st-${st}" data-act="bvMyOpen" data-id="${esc(c.board)}" data-c="${esc(c.card)}"><span class="bv-mc-t">${esc(c.title)}</span><span class="bv-mc-m">${esc(c.board_name)} · ${esc(c.list_name)}</span>
-    ${c.due || ls.length || c.items ? `<span class="bv-mc-f">${c.due ? bvDue(c) : ''}${ls.map(l => `<i class="bv-sw" style="background:${BV_LC[l.color] || '#98A2B3'}" title="${esc(bvLName(l))}"></i>`).join('')}${ls.length ? `<span class="bv-sr">Labels: ${esc(ls.map(bvLName).join(', '))}</span>` : ''}${c.items ? `<span class="bv-ck${c.items_done === c.items ? ' all' : ''}">${BV_I.check}${c.items_done}/${c.items}</span>` : ''}</span>` : ''}</button></li>`;
+    ${c.due || ls.length || c.items ? `<span class="bv-mc-f">${c.due ? bvDue(c) : ''}${ls.map(l => `<i class="bv-sw" style="background:${bvLHex(l.color)}" title="${esc(bvLName(l))}"></i>`).join('')}${ls.length ? `<span class="bv-sr">Labels: ${esc(ls.map(bvLName).join(', '))}</span>` : ''}${c.items ? `<span class="bv-ck${c.items_done === c.items ? ' all' : ''}">${BV_I.check}${c.items_done}/${c.items}</span>` : ''}</span>` : ''}</button></li>`;
 }
 function bvMyHTML(d) {
   const top = extra => `<div class="bv-my-hd"><div><h3>My cards</h3><p>Cards you are a member of, on every board you can see.</p></div>${extra || ''}</div>`;
@@ -1042,7 +1043,7 @@ function bvAllPop(kind) {
   // A filter that is set stays offered even if no card has it now.
   on.forEach(v => { if (!xs.some(x => x[0] === v)) xs.push([v, kind === 'boards' ? 'A board no longer shown' : v]); });
   if (!xs.length) return '<p class="bd-mute">Nothing to choose yet.</p>';
-  return `<div class="bv-afp" role="group" aria-label="${esc(BV_AF[kind])}">${xs.map(([v, l, sub, color]) => `<label class="bv-afo"><input type="checkbox" data-act="bvAllPick" data-id="${esc(kind)}" data-v="${esc(v)}" ${on.includes(v) ? 'checked' : ''}>${color ? `<i class="bv-sw" style="background:${BV_LC[color] || '#98A2B3'}"></i>` : kind === 'due' ? `<span class="bv-st-${esc(v)} bv-hb-ic" style="color:var(--st)">${bvStKey(v)}</span>` : ''}<span>${esc(l)}${sub ? ` <small class="bv-dim">${esc(sub)}</small>` : ''}</span></label>`).join('')}</div>
+  return `<div class="bv-afp" role="group" aria-label="${esc(BV_AF[kind])}">${xs.map(([v, l, sub, color]) => `<label class="bv-afo"><input type="checkbox" data-act="bvAllPick" data-id="${esc(kind)}" data-v="${esc(v)}" ${on.includes(v) ? 'checked' : ''}>${color ? `<i class="bv-sw" style="background:${bvLHex(color)}"></i>` : kind === 'due' ? `<span class="bv-st-${esc(v)} bv-hb-ic" style="color:var(--st)">${bvStKey(v)}</span>` : ''}<span>${esc(l)}${sub ? ` <small class="bv-dim">${esc(sub)}</small>` : ''}</span></label>`).join('')}</div>
     ${on.length ? `<div class="bd-pop-tools"><button class="btn sm" data-act="bvAllNone" data-id="${esc(kind)}">Clear ${esc(BV_AF[kind].toLowerCase())}</button></div>` : ''}`;
 }
 const bvAllUser = (d, id) => (d.members || []).find(m => m.id === id)?.name || id;

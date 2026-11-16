@@ -93,6 +93,15 @@ func TestBoardInboxPrivacy(t *testing.T) {
 			t.Fatalf("inbox changed with %+v", bi)
 		}
 	}
+	if _, err := o.SetBoardMembers(ctx, T, me, in.Board, []BoardPerson{{me, BoardAdmin}, {other, BoardObserver}}); err == nil {
+		t.Fatal("someone else put on the inbox")
+	}
+	if _, err := o.JoinBoard(ctx, T, other, in.Board); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("farhan joined the inbox: %v", err)
+	}
+	if _, err := o.WatchBoard(ctx, T, other, in.Board, true); err == nil {
+		t.Fatal("farhan watches the inbox")
+	}
 	if _, err := o.AddList(ctx, T, me, in.Board, "Later", nanF()); err == nil {
 		t.Fatal("a second list on the inbox")
 	}
