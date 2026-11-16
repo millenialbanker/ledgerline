@@ -24,6 +24,8 @@
          Extra buttons beside "Add card" in a list's composer.
      BOARDS.homeSections.push({ id, order, render(home) -> html, load?() -> Promise })
          Sections on the boards home page.
+     BOARDS.bellTools.push(() -> html)
+         Lines at the foot of the notifications panel (the bell).
      BOARDS.reload()          reloads the open board
      BOARDS.ctx()             the open board's context
      BOARDS.openCard(b, c)    opens a card window
@@ -32,7 +34,7 @@
    br*, bx*, bs*) and its UI state keys the same way. */
 
 const BOARDS = {
-  views: {}, cardSections: [], cardButtons: [], cardBadges: [], boardMenu: [], headerButtons: [], composerButtons: [], homeSections: [],
+  views: {}, cardSections: [], cardButtons: [], cardBadges: [], boardMenu: [], headerButtons: [], composerButtons: [], homeSections: [], bellTools: [],
   reload: () => {}, ctx: () => null, openCard: () => {}, openBoard: () => {}
 };
 /* Boards: core */
@@ -446,7 +448,8 @@ function bdBellHTML() {
   const text = n => n.by && n.text.startsWith(n.by + ' ') ? bdName(n.by) + n.text.slice(n.by.length) : n.text;
   return (BD.unread ? '<div class="bd-pop-tools"><button class="btn sm" data-act="bdReadAll">Mark all as read</button></div>' : '') +
     (ns.length ? `<ul class="bd-notes">${ns.map(n => `<li><button class="bd-note${n.read ? '' : ' unread'}" data-act="bdNote" data-id="${esc(n.id)}">${n.by ? bdAv(n.by) : `<span class="bd-av sys" aria-hidden="true">${bdI('bell')}</span>`}<span class="bd-note-b"><span class="bd-note-t">${esc(text(n))}</span><span class="bd-ft">${bdWhen(n.at)}${bname(n.board) ? ' · ' + esc(bname(n.board)) : ''}</span></span>${n.read ? '' : '<span class="bd-dot" aria-label="Unread"></span>'}</button></li>`).join('')}</ul>`
-      : '<p class="bd-mute">Nothing yet. You will hear here when someone adds you to a card, mentions you, or moves or comments on a card you watch, and about cards on the lists and boards you watch.</p>');
+      : '<p class="bd-mute">Nothing yet. You will hear here when someone adds you to a card, mentions you, or moves or comments on a card you watch, and about cards on the lists and boards you watch.</p>') +
+    BOARDS.bellTools.map(f => bdSafe(f, 'bell tool')).join('');
 }
 
 /* ---------- home ---------- */
