@@ -867,7 +867,8 @@ function bvTileHTML(ctx, M, d, t, i, n, ed) {
   else {
     const R = bvDashRows(ctx, M, d, t.data);
     sub = R.sub;
-    if (t.chart === 'pie') body = bvDonut(R.rows, d, { title: `${title}, pie chart`, empty: R.empty || 'No cards.', cat: t.data === 'list' || t.data === 'member', ...(t.data === 'checks' && R.items ? { center: R.pc + '%', centerSub: 'items done' } : {}) });
+    if (t.chart === 'pie') body = bvDonut(R.rows, d, { title: `${title}, pie chart`, empty: R.empty || 'No cards.', cat: t.data === 'list' || t.data === 'member', ...(t.data === 'checks' && R.items ? { center: R.pc + '%', centerSub: 'items done' } : {}),
+      ...(t.data === 'label' || t.data === 'member' ? { centerSub: t.data === 'label' ? 'labels on cards' : 'members on cards' } : {}) }); // a card with two counts twice
     else body = bvBars(R.rows, d, R.empty);
     if (t.data === 'checks') body = (t.chart === 'bar' ? `<div class="bv-hero"><b>${R.pc}%</b><span>of checklist items done</span></div>
         <svg class="bv-meter" width="100%" height="8" role="img" aria-label="${R.pc}% of checklist items done"><rect width="100%" height="8" rx="4" class="bv-meter-tr"/>${R.done ? `<rect width="${Math.max(1, R.pc)}%" height="8" rx="4" style="fill:var(--bv-done)"/>` : ''}</svg>` : '') + body + (R.noList ? `<p class="bv-dim bv-small">${bvPlural(R.noList, 'card')} with no checklist.</p>` : '');
