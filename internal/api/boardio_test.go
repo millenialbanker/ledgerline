@@ -99,7 +99,12 @@ func TestBoardIOAPI(t *testing.T) {
 	if code, _, _ := call("GET", "/v1/boards/"+bid+"/export?format=csv", "vikram.shah", "", nil, nil); code != 404 {
 		t.Fatalf("no access %d", code)
 	}
-	card := ex.Cards[0]
+	var card ops.Card
+	for _, c := range ex.Cards {
+		if !c.Archived && card.ID == "" {
+			card = c
+		}
+	}
 	var ce ops.CardExport
 	if code, h, _ := call("GET", "/v1/boards/"+bid+"/cards/"+card.ID+"/export", "farhan.khan", "", nil, &ce); code != 200 || ce.Card.ID != card.ID || !strings.Contains(h.Get("Content-Disposition"), ".json") {
 		t.Fatalf("card json %d", code)

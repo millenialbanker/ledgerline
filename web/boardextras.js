@@ -41,6 +41,9 @@ const bxEnc = encodeURIComponent;
 const bxMe = () => S.me?.actor || '';
 const bxName = (id, ctx) => (ctx?.users || []).find(u => u.id === id)?.name || (typeof meUser === 'function' && meUser()?.id === id ? meUser().name : '') || id;
 const bxColor = c => BX_COLORS[c] || BX_COLORS.blue;
+// Labels have 30 colours (green_subtle, green, green_bold and so on): the core names and colours them.
+const bxLabelHex = c => (typeof BOARDS.labelHex === 'function' ? BOARDS.labelHex(c) : bxColor(String(c).split('_')[0]));
+const bxLabelName = c => (typeof BOARDS.labelName === 'function' ? BOARDS.labelName(c) : BX_COLOR_NAMES[c] || c);
 const bxPlural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 // Board changes go through PUT; the patch carries only what changes.
 const bxPut = (ctx, patch) => api('PUT', `/v1/boards/${bxEnc(ctx.board.id)}`, { ...patch });
@@ -133,7 +136,7 @@ function bxUseModal(id) {
   if (!t) return;
   const scoped = typeof scopedUser === 'function' && scopedUser();
   const pre = `<div class="bx-use-pre" style="--bx-c:${bxColor(t.color)}"><div class="bx-lab">Lists</div><div class="bx-use-lists">${t.lists.map(l => `<div class="bx-use-col"><span>${esc(l)}</span><i></i><i></i></div>`).join('')}</div>
-    ${t.labels.length ? `<div class="bx-lab">Labels</div><div class="bx-use-labels">${t.labels.map(l => `<span class="bx-lbl" style="--bx-l:${bxColor(l.color)}">${esc(l.name || BX_COLOR_NAMES[l.color] || l.color)}</span>`).join('')}</div>` : ''}
+    ${t.labels.length ? `<div class="bx-lab">Labels</div><div class="bx-use-labels">${t.labels.map(l => `<span class="bx-lbl" style="--bx-l:${bxLabelHex(l.color)}">${esc(l.name || bxLabelName(l.color))}</span>`).join('')}</div>` : ''}
     ${t.fields.length ? `<div class="bx-lab">Custom fields</div><div class="bx-use-labels">${t.fields.map(f => `<span class="bx-chip">${esc(f)}</span>`).join('')}</div>` : ''}
     ${t.cards.length ? `<div class="bx-lab">Starter cards</div><ul class="bx-use-cards">${t.cards.slice(0, 8).map(c => `<li>${esc(c)}</li>`).join('')}${t.cards.length > 8 ? `<li class="dim">and ${t.cards.length - 8} more</li>` : ''}</ul>` : ''}</div>`;
   modal(mhd('Create a board from a template', esc(t.name) + (t.builtin ? ' · Ledgerline template' : ' · Firm template')) + `<div class="bd"><div class="bx-use">
@@ -352,7 +355,7 @@ function bxFromTemplate(listId, ctx) {
     <div class="bx-picks" role="radiogroup" aria-label="Card template">${ts.map(c => {
       const items = (c.checklists || []).reduce((n, cl) => n + (cl.items || []).length, 0);
       return `<button class="bx-pick ${c.id === UI.bxTplPick ? 'on' : ''}" role="radio" aria-checked="${c.id === UI.bxTplPick}" data-act="bxTplPick" data-id="${esc(c.id)}"><b>${esc(c.title)}</b>
-        <span class="bx-pick-meta">${(c.labels || []).map(id => label(id)).filter(Boolean).map(l => `<span class="bx-lbl sm" style="--bx-l:${bxColor(l.color)}">${esc(l.name || BX_COLOR_NAMES[l.color])}</span>`).join('')}<span class="dim small">${[(c.checklists || []).length ? bxPlural(c.checklists.length, 'checklist') + ` (${bxPlural(items, 'item')})` : '', (c.members || []).length ? bxPlural(c.members.length, 'member') : ''].filter(Boolean).join(' · ') || 'No checklists'}</span></span></button>`;
+        <span class="bx-pick-meta">${(c.labels || []).map(id => label(id)).filter(Boolean).map(l => `<span class="bx-lbl sm" style="--bx-l:${bxLabelHex(l.color)}">${esc(l.name || bxLabelName(l.color))}</span>`).join('')}<span class="dim small">${[(c.checklists || []).length ? bxPlural(c.checklists.length, 'checklist') + ` (${bxPlural(items, 'item')})` : '', (c.members || []).length ? bxPlural(c.members.length, 'member') : ''].filter(Boolean).join(' · ') || 'No checklists'}</span></span></button>`;
     }).join('')}</div>
     <div class="fld"><label for="bx-tp-title">Title of the new card</label><input class="in" id="bx-tp-title" maxlength="500" value="${esc(ts[0].title)}"></div>
     <span class="dim small">The new card gets the template's description, labels, members, checklists, custom fields and cover. Dates are not copied.</span><div id="bx-tp-err"></div></div>

@@ -219,7 +219,8 @@ const bioWho = id => (typeof bdName === 'function' ? bdName(id) : id);
 const bioDate = s => (typeof bdDateTxt === 'function' ? bdDateTxt(s) : s);
 function bioLabelsHTML(ids, b) {
   const ls = (ids || []).map(id => (b.labels || []).find(l => l.id === id)).filter(Boolean);
-  return ls.length ? `<div class="bio-plabs">${ls.map(l => `<span class="bio-plab bdc-${esc(String(l.color).split('_')[0])}">${esc(l.name || (typeof BD_CN === 'object' ? BD_CN[l.color] : l.color) || '')}</span>`).join('')}</div>` : '';
+  const nm = c => (typeof BOARDS.labelName === 'function' ? BOARDS.labelName(c) : c);
+  return ls.length ? `<div class="bio-plabs">${ls.map(l => `<span class="bio-plab bdc-${esc(l.color || 'black')}">${esc(l.name || nm(l.color))}</span>`).join('')}</div>` : '';
 }
 function bioStamp() {
   const now = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });

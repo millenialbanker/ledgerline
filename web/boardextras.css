@@ -169,6 +169,7 @@
 .bx-stk-sec .bx-help{margin:0}
 /* on the card's front: over the cover, or a strip of its own at the top */
 .bx-stk-front{position:absolute;top:6px;left:8px;z-index:2;display:flex;align-items:center;gap:1px;pointer-events:none}
+.bd-card:has(> .bd-cover) .bx-stk-front{padding:1px 5px 1px 3px;border-radius:14px;background:rgba(255,255,255,.62)}
 .bx-stk-f:nth-child(1){transform:rotate(-7deg)}
 .bx-stk-f:nth-child(2){transform:rotate(5deg) translateY(1px)}
 .bx-stk-f:nth-child(3){transform:rotate(-3deg)}

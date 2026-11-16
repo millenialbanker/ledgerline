@@ -673,7 +673,7 @@ func (o *Ops) PreviewTrelloImport(ctx context.Context, tenant, actor string, raw
 		}
 		p.Comments += len(t.Comments[string(c.ID)])
 	}
-	p.Labels = len(trelloLabels(t.Labels, boardColorOK))
+	p.Labels = len(trelloLabels(t.Labels, boardLabelColorOK))
 	p.Fields = len(trelloFields(t.Fields))
 	for _, m := range t.Members {
 		if m.ID == "" {
@@ -865,7 +865,7 @@ func (o *Ops) ImportTrello(ctx context.Context, tenant, actor string, in TrelloI
 	res := TrelloImportResult{Lists: len(t.Lists), Members: len(people), Notes: []string{}}
 	listID := map[string]string{}
 	labelID := map[string]string{}
-	labels := trelloLabels(t.Labels, boardColorOK)
+	labels := trelloLabels(t.Labels, boardLabelColorOK)
 	fields := trelloFields(t.Fields)
 	fieldBy := map[string]trelloField{}
 	for _, f := range fields {

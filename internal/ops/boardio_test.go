@@ -52,7 +52,7 @@ func TestBoardTrelloRefusesOtherFiles(t *testing.T) {
 }
 
 func TestBoardTrelloColours(t *testing.T) {
-	all := func(string) bool { return true }
+	all := boardLabelColorOK // the 30 label colours
 	for in, want := range map[string]string{"green": "green", "green_light": "green_subtle", "red_dark": "red_bold", "sky_light": "sky_subtle", "": "black", "teal": "black", "Pink": "pink"} {
 		if got := trelloColor(in, all); got != want {
 			t.Errorf("with shades %q: %q, want %q", in, got, want)
@@ -164,7 +164,7 @@ func TestBoardTrelloImport(t *testing.T) {
 	for _, l := range b.Labels {
 		lab[l.Name] = l.Color
 	}
-	if len(b.Labels) != 4 || lab["Client docs"] != "green" || lab["Blocked"] != trelloColor("red_dark", boardColorOK) || lab["Low priority"] != trelloColor("sky_light", boardColorOK) || lab["No colour"] != "black" {
+	if len(b.Labels) != 4 || lab["Client docs"] != "green" || lab["Blocked"] != "red_bold" || lab["Low priority"] != "sky_subtle" || lab["No colour"] != "black" {
 		t.Fatalf("labels %v", lab)
 	}
 	fields := map[string]BoardField{}
