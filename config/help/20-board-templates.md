@@ -52,7 +52,7 @@ roles: Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 ask: card cover; cover colour; full cover; remove cover; board background; change background; background image; hide card covers
 related: board-custom-fields
 
-- **Cover** in the card window: choose **Normal** (cover above the title) or **Full** (the cover fills the card), then a colour or one of the card's own images. **Remove cover** takes it off. An image attached to a card becomes its cover when it has none.
+- **Cover** in the card window: choose **Above the title** or **Full card** (the cover fills the card), then a colour or one of the card's own images. **Remove cover** takes it off. An image attached to a card becomes its cover when it has none.
 - **Change background** in the board menu (board admins): one of ten colours, or **Upload an image** (JPEG, PNG, GIF or WebP, up to 15 MB). **Card covers** there switches covers on or off for the whole board.
 
 ## card-votes
@@ -62,7 +62,7 @@ roles: Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 ask: vote on a card; votes; who voted; remove my vote; most voted cards
 related: card-templates
 
-Everyone who can see a board, observers included, can vote on its cards. **Vote** in the card window shows how many votes the card has and who gave them, and adds or takes back yours. Cards with votes show the count on their front; the count is highlighted on the cards you voted for.
+Everyone who can see a board, observers included, can vote on its cards. Under **Votes** in the card window, the **Vote** button adds or takes back yours, with the number of votes and who gave them beside it. On a closed board votes cannot change. Cards with votes show the count on their front (point at it to see who voted); the count is highlighted on the cards you voted for.
 
 ## mirror-cards
 title: Mirror a card on another board

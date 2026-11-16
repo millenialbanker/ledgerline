@@ -11,13 +11,13 @@
          (every open card), role, users, el }. The built-in view is "board".
      BOARDS.cardSections.push({ id, order, render(card, ctx) -> html|'' })
          A section in the card window's main column.
-     BOARDS.cardButtons.push({ id, label, group: 'add'|'actions', order,
+     BOARDS.cardButtons.push({ id, label, icon?, group: 'add'|'actions', order,
          show?(card, ctx) -> bool, run(card, ctx, el) })
-         A button in the card window's sidebar.
+         A button in the card window's sidebar. icon names one of BD_IC.
      BOARDS.cardBadges.push((card, ctx) -> html)
          Small badges on a card's front in a list.
-     BOARDS.boardMenu.push({ id, label, order, show?(ctx) -> bool, run(ctx) })
-         An entry in the board's menu.
+     BOARDS.boardMenu.push({ id, label, icon?, order, show?(ctx) -> bool, run(ctx) })
+         An entry in the board's menu. icon names one of BD_IC.
      BOARDS.headerButtons.push({ id, order, render(ctx) -> html })
          Buttons in the board header.
      BOARDS.composerButtons.push({ id, label, run(listId, ctx) })
@@ -100,6 +100,7 @@ const BD_IC = {
   back: '<path d="M14.5 6 8.5 12l6 6"/>',
   grip: '<circle class="f" cx="9" cy="7" r="1.3"/><circle class="f" cx="15" cy="7" r="1.3"/><circle class="f" cx="9" cy="12" r="1.3"/><circle class="f" cx="15" cy="12" r="1.3"/><circle class="f" cx="9" cy="17" r="1.3"/><circle class="f" cx="15" cy="17" r="1.3"/>',
   info: '<circle cx="12" cy="12" r="8.2"/><path d="M12 11v5.2"/><circle class="f" cx="12" cy="7.8" r="1"/>',
+  bolt: '<path d="M13 2.5 4.5 13.5H11l-1 8 8.5-11H12z"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.6M12 17.9v2.6M3.5 12h2.6M17.9 12h2.6M6 6l1.8 1.8M16.2 16.2 18 18M6 18l1.8-1.8M16.2 7.8 18 6"/>',
   keys: '<rect x="3" y="6.5" width="18" height="11" rx="2"/><path d="M7 10h.01M10 10h.01M13 10h.01M16 10h.01M8 14h8"/>'
 };
@@ -450,7 +451,8 @@ function bdHomeInner() {
   const team = open.filter(b => b.kind !== 'ledgerline');
   secs.push({ order: 20, html: sec('team', 'Team boards', scopedUser() ? 'Your private boards and the ones you were added to.' : 'Boards for any piece of work. Firm-wide boards are open to everyone at head office; private boards to their members.', grid(team, `<button class="bd-tile bd-tile-new" data-act="bdNew">${bdI('plus')}<span>Create board</span></button>`)) });
   const ll = open.filter(b => b.kind === 'ledgerline');
-  if (ll.length) secs.push({ order: 30, html: sec('ledgerline', 'Ledgerline boards', 'Kept in step with Ledgerline’s own records. Cards move when their record changes.', grid(ll)) });
+  // boardsync.js draws its own, richer "Ledgerline boards" section.
+  if (ll.length && !BOARDS.homeSections.some(s => s.id === 'ledgerline')) secs.push({ order: 30, html: sec('ledgerline', 'Ledgerline boards', 'Kept in step with Ledgerline’s own records. Cards move when their record changes.', grid(ll)) });
   const closed = bs.filter(b => b.closed);
   if (closed.length) secs.push({ order: 90, html: sec('closed', 'Closed boards', 'Closed boards keep their cards. A board admin can reopen one.', grid(closed)) });
   BOARDS.homeSections.forEach(s => { const h = bdSafe(() => s.render(home), 'home section ' + s.id); if (h) secs.push({ order: s.order ?? 50, html: h }); });
@@ -539,7 +541,7 @@ function bdCardHTML(c) {
   if ((c.comments || []).length) bd.push(`<span class="bd-bdg" title="${bdPl(c.comments.length, 'comment')}">${bdI('comment')}<span>${c.comments.length}</span>${bdSr(' comments')}</span>`);
   if ((c.attachments || []).length) bd.push(`<span class="bd-bdg" title="${bdPl(c.attachments.length, 'attachment')}">${bdI('clip')}<span>${c.attachments.length}</span>${bdSr(' attachments')}</span>`);
   if (items.length) bd.push(`<span class="bd-bdg${done === items.length ? ' bd-ok' : ''}" title="Checklist items done">${bdI('check')}<span>${done}/${items.length}</span>${bdSr(' checklist items done')}</span>`);
-  if ((c.votes || []).length) bd.push(`<span class="bd-bdg${c.votes.includes(me) ? ' bd-mine' : ''}" title="${bdPl(c.votes.length, 'vote')}">${bdI('vote')}<span>${c.votes.length}</span>${bdSr(' votes')}</span>`);
+  if ((c.votes || []).length) bd.push(`<span class="bd-bdg${c.votes.includes(me) ? ' bd-mine' : ''}" title="${esc(bdPl(c.votes.length, 'vote') + ': ' + c.votes.map(bdName).join(', '))}">${bdI('vote')}<span>${c.votes.length}</span>${bdSr(' votes')}</span>`);
   const ext = BOARDS.cardBadges.map(f => bdSafe(() => f(c, ctx), 'card badge')).join('');
   const coverHTML = !cov || full ? '' : cov.file ? `<div class="bd-cover img"><img src="/v1/board-files/${bdE(cov.file)}" alt="" loading="lazy" draggable="false"></div>` : `<div class="bd-cover bdc-${esc(cov.color)}"></div>`;
   const fullStyle = full && cov.file ? ` style="background-image:url('/v1/board-files/${bdE(cov.file)}')"` : '';
@@ -669,7 +671,8 @@ function bdCwHTML() {
     const txt = [c.start ? bdDateTxt(c.start) : '', c.due ? bdDateTxt(c.due) : ''].filter(Boolean).join(' – ');
     meta.push(bdBlock(c.start && c.due ? 'Dates' : c.due ? 'Due date' : 'Start date', `${c.due ? `<input type="checkbox" class="bd-chk" id="cw-done" data-act="bdDueDone" ${c.due_done ? 'checked' : ''} ${own ? '' : 'disabled'} aria-label="Mark complete">` : ''}<button class="btn sm bd-datebtn" data-act="bdPickDates" data-popkey="dates" ${own ? '' : 'disabled'}>${esc(txt)}${st ? `<span class="bd-st ${st}">${BD_DUEST[st]}</span>` : ''}${c.reminder ? bdSr(', reminder set') : ''}</button>`));
   }
-  meta.push(bdBlock('Votes', `<button class="btn sm${voted ? ' on' : ''}" id="cw-vote" data-act="bdVote" aria-pressed="${voted}">${bdI('vote')}${voted ? 'Voted' : 'Vote'}${(c.votes || []).length ? ` · ${c.votes.length}` : ''}</button>`));
+  const voters = (c.votes || []).map(v => v === me ? 'you' : bdName(v));
+  meta.push(bdBlock('Votes', `<button class="btn sm${voted ? ' on' : ''}" id="cw-vote" data-act="bdVote" aria-pressed="${voted}" ${BD.v.board.closed ? 'disabled' : ''}>${bdI('vote')}${voted ? 'Voted' : 'Vote'}${voters.length ? ` · ${voters.length}` : ''}</button>${voters.length ? `<span class="bd-voters">${esc(voters.join(', '))}</span>` : ''}`));
   if (c.link) meta.push(bdBlock('Linked record', `<button class="btn sm" data-act="bdLinkGo" ${c.link.view && viewAllowed(c.link.view) ? '' : 'disabled'} title="${c.link.view ? 'Open the record in Ledgerline' : ''}">${bdI('link')}${esc(c.link.label)}${c.link.status ? ` · ${esc(c.link.status)}` : ''}</button>`));
 
   const secs = [
@@ -681,7 +684,7 @@ function bdCwHTML() {
   ].filter(s => s.html).sort((a, b) => a.order - b.order);
 
   const sb = (id, act, icon, label, extra = '') => `<button class="bd-sb" id="cw-sb-${id}" data-act="${act}" ${extra}>${bdI(icon)}<span>${label}</span></button>`;
-  const ext = g => BOARDS.cardButtons.filter(x => x.group === g && (x.show ? bdSafe(() => x.show(c, ctx) ? 'y' : '', 'card button ' + x.id) : (g === 'actions' || can))).map(x => ({ order: x.order ?? 70, html: `<button class="bd-sb" data-act="bdExtBtn" data-id="${esc(x.id)}">${bdI(g === 'add' ? 'plus' : 'arrow')}<span>${esc(x.label)}</span></button>` }));
+  const ext = g => BOARDS.cardButtons.filter(x => x.group === g && (x.show ? bdSafe(() => x.show(c, ctx) ? 'y' : '', 'card button ' + x.id) : (g === 'actions' || can))).map(x => ({ order: x.order ?? 70, html: `<button class="bd-sb" data-act="bdExtBtn" data-id="${esc(x.id)}">${bdI(BD_IC[x.icon] ? x.icon : g === 'add' ? 'plus' : 'arrow')}<span>${esc(x.label)}</span></button>` }));
   const add = [
     ...(can ? [
       { order: 5, html: member ? '' : sb('join', 'bdJoin', 'user', 'Join') },
@@ -1086,7 +1089,7 @@ Object.assign(A, {
       { id: 'copy', label: 'Copy board', icon: 'copy', order: 60, show: bdTeam() },
       { id: 'close', label: b.closed ? 'Reopen board' : 'Close board', icon: 'archive', order: 80, show: adm },
       { id: 'delete', label: 'Delete board', icon: 'trash', order: 90, show: adm && b.closed && bdTeam() },
-      ...BOARDS.boardMenu.filter(x => !x.show || bdSafe(() => x.show(ctx) ? 'y' : '', 'menu ' + x.id)).map(x => ({ id: 'x:' + x.id, label: x.label, icon: 'arrow', order: x.order ?? 70 }))
+      ...BOARDS.boardMenu.filter(x => !x.show || bdSafe(() => x.show(ctx) ? 'y' : '', 'menu ' + x.id)).map(x => ({ id: 'x:' + x.id, label: x.label, icon: BD_IC[x.icon] ? x.icon : 'arrow', order: x.order ?? 70 }))
     ].filter(x => x.show !== false);
     return `<div class="bd-menu" role="menu">${bdSorted(items).map(x => `<button class="bd-mi${x.id === 'delete' ? ' danger' : ''}" role="menuitem" data-act="bdMenuRun" data-id="${esc(x.id)}">${bdI(x.icon)}<span>${esc(x.label)}</span></button>`).join('')}</div>`;
   }),

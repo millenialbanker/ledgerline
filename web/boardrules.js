@@ -192,7 +192,7 @@ function brSyncCardButtons() {
   BOARDS.cardButtons.length = 0;
   BOARDS.cardButtons.push(...keep);
   (UI.brData?.autos || []).filter(a => a.kind === 'card_button' && a.on).forEach((a, i) => BOARDS.cardButtons.push({
-    id: 'br-cb-' + a.id, label: a.name, group: 'actions', order: 70 + i,
+    id: 'br-cb-' + a.id, icon: 'bolt', label: a.name, group: 'actions', order: 70 + i,
     show: (card, ctx) => !!UI.brData?.can_edit && ctx?.board?.id === a.board && !card?.archived,
     run: (card, ctx, el) => brRunCard(a, card, ctx || brCtx(), el)
   }));
@@ -205,7 +205,7 @@ function brHeaderInner(ctx) {
 }
 function brPaintHeader() { const el = $('br-hbs'); if (el) el.innerHTML = brHeaderInner(brCtx()); }
 
-BOARDS.boardMenu.push({ id: 'br-automation', label: 'Automation', order: 40, run: ctx => brOpen(ctx) });
+BOARDS.boardMenu.push({ id: 'br-automation', icon: 'bolt', label: 'Automation', order: 40, run: ctx => brOpen(ctx) });
 BOARDS.headerButtons.push({ id: 'br-board-buttons', order: 60, render: ctx => { brEnsure(ctx); return `<span class="br-hbs" id="br-hbs">${brHeaderInner(ctx)}</span>`; } });
 
 function brRunText(run) {

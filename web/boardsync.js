@@ -242,7 +242,7 @@ if (typeof BOARDS !== 'undefined') {
   BOARDS.homeSections.push({ id: 'ledgerline', order: 20, load: () => bsLoadHome(), render: () => bsHomeHTML() });
   BOARDS.cardSections.push({ id: 'ledgerline', order: 5, render: (card, ctx) => bsSection(card, ctx) });
   BOARDS.cardButtons.push({
-    id: 'bsLink', label: 'Link to Ledgerline', group: 'add', order: 60,
+    id: 'bsLink', icon: 'link', label: 'Link to Ledgerline', group: 'add', order: 60,
     show: (card, ctx) => ['admin', 'member'].includes(ctx?.role) && !(ctx?.board?.kind === 'ledgerline' && card.link?.kind),
     run: (card, ctx, el) => bsPicker(card, el),
   });

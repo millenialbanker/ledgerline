@@ -4,9 +4,10 @@
      Boards home      the template gallery (Ledgerline's and the firm's own)
      Board menu       Make template / Stop being a template, Custom fields,
                       Change background, Email-to-board
-     Card window      Make template, Cover, Vote, Mirror to another board;
-                      sections for the mirror's original, custom fields, votes
-     Card fronts      Template, Mirror, votes and "on front" field badges
+     Card window      Make template, Mirror to another board; sections for
+                      the mirror's original and custom fields (covers and
+                      votes are the core's, in boards.js)
+     Card fronts      Template, Mirror and "on front" field badges
      List composer    Create from template (the board's card templates)
    Actions and UI keys start with bx. */
 
@@ -16,7 +17,6 @@ const BX_TYPES = [['text', 'Text'], ['number', 'Number'], ['date', 'Date'], ['ch
 const bxSvg = d => `<svg class="bx-i" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const BX_ICON = {
   mirror: bxSvg('<rect x="2" y="4.5" width="8" height="9" rx="1.5"/><path d="M6 2.5h6.5A1.5 1.5 0 0 1 14 4v7"/>'),
-  vote: bxSvg('<path d="M8 2.5 13 8H10v5.5H6V8H3z"/>'),
   check: bxSvg('<path d="m3.5 8.5 3 3 6-7"/>'),
   up: bxSvg('<path d="m4 10 4-4 4 4"/>'),
   down: bxSvg('<path d="m4 6 4 4 4-4"/>'),
@@ -207,40 +207,14 @@ async function bxMailSet(body, msg) {
 }
 
 BOARDS.boardMenu.push(
-  { id: 'bxBackground', label: 'Change background', order: 30, show: ctx => bxAdmin(ctx), run: bxBgPanel },
-  { id: 'bxFields', label: 'Custom fields', order: 40, show: ctx => bxAdmin(ctx), run: bxFieldsPanel },
-  { id: 'bxMakeTpl', label: 'Make template', order: 60, show: ctx => bxAdmin(ctx) && ctx.board.kind === 'team' && !ctx.board.template, run: ctx => bxSetTemplate(ctx, true) },
-  { id: 'bxStopTpl', label: 'Stop being a template', order: 60, show: ctx => bxAdmin(ctx) && !!ctx.board.template, run: ctx => bxSetTemplate(ctx, false) },
-  { id: 'bxEmail', label: 'Email-to-board', order: 70, show: ctx => bxAdmin(ctx) && ctx.board.kind === 'team', run: bxEmailPanel }
+  { id: 'bxBackground', icon: 'image', label: 'Change background', order: 30, show: ctx => bxAdmin(ctx), run: bxBgPanel },
+  { id: 'bxFields', icon: 'desc', label: 'Custom fields', order: 40, show: ctx => bxAdmin(ctx), run: bxFieldsPanel },
+  { id: 'bxMakeTpl', icon: 'copy', label: 'Make template', order: 60, show: ctx => bxAdmin(ctx) && ctx.board.kind === 'team' && !ctx.board.template, run: ctx => bxSetTemplate(ctx, true) },
+  { id: 'bxStopTpl', icon: 'copy', label: 'Stop being a template', order: 60, show: ctx => bxAdmin(ctx) && !!ctx.board.template, run: ctx => bxSetTemplate(ctx, false) },
+  { id: 'bxEmail', icon: 'comment', label: 'Email-to-board', order: 70, show: ctx => bxAdmin(ctx) && ctx.board.kind === 'team', run: bxEmailPanel }
 );
 
 /* ============================== card window ============================== */
-/* ---- cover ---- */
-function bxCoverBody(card) {
-  const cv = card.cover || null, full = cv ? !!cv.full : !!UI.bxCoverFull;
-  const imgs = (card.attachments || []).filter(a => a.image && a.file);
-  const size = `<div class="bx-size">${[[0, 'Normal', 'Cover on top, title below'], [1, 'Full', 'Cover fills the card']].map(([v, l, s]) => `<button class="bx-sz ${(+full) === v ? 'on' : ''}" data-act="bxCoverSize" data-id="${v}" aria-pressed="${(+full) === v}"><span class="bx-sz-pic ${v ? 'full' : ''}" style="--bx-c:${cv?.color ? bxColor(cv.color) : '#C7CDD8'}"><i></i><i></i></span><b>${l}</b><small>${s}</small></button>`).join('')}</div>`;
-  return `<div class="bx-lab">Size</div>${size}
-    <div class="bx-lab">Colours</div><div class="bx-sw">${Object.keys(BX_COLORS).map(c => `<button class="bx-swc ${cv?.color === c ? 'on' : ''}" style="--bx-c:${BX_COLORS[c]}" data-act="bxCoverColor" data-id="${c}" aria-label="${BX_COLOR_NAMES[c]} cover" aria-pressed="${cv?.color === c}"></button>`).join('')}</div>
-    <div class="bx-lab">Images on this card</div>${imgs.length ? `<div class="bx-imgs">${imgs.map(a => `<button class="bx-img ${cv?.file === a.file ? 'on' : ''}" data-act="bxCoverImg" data-id="${esc(a.file)}" aria-label="Use ${esc(a.name)} as the cover" aria-pressed="${cv?.file === a.file}"><img src="/v1/board-files/${bxEnc(a.file)}" alt=""></button>`).join('')}</div>` : '<p class="bx-pop-note">Attach a photo or screenshot to this card to use it as the cover.</p>'}
-    ${cv ? '<button class="btn sm bx-wide" data-act="bxCoverOff">Remove cover</button>' : ''}
-    ${UI.bxCtx && !UI.bxCtx.board.covers_on ? '<p class="bx-pop-note">Covers are switched off on this board; an admin can switch them on in <b>Change background</b>.</p>' : ''}`;
-}
-function bxCoverPop(card, ctx, el) { UI.bxCard = card; UI.bxCtx = ctx; UI.bxCoverFull = !!card.cover?.full; bxPop(el, 'Cover', bxCoverBody(card)); }
-async function bxCoverSet(cover) {
-  const card = UI.bxCard;
-  try { const c = await bxPatchCard(card, { cover }); UI.bxCard = c; const bd = document.getElementById('bx-pop-bd'); if (bd) bd.innerHTML = bxCoverBody(c); bxRefresh(c); } catch (e) { toast(e.message, true); }
-}
-
-/* ---- votes ---- */
-function bxVoteBody(card, ctx) {
-  const vs = card.votes || [], mine = vs.includes(bxMe());
-  return `<div class="bx-vote-n"><b>${vs.length}</b><span>${vs.length === 1 ? 'vote' : 'votes'}</span></div>
-    ${vs.length ? `<ul class="bx-voters">${vs.map(v => `<li><span class="bx-av">${esc(initials(bxName(v, ctx)))}</span>${esc(bxName(v, ctx))}${v === bxMe() ? ' <span class="dim">(you)</span>' : ''}</li>`).join('')}</ul>` : '<p class="bx-pop-note">No votes yet. Votes show which cards the team cares about most.</p>'}
-    ${ctx.board.closed ? '' : `<button class="btn ${mine ? '' : 'pri'} bx-wide" data-act="bxVoteToggle" data-b="${esc(card.board)}" data-c="${esc(card.id)}" data-on="${mine ? '0' : '1'}">${mine ? 'Remove my vote' : 'Vote'}</button>`}`;
-}
-function bxVotePop(card, ctx, el) { UI.bxCard = card; UI.bxCtx = ctx; bxPop(el, 'Votes', bxVoteBody(card, ctx), 280); }
-
 /* ---- mirror ---- */
 function bxMirrorPop(card, ctx, el) {
   UI.bxCard = card; UI.bxCtx = ctx;
@@ -315,21 +289,13 @@ BOARDS.cardSections.push(
     if (!fs.length) return '';
     const can = bxEdit(ctx);
     return `<section class="bx-sec"><h4 class="bx-sec-h">Custom fields</h4><div class="bx-fgrid">${fs.map(f => f.type === 'checkbox' ? `<div class="fld bx-fcheck">${bxFieldInput(f, card.fields?.[f.id], card, can)}</div>` : `<div class="fld"><label for="bx-cf-${esc(f.id)}">${esc(f.name)}</label>${bxFieldInput(f, card.fields?.[f.id], card, can)}</div>`).join('')}</div></section>`;
-  } },
-  { id: 'bxVotes', order: 35, render: (card, ctx) => {
-    const vs = card.votes || [];
-    if (!vs.length) return '';
-    const mine = vs.includes(bxMe());
-    return `<section class="bx-sec"><h4 class="bx-sec-h">Votes</h4><div class="bx-votes"><span class="bx-vote-count">${BX_ICON.vote}${vs.length}</span><span class="bx-vote-names">${vs.map(v => esc(bxName(v, ctx))).join(', ')}</span>${ctx?.board?.closed ? '' : `<button class="btn sm" data-act="bxVoteToggle" data-b="${esc(card.board)}" data-c="${esc(card.id)}" data-on="${mine ? '0' : '1'}">${mine ? 'Remove my vote' : 'Vote'}</button>`}</div></section>`;
   } }
 );
 
 BOARDS.cardButtons.push(
-  { id: 'bxCover', label: 'Cover', group: 'add', order: 50, show: (c, ctx) => bxEdit(ctx), run: bxCoverPop },
-  { id: 'bxVote', label: 'Vote', group: 'actions', order: 40, show: (c, ctx) => !!ctx && !c.archived, run: bxVotePop },
-  { id: 'bxMirror', label: 'Mirror to another board', group: 'actions', order: 55, show: (c, ctx) => !!ctx && !c.archived && !c.template, run: bxMirrorPop },
-  { id: 'bxTplOn', label: 'Make template', group: 'actions', order: 60, show: (c, ctx) => bxEdit(ctx) && ctx.board.kind === 'team' && !c.template && !c.mirror, run: c => bxCardTemplate(c, true) },
-  { id: 'bxTplOff', label: 'Not a template', group: 'actions', order: 60, show: (c, ctx) => bxEdit(ctx) && !!c.template, run: c => bxCardTemplate(c, false) }
+  { id: 'bxMirror', icon: 'link', label: 'Mirror to another board', group: 'actions', order: 55, show: (c, ctx) => !!ctx && !c.archived && !c.template, run: bxMirrorPop },
+  { id: 'bxTplOn', icon: 'card', label: 'Make template', group: 'actions', order: 60, show: (c, ctx) => bxEdit(ctx) && ctx.board.kind === 'team' && !c.template && !c.mirror, run: c => bxCardTemplate(c, true) },
+  { id: 'bxTplOff', icon: 'card', label: 'Not a template', group: 'actions', order: 60, show: (c, ctx) => bxEdit(ctx) && !!c.template, run: c => bxCardTemplate(c, false) }
 );
 async function bxCardTemplate(card, on) {
   try { const c = await bxPatchCard(card, { template: on }); toast(on ? `#${c.no} is now a card template` : `#${c.no} is no longer a template`); bxRefresh(c); } catch (e) { toast(e.message, true); }
@@ -340,8 +306,6 @@ BOARDS.cardBadges.push((c, ctx) => {
   let h = '';
   if (c.template) h += `<span class="bx-badge tpl" title="Card template">${BX_ICON.tpl}Template</span>`;
   if (c.mirror) h += `<span class="bx-badge mir" title="Mirror of a card on another board">${BX_ICON.mirror}Mirror</span>`;
-  const vs = c.votes || [];
-  if (vs.length) h += `<span class="bx-badge vote ${vs.includes(bxMe()) ? 'on' : ''}" title="${esc(bxPlural(vs.length, 'vote') + ': ' + vs.map(v => bxName(v, ctx)).join(', '))}">${BX_ICON.vote}${vs.length}</span>`;
   for (const f of ctx?.board?.fields || []) {
     const v = c.fields?.[f.id];
     if (!f.on_front || !v) continue;
@@ -417,19 +381,6 @@ Object.assign(A, {
   bxMailOff: () => confirmModal('Switch off email-to-board', esc(UI.bxCtx.board.name), '<div class="note warn">Mail sent to the board\'s address will be refused. Switching it on again gives the board a new address.</div>', 'Switch off', async () => { await post(`/v1/boards/${bxEnc(UI.bxCtx.board.id)}/email`, { on: false }); closeModal(); toast('Email-to-board is off'); }, true),
   bxMailRotate: () => confirmModal('Give the board a new address', esc(UI.bxCtx.board.name), '<div class="note warn">The current address stops working at once. Update the address in your mail provider\'s inbound settings straight after.</div>', 'Give it a new address', async () => { const ctx = UI.bxCtx; closeModal(); await bxEmailPanel(ctx); await bxMailSet({ on: true, rotate: true }, 'The board has a new address'); }),
   bxMailCopy: async () => { const el = document.getElementById('bx-mail-url'); try { await navigator.clipboard.writeText(el.value); toast('Address copied'); } catch (e) { el.select(); toast('Select the address and copy it'); } },
-  bxCoverSize: id => { UI.bxCoverFull = id === '1'; const c = UI.bxCard; if (c?.cover) bxCoverSet({ ...c.cover, full: UI.bxCoverFull }); else { const bd = document.getElementById('bx-pop-bd'); if (bd) bd.innerHTML = bxCoverBody(c); } },
-  bxCoverColor: id => bxCoverSet({ color: id, full: !!UI.bxCoverFull }),
-  bxCoverImg: id => bxCoverSet({ file: id, full: !!UI.bxCoverFull }),
-  bxCoverOff: () => bxCoverSet({}),
-  bxVoteToggle: async (id, el) => {
-    const on = el.dataset.on === '1';
-    try {
-      const c = await post(`/v1/boards/${bxEnc(el.dataset.b)}/cards/${bxEnc(el.dataset.c)}/toggle`, { what: 'vote', on });
-      UI.bxCard = c; toast(on ? 'Vote added' : 'Vote removed');
-      const bd = document.getElementById('bx-pop-bd'); if (bd && UI.bxCtx) bd.innerHTML = bxVoteBody(c, UI.bxCtx);
-      bxRefresh(c);
-    } catch (e) { toast(e.message, true); }
-  },
   bxMirrorGo: async (id, el) => {
     const card = UI.bxCard, b = document.getElementById('bx-mi-b').value, l = document.getElementById('bx-mi-l').value;
     el.disabled = true;

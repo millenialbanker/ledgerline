@@ -140,7 +140,7 @@
 .bd-wrap.bdc-img .bd-head,.bd-wrap.bdc-img .bd-fnote,.bd-wrap.bdc-img .bd-closed{background:color-mix(in srgb,var(--b-surf) 90%,transparent);backdrop-filter:blur(6px)}
 .bd-hl,.bd-hr{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
 .bd-bname{font-family:inherit;font-size:18px;font-weight:700;color:var(--b-ink);border:1px solid transparent;background:transparent;border-radius:8px;padding:3px 8px;margin:0;max-width:100%;min-width:0;line-height:1.35;letter-spacing:-.005em}
-input.bd-bname{field-sizing:content;min-width:4ch;max-width:min(62vw,640px)}
+input.bd-bname{field-sizing:content;min-width:4ch;max-width:min(62vw,640px);text-overflow:ellipsis}
 input.bd-bname:hover{background:color-mix(in srgb,var(--b-surf) 60%,transparent)}
 input.bd-bname:focus{background:var(--b-surf);border-color:var(--b-acc);outline:none}
 .bd-bname-t{overflow-wrap:anywhere}
@@ -331,6 +331,7 @@ body.bd-dragging,body.bd-dragging *{cursor:grabbing!important;user-select:none!i
 .bd-mb{min-width:0}
 .bd-mb h4{margin:0 0 6px;font-size:12px;font-weight:600;color:var(--b-ink3)}
 .bd-mb-b{display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-height:30px}
+.bd-voters{font-size:12.5px;color:var(--b-ink3);margin-left:4px}
 .bd-addc{width:28px;height:28px;border-radius:50%;border:1px dashed var(--b-line2);background:none;display:grid;place-items:center;cursor:pointer;color:var(--b-ink2);padding:0}
 .bd-mb .bd-pill+.bd-addc,.bd-mb .bd-pill~.bd-addc{border-radius:7px}
 .bd-addc:hover{border-style:solid;color:var(--b-ink);background:var(--b-ground)}
@@ -471,8 +472,9 @@ body.bd-dragging,body.bd-dragging *{cursor:grabbing!important;user-select:none!i
   .bd-tile{height:84px}
   .bd-tile-open{padding:14px 14px 10px}
   .bd-tile-name{-webkit-line-clamp:1}
-  .bd-bname{font-size:17px}
-  input.bd-bname{max-width:52vw}
+  .bd-bname{font-size:16px}
+  .bd-hl{width:100%;flex-wrap:nowrap}
+  input.bd-bname{flex:0 1 auto;max-width:none}
   .bd-row2{grid-template-columns:1fr}
 }
 @media (prefers-reduced-motion:reduce){.bd-ghost{transform:none}}
