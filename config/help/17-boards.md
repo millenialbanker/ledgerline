@@ -46,7 +46,7 @@ roles: Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff, A
 ask: open a card; card details; card description; checklist on a card; add a checklist; tick checklist item; assign checklist item; due date on a card; reminder before due date; mark card complete; attach a file to a card; attach a screenshot; paste an image into a card; card cover image; comment on a card; mention someone on a card; react to a comment; join a card; watch a card; vote on a card; copy a card; link to a card; convert checklist item to card; turn a checklist item into a card; copy checklist items from another card; reuse a checklist; @board; @card; mention everyone on the board; mention the card's members; label colours; create a label; edit a label; subtle label; bold label; label shades
 related: boards-lists-cards, boards-notifications, boards-shortcuts, boards-permissions
 
-Click a card to open it. The address in the browser then points at the card, so you can **Copy link** and send it to a colleague who can see the board.
+Click a card to open it. The address in the browser then points at the card, so you can copy the link (**Share** → card link, or **Copy link** in quick edit) and send it to a colleague who can see the board.
 
 - **Title**: click it to change it. **in list …** under it moves the card.
 - **Members**, **Labels** and **Dates** sit at the top; **Add to card** on the right adds them. Dates have a start, a due date with an optional time (IST) and a reminder; members and watchers are told when the reminder time comes. Tick the box by the date to mark the card complete.
@@ -55,7 +55,7 @@ Click a card to open it. The address in the browser then points at the card, so 
 - **Labels**: **Labels** picks the card's labels. A board admin can **Create a new label** or edit one (the pencil) there: a name and one of 30 colours, each of the ten in a subtle, normal and bold shade. **All the board's labels** lists them with how many cards use each.
 - **Attachments**: **Attachment** uploads files (up to 15 MB each) or attaches a link. You can also drop files on the window or paste a screenshot. An image can be the card's **cover**; **Cover** also offers colours and a full-card cover.
 - **Comments**: type @ and a name to mention someone (they are told); **@card** tells the card's members and watchers, and **@board** (from the board's admins and members) everyone who is an admin or member of the board; on a Ledgerline board, everyone whose role works it. An observer's @board is plain text. Nobody is told twice about one comment. Edit or delete your own; react with 👍 👀 ✅ 🎉 ❤️ 😂 🙏 ❗. **Show details** mixes in the card's activity.
-- **Actions**: Move, Copy (choose to keep checklists, labels and members), Watch, Archive, Copy link; a board admin can delete an archived card.
+- **Actions**: Move, Copy (choose to keep checklists, labels and members), Watch, Archive, and **Share** (the card's link, print, export and its email address); a board admin can delete an archived card.
 - Observers see everything but cannot change the card; they can still watch and vote, and comment and react unless the board's settings keep comments to members.
 
 ## boards-filters-search
@@ -148,7 +148,7 @@ The toolbar above a card's description adds bold, italic, strikethrough, a headi
 - A line starting `#`, `##` or `###` and a space is a heading; `>` a quote; `-` a bulleted list; `1.` a numbered list; `---` on its own a dividing line.
 - Three back-ticks on a line of their own start and end a block of code, shown exactly as typed.
 - A table: a line of headings between pipes, a line of dashes, then the rows, for example `| Exchange | Trades |`, `|---|--:|`, `| NSE | 120 |`. A colon on the right of the dashes aligns that column right; on both sides, centre.
-- Links: a web address, or `[text](https://…)`. A link to a card (from **Copy link**) shows as a chip with the card's number, title and list when you can see that card; otherwise it stays a plain link.
+- Links: a web address, or `[text](https://…)`. A link to a card (from **Copy link** or **Share**) shows as a chip with the card's number, title and list when you can see that card; otherwise it stays a plain link.
 - Emoji: the smiley on the toolbar, or a short code such as `:tada:`, `:white_check_mark:`, `:warning:` or `:thumbsup:`.
 - **@** and a name mentions someone. In a comment they are told; in a description it only shows their name.
 - Everything is shown as text: no web page code runs, and links go only to web addresses and to Ledgerline's own screens.

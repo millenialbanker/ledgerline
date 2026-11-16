@@ -113,7 +113,7 @@
 
 /* ---- card window sections ---- */
 .bx-sec{display:flex;flex-direction:column;gap:8px}
-.bx-sec-h{margin:0;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--bx-ink2)}
+.bx-sec-h{margin:0;font-size:12px;font-weight:600;color:var(--bx-ink2)}
 .bx-fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px 12px}
 .bx-fcheck{justify-content:flex-end;padding-bottom:7px}
 .bx-bad .in,.bx-bad input{border-color:var(--bx-err)}

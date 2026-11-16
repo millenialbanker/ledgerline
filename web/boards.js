@@ -745,7 +745,8 @@ function bdCwHTML() {
     { order: 30, html: sb('watch', 'bdWatch', 'eye', watching ? 'Stop watching' : 'Watch', `aria-pressed="${watching}"`) },
     { order: 40, html: bdCan() ? (c.archived ? sb('restore', 'bdRestoreCard', 'archive', 'Send to board') : sb('archive', 'bdArchiveCard', 'archive', 'Archive')) : '' },
     { order: 50, html: c.archived && bdAdmin() && !BD.v.board.closed ? sb('delete', 'bdDeleteCard', 'trash', 'Delete', 'data-popkey="cdel"') : '' },
-    { order: 60, html: sb('link', 'bdCopyLink', 'link', 'Copy link') },
+    // boardio.js's Share holds the card's link (with print, export and email).
+    { order: 60, html: BOARDS.cardButtons.some(x => x.id === 'bioShare') ? '' : sb('link', 'bdCopyLink', 'link', 'Copy link') },
     ...ext('actions')].filter(x => x.html);
 
   return `${cover}<div class="bd-cw-hd">${bdI('card', 'bd-cw-ic')}<div class="bd-cw-hm">${title}
