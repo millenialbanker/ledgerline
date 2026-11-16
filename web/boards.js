@@ -113,7 +113,7 @@ const bdCURL = (c, p = '') => bdURL(`/cards/${bdE(c)}${p}`);
 const bdMe = () => S.me?.actor || '';
 const bdCan = () => !!BD.v && ['admin', 'member'].includes(BD.v.role) && !BD.v.board.closed;
 const bdAdmin = () => BD.v?.role === 'admin';
-const bdTeam = () => BD.v?.board.kind !== 'ledgerline';
+const bdTeam = () => !['ledgerline', 'inbox'].includes(BD.v?.board.kind); // an Inbox (boardplanner.js) keeps its one list
 const bdLists = (b = BD.v?.board) => (b?.lists || []).filter(l => !l.archived).sort((x, y) => x.pos - y.pos);
 const bdOpenCards = () => (BD.v?.cards || []).filter(c => !c.archived);
 const bdIn = (l, cs) => cs.filter(c => c.list === l).sort((a, b) => a.pos - b.pos);
@@ -443,6 +443,9 @@ function bdTile(b) {
 function bdHomeInner() {
   const bs = BD.home || [], open = bs.filter(b => !b.closed);
   const home = Object.assign(bs.slice(), { boards: bs, notices: BD.notices });
+  // Another board file may show a page in place of the sections (boardviews.js: All boards, Planner).
+  const page = BOARDS.homePage ? bdSafe(() => BOARDS.homePage(home), 'home page') : '';
+  if (page) return bdBar() + page;
   const sec = (id, title, sub, body) => `<section class="bd-sec" aria-labelledby="bd-sec-${id}"><div class="bd-sec-h"><h2 id="bd-sec-${id}">${title}</h2>${sub ? `<p>${sub}</p>` : ''}</div>${body}</section>`;
   const grid = (xs, extra = '') => `<div class="bd-tiles">${xs.map(bdTile).join('')}${extra}</div>`;
   const secs = [];
@@ -486,7 +489,7 @@ function bdHeadHTML(ctx) {
   return `<div class="bd-head">
     <div class="bd-hl">${name}
       <button class="bd-hb bd-hstar${starred ? ' on' : ''}" data-act="bdStar" data-id="${esc(b.id)}" aria-pressed="${starred}" aria-label="${starred ? 'Unstar this board' : 'Star this board'}" title="${starred ? 'Unstar' : 'Star'}">${bdI('star')}</button>
-      <button class="bd-hb" data-act="bdVis" data-popkey="vis" aria-label="Visibility: ${b.visibility === 'private' ? 'Private' : 'Firm-wide'}">${b.visibility === 'private' ? bdI('lock') + '<span>Private</span>' : bdI('users') + '<span>Firm-wide</span>'}</button>
+      ${b.kind === 'inbox' ? `<span class="bd-tag" title="No one else can see your Inbox">${bdI('lock')}Only you</span>` : `<button class="bd-hb" data-act="bdVis" data-popkey="vis" aria-label="Visibility: ${b.visibility === 'private' ? 'Private' : 'Firm-wide'}">${b.visibility === 'private' ? bdI('lock') + '<span>Private</span>' : bdI('users') + '<span>Firm-wide</span>'}</button>`}
       ${b.kind === 'ledgerline' ? '<span class="bd-tag bd-tag-ll" title="Kept in step with Ledgerline’s records">Ledgerline board</span>' : ''}
       ${BD.v.role === 'observer' ? '<span class="bd-tag">View only</span>' : ''}
     </div>
@@ -496,7 +499,7 @@ function bdHeadHTML(ctx) {
       <button class="bd-hb${n ? ' on' : ''}" id="bd-fbtn" data-act="bdFilter" data-popkey="filter" aria-label="Filter cards${n ? `, ${n} on` : ''}" title="Filter (f)">${bdI('filter')}<span>Filter</span>${n ? `<span class="bd-fc">${n}</span>` : ''}</button>
       ${n ? `<button class="bd-hb" data-act="bdFClear" aria-label="Clear filters" title="Clear filters (x)">${bdI('x')}</button>` : ''}
       <span class="bd-avs" aria-label="Board members">${ms.slice(0, 5).map(m => bdAv(m.user)).join('')}${ms.length > 5 ? `<span class="bd-av more">+${ms.length - 5}</span>` : ''}</span>
-      <button class="bd-hb bd-sharebtn" data-act="bdShare">${bdI('users')}<span>Share</span></button>
+      ${b.kind === 'inbox' ? '' : `<button class="bd-hb bd-sharebtn" data-act="bdShare">${bdI('users')}<span>Share</span></button>`}
       <button class="bd-hb" data-act="bdMenu" data-popkey="menu" aria-label="Board menu">${bdI('dots')}</button>
     </div>
   </div>`;
@@ -1087,7 +1090,7 @@ Object.assign(A, {
       { id: 'labels', label: 'Labels', icon: 'tag', order: 40 },
       { id: 'settings', label: 'Settings', icon: 'gear', order: 50 },
       { id: 'copy', label: 'Copy board', icon: 'copy', order: 60, show: bdTeam() },
-      { id: 'close', label: b.closed ? 'Reopen board' : 'Close board', icon: 'archive', order: 80, show: adm },
+      { id: 'close', label: b.closed ? 'Reopen board' : 'Close board', icon: 'archive', order: 80, show: adm && b.kind !== 'inbox' },
       { id: 'delete', label: 'Delete board', icon: 'trash', order: 90, show: adm && b.closed && bdTeam() },
       ...BOARDS.boardMenu.filter(x => !x.show || bdSafe(() => x.show(ctx) ? 'y' : '', 'menu ' + x.id)).map(x => ({ id: 'x:' + x.id, label: x.label, icon: BD_IC[x.icon] ? x.icon : 'arrow', order: x.order ?? 70 }))
     ].filter(x => x.show !== false);

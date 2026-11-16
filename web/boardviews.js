@@ -16,7 +16,7 @@
    There is no map view: it would need an internet map and geocoding
    service, which would send card locations outside the firm. */
 
-Object.assign(UI, { bvPrefs: {}, bvCal: {}, bvDrill: null, bvMy: null, bvMyAt: 0, bvMyAll: {}, bvScroll: {} });
+Object.assign(UI, { bvPrefs: {}, bvCal: {}, bvDrill: null, bvMy: null, bvMyAt: 0, bvMyAll: {}, bvScroll: {}, bvOT: {}, bvDashEdit: null });
 
 /* ---------- dates (IST, as day numbers since 1970-01-01) ---------- */
 const BV_DAY = 864e5, BV_IST = 198e5;
@@ -434,7 +434,7 @@ function bvCalTitle(s, R) {
 function bvEvHTML(ev, w0, M, week) {
   const c = ev.c, st = bvStatus(c), cls = (ev.a < w0 ? ' bv-l' : '') + (ev.z > w0 + 6 ? ' bv-r' : '');
   const t = ev.kind === 'start' ? 'Starts' : bvTm(c.due) && ev.z <= w0 + 6 ? bvTm(c.due) : '', lab = `${c.title}, card ${c.no}, ${bvRange(c)}, ${BV_ST[st]}`;
-  return `<div class="bv-ev bv-st-${st} bv-k-${ev.kind}${cls}" role="button" tabindex="0" ${M.edit ? 'draggable="true"' : ''} data-card="${esc(c.id)}" style="grid-column:${ev.s + 1}/${ev.e + 2};grid-row:${ev.lane + 1}" title="${esc(lab)}" aria-label="${esc(lab)}">${bvStIcon(st)}${t ? `<b>${t}</b>` : ''}<span>${esc(c.title)}</span>${week && M.listById[c.list] ? `<small>${esc(M.listById[c.list].name)}</small>` : ''}</div>`;
+  return `<div class="bv-ev bv-st-${st} bv-k-${ev.kind}${cls}" role="button" tabindex="0" ${M.edit ? 'draggable="true"' : ''} data-card="${esc(c.id)}"${c._board ? ` data-board="${esc(c._board)}"` : ''} style="grid-column:${ev.s + 1}/${ev.e + 2};grid-row:${ev.lane + 1}" title="${esc(lab)}" aria-label="${esc(lab)}">${bvStIcon(st)}${t ? `<b>${t}</b>` : ''}<span>${esc(c.title)}</span>${week && M.listById[c.list] ? `<small>${esc(M.listById[c.list].name)}</small>` : ''}</div>`;
 }
 // One week: the days, then the cards laid in lanes so spans do not overlap.
 function bvWeekHTML(w0, items, M, o) {
@@ -452,6 +452,55 @@ function bvWeekHTML(w0, items, M, o) {
   const mores = more.map((m, d) => m ? `<button class="bv-more" data-act="bvCalMore" data-id="${bvDS(w0 + d)}" style="grid-column:${d + 1};grid-row:${lanes + 1}" aria-label="${m} more on ${esc(bvFmt(bvDS(w0 + d), { wd: 1 }))}; show the week">+${m} more</button>` : '').join('');
   return `<div class="bv-wk${o.week ? ' bv-wk-full' : ''}" data-w0="${w0}"><div class="bv-wk-bg">${days}</div><div class="bv-evs">${shown}${mores}</div></div>`;
 }
+/* The week view: the days by hour. A card due at a time sits at that hour
+   (from its start, when it starts that day at a time); cards due on a day
+   with no time, spanning days or with only a start sit in the all-day row. */
+const BV_HH = 44; // pixels an hour
+const bvMin = s => { const t = bvTm(s); return t ? +t.slice(0, 2) * 60 + +t.slice(3) : NaN; };
+const bvHHMM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+function bvTimedSpan(x) {
+  const c = x.c, d = bvMin(c.due);
+  if (isNaN(d) || x.z !== x.a || x.kind === 'start') return null;
+  const s = bvMin(c.start), from = c.start && bvDN(c.start) === x.z && !isNaN(s) && s < d ? s : d;
+  return [from, Math.min(1440, Math.max(from + 45, d))]; // a due time alone shows as 45 minutes, room for its title
+}
+function bvHourWeekHTML(w0, items, M, o) {
+  const today = bvDN(bvToday()), timed = [], allday = [];
+  items.filter(x => x.z >= w0 && x.a <= w0 + 6).forEach(x => { const t = bvTimedSpan(x); if (t) timed.push({ ...x, t0: t[0], t1: t[1] }); else allday.push(x); });
+  const evs = allday.map(x => ({ ...x, s: Math.max(x.a, w0) - w0, e: Math.min(x.z, w0 + 6) - w0 })), ends = [];
+  evs.forEach(ev => { let i = ends.findIndex(end => end < ev.s); if (i < 0) { i = ends.length; ends.push(0); } ends[i] = ev.e; ev.lane = i; });
+  const head = BV_WDS.map((wd, i) => { const n = w0 + i; return `<div class="bv-hw-dh${n === today ? ' bv-today' : ''}${i > 4 ? ' bv-we' : ''}"><small>${wd}</small><b>${+bvDS(n).slice(8)}</b>${n === today ? '<span class="bv-sr"> (today)</span>' : ''}</div>`; }).join('');
+  const bg = BV_WDS.map((_, i) => `<div class="bv-day${w0 + i === today ? ' bv-today' : ''}${i > 4 ? ' bv-we' : ''}" data-dn="${w0 + i}"></div>`).join('');
+  const cols = BV_WDS.map((_, i) => {
+    const n = w0 + i, xs = timed.filter(x => x.z === n).sort((p, q) => p.t0 - q.t0 || q.t1 - p.t1);
+    // Cards at the same time sit side by side.
+    let group = [], end = -1;
+    const flush = () => { const k = Math.max(...group.map(g => g.col)) + 1; group.forEach(g => { g.cols = k; }); group = []; };
+    xs.forEach(x => { if (x.t0 >= end && group.length) flush(); const used = group.filter(g => g.t1 > x.t0).map(g => g.col); let c = 0; while (used.includes(c)) c++; x.col = c; group.push(x); end = Math.max(end, x.t1); });
+    if (group.length) flush();
+    const cards = xs.map(x => {
+      const c = x.c, st = bvStatus(c), lab = `${c.title}, card ${c.no}, ${bvRange(c)}, ${BV_ST[st]}`, h = (x.t1 - x.t0) / 60 * BV_HH;
+      return `<div class="bv-ev bv-hev bv-st-${st}${h < 34 ? ' bv-short' : ''}" role="button" tabindex="0" ${M.edit ? 'draggable="true"' : ''} data-card="${esc(c.id)}"${c._board ? ` data-board="${esc(c._board)}"` : ''} style="top:${x.t0 / 60 * BV_HH}px;height:${Math.max(20, h - 2)}px;left:calc(${x.col / x.cols * 100}% + 2px);width:calc(${100 / x.cols}% - 4px)" title="${esc(lab)}" aria-label="${esc(lab)}"><b>${bvStIcon(st)}${bvMin(c.due) === x.t0 ? bvHHMM(x.t0) : `${bvHHMM(x.t0)}–${bvHHMM(x.t1)}`}</b><span>${esc(c.title)}</span>${M.listById[c.list] ? `<small>${esc(M.listById[c.list].name)}</small>` : ''}</div>`;
+    }).join('');
+    const now = n === today ? `<i class="bv-hw-now" style="top:${(bvWall() % BV_DAY) / 36e5 * BV_HH}px" aria-hidden="true"></i>` : '';
+    return `<div class="bv-hw-col${i > 4 ? ' bv-we' : ''}${n === today ? ' bv-today' : ''}" data-dn="${n}">${now}${cards}</div>`;
+  }).join('');
+  const hours = [...Array(24)].map((_, h) => `<span style="top:${h * BV_HH}px">${h ? bvHHMM(h * 60) : ''}</span>`).join('');
+  return `<div class="bv-hw"><div class="bv-scroll bv-hw-scroll" tabindex="-1"><div class="bv-hw-top"><div class="bv-hw-head" aria-hidden="true"><span class="bv-hw-g"></span>${head}</div>
+    <div class="bv-hw-ad-row"><span class="bv-hw-g">All day</span><div class="bv-wk bv-hw-ad" data-w0="${w0}"><div class="bv-wk-bg">${bg}</div><div class="bv-evs">${evs.map(ev => bvEvHTML(ev, w0, M, false)).join('')}</div></div></div></div>
+    <div class="bv-hw-body" style="height:${24 * BV_HH}px;--bv-hh:${BV_HH}px"><div class="bv-hw-hours" aria-hidden="true">${hours}</div><div class="bv-hw-cols" data-w0="${w0}">${cols}<i class="bv-hw-slot" hidden></i></div></div></div></div>`;
+}
+// Where the week view scrolls to first: 08:00, or the earliest card before it.
+function bvHourFirst(items, w0) {
+  let m = 8 * 60;
+  items.forEach(x => { if (x.z >= w0 && x.a <= w0 + 6) { const t = bvTimedSpan(x); if (t) m = Math.min(m, t[0]); } });
+  return sc => { sc.scrollTop = Math.max(0, m / 60 * BV_HH - 10); };
+}
+// The month or week grid, and the phone's list of days.
+function bvCalGrid(items, R, wk, M) {
+  const weeks = wk ? bvHourWeekHTML(R.a, items, M, {}) : [...Array(R.weeks)].map((_, i) => bvWeekHTML(R.a + i * 7, items, M, { week: false, first: R.first, last: R.last })).join('');
+  return `<div class="bv-grid${wk ? ' bv-grid-wk' : ''}"><div class="bv-wds" aria-hidden="true">${BV_WDS.map(d => `<span>${d}</span>`).join('')}</div>${weeks}</div>${bvAgendaHTML(items, R, M)}`;
+}
 // On a phone the calendar is a list of days with their cards.
 function bvAgendaHTML(items, R, M) {
   const a = R.first, z = R.last, today = bvDN(bvToday()), by = new Map();
@@ -465,45 +514,75 @@ function bvAgendaHTML(items, R, M) {
 }
 function bvCalHTML(ctx) {
   const M = bvMeta(ctx), s = bvCalState(ctx), R = bvCalRange(s), { items, none } = bvItems(bvCards(ctx)), wk = s.mode === 'week';
-  const weeks = [...Array(R.weeks)].map((_, i) => bvWeekHTML(R.a + i * 7, items, M, { week: wk, first: R.first, last: R.last })).join('');
   const inView = items.filter(x => x.z >= R.first && x.a <= R.last).length;
-  return `<div class="bv bv-cal" id="bv-root" data-view="calendar">
+  return `<div class="bv bv-cal" id="bv-root" data-view="calendar"${wk ? ` data-key="${esc(ctx.board.id)}:calweek" data-w0="${R.a}"` : ''}>
     <div class="bv-tools"><div class="bv-tools-l"><button class="btn sm" data-act="bvCalGo" data-id="0">Today</button><span class="bv-pair"><button class="btn sm bv-ib" data-act="bvCalGo" data-id="-1" aria-label="Previous ${s.mode}">${BV_I.left}</button><button class="btn sm bv-ib" data-act="bvCalGo" data-id="1" aria-label="Next ${s.mode}">${BV_I.right}</button></span>
       <h3 class="bv-title" aria-live="polite">${bvCalTitle(s, R)}</h3><span class="bv-dim bv-small">${bvPlural(inView, 'card')} · times in IST</span></div>
       <div class="bv-tools-r">${bvSeg('bvCalMode', [['month', 'Month'], ['week', 'Week']], s.mode, 'Calendar period')}</div></div>
     ${bvDrillBar(ctx)}
-    <div class="bv-cal-wrap"><div class="bv-cal-main"><div class="bv-grid${wk ? ' bv-grid-wk' : ''}"><div class="bv-wds" aria-hidden="true">${BV_WDS.map(d => `<span>${d}</span>`).join('')}</div>${weeks}</div>${bvAgendaHTML(items, R, M)}</div>
-      <aside class="bv-tray" aria-label="Cards with no dates"><h4>No dates <span class="bv-ct">${none.length}</span></h4><p class="bv-dim bv-small">${M.edit ? 'Drag a card onto a day to give it a due date.' : 'Cards with no start or due date.'}</p>
+    <div class="bv-cal-wrap"><div class="bv-cal-main">${bvCalGrid(items, R, wk, M)}</div>
+      <aside class="bv-tray" aria-label="Cards with no dates"><h4>No dates <span class="bv-ct">${none.length}</span></h4><p class="bv-dim bv-small">${M.edit ? `Drag a card onto a day${wk ? ', or an hour,' : ''} to give it a due date.` : 'Cards with no start or due date.'}</p>
         <div class="bv-tray-l">${none.map(c => `<div class="bv-ev bv-trayc bv-st-none" role="button" tabindex="0" ${M.edit ? 'draggable="true"' : ''} data-card="${esc(c.id)}" title="${esc(c.title)}" aria-label="${esc(c.title)}, card ${c.no}, no dates"><span>${esc(c.title)}</span><small>${esc(M.listById[c.list]?.name || '')}</small></div>`).join('') || '<p class="bv-dim bv-small">Every card shown has a date.</p>'}</div></aside></div>
   </div>`;
+}
+// What dropping a card on an hour of the week view changes: its due date
+// and time (a card from the tray gets one; a card with only a start moves
+// its start). A start moves with the due date by the days moved.
+function bvCalPatchAt(c, grab, day, mins) {
+  const at = bvDS(day) + 'T' + bvHHMM(mins);
+  if (grab == null) return c.due ? null : { due: at };
+  if (!c.due) return at === c.start ? null : { start: at };
+  if (at === c.due) return null;
+  const p = { due: at }, dd = day - bvDN(c.due);
+  if (c.start && dd) p.start = bvShift(c.start, dd);
+  return p;
 }
 function bvCalAfter(ctx) {
   const root = $('bv-root');
   if (!root) return;
-  const M = bvMeta(ctx);
+  const M = bvMeta(ctx), w0 = +root.dataset.w0;
   root.addEventListener('click', e => { const el = e.target.closest('[data-card]'); if (el && !e.target.closest('[data-act]')) BOARDS.openCard(ctx.board.id, el.dataset.card); });
   bvKeyOpen(root, ctx);
+  if (root.dataset.key) bvKeepScroll(root, bvHourFirst(bvItems(bvCards(ctx)).items, w0));
   if (!M.edit) return;
   let drag = null;
   const dayAt = (wk, x) => { const r = wk.getBoundingClientRect(); return +wk.dataset.w0 + Math.max(0, Math.min(6, Math.floor((x - r.left) / (r.width / 7)))); };
-  const mark = n => root.querySelectorAll('.bv-day').forEach(d => d.classList.toggle('bv-over', +d.dataset.dn === n));
+  // On the hour grid: the day under the pointer and the half hour it is in.
+  const slotAt = (cols, x, y) => { const r = cols.getBoundingClientRect(); return { day: dayAt(cols, x), mins: Math.max(0, Math.min(1410, Math.floor((y - r.top) / BV_HH * 2) * 30)) }; };
+  const slot = root.querySelector('.bv-hw-slot');
+  const mark = (n, at) => {
+    root.querySelectorAll('.bv-day,.bv-hw-col').forEach(d => d.classList.toggle('bv-over', !at && +d.dataset.dn === n));
+    if (!slot) return;
+    slot.hidden = !at;
+    if (at) { slot.style.top = at.mins / 60 * BV_HH + 'px'; slot.style.left = (at.day - w0) / 7 * 100 + '%'; slot.textContent = bvHHMM(at.mins); }
+  };
+  const over = e => e.target.closest?.('.bv-wk,.bv-hw-cols');
   root.addEventListener('dragstart', e => {
     const el = e.target.closest?.('[data-card][draggable=true]');
     if (!el) return;
-    const wk = el.closest('.bv-wk');
-    drag = { id: el.dataset.card, grab: wk ? dayAt(wk, e.clientX) : null, el };
+    const wk = el.closest('.bv-wk'), col = el.closest('.bv-hw-col');
+    drag = { id: el.dataset.card, grab: col ? +col.dataset.dn : wk ? dayAt(wk, e.clientX) : null, el };
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', el.dataset.card);
     setTimeout(() => { el.classList.add('bv-dragging'); root.classList.add('bv-isdrag'); });
   });
-  root.addEventListener('dragend', () => { if (drag) drag.el.classList.remove('bv-dragging'); drag = null; mark(NaN); root.classList.remove('bv-isdrag'); });
-  root.addEventListener('dragover', e => { const wk = e.target.closest?.('.bv-wk'); if (!drag || !wk) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; mark(dayAt(wk, e.clientX)); });
+  const stop = () => { if (drag) drag.el.classList.remove('bv-dragging'); drag = null; mark(NaN); root.classList.remove('bv-isdrag'); };
+  root.addEventListener('dragend', stop);
+  root.addEventListener('dragover', e => {
+    const box = over(e);
+    if (!drag || !box) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+    if (box.classList.contains('bv-hw-cols')) mark(NaN, slotAt(box, e.clientX, e.clientY)); else mark(dayAt(box, e.clientX));
+  });
   root.addEventListener('drop', e => {
-    const wk = e.target.closest?.('.bv-wk');
-    if (!drag || !wk) return;
+    const box = over(e);
+    if (!drag || !box) return;
     e.preventDefault();
-    const day = dayAt(wk, e.clientX), c = bvCard(ctx, drag.id), p = c && bvCalPatch(c, drag.grab, day);
-    drag = null; mark(NaN); root.classList.remove('bv-isdrag');
+    const c = bvCard(ctx, drag.id), grab = drag.grab;
+    let p = null;
+    if (box.classList.contains('bv-hw-cols')) { const at = slotAt(box, e.clientX, e.clientY); p = c && bvCalPatchAt(c, grab, at.day, at.mins); }
+    else p = c && bvCalPatch(c, grab, dayAt(box, e.clientX));
+    stop();
     if (p) bvSave(c, p);
   });
 }
@@ -511,7 +590,7 @@ function bvCalAfter(ctx) {
 /* ---------- timeline ---------- */
 let bvClickHold = 0;
 const BV_ZPX = { day: 36, week: 14, month: 4 }, BV_ROW = 30;
-function bvTlState(ctx) { const p = bvPref(ctx).tl || {}; return { zoom: BV_ZPX[p.zoom] ? p.zoom : 'week', lane: ['list', 'member', 'label'].includes(p.lane) ? p.lane : 'list' }; }
+function bvTlState(ctx) { const p = bvPref(ctx).tl || {}; return { zoom: BV_ZPX[p.zoom] ? p.zoom : 'week', lane: ['list', 'member', 'label', 'none'].includes(p.lane) ? p.lane : 'list' }; }
 // The days shown: every dated card and today, with room either side, at
 // most three years around today.
 function bvTlRange(items, zoom) {
@@ -538,7 +617,9 @@ function bvTlScale(a, z, zoom, px) {
 }
 function bvTlLanes(items, M, by) {
   const lanes = [], ofMember = id => items.filter(x => (x.c.members || []).includes(id));
-  if (by === 'list') {
+  if (by === 'none') {
+    if (items.length) lanes.push({ head: '<span>All cards</span>', items });
+  } else if (by === 'list') {
     M.lists.forEach(l => lanes.push({ head: `<span>${esc(l.name)}</span>`, items: items.filter(x => x.c.list === l.id) }));
     const other = items.filter(x => !(x.c.list in M.listIdx));
     if (other.length) lanes.push({ head: '<span>Another list</span>', items: other });
@@ -574,16 +655,16 @@ function bvTlLaneHTML(lane, a, z, px, M) {
 function bvTlHTML(ctx) {
   const M = bvMeta(ctx), s = bvTlState(ctx), px = BV_ZPX[s.zoom], { items, none } = bvItems(bvCards(ctx)), [a, z] = bvTlRange(items, s.zoom);
   const W = (z - a + 1) * px, tx = Math.round((bvDN(bvToday()) - a + (bvWall() % BV_DAY) / BV_DAY) * px);
-  const lanes = bvTlLanes(items, M, s.lane), laneOpts = [['list', 'List'], ['member', 'Member'], ['label', 'Label']];
+  const lanes = bvTlLanes(items, M, s.lane), laneOpts = [['list', 'List'], ['label', 'Label'], ['member', 'Member'], ['none', 'Nothing']];
   let grid = '';
   if (s.zoom === 'month') for (let n = bvNextMonth(a); n <= z; n = bvNextMonth(n)) grid += `<i class="bv-tl-m" style="left:${(n - a) * px}px"></i>`;
   return `<div class="bv bv-tline" id="bv-root" data-view="timeline" ${M.edit ? 'data-edit' : ''} data-px="${px}" data-tx="${tx}" data-key="${esc(ctx.board.id)}:timeline:${s.zoom}">
     <div class="bv-tools"><div class="bv-tools-l"><button class="btn sm" data-act="bvTlToday">Today</button>${bvSeg('bvTlZoom', [['day', 'Days'], ['week', 'Weeks'], ['month', 'Months']], s.zoom, 'Zoom')}<span class="bv-dim bv-small">${bvPlural(items.length, 'card')} with dates · IST</span></div>
-      <div class="bv-tools-r"><label class="bv-fld"><span>Swimlanes</span><select class="in sm" id="bv-lane">${laneOpts.map(([v, l]) => `<option value="${v}" ${v === s.lane ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div></div>
+      <div class="bv-tools-r">${s.lane === 'label' || s.lane === 'member' ? `<span class="bv-dim bv-small">A card with two ${s.lane}s shows in each</span>` : ''}<label class="bv-fld"><span>Group by</span><select class="in sm" id="bv-lane">${laneOpts.map(([v, l]) => `<option value="${v}" ${v === s.lane ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div></div>
     ${bvDrillBar(ctx)}
     <div class="bv-scroll bv-tl" role="region" aria-label="Timeline" tabindex="0" style="--px:${px}px">
       <div class="bv-tl-in" style="width:calc(var(--bv-lw) + ${W}px)">
-        <div class="bv-tl-head"><div class="bv-tl-corner">${laneOpts.find(o => o[0] === s.lane)[1]}</div><div class="bv-tl-scale z-${s.zoom}" style="width:${W}px">${bvTlScale(a, z, s.zoom, px)}<span class="bv-now-h" style="left:${tx}px">Today</span></div></div>
+        <div class="bv-tl-head"><div class="bv-tl-corner">${s.lane === 'none' ? 'Cards' : laneOpts.find(o => o[0] === s.lane)[1]}</div><div class="bv-tl-scale z-${s.zoom}" style="width:${W}px">${bvTlScale(a, z, s.zoom, px)}<span class="bv-now-h" style="left:${tx}px">Today</span></div></div>
         <div class="bv-tl-body"><div class="bv-tl-bg z-${s.zoom}" style="width:${W}px" aria-hidden="true">${grid}<i class="bv-now" style="left:${tx}px"></i></div>
           ${lanes.map(l => bvTlLaneHTML(l, a, z, px, M)).join('') || `<div class="bv-tl-lane"><div class="bv-tl-name"><span class="bv-dim">No cards</span></div><div class="bv-tl-track" style="height:${BV_ROW + 12}px"></div></div>`}
           <div class="bv-tip" hidden></div></div>
@@ -663,42 +744,182 @@ function bvBars(rows, d, empty) {
   }).join('')}</ul>`;
 }
 const bvTile = (title, sub, body, cls = '') => `<section class="bv-tile ${cls}"><header><h4>${title}</h4>${sub ? `<p>${sub}</p>` : ''}</header>${body}</section>`;
-function bvDashHTML(ctx) {
-  const M = bvMeta(ctx), d = bvDrillOn(ctx), all = ctx.cards || [], cards = bvCards(ctx);
+/* Tiles: what each shows and how it is drawn, kept on the board
+   (settings "views.tiles"; the server checks them). */
+const BV_TDATA = { list: 'Cards per list', label: 'Cards per label', member: 'Cards per member', due: 'Due status', checks: 'Checklist completion', time: 'Cards over time' };
+const BV_TCHARTS = { list: ['bar', 'pie'], label: ['bar', 'pie'], member: ['bar', 'pie'], due: ['bar', 'pie'], checks: ['bar', 'pie'], time: ['line'] };
+const BV_CHART = { bar: 'Bar', pie: 'Pie', line: 'Line' };
+const BV_TILES0 = ['list', 'due', 'label', 'member', 'checks'].map(k => ({ id: k, data: k, chart: 'bar' }));
+const BV_CATS = 8; // categorical colours, --bv-c1 … --bv-c8, in this order; more fold into "Other"
+function bvTilesOf(b) {
+  let ts = null;
+  try { ts = JSON.parse((b.settings || {})['views.tiles'] || 'null'); } catch (e) {}
+  if (!Array.isArray(ts)) return BV_TILES0.map(t => ({ ...t }));
+  return ts.filter(t => t && BV_TCHARTS[t.data]?.includes(t.chart)).slice(0, 12).map(t => ({ id: String(t.id || ''), data: t.data, chart: t.chart }));
+}
+const bvDashEditing = ctx => UI.bvDashEdit && UI.bvDashEdit.board === ctx.board.id ? UI.bvDashEdit : null;
+
+// A tile's rows: one per list, label, member, due status or checklist state.
+function bvDashRows(ctx, M, d, data) {
+  const all = ctx.cards || [], cards = bvCards(ctx);
   // The tile whose bar was pressed keeps every bar, the chosen one marked; the others show only its cards.
   const base = kind => d && d.kind === kind ? all : cards, count = (cs, f) => cs.reduce((n, c) => n + (f(c) ? 1 : 0), 0);
-  const lists = M.lists.map(l => ({ kind: 'list', id: l.id, label: l.name, color: 'var(--bv-later)', n: count(base('list'), c => c.list === l.id) }));
-  const lb = base('label'), labels = M.labels.map(l => ({ kind: 'label', id: l.id, label: bvLName(l), color: BV_LC[l.color] || 'var(--bv-none)', sw: true, n: count(lb, c => (c.labels || []).includes(l.id)) })).filter(r => r.n || (d && d.kind === 'label' && d.id === r.id));
-  const noLabel = count(lb, c => !bvLabels(c, M).length);
-  if (noLabel) labels.push({ kind: 'label', id: '', label: 'No label', color: 'var(--bv-none)', sw: true, n: noLabel });
-  const mb = base('member'), mids = [...new Set(mb.flatMap(c => c.members || []))];
-  const members = mids.map(id => ({ kind: 'member', id, label: bvUser(M, id), color: 'var(--bv-later)', av: bvAv(M, id), n: count(mb, c => (c.members || []).includes(id)) })).sort((p, q) => q.n - p.n || p.label.localeCompare(q.label));
-  const noMember = count(mb, c => !(c.members || []).length);
-  if (noMember) members.push({ kind: 'member', id: '', label: 'No member', color: 'var(--bv-none)', n: noMember });
-  const due = BV_STO.map(k => ({ kind: 'due', id: k, label: BV_ST[k], color: `var(--bv-${k})`, icon: bvStKey(k), n: count(base('due'), c => bvStatus(c) === k) }));
+  if (data === 'list') {
+    const rows = M.lists.map((l, i) => ({ kind: 'list', id: l.id, label: l.name, color: 'var(--bv-later)', cat: i, n: count(base('list'), c => c.list === l.id) }));
+    return { rows, sub: bvPlural(rows.reduce((s, r) => s + r.n, 0), 'card'), empty: 'No lists.' };
+  }
+  if (data === 'label') {
+    const lb = base('label'), rows = M.labels.map(l => ({ kind: 'label', id: l.id, label: bvLName(l), color: BV_LC[l.color] || 'var(--bv-none)', sw: true, n: count(lb, c => (c.labels || []).includes(l.id)) })).filter(r => r.n || (d && d.kind === 'label' && d.id === r.id));
+    const no = count(lb, c => !bvLabels(c, M).length);
+    if (no) rows.push({ kind: 'label', id: '', label: 'No label', color: 'var(--bv-none)', sw: true, n: no });
+    return { rows, sub: 'A card with two labels counts under both', empty: 'No cards.' };
+  }
+  if (data === 'member') {
+    const mb = base('member'), ids = [...new Set(mb.flatMap(c => c.members || []))], order = ids.slice().sort((p, q) => bvUser(M, p).localeCompare(bvUser(M, q)));
+    const rows = ids.map(id => ({ kind: 'member', id, label: bvUser(M, id), color: 'var(--bv-later)', cat: order.indexOf(id), av: bvAv(M, id), n: count(mb, c => (c.members || []).includes(id)) })).sort((p, q) => q.n - p.n || p.label.localeCompare(q.label));
+    const no = count(mb, c => !(c.members || []).length);
+    if (no) rows.push({ kind: 'member', id: '', label: 'No member', color: 'var(--bv-none)', n: no, grey: true });
+    return { rows, sub: 'A card with two members counts under both', empty: 'No cards.' };
+  }
+  if (data === 'due') return { rows: BV_STO.map(k => ({ kind: 'due', id: k, label: BV_ST[k], color: `var(--bv-${k})`, icon: bvStKey(k), n: count(base('due'), c => bvStatus(c) === k) })), sub: 'Due soon: within 24 hours', empty: '' };
   const cb = base('checks');
   let items = 0, done = 0;
   cb.forEach(c => { const [x, n] = bvChecks(c); items += n; done += x; });
-  const pc = items ? Math.round(done / items * 100) : 0, noList = count(cb, c => bvCheckState(c) === 'nolist');
-  const checks = [['all', 'All items done', 'var(--bv-done)'], ['some', 'In progress', 'var(--bv-later)'], ['none', 'Not started', 'var(--bv-none)']].map(([id, label, color]) => ({ kind: 'checks', id, label, color, sw: true, n: count(cb, c => bvCheckState(c) === id) }));
+  const rows = [['all', 'All items done', 'var(--bv-done)'], ['some', 'In progress', 'var(--bv-later)'], ['none', 'Not started', 'var(--bv-none)']].map(([id, label, color]) => ({ kind: 'checks', id, label, color, sw: true, n: count(cb, c => bvCheckState(c) === id) }));
+  return { rows, items, done, pc: items ? Math.round(done / items * 100) : 0, noList: count(cb, c => bvCheckState(c) === 'nolist'), sub: items ? `${nf(done)} of ${bvPlural(items, 'item')} done` : 'No checklist items yet', empty: '' };
+}
+
+// A pie (a ring): each slice and its legend line show their cards; past
+// eight slices the smallest fold into "Other". The legend gives every
+// number in words, and the ring's label reads them out.
+function bvDonut(rows, d, o = {}) {
+  let rs = rows.filter(r => r.n > 0);
+  const total = rs.reduce((s, r) => s + r.n, 0);
+  if (!total) return `<p class="bv-dim bv-small">${o.empty || 'No cards.'}</p>`;
+  if (o.cat) { // lists and members: categorical colours, by the thing's own order (not its count)
+    const keep = rs.length > BV_CATS ? rs.slice().sort((p, q) => q.n - p.n).slice(0, BV_CATS - 1) : rs;
+    const other = rs.filter(r => !keep.includes(r));
+    let i = 0;
+    rs = rs.filter(r => keep.includes(r)).map(r => ({ ...r, color: r.grey ? 'var(--bv-none)' : `var(--bv-c${(r.cat ?? i++) % BV_CATS + 1})` }));
+    if (other.length) rs.push({ kind: '', id: '', label: `Other (${other.length})`, color: 'var(--bv-none)', n: other.reduce((s, r) => s + r.n, 0), other: true });
+  }
+  const R = 42, C = 2 * Math.PI * R, gap = rs.length > 1 ? 2 : 0;
+  let at = 0;
+  const pct = n => Math.round(n / total * 100);
+  const segs = rs.map(r => {
+    const len = r.n / total * C, on = d && d.kind === r.kind && d.id === r.id;
+    const s = `<circle class="bv-slice${on ? ' on' : ''}${d && d.kind === r.kind && !on ? ' off' : ''}" r="${R}" cx="60" cy="60" style="stroke:${r.color}" stroke-dasharray="${Math.max(0.5, len - gap).toFixed(2)} ${(C - Math.max(0.5, len - gap)).toFixed(2)}" stroke-dashoffset="${(-at).toFixed(2)}"${r.other ? '' : ` data-act="bvDrill" data-id="${esc(r.kind)}" data-v="${esc(r.id)}" data-t="${esc(r.label)}"`}><title>${esc(r.label)}: ${bvPlural(r.n, 'card')} (${pct(r.n)}%)</title></circle>`;
+    at += len;
+    return s;
+  }).join('');
+  const said = rs.map(r => `${r.label} ${r.n}`).join(', ');
+  const legend = rs.map(r => {
+    const on = d && d.kind === r.kind ? (d.id === r.id ? ' on' : ' off') : '';
+    const key = r.icon ? `<span class="bv-hb-ic" style="color:${r.color}">${r.icon}</span>` : `<i class="bv-sw" style="background:${r.color}"></i>`;
+    const inner = `${key}<span class="bv-lg-n">${esc(r.label)}</span><b>${nf(r.n)}</b><span class="bv-lg-p">${pct(r.n)}%</span>`;
+    return `<li>${r.other ? `<span class="bv-lg">${inner}</span>` : `<button class="bv-lg${on}" data-act="bvDrill" data-id="${esc(r.kind)}" data-v="${esc(r.id)}" data-t="${esc(r.label)}" aria-pressed="${on === ' on'}" aria-label="${esc(r.label)}: ${bvPlural(r.n, 'card')}, ${pct(r.n)}%. ${on === ' on' ? 'Shown; press to show all cards' : 'Show these cards'}">${inner}</button>`}</li>`;
+  }).join('');
+  return `<div class="bv-pie"><div class="bv-ring"><svg viewBox="0 0 120 120" width="132" height="132" role="img" aria-label="${esc(o.title || 'Pie chart')}: ${esc(said)}"><circle class="bv-ring-tr" r="${R}" cx="60" cy="60"/>${segs}</svg>
+    <span class="bv-ring-c" aria-hidden="true"><b>${o.center ?? nf(total)}</b><small>${o.centerSub ?? (total === 1 ? 'card' : 'cards')}</small></span></div><ul class="bv-legend">${legend}</ul></div>`;
+}
+
+// Cards over time: from the server, kept a minute (or until the board changes).
+function bvOT(ctx) {
+  const id = ctx.board.id, s = UI.bvOT[id];
+  if (s && (s.busy || (s.rev === ctx.rev && Date.now() - s.at < 60000))) return s;
+  UI.bvOT[id] = { busy: true, rev: ctx.rev, at: Date.now(), data: s?.data };
+  get(`/v1/boards/${encodeURIComponent(id)}/views/over-time`)
+    .then(r => { UI.bvOT[id] = { rev: ctx.rev, at: Date.now(), data: r }; })
+    .catch(e => { UI.bvOT[id] = { rev: ctx.rev, at: Date.now(), error: e.message || 'Could not be loaded.' }; })
+    .finally(() => { const c = BOARDS.ctx(); if (c && c.board.id === id && $('bv-root')?.dataset.view === 'dashboard') bvRerender(); });
+  return UI.bvOT[id];
+}
+const bvNice = v => { const p = Math.pow(10, Math.floor(Math.log10(Math.max(1, v)))); return [1, 2, 5, 10].map(m => m * p).find(x => x >= v) || v; };
+const BV_OTS = [['added', 'Added', 'var(--bv-acc)'], ['done', 'Completed', 'var(--bv-done)']];
+// Two lines, added and completed per week. The plot stretches with the
+// tile; its words are HTML so they keep their size. Hovering a week shows
+// its numbers, and the table below has them all.
+function bvLineHTML(s) {
+  if (!s || (!s.data && s.busy)) return '<p class="bv-dim bv-small" aria-busy="true">Loading…</p>';
+  if (!s.data) return `<p class="note bad">${esc(s.error || 'Could not be loaded.')}</p>`;
+  const W = s.data.weeks || [], n = W.length || 1, max = bvNice(Math.max(1, ...W.flatMap(w => [w.added, w.done])));
+  const X = i => (i + 0.5) / n * 100, Y = v => 100 - v / max * 100, wk = w => bvFmt(w.week, { year: false });
+  const lines = BV_OTS.map(([k, , c]) => `<polyline points="${W.map((w, i) => `${X(i).toFixed(2)},${Y(w[k]).toFixed(2)}`).join(' ')}" style="stroke:${c}" vector-effect="non-scaling-stroke"/>`).join('');
+  const pts = BV_OTS.map(([k, , c]) => W.map((w, i) => `<i class="bv-ln-pt" style="left:${X(i)}%;top:${Y(w[k])}%;--c:${c}"></i>`).join('')).join('');
+  const cols = W.map((w, i) => `<span class="bv-ln-col" style="left:${i / n * 100}%;width:${100 / n}%"><span class="bv-ln-tip${i > n / 2 ? ' r' : ''}"><b>Week of ${esc(wk(w))}</b>${BV_OTS.map(([k, l, c]) => `<span><i class="bv-sw" style="background:${c}"></i>${l}: ${nf(w[k])}</span>`).join('')}</span></span>`).join('');
+  // Every other week is named (the last always); on a phone every fourth.
+  const xl = W.map((w, i) => (n - 1 - i) % 2 ? '' : `<span class="${(n - 1 - i) % 4 ? 'bv-ln-x2' : ''}" style="left:${X(i)}%">${esc(wk(w))}</span>`).join('');
+  const sum = k => W.reduce((t, w) => t + w[k], 0);
+  return `<div class="bv-line"><ul class="bv-legend bv-legend-row">${BV_OTS.map(([k, l, c]) => `<li><span class="bv-lg"><i class="bv-sw bv-sw-ln" style="background:${c}"></i><span class="bv-lg-n">${l}</span><b>${nf(sum(k))}</b><span class="bv-lg-p">in 12 weeks</span></span></li>`).join('')}</ul>
+    <div class="bv-ln-plot" aria-hidden="true">
+      <div class="bv-ln-area"><span class="bv-ln-y" style="top:0">${nf(max)}</span>${max % 2 ? '' : `<span class="bv-ln-y" style="top:50%">${nf(max / 2)}</span>`}<span class="bv-ln-y" style="top:100%">0</span><svg viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="0" x2="100" y1="0" y2="0" vector-effect="non-scaling-stroke"/><line x1="0" x2="100" y1="50" y2="50" vector-effect="non-scaling-stroke"/><line class="bv-ln-base" x1="0" x2="100" y1="100" y2="100" vector-effect="non-scaling-stroke"/>${lines}</svg>${pts}${cols}</div>
+      <div class="bv-ln-x">${xl}</div></div>
+    <details class="bv-ln-tbl"><summary>Show the numbers</summary><table class="bv-mini"><caption class="bv-sr">Cards added and completed each week</caption><thead><tr><th scope="col">Week of</th><th scope="col">Added</th><th scope="col">Completed</th></tr></thead><tbody>${W.map(w => `<tr><th scope="row">${esc(bvFmt(w.week, { year: true }))}</th><td>${nf(w.added)}</td><td>${nf(w.done)}</td></tr>`).join('')}</tbody></table></details>
+    ${s.data.capped ? '<p class="bv-dim bv-small">Only the newest 25,000 changes were read, so the first weeks may be short.</p>' : ''}</div>`;
+}
+
+// One tile: its chart, or in edit mode its controls too.
+function bvTileHTML(ctx, M, d, t, i, n, ed) {
+  const title = BV_TDATA[t.data], hid = `bv-th-${i}`;
+  let body, sub;
+  if (t.data === 'time') { sub = 'Cards added and marked complete each week, Monday to Sunday'; body = bvLineHTML(bvOT(ctx)); }
+  else {
+    const R = bvDashRows(ctx, M, d, t.data);
+    sub = R.sub;
+    if (t.chart === 'pie') body = bvDonut(R.rows, d, { title: `${title}, pie chart`, empty: R.empty || 'No cards.', cat: t.data === 'list' || t.data === 'member', ...(t.data === 'checks' && R.items ? { center: R.pc + '%', centerSub: 'items done' } : {}) });
+    else body = bvBars(R.rows, d, R.empty);
+    if (t.data === 'checks') body = (t.chart === 'bar' ? `<div class="bv-hero"><b>${R.pc}%</b><span>of checklist items done</span></div>
+        <svg class="bv-meter" width="100%" height="8" role="img" aria-label="${R.pc}% of checklist items done"><rect width="100%" height="8" rx="4" class="bv-meter-tr"/>${R.done ? `<rect width="${Math.max(1, R.pc)}%" height="8" rx="4" style="fill:var(--bv-done)"/>` : ''}</svg>` : '') + body + (R.noList ? `<p class="bv-dim bv-small">${bvPlural(R.noList, 'card')} with no checklist.</p>` : '');
+  }
+  const controls = ed ? `<div class="bv-tedit" role="group" aria-label="Tile ${i + 1} of ${n}: ${esc(title)}">
+      <label class="bv-fld"><span>Shows</span><select class="in sm" data-bv-tile="${i}" aria-label="What tile ${i + 1} shows">${Object.entries(BV_TDATA).map(([k, l]) => `<option value="${k}" ${k === t.data ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      ${BV_TCHARTS[t.data].length > 1 ? `<div class="seg bv-seg" role="group" aria-label="Chart">${BV_TCHARTS[t.data].map(c => `<button class="${c === t.chart ? 'on' : ''}" aria-pressed="${c === t.chart}" data-act="bvTileChart" data-id="${i}" data-v="${c}">${BV_CHART[c]}</button>`).join('')}</div>` : `<span class="bv-dim bv-small">${BV_CHART[t.chart]} chart</span>`}
+      <span class="bv-tedit-r"><span class="bv-pair"><button class="btn sm bv-ib" data-act="bvTileMove" data-id="${i}" data-d="-1" ${i ? '' : 'disabled'} aria-label="Move ${esc(title)} earlier">${BV_I.left}</button><button class="btn sm bv-ib" data-act="bvTileMove" data-id="${i}" data-d="1" ${i < n - 1 ? '' : 'disabled'} aria-label="Move ${esc(title)} later">${BV_I.right}</button></span>
+      <button class="btn sm bv-ib" data-act="bvTileDel" data-id="${i}" aria-label="Remove the ${esc(title)} tile">${BV_I.x}</button></span></div>` : '';
+  return `<section class="bv-tile${ed ? ' bv-tile-ed' : ''}" aria-labelledby="${hid}" data-tile="${i}"><header><h4 id="${hid}">${title}</h4>${sub ? `<p>${sub}</p>` : ''}</header>${controls}${body}</section>`;
+}
+
+function bvDashHTML(ctx) {
+  const M = bvMeta(ctx), d = bvDrillOn(ctx), cards = bvCards(ctx), E = bvDashEditing(ctx), ed = !!E && M.edit;
+  const tiles = ed ? E.tiles : bvTilesOf(ctx.board), count = (cs, f) => cs.reduce((n, c) => n + (f(c) ? 1 : 0), 0);
   const stat = (label, n, kind, id, icon, tone) => `<button class="bv-stat${tone && n ? ' ' + tone : ''}${d && d.kind === kind && d.id === id ? ' on' : ''}" data-act="${kind ? 'bvDrill' : 'bvDrillClear'}" data-id="${kind}" data-v="${id}" data-t="${esc(label)}" aria-label="${esc(label)}: ${nf(n)}"><small>${icon || ''}${esc(label)}</small><b>${nf(n)}</b></button>`;
   const ofList = c => M.listById[c.list]?.name || '';
   const drilled = d ? bvTile(`${bvPlural(cards.length, 'card')} where ${esc(BV_DRILL[d.kind].toLowerCase())} is ${esc(d.text)}`, '', cards.length ? `<ul class="bv-dlist">${cards.slice(0, 60).map(c => `<li><button class="bv-dl" data-act="bvOpen" data-id="${esc(c.id)}"><span class="bv-dl-no">${c.no}</span><span class="bv-dl-t">${esc(c.title)}</span><span class="bv-dl-m">${esc(ofList(c))}</span>${c.due ? bvDue(c) : '<span></span>'}</button></li>`).join('')}</ul>${cards.length > 60 ? `<p class="bv-dim bv-small">and ${nf(cards.length - 60)} more: the Table view lists them all.</p>` : ''}` : '<p class="bv-dim bv-small">No cards.</p>', 'bv-wide') : '';
+  const bar = ed ? `<div class="bv-dedit" role="region" aria-label="Editing the dashboard"><span><b>Editing the dashboard.</b> Add, remove and reorder tiles; each shows a bar or pie chart, or cards over time as a line. Saved for everyone on this board.</span>
+      <span class="bv-dedit-b"><button class="btn sm" data-act="bvTileAdd" ${tiles.length >= 12 ? 'disabled title="A dashboard has at most 12 tiles"' : ''}>Add tile</button><button class="btn sm" data-act="bvTileReset">Default tiles</button><button class="btn sm" data-act="bvDashCancel">Cancel</button><button class="btn sm pri" data-act="bvDashSave">Save dashboard</button></span></div>`
+    : M.edit ? `<div class="bv-tools"><div class="bv-tools-l"></div><div class="bv-tools-r"><button class="btn sm" data-act="bvDashEdit">${BV_I.pen}Edit dashboard</button></div></div>` : '';
   return `<div class="bv bv-dash" id="bv-root" data-view="dashboard">
-    ${bvDrillBar(ctx)}
+    ${bar}${bvDrillBar(ctx)}
     <div class="bv-stats">${stat('Cards', cards.length, '', '', '', '')}${stat('Overdue', count(cards, c => bvStatus(c) === 'overdue'), 'due', 'overdue', BV_I.alert, 'bad')}${stat('Due soon', count(cards, c => bvStatus(c) === 'soon'), 'due', 'soon', BV_I.clock, 'warn')}${stat('Complete', count(cards, c => bvStatus(c) === 'done'), 'due', 'done', BV_I.check, 'good')}</div>
     ${drilled}
-    <div class="bv-tiles">
-      ${bvTile('Cards per list', bvPlural(lists.reduce((s, r) => s + r.n, 0), 'card'), bvBars(lists, d, 'No lists.'))}
-      ${bvTile('Due status', 'Due soon: within 24 hours', bvBars(due, d, ''))}
-      ${bvTile('Cards per label', 'A card with two labels counts under both', bvBars(labels, d, 'No cards.'))}
-      ${bvTile('Cards per member', 'A card with two members counts under both', bvBars(members, d, 'No cards.'))}
-      ${bvTile('Checklist completion', items ? `${nf(done)} of ${bvPlural(items, 'item')} done` : 'No checklist items yet', `<div class="bv-hero"><b>${pc}%</b><span>of checklist items done</span></div>
-        <svg class="bv-meter" width="100%" height="8" role="img" aria-label="${pc}% of checklist items done"><rect width="100%" height="8" rx="4" class="bv-meter-tr"/>${done ? `<rect width="${Math.max(1, pc)}%" height="8" rx="4" style="fill:var(--bv-done)"/>` : ''}</svg>
-        ${bvBars(checks, d, '')}${noList ? `<p class="bv-dim bv-small">${bvPlural(noList, 'card')} with no checklist.</p>` : ''}`)}
-    </div>
+    <div class="bv-tiles">${tiles.map((t, i) => bvTileHTML(ctx, M, d, t, i, tiles.length, ed)).join('') || `<p class="bv-my-empty">No tiles. ${M.edit ? (ed ? 'Add a tile to chart this board’s cards.' : 'Choose <b>Edit dashboard</b> to add some.') : ''}</p>`}</div>
   </div>`;
 }
+async function bvDashSave() {
+  const ctx = BOARDS.ctx(), E = ctx && bvDashEditing(ctx);
+  if (!E) return;
+  try {
+    const r = await api('PUT', `/v1/boards/${encodeURIComponent(ctx.board.id)}/views/tiles`, E.reset ? { reset: true } : { tiles: E.tiles });
+    ctx.board.settings = { ...(ctx.board.settings || {}), 'views.tiles': JSON.stringify(r.tiles) };
+    if (E.reset) delete ctx.board.settings['views.tiles'];
+    UI.bvDashEdit = null;
+    bvRerender();
+    toast('Dashboard saved');
+    BOARDS.reload();
+  } catch (e) { toast(e.message, true); }
+}
+// The tile's controls keep focus when the dashboard is drawn again.
+function bvDashFocus(sel) { setTimeout(() => document.querySelector('#bv-root ' + sel)?.focus(), 0); }
+document.addEventListener('change', e => {
+  const i = e.target.dataset?.bvTile;
+  if (i == null) return;
+  const ctx = BOARDS.ctx(), E = ctx && bvDashEditing(ctx), t = E?.tiles[+i];
+  if (!t) return;
+  t.data = e.target.value;
+  if (!BV_TCHARTS[t.data].includes(t.chart)) t.chart = BV_TCHARTS[t.data][0];
+  E.reset = false;
+  bvRerender(); bvDashFocus(`[data-bv-tile="${i}"]`);
+});
 
 /* ---------- my cards (boards home) ---------- */
 const BV_WHEN = [['overdue', 'Overdue'], ['today', 'Today'], ['week', 'This week'], ['later', 'Later'], ['none', 'No due date']];
@@ -732,6 +953,165 @@ function bvMyHTML(d) {
   }).join('')}</div></section>`;
 }
 
+/* ---------- the boards home's pages ----------
+   The home has pages: Boards (the core's sections), All boards' Table and
+   Calendar (here) and the Planner (boardplanner.js). boards.js shows
+   BOARDS.homePage(home) in place of its sections when it gives a page. */
+const BV_HOME = { pages: [], buttons: [] }; // pages: { id, label, order, render(home) }; buttons: () -> html, beside the tabs
+const BV_PAGE_SS = 'ledgerline-bv-page';
+UI.bvPage = (() => { try { return sessionStorage.getItem(BV_PAGE_SS) || 'boards'; } catch (e) { return 'boards'; } })();
+function bvPageNav() {
+  const pages = [{ id: 'boards', label: 'Boards', order: 0 }, ...BV_HOME.pages].sort((a, b) => (a.order ?? 50) - (b.order ?? 50));
+  const cur = pages.some(p => p.id === UI.bvPage) ? UI.bvPage : 'boards';
+  return `<nav class="bv-pages" aria-label="Boards home pages"><div class="bd-views" role="group">${pages.map(p => `<button class="${p.id === cur ? 'on' : ''}" aria-pressed="${p.id === cur}" data-act="bvPage" data-id="${esc(p.id)}">${esc(p.label)}</button>`).join('')}</div>
+    <span class="bv-pages-r">${BV_HOME.buttons.map(f => { try { return f() || ''; } catch (e) { return ''; } }).join('')}</span></nav>`;
+}
+BOARDS.homePage = home => {
+  const p = BV_HOME.pages.find(x => x.id === UI.bvPage);
+  if (!p) return '';
+  setTimeout(() => { const el = $('bv-page'); if (el && !el.dataset.after) { el.dataset.after = '1'; p.after?.(el); } });
+  return bvPageNav() + p.render(home);
+};
+BOARDS.homeSections.push({ id: 'bv-nav', order: 1, render: () => bvPageNav() });
+// Draws the open home page again in place (after its data comes in).
+function bvPagePaint() {
+  const el = $('bv-page'), p = BV_HOME.pages.find(x => x.id === UI.bvPage);
+  if (!el || !p || S.view !== 'boards' || UI.bdBoard) return;
+  const at = document.activeElement?.id, keep = el.querySelector('.bv-scroll');
+  const pos = keep ? [keep.scrollLeft, keep.scrollTop] : null;
+  el.outerHTML = p.render(BD.home || []);
+  const nel = $('bv-page'), sc = nel?.querySelector('.bv-scroll');
+  if (sc && pos && nel.dataset.key && UI.bvScroll[nel.dataset.key]) { sc.scrollLeft = pos[0]; sc.scrollTop = pos[1]; }
+  if (nel) { nel.dataset.after = '1'; p.after?.(nel); }
+  if (at) $(at)?.focus();
+}
+
+/* ---------- all boards: one table and calendar of every board's cards ---------- */
+// Filters are kept on this computer.
+const BV_ALL_LS = 'ledgerline-bv-all';
+const BV_AF = { boards: 'Boards', lists: 'Lists', members: 'Members', labels: 'Labels', due: 'Due' };
+const BV_AF_Q = { boards: 'board', lists: 'list', members: 'member', labels: 'label', due: 'due' };
+function bvAllPref() {
+  if (!UI.bvAllP) {
+    let p = {};
+    try { p = JSON.parse(localStorage.getItem(BV_ALL_LS) || '{}') || {}; } catch (e) {}
+    const f = {};
+    Object.keys(BV_AF).forEach(k => { f[k] = Array.isArray(p.f?.[k]) ? p.f[k].filter(x => typeof x === 'string').slice(0, 200) : []; });
+    UI.bvAllP = { f, mode: p.mode === 'week' ? 'week' : 'month', sort: p.sort || '', dir: p.dir === -1 ? -1 : 1 };
+  }
+  return UI.bvAllP;
+}
+function bvAllSave() { const p = bvAllPref(); try { localStorage.setItem(BV_ALL_LS, JSON.stringify({ f: p.f, mode: p.mode, sort: p.sort, dir: p.dir })); } catch (e) {} }
+const bvAllN = () => Object.values(bvAllPref().f).reduce((n, xs) => n + xs.length, 0);
+function bvAllQuery(extra) {
+  const f = bvAllPref().f, q = new URLSearchParams();
+  Object.entries(f).forEach(([k, xs]) => xs.forEach(x => q.append(BV_AF_Q[k], x)));
+  Object.entries(extra || {}).forEach(([k, v]) => { if (v !== '' && v != null) q.set(k, v); });
+  return q.toString();
+}
+// The page's cards: fetched for the filters (and dates), kept a minute.
+function bvAllData(which, extra) {
+  const key = which + '?' + bvAllQuery(extra), s = UI.bvAll || {};
+  if (s.key === key && (s.busy || Date.now() - s.at < 60000)) return s;
+  UI.bvAll = { key, busy: true, at: Date.now(), data: s.which === which ? s.data : null, which };
+  get('/v1/board-cards?' + bvAllQuery(extra))
+    .then(d => { if (UI.bvAll.key === key) UI.bvAll = { key, at: Date.now(), data: d, which }; })
+    .catch(e => { if (UI.bvAll.key === key) UI.bvAll = { key, at: Date.now(), error: e.message || 'The cards could not be loaded.', which }; })
+    .finally(() => { if (UI.bvAll.key === key) bvPagePaint(); });
+  return UI.bvAll;
+}
+function bvAllFilters(d) {
+  const f = bvAllPref().f, n = bvAllN();
+  return `<div class="bv-afs" role="group" aria-label="Filters">${Object.entries(BV_AF).map(([k, l]) => `<button class="btn sm bv-af${f[k].length ? ' on' : ''}" data-act="bvAllF" data-id="${k}" data-popkey="bvall-${k}" aria-haspopup="dialog" aria-label="${l}${f[k].length ? `, ${f[k].length} chosen` : ''}">${l}${f[k].length ? `<span class="bv-ct">${f[k].length}</span>` : ''}${BV_I.down}</button>`).join('')}
+    ${n ? '<button class="btn sm" data-act="bvAllClear">Clear filters</button>' : ''}</div>`;
+}
+// The choices of one filter, from what the cards have.
+function bvAllChoices(kind) {
+  const d = UI.bvAll?.data || {};
+  switch (kind) {
+    case 'boards': return (d.boards || []).map(b => [b.id, b.name, b.kind === 'ledgerline' ? 'Ledgerline board' : '']);
+    case 'lists': return (d.lists || []).map(l => [l, l]);
+    case 'members': return [['_none', 'No member'], ...(d.members || []).map(m => [m.id, m.name])];
+    case 'labels': return [['_none', 'No label'], ...(d.labels || []).map(l => [l.name, l.name, '', l.color])];
+    case 'due': return BV_STO.map(k => [k, BV_ST[k]]);
+  }
+  return [];
+}
+function bvAllPop(kind) {
+  const on = bvAllPref().f[kind], xs = bvAllChoices(kind);
+  // A filter that is set stays offered even if no card has it now.
+  on.forEach(v => { if (!xs.some(x => x[0] === v)) xs.push([v, kind === 'boards' ? 'A board no longer shown' : v]); });
+  if (!xs.length) return '<p class="bd-mute">Nothing to choose yet.</p>';
+  return `<div class="bv-afp" role="group" aria-label="${esc(BV_AF[kind])}">${xs.map(([v, l, sub, color]) => `<label class="bv-afo"><input type="checkbox" data-act="bvAllPick" data-id="${esc(kind)}" data-v="${esc(v)}" ${on.includes(v) ? 'checked' : ''}>${color ? `<i class="bv-sw" style="background:${BV_LC[color] || '#98A2B3'}"></i>` : kind === 'due' ? `<span class="bv-st-${esc(v)} bv-hb-ic" style="color:var(--st)">${bvStKey(v)}</span>` : ''}<span>${esc(l)}${sub ? ` <small class="bv-dim">${esc(sub)}</small>` : ''}</span></label>`).join('')}</div>
+    ${on.length ? `<div class="bd-pop-tools"><button class="btn sm" data-act="bvAllNone" data-id="${esc(kind)}">Clear ${esc(BV_AF[kind].toLowerCase())}</button></div>` : ''}`;
+}
+const bvAllUser = (d, id) => (d.members || []).find(m => m.id === id)?.name || id;
+function bvAllSortVal(c, k) {
+  switch (k) {
+    case 'title': return (c.title || '').toLowerCase();
+    case 'board': return (c.board_name || '').toLowerCase();
+    case 'list': return (c.list_name || '').toLowerCase();
+    case 'due': { const a = bvAt(c.due); return isNaN(a) ? null : a; }
+    case 'start': { const a = bvAt(c.start, true); return isNaN(a) ? null : a; }
+  }
+  return null;
+}
+function bvAllTableHTML() {
+  const P = bvAllPref(), s = bvAllData('table', { offset: P.offset || 0 }), d = s.data;
+  const head = `<div class="bv-tools"><div class="bv-tools-l"><h2 class="bv-title" id="bv-all-h">All boards</h2>${d ? `<span class="bv-dim bv-small">${bvPlural(d.total, 'card')} on ${bvPlural(d.boards.length, 'board')} you can see${s.busy ? ' · updating…' : ''}</span>` : ''}</div><div class="bv-tools-r">${bvAllFilters(d)}</div></div>`;
+  if (!d) return `<section class="bv bv-all" id="bv-page" aria-labelledby="bv-all-h" ${s.busy ? 'aria-busy="true"' : ''}>${head}${s.error ? `<div class="note bad">${esc(s.error)} <button class="btn sm" data-act="bvAllRetry">Try again</button></div>` : '<p class="bv-dim bv-small">Loading the cards…</p>'}</section>`;
+  const cards = d.cards.slice();
+  if (P.sort) { const v = new Map(cards.map(c => [c.board + c.card, bvAllSortVal(c, P.sort)])); cards.sort((a, b) => bvCmp(v.get(a.board + a.card), v.get(b.board + b.card), P.dir)); }
+  const th = (k, l) => { const on = P.sort === k; return `<th scope="col" aria-sort="${on ? (P.dir > 0 ? 'ascending' : 'descending') : 'none'}"><button class="bv-sort${on ? ' on' : ''}" data-act="bvAllSort" data-id="${k}" title="Sort by ${l.toLowerCase()}">${l}${on ? (P.dir > 0 ? BV_I.up : BV_I.down) : BV_I.sort}</button></th>`; };
+  const plain = l => `<th scope="col"><span class="bv-th">${l}</span></th>`;
+  const rows = cards.map(c => {
+    const st = c.status || 'none', ls = c.labels || [], ms = c.members || [];
+    return `<tr data-card="${esc(c.card)}" data-board="${esc(c.board)}"><td class="bv-c-title"><div class="bv-tt"><button class="bv-open" data-act="bvAllOpen" data-id="${esc(c.board)}" data-c="${esc(c.card)}">${esc(c.title)}</button></div><div class="bv-sub">#${c.no}</div></td>
+      <td>${esc(c.board_name)}${c.role === 'observer' ? ' <span class="bv-tag bv-tag-dim" title="You can look and comment, not change cards">View only</span>' : ''}</td><td>${esc(c.list_name)}</td>
+      <td>${ls.length ? `<div class="bv-chips">${ls.map(bvLChip).join('')}</div>` : bvNone}</td>
+      <td>${ms.length ? `<div class="bv-avs">${ms.slice(0, 4).map(m => { const n = bvAllUser(d, m); return `<span class="bv-av" role="img" aria-label="${esc(n)}" title="${esc(n)}">${esc(initials(n))}</span>`; }).join('')}${ms.length > 4 ? `<span class="bv-avn">+${ms.length - 4}</span>` : ms.length === 1 ? `<span class="bv-avn">${esc(bvAllUser(d, ms[0]))}</span>` : ''}</div>` : bvNone}</td>
+      <td class="bv-c-date">${c.due ? `<span class="bv-due bv-st-${st}" title="${BV_ST[st]}">${bvStIcon(st)}${esc(bvFmt(c.due))}<span class="bv-sr">, ${BV_ST[st]}</span></span>` : c.due_done ? `<span class="bv-due bv-st-done">${BV_I.check}Complete</span>` : bvNone}</td>
+      <td class="bv-c-date">${c.start ? `<span class="bv-date">${esc(bvFmt(c.start))}</span>` : bvNone}</td>
+      <td class="bv-c-checks">${c.items ? `<span class="bv-ck${c.items_done === c.items ? ' all' : ''}">${BV_I.check}${c.items_done}/${c.items}</span>` : bvNone}</td></tr>`;
+  }).join('');
+  const from = d.total ? d.offset + 1 : 0, to = d.offset + d.cards.length;
+  return `<section class="bv bv-all" id="bv-page" aria-labelledby="bv-all-h" data-key="all:table">${head}
+    ${d.capped ? '<div class="note warn">There are more cards than are read at once. Choose some boards to see the rest.</div>' : ''}
+    <div class="bv-scroll bv-tw" role="region" aria-label="Cards on all boards" tabindex="0"><table class="bv-tbl bv-alltbl"><thead><tr>${th('title', 'Card')}${th('board', 'Board')}${th('list', 'List')}${plain('Labels')}${plain('Members')}${th('due', 'Due')}${th('start', 'Start')}${plain('Checklist')}</tr></thead>
+      <tbody>${rows || `<tr><td colspan="8" class="bv-empty">${bvAllN() ? 'No cards match these filters.' : 'No open cards on the boards you can see.'}</td></tr>`}</tbody></table></div>
+    <div class="bv-pager"><span class="bv-dim bv-small" aria-live="polite">${d.total ? `Showing ${nf(from)}–${nf(to)} of ${nf(d.total)}${P.sort ? ' · sorted on this page' : ' · soonest due first'}` : ''}</span>
+      <span class="bv-pair"><button class="btn sm" data-act="bvAllPage" data-id="-1" ${d.offset > 0 ? '' : 'disabled'}>${BV_I.left}Previous</button><button class="btn sm" data-act="bvAllPage" data-id="1" ${d.more ? '' : 'disabled'}>Next${BV_I.right}</button></span></div>
+  </section>`;
+}
+function bvAllCalState() { const P = bvAllPref(); UI.bvAllCal ||= { at: bvToday() }; UI.bvAllCal.mode = P.mode; return UI.bvAllCal; }
+function bvAllCalHTML() {
+  const st = bvAllCalState(), R = bvCalRange(st), wk = st.mode === 'week';
+  const s = bvAllData('calendar', { from: bvDS(R.a), to: bvDS(R.z) }), d = s.data;
+  const head = `<div class="bv-tools"><div class="bv-tools-l"><button class="btn sm" data-act="bvAllCalGo" data-id="0">Today</button><span class="bv-pair"><button class="btn sm bv-ib" data-act="bvAllCalGo" data-id="-1" aria-label="Previous ${st.mode}">${BV_I.left}</button><button class="btn sm bv-ib" data-act="bvAllCalGo" data-id="1" aria-label="Next ${st.mode}">${BV_I.right}</button></span>
+      <h2 class="bv-title" id="bv-all-h" aria-live="polite">${bvCalTitle(st, R)}</h2><span class="bv-dim bv-small">${d ? `${bvPlural(d.total, 'card')} on all boards · ` : ''}times in IST${s.busy && d ? ' · updating…' : ''}</span></div>
+    <div class="bv-tools-r">${bvAllFilters(d)}${bvSeg('bvAllCalMode', [['month', 'Month'], ['week', 'Week']], st.mode, 'Calendar period')}</div></div>`;
+  if (!d) return `<section class="bv bv-cal bv-all" id="bv-page" aria-labelledby="bv-all-h">${head}${s.error ? `<div class="note bad">${esc(s.error)} <button class="btn sm" data-act="bvAllRetry">Try again</button></div>` : '<p class="bv-dim bv-small">Loading the cards…</p>'}</section>`;
+  const listById = {}, cards = d.cards.map(x => { listById[x.list] = { name: `${x.board_name} · ${x.list_name}` }; return { id: x.card, _board: x.board, no: x.no, title: x.title, list: x.list, start: x.start, due: x.due, due_done: x.due_done }; });
+  const M = { edit: false, listById }, { items } = bvItems(cards);
+  return `<section class="bv bv-cal bv-all" id="bv-page" aria-labelledby="bv-all-h"${wk ? ` data-key="all:calweek" data-w0="${R.a}"` : ''}>${head}
+    ${d.more || d.capped ? `<div class="note warn">Only the first ${nf(d.cards.length)} cards are shown. Filter by board or list to see the rest.</div>` : ''}
+    <div class="bv-cal-main">${bvCalGrid(items, R, wk, M)}</div></section>`;
+}
+// Opening a card from these pages; Enter or Space on a calendar card too.
+document.addEventListener('click', e => {
+  const el = e.target.closest?.('#bv-page [data-card][data-board]');
+  if (!el || e.target.closest('[data-act]') || e.target.closest('.bp-root')) return;
+  BOARDS.openCard(el.dataset.board, el.dataset.card);
+});
+document.addEventListener('keydown', e => {
+  const el = e.target.closest?.('#bv-page [role=button][data-card][data-board]');
+  if (!el || e.target !== el || (e.key !== 'Enter' && e.key !== ' ') || el.closest('.bp-root')) return;
+  e.preventDefault();
+  BOARDS.openCard(el.dataset.board, el.dataset.card);
+});
+const bvAllAfter = el => { if (el?.dataset.key) bvKeepScroll(el, el.dataset.key === 'all:calweek' ? bvHourFirst(bvItems((UI.bvAll?.data?.cards || []).map(x => ({ ...x, id: x.card }))).items, +el.dataset.w0) : null); };
+BV_HOME.pages.push({ id: 'table', label: 'Table', order: 20, render: bvAllTableHTML, after: bvAllAfter }, { id: 'calendar', label: 'Calendar', order: 30, render: bvAllCalHTML, after: bvAllAfter });
+
 /* ---------- actions ---------- */
 Object.assign(A, {
   bvOpen: id => { const ctx = BOARDS.ctx(); if (ctx) BOARDS.openCard(ctx.board.id, id); },
@@ -757,7 +1137,11 @@ Object.assign(A, {
     bvRerender();
   },
   bvCalMode: id => { const ctx = BOARDS.ctx(); if (!ctx) return; bvPrefSet(ctx, 'cal', { mode: id }); bvRerender(); },
-  bvCalMore: id => { const ctx = BOARDS.ctx(); if (!ctx) return; bvPrefSet(ctx, 'cal', { mode: 'week' }); bvCalState(ctx).at = id; bvRerender(); },
+  bvCalMore: id => {
+    const ctx = BOARDS.ctx();
+    if (!ctx) { if (UI.bvPage === 'calendar') { bvAllPref().mode = 'week'; bvAllSave(); bvAllCalState().at = id; bvPagePaint(); } return; }
+    bvPrefSet(ctx, 'cal', { mode: 'week' }); bvCalState(ctx).at = id; bvRerender();
+  },
   bvTlZoom: id => { const ctx = BOARDS.ctx(); if (!ctx) return; bvPrefSet(ctx, 'tl', { zoom: id }); bvRerender(); },
   bvTlToday: () => { const root = $('bv-root'), sc = root?.querySelector('.bv-scroll'); if (!sc) return; const lw = root.querySelector('.bv-tl-corner').getBoundingClientRect().width; sc.scrollTo({ left: Math.max(0, +root.dataset.tx - (sc.clientWidth - lw) / 3), behavior: 'smooth' }); },
   bvDrill: (kind, el) => {
@@ -768,7 +1152,51 @@ Object.assign(A, {
     bvRerender();
   },
   bvDrillClear: () => { UI.bvDrill = null; bvRerender(); },
+  bvDashEdit: () => { const ctx = BOARDS.ctx(); if (!ctx) return; UI.bvDashEdit = { board: ctx.board.id, tiles: bvTilesOf(ctx.board) }; bvRerender(); bvDashFocus('[data-act=bvTileAdd]'); },
+  bvDashCancel: () => { UI.bvDashEdit = null; bvRerender(); bvDashFocus('[data-act=bvDashEdit]'); },
+  bvDashSave: () => bvDashSave(),
+  bvTileAdd: () => {
+    const ctx = BOARDS.ctx(), E = ctx && bvDashEditing(ctx); if (!E || E.tiles.length >= 12) return;
+    const data = Object.keys(BV_TDATA).find(k => !E.tiles.some(t => t.data === k)) || 'list';
+    E.tiles.push({ id: '', data, chart: BV_TCHARTS[data][0] }); E.reset = false;
+    bvRerender(); bvDashFocus(`[data-bv-tile="${E.tiles.length - 1}"]`);
+  },
+  bvTileDel: id => { const ctx = BOARDS.ctx(), E = ctx && bvDashEditing(ctx); if (!E) return; E.tiles.splice(+id, 1); E.reset = false; bvRerender(); bvDashFocus(E.tiles.length ? `[data-bv-tile="${Math.min(+id, E.tiles.length - 1)}"]` : '[data-act=bvTileAdd]'); },
+  bvTileMove: (id, el) => {
+    const ctx = BOARDS.ctx(), E = ctx && bvDashEditing(ctx); if (!E) return;
+    const i = +id, j = i + +el.dataset.d; if (j < 0 || j >= E.tiles.length) return;
+    [E.tiles[i], E.tiles[j]] = [E.tiles[j], E.tiles[i]]; E.reset = false;
+    bvRerender(); bvDashFocus(`[data-act=bvTileMove][data-id="${j}"][data-d="${el.dataset.d}"]:not([disabled])`);
+  },
+  bvTileChart: (id, el) => { const ctx = BOARDS.ctx(), E = ctx && bvDashEditing(ctx), t = E?.tiles[+id]; if (!t) return; t.chart = el.dataset.v; E.reset = false; bvRerender(); bvDashFocus(`[data-act=bvTileChart][data-id="${id}"][data-v="${el.dataset.v}"]`); },
+  bvTileReset: () => { const ctx = BOARDS.ctx(), E = ctx && bvDashEditing(ctx); if (!E) return; E.tiles = BV_TILES0.map(t => ({ ...t })); E.reset = true; bvRerender(); },
   bvMyOpen: (board, el) => BOARDS.openCard(board, el.dataset.c),
+  bvPage: id => {
+    UI.bvPage = id; try { sessionStorage.setItem(BV_PAGE_SS, id); } catch (e) {}
+    bdPopClose?.(true);
+    Promise.resolve(BOARDS.reload()).finally(() => document.querySelector(`.bv-pages [data-act=bvPage][data-id="${CSS.escape(id)}"]`)?.focus());
+  },
+  bvAllF: (kind, el) => bdPop('bvall-' + kind, el, BV_AF[kind], () => bvAllPop(kind)),
+  bvAllPick: (kind, el) => {
+    const P = bvAllPref(), xs = P.f[kind], v = el.dataset.v;
+    P.f[kind] = el.checked ? [...new Set([...xs, v])] : xs.filter(x => x !== v);
+    if (kind === 'boards') P.f.lists = P.f.lists.slice(); // lists, labels and members on offer follow the boards
+    P.offset = 0; bvAllSave(); bvPagePaint(); bdPopRefresh();
+  },
+  bvAllNone: kind => { const P = bvAllPref(); P.f[kind] = []; P.offset = 0; bvAllSave(); bvPagePaint(); bdPopRefresh(); },
+  bvAllClear: () => { const P = bvAllPref(); Object.keys(P.f).forEach(k => { P.f[k] = []; }); P.offset = 0; bvAllSave(); bdPopClose(true); bvPagePaint(); },
+  bvAllRetry: () => { UI.bvAll = null; bvPagePaint(); },
+  bvAllSort: id => { const P = bvAllPref(); if (P.sort === id) { if (P.dir > 0) P.dir = -1; else { P.sort = ''; P.dir = 1; } } else { P.sort = id; P.dir = 1; } bvAllSave(); bvPagePaint(); },
+  bvAllPage: id => { const P = bvAllPref(), d = UI.bvAll?.data; P.offset = Math.max(0, (P.offset || 0) + +id * (d?.limit || 500)); bvPagePaint(); $('bv-page')?.scrollIntoView({ block: 'start' }); },
+  bvAllOpen: (board, el) => BOARDS.openCard(board, el.dataset.c),
+  bvAllCalGo: id => {
+    const st = bvAllCalState(), d = +id;
+    if (!d) st.at = bvToday();
+    else if (st.mode === 'week') st.at = bvShift(st.at, 7 * d);
+    else { const n = bvDN(st.at); st.at = bvDS(d > 0 ? bvNextMonth(n) : bvMonthStart(bvMonthStart(n) - 1)); }
+    bvPagePaint();
+  },
+  bvAllCalMode: id => { bvAllPref().mode = id === 'week' ? 'week' : 'month'; bvAllSave(); bvPagePaint(); },
   bvMyMore: id => { UI.bvMyAll[id] = !UI.bvMyAll[id]; bvMyPaint(); },
   bvMyReload: () => { UI.bvMy = null; bvMyPaint(); bvMyLoad().then(bvMyPaint); }
 });
