@@ -405,7 +405,7 @@ button.bv-lg:focus-visible{outline:2px solid var(--bv-acc)}
 .bv-hw-col.bv-over{background:color-mix(in srgb,var(--bv-acc) 10%,transparent)}
 .bv-hw-now{position:absolute;left:0;right:0;height:2px;margin-top:-1px;background:var(--bv-overdue);z-index:3;pointer-events:none}
 .bv-hw-now::before{content:"";position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--bv-overdue)}
-.bv-ev.bv-hev{position:absolute;margin:0;height:auto;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:0;padding:3px 6px;overflow:hidden;z-index:2}
+.bv-ev.bv-hev{position:absolute;margin:0;height:auto;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:0;padding:2px 6px;overflow:hidden;z-index:2}
 .bv-hev b{display:inline-flex;align-items:center;gap:3px;font-size:11px}
 .bv-hev span{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-weight:500}
 .bv-hev small{max-width:100%}

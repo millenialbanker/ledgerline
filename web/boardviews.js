@@ -462,7 +462,7 @@ function bvTimedSpan(x) {
   const c = x.c, d = bvMin(c.due);
   if (isNaN(d) || x.z !== x.a || x.kind === 'start') return null;
   const s = bvMin(c.start), from = c.start && bvDN(c.start) === x.z && !isNaN(s) && s < d ? s : d;
-  return [from, Math.min(1440, Math.max(from + 45, d))]; // a due time alone shows as 45 minutes, room for its title
+  return [from, Math.min(1440, Math.max(from + 60, d))]; // a due time alone shows as an hour, room for its title
 }
 function bvHourWeekHTML(w0, items, M, o) {
   const today = bvDN(bvToday()), timed = [], allday = [];
@@ -480,7 +480,7 @@ function bvHourWeekHTML(w0, items, M, o) {
     if (group.length) flush();
     const cards = xs.map(x => {
       const c = x.c, st = bvStatus(c), lab = `${c.title}, card ${c.no}, ${bvRange(c)}, ${BV_ST[st]}`, h = (x.t1 - x.t0) / 60 * BV_HH;
-      return `<div class="bv-ev bv-hev bv-st-${st}${h < 34 ? ' bv-short' : ''}" role="button" tabindex="0" ${M.edit ? 'draggable="true"' : ''} data-card="${esc(c.id)}"${c._board ? ` data-board="${esc(c._board)}"` : ''} style="top:${x.t0 / 60 * BV_HH}px;height:${Math.max(20, h - 2)}px;left:calc(${x.col / x.cols * 100}% + 2px);width:calc(${100 / x.cols}% - 4px)" title="${esc(lab)}" aria-label="${esc(lab)}"><b>${bvStIcon(st)}${bvMin(c.due) === x.t0 ? bvHHMM(x.t0) : `${bvHHMM(x.t0)}–${bvHHMM(x.t1)}`}</b><span>${esc(c.title)}</span>${M.listById[c.list] ? `<small>${esc(M.listById[c.list].name)}</small>` : ''}</div>`;
+      return `<div class="bv-ev bv-hev bv-st-${st}${h < 30 ? ' bv-short' : ''}" role="button" tabindex="0" ${M.edit ? 'draggable="true"' : ''} data-card="${esc(c.id)}"${c._board ? ` data-board="${esc(c._board)}"` : ''} style="top:${x.t0 / 60 * BV_HH}px;height:${Math.max(20, h - 2)}px;left:calc(${x.col / x.cols * 100}% + 2px);width:calc(${100 / x.cols}% - 4px)" title="${esc(lab)}" aria-label="${esc(lab)}"><b>${bvStIcon(st)}${bvMin(c.due) === x.t0 ? bvHHMM(x.t0) : `${bvHHMM(x.t0)}–${bvHHMM(x.t1)}`}</b><span>${esc(c.title)}</span>${M.listById[c.list] && h >= 64 ? `<small>${esc(M.listById[c.list].name)}</small>` : ''}</div>`;
     }).join('');
     const now = n === today ? `<i class="bv-hw-now" style="top:${(bvWall() % BV_DAY) / 36e5 * BV_HH}px" aria-hidden="true"></i>` : '';
     return `<div class="bv-hw-col${i > 4 ? ' bv-we' : ''}${n === today ? ' bv-today' : ''}" data-dn="${n}">${now}${cards}</div>`;
