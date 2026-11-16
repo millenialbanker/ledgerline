@@ -272,7 +272,7 @@ func (s *Server) addCard(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getCard(w http.ResponseWriter, r *http.Request) {
 	c, _, err := s.ops.GetCard(r.Context(), tenant(r), actor(r), r.PathValue("id"), r.PathValue("card"))
 	if err != nil {
-		fail(w, err, nil)
+		fail(w, err, cardMoved(err)) // a moved card's new place, so old links follow it
 		return
 	}
 	act, err := s.ops.BoardActivityList(r.Context(), tenant(r), actor(r), r.PathValue("id"), r.PathValue("card"), 0, 200)
