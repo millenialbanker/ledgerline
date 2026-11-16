@@ -24,6 +24,8 @@
          Extra buttons beside "Add card" in a list's composer.
      BOARDS.homeSections.push({ id, order, render(home) -> html, load?() -> Promise })
          Sections on the boards home page.
+     BOARDS.homeFilter = board -> bool, or null
+         Narrows the boards the home shows (boardio.js sets it for a collection).
      BOARDS.bellTools.push(() -> html)
          Lines at the foot of the notifications panel (the bell).
      BOARDS.reload()          reloads the open board
@@ -462,11 +464,13 @@ function bdTile(b) {
   </div>`;
 }
 function bdHomeInner() {
-  const bs = BD.home || [], open = bs.filter(b => !b.closed);
-  const home = Object.assign(bs.slice(), { boards: bs, notices: BD.notices });
+  const all = BD.home || [];
   // Another board file may show a page in place of the sections (boardviews.js: All boards, Planner).
-  const page = BOARDS.homePage ? bdSafe(() => BOARDS.homePage(home), 'home page') : '';
+  const page = BOARDS.homePage ? bdSafe(() => BOARDS.homePage(Object.assign(all.slice(), { boards: all, all, notices: BD.notices })), 'home page') : '';
   if (page) return bdBar() + page;
+  // BOARDS.homeFilter (boardio.js: a collection) narrows the Boards tab's boards; home.all keeps every one.
+  const bs = BOARDS.homeFilter ? all.filter(BOARDS.homeFilter) : all, open = bs.filter(b => !b.closed);
+  const home = Object.assign(bs.slice(), { boards: bs, all, notices: BD.notices });
   const sec = (id, title, sub, body) => `<section class="bd-sec" aria-labelledby="bd-sec-${id}"><div class="bd-sec-h"><h2 id="bd-sec-${id}">${title}</h2>${sub ? `<p>${sub}</p>` : ''}</div>${body}</section>`;
   const grid = (xs, extra = '') => `<div class="bd-tiles">${xs.map(bdTile).join('')}${extra}</div>`;
   const secs = [];

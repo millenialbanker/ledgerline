@@ -9,11 +9,11 @@ roles: Compliance officer, Admin
 ask: switch off ai; turn off ai; kill switch ai; stop ai; disable ai; ai off; block openai; block anthropic; block gemini; stop sending to ai provider; ai incident
 related: ai-answer-log, ai-masking
 
-On [[aictl|AI controls]], **Switch all AI off** stops every AI feature for the firm at the next call. Give the reason: it goes in the audit trail with your name. Ledgy keeps answering from its help articles, and scanned bills are typed by hand.
+On [[aictl|AI controls]], **Switch all AI off** stops every AI feature for the firm at the next call. Give the reason: it goes in the audit trail with your name. Ledgy keeps answering from its help articles, scanned bills are typed by hand, and the AI actions on board cards are not offered.
 
 - **Switch off** next to a provider refuses that provider only (for example while its contract is reviewed).
 - Whoever runs the server can also switch AI off for every firm with LEDGERLINE_AI_OFF=1.
-- Each feature still needs its own switch in [[settings|Settings]] (Ledgy phrasing, reading bills); the kill switch wins over them.
+- Each feature still needs its own switch in [[settings|Settings]] (Ledgy phrasing, reading bills, AI on board cards); the kill switch wins over them.
 - **Switch AI back on** also needs a reason.
 
 ## ai-masking
@@ -52,7 +52,7 @@ roles: Compliance officer, Admin
 ask: ai inventory; ai systems list; which ai do we use; ai register; add ai tool; ai used outside ledgerline; chatbot register; ml model register
 related: aiml-report, ai-kill-switch
 
-[[aictl|AI controls]] → **AI inventory** lists every AI use: Ledgerline's own (Ledgy phrasing and reading scanned bills), each with its purpose, provider and model, what is sent, who can use it, its controls and whether it is on for the firm; and the AI tools the firm uses elsewhere.
+[[aictl|AI controls]] → **AI inventory** lists every AI use: Ledgerline's own (Ledgy phrasing, reading scanned bills and AI on board cards), each with its purpose, provider and model, what is sent, who can use it, its controls and whether it is on for the firm; and the AI tools the firm uses elsewhere.
 
 1. **Add an AI tool** for any AI or ML system used outside Ledgerline (a surveillance model, a chatbot, a research tool): what it does, the vendor, its answers for the AI & ML report and when it was in use.
 2. Tick **A cloud (SaaS) service** to add it to the SaaS report as well.

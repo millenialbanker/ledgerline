@@ -1,4 +1,4 @@
-Ledgy help articles: board templates, card templates, custom fields, covers and backgrounds, votes, mirror cards and email-to-board on Boards.
+Ledgy help articles: board templates, card templates, custom fields, covers and backgrounds, votes, mirror cards, email-to-board and email to a card, stickers and AI on cards on Boards.
 
 # Boards: templates and extras
 
@@ -94,3 +94,51 @@ Each team board can have its own inbound address. A board admin sets it up:
 3. Each email becomes a card: the subject is the title, the text the description with the sender on its first line, and attachments that pass the same checks as an upload are attached; any that do not are listed on the card. Each delivery is recorded in the board's activity, a message sent twice makes one card, and a closed board refuses mail.
 
 Anyone who has the address can add cards to the board, so keep it private. **Give it a new address** stops the old one at once; **Switch off** refuses all mail to the board.
+
+While it is on, each card on the board has an address of its own too: open the card and choose **Share** (see Email to a card).
+
+## card-email
+title: Email to a card
+screen: boards
+roles: Ops maker, Ops checker, Risk manager, Compliance officer, Admin
+ask: email to a card; email for this card; card email address; send an email to a card; forward an email to a card; email becomes a comment; add attachments to a card by email; card address
+related: email-to-board, card-share
+
+While a team board has email-to-board on, every card on it has its own address, like Trello's "email for this card".
+
+1. Open the card and choose **Share**. Members and admins of the board see **Email for this card** with **Copy**. Observers do not see it.
+2. Have the firm's mail provider post mail for that address the same way as the board's (board menu → **Email-to-board**).
+3. Each email becomes a comment on the card, by Ledgerline, saying who sent it and with the subject and text. Attachments that pass the same checks as an upload are attached to the card; the comment lists any that are not. The delivery is recorded in the board's activity, and a message sent twice is added once.
+
+The address is the card's own: it shows nothing of the board's address, and it changes when the board gets a new address. An archived card, a closed board, Ledgerline boards and your Inbox take no mail. Anyone who has the address can comment on the card, so keep it within the firm.
+
+## card-stickers
+title: Stickers on cards
+screen: boards
+roles: Ops maker, Ops checker, Risk manager, Compliance officer, Admin
+ask: sticker; stickers; add a sticker to a card; remove a sticker; sticker on card; tick sticker; star sticker; fire sticker; rocket sticker; thumbs up on a card; how many stickers
+related: board-covers, card-votes
+
+Stickers are small drawings that make a card easy to spot: a tick, a star, a flag, a warning sign, fire, a rocket, thumbs up, a heart, a clock, a pin, money (the rupee), a chart going up or down, a bell, a lock, a bug, an idea bulb, coffee, a trophy, eyes, 100, a party popper, a question and a stop sign.
+
+1. In the card window choose **Stickers** (under **Add to card**) and click the ones you want. The same sticker can go on more than once.
+2. The first three show on the card's front, on its cover or at its top, with the number of any more.
+3. To take one off, click it under **Stickers** in the card window.
+
+A card can have up to 10 stickers. Members and admins of the board add and remove them; observers see them. Cards with a full cover show their stickers in the card window only.
+
+## card-ai
+title: AI on cards: summarise a card, suggest a checklist
+screen: boards
+roles: Ops maker, Ops checker, Risk manager, Compliance officer, Admin
+ask: ai summary of a card; summarise this card; summarize card; suggest a checklist; ai checklist; atlassian intelligence; ai on boards; card summary; why is the ai button missing; ai on board cards
+related: card-templates
+
+When the firm allows it, the card window has two AI actions under **Actions**:
+
+- **Summarise this card**: a few sentences on what the card is about, where it stands and who is doing what, from its description, checklists and last 30 comments. **Post as a comment** adds it to the card (saying it was written with AI), **Copy** copies it, **Discard** throws it away. Nothing is posted by itself.
+- **Suggest a checklist** (members of the board): up to 10 steps from the card's title and description. Untick the ones you do not want, choose a new checklist or an existing one, then **Add**. Nothing is added until you do.
+
+Before anything is sent, client names and codes, PAN, Aadhaar-like numbers, phone numbers, emails, bank account numbers and staff names are replaced by tokens; the reply has them put back. Every call goes through the firm's AI controls, is charged from the AI credit and is written to the AI answer log.
+
+The actions show only while AI may be used: an Admin switches on **AI on board cards** in [[settings|Settings]], and AI must not be switched off on [[aictl|AI controls]]. They are offered on team boards only: never on Ledgerline boards, whose cards are the firm's records, nor in your Inbox. If AI is refused when you press one (for example, AI was switched off a moment ago), the reason is shown and nothing else happens.

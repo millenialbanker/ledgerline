@@ -206,6 +206,10 @@ type Settings struct {
 	// or photo) to the AI model to read its details. Off by default; the
 	// bill leaves the server, so not allowed in India-only mode.
 	BillAI bool `json:"bill_ai,omitempty"`
+	// BoardAI lets people on a board summarise a card or have checklist
+	// items suggested by the AI model (boardai.go): the card's text, with
+	// identifiers masked, is sent. Off by default.
+	BoardAI bool `json:"board_ai,omitempty"`
 	// Deployment is where this firm's Ledgerline runs, for the SaaS
 	// disclosure (disclosures.go): "hosted" by Ledgerline (the default),
 	// "self" on the broker's own server, or "own_cloud" in the broker's own

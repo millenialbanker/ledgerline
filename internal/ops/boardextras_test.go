@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"ledgerline/internal/docs"
 )
 
 func TestBoardTemplateData(t *testing.T) {
@@ -429,5 +431,181 @@ func TestBoardEmail(t *testing.T) {
 	}
 	if in3, err := o.SetBoardEmail(ctx, T, maker, b.ID, BoardEmailInput{On: false}); err != nil || in3.On || in3.Path != "" || o.BoardEmailKnown(ctx, T, key) {
 		t.Fatalf("off %+v %v", in3, err)
+	}
+}
+
+func TestCardStickers(t *testing.T) {
+	o, ctx := setup(t)
+	maker, observer := "priya.nair", "farhan.khan"
+	b, _ := o.CreateBoard(ctx, T, maker, BoardInput{Name: "Stickers"})
+	c, _ := o.AddCard(ctx, T, maker, b.ID, CardInput{List: b.Lists[0].ID, Title: "Sticky"})
+	if _, err := o.CardSticker(ctx, T, observer, b.ID, c.ID, StickerOp{Add: "star"}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("an observer added a sticker: %v", err)
+	}
+	if _, err := o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{Add: "skull"}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("unknown sticker: %v", err)
+	}
+	if _, err := o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("nothing to do: %v", err)
+	}
+	for i := 0; i < MaxCardStickers; i++ {
+		var err error
+		if c, err = o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{Add: BoardStickers[i]}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{Add: "tick"}); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "at most 10") {
+		t.Fatalf("an eleventh sticker: %v", err)
+	}
+	one, bad := 1, 10
+	if _, err := o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{Remove: &bad}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("remove out of range: %v", err)
+	}
+	c, err := o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{Remove: &one})
+	if err != nil || len(c.Stickers) != 9 || c.Stickers[0] != "tick" || c.Stickers[1] != "flag" {
+		t.Fatalf("removed %v %v", c.Stickers, err)
+	}
+	if c, err = o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{Add: "tick"}); err != nil || len(c.Stickers) != 10 || c.Stickers[9] != "tick" {
+		t.Fatalf("the same sticker twice %v %v", c.Stickers, err)
+	}
+	if len(BoardStickers) != 24 {
+		t.Fatalf("%d stickers", len(BoardStickers))
+	}
+	acts, _ := o.BoardActivityList(ctx, T, maker, b.ID, c.ID, 0, 1)
+	if acts[0].What != "card.sticker" {
+		t.Fatalf("activity %+v", acts[0])
+	}
+	o.SetBoardClosed(ctx, T, maker, b.ID, true)
+	if _, err := o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{Remove: &one}); err == nil {
+		t.Fatal("a sticker changed on a closed board")
+	}
+}
+
+func cardMailKeyOf(t *testing.T, in CardEmailInfo) string {
+	t.Helper()
+	if !in.On || !strings.HasPrefix(in.Path, "/inbound/boards/"+T+"/c") {
+		t.Fatalf("card address %+v", in)
+	}
+	return strings.TrimPrefix(in.Path, "/inbound/boards/"+T+"/")
+}
+
+func TestCardEmail(t *testing.T) {
+	o, ctx := setup(t)
+	maker, checker, observer := "priya.nair", "farhan.khan", "anita.rao"
+	b, _ := o.CreateBoard(ctx, T, maker, BoardInput{Name: "Client follow-ups"})
+	b, _ = o.UpdateBoard(ctx, T, maker, b.ID, BoardInput{Members: []BoardPerson{{maker, BoardAdmin}, {checker, BoardMember}}})
+	c, _ := o.AddCard(ctx, T, maker, b.ID, CardInput{List: b.Lists[0].ID, Title: "Bank proof for BH1004"})
+	other, _ := o.AddCard(ctx, T, maker, b.ID, CardInput{List: b.Lists[0].ID, Title: "Another card"})
+
+	// Off until the board's email-to-board is on.
+	if in, err := o.CardEmail(ctx, T, checker, b.ID, c.ID); err != nil || in.On || in.Path != "" || !strings.Contains(in.Why, "Email-to-board is off") {
+		t.Fatalf("off %+v %v", in, err)
+	}
+	if _, err := o.SetBoardEmail(ctx, T, maker, b.ID, BoardEmailInput{On: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.CardEmail(ctx, T, observer, b.ID, c.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("an observer saw the card's address: %v", err)
+	}
+	in, err := o.CardEmail(ctx, T, checker, b.ID, c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := cardMailKeyOf(t, in)
+	board, _ := o.BoardEmail(ctx, T, maker, b.ID)
+	bkey := strings.TrimPrefix(board.Path, "/inbound/boards/"+T+"/")
+	if strings.Contains(key, bkey[:16]) {
+		t.Fatal("the card's address shows the board's")
+	}
+	oin, _ := o.CardEmail(ctx, T, checker, b.ID, other.ID)
+	okey := cardMailKeyOf(t, oin)
+	if okey == key || !o.BoardEmailKnown(ctx, T, key) || !o.BoardEmailKnown(ctx, T, okey) {
+		t.Fatal("each card has its own known address")
+	}
+	// A forged key: the right card and board, the wrong signature.
+	forged := key[:len(key)-32] + strings.Repeat("0", 32)
+	if o.BoardEmailKnown(ctx, T, forged) || o.BoardEmailKnown(ctx, "beta", key) {
+		t.Fatal("forged or other firm's key known")
+	}
+	if _, _, err := o.BoardInboundMail(ctx, T, forged, sampleBoardMail()); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("forged key took mail: %v", err)
+	}
+
+	// Mail to the card: a comment with the sender and the text, and the
+	// files that pass an upload's checks.
+	got, dup, err := o.BoardInboundMail(ctx, T, key, sampleBoardMail())
+	if err != nil || dup || got.ID != c.ID {
+		t.Fatalf("mail %v %v %s", err, dup, got.ID)
+	}
+	if len(got.Comments) != 1 || got.Comments[0].By != mailActor {
+		t.Fatalf("comments %+v", got.Comments)
+	}
+	text := got.Comments[0].Text
+	if !strings.HasPrefix(text, "Email from Ravi Kümar (ravi.kumar@example.com): KYC documents – BH1004\n\n") || !strings.Contains(text, "Café address is the new one.") ||
+		!strings.Contains(text, "Attached: pan.png") || !strings.Contains(text, "Not attached: tool.exe") {
+		t.Fatalf("comment %q", text)
+	}
+	if len(got.Attachments) != 1 || got.Attachments[0].Name != "pan.png" || got.Attachments[0].By != mailActor {
+		t.Fatalf("attachments %+v", got.Attachments)
+	}
+	if v, _ := o.GetBoard(ctx, T, maker, b.ID, false); len(v.Cards) != 2 {
+		t.Fatalf("mail to a card made a card: %d", len(v.Cards))
+	}
+	// Sent again: no second comment. The same message to the other card is its own.
+	if again, dup, err := o.BoardInboundMail(ctx, T, key, sampleBoardMail()); err != nil || !dup || len(again.Comments) != 1 {
+		t.Fatalf("redelivery %v %v %d", err, dup, len(again.Comments))
+	}
+	if oc, dup, err := o.BoardInboundMail(ctx, T, okey, sampleBoardMail()); err != nil || dup || len(oc.Comments) != 1 || oc.ID != other.ID {
+		t.Fatalf("other card %v %v", err, dup)
+	}
+	acts, _ := o.BoardActivityList(ctx, T, maker, b.ID, c.ID, 0, 0)
+	found := false
+	for _, a := range acts {
+		found = found || (a.What == "email.received" && strings.Contains(a.Text, "on #1") && a.Data["card_mail"] == "1")
+	}
+	if !found {
+		t.Fatalf("activity %+v", acts)
+	}
+
+	// An archived card takes no mail.
+	arch := true
+	o.UpdateCard(ctx, T, maker, b.ID, other.ID, CardPatch{Archived: &arch})
+	if _, _, err := o.BoardInboundMail(ctx, T, okey, []byte("From: a@example.com\r\nSubject: hi\r\n\r\ntext")); !errors.Is(err, ErrState) {
+		t.Fatalf("archived card took mail: %v", err)
+	}
+	if in, _ := o.CardEmail(ctx, T, checker, b.ID, other.ID); in.On || !strings.Contains(in.Why, "archived") {
+		t.Fatalf("archived card's address %+v", in)
+	}
+	// A closed board takes no mail.
+	o.SetBoardClosed(ctx, T, maker, b.ID, true)
+	if _, _, err := o.BoardInboundMail(ctx, T, key, []byte("From: a@example.com\r\nSubject: hi\r\n\r\ntext")); !errors.Is(err, ErrState) {
+		t.Fatalf("closed board took mail: %v", err)
+	}
+	o.SetBoardClosed(ctx, T, maker, b.ID, false)
+	// A new board address changes every card's.
+	if _, err := o.SetBoardEmail(ctx, T, maker, b.ID, BoardEmailInput{On: true, Rotate: true}); err != nil {
+		t.Fatal(err)
+	}
+	if o.BoardEmailKnown(ctx, T, key) {
+		t.Fatal("the old card address still works")
+	}
+	if in2, _ := o.CardEmail(ctx, T, checker, b.ID, c.ID); in2.Path == in.Path {
+		t.Fatal("the card kept its address")
+	}
+	// Switched off: no card address.
+	o.SetBoardEmail(ctx, T, maker, b.ID, BoardEmailInput{On: false})
+	if in3, _ := o.CardEmail(ctx, T, checker, b.ID, c.ID); in3.On {
+		t.Fatal("card address while the board's email is off")
+	}
+
+	// A Ledgerline board's cards take no mail, even with a key.
+	lb, _ := o.CreateBoard(ctx, T, "admin", BoardInput{Name: "Work queue (test)"})
+	lc, _ := o.AddCard(ctx, T, "admin", lb.ID, CardInput{List: lb.Lists[0].ID, Title: "Linked record"})
+	lb, _ = docs.Update(ctx, o.Docs, T, cBoard, lb.ID, "admin", func(x *Board) error { x.Kind, x.EmailKey = BoardLedgerline, boardID("", 32); return nil })
+	if in, err := o.CardEmail(ctx, T, "admin", lb.ID, lc.ID); err != nil || in.On {
+		t.Fatalf("ledgerline card address %+v %v", in, err)
+	}
+	if _, _, err := o.BoardInboundMail(ctx, T, cardMailKey(lb, lc), sampleBoardMail()); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("ledgerline board took card mail: %v", err)
 	}
 }

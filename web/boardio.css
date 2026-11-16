@@ -1,0 +1,142 @@
+/* Boards: import, export and print, collections, recently viewed and a
+   card's Share (web/boardio.js). Classes start with bio-. Colours come from
+   boards.css (--b-*) and boardextras.css (--bx-*). */
+
+/* ---- the home's top row: collections and import ---- */
+.bio-home{display:flex;flex-direction:column;gap:8px}
+.bio-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.bio-colls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1 1 auto;min-width:0}
+.bio-lab{display:inline-flex;align-items:center;gap:6px;margin-right:4px;font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--b-ink3)}
+.bio-chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border:1px solid var(--b-line);border-radius:15px;background:var(--b-surf);color:var(--b-ink);font:inherit;font-size:13px;cursor:pointer;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+.bio-chip:hover{border-color:var(--b-line2);background:var(--b-hover)}
+.bio-chip:focus-visible,.bio-xopt:focus-visible,.bio-drop:focus-within{outline:2px solid var(--b-acc);outline-offset:2px}
+.bio-chip.on{background:var(--b-acc);border-color:var(--b-acc);color:var(--b-on-acc)}
+.bio-chip.on .bio-n{background:rgba(255,255,255,.22);color:inherit}
+.bio-chip.add{border-style:dashed;color:var(--b-ink2)}
+.bio-chip .bd-i{width:14px;height:14px}
+.bio-n{min-width:20px;padding:0 6px;border-radius:9px;background:var(--b-ground);color:var(--b-ink2);font-size:11.5px;font-weight:600;line-height:18px;text-align:center}
+.bio-manage{font-size:13px}
+.bio-imp-b{flex:none}
+.bio-fnote{font-size:13px;color:var(--b-ink2);padding:8px 12px;border-radius:10px;background:var(--b-acc-soft)}
+
+/* ---- import from Trello ---- */
+.md.bio-md-wide{width:min(980px,calc(100vw - 24px));max-width:none}
+.bio-steps{margin:0 0 4px;padding-left:20px;display:grid;gap:4px;font-size:13px;color:var(--b-ink2)}
+.bio-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:150px;margin:6px 0;border:2px dashed var(--b-line2);border-radius:14px;background:var(--b-ground);color:var(--b-ink2);cursor:pointer;text-align:center;padding:18px;transition:border-color .12s,background .12s}
+.bio-drop .bd-i{width:28px;height:28px;color:var(--b-acc)}
+.bio-drop b{font-size:14.5px;color:var(--b-ink)}
+.bio-drop small{font-size:12.5px}
+.bio-drop:hover,.bio-drop.over{border-color:var(--b-acc);background:var(--b-acc-soft)}
+.bio-drop.busy{cursor:progress;opacity:.85}
+.bio-imp-from{margin:-4px 0 12px;font-size:12.5px;color:var(--b-ink2)}
+.bio-imp-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px}
+.bio-imp-l,.bio-imp-r{display:flex;flex-direction:column;gap:8px;min-width:0}
+.bio-imp-l .bx-lab,.bio-imp-r .bx-lab{margin:6px 0 0}
+.bio-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.bio-stat{display:flex;flex-direction:column;padding:8px 10px;border:1px solid var(--b-line);border-radius:10px;background:var(--b-surf);min-width:0}
+.bio-stat b{font-size:18px;font-weight:650;line-height:1.2;color:var(--b-ink)}
+.bio-stat span{font-size:12px;color:var(--b-ink2)}
+.bio-stat small{font-size:11px;color:var(--b-ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bio-lists{display:flex;gap:6px;overflow-x:auto;padding:8px;border-radius:12px;background:var(--b-ground);border:1px solid var(--b-line)}
+.bio-lcol{position:relative;flex:0 0 132px;display:flex;flex-direction:column;gap:4px;padding:7px;border-radius:9px;background:var(--b-surf);border:1px solid var(--b-line)}
+.bio-lcol.arch{opacity:.65;border-style:dashed}
+.bio-lname{font-size:12px;font-weight:650;color:var(--b-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bio-lcard{font-size:11.5px;color:var(--b-ink2);padding:4px 6px;border-radius:6px;background:var(--b-ground);border:1px solid var(--b-line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bio-lmore{font-size:11px;color:var(--b-ink3)}
+.bio-ltag{position:absolute;top:-7px;right:6px;padding:0 6px;border-radius:6px;background:var(--b-ink2);color:var(--b-surf);font-size:10px;font-weight:600;line-height:14px}
+.bio-notes{margin:0;padding-left:18px;display:grid;gap:3px;font-size:12.5px;color:var(--b-ink2)}
+.bio-members{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border:1px solid var(--b-line);border-radius:12px;overflow:hidden}
+.bio-mrow{display:grid;grid-template-columns:auto minmax(0,.85fr) minmax(0,1.35fr);gap:10px;align-items:center;padding:9px 12px;background:var(--b-surf)}
+.bio-mrow + .bio-mrow{border-top:1px solid var(--b-line)}
+.bio-av{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--b-acc-soft);color:var(--b-acc);font-size:11.5px;font-weight:700}
+.bio-mwho{display:flex;flex-direction:column;min-width:0}
+.bio-mwho b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bio-mwho small,.bio-msel small{font-size:11.5px;color:var(--b-ink3)}
+.bio-msel{display:flex;flex-direction:column;gap:3px;min-width:0}
+.bio-msel small{color:var(--b-done)}
+.bio-msel small.off{color:var(--b-ink3)}
+@media (max-width:760px){.bio-imp-grid{grid-template-columns:1fr}.bio-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:600px){.bio-stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}.bio-stat{padding:6px 7px}.bio-stat b{font-size:15px}.bio-stat span{font-size:11px}.bio-stat small{font-size:10px}.bio-mrow{grid-template-columns:auto minmax(0,1fr)}.bio-msel{grid-column:1/-1}.bio-bar{align-items:stretch}.bio-imp-b{width:100%;justify-content:center}}
+
+/* ---- collections ---- */
+.bio-cman,.bio-cpick{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.bio-cman li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center}
+.bio-cman-n{font-size:12.5px;color:var(--b-ink3);white-space:nowrap}
+.bio-cman-sp{width:62px}
+.bio-cpick li{padding:9px 12px;border:1px solid var(--b-line);border-radius:10px;background:var(--b-surf)}
+.bio-cpick .bx-check span{display:flex;flex-direction:column}
+.bio-cpick small{font-size:12px;color:var(--b-ink3)}
+.bio-cadd{display:flex;gap:8px}
+.bio-cadd input{flex:1}
+
+/* ---- print and export ---- */
+.bio-xopts{display:flex;flex-direction:column;gap:8px}
+.bio-xopt{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border:1px solid var(--b-line);border-radius:12px;background:var(--b-surf);color:var(--b-ink);font:inherit;text-align:left;cursor:pointer}
+.bio-xopt:hover:not(:disabled){border-color:var(--b-acc);background:var(--b-acc-soft)}
+.bio-xopt:disabled{cursor:default;opacity:.6}
+.bio-xopt .bd-i{width:20px;height:20px;margin-top:1px;color:var(--b-acc)}
+.bio-xopt span{display:flex;flex-direction:column;gap:2px}
+.bio-xopt b{font-size:14px;font-weight:600}
+.bio-xopt small{font-size:12.5px;color:var(--b-ink2);line-height:1.45}
+
+/* the card's Share */
+.bio-sh-mail{display:flex;flex-direction:column;gap:4px;padding-top:10px;border-top:1px solid var(--bx-line)}
+.bio-sh-mail label{font-size:12px;font-weight:600;color:var(--bx-ink2)}
+.bio-sh-acts{display:flex;gap:8px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--bx-line)}
+.bio-sh-acts .btn{display:inline-flex;align-items:center;gap:6px}
+.bio-sh-acts .bd-i{width:14px;height:14px}
+
+/* ---- the print view: a sheet over the console on screen, alone on paper ---- */
+body.bio-printing{overflow:hidden}
+.bio-print{position:fixed;inset:0;z-index:200;overflow:auto;background:#E9EBEF;color:#101828}
+.bio-ptools{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 18px;background:#fff;border-bottom:1px solid #D0D5DD;box-shadow:0 2px 6px rgba(16,24,40,.06)}
+.bio-ptools b{font-size:14px}
+.bio-ptools-h{font-size:12.5px;color:#475467}
+.bio-ptools .btn{display:inline-flex;align-items:center;gap:6px}
+.bio-paper{max-width:1100px;margin:20px auto 40px;padding:32px 36px;background:#fff;border-radius:6px;box-shadow:0 1px 3px rgba(16,24,40,.12),0 12px 32px -12px rgba(16,24,40,.2);font-size:12.5px;line-height:1.45}
+.bio-ph{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;padding-bottom:14px;margin-bottom:16px;border-bottom:2px solid #101828}
+.bio-ph .bio-plabs{margin:6px 0 0}
+.bio-ph h1{margin:0;font-size:22px;line-height:1.25;font-weight:700}
+.bio-pkick{margin:0 0 2px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#667085}
+.bio-pdesc{margin:6px 0 0;color:#475467;max-width:64ch;white-space:pre-wrap}
+.bio-pstamp{margin:0;font-size:11.5px;color:#667085;text-align:right;white-space:nowrap}
+.bio-plists{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;align-items:start}
+.bio-plist{border:1px solid #D0D5DD;border-radius:8px;padding:10px;background:#F9FAFB;break-inside:avoid-page}
+.bio-plist h2{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:0 0 8px;font-size:13px;font-weight:700}
+.bio-plist h2 span{font-size:11px;font-weight:600;color:#667085}
+.bio-pcard{padding:7px 9px;margin-top:6px;border:1px solid #D0D5DD;border-radius:6px;background:#fff;break-inside:avoid}
+.bio-pcard h3{margin:0;font-size:12.5px;font-weight:600;line-height:1.35}
+.bio-pno{color:#667085;font-weight:500}
+.bio-pmeta,.bio-pfv{margin:3px 0 0;font-size:11px;color:#475467}
+.bio-pfv{display:flex;flex-wrap:wrap;gap:2px 10px}
+.bio-pfv i{font-style:normal;color:#667085}
+.bio-pcdesc{margin:4px 0 0;font-size:11px;color:#475467;white-space:pre-wrap}
+.bio-pnone{margin:4px 0 0;font-size:11px;color:#98A2B3}
+.bio-plabs{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px}
+.bio-plab{padding:0 6px;border-radius:4px;font-size:10px;font-weight:600;line-height:16px;background:var(--c,#E4E7EC);color:var(--lt,var(--cf,#344054))}
+.bio-pdl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 16px;margin:0 0 14px}
+.bio-pdl dt{color:#667085;font-weight:500}
+.bio-pdl dd{margin:0}
+.bio-psec{margin-top:16px;break-inside:avoid-page}
+.bio-psec h2{margin:0 0 6px;font-size:13.5px;font-weight:700;padding-bottom:4px;border-bottom:1px solid #E4E7EC}
+.bio-psec h2 span{font-weight:500;color:#667085}
+.bio-pmd p{margin:0 0 6px}
+.bio-pcl,.bio-patt,.bio-pcm{margin:0;padding:0;list-style:none;display:grid;gap:4px}
+.bio-pcl li{display:flex;align-items:baseline;gap:8px}
+.bio-pcl li.done{color:#667085;text-decoration:line-through;text-decoration-color:#98A2B3}
+.bio-pcl i,.bio-patt i{color:#667085;font-style:normal;word-break:break-all}
+.bio-pbox{display:inline-grid;place-items:center;flex:none;width:13px;height:13px;border:1.5px solid #475467;border-radius:3px;font-size:10px;line-height:1;font-weight:700;text-decoration:none}
+.bio-pcm li{padding:7px 0;border-bottom:1px dashed #E4E7EC}
+.bio-pcm-h{margin:0 0 3px;font-size:11.5px;color:#475467}
+@media (max-width:600px){.bio-paper{margin:10px;padding:18px 16px}.bio-ph{flex-direction:column}.bio-pstamp{text-align:left;white-space:normal}.bio-ptools-h{display:none}}
+@media print{
+  @page{margin:12mm}
+  body.bio-printing > *:not(#bio-print){display:none!important}
+  body.bio-printing{overflow:visible;background:#fff}
+  .bio-print{position:static;overflow:visible;background:#fff}
+  .bio-ptools{display:none}
+  .bio-paper{max-width:none;margin:0;padding:0;box-shadow:none;border-radius:0}
+  .bio-plists{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .bio-plist,.bio-pcard{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .bio-plab{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}

@@ -17,7 +17,7 @@ import (
 // function it calls in this package.
 
 // aiEntryPoints are the functions that reach an AI model (ailog.go).
-var aiEntryPoints = map[string]bool{"aiAsk": true, "aiReadDocument": true, "aiGate": true, "ReadDocument": true}
+var aiEntryPoints = map[string]bool{"aiAsk": true, "aiReadDocument": true, "aiCompose": true, "aiGate": true, "ReadDocument": true, "Compose": true}
 
 func TestInsightsAreRuleBased(t *testing.T) {
 	fset := token.NewFileSet()

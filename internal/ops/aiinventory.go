@@ -122,6 +122,26 @@ func (o *Ops) ledgerlineAISystems() []AISystem {
 			Safeguards:    safeguards,
 			Categories:    "Neural networks (document understanding), natural language processing",
 		},
+		{
+			ID: AIFeatureBoards, Source: "ledgerline", Name: "AI on board cards (summaries and checklist suggestions)",
+			Purpose:  "Summarises a team board card (its description, checklists and latest comments) and suggests checklist items from a card's title and description, for the person to read, copy, post or pick from.",
+			Provider: prov, Model: model,
+			DataSent:  "The text of one card on a team board (title, description, checklists and up to 30 recent comments; for suggestions, the title and description), with client names, client codes, PAN, Aadhaar-like numbers, phone numbers, emails, bank account numbers and staff names replaced by tokens. Never cards on Ledgerline boards, which hold the firm's records, and no attachments.",
+			WhoCanUse: "Staff who can see the card, when they press Summarise this card; members of the board, when they press Suggest a checklist.",
+			Controls: append(aiCommonControls(),
+				"Identifiers masked before sending and restored only in the reply shown to the person (PAN, Aadhaar and account numbers always).",
+				"Nothing is posted or added by itself: a person reads the summary and chooses to post it as a comment or copy it, and picks which suggested items to add.",
+				"Refused on Ledgerline boards; replies capped at "+fmt.Sprint(help.MaxComposeTokens)+" tokens."),
+			Switch:         "Settings → Ledgy: AI on board cards",
+			OrderExecution: "N", Discretionary: "N", Advice: "N", CyberSecurity: "N",
+			Claims:        "Summarises the work recorded on a board card and suggests checklist steps, to save reading and typing. No investment, trading, advisory or security claims are made.",
+			Tool:          tool,
+			Implemented:   impl,
+			InSystemAudit: "Y",
+			Description:   "On the Boards screen of the Ledgerline back office, a large language model (natural language processing) can summarise one card's masked text or suggest checklist items for it. The reply is shown to the person who asked; it does not change the card unless that person posts or adds it.",
+			Safeguards:    safeguards,
+			Categories:    "Natural language processing (large language model)",
+		},
 	}
 }
 

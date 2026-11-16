@@ -1,0 +1,98 @@
+{
+  "id": "5f0c1a2b3c4d5e6f7a8b9c0d",
+  "name": "Demo: settlement follow-ups",
+  "desc": "A made-up board for the import tests.",
+  "closed": false,
+  "url": "https://trello.com/b/AbCdEf12/demo-settlement-follow-ups",
+  "prefs": { "background": "green", "permissionLevel": "private" },
+  "labelNames": { "green": "Client docs", "red": "" },
+  "labels": [
+    { "id": "6a0000000000000000000001", "idBoard": "5f0c1a2b3c4d5e6f7a8b9c0d", "name": "Client docs", "color": "green" },
+    { "id": "6a0000000000000000000002", "idBoard": "5f0c1a2b3c4d5e6f7a8b9c0d", "name": "Blocked", "color": "red_dark" },
+    { "id": "6a0000000000000000000003", "idBoard": "5f0c1a2b3c4d5e6f7a8b9c0d", "name": "Low priority", "color": "sky_light" },
+    { "id": "6a0000000000000000000004", "idBoard": "5f0c1a2b3c4d5e6f7a8b9c0d", "name": "", "color": null },
+    { "id": "6a0000000000000000000005", "idBoard": "5f0c1a2b3c4d5e6f7a8b9c0d", "name": "No colour", "color": null }
+  ],
+  "lists": [
+    { "id": "6b0000000000000000000002", "name": "Doing", "closed": false, "pos": 32768 },
+    { "id": "6b0000000000000000000001", "name": "To do", "closed": false, "pos": 16384 },
+    { "id": "6b0000000000000000000004", "name": "Old ideas", "closed": true, "pos": 65536 },
+    { "id": "6b0000000000000000000003", "name": "Done", "closed": false, "pos": "49152" }
+  ],
+  "members": [
+    { "id": "6c0000000000000000000001", "fullName": "Priya Nair", "username": "priyanair", "initials": "PN" },
+    { "id": "6c0000000000000000000002", "fullName": "F. Khan", "username": "farhan_khan", "initials": "FK" },
+    { "id": "6c0000000000000000000003", "fullName": "Outside Consultant", "username": "consultant42", "initials": "OC" }
+  ],
+  "memberships": [
+    { "id": "6d0000000000000000000001", "idMember": "6c0000000000000000000001", "memberType": "admin" },
+    { "id": "6d0000000000000000000002", "idMember": "6c0000000000000000000002", "memberType": "normal" },
+    { "id": "6d0000000000000000000003", "idMember": "6c0000000000000000000003", "memberType": "observer" }
+  ],
+  "customFields": [
+    { "id": "6e0000000000000000000002", "name": "Amount", "type": "number", "pos": 32768, "display": { "cardFront": false } },
+    { "id": "6e0000000000000000000001", "name": "Client code", "type": "text", "pos": 16384, "display": { "cardFront": true } },
+    { "id": "6e0000000000000000000003", "name": "Exchange", "type": "list", "pos": 49152, "display": { "cardFront": true },
+      "options": [
+        { "id": "6f0000000000000000000002", "value": { "text": "BSE" }, "color": "blue", "pos": 32768 },
+        { "id": "6f0000000000000000000001", "value": { "text": "NSE" }, "color": "green", "pos": 16384 }
+      ] },
+    { "id": "6e0000000000000000000004", "name": "Verified", "type": "checkbox", "pos": 65536 },
+    { "id": "6e0000000000000000000005", "name": "Filed on", "type": "date", "pos": 81920 },
+    { "id": "6e0000000000000000000006", "name": "Rating", "type": "stars", "pos": 98304 }
+  ],
+  "cards": [
+    { "id": "700000000000000000000001", "name": "Collect bank proof", "desc": "Ask for a **cancelled cheque**.", "closed": false,
+      "idList": "6b0000000000000000000001", "idShort": 1, "pos": 16384,
+      "idLabels": ["6a0000000000000000000001", "6a0000000000000000000002", "6a0000000000000000000099"],
+      "idMembers": ["6c0000000000000000000001", "6c0000000000000000000003"],
+      "due": "2026-11-20T06:30:00.000Z", "start": "2026-11-17T18:30:00.000Z", "dueComplete": false,
+      "cover": { "color": "yellow", "idAttachment": null, "size": "normal", "brightness": "light" },
+      "attachments": [
+        { "id": "710000000000000000000001", "name": "Scan.pdf", "url": "https://trello.com/1/cards/700000000000000000000001/attachments/710000000000000000000001/download/Scan.pdf", "bytes": 52011, "isUpload": true, "mimeType": "application/pdf" },
+        { "id": "710000000000000000000002", "name": "bad", "url": "javascript:alert(1)" }
+      ],
+      "customFieldItems": [
+        { "id": "720000000000000000000001", "idCustomField": "6e0000000000000000000001", "idModel": "700000000000000000000001", "value": { "text": "ZZ9001" } },
+        { "id": "720000000000000000000002", "idCustomField": "6e0000000000000000000002", "idModel": "700000000000000000000001", "value": { "number": "1250.50" } },
+        { "id": "720000000000000000000003", "idCustomField": "6e0000000000000000000003", "idModel": "700000000000000000000001", "idValue": "6f0000000000000000000002" },
+        { "id": "720000000000000000000004", "idCustomField": "6e0000000000000000000004", "idModel": "700000000000000000000001", "value": { "checked": "true" } },
+        { "id": "720000000000000000000005", "idCustomField": "6e0000000000000000000005", "idModel": "700000000000000000000001", "value": { "date": "2026-11-09T20:00:00.000Z" } }
+      ] },
+    { "id": "700000000000000000000002", "name": "Reconcile the payout file", "desc": "", "closed": false,
+      "idList": "6b0000000000000000000002", "idShort": 2, "pos": 16384, "idLabels": ["6a0000000000000000000003"], "idMembers": [],
+      "due": "2026-11-15T09:00:00.000Z", "dueComplete": true, "cover": { "color": "green", "size": "full" } },
+    { "id": "700000000000000000000003", "name": "Old settlement query", "closed": true,
+      "idList": "6b0000000000000000000003", "idShort": 3, "pos": 16384, "idLabels": [], "idMembers": [] },
+    { "id": "700000000000000000000004", "name": "Idea in an archived list", "closed": false,
+      "idList": "6b0000000000000000000004", "idShort": 4, "pos": 16384 },
+    { "id": "700000000000000000000005", "name": "Card in a list that is not in the export", "closed": false,
+      "idList": "6b00000000000000000000ff", "idShort": 5, "pos": 16384 },
+    { "id": "700000000000000000000006", "name": 12345, "desc": null, "closed": "false",
+      "idList": "6b0000000000000000000001", "idShort": 6, "pos": "top", "idLabels": "not-a-list", "idMembers": null,
+      "due": null, "cover": "none", "attachments": {}, "customFieldItems": [{ "idCustomField": "6e0000000000000000000002", "value": { "number": "lots" } }] }
+  ],
+  "checklists": [
+    { "id": "730000000000000000000002", "name": "Payout checks", "idCard": "700000000000000000000002", "pos": 16384,
+      "checkItems": [ { "id": "740000000000000000000003", "name": "Match the bank file", "state": "complete", "pos": 16384 } ] },
+    { "id": "730000000000000000000001", "name": "Documents", "idCard": "700000000000000000000001", "pos": 16384,
+      "checkItems": [
+        { "id": "740000000000000000000002", "name": "Cancelled cheque", "state": "incomplete", "pos": 32768, "idMember": "6c0000000000000000000002", "due": "2026-11-19T12:30:00.000Z" },
+        { "id": "740000000000000000000001", "name": "PAN copy", "state": "complete", "pos": 16384 },
+        { "id": "740000000000000000000009", "name": "   ", "state": "incomplete", "pos": 49152 }
+      ] },
+    { "id": "730000000000000000000009", "name": "For a card that is left out", "idCard": "700000000000000000000005", "pos": 1, "checkItems": [] }
+  ],
+  "actions": [
+    { "id": "750000000000000000000003", "idMemberCreator": "6c0000000000000000000002", "type": "commentCard", "date": "2026-11-12T05:00:00.000Z",
+      "data": { "text": "Called the client; bank proof by Friday.", "card": { "id": "700000000000000000000001", "name": "Collect bank proof", "idShort": 1 } },
+      "memberCreator": { "id": "6c0000000000000000000002", "fullName": "F. Khan", "username": "farhan_khan" } },
+    { "id": "750000000000000000000002", "idMemberCreator": "6c0000000000000000000001", "type": "updateCard", "date": "2026-11-11T06:00:00.000Z",
+      "data": { "card": { "id": "700000000000000000000001" }, "old": { "pos": 1 } } },
+    { "id": "750000000000000000000001", "idMemberCreator": "6c0000000000000000000001", "type": "commentCard", "date": "2026-11-11T04:00:00.000Z",
+      "data": { "text": "First note: client asked for a call back.", "card": { "id": "700000000000000000000001" } },
+      "memberCreator": { "id": "6c0000000000000000000001", "fullName": "Priya Nair", "username": "priyanair" } },
+    { "id": "750000000000000000000004", "type": "commentCard", "date": "2026-11-10T04:00:00.000Z",
+      "data": { "text": "On the card that is left out", "card": { "id": "700000000000000000000005" } } }
+  ]
+}
