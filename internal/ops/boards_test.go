@@ -253,3 +253,20 @@ func TestBoardDueReminders(t *testing.T) {
 		t.Fatalf("the watcher who set it %+v", ps)
 	}
 }
+
+// A change that leaves the description out keeps it.
+func TestBoardDescriptionKept(t *testing.T) {
+	o, ctx := setup(t)
+	d := "Close the month by the 5th"
+	b, err := o.CreateBoard(ctx, T, "priya.nair", BoardInput{Name: "Month end", Description: &d})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, err = o.UpdateBoard(ctx, T, "priya.nair", b.ID, BoardInput{Background: "green"}); err != nil || b.Description != d || b.Background != "green" {
+		t.Fatalf("%+v %v", b, err)
+	}
+	empty := ""
+	if b, _ = o.UpdateBoard(ctx, T, "priya.nair", b.ID, BoardInput{Description: &empty}); b.Description != "" {
+		t.Fatalf("description not cleared: %q", b.Description)
+	}
+}

@@ -580,7 +580,7 @@ func (o *Ops) Boards(ctx context.Context, tenant, actor string) ([]BoardSummary,
 // BoardInput is what a person sets on a board.
 type BoardInput struct {
 	Name        string        `json:"name"`
-	Description string        `json:"description"`
+	Description *string       `json:"description,omitempty"` // nil leaves it as it is
 	Visibility  string        `json:"visibility"`
 	Background  string        `json:"background"`
 	CoversOn    *bool         `json:"covers_on,omitempty"`
@@ -609,7 +609,11 @@ func (o *Ops) CreateBoard(ctx context.Context, tenant, actor string, in BoardInp
 	if err != nil {
 		return Board{}, err
 	}
-	desc, err := textField("description", in.Description, 4000, false)
+	desc := ""
+	if in.Description != nil {
+		desc = *in.Description
+	}
+	desc, err = textField("description", desc, 4000, false)
 	if err != nil {
 		return Board{}, err
 	}
@@ -753,8 +757,8 @@ func (o *Ops) UpdateBoard(ctx context.Context, tenant, actor, id string, in Boar
 			x.Name = n
 			changes = append(changes, "renamed it to "+n)
 		}
-		if in.Description != x.Description {
-			d, err := textField("description", in.Description, 4000, false)
+		if in.Description != nil && *in.Description != x.Description {
+			d, err := textField("description", *in.Description, 4000, false)
 			if err != nil {
 				return err
 			}
@@ -956,7 +960,7 @@ func (o *Ops) CopyBoard(ctx context.Context, tenant, actor, id, name string, wit
 			lists = append(lists, l)
 		}
 	}
-	b, err := o.CreateBoard(ctx, tenant, actor, BoardInput{Name: firstOf(name, src.Name+" (copy)"), Description: src.Description, Visibility: src.Visibility, Background: src.Background, Lists: names})
+	b, err := o.CreateBoard(ctx, tenant, actor, BoardInput{Name: firstOf(name, src.Name+" (copy)"), Description: &src.Description, Visibility: src.Visibility, Background: src.Background, Lists: names})
 	if err != nil {
 		return Board{}, err
 	}
