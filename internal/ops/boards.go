@@ -244,7 +244,22 @@ type BoardNotice struct {
 	By    string `json:"by,omitempty"`
 	Text  string `json:"text"`
 	Read  bool   `json:"read,omitempty"`
+	// Kind says what the notice is about (NoticeAdded …), so people can
+	// choose which kinds reach them by email. Older notices have none.
+	Kind string `json:"kind,omitempty"`
 }
+
+// Kinds of board notice.
+const (
+	NoticeAdded      = "added"      // added to a board, a card or a checklist item
+	NoticeMention    = "mention"    // @mentioned in a comment
+	NoticeComment    = "comment"    // a comment on a card one watches or is on
+	NoticeMoved      = "moved"      // a card one watches moved
+	NoticeDue        = "due"        // a due date reminder
+	NoticeWatch      = "watch"      // anything else on a card, list or board one watches
+	NoticeAutomation = "automation" // sent by an automation rule or about one
+	NoticeOther      = "other"
+)
 
 type boardFileDoc struct {
 	ID    string `json:"id"`
@@ -466,6 +481,12 @@ func (o *Ops) BoardRev(ctx context.Context, tenant, actor, id string) (int64, er
 }
 
 func (o *Ops) boardNotify(ctx context.Context, tenant, actor string, b Board, card string, users []string, text string) {
+	o.boardNotifyKind(ctx, tenant, actor, b, card, NoticeOther, users, text)
+}
+
+// boardNotifyKind leaves a notice of the given kind for each person in
+// users, except the one who acted.
+func (o *Ops) boardNotifyKind(ctx context.Context, tenant, actor string, b Board, card, kind string, users []string, text string) {
 	seen := map[string]bool{}
 	for _, u := range users {
 		if u == "" || u == actor || seen[u] || strings.HasPrefix(u, "system:") {
@@ -477,7 +498,7 @@ func (o *Ops) boardNotify(ctx context.Context, tenant, actor string, b Board, ca
 			continue
 		}
 		id := fmt.Sprintf("%s|%012d", u, n)
-		_ = docs.Upsert(ctx, o.Docs, tenant, cBoardNote, id, BoardNotice{ID: id, User: u, At: o.now().Format(time.RFC3339), Board: b.ID, Card: card, By: actor, Text: text}, actor)
+		_ = docs.Upsert(ctx, o.Docs, tenant, cBoardNote, id, BoardNotice{ID: id, User: u, At: o.now().Format(time.RFC3339), Board: b.ID, Card: card, By: actor, Text: text, Kind: kind}, actor)
 	}
 }
 
@@ -864,7 +885,7 @@ func (o *Ops) UpdateBoard(ctx context.Context, tenant, actor, id string, in Boar
 			x.Members = in.Members
 			if len(added) > 0 {
 				changes = append(changes, "added "+strings.Join(added, ", ")+" to the board")
-				defer o.boardNotify(ctx, tenant, actor, *x, "", added, fmt.Sprintf("%s added you to the board %s", actor, x.Name))
+				defer o.boardNotifyKind(ctx, tenant, actor, *x, "", NoticeAdded, added, fmt.Sprintf("%s added you to the board %s", actor, x.Name))
 			}
 		}
 		x.UpdatedAt = o.now().Format(time.RFC3339)
@@ -1318,7 +1339,7 @@ func (o *Ops) addCard(ctx context.Context, tenant, actor string, b Board, list s
 	}
 	o.boardLog(ctx, tenant, actor, b, c.ID, "card.created", fmt.Sprintf("added #%d %s to %s", c.No, clip(c.Title, 80), l.Name), map[string]string{"list": list})
 	if len(c.Members) > 0 {
-		o.boardNotify(ctx, tenant, actor, b, c.ID, c.Members, fmt.Sprintf("%s added you to the card %s on %s", actor, clip(c.Title, 80), b.Name))
+		o.boardNotifyKind(ctx, tenant, actor, b, c.ID, NoticeAdded, c.Members, fmt.Sprintf("%s added you to the card %s on %s", actor, clip(c.Title, 80), b.Name))
 	}
 	o.boardEvent(ctx, tenant, BoardEvent{Board: b.ID, Card: c.ID, Kind: "card.created", Actor: actor, Data: map[string]string{"list": list}})
 	return c, nil
@@ -1544,7 +1565,7 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 		o.boardLog(ctx, tenant, actor, b, card, l[0], l[1], nil)
 	}
 	if len(newMembers) > 0 {
-		o.boardNotify(ctx, tenant, actor, b, card, newMembers, fmt.Sprintf("%s added you to the card %s on %s", actor, clip(c.Title, 80), b.Name))
+		o.boardNotifyKind(ctx, tenant, actor, b, card, NoticeAdded, newMembers, fmt.Sprintf("%s added you to the card %s on %s", actor, clip(c.Title, 80), b.Name))
 	}
 	if len(events) == 0 && len(logs) == 0 {
 		ev("card.updated", nil)
@@ -1684,7 +1705,7 @@ func (o *Ops) MoveCard(ctx context.Context, tenant, actor, board, card string, m
 	}
 	if moved {
 		o.boardLog(ctx, tenant, actor, b, card, "card.moved", fmt.Sprintf("moved #%d from %s to %s", c.No, from.Name, to.Name), map[string]string{"from_list": from.ID, "to_list": to.ID})
-		o.boardNotify(ctx, tenant, actor, b, card, c.Watchers, fmt.Sprintf("%s moved %s to %s on %s", actor, clip(c.Title, 80), to.Name, b.Name))
+		o.boardNotifyKind(ctx, tenant, actor, b, card, NoticeMoved, c.Watchers, fmt.Sprintf("%s moved %s to %s on %s", actor, clip(c.Title, 80), to.Name, b.Name))
 		o.boardEvent(ctx, tenant, BoardEvent{Board: board, Card: card, Kind: "card.moved", Actor: actor, Data: map[string]string{"from_list": from.ID, "to_list": to.ID}})
 	} else {
 		o.boardLog(ctx, tenant, actor, b, card, "card.reordered", fmt.Sprintf("moved #%d within %s", c.No, to.Name), nil)
@@ -1986,7 +2007,7 @@ func (o *Ops) EditChecklist(ctx context.Context, tenant, actor, board, card stri
 		o.boardEvent(ctx, tenant, BoardEvent{Board: board, Card: card, Kind: "checklist.done", Actor: actor, Data: map[string]string{"checklist": id}})
 	}
 	if op.Op == "update_item" && op.Member != nil && *op.Member != "" {
-		o.boardNotify(ctx, tenant, actor, b, card, []string{*op.Member}, fmt.Sprintf("%s gave you a checklist item on %s", actor, clip(c.Title, 80)))
+		o.boardNotifyKind(ctx, tenant, actor, b, card, NoticeAdded, []string{*op.Member}, fmt.Sprintf("%s gave you a checklist item on %s", actor, clip(c.Title, 80)))
 	}
 	return c, nil
 }
@@ -2036,14 +2057,14 @@ func (o *Ops) AddComment(ctx context.Context, tenant, actor, board, card, text s
 		return c, err
 	}
 	o.boardLog(ctx, tenant, actor, b, card, "comment.added", fmt.Sprintf("commented on #%d: %s", c.No, clip(t, 120)), map[string]string{"comment": cm.ID})
-	o.boardNotify(ctx, tenant, actor, b, card, ments, fmt.Sprintf("%s mentioned you on %s: %s", actor, clip(c.Title, 60), clip(t, 120)))
+	o.boardNotifyKind(ctx, tenant, actor, b, card, NoticeMention, ments, fmt.Sprintf("%s mentioned you on %s: %s", actor, clip(c.Title, 60), clip(t, 120)))
 	var others []string
 	for _, w := range append(append([]string(nil), c.Watchers...), c.Members...) {
 		if !contains(ments, w) {
 			others = append(others, w)
 		}
 	}
-	o.boardNotify(ctx, tenant, actor, b, card, others, fmt.Sprintf("%s commented on %s: %s", actor, clip(c.Title, 60), clip(t, 120)))
+	o.boardNotifyKind(ctx, tenant, actor, b, card, NoticeComment, others, fmt.Sprintf("%s commented on %s: %s", actor, clip(c.Title, 60), clip(t, 120)))
 	o.boardEvent(ctx, tenant, BoardEvent{Board: board, Card: card, Kind: "comment.added", Actor: actor, Data: map[string]string{"comment": cm.ID, "text": t}})
 	return c, nil
 }
@@ -2378,7 +2399,7 @@ func (o *Ops) boardDueReminders(ctx context.Context, tenant string, now time.Tim
 			if _, err := docs.Update(ctx, o.Docs, tenant, cBoardCard, cardKey(b.ID, c.ID), SystemActor, func(x *Card) error { x.Reminded = x.Due; return nil }); err != nil {
 				continue
 			}
-			o.boardNotify(ctx, tenant, SystemActor, b, c.ID, append(append([]string(nil), c.Members...), c.Watchers...), fmt.Sprintf("%s on %s %s", clip(c.Title, 80), b.Name, when))
+			o.boardNotifyKind(ctx, tenant, SystemActor, b, c.ID, NoticeDue, append(append([]string(nil), c.Members...), c.Watchers...), fmt.Sprintf("%s on %s %s", clip(c.Title, 80), b.Name, when))
 		}
 	}
 }

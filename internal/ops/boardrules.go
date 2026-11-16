@@ -1328,7 +1328,7 @@ func (r *baRunner) notify(a AutoAction, c *Card) error {
 	if c != nil {
 		card = c.ID
 	}
-	r.o.boardNotify(r.ctx, r.tenant, AutomationActor, r.b, card, to, clip(text, 1000))
+	r.o.boardNotifyKind(r.ctx, r.tenant, AutomationActor, r.b, card, NoticeAutomation, to, clip(text, 1000))
 	r.note("notified %s", strings.Join(to, ", "))
 	return nil
 }
@@ -1355,7 +1355,7 @@ func (o *Ops) baRun(ctx context.Context, tenant string, b Board, a BoardAuto, ca
 					admins = append(admins, m.User)
 				}
 			}
-			o.boardNotify(ctx, tenant, AutomationActor, b, "", admins, fmt.Sprintf("Automation on %s stopped for today: it reached %d runs. The automation log shows which rule runs most.", b.Name, baDailyCap))
+			o.boardNotifyKind(ctx, tenant, AutomationActor, b, "", NoticeAutomation, admins, fmt.Sprintf("Automation on %s stopped for today: it reached %d runs. The automation log shows which rule runs most.", b.Name, baDailyCap))
 			o.boardLog(ctx, tenant, AutomationActor, b, "", "automation.limit", fmt.Sprintf("stopped automation for today: the board reached %d runs", baDailyCap), nil)
 		}
 		return run

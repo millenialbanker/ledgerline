@@ -1266,7 +1266,7 @@ func (o *Ops) bsUpdate(ctx context.Context, tenant string, bb *bsBoard, p bsPlan
 		o.boardLog(ctx, tenant, bsActor, b, c.ID, "card.updated", fmt.Sprintf("brought #%d up to date%s", c.No, map[bool]string{true: ": " + strings.Join(what, ", "), false: ""}[len(what) > 0]), nil)
 	}
 	if ch.to != "" {
-		o.boardNotify(ctx, tenant, bsActor, b, c.ID, append(append([]string(nil), c.Watchers...), c.Members...), fmt.Sprintf("%s moved to %s on %s", clip(c.Title, 80), name(ch.to), b.Name))
+		o.boardNotifyKind(ctx, tenant, bsActor, b, c.ID, NoticeMoved, append(append([]string(nil), c.Watchers...), c.Members...), fmt.Sprintf("%s moved to %s on %s", clip(c.Title, 80), name(ch.to), b.Name))
 		ev("card.moved", map[string]string{"from_list": ch.from, "to_list": ch.to})
 	}
 	for _, id := range ch.added {
