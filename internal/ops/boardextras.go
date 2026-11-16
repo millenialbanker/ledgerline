@@ -3,6 +3,7 @@ package ops
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
@@ -40,6 +41,10 @@ import (
 //     board can also see the original's.
 //   - Email-to-board: a team board's admins switch on an address that a
 //     mail provider posts inbound mail to; each email becomes a card.
+//     While it is on, each card has an address too: mail to it is a
+//     comment on the card.
+//   - Stickers on cards. (The AI on cards is in boardai.go; import,
+//     export, collections and recently viewed boards in boardio.go.)
 //
 // Card templates, custom fields, covers, backgrounds and votes use the core
 // operations in boards.go; their screens are in web/boardextras.js.
@@ -1014,8 +1019,13 @@ func (o *Ops) boardByEmailKey(ctx context.Context, tenant, key string) (Board, b
 	return found, ok
 }
 
-// BoardEmailKnown reports whether a key is a board's email address.
+// BoardEmailKnown reports whether a key is a board's email address, or a
+// card's on a board that takes mail.
 func (o *Ops) BoardEmailKnown(ctx context.Context, tenant, key string) bool {
+	if cardMailKeyRe.MatchString(key) {
+		_, _, ok := o.cardByEmailKey(ctx, tenant, key)
+		return ok
+	}
 	_, ok := o.boardByEmailKey(ctx, tenant, key)
 	return ok
 }
@@ -1030,8 +1040,12 @@ type boardMailDoc struct {
 // BoardInboundMail makes a card from an email (a raw RFC 822 message) sent
 // to a board's address: the subject is the title, the text the
 // description, the attachments the card's attachments. dup is true when
-// the same message (by its Message-ID) already made a card.
+// the same message (by its Message-ID) already made a card. Mail to a
+// card's address is a comment on that card instead (cardInboundMail).
 func (o *Ops) BoardInboundMail(ctx context.Context, tenant, key string, raw []byte) (c Card, dup bool, err error) {
+	if cardMailKeyRe.MatchString(key) { // a card's address: a comment on it
+		return o.cardInboundMail(ctx, tenant, key, raw)
+	}
 	b, ok := o.boardByEmailKey(ctx, tenant, key)
 	if !ok {
 		return Card{}, false, fmt.Errorf("%w: no board takes mail at this address", ErrNotFound)
@@ -1111,6 +1125,223 @@ func (o *Ops) BoardInboundMail(ctx context.Context, tenant, key string, raw []by
 	o.boardLog(ctx, tenant, mailActor, b, c.ID, "email.received", text, map[string]string{"from": pm.From, "attached": fmt.Sprint(attached), "not_attached": fmt.Sprint(len(skipped))})
 	o.log(ctx, tenant, mailActor, "board.email_received", b.ID, map[string]any{"card": c.ID, "from": pm.From, "attached": attached, "not_attached": len(skipped)})
 	return c, false, nil
+}
+
+// ---- email to a card ----
+//
+// While a team board has email-to-board on, each of its cards has an
+// address too (Trello's "email for this card"). Mail to it goes to the
+// same inbound route as the board's; it adds a comment with the sender and
+// the text, and attaches the files that pass the checks of an upload. A
+// card's key is its number and board, signed with the board's own key, so
+// it shows nothing of the board's address and changes with it.
+
+var cardMailKeyRe = regexp.MustCompile(`^c([1-9][0-9]{0,8})-([A-Za-z0-9_-]{1,64})-([0-9a-f]{32})$`)
+
+// cardMailKey is a card's inbound key ("" when the board takes no mail).
+func cardMailKey(b Board, c Card) string {
+	if b.EmailKey == "" {
+		return ""
+	}
+	mac := hmac.New(sha256.New, []byte(b.EmailKey))
+	mac.Write([]byte("card|" + b.ID + "|" + c.ID))
+	return fmt.Sprintf("c%d-%s-%s", c.No, b.ID, hex.EncodeToString(mac.Sum(nil)[:16]))
+}
+
+// cardByEmailKey finds the card whose address a key is.
+func (o *Ops) cardByEmailKey(ctx context.Context, tenant, key string) (Board, Card, bool) {
+	m := cardMailKeyRe.FindStringSubmatch(key)
+	if m == nil {
+		return Board{}, Card{}, false
+	}
+	b, _, err := docs.Get[Board](ctx, o.Docs, tenant, cBoard, m[2])
+	if err != nil || b.Deleted || b.EmailKey == "" {
+		return Board{}, Card{}, false
+	}
+	cs, err := o.boardCards(ctx, tenant, b.ID)
+	if err != nil {
+		return Board{}, Card{}, false
+	}
+	for _, c := range cs {
+		if fmt.Sprint(c.No) == m[1] && subtle.ConstantTimeCompare([]byte(cardMailKey(b, c)), []byte(key)) == 1 {
+			return b, c, true
+		}
+	}
+	return Board{}, Card{}, false
+}
+
+// CardEmailInfo is a card's inbound address, for the board's members.
+type CardEmailInfo struct {
+	On   bool   `json:"on"`
+	Path string `json:"path,omitempty"` // /inbound/boards/<tenant>/<card key>
+	Why  string `json:"why,omitempty"`  // why the card takes no mail
+}
+
+// CardEmail is a card's inbound address (members and admins of the board).
+func (o *Ops) CardEmail(ctx context.Context, tenant, actor, board, card string) (CardEmailInfo, error) {
+	c, b, err := o.GetCard(ctx, tenant, actor, board, card)
+	if err != nil {
+		return CardEmailInfo{}, err
+	}
+	_, v, _ := o.boardFor(ctx, tenant, actor, board)
+	if !v.can(BoardAdmin, BoardMember) {
+		return CardEmailInfo{}, fmt.Errorf("%w: only the board's members see a card's email address (your role on it: %s)", ErrForbidden, v.board)
+	}
+	switch {
+	case b.Kind != BoardTeam:
+		return CardEmailInfo{Why: "Cards on Ledgerline boards take no email."}, nil
+	case b.EmailKey == "":
+		return CardEmailInfo{Why: "Email-to-board is off on this board. When a board admin switches it on (board menu, Email-to-board), each card has its own address too."}, nil
+	case b.Closed:
+		return CardEmailInfo{Why: "The board is closed and takes no email."}, nil
+	case c.Archived:
+		return CardEmailInfo{Why: "This card is archived and takes no email. Send it to the board to use its address."}, nil
+	}
+	return CardEmailInfo{On: true, Path: "/inbound/boards/" + url.PathEscape(tenant) + "/" + cardMailKey(b, c)}, nil
+}
+
+// cardInboundMail adds an email sent to a card's address as a comment, by
+// Ledgerline's email actor, with the files attached.
+func (o *Ops) cardInboundMail(ctx context.Context, tenant, key string, raw []byte) (Card, bool, error) {
+	b, c, ok := o.cardByEmailKey(ctx, tenant, key)
+	if !ok {
+		return Card{}, false, fmt.Errorf("%w: no card takes mail at this address", ErrNotFound)
+	}
+	if b.Kind != BoardTeam {
+		return Card{}, false, invalid("email to a card is for team boards; Ledgerline boards take no email")
+	}
+	if b.Closed {
+		return Card{}, false, fmt.Errorf("%w: the board %s is closed and takes no mail", ErrState, b.Name)
+	}
+	if c.Archived {
+		return Card{}, false, fmt.Errorf("%w: the card #%d is archived and takes no mail", ErrState, c.No)
+	}
+	if len(raw) == 0 || len(raw) > BoardMaxMail {
+		return Card{}, false, invalid("an email can be up to %d MB", BoardMaxMail>>20)
+	}
+	pm, err := parseBoardMail(raw)
+	if err != nil {
+		return Card{}, false, err
+	}
+	var seen string
+	if pm.MessageID != "" {
+		sum := sha256.Sum256([]byte(pm.MessageID + "|card|" + c.ID))
+		seen = b.ID + "|" + hex.EncodeToString(sum[:16])
+		if d, _, err := docs.Get[boardMailDoc](ctx, o.Docs, tenant, cBoardMail, seen); err == nil && d.Card == c.ID {
+			if x, _, err := docs.Get[Card](ctx, o.Docs, tenant, cBoardCard, cardKey(b.ID, c.ID)); err == nil && !x.Deleted {
+				return x, true, nil
+			}
+		}
+	}
+	sender := firstOf(pm.From, "an unknown sender")
+	from := sender
+	if pm.FromName != "" && pm.From != "" {
+		from = pm.FromName + " (" + pm.From + ")"
+	}
+	var names, skipped []string
+	for i, f := range pm.Files {
+		if i >= 25 {
+			skipped = append(skipped, fmt.Sprintf("%d more files (25 at most from one email)", len(pm.Files)-i))
+			break
+		}
+		nc, err := o.AttachFile(ctx, tenant, mailActor, b.ID, c.ID, f.Name, f.Data)
+		if err != nil {
+			skipped = append(skipped, fmt.Sprintf("%s (%s)", clip(firstOf(f.Name, "a file with no name"), 80), strings.TrimPrefix(err.Error(), "invalid: ")))
+			continue
+		}
+		c = nc
+		names = append(names, f.Name)
+	}
+	head := "Email from " + from
+	if pm.Subject != "" {
+		head += ": " + pm.Subject
+	}
+	var foot []string
+	if len(names) > 0 {
+		foot = append(foot, "Attached: "+strings.Join(names, ", "))
+	}
+	if len(skipped) > 0 {
+		foot = append(foot, "Not attached: "+strings.Join(skipped, "; "))
+	}
+	tail := ""
+	if len(foot) > 0 {
+		tail = clip("\n\n"+strings.Join(foot, "\n"), 1200)
+	}
+	body := strings.TrimSpace(pm.Text)
+	if body == "" {
+		body = "(The email had no text.)"
+	}
+	text := clip(head, 600) + "\n\n" + clip(body, 4990-utf8.RuneCountInString(clip(head, 600))-utf8.RuneCountInString(tail)-2) + tail
+	if c, err = o.AddComment(ctx, tenant, mailActor, b.ID, c.ID, text); err != nil {
+		return Card{}, false, err
+	}
+	if seen != "" {
+		_ = docs.Upsert(ctx, o.Docs, tenant, cBoardMail, seen, boardMailDoc{Board: b.ID, Card: c.ID, From: pm.From, At: o.now().Format(time.RFC3339)}, mailActor)
+	}
+	note := fmt.Sprintf("received an email from %s on #%d", sender, c.No)
+	if len(names) > 0 {
+		note += fmt.Sprintf(" (%d attachment%s)", len(names), map[bool]string{true: "", false: "s"}[len(names) == 1])
+	}
+	o.boardLog(ctx, tenant, mailActor, b, c.ID, "email.received", note, map[string]string{"from": pm.From, "card_mail": "1", "attached": fmt.Sprint(len(names)), "not_attached": fmt.Sprint(len(skipped))})
+	o.log(ctx, tenant, mailActor, "board.card_email_received", b.ID, map[string]any{"card": c.ID, "from": pm.From, "attached": len(names), "not_attached": len(skipped)})
+	return c, false, nil
+}
+
+// ---- stickers ----
+
+// BoardStickers are the stickers a card can carry; web/boardextras.js
+// draws them.
+var BoardStickers = []string{"tick", "star", "flag", "warning", "fire", "rocket", "thumbsup", "heart", "clock", "pin", "rupee", "chartup",
+	"chartdown", "bell", "lock", "bug", "bulb", "coffee", "trophy", "eyes", "hundred", "party", "question", "stop"}
+
+// MaxCardStickers is the most stickers one card carries.
+const MaxCardStickers = 10
+
+// StickerOp adds a sticker to a card or takes one off (by its place).
+type StickerOp struct {
+	Add    string `json:"add,omitempty"`
+	Remove *int   `json:"remove,omitempty"`
+}
+
+// CardSticker adds or removes a sticker (members and admins of the board).
+func (o *Ops) CardSticker(ctx context.Context, tenant, actor, board, card string, op StickerOp) (Card, error) {
+	b, _, err := o.boardFor(ctx, tenant, actor, board, BoardAdmin, BoardMember)
+	if err != nil {
+		return Card{}, err
+	}
+	if (op.Add == "") == (op.Remove == nil) {
+		return Card{}, invalid("add one sticker or remove one")
+	}
+	if op.Add != "" && !contains(BoardStickers, op.Add) {
+		return Card{}, invalid("unknown sticker %q", op.Add)
+	}
+	var what string
+	c, err := docs.Update(ctx, o.Docs, tenant, cBoardCard, cardKey(board, card), actor, func(x *Card) error {
+		if x.Deleted {
+			return errCardGone
+		}
+		if op.Add != "" {
+			if len(x.Stickers) >= MaxCardStickers {
+				return invalid("a card can have at most %d stickers; remove one first", MaxCardStickers)
+			}
+			x.Stickers = append(x.Stickers, op.Add)
+			what = fmt.Sprintf("added a %s sticker to #%d", op.Add, x.No)
+		} else {
+			i := *op.Remove
+			if i < 0 || i >= len(x.Stickers) {
+				return invalid("no such sticker on the card")
+			}
+			what = fmt.Sprintf("removed a %s sticker from #%d", x.Stickers[i], x.No)
+			x.Stickers = append(x.Stickers[:i:i], x.Stickers[i+1:]...)
+		}
+		x.UpdatedAt = o.now().Format(time.RFC3339)
+		return nil
+	})
+	if err != nil {
+		return c, err
+	}
+	o.boardLog(ctx, tenant, actor, b, card, "card.sticker", what, nil)
+	return c, nil
 }
 
 // ---- reading an email ----

@@ -188,20 +188,20 @@ func TestAIInventory(t *testing.T) {
 // and each passes the gate for a feature that has an inventory entry.
 func TestAICallsGoThroughTheGate(t *testing.T) {
 	files, _ := filepath.Glob("*.go")
-	call := regexp.MustCompile(`\.(Write\(cctx|ReadDocument\()|LedgyAI\.Write\(`)
+	call := regexp.MustCompile(`\.(Write\(cctx|ReadDocument\(|Compose\(cctx)|LedgyAI\.(Write|Compose)\(`)
 	gate := regexp.MustCompile(`aiGate\(ctx, tenant, ([A-Za-z]+)\)`)
 	feats := map[string]bool{}
 	for _, f := range aiFeatures {
 		feats[f] = true
 	}
-	consts := map[string]string{"AIFeatureLedgy": AIFeatureLedgy, "AIFeatureBillScan": AIFeatureBillScan}
+	consts := map[string]string{"AIFeatureLedgy": AIFeatureLedgy, "AIFeatureBillScan": AIFeatureBillScan, "AIFeatureBoards": AIFeatureBoards}
 	for _, f := range files {
 		if strings.HasSuffix(f, "_test.go") {
 			continue
 		}
 		b, _ := os.ReadFile(f)
 		if f != "ailog.go" && call.Match(b) {
-			t.Errorf("%s calls an AI model directly: go through aiAsk or aiReadDocument (ailog.go)", f)
+			t.Errorf("%s calls an AI model directly: go through aiAsk, aiReadDocument or aiCompose (ailog.go)", f)
 		}
 		for _, m := range gate.FindAllStringSubmatch(string(b), -1) {
 			if m[1] == "feature" {
@@ -213,10 +213,10 @@ func TestAICallsGoThroughTheGate(t *testing.T) {
 		}
 	}
 	b, _ := os.ReadFile("ailog.go")
-	if n := len(call.FindAll(b, -1)); n != 2 {
-		t.Errorf("ailog.go: %d model calls, want 2 (Write and ReadDocument)", n)
+	if n := len(call.FindAll(b, -1)); n != 3 {
+		t.Errorf("ailog.go: %d model calls, want 3 (Write, ReadDocument and Compose)", n)
 	}
-	if n := len(regexp.MustCompile(`aiGate\(`).FindAll(b, -1)); n != 2 {
+	if n := len(regexp.MustCompile(`aiGate\(`).FindAll(b, -1)); n != 3 {
 		t.Errorf("ailog.go: %d gate checks, want one per call", n)
 	}
 }

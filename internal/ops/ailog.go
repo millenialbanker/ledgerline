@@ -17,7 +17,7 @@ import (
 
 // ---- AI calls and the AI answer log ----
 //
-// The two functions here are the only places Ledgerline calls an AI model
+// The three functions here are the only places Ledgerline calls an AI model
 // (a test fails on any other call). Each passes the gate, masks what is
 // sent, reserves and meters the charge, restores the tokens in the answer
 // and writes one line to the AI answer log: when, who, which feature,
@@ -190,6 +190,57 @@ func (o *Ops) aiReadDocument(ctx context.Context, tenant, actor, feature, docNam
 	}
 	o.writeAILog(ctx, tenant, entry, lists)
 	return r, nil
+}
+
+// aiCompose has the model write a short text for a feature other than
+// Ledgy (board cards): the gate, masking, metering and the log, like
+// aiAsk. The text is masked before it is sent and the reply has the
+// values put back. A refused call returns an *errAIRefused with the
+// gate's reason; nothing is sent then.
+func (o *Ops) aiCompose(ctx context.Context, tenant, actor, feature, instruction, text, what string, maxOut int) (reply, by string, err error) {
+	w, why := o.aiGate(ctx, tenant, feature)
+	if w == nil {
+		return "", "", &errAIRefused{why}
+	}
+	cw, ok := w.(help.Composer)
+	if !ok {
+		return "", "", &errAIRefused{"The connected AI model cannot write summaries."}
+	}
+	lists := o.aiMaskLists(ctx, tenant)
+	m := NewMasker(lists, o.aiControls(ctx, tenant).Unmasked)
+	mt := m.Mask(text)
+	if maxOut <= 0 || maxOut > help.MaxComposeTokens {
+		maxOut = help.MaxComposeTokens
+	}
+	reserve, err := o.aiReserve(w.Provider(), w.Model(), help.EstimateComposeTokens(instruction, mt), maxOut)
+	switch {
+	case err != nil:
+		return "", "", &errAIRefused{"AI is unavailable: " + err.Error()}
+	case o.aiBalance(ctx, tenant) < reserve:
+		return "", "", &errAIRefused{"Your firm's AI credit has run out. Ask your Ledgerline provider to add credit."}
+	}
+	entry := AILogEntry{Actor: actor, Feature: feature, Provider: w.Provider(), Model: w.Model(), Prompt: mt, Context: what + "; instruction: " + clip(instruction, 300), Masked: m.Summary()}
+	cctx, cancel := context.WithTimeout(ctx, 25*time.Second)
+	r, err := cw.Compose(cctx, instruction, mt, maxOut)
+	cancel()
+	entry.In, entry.Out, entry.Answer = r.Usage.InputTokens, r.Usage.OutputTokens, r.Text
+	if err != nil {
+		entry.Outcome, entry.Note = AIError, err.Error()
+		o.writeAILog(ctx, tenant, entry, lists)
+		return "", "", fmt.Errorf("%w: the AI provider did not answer; try again later", ErrState)
+	}
+	u, merr := o.aiMeter(ctx, tenant, actor, r)
+	if merr != nil {
+		entry.Outcome, entry.Note = AINotMetered, merr.Error()
+		o.writeAILog(ctx, tenant, entry, lists)
+		return "", "", &errAIRefused{"The AI answer was withheld: it could not be metered (" + merr.Error() + ")."}
+	}
+	entry.Charge, entry.Outcome = u.Charge, AIAnswered
+	if strings.TrimSpace(r.Text) == "" {
+		entry.Outcome = AIEmpty
+	}
+	o.writeAILog(ctx, tenant, entry, lists)
+	return strings.TrimSpace(m.Restore(r.Text)), aiName(r), nil
 }
 
 func aiRefusal(err error) (string, bool) {

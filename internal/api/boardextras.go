@@ -13,8 +13,9 @@ import (
 	"ledgerline/internal/ops"
 )
 
-// Boards: templates, mirror cards and email-to-board
-// (internal/ops/boardextras.go).
+// Boards: templates, mirror cards, email-to-board and email to a card,
+// stickers (internal/ops/boardextras.go) and the AI on cards
+// (internal/ops/boardai.go).
 
 var (
 	// bxMailLimit caps the emails one board address takes.
@@ -33,6 +34,11 @@ func init() {
 		R("PATCH /v1/boards/{id}/cards/{card}/mirror", s.bxMirrorEdit, true)
 		R("GET /v1/boards/{id}/email", s.bxEmail, false)
 		R("POST /v1/boards/{id}/email", s.bxSetEmail, true)
+		R("GET /v1/boards/{id}/cards/{card}/email", s.bxCardEmail, false)
+		R("POST /v1/boards/{id}/cards/{card}/stickers", s.bxSticker, true)
+		R("GET /v1/boards/{id}/cards/{card}/ai", s.bxCardAI, false)
+		R("POST /v1/boards/{id}/cards/{card}/ai/summary", s.bxCardSummary, true)
+		R("POST /v1/boards/{id}/cards/{card}/ai/checklist", s.bxCardChecklist, true)
 		// A mail provider posts inbound mail here. There is no staff
 		// session: the long random key in the address is the secret.
 		s.mux.HandleFunc("POST /inbound/boards/{tenant}/{key}", s.bxInbound)
@@ -102,6 +108,45 @@ func (s *Server) bxSetEmail(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := s.ops.SetBoardEmail(r.Context(), tenant(r), actor(r), r.PathValue("id"), b)
 	s.bxEmailOut(w, v, err)
+}
+
+// A card's address, for the board's members (with the full address when
+// the server knows its public URL). Mail to it goes to the board route.
+func (s *Server) bxCardEmail(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.CardEmail(r.Context(), tenant(r), actor(r), r.PathValue("id"), r.PathValue("card"))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	out := map[string]any{"on": v.On, "path": v.Path, "why": v.Why, "url": ""}
+	if v.Path != "" && s.PublicURL != "" {
+		out["url"] = strings.TrimRight(s.PublicURL, "/") + v.Path
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) bxSticker(w http.ResponseWriter, r *http.Request) {
+	var b ops.StickerOp
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.CardSticker(r.Context(), tenant(r), actor(r), r.PathValue("id"), r.PathValue("card"), b)
+	ok(w, v, err)
+}
+
+func (s *Server) bxCardAI(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.CardAI(r.Context(), tenant(r), actor(r), r.PathValue("id"), r.PathValue("card"))
+	ok(w, v, err)
+}
+
+func (s *Server) bxCardSummary(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.SummariseCard(r.Context(), tenant(r), actor(r), r.PathValue("id"), r.PathValue("card"))
+	ok(w, v, err)
+}
+
+func (s *Server) bxCardChecklist(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.SuggestChecklist(r.Context(), tenant(r), actor(r), r.PathValue("id"), r.PathValue("card"))
+	ok(w, v, err)
 }
 
 // bxBlocked reports, without counting a hit, whether key is over its limit.

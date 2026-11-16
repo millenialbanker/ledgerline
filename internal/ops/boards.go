@@ -151,6 +151,7 @@ type Card struct {
 	Mirror      *CardRef          `json:"mirror,omitempty"` // shows another card (boardextras.go)
 	Template    bool              `json:"template,omitempty"`
 	Archived    bool              `json:"archived,omitempty"`
+	Stickers    []string          `json:"stickers,omitempty"` // stickers on the card's front, at most 10 (boardextras.go)
 	// Deleted cards are kept (the store keeps every record) but no longer shown.
 	Deleted   bool   `json:"deleted,omitempty"`
 	MovedTo   string `json:"moved_to,omitempty"` // "<board>|<card>" when it went to another board
