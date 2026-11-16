@@ -57,7 +57,15 @@ const BOARDS = {
      bdMd and bdInline) hooks in with BOARDS.onApi (after each change this
      screen makes: method, path, body, result), BOARDS.onPaint (after each
      draw), BOARDS.compose(text, list) (the composer's #label @person ^top)
-     and BOARDS.quickEdit(card, anchor). */
+     and BOARDS.quickEdit(card, anchor).
+   - Labels have 30 colours ("green_subtle", "green", "green_bold" …):
+     BOARDS.labelColors lists them, BOARDS.labelName(c) names one
+     ("Bold green") and BOARDS.labelHex(c) gives its light-theme colour.
+     The class bdc-<colour> sets --c (fill) and --lt (text on it).
+   - BD.v.collapsed is the lists the person collapsed (a narrow strip, no
+     cards); BD.v.board.watchers and each list's watchers say who watches;
+     BD.v.board.perms is { comments: off|members|observers, invite:
+     admins|members, self_join }, and bdCanComment() follows it. */
 
 /* ---------- state ---------- */
 Object.assign(UI, { bdBoard: '', bdView: {}, bdF: bdF0(), bdNames: false, bdHideDone: {}, bdDetails: false });
@@ -68,6 +76,20 @@ const BD = {
 };
 const BD_COLORS = ['green', 'yellow', 'orange', 'red', 'purple', 'blue', 'sky', 'lime', 'pink', 'black'];
 const BD_CN = { green: 'Green', yellow: 'Yellow', orange: 'Orange', red: 'Red', purple: 'Purple', blue: 'Blue', sky: 'Sky', lime: 'Lime', pink: 'Pink', black: 'Black' };
+/* Labels have 30 colours: each of the ten in a subtle, normal and bold
+   shade ("green_subtle", "green", "green_bold"), in the picker's order.
+   Lists, covers and backgrounds keep the ten. BOARDS.labelColors,
+   BOARDS.labelName(c) and BOARDS.labelHex(c) are for the other board files. */
+const BD_LCOLORS = [...BD_COLORS.map(c => c + '_subtle'), ...BD_COLORS, ...BD_COLORS.map(c => c + '_bold')];
+BD_COLORS.forEach(c => { BD_CN[c + '_subtle'] = 'Subtle ' + BD_CN[c].toLowerCase(); BD_CN[c + '_bold'] = 'Bold ' + BD_CN[c].toLowerCase(); });
+const BD_LHEX = {
+  green_subtle: '#AEE6C9', green: '#1F9D63', green_bold: '#106B41', yellow_subtle: '#F7E39A', yellow: '#D9A800', yellow_bold: '#8A6A00',
+  orange_subtle: '#FCCB9F', orange: '#E8770F', orange_bold: '#A44C04', red_subtle: '#F6B9B4', red: '#C9372F', red_bold: '#8C1D18',
+  purple_subtle: '#D3C8F6', purple: '#7356D6', purple_bold: '#4C34A3', blue_subtle: '#BEC8F4', blue: '#2F45C8', blue_bold: '#1B2A86',
+  sky_subtle: '#ACDDF3', sky: '#1C8FC4', sky_bold: '#0C5D83', lime_subtle: '#CDE7A8', lime: '#6EA531', lime_bold: '#456E19',
+  pink_subtle: '#F5C0DE', pink: '#D9529F', pink_bold: '#992D6B', black_subtle: '#D0D5DD', black: '#344054', black_bold: '#0C111D'
+};
+Object.assign(BOARDS, { labelColors: BD_LCOLORS, labelName: c => BD_CN[c] || c || '', labelHex: c => BD_LHEX[c] || '#98A2B3' });
 const BD_RX = ['👍', '👀', '✅', '🎉', '❤️', '😂', '🙏', '❗'];
 const BD_FIT = !!window.CSS?.supports?.('field-sizing', 'content'); // inputs that size to their text
 const BD_AVC = ['#2F45C8', '#127A5B', '#9E4A06', '#6941C6', '#0E7090', '#C11574', '#344054', '#B42318'];
@@ -109,7 +131,10 @@ const BD_IC = {
   info: '<circle cx="12" cy="12" r="8.2"/><path d="M12 11v5.2"/><circle class="f" cx="12" cy="7.8" r="1"/>',
   bolt: '<path d="M13 2.5 4.5 13.5H11l-1 8 8.5-11H12z"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.6M12 17.9v2.6M3.5 12h2.6M17.9 12h2.6M6 6l1.8 1.8M16.2 16.2 18 18M6 18l1.8-1.8M16.2 7.8 18 6"/>',
-  keys: '<rect x="3" y="6.5" width="18" height="11" rx="2"/><path d="M7 10h.01M10 10h.01M13 10h.01M16 10h.01M8 14h8"/>'
+  keys: '<rect x="3" y="6.5" width="18" height="11" rx="2"/><path d="M7 10h.01M10 10h.01M13 10h.01M16 10h.01M8 14h8"/>',
+  collapse: '<path d="M12 4.5v15M3 12h6M6.4 9.2 9.2 12l-2.8 2.8M21 12h-6M17.6 9.2 14.8 12l2.8 2.8"/>',
+  tick: '<path d="m5 12.5 4.3 4.3L19 7.2"/>',
+  pencil: '<path d="M4.5 19.5l1-4.2L15.8 5a2 2 0 0 1 2.9 0l.3.3a2 2 0 0 1 0 2.9L8.7 18.5z"/><path d="M13.8 7l3.2 3.2"/>'
 };
 const bdI = (n, cls) => `<svg class="bd-i${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${BD_IC[n] || ''}</svg>`;
 
@@ -121,6 +146,14 @@ const bdMe = () => S.me?.actor || '';
 const bdCan = () => !!BD.v && ['admin', 'member'].includes(BD.v.role) && !BD.v.board.closed;
 const bdAdmin = () => BD.v?.role === 'admin';
 const bdTeam = () => BD.v?.board.kind !== 'ledgerline';
+/* The board's permissions (the server enforces them; this follows):
+   comments off | members | observers, invite admins | members, self_join. */
+const bdPerms = () => ({ comments: BD.v?.board.perms?.comments || 'observers', invite: BD.v?.board.perms?.invite || 'admins', self_join: !!BD.v?.board.perms?.self_join });
+const bdCanComment = () => { if (!BD.v?.role || BD.v.board.closed) return false; const p = bdPerms().comments; return p === 'observers' || (p === 'members' && ['admin', 'member'].includes(BD.v.role)); };
+const bdCanInvite = () => !!BD.v && !BD.v.board.closed && (bdAdmin() || (bdTeam() && BD.v.role === 'member' && bdPerms().invite === 'members'));
+const bdWatching = () => (BD.v?.board.watchers || []).includes(bdMe());
+const bdLWatching = l => (l?.watchers || []).includes(bdMe());
+const bdCollapsed = id => (BD.v?.collapsed || []).includes(id);
 const bdLists = (b = BD.v?.board) => (b?.lists || []).filter(l => !l.archived).sort((x, y) => x.pos - y.pos);
 const bdOpenCards = () => (BD.v?.cards || []).filter(c => !c.archived);
 const bdIn = (l, cs) => cs.filter(c => c.list === l).sort((a, b) => a.pos - b.pos);
@@ -415,7 +448,7 @@ function bdBellHTML() {
   const text = n => n.by && n.text.startsWith(n.by + ' ') ? bdName(n.by) + n.text.slice(n.by.length) : n.text;
   return (BD.unread ? '<div class="bd-pop-tools"><button class="btn sm" data-act="bdReadAll">Mark all as read</button></div>' : '') +
     (ns.length ? `<ul class="bd-notes">${ns.map(n => `<li><button class="bd-note${n.read ? '' : ' unread'}" data-act="bdNote" data-id="${esc(n.id)}">${n.by ? bdAv(n.by) : `<span class="bd-av sys" aria-hidden="true">${bdI('bell')}</span>`}<span class="bd-note-b"><span class="bd-note-t">${esc(text(n))}</span><span class="bd-ft">${bdWhen(n.at)}${bname(n.board) ? ' · ' + esc(bname(n.board)) : ''}</span></span>${n.read ? '' : '<span class="bd-dot" aria-label="Unread"></span>'}</button></li>`).join('')}</ul>`
-      : '<p class="bd-mute">Nothing yet. You will hear here when someone adds you to a card, mentions you, or moves or comments on a card you watch.</p>');
+      : '<p class="bd-mute">Nothing yet. You will hear here when someone adds you to a card, mentions you, or moves or comments on a card you watch, and about cards on the lists and boards you watch.</p>');
 }
 
 /* ---------- home ---------- */
@@ -475,10 +508,12 @@ function bdHeadHTML(ctx) {
     <div class="bd-hl">${name}
       <button class="bd-hb bd-hstar${starred ? ' on' : ''}" data-act="bdStar" data-id="${esc(b.id)}" aria-pressed="${starred}" aria-label="${starred ? 'Unstar this board' : 'Star this board'}" title="${starred ? 'Unstar' : 'Star'}">${bdI('star')}</button>
       <button class="bd-hb" data-act="bdVis" data-popkey="vis" aria-label="Visibility: ${b.visibility === 'private' ? 'Private' : 'Firm-wide'}">${b.visibility === 'private' ? bdI('lock') + '<span>Private</span>' : bdI('users') + '<span>Firm-wide</span>'}</button>
+      ${bdWatching() ? `<span class="bd-hwatch" title="You are watching this board" role="img" aria-label="You are watching this board">${bdI('eye')}</span>` : ''}
       ${b.kind === 'ledgerline' ? '<span class="bd-tag bd-tag-ll" title="Kept in step with Ledgerline’s records">Ledgerline board</span>' : ''}
       ${BD.v.role === 'observer' ? '<span class="bd-tag">View only</span>' : ''}
     </div>
     <div class="bd-hr">
+      ${BD.v.can_join ? `<button class="btn pri sm bd-joinb" data-act="bdJoinBoard" title="Become a member so you can change its lists and cards">${bdI('user')}Join board</button>` : ''}
       ${views.length > 1 ? `<div class="bd-views" role="group" aria-label="Views">${views.map(([id, l]) => `<button class="${id === vid ? 'on' : ''}" aria-pressed="${id === vid}" data-act="bdView" data-id="${esc(id)}">${esc(l)}</button>`).join('')}</div>` : ''}
       ${bdSorted(BOARDS.headerButtons).map(h => bdSafe(() => h.render(ctx), 'header button ' + h.id)).join('')}
       <button class="bd-hb${n ? ' on' : ''}" id="bd-fbtn" data-act="bdFilter" data-popkey="filter" aria-label="Filter cards${n ? `, ${n} on` : ''}" title="Filter (f)">${bdI('filter')}<span>Filter</span>${n ? `<span class="bd-fc">${n}</span>` : ''}</button>
@@ -490,14 +525,23 @@ function bdHeadHTML(ctx) {
   </div>`;
 }
 function bdListHTML(l, cards, total) {
-  const can = bdCan(), team = bdTeam(), over = l.limit && total > l.limit;
+  const can = bdCan(), team = bdTeam(), over = l.limit && total > l.limit, watch = bdLWatching(l);
+  const eye = watch ? `<span class="bd-lwatch" title="You are watching this list">${bdI('eye')}${bdSr('Watching')}</span>` : '';
+  // A collapsed list (each person's own choice) is a narrow strip: its name and card count.
+  if (bdCollapsed(l.id)) {
+    return `<section class="bd-list collapsed${l.color ? ' has-c bdc-' + esc(l.color) : ''}" data-list="${esc(l.id)}" aria-label="${esc(l.name)}, collapsed">
+      <button class="bd-lcol" data-act="bdListCollapse" data-id="${esc(l.id)}" aria-expanded="false" title="Expand the list" aria-label="Expand the list ${esc(l.name)}, ${bdPl(total, 'card')}">
+        <span class="bd-lct${over ? ' over' : ''}" aria-hidden="true">${l.limit ? `${total}/${l.limit}` : total}</span>${eye}<span class="bd-lcol-t" aria-hidden="true">${esc(l.name)}</span></button>
+    </section>`;
+  }
   const nm = BD.rename === l.id
     ? `<input id="bd-ln-${esc(l.id)}" class="bd-ln-in" data-id="${esc(l.id)}" data-bdd="ln-${esc(l.id)}" data-enter="bdListRenameSave" data-esc="bdListRenameCancel" value="${esc(bdDraft('ln-' + l.id, l.name))}" aria-label="List name" maxlength="120">`
     : `<h3 class="bd-ln">${can && team ? `<button class="bd-ln-b" data-act="bdListRename" data-id="${esc(l.id)}" title="Rename">${esc(l.name)}</button>` : `<span class="bd-ln-b">${esc(l.name)}</span>`}</h3>`;
   const ct = l.limit ? `${total}/${l.limit}` : String(total);
   const comp = BD.comp === l.id && can ? bdCompHTML(l) : '';
   return `<section class="bd-list${l.color ? ' has-c bdc-' + esc(l.color) : ''}" data-list="${esc(l.id)}" aria-label="${esc(l.name)}">
-    <header class="bd-lh">${nm}<span class="bd-lct${over ? ' over' : ''}" title="${over ? `Over the limit of ${l.limit} cards` : l.limit ? `Limit ${l.limit} cards` : bdPl(total, 'card')}${cards.length !== total ? ` · ${cards.length} shown` : ''}">${ct}</span>
+    <header class="bd-lh">${nm}${eye}<span class="bd-lct${over ? ' over' : ''}" title="${over ? `Over the limit of ${l.limit} cards` : l.limit ? `Limit ${l.limit} cards` : bdPl(total, 'card')}${cards.length !== total ? ` · ${cards.length} shown` : ''}">${ct}</span>
+      <button class="bd-ib bd-lcolb" data-act="bdListCollapse" data-id="${esc(l.id)}" aria-expanded="true" aria-label="Collapse the list ${esc(l.name)}" title="Collapse">${bdI('collapse')}</button>
       <button class="bd-ib" data-act="bdListMenu" data-id="${esc(l.id)}" data-popkey="list-${esc(l.id)}" aria-label="List actions for ${esc(l.name)}">${bdI('dots')}</button></header>
     <div class="bd-lbody" data-list="${esc(l.id)}"><div class="bd-cards" data-list="${esc(l.id)}">${cards.map(bdCardHTML).join('')}</div>${comp}</div>
     ${can && BD.comp !== l.id ? `<div class="bd-lft"><button class="bd-addc-b" data-act="bdComp" data-id="${esc(l.id)}">${bdI('plus')}Add a card</button></div>` : ''}
@@ -535,9 +579,11 @@ function bdCardHTML(c) {
   const fullStyle = full && cov.file ? ` style="background-image:url('/v1/board-files/${bdE(cov.file)}')"` : '';
   const lab = labels.length ? `<div class="bd-labs">${labels.map(l => `<span class="bd-lab bdc-${esc(l.color)}${UI.bdNames ? ' named' : ''}" data-act="bdLabNames" title="${esc(l.name || BD_CN[l.color])}">${UI.bdNames ? esc(l.name || '') : ''}</span>`).join('')}</div>` : '';
   const srLab = labels.length ? bdSr(', labels: ' + labels.map(l => esc(l.name || BD_CN[l.color])).join(', ')) : '';
-  return `<article class="bd-card${full ? ' full' + (cov.file ? ' fimg' : ' bdc-' + esc(cov.color)) : ''}${st === 'over' ? ' late' : ''}" data-card="${esc(c.id)}" data-list="${esc(c.list)}"${fullStyle}>
+  // Mark complete from the front: a round box on hover (always when complete, and on touch screens).
+  const doneBox = c.due && bdCan() && !c.mirror ? `<input type="checkbox" class="bd-cdone" data-act="bdCardDone" data-id="${esc(c.id)}" ${c.due_done ? 'checked' : ''} aria-label="Complete: #${c.no} ${esc(c.title)}" title="${c.due_done ? 'Mark incomplete' : 'Mark complete'}">` : '';
+  return `<article class="bd-card${full ? ' full' + (cov.file ? ' fimg' : ' bdc-' + esc(cov.color)) : ''}${st === 'over' ? ' late' : ''}${c.due_done && c.due ? ' done' : ''}" data-card="${esc(c.id)}" data-list="${esc(c.list)}"${fullStyle}>
     ${coverHTML}<div class="bd-cin">${full ? '' : lab}
-      <h4 class="bd-ct"><button class="bd-copen" data-act="bdCard" data-id="${esc(c.id)}"><span class="bd-no">#${c.no}</span> ${esc(c.title)}${srLab}</button></h4>
+      <h4 class="bd-ct">${doneBox}<button class="bd-copen" data-act="bdCard" data-id="${esc(c.id)}"><span class="bd-no">#${c.no}</span> ${esc(c.title)}${srLab}</button></h4>
       ${full ? '' : `${bd.length || (c.members || []).length ? `<div class="bd-bdgs">${bd.join('')}<span class="bd-sp"></span>${(c.members || []).map(m => bdAv(m, 'sm')).join('')}</div>` : ''}
       ${c.link ? `<div class="bd-linkc" title="Linked to ${esc(c.link.label)}">${bdI('link')}<span>${esc(c.link.label)}</span>${c.link.status ? `<span class="bd-linkst">${esc(c.link.status)}</span>` : ''}</div>` : ''}
       ${ext ? `<div class="bd-bext">${ext}</div>` : ''}`}
@@ -606,6 +652,9 @@ async function bdOpenCard(id) {
     BD.cd = r.card; BD.cact = r.activity || [];
     bdCwShow();
   } catch (e) {
+    // A card that went to another board (with its list, or alone): follow it.
+    const mt = e.details?.moved_to;
+    if (mt?.board && mt.card && BD.card === id) { BD.card = ''; BD.cd = null; toast('This card moved to another board'); BOARDS.openCard(mt.board, mt.card); return; }
     toast(e.message, true);
     if (BD.card === id && !c0) { BD.card = ''; BD.cd = null; bdHash(); }
   }
@@ -693,7 +742,7 @@ function bdCwHTML() {
     ...ext('actions')].filter(x => x.html);
 
   return `${cover}<div class="bd-cw-hd">${bdI('card', 'bd-cw-ic')}<div class="bd-cw-hm">${title}
-      <div class="bd-cw-sub"><span class="bd-no">#${c.no}</span> in list ${can ? `<button class="bd-lnk" data-act="bdMoveCard" data-id="${esc(c.id)}" data-popkey="move-${esc(c.id)}">${esc(l?.name || '')}</button>` : `<b>${esc(l?.name || '')}</b>`}${b.closed ? ' · board closed' : ''}${BD.v.role === 'observer' ? ' · you can comment' : ''}</div></div>
+      <div class="bd-cw-sub"><span class="bd-no">#${c.no}</span> in list ${can ? `<button class="bd-lnk" data-act="bdMoveCard" data-id="${esc(c.id)}" data-popkey="move-${esc(c.id)}">${esc(l?.name || '')}</button>` : `<b>${esc(l?.name || '')}</b>`}${b.closed ? ' · board closed' : ''}${BD.v.role === 'observer' && bdCanComment() ? ' · you can comment' : ''}</div></div>
     <button class="x bd-cw-x" data-act="close" aria-label="Close card">${bdI('x')}</button></div>
     ${c.archived ? `<div class="bd-cw-arch" role="status">${bdI('archive')}<span>This card is archived.</span></div>` : ''}
     <div class="bd-cw-grid"><div class="bd-cw-main"><div class="bd-mbs">${meta.join('')}</div>${secs.map(s => s.id ? `<div class="bd-cs-ext" data-sec="${esc(s.id)}">${s.html}</div>` : s.html).join('')}</div>
@@ -756,18 +805,26 @@ function bdItemHTML(cl, it, can) {
       ${it.due ? '' : `<button class="bd-ib" data-act="bdItDue" ${a} data-popkey="itdue-${esc(it.id)}" aria-label="Set a due date for ${esc(it.text)}" title="Due date">${bdI('clock')}</button>`}
       ${it.member ? '' : `<button class="bd-ib" data-act="bdItMember" ${a} data-popkey="itmem-${esc(it.id)}" aria-label="Assign ${esc(it.text)} to someone" title="Assign">${bdI('user')}</button>`}
       <button class="bd-ib" data-act="bdItUp" ${a} ${idx <= 0 ? 'disabled' : ''} aria-label="Move ${esc(it.text)} up" title="Move up">${bdI('up')}</button>
-      <button class="bd-ib" data-act="bdItDown" ${a} ${idx >= items.length - 1 ? 'disabled' : ''} aria-label="Move ${esc(it.text)} down" title="Move down">${bdI('down')}</button></span>` : ''}</span>
+      <button class="bd-ib" data-act="bdItDown" ${a} ${idx >= items.length - 1 ? 'disabled' : ''} aria-label="Move ${esc(it.text)} down" title="Move down">${bdI('down')}</button>
+      <button class="bd-ib" data-act="bdItConvert" ${a} aria-label="Convert ${esc(it.text)} to a card" title="Convert to card">${bdI('card')}</button></span>` : ''}</span>
   </li>`;
 }
 function bdFeedHTML(c) {
-  const me = bdMe(), canC = !!BD.v.role && !BD.v.board.closed;
+  const me = bdMe(), canC = bdCanComment(), why = !canC && BD.v.role && !BD.v.board.closed ? (bdPerms().comments === 'off' ? 'Commenting is switched off on this board.' : 'Only the board’s members can comment on it.') : '';
   const items = (c.comments || []).map(cm => ({ t: new Date(cm.at).getTime(), html: bdCommentHTML(cm, canC) }));
   if (UI.bdDetails) (BD.cact || []).filter(a => a.what !== 'comment.added').forEach(a => items.push({ t: new Date(a.at).getTime(), html: `<li class="bd-fa">${bdAv(a.by)}<div><span><b>${esc(bdName(a.by))}</b> ${esc(a.text)}</span><div class="bd-ft">${bdWhen(a.at)}</div></div></li>` }));
   items.sort((a, b) => b.t - a.t);
   return `<section class="bd-cs" aria-label="Comments and activity"><div class="bd-cs-hd">${bdI('activity')}<h3>Comments and activity</h3><span class="bd-sp"></span><button class="btn sm" data-act="bdDetails" aria-pressed="${!!UI.bdDetails}">${UI.bdDetails ? 'Hide details' : 'Show details'}</button></div>
     ${canC ? `<div class="bd-cmc">${bdAv(me)}<div class="bd-cmc-b"><label class="bd-sr" for="cw-cm">Write a comment</label><textarea id="cw-cm" class="in bd-auto" rows="2" data-bdd="cm-${esc(c.id)}" data-center="bdCmAdd" data-mention="1" placeholder="Write a comment… Type @ to mention someone" maxlength="5000">${esc(bdDraft('cm-' + c.id, ''))}</textarea>
-      <div class="bd-row"><button class="btn pri sm" data-act="bdCmAdd">Save</button><span class="bd-hint">Ctrl+Enter saves.</span></div></div></div>` : ''}
+      <div class="bd-row"><button class="btn pri sm" data-act="bdCmAdd">Save</button><span class="bd-hint">Ctrl+Enter saves. @card tells the card’s members and watchers${['admin', 'member'].includes(BD.v.role) ? '; @board everyone on the board' : ''}.</span></div></div></div>` : why ? `<p class="bd-mute bd-cmno">${why}</p>` : ''}
     <ul class="bd-feed">${items.map(x => x.html).join('') || '<li class="bd-mute">No comments yet.</li>'}</ul></section>`;
+}
+/* An @board or @card that told people (the server lists them in groups)
+   shows as a mention; an observer's @board stays plain text. */
+function bdGroupsHTML(h, groups) {
+  if (!(groups || []).length) return h;
+  const t = { board: 'Everyone on this board', card: 'The card’s members and watchers' };
+  return h.replace(/(^|[\s(>])@(board|card)(?![a-z0-9._-]*[a-z0-9])/g, (all, p, g) => groups.includes(g) ? `${p}<span class="bd-mention bd-mgroup" title="${t[g]}">@${g}</span>` : all);
 }
 function bdCommentHTML(cm, canC) {
   const me = bdMe(), mine = cm.by === me, ed = BD.cw.edit === cm.id && mine && canC;
@@ -775,7 +832,7 @@ function bdCommentHTML(cm, canC) {
   return `<li class="bd-cm" id="cm-${esc(cm.id)}">${bdAv(cm.by)}<div class="bd-cm-b">
     <div class="bd-cm-h"><b>${esc(bdName(cm.by))}</b><span class="bd-ft">${bdWhen(cm.at)}${cm.edited ? ' · edited' : ''}</span></div>
     ${ed ? `<label class="bd-sr" for="cmed-${esc(cm.id)}">Edit comment</label><textarea id="cmed-${esc(cm.id)}" class="in bd-auto" rows="2" data-id="${esc(cm.id)}" data-bdd="cmed-${esc(cm.id)}" data-center="bdCmSave" data-esc="bdCmCancel" data-mention="1" maxlength="5000">${esc(bdDraft('cmed-' + cm.id, cm.text))}</textarea><div class="bd-row"><button class="btn pri sm" data-act="bdCmSave" data-id="${esc(cm.id)}">Save</button><button class="btn sm" data-act="bdCmCancel">Cancel</button></div>`
-      : `<div class="bd-md bd-cm-t">${bdMd(cm.text, true)}</div>`}
+      : `<div class="bd-md bd-cm-t">${bdGroupsHTML(bdMd(cm.text, true), cm.groups)}</div>`}
     <div class="bd-cm-f">${rx}${canC ? `<button class="bd-rxadd" data-act="bdReactPick" data-id="${esc(cm.id)}" data-popkey="rx-${esc(cm.id)}" aria-label="Add a reaction" title="Add a reaction">${bdI('smile')}</button>` : ''}
       ${mine && canC && !ed ? `<button class="bd-lnk" data-act="bdCmEdit" data-id="${esc(cm.id)}">Edit</button>` : ''}
       ${(mine || bdAdmin()) && canC ? `<button class="bd-lnk" data-act="bdCmDel" data-id="${esc(cm.id)}" data-popkey="cmdel-${esc(cm.id)}">Delete</button>` : ''}</div>
@@ -811,10 +868,24 @@ async function bdUpload(files, cid) {
 /* ---------- pickers (popovers) ---------- */
 function bdPickFilter(id, ph) { return `<label class="bd-sr" for="${id}">${ph}</label><input class="in bd-pop-q" id="${id}" data-bdd="${id}" data-popq="1" placeholder="${ph}" autocomplete="off" value="${esc(bdDraft(id, ''))}">`; }
 function bdLabelsPop() {
-  const c = BD.cd, q = bdDraft('lp-q', '').toLowerCase().trim(), can = bdCan();
-  const ls = BD.v.board.labels.filter(l => !q || (l.name + ' ' + BD_CN[l.color]).toLowerCase().includes(q));
-  return bdPickFilter('lp-q', 'Search labels') + `<div class="bd-plist" role="group" aria-label="Labels">${ls.map(l => `<label class="bd-prow"><input type="checkbox" class="bd-chk" id="lp-${esc(l.id)}" data-act="bdCardLabel" data-id="${esc(l.id)}" ${(c.labels || []).includes(l.id) ? 'checked' : ''} ${can ? '' : 'disabled'}><span class="bd-pill wide bdc-${esc(l.color)}">${esc(l.name || BD_CN[l.color])}</span></label>`).join('') || '<p class="bd-mute">No labels match.</p>'}</div>` +
-    (bdAdmin() ? '<div class="bd-pop-tools"><button class="btn sm" data-act="bdLabelsModal">Edit the board’s labels</button></div>' : '');
+  const c = BD.cd, q = bdDraft('lp-q', '').toLowerCase().trim(), can = bdCan(), adm = bdAdmin() && !BD.v.board.closed;
+  if (BD.lbEdit) return bdLabelEditHTML();
+  const ls = BD.v.board.labels.filter(l => !q || (l.name + ' ' + (BD_CN[l.color] || '')).toLowerCase().includes(q));
+  return bdPickFilter('lp-q', 'Search labels') + `<div class="bd-plist" role="group" aria-label="Labels">${ls.map(l => `<div class="bd-prow bd-lrow"><input type="checkbox" class="bd-chk" id="lp-${esc(l.id)}" data-act="bdCardLabel" data-id="${esc(l.id)}" ${(c.labels || []).includes(l.id) ? 'checked' : ''} ${can ? '' : 'disabled'}><label class="bd-pill wide bdc-${esc(l.color)}" for="lp-${esc(l.id)}">${esc(l.name || BD_CN[l.color] || '')}</label>${adm ? `<button class="bd-ib" data-act="bdLabEdit" data-id="${esc(l.id)}" aria-label="Edit the label ${esc(l.name || BD_CN[l.color] || '')}" title="Edit">${bdI('pencil')}</button>` : ''}</div>`).join('') || '<p class="bd-mute">No labels match.</p>'}</div>` +
+    (adm ? `<div class="bd-pop-tools"><button class="btn sm" data-act="bdLabEdit" data-id="">${bdI('plus')}Create a new label</button><button class="bd-lnk" data-act="bdLabelsModal">All the board’s labels</button></div>` : '');
+}
+/* The 30 label colours as a grid: a row of subtle, normal and bold shades
+   for each five hues, like Trello's picker. */
+function bdLabGrid(sel, act, label) {
+  return `<div class="bd-lgrid" role="group" aria-label="${esc(label || 'Colour')}">${BD_LCOLORS.map(x => `<button type="button" class="bd-lsw bdc-${x}${x === sel ? ' on' : ''}" aria-pressed="${x === sel}" data-act="${act}" data-id="${x}" aria-label="${BD_CN[x]}" title="${BD_CN[x]}">${x === sel ? bdI('tick') : ''}</button>`).join('')}</div>`;
+}
+function bdLabelEditHTML() {
+  const e = BD.lbEdit, name = bdDraft('le-name', e.name);
+  if (e.del) return bdConfirmPop('Delete this label? It comes off every card that has it. This cannot be undone.', 'bdLabDelGo', e.id, 'Delete label');
+  return `<div class="bd-form1"><div class="bd-lprev"><span class="bd-pill wide bdc-${esc(e.color)}" id="le-pv">${esc(name.trim() || BD_CN[e.color])}</span></div>
+    <div class="fld"><label for="le-name">Title</label><input class="in" id="le-name" data-bdd="le-name" maxlength="60" value="${esc(name)}" placeholder="Name (optional)" data-enter="bdLabSaveOne"></div>
+    <span class="bd-flab">Colour · ${esc(BD_CN[e.color])}</span>${bdLabGrid(e.color, 'bdLabColorPick', 'Label colour')}
+    <div class="bd-row"><button class="btn pri sm" data-act="bdLabSaveOne">${e.id ? 'Save' : 'Create'}</button>${e.id ? '<span class="bd-sp"></span><button class="btn sm bad" data-act="bdLabDelAsk">Delete</button>' : ''}</div></div>`;
 }
 function bdMembersPop() {
   const c = BD.cd, q = bdDraft('mp-q', '').toLowerCase().trim();
@@ -831,11 +902,14 @@ function bdDatesPop() {
     <div class="bd-row"><button class="btn pri sm" data-act="bdDatesSave">Save</button>${c.due || c.start ? '<button class="btn sm" data-act="bdDatesRemove">Remove dates</button>' : ''}</div></div>`;
 }
 function bdChecklistPop() {
-  const cls = BD.cd.checklists || [];
+  // Copy items from any checklist on any card of this board, this card first.
+  const here = BD.cd, cards = [here, ...bdOpenCards().filter(c => c.id !== here.id).sort((a, b) => a.no - b.no)].filter(c => (c.checklists || []).some(cl => (cl.items || []).length));
+  const opt = (c, cl) => `<option value="${esc(c.id + '|' + cl.id)}">${esc(cl.name)} (${bdPl((cl.items || []).length, 'item')})</option>`;
   return `<div class="bd-form1"><div class="fld"><label for="ck-name">Title</label><input class="in" id="ck-name" value="Checklist" maxlength="200" data-enter="bdChecklistAdd"></div>
-    ${cls.length ? `<div class="fld"><label for="ck-copy">Copy items from</label><select class="in" id="ck-copy"><option value="">(none)</option>${cls.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select></div>` : ''}
+    ${cards.length ? `<div class="fld"><label for="ck-copy">Copy items from…</label><select class="in" id="ck-copy"><option value="">(none)</option>${cards.map(c => `<optgroup label="${esc(c.id === here.id ? 'This card' : `#${c.no} ${bdClip(c.title, 48)}`)}">${(c.checklists || []).filter(cl => (cl.items || []).length).map(cl => opt(c, cl)).join('')}</optgroup>`).join('')}</select><span class="bd-hint">Any checklist on a card of this board. The items come unticked.</span></div>` : ''}
     <div class="bd-row"><button class="btn pri sm" data-act="bdChecklistAdd">Add checklist</button></div></div>`;
 }
+const bdClip = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 function bdAttachPop() {
   return `<div class="bd-form1"><div class="fld"><span class="bd-flab">From your computer</span><label class="btn sm bd-filebtn" for="bd-attfile">${bdI('clip')}Choose files</label><input type="file" id="bd-attfile" multiple class="bd-sr"><span class="bd-hint">Up to 15 MB each. You can also drop files on the card or paste an image.</span></div>
     <hr class="bd-sep">
@@ -919,20 +993,33 @@ function bdNewModal() {
   </div><div id="nb-err"></div></div><div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="bdNewGo">Create board</button></div>`);
 }
 function bdShareModal() {
-  const b = BD.v.board, adm = bdAdmin() && !b.closed;
-  BD.share = (b.members || []).map(m => ({ ...m }));
-  modal(mhd('Share board', esc(b.name)) + `<div class="bd" id="bd-share"></div><div class="ft"><button class="btn" data-act="close">${adm ? 'Cancel' : 'Close'}</button>${adm ? '<button class="btn pri" data-act="bdShareSave">Save</button>' : ''}</div>`);
+  const b = BD.v.board, can = bdCanInvite();
+  BD.share = (b.members || []).map(m => ({ ...m, was: true }));
+  modal(mhd('Share board', esc(b.name)) + `<div class="bd" id="bd-share"></div><div class="ft"><button class="btn" data-act="close">${can ? 'Cancel' : 'Close'}</button>${can ? '<button class="btn pri" data-act="bdShareSave">Save</button>' : ''}</div>`);
   bdSharePaint();
 }
+/* Admins change anyone's role. When the board lets all members add and
+   remove members, a member adds people as members or observers and removes
+   anyone but an admin; the server holds to the same. */
 function bdSharePaint() {
   const el = $('bd-share'); if (!el) return;
-  const b = BD.v.board, adm = bdAdmin() && !b.closed, ms = BD.share;
+  const b = BD.v.board, adm = bdAdmin() && !b.closed, can = bdCanInvite(), ms = BD.share;
   const cands = (S.me?.users || []).filter(u => u.active !== false && u.role !== 'Client' && !ms.some(m => m.user === u.id));
-  const roleSel = (id, v, i) => `<select class="in sm" id="${id}" data-share="${i}" aria-label="Role">${[['admin', 'Admin'], ['member', 'Member'], ['observer', 'Observer']].map(([k, l]) => `<option value="${k}" ${v === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const roles = adm ? [['admin', 'Admin'], ['member', 'Member'], ['observer', 'Observer']] : [['member', 'Member'], ['observer', 'Observer']];
+  const roleSel = (id, v, i) => `<select class="in sm" id="${id}" data-share="${i}" aria-label="Role">${roles.map(([k, l]) => `<option value="${k}" ${v === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const row = (m, i) => {
+    const tag = `<span class="bd-tag">${esc(m.role)}</span>`;
+    if (!can) return tag;
+    const del = `<button class="bd-ib" data-act="bdShareDel" data-id="${i}" aria-label="Remove ${esc(bdName(m.user))}">${bdI('x')}</button>`;
+    if (adm || !m.was) return roleSel('sh-r-' + i, m.role, i) + del;
+    return tag + (m.role === 'admin' ? '<span class="bd-ib-sp"></span>' : del);
+  };
+  const cm = bdPerms().comments === 'observers' ? ' and comment' : '';
+  const how = bdTeam() ? (bdPerms().invite === 'members' ? ' Any member can add and remove members; only admins change roles.' : ' Only admins add and remove members.') : '';
   bdKeep(() => {
-    el.innerHTML = `<p class="dim small" style="margin:0">${b.visibility === 'firm' ? 'This board is firm-wide: everyone at head office can see it and comment. Add people as members so they can change it.' : 'This board is private: only the people below can see it.'} Admins change the board’s settings and members; members change lists and cards; observers read and comment.</p>
-      <ul class="bd-share">${ms.map((m, i) => `<li>${bdAv(m.user)}<span class="bd-prow-t">${esc(bdName(m.user))}<small>${esc(m.user)}${m.user === bdMe() ? ' · you' : ''}</small></span>${adm ? roleSel('sh-r-' + i, m.role, i) + `<button class="bd-ib" data-act="bdShareDel" data-id="${i}" aria-label="Remove ${esc(bdName(m.user))}">${bdI('x')}</button>` : `<span class="bd-tag">${esc(m.role)}</span>`}</li>`).join('') || '<li class="bd-mute">No members yet.</li>'}</ul>
-      ${adm && cands.length ? `<div class="bd-row bd-share-add"><label class="bd-sr" for="sh-u">Person to add</label><select class="in" id="sh-u">${cands.map(u => `<option value="${esc(u.id)}">${esc(u.name)} · ${esc(u.role)}</option>`).join('')}</select><label class="bd-sr" for="sh-role">Role</label><select class="in" id="sh-role"><option value="member">Member</option><option value="observer">Observer</option><option value="admin">Admin</option></select><button class="btn" data-act="bdShareAdd">Add</button></div>` : ''}
+    el.innerHTML = `<p class="dim small" style="margin:0">${b.visibility === 'firm' ? `This board is firm-wide: everyone at head office can see it${cm}. Add people as members so they can change it.` : 'This board is private: only the people below can see it.'} Admins change the board’s settings and members; members change lists and cards; observers read${cm}.${how}</p>
+      <ul class="bd-share">${ms.map((m, i) => `<li>${bdAv(m.user)}<span class="bd-prow-t">${esc(bdName(m.user))}<small>${esc(m.user)}${m.user === bdMe() ? ' · you' : ''}</small></span>${row(m, i)}</li>`).join('') || '<li class="bd-mute">No members yet.</li>'}</ul>
+      ${can && cands.length ? `<div class="bd-row bd-share-add"><label class="bd-sr" for="sh-u">Person to add</label><select class="in" id="sh-u">${cands.map(u => `<option value="${esc(u.id)}">${esc(u.name)} · ${esc(u.role)}</option>`).join('')}</select><label class="bd-sr" for="sh-role">Role</label><select class="in" id="sh-role">${[...roles.filter(r => r[0] !== 'admin'), ...roles.filter(r => r[0] === 'admin')].map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select><button class="btn" data-act="bdShareAdd">Add</button></div>` : ''}
       <div id="sh-err"></div>`;
   });
 }
@@ -940,7 +1027,7 @@ function bdAboutModal() {
   const b = BD.v.board, adm = bdAdmin() && !b.closed;
   modal(mhd('About this board', esc(b.name)) + `<div class="bd">
     <div class="kv"><div><small>Made by</small><b>${esc(bdName(b.created_by))}</b></div><div><small>Made</small><b>${esc(fmtDate(b.created_at))}</b></div><div><small>Kind</small><b>${b.kind === 'ledgerline' ? 'Ledgerline board' : 'Team board'}</b></div><div><small>Cards</small><b>${bdOpenCards().length} open</b></div></div>
-    ${adm ? `<div class="fld"><label for="ab-desc">Description</label><textarea class="in" id="ab-desc" rows="6" maxlength="4000" placeholder="What this board is for, and how the team uses it">${esc(b.description || '')}</textarea><span class="bd-hint">**bold**, _italic_, \`code\`, links and lists.</span></div>` : b.description ? `<div class="bd-md">${bdMd(b.description)}</div>` : '<p class="bd-mute">No description.</p>'}
+    ${adm ? `<div class="fld"><label for="ab-desc">Description</label><textarea class="in" id="ab-desc" rows="6" maxlength="4000" placeholder="What this board is for, and how the team uses it">${esc(b.description || '')}</textarea><span class="bd-hint">Formatting: **bold**, _italic_, headings, lists, quotes, code, tables and links</span></div>` : b.description ? `<div class="bd-md">${bdMd(b.description)}</div>` : '<p class="bd-mute">No description.</p>'}
     <div id="ab-err"></div></div>${adm ? '<div class="ft"><button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="bdAboutSave">Save</button></div>' : ''}`);
 }
 async function bdActivityModal() {
@@ -950,22 +1037,29 @@ async function bdActivityModal() {
 }
 async function bdArchivedModal() {
   BD.arch = { tab: 'cards', cards: null, del: '' };
+  delete BD.drafts['ar-q'];
   modal(mhd('Archived items', esc(BD.v.board.name)) + '<div class="bd" id="bd-arch"><p class="bd-mute">Loading…</p></div>');
   try { BD.arch.cards = (await get(bdURL('?archived=1'))).cards || []; } catch (e) { BD.arch.cards = []; toast(e.message, true); }
   bdArchPaint();
+  // Lists that moved to another board say where they went.
+  if (BD.v.board.lists.some(l => l.moved_to)) get('/v1/boards').then(bs => { BD.boards = bs; bdArchPaint(); }).catch(() => {});
 }
 function bdArchPaint() {
   const el = $('bd-arch'), a = BD.arch; if (!el || !a) return;
   const can = bdCan(), adm = bdAdmin() && !BD.v.board.closed, q = bdDraft('ar-q', '').toLowerCase().trim();
-  const lists = BD.v.board.lists.filter(l => l.archived), lname = id => BD.v.board.lists.find(l => l.id === id)?.name || '';
-  const cards = (a.cards || []).filter(c => !q || (c.title + ' #' + c.no).toLowerCase().includes(q));
+  const all = BD.v.board.lists.filter(l => l.archived), lname = id => BD.v.board.lists.find(l => l.id === id)?.name || '';
+  const lists = all.filter(l => !q || l.name.toLowerCase().includes(q));
+  const cards = (a.cards || []).filter(c => !q || (c.title + ' #' + c.no + ' ' + lname(c.list) + ' ' + (c.description || '')).toLowerCase().includes(q));
+  const bname = id => (BD.boards || BD.home || []).find(b => b.id === id)?.name || '';
+  const what = a.tab === 'cards' ? 'archived cards' : 'archived lists';
   bdKeep(() => {
-    el.innerHTML = `<div class="bd-row"><div class="bd-seg" role="group" aria-label="Show"><button class="${a.tab === 'cards' ? 'on' : ''}" data-act="bdArchTab" data-id="cards" aria-pressed="${a.tab === 'cards'}">Cards (${(a.cards || []).length})</button><button class="${a.tab === 'lists' ? 'on' : ''}" data-act="bdArchTab" data-id="lists" aria-pressed="${a.tab === 'lists'}">Lists (${lists.length})</button></div>
-      ${a.tab === 'cards' ? `<span class="bd-sp"></span><label class="bd-sr" for="ar-q">Search archived cards</label><input class="in" id="ar-q" data-bdd="ar-q" data-arq="1" placeholder="Search archived cards" value="${esc(bdDraft('ar-q', ''))}">` : ''}</div>
+    el.innerHTML = `<div class="bd-row bd-arch-hd"><div class="bd-seg" role="group" aria-label="Show"><button class="${a.tab === 'cards' ? 'on' : ''}" data-act="bdArchTab" data-id="cards" aria-pressed="${a.tab === 'cards'}">Cards (${(a.cards || []).length})</button><button class="${a.tab === 'lists' ? 'on' : ''}" data-act="bdArchTab" data-id="lists" aria-pressed="${a.tab === 'lists'}">Lists (${all.length})</button></div>
+      <span class="bd-sp"></span><div class="bd-arch-q">${bdI('search')}<label class="bd-sr" for="ar-q">Search ${what}</label><input class="in" id="ar-q" type="search" data-bdd="ar-q" data-arq="1" placeholder="Search ${what}" autocomplete="off" value="${esc(bdDraft('ar-q', ''))}"></div></div>
+      ${q ? `<p class="bd-hint" role="status">${a.tab === 'cards' ? bdPl(cards.length, 'card') : bdPl(lists.length, 'list')} ${(a.tab === 'cards' ? cards : lists).length === 1 ? 'matches' : 'match'} “${esc(q)}”.</p>` : ''}
       ${a.tab === 'cards' ? `<ul class="bd-arch">${cards.map(c => `<li><button class="bd-lnk bd-arch-t" data-act="bdArchOpen" data-id="${esc(c.id)}"><span class="bd-no">#${c.no}</span> ${esc(c.title)}</button><span class="bd-ft">in ${esc(lname(c.list))}</span><span class="bd-sp"></span>
           ${a.del === c.id ? `<span class="bd-ft">Delete for good?</span><button class="btn sm bad" data-act="bdArchDelGo" data-id="${esc(c.id)}">Delete</button><button class="btn sm" data-act="bdArchDel" data-id="">Cancel</button>`
           : `${can ? `<button class="btn sm" data-act="bdArchRestore" data-id="${esc(c.id)}">Restore</button>` : ''}${adm ? `<button class="btn sm bad" data-act="bdArchDel" data-id="${esc(c.id)}">Delete</button>` : ''}`}</li>`).join('') || `<li class="bd-mute">${q ? 'No archived cards match.' : 'No archived cards.'}</li>`}</ul>`
-        : `<ul class="bd-arch">${lists.map(l => `<li><b>${esc(l.name)}</b><span class="bd-sp"></span>${can ? `<button class="btn sm" data-act="bdListRestore" data-id="${esc(l.id)}">Restore</button>` : ''}</li>`).join('') || '<li class="bd-mute">No archived lists.</li>'}</ul>`}`;
+        : `<ul class="bd-arch">${lists.map(l => `<li><b>${esc(l.name)}</b>${l.moved_to ? `<span class="bd-ft">Moved to ${bname(l.moved_to) ? `<button class="bd-lnk" data-act="bdOpen" data-id="${esc(l.moved_to)}">${esc(bname(l.moved_to))}</button>` : 'another board'}${(a.cards || []).some(c => c.list === l.id) ? '; its archived cards stayed here' : ''}</span>` : ''}<span class="bd-sp"></span>${can && !l.moved_to ? `<button class="btn sm" data-act="bdListRestore" data-id="${esc(l.id)}">Restore</button>` : ''}</li>`).join('') || `<li class="bd-mute">${q ? 'No archived lists match.' : 'No archived lists.'}</li>`}</ul>`}`;
   });
 }
 function bdLabelsModal() {
@@ -982,21 +1076,30 @@ function bdLabPaint() {
   const adm = bdAdmin() && !BD.v.board.closed;
   const used = id => bdOpenCards().filter(c => (c.labels || []).includes(id)).length;
   bdKeep(() => {
-    el.innerHTML = `<ul class="bd-labs-ed">${BD.lab.map((l, i) => `<li><span class="bd-pill wide bdc-${esc(l.color)}" id="lab-pv-${i}">${esc(l.name || BD_CN[l.color])}</span>
-      ${adm ? `<label class="bd-sr" for="lab-c-${i}">Colour</label><select class="in sm" id="lab-c-${i}" data-lab="${i}" data-k="color">${BD_COLORS.map(x => `<option value="${x}" ${x === l.color ? 'selected' : ''}>${BD_CN[x]}</option>`).join('')}</select>
+    el.innerHTML = `<ul class="bd-labs-ed">${BD.lab.map((l, i) => `<li><span class="bd-pill wide bdc-${esc(l.color)}" id="lab-pv-${i}">${esc(l.name || BD_CN[l.color] || '')}</span>
+      ${adm ? `<button class="btn sm bd-lcbtn" id="lab-c-${i}" data-act="bdLabColor" data-id="${i}" data-popkey="labc-${i}" aria-label="Colour: ${esc(BD_CN[l.color] || '')}. Change it"><span class="bd-lcdot bdc-${esc(l.color)}" aria-hidden="true"></span><span>${esc(BD_CN[l.color] || '')}</span></button>
         <label class="bd-sr" for="lab-n-${i}">Name</label><input class="in sm" id="lab-n-${i}" data-lab="${i}" data-k="name" value="${esc(l.name)}" placeholder="Name (optional)" maxlength="60">
         <span class="bd-ft">${l.id ? bdPl(used(l.id), 'card') : 'new'}</span><button class="bd-ib" data-act="bdLabDel" data-id="${i}" aria-label="Remove this label">${bdI('trash')}</button>` : `<span class="bd-ft">${bdPl(used(l.id), 'card')}</span>`}</li>`).join('') || '<li class="bd-mute">No labels.</li>'}</ul>
-      ${adm ? '<button class="btn sm" data-act="bdLabAdd">Add a label</button>' : ''}<div id="lab-err"></div>`;
+      ${adm ? '<button class="btn sm" data-act="bdLabAdd">Add a label</button><p class="bd-hint">30 colours: each in a subtle, normal and bold shade.</p>' : ''}<div id="lab-err"></div>`;
   });
 }
 function bdSettingsModal() {
-  const b = BD.v.board, adm = bdAdmin() && !b.closed, scoped = scopedUser(), ll = b.kind === 'ledgerline';
+  const b = BD.v.board, adm = bdAdmin() && !b.closed, scoped = scopedUser(), ll = b.kind === 'ledgerline', p = bdPerms();
   BD.set = { bg: b.background || 'blue' };
+  const radio = (name, v, on, t, d) => `<label class="check"><input type="radio" name="${name}" value="${v}" ${on ? 'checked' : ''} ${adm ? '' : 'disabled'}><span><b>${t}</b><br><span class="dim small">${d}</span></span></label>`;
   modal(mhd('Settings', esc(b.name)) + `<div class="bd"><div class="form">
     <fieldset class="full bd-fs"><legend>Who can see it</legend>
-      <label class="check"><input type="radio" name="st-vis" value="firm" ${b.visibility === 'firm' ? 'checked' : ''} ${adm && !scoped ? '' : 'disabled'}><span><b>Firm-wide</b><br><span class="dim small">Everyone at head office can see it and comment.</span></span></label>
+      <label class="check"><input type="radio" name="st-vis" value="firm" ${b.visibility === 'firm' ? 'checked' : ''} ${adm && !scoped ? '' : 'disabled'}><span><b>Firm-wide</b><br><span class="dim small">Everyone at head office can see it.</span></span></label>
       <label class="check"><input type="radio" name="st-vis" value="private" ${b.visibility === 'private' ? 'checked' : ''} ${adm && !ll ? '' : 'disabled'}><span><b>Private</b><br><span class="dim small">Only its members can see it.</span></span></label>
       ${ll ? '<p class="dim small">A Ledgerline board stays firm-wide: its work belongs to the roles that do it.</p>' : scoped ? '<p class="dim small">Branch and partner staff keep their boards private.</p>' : ''}</fieldset>
+    <fieldset class="full bd-fs"><legend>Commenting</legend>
+      ${radio('st-cm', 'off', p.comments === 'off', 'Disabled', 'No one can comment on the cards.')}
+      ${radio('st-cm', 'members', p.comments === 'members', 'Members', 'The board’s admins and members.')}
+      ${radio('st-cm', 'observers', p.comments === 'observers', 'Members and observers', `Also its observers${ll || b.visibility === 'firm' ? ', which on a firm-wide board is everyone at head office' : ''}.`)}</fieldset>
+    ${ll ? '<p class="dim small full">A Ledgerline board’s members come from their roles, so who can add members or join does not apply.</p>' : `<fieldset class="full bd-fs"><legend>Adding and removing members</legend>
+      ${radio('st-inv', 'admins', p.invite === 'admins', 'Admins', 'Only the board’s admins.')}
+      ${radio('st-inv', 'members', p.invite === 'members', 'All members', 'Admins and members. Only admins change roles or remove an admin.')}</fieldset>
+    <label class="check full"><input type="checkbox" id="st-join" ${p.self_join && b.visibility === 'firm' ? 'checked' : ''} ${adm && b.visibility === 'firm' ? '' : 'disabled'}><span><b>Anyone at head office can join</b><br><span class="dim small" id="st-join-d">${b.visibility === 'firm' ? 'People who are not members see a Join board button that makes them a member.' : 'For firm-wide boards only.'}</span></span></label>`}
     <label class="check full"><input type="checkbox" id="st-covers" ${b.covers_on ? 'checked' : ''} ${adm ? '' : 'disabled'}><span><b>Show card covers</b><br><span class="dim small">Cover colours and images appear on the cards in the lists.</span></span></label>
     <fieldset class="full bd-fs"><legend>Background</legend><div class="bd-sws">${BD_COLORS.map(x => `<label class="bd-sw"><input type="radio" name="st-bg" value="${x}" ${b.background === x ? 'checked' : ''} ${adm ? '' : 'disabled'}><span class="bd-swc bdc-${x}" aria-hidden="true"></span><span class="bd-sr">${BD_CN[x]}</span></label>`).join('')}
       ${b.background?.startsWith('file:') ? `<label class="bd-sw"><input type="radio" name="st-bg" value="${esc(b.background)}" checked ${adm ? '' : 'disabled'}><span class="bd-swc img" style="background-image:url('/v1/board-files/${bdE(b.background.slice(5))}')" aria-hidden="true"></span><span class="bd-sr">Uploaded image</span></label>` : ''}</div>
@@ -1066,18 +1169,20 @@ Object.assign(A, {
     const ctx = BOARDS.ctx(), b = BD.v.board, adm = bdAdmin();
     const items = [
       { id: 'about', label: 'About this board', icon: 'info', order: 10 },
+      { id: 'watch', label: 'Watch', icon: 'eye', order: 15, checked: bdWatching(), hint: 'Hear about cards added, moved, completed, commented on or given a due date' },
       { id: 'activity', label: 'Activity', icon: 'activity', order: 20 },
       { id: 'archived', label: 'Archived items', icon: 'archive', order: 30 },
       { id: 'labels', label: 'Labels', icon: 'tag', order: 40 },
       { id: 'settings', label: 'Settings', icon: 'gear', order: 50 },
       { id: 'copy', label: 'Copy board', icon: 'copy', order: 60, show: bdTeam() },
       { id: 'close', label: b.closed ? 'Reopen board' : 'Close board', icon: 'archive', order: 80, show: adm },
-      { id: 'delete', label: 'Delete board', icon: 'trash', order: 90, show: adm && b.closed && bdTeam() },
+      { id: 'delete', label: 'Delete board', icon: 'trash', order: 90, show: !!(adm && b.closed && bdTeam()) },
       ...BOARDS.boardMenu.filter(x => !x.show || bdSafe(() => x.show(ctx) ? 'y' : '', 'menu ' + x.id)).map(x => ({ id: 'x:' + x.id, label: x.label, icon: BD_IC[x.icon] ? x.icon : 'arrow', order: x.order ?? 70 }))
     ].filter(x => x.show !== false);
-    return `<div class="bd-menu" role="menu">${bdSorted(items).map(x => `<button class="bd-mi${x.id === 'delete' ? ' danger' : ''}" role="menuitem" data-act="bdMenuRun" data-id="${esc(x.id)}">${bdI(x.icon)}<span>${esc(x.label)}</span></button>`).join('')}</div>`;
+    return `<div class="bd-menu" role="menu">${bdSorted(items).map(x => `<button class="bd-mi${x.id === 'delete' ? ' danger' : ''}${x.checked ? ' checked' : ''}" ${x.checked != null ? `role="menuitemcheckbox" aria-checked="${!!x.checked}"` : 'role="menuitem"'} data-act="bdMenuRun" data-id="${esc(x.id)}">${bdI(x.icon)}<span>${esc(x.label)}${x.hint ? `<small>${esc(x.hint)}</small>` : ''}</span>${x.checked ? bdI('tick', 'bd-mi-tick') : ''}</button>`).join('')}</div>`;
   }),
   bdMenuRun: id => {
+    if (id === 'watch') { A.bdBoardWatch(); return; }
     bdPopClose(true);
     if (id.startsWith('x:')) { const x = BOARDS.boardMenu.find(m => m.id === id.slice(2)); if (x) bdSafe(() => { x.run(BOARDS.ctx()); }, 'menu ' + x.id); return; }
     const b = BD.v.board;
@@ -1092,7 +1197,17 @@ Object.assign(A, {
   bdShareDel: i => { BD.share.splice(+i, 1); bdSharePaint(); },
   bdShareSave: async () => {
     document.querySelectorAll('[data-share]').forEach(s => { BD.share[+s.dataset.share].role = s.value; });
-    try { BD.v.board = await bdPutBoard({ members: BD.share }); closeModal(); toast('Members saved'); bdReload(); } catch (e) { $('sh-err').innerHTML = errHTML(e); }
+    try { await bdApi('PUT', bdURL('/members'), { members: BD.share.map(m => ({ user: m.user, role: m.role })) }); closeModal(); toast('Members saved'); bdReload(true); } catch (e) { $('sh-err').innerHTML = errHTML(e); }
+  },
+  bdBoardWatch: async () => {
+    const on = !bdWatching(), me = bdMe(), b = BD.v.board;
+    b.watchers = (b.watchers || []).filter(x => x !== me); if (on) b.watchers.push(me);
+    bdPaint(); if (BD.pop?.key === 'menu') bdPopRefresh();
+    try { await bdPost(bdURL('/watch'), { on }); toast(on ? 'You are watching this board' : 'You stopped watching this board'); }
+    catch (e) { b.watchers = (b.watchers || []).filter(x => x !== me); if (!on) b.watchers.push(me); bdPaint(); toast(e.message, true); }
+  },
+  bdJoinBoard: async () => {
+    try { await bdPost(bdURL('/join')); toast('You joined the board'); await bdReload(true); } catch (e) { toast(e.message, true); }
   },
   bdAboutSave: async () => { try { BD.v.board = await bdApi('PUT', bdURL(), { description: $('ab-desc').value }); closeModal(); toast('Saved'); bdPaint(); bdSoon(); } catch (e) { $('ab-err').innerHTML = errHTML(e); } },
   bdActMore: async () => {
@@ -1119,13 +1234,42 @@ Object.assign(A, {
   bdLabelsModal: () => bdLabelsModal(),
   bdLabAdd: () => { const used = BD.lab.map(l => l.color); BD.lab.push({ id: '', name: '', color: BD_COLORS.find(c => !used.includes(c)) || 'green' }); bdLabPaint(); document.querySelector(`#lab-n-${BD.lab.length - 1}`)?.focus(); },
   bdLabDel: i => { BD.lab.splice(+i, 1); bdLabPaint(); },
+  bdLabColor: (i, el) => { BD.labI = +i; bdPop('labc-' + i, el, 'Label colour', () => bdLabGrid(BD.lab[BD.labI]?.color, 'bdLabColorSet', 'Label colour')); },
+  bdLabColorSet: c => { const l = BD.lab[BD.labI]; if (!l) return; l.color = c; const i = BD.labI; bdPopClose(true); bdLabPaint(); $('lab-c-' + i)?.focus(); },
+  /* the card's label picker: create or edit one label */
+  bdLabEdit: id => {
+    const l = BD.v.board.labels.find(x => x.id === id), used = BD.v.board.labels.map(x => x.color);
+    delete BD.drafts['le-name'];
+    BD.lbEdit = l ? { id: l.id, name: l.name || '', color: l.color } : { id: '', name: bdDraft('lp-q', '').trim(), color: BD_LCOLORS.find(c => !used.includes(c)) || 'green' };
+    BD.pop.render = bdLabelsPop; bdPopSub(l ? 'Edit label' : 'Create a label', 'bdLabBack');
+  },
+  bdLabBack: () => { BD.lbEdit = null; delete BD.drafts['le-name']; if (BD.pop) bdPopSub('Labels', ''); },
+  bdLabColorPick: c => { if (!BD.lbEdit) return; BD.lbEdit.color = c; bdPopRefresh(); document.querySelector(`#bd-pop .bd-lsw[data-id="${c}"]`)?.focus(); },
+  bdLabDelAsk: () => { if (BD.lbEdit) { BD.lbEdit.del = true; bdPopRefresh(); } },
+  bdLabDelGo: async id => {
+    try { BD.v.board = await bdPutBoard({ labels: BD.v.board.labels.filter(l => l.id !== id) }); A.bdLabBack(); bdPaint(); toast('Label deleted'); bdSoon(); } catch (e) { toast(e.message, true); }
+  },
+  bdLabSaveOne: async () => {
+    const e = BD.lbEdit; if (!e) return;
+    const name = ($('le-name')?.value ?? e.name).trim(), old = BD.v.board.labels.map(l => l.id);
+    const labels = e.id ? BD.v.board.labels.map(l => l.id === e.id ? { ...l, name, color: e.color } : l) : [...BD.v.board.labels, { id: '', name, color: e.color }];
+    try {
+      BD.v.board = await bdPutBoard({ labels });
+      const made = !e.id && BD.v.board.labels.find(l => !old.includes(l.id));
+      A.bdLabBack(); bdPaint(); toast(e.id ? 'Label saved' : 'Label created');
+      // A label made from a card's picker goes on the card.
+      if (made && BD.cd && bdCan()) await bdPatch({ labels: [...(BD.cd.labels || []).filter(bdLabel), made.id] });
+      bdSoon();
+    } catch (x) { toast(x.message, true); }
+  },
   bdLabSave: async () => {
     try { BD.v.board = await bdPutBoard({ labels: BD.lab.map(l => ({ id: l.id, name: l.name.trim(), color: l.color })) }); const c = BD.labCard; closeModal(); toast('Labels saved'); bdPaint(); if (c) bdOpenCard(c); bdSoon(); }
     catch (e) { $('lab-err').innerHTML = errHTML(e); }
   },
   bdSettingsSave: async () => {
     const vis = document.querySelector('input[name=st-vis]:checked')?.value, bg = document.querySelector('input[name=st-bg]:checked')?.value;
-    try { BD.v.board = await bdPutBoard({ visibility: vis, background: bg, covers_on: $('st-covers').checked }); closeModal(); toast('Settings saved'); bdPaint(); bdSoon(); }
+    const p = bdPerms(), perms = { comments: document.querySelector('input[name=st-cm]:checked')?.value || p.comments, invite: document.querySelector('input[name=st-inv]:checked')?.value || p.invite, self_join: !!$('st-join')?.checked && vis === 'firm' };
+    try { BD.v.board = await bdPutBoard({ visibility: vis, background: bg, covers_on: $('st-covers').checked, perms }); closeModal(); toast('Settings saved'); await bdReload(true); }
     catch (e) { $('st-err').innerHTML = errHTML(e); }
   },
   bdCopyGo: async () => {
@@ -1161,7 +1305,45 @@ Object.assign(A, {
   bdLm: sub => {
     const l = BD.v.board.lists.find(x => x.id === BD.lm); if (!l || !BD.pop) return;
     BD.pop.render = () => bdListMenuHTML(sub);
-    bdPopSub({ '': 'List actions', moveall: 'Move all cards in this list', sort: 'Sort the list', color: 'List colour', limit: 'Card limit', archiveall: 'Archive all cards in this list' }[sub || ''], sub ? 'bdLmBack' : '');
+    if (sub === 'copy' || sub === 'move') bdLmvOpen(sub, l);
+    bdPopSub({ '': 'List actions', moveall: 'Move all cards in this list', sort: 'Sort the list', color: 'List colour', limit: 'Card limit', archiveall: 'Archive all cards in this list', copy: 'Copy list', move: 'Move list to another board' }[sub || ''], sub ? 'bdLmBack' : '');
+  },
+  bdListWatch: async () => {
+    const l = BD.v.board.lists.find(x => x.id === BD.lm); if (!l) return;
+    const on = !bdLWatching(l);
+    try { const nl = await bdPost(bdURL(`/lists/${bdE(l.id)}/watch`), { on }); l.watchers = nl.watchers || []; bdPaint(); bdPopRefresh(); toast(on ? `You are watching the list ${l.name}` : `You stopped watching the list ${l.name}`); }
+    catch (e) { toast(e.message, true); }
+  },
+  bdListCollapse: async id => {
+    id = id || BD.lm; const l = BD.v.board.lists.find(x => x.id === id); if (!l) return;
+    const on = !bdCollapsed(id), was = (BD.v.collapsed || []).slice();
+    BD.v.collapsed = on ? [...was, id] : was.filter(x => x !== id);
+    if (BD.pop?.key === 'list-' + id) bdPopClose(true);
+    bdPaint();
+    // Keep the keyboard where it was: on the strip, or on the list's collapse button.
+    document.querySelector(`#bd-board [data-act="bdListCollapse"][data-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
+    try { const r = await bdPost(bdURL(`/lists/${bdE(id)}/collapse`), { on }); BD.v.collapsed = r.collapsed || []; }
+    catch (e) { BD.v.collapsed = was; bdPaint(); toast(e.message, true); }
+  },
+  bdLmvGo: async () => {
+    const m = BD.lmv, l = BD.v.board.lists.find(x => x.id === BD.lm); if (!m || !m.bv || !l) return;
+    const ls = bdLists(m.bv.board), i = Math.min(+($('lmv-pos')?.value ?? ls.length), ls.length);
+    const pos = bdMid(ls[i - 1]?.pos, ls[i]?.pos), other = m.board !== UI.bdBoard, bname = m.bv.board.name;
+    try {
+      if (m.mode === 'copy') {
+        const name = ($('lmv-name')?.value || '').trim();
+        if (!name) { $('lmv-name')?.focus(); return; }
+        const r = await bdPost(bdURL(`/lists/${bdE(l.id)}/copy`), { board: other ? m.board : '', name, pos });
+        bdPopClose(true);
+        toast(`${other ? `Copied to ${bname}` : 'List copied'}: ${bdPl(r.cards, 'card')}${r.skipped ? `. ${bdPl(r.skipped, 'linked card')} stayed, as linked cards follow their record` : ''}`);
+      } else {
+        if (!other) return;
+        const r = await bdPost(bdURL(`/lists/${bdE(l.id)}/move`), { board: m.board, pos });
+        bdPopClose(true);
+        toast(`Moved the list ${l.name} and ${bdPl(r.cards, 'card')} to ${bname}`);
+      }
+      BD.lmv = null; bdReload(true);
+    } catch (e) { toast(e.message, true); }
   },
   bdLmBack: () => A.bdLm(''),
   bdListAddCard: () => { const id = BD.lm; bdPopClose(true); A.bdComp(id); },
@@ -1224,7 +1406,7 @@ Object.assign(A, {
     const ok = await bdPatch({ description: v });
     if (ok) { BD.cw.desc = false; delete BD.drafts['desc-' + BD.card]; bdCwPaint(); }
   },
-  bdPickLabels: (id, el) => { delete BD.drafts['lp-q']; bdPop('labels', el, 'Labels', bdLabelsPop); },
+  bdPickLabels: (id, el) => { delete BD.drafts['lp-q']; BD.lbEdit = null; bdPop('labels', el, 'Labels', bdLabelsPop); },
   bdCardLabel: (id, el) => { const ls = (BD.cd.labels || []).filter(x => x !== id && bdLabel(x)); if (el.checked) ls.push(id); bdPatch({ labels: ls }); },
   bdPickMembers: (id, el) => { delete BD.drafts['mp-q']; bdPop('members', el, 'Members', bdMembersPop); },
   bdCardMember: (id, el) => { const ms = (BD.cd.members || []).filter(x => x !== id); if (el.checked) ms.push(id); bdPatch({ members: ms }); },
@@ -1241,9 +1423,9 @@ Object.assign(A, {
   bdDueDone: (id, el) => { if (BD.cd?.mirror) { el.checked = !el.checked; return; } bdPatch({ due_done: el.checked }); },
   bdPickChecklist: (id, el) => bdPop('checklist', el, 'Add checklist', bdChecklistPop),
   bdChecklistAdd: async () => {
-    const name = ($('ck-name')?.value || '').trim() || 'Checklist', from = $('ck-copy')?.value || '';
+    const name = ($('ck-name')?.value || '').trim() || 'Checklist', [card, from] = ($('ck-copy')?.value || '').split('|');
     bdPopClose(true);
-    if (await bdCl({ op: 'add_list', name, copy_from: from })) {
+    if (await bdCl({ op: 'add_list', name, copy_from: from || '', copy_card: from && card !== BD.card ? card : '' })) {
       const cl = BD.cd.checklists[BD.cd.checklists.length - 1];
       if (cl && !(cl.items || []).length) { BD.cw.addItem = cl.id; bdCwPaint(); $('itadd-' + cl.id)?.focus(); }
     }
@@ -1278,6 +1460,20 @@ Object.assign(A, {
     bdCl({ op: 'update_item', checklist: el.dataset.cl, item: id, name: v });
   },
   bdItDel: (id, el) => { BD.cw.itEdit = ''; bdCl({ op: 'delete_item', checklist: el.dataset.cl, item: id }); },
+  bdItConvert: async (id, el) => {
+    try {
+      const r = await bdPost(bdCURL(BD.card, '/checklists/convert'), { checklist: el.dataset.cl, item: id });
+      bdGot(r.new); bdGot(r.card); toast(`Made the card #${r.new.no} below this one`);
+    } catch (e) { toast(e.message, true); bdCwPaint(); }
+  },
+  /* the round box on a card's front */
+  bdCardDone: async (id, el) => {
+    const c = BD.v.cards.find(x => x.id === id); if (!c) return;
+    const on = el.checked, old = !!c.due_done;
+    c.due_done = on; bdPaint();
+    try { bdGot(await bdApi('PATCH', bdCURL(id), { due_done: on })); document.querySelector(`.bd-cdone[data-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: true }); toast(on ? `#${c.no} marked complete` : `#${c.no} marked incomplete`); }
+    catch (e) { c.due_done = old; bdPaint(); toast(e.message, true); }
+  },
   bdItUp: (id, el) => A.bdItMove(id, el, -1),
   bdItDown: (id, el) => A.bdItMove(id, el, 1),
   bdItMove: (id, el, d) => {
@@ -1374,27 +1570,73 @@ function bdListMenuHTML(sub) {
   const l = BD.v.board.lists.find(x => x.id === BD.lm), can = bdCan(), team = bdTeam();
   if (!l) return '';
   const others = bdLists().filter(x => x.id !== l.id), ls = bdLists(), i = ls.findIndex(x => x.id === l.id);
-  const n = bdOpenCards().filter(c => c.list === l.id).length;
+  const n = bdOpenCards().filter(c => c.list === l.id).length, watch = bdLWatching(l);
   const mi = (act, icon, label, id = '', extra = '') => `<button class="bd-mi" role="menuitem" data-act="${act}" data-id="${esc(id)}" ${extra}>${bdI(icon)}<span>${label}</span></button>`;
   if (sub === 'moveall') return others.length ? `<div class="bd-menu">${others.map(x => mi('bdListMoveAll', 'arrow', esc(x.name), x.id)).join('')}</div>` : '<p class="bd-mute">There is no other list.</p>';
   if (sub === 'sort') return `<div class="bd-menu">${mi('bdListSort', 'clock', 'Due date, soonest first', 'due')}${mi('bdListSort', 'desc', 'Card title, A to Z', 'title')}${mi('bdListSort', 'up', 'Newest first', 'newest')}${mi('bdListSort', 'down', 'Oldest first', 'oldest')}</div>`;
   if (sub === 'color') return `<div class="bd-sws">${BD_COLORS.map(x => `<button class="bd-swb bdc-${x}${l.color === x ? ' on' : ''}" data-act="bdListColor" data-id="${x}" aria-pressed="${l.color === x}" aria-label="${BD_CN[x]}" title="${BD_CN[x]}"></button>`).join('')}</div><div class="bd-pop-tools"><button class="btn sm" data-act="bdListColor" data-id="" ${l.color ? '' : 'disabled'}>No colour</button></div>`;
   if (sub === 'limit') return `<div class="bd-form1"><div class="fld"><label for="lm-limit">Most cards this list should hold</label><input class="in" type="number" min="0" max="1000" id="lm-limit" value="${l.limit || ''}" placeholder="No limit" data-enter="bdListLimit"><span class="bd-hint">The count turns orange when the list holds more. Cards are never refused.</span></div><div class="bd-row"><button class="btn pri sm" data-act="bdListLimit">Save</button>${l.limit ? '<button class="btn sm" data-act="bdListLimit" data-id="0">Remove limit</button>' : ''}</div></div>`;
   if (sub === 'archiveall') return bdConfirmPop(`Archive all ${bdPl(n, 'card')} in ${esc(l.name)}? You can restore them from Archived items.`, 'bdListArchiveAll', l.id, 'Archive all');
-  if (!can) return '<p class="bd-mute">You can see this board but not change it.</p>';
+  if (sub === 'copy' || sub === 'move') return bdLmvHTML();
+  // Anyone who can see the board can watch or collapse a list.
+  const mine = `<button class="bd-mi${watch ? ' checked' : ''}" role="menuitemcheckbox" aria-checked="${watch}" data-act="bdListWatch">${bdI('eye')}<span>Watch<small>Hear when a card is added to this list or moved into it</small></span>${watch ? bdI('tick', 'bd-mi-tick') : ''}</button>${mi('bdListCollapse', 'collapse', 'Collapse list', l.id)}`;
+  if (!can) return `<div class="bd-menu" role="menu">${mine}</div><p class="bd-mute">You can see this board but not change it.</p>`;
   return `<div class="bd-menu" role="menu">${mi('bdListAddCard', 'plus', 'Add a card')}
+    ${team ? mi('bdLm', 'copy', 'Copy list…', 'copy') + mi('bdLm', 'board', 'Move list to another board…', 'move') : ''}
     ${n ? mi('bdLm', 'arrow', 'Move all cards in this list…', 'moveall') : ''}${n > 1 ? mi('bdLm', 'desc', 'Sort by…', 'sort') : ''}
-    ${mi('bdLm', 'tag', 'Colour…', 'color')}${mi('bdLm', 'filter', 'Card limit…', 'limit')}
+    ${mine}
+    <hr class="bd-sep">${mi('bdLm', 'tag', 'Colour…', 'color')}${mi('bdLm', 'filter', 'Card limit…', 'limit')}
     ${i > 0 ? mi('bdListShift', 'back', 'Move list left', '-1') : ''}${i < ls.length - 1 ? mi('bdListShift', 'arrow', 'Move list right', '1') : ''}
     <hr class="bd-sep">${n ? mi('bdLm', 'archive', 'Archive all cards in this list…', 'archiveall') : ''}${team ? mi('bdListArchive', 'archive', 'Archive this list') : ''}</div>`;
 }
-
+/* Copy list and Move list: the board (this one, or another team board the
+   person can change), the place among its lists and, for a copy, a name. */
+async function bdLmvOpen(mode, l) {
+  BD.lmv = { mode, list: l.id, board: mode === 'copy' ? UI.bdBoard : '', bv: mode === 'copy' ? BD.v : null, pos: -1 };
+  delete BD.drafts['lmv-name'];
+  try {
+    BD.boards = await get('/v1/boards');
+    const m = BD.lmv; if (!m || m.list !== l.id) return;
+    if (!m.board) { const t = bdLmvBoards()[0]; if (t) { m.board = t.id; bdLmvLoad(t.id); } }
+    bdPopRefresh();
+  } catch (e) { toast(e.message, true); }
+}
+function bdLmvBoards() {
+  const m = BD.lmv;
+  const bs = (BD.boards || []).filter(b => !b.closed && b.kind !== 'ledgerline' && ['admin', 'member'].includes(b.role) && (m.mode === 'copy' || b.id !== UI.bdBoard));
+  if (m.mode === 'copy' && !bs.some(b => b.id === UI.bdBoard)) bs.unshift({ id: UI.bdBoard, name: BD.v.board.name });
+  return bs;
+}
+function bdLmvLoad(id) {
+  const m = BD.lmv; if (!m) return;
+  m.board = id; m.pos = -1; m.bv = id === UI.bdBoard ? BD.v : null;
+  if (!m.bv) get(`/v1/boards/${bdE(id)}`).then(v => { if (BD.lmv === m && m.board === id) { m.bv = v; bdPopRefresh(); } }).catch(x => toast(x.message, true));
+}
+function bdLmvHTML() {
+  const m = BD.lmv, l = BD.v.board.lists.find(x => x.id === BD.lm); if (!m || !l) return '';
+  const copy = m.mode === 'copy', bs = bdLmvBoards(), bv = m.bv, ls = bv ? bdLists(bv.board) : [];
+  const here = bv && bv.board.id === UI.bdBoard, cur = here ? ls.findIndex(x => x.id === l.id) : -1;
+  const pos = m.pos >= 0 ? Math.min(m.pos, ls.length) : here ? cur + 1 : ls.length;
+  const n = bdOpenCards().filter(c => c.list === l.id).length;
+  if (!copy && BD.boards && !bs.length) return '<p class="bd-mute">There is no other team board you can change. A list moves only between team boards.</p>';
+  const posName = i => i === 0 ? 'First' : i === ls.length ? 'Last' : `After ${ls[i - 1].name}`;
+  return `<div class="bd-form1">
+    ${copy ? `<div class="fld"><label for="lmv-name">Name</label><input class="in" id="lmv-name" data-bdd="lmv-name" maxlength="120" value="${esc(bdDraft('lmv-name', l.name))}" data-enter="bdLmvGo"></div>` : ''}
+    <div class="fld"><label for="lmv-board">Board</label><select id="lmv-board" class="in" ${BD.boards ? '' : 'disabled'}>${bs.map(b => `<option value="${esc(b.id)}" ${b.id === m.board ? 'selected' : ''}>${esc(b.name)}${b.id === UI.bdBoard ? ' (this board)' : ''}</option>`).join('')}</select></div>
+    <div class="fld"><label for="lmv-pos">Position</label><select id="lmv-pos" class="in" ${bv ? '' : 'disabled'}>${Array.from({ length: ls.length + 1 }, (_, i) => `<option value="${i}" ${i === pos ? 'selected' : ''}>${i + 1} · ${esc(posName(i))}</option>`).join('')}</select></div>
+    <p class="bd-hint">${copy ? `Its ${bdPl(n, 'open card')} come with their checklists, labels, dates, custom fields and the members who are on that board; not comments or attachments.` : `Its ${bdPl(n, 'open card')} go with it and take that board’s next numbers. Links to them still work. Archived cards stay here.`}</p>
+    ${!bv ? '<p class="bd-mute">Loading the board…</p>' : ''}
+    <div class="bd-row"><button class="btn pri sm" data-act="bdLmvGo" ${bv ? '' : 'disabled'}>${copy ? 'Create list' : 'Move list'}</button></div></div>`;
+}
 /* ---------- @mentions ---------- */
 function bdAcUpdate(el) {
   const pos = el.selectionStart, m = /(^|[\s(])@([a-z0-9._-]*)$/i.exec(el.value.slice(0, pos));
   if (!m) { bdAcClose(); return; }
   const q = m[2].toLowerCase();
-  const opts = bdUsers().filter(u => u.id.toLowerCase().includes(q) || u.name.toLowerCase().includes(q)).slice(0, 6);
+  // @card and (for the board's admins and members) @board come first.
+  const groups = [...(['admin', 'member'].includes(BD.v?.role) ? [{ id: 'board', name: 'Everyone on this board', group: 'users' }] : []), ...(BD.card ? [{ id: 'card', name: 'The card’s members and watchers', group: 'card' }] : [])]
+    .filter(g => g.id.startsWith(q) || g.name.toLowerCase().includes(q));
+  const opts = [...groups, ...bdUsers().filter(u => u.id.toLowerCase().includes(q) || u.name.toLowerCase().includes(q)).slice(0, 6)];
   if (!opts.length) { bdAcClose(); return; }
   BD.ac = { id: el.id, start: pos - m[2].length - 1, end: pos, opts, i: 0 };
   let box = $('bd-ac');
@@ -1409,7 +1651,7 @@ function bdAcUpdate(el) {
 }
 function bdAcPaint() {
   const a = BD.ac, box = $('bd-ac'); if (!a || !box) return;
-  box.innerHTML = a.opts.map((u, i) => `<button type="button" role="option" id="bd-ac-${i}" class="${i === a.i ? 'on' : ''}" aria-selected="${i === a.i}" data-act="bdAcPick" data-id="${i}">${bdAv(u.id)}<span class="bd-prow-t">${esc(u.name)}<small>@${esc(u.id)}</small></span></button>`).join('');
+  box.innerHTML = a.opts.map((u, i) => `<button type="button" role="option" id="bd-ac-${i}" class="${i === a.i ? 'on' : ''}${u.group ? ' grp' : ''}" aria-selected="${i === a.i}" data-act="bdAcPick" data-id="${i}">${u.group ? `<span class="bd-av sys" aria-hidden="true">${bdI(u.group)}</span>` : bdAv(u.id)}<span class="bd-prow-t">${u.group ? `@${esc(u.id)}<small>${esc(u.name)}</small>` : `${esc(u.name)}<small>@${esc(u.id)}</small>`}</span></button>`).join('');
   box.hidden = false;
   const el = $(a.id); if (el) { el.setAttribute('aria-activedescendant', 'bd-ac-' + a.i); el.setAttribute('aria-controls', 'bd-ac'); }
 }
@@ -1476,7 +1718,7 @@ function bdDragTrack() {
   const d = BD.drag; if (!d?.on) return;
   d.g.style.transform = `translate(${d.x - d.dx}px,${d.y - d.dy}px) rotate(${d.kind === 'card' ? 2.5 : d.kind === 'list' ? 1.2 : 0}deg)`;
   if (d.kind === 'card') {
-    const lists = [...document.querySelectorAll('#bd-board .bd-list:not(.bd-src)')]; if (!lists.length) return;
+    const lists = [...document.querySelectorAll('#bd-board .bd-list:not(.bd-src):not(.collapsed)')]; if (!lists.length) return;
     let tl = lists.find(l => { const r = l.getBoundingClientRect(); return d.x >= r.left && d.x <= r.right; });
     if (!tl) tl = lists.reduce((best, l) => { const r = l.getBoundingClientRect(), dist = Math.abs(d.x - (r.left + r.width / 2)); return !best || dist < best.dist ? { l, dist } : best; }, null).l;
     const box = tl.querySelector('.bd-cards');
@@ -1584,6 +1826,8 @@ document.addEventListener('input', e => {
   if (el.id === 'bd-fq') { UI.bdF.q = el.value; clearTimeout(BD.fT); BD.fT = setTimeout(bdPaint, 160); return; }
   if (el.dataset.popq) { bdPopRefresh(); return; }
   if (el.dataset.arq) { bdArchPaint(); return; }
+  if (el.id === 'le-name' && BD.lbEdit) { const pv = $('le-pv'); if (pv) pv.textContent = el.value.trim() || BD_CN[BD.lbEdit.color]; return; }
+  if (el.id === 'ck-name') delete el.dataset.auto;
   if (el.dataset.lab != null && BD.lab) { BD.lab[+el.dataset.lab][el.dataset.k] = el.value; const pv = $('lab-pv-' + el.dataset.lab), l = BD.lab[+el.dataset.lab]; if (pv) pv.textContent = l.name || BD_CN[l.color]; }
   if (el.classList.contains('bd-auto')) bdGrow(el);
   if (el.dataset.mention) bdAcUpdate(el);
@@ -1605,6 +1849,10 @@ document.addEventListener('change', e => {
     return;
   }
   if (el.id === 'mv-list' && BD.mv) { BD.mv.list = el.value; BD.mv.pos = -1; bdPopRefresh(); return; }
+  if (el.id === 'lmv-board' && BD.lmv) { bdLmvLoad(el.value); bdPopRefresh(); return; }
+  if (el.id === 'lmv-pos' && BD.lmv) { BD.lmv.pos = +el.value; return; }
+  if (el.name === 'st-vis') { const j = $('st-join'), d = $('st-join-d'), firm = el.value === 'firm'; if (j) { j.disabled = !firm || !bdAdmin(); if (!firm) j.checked = false; } if (d) d.textContent = firm ? 'People who are not members see a Join board button that makes them a member.' : 'For firm-wide boards only.'; return; }
+  if (el.id === 'ck-copy') { const n = $('ck-name'), [cid, clid] = el.value.split('|'), cl = ((cid === BD.card ? BD.cd : BD.v.cards.find(x => x.id === cid))?.checklists || []).find(x => x.id === clid); if (n && cl && (!n.value.trim() || n.value === 'Checklist' || n.dataset.auto)) { n.value = cl.name; n.dataset.auto = '1'; } return; }
   if (el.id === 'mv-pos' && BD.mv) { BD.mv.pos = +el.value; return; }
   if (el.id && el.id.startsWith('mv-k-') && BD.mv) { BD.mv.keep[el.id.slice(5)] = el.checked; return; }
   if (el.dataset.lab != null && el.dataset.k === 'color' && BD.lab) { BD.lab[+el.dataset.lab].color = el.value; bdLabPaint(); return; }

@@ -31,6 +31,27 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) [class*="bdc-"]{--cs:color-mix(in srgb,var(--c) 34%,#171A20);--ci:#F2F4F7;--cb:color-mix(in srgb,var(--c) 14%,#0E1014)}}
 :root[data-theme="dark"] [class*="bdc-"]{--cs:color-mix(in srgb,var(--c) 34%,#171A20);--ci:#F2F4F7;--cb:color-mix(in srgb,var(--c) 14%,#0E1014)}
 
+/* labels' 30 colours: each hue subtle, normal (the ten above) and bold.
+   --h the hue, --c the label's fill, --lt its text (normal labels use --cf).
+   Only labels take the shades; lists, covers and backgrounds keep the ten. */
+.bdc-green_subtle{--h:#1F9D63;--c:#AEE6C9;--lt:#0A5234}.bdc-green_bold{--h:#1F9D63;--c:#106B41;--lt:#FFFFFF}
+.bdc-yellow_subtle{--h:#D9A800;--c:#F7E39A;--lt:#5E4300}.bdc-yellow_bold{--h:#D9A800;--c:#8A6A00;--lt:#FFFFFF}
+.bdc-orange_subtle{--h:#E8770F;--c:#FCCB9F;--lt:#7F3304}.bdc-orange_bold{--h:#E8770F;--c:#A44C04;--lt:#FFFFFF}
+.bdc-red_subtle{--h:#C9372F;--c:#F6B9B4;--lt:#8F1A1A}.bdc-red_bold{--h:#C9372F;--c:#8C1D18;--lt:#FFFFFF}
+.bdc-purple_subtle{--h:#7356D6;--c:#D3C8F6;--lt:#45258F}.bdc-purple_bold{--h:#7356D6;--c:#4C34A3;--lt:#FFFFFF}
+.bdc-blue_subtle{--h:#2F45C8;--c:#BEC8F4;--lt:#22318F}.bdc-blue_bold{--h:#2F45C8;--c:#1B2A86;--lt:#FFFFFF}
+.bdc-sky_subtle{--h:#1C8FC4;--c:#ACDDF3;--lt:#0A4E6E}.bdc-sky_bold{--h:#1C8FC4;--c:#0C5D83;--lt:#FFFFFF}
+.bdc-lime_subtle{--h:#6EA531;--c:#CDE7A8;--lt:#375412}.bdc-lime_bold{--h:#6EA531;--c:#456E19;--lt:#FFFFFF}
+.bdc-pink_subtle{--h:#D9529F;--c:#F5C0DE;--lt:#7E1A55}.bdc-pink_bold{--h:#D9529F;--c:#992D6B;--lt:#FFFFFF}
+.bdc-black_subtle{--h:#344054;--c:#D0D5DD;--lt:#1D2939}.bdc-black_bold{--h:#344054;--c:#0C111D;--lt:#FFFFFF}
+[class*="bdc-"][class*="_subtle"],[class*="bdc-"][class*="_bold"]{--cs:color-mix(in srgb,var(--c) 40%,#FFFFFF);--ci:var(--lt);--cb:color-mix(in srgb,var(--c) 16%,#FFFFFF);--cf:var(--lt)}
+/* In the dark, subtle is a deep tint with light text and bold a bright one with dark text. */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) [class*="bdc-"][class*="_subtle"]{--c:color-mix(in srgb,var(--h) 42%,#171A20);--lt:#EEF0F4}
+  :root:not([data-theme="light"]) [class*="bdc-"][class*="_bold"]{--c:color-mix(in srgb,var(--h) 58%,#FFFFFF);--lt:#101828}}
+:root[data-theme="dark"] [class*="bdc-"][class*="_subtle"]{--c:color-mix(in srgb,var(--h) 42%,#171A20);--lt:#EEF0F4}
+:root[data-theme="dark"] [class*="bdc-"][class*="_bold"]{--c:color-mix(in srgb,var(--h) 58%,#FFFFFF);--lt:#101828}
+
 /* basics */
 .bd-root{display:flex;flex-direction:column;gap:16px;min-width:0;color:var(--b-ink);font-variant-numeric:tabular-nums}
 .bd-sr{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
@@ -93,6 +114,8 @@
 .bd-hb{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 10px;border:1px solid var(--b-line);background:var(--b-surf);border-radius:9px;cursor:pointer;color:var(--b-ink);font-size:13px;font-weight:500;position:relative;white-space:nowrap}
 .bd-hb:hover{border-color:var(--b-line2);background:var(--b-hover)}
 .bd-hb.on{border-color:color-mix(in srgb,var(--b-acc) 45%,var(--b-line));color:var(--b-acc)}
+.bd-hwatch{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:8px;color:var(--b-ink2);background:color-mix(in srgb,var(--b-surf) 70%,transparent)}
+.bd-joinb{height:34px}
 .bd-bell-n{position:absolute;top:-7px;right:-7px;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:var(--b-bad);color:var(--b-on-bad);font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;border:2px solid var(--b-ground)}
 .bd-fc{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--b-acc);color:var(--b-on-acc);font-size:11px;font-weight:600;display:inline-flex;align-items:center;justify-content:center}
 .bd-new{height:36px}
@@ -174,6 +197,17 @@ button.bd-ln-b:hover{background:color-mix(in srgb,var(--b-ink) 5%,transparent)}
 .bd-comp{display:flex;flex-direction:column;gap:8px}
 .bd-comp-in{width:100%;border:1px solid var(--b-acc);border-radius:10px;padding:8px 10px;background:var(--b-surf);color:var(--b-ink);resize:none;font:inherit;font-size:13.5px;line-height:1.35;min-height:56px}
 .bd-comp-in:focus{outline:3px solid color-mix(in srgb,var(--b-acc) 18%,transparent);outline-offset:0}
+.bd-lwatch{display:inline-flex;color:var(--b-ink3);flex:none}
+.bd-lwatch .bd-i{width:14px;height:14px}
+.bd-lcolb{width:26px;height:26px;color:var(--b-ink3)}
+.bd-lcolb .bd-i{width:15px;height:15px}
+/* a collapsed list: a narrow strip with its card count and name */
+.bd-list.collapsed{flex:0 0 44px;width:44px;min-height:180px;padding:0}
+.bd-lcol{display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;flex:1 1 auto;min-height:178px;padding:8px 0 12px;border:0;background:none;border-radius:inherit;cursor:pointer;color:var(--b-ink)}
+.bd-lcol:hover{background:color-mix(in srgb,var(--b-ink) 5%,transparent)}
+.bd-lcol:focus-visible{outline:2px solid var(--b-acc);outline-offset:-2px}
+.bd-lcol-t{writing-mode:vertical-rl;font-weight:600;font-size:14px;line-height:1.2;max-height:60vh;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bd-list.collapsed .bd-lct{padding:0 6px}
 .bd-addl{flex:0 0 280px;width:280px}
 .bd-addl-none{flex-basis:1px;width:1px}
 .bd-addl-b{display:flex;align-items:center;gap:6px;width:100%;height:44px;padding:0 12px;border:1px dashed color-mix(in srgb,var(--b-ink) 22%,transparent);border-radius:12px;background:color-mix(in srgb,var(--b-surf) 55%,transparent);color:var(--b-ink);cursor:pointer;font-weight:500;font-size:13.5px}
@@ -187,7 +221,17 @@ button.bd-ln-b:hover{background:color-mix(in srgb,var(--b-ink) 5%,transparent)}
 .bd-card:focus-within{border-color:var(--b-acc)}
 .bd-card.late{border-left:3px solid var(--b-bad)}
 .bd-cin{padding:8px 10px 9px;display:flex;flex-direction:column;gap:6px}
-.bd-ct{margin:0;font-size:13.5px;font-weight:500;line-height:1.38;padding-right:18px}
+.bd-ct{margin:0;font-size:13.5px;font-weight:500;line-height:1.38;padding-right:18px;display:flex;align-items:flex-start}
+/* mark complete from the front: a round box, shown on hover or focus (always when complete, and on touch screens) */
+.bd-cdone{position:relative;z-index:2;appearance:none;-webkit-appearance:none;flex:none;width:0;height:16px;margin:2px 0 0;border:1.5px solid var(--b-ink3);border-radius:50%;background:var(--b-surf);opacity:0;cursor:pointer;transition:width .12s,margin .12s,opacity .12s;display:grid;place-items:center}
+.bd-card:hover .bd-cdone,.bd-card:focus-within .bd-cdone,.bd-cdone:checked{width:16px;margin-right:7px;opacity:1}
+.bd-cdone:hover{border-color:var(--b-done)}
+.bd-cdone:checked{background:var(--b-done);border-color:var(--b-done)}
+.bd-cdone:checked::after{content:"";width:7px;height:4px;border:solid var(--b-on-done);border-width:0 0 2px 2px;transform:translateY(-1px) rotate(-45deg)}
+.bd-cdone:focus-visible{outline:2px solid var(--b-acc);outline-offset:2px}
+.bd-card.done .bd-copen{color:var(--b-ink2)}
+@media (hover:none){.bd-cdone{width:16px;margin-right:7px;opacity:1}}
+@media (prefers-reduced-motion:reduce){.bd-cdone{transition:none}}
 .bd-copen{border:0;background:none;padding:0;text-align:left;font:inherit;color:var(--b-ink);cursor:pointer;overflow-wrap:anywhere;width:100%}
 .bd-copen::after{content:"";position:absolute;inset:0;z-index:1;border-radius:inherit}
 .bd-copen:focus-visible{outline:none!important}
@@ -195,8 +239,8 @@ button.bd-ln-b:hover{background:color-mix(in srgb,var(--b-ink) 5%,transparent)}
 .bd-no{font-size:11.5px;color:var(--b-ink3);font-weight:500;margin-right:1px;font-variant-numeric:tabular-nums}
 .bd-labs{display:flex;flex-wrap:wrap;gap:4px}
 .bd-lab{position:relative;z-index:2;display:inline-block;width:40px;height:8px;border-radius:4px;background:var(--c);cursor:pointer}
-.bd-lab.named{width:auto;height:18px;min-width:24px;padding:0 7px;font-size:11.5px;font-weight:600;line-height:18px;background:var(--cs);color:var(--ci);border-radius:5px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bd-lab.named::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--c);margin-right:5px;vertical-align:1px}
+.bd-lab.named{width:auto;height:18px;min-width:24px;padding:0 7px;font-size:11.5px;font-weight:600;line-height:18px;background:var(--c);color:var(--lt,var(--cf));border-radius:5px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bd-lab[class*="_subtle"],.bd-pill[class*="_subtle"],.bd-lsw[class*="_subtle"],.bd-lcdot[class*="_subtle"]{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--h) 34%,transparent)}
 .bd-bdgs{display:flex;align-items:center;flex-wrap:wrap;gap:4px 9px;font-size:12px;color:var(--b-ink2);min-height:22px}
 .bd-bdg{display:inline-flex;align-items:center;gap:3px}
 .bd-bdg .bd-i{width:14px;height:14px}
@@ -257,6 +301,9 @@ body.bd-dragging,body.bd-dragging *{cursor:grabbing!important;user-select:none!i
 .bd-mi span{display:flex;flex-direction:column}
 .bd-mi small{color:var(--b-ink3);font-size:12px;margin-top:2px}
 .bd-mi[disabled]{opacity:.5;cursor:default;background:none}
+.bd-mi>span{flex:1;min-width:0}
+.bd-mi .bd-mi-tick{color:var(--b-acc);margin-left:auto;stroke-width:2.4}
+.bd-mi.checked>.bd-i:first-child{color:var(--b-acc)}
 .bd-plist{display:flex;flex-direction:column;gap:1px;max-height:320px;overflow:auto;margin:0 -6px}
 .bd-prow{display:flex;align-items:center;gap:9px;padding:5px 6px;border-radius:8px;cursor:pointer;border:0;background:none;width:100%;text-align:left;color:var(--b-ink);font:inherit;min-height:36px}
 .bd-prow:hover{background:var(--b-ground)}
@@ -284,12 +331,25 @@ body.bd-dragging,body.bd-dragging *{cursor:grabbing!important;user-select:none!i
 .bd-rxb{height:38px;border:1px solid transparent;border-radius:9px;background:none;font-size:19px;cursor:pointer}
 .bd-rxb:hover{background:var(--b-ground);border-color:var(--b-line)}
 
-/* pills (labels in the card window and pickers) */
-.bd-pill{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:7px;background:var(--cs);color:var(--ci);font-size:12.5px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bd-pill::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}
+/* pills (labels in the card window and pickers): filled with the label's
+   colour, so its subtle, normal and bold shades tell apart */
+.bd-pill{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:7px;background:var(--c);color:var(--lt,var(--cf));font-size:12.5px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bd-pill.wide{flex:1;min-width:0}
 .bd-pill.none{background:var(--b-ground);color:var(--b-ink2);border:1px dashed var(--b-line2)}
-.bd-pill.none::before{display:none}
+label.bd-pill{cursor:pointer}
+.bd-lrow{padding-right:0}
+.bd-lrow .bd-ib{width:28px;height:28px}
+.bd-lprev{display:flex;padding:14px 12px;border-radius:9px;background:var(--b-ground);margin:0 -2px}
+.bd-lprev .bd-pill{flex:0 1 auto}
+/* the 30-colour grid: rows of subtle, normal and bold */
+.bd-lgrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.bd-lsw{height:32px;border:0;border-radius:5px;background:var(--c);color:var(--lt,var(--cf));cursor:pointer;padding:0;display:grid;place-items:center}
+.bd-lsw:hover{filter:brightness(.94)}
+.bd-lsw.on{box-shadow:0 0 0 2px var(--b-surf),0 0 0 4px var(--b-acc)}
+.bd-lsw .bd-i{width:16px;height:16px;stroke-width:2.4}
+.bd-lcbtn{display:inline-flex;align-items:center;gap:7px;justify-content:flex-start;min-width:0;overflow:hidden;white-space:nowrap}
+.bd-lcbtn>span:last-child{overflow:hidden;text-overflow:ellipsis}
+.bd-lcdot{width:14px;height:14px;border-radius:4px;background:var(--c);flex:none}
 
 /* @mentions */
 .bd-ac{position:fixed;z-index:65;width:280px;background:var(--b-surf);color:var(--b-ink);border:1px solid var(--b-line2);border-radius:10px;box-shadow:var(--b-float);padding:4px}
@@ -297,6 +357,8 @@ body.bd-dragging,body.bd-dragging *{cursor:grabbing!important;user-select:none!i
 .bd-ac button.on,.bd-ac button:hover{background:var(--b-acc-soft)}
 .bd-mention{color:var(--b-acc);background:var(--b-acc-soft);padding:0 4px;border-radius:4px;font-weight:500;white-space:nowrap}
 .bd-mention.me{background:var(--b-attn-soft);color:var(--b-attn-ink)}
+.bd-ac button.grp .bd-prow-t{font-weight:600}
+.bd-cmno{margin:0 0 14px;padding:8px 12px;border-radius:9px;background:var(--b-ground)}
 
 /* the card window */
 .bd-ov{padding-top:max(4vh,env(safe-area-inset-top,0px))}
@@ -435,8 +497,12 @@ body.bd-dragging,body.bd-dragging *{cursor:grabbing!important;user-select:none!i
 .bd-arch li{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--b-line);flex-wrap:wrap}
 .bd-arch li:last-child{border-bottom:0}
 .bd-arch-t{font-size:13.5px;color:var(--b-ink);text-decoration:none;text-align:left}
+.bd-arch-hd{margin-bottom:4px}
+.bd-arch-q{position:relative;flex:0 1 280px;min-width:180px}
+.bd-arch-q>.bd-i{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--b-ink3);pointer-events:none}
+.bd-arch-q .in{width:100%;height:34px;padding-left:32px}
 .bd-labs-ed{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-.bd-labs-ed li{display:grid;grid-template-columns:minmax(120px,1fr) 110px minmax(120px,1.2fr) 64px 30px;gap:8px;align-items:center}
+.bd-labs-ed li{display:grid;grid-template-columns:minmax(120px,1fr) 136px minmax(120px,1.2fr) 64px 30px;gap:8px;align-items:center}
 .bd-labs-ed li:has(.bd-ft:only-of-type){grid-template-columns:1fr auto}
 .bd-labs-ed .in{width:100%;height:32px}
 .bd-keys{width:100%;border-collapse:collapse;font-size:13px}
