@@ -19,6 +19,7 @@ Approving a margin penalty pass-through | Ops checker, Risk manager, Compliance 
 Approving a migration load | Ops checker
 Approving a move between MCX and equity | Ops checker, Risk manager
 Approving a receipt | Ops checker
+Approving a transfer between the firm's bank accounts | Ops checker
 Approving allocation | Ops checker, Risk manager
 Approving an override | Ops checker, Risk manager
 Approving client changes | Ops checker
@@ -75,6 +76,7 @@ Changing the compliance calendar | Compliance officer
 Changing the demise list's cut-off | Ops checker, Compliance officer
 Changing the firm profile | Compliance officer
 Changing the firm's UPI collection IDs | Compliance officer
+Changing the firm's bank accounts | Compliance officer
 Changing the self-inspection schedule | Compliance officer
 Changing vendors | Ops maker, Ops checker
 Chasing missing daily files | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -165,6 +167,7 @@ Making BSE dealer files | Ops maker, Compliance officer
 Making inspection packs | Compliance officer
 Making the AP client reporting file | Ops maker, Ops checker, Compliance officer
 Making the NSE Clearing key | Admin
+Making the UCC-wise settlement report | Ops maker, Ops checker, Compliance officer
 Managing SIPs | Ops maker, Ops checker
 Managing branches | Ops checker, Admin
 Managing message channels and desks | Admin
@@ -194,6 +197,7 @@ Posting interest | Ops checker, Risk manager
 Posting referral rewards | Ops checker
 Prepaid schemes | Ops checker, Admin
 Preparing margin penalties | Ops checker, Risk manager, Compliance officer
+Preparing the client money reconciliation | Ops maker, Ops checker
 Producing the payout bank file | Ops maker, Ops checker
 Proposing a migration load | Admin
 Proposing legacy debts | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -220,6 +224,7 @@ Recording a physical dispatch | Ops maker, Ops checker, Admin
 Recording a receipt | Ops maker, Ops checker, Branch staff
 Recording a stock SIP fill | Ops maker, Ops checker
 Recording a surveillance action | Compliance officer
+Recording a transfer between the firm's bank accounts | Ops maker, Ops checker
 Recording allotments | Ops maker, Ops checker
 Recording bounces | Ops maker, Ops checker, Admin
 Recording clearing deposits | Ops checker
@@ -231,6 +236,7 @@ Recording recovery of a legacy debt | Ops maker, Ops checker, Risk manager, Comp
 Recording the AP client count reconciliation | Ops maker, Ops checker, Compliance officer
 Recording the AP client reporting upload | Ops maker, Ops checker, Compliance officer
 Recording the BSDA choice | Ops maker, Ops checker
+Recording the UCC-wise settlement report as filed | Ops checker, Compliance officer
 Recording the funds pay-out | Ops checker, Risk manager
 Recording the holding statement sent to BSE | Ops maker, Ops checker, Compliance officer
 Recording the sale of invoked CUSPA securities | Ops maker, Ops checker, Risk manager
@@ -300,6 +306,7 @@ Setting up stock SIPs | Compliance officer
 Settlement actions | Ops maker, Ops checker
 Settling a buy-back | Ops checker
 Signing in to BOW | Risk manager
+Signing off the client money reconciliation | Ops checker
 Square-off | Risk manager
 Submitting the holding statement to NSE | Ops maker, Ops checker, Compliance officer
 Switching AI off or on | Compliance officer
@@ -350,9 +357,12 @@ Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance office
 Viewing the AI answer log | Compliance officer
 Viewing the AP client reporting | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
+Viewing the UCC-wise settlement reports | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing the client money reconciliation | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the compliance calendar | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 Viewing the firm profile | Compliance officer
+Viewing the firm's bank accounts | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the impersonation register | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the migration | Ops checker, Compliance officer
 Viewing the signing certificate | Ops checker, Compliance officer, Admin

@@ -73,7 +73,7 @@ func baseSources() []masterSrc {
 		{"HOLDING-LOTS", "Purchase lots behind client holdings (quantity to 4 decimal places, buy date, buy price) for P&L and capital gains; from the previous back office. Optional column BOID: the demat account the lot was bought into (blank: not said; the lots are the client's across its accounts)", []string{"UCC", "ISIN", "Symbol", "Qty", "BuyDate", "BuyPrice"}, true, "Once at go-live (as at the day before)"},
 		{"POSITIONS", "Derivatives positions carried forward from the previous day", []string{"UCC", "Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "Qty", "AvgPrice"}, true, "BOD"},
 		{"PLEDGE-REQUESTS", "Margin pledge requests initiated by clients at the depository", []string{"RequestID", "UCC", "ISIN", "Symbol", "Qty", "Time"}, false, "Intraday"},
-		{"BANK-STMT", "Client bank account statement. With a separate commodity ledger, optional columns ToAccount (the firm's account paid into) and Narration say whether money is for equity or commodity", []string{"Date", "Time", "Mode", "Reference", "Remitter", "Account", "Amount", "DrCr"}, false, "Intraday and EOD"},
+		{"BANK-STMT", "Client bank account statement. With a separate commodity ledger, optional columns ToAccount (the firm's account paid into) and Narration say whether money is for equity or commodity. Every line, credit or debit, is also kept for the daily client money reconciliation: optional columns FirmAccount (the firm's account the line is on; ToAccount is read when it is missing) and Balance (the account's balance after the line)", []string{"Date", "Time", "Mode", "Reference", "Remitter", "Account", "Amount", "DrCr"}, false, "Intraday and EOD"},
 		{"SURV-ALERTS", "Exchange surveillance alerts", []string{"AlertID", "Exchange", "Type", "UCC", "Detail", "Severity"}, false, "Daily"},
 		{"IPO-BIDS", "IPO applications from the exchange bidding platform", []string{"ApplicationNo", "UCC", "Issue", "Lots", "Amount", "UPI", "Mandate"}, false, "During the issue"},
 		{"IPO-ALLOTMENT", "IPO allotment results from the registrar", []string{"ApplicationNo", "AllottedLots"}, false, "After allotment"},
@@ -879,7 +879,9 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		}, errs
 	case "BANK-STMT":
 		var ts []BankTxn
+		var lines []BankLine // every line, for the daily client money reconciliation (clientmoney.go)
 		for _, r := range rows {
+			day := pdate(r, "Date", false)
 			amt, err := money.ParseAmount(r.get("Amount"))
 			if err != nil || amt <= 0 {
 				bad(r.line, "Amount", "must be rupees above zero with at most 2 decimals")
@@ -891,12 +893,20 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 			if r.get("Reference") == "" {
 				bad(r.line, "Reference", "is required")
 			}
+			if b := strings.ReplaceAll(r.get("Balance"), ",", ""); b != "" {
+				if _, err := money.ParseDec(b); err != nil {
+					bad(r.line, "Balance", "must be the balance in rupees")
+				}
+			}
 			if dir == "CR" {
-				ts = append(ts, BankTxn{ID: r.get("Reference"), Date: pdate(r, "Date", false), Time: r.get("Time"), Mode: strings.ToUpper(r.get("Mode")), Ref: r.get("Reference"), Remitter: r.get("Remitter"), Account: r.get("Account"), Amount: amt, PayeeVPA: r.get("PayeeVPA"),
+				ts = append(ts, BankTxn{ID: r.get("Reference"), Date: day, Time: r.get("Time"), Mode: strings.ToUpper(r.get("Mode")), Ref: r.get("Reference"), Remitter: r.get("Remitter"), Account: r.get("Account"), Amount: amt, PayeeVPA: r.get("PayeeVPA"),
 					ToAccount: r.get("ToAccount"), Narration: r.get("Narration")})
 			}
+			lines = append(lines, BankLine{Date: day, Time: r.get("Time"), Mode: strings.ToUpper(r.get("Mode")), Ref: r.get("Reference"), Party: r.get("Remitter"), PartyAccount: r.get("Account"), Amount: amt, DrCr: dir,
+				Account: strings.ReplaceAll(firstOf(r.get("FirmAccount"), r.get("ToAccount")), " ", ""), Balance: strings.ReplaceAll(r.get("Balance"), ",", ""), Source: "Bank statement", Seq: r.line})
 		}
 		return func() (int, int, error) {
+			o.keepBankLines(ctx, tenant, actor, lines)
 			clients, err := o.Clients(ctx, tenant)
 			if err != nil {
 				return 0, 0, err

@@ -59,6 +59,8 @@ var PeriodicTasks = []PeriodicTask{
 	{"mnrl_trading", "Revoked mobiles (MNRL): trading accounts", "Clients", "Daily", "Every trading day: load NSE's report for disconnected mobile numbers (or DoT's MNRL from DIP) on Clients & onboarding → Revoked mobiles. Each client whose mobile is on it is flagged, SMS and WhatsApp to the number are held, and an Ops maker confirms the client's number through another registered channel and has it changed; the UCC modification follows.", "Each trading day", "NSE/ISC/72805 of 13 Feb 2026 (daily report); NSE/ISC/45168 of 29 Jul 2020 and NSE/ISC/47834 of 31 Mar 2021 (confirm and update the back office and the UCC)", true, "mnrl", "nse-mnrl"},
 	{"mnrl_demat", "Revoked mobiles (MNRL): demat accounts", "Depository", "Daily", "Every business day: load DoT's MNRL from DIP (CDSL accounts) or NSDL's MNRL matches from e-PASS (NSDL accounts), and each month NSDL's reactivation data, on Clients & onboarding → Revoked mobiles. Matches are flagged and held as for trading accounts; a number DoT reconnected to the same person lifts only the MNRL hold.", "Each business day", "CDSL/OPS/DP/POLCY/2026/517 of 30 Jul 2026 (daily on DIP); NSDL/POLICY/2026/0090 of 16 Jun 2026 (e-PASS, monthly reactivation data)", true, "mnrl", "dot-mnrl"},
 	{"ras_idle", "Return idle credit balances (30 days)", "Money", "Daily", "Every morning: clients with a credit balance and no transaction (trade, open position or funds received) for 30 calendar days are settled and paid out on the upcoming monthly settlement date of the exchanges' calendar, whatever their monthly or quarterly choice, under the running account settlement policy in Autopilot; one still unpaid after that date is settled at once.", "On the upcoming monthly settlement date", "SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/1 of 6 January 2025 (NSE/INSP/66014)", true, "ras", ""},
+	{"ras_ucc_report", "UCC-wise running account settlement report", "Money", "Monthly / quarterly", "After each running account settlement: makes the file of what each client was paid and retained, for upload on NSE's member portal, and keeps a reminder open until the upload (or the not-applicable declaration) is recorded on Running account.", "Within 10 trading days of each settlement date", "NSE/INSP/55024 (kept by NSE/INSP/61904); NSE/INSP/55135; NSE/INSP/56261 (₹10,000 a day late)", true, "ras", "nse-ras-ucc"},
+	{"client_money_recon", "Daily client money reconciliation", "Money", "Daily", "Each business day: the statement of money moved between clients, the USCNBA, the clearing corporation, the DSCNBA, the settlement and own accounts, with what needs explaining, prepared for a checker to sign off on Client money reconciliation.", "The next business day", "SEBI master circular SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90, para 15.4.4.2; NSE/INSP/55904", true, "clientmoney", ""},
 	{"bsda_review", "BSDA review", "Depository", "Quarterly", "Checks every demat account against the BSDA rules: eligible regular accounts become BSDA unless the client opted out; BSDAs above the limit become regular. A checker applies it; the depository modification file is kept and clients are told.", "By the 10th after the quarter", "SEBI circular on Basic Services Demat Accounts", false, "dp", ""},
 }
 
@@ -237,6 +239,12 @@ func (o *Ops) periodFor(ctx context.Context, tenant string, t PeriodicTask, date
 		}
 		m := prevMonth(date)
 		return m, "PANs reported up to the end of " + monthLabel(m), o.demiseDue(ctx, tenant, m)
+	case "ras_ucc_report":
+		return o.rasUCCPeriod(ctx, tenant, date)
+	case "client_money_recon":
+		set, _ := o.Settings(ctx, tenant)
+		d := set.PrevBusinessDay(date)
+		return d, "Statement of " + fmtDay(d), set.NextBusinessDay(d)
 	}
 	return date, fmtDay(date), date
 }
@@ -343,6 +351,10 @@ func (o *Ops) periodicDone(ctx context.Context, tenant string, t PeriodicTask, p
 		if err == nil && len(due) == 0 {
 			return true, "No idle credit balance to return"
 		}
+	case "ras_ucc_report":
+		return o.rasUCCDone(ctx, tenant, period)
+	case "client_money_recon":
+		return o.moneyReconDone(ctx, tenant, period)
 	case "bsda_review":
 		r, _, err := docs.Get[BSDAReview](ctx, o.Docs, tenant, cBSDAReview, period)
 		if err == nil && r.Status == "Applied" {
@@ -588,6 +600,10 @@ func (o *Ops) runPeriodic(ctx context.Context, tenant, actor string, t PeriodicT
 	case "kra_demise":
 		s, err := o.demisePeriodic(ctx, tenant, actor, period, date)
 		return s, nil, err
+	case "ras_ucc_report":
+		return o.rasUCCRun(ctx, tenant, actor, period, date)
+	case "client_money_recon":
+		return o.moneyReconRun(ctx, tenant, actor, period)
 	case "settlement_master":
 		msg := fmt.Sprintf("NSE Clearing's settlement master for %s is not loaded: download it from the member portal and load it on Exchange files", monthLabel(period))
 		o.raiseWork(ctx, tenant, "periodic", "settmaster:"+period, "Load the settlement master for "+monthLabel(period), msg, "", RoleMaker, "xfiles", date)

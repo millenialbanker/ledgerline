@@ -28,6 +28,13 @@ import (
 //   - SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197 of 28 December 2023: running
 //     accounts settled on the first Friday or Saturday of the month or
 //     quarter the client chose, on the exchanges' joint calendar.
+//   - NSE/INSP/55024 of 28 December 2022 (kept by NSE/INSP/61904 of 6 May
+//     2024): the UCC-wise details of each settlement within 10 trading
+//     days; NSE/INSP/56261 of 3 April 2023: ₹10,000 a day late.
+//   - SEBI master circular SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90 of 17 June
+//     2025, para 15.4.4.2, and NSE/INSP/55904 of 9 March 2023: a daily
+//     reconciliation statement of transfers between the client, settlement
+//     and own accounts.
 //   - SEBI HO/38/11/(9)2026-MIRSD-POD/I/15382/2026 of 3 July 2026 (paras
 //     46.4, 46.8, 46.10: payment within 5 trading days of pay-out,
 //     reasonable notice before invoking, release by the depositories at
@@ -95,6 +102,17 @@ var siTests = []SITest{
 		Checks: "Running account settlement: credit balances not paid out after their monthly or quarterly date, idle balances not returned on their monthly settlement date, and calendar dates with no settlement run.",
 		Fix:    "Settle the clients due on Running account (Receipts & payouts); add the exchanges' calendar for the year on Circulars & duties → RAS dates.",
 		Screen: "ras", ScreenName: "Receipts & payouts → Running account", Real: true, run: siRAS},
+	{ID: "ras_ucc_report", Title: "Each running account settlement reported to NSE within 10 trading days", Area: "Money", Severity: "high", Owner: RoleCompliance,
+		Source: "NSE/INSP/55024 of 28 Dec 2022 (UCC-wise details within 10 trading days, kept by NSE/INSP/61904 of 6 May 2024); NSE/INSP/56261 of 3 Apr 2023 (₹10,000 a day late)",
+		Checks: "Every settlement whose 10 trading days have passed (a settlement run, or a date of the exchanges' calendar): its UCC-wise report recorded as uploaded, or as not applicable, by the due date.",
+		Fix:    "Make the file on Running account, upload it on NSE's member portal and record the portal's reference; where no client was settled, record the not-applicable declaration.",
+		Screen: "ras", ScreenName: "Receipts & payouts → Running account", Real: true, run: siRASUCC},
+	{ID: "client_money_recon", Title: "Daily client money reconciliation signed off", Area: "Money", Severity: "high", Owner: RoleChecker,
+		Source:    "SEBI master circular SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90 of 17 Jun 2025, para 15.4.4.2 (a daily reconciliation statement of transfers); NSE/INSP/55904 of 9 Mar 2023",
+		ToConfirm: "No format is prescribed: Ledgerline's statement follows the money between clients, the USCNBA, the clearing corporation, the DSCNBA, the settlement and own accounts.",
+		Checks:    "Each business day of the last two weeks before the date: the day's statement prepared and signed off by a checker who did not prepare it.",
+		Fix:       "Prepare the day's statement on Client money reconciliation, explain what is flagged, and have a checker sign it off.",
+		Screen:    "clientmoney", ScreenName: "Receipts & payouts → Client money reconciliation", Real: true, run: siMoneyRecon},
 	{ID: "cuspa_limit", Title: "Unpaid securities kept within 2.25 × (margin − ledger)", Area: "Settlement", Severity: "medium", Owner: RoleChecker,
 		Source: "NSE circular 41/2026 (NSE/INSP/75508) of 31 Jul 2026, guideline 6, under SEBI HO/38/11/(9)2026-MIRSD-POD/I/15382/2026 of 3 Jul 2026",
 		Checks: "CUSPA ageing: lines over the client's limit at the end of the previous trading day and still not released.",

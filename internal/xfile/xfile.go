@@ -41,7 +41,7 @@ type Column struct {
 	Decimals int    `json:"decimals,omitempty"` // for dec: digits after the point
 	Fixed    bool   `json:"fixed,omitempty"`    // for dec: always write all decimals
 	Const    string `json:"const,omitempty"`    // a value the field always has (record codes)
-	Quote    string `json:"quote,omitempty"`    // "always": in double quotes even when empty; "set": quoted when it has a value
+	Quote    string `json:"quote,omitempty"`    // "always": in double quotes even when empty; "set": quoted when it has a value; "digits": quoted when it is all digits (an account number), so a spreadsheet keeps its leading zeros
 	Required bool   `json:"required,omitempty"`
 	Note     string `json:"note,omitempty"`
 	// Aliases are other header texts the column is known by (a circular
@@ -888,7 +888,7 @@ func (s *Spec) Write(rows []Row) ([]byte, error) {
 			if c.Required && v == "" {
 				return nil, fmt.Errorf("xfile: %s row %d: %s is required", s.ID, n+1, c.Name)
 			}
-			f[i] = s.quote(v, c.Quote == "always" || c.Quote == "set" && v != "")
+			f[i] = s.quote(v, c.Quote == "always" || c.Quote == "set" && v != "" || c.Quote == "digits" && allDigits(v))
 		}
 		if r.Fields > 0 && s.TrailingEmpty {
 			// as the line came: with its trailing empty fields, or without
@@ -905,6 +905,19 @@ func (s *Spec) Write(rows []Row) ([]byte, error) {
 		b.WriteString(eol)
 	}
 	return b.Bytes(), nil
+}
+
+// allDigits says whether a value is a number written with digits only.
+func allDigits(v string) bool {
+	if v == "" {
+		return false
+	}
+	for _, r := range v {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Spec) quote(v string, always bool) string {
