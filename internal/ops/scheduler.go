@@ -293,6 +293,8 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.retryMessages(ctx, tenant, now)
 	o.extranetTick(ctx, tenant, now)
 	o.mcxSFTPTick(ctx, tenant, now)
+	// CCIL's G-sec and T-bill prices from its website, when switched on.
+	o.ccilTick(ctx, tenant, now)
 	// Client registration with the exchanges by API (UCC), when switched on.
 	o.nseUCITick(ctx, tenant, now)
 	o.bseUCCTick(ctx, tenant, now)

@@ -45,7 +45,7 @@ var PeriodicTasks = []PeriodicTask{
 	{"dis_master", "DIS master upload to CDSL", "Depository", "Weekly", "Builds CDSL's transaction upload (DIS issue) for the delivery instruction slip books issued in the week and sends it through CDSL's common upload API when it is on (else for upload on CDSL's system).", "Monday, for the week to Friday", "CDSL operating instructions on DIS issuance", true, "dp", "cdsl-txn-upload"},
 	{"cuspa_mtf_payout", "CUSPA and MTF pay-out reporting", "Settlement", "Settlement day", "Reports to NSE Clearing the settlement's purchases that are not paid out to clients' demat accounts: unpaid purchases kept in CUSPA and MTF purchases kept for the pledge.", "Settlement day, before pay-out", "SEBI and NSE Clearing rules on pay-out of securities to clients", true, "settlement", "ncl-cuspa-mtf-payout"},
 	{"settlement_master", "Settlement calendar for the coming month", "Settlement", "Monthly", "Checks that NSE Clearing's settlement master for the coming month is loaded: settlement numbers and pay-in and pay-out dates used by the pay-out reporting and the settlement screen.", "Before the month starts", "", true, "xfiles", "ncl-settlement-master"},
-	{"ccil_prices", "CCIL prices of G-secs and T-bills", "Risk", "Monthly", "Checks that CCIL's month-end valuation prices are loaded, so G-secs and T-bills held or given as collateral are valued at month end.", "By the 5th", "", true, "xfiles", "ccil-gsec-price"},
+	{"ccil_prices", "CCIL prices of G-secs and T-bills", "Risk", "Monthly", "Checks that CCIL's month-end valuation prices are loaded, so G-secs and T-bills held or given as collateral are valued at month end. With the CCIL prices connection's fetch on, they are downloaded from CCIL's website each business day and the task is done by itself.", "By the 5th", "", true, "xfiles", "ccil-gsec-price"},
 	{"month_end", "Month-end postings", "Accounts", "Monthly", "Interest on debit balances, MTF interest, DP bills with GST and the authorised persons' brokerage share (commission) for the month just ended.", "By the 5th", "", true, "autopilot", ""},
 	{"ledger_statements", "Monthly statement of account", "Clients", "Monthly", "Emails every active client a signed statement of account for the month just ended.", "By the 7th", "Exchange rules on statements of accounts to clients", true, "dispatch", ""},
 	{"dp_statements", "DP transaction and holding statements", "Depository", "Monthly", "Emails every demat account its signed statement of transactions and holdings for the month just ended.", "By the 10th", "Depository rules on statements to beneficial owners", true, "dp", ""},
@@ -481,7 +481,23 @@ func (o *Ops) runPeriodic(ctx context.Context, tenant, actor string, t PeriodicT
 		o.raiseWork(ctx, tenant, "periodic", "settmaster:"+period, "Load the settlement master for "+monthLabel(period), msg, "", RoleMaker, "xfiles", date)
 		return "", nil, &pendingErr{msg, "Waiting for a file"}
 	case "ccil_prices":
-		msg := fmt.Sprintf("CCIL's prices for the end of %s are not loaded: download MTMPRICE for the last business day from CCIL and load it on Exchange files", monthLabel(period))
+		// Fetched from CCIL's website when the CCIL prices connection's
+		// fetch is on (ccilfetch.go); otherwise, or when that fails, the
+		// file is loaded by hand.
+		note := ""
+		if cn, ok := o.ccilConn(ctx, tenant); ok && cn.Values["fetch"] == "On" {
+			set, _ := o.Settings(ctx, tenant)
+			end := monthEnd(period)
+			if !set.IsBusinessDay(end) {
+				end = set.PrevBusinessDay(end)
+			}
+			run, err := o.CCILFetch(ctx, tenant, SystemActor, end, 4)
+			if err == nil {
+				return fmt.Sprintf("Fetched from CCIL: %d prices of %s (%s)", run.Prices, fmtDay(run.Date), run.File), nil, nil
+			}
+			note = " (" + err.Error() + ")"
+		}
+		msg := fmt.Sprintf("CCIL's prices for the end of %s are not loaded%s: download MTMPRICE for the last business day from CCIL and load it on Exchange files", monthLabel(period), note)
 		o.raiseWork(ctx, tenant, "periodic", "ccil:"+period, "Load CCIL's G-sec prices for "+monthLabel(period), msg, "", RoleMaker, "xfiles", date)
 		return "", nil, &pendingErr{msg, "Waiting for a file"}
 	case "dis_master":

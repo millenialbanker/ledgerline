@@ -285,6 +285,21 @@ On [[xfiles|Exchange files]]:
 
 The firm's PAN is taken from the GSTIN unless set in Settings; set the clearing member's PAN there if another member clears for the firm. **Download** on the SEGMON file and on the holding statement opens their own panel first: the SEGMON check and NSE Clearing's response, and the holding statement's submission to NSE by API.
 
+## ccil-prices
+title: CCIL's G-sec and T-bill prices, fetched
+screen: xfiles
+roles: Ops maker, Ops checker, Risk manager, Admin
+ask: ccil prices; ccil mtm prices; mtmprice; g-sec prices; t-bill prices; sdl prices; government security price; fetch ccil prices; ccil prices not loaded; month-end g-sec prices
+related: exchange-files, periodic-work
+
+CCIL publishes its valuation price of every Treasury bill, government security and state development loan each business day (MTMPRICE<ddmmyyyy>) on its public website, with no login. Ledgerline loads it like any file on [[xfiles|Exchange files]]: G-secs and T-bills held or given as collateral are valued at CCIL's price where the exchanges give none.
+
+**Fetching it.** An Admin sets up **CCIL prices (G-secs and T-bills)** in [[connections|Connections]] and switches **Fetch the prices automatically** on. Each business day from 19:00 Ledgerline downloads the day's file and loads it, trying every half hour until it is in; a day missed in the evening is fetched the next morning. A day still missing at 23:00, or by 10:00 the next morning, goes to the work queue. The month-end file also completes the monthly task **CCIL prices of G-secs and T-bills** on [[periodic|Periodic work]]: its **Run now** fetches the month end (or the business day before, when CCIL had no file that day).
+
+**Where the file is.** Give the file's address with {DD}, {MM} and {YYYY} for the date, copied once from the download on CCIL's MTM prices page. Left empty, Ledgerline reads CCIL's MTM prices page and follows the link to the day's file; CCIL's page builds its list of files in the browser, so if no link is found the fetch says so and asks for the address. Only https addresses are used, and only a workbook is loaded: an error page is never taken for prices.
+
+**Fetch now** on Exchange files fetches the latest business day's prices at once.
+
 ## mcx-files
 title: MCX and MCXCCL files
 screen: xfiles
@@ -376,7 +391,7 @@ On [[periodic|Periodic work]] every task is listed with the period it covers (th
 1. **Daily (trading days)**: the CUSPA review of unpaid securities: releases over the 2.25× limit, the depository's day-6 releases, sales of invoked shares, and the notices and invocations due ([[settlement|Settlement]] → Unpaid securities).
 2. **Weekly**: the statement of funds and securities to clients (Saturday).
 3. **Each settlement day**: the CUSPA and MTF pay-out reporting file for NSE Clearing (UNPAIDMTF), which needs the month's settlement master loaded on [[xfiles|Exchange files]].
-4. **Monthly**: month-end postings (interest, MTF interest, DP bills, AP commission), statements of account, DP statements and the complaints disclosure; checks that the coming month's settlement master and CCIL's month-end G-sec and T-bill prices (MTMPRICE, .xls as published) are loaded.
+4. **Monthly**: month-end postings (interest, MTF interest, DP bills, AP commission), statements of account, DP statements and the complaints disclosure; checks that the coming month's settlement master and CCIL's month-end G-sec and T-bill prices (MTMPRICE, .xls as published) are loaded. CCIL's prices can be fetched from its website by themselves: see **CCIL's G-sec and T-bill prices, fetched**.
 5. **Running account settlement** on the exchanges' RAS dates (the Friday and/or Saturday of their joint annual calendar, separately for monthly and quarterly clients; kept on [[circulars|Circulars & calendar]] → *RAS dates & profile*), with the statements. A client with a credit balance and no transaction for 30 days (no trade and no funds received, and no open position or margin) is settled within 3 working days, whatever they chose, not on the monthly or quarterly date (NSE/INSP/53820); [[ras|Running account]] marks such clients with the date their money is due back.
 6. **Quarterly BSDA review**: proposes conversions on the [[dp|Depository]] screen (BSDA review tab): eligible accounts become BSDA; BSDAs above the limit, or whose holder has another demat account, become regular. A different checker applies it and clients are emailed. The changes go to CDSL as BO modifications: by the BO API when it is on (each account's request shows on the review), otherwise as one BO modify file to upload in CDAS. Record a client's choice to stay regular, or a demat account with another DP, so the review leaves them out.
 

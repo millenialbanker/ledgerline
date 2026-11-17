@@ -19,8 +19,27 @@ func (s *Server) periodicRoutes() {
 	s.route("POST /v1/dp/bsda-reviews/{id}/apply", s.bsdaApply, true)
 	s.route("POST /v1/dp/accounts/{ucc}/bsda-choice", s.bsdaChoice, true)
 	s.route("POST /v1/ipo/allotments", s.ipoAllotments, true)
+	s.route("GET /v1/ccil/prices", s.ccilStatus, false)
+	s.route("POST /v1/ccil/prices/fetch", s.ccilFetch, true)
 	s.route("GET /v1/clearing-data", s.clearingData, false)
 	s.route("POST /v1/clearing-data/short-allocation-reasons", s.saReason, true)
+}
+
+// ccilStatus is the CCIL price fetch's last run and the latest prices.
+func (s *Server) ccilStatus(w http.ResponseWriter, r *http.Request) {
+	ok(w, s.ops.CCILStatus(r.Context(), tenant(r)), nil)
+}
+
+// ccilFetch fetches CCIL's prices now (a date, or the latest business day).
+func (s *Server) ccilFetch(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string `json:"date"`
+	}
+	if r.ContentLength != 0 && !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.CCILFetchNow(r.Context(), tenant(r), actor(r), b.Date)
+	ok(w, v, err)
 }
 
 func (s *Server) clearingData(w http.ResponseWriter, r *http.Request) {
