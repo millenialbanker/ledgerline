@@ -872,7 +872,14 @@ type SIView struct {
 
 func (o *Ops) siRuns(ctx context.Context, tenant string) ([]SIRun, error) {
 	rs, err := docs.List[SIRun](ctx, o.Docs, tenant, cSIRun, "")
-	sort.SliceStable(rs, func(i, j int) bool { return rs[i].ID < rs[j].ID })
+	// By the business date inspected, then in the order they ran: a run
+	// now for an earlier date sits with that date.
+	sort.SliceStable(rs, func(i, j int) bool {
+		if rs[i].Date != rs[j].Date {
+			return rs[i].Date < rs[j].Date
+		}
+		return rs[i].ID < rs[j].ID
+	})
 	return rs, err
 }
 

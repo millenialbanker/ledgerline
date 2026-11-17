@@ -42,8 +42,9 @@ V.selfinspect = {
       (L ? kp : `<div class="note">No run yet. ${can.run ? 'Press <b>Run now</b> to run every test on today’s data.' : 'The first nightly run will show here.'}</div>`) +
       `<div class="si-grid">
         <section class="panel si-trend" aria-labelledby="si-trend-h"><div class="hd"><h3 id="si-trend-h">Score, last 90 days</h3><small>One point a business day: that day’s last run</small></div><div class="bd">${siTrendHTML(d.trend)}</div></section>
-        <section class="panel" aria-labelledby="si-exc-h"><div class="hd"><h3 id="si-exc-h">Exceptions · ${open.length} open</h3><small>Owner and due date by severity</small></div>${siExcTable(d, open)}</section>
+        <section class="panel" aria-labelledby="si-lists-h"><div class="hd"><h3 id="si-lists-h">Exceptions by list</h3><small>As on the board</small></div><div class="bd">${siListsHTML(d)}</div></section>
       </div>
+      <section class="panel si-exc" aria-labelledby="si-exc-h"><div class="hd"><h3 id="si-exc-h">Open exceptions · ${open.length}</h3><small>Owner, and due date by severity: high 3 days, medium 10, low 30</small></div>${siExcTable(d, open)}</section>
       <section class="panel" aria-labelledby="si-tests-h"><div class="hd"><h3 id="si-tests-h">Tests</h3><div class="tools">${segBtns('siArea', ['All', ...d.areas], 'si-t')}${segBtns('siShow', [['all', 'All'], ['fail', 'Failing'], ['waiting', 'Waiting for data']], 'si-t')}</div></div><div id="si-t">${P['si-t'](d)}</div></section>`;
   }
 };
@@ -67,6 +68,16 @@ function siTrendHTML(T) {
       <div class="si-area" aria-hidden="true"><span class="si-y" style="top:0">100</span><span class="si-y" style="top:50%">50</span><span class="si-y" style="top:100%">0</span><svg viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="0" x2="100" y1="0" y2="0" vector-effect="non-scaling-stroke"/><line x1="0" x2="100" y1="50" y2="50" vector-effect="non-scaling-stroke"/><line class="si-base" x1="0" x2="100" y1="100" y2="100" vector-effect="non-scaling-stroke"/>${line}</svg>${pts}${cols}</div>
       <div class="si-x" aria-hidden="true">${ticks}</div></div>
     <details class="si-tbl"><summary>Show the numbers</summary><table class="si-mini"><caption class="si-sr">Score of each day's last run</caption><thead><tr><th scope="col">Day</th><th scope="col">Score</th><th scope="col">Failing</th><th scope="col">Passing</th><th scope="col">Run</th></tr></thead><tbody>${T.slice().reverse().map(p => `<tr><th scope="row">${esc(fmtDate(p.date))}</th><td>${p.score.toFixed(1)}%</td><td>${p.failed}</td><td>${p.passed}</td><td><button class="linkish mono" data-act="siShowRun" data-id="${esc(p.run)}">${esc(p.run)}</button></td></tr>`).join('')}</tbody></table></details></div>`;
+}
+
+// The exceptions per board list, with how many are overdue; closed ones
+// count those of the last 30 days.
+function siListsHTML(d) {
+  const xs = d.exceptions, n = s => xs.filter(x => x.status === s).length, max = Math.max(1, ...Object.keys(SI_EXC).map(n));
+  const od = xs.filter(x => x.status !== 'closed' && x.status !== 'accepted' && x.due && x.due < d.date).length;
+  const high = xs.filter(x => x.status !== 'closed' && x.severity === 'high').length;
+  const rows = Object.entries(SI_EXC).map(([k, [l, tone]]) => `<li><span class="si-ln">${esc(l)}${k === 'closed' ? ' <span class="dim">(30 days)</span>' : ''}</span><span class="si-lb"><i class="${tone}" style="width:${(n(k) / max * 100).toFixed(1)}%"></i></span><b class="mono">${n(k)}</b></li>`).join('');
+  return `<ul class="si-lists">${rows}</ul><p class="small si-lsum">${od ? `<span class="neg"><b>${od}</b> overdue</span>` : 'None overdue'} · ${high} high severity open</p>`;
 }
 
 function siExcTable(d, open) {
@@ -117,9 +128,25 @@ async function siTestModal(id) {
     <h4 class="si-h4">Last 90 days</h4>${tbl([['Day'], ['Result'], ['Found', 'r'], ['Run']], d.results.map(x => `<tr><td class="n">${esc(fmtDate(x.date))}</td><td>${siPill(x.status)}</td><td class="r mono">${x.found ? nf(x.found) : '—'}</td><td><button class="linkish mono" data-act="siShowRun" data-id="${esc(x.run)}">${esc(x.run)}</button></td></tr>`), { empty: 'Not run in the last 90 days.' })}
     ${d.exceptions.length ? `<h4 class="si-h4">Exceptions</h4>${tbl([['Exception'], ['Status'], ['How it was handled']], d.exceptions.map(x => `<tr><td class="mono small"><button class="linkish" data-act="siExc" data-id="${esc(x.id)}">${esc(x.id)}</button></td><td>${siExcPill(x.status)}</td><td class="small wrap">${esc(x.handled || '')}</td></tr>`))}` : ''}
     <h4 class="si-h4">Muted</h4>${mute ? `<p>Muted until <b>${esc(fmtDate(mute.until))}</b> by ${esc(mute.by)}: ${esc(mute.reason)}</p>` : '<p class="dim small">Not muted. A muted test still runs; its result is kept as muted and not counted.</p>'}
-    ${can.mute && t.real ? (mute ? `<div class="fld"><label for="si-ur">Why the mute ends early</label><input class="in" id="si-ur" placeholder="e.g. the batch went through"></div>` :
-      `<div class="form"><div class="fld full"><label for="si-mr">Reason (kept in the audit trail)</label><input class="in" id="si-mr" placeholder="Why this test should not count for now"></div><div class="fld"><label for="si-mu">Until</label><input class="in" type="date" id="si-mu" value="${esc(addDaysJS(C.selfinspect?.date || S.date, 7))}"></div></div>`) : ''}
-    <div id="si-err"></div></div><div class="ft"><button class="btn" data-act="close">Close</button>${can.mute && t.real ? (mute ? `<button class="btn" data-act="siUnmute" data-id="${esc(t.id)}">End the mute</button>` : `<button class="btn" data-act="siMute" data-id="${esc(t.id)}">Mute this test</button>`) : ''}</div>`);
+    </div><div class="ft"><button class="btn" data-act="close">Close</button>${can.mute && t.real ? (mute ? `<button class="btn" data-act="siUnmute" data-id="${esc(t.id)}">End the mute</button>` : `<button class="btn" data-act="siMute" data-id="${esc(t.id)}">Mute this test</button>`) : ''}</div>`);
+}
+
+function siMuteModal(id) {
+  const t = (C.selfinspect?.tests || []).find(x => x.id === id);
+  confirmModal('Mute this test', `${esc(t ? t.title : id)}: it still runs every night, but its result is kept as muted and does not count in the score or open a card until the end date. Your name and reason go to the audit trail.`,
+    `<div class="fld"><label for="si-mr">Reason</label><input class="in" id="si-mr" placeholder="Why this test should not count for now"></div><div class="fld"><label for="si-mu">Until</label><input class="in" type="date" id="si-mu" value="${esc(addDaysJS(C.selfinspect?.date || S.date, 7))}"></div>`,
+    'Mute', async () => {
+      await post(`/v1/self-inspection/tests/${encodeURIComponent(id)}/mute`, { reason: $('si-mr').value.trim(), until: $('si-mu').value });
+      closeModal(); toast('Muted; the audit trail has the reason'); await render({ keep: true });
+    });
+}
+
+function siUnmuteModal(id) {
+  confirmModal('End the mute', 'The test counts again from the next run. Your name and reason go to the audit trail.',
+    `<div class="fld"><label for="si-ur">Why the mute ends early</label><input class="in" id="si-ur" placeholder="e.g. the batch went through"></div>`, 'End the mute', async () => {
+      await post(`/v1/self-inspection/tests/${encodeURIComponent(id)}/unmute`, { reason: $('si-ur').value.trim() });
+      closeModal(); toast('The test counts again'); await render({ keep: true });
+    });
 }
 
 function siExcModal(id) {
@@ -191,8 +218,8 @@ Object.assign(A, {
   siFixing: id => act(() => post(`/v1/self-inspection/exceptions/${encodeURIComponent(id)}/status`, { status: 'fixing', note: '' }), 'Moved to Being fixed'),
   siFixed: id => siFixedModal(id),
   siAccept: id => siAcceptModal(id, siFind(id)?.title),
-  siMute: id => act(() => post(`/v1/self-inspection/tests/${encodeURIComponent(id)}/mute`, { reason: $('si-mr').value.trim(), until: $('si-mu').value }), 'Muted; the audit trail has the reason'),
-  siUnmute: id => act(() => post(`/v1/self-inspection/tests/${encodeURIComponent(id)}/unmute`, { reason: $('si-ur')?.value.trim() || '' }), 'The test counts again'),
+  siMute: id => siMuteModal(id),
+  siUnmute: id => siUnmuteModal(id),
 });
 
 /* ---------- the board's cards ---------- */

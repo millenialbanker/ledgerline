@@ -1,8 +1,19 @@
 /* Ledgerline console: Self-inspection (web/selfinspect.js). Names si-. */
-.si-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:14px;align-items:start}
+.si-grid{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,4fr);gap:14px;align-items:stretch}
 .si-grid>.panel>.bd{padding:12px 14px}
-.si-acts{gap:6px;justify-content:flex-end}
+.si-acts{gap:6px;justify-content:flex-end;flex-wrap:nowrap}
 .si-tname{max-width:420px}
+.si-tname .linkish,.si-exc .linkish{text-align:left}
+
+/* exceptions by board list */
+.si-lists{list-style:none;margin:2px 0 0;padding:0;display:flex;flex-direction:column;gap:9px}
+.si-lists li{display:grid;grid-template-columns:minmax(0,11em) minmax(0,1fr) 2.5em;align-items:center;gap:10px;font-size:13px}
+.si-ln{color:var(--ink2)}
+.si-lb{height:10px;border-radius:4px;background:var(--sunk);overflow:hidden}
+.si-lb i{display:block;height:100%;border-radius:4px;min-width:0}
+.si-lb i.bad{background:var(--bad)}.si-lb i.warn{background:var(--warn)}.si-lb i.acc{background:var(--accent)}.si-lb i.good{background:var(--good)}
+.si-lists b{text-align:right}
+.si-lsum{margin:12px 0 0;color:var(--ink2)}
 .si-src{max-width:300px;color:var(--ink2)}
 .si-tc{margin-top:3px;color:var(--warn)}
 .si-tc b{font-weight:600}
@@ -63,3 +74,4 @@
   .si-x span:nth-child(2),.si-x span:nth-child(3){display:none}
 }
 @media (forced-colors:active){.si-sq.pass{background:CanvasText}.si-sq.fail{background:Highlight}.si-area polyline{stroke:CanvasText}.si-pt{background:CanvasText}}
+@media (max-width:600px){.si-lists li{grid-template-columns:minmax(0,9em) minmax(0,1fr) 2em}.si-acts{flex-wrap:wrap;justify-content:flex-start}}
