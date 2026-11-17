@@ -3,6 +3,7 @@
 # Admin may do everything. Format: What | Roles
 
 Accepting a self-inspection risk | Compliance officer
+Accepting obligations from circulars | Compliance officer
 Activating a client | Ops checker
 Adding client documents | Ops maker, Ops checker, Compliance officer, Branch staff
 Adding inspection documents | Compliance officer
@@ -70,6 +71,7 @@ Changing the MTF policy | Risk manager, Admin
 Changing the account type | Ops checker
 Changing the chart of accounts | Ops checker
 Changing the compliance calendar | Compliance officer
+Changing the firm profile | Compliance officer
 Changing the firm's UPI collection IDs | Compliance officer
 Changing the self-inspection schedule | Compliance officer
 Changing vendors | Ops maker, Ops checker
@@ -97,6 +99,7 @@ Crediting dividends | Ops checker
 DP billing | Ops checker
 DP requests | Ops maker, Ops checker, Compliance officer, Branch staff
 Deciding a pledge request | Ops maker, Ops checker, Risk manager
+Deciding whether a circular applies | Compliance officer
 Discarding scanned bills | Ops maker, Ops checker
 Downloading BOW upload files | Ops maker, Ops checker, Risk manager
 Downloading Finspot block and client files | Ops maker, Ops checker, Risk manager
@@ -189,6 +192,7 @@ Raising CDSL requests | Ops maker, Ops checker
 Raising pledge invocations | Risk manager
 Raising stock SIP top-up debits | Ops maker, Ops checker
 Re-pledging clients' collateral | Ops maker, Risk manager
+Reading circulars with AI | Compliance officer
 Reconciling a migration | Ops checker, Compliance officer
 Recording CDSL results | Ops checker, Risk manager
 Recording DP responses | Ops maker, Ops checker
@@ -325,6 +329,7 @@ Viewing the AI answer log | Compliance officer
 Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Viewing the compliance calendar | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
+Viewing the firm profile | Compliance officer
 Viewing the migration | Ops checker, Compliance officer
 Viewing the signing certificate | Ops checker, Compliance officer, Admin
 Viewing the surveillance report | Ops checker, Compliance officer

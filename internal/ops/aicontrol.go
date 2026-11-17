@@ -23,7 +23,7 @@ import (
 //     the reason, in the audit trail);
 //   - the firm switched the connected provider off;
 //   - the feature itself is off in Settings (Ledgy phrasing, bill reading,
-//     AI on board cards).
+//     AI on board cards, reading circulars).
 //
 // The gate reads the switches on every call, so a change takes effect on
 // the next question. Refused features fall back to what they do without AI
@@ -36,10 +36,13 @@ const (
 	AIFeatureLedgy    = "ledgy"
 	AIFeatureBillScan = "billscan"
 	AIFeatureBoards   = "boards" // summarising cards and suggesting checklists (boardai.go)
+	// AIFeatureCirculars reads a circular's text and proposes obligations
+	// for the compliance officer to accept (circai.go).
+	AIFeatureCirculars = "circulars"
 )
 
 // aiFeatures lists every AI feature, in the order the inventory shows them.
-var aiFeatures = []string{AIFeatureLedgy, AIFeatureBillScan, AIFeatureBoards}
+var aiFeatures = []string{AIFeatureLedgy, AIFeatureBillScan, AIFeatureBoards, AIFeatureCirculars}
 
 // AIProviders are the providers Ledgerline can connect to.
 var AIProviders = []string{"anthropic", "openai", "gemini"}
@@ -176,6 +179,16 @@ func (o *Ops) aiFeatureState(ctx context.Context, tenant, feature string) (bool,
 		}
 		if !set.BoardAI {
 			return false, "An admin can switch on “AI on board cards” in Settings (the card's text, masked, is then sent to the AI provider)."
+		}
+	case AIFeatureCirculars:
+		if o.Residency.IndiaOnly {
+			return false, "Reading circulars with AI is not allowed in India-only mode."
+		}
+		if _, ok := o.LedgyAI.(help.Composer); !ok {
+			return false, "The connected AI model cannot read circulars."
+		}
+		if !set.CircularAI {
+			return false, "An admin can switch on “Read circulars with AI” in Settings (the circular's text, masked, is then sent to the AI provider)."
 		}
 	default:
 		return false, "Unknown AI feature " + feature + "."

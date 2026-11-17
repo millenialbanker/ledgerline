@@ -37,7 +37,7 @@ func TestAIDisclosureRoutes(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	var cv ops.AIControlsView
-	if c := ipoCall(t, srv, "GET", "/v1/ai/controls", "vikram.shah", nil, &cv); c != 200 || len(cv.Systems) != 3 || len(cv.Masking) != 8 || cv.Connected {
+	if c := ipoCall(t, srv, "GET", "/v1/ai/controls", "vikram.shah", nil, &cv); c != 200 || len(cv.Systems) != 4 || len(cv.Masking) != 8 || cv.Connected {
 		t.Fatalf("controls %d %+v", c, cv)
 	}
 	if c := ipoCall(t, srv, "GET", "/v1/ai/controls", "priya.nair", nil, nil); c != 403 {
@@ -71,7 +71,7 @@ func TestAIDisclosureRoutes(t *testing.T) {
 		t.Fatalf("tool %d", c)
 	}
 	var inv []ops.AISystem
-	if c := ipoCall(t, srv, "GET", "/v1/ai/inventory", "vikram.shah", nil, &inv); c != 200 || len(inv) != 4 { // three Ledgerline features and the firm's tool
+	if c := ipoCall(t, srv, "GET", "/v1/ai/inventory", "vikram.shah", nil, &inv); c != 200 || len(inv) != 5 { // four Ledgerline features and the firm's tool
 		t.Fatalf("inventory %d %d", c, len(inv))
 	}
 

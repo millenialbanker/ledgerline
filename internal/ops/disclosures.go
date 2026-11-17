@@ -672,7 +672,7 @@ func (o *Ops) buildSaaS(ctx context.Context, tenant string, set Settings, prof D
 		data := []string{}
 		for _, f := range provs[p] {
 			feats = append(feats, names[f])
-			data = append(data, map[string]string{AIFeatureLedgy: "staff questions with identifiers masked and help article text", AIFeatureBillScan: "images of the firm's own vendor bills", AIFeatureBoards: "the text of team board cards with identifiers masked"}[f])
+			data = append(data, map[string]string{AIFeatureLedgy: "staff questions with identifiers masked and help article text", AIFeatureBillScan: "images of the firm's own vendor bills", AIFeatureBoards: "the text of team board cards with identifiers masked", AIFeatureCirculars: "the public text of regulatory circulars, masked"}[f])
 		}
 		rows = append(rows, SaaSRow{Key: "ai-" + p, Service: info.Name + " API, through Ledgerline (" + strings.Join(feats, "; ") + ")", Provider: info.Company, Nature: "AI model API",
 			Environment: "Production; data exchanged: " + strings.Join(data, "; ") + "; no client records", GeoLocation: info.Where,
