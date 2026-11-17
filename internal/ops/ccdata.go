@@ -482,6 +482,11 @@ func (o *Ops) loadCDSLTxns(ctx context.Context, tenant, actor string, rows []xfi
 			if err := o.dpTxn(ctx, tenant, actor, t); err != nil {
 				return n, skipped, err
 			}
+			// The depository's automatic pledge of unpaid securities to the
+			// firm's CUSPA: its PSN goes on the CUSPA line (cuspacdsl.go).
+			if f := strings.ToUpper(strings.TrimSpace(r.Get("CuspaTxnFlg"))); (f == "TM" || f == "CM") && (ev == PledgeCreated || ev == MarginPledgeCreated) {
+				o.cuspaPledgeSeen(ctx, tenant, actor, CUSPAPledge{PSN: firstOf(strings.TrimSpace(r.Get("PldgSeqNb")), strings.TrimSpace(r.Get("TxnID"))), UCC: ucc, BOID: bo, ISIN: t.ISIN, Qty: t.Qty.String(), Date: t.Date})
+			}
 			n++
 			continue
 		}

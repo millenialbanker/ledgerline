@@ -40,8 +40,11 @@ import (
 //
 // In Ledgerline a CUSPA line (CUSPAItem) keeps the quantity still pledged
 // apart from the client's free holding; a release moves it to the
-// client's demat holding. The instruction to the depository is given on
-// its system (the day's release and invocation list is downloadable).
+// client's demat holding. With the pledge's PSN (from CDSL's transaction
+// export) and CDSL's pledge API on, the release or invocation goes to
+// CDSL by its unpledge and confiscation API at once (cuspacdsl.go);
+// otherwise the instruction is given on the depository's system (the
+// day's release and invocation list is downloadable).
 
 // CUSPA line statuses.
 const (
@@ -63,10 +66,13 @@ var cuspaMultiple = money.MustDec("2.25")
 type CUSPAEvent struct {
 	Date string `json:"date"` // business date
 	At   string `json:"at"`   // when it was recorded
-	What string `json:"what"` // Notice, Released, Invoked, Sold, Auto-released
+	What string `json:"what"` // Notice, Released, Invoked, Sold, Auto-released, PSN
 	Qty  int64  `json:"qty,omitempty"`
 	By   string `json:"by"`
 	Note string `json:"note,omitempty"`
+	// CDSL is how a release or invocation went to CDSL by the API: the
+	// request (UN-n, CF-n) and its status. Empty: give it on CDSL's system.
+	CDSL string `json:"cdsl,omitempty"`
 }
 
 // cuspaPayDays is the firm's payment period in trading days after pay-out.
@@ -702,6 +708,7 @@ func (o *Ops) CUSPABulk(ctx context.Context, tenant, actor string, req CUSPABulk
 			})
 			if err == nil {
 				o.log(ctx, tenant, actor, "cuspa.invoked", it.ID, map[string]any{"ucc": it.UCC, "symbol": it.Symbol, "qty": q, "date": req.Date})
+				o.cuspaToCDSL(ctx, tenant, actor, req.Date, it.ID, "CF", q, px.MulInt(q), firstOf(req.Note, "unpaid after notice"))
 			}
 		case "sold":
 			err = o.cuspaSold(ctx, tenant, actor, req.Date, it.ID, q, firstOf(req.Note, "recorded by hand"))
@@ -726,6 +733,8 @@ func (o *Ops) cuspaEvent(date, what string, qty int64, by, note string) CUSPAEve
 }
 
 // cuspaRelease moves q shares of a line to the client's demat holding.
+// The firm's own release goes to CDSL by the pledge API when it can
+// (cuspacdsl.go); the depository's own day-6 release needs nothing.
 func (o *Ops) cuspaRelease(ctx context.Context, tenant, actor, date string, c Client, it CUSPAItem, q int64, status, why string) error {
 	if _, err := o.adjustHoldingAt(ctx, tenant, actor, it.UCC, holdingAcct(c, payoutDemat(c).ID), it.ISIN, it.Symbol, money.DecInt(q), money.Dec{}); err != nil {
 		return err
@@ -744,6 +753,9 @@ func (o *Ops) cuspaRelease(ctx context.Context, tenant, actor, date string, c Cl
 	})
 	if err == nil {
 		o.log(ctx, tenant, actor, "cuspa.released", it.ID, map[string]any{"ucc": it.UCC, "qty": q, "symbol": it.Symbol, "date": date, "why": why})
+		if status == CUSPAReleased {
+			o.cuspaToCDSL(ctx, tenant, actor, date, it.ID, "UN", q, money.Dec{}, why)
+		}
 	}
 	return err
 }
@@ -849,6 +861,7 @@ func (o *Ops) cuspaReview(ctx context.Context, tenant, actor, date string) (stri
 	if !b.set.IsBusinessDay(date) {
 		return "Not a trading day: nothing to review", nil, nil
 	}
+	o.cuspaLinkPSNs(ctx, tenant, SystemActor) // lines made after CDSL's export was read
 	sold := o.cuspaSpotSales(ctx, tenant, b)
 	auto, released, owing := 0, 0, 0
 	cl := map[string]Client{}
@@ -883,17 +896,22 @@ func (o *Ops) cuspaReview(ctx context.Context, tenant, actor, date string) (stri
 		}
 	}
 	_, excess := b.limits()
-	var relIDs []string
+	var relIDs []string // released here, to give on the depository's system
+	byAPI := 0
 	for _, it := range b.items {
 		if q := excess[it.ID]; q > 0 {
 			if o.cuspaRelease(ctx, tenant, SystemActor, date, client(it.UCC), it, q, CUSPAReleased, "over the 2.25× limit (daily review)") == nil {
 				released++
-				relIDs = append(relIDs, it.ID)
+				if x, _, err := docs.Get[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, it.ID); err == nil && cuspaLastCDSL(x, date) {
+					byAPI++
+				} else {
+					relIDs = append(relIDs, it.ID)
+				}
 			}
 		}
 	}
-	if released > 0 {
-		rc.queue("release:"+date, fmt.Sprintf("Release %d CUSPA line(s) at the depository", released),
+	if len(relIDs) > 0 {
+		rc.queue("release:"+date, fmt.Sprintf("Release %d CUSPA line(s) at the depository", len(relIDs)),
 			"The daily review released shares that were over the clients' 2.25× limit, or whose clients have paid: "+strings.Join(relIDs, ", ")+". Give the release instructions on the depository's system today (Settlement → Unpaid securities → Depository list).",
 			"", RoleChecker, "settlement", "", nil)
 	}
@@ -957,8 +975,24 @@ func (o *Ops) cuspaReview(ctx context.Context, tenant, actor, date string) (stri
 			held++
 		}
 	}
-	return fmt.Sprintf("%d held; %d released over the limit; %d released by the depository (%d still owing); %d sale(s) found; %d to notice, %d to invoke, %d to sell",
-		held, released, auto, owing, sold, len(notice), len(invoke), len(sell)), nil, nil
+	api := ""
+	if byAPI > 0 {
+		api = fmt.Sprintf(" (%d by CDSL's pledge API)", byAPI)
+	}
+	return fmt.Sprintf("%d held; %d released over the limit%s; %d released by the depository (%d still owing); %d sale(s) found; %d to notice, %d to invoke, %d to sell",
+		held, released, api, auto, owing, sold, len(notice), len(invoke), len(sell)), nil, nil
+}
+
+// cuspaLastCDSL says the line's last release or invocation on date went
+// to CDSL by the API and CDSL did it.
+func cuspaLastCDSL(it CUSPAItem, date string) bool {
+	for i := len(it.Events) - 1; i >= 0; i-- {
+		e := it.Events[i]
+		if e.What == "Released" || e.What == "Invoked" {
+			return e.Date == date && strings.HasSuffix(e.CDSL, " Done")
+		}
+	}
+	return false
 }
 
 // cuspaSpotSales finds the sale of invoked shares in the client's trades
@@ -1084,7 +1118,9 @@ func (o *Ops) CUSPAFile(ctx context.Context, tenant, date, kind string) (string,
 		}
 		return "cuspa_sell_" + date + ".csv", csvBytesOf(rows), nil
 	case "depository":
-		rows := [][]string{{"Action", "CUSPA line", "UCC", "Name", "BO ID", "ISIN", "Symbol", "Qty", "Reason", "By"}}
+		// "Sent by CDSL API" lines are done at CDSL already; the rest are
+		// given on CDSL's system.
+		rows := [][]string{{"Action", "CUSPA line", "UCC", "Name", "BO ID", "ISIN", "Symbol", "Qty", "Reason", "By", "PSN", "Sent by CDSL API"}}
 		for _, it := range b.items {
 			c := b.clients[it.UCC]
 			for _, e := range it.Events {
@@ -1095,7 +1131,7 @@ func (o *Ops) CUSPAFile(ctx context.Context, tenant, date, kind string) (string,
 				if e.What == "Invoked" {
 					action = "Invoke"
 				}
-				rows = append(rows, []string{action, it.ID, it.UCC, csvSafe(c.Name), payoutDemat(c).ID, it.ISIN, it.Symbol, fmt.Sprint(e.Qty), csvSafe(e.Note), e.By})
+				rows = append(rows, []string{action, it.ID, it.UCC, csvSafe(c.Name), payoutDemat(c).ID, it.ISIN, it.Symbol, fmt.Sprint(e.Qty), csvSafe(e.Note), e.By, it.PSN, csvSafe(e.CDSL)})
 			}
 		}
 		return "cuspa_depository_" + date + ".csv", csvBytesOf(rows), nil

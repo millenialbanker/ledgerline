@@ -61,6 +61,12 @@ type CUSPAItem struct {
 	InvokedOn string       `json:"invoked_on,omitempty"`
 	SoldOn    string       `json:"sold_on,omitempty"`
 	Events    []CUSPAEvent `json:"events,omitempty"`
+	// PSN is CDSL's pledge sequence number of the depository's automatic
+	// pledge to the CUSPA, from CDSL's transaction export. With it and the
+	// CDSL pledge API on, releases and invocations go to CDSL by the API
+	// (cuspacdsl.go); CDSL is how the last one went there.
+	PSN  string `json:"psn,omitempty"`
+	CDSL string `json:"cdsl,omitempty"`
 }
 
 // Settlement is the settlement page for a trade date.

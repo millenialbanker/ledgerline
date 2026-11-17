@@ -828,6 +828,9 @@ type PledgeRelease struct {
 	ErrCode     string `json:"err_code,omitempty"`
 	ErrMsg      string `json:"err_msg,omitempty"`
 	Note        string `json:"note,omitempty"`
+	// CUSPA is the CUSPA line a release or invocation of the depository's
+	// automatic pledge is for (Of "CU", Source "CUSPA"; cuspacdsl.go).
+	CUSPA string `json:"cuspa,omitempty"`
 }
 
 func (o *Ops) cplReleases(ctx context.Context, tenant string) []PledgeRelease {
@@ -1009,6 +1012,11 @@ func (o *Ops) cplReleaseDone(ctx context.Context, tenant string, r PledgeRelease
 	if err != nil {
 		return r, err
 	}
+	if r.Of == cuspaOf { // the CUSPA line already moved the shares
+		o.cuspaCDSLResult(ctx, tenant, r)
+		o.log(ctx, tenant, SystemActor, "cdsl.release.done", r.ID, map[string]any{"psn": r.PSN, "qty": r.Qty, "via": how, "cuspa": r.CUSPA})
+		return r, nil
+	}
 	scrips := fmt.Sprintf("%d %s", r.Qty, r.Symbol)
 	if r.Of == "MP" || r.Of == "MF" {
 		dQty := int64(0)
@@ -1060,10 +1068,14 @@ func (o *Ops) ResolveCDSLRequest(ctx context.Context, tenant, actor, id string, 
 		if done {
 			return o.cplReleaseDone(ctx, tenant, r, "", "checked by "+actor)
 		}
-		return docs.Update(ctx, o.Docs, tenant, cCPLRelease, id, actor, func(x *PledgeRelease) error {
+		r, err = docs.Update(ctx, o.Docs, tenant, cCPLRelease, id, actor, func(x *PledgeRelease) error {
 			x.Status, x.ErrMsg, x.DoneAt, x.Note = "Failed", "not done at CDSL", now, note
 			return nil
 		})
+		if err == nil && r.Of == cuspaOf {
+			o.cuspaCDSLResult(ctx, tenant, r)
+		}
+		return r, err
 	case strings.HasPrefix(id, "NP-"):
 		return docs.Update(ctx, o.Docs, tenant, cCPLNormal, id, actor, func(x *NormalPledge) error {
 			if x.Status != "No reply" {

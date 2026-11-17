@@ -188,7 +188,7 @@ On [[settlement|Settlement]]:
 title: Unpaid securities (CUSPA): ageing, release, notice and sale
 screen: settlement
 roles: Ops maker, Ops checker, Risk manager
-ask: cuspa; unpaid securities; client unpaid securities pledgee account; release cuspa; release unpaid shares; sell unpaid shares; invoke cuspa; cuspa ageing; 2.25 times; cuspa limit; auto release by depository; notice before sale of unpaid shares; how many days to pay for shares; cuspa sell list; early pay-in cuspa
+ask: cuspa; unpaid securities; client unpaid securities pledgee account; release cuspa; release unpaid shares; sell unpaid shares; invoke cuspa; cuspa ageing; 2.25 times; cuspa limit; auto release by depository; notice before sale of unpaid shares; how many days to pay for shares; cuspa sell list; early pay-in cuspa; cuspa psn; release cuspa through cdsl api; cuspa unpledge api
 related: settlement, periodic-work
 
 Since 31 October 2026 (SEBI's CUSPA framework; NSE circulars 35/2026 and 41/2026) shares a client has not paid for are paid out to the client's demat account and pledged to the firm's CUSPA. Counting the pay-out day as day 0:
@@ -205,6 +205,8 @@ On [[settlement|Settlement]] → **Unpaid securities**:
 - **Select lines** and use the bar: **Release** (the whole quantity; before the client has paid, a checker or risk manager), **Release excess** (only what is over the limit), **Send notice**, **Invoke** (checker or risk manager) and **Mark sold**. Each shows first what it will do, line by line, and why a line is left out.
 - **Clients' limit** shows each client's ledger balance, margin, pledge value, limit and excess.
 - **Sell list** is the invoked shares to sell; **Depository list** is the day's releases and invocations to give on the depository's system.
+
+**Through CDSL's pledge API.** CDSL's transaction export (loaded on [[xfiles|Exchange files]] or fetched by SFTP) shows the depository's automatic pledge of each unpaid purchase to the CUSPA; its pledge number (PSN) goes on the client's CUSPA line. With **Normal pledge, unpledge and confiscate** switched on in Connections → CDSL APIs (DP), a release of a line with a PSN goes to CDSL at once as an unpledge, and an invocation as an invocation (confiscation) with its value, whether it was done on this screen or by the daily review. CDSL's answer shows on the line, in its history and in the **Sent by CDSL API** column of the depository list; give only the other lines on CDSL's system. One CDSL refuses goes to the work queue to be given by hand. Before relying on it, confirm in CDSL's mock environment that these APIs take the automatic CUSPA pledges.
 
 The **daily CUSPA review** on [[periodic|Periodic work]] (each trading day, before the market opens) releases what is over each client's limit, records the depository's day-6 releases, finds the sale of invoked shares in the trades, and puts in the work queue the notices (**Send notice** in one click), the invocations due (with the last day) and the sales to place. A line the depository released while the client still owes is listed for recovery like any debit.
 

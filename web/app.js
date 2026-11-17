@@ -1819,7 +1819,7 @@ P['cu-t'] = d => {
       <td class="n small"><span class="${r.qty > 0 && S.date > r.pay_by ? 'neg' : ''}">${sd(r.pay_by)}</span> · ${sd(r.last_invoke)}<div class="dim">${r.notice_on ? 'notice ' + sd(r.notice_on) : r.qty > 0 ? 'no notice yet' : ''}</div></td>
       <td class="r">${inr(r.pledge_value, 2)}<div class="dim small">${r.at_cost ? 'at cost' : `${nf(r.price, 2)} less ${nf(r.haircut_pct, 0)}%`}</div></td>
       <td class="r ${sgn(r.ledger)}">${inr(r.ledger, 0)}</td>
-      <td class="wrap" style="min-width:170px;max-width:215px">${pill(r.bucket === 'closed' ? r.status : b[0], b[1])}<div class="small" style="margin-top:3px">${esc(r.next)}</div></td></tr>`; }),
+      <td class="wrap" style="min-width:170px;max-width:215px">${pill(r.bucket === 'closed' ? r.status : b[0], b[1])}<div class="small" style="margin-top:3px">${esc(r.next)}</div>${r.cdsl ? `<div class="dim small">CDSL: ${esc(r.cdsl)}</div>` : ''}</td></tr>`; }),
     { tall: true, empty: UI.cuF === 'open' ? 'Nothing held. A buy the client has not paid for is moved here from the obligations tab (To CUSPA).' : 'No lines in this view.' });
 };
 async function cuBulk(action) {
@@ -1834,8 +1834,8 @@ async function cuBulk(action) {
 }
 function cuHist(id) {
   const r = C.settlement.cu.rows.find(x => x.id === id); if (!r) return;
-  modal(mhd(`CUSPA line ${esc(r.id)}`, `${esc(r.ucc)} · ${esc(r.name)} · ${esc(r.symbol)} · bought ${fmtDate(r.date)}, pay-out ${fmtDate(r.pay_out_day)}`) + `<div class="bd"><div class="form"><div class="fld"><label>Pay by</label><b>${fmtDate(r.pay_by)}</b></div><div class="fld"><label>Invoke from</label><b>${fmtDate(r.invoke_from)}</b></div><div class="fld"><label>Last day to invoke</label><b>${fmtDate(r.last_invoke)}</b></div><div class="fld"><label>Depository releases</label><b>end of ${fmtDate(r.auto_release)}</b></div></div>` +
-    tbl([['Date'], ['Step'], ['Qty', 'r'], ['By'], ['Note']], (r.events || []).map(e => `<tr><td class="n">${fmtDate(e.date)}</td><td>${esc(e.what)}</td><td class="r">${e.qty ? nf(e.qty) : ''}</td><td class="small">${esc(e.by)}</td><td class="wrap small">${esc(e.note || '')}</td></tr>`), { empty: 'No steps recorded on this line.' }) + `</div><div class="ft"><button class="btn" data-act="close">Close</button></div>`);
+  modal(mhd(`CUSPA line ${esc(r.id)}`, `${esc(r.ucc)} · ${esc(r.name)} · ${esc(r.symbol)} · bought ${fmtDate(r.date)}, pay-out ${fmtDate(r.pay_out_day)}`) + `<div class="bd"><div class="form"><div class="fld"><label>Pay by</label><b>${fmtDate(r.pay_by)}</b></div><div class="fld"><label>Invoke from</label><b>${fmtDate(r.invoke_from)}</b></div><div class="fld"><label>Last day to invoke</label><b>${fmtDate(r.last_invoke)}</b></div><div class="fld"><label>Depository releases</label><b>end of ${fmtDate(r.auto_release)}</b></div><div class="fld"><label>CDSL pledge (PSN)</label><b class="mono">${esc(r.psn || '—')}</b></div></div>` +
+    tbl([['Date'], ['Step'], ['Qty', 'r'], ['By'], ['Note'], ['CDSL (pledge API)']], (r.events || []).map(e => `<tr><td class="n">${fmtDate(e.date)}</td><td>${esc(e.what)}</td><td class="r">${e.qty ? nf(e.qty) : ''}</td><td class="small">${esc(e.by)}</td><td class="wrap small">${esc(e.note || '')}</td><td class="small">${e.cdsl ? esc(e.cdsl) : (e.what === 'Released' || e.what === 'Invoked') ? '<span class="dim">give on CDSL’s system</span>' : ''}</td></tr>`), { empty: 'No steps recorded on this line.' }) + `</div><div class="ft"><button class="btn" data-act="close">Close</button></div>`);
 }
 
 /* ---------- contract notes ---------- */
