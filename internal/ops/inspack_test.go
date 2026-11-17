@@ -257,7 +257,7 @@ func TestInspectionPackNotAvailable(t *testing.T) {
 	}{
 		{PackItem{Section: "not_held", Note: "Kept by the voice logger"}, "Kept by the voice logger"},
 		{PackItem{Section: "self_inspection"}, "self-inspection is not in this version"},
-		{PackItem{Section: "documents", Param: "VAPT report"}, "No VAPT report uploaded"},
+		{PackItem{Section: "documents", Param: "VAPT report"}, "Nothing uploaded of the kind VAPT report"},
 		{PackItem{Section: "kyc_sample", Sampled: true}, "No clients were sampled"},
 	} {
 		sec, _ := packSection(c.it.Section)

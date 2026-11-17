@@ -65,7 +65,7 @@ function ipPacks(d) {
       <div class="tools"><button class="btn sm" data-act="ipKeep">Keep packs ${d.settings.keep_days} days</button></div></div>
     <div id="ip-packs">${P['ip-packs'](d)}</div></div>`;
 }
-P['ip-packs'] = d => tbl([['Pack'], ['Period'], ['Sample'], ['State'], ['Prepared'], ['On the list until'], ['']], d.packs.map(ipPackRow),
+P['ip-packs'] = d => tbl([['Pack'], ['Period and sample'], ['State'], ['Prepared'], ['']], d.packs.map(ipPackRow),
   { empty: 'No packs yet. Choose New pack when a data request comes in.' });
 
 function ipPackRow(p) {
@@ -77,10 +77,10 @@ function ipPackRow(p) {
   if (p.error) st += `<div class="small neg wrap">${esc(p.error)}</div>`;
   if (p.expired) st = pill('Expired', 'nt') + `<div class="small dim">${fmtDate(p.expired_at)} · ${esc(p.expired_why)}</div>`;
   const ready = p.status === 'Ready' && !p.expired;
-  return `<tr><td><b>${esc(p.title)}</b>${p.mask ? ' ' + pill('Masked copy', 'acc') : ''}<div class="dim small"><span class="mono">${esc(p.id)}</span>${p.ref ? ' · ' + esc(p.ref) : ''}${p.template_name ? ' · ' + esc(p.template_name) : ''}${p.copy_of ? ' · copy of ' + esc(p.copy_of) : ''}</div></td>
-    <td class="nowrap">${fmtDate(p.from)} to ${fmtDate(p.to)}</td><td class="small">${ipSampleWords(p.sample)}</td><td style="min-width:180px">${st}</td>
-    <td class="small">${esc(p.by_name)}<div class="dim">${ipStamp(p.at)}</div></td><td class="small nowrap">${p.expired ? '—' : fmtDate(p.expires_at)}</td>
-    <td><div class="ip-acts">${ready ? `<button class="btn sm pri" data-act="ipDownload" data-id="${esc(p.id)}">Download</button><button class="btn sm" data-act="ipIndex" data-id="${esc(p.id)}">Open the index</button>${p.mask ? '' : `<button class="btn sm" data-act="ipMask" data-id="${esc(p.id)}">Masked copy</button>`}` : ''}
+  return `<tr><td class="wrap ip-pk"><b>${esc(p.title)}</b>${p.mask ? ' ' + pill('Masked copy', 'acc') : ''}<div class="dim small"><span class="mono">${esc(p.id)}</span>${p.ref ? ' · ' + esc(p.ref) : ''}${p.copy_of ? ' · copy of <span class="mono">' + esc(p.copy_of) + '</span>' : ''}</div>${p.template_name ? `<div class="dim small">${esc(p.template_name)}</div>` : ''}</td>
+    <td>${fmtDate(p.from)} to ${fmtDate(p.to)}<div class="small dim">${ipSampleWords(p.sample)}</div></td><td class="wrap" style="min-width:190px">${st}</td>
+    <td class="small">${esc(p.by_name)}<div class="dim">${ipStamp(p.at)}</div>${p.expired ? '' : `<div class="dim">On the list until ${fmtDate(p.expires_at)}</div>`}</td>
+    <td class="wrap ip-actc"><div class="ip-acts">${ready ? `<button class="btn sm pri" data-act="ipDownload" data-id="${esc(p.id)}">Download</button><button class="btn sm" data-act="ipIndex" data-id="${esc(p.id)}">Open the index</button>${p.mask ? '' : `<button class="btn sm" data-act="ipMask" data-id="${esc(p.id)}">Masked copy</button>`}` : ''}
       <button class="btn sm" data-act="ipAudit" data-id="${esc(p.id)}">Who opened it</button>${ready ? `<button class="btn sm bad" data-act="ipExpire" data-id="${esc(p.id)}">Remove</button>` : ''}</div></td></tr>`;
 }
 
@@ -88,7 +88,7 @@ function ipTemplates(d) {
   return d.templates.map(t => `<div class="panel ip-tplp"><div class="hd"><div><h3>${esc(t.name)}</h3><small>${t.standard ? 'Standard template' : 'The firm’s template'} · ${esc(t.authority || '')} · ${t.items.length} items${t.sample_n ? ` · sample of ${t.sample_n} clients` : ''}</small></div>
       <div class="tools"><button class="btn sm pri" data-act="ipNew" data-id="${esc(t.id)}">Make a pack</button><button class="btn sm" data-act="ipTplEdit" data-id="${esc(t.id)}">${t.standard ? 'Copy as the firm’s template' : 'Edit'}</button>${t.standard ? '' : `<button class="btn sm bad" data-act="ipTplDel" data-id="${esc(t.id)}">Delete</button>`}</div></div>
     <div class="bd">${t.about ? `<p class="ip-about">${esc(t.about)}</p>` : ''}${t.sources?.length ? `<p class="dim small">Sources: ${t.sources.map(esc).join(' · ')}</p>` : ''}
-    ${tbl([['No.'], ['Item'], ['Period'], ['Produced by'], ['Now']], t.items.map((it, i) => `<tr><td>${i + 1}</td><td><b>${esc(it.title)}</b>${it.sampled ? ' <span class="dim small">· sampled clients</span>' : ''}${it.basis ? `<div class="dim small">${esc(it.basis)}</div>` : ''}</td><td class="small">${ipPeriodLabel(it.period)}</td><td class="small">${esc(ipSecName(it.section))}${it.param ? `<div class="dim">${esc(it.param)}</div>` : ''}</td><td class="small" style="min-width:200px">${ipItemState(it)}</td></tr>`))}</div></div>`).join('');
+    ${tbl([['No.'], ['Item'], ['Period'], ['Produced by'], ['Now']], t.items.map((it, i) => `<tr><td>${i + 1}</td><td class="wrap"><b>${esc(it.title)}</b>${it.sampled ? ' <span class="dim small">· sampled clients</span>' : ''}${it.basis ? `<div class="dim small">${esc(it.basis)}</div>` : ''}</td><td class="small">${ipPeriodLabel(it.period)}</td><td class="small wrap">${esc(ipSecName(it.section))}${it.param ? `<div class="dim">${esc(it.param)}</div>` : ''}</td><td class="small wrap">${ipItemState(it)}</td></tr>`))}</div></div>`).join('');
 }
 
 function ipDocs(d) {

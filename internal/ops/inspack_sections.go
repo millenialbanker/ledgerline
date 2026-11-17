@@ -901,7 +901,7 @@ func readyDocuments(ctx context.Context, o *Ops, tenant string, it PackItem) str
 	if len(ks) == 0 {
 		return "No documents uploaded: add them under Documents on this screen."
 	}
-	return "No " + strings.Join(ks, ", ") + " uploaded: add them under Documents on this screen."
+	return "Nothing uploaded of the kind " + strings.Join(ks, ", ") + ": add the documents under Documents on this screen."
 }
 
 func secDocuments(ctx context.Context, b *PackBuild, it PackItem) (PackPart, error) {

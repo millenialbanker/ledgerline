@@ -1,6 +1,8 @@
 /* Inspection packs (web/inspack.js). */
 .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .ip-acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.tbl td.ip-pk{min-width:260px}
+.tbl td.ip-actc{min-width:200px;max-width:300px}
 .ip-prog{display:flex;flex-direction:column;gap:3px;margin-top:5px;max-width:260px}
 .ip-hash{word-break:break-all}
 .ip-retired td{color:var(--ink3)}
@@ -52,4 +54,8 @@
   .ip-steps li{font-size:0;padding:4px}
   .ip-steps li.on{font-size:12px;padding:5px 10px 5px 6px}
   .ip-acts{justify-content:flex-start}
+  /* each pack as a card: no sideways scrolling on a phone */
+  #ip-packs .tbl thead{display:none}
+  #ip-packs .tbl tr{display:block;border-bottom:1px solid var(--line);padding:6px 0}
+  #ip-packs .tbl td{display:block;border:0;white-space:normal;min-width:0;max-width:none;padding:3px 14px}
 }
