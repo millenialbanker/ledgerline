@@ -137,7 +137,7 @@ const NAV = [
   ['Operations', [['@filesg'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['@clientsg'], ['corp', 'Corporate actions'], ['@docsg']]],
   ['Risk', [['@riskg'], ['@collg'], ['@debtg'], ['mtf', 'Margin trading (MTF)']]],
   ['Accounts', [['ledger', 'Ledger'], ['@moneyg'], ['books', 'Firm accounts & GST'], ['@brokg']]],
-  ['Compliance', [['@regg'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['audit', 'Audit trail']]],
+  ['Compliance', [['@regg'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['selfinspect', 'Self-inspection'], ['audit', 'Audit trail']]],
   ['Investments', [['ipo', 'IPO & public issues'], ['@mfg'], ['stocksip', 'Stock SIPs']]],
   ['Depository', [['@dpg']]],
   ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['@partnersg']]],
