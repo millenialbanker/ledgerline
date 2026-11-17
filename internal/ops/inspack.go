@@ -1191,7 +1191,8 @@ th{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;background:#EA
 td.r,th.r{text-align:right;white-space:nowrap}.mono{font-family:ui-monospace,Menlo,monospace;font-size:11px;word-break:break-all}
 .st{display:inline-block;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:600;white-space:nowrap}
 .ok{background:#DCEFE3;color:#1D6B43}.na{background:#F6DEDA;color:#A3271D}.tc{background:#FBEFD5;color:#7A5300}
-.why{color:#A3271D}.note{color:#525D57;font-size:11.5px}.files{margin:3px 0 0;padding:0;list-style:none}.files li{font-size:11.5px}
+.why{color:#A3271D}.note{color:#525D57;font-size:11.5px}.files{margin:2px 0 0;padding:0;list-style:none}.files li{font-size:11.5px}
+td.it{min-width:240px}td.fl{min-width:260px}.dir{color:#525D57}
 .foot{margin-top:22px;font-size:11px;color:#525D57}
 @media print{body{padding:34px 0 0;max-width:none}.wm{background:#fff;color:#16201B;border-bottom:1px solid #16201B;padding:4px 0}thead{display:table-header-group}tr{break-inside:avoid}@page{margin:14mm 12mm}}`
 
@@ -1202,10 +1203,10 @@ var packIndexTmpl = template.Must(template.New("idx").Funcs(template.FuncMap{"da
 <div><small>Template</small><b>{{if .P.TemplateName}}{{.P.TemplateName}}{{else}}Items chosen for this pack{{end}}</b></div><div><small>Sample</small><b>{{.Sample}}</b></div></div>
 <div class="sum"><span><b>{{.Included}}</b> included</span><span><b>{{.NA}}</b> not available</span><span><b>{{.TC}}</b> to confirm</span><span><b>{{n .Records}}</b> records</span></div>
 <table><thead><tr><th>No.</th><th>Item</th><th>Period</th><th>Produced by</th><th>Files</th><th class="r">Records</th><th>Status</th></tr></thead><tbody>
-{{range .R}}<tr><td>{{.No}}</td><td><b>{{.Title}}</b>{{if .Note}}<div class="note">{{.Note}}</div>{{end}}{{if .ToConfirm}}<div class="note"><span class="st tc">To confirm</span> {{.ToConfirm}}</div>{{end}}</td>
-<td>{{.Period}}</td><td>{{.Source}}</td><td>{{if .Files}}<ul class="files">{{range .Files}}<li><span class="mono">{{.Path}}</span> · {{n .Records}}</li>{{end}}</ul>{{else}}—{{end}}</td>
+{{range .R}}{{$f := .Folder}}{{with .R}}<tr><td>{{.No}}</td><td class="it"><b>{{.Title}}</b>{{if .Note}}<div class="note">{{.Note}}</div>{{end}}{{if .ToConfirm}}<div class="note"><span class="st tc">To confirm</span> {{.ToConfirm}}</div>{{end}}</td>
+<td>{{.Period}}</td><td>{{.Source}}</td>{{end}}<td class="fl">{{if .Lines}}<div class="mono dir">{{$f}}/</div><ul class="files">{{range .Lines}}<li><span class="mono">{{.Name}}</span>{{if gt .Count 1}} · {{.Count}} files{{end}} · {{n .Records}}</li>{{end}}</ul>{{else}}—{{end}}</td>{{with .R}}
 <td class="r">{{if eq .Status "Included"}}{{n .Records}}{{else}}—{{end}}</td>
-<td>{{if eq .Status "Included"}}<span class="st ok">Included</span>{{else}}<span class="st na">Not available</span><div class="why">{{.Why}}</div>{{end}}</td></tr>
+<td>{{if eq .Status "Included"}}<span class="st ok">Included</span>{{else}}<span class="st na">Not available</span><div class="why">{{.Why}}</div>{{end}}</td></tr>{{end}}
 {{end}}</tbody></table>
 <p class="foot">Files Ledgerline wrote carry the line “{{.W}}” as the first row (CSV) or across the top of each page (HTML, PDF). Copies of uploaded documents are as they were uploaded. The cover sheet (00-cover.html) lists the SHA-256 of every file; SHA256SUMS.txt is the same list for checking with sha256sum.</p>
 </body></html>`))
@@ -1223,6 +1224,42 @@ func formatCount(n int) string {
 	return strings.Join(append([]string{s}, out...), ",")
 }
 
+// packIndexRow is an item as the index page shows it: its folder once,
+// the files in it, and a line for each subfolder (contract notes of 30
+// clients are "notes/ · 68 files"). The CSV index lists every file.
+type packIndexRow struct {
+	R      PackResult
+	Folder string
+	Lines  []packIndexLine
+}
+
+type packIndexLine struct {
+	Name           string
+	Count, Records int
+}
+
+func packIndexRowOf(r PackResult) packIndexRow {
+	row := packIndexRow{R: r}
+	at := map[string]int{}
+	for _, f := range r.Files {
+		folder, rest, _ := strings.Cut(f.Path, "/")
+		row.Folder = folder
+		name := rest
+		if sub, _, ok := strings.Cut(rest, "/"); ok {
+			name = sub + "/"
+		}
+		i, ok := at[name]
+		if !ok {
+			i = len(row.Lines)
+			at[name] = i
+			row.Lines = append(row.Lines, packIndexLine{Name: name})
+		}
+		row.Lines[i].Count++
+		row.Lines[i].Records += f.Records
+	}
+	return row
+}
+
 func packIndexHTML(b *PackBuild, p Pack, results []PackResult) ([]byte, error) {
 	inc, na, tc, rec := 0, 0, 0, 0
 	for _, r := range results {
@@ -1236,8 +1273,12 @@ func packIndexHTML(b *PackBuild, p Pack, results []PackResult) ([]byte, error) {
 			tc++
 		}
 	}
+	rows := make([]packIndexRow, len(results))
+	for i, r := range results {
+		rows[i] = packIndexRowOf(r)
+	}
 	var buf bytes.Buffer
-	err := packIndexTmpl.Execute(&buf, map[string]any{"P": p, "R": results, "W": b.Watermark, "Firm": b.Set.Firm, "Sample": packSampleWords(p.Sample), "Included": inc, "NA": na, "TC": tc, "Records": rec})
+	err := packIndexTmpl.Execute(&buf, map[string]any{"P": p, "R": rows, "W": b.Watermark, "Firm": b.Set.Firm, "Sample": packSampleWords(p.Sample), "Included": inc, "NA": na, "TC": tc, "Records": rec})
 	return buf.Bytes(), err
 }
 
