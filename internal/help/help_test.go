@@ -252,6 +252,15 @@ func TestQuestions(t *testing.T) {
 		{"put an archived document on legal hold", "", "old-documents-archive"},
 		{"import the branch master and sub brokers from sharepro", "", "migrate-masters"},
 		{"import dp accounts bo accounts from the old back office", "", "migrate-masters"},
+		// Authorised persons: the weekly report and the monthly count.
+		{"weekly report of clients mapped to aps for the exchange", "", "ap-client-reporting"},
+		{"upload ap client mapping on enit", "", "ap-client-reporting"},
+		{"ap client count on the exchange differs", "", "ap-client-counts"},
+		// RA and IA complaints, and impersonation.
+		{"ra complaints data annexure e", "", "raia-complaints-tables"},
+		{"investment adviser complaints table on the home page", "", "raia-complaints-tables"},
+		{"report impersonation to bse every month", "", "impersonation-register"},
+		{"fake app using the firm's name", "", "impersonation-register"},
 	}
 	fails := 0
 	for _, c := range cases {

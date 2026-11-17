@@ -2750,7 +2750,8 @@ func (s *Server) tickets(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	ok(w, map[string]any{"tickets": v, "sources": ops.TicketSources, "categories": ops.TicketCategories, "statuses": ops.TicketStatuses, "staff": staff}, err)
+	ok(w, map[string]any{"tickets": v, "sources": ops.TicketSources, "categories": ops.TicketCategories, "statuses": ops.TicketStatuses, "staff": staff,
+		"businesses": s.ops.TicketBusinessesFor(r.Context(), tenant(r)), "tables": s.ops.DisclosureBusinesses(r.Context(), tenant(r))}, err)
 }
 
 func (s *Server) openTicket(w http.ResponseWriter, r *http.Request) {
@@ -2790,8 +2791,8 @@ func (s *Server) updateTicket(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) disclosure(w http.ResponseWriter, r *http.Request) {
-	m := r.URL.Query().Get("month")
-	v, err := s.ops.ComplaintsDisclosure(r.Context(), tenant(r), m)
+	q := r.URL.Query()
+	v, err := s.ops.ComplaintsDisclosureFor(r.Context(), tenant(r), q.Get("business"), q.Get("month"))
 	ok(w, v, err)
 }
 

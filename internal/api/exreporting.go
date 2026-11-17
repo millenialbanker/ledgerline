@@ -33,6 +33,7 @@ func (s *Server) exchangeReportingRoutes() {
 	s.clientListRoutes(R)
 	s.surveillanceReturnRoutes(R)
 	s.upiCollectRoutes(R)
+	s.apComplaintsRoutes(R)
 }
 
 func (s *Server) segmonCheck(w http.ResponseWriter, r *http.Request) {

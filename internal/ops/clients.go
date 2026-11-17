@@ -422,10 +422,15 @@ func (o *Ops) createApplication(ctx context.Context, tenant, actor string, c Cli
 	if c.WhatsApp {
 		c.setConsent(true, o.now().Format(time.RFC3339), SrcOnboarding, actor, "application "+c.UCC)
 	}
+	if c.Partner != "" {
+		o.ensureAPBaseline(ctx, tenant) // before the client exists, so it is not taken as an existing mapping
+	}
 	if _, err := docs.Put(ctx, o.Docs, tenant, cClient, c.UCC, c, 0, actor); err != nil {
 		return Client{}, err
 	}
 	o.log(ctx, tenant, actor, "client.application.created", c.UCC, map[string]any{"pan": MaskPAN(c.PAN), "segments": c.Segments, "dp_only": c.DPOnly})
+	// A new client of an AP, for the weekly report of clients mapped to APs.
+	o.recordAPChange(ctx, tenant, actor, c, "", c.Partner, APViaOpening, true)
 	return c, nil
 }
 
