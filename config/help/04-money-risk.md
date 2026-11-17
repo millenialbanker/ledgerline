@@ -140,14 +140,14 @@ Commas and line breaks are taken out of names and bank names. HDFC doesn't publi
 title: Run the running account settlement (RAS)
 screen: ras
 roles: Ops checker
-ask: running account settlement; ras; quarterly settlement; monthly settlement; settle client funds; return idle funds; 30 days no trade; idle client funds; 3 working days
+ask: running account settlement; ras; quarterly settlement; monthly settlement; settle client funds; return idle funds; 30 days no trade; idle client funds; 3 working days; idle balance monthly date
 related: payout, ras-calendar
 
 SEBI requires unused client funds to be returned monthly or quarterly, as each client chose, on the dates the exchanges set jointly for each financial year: a Friday and/or the Saturday after it (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197). For FY 2026-27, for example, the quarterly dates are 17/18 April, 3/4 July, 16/17 October 2026 and 1/2 January 2027. The dates come from the exchanges' joint calendar, kept on [[circulars|Circulars & calendar]] → *RAS dates & profile* by the compliance officer or an admin (see *Keep the exchanges' RAS dates*); Settings shows the next monthly and quarterly date from that list, and the compliance calendar dates the two settlements from it.
 
-**Idle clients: 3 working days.** A client with a credit balance and no transaction for 30 calendar days (no trade and no funds received; open positions or margin count as activity) is settled within 3 working days after the 30 days, whatever they chose, not on the next monthly or quarterly date (NSE/INSP/53820). Fresh funds start the 30 days again.
+**Idle clients: the next monthly date.** A client with a credit balance and no transaction for 30 calendar days (no trade and no funds received; open positions or margin count as activity) gets the whole credit balance back on the upcoming monthly settlement date of the exchanges' calendar, whatever they chose (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/1 of 6 January 2025, NSE/INSP/66014; it was within 3 working days before). If they transact before that date, their own monthly or quarterly choice applies again. Fresh funds start the 30 days again.
 
-1. Open [[ras|Running account]] on the settlement date. It lists each client's amount to return, keeping the allowed buffer. Idle clients are marked with the date their money is due back, and are included in any settlement run from that day.
+1. Open [[ras|Running account]] on the settlement date. It lists each client's amount to return, keeping the allowed buffer. Idle clients are marked with the monthly settlement their money is due back on, and are included in it (or in any settlement run after the 30 days).
 2. Download the **Bank payout file**, pay through the bank, and record the result.
 3. Clients get a statement of the settlement.
 

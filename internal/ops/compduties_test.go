@@ -2,6 +2,7 @@ package ops
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -50,6 +51,9 @@ func TestDutyRuleDates(t *testing.T) {
 	if oc := dutyOccurrences(set, prof, "TDAY", "2026-10-19", "2026-10-23", 99); len(oc) != 4 {
 		t.Errorf("trading days in the week with a holiday: %+v", oc)
 	}
+	if d := extendedDue([]DutyExtension{{Period: "2026-10-31", Due: "2026-12-31", By: "NSE circular 97/2026"}}, dutyOcc{Period: "2026-10-31", Due: "2026-10-31"}); d != "2026-12-31" {
+		t.Errorf("extension: %s", d)
+	}
 	if oc := dutyOccurrences(set, prof, "ASNEEDED", "2026-10-01", "2026-12-31", 9); len(oc) != 0 {
 		t.Errorf("as needed has no dates: %+v", oc)
 	}
@@ -97,6 +101,9 @@ func TestDutyApplicability(t *testing.T) {
 		{[]string{"cscrf:self"}, ApplyYes},
 		{[]string{"derivatives", "clearing"}, ApplyYes},
 		{[]string{"seg:COM"}, ApplyNo},
+		{[]string{"no:mtf"}, ApplyYes},
+		{[]string{"no:ibt", "no:algo"}, ApplyUnsure},
+		{[]string{"no:cdsl"}, ApplyNo},
 	} {
 		if a := dutyApplies(c.needs, f); a.Verdict != c.verdict || a.Reason == "" {
 			t.Errorf("%v: %+v, want %s", c.needs, a, c.verdict)
@@ -123,6 +130,29 @@ func TestDutyCatalogueValid(t *testing.T) {
 	}
 	if len(cat.Duties) == 0 || cat.Version < 1 {
 		t.Fatalf("empty catalogue %+v", cat)
+	}
+	// Every item of the source calendar is covered (PMS left out).
+	covered := map[string]bool{}
+	for _, d := range cat.Duties {
+		for _, it := range d.Items {
+			covered[it] = true
+		}
+	}
+	var want []string
+	for i := 1; i <= 47; i++ {
+		want = append(want, fmt.Sprintf("T%02d", i))
+	}
+	for i := 1; i <= 39; i++ {
+		want = append(want, fmt.Sprintf("D%02d", i))
+	}
+	for i := 1; i <= 22; i++ {
+		want = append(want, fmt.Sprintf("R%02d", i))
+	}
+	want = append(want, "TU1", "TU2", "TU3", "DU1")
+	for _, it := range want {
+		if !covered[it] {
+			t.Errorf("calendar item %s is not covered", it)
+		}
 	}
 	for _, d := range cat.Duties {
 		if d.Link != nil && d.Link.Check != "" {

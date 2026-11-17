@@ -679,8 +679,9 @@ type Duty struct {
 	Items       []string  `json:"items,omitempty"`
 	// Custom: the compliance officer changed the title, due rule, owner or
 	// evidence; the catalogue no longer replaces them.
-	Custom bool        `json:"custom,omitempty"`
-	Events []DutyEvent `json:"events,omitempty"`
+	Custom     bool            `json:"custom,omitempty"`
+	Events     []DutyEvent     `json:"events,omitempty"`
+	Extensions []DutyExtension `json:"extensions,omitempty"`
 	// Worked out when listed: whether it applies to the firm, the latest
 	// result of the self-inspection test that checks it, and where it
 	// stands in words.
@@ -890,7 +891,13 @@ func (o *Ops) Duties(ctx context.Context, tenant, date string) ([]Duty, error) {
 	var facts firmFacts
 	var checks map[string]DutyCheck
 	if len(catByID) > 0 {
-		facts = o.firmFacts(ctx, tenant)
+		nri := false
+		for _, d := range cat.Duties {
+			for _, n := range d.Applies {
+				nri = nri || strings.Contains(n, "nri")
+			}
+		}
+		facts, _ = o.firmProfileFactsOpt(ctx, tenant, nri)
 		checks = o.siLatest(ctx, tenant, date)
 	}
 	for i := range obs {

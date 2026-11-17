@@ -154,6 +154,16 @@ type DutyDef struct {
 	Changed     string    `json:"changed,omitempty"`
 	Items       []string  `json:"items,omitempty"` // the source calendar's items it covers
 	Shared      bool      `json:"shared,omitempty"`
+	// Extensions: a regulator's one-off extension of an occurrence (the
+	// period as the rule dates it) to a later due date.
+	Extensions []DutyExtension `json:"extensions,omitempty"`
+}
+
+// DutyExtension moves one occurrence's due date.
+type DutyExtension struct {
+	Period string `json:"period"`
+	Due    string `json:"due"`
+	By     string `json:"by"` // the circular that extended it
 }
 
 // DutyCatalogue is config/compliance/duties.json.
@@ -237,6 +247,11 @@ func (d DutyDef) validate() error {
 		return fmt.Errorf("a duty needs the circular that sets it")
 	case len(d.Steps) > 0 && strings.TrimSpace(d.StepsFrom) == "":
 		return fmt.Errorf("the steps must say which circular lists them")
+	}
+	for _, e := range d.Extensions {
+		if e.Period == "" || !validDate(e.Due) || strings.TrimSpace(e.By) == "" {
+			return fmt.Errorf("an extension needs the period, the new due date and the circular")
+		}
 	}
 	for _, r := range d.Refs {
 		if strings.TrimSpace(r.Issuer) == "" || strings.TrimSpace(r.No) == "" {
@@ -526,7 +541,7 @@ func eventWithinWords(within string) string {
 
 // ---- who a duty applies to ----
 
-var reDutyNeed = regexp.MustCompile(`^(broker|clearing|dp|cdsl|nsdl|mtf|algo|ibt|nri|ap|branch|ra|ia|pms|derivatives|member:(NSE|BSE|MCX|MSE|NCDEX)|seg:(CM|FO|CD|COM)|cscrf:(qualified|mid|small|self|exempt)(,(qualified|mid|small|self|exempt))*)$`)
+var reDutyNeed = regexp.MustCompile(`^(no:)?(broker|clearing|dp|cdsl|nsdl|mtf|algo|ibt|nri|ap|branch|ra|ia|pms|derivatives|member:(NSE|BSE|MCX|MSE|NCDEX)|seg:(CM|FO|CD|COM)|cscrf:(qualified|mid|small|self|exempt)(,(qualified|mid|small|self|exempt))*)$`)
 
 // validDutyNeed checks one condition ("a|b" for either).
 func validDutyNeed(n string) bool {
@@ -538,8 +553,19 @@ func validDutyNeed(n string) bool {
 	return n != ""
 }
 
-// dutyNeed reads one condition against the firm profile.
+// dutyNeed reads one condition against the firm profile. "no:x" holds
+// when x does not.
 func dutyNeed(n string, f firmFacts) (tri, string) {
+	if x, ok := strings.CutPrefix(n, "no:"); ok && !strings.Contains(n, "|") {
+		switch v, why := dutyNeed(x, f); v {
+		case triYes:
+			return triNo, why
+		case triNo:
+			return triYes, why
+		default:
+			return triUnknown, why
+		}
+	}
 	if strings.Contains(n, "|") {
 		var yes, unk, no []string
 		for _, p := range strings.Split(n, "|") {
@@ -675,7 +701,7 @@ func (d DutyDef) overlay(x *Duty) {
 		x.DueText, x.EventWithin = d.DueText, d.EventWithin
 	}
 	x.Group, x.Applies, x.FiledWith, x.Refs, x.Steps, x.StepsFrom, x.Practice = d.Group, d.Applies, d.FiledWith, d.Refs, d.Steps, d.StepsFrom, d.Practice
-	x.How, x.Changed, x.Items, x.Shared = d.How, d.Changed, d.Items, x.Shared || d.Shared
+	x.How, x.Changed, x.Items, x.Shared, x.Extensions = d.How, d.Changed, d.Items, x.Shared || d.Shared, d.Extensions
 	api := d.API
 	x.API = &api
 	if d.Link != nil {
@@ -730,9 +756,16 @@ func dueDuty(set Settings, prof ComplianceProfile, x *Duty, date string) {
 		}
 		for _, oc := range dutyOccurrences(set, prof, x.Rule, from, addDays(date, 400), 400) {
 			if !done[oc.Period] {
-				x.NextDue, x.Period = oc.Due, oc.Period
+				x.NextDue, x.Period = extendedDue(x.Extensions, oc), oc.Period
 				break
 			}
+		}
+		// A one-time duty whose deadline passed before the firm's calendar
+		// had it: Ledgerline can't know whether it was done, so it asks for
+		// confirmation instead of counting it overdue.
+		if x.Period == "once" && x.NextDue != "" && x.Since != "" && x.NextDue < x.Since {
+			x.Warning = strings.TrimSpace(x.Warning + " The deadline (" + fmtDay(x.NextDue) + ") was before Ledgerline's calendar had this duty: confirm it was done, with the evidence.")
+			x.NextDue = ""
 		}
 	}
 	x.Overdue = x.Active && x.NextDue != "" && x.NextDue < date
@@ -769,6 +802,16 @@ func dutyStatus(x Duty, date string) string {
 	return "Upcoming"
 }
 
+// extendedDue is an occurrence's due date after any extension.
+func extendedDue(ext []DutyExtension, oc dutyOcc) string {
+	for _, e := range ext {
+		if e.Period == oc.Period && e.Due > oc.Due {
+			return e.Due
+		}
+	}
+	return oc.Due
+}
+
 // dailyRule: a duty that falls due every trading day.
 func dailyRule(rule string) bool { return reTDay.MatchString(rule) || rule == "DAILY" }
 
@@ -779,6 +822,9 @@ type DutyEventReq struct {
 	Date string `json:"date"`           // when it happened or was found
 	Time string `json:"time,omitempty"` // HH:MM, for deadlines in hours
 	What string `json:"what"`
+	// Due: the date the notice itself gives (an exchange's cut-off), in
+	// place of the duty's usual deadline.
+	Due string `json:"due,omitempty"`
 }
 
 // RecordDutyEvent records that something happened that an event-driven duty
@@ -822,6 +868,12 @@ func (o *Ops) RecordDutyEvent(ctx context.Context, tenant, actor, date, id strin
 	}
 	set, _ := o.Settings(ctx, tenant)
 	due, at := eventDue(set, x.EventWithin, req.Date, req.Time)
+	if req.Due != "" {
+		if !validDate(req.Due) || req.Due < req.Date {
+			return Duty{}, invalid("the due date the notice gives must be on or after %s", fmtDay(req.Date))
+		}
+		due, at = req.Due, ""
+	}
 	var ev DutyEvent
 	saved, err := docs.Update(ctx, o.Docs, tenant, cObligation, id, actor, func(y *Duty) error {
 		ev = DutyEvent{ID: fmt.Sprintf("E%d", len(y.Events)+1), Date: req.Date, Time: req.Time, What: what, Due: due, DueAt: at, By: actor, Logged: o.now().Format(time.RFC3339)}
@@ -932,12 +984,14 @@ func (o *Ops) DutySheetFor(ctx context.Context, tenant, actor, month, date strin
 			}
 		default:
 			occ := dutyOccurrences(set, prof, d.Rule, from, to, 62)
-			if dailyRule(d.Rule) {
+			if d.Rule == "DAILY" {
+				r.Every = fmt.Sprintf("Every day but Sunday (%d in the month)", len(occ))
+			} else if dailyRule(d.Rule) {
 				r.Every = fmt.Sprintf("Each trading day (%d in the month)", len(occ))
 			} else {
 				for _, x := range occ {
 					if x.Due != "" {
-						r.Dues = append(r.Dues, x.Due)
+						r.Dues = append(r.Dues, extendedDue(d.Extensions, x))
 					}
 				}
 				if len(occ) == 1 && occ[0].Due == "" {

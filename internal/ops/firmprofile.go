@@ -179,6 +179,13 @@ func (o *Ops) firmFacts(ctx context.Context, tenant string) firmFacts {
 // firmProfileFacts reads the profile and says, fact by fact, where each
 // came from.
 func (o *Ops) firmProfileFacts(ctx context.Context, tenant string) (firmFacts, []FirmFact) {
+	return o.firmProfileFactsOpt(ctx, tenant, true)
+}
+
+// firmProfileFactsOpt reads the profile; without clients it does not
+// count NRI clients (the compliance calendar reads it often and needs that
+// only for a duty about NRI clients).
+func (o *Ops) firmProfileFactsOpt(ctx context.Context, tenant string, clients bool) (firmFacts, []FirmFact) {
 	set, _ := o.Settings(ctx, tenant)
 	p := o.firmProfile(ctx, tenant)
 	cp := o.CompProfile(ctx, tenant)
@@ -244,7 +251,10 @@ func (o *Ops) firmProfileFacts(ctx context.Context, tenant string) (firmFacts, [
 	f.Algo = yn("algo", "Algorithmic trading (the firm's own, or clients' through its systems)", p.Algo, triUnknown, "nothing in Ledgerline says")
 	f.IBT = yn("ibt", "Internet-based trading (clients trade through the firm's website or app)", p.IBT, triUnknown, "nothing in Ledgerline says")
 
-	cl, _ := o.ClientMap(ctx, tenant)
+	var cl map[string]Client
+	if clients {
+		cl, _ = o.ClientMap(ctx, tenant)
+	}
 	nri := 0
 	for _, c := range cl {
 		if c.Status != "Closed" && (c.Type == "NRI" || contains(c.Tags, "NRI")) {
@@ -252,6 +262,9 @@ func (o *Ops) firmProfileFacts(ctx context.Context, tenant string) (firmFacts, [
 		}
 	}
 	nriFound, nriFrom := triUnknown, "no clients yet"
+	if !clients {
+		nriFrom = "not counted"
+	}
 	if len(cl) > 0 {
 		nriFound, nriFrom = triOf(nri > 0), fmt.Sprintf("Your clients: %d NRI", nri)
 	}
