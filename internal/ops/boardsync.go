@@ -1778,6 +1778,10 @@ func (o *Ops) BoardLinkSearch(ctx context.Context, tenant, actor, q, kind string
 
 var errBSHidden = fmt.Errorf("%w: no such record, or you cannot see it", ErrNotFound)
 
+// bsRecordKinds lets another file show its own linked records in the card
+// window (kind → the record as the person may see it, or errBSHidden).
+var bsRecordKinds = map[string]func(ctx context.Context, o *Ops, tenant, actor, id string) (LinkHit, error){}
+
 // BoardLinkRecord is a linked record as it is now, for the card window,
 // if the person may see it on its own screen.
 func (o *Ops) BoardLinkRecord(ctx context.Context, tenant, actor, kind, id string) (LinkHit, error) {
@@ -1908,7 +1912,13 @@ func (o *Ops) BoardLinkRecord(ctx context.Context, tenant, actor, kind, id strin
 			}
 		}
 	default:
-		return h, invalid("unknown link kind %q", kind)
+		f, ok := bsRecordKinds[kind]
+		if !ok {
+			return h, invalid("unknown link kind %q", kind)
+		}
+		if h, err = f(ctx, o, tenant, actor, id); err != nil {
+			return h, err
+		}
 	}
 	if h.ID == "" {
 		return h, errBSHidden
