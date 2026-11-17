@@ -2,12 +2,11 @@
 /* Ledgerline console: Boards import, export and print, collections,
    recently viewed boards, and a card's Share. Registers into BOARDS
    (boards.js) and uses boardextras.js's popover (bxPop). Server:
-   internal/ops/boardio.go and internal/api/boardio.go; a card's email
-   address is internal/ops/boardextras.go.
+   internal/ops/boardio.go and internal/api/boardio.go.
      Boards home   Collections (a filter over the home, and Manage),
                    Import from Trello, Recently viewed
      Board menu    Print and export (print view, CSV, JSON), Collections
-     Card window   Share: the card's link and email address, Print, Export JSON
+     Card window   Share: the card's link, Print, Export JSON
    Actions and UI keys start with bio. */
 
 const bioEnc = encodeURIComponent;
@@ -287,17 +286,8 @@ function bioShare(card, ctx, el) {
   const pop = (typeof bxPop === 'function') ? bxPop : null;
   if (!pop) return;
   pop(el, 'Share and more', `<div class="fld"><label for="bio-sh-link">Link to this card</label><div class="bx-url"><input class="in mono" id="bio-sh-link" readonly value="${esc(link)}"><button class="btn sm" data-act="bioCopy" data-id="bio-sh-link">Copy</button></div><span class="bx-help">Only people who can see the board can open it.</span></div>
-    ${member && ctx?.board?.kind !== 'ledgerline' ? '<div id="bio-sh-mail" class="bio-sh-mail"><span class="bx-help">Looking up the card\'s email address…</span></div>' : ''}
     <div class="bio-sh-acts"><button class="btn sm" data-act="bioPrintCardGo">${bioI('print')}Print</button><button class="btn sm" data-act="bioCardJSON">${bioI('copy')}Export JSON</button></div>`, 340);
-  if (member && ctx?.board?.kind !== 'ledgerline') {
-    get(`/v1/boards/${bioEnc(card.board)}/cards/${bioEnc(card.id)}/email`).then(m => {
-      const box = document.getElementById('bio-sh-mail'); if (!box) return;
-      const url = m.on ? (m.url || location.origin + m.path) : '';
-      box.innerHTML = m.on ? `<label for="bio-sh-mail-in">Email for this card</label><div class="bx-url"><input class="in mono" id="bio-sh-mail-in" readonly value="${esc(url)}"><button class="btn sm" data-act="bioCopy" data-id="bio-sh-mail-in">Copy</button></div>
-          <span class="bx-help">Mail posted to this address by the firm's mail provider is added to the card as a comment, with its attachments. Anyone who has it can comment, so keep it within the firm.</span>`
-        : `<div class="bx-lab">Email for this card</div><p class="bx-pop-note">${esc(m.why || 'This card takes no email.')}</p>`;
-    }).catch(e => { const box = document.getElementById('bio-sh-mail'); if (box) box.innerHTML = `<p class="bx-pop-note">${esc(e.message)}</p>`; });
-  }
+
 }
 
 BOARDS.boardMenu.push(

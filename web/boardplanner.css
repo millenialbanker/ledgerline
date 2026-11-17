@@ -1,4 +1,4 @@
-/* Boards: boardplanner (Inbox, Planner, calendar feeds). web/boardplanner.js.
+/* Boards: boardplanner (Inbox, Planner). web/boardplanner.js.
    Builds on boardviews.css (.bv colours, the week-by-hour grid). */
 
 /* Inbox panel (boards home) and the Planner's side */
@@ -85,24 +85,6 @@
 .bp-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .bp-form .fld{margin:0}
 
-/* calendar feeds */
-.bp-feeds{display:flex;flex-direction:column;gap:14px}
-.bp-fs h3{margin:0 0 6px;font-size:14px;font-weight:600}
-.bp-fs p{margin:0 0 8px;font-size:13px}
-.bp-fs+.bp-fs{border-top:1px solid var(--line);padding-top:12px}
-.bp-frs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
-.bp-fr{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);border-radius:10px}
-.bp-fr-n{display:flex;flex-direction:column;gap:2px;min-width:0}
-.bp-fr-n small{font-size:12px}
-.bp-fr-a{display:flex;gap:6px}
-.bp-addfeed{margin-top:8px}
-.bp-new{padding:10px 12px;border-radius:10px;background:var(--b-acc-soft);border:1px solid color-mix(in srgb,var(--b-acc) 30%,transparent)}
-.bp-new p{margin:0 0 8px;font-size:13px}
-.bp-new p:last-child{margin:8px 0 0}
-.bp-new .in{font-size:12px}
-.bp-warn{margin:0 0 10px}
-.bp-warn+p{margin:0 0 12px}
-.bp-addfeed>span{font-size:13px;color:var(--ink2);white-space:nowrap}
 
 /* an Inbox opened for review */
 .bp-rv{display:flex;flex-direction:column;gap:12px;max-height:min(70vh,720px);overflow:auto}

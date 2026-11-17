@@ -6,7 +6,7 @@ import (
 )
 
 // TestBoardIOQuestions: questions about import, export, collections,
-// stickers, email to a card and the AI on cards find their articles.
+// stickers, (no) email to a card and the AI on cards find their articles.
 func TestBoardIOQuestions(t *testing.T) {
 	k := kb(t)
 	for _, c := range []struct{ q, want string }{
@@ -18,7 +18,7 @@ func TestBoardIOQuestions(t *testing.T) {
 		{"group boards into a collection", "board-collections"},
 		{"recently viewed boards", "boards-recent"},
 		{"add a sticker to a card", "card-stickers"},
-		{"email for this card", "card-email"},
+		{"email for this card", "email-to-board"}, // explains why there is none
 		{"summarise this card with ai", "card-ai"},
 		{"suggest a checklist", "card-ai"},
 	} {

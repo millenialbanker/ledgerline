@@ -20,7 +20,7 @@ import (
 	"ledgerline/internal/vault"
 )
 
-// The boards' views, Inbox, Planner and calendar feed routes, over HTTP.
+// The boards' views, Inbox and Planner routes, over HTTP.
 func TestBoardPlannerAPI(t *testing.T) {
 	reg, _ := ingest.LoadDir("../../config/adapters")
 	f, _ := os.Open("../../config/charges/sample-schedule.json")
@@ -131,50 +131,14 @@ func TestBoardPlannerAPI(t *testing.T) {
 		t.Fatalf("planner: %d %+v", code, pv)
 	}
 
-	// Calendar feeds: off until the firm's Admin switches them on.
-	if code := call("priya.nair", "POST", "/v1/board-feeds", map[string]string{"scope": "mine"}, nil); code != 403 {
-		t.Fatalf("feed while off: %d", code)
+	// Calendar feeds were taken out: nothing answers at their old addresses.
+	if code := call("admin", "PUT", "/v1/board-feeds/firm", map[string]bool{"on": true}, nil); code != 404 && code != 405 {
+		t.Fatalf("feeds route still there: %d", code)
 	}
-	if code := call("priya.nair", "PUT", "/v1/board-feeds/firm", map[string]bool{"on": true}, nil); code != 403 {
-		t.Fatalf("priya switched feeds on: %d", code)
-	}
-	if code := call("admin", "PUT", "/v1/board-feeds/firm", map[string]bool{"on": true}, nil); code != 200 {
-		t.Fatalf("admin switched feeds on: %d", code)
-	}
-	var fr struct {
-		Feed ops.BoardFeed
-		Path string
-		URL  string
-	}
-	if code := call("priya.nair", "POST", "/v1/board-feeds", map[string]string{"scope": "mine"}, &fr); code != 200 || !strings.HasPrefix(fr.Path, "/feeds/boards/demo/") || !strings.HasSuffix(fr.Path, ".ics") || !strings.HasSuffix(fr.URL, fr.Path) {
-		t.Fatalf("feed: %d %+v", code, fr)
-	}
-	// The feed is read without a session.
-	resp, err := http.Get(srv.URL + fr.Path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	// (The Inbox card has no due date, so it is not in the feed.)
-	if resp.StatusCode != 200 || !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/calendar") || !strings.Contains(string(body), "SUMMARY:Post interest\r\n") || strings.Contains(string(body), "Ring the auditor") {
-		t.Fatalf("feed read: %d %q\n%s", resp.StatusCode, resp.Header.Get("Content-Type"), body)
-	}
-	if code := call("priya.nair", "POST", "/v1/board-feeds/"+fr.Feed.ID+"/revoke", nil, nil); code != 200 {
-		t.Fatalf("revoke: %d", code)
-	}
-	if resp, _ = http.Get(srv.URL + fr.Path); resp.StatusCode != 404 {
-		t.Fatalf("revoked feed: %d", resp.StatusCode)
-	}
-	resp.Body.Close()
-	// Guessing addresses is slowed down.
-	blocked := false
-	for i := 0; i < 40 && !blocked; i++ {
-		r, _ := http.Get(srv.URL + "/feeds/boards/demo/" + strings.Repeat("x", 43) + ".ics")
-		blocked = r.StatusCode == 429
+	if r, err := http.Get(srv.URL + "/feeds/boards/demo/" + strings.Repeat("x", 43) + ".ics"); err == nil {
+		if r.StatusCode == 200 {
+			t.Fatal("a calendar feed answered")
+		}
 		r.Body.Close()
-	}
-	if !blocked {
-		t.Fatal("unknown feed addresses are not rate limited")
 	}
 }

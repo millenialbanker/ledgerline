@@ -1054,9 +1054,9 @@ type CardExport struct {
 	Activity   []BoardActivity `json:"activity"`
 }
 
-// exportBoard is a board as an export shows it: no email key or stars.
+// exportBoard is a board as an export shows it: no stars.
 func exportBoard(b Board) Board {
-	b.EmailKey, b.Starred = "", nil
+	b.Starred = nil
 	return b
 }
 

@@ -10,14 +10,13 @@
               to move it, its foot to resize it; or use the keyboard (arrows)
               or the Plan form. Blocks never change a card's dates unless you
               choose "Set as due date".
-     Feeds    calendar feeds (iCalendar) of your cards or of a board, for
-              Google Calendar or Outlook; off until the firm's Admin
-              switches them on.
+     (Calendar feeds were taken out: they keep card titles, which can
+     name clients, on servers outside India.)
    Server: internal/ops/boardplanner.go. Uses boardviews.js's date helpers
    and its home pages (BV_HOME). Ledgerline's own calendar (Calendar &
    circulars) has no per-person API, so it is not shown here. */
 
-Object.assign(UI, { bpInbox: null, bpInboxAt: 0, bpInboxBusy: false, bpInboxAll: false, bpPlan: null, bpWeek: '', bpDay: -1, bpFeeds: null, bpNew: null });
+Object.assign(UI, { bpInbox: null, bpInboxAt: 0, bpInboxBusy: false, bpInboxAll: false, bpPlan: null, bpWeek: '', bpDay: -1 });
 
 /* ---------- small helpers ---------- */
 const bpE = encodeURIComponent;
@@ -350,65 +349,6 @@ document.addEventListener('click', e => {
 matchMedia('(max-width: 760px)').addEventListener?.('change', () => { if (UI.bvPage === 'planner') bvPagePaint(); });
 BV_HOME.pages.push({ id: 'planner', label: 'Planner', order: 10, render: bpPlannerHTML, after: el => { if (el) bvKeepScroll(el, sc => { const d = UI.bpPlan?.data; let m = 8 * 60; (d?.blocks || []).forEach(b => { m = Math.min(m, bvMin(b.start)); }); sc.scrollTop = Math.max(0, m / 60 * BP_HH - 10); }); } });
 
-/* ---------- calendar feeds ---------- */
-const BP_WARN = `<div class="note warn bp-warn"><b>Card titles and due dates will leave Ledgerline.</b> A calendar feed copies the title, due date, board and list of each card to the calendar service that reads it (such as Google or Microsoft), and to anyone that calendar is shared with. Card titles can name clients. Descriptions, comments, checklists and files are never sent.</div>`;
-async function bpFeedsLoad() { UI.bpFeeds = await get('/v1/board-feeds'); return UI.bpFeeds; }
-function bpFeedRow(label, f, scope, board, allowed) {
-  return `<li class="bp-fr"><span class="bp-fr-n"><b>${esc(label)}</b><small class="bv-dim">${f ? `Address made ${esc(bvFmt(bvStamp(f.created_at), { noTime: 1 }))}${f.used_at ? ` · last read ${esc(bdWhen(f.used_at))}` : ' · not read yet'}${f.allowed ? '' : ' · feeds are off, so it is empty'}` : allowed ? 'No address yet' : 'Feeds are off'}</small></span>
-    <span class="bp-fr-a">${allowed ? `<button class="btn sm${f ? '' : ' pri'}" data-act="bpFeedNew" data-id="${esc(scope)}" data-b="${esc(board || '')}">${f ? 'New address' : 'Get address'}</button>` : ''}${f ? `<button class="btn sm" data-act="bpFeedStop" data-id="${esc(f.id)}">Stop</button>` : ''}</span></li>`;
-}
-function bpNewHTML() {
-  const n = UI.bpNew;
-  if (!n) return '';
-  return `<div class="bp-new" role="status"><p><b>Your feed’s address.</b> It is shown only now; if you lose it, make a new one. Anyone with it can see these cards’ titles and due dates, so keep it to yourself.</p>
-    <div class="bp-row"><label class="bv-sr" for="bp-url">Feed address</label><input id="bp-url" class="in mono" readonly value="${esc(n.url)}"><button class="btn sm pri" data-act="bpCopy">Copy</button></div>
-    <p class="bv-dim bv-small">Google Calendar: <b>Other calendars</b>, <b>+</b>, <b>From URL</b>, and paste it. Outlook: <b>Add calendar</b>, <b>Subscribe from web</b>. They read it again every few hours.</p></div>`;
-}
-function bpFeedsHTML(board) {
-  const v = UI.bpFeeds;
-  if (!v) return '<div class="bd"><p class="bv-dim">Loading…</p></div>';
-  const mine = v.feeds.find(f => f.scope === 'mine'), bfs = v.feeds.filter(f => f.scope === 'board'), bi = board ? v.boards.find(b => b.id === board) : null;
-  const firm = `<section class="bp-fs"><h3>For the firm</h3>${v.firm_on ? `<p>Calendar feeds are <b>on</b> for the firm${v.firm_by ? `, since ${esc(bvFmt(bvStamp(v.firm_at), { noTime: 1 }))} (${esc(bdName(v.firm_by))})` : ''}.</p>` : `<p>Calendar feeds are <b>off</b> for the firm${v.boards.some(b => b.on) ? ', except on boards the Admin allowed one by one' : ''}.</p>`}
-    ${v.blocked ? '' : v.can_switch ? `<button class="btn sm" data-act="bpFirm" data-id="${v.firm_on ? 'off' : 'on'}">${v.firm_on ? 'Switch off for the firm' : 'Switch on for the firm'}</button>` : `<p class="bv-dim bv-small">The firm’s Admin switches them on or off.</p>`}</section>`;
-  let body;
-  if (board) {
-    const allowed = v.firm_on || bi?.on;
-    body = `<section class="bp-fs"><h3>This board</h3><p>${bi?.on ? 'The Admin allowed feeds of this board.' : v.firm_on ? 'Allowed, as feeds are on for the firm.' : 'Feeds of this board are off.'}</p>
-      ${v.can_switch && !v.blocked ? `<button class="btn sm" data-act="bpBoardFeedSw" data-id="${esc(board)}" data-on="${bi?.on ? '0' : '1'}">${bi?.on ? 'Stop feeds of this board' : 'Allow feeds of this board'}</button>` : ''}
-      <ul class="bp-frs">${bpFeedRow('This board’s due dates', bfs.find(f => f.board === board), 'board', board, allowed)}</ul></section>`;
-  } else {
-    const opts = v.boards.filter(b => b.allowed && !bfs.some(f => f.board === b.id));
-    body = `<section class="bp-fs"><h3>Your feeds</h3><ul class="bp-frs">${bpFeedRow('My cards: the cards you are on, and your Inbox', mine, 'mine', '', v.firm_on)}
-      ${bfs.map(f => bpFeedRow(f.board_name || 'A board you can no longer see', f, 'board', f.board, f.allowed)).join('')}</ul>
-      ${opts.length ? `<div class="bp-row bp-addfeed"><span aria-hidden="true">A board’s feed</span><label class="bv-sr" for="bp-fb">A board’s feed</label><select id="bp-fb" class="in sm">${opts.map(b => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('')}</select><button class="btn sm" data-act="bpFeedNewSel">Get address</button></div>` : ''}</section>`;
-  }
-  const blocked = v.blocked ? `<div class="note warn" role="status">${esc(v.blocked)} Feeds made before are empty calendars.</div>` : '';
-  return `<div class="bd bp-feeds">${blocked}${bpNewHTML()}${body}${firm}<p class="bv-dim bv-small">A feed has each card’s due date as an event (all day when it has no time), its title, its board and list, and a link back here. Stop a feed and its address stops working at once.</p></div><div class="ft"><button class="btn pri" data-act="close">Done</button></div>`;
-}
-async function bpFeedsModal(board) {
-  UI.bpNew = null; UI.bpFeedsBoard = board || '';
-  const sub = board ? 'See this board’s due dates in Google Calendar or Outlook.' : 'See your cards’ due dates in Google Calendar or Outlook.';
-  modal(mhd('Calendar feed' + (board ? '' : 's'), sub) + bpFeedsHTML(board));
-  try { await bpFeedsLoad(); } catch (e) { UI.bpFeeds = null; toast(e.message, true); return; }
-  bpFeedsPaint();
-}
-function bpFeedsPaint() {
-  const md = document.querySelector('#mroot .md');
-  if (!md || !document.querySelector('#mroot .bp-feeds, #mroot .bd')) return;
-  const hd = md.querySelector('.hd')?.outerHTML || '';
-  md.innerHTML = hd + bpFeedsHTML(UI.bpFeedsBoard);
-}
-function bpSwitchOn(what, run) {
-  modal(mhd(`Switch on calendar feeds ${what}`, '') + `<div class="bd">${BP_WARN}<p>Each person makes their own feed address and can stop it at any time. Switching feeds off later empties every feed.</p>
-    <label class="check"><input type="checkbox" id="bp-ok"> <span>I understand that card titles and due dates leave Ledgerline</span></label><div id="bp-sw-err"></div></div>
-    <div class="ft"><button class="btn" data-act="bpFeedsBack">Cancel</button><button class="btn pri" id="bp-sw-go">Switch on</button></div>`);
-  $('bp-sw-go').onclick = async () => {
-    if (!$('bp-ok').checked) { $('bp-sw-err').innerHTML = '<div class="note bad">Tick the box to confirm.</div>'; $('bp-ok').focus(); return; }
-    $('bp-sw-go').disabled = true;
-    try { await run(); await bpFeedsModal(UI.bpFeedsBoard); toast('Calendar feeds are on'); } catch (e) { $('bp-sw-err').innerHTML = errHTML(e); $('bp-sw-go').disabled = false; }
-  };
-}
-BV_HOME.buttons.push(() => clientUser() ? '' : `<button class="btn sm" data-act="bpFeeds">${BV_I.cal}Calendar feeds</button>`);
 /* ---------- an Inbox opened for review (compliance officer or Admin) ----------
    An Inbox is private in normal use but part of the firm's records. The
    compliance officer or an Admin can read one, giving a reason: the server
@@ -439,7 +379,6 @@ function bpReviewHTML(v) {
     <div class="ft"><button class="btn pri" data-act="close">Done</button></div>`;
 }
 BV_HOME.buttons.push(() => bpCanReview() ? `<button class="btn sm" data-act="bpReview">${BV_I.alert}Open a person’s Inbox</button>` : '');
-BOARDS.boardMenu.push({ id: 'bp-feed', label: 'Calendar feed', icon: 'clock', order: 75, show: ctx => ctx.board.kind !== 'inbox' && !ctx.board.template, run: ctx => bpFeedsModal(ctx.board.id) });
 
 /* ---------- actions ---------- */
 Object.assign(A, {
@@ -484,29 +423,5 @@ Object.assign(A, {
     if (reason.length < 5) { $('bp-rv-err').innerHTML = '<div class="note bad">Give the reason; it is recorded and shown to the owner.</div>'; $('bp-rv-r').focus(); return; }
     try { const v = await post('/v1/board-inbox/review', { user, reason }); modal(bpReviewHTML(v)); }
     catch (e) { $('bp-rv-err').innerHTML = errHTML(e); }
-  },
-  bpFeeds: () => bpFeedsModal(''),
-  bpFeedsBack: () => bpFeedsModal(UI.bpFeedsBoard),
-  bpFeedNew: async (scope, el) => {
-    try { UI.bpNew = await post('/v1/board-feeds', { scope, board: el.dataset.b || '' }); await bpFeedsLoad(); bpFeedsPaint(); $('bp-url')?.select(); $('bp-url')?.focus(); }
-    catch (e) { toast(e.message, true); }
-  },
-  bpFeedNewSel: () => { const b = $('bp-fb')?.value; if (b) A.bpFeedNew('board', { dataset: { b } }); },
-  bpFeedStop: async id => {
-    try { await post(`/v1/board-feeds/${bpE(id)}/revoke`); UI.bpNew = null; await bpFeedsLoad(); bpFeedsPaint(); toast('Feed stopped: its address no longer works'); }
-    catch (e) { toast(e.message, true); }
-  },
-  bpCopy: async () => {
-    const i = $('bp-url'); if (!i) return;
-    try { await navigator.clipboard.writeText(i.value); toast('Address copied'); } catch (e) { i.select(); document.execCommand?.('copy'); toast('Address copied'); }
-  },
-  bpFirm: async id => {
-    if (id === 'on') { bpSwitchOn('for the firm', () => api('PUT', '/v1/board-feeds/firm', { on: true })); return; }
-    confirmModal('Switch off calendar feeds', 'For the firm', '<p style="margin:0">Every feed is emptied the next time a calendar reads it. Boards the Admin allowed one by one keep their feeds.</p>', 'Switch off', async () => { await api('PUT', '/v1/board-feeds/firm', { on: false }); await bpFeedsModal(UI.bpFeedsBoard); toast('Calendar feeds are off for the firm'); }, true);
-  },
-  bpBoardFeedSw: async (board, el) => {
-    const on = el.dataset.on === '1', run = () => api('PUT', `/v1/boards/${bpE(board)}/views/feed`, { on });
-    if (on) { bpSwitchOn('for this board', run); return; }
-    try { await run(); await bpFeedsLoad(); bpFeedsPaint(); toast('Feeds of this board stopped'); } catch (e) { toast(e.message, true); }
   }
 });

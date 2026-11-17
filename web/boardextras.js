@@ -3,7 +3,7 @@
    (boards.js); server: internal/ops/boardextras.go, internal/api/boardextras.go.
      Boards home      the template gallery (Ledgerline's and the firm's own)
      Board menu       Make template / Stop being a template, Custom fields,
-                      Change background, Email-to-board
+                      Change background (email-to-board was taken out)
      Card window      Make template, Mirror to another board, Stickers,
                       Summarise this card and Suggest a checklist (AI, shown
                       only while the AI gate allows them); sections for the
@@ -13,7 +13,7 @@
                       three stickers on the cover area
      List composer    Create from template (the board's card templates)
    Import, export, print, collections, recently viewed and the card's Share
-   (with its email address) are in boardio.js.
+   are in boardio.js.
    Actions and UI keys start with bx. */
 
 const BX_COLORS = { green: '#2E9E6A', yellow: '#D9A400', orange: '#E07B24', red: '#D14343', purple: '#7A5AF8', blue: '#2F45C8', sky: '#2E90D1', lime: '#6E9F2B', pink: '#D6489B', black: '#344054' };
@@ -206,41 +206,11 @@ function bxBgPanel(ctx) {
   };
 }
 
-/* ---- email-to-board ---- */
-function bxMailBody(m, ctx) {
-  const url = m.on ? (m.url || location.origin + m.path) : '';
-  const lists = `<select class="in" id="bx-mail-list" aria-label="List for new cards">${(m.lists || []).map(l => `<option value="${esc(l.id)}" ${l.id === m.list ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>`;
-  return `<div class="bx-mail">
-    <div class="bx-mail-st">${m.on ? pill('On', 'good') : pill('Off')}<span>${m.on ? 'Emails sent to this board become cards in' : 'When it is on, emails become cards in'}</span>${lists}</div>
-    ${m.on ? `<div class="fld"><label for="bx-mail-url">Inbound address</label><div class="bx-url"><input class="in mono" id="bx-mail-url" readonly value="${esc(url)}"><button class="btn sm" data-act="bxMailCopy">Copy</button></div>
-      <span class="bx-help">In your mail provider's inbound settings (Amazon SES, SendGrid or Postmark), have mail for this board posted to this address as the raw message.</span></div>` : ''}
-    <ul class="bx-mail-how"><li>The subject becomes the card's title and the text its description, with the sender on the first line.</li><li>Attachments are added if they pass the same checks as an upload (photos, PDF, Office files, CSV, text or ZIP, up to 15 MB each); others are listed on the card.</li><li>Each delivery is recorded in the board's activity. A closed board refuses mail.</li></ul>
-    ${m.on ? '<div class="note warn">Anyone who has the address can add cards to this board. Keep it between the firm and its mail provider, and give the board a new address if it leaks.</div>' : ''}
-    <div id="bx-mail-err"></div></div>`;
-}
-async function bxEmailPanel(ctx) {
-  UI.bxCtx = ctx;
-  modal(mhd('Email-to-board', esc(ctx.board.name)) + '<div class="bd" id="bx-mail-bd"><div class="bx-empty">Loading…</div></div><div class="ft" id="bx-mail-ft"></div>');
-  try { UI.bxMail = await get(`/v1/boards/${bxEnc(ctx.board.id)}/email`); bxMailDraw(); } catch (e) { document.getElementById('bx-mail-bd').innerHTML = errHTML(e); }
-}
-function bxMailDraw() {
-  const m = UI.bxMail, bd = document.getElementById('bx-mail-bd'), ft = document.getElementById('bx-mail-ft');
-  if (!bd || !m) return;
-  bd.innerHTML = bxMailBody(m, UI.bxCtx);
-  ft.innerHTML = m.on ? '<button class="btn bad" data-act="bxMailOff">Switch off</button><button class="btn" data-act="bxMailRotate">Give it a new address</button><button class="btn pri" data-act="close">Done</button>'
-    : '<button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="bxMailOn">Switch on</button>';
-}
-async function bxMailSet(body, msg) {
-  const ctx = UI.bxCtx;
-  try { UI.bxMail = await post(`/v1/boards/${bxEnc(ctx.board.id)}/email`, body); bxMailDraw(); if (msg) toast(msg); } catch (e) { const el = document.getElementById('bx-mail-err'); if (el) el.innerHTML = errHTML(e); else toast(e.message, true); }
-}
-
 BOARDS.boardMenu.push(
   { id: 'bxBackground', icon: 'image', label: 'Change background', order: 30, show: ctx => bxAdmin(ctx), run: bxBgPanel },
   { id: 'bxFields', icon: 'desc', label: 'Custom fields', order: 40, show: ctx => bxAdmin(ctx), run: bxFieldsPanel },
   { id: 'bxMakeTpl', icon: 'copy', label: 'Make template', order: 60, show: ctx => bxAdmin(ctx) && ctx.board.kind === 'team' && !ctx.board.template, run: ctx => bxSetTemplate(ctx, true) },
-  { id: 'bxStopTpl', icon: 'copy', label: 'Stop being a template', order: 60, show: ctx => bxAdmin(ctx) && !!ctx.board.template, run: ctx => bxSetTemplate(ctx, false) },
-  { id: 'bxEmail', icon: 'comment', label: 'Email-to-board', order: 70, show: ctx => bxAdmin(ctx) && ctx.board.kind === 'team', run: bxEmailPanel }
+  { id: 'bxStopTpl', icon: 'copy', label: 'Stop being a template', order: 60, show: ctx => bxAdmin(ctx) && !!ctx.board.template, run: ctx => bxSetTemplate(ctx, false) }
 );
 
 /* ============================== card window ============================== */
@@ -381,7 +351,6 @@ document.addEventListener('change', e => {
     return;
   }
   if (el.id === 'bx-mi-b') { const t = (UI.bxMirrorTargets || []).find(x => x.id === el.value); document.getElementById('bx-mi-l').innerHTML = bxMirrorLists(t); return; }
-  if (el.id === 'bx-mail-list' && UI.bxMail) { bxMailSet({ on: UI.bxMail.on, list: el.value }, 'Cards from email go to ' + el.options[el.selectedIndex].text); }
 });
 document.addEventListener('input', e => {
   const el = e.target;
@@ -406,10 +375,6 @@ Object.assign(A, {
     try { await bxPut(ctx, { fields: fs }); closeModal(); toast('Custom fields saved'); BOARDS.reload(); } catch (e) { document.getElementById('bx-fl-err').innerHTML = errHTML(e); el.disabled = false; }
   },
   bxBgColor: async id => { const ctx = UI.bxCtx; try { await bxPut(ctx, { background: id }); closeModal(); toast(`Background: ${BX_COLOR_NAMES[id]}`); BOARDS.reload(); } catch (e) { document.getElementById('bx-bg-err').innerHTML = errHTML(e); } },
-  bxMailOn: () => bxMailSet({ on: true, list: document.getElementById('bx-mail-list')?.value || '' }, 'Email-to-board is on'),
-  bxMailOff: () => confirmModal('Switch off email-to-board', esc(UI.bxCtx.board.name), '<div class="note warn">Mail sent to the board\'s address will be refused. Switching it on again gives the board a new address.</div>', 'Switch off', async () => { await post(`/v1/boards/${bxEnc(UI.bxCtx.board.id)}/email`, { on: false }); closeModal(); toast('Email-to-board is off'); }, true),
-  bxMailRotate: () => confirmModal('Give the board a new address', esc(UI.bxCtx.board.name), '<div class="note warn">The current address stops working at once. Update the address in your mail provider\'s inbound settings straight after.</div>', 'Give it a new address', async () => { const ctx = UI.bxCtx; closeModal(); await bxEmailPanel(ctx); await bxMailSet({ on: true, rotate: true }, 'The board has a new address'); }),
-  bxMailCopy: async () => { const el = document.getElementById('bx-mail-url'); try { await navigator.clipboard.writeText(el.value); toast('Address copied'); } catch (e) { el.select(); toast('Select the address and copy it'); } },
   bxMirrorGo: async (id, el) => {
     const card = UI.bxCard, b = document.getElementById('bx-mi-b').value, l = document.getElementById('bx-mi-l').value;
     el.disabled = true;

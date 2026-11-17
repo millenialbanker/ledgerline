@@ -1,4 +1,4 @@
-Ledgy help articles: board templates, card templates, custom fields, covers and backgrounds, votes, mirror cards, email-to-board and email to a card, stickers and AI on cards on Boards.
+Ledgy help articles: board templates, card templates, custom fields, covers and backgrounds, votes, mirror cards, stickers and AI on cards on Boards.
 
 # Boards: templates and extras
 
@@ -81,36 +81,15 @@ A mirror shows a card's title, description, due date and completion on another t
 A mirror shows nothing of its original unless everyone who can see the mirror's board can see the original's: otherwise it reads **Mirror of a card on another board**, and only people who can see the original see its details in the card window.
 
 ## email-to-board
-title: Email-to-board: turn emails into cards
+title: Why emails can't be sent to a board or a card
 screen: boards
 roles: Ops maker, Ops checker, Risk manager, Compliance officer, Admin
-ask: email to board; email a board; inbound email; emails become cards; board email address; forward email to board; sendgrid inbound parse; postmark inbound; ses inbound; rotate board email address; switch off board email
-related: board-templates
+ask: email to board; email a board; inbound email; emails become cards; board email address; forward email to board; email to a card; email for this card; card email address; trello email to board
+related: board-templates, card-share
 
-Each team board can have its own inbound address. A board admin sets it up:
+Ledgerline boards and cards have no email address. Mail from outside the firm would bring in attachments that nothing scans for malware, which SEBI's Cybersecurity and Cyber Resilience Framework (CSCRF, SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113) asks brokers to guard against, and anyone with the address could add records to a board. So the feature was taken out.
 
-1. Board menu → **Email-to-board** → choose the list new cards go to → **Switch on**.
-2. Copy the **Inbound address** and, in the mail provider's inbound settings (Amazon SES, SendGrid or Postmark), have mail for the board posted to it as the raw message (SendGrid: post the raw, full MIME message; Postmark: include the raw email content).
-3. Each email becomes a card: the subject is the title, the text the description with the sender on its first line, and attachments that pass the same checks as an upload are attached; any that do not are listed on the card. Each delivery is recorded in the board's activity, a message sent twice makes one card, and a closed board refuses mail.
-
-Anyone who has the address can add cards to the board, so keep it private. **Give it a new address** stops the old one at once; **Switch off** refuses all mail to the board.
-
-While it is on, each card on the board has an address of its own too: open the card and choose **Share** (see Email to a card).
-
-## card-email
-title: Email to a card
-screen: boards
-roles: Ops maker, Ops checker, Risk manager, Compliance officer, Admin
-ask: email to a card; email for this card; card email address; send an email to a card; forward an email to a card; email becomes a comment; add attachments to a card by email; card address
-related: email-to-board, card-share
-
-While a team board has email-to-board on, every card on it has its own address, like Trello's "email for this card".
-
-1. Open the card and choose **Share**. Members and admins of the board see **Email for this card** with **Copy**. Observers do not see it.
-2. Have the firm's mail provider post mail for that address the same way as the board's (board menu → **Email-to-board**).
-3. Each email becomes a comment on the card, by Ledgerline, saying who sent it and with the subject and text. Attachments that pass the same checks as an upload are attached to the card; the comment lists any that are not. The delivery is recorded in the board's activity, and a message sent twice is added once.
-
-The address is the card's own: it shows nothing of the board's address, and it changes when the board gets a new address. An archived card, a closed board, Ledgerline boards and your Inbox take no mail. Anyone who has the address can comment on the card, so keep it within the firm.
+To bring an email onto a card, save the email or its attachment and upload it to the card (drop it on the card window, or on a list to make a new card).
 
 ## card-stickers
 title: Stickers on cards

@@ -269,9 +269,6 @@ func TestBoardExport(t *testing.T) {
 	admin, member, observer := "priya.nair", "farhan.khan", "anita.rao"
 	b, _ := o.CreateBoard(ctx, T, admin, BoardInput{Name: "Export test"})
 	b, _ = o.UpdateBoard(ctx, T, admin, b.ID, BoardInput{Members: []BoardPerson{{admin, BoardAdmin}, {member, BoardMember}}, Fields: []BoardField{{Name: "Client code", Type: "text"}, {Name: "Verified", Type: "checkbox"}}})
-	if _, err := o.SetBoardEmail(ctx, T, admin, b.ID, BoardEmailInput{On: true}); err != nil {
-		t.Fatal(err)
-	}
 	b, _, _ = docs.Get[Board](ctx, o.Docs, T, cBoard, b.ID)
 	f0, f1 := b.Fields[0].ID, b.Fields[1].ID
 	c1, _ := o.AddCard(ctx, T, admin, b.ID, CardInput{List: b.Lists[0].ID, Title: "=HYPERLINK(\"http://example.com\",\"Click\")", Description: "line one\nline two", Labels: []string{b.Labels[0].ID}, Members: []string{member}, Due: "2026-11-20", Fields: map[string]string{f0: "@SUM(A1)", f1: "true"}})
@@ -336,8 +333,8 @@ func TestBoardExport(t *testing.T) {
 		t.Fatalf("member exported JSON: %v", err)
 	}
 	ex, err := o.ExportBoardJSON(ctx, T, admin, b.ID)
-	if err != nil || ex.Format != "ledgerline-board" || len(ex.Cards) != 3 || len(ex.Activity) < 5 || ex.Board.EmailKey != "" || len(ex.People) < 2 {
-		t.Fatalf("json %d cards %d activity key %q %v", len(ex.Cards), len(ex.Activity), ex.Board.EmailKey, err)
+	if err != nil || ex.Format != "ledgerline-board" || len(ex.Cards) != 3 || len(ex.Activity) < 5 || len(ex.People) < 2 {
+		t.Fatalf("json %d cards %d activity %v", len(ex.Cards), len(ex.Activity), err)
 	}
 	js, _ := json.Marshal(ex)
 	if !bytes.Contains(js, []byte("Checked the PAN")) || !bytes.Contains(js, []byte(`"archived":true`)) {

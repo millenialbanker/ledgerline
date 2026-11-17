@@ -48,12 +48,11 @@ title: Share, print or export a card
 screen: boards
 roles: Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 ask: share a card; link to a card; print a card; export a card; card json; copy card link; card pdf
-related: board-export, card-email
+related: board-export
 
 In the card window choose **Share**:
 
 - **Link to this card**: copy it to send to a colleague. Only people who can see the board can open it.
-- **Email for this card** (members and admins of the board, while the board's email-to-board is on): mail to it becomes a comment on the card.
 - **Print**: a print view of the card with its details, description, custom fields, checklists, attachments and comments.
 - **Export JSON**: the card in Ledgerline's own format, with its board's labels and fields and its activity.
 

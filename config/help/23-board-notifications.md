@@ -20,7 +20,7 @@ Boards can email you your notifications, as Trello does. Open the bell on the bo
 3. **What to email**: being added to a card (or given a checklist item), mentions, comments on cards you watch, cards you watch moving, due-date reminders, other activity on the cards, lists and boards you watch, and automation messages. Until you choose, it is mentions, being added and due-date reminders, once a day at 09:00.
 4. **Save**.
 
-Each email lists the notifications that are still unread, oldest first: for each one the board's name, the card's number and title, the notification and a link that opens the card in Ledgerline. Nothing else from the card is sent: not its description, attachments or other comments. Emailed notifications stay unread in the bell. Each notification is emailed at most once, even if Ledgerline restarts, and notifications from before your address was confirmed are not emailed.
+Each email says only how many unread notifications of each kind are waiting (for example "2 mentions, 1 due-date reminder") with a link to Boards in Ledgerline. It never carries a board's name, a card's title, the notification's text or anything else from a card: a mailbox may be anywhere, Gmail for example, card titles can name clients, and SEBI's framework for cloud services (SEBI/HO/ITD/ITD_VAPT/P/CIR/2023/033) expects a broker's regulated data to stay in India. Read the notifications themselves in the bell. Emailed notifications stay unread in the bell. Each notification is emailed at most once, even if Ledgerline restarts, and notifications from before your address was confirmed are not emailed.
 
 An automation that **emails** you on purpose (the *Email people* action of a rule or button) comes within about five minutes whatever kinds and how often you chose, unless you chose **Never** or paused email.
 
@@ -46,4 +46,4 @@ An Admin sees **For the whole firm** at the foot of **Notification settings**: *
 
 Board emails go through the firm's mail server in Settings → Connections, like other emails to staff. Without one, nothing is sent, the window says so, and each attempt is in the outbox as not sent. If the mail server refuses an email, Ledgerline tries again about fifteen minutes later.
 
-The link in each email uses the address people reach Ledgerline at: the server's public address when it has one, otherwise the address an Admin last opened Notification settings from. Until Ledgerline knows it, the email says where to find the card instead (Boards → the board → the card's number).
+The link in each email opens Boards at the address people reach Ledgerline at: the server's public address when it has one, otherwise the address an Admin last opened Notification settings from. Until Ledgerline knows it, the email says to open Ledgerline and choose Boards, then the bell.

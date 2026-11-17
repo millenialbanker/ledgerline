@@ -154,29 +154,9 @@ func TestBoardIOAPI(t *testing.T) {
 		t.Fatalf("unknown sticker %d", code)
 	}
 
-	// A card's address: off until the board's is on; mail goes to the board route.
-	var ce2 struct {
-		On   bool   `json:"on"`
-		Path string `json:"path"`
-		Why  string `json:"why"`
-	}
-	if code, _, _ := call("GET", "/v1/boards/"+bid+"/cards/"+card.ID+"/email", "farhan.khan", "", nil, &ce2); code != 200 || ce2.On || ce2.Why == "" {
-		t.Fatalf("card email off %d %+v", code, ce2)
-	}
-	if code, _, _ := call("POST", "/v1/boards/"+bid+"/email", "priya.nair", js, []byte(`{"on":true}`), nil); code != 200 {
-		t.Fatalf("email on %d", code)
-	}
-	if code, _, _ := call("GET", "/v1/boards/"+bid+"/cards/"+card.ID+"/email", "farhan.khan", "", nil, &ce2); code != 200 || !ce2.On || !strings.HasPrefix(ce2.Path, "/inbound/boards/demo/c") {
-		t.Fatalf("card email %d %+v", code, ce2)
-	}
-	var in struct {
-		Card string `json:"card"`
-	}
-	if code, _, b := call("POST", ce2.Path, "", "message/rfc822", []byte(strings.Replace(bxMail, "%ID%", "card-1", 1)), &in); code != 200 || in.Card != card.ID {
-		t.Fatalf("card mail %d %s", code, b)
-	}
-	if code, _, _ := call("POST", ce2.Path[:len(ce2.Path)-4]+"0000", "", "message/rfc822", []byte(strings.Replace(bxMail, "%ID%", "card-2", 1)), nil); code != 404 {
-		t.Fatalf("forged card address %d", code)
+	// A card has no email address any more.
+	if code, _, _ := call("GET", "/v1/boards/"+bid+"/cards/"+card.ID+"/email", "farhan.khan", "", nil, nil); code == 200 {
+		t.Fatal("card email route still there")
 	}
 
 	// AI on cards: no model on this server, so off with the reason.

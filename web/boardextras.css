@@ -91,14 +91,10 @@
 .bx-bg-up{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .bx-bg-now{width:96px;height:56px;object-fit:cover;border-radius:10px;border:1px solid var(--bx-line)}
 
-/* ---- email-to-board ---- */
-.bx-mail{display:flex;flex-direction:column;gap:14px}
-.bx-mail-st{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--bx-ink)}
-.bx-mail-st select{min-width:180px}
+/* a read-only address with a copy button (card Share) */
 .bx-url{display:flex;gap:6px}
 .bx-url input{flex:1;font-size:12px;background:var(--bx-ground)}
 .bx-help{font-size:12px;color:var(--bx-ink2)}
-.bx-mail-how{margin:0;padding:12px 14px 12px 30px;border:1px solid var(--bx-line);border-radius:10px;background:var(--bx-ground);font-size:12.5px;color:var(--bx-ink2);display:grid;gap:4px}
 
 /* ---- popover (card window buttons) ---- */
 .bx-pop{position:fixed;z-index:80;background:var(--bx-surface);border:1px solid var(--bx-line);border-radius:12px;box-shadow:var(--bx-shadow);color:var(--bx-ink);font-size:13px;max-height:calc(100vh - 16px);overflow:auto}

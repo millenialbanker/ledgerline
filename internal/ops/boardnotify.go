@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/url"
-	"sort"
 	"strings"
 	"time"
 
@@ -33,8 +32,10 @@ import (
 // Delivery runs in the boards' minute (boardTickHooks). It reads the
 // person's unread notices that were not yet emailed and sends one digest
 // through mailStaff, which keeps each email in the outbox with what really
-// happened. An email holds the board's name, the card's number and title,
-// the notice and a link to the card, nothing else from the card. Notices
+// happened. An email says only how many notices of each kind are waiting,
+// with a link to Ledgerline: never a board's name, a card's title, a
+// notice's text or anything else from a card, since a mailbox may be
+// outside India (SEBI's cloud framework). Notices
 // stay unread. bnState.Seq marks the notices already emailed or passed
 // over, and is moved before the email goes, so a restart or a second
 // server never sends one twice. Notices from a board the person can no
@@ -165,6 +166,26 @@ func bnKinds(p BoardMailPrefs) []string {
 		return []string{}
 	}
 	return p.Kinds
+}
+
+// bnCountWords names a kind of notice in a count ("2 mentions").
+func bnCountWords(kind string, n int) string {
+	w, ok := map[string][2]string{
+		NoticeAdded:      {"time you were added to a card or board", "times you were added to a card or board"},
+		NoticeMention:    {"mention", "mentions"},
+		NoticeComment:    {"comment on a card you watch", "comments on cards you watch"},
+		NoticeMoved:      {"card you watch moved", "cards you watch moved"},
+		NoticeDue:        {"due-date reminder", "due-date reminders"},
+		NoticeWatch:      {"change on something you watch", "changes on things you watch"},
+		NoticeAutomation: {"message from an automation rule", "messages from automation rules"},
+	}[kind]
+	if !ok {
+		w = [2]string{"notification", "notifications"}
+	}
+	if n == 1 {
+		return w[0]
+	}
+	return w[1]
 }
 
 func bnKindOf(k string) string {
@@ -759,50 +780,36 @@ func (r *bnRun) card(board, id string) *Card {
 func (r *bnRun) send(p BoardMailPrefs, u User, items []bnItem, was int64) {
 	o, ctx, tenant := r.o, r.ctx, r.tenant
 	set, _ := o.Settings(ctx, tenant)
-	sort.SliceStable(items, func(i, j int) bool { return items[i].n.ID < items[j].n.ID })
-	shown := items
-	if len(shown) > bnMaxShown {
-		shown = shown[len(shown)-bnMaxShown:] // the newest
-	}
-	name := func(id string) string {
-		if x, ok := r.users[id]; ok && x.Name != "" {
-			return x.Name
-		}
-		if id == AutomationActor {
-			return "Automation"
-		}
-		return id
+	// The email says only how many notices of each kind are waiting. It
+	// never carries a board's name, a card's title, a notice's text or a
+	// link to one card: a person's mailbox may be anywhere (Gmail, say),
+	// and card titles can name clients. SEBI's cloud framework
+	// (SEBI/HO/ITD/ITD_VAPT/P/CIR/2023/033) expects a broker's regulated
+	// data to stay in India.
+	counts := map[string]int{}
+	for _, it := range items {
+		counts[bnKindOf(it.n.Kind)]++
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "Hello %s,\n\n", firstOf(u.Name, p.User))
 	if len(items) == 1 {
-		b.WriteString("A notification from Boards in Ledgerline:\n\n")
+		b.WriteString("You have a new notification on Boards in Ledgerline:\n\n")
 	} else {
-		fmt.Fprintf(&b, "%d notifications from Boards in Ledgerline, oldest first:\n\n", len(items))
+		fmt.Fprintf(&b, "You have %d new notifications on Boards in Ledgerline:\n\n", len(items))
 	}
-	if len(items) > len(shown) {
-		fmt.Fprintf(&b, "(The %d newest are below; the other %d are in the bell in Ledgerline.)\n\n", len(shown), len(items)-len(shown))
+	for _, k := range NoticeKinds {
+		if n := counts[k]; n > 0 {
+			fmt.Fprintf(&b, "- %d %s\n", n, bnCountWords(k, n))
+		}
 	}
-	for _, it := range shown {
-		text := it.n.Text
-		if it.n.By != "" && strings.HasPrefix(text, it.n.By+" ") {
-			text = name(it.n.By) + text[len(it.n.By):]
+	open := "Open Ledgerline and choose Boards, then the bell, to read them."
+	for _, it := range items {
+		if i := strings.Index(it.link, "#boards"); i > 0 {
+			open = "Read them in Ledgerline (Boards, then the bell): " + it.link[:i] + "#boards"
+			break
 		}
-		head := it.board
-		if it.card != "" {
-			head += " · " + it.card
-		}
-		link := it.link
-		if strings.HasPrefix(link, "#") {
-			// Ledgerline does not know its own address yet (an Admin opening
-			// Notification settings teaches it): say where to look instead.
-			link = "In Ledgerline: Boards → " + it.board
-			if it.card != "" {
-				link += " → " + strings.SplitN(it.card, " ", 2)[0]
-			}
-		}
-		fmt.Fprintf(&b, "%s\n%s (%s)\n%s\n\n", head, text, it.at.In(ist).Format("02 Jan 15:04"), link)
 	}
+	fmt.Fprintf(&b, "\n%s\n\nThese emails never include card titles, board names or comments; they stay in Ledgerline.\n\n", open)
 	how := map[string]string{MailNow: "within a few minutes of each notification", MailHourly: "every hour", MailDaily: "once a day at " + bnAt(p) + " IST"}[bnEvery(p)]
 	var ws []string
 	for _, k := range bnKinds(p) {
@@ -813,13 +820,9 @@ func (r *bnRun) send(p BoardMailPrefs, u User, items []bnItem, was int64) {
 		what = strings.Join(ws, ", ")
 	}
 	fmt.Fprintf(&b, "You get these emails %s, for %s. Change or pause them in Ledgerline: Boards → the bell → Notification settings.\n\n%s", how, what, set.Firm)
-	subject := fmt.Sprintf("[%s] Boards: %d notifications", set.Firm, len(items))
+	subject := fmt.Sprintf("[%s] Boards: %d new notifications", set.Firm, len(items))
 	if len(items) == 1 {
-		s := items[0].card
-		if s == "" {
-			s = items[0].board
-		}
-		subject = fmt.Sprintf("[%s] Boards: %s", set.Firm, clip(s, 90))
+		subject = fmt.Sprintf("[%s] Boards: a new notification", set.Firm)
 	}
 	res := o.mailStaff(ctx, tenant, p.Email, subject, b.String(), "board-email:"+p.User, nil)
 	ids := make([]string, 0, len(items))

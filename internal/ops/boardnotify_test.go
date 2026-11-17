@@ -80,15 +80,19 @@ func TestBoardMailDefaultsAndKinds(t *testing.T) {
 		t.Fatalf("at 09:00: %d emails", len(m.got))
 	}
 	e := m.got[0]
-	// Ledgerline does not know its address yet: the email says where to look.
-	if e.To != "farhan@bhairav.example" || !strings.Contains(e.Subject, "#1 Send the margin file") ||
-		!strings.Contains(e.Text, "Operations · #1 Send the margin file\nPriya Nair mentioned you on Send the margin file: please check (16 Nov 10:05)\nIn Ledgerline: Boards → Operations → #1\n") ||
+	// The email says only how many of each kind are waiting: nothing from
+	// the board or the card (SEBI's cloud framework: a mailbox may be
+	// outside India). Ledgerline does not know its address yet, so it says
+	// where to look.
+	if e.To != "farhan@bhairav.example" || e.Subject != "[Bhairav Securities Pvt Ltd (sample)] Boards: a new notification" ||
+		!strings.Contains(e.Text, "- 1 mention\n") || !strings.Contains(e.Text, "Open Ledgerline and choose Boards, then the bell") ||
 		strings.Contains(e.Text, "moved") || !strings.Contains(e.Text, "once a day at 09:00 IST, for mentions, being added to a card, due-date reminders") {
 		t.Fatalf("email %+v", e)
 	}
-	// Nothing else from the card goes: not its description, nor its comments.
-	if strings.Contains(e.Text, "margin file desc") {
-		t.Fatal("description in the email")
+	for _, leak := range []string{"Send the margin file", "Operations", "Priya", "please check", "margin file desc", "#1"} {
+		if strings.Contains(e.Subject+e.Text, leak) {
+			t.Fatalf("%q from the board or card is in the email:\n%s", leak, e.Text)
+		}
 	}
 	// Emailed notices stay unread in the bell.
 	if _, unread, _ := o.BoardNotices(ctx, T, who, 0); unread != 3 { // with the one from being added to the board
@@ -103,7 +107,8 @@ func TestBoardMailDefaultsAndKinds(t *testing.T) {
 	o.boardNotifyKind(ctx, T, "priya.nair", b, c.ID, NoticeComment, []string{who}, "priya.nair commented on Send the margin file: done")
 	o.NoteConsoleAddress(ctx, T, "admin", "https://bo.bhairav.example", false)
 	bnTickAt(o, ctx, set, "2026-11-17T10:06")
-	if len(m.got) != 2 || strings.Contains(m.got[1].Text, "again") || !strings.Contains(m.got[1].Text, "commented") || !strings.Contains(m.got[1].Text, "\nhttps://bo.bhairav.example/#boards/"+b.ID+"/"+c.ID+"\n") {
+	if len(m.got) != 2 || strings.Contains(m.got[1].Text, "mention") || !strings.Contains(m.got[1].Text, "- 1 comment on a card you watch\n") ||
+		!strings.Contains(m.got[1].Text, ": https://bo.bhairav.example/#boards\n") || strings.Contains(m.got[1].Text, c.ID) || strings.Contains(m.got[1].Text, "done") {
 		t.Fatalf("kinds: %+v", m.got)
 	}
 	for _, bad := range []BoardMailInput{{Every: "weekly"}, {Every: MailDaily, At: "9"}, {Every: MailNow, Kinds: []string{"gossip"}}} {
@@ -147,7 +152,7 @@ func TestBoardMailBatchingAndIdempotence(t *testing.T) {
 		t.Fatalf("sent before the batch: %d", len(m.got))
 	}
 	bnTickAt(o, ctx, set, "2026-11-16T10:05")
-	if len(m.got) != 1 || !strings.Contains(m.got[0].Subject, "3 notifications") || !strings.Contains(m.got[0].Text, "one") || !strings.Contains(m.got[0].Text, "three") {
+	if len(m.got) != 1 || !strings.Contains(m.got[0].Subject, "3 new notifications") || !strings.Contains(m.got[0].Text, "- 3 comments on cards you watch\n") || strings.Contains(m.got[0].Text, "three") {
 		t.Fatalf("the batch: %+v", m.got)
 	}
 	// Later minutes, and a restart, send nothing more.
@@ -167,7 +172,7 @@ func TestBoardMailBatchingAndIdempotence(t *testing.T) {
 	}
 	bnTickAt(o, ctx, set, "2026-11-16T10:24")
 	bnTickAt(o, ctx, set, "2026-11-16T10:25")
-	if len(m.got) != 2 || !strings.Contains(m.got[1].Text, "four") || strings.Contains(m.got[1].Text, "five") {
+	if len(m.got) != 2 || !strings.HasSuffix(m.got[1].Subject, "a new notification") || strings.Contains(m.got[1].Text, "four") {
 		t.Fatalf("second batch: %+v", m.got[1:])
 	}
 	// The mail server fails: the notices are tried again later, not lost.
@@ -185,7 +190,7 @@ func TestBoardMailBatchingAndIdempotence(t *testing.T) {
 		t.Fatal("retried before the wait")
 	}
 	bnTickAt(o, ctx, set, "2026-11-16T11:21")
-	if len(m.got) != 3 || !strings.Contains(m.got[2].Text, "six") {
+	if len(m.got) != 3 || !strings.HasSuffix(m.got[2].Subject, "a new notification") || strings.Contains(m.got[2].Text, "six") {
 		t.Fatalf("after the retry: %+v", m.got[2:])
 	}
 }
@@ -211,7 +216,7 @@ func TestBoardMailHourlyPushPauseFirm(t *testing.T) {
 	o.boardNotifyEmail(ctx, T, AutomationActor, b, "", []string{who}, "Margin file not sent yet")
 	bnTickAt(o, ctx, set, "2026-11-16T11:14")
 	bnTickAt(o, ctx, set, "2026-11-16T11:15")
-	if len(m.got) != 2 || !strings.Contains(m.got[1].Text, "Margin file not sent yet") {
+	if len(m.got) != 2 || !strings.Contains(m.got[1].Text, "- 1 message from an automation rule\n") || strings.Contains(m.got[1].Text, "Margin file not sent yet") {
 		t.Fatalf("pushed: %+v", m.got[1:])
 	}
 	// Paused for a day: nothing then, nor later for what came meanwhile.
@@ -277,7 +282,7 @@ func TestBoardMailAccessAndAddress(t *testing.T) {
 	// The meera.iyer branch user has no address: nothing goes to her.
 	o.boardNotifyKind(ctx, T, maker, b, "", NoticeAdded, []string{"meera.iyer"}, "for Meera")
 	bnTickAt(o, ctx, set, "2026-11-16T10:05")
-	if len(m.got) != 1 || m.got[0].To != "farhan@bhairav.example" || strings.Contains(m.got[0].Text, "Treasury") || !strings.Contains(m.got[0].Text, "Operations") {
+	if len(m.got) != 1 || m.got[0].To != "farhan@bhairav.example" || !strings.Contains(m.got[0].Text, "You have a new notification") {
 		t.Fatalf("lost access: %+v", m.got)
 	}
 	// Someone whose login is switched off gets nothing.

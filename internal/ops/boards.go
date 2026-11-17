@@ -80,8 +80,6 @@ type Board struct {
 	Template    bool              `json:"template,omitempty"`
 	Closed      bool              `json:"closed,omitempty"`
 	Starred     []string          `json:"starred,omitempty"`
-	EmailKey    string            `json:"email_key,omitempty"` // email-to-board (boardextras.go)
-	EmailList   string            `json:"email_list,omitempty"`
 	CardSeq     int64             `json:"card_seq"`
 	Settings    map[string]string `json:"settings,omitempty"` // for the other board files
 	Watchers    []string          `json:"watchers,omitempty"` // told about cards added, moved, completed, commented on, re-dated (boardlists.go)
@@ -772,7 +770,6 @@ func (o *Ops) GetBoard(ctx context.Context, tenant, actor, id string, archived b
 		}
 	}
 	if !v.can(BoardAdmin) {
-		out.Board.EmailKey = "" // the email address is for the board's admins
 	}
 	out.Collapsed = o.boardCollapsed(ctx, tenant, actor, b)
 	out.CanJoin = boardCanJoin(b, v) == nil

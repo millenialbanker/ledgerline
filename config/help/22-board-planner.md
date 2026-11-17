@@ -1,6 +1,6 @@
-Ledgy help articles: a person's own Inbox and Planner on Boards, and calendar feeds of cards for Google Calendar or Outlook.
+Ledgy help articles: a person's own Inbox and Planner on Boards.
 
-# Boards: Inbox, Planner and calendar feeds
+# Boards: Inbox and Planner
 
 ## board-inbox
 title: Your Inbox: jot cards down fast
@@ -17,7 +17,7 @@ Everyone has an **Inbox**: a private place to jot cards down before you know whi
 - **In normal use only you can see your Inbox**: not other staff, not automation. It is not on the boards home with the other boards, its notifications come only to you, and only you can be on its cards. To share a card, move it to a board.
 - Your Inbox is still part of the firm's records, which the firm must produce at an inspection. The compliance officer or an Admin can open it **read-only**, giving a reason; this is recorded in the audit trail and you get a notice saying who opened it and why. Keep client instructions on the boards where the team works them, not only in your Inbox.
 
-The Inbox has one list and stays open. Automation rules do not run on it, it cannot be a template, and it has no calendar feed of its own (its cards with due dates are in your **My cards** feed).
+The Inbox has one list and stays open. Automation rules do not run on it, it cannot be a template.
 
 ## board-planner
 title: Planner: plan your week by hour
@@ -43,26 +43,15 @@ A block stays with its card when the card moves from your Inbox to a board. If y
 Ledgerline's own calendar (Calendar & circulars) is the firm's obligations by role, not a calendar of yours, so it is not shown in the Planner.
 
 ## board-calendar-feeds
-title: See your cards in Google Calendar or Outlook
+title: Why cards can't be sent to Google Calendar or Outlook
 screen: boards
 roles: Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff, Authorised person, Admin
-ask: calendar feed; ical feed; ics; subscribe to my cards in google calendar; outlook calendar of cards; calendar sync; trello calendar sync; webcal; switch on calendar feeds; stop a calendar feed; feed address leaked; calendar feeds india-only mode; why can't i switch on calendar feeds
+ask: calendar feed; ical feed; ics; subscribe to my cards in google calendar; outlook calendar of cards; calendar sync; trello calendar sync; webcal; why is there no calendar feed
 related: board-planner, board-views-my-cards, board-views-calendar
 
-A calendar feed puts cards' due dates into Google Calendar or Outlook. On the boards home choose **Calendar feeds**; for one board, choose **Calendar feed** in the board's menu.
+Ledgerline has no calendar feed of cards. A feed would copy card titles, which can name clients, to Google Calendar or Outlook, which keep them on servers outside India. SEBI's framework for cloud services (SEBI/HO/ITD/ITD_VAPT/P/CIR/2023/033) expects a broker's regulated data to stay in India, so the feature was taken out.
 
-**Off until the firm's Admin switches them on.** Card titles can name clients, and a feed copies them out of Ledgerline to the calendar service and to anyone that calendar is shared with. The Admin switches feeds on for the whole firm, or for single boards from the board's menu, and confirms a warning first. Switching feeds off empties every feed the next time a calendar reads it.
-
-- **My cards**: the cards you are a member of on every board you can see, and your Inbox. Needs feeds on for the firm.
-- **A board**: every card on that board with a due date. Needs feeds on for the firm or for that board.
-
-**Get address** makes a long, secret address. It is shown once; Ledgerline keeps only a scrambled copy, so if you lose it, make a **New address** (the old one stops working). In Google Calendar choose **Other calendars**, **+**, **From URL**; in Outlook choose **Add calendar**, **Subscribe from web**. Calendars read it again on their own schedule, usually every few hours.
-
-What a feed holds: each card's due date as an event (all day when it has no time; 30 minutes when it has one), the card's title (with a tick when complete), its board and list, and a link back to the card. Never its description, comments, checklists or files. Cards due more than about four months ago are left out.
-
-**India-only mode**: when the server runs in India-only mode, calendar feeds cannot be switched on, and feeds made before are empty calendars. A calendar service such as Google Calendar or Outlook fetches a feed and keeps it outside India, and SEBI's cloud framework expects regulated data to stay in India. The feed settings say so, and Security lists calendar feeds under where data goes.
-
-**Stop** a feed and its address stops working at once. A feed also stops when you can no longer see the board, or your sign-in is switched off. Making, stopping and switching feeds are kept in the audit log.
+To see your cards by date, use the **Planner** on the boards home, a board's **Calendar** view, or **Calendar** on the boards home for every board you can see.
 
 ## board-inbox-review
 title: Open a person's Inbox for an inspection or investigation

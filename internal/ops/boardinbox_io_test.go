@@ -50,14 +50,6 @@ func TestBoardInboxStaysPrivate(t *testing.T) {
 			}
 		}
 	}
-	// Email: no card address, and mail with a key is refused.
-	if e, err := o.CardEmail(ctx, T, me, in.ID, c.ID); err != nil || e.On || !strings.Contains(e.Why, "Inbox") {
-		t.Fatalf("Inbox card address %+v %v", e, err)
-	}
-	ib, _ := docs.Update(ctx, o.Docs, T, cBoard, in.ID, me, func(x *Board) error { x.EmailKey = boardID("", 32); return nil })
-	if _, _, err := o.BoardInboundMail(ctx, T, cardMailKey(ib, c), sampleBoardMail()); !errors.Is(err, ErrInvalid) {
-		t.Fatalf("Inbox card took mail: %v", err)
-	}
 	// AI: not offered, with the reason.
 	if st, err := o.CardAI(ctx, T, me, in.ID, c.ID); err != nil || st.On || !strings.Contains(st.Why, "team boards") {
 		t.Fatalf("AI on the Inbox %+v %v", st, err)

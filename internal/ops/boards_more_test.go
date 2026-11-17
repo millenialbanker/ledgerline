@@ -511,8 +511,8 @@ func TestBoardPermissions(t *testing.T) {
 	if v, _ := o.GetBoard(ctx, T, "admin", b.ID, false); v.CanJoin {
 		t.Fatal("an admin was offered to join")
 	}
-	jb, err := o.JoinBoard(ctx, T, maker, b.ID)
-	if err != nil || jb.EmailKey != "" {
+	_, err = o.JoinBoard(ctx, T, maker, b.ID)
+	if err != nil {
 		t.Fatal(err)
 	}
 	if v, _ := o.GetBoard(ctx, T, maker, b.ID, false); v.Role != BoardMember || v.CanJoin {

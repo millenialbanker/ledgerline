@@ -55,7 +55,7 @@ Click a card to open it. The address in the browser then points at the card, so 
 - **Labels**: **Labels** picks the card's labels. A board admin can **Create a new label** or edit one (the pencil) there: a name and one of 30 colours, each of the ten in a subtle, normal and bold shade. **All the board's labels** lists them with how many cards use each.
 - **Attachments**: **Attachment** uploads files (up to 15 MB each) or attaches a link. You can also drop files on the window or paste a screenshot. An image can be the card's **cover**; **Cover** also offers colours and a full-card cover.
 - **Comments**: type @ and a name to mention someone (they are told); **@card** tells the card's members and watchers, and **@board** (from the board's admins and members) everyone who is an admin or member of the board; on a Ledgerline board, everyone whose role works it. An observer's @board is plain text. Nobody is told twice about one comment. Edit or delete your own; react with 👍 👀 ✅ 🎉 ❤️ 😂 🙏 ❗. **Show details** mixes in the card's activity.
-- **Actions**: Move, Copy (choose to keep checklists, labels and members), Watch, Archive, and **Share** (the card's link, print, export and its email address); a board admin can delete an archived card.
+- **Actions**: Move, Copy (choose to keep checklists, labels and members), Watch, Archive, and **Share** (the card's link, print and export); a board admin can delete an archived card.
 - Observers see everything but cannot change the card; they can still watch and vote, and comment and react unless the board's settings keep comments to members.
 
 ## boards-filters-search

@@ -148,7 +148,6 @@ func (o *Ops) JoinBoard(ctx context.Context, tenant, actor, id string) (Board, e
 	}
 	o.boardLog(ctx, tenant, actor, b, "", "board.joined", "joined this board", nil)
 	o.log(ctx, tenant, actor, "board.joined", b.ID, map[string]any{"name": b.Name})
-	b.EmailKey = ""
 	return b, nil
 }
 
@@ -219,7 +218,6 @@ func (o *Ops) SetBoardMembers(ctx context.Context, tenant, actor, id string, mem
 	if len(removed) > 0 {
 		o.boardLog(ctx, tenant, actor, b, "", "board.updated", "removed "+strings.Join(removed, ", ")+" from the board", nil)
 	}
-	b.EmailKey = ""
 	return b, nil
 }
 
