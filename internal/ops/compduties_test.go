@@ -289,8 +289,10 @@ func TestDutyCalendarFlow(t *testing.T) {
 		t.Fatalf("after all days done %+v", x)
 	}
 
-	// Ledgerline's nightly check: a pass leaves nothing to chase, a failure says so.
-	if ck, ok := find(func(d DutyDef) bool { return d.Link != nil && d.Link.Check != "" && applies(d) }); ok {
+	// Ledgerline's nightly check: a pass leaves nothing to chase, a failure
+	// says so. (A duty that Periodic work also does takes its dates from
+	// the task instead.)
+	if ck, ok := find(func(d DutyDef) bool { return d.Link != nil && d.Link.Check != "" && d.Link.Task == "" && applies(d) }); ok {
 		run := SIRun{ID: "SIR-9000001", Date: D, At: D + "T22:30:00+05:30", By: SystemActor, Trigger: "nightly", Results: []SIResult{{Test: ck.Link.Check, Status: SIPass, Summary: "All good"}}}
 		if err := docs.Upsert(ctx, o.Docs, T, cSIRun, run.ID, run, "test"); err != nil {
 			t.Fatal(err)
