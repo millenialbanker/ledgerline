@@ -415,7 +415,7 @@ title: Send limits and holdings to the trading system
 screen: rms
 roles: Risk manager, Ops checker
 ask: bod file; limit file; oms limits; notional cash; cash equivalent collateral; account id suffix; finspot collateral; trading limits not updated; holdings file to oms; start of day file; t1 holdings; finspot; finspot margin basket; finspot dealer; finspot limit file; finspot holding file; finspot block; finspot client creation; isin holding file; rms limits file
-related: client-cant-trade, debit-interest
+related: client-cant-trade, debit-interest, finspot-api
 
 On [[rms|RMS & limits]], download:
 
@@ -424,7 +424,7 @@ On [[rms|RMS & limits]], download:
 
 Load both into the trading system before the market opens. Autopilot prepares them in the start-of-day stage.
 
-**Finspot.** Under **Finspot uploads** the same files come in Finspot's own layouts, named as Finspot expects:
+**Finspot.** Under **Finspot uploads** the same files come in Finspot's own layouts, named as Finspot expects. With **Finspot by API** set up, limits, holdings, T1 holdings (and, when switched on, blocks, client logins and margin baskets) go straight to Finspot instead: see [[finspot-api|Limits and holdings to Finspot by API]].
 - **BOD limits** (RMS Limits, by 08:50): Finspot works out the limit itself, so each client's line across exchanges has the **ledger balance** as it stood at the end of the previous business day (column 5, negative when the client owes; uncleared cheques left out), the **group wise validation indicator** (column 17, `no` unless set otherwise in the connection) and **notional cash** (column 25): pledged **cash-equivalent** collateral after the day's haircut. For example `D224-BJT||||-20000.00||||||||||||no||||||||150000.00`. A blocked client (or one with no open segment) keeps a debit but gets no positive balance and no notional cash. Approved limit overrides and UPI blocks are not in the Finspot line. Finspot carries the equity segments only: the balance is meant to be the equity balance, and is the whole client ledger until segment-wise client ledgers exist.
 - **Cash equivalent** collateral: government securities, T-bills and SDLs (by ISIN, or NSE series GS, TB, SG), and the ISINs the firm lists under **Cash-equivalent collateral ISINs** in Connections → **Finspot uploads** (units of liquid and overnight funds, liquid ETFs; empty until the firm fills it). Every other pledged security is non-cash collateral.
 - **BOD holdings** (ISIN Holding, by 08:54): sellable demat holdings (margin-pledged shares included), less shares pledged to lenders or frozen at CDSL, plus unpaid purchases in CUSPA. A client's demat accounts are added up; the file takes whole units, so a fraction (units held in demat) is left out of each account. Clients of the DP only are not in any Finspot or BOW file. A margin-pledged **non-cash** security is collateral on its line (IS Collateral 1, Collateral Qty the pledged quantity, with the haircut), and Finspot adds its value to the limit. Cash-equivalent pledges are already notional cash in the limit file, so they are not collateral here: nothing is counted twice. A blocked client's holdings carry no collateral.

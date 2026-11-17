@@ -676,63 +676,9 @@ func (o *Ops) bowLimits(ctx context.Context, tenant, date string) (map[string]BO
 	if !validDate(date) {
 		return nil, invalid("give a date (YYYY-MM-DD)")
 	}
-	set, _ := o.Settings(ctx, tenant)
-	apart, earmark := set.segApart(), set.mcxEarmark()
-	eq, err := o.finspotFunds(ctx, tenant, date)
+	eq, com, err := o.liveFunds(ctx, tenant, date)
 	if err != nil {
 		return nil, err
-	}
-	com := map[string]money.Dec{}
-	if apart {
-		if com, err = o.bowFunds(ctx, tenant, date); err != nil {
-			return nil, err
-		}
-	}
-	prev := set.PrevBusinessDay(date)
-	es, err := o.App.Ledger.Store.List(ctx, tenant, ledger.Filter{From: addDays(prev, 1), To: date})
-	if err != nil {
-		return nil, err
-	}
-	var mcxIDs map[string]bool
-	if earmark {
-		if mcxIDs, err = o.mcxEntries(ctx, tenant); err != nil {
-			return nil, err
-		}
-		ms, _ := docs.List[MCXMove](ctx, o.Docs, tenant, cMCXMove, "")
-		for _, m := range ms {
-			if m.Status != "Approved" || m.Date <= prev || m.Date > date {
-				continue
-			}
-			d := m.Amount.Dec()
-			if m.To != EarmarkMCX {
-				d = d.Neg()
-			}
-			com[m.UCC], eq[m.UCC] = com[m.UCC].Add(d), eq[m.UCC].Sub(d)
-		}
-	}
-	for _, e := range es {
-		if !bowMoneyKinds[e.Source.Kind] {
-			continue
-		}
-		mcx := earmark && (mcxIDs[e.ID] || (e.ReversalOf != "" && mcxIDs[e.ReversalOf]))
-		for _, p := range e.Postings {
-			u, kind, ok := ledger.ClientCode(p.Account)
-			if !ok {
-				continue
-			}
-			d := (p.Credit - p.Debit).Dec()
-			switch {
-			case kind == ledger.LedgerCommodity && apart, kind == ledger.LedgerEquity && mcx:
-				com[u] = com[u].Add(d)
-			case kind == ledger.LedgerEquity:
-				eq[u] = eq[u].Add(d)
-			}
-		}
-	}
-	for u, segs := range o.payoutHeld(ctx, tenant, date) {
-		for _, v := range segs {
-			eq[u] = eq[u].Sub(v)
-		}
 	}
 	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
@@ -777,6 +723,75 @@ func (o *Ops) bowLimits(ctx context.Context, tenant, date string) (map[string]BO
 		out[u] = l
 	}
 	return out, nil
+}
+
+// liveFunds are each client's money for the front ends as things stand
+// now (bowLimits, and Finspot's API push, finspotapi.go): eq the equity
+// money (finspotFunds, the start-of-day balance), com the commodity money
+// (the BOW commodity funds file, bowFunds, when the firm keeps them
+// apart), plus money in and out posted since the previous business day
+// (bowMoneyKinds), less pay-out holds in effect (equity only); as
+// bowLimits describes. Signed: a debit stays negative.
+func (o *Ops) liveFunds(ctx context.Context, tenant, date string) (eq, com map[string]money.Dec, err error) {
+	set, _ := o.Settings(ctx, tenant)
+	apart, earmark := set.segApart(), set.mcxEarmark()
+	eq, err = o.finspotFunds(ctx, tenant, date)
+	if err != nil {
+		return nil, nil, err
+	}
+	com = map[string]money.Dec{}
+	if apart {
+		if com, err = o.bowFunds(ctx, tenant, date); err != nil {
+			return nil, nil, err
+		}
+	}
+	prev := set.PrevBusinessDay(date)
+	es, err := o.App.Ledger.Store.List(ctx, tenant, ledger.Filter{From: addDays(prev, 1), To: date})
+	if err != nil {
+		return nil, nil, err
+	}
+	var mcxIDs map[string]bool
+	if earmark {
+		if mcxIDs, err = o.mcxEntries(ctx, tenant); err != nil {
+			return nil, nil, err
+		}
+		ms, _ := docs.List[MCXMove](ctx, o.Docs, tenant, cMCXMove, "")
+		for _, m := range ms {
+			if m.Status != "Approved" || m.Date <= prev || m.Date > date {
+				continue
+			}
+			d := m.Amount.Dec()
+			if m.To != EarmarkMCX {
+				d = d.Neg()
+			}
+			com[m.UCC], eq[m.UCC] = com[m.UCC].Add(d), eq[m.UCC].Sub(d)
+		}
+	}
+	for _, e := range es {
+		if !bowMoneyKinds[e.Source.Kind] {
+			continue
+		}
+		mcx := earmark && (mcxIDs[e.ID] || (e.ReversalOf != "" && mcxIDs[e.ReversalOf]))
+		for _, p := range e.Postings {
+			u, kind, ok := ledger.ClientCode(p.Account)
+			if !ok {
+				continue
+			}
+			d := (p.Credit - p.Debit).Dec()
+			switch {
+			case kind == ledger.LedgerCommodity && apart, kind == ledger.LedgerEquity && mcx:
+				com[u] = com[u].Add(d)
+			case kind == ledger.LedgerEquity:
+				eq[u] = eq[u].Add(d)
+			}
+		}
+	}
+	for u, segs := range o.payoutHeld(ctx, tenant, date) {
+		for _, v := range segs {
+			eq[u] = eq[u].Sub(v)
+		}
+	}
+	return eq, com, nil
 }
 
 // ---- client mapping ----

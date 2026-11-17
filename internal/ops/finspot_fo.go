@@ -175,20 +175,52 @@ func (o *Ops) FinspotMarginBasketFile(ctx context.Context, tenant, exch, date st
 	if err != nil {
 		return "", nil, err
 	}
-	cfg, err := o.finspotConfig(ctx, tenant)
+	cfg, basket, lines, err := o.finspotBasketLines(ctx, tenant, exch, date)
 	if err != nil {
 		return "", nil, err
+	}
+	code := exch + " Margin Basket"
+	rows := []xfile.Row{{Record: code, Values: map[string]string{"Header": code, "Product": cfg.BasketProduct, "Basket": finspotText(basket)}}}
+	for _, l := range lines {
+		if exch == "NSE" {
+			rows = append(rows, xfile.Row{Values: map[string]string{"Symbol": finspotText(l.Symbol), "Series": finspotText(l.Series), "MarginPct": trimDec(l.Pct.Fixed(2))}})
+		} else {
+			rows = append(rows, xfile.Row{Values: map[string]string{"ScripCode": finspotText(l.Token), "MarginPct": trimDec(l.Pct.Fixed(2))}})
+		}
+	}
+	b, err := s.Write(rows)
+	if err != nil {
+		return "", nil, err
+	}
+	name, err := s.FileName(xfile.Vars{"date": date})
+	return name, b, err
+}
+
+// finspotBasketLine is one scrip of a margin basket: Token is the
+// exchange's token (BSE: the scrip code; NSE: from the bhavcopy, "" when
+// not loaded).
+type finspotBasketLine struct {
+	ISIN, Symbol, Series, Token string
+	Pct                         money.Dec
+}
+
+// finspotBasketLines are a margin basket's scrips for a date, as
+// FinspotMarginBasketFile describes; the Finspot API push sends the same.
+func (o *Ops) finspotBasketLines(ctx context.Context, tenant, exch, date string) (finspotCfg, string, []finspotBasketLine, error) {
+	cfg, err := o.finspotConfig(ctx, tenant)
+	if err != nil {
+		return cfg, "", nil, err
 	}
 	set, _ := o.Settings(ctx, tenant)
 	m, _, err := o.Market(ctx, tenant, set.PrevBusinessDay(date))
 	if err != nil {
-		return "", nil, err
+		return cfg, "", nil, err
 	}
-	code, basket := "NSE Margin Basket", cfg.NSEBasket
+	basket := cfg.NSEBasket
 	if exch == "BSE" {
-		code, basket = "BSE Margin Basket", cfg.BSEBasket
+		basket = cfg.BSEBasket
 	}
-	rows := []xfile.Row{{Record: code, Values: map[string]string{"Header": code, "Product": cfg.BasketProduct, "Basket": finspotText(basket)}}}
+	var out []finspotBasketLine
 	seen := map[string]bool{}
 	is := append([]Instrument(nil), m.Instruments...)
 	sort.SliceStable(is, func(i, j int) bool { return is[i].Symbol < is[j].Symbol })
@@ -200,19 +232,14 @@ func (o *Ops) FinspotMarginBasketFile(ctx context.Context, tenant, exch, date st
 		ref, _, _ := docs.Get[SecRef](ctx, o.Docs, tenant, cSecRef, i.ISIN)
 		if exch == "NSE" {
 			seen[i.ISIN] = true
-			rows = append(rows, xfile.Row{Values: map[string]string{"Symbol": finspotText(i.Symbol), "Series": finspotText(firstOf(ref.Series, "EQ")), "MarginPct": trimDec(pct.Fixed(2))}})
+			out = append(out, finspotBasketLine{ISIN: i.ISIN, Symbol: i.Symbol, Series: firstOf(ref.Series, "EQ"), Token: i.Token, Pct: pct})
 			continue
 		}
 		if ref.BSECode == "" {
 			continue // the BSE basket is by scrip code
 		}
 		seen[i.ISIN] = true
-		rows = append(rows, xfile.Row{Values: map[string]string{"ScripCode": finspotText(ref.BSECode), "MarginPct": trimDec(pct.Fixed(2))}})
+		out = append(out, finspotBasketLine{ISIN: i.ISIN, Symbol: i.Symbol, Token: ref.BSECode, Pct: pct})
 	}
-	b, err := s.Write(rows)
-	if err != nil {
-		return "", nil, err
-	}
-	name, err := s.FileName(xfile.Vars{"date": date})
-	return name, b, err
+	return cfg, basket, out, nil
 }

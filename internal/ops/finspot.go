@@ -41,8 +41,10 @@ import (
 //     Margin Basket (finspot-margin-basket-nse, -bse), from firm settings
 //     and the day's VaR and ELM (finspot_fo.go).
 //
-// Finspot has no upload API that Ledgerline knows of: the files are
-// downloaded on Live RMS → Front-office files and uploaded on Finspot.
+// The files are downloaded on Live RMS → Front-office files and uploaded on
+// Finspot, or, with Finspot by API set up (finspotapi.go), the limits,
+// holdings, T1 holdings and optionally blocks, client logins and margin
+// baskets go by Noren's admin API from the same lines.
 // The firm-level values Finspot needs and Ledgerline does not otherwise
 // hold (exchange user IDs per segment, the login role and type, dealer IDs,
 // order types, margin basket product, names and minimum) are in Connections → Finspot uploads; a firm with
@@ -62,7 +64,7 @@ var finspotMu sync.Mutex
 
 func init() {
 	ConnProviders = append(ConnProviders, ConnProvider{ID: connFinspot, Name: "Finspot uploads (trading front end)", Group: "Trading", Test: "none",
-		Purpose: "What Finspot's client and segment uploads need from the firm. Finspot takes files (no API): download them on Live RMS → Front-office files. Saving this connection also puts the Finspot BOD limit and holding files on the daily file checklist",
+		Purpose: "What Finspot's uploads need from the firm, for the files (Live RMS → Front-office files) and for Finspot by API alike. Saving this connection also puts the Finspot BOD limit and holding files on the daily file checklist",
 		Fields: []ConnField{
 			{Key: "exchange_users", Label: "Exchange user ID and user info per Finspot segment (e.g. NSE=9001:100000000001; NFO=9003:100000000003; BSE=…), optionally :dd/mm/yyyy expiry", Optional: true},
 			{Key: "segment_expiry", Label: "Segment expiry date (dd/mm/yyyy), when not given per segment", Optional: true},
@@ -248,23 +250,42 @@ func (o *Ops) FinspotHoldingFile(ctx context.Context, tenant, date string, t1 bo
 	if err != nil {
 		return "", nil, err
 	}
+	rows, err := o.finspotHoldingRows(ctx, tenant, date, t1)
+	if err != nil {
+		return "", nil, err
+	}
+	b, err := s.Write(rows)
+	if err != nil {
+		return "", nil, err
+	}
+	name, err := s.FileName(xfile.Vars{"date": date})
+	if err == nil {
+		o.noteDailyFile(ctx, tenant, SystemActor, id, name, date)
+	}
+	return name, b, err
+}
+
+// finspotHoldingRows are the ISIN Holding (t1 false) or T1 - ISIN
+// Holdings lines for a trading date, as FinspotHoldingFile describes; the
+// Finspot API push (finspotapi.go) sends the same lines.
+func (o *Ops) finspotHoldingRows(ctx context.Context, tenant, date string, t1 bool) ([]xfile.Row, error) {
 	set, _ := o.Settings(ctx, tenant)
 	prev := set.PrevBusinessDay(date)
 	cs, err := o.tradingClientMap(ctx, tenant)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 	_, look, _ := o.Market(ctx, tenant, prev) // no market data: haircut 1, price 0
 	qty := map[string]int64{}                 // UCC|ISIN
 	pledged := map[string]int64{}             // UCC|ISIN: margin-pledged, not cash equivalent
 	cfg, err := o.finspotConfig(ctx, tenant)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 	if t1 {
 		buys, err := o.t1Buys(ctx, tenant, prev, look)
 		if err != nil {
-			return "", nil, err
+			return nil, err
 		}
 		for k, b := range buys {
 			qty[k] = b.Net
@@ -272,7 +293,7 @@ func (o *Ops) FinspotHoldingFile(ctx context.Context, tenant, date string, t1 bo
 	} else {
 		lines, err := o.sellableDemat(ctx, tenant, date, cs)
 		if err != nil {
-			return "", nil, err
+			return nil, err
 		}
 		var pl []string
 		for _, l := range lines {
@@ -298,7 +319,7 @@ func (o *Ops) FinspotHoldingFile(ctx context.Context, tenant, date string, t1 bo
 			continue
 		}
 		if len(u) > 10 {
-			return "", nil, invalid("client code %s is longer than Finspot's 10 characters", u)
+			return nil, invalid("client code %s is longer than Finspot's 10 characters", u)
 		}
 		if _, ok := poa[u]; !ok {
 			poa[u] = o.finspotPOA(ctx, tenant, c)
@@ -323,15 +344,7 @@ func (o *Ops) FinspotHoldingFile(ctx context.Context, tenant, date string, t1 bo
 			"Haircut": trimDec(hc.Fixed(4)), "BrokerCollateralQty": "0", "DPHoldingsQty": "0", "ClosePrice": px.Fixed(3), "BeneficiaryHoldings": "0",
 			"Product": "CNC", "ActualPrice": px.Fixed(3), "DPAccount": finspotText(normDematID(c.Demat.ID)), "POAFlag": poa[u]}})
 	}
-	b, err := s.Write(rows)
-	if err != nil {
-		return "", nil, err
-	}
-	name, err := s.FileName(xfile.Vars{"date": date})
-	if err == nil {
-		o.noteDailyFile(ctx, tenant, SystemActor, id, name, date)
-	}
-	return name, b, err
+	return rows, nil
 }
 
 // finspotPOA is Y when the client has a DDPI or a POA for securities.
@@ -546,36 +559,73 @@ func (o *Ops) FinspotBlockFile(ctx context.Context, tenant, actor, date string) 
 	}
 	finspotMu.Lock()
 	defer finspotMu.Unlock()
-	cs, err := o.tradingClientMap(ctx, tenant)
+	cfg, err := o.finspotConfig(ctx, tenant)
 	if err != nil {
 		return "", nil, err
 	}
-	prior, err := docs.List[FinspotBlockState](ctx, o.Docs, tenant, cFinspotBlock, "")
+	items, changed, err := o.finspotBlockPlan(ctx, tenant, date)
 	if err != nil {
 		return "", nil, err
+	}
+	var rows []xfile.Row
+	line := func(u, side, product, block, why string) {
+		rows = append(rows, xfile.Row{Fields: 22, Values: map[string]string{"Client": cfg.ID(u), "Side": side, "Products": product, "BlockType": "NON-SQROFF", "Block": block, "Remarks": finspotRemark(why)}})
+	}
+	for _, it := range items {
+		block, why := "N", "Block lifted"
+		if it.Block {
+			block, why = "Y", it.Why
+		}
+		line(it.UCC, "", "MIS", block, why)
+		line(it.UCC, "", "NRML", block, why)
+		line(it.UCC, "B", "CNC", block, why)
+	}
+	b, err := s.Write(rows)
+	if err != nil {
+		return "", nil, err
+	}
+	if err := o.saveFinspotBlocks(ctx, tenant, actor, changed); err != nil {
+		return "", nil, err
+	}
+	name, err := s.FileName(xfile.Vars{"date": date, "time": o.now().In(ist).Format(finspotTimeFmt)})
+	if err == nil {
+		o.noteDailyFile(ctx, tenant, actor, "finspot-rms-block", name, date)
+	}
+	return name, b, err
+}
+
+// finspotBlockItem is one client in the block list: blocked now (Block,
+// with Why), or unblocked; Changed when it differs from what Finspot was
+// last told.
+type finspotBlockItem struct {
+	UCC, Why       string
+	Block, Changed bool
+}
+
+// finspotBlockPlan is the block list for a date, as FinspotBlockFile
+// describes: every client blocked now, and the unblocks of clients
+// Ledgerline blocked before (again on the day of the change). changed are
+// the states to keep once Finspot has the list (saveFinspotBlocks). The
+// caller holds finspotMu.
+func (o *Ops) finspotBlockPlan(ctx context.Context, tenant, date string) ([]finspotBlockItem, []FinspotBlockState, error) {
+	cs, err := o.tradingClientMap(ctx, tenant)
+	if err != nil {
+		return nil, nil, err
+	}
+	prior, err := docs.List[FinspotBlockState](ctx, o.Docs, tenant, cFinspotBlock, "")
+	if err != nil {
+		return nil, nil, err
 	}
 	st := map[string]FinspotBlockState{}
 	for _, p := range prior {
 		st[p.UCC] = p
-	}
-	cfg, err := o.finspotConfig(ctx, tenant)
-	if err != nil {
-		return "", nil, err
 	}
 	sent, _ := docs.List[finspotSentState](ctx, o.Docs, tenant, cFinspotSent, "clients|")
 	onFinspot := map[string]bool{}
 	for _, x := range sent {
 		onFinspot[x.UCC] = true
 	}
-	var rows []xfile.Row
-	line := func(u, side, product, block, why string) {
-		rows = append(rows, xfile.Row{Fields: 22, Values: map[string]string{"Client": cfg.ID(u), "Side": side, "Products": product, "BlockType": "NON-SQROFF", "Block": block, "Remarks": finspotRemark(why)}})
-	}
-	lines := func(u, block, why string) {
-		line(u, "", "MIS", block, why)
-		line(u, "", "NRML", block, why)
-		line(u, "B", "CNC", block, why)
-	}
+	var items []finspotBlockItem
 	var changed []FinspotBlockState
 	for _, u := range sortedKeys(cs) {
 		c := cs[u]
@@ -585,35 +635,32 @@ func (o *Ops) FinspotBlockFile(ctx context.Context, tenant, actor, date string) 
 			continue // never on Finspot
 		}
 		if len(u) > 10 {
-			return "", nil, invalid("client code %s is longer than Finspot's 10 characters", u)
+			return nil, nil, invalid("client code %s is longer than Finspot's 10 characters", u)
 		}
 		switch {
 		case why != "":
-			lines(u, "Y", why)
-			if !was.Blocked || was.Reason != why {
+			ch := !was.Blocked || was.Reason != why
+			items = append(items, finspotBlockItem{UCC: u, Why: why, Block: true, Changed: ch})
+			if ch {
 				changed = append(changed, FinspotBlockState{UCC: u, Blocked: true, Reason: why, On: date})
 			}
 		case known && was.Blocked:
-			lines(u, "N", "Block lifted")
+			items = append(items, finspotBlockItem{UCC: u, Changed: true})
 			changed = append(changed, FinspotBlockState{UCC: u, Blocked: false, On: date})
 		case known && was.On == date:
-			lines(u, "N", "Block lifted") // unblocked earlier today: written again
+			items = append(items, finspotBlockItem{UCC: u}) // unblocked earlier today: sent again
 		}
 	}
-	b, err := s.Write(rows)
-	if err != nil {
-		return "", nil, err
-	}
+	return items, changed, nil
+}
+
+func (o *Ops) saveFinspotBlocks(ctx context.Context, tenant, actor string, changed []FinspotBlockState) error {
 	for _, x := range changed {
 		if err := docs.Upsert(ctx, o.Docs, tenant, cFinspotBlock, x.UCC, x, actor); err != nil {
-			return "", nil, err
+			return err
 		}
 	}
-	name, err := s.FileName(xfile.Vars{"date": date, "time": o.now().In(ist).Format(finspotTimeFmt)})
-	if err == nil {
-		o.noteDailyFile(ctx, tenant, actor, "finspot-rms-block", name, date)
-	}
-	return name, b, err
+	return nil
 }
 
 // finspotRemark is a short remark: Finspot's sample remarks are a few words.

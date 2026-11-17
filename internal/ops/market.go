@@ -35,6 +35,10 @@ type Instrument struct {
 	Delta      money.Dec `json:"delta"`
 	Underlying money.Dec `json:"underlying"`
 	Index      bool      `json:"index"`
+	// Token is the exchange's own contract number (the common bhavcopy's
+	// FinInstrmId: NSE's token, BSE's scrip code), which front ends such as
+	// Finspot (Noren) name contracts by.
+	Token string `json:"token,omitempty"`
 }
 
 // Key matches ingest.TradeEvent.Instrument().
@@ -70,6 +74,7 @@ type Lookup struct {
 	m      map[string]Instrument
 	bySym  map[string]Instrument
 	byISIN map[string]Instrument
+	tokens map[string]map[string]string // ISIN -> exchange -> token (cash market)
 }
 
 func (l Lookup) Get(exch, seg, key string) (Instrument, bool) {
@@ -92,8 +97,12 @@ func (l Lookup) ForTrade(t ingest.TradeEvent) (Instrument, bool) {
 // ByISIN finds a cash-market instrument by ISIN.
 func (l Lookup) ByISIN(isin string) (Instrument, bool) { i, ok := l.byISIN[isin]; return i, ok }
 
+// Tokens are a cash-market ISIN's exchange tokens by exchange (NSE, BSE),
+// as the day's bhavcopies gave them; nil when none is known.
+func (l Lookup) Tokens(isin string) map[string]string { return l.tokens[isin] }
+
 func newLookup(m Market) Lookup {
-	l := Lookup{m: map[string]Instrument{}, bySym: map[string]Instrument{}, byISIN: map[string]Instrument{}}
+	l := Lookup{m: map[string]Instrument{}, bySym: map[string]Instrument{}, byISIN: map[string]Instrument{}, tokens: map[string]map[string]string{}}
 	for _, i := range m.Instruments {
 		l.m[i.Exchange+"|"+i.Segment+"|"+i.Key()] = i
 		if i.Segment == "CM" {
@@ -103,6 +112,12 @@ func newLookup(m Market) Lookup {
 			if i.ISIN != "" {
 				if _, ok := l.byISIN[i.ISIN]; !ok || i.Exchange == "NSE" {
 					l.byISIN[i.ISIN] = i
+				}
+				if i.Token != "" && i.Type == "EQ" {
+					if l.tokens[i.ISIN] == nil {
+						l.tokens[i.ISIN] = map[string]string{}
+					}
+					l.tokens[i.ISIN][i.Exchange] = i.Token
 				}
 			}
 		}

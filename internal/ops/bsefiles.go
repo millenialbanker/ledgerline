@@ -182,7 +182,7 @@ func (o *Ops) loadBhavcopy(ctx context.Context, tenant, actor, name string, rows
 		if sym == "" {
 			continue
 		}
-		in := Instrument{Exchange: exch, Segment: seg, Symbol: sym, Type: typ, ISIN: isin, Company: row.Get("FinInstrmNm"), Index: ft == "IDF" || ft == "IDO"}
+		in := Instrument{Exchange: exch, Segment: seg, Symbol: sym, Type: typ, ISIN: isin, Company: row.Get("FinInstrmNm"), Index: ft == "IDF" || ft == "IDO", Token: code}
 		if typ != "EQ" {
 			in.Expiry = anyDate(row.Get("XpryDt"))
 			if in.Expiry == "" {
@@ -223,6 +223,9 @@ func (o *Ops) loadBhavcopy(ctx context.Context, tenant, actor, name string, rows
 			}
 			if x.ISIN == "" {
 				x.ISIN = isin
+			}
+			if code != "" {
+				x.Token = code
 			}
 			if und.Sign() > 0 {
 				x.Underlying = und

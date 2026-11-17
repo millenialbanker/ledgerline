@@ -299,6 +299,9 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.mcxUCCAPITick(ctx, tenant, now)
 	// Client limits to BOW (BOLTPlusOnWeb) by its API, when switched on.
 	o.bowTick(ctx, tenant, now)
+	// Limits, holdings (and blocks, logins, baskets) to Finspot by the
+	// Noren admin API, when switched on.
+	o.finspotAPITick(ctx, tenant, now)
 	// Holding statement to NSE by API, when switched on.
 	o.nseHoldingTick(ctx, tenant, now)
 	// Dealers: NISM certificate expiry and open terminals of dealers who left.

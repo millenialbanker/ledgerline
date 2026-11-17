@@ -71,6 +71,7 @@ func (s *Server) opsRoutes() {
 	s.mcxRoutes()
 	s.segLedgerRoutes()
 	s.bowRoutes()
+	s.finspotAPIRoutes()
 	s.migrationRoutes()
 	s.selfInspectRoutes()
 	s.inspackRoutes()

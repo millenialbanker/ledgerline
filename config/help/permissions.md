@@ -77,6 +77,7 @@ Changing the self-inspection schedule | Compliance officer
 Changing vendors | Ops maker, Ops checker
 Chasing missing daily files | Ops maker, Ops checker, Risk manager, Compliance officer
 Checking CDSL demat account counts | Ops maker, Ops checker, Compliance officer
+Checking Finspot | Risk manager
 Checking PAN status at BSE | Ops maker, Ops checker
 Checking PAN status at the exchange | Ops maker, Ops checker, Compliance officer
 Checking UCC status at MCX | Ops maker, Ops checker, Compliance officer
@@ -188,6 +189,7 @@ Producing the payout bank file | Ops maker, Ops checker
 Proposing a migration load | Admin
 Proposing legacy debts | Ops maker, Ops checker, Risk manager, Compliance officer
 Pushing limits to BOW | Risk manager
+Pushing to Finspot | Risk manager
 Raising CDSL requests | Ops maker, Ops checker
 Raising pledge invocations | Risk manager
 Raising stock SIP top-up debits | Ops maker, Ops checker
@@ -312,6 +314,7 @@ Viewing CDSL API transactions | Ops maker, Ops checker, Risk manager, Compliance
 Viewing CDSL demat account counts | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing CDSL freezes | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing CDSL requests | Ops maker, Ops checker, Compliance officer
+Viewing Finspot pushes | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing MCX UCC registrations | Ops maker, Ops checker, Compliance officer
 Viewing backups | Ops checker, Compliance officer
 Viewing clients BSE does not permit to trade | Ops maker, Ops checker, Risk manager, Compliance officer
