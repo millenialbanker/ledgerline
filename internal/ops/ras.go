@@ -104,6 +104,15 @@ type RASBatch struct {
 	// bank account is incomplete (migrated as the previous system had it,
 	// incomplete.go); they are settled once it is completed.
 	Held []string `json:"held,omitempty"`
+	// Retained are the clients settled by retention alone: a credit balance
+	// kept in full for their obligations and margin, nothing paid. The
+	// exchanges' UCC-wise report lists them with NA bank details
+	// (NSE/INSP/56148, Annexure 1; rasucc.go).
+	Retained []RASItem `json:"retained,omitempty"`
+	// PaidFrom and PaidFromIFSC are the firm's account the payouts are made
+	// from (a DSCNBA, firmbanks.go), for the UCC-wise report.
+	PaidFrom     string `json:"paid_from,omitempty"`
+	PaidFromIFSC string `json:"paid_from_ifsc,omitempty"`
 }
 
 // RASItem is one payout in a batch.
@@ -318,12 +327,18 @@ func (o *Ops) RunRAS(ctx context.Context, tenant, actor, asOf, settleDate string
 		return RASBatch{}, err
 	}
 	b := RASBatch{Date: settleDate, AsOf: asOf, Items: []RASItem{}, Entries: []string{}, By: actor, At: o.now().Format("2006-01-02 15:04")}
+	b.PaidFrom, b.PaidFromIFSC = o.rasPaidFrom(ctx, tenant)
+	kept := o.rasRetainedOn(ctx, tenant, settleDate)
 	for _, r := range v.Rows {
 		if !r.dueIn(settleDate) {
 			continue
 		}
 		amt := r.Payout.Round(money.UnitPaisa)
 		if amt <= 0 {
+			// Settled by retention alone: recorded once for the date.
+			if r.Credit.Sign() > 0 && !kept[r.UCC] {
+				b.Retained = append(b.Retained, RASItem{UCC: r.UCC, Name: clients[r.UCC].Name, Credit: r.Credit, Retained: r.Credit})
+			}
 			continue
 		}
 		c := clients[r.UCC]
@@ -349,7 +364,7 @@ func (o *Ops) RunRAS(ctx context.Context, tenant, actor, asOf, settleDate string
 		b.Total += amt
 		b.Entries = append(b.Entries, e.ID)
 	}
-	if len(b.Items) == 0 {
+	if len(b.Items) == 0 && len(b.Retained) == 0 {
 		if len(b.Held) > 0 {
 			return b, fmt.Errorf("%w: no payout can be made on %s: %s", ErrState, settleDate, strings.Join(b.Held, "; "))
 		}
@@ -359,7 +374,9 @@ func (o *Ops) RunRAS(ctx context.Context, tenant, actor, asOf, settleDate string
 	if err := docs.Upsert(ctx, o.Docs, tenant, cRASBatch, id, b, actor); err != nil {
 		return b, err
 	}
-	o.log(ctx, tenant, actor, "ras.run", settleDate, map[string]any{"clients": len(b.Items), "total": b.Total.String()})
+	o.log(ctx, tenant, actor, "ras.run", settleDate, map[string]any{"clients": len(b.Items), "retained_only": len(b.Retained), "total": b.Total.String()})
+	// The exchange's UCC-wise report of the settlement is now due (rasucc.go).
+	o.rasUCCQueue(ctx, tenant, settleDate)
 	// Each client gets the statement of the settlement (SEBI requires it).
 	if res, err := o.SendStatements(ctx, tenant, SystemActor, DocRAS, settleDate); err != nil || len(res.Errors) > 0 {
 		o.log(ctx, tenant, SystemActor, "statements.error", "ras "+settleDate, map[string]any{"error": fmt.Sprint(err, res.Errors)})

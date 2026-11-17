@@ -231,6 +231,9 @@ func (o *Ops) recordCredits(ctx context.Context, tenant string, c Connection, so
 			res.Duplicate++
 			continue
 		}
+		// The line, with the firm's account paid into, for the daily client
+		// money reconciliation (clientmoney.go).
+		o.keepBankLines(ctx, tenant, "bank", []BankLine{{Date: t.Date, Time: t.Time, Mode: t.Mode, Ref: t.Ref, Party: t.Remitter, PartyAccount: t.Account, Amount: t.Amount, DrCr: "CR", Account: t.ToAccount, Source: source + " (live)"}})
 		t, err := o.matchCredit(ctx, tenant, "bank", t, clients)
 		if err != nil {
 			return res, err

@@ -1,0 +1,165 @@
+{
+ "id": "nse-ras-ucc",
+ "title": "UCC-wise details of the running account settlement (NSE member portal)",
+ "party": "NSE",
+ "direction": "out",
+ "when": "Within 10 trading days of each running account settlement",
+ "purpose": "Client by client, what the firm retained and what it paid at a running account settlement, with the bank accounts, the transfer mode, and when the statement and the SMS and email went to the client (17 fields). One CSV in a ZIP of the same name, uploaded on the member portal under Inspection > Statement Upload > Settlement Statement > Submit Data > Submit UCC wise Details.",
+ "names": [
+  "[A-Z]{5}\\d{4}[A-Z]_QS_\\d{8}(_\\d+)?\\.(csv|zip)"
+ ],
+ "template": "{member_pan}_QS_{date:02012006}_{seq:2}.csv",
+ "header": true,
+ "confirmed": false,
+ "linked": "Written from Ledgerline's running account settlement batches (paid and retained-only clients) on Receipts & payouts → Running account",
+ "source": "Fields 1-10: NSE/INSP/55135 (5 Jan 2023), file name PAN_QS_DDMMYYYY(_SeqNo), one CSV per ZIP, bank account numbers in double quotes. Fields 11-17: the revised format from the settlement of 6 Oct 2023 (BSE notice 20230929-39; MSE/INSP/14235/2023; NCDEX/COMPLIANCE-100/2023 of 29 Sep 2023), as listed in NCDEX's Master Circular - Member Inspection 2025-26 (NCDEX/MEMBER INSPECTION-013/2026 of 30 Apr 2026), Annexure A. Data rules: NSE/INSP/56148 (27 Mar 2023), Annexure 1. Not confirmed: the header text of NSE's current portal template, the date in the file name (the settlement date here; NSE/INSP/55135 gave the quarter-end date when settlement was quarterly) what fields 11 to 17 hold for a client whose funds were only retained (NA here), and whether the first file may carry the sequence number _01 (every file has one here, so a corrected file never repeats a name; NSE/INSP/55135 adds it when more files are needed).",
+ "compress": "zip",
+ "format": "delimited",
+ "delimiter": ",",
+ "crlf": true,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "Date of Settlement",
+   "key": "date",
+   "type": "date",
+   "layout": "02-01-2006",
+   "required": true
+  },
+  {
+   "name": "TM Code",
+   "key": "tm_code",
+   "type": "str",
+   "required": true,
+   "note": "Numeric trading member code, Char (10)"
+  },
+  {
+   "name": "TM PAN",
+   "key": "tm_pan",
+   "type": "str",
+   "required": true,
+   "note": "Alpha-numeric trading member PAN, Char (10)"
+  },
+  {
+   "name": "Client UCC",
+   "key": "ucc",
+   "type": "str",
+   "required": true,
+   "note": "Alpha-numeric client code, Char (20)"
+  },
+  {
+   "name": "Value of amount retained",
+   "key": "retained",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true,
+   "required": true,
+   "note": "Numeric, in rupees"
+  },
+  {
+   "name": "Value of amount paid",
+   "key": "paid",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true,
+   "required": true,
+   "note": "Numeric, in rupees"
+  },
+  {
+   "name": "TM Bank account number",
+   "key": "tm_account",
+   "type": "str",
+   "quote": "digits",
+   "required": true,
+   "note": "The account the client was paid from: one reported as a Down Streaming Client Nodal Bank Account (DSCNBA) under enhanced supervision; in double quotes; NA when nothing was paid"
+  },
+  {
+   "name": "TM Bank IFSC",
+   "key": "tm_ifsc",
+   "type": "str",
+   "required": true,
+   "note": "IFSC of the bank the settlement is paid from; NA when nothing was paid"
+  },
+  {
+   "name": "Client Bank Account Number",
+   "key": "client_account",
+   "type": "str",
+   "quote": "digits",
+   "required": true,
+   "note": "In double quotes; NA when nothing was paid"
+  },
+  {
+   "name": "Client Bank IFSC",
+   "key": "client_ifsc",
+   "type": "str",
+   "required": true,
+   "note": "NA when nothing was paid"
+  },
+  {
+   "name": "Whether funds transferred through electronic mode",
+   "key": "electronic",
+   "type": "str",
+   "required": true,
+   "codes": {
+    "Yes": "Paid by electronic transfer",
+    "No": "Paid otherwise (give the reason in the next field)",
+    "NA": "Nothing paid: the funds were only retained (not confirmed)"
+   }
+  },
+  {
+   "name": "If no, reasons for other than electronic Mode",
+   "key": "not_electronic_reason",
+   "type": "str",
+   "note": "Free text"
+  },
+  {
+   "name": "Whether Statement of accounts along with retention statement (if any) is sent to the clients at the time of Settlement",
+   "key": "statement_sent",
+   "type": "str",
+   "required": true,
+   "codes": {
+    "Yes": "Sent",
+    "No": "Not sent"
+   }
+  },
+  {
+   "name": "Statement of accounts – Sent Date",
+   "key": "statement_date",
+   "type": "date",
+   "layout": "02-01-2006",
+   "aliases": [
+    "Statement of accounts - Sent Date"
+   ]
+  },
+  {
+   "name": "Whether intimation including the details about the transfer of funds sent to clients by SMS & email.",
+   "key": "intimation_sent",
+   "type": "str",
+   "required": true,
+   "codes": {
+    "Yes": "Sent by both or either of email and SMS",
+    "No": "Sent by neither"
+   }
+  },
+  {
+   "name": "Email – Sent Date",
+   "key": "email_date",
+   "type": "date",
+   "layout": "02-01-2006",
+   "aliases": [
+    "Email - Sent Date"
+   ],
+   "note": "Blank if not sent"
+  },
+  {
+   "name": "SMS – Sent Date",
+   "key": "sms_date",
+   "type": "date",
+   "layout": "02-01-2006",
+   "aliases": [
+    "SMS - Sent Date"
+   ],
+   "note": "Blank if not sent"
+  }
+ ]
+}

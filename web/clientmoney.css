@@ -1,0 +1,6 @@
+/* Client money reconciliation (web/clientmoney.js). */
+.cm-flags { margin: 6px 0 0; padding-left: 18px; }
+.cm-flags li { margin: 4px 0; }
+.cm-flagged td { background: color-mix(in srgb, var(--bad) 6%, transparent); }
+.cm-kinds { margin: 0; padding-left: 18px; color: var(--ink2); }
+.cm-kinds li { margin: 3px 0; }

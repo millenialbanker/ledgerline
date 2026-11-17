@@ -124,7 +124,7 @@ const GROUPS = {
   docsg: ['Client documents', [['statements', 'Client reports'], ['dispatch', 'Dispatch register'], ['messages', 'Client messages'], ['yearend', 'Year-end packs'], ['archive', 'Old documents archive']]],
   riskg: ['RMS & margin', [['rms', 'RMS & limits'], ['live', 'Live (intraday)'], ['margin', 'Margin reporting'], ['payouthold', 'Pay-out holds']]],
   collg: ['Collateral', [['collateral', 'Client collateral & pledge'], ['cdslpledge', 'Pledges (CDSL)'], ['cdslepi', 'Early pay-in'], ['allocation', 'Clearing allocation'], ['deposits', 'Clearing deposits']]],
-  moneyg: ['Receipts & payouts', [['money', 'Receipts & payouts'], ['bank', 'Bank reconciliation'], ['ras', 'Running account']]],
+  moneyg: ['Receipts & payouts', [['money', 'Receipts & payouts'], ['bank', 'Bank reconciliation'], ['ras', 'Running account'], ['clientmoney', 'Client money reconciliation']]],
   debtg: ['Debtors', [['debits', 'Debtors & interest'], ['legacy', 'Legacy debts']]],
   mfg: ['Mutual funds', [['mforders', 'MF orders'], ['mfsips', 'SIPs'], ['mfmandates', 'MF mandates'], ['mfunits', 'MF units'], ['mfcomm', 'MF commission'], ['mfsettings', 'MF settings']]],
   brokg: ['Brokerage & charges', [['brokerage', 'Brokerage plans'], ['charges', 'Charges calculator'], ['prepaid', 'Prepaid schemes']]],
