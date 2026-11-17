@@ -229,6 +229,9 @@ func TestInspectionPackSections(t *testing.T) {
 	b := &PackBuild{O: o, Tenant: T, Actor: packCO, From: "2026-10-01", To: D, Clients: s.Clients, Watermark: "Prepared for Test inspection, 20-Oct-2026, by Vikram Shah", Set: set, Today: "2026-10-20"}
 	wantRecords := map[string]bool{"client_master": true, "kyc_sample": true, "trades": true, "contract_notes": true, "client_ledgers": true, "margins": true, "segregation": true, "register_securities": true, "nomination": true}
 	for _, info := range PackSections() {
+		if strings.HasPrefix(info.ID, "test_") {
+			continue // registered by another test (one that panics on purpose)
+		}
 		sec, _ := packSection(info.ID)
 		it := PackItem{ID: "I1", Title: info.Name, Section: info.ID, Period: "period", Sampled: true}
 		part, err := sec.Build(ctx, b, it)
