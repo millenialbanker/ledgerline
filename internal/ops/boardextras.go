@@ -26,6 +26,7 @@ import (
 	"unicode/utf8"
 
 	"ledgerline/internal/docs"
+	"ledgerline/internal/ingest"
 )
 
 // ---- Boards: templates and extras ----
@@ -1043,7 +1044,8 @@ type boardMailDoc struct {
 // the same message (by its Message-ID) already made a card. Mail to a
 // card's address is a comment on that card instead (cardInboundMail).
 func (o *Ops) BoardInboundMail(ctx context.Context, tenant, key string, raw []byte) (c Card, dup bool, err error) {
-	if cardMailKeyRe.MatchString(key) { // a card's address: a comment on it
+	ctx = ingest.WithActor(ctx, mailActor) // the malware scanner's audit entries
+	if cardMailKeyRe.MatchString(key) {    // a card's address: a comment on it
 		return o.cardInboundMail(ctx, tenant, key, raw)
 	}
 	b, ok := o.boardByEmailKey(ctx, tenant, key)
@@ -1076,6 +1078,11 @@ func (o *Ops) BoardInboundMail(ctx context.Context, tenant, key string, raw []by
 	info := boardEmailInfo(tenant, b)
 	if len(info.Lists) == 0 {
 		return Card{}, false, invalid("the board %s has no open list for new cards", b.Name)
+	}
+	if len(pm.Files) > 0 { // attachments need the malware scanner: refused while it is down, so the mail is sent again
+		if err := o.scannerReady(ctx); err != nil {
+			return Card{}, false, err
+		}
 	}
 	sender := firstOf(pm.From, "an unknown sender")
 	from := sender
@@ -1233,6 +1240,11 @@ func (o *Ops) cardInboundMail(ctx context.Context, tenant, key string, raw []byt
 			if x, _, err := docs.Get[Card](ctx, o.Docs, tenant, cBoardCard, cardKey(b.ID, c.ID)); err == nil && !x.Deleted {
 				return x, true, nil
 			}
+		}
+	}
+	if len(pm.Files) > 0 {
+		if err := o.scannerReady(ctx); err != nil {
+			return Card{}, false, err
 		}
 	}
 	sender := firstOf(pm.From, "an unknown sender")

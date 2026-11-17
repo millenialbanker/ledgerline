@@ -21,6 +21,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -140,6 +141,37 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	}
 
 	a := app.New(stores, reg, sched)
+	// Malware scanning (a CSCRF anti-malware control): with LEDGERLINE_CLAMD
+	// (tcp://host:port or unix:///path), every file is checked by ClamAV
+	// before it is stored, outside the encryption so the scanner sees the
+	// file itself. Infected files are refused; while the scanner cannot be
+	// reached, uploads are refused (fail closed). Which files are scanned,
+	// and the size limit (LEDGERLINE_CLAMD_MAX_MB, 25 MB by default, as
+	// clamd's StreamMaxLength), is in internal/ops/malware.go.
+	if v := strings.TrimSpace(os.Getenv("LEDGERLINE_CLAMD")); v != "" {
+		cl, err := ingest.ParseClamd(v)
+		if err != nil {
+			return err
+		}
+		max := int64(ingest.DefaultScanMax)
+		if mb := strings.TrimSpace(os.Getenv("LEDGERLINE_CLAMD_MAX_MB")); mb != "" {
+			n, err := strconv.Atoi(mb)
+			if err != nil || n < 1 || n > 4000 {
+				return fmt.Errorf("LEDGERLINE_CLAMD_MAX_MB must be a number of MB from 1 to 4000 (got %q)", mb)
+			}
+			max = int64(n) << 20
+		}
+		a.Ingest.Raw = &ingest.ScanningRawStore{RawStore: a.Ingest.Raw, Scanner: cl, Max: max, Kind: ops.UploadScanKind, Log: a.Log}
+		pctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := cl.Ping(pctx); err != nil {
+			log.Warn("MALWARE SCANNER NOT REACHABLE: uploads are refused until it answers", "scanner", cl.String(), "error", err)
+		} else {
+			log.Info("uploaded files are scanned for malware", "scanner", cl.String(), "max_mb", max>>20)
+		}
+		cancel()
+	} else {
+		log.Warn("uploaded files are not scanned for malware: connect a ClamAV server (LEDGERLINE_CLAMD)")
+	}
 	o := ops.New(a)
 	// Backups: after each day's close, into LEDGERLINE_BACKUP_DIR (a folder
 	// on a separate disk, copied off the server). Encrypted with the data
