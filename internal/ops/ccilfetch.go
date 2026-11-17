@@ -29,10 +29,14 @@ import (
 //
 // Where the file is: the connection may give its address, with {DD}, {MM}
 // and {YYYY} for the date. Without one, Ledgerline reads CCIL's MTM prices
-// page and follows the link it finds to MTMPRICE<ddmmyyyy>. (CCIL's page
-// builds its list of files in the browser; when the page itself has no
-// link, the address must be given: copy it from the page's download for a
-// day once.)
+// page and follows the link it finds to MTMPRICE<ddmmyyyy>. CCIL's page
+// (the ProcessNotificationViewMTM portlet) builds its list of files in the
+// browser from encrypted data and zips the files chosen (crypto-js and
+// jszip), and the site runs a bot check: the page may have no link, and
+// the site may refuse a server. Either way the fetch says why, and the
+// monthly task falls back to a work item to load the file by hand. To be
+// checked on the firm's own server: whether a day's file has an address
+// the server can download.
 
 const (
 	connCCIL     = "ccil-prices"
