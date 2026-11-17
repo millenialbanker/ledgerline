@@ -274,6 +274,7 @@ Setting client risk | Compliance officer
 Setting the AI answer log retention | Compliance officer
 Setting the deployment for exchange disclosures | Compliance officer
 Setting the firm's default dashboard | Admin
+Setting the firm's screen layout | Admin
 Setting the signing certificate | Admin
 Setting the signing service | Admin
 Setting up CDSL reports | Ops maker, Ops checker, Compliance officer

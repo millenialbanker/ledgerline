@@ -1921,13 +1921,16 @@ P['clients-t'] = d => {
 // Full PAN and bank account are masked; checkers, compliance and admins can
 // see one with a reason, which goes into the audit trail.
 const revealBtn = (ucc, f) => has('Ops checker', 'Compliance officer') ? ` <button class="linkish small" data-act="reveal" data-id="${esc(ucc)}" data-f="${f}">Show</button>` : '';
+// clientShow puts the client's details in the side panel, or on a page of
+// their own when the firm's layout opens clients as a page (layouts.js).
+function clientShow(html, ucc) { if (typeof lyClientShow === 'function' && lyClientShow(html, ucc)) return; modal(html, true); }
 async function clientDrawer(ucc) {
-  modal(`<div class="bd"><p class="loading">Loading ${esc(ucc)}…</p></div>`, true);
-  let d, bp, docs; try { [d, bp, docs] = await Promise.all([get(`/v1/clients/${encodeURIComponent(ucc)}?date=${S.date}`), get(`/v1/brokerage/client/${encodeURIComponent(ucc)}?date=${S.date}`).catch(() => null), get(`/v1/clients/${encodeURIComponent(ucc)}/documents`).catch(() => [])]); } catch (e) { modal(mhd('Client', '') + `<div class="bd">${errHTML(e)}</div>`, true); return; }
+  clientShow(`<div class="bd"><p class="loading">Loading ${esc(ucc)}…</p></div>`, ucc);
+  let d, bp, docs; try { [d, bp, docs] = await Promise.all([get(`/v1/clients/${encodeURIComponent(ucc)}?date=${S.date}`), get(`/v1/brokerage/client/${encodeURIComponent(ucc)}?date=${S.date}`).catch(() => null), get(`/v1/clients/${encodeURIComponent(ucc)}/documents`).catch(() => [])]); } catch (e) { clientShow(mhd('Client', '') + `<div class="bd">${errHTML(e)}</div>`, ucc); return; }
   const c = d.client, r = d.risk, st = { OK: 'good', Watch: 'warn', Breach: 'bad', Debit: 'warn' };
   const lines = d.statement.lines.slice(-12);
   const h3 = t => `<h3 style="margin:0 0 8px;font-family:var(--f-cond);font-size:15px">${t}</h3>`;
-  modal(mhd(esc(c.name), `${c.ucc} · ${esc(c.type)} · ${esc(c.city)}`) + `<div class="bd">
+  clientShow(mhd(esc(c.name), `${c.ucc} · ${esc(c.type)} · ${esc(c.city)}`) + `<div class="bd">
     <div class="tools">${pill(c.status, c.status === 'Active' ? 'good' : 'acc')}${c.dp_only ? pill('DP only', 'acc') : ''}${r ? pill('RMS: ' + r.status, st[r.status]) : ''}${c.blocked ? pill('Blocked: ' + (c.blocked_reason || ''), 'bad') : ''}${(c.segments || []).map(s => `<span class="tag">${esc(d.segment_names[s] || s)}</span>`).join('')}</div>
     ${(c.incomplete || []).length ? `<div class="note warn">Details missing from the previous system: ${esc(c.incomplete.join(', '))}. Complete them before reactivating.</div>` : ''}
     <div id="bse-np"></div>
@@ -1956,7 +1959,7 @@ async function clientDrawer(ucc) {
       ${has('Ops maker', 'Ops checker', 'Compliance officer', 'Branch staff') ? `<div class="tools" style="margin-top:8px"><select class="in sm" id="doc-kind">${['PAN card', 'Address proof', 'Photograph', 'Signature', 'Bank proof', 'Income proof', 'KYC form', 'Account opening agreement', 'DDPI / POA', 'Nomination form', 'IPV / VIPV record', 'Other'].map(k => `<option>${k}</option>`).join('')}</select><input type="file" id="doc-file" accept="application/pdf,image/jpeg,image/png" class="in sm"><button class="btn sm" data-act="addDoc" data-id="${c.ucc}">Add document</button><span class="dim small">PDF, JPEG or PNG, up to 5 MB</span></div>` : ''}</div>
     <div id="mig-360"></div>
     ${d.alerts.length ? `<div>${h3('Surveillance alerts')}${d.alerts.map(a => `<div class="note ${a.severity === 'High' ? 'bad' : 'warn'}" style="margin-bottom:6px"><b>${esc(a.type)}</b> · ${esc(a.status)}<br>${esc(a.detail)}</div>`).join('')}</div>` : ''}
-  </div><div class="ft"><button class="btn" data-act="crFor" data-id="${c.ucc}">Statements &amp; reports</button><button class="btn" data-act="openLedger" data-id="${c.ucc}">Full ledger</button>${c.status === 'Active' && has('Ops checker') ? `<button class="btn" data-act="portalAccess" data-id="${c.ucc}">Portal access</button>` : ''}${c.status === 'Active' && has('Risk manager') ? `<button class="btn ${c.blocked ? '' : 'bad'}" data-act="kill" data-id="${c.ucc}" data-b="${c.blocked ? 0 : 1}">${c.blocked ? 'Unblock' : 'Kill switch'}</button>` : ''}<button class="btn pri" data-act="close">Done</button></div>`, true);
+  </div><div class="ft"><button class="btn" data-act="crFor" data-id="${c.ucc}">Statements &amp; reports</button><button class="btn" data-act="openLedger" data-id="${c.ucc}">Full ledger</button>${c.status === 'Active' && has('Ops checker') ? `<button class="btn" data-act="portalAccess" data-id="${c.ucc}">Portal access</button>` : ''}${c.status === 'Active' && has('Risk manager') ? `<button class="btn ${c.blocked ? '' : 'bad'}" data-act="kill" data-id="${c.ucc}" data-b="${c.blocked ? 0 : 1}">${c.blocked ? 'Unblock' : 'Kill switch'}</button>` : ''}<button class="btn pri" data-act="close">Done</button></div>`, c.ucc);
   if (c.demat?.depository === 'CDSL' && c.demat.id && typeof cdslDematCheck === 'function') cdslDematCheck(c.ucc); // CDSL's active demat count (cdslreq.js)
   if (typeof bseBlockedCheck === 'function') bseBlockedCheck(c.ucc); // BSE's not-permitted reasons (uccapi.js)
   if (typeof migClient360 === 'function') migClient360(c.ucc); // Before Ledgerline: migrated history and archive (migrate.js)
