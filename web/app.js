@@ -1960,8 +1960,10 @@ async function clientDrawer(ucc) {
     <div id="mig-360"></div>
     ${d.alerts.length ? `<div>${h3('Surveillance alerts')}${d.alerts.map(a => `<div class="note ${a.severity === 'High' ? 'bad' : 'warn'}" style="margin-bottom:6px"><b>${esc(a.type)}</b> · ${esc(a.status)}<br>${esc(a.detail)}</div>`).join('')}</div>` : ''}
   </div><div class="ft"><button class="btn" data-act="crFor" data-id="${c.ucc}">Statements &amp; reports</button><button class="btn" data-act="openLedger" data-id="${c.ucc}">Full ledger</button>${c.status === 'Active' && has('Ops checker') ? `<button class="btn" data-act="portalAccess" data-id="${c.ucc}">Portal access</button>` : ''}${c.status === 'Active' && has('Risk manager') ? `<button class="btn ${c.blocked ? '' : 'bad'}" data-act="kill" data-id="${c.ucc}" data-b="${c.blocked ? 0 : 1}">${c.blocked ? 'Unblock' : 'Kill switch'}</button>` : ''}<button class="btn pri" data-act="close">Done</button></div>`, c.ucc);
-  if (c.demat?.depository === 'CDSL' && c.demat.id && typeof cdslDematCheck === 'function') cdslDematCheck(c.ucc); // CDSL's active demat count (cdslreq.js)
-  if (typeof bseBlockedCheck === 'function') bseBlockedCheck(c.ucc); // BSE's not-permitted reasons (uccapi.js)
+  // CDSL's active demat count (cdslreq.js) and BSE's not-permitted reasons
+  // (uccapi.js) are head-office checks; branch and AP logins can't call them.
+  if (!scopedUser() && c.demat?.depository === 'CDSL' && c.demat.id && typeof cdslDematCheck === 'function') cdslDematCheck(c.ucc);
+  if (!scopedUser() && typeof bseBlockedCheck === 'function') bseBlockedCheck(c.ucc);
   if (typeof migClient360 === 'function') migClient360(c.ucc); // Before Ledgerline: migrated history and archive (migrate.js)
   clientTermsLine(c.ucc);
 }

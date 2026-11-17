@@ -28,8 +28,8 @@ const rhSum = (d, ks) => ks.reduce((s, k) => s + (d[k] || 0), 0);
 // its body. when(c) hides a tile that has nothing to say (backups).
 const RH_TILES = {
   today: { t: 'Today', w: 5, h: 2, dark: true, go: 'dashboard', about: 'The day’s steps: how many are done and which need someone.',
-    body: c => { const st = c.steps.filter(s => s.state !== 'na'), n = k => st.filter(s => s.state === k).length, nd = st.filter(s => s.state === 'needs');
-      return `<div class="rh-big"><b>${n('done')} of ${st.length}</b><span>steps done</span></div>
+    body: c => { const st = c.steps.filter(s => s.s !== 'commodity' && s.state !== 'na'), n = k => st.filter(s => s.state === k).length, nd = st.filter(s => s.state === 'needs');
+      return `<div class="rh-big"><b>${n('done')} of ${st.length}</b><span>steps of the equity day done</span></div>
         <div class="rh-seg" aria-hidden="true"><i class="good" style="flex:${n('done')}"></i><i class="warn" style="flex:${n('needs')}"></i><i class="wait" style="flex:${n('wait')}"></i></div>
         <div class="rh-list">${nd.slice(0, 4).map(s => `<button data-act="go" data-id="${rhGo(s.views[0])}"><span>${esc(s.name)}: ${esc(s.note)}</span><em>${esc(s.who.replace(/^Ops (maker|checker)$/, 'Ops').replace(' manager', '').replace(' officer', ''))}</em></button>`).join('') || '<span class="rh-dim">No step needs anyone.</span>'}${nd.length > 4 ? `<span class="rh-dim">and ${nd.length - 4} more</span>` : ''}</div>`; } },
   needs: { t: 'Needs you', w: 4, h: 2, ring: true, go: () => rhQueue(), about: 'Prepared actions waiting for your approval, then the rest of your queue.',

@@ -71,5 +71,5 @@
   body[data-layout="grid"] .side .ly-navg h6,body[data-layout="grid"] .gr-tip,body[data-layout="grid"] .gr-rail .gr-sv{display:none}
   body[data-layout="grid"] .side .ly-nav{width:auto;white-space:nowrap}
 }
-@media (max-width:1100px){.gr-body.peeking{grid-template-columns:minmax(0,1fr)}.gr-peek{position:static;max-height:none;order:-1}}
+@media (max-width:1100px){.gr-body.peeking{grid-template-columns:minmax(0,1fr)}.gr-peek{position:fixed;right:12px;top:calc(var(--ly-top,57px) + 12px);width:min(340px,calc(100vw - 24px));z-index:30;box-shadow:var(--shadow)}}
 @media (max-width:700px){.gr-tw{max-height:none}.gr-search{flex-basis:100%}}

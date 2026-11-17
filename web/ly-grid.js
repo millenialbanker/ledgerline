@@ -121,7 +121,7 @@ LYS.grid = {
         ${saved.map(v => `<button class="ly-nav gr-sv ${S.view === 'lyGrid' && UI.grView === v.id ? 'on' : ''}" data-act="grOpenView" data-id="${esc(v.id)}"><span>${esc(v.name)}</span></button>`).join('')}`;
     }).join('')}</nav>
     <nav class="ly-navg" aria-label="Screens"><h6>Screens</h6>
-      <button class="ly-nav ${S.view === 'dashboard' ? 'on' : ''}" data-act="go" data-id="dashboard"><span>Dashboard</span></button>
+      ${viewAllowed('dashboard') ? `<button class="ly-nav ${S.view === 'dashboard' ? 'on' : ''}" data-act="go" data-id="dashboard"><span>Dashboard</span></button>` : ''}
       ${viewAllowed('autopilot') ? `<button class="ly-nav ${S.view === 'autopilot' ? 'on' : ''}" data-act="go" data-id="autopilot"><span>Autopilot &amp; work queue</span>${lyCtB('autopilot')}</button>` : ''}
       <button class="ly-nav" data-act="lyMenu"><span>All screens…</span></button></nav>
     <div class="gr-tip dim small">Space opens the peek for the row under the cursor; Enter opens the row; / searches.</div>`;

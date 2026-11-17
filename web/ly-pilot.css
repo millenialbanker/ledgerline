@@ -7,6 +7,7 @@
 .pil-cmd input{flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:14px;color:var(--ink)}
 .pil-l{flex:none;width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:700;display:grid;place-items:center}
 .pil-top .ly-kbtn{flex:0 1 150px}
+@media (max-width:1240px){.pil-cmd{flex-basis:240px}body[data-layout="autopilot"] .ly-menub span{display:none}body[data-layout="autopilot"] .ly-kbtn{flex-basis:auto}body[data-layout="autopilot"] .ly-kbtn span,body[data-layout="autopilot"] .ly-kbtn kbd{display:none}}
 @media (max-width:900px){.pil-cmd{order:9;flex-basis:100%;max-width:none}}
 
 /* ---------- the home: three columns ---------- */
