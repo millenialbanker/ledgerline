@@ -465,6 +465,12 @@ func (o *Ops) loadCDSLTxns(ctx context.Context, tenant, actor string, rows []xfi
 		ucc, ok := byBO[bo]
 		cd := strings.ToUpper(r.Get("TxnCd"))
 		q, err := money.ParseDec(r.Get("Qty"))
+		// Stamp duty paid through the DP on a transfer, for the DP bill
+		// (dpstamp.go).
+		if sd, has := dpStampOf(r); has && ok {
+			o.dpStampSeen(ctx, tenant, actor, DPStamp{ID: strings.TrimSpace(r.Get("TxnID")), UCC: ucc, BOID: bo, ISIN: strings.ToUpper(r.Get("ISIN")),
+				Date: firstOf(anyDate(r.Get("ExecDt")), anyDate(r.Get("BizDt"))), Amount: sd, Debit: cd == "DBT" || (err == nil && q.Sign() < 0)})
+		}
 		if ev := cdslPledgeEvent(r.Get("TxnTyp"), cd, r.Get("PldgIdr"), r.Get("OrdSttsTo")); ok && err == nil && ev != "" {
 			// a pledge created, closed or invoked: charged on the tariff's
 			// pledge charges, not a move of the free balance

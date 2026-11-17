@@ -1143,10 +1143,10 @@ func secDPBills(ctx context.Context, b *PackBuild, it PackItem) (PackPart, error
 	if err != nil {
 		return PackPart{}, err
 	}
-	rows := [][]string{{"Bill", "Month", "UCC", "Name", "Lines", "Taxable", "GST", "Total", "Invoice", "Entry"}}
+	rows := [][]string{{"Bill", "Month", "UCC", "Name", "Lines", "Taxable", "GST", "Stamp duty", "Total", "Invoice", "Entry"}}
 	for _, x := range dp.Bills {
 		if x.Month >= from[:min(7, len(from))] && x.Month <= to[:7] {
-			rows = append(rows, []string{x.ID, x.Month, x.UCC, x.Name, fmt.Sprint(len(x.Lines)), amt(x.Taxable), amt(x.GST), amt(x.Total), x.Invoice, x.Entry})
+			rows = append(rows, []string{x.ID, x.Month, x.UCC, x.Name, fmt.Sprint(len(x.Lines)), amt(x.Taxable), amt(x.GST), amt(x.Stamp), amt(x.Total), x.Invoice, x.Entry})
 		}
 	}
 	f := b.CSV("dp_bills.csv", rows)

@@ -253,12 +253,14 @@ With CDSL's account transfer cum closure API switched on, an approved closure of
 title: Run DP billing
 screen: dp
 roles: Ops checker
-ask: dp charges; dp bill; amc charges; dp tariff; depository charges; pool account; free dp charges for trades through us; no dp charge on pay-in; credit charges; debit charges; pledge charges; unpledge charges; invocation charges; margin pledge charge; dp billing waits; fill in before the first dp bill
+ask: dp charges; dp bill; amc charges; dp tariff; depository charges; stamp duty on off-market transfer; cdsl stamp duty; stamp duty master; pool account; free dp charges for trades through us; no dp charge on pay-in; credit charges; debit charges; pledge charges; unpledge charges; invocation charges; margin pledge charge; dp billing waits; fill in before the first dp bill
 related: dis, dp-tariff-plans
 
 On [[dp|Demat accounts & DIS]]: set the tariff (**Save tariff**), then **Run DP billing** each month. Charges are debited to the trading ledger with GST.
 
 **Pledge charges.** The tariff's table **Pledge, unpledge and invocation charges** has a row for each pledge event: pledge created, margin pledge created, margin re-pledge, unpledge, margin unpledge, pledge invoked, margin pledge invoked. Give a flat amount per ISIN, a % of the pledge value, a minimum and a maximum; a blank row is free, and **Not charged** keeps the rates without billing them. Ledgerline reads each event from CDSL's transaction file: a pledge's maker, checker and pledgee steps are separate rows, and only the row that moves the pledged balance is charged, once per ISIN.
+
+**Stamp duty on off-market transfers.** CDSL's transaction file gives each transfer's stamp duty and who pays it. Duty paid through the DP (indicator DP) goes on the client's next DP bill as its own line, **Stamp duty on off-market transfers (collected for CDSL)**: outside the taxable charges, so no GST and not on the tax invoice, and credited to *Stamp duty on off-market transfers, payable to the depository*, which CDSL bills the DP. Each transfer is billed once, to the transferor when the file shows both sides; duty the client paid directly (indicator CL) is not billed, and one read after its month was billed goes on the next bill. There is no stamp duty file to load each month.
 
 **After a migration**, if the old system's backup did not say the firm's DP tariff or its pledge charges, the DP desk shows **Fill in before the first DP bill** and the Ops checker gets a to-do. DP billing waits until the firm tariff is saved and each listed plan's pledge charges are filled in.
 

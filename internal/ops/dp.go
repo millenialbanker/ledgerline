@@ -1092,6 +1092,9 @@ type DPBillLine struct {
 	Count  int64        `json:"count"`
 	Amount money.Amount `json:"amount"`
 	Share  money.Amount `json:"depository_share"`
+	// Stamp marks the stamp duty collected for the depository on
+	// off-market transfers (dpstamp.go): not a taxable charge.
+	Stamp bool `json:"stamp,omitempty"`
 }
 
 // DPBill is a client's DP bill for a month.
@@ -1103,6 +1106,9 @@ type DPBill struct {
 	Lines   []DPBillLine `json:"lines"`
 	Taxable money.Amount `json:"taxable"`
 	GST     money.Amount `json:"gst"`
+	// Stamp is the stamp duty on off-market transfers collected for the
+	// depository, outside the taxable charges; Total includes it.
+	Stamp   money.Amount `json:"stamp,omitempty"`
 	Total   money.Amount `json:"total"`
 	Invoice string       `json:"invoice"`
 	Entry   string       `json:"entry"`
@@ -1115,7 +1121,8 @@ type DPBill struct {
 // requests. Transfers to or from the tariff's charge-free accounts (the
 // firm's own pool accounts) carry no debit or credit charge.
 // Bills are posted to the trading ledger with GST and an invoice. A month
-// is billed once.
+// is billed once. The stamp duty CDSL collects through the DP on
+// off-market transfers goes on the bill outside the taxable charges.
 //
 // A client with several accounts with the DP gets one bill a month, with
 // each account's charges on lines of their own (DPBillLine.BOID): the bill
@@ -1145,6 +1152,7 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 	free := t.freeSet()
 	cs, _ := o.ClientMap(ctx, tenant)
 	plans := o.dpPlanMap(ctx, tenant)
+	stamps, _ := docs.List[DPStamp](ctx, o.Docs, tenant, cDPStamp, "")
 	// The billable accounts, client by client.
 	rows := map[string][]BORow{}
 	var order []string
@@ -1168,6 +1176,7 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 		ts, _ := o.DPTransactions(ctx, tenant, u)
 		several := len(rs) > 1
 		paidUpto := map[string]string{} // BO ID: new AMC paid-up date
+		var billedStamps []string
 		for _, r := range rs {
 			acct := holdingAcct(c, r.BOID)
 			label := func(what string) string {
@@ -1182,6 +1191,16 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 				}
 				l.What = label(l.What)
 				b.Lines = append(b.Lines, l)
+			}
+			// Stamp duty CDSL collected through the DP on the account's
+			// off-market transfers, every one not billed yet (dpstamp.go).
+			if due := dpStampsDue(c, acct, end, stamps); len(due) > 0 {
+				var sum money.Dec
+				for _, s := range due {
+					sum = sum.Add(s.Amount)
+					billedStamps = append(billedStamps, s.ID)
+				}
+				line(DPBillLine{What: "Stamp duty on off-market transfers (collected for CDSL)", Count: int64(len(due)), Amount: sum.Round(money.UnitPaisa), Stamp: true})
 			}
 			// On a tariff plan: the plan's charges (dpplan.go).
 			if p, ok := plans[r.planAt(end)]; ok && p.at(end) != nil {
@@ -1242,14 +1261,19 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 		}
 		var share money.Amount
 		for _, l := range b.Lines {
+			if l.Stamp {
+				b.Stamp += l.Amount
+				continue
+			}
 			b.Taxable += l.Amount
 			share += l.Share
 		}
 		b.GST = b.Taxable.Dec().Pct(set.gstRate()).Round(money.UnitPaisa)
-		b.Total = b.Taxable + b.GST
+		b.Total = b.Taxable + b.GST + b.Stamp
 		desc := "DP charges for " + month
 		ps := []ledger.Posting{{Account: ledger.ClientAccount(u), Debit: b.Total, Memo: desc}}
-		for _, p := range []ledger.Posting{{Account: IncomeDP, Credit: b.Taxable - share}, {Account: PayableDepository, Credit: share}, {Account: ledger.PayableGST, Credit: b.GST}} {
+		for _, p := range []ledger.Posting{{Account: IncomeDP, Credit: b.Taxable - share}, {Account: PayableDepository, Credit: share}, {Account: ledger.PayableGST, Credit: b.GST},
+			{Account: PayableDPStamp, Credit: b.Stamp, Memo: "Stamp duty on off-market transfers"}} {
 			if p.Credit > 0 {
 				ps = append(ps, p)
 			}
@@ -1259,14 +1283,25 @@ func (o *Ops) RunDPBilling(ctx context.Context, tenant, actor, month string) ([]
 		if err != nil {
 			return out, err
 		}
-		inv, err := o.issueInvoice(ctx, tenant, actor, Invoice{Date: end, UCC: u, Name: b.Name, Kind: "Depository", Description: desc, SAC: "997152",
-			Taxable: b.Taxable, GSTPct: set.gstRate(), GST: b.GST, Total: b.Total, Entry: e.ID})
-		if err != nil {
-			return out, err
+		b.Entry = e.ID
+		if b.Taxable > 0 { // the stamp duty is collected for CDSL, not a supply: no invoice for it
+			inv, err := o.issueInvoice(ctx, tenant, actor, Invoice{Date: end, UCC: u, Name: b.Name, Kind: "Depository", Description: desc, SAC: "997152",
+				Taxable: b.Taxable, GSTPct: set.gstRate(), GST: b.GST, Total: b.Taxable + b.GST, Entry: e.ID})
+			if err != nil {
+				return out, err
+			}
+			b.Invoice = inv.No
 		}
-		b.Invoice, b.Entry = inv.No, e.ID
 		if err := docs.Upsert(ctx, o.Docs, tenant, cDPBill, b.ID, b, actor); err != nil {
 			return out, err
+		}
+		for _, id := range billedStamps {
+			if _, err := docs.Update(ctx, o.Docs, tenant, cDPStamp, id, actor, func(x *DPStamp) error {
+				x.Billed = b.ID
+				return nil
+			}); err != nil {
+				return out, err
+			}
 		}
 		for bo, p := range paidUpto {
 			if a, ok := o.boAccount(ctx, tenant, bo); ok && p > a.AMCPaidUpto {
