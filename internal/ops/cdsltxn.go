@@ -379,11 +379,15 @@ var cdxMu sync.Mutex
 
 // CDSLUpload is one transaction upload sent through the API.
 type CDSLUpload struct {
-	ID           string            `json:"id"`
+	ID string `json:"id"`
+	// Kind is what the file carries: "" for delivery instructions (DIS),
+	// UploadDISMaster for the week's DIS books (TxnTyp DMU).
+	Kind         string            `json:"kind,omitempty"`
 	Date         string            `json:"date"`
 	File         string            `json:"file"`
 	FileID       string            `json:"file_id,omitempty"`
 	DIS          []string          `json:"dis"`
+	Books        []string          `json:"books,omitempty"` // DIS master: the DIS books (DISBook IDs)
 	Lines        int               `json:"lines"`
 	Ack          string            `json:"ack,omitempty"`
 	Status       string            `json:"status"` // Sent, Processing, Done, Failed
@@ -584,23 +588,8 @@ func (o *Ops) SendDISByAPI(ctx context.Context, tenant, actor, date string) (CDS
 		u.DIS = append(u.DIS, d.ID)
 		u.Lines += len(d.Lines)
 	}
-	upID := firstOf(strings.TrimSpace(x.c.Values["upload_id"]), cdxUploadID)
-	zipName := strings.TrimSuffix(u.File, ".csv") + ".zip"
-	// The AuthSign is over the body as JSON; the same fields go in the
-	// multipart request with the zipped file (§5.7.6). No digital
-	// signature: "Signature" is blank.
-	body := cdslJSON("UploadId", upID, "Signature", "")
-	m, err := cdxCommon(ctx, tenant, x, cdxPathUpload, body, url.Values{"UploadId": {upID}, "Signature": {""}}, &cdslFile{Field: "file", Name: zipName, Data: cdxZip(u.File, content)})
-	if err != nil {
-		o.log(ctx, tenant, actor, "cdsl.upload_failed", u.ID, map[string]any{"instructions": len(due), "error": err.Error()})
-		st := o.cdxState(ctx, tenant)
-		st.LastError = err.Error()
-		o.cdxSaveState(ctx, tenant, st)
+	if err := o.cdxSend(ctx, tenant, actor, x, &u, content); err != nil {
 		return u, err
-	}
-	u.Ack = cdslStr(m, "AcknowledgmentID", "AcknowledgementID")
-	if u.Ack == "" {
-		return u, errors.New("CDSL took the file but gave no acknowledgement number")
 	}
 	if err := o.cdxMarkUploaded(ctx, tenant, actor, due, "CDSL API "+u.ID+" ack "+u.Ack); err != nil {
 		return u, err
@@ -613,6 +602,138 @@ func (o *Ops) SendDISByAPI(ctx context.Context, tenant, actor, date string) (CDS
 	o.cdxSaveState(ctx, tenant, st)
 	o.log(ctx, tenant, actor, "cdsl.uploaded", u.ID, map[string]any{"ack": u.Ack, "instructions": len(due), "lines": u.Lines, "file": u.File})
 	return u, nil
+}
+
+// cdxSend uploads a transaction upload file through the common upload API
+// (§5.7.6) and records CDSL's acknowledgement on u. The AuthSign is over
+// the body as JSON; the same fields go in the multipart request with the
+// zipped file. No digital signature: "Signature" is blank.
+func (o *Ops) cdxSend(ctx context.Context, tenant, actor string, x cdslConn, u *CDSLUpload, content []byte) error {
+	upID := firstOf(strings.TrimSpace(x.c.Values["upload_id"]), cdxUploadID)
+	zipName := strings.TrimSuffix(u.File, ".csv") + ".zip"
+	body := cdslJSON("UploadId", upID, "Signature", "")
+	m, err := cdxCommon(ctx, tenant, x, cdxPathUpload, body, url.Values{"UploadId": {upID}, "Signature": {""}}, &cdslFile{Field: "file", Name: zipName, Data: cdxZip(u.File, content)})
+	if err != nil {
+		o.log(ctx, tenant, actor, "cdsl.upload_failed", u.ID, map[string]any{"kind": firstOf(u.Kind, "dis"), "lines": u.Lines, "error": err.Error()})
+		st := o.cdxState(ctx, tenant)
+		st.LastError = err.Error()
+		o.cdxSaveState(ctx, tenant, st)
+		return err
+	}
+	u.Ack = cdslStr(m, "AcknowledgmentID", "AcknowledgementID")
+	if u.Ack == "" {
+		return errors.New("CDSL took the file but gave no acknowledgement number")
+	}
+	return nil
+}
+
+// UploadDISMaster is the kind of an upload carrying the week's DIS books.
+const UploadDISMaster = "dis-master"
+
+// SendDISMasterByAPI sends the DIS master for the week to date (the DIS
+// books issued in the seven days to date, TxnTyp DMU) through the common
+// upload API, as the weekly periodic task does when the API is on. Books
+// already sent or accepted through the API are not sent again. CDSL's
+// response file (read by CheckCDSLUpload) marks each book Accepted or
+// Rejected; a rejection goes to the work queue.
+func (o *Ops) SendDISMasterByAPI(ctx context.Context, tenant, actor, date string) (CDSLUpload, error) {
+	if err := o.require(ctx, tenant, actor, "Sending the DIS master to CDSL", RoleMaker, RoleChecker); err != nil {
+		return CDSLUpload{}, err
+	}
+	x, ok := o.cdxConn(ctx, tenant)
+	if !ok || !x.On(cdslFamUpload) {
+		return CDSLUpload{}, fmt.Errorf("%w: the CDSL common upload API is off: upload the DIS master file on CDSL's system, or switch the API on in Settings → Connections → CDSL APIs (DP)", ErrState)
+	}
+	if !validDate(date) {
+		date = o.now().Format("2006-01-02")
+	}
+	lib, err := XFiles()
+	if err != nil {
+		return CDSLUpload{}, err
+	}
+	spec, ok := lib.Get("cdsl-txn-upload")
+	if !ok {
+		return CDSLUpload{}, errors.New("the CDSL transaction upload layout is missing")
+	}
+	set, _ := o.Settings(ctx, tenant)
+	cdxMu.Lock()
+	defer cdxMu.Unlock()
+	n, err := o.next(ctx, tenant, "cdslupload", actor)
+	if err != nil {
+		return CDSLUpload{}, err
+	}
+	name, content, books, err := o.disMasterUpload(ctx, tenant, spec, set, date, map[string]string{"date": date, "seq": fmt.Sprint(n)}, true)
+	if err != nil {
+		return CDSLUpload{}, err
+	}
+	now := o.now()
+	u := CDSLUpload{ID: fmt.Sprintf("CU-%06d", n), Kind: UploadDISMaster, Date: date, File: name, Books: books, Lines: len(books), DIS: []string{}, Status: "Sent", SentAt: now.Format(time.RFC3339), SentBy: actor, Environment: x.Env}
+	if f, err := o.keepFile(ctx, tenant, u.File, content); err == nil {
+		u.FileID = f.ID
+	}
+	if err := o.cdxSend(ctx, tenant, actor, x, &u, content); err != nil {
+		return u, err
+	}
+	for _, id := range books {
+		_, _ = docs.Update(ctx, o.Docs, tenant, cDISBook, id, actor, func(b *DISBook) error {
+			b.CDSL, b.CDSLUpload = "Sent", u.ID
+			return nil
+		})
+	}
+	if _, err := docs.Put(ctx, o.Docs, tenant, cCDSLUpload, u.ID, u, 0, actor); err != nil {
+		return u, err
+	}
+	st := o.cdxState(ctx, tenant)
+	st.LastSend, st.LastError = now.Format(time.RFC3339), ""
+	o.cdxSaveState(ctx, tenant, st)
+	o.log(ctx, tenant, actor, "cdsl.dis_master_uploaded", u.ID, map[string]any{"ack": u.Ack, "books": len(books), "file": u.File, "week_to": date})
+	return u, nil
+}
+
+// cdxMasterResults records CDSL's answer for each DIS book of a DIS master
+// upload (res as cdxReadResponse gives it: "" accepted, else the reasons).
+// It reports whether any book was left unread.
+func (o *Ops) cdxMasterResults(ctx context.Context, tenant, actor string, u *CDSLUpload, res map[string]string) bool {
+	unread := false
+	u.Results = map[string]string{}
+	for _, id := range u.Books {
+		r, ok := res[id]
+		if !ok {
+			unread = true
+			continue
+		}
+		state := "Accepted"
+		if r != "" {
+			state = "Rejected: " + r
+		}
+		u.Results[id] = state
+		b, err := docs.Update(ctx, o.Docs, tenant, cDISBook, id, actor, func(b *DISBook) error {
+			b.CDSL, b.CDSLUpload = state, u.ID
+			return nil
+		})
+		if err != nil {
+			u.Results[id] = "Not recorded: " + err.Error()
+			unread = true
+			continue
+		}
+		if r != "" {
+			o.raiseWork(ctx, tenant, "cdsl", "dismaster:"+id, fmt.Sprintf("CDSL rejected DIS book %s (slips %d–%d)", id, b.From, b.To), "CDSL's response to DIS master upload "+u.ID+" rejects the book: "+r+". It is not sent again by itself: check the client's demat account and the slip numbers, then give the book on CDSL's system.", b.UCC, RoleMaker, "dp", "")
+		}
+	}
+	return unread
+}
+
+// cdxMasterRequeue clears the CDSL state of the books of a DIS master
+// upload CDSL did not process, so the next run sends them again.
+func (o *Ops) cdxMasterRequeue(ctx context.Context, tenant, actor string, u CDSLUpload) {
+	for _, id := range u.Books {
+		_, _ = docs.Update(ctx, o.Docs, tenant, cDISBook, id, actor, func(b *DISBook) error {
+			if b.CDSLUpload == u.ID && b.CDSL == "Sent" {
+				b.CDSL, b.CDSLUpload = "", ""
+			}
+			return nil
+		})
+	}
 }
 
 // DISUploadFile is the fallback when the API is off: the same transaction
@@ -679,6 +800,12 @@ func (o *Ops) CheckCDSLUpload(ctx context.Context, tenant, actor, id string) (CD
 	switch {
 	case strings.Contains(low, "fail") || strings.Contains(low, "reject") || strings.Contains(low, "error"):
 		u.Status, u.Problem = "Failed", "CDSL did not process the file: "+u.CDSLStatus
+		if u.Kind == UploadDISMaster {
+			o.cdxMasterRequeue(ctx, tenant, actor, u)
+			save()
+			o.raiseWork(ctx, tenant, "cdsl", "upload:"+u.ID, "CDSL did not process DIS master upload "+u.ID, u.Problem+". The books will go again with the next weekly run, or upload "+u.File+" on CDSL's system.", "", RoleMaker, "cdsltxn", "")
+			return u, nil
+		}
 		o.cdxRequeue(ctx, tenant, actor, u)
 		save()
 		o.raiseWork(ctx, tenant, "cdsl", "upload:"+u.ID, "CDSL did not process upload "+u.ID, u.Problem+". The instructions are back to Verified: send them again or use the upload file.", "", RoleMaker, "cdsltxn", "")
@@ -706,6 +833,17 @@ func (o *Ops) CheckCDSLUpload(ctx context.Context, tenant, actor, id string) (CD
 	u.Response = firstOf(cdslStr(m, "ResponseFileName"), u.ID+"_response.zip")
 	if f, err := o.keepFile(ctx, tenant, u.Response, data); err == nil {
 		u.ResponseID = f.ID
+	}
+	if u.Kind == UploadDISMaster {
+		res, unread := cdxReadResponse(u.Response, data, u.Books)
+		unread = o.cdxMasterResults(ctx, tenant, actor, &u, res) || unread
+		u.Status, u.UnreadResult = "Done", unread
+		save()
+		if unread {
+			o.raiseWork(ctx, tenant, "cdsl", "response:"+u.ID, "Read CDSL's response file for DIS master upload "+u.ID, "Some books in "+u.Response+" could not be matched. Open it from Depository → Transactions (API) and check them against CDSL's DIS master.", "", RoleMaker, "cdsltxn", "")
+		}
+		o.log(ctx, tenant, actor, "cdsl.upload_response", u.ID, map[string]any{"kind": u.Kind, "results": u.Results, "unread": unread})
+		return u, nil
 	}
 	res, unread := cdxReadResponse(u.Response, data, u.DIS)
 	u.Results = map[string]string{}

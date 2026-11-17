@@ -966,17 +966,31 @@ func (o *Ops) shortageReportingFile(ctx context.Context, tenant string, s *xfile
 // disMasterFile writes CDSL's transaction upload for the DIS books issued
 // in the seven days to date (TxnTyp DMU: DIS issue to the BO).
 func (o *Ops) disMasterFile(ctx context.Context, tenant string, s *xfile.Spec, set Settings, date string, vars xfile.Vars) (string, []byte, error) {
+	name, content, _, err := o.disMasterUpload(ctx, tenant, s, set, date, vars, false)
+	return name, content, err
+}
+
+// disMasterUpload is disMasterFile with the books it carries (their IDs go
+// in IntlRefNb, so CDSL's response names them). With unsent, books already
+// sent or accepted through the API are left out, so a week is never sent
+// twice by API. A rejected book is left out too: it needs a person to fix
+// it first.
+func (o *Ops) disMasterUpload(ctx context.Context, tenant string, s *xfile.Spec, set Settings, date string, vars xfile.Vars, unsent bool) (string, []byte, []string, error) {
 	sender := strings.TrimSpace(set.MemberCodes["CDSL-SENDER"])
 	if sender == "" {
-		return "", nil, invalid("set the CDSL sender ID (member code CDSL-SENDER) in Settings")
+		return "", nil, nil, invalid("set the CDSL sender ID (member code CDSL-SENDER) in Settings")
 	}
 	books, _ := docs.List[DISBook](ctx, o.Docs, tenant, cDISBook, "")
 	cs, _ := o.ClientMap(ctx, tenant)
 	sort.Slice(books, func(i, j int) bool { return books[i].ID < books[j].ID })
 	var rows []xfile.Row
+	var ids []string
 	batch := strings.ReplaceAll(date, "-", "")
 	for _, b := range books {
 		if b.Issued > date || b.Issued <= addDays(date, -7) {
+			continue
+		}
+		if unsent && b.CDSL != "" {
 			continue
 		}
 		// The account the book was issued for (the primary for a book
@@ -989,15 +1003,16 @@ func (o *Ops) disMasterFile(ctx context.Context, tenant string, s *xfile.Spec, s
 			"LineNb": fmt.Sprint(len(rows) + 1), "SeqNm": fmt.Sprintf("%04d", len(rows)+1), "SrcCntrlSctiesDpstryPtcpt": bo[2:8], "SrcClntIdOrBnfclOwnrId": bo,
 			"DISIssncDt": b.Issued, "DISBookltTp": "NRM", "DISIssdToClntOrPwrOfAttnyHldr": "BO", "DISSrlNbFr": fmt.Sprintf("%012d", b.From), "DISSrlNbTo": fmt.Sprintf("%012d", b.To),
 			"ISTxTp": "NR", "DISTxTp": "DIS", "NbOfDISLeavs": fmt.Sprint(b.To - b.From + 1), "IntlRefNb": b.ID, "FrzInittdBy": "DP", "IsseFlg": "DISI", "Prty": "HP", "DISISDTxTp": "DFP"}})
+		ids = append(ids, b.ID)
 	}
 	if len(rows) == 0 {
-		return "", nil, fmt.Errorf("%w: no DIS books issued in the week to %s", ErrState, date)
+		return "", nil, nil, fmt.Errorf("%w: no DIS books issued in the week to %s", ErrState, date)
 	}
 	vars["dp_id"] = rows[0].Values["SrcCntrlSctiesDpstryPtcpt"]
 	content, err := s.Write(rows)
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
 	name, err := s.FileName(vars)
-	return name, content, err
+	return name, content, ids, err
 }

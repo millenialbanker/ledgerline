@@ -659,6 +659,11 @@ type DISBook struct {
 	Issued string  `json:"issued"`
 	Used   []int64 `json:"used"`
 	Lost   []int64 `json:"lost"`
+	// CDSL is the book's DIS master record at CDSL when it went through the
+	// common upload API (cdsltxn.go): Sent, Accepted, or Rejected: reason;
+	// CDSLUpload is that upload's ID. Empty when given by file or not yet.
+	CDSL       string `json:"cdsl,omitempty"`
+	CDSLUpload string `json:"cdsl_upload,omitempty"`
 }
 
 // DISLine is one ISIN on a slip.

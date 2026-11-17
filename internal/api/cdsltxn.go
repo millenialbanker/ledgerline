@@ -30,6 +30,7 @@ func (s *Server) cdslTxnRoutes() {
 	C := func(p string, h http.HandlerFunc, m bool) { clientRoutes[p] = true; s.route(p, h, m) }
 	R("GET /v1/cdsl/txn", s.cdslTxnScreen, false)
 	R("POST /v1/cdsl/txn/send", s.cdslTxnSend, true)
+	R("POST /v1/cdsl/txn/dis-master", s.cdslDISMasterSend, true)
 	R("POST /v1/cdsl/txn/file", s.cdslTxnFile, true)
 	R("POST /v1/cdsl/txn/uploads/{id}/check", s.cdslTxnCheck, true)
 	R("POST /v1/cdsl/destat/{id}", s.cdslDestatStart, true)
@@ -71,6 +72,17 @@ func (s *Server) cdslTxnSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.SendDISByAPI(r.Context(), tenant(r), actor(r), b.Date)
+	ok(w, v, err)
+}
+
+// cdslDISMasterSend sends the week's DIS master (books issued in the seven
+// days to the date) through CDSL's common upload API.
+func (s *Server) cdslDISMasterSend(w http.ResponseWriter, r *http.Request) {
+	var b cdslDateBody
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SendDISMasterByAPI(r.Context(), tenant(r), actor(r), b.Date)
 	ok(w, v, err)
 }
 

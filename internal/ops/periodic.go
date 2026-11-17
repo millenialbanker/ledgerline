@@ -42,7 +42,7 @@ type PeriodicTask struct {
 var PeriodicTasks = []PeriodicTask{
 	{"funds_securities", "Weekly statement of funds and securities", "Clients", "Weekly", "Emails every client with a balance, a movement or securities with the broker a signed statement of the week's funds and securities.", "Saturday, for the week to Friday", "Exchange and SEBI rules on statements of accounts to clients", true, "dispatch", ""},
 	{"cuspa_review", "Unpaid securities (CUSPA): daily review", "Settlement", "Daily", "Every trading day under SEBI's CUSPA framework: records the shares the depository released at the end of the 6th trading day after pay-out, releases what is over each client's limit of 2.25 × (margin − ledger balance) oldest first, finds the sale of invoked shares in the trades, and puts in the work queue the notices, invocations (up to the 5th trading day after pay-out) and sales due.", "Each trading day, before the market opens", "SEBI circular HO/38/11/(9)2026-MIRSD-POD/I/15382/2026 (CUSPA framework); NSE circulars 35/2026 and 41/2026", true, "settlement", ""},
-	{"dis_master", "DIS master upload to CDSL", "Depository", "Weekly", "Builds CDSL's transaction upload (DIS issue) for the delivery instruction slip books issued in the week, for upload on CDSL's system.", "Monday, for the week to Friday", "CDSL operating instructions on DIS issuance", true, "dp", "cdsl-txn-upload"},
+	{"dis_master", "DIS master upload to CDSL", "Depository", "Weekly", "Builds CDSL's transaction upload (DIS issue) for the delivery instruction slip books issued in the week and sends it through CDSL's common upload API when it is on (else for upload on CDSL's system).", "Monday, for the week to Friday", "CDSL operating instructions on DIS issuance", true, "dp", "cdsl-txn-upload"},
 	{"cuspa_mtf_payout", "CUSPA and MTF pay-out reporting", "Settlement", "Settlement day", "Reports to NSE Clearing the settlement's purchases that are not paid out to clients' demat accounts: unpaid purchases kept in CUSPA and MTF purchases kept for the pledge.", "Settlement day, before pay-out", "SEBI and NSE Clearing rules on pay-out of securities to clients", true, "settlement", "ncl-cuspa-mtf-payout"},
 	{"settlement_master", "Settlement calendar for the coming month", "Settlement", "Monthly", "Checks that NSE Clearing's settlement master for the coming month is loaded: settlement numbers and pay-in and pay-out dates used by the pay-out reporting and the settlement screen.", "Before the month starts", "", true, "xfiles", "ncl-settlement-master"},
 	{"ccil_prices", "CCIL prices of G-secs and T-bills", "Risk", "Monthly", "Checks that CCIL's month-end valuation prices are loaded, so G-secs and T-bills held or given as collateral are valued at month end.", "By the 5th", "", true, "xfiles", "ccil-gsec-price"},
@@ -485,6 +485,25 @@ func (o *Ops) runPeriodic(ctx context.Context, tenant, actor string, t PeriodicT
 		o.raiseWork(ctx, tenant, "periodic", "ccil:"+period, "Load CCIL's G-sec prices for "+monthLabel(period), msg, "", RoleMaker, "xfiles", date)
 		return "", nil, &pendingErr{msg, "Waiting for a file"}
 	case "dis_master":
+		// With CDSL's common upload API on, the week's books go to CDSL by
+		// API and CDSL's response marks each one (cdsltxn.go). If the API
+		// refuses the file, the file is made for upload by hand as before.
+		apiNote := ""
+		if x, ok := o.cdxConn(ctx, tenant); ok && x.On(cdslFamUpload) {
+			u, err := o.SendDISMasterByAPI(ctx, tenant, SystemActor, period)
+			switch {
+			case err == nil:
+				f := []PeriodicFile{}
+				if u.FileID != "" {
+					f = append(f, PeriodicFile{ID: u.FileID, Name: u.File})
+				}
+				return fmt.Sprintf("Sent to CDSL by API: %d DIS book%s, upload %s, acknowledgement %s; CDSL's response marks each book", len(u.Books), plural(len(u.Books)), u.ID, u.Ack), f, nil
+			case errors.Is(err, ErrState) && strings.Contains(err.Error(), "no DIS books issued"):
+				return "No DIS books issued in the week", nil, nil
+			default:
+				apiNote = " CDSL's upload API refused it (" + err.Error() + "), so upload the file on CDSL's system."
+			}
+		}
 		lib, err := XFiles()
 		if err != nil {
 			return "", nil, err
@@ -502,7 +521,7 @@ func (o *Ops) runPeriodic(ctx context.Context, tenant, actor string, t PeriodicT
 		if err != nil {
 			return "", nil, err
 		}
-		o.raiseWork(ctx, tenant, "periodic", "dismaster:"+period, "Upload "+name+" to CDSL", "The DIS master upload for books issued in the week to "+fmtDay(period)+" is on Periodic work.", "", RoleMaker, "periodic", date)
+		o.raiseWork(ctx, tenant, "periodic", "dismaster:"+period, "Upload "+name+" to CDSL", "The DIS master upload for books issued in the week to "+fmtDay(period)+" is on Periodic work."+apiNote, "", RoleMaker, "periodic", date)
 		return name + " written", []PeriodicFile{f}, nil
 	case "cuspa_mtf_payout":
 		lib, err := XFiles()
