@@ -45,6 +45,35 @@ type CircularTask struct {
 	Evidence string `json:"evidence,omitempty"`
 	By       string `json:"by,omitempty"`
 	At       string `json:"at,omitempty"`
+	// Where it came from: "" or rules (triage), ai (an accepted AI
+	// proposal, circai.go) or person (added by the compliance officer).
+	Source string `json:"source,omitempty"`
+	// Accepted is who took it on as a task. A rules action is accepted
+	// when the circular is reviewed (or its card accepted on the board);
+	// an AI proposal when the compliance officer accepts it.
+	Accepted   string `json:"accepted,omitempty"`
+	AcceptedAt string `json:"accepted_at,omitempty"`
+	// Stage while Open: "", In progress or Waiting for evidence (the
+	// Circulars board's lists, circboard.go).
+	Stage string   `json:"stage,omitempty"`
+	Steps []string `json:"steps,omitempty"`
+	// Needs is the evidence to keep; NoEvidence says none is needed.
+	Needs      string `json:"needs,omitempty"`
+	NoEvidence bool   `json:"no_evidence,omitempty"`
+	// Area is the part of Ledgerline it may change (CircAreas).
+	Area    string `json:"area,omitempty"`
+	DueRule string `json:"due_rule,omitempty"` // how the due date was set
+	// Files and Card: the evidence attached on the Circulars board card
+	// that finished it.
+	Files []EvidenceFile `json:"files,omitempty"`
+	Card  string         `json:"card,omitempty"`
+}
+
+// EvidenceFile is a file or link attached as evidence on a board card.
+type EvidenceFile struct {
+	Name string `json:"name"`
+	File string `json:"file,omitempty"` // board file ID (GET /v1/board-files/{id})
+	URL  string `json:"url,omitempty"`
 }
 
 // Circular is one regulatory circular.
@@ -66,6 +95,15 @@ type Circular struct {
 	Note      string         `json:"note,omitempty"`
 	By        string         `json:"by,omitempty"`
 	Loaded    string         `json:"loaded"`
+	// Override is the compliance officer's own decision on whether the
+	// circular applies (circapply.go); Proposals are the obligations the
+	// AI model read from its text, each waiting to be accepted (circai.go).
+	Override  *ApplicabilityOverride `json:"override,omitempty"`
+	Proposals []CircObligation       `json:"proposals,omitempty"`
+	AI        *CircularAIRead        `json:"ai,omitempty"`
+	// Worked out when circulars are listed; never stored.
+	Applies *Applicability `json:"applies,omitempty"`
+	Review  int            `json:"to_review,omitempty"` // obligations waiting to be accepted
 }
 
 // triageRule maps words in a circular to an area, a priority and actions.
@@ -79,31 +117,34 @@ type triageRule struct {
 type ruleAction struct {
 	title string
 	role  string
+	area  string // the part of Ledgerline it may change (CircAreas)
+	needs string // the evidence to keep
 }
 
 var triageRules = []triageRule{
 	{regexp.MustCompile(`(?i)cyber|CSCRF|VAPT|system audit|information security|business continuity|disaster recovery`), "IT and cyber security", "High",
-		[]ruleAction{{"Check the requirement against the firm's cyber security policy and the system audit plan", RoleCompliance}, {"Tell the technology vendor and the IT committee", RoleAdmin}}},
+		[]ruleAction{{"Check the requirement against the firm's cyber security policy and the system audit plan", RoleCompliance, "cscrf", "The updated cyber security policy or audit plan, approved"},
+			{"Tell the technology vendor and the IT committee", RoleAdmin, "cscrf", "The message to the vendor and the IT committee's note"}}},
 	{regexp.MustCompile(`(?i)margin|peak|SPAN|exposure|collateral|haircut|pledge|square.?off`), "Risk and margins", "High",
-		[]ruleAction{{"Check limits, margin rules and the risk policy", RoleRisk}}},
+		[]ruleAction{{"Check limits, margin rules and the risk policy", RoleRisk, "margins", "The updated risk policy or limit set-up, approved"}}},
 	{regexp.MustCompile(`(?i)KYC|PMLA|anti.?money|AML|beneficial owner|PEP|CKYC|KRA|FATCA`), "KYC and PMLA", "High",
-		[]ruleAction{{"Update the KYC / PMLA policy and onboarding checks", RoleCompliance}}},
+		[]ruleAction{{"Update the KYC / PMLA policy and onboarding checks", RoleCompliance, "kyc", "The updated KYC / PMLA policy and onboarding checklist"}}},
 	{regexp.MustCompile(`(?i)client funds|running account|settlement of (client )?(funds|account)|pay.?out|upstream|bank guarantee|clearing corporation`), "Client funds and settlement", "High",
-		[]ruleAction{{"Check funds, settlement and running-account procedures", RoleChecker}}},
+		[]ruleAction{{"Check funds, settlement and running-account procedures", RoleChecker, "payouts", "A note of the procedure checked and any change made"}}},
 	{regexp.MustCompile(`(?i)UCC|unique client code|client code|PAN.{0,20}seed|nomination|inactive`), "Client records (UCC)", "Medium",
-		[]ruleAction{{"Check the client records and the UCC upload", RoleChecker}}},
+		[]ruleAction{{"Check the client records and the UCC upload", RoleChecker, "ucc", "The UCC check or upload report"}}},
 	{regexp.MustCompile(`(?i)contract note|STT|stamp duty|transaction charge|turnover fee|GST`), "Charges and contract notes", "Medium",
-		[]ruleAction{{"Update the charge schedule or the contract note format", RoleChecker}}},
+		[]ruleAction{{"Update the charge schedule or the contract note format", RoleChecker, "charges", "The updated charge schedule or a sample contract note"}}},
 	{regexp.MustCompile(`(?i)report(ing)?|submission|disclos|return|certificate|net ?worth`), "Reporting", "Medium",
-		[]ruleAction{{"Add or change the report and its due date in the compliance calendar", RoleCompliance}}},
+		[]ruleAction{{"Add or change the report and its due date in the compliance calendar", RoleCompliance, "reporting", "The duty in the compliance calendar, or the first filing's acknowledgement"}}},
 	{regexp.MustCompile(`(?i)authori[sz]ed person|\bAP\b|branch|sub.?broker|franchise`), "Authorised persons and branches", "Medium",
-		[]ruleAction{{"Tell authorised persons and branches; check AP agreements", RoleCompliance}}},
+		[]ruleAction{{"Tell authorised persons and branches; check AP agreements", RoleCompliance, "none", "The notice sent to authorised persons and branches"}}},
 	{regexp.MustCompile(`(?i)algo|API|order (placement|type)|trading terminal|CTCL|kill switch`), "Trading systems", "Medium",
-		[]ruleAction{{"Check with the trading platform vendor", RoleAdmin}}},
+		[]ruleAction{{"Check with the trading platform vendor", RoleAdmin, "none", "The vendor's confirmation"}}},
 	{regexp.MustCompile(`(?i)investor (grievance|complaint)|SCORES|ODR|online dispute|investor charter`), "Investor services", "Medium",
-		[]ruleAction{{"Update the grievance process and investor-facing pages", RoleCompliance}}},
+		[]ruleAction{{"Update the grievance process and investor-facing pages", RoleCompliance, "grievances", "The updated grievance process or web page"}}},
 	{regexp.MustCompile(`(?i)penalt|non.?compliance|disciplinary|show cause|inspection`), "Enforcement", "High",
-		[]ruleAction{{"Check whether the firm is affected and record it", RoleCompliance}}},
+		[]ruleAction{{"Check whether the firm is affected and record it", RoleCompliance, "none", "A note of whether the firm is affected"}}},
 	{regexp.MustCompile(`(?i)holiday|trading hours|market timing|mock trading|live trading session|contract (launch|introduction)|new contracts|expiry day`), "Market operations", "Information", nil},
 }
 
@@ -140,9 +181,9 @@ func triage(c *Circular) {
 		}
 	}
 	c.Summary = summarise(c.Subject, c.Text)
-	due := c.Effective
+	due, dueRule := c.Effective, "the effective date"
 	if due == "" || due < c.Date {
-		due = addDays(c.Date, 14)
+		due, dueRule = addDays(c.Date, 14), "14 days after the circular (it gives no date)"
 	}
 	seen := map[string]bool{}
 	c.Tasks = []CircularTask{}
@@ -151,7 +192,8 @@ func triage(c *Circular) {
 			continue
 		}
 		seen[a.title] = true
-		c.Tasks = append(c.Tasks, CircularTask{ID: fmt.Sprintf("T%d", len(c.Tasks)+1), Title: a.title, Role: a.role, Due: due, Status: "Open"})
+		c.Tasks = append(c.Tasks, CircularTask{ID: fmt.Sprintf("T%d", len(c.Tasks)+1), Title: a.title, Role: a.role, Due: due, Status: "Open",
+			Source: "rules", Area: ruleArea(a.area, text), Needs: a.needs, DueRule: dueRule})
 	}
 	c.Status = "New"
 	if len(c.Tasks) == 0 {
@@ -232,7 +274,9 @@ func (o *Ops) prepareCirculars(ctx context.Context, tenant, actor string, rows [
 	}, errs
 }
 
-// Circulars lists circulars, newest first.
+// Circulars lists circulars, newest first, each with whether it applies to
+// the firm (circapply.go) and how many of its obligations wait to be
+// accepted.
 func (o *Ops) Circulars(ctx context.Context, tenant string) ([]Circular, error) {
 	cs, err := docs.List[Circular](ctx, o.Docs, tenant, cCircular, "")
 	if cs == nil {
@@ -244,34 +288,113 @@ func (o *Ops) Circulars(ctx context.Context, tenant string) ([]Circular, error) 
 		}
 		return cs[i].ID > cs[j].ID
 	})
+	if len(cs) > 0 {
+		f := o.firmFacts(ctx, tenant)
+		for i := range cs {
+			cs[i].annotate(f)
+		}
+	}
 	return cs, err
 }
 
+// annotate works out what is shown with a circular and never stored.
+func (c *Circular) annotate(f firmFacts) {
+	a := circApplicability(*c, f)
+	c.Applies, c.Review = &a, len(c.toReview())
+}
+
+// taskAccepted says whether an action has been taken on as a task: by
+// the review of its circular, or one by one.
+func (c Circular) taskAccepted(t CircularTask) bool { return t.Accepted != "" || c.Status != "New" }
+
+// toReview are the obligations waiting for the compliance officer: AI
+// proposals not yet accepted or rejected, and the open actions of a
+// circular not yet reviewed. None for a circular that does not apply.
+func (c Circular) toReview() []string {
+	if c.Status == "Not applicable" || c.Status == "Done" && len(c.Proposals) == 0 {
+		return nil
+	}
+	var out []string
+	for _, p := range c.Proposals {
+		if p.Status == ObProposed {
+			out = append(out, p.ID)
+		}
+	}
+	for _, t := range c.Tasks {
+		if t.Status == "Open" && !c.taskAccepted(t) {
+			out = append(out, t.ID)
+		}
+	}
+	return out
+}
+
 // CircularAction changes a circular: review, add or finish an action,
-// drop an action, mark not applicable or done.
+// drop an action, mark not applicable or done; decide whether it applies;
+// accept or reject an obligation the AI model proposed; move an action
+// through its stages (the Circulars board).
 type CircularAction struct {
-	Kind     string `json:"kind"` // review, add_task, done_task, drop_task, not_applicable, reopen
+	Kind     string `json:"kind"` // review, add_task, done_task, drop_task, not_applicable, reopen, applies, accept, reject, accept_task, stage
 	Task     string `json:"task,omitempty"`
 	Title    string `json:"title,omitempty"`
 	Role     string `json:"role,omitempty"`
 	Due      string `json:"due,omitempty"`
 	Evidence string `json:"evidence,omitempty"`
 	Note     string `json:"note,omitempty"`
+	// applies: applies or no (the compliance officer's decision, with the
+	// reason in Note), or rules (go back to what the rules say).
+	Verdict string `json:"verdict,omitempty"`
+	// accept and reject: the proposal; accept may change what it says.
+	Proposal   string   `json:"proposal,omitempty"`
+	Steps      []string `json:"steps,omitempty"`
+	Needs      string   `json:"needs,omitempty"`
+	NoEvidence bool     `json:"no_evidence,omitempty"`
+	Area       string   `json:"area,omitempty"`
+	// stage: "", In progress or Waiting for evidence.
+	Stage string `json:"stage,omitempty"`
+	// Set by the Circulars board when its card is finished (circboard.go).
+	files []EvidenceFile
+	card  string
 }
 
-// ActOnCircular applies one change. Reviews and closing are for the
-// compliance officer; a task's owner role may finish it with evidence.
+// Stages of an open action (the Circulars board's lists).
+const (
+	StageInProgress = "In progress"
+	StageEvidence   = "Waiting for evidence"
+)
+
+var circRoles = []string{RoleMaker, RoleChecker, RoleRisk, RoleCompliance, RoleAdmin}
+
+// ActOnCircular applies one change. Reviews, deciding whether a circular
+// applies and accepting obligations are for the compliance officer; a
+// task's owner role may move it on and finish it with evidence.
 func (o *Ops) ActOnCircular(ctx context.Context, tenant, actor, id string, a CircularAction) (Circular, error) {
 	role, err := o.RoleOf(ctx, tenant, actor)
 	if err != nil {
 		return Circular{}, err
 	}
 	staff := role == RoleCompliance || role == RoleAdmin
-	if !staff && a.Kind != "done_task" {
-		return Circular{}, fmt.Errorf("%w: only the compliance officer reviews circulars", ErrForbidden)
+	switch a.Kind {
+	case "done_task", "stage":
+	case "applies":
+		if err := o.require(ctx, tenant, actor, "Deciding whether a circular applies", RoleCompliance); err != nil {
+			return Circular{}, err
+		}
+	case "accept", "reject", "accept_task":
+		if err := o.require(ctx, tenant, actor, "Accepting obligations from circulars", RoleCompliance); err != nil {
+			return Circular{}, err
+		}
+	default:
+		if !staff {
+			return Circular{}, fmt.Errorf("%w: only the compliance officer reviews circulars", ErrForbidden)
+		}
 	}
 	now := o.now().Format(time.RFC3339)
+	facts := o.firmFacts(ctx, tenant)
+	var before Circular
+	detail := map[string]any{"task": a.Task}
 	c, err := docs.Update(ctx, o.Docs, tenant, cCircular, id, actor, func(c *Circular) error {
+		before = *c
+		before.Tasks, before.Proposals = append([]CircularTask(nil), c.Tasks...), append([]CircObligation(nil), c.Proposals...)
 		find := func() (*CircularTask, error) {
 			for i := range c.Tasks {
 				if c.Tasks[i].ID == a.Task {
@@ -280,6 +403,17 @@ func (o *Ops) ActOnCircular(ctx context.Context, tenant, actor, id string, a Cir
 			}
 			return nil, invalid("no action %s on this circular", a.Task)
 		}
+		proposal := func() (*CircObligation, error) {
+			for i := range c.Proposals {
+				if c.Proposals[i].ID == a.Proposal {
+					if c.Proposals[i].Status != ObProposed {
+						return nil, fmt.Errorf("%w: %s was already %s", ErrState, a.Proposal, strings.ToLower(c.Proposals[i].Status))
+					}
+					return &c.Proposals[i], nil
+				}
+			}
+			return nil, invalid("no proposed obligation %s on this circular", a.Proposal)
+		}
 		switch a.Kind {
 		case "review":
 			if c.Status == "New" {
@@ -287,11 +421,17 @@ func (o *Ops) ActOnCircular(ctx context.Context, tenant, actor, id string, a Cir
 			}
 			c.Note, c.By = strings.TrimSpace(a.Note), actor
 		case "add_task":
-			if strings.TrimSpace(a.Title) == "" || !contains([]string{RoleMaker, RoleChecker, RoleRisk, RoleCompliance, RoleAdmin}, a.Role) || !ledger.ValidDate(a.Due) {
+			if strings.TrimSpace(a.Title) == "" || !contains(circRoles, a.Role) || !ledger.ValidDate(a.Due) {
 				return invalid("an action needs a description, an owner role and a due date")
 			}
-			c.Tasks = append(c.Tasks, CircularTask{ID: fmt.Sprintf("T%d", len(c.Tasks)+1), Title: strings.TrimSpace(a.Title), Role: a.Role, Due: a.Due, Status: "Open"})
-			c.Status = "Action needed"
+			if a.Area != "" && !circAreaOK(a.Area) {
+				return invalid("unknown Ledgerline area %q", a.Area)
+			}
+			c.Tasks = append(c.Tasks, CircularTask{ID: fmt.Sprintf("T%d", len(c.Tasks)+1), Title: strings.TrimSpace(a.Title), Role: a.Role, Due: a.Due, Status: "Open",
+				Source: "person", Accepted: actor, AcceptedAt: now, Needs: clip(strings.TrimSpace(a.Needs), 300), NoEvidence: a.NoEvidence, Area: a.Area, Steps: cleanSteps(a.Steps)})
+			if c.Status != "Not applicable" {
+				c.Status = "Action needed"
+			}
 		case "done_task":
 			t, err := find()
 			if err != nil {
@@ -300,10 +440,16 @@ func (o *Ops) ActOnCircular(ctx context.Context, tenant, actor, id string, a Cir
 			if !staff && role != t.Role {
 				return fmt.Errorf("%w: this action is for the %s", ErrForbidden, t.Role)
 			}
+			if t.Status != "Open" {
+				return fmt.Errorf("%w: the action is already %s", ErrState, strings.ToLower(t.Status))
+			}
 			if strings.TrimSpace(a.Evidence) == "" {
 				return invalid("say what was done, with a reference to the evidence")
 			}
-			t.Status, t.Evidence, t.By, t.At = "Done", strings.TrimSpace(a.Evidence), actor, now
+			t.Status, t.Evidence, t.By, t.At, t.Stage = "Done", clip(strings.TrimSpace(a.Evidence), 2000), actor, now, ""
+			if a.card != "" {
+				t.Files, t.Card = a.files, a.card
+			}
 		case "drop_task":
 			t, err := find()
 			if err != nil {
@@ -312,18 +458,117 @@ func (o *Ops) ActOnCircular(ctx context.Context, tenant, actor, id string, a Cir
 			if strings.TrimSpace(a.Note) == "" {
 				return invalid("say why the action is not needed")
 			}
-			t.Status, t.Evidence, t.By, t.At = "Dropped", strings.TrimSpace(a.Note), actor, now
+			t.Status, t.Evidence, t.By, t.At, t.Stage = "Dropped", strings.TrimSpace(a.Note), actor, now, ""
+		case "stage":
+			t, err := find()
+			if err != nil {
+				return err
+			}
+			if !staff && role != t.Role {
+				return fmt.Errorf("%w: this action is for the %s", ErrForbidden, t.Role)
+			}
+			if !contains([]string{"", StageInProgress, StageEvidence}, a.Stage) {
+				return invalid("an open action is to do, %s or %s", StageInProgress, StageEvidence)
+			}
+			switch {
+			case t.Status != "Open":
+				return fmt.Errorf("%w: the action is already %s", ErrState, strings.ToLower(t.Status))
+			case !c.taskAccepted(*t):
+				return fmt.Errorf("%w: the compliance officer has not accepted this action yet", ErrState)
+			case c.Status == "Not applicable":
+				return fmt.Errorf("%w: the circular is marked not applicable", ErrState)
+			}
+			detail["from"], detail["to"] = t.Stage, a.Stage
+			t.Stage = a.Stage
+			return nil
+		case "accept_task":
+			t, err := find()
+			if err != nil {
+				return err
+			}
+			if c.Status == "Not applicable" {
+				return fmt.Errorf("%w: the circular is marked not applicable; decide that it applies first", ErrState)
+			}
+			if t.Status != "Open" || c.taskAccepted(*t) {
+				return fmt.Errorf("%w: the action is already accepted or closed", ErrState)
+			}
+			t.Accepted, t.AcceptedAt = actor, now
+		case "accept":
+			p, err := proposal()
+			if err != nil {
+				return err
+			}
+			if c.Status == "Not applicable" {
+				return fmt.Errorf("%w: the circular is marked not applicable; decide that it applies first", ErrState)
+			}
+			t, err := p.task(*c, a, actor, now)
+			if err != nil {
+				return err
+			}
+			c.Tasks = append(c.Tasks, t)
+			p.Status, p.Task, p.By, p.At = ObAccepted, t.ID, actor, now
+			detail["proposal"], detail["edited"] = p.ID, t.Title != p.What || t.Due != p.dueOn(*c) || t.Role != p.Role
+		case "reject":
+			p, err := proposal()
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(a.Note) == "" {
+				return invalid("say why the obligation is not needed")
+			}
+			p.Status, p.Note, p.By, p.At = ObRejected, clip(strings.TrimSpace(a.Note), 500), actor, now
+			detail["proposal"] = p.ID
+		case "applies":
+			rules := circApplicability(Circular{Source: c.Source, Ref: c.Ref, Subject: c.Subject, Dept: c.Dept, Text: c.Text, Areas: c.Areas}, facts)
+			prev := circApplicability(*c, facts)
+			note := clip(strings.TrimSpace(a.Note), 500)
+			detail["from"], detail["to"], detail["rules"], detail["reason"] = prev.Verdict, a.Verdict, rules.Verdict, note
+			switch a.Verdict {
+			case ApplyYes, ApplyNo:
+				if note == "" {
+					return invalid("give the reason: it stays with the circular and in the audit trail")
+				}
+				c.Override = &ApplicabilityOverride{Verdict: a.Verdict, Reason: note, By: actor, At: now, Rules: rules.Verdict, RulesWhy: rules.Reason}
+				if a.Verdict == ApplyNo {
+					c.Status, c.Note, c.By = "Not applicable", note, actor
+					return nil
+				}
+				if c.Status == "Not applicable" {
+					c.Status = c.reopenStatus()
+				}
+			case "rules":
+				if c.Override == nil {
+					return fmt.Errorf("%w: Ledgerline's rules decide already", ErrState)
+				}
+				wasNo := c.Override.Verdict == ApplyNo
+				c.Override = nil
+				if wasNo && c.Status == "Not applicable" {
+					c.Status = c.reopenStatus()
+				}
+			default:
+				return invalid("a circular applies, does not apply, or goes back to the rules")
+			}
 		case "not_applicable":
 			if strings.TrimSpace(a.Note) == "" {
 				return invalid("say why the circular does not apply to the firm")
 			}
+			rules := circApplicability(Circular{Source: c.Source, Ref: c.Ref, Subject: c.Subject, Dept: c.Dept, Text: c.Text, Areas: c.Areas}, facts)
 			c.Status, c.Note, c.By = "Not applicable", strings.TrimSpace(a.Note), actor
+			c.Override = &ApplicabilityOverride{Verdict: ApplyNo, Reason: c.Note, By: actor, At: now, Rules: rules.Verdict, RulesWhy: rules.Reason}
 			return nil
 		case "reopen":
 			c.Status = "Action needed"
+			if c.Override != nil && c.Override.Verdict == ApplyNo {
+				c.Override = nil
+			}
 			return nil
 		default:
 			return invalid("unknown action %q", a.Kind)
+		}
+		// Reviewed one obligation at a time: once none is left to review,
+		// the circular is reviewed.
+		if c.Status == "New" && (a.Kind == "accept" || a.Kind == "accept_task" || a.Kind == "reject") && len(c.Tasks) > 0 && len(c.toReview()) == 0 {
+			c.Status, c.By = "Action needed", firstOf(c.By, actor)
 		}
 		open := 0
 		for _, t := range c.Tasks {
@@ -331,17 +576,50 @@ func (o *Ops) ActOnCircular(ctx context.Context, tenant, actor, id string, a Cir
 				open++
 			}
 		}
-		if open == 0 && len(c.Tasks) > 0 && c.Status != "New" {
+		if open == 0 && len(c.Tasks) > 0 && c.Status != "New" && c.Status != "Not applicable" {
 			c.Status = "Done"
 		} else if open > 0 && c.Status == "Done" {
 			c.Status = "Action needed"
 		}
 		return nil
 	})
-	if err == nil {
-		o.log(ctx, tenant, actor, "circular."+a.Kind, id, map[string]any{"task": a.Task})
+	if err != nil {
+		return c, err
 	}
-	return c, err
+	if a.Proposal != "" {
+		detail["proposal"] = a.Proposal
+	}
+	o.log(ctx, tenant, actor, "circular."+a.Kind, id, detail)
+	if a.Kind == "accept" {
+		o.circCardRefresh(ctx, tenant, before, c, a.Proposal)
+	}
+	c.annotate(facts)
+	return c, nil
+}
+
+// reopenStatus is the status of a circular the compliance officer has
+// decided applies after all.
+func (c Circular) reopenStatus() string {
+	for _, t := range c.Tasks {
+		if t.Status == "Open" {
+			return "Action needed"
+		}
+	}
+	if len(c.Tasks) > 0 {
+		return "Done"
+	}
+	return "New"
+}
+
+// cleanSteps tidies a list of steps: no blanks, at most 12, each short.
+func cleanSteps(xs []string) []string {
+	var out []string
+	for _, x := range xs {
+		if x = strings.TrimSpace(x); x != "" && len(out) < 12 {
+			out = append(out, clip(x, 200))
+		}
+	}
+	return out
 }
 
 // ---- compliance calendar ----

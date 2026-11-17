@@ -210,6 +210,10 @@ type Settings struct {
 	// items suggested by the AI model (boardai.go): the card's text, with
 	// identifiers masked, is sent. Off by default.
 	BoardAI bool `json:"board_ai,omitempty"`
+	// CircularAI lets the AI model read a circular's text (masked) and
+	// propose obligations for the compliance officer to accept
+	// (circai.go). Off by default; not allowed in India-only mode.
+	CircularAI bool `json:"circular_ai,omitempty"`
 	// Deployment is where this firm's Ledgerline runs, for the SaaS
 	// disclosure (disclosures.go): "hosted" by Ledgerline (the default),
 	// "self" on the broker's own server, or "own_cloud" in the broker's own
@@ -502,6 +506,9 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	}
 	if s.BillAI && o.Residency.IndiaOnly {
 		return invalid("reading bills with AI sends them outside India, which India-only mode does not allow")
+	}
+	if s.CircularAI && o.Residency.IndiaOnly {
+		return invalid("reading circulars with AI sends their text outside India, which India-only mode does not allow")
 	}
 	if err := checkDeployment(&s); err != nil {
 		return err

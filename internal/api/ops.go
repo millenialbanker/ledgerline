@@ -72,6 +72,7 @@ func (s *Server) opsRoutes() {
 	s.segLedgerRoutes()
 	s.bowRoutes()
 	s.migrationRoutes()
+	s.circularCardRoutes()
 	R("GET /v1/me", s.me, false)
 	R("GET /v1/users", s.users, false)
 	R("PUT /v1/users/{id}", s.putUser, true)
@@ -401,7 +402,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		}
 		us = mine
 	}
-	me := map[string]any{"auth": auth, "tenant": tenant(r), "actor": actor(r), "role": role, "users": us, "roles": ops.Roles, "firm": set.Firm, "dev": s.dev, "member_codes": set.MemberCodes, "holidays": set.TradingHolidays(), "sample_rates": s.app.Schedule.Sample, "schedule": s.app.Schedule.Version, "ledgy_ai": s.ops.LedgyAI != nil, "bill_ai": s.ops.BillAIAvailable(), "edition": s.ops.EditionStatus(r.Context(), tenant(r))}
+	me := map[string]any{"auth": auth, "tenant": tenant(r), "actor": actor(r), "role": role, "users": us, "roles": ops.Roles, "firm": set.Firm, "dev": s.dev, "member_codes": set.MemberCodes, "holidays": set.TradingHolidays(), "sample_rates": s.app.Schedule.Sample, "schedule": s.app.Schedule.Version, "ledgy_ai": s.ops.LedgyAI != nil, "bill_ai": s.ops.BillAIAvailable(), "circular_ai": s.ops.CircularAIAvailable(), "edition": s.ops.EditionStatus(r.Context(), tenant(r))}
 	if set.SeparateCommodityLedger && role != ops.RoleClient {
 		me["separate_commodity_ledger"] = true // staff screens show the equity and commodity ledgers
 	}
