@@ -14,3 +14,14 @@
 .warn-t { color: var(--warn, #9a6700); }
 #dc-t .linkish, .dc-sheet .linkish { white-space: normal; text-align: left; }
 .dc-how .dc-pills { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+/* Keep both tables inside the page width, so "Mark done" and the status stay in view. */
+#dc-t .tag, .dc-sheet .tag { white-space: nowrap; }
+#dc-t .tbl td.dc-duty { min-width: 260px; max-width: 420px; }
+#dc-t .tbl td.dc-often { min-width: 150px; max-width: 220px; }
+#dc-t .tbl td.dc-howc { min-width: 160px; max-width: 220px; }
+#dc-t .tbl td.dc-last { min-width: 110px; max-width: 170px; }
+.dc-sheet .tbl th { white-space: normal; vertical-align: bottom; }
+.dc-sheet .tbl td.dc-comp { min-width: 200px; max-width: 320px; }
+.dc-sheet .tbl td.dc-due { min-width: 150px; max-width: 230px; }
+.dc-sheet .tbl td.dc-dates { min-width: 130px; max-width: 220px; }
+.dc-sheet .tbl td.dc-fw { min-width: 120px; max-width: 200px; }
