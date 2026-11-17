@@ -28,6 +28,13 @@ import (
 //   - SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197 of 28 December 2023: running
 //     accounts settled on the first Friday or Saturday of the month or
 //     quarter the client chose, on the exchanges' joint calendar.
+//   - NSE/INSP/55024 of 28 December 2022 (kept by NSE/INSP/61904 of 6 May
+//     2024): the UCC-wise details of each settlement within 10 trading
+//     days; NSE/INSP/56261 of 3 April 2023: ₹10,000 a day late.
+//   - SEBI master circular SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90 of 17 June
+//     2025, para 15.4.4.2, and NSE/INSP/55904 of 9 March 2023: a daily
+//     reconciliation statement of transfers between the client, settlement
+//     and own accounts.
 //   - SEBI HO/38/11/(9)2026-MIRSD-POD/I/15382/2026 of 3 July 2026 (paras
 //     46.4, 46.8, 46.10: payment within 5 trading days of pay-out,
 //     reasonable notice before invoking, release by the depositories at
@@ -70,6 +77,13 @@ import (
 //   - NSE/ISC/73973 of 30 April 2026 (the UCC master circular).
 //   - SEBI/HO/MIRSD/MIRSD-PoD-1/P/CIR/2022/137 of 6 October 2022 (DDPI
 //     purposes).
+//   - NSE/ISC/45168 of 29 July 2020, NSE/ISC/47834 of 31 March 2021 and
+//     NSE/ISC/72805 of 13 February 2026: clients' mobiles on DoT's
+//     revocation list confirmed with the client and updated immediately.
+//   - NSE/ISC/77375 of 9 November 2026 (and NSE/ISC/76893 of 14 October
+//     2026): the UCCs of clients the KRAs report as deceased closed before
+//     the month's cut-off; SEBI/HO/OIAE/OIAE_IAD-1/P/CIR/2023/0000000163 of
+//     3 October 2023: their debits blocked at once.
 
 const (
 	siAlertDays = 45 // NSE/SURV/48818
@@ -88,6 +102,17 @@ var siTests = []SITest{
 		Checks: "Running account settlement: credit balances not paid out after their monthly or quarterly date, idle balances not returned on their monthly settlement date, and calendar dates with no settlement run.",
 		Fix:    "Settle the clients due on Running account (Receipts & payouts); add the exchanges' calendar for the year on Circulars & duties → RAS dates.",
 		Screen: "ras", ScreenName: "Receipts & payouts → Running account", Real: true, run: siRAS},
+	{ID: "ras_ucc_report", Title: "Each running account settlement reported to NSE within 10 trading days", Area: "Money", Severity: "high", Owner: RoleCompliance,
+		Source: "NSE/INSP/55024 of 28 Dec 2022 (UCC-wise details within 10 trading days, kept by NSE/INSP/61904 of 6 May 2024); NSE/INSP/56261 of 3 Apr 2023 (₹10,000 a day late)",
+		Checks: "Every settlement whose 10 trading days have passed (a settlement run, or a date of the exchanges' calendar): its UCC-wise report recorded as uploaded, or as not applicable, by the due date.",
+		Fix:    "Make the file on Running account, upload it on NSE's member portal and record the portal's reference; where no client was settled, record the not-applicable declaration.",
+		Screen: "ras", ScreenName: "Receipts & payouts → Running account", Real: true, run: siRASUCC},
+	{ID: "client_money_recon", Title: "Daily client money reconciliation signed off", Area: "Money", Severity: "high", Owner: RoleChecker,
+		Source:    "SEBI master circular SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90 of 17 Jun 2025, para 15.4.4.2 (a daily reconciliation statement of transfers); NSE/INSP/55904 of 9 Mar 2023",
+		ToConfirm: "No format is prescribed: Ledgerline's statement follows the money between clients, the USCNBA, the clearing corporation, the DSCNBA, the settlement and own accounts.",
+		Checks:    "Each business day of the last two weeks before the date: the day's statement prepared and signed off by a checker who did not prepare it.",
+		Fix:       "Prepare the day's statement on Client money reconciliation, explain what is flagged, and have a checker sign it off.",
+		Screen:    "clientmoney", ScreenName: "Receipts & payouts → Client money reconciliation", Real: true, run: siMoneyRecon},
 	{ID: "cuspa_limit", Title: "Unpaid securities kept within 2.25 × (margin − ledger)", Area: "Settlement", Severity: "medium", Owner: RoleChecker,
 		Source: "NSE circular 41/2026 (NSE/INSP/75508) of 31 Jul 2026, guideline 6, under SEBI HO/38/11/(9)2026-MIRSD-POD/I/15382/2026 of 3 Jul 2026",
 		Checks: "CUSPA ageing: lines over the client's limit at the end of the previous trading day and still not released.",
@@ -135,6 +160,18 @@ var siTests = []SITest{
 		Checks:    "Every active client: KRA status validated or registered, PAN on record, no details missing from the previous system, income proof for derivatives segments.",
 		Fix:       "Collect the documents, upload to the KRA and record the status on KYC & PMLA; complete the missing details on the client.",
 		Screen:    "kyc", ScreenName: "Compliance → KYC & PMLA", Real: true, run: siKYC},
+	{ID: "fatca_new", Title: "FATCA/CRS self-certifications recorded, checked and sent to the KRA", Area: "Clients", Severity: "medium", Owner: RoleCompliance,
+		Source:    "SEBI/HO/MIRSD/SECFATF/P/CIR/2024/12 of 20 Feb 2024 (paras 3, 5 and 6); CVL/OPS/INTERM/GENRL/24-200 of 28 Jun 2024 (with the KYC upload from 1 Aug 2024); SEBI HO/38/14/(18)2026-MIRSD-POD2/I/25560/2026 of 11 Nov 2026 (paras 6 and 7)",
+		ToConfirm: "No time is set for the FATCA/CRS upload: it goes with the KYC upload, so the KYC upload's three working days (KYC master circular, para 84) are used.",
+		Checks:    "Active clients onboarded from 1 Aug 2024, and every active client with a self-certification: one on record, its reasonableness warnings resolved, and (for clients onboarded from 1 Aug 2024) at the KRA within three working days of being recorded, in a KRA file marked uploaded or accepted in the KRA's status file.",
+		Fix:       "Record or correct the self-certification on KYC & PMLA → FATCA / CRS (a checker approves the change), resolve each warning with what was checked, upload the KRA file and mark it uploaded.",
+		Screen:    "kyc", ScreenName: "Compliance → KYC & PMLA", Real: true, run: siFATCANew},
+	{ID: "fatca_legacy", Title: "FATCA/CRS of clients onboarded before August 2024 at the KRA", Area: "Clients", Severity: "medium", Owner: RoleCompliance,
+		Source:    "SEBI/HO/MIRSD/SECFATF/P/CIR/2024/12 of 20 Feb 2024, para 4 (within 90 days); KARVY/OPS/INTERM/GENRL/24-009 of 28 Sep 2024 (legacy individual clients by 31 Oct 2024)",
+		ToConfirm: "The KRAs were to notify the process and format for non-individual legacy clients separately; not found.",
+		Checks:    "Active clients onboarded before 1 Aug 2024, or migrated without an opening date: a self-certification on record, and at the KRA.",
+		Fix:       "Collect the missing self-certifications (or load them with the FATCA-CRS file), make the legacy bulk file on KYC & PMLA → FATCA / CRS, upload it to the KRA and mark it uploaded.",
+		Screen:    "kyc", ScreenName: "Compliance → KYC & PMLA", Real: true, run: siFATCALegacy},
 	{ID: "inactive_accounts", Title: "Accounts inactive for 24 months flagged, and not traded without reactivation", Area: "Clients", Severity: "medium", Owner: RoleCompliance,
 		Source: "NSE/INSP/64718 (circular 80/2024) of 25 Oct 2024, with the matching BSE and MCX circulars",
 		Checks: "Accounts past the inactivity period not flagged; inactive accounts that traded without being reactivated.",
@@ -177,6 +214,17 @@ var siTests = []SITest{
 		Checks: "Active clients' UCC records the exchanges rejected, need fixing, hold a PAN the exchange could not verify, or are not permitted to trade.",
 		Fix:    "Correct the client's details and send the UCC again on Exchange UCC.",
 		Screen: "uccapi", ScreenName: "Clients & onboarding → Exchange UCC", Real: true, run: siUCC},
+	{ID: "mnrl_matches", Title: "Client mobiles on DoT's revocation list taken up in time", Area: "Clients", Severity: "medium", Owner: RoleMaker,
+		Source:    "NSE/ISC/45168 of 29 Jul 2020 and NSE/ISC/47834 of 31 Mar 2021 (confirm the number with the client; update the back office and the UCC immediately); NSE/ISC/72805 of 13 Feb 2026 (daily report); CDSL/OPS/DP/POLCY/2026/517 of 30 Jul 2026; NSDL/POLICY/2026/0090 of 16 Jun 2026",
+		ToConfirm: "The circulars say immediately: the 3 business days to take a match up and the 30 days for a contacted client to give a number are the firm's practice.",
+		Checks:    "Matches from the revocation lists (NSE's report, DoT's MNRL, NSDL's e-PASS) still New after 3 business days, or Contacted for more than 30 days with no number confirmed.",
+		Fix:       "Contact the client through another registered channel and raise the mobile change on Change requests; or mark the match on Revoked mobiles with what the check found.",
+		Screen:    "mnrl", ScreenName: "Clients & onboarding → Revoked mobiles", Real: true, run: siMNRL},
+	{ID: "deceased_ucc", Title: "Deceased clients' UCCs closed by the cut-off, with debits blocked", Area: "Clients", Severity: "high", Owner: RoleCompliance,
+		Source: "NSE/ISC/77375 of 9 Nov 2026 and NSE/ISC/76893 of 14 Oct 2026 (UCCs closed before the month's cut-off); NSE/ISC/75724 of 13 Aug 2026; SEBI/HO/OIAE/OIAE_IAD-1/P/CIR/2023/0000000163 of 3 Oct 2023 (debits blocked at once)",
+		Checks: "Clients on the KRAs' demise list: the UCC closed on every exchange before the cut-off in the month's NSE circular, and debits blocked from the day the list was loaded (unless the intimation was found false).",
+		Fix:    "Verify the death and close the UCCs on Deceased clients (the UCC upload sends them), or record the closure made on each exchange's portal; tell the KRA the same day if the intimation is false.",
+		Screen: "deceased", ScreenName: "Compliance → Deceased clients", Real: true, run: siDeceased},
 	{ID: "bsda_review", Title: "BSDA review done each quarter", Area: "Depository", Severity: "low", Owner: RoleChecker,
 		Source:    "SEBI circulars on Basic Services Demat Accounts (from CIR/MRD/DP/22/2012 of 27 Aug 2012)",
 		ToConfirm: "The quarterly timing is Ledgerline's Periodic work; SEBI's 2024 revision has DPs reassess eligibility each billing cycle (number to confirm).",
@@ -188,6 +236,29 @@ var siTests = []SITest{
 		Checks: "Expected files of the day and the day before, past their time and not received or made.",
 		Fix:    "Load or download the missing files on Exchange files; the missing-files alert says which.",
 		Screen: "xfiles", ScreenName: "Files → Exchange files", Real: true, run: siFiles},
+	{ID: "ap_contacts", Title: "No AP's own mobile or email on a client's record", Area: "Clients", Severity: "medium", Owner: RoleChecker,
+		Source: "NSE/COMP/63628 of 28 Aug 2024 (framework for supervision of APs and branches), Annexure A item 28: the AP's mobile number and email address are not mapped to any of its clients in the UCC",
+		Checks: "Every authorised person's own mobile and email on Branches & partners, against the mobile and email of every client not closed (a client with the AP's own PAN, its own account, is left out).",
+		Fix:    "Correct the client's mobile or email with a change request carrying the client's own details, and send the UCC to the exchanges again.",
+		Screen: "partners", ScreenName: "Branches & partners", Real: true, run: siAPContacts},
+	{ID: "ap_mapping_weekly", Title: "Clients mapped to APs reported to each exchange every week", Area: "Compliance", Severity: "medium", Owner: RoleMaker,
+		Source:    "NSE/COMP/49509 of 3 Sep 2021; MSE circular 10854 of 4 Sep 2021 (item 15 of MSE/MEM/15275/2024 of 30 Apr 2024): weekly, by the 2nd trading day of the following week, matching the exchange's UCC",
+		ToConfirm: "The exchanges' upload layouts could not be read; the files follow config/formats, marked unconfirmed.",
+		Checks:    "The latest week whose due date has passed: clients mapped, re-mapped or unmapped to an AP that are not in an upload recorded for an exchange, and records held back that need fixing.",
+		Fix:       "Make the week's file on Branches & partners → AP client reporting, upload it on each exchange's portal and record the acknowledgement; fix the records held back.",
+		Screen:    "partners", ScreenName: "Branches & partners", Real: true, run: siAPMapping},
+	{ID: "impersonation_actions", Title: "Every impersonation case acted on: FIR, takedown, notice, client alert", Area: "Compliance", Severity: "high", Owner: RoleCompliance,
+		Source:    "BSE notices 20250804-58 (IA) and 20250804-59 (RA) of 4 Aug 2025, paras (a) to (d); NSDL/POLICY/2024/0048 of 18 Apr 2024 (police complaint, takedown, public notice, caution to clients)",
+		ToConfirm: "The 7 days to record the steps are Ledgerline's own; the notices give no number of days.",
+		Checks:    "Open cases on the impersonation register found more than 7 days ago without an FIR, a takedown request, the notice on the website or the alert to clients.",
+		Fix:       "File the FIR, ask the platform or authority to take it down, put the notice on the website's home page and alert the clients; record each on Investor complaints → Impersonation.",
+		Screen:    "helpdesk", ScreenName: "Compliance → Investor complaints", Real: true, run: siImpActions},
+	{ID: "impersonation_report", Title: "Impersonation reported to BSE (RA, IA) and the depository (DP) each month", Area: "Compliance", Severity: "medium", Owner: RoleCompliance,
+		Source:    "BSE notices 20250804-58 and 20250804-59 of 4 Aug 2025 (monthly, within 7 days of the month's end, on the IA/RA Membership Portal); NSDL/POLICY/2024/0048 of 18 Apr 2024 (by the 10th of the following month)",
+		ToConfirm: "Whether BSE's module expects a nil entry, and how CDSL takes the report (communiqué DP2024-234 not read).",
+		Checks:    "The latest month whose due date has passed: the report to BSE for each RA and IA registration (or its nil check), and to NSDL or CDSL when the DP was impersonated.",
+		Fix:       "Report the month's cases on BSE's portal or to the depository, or record the nil check, on Investor complaints → Impersonation.",
+		Screen:    "helpdesk", ScreenName: "Compliance → Investor complaints", Real: true, run: siImpReports},
 	{ID: "duties_overdue", Title: "No compliance calendar duty overdue", Area: "Compliance", Severity: "medium", Owner: RoleCompliance,
 		Source: "The compliance calendar's duties, each with its own circular (Circulars & duties)",
 		Checks: "Active duties past their due date and not marked done (running account settlement is its own test).",

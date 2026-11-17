@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -133,13 +134,13 @@ func DefaultTemplates() []Template {
 		t("insight.corp_action", ChEmail, "Service", "{symbol}: {what}", "Dear {name},\n\n{symbol} has announced a {what}. Record date: {record}; ex-date: {ex}. You hold {held} shares in your demat account.\n\n{firm}", ""),
 		t("insight.idle_funds", ChEmail, "Promotional", "₹{amount} in your trading account", "Dear {name},\n\nYour trading account {ucc} has a credit balance of ₹{amount} and no trades since {since}. You can withdraw it at any time from the client portal (Funds & payouts); otherwise it is returned to your bank on the running-account settlement date.\n\n{firm}", ""),
 		t("insight.pledge_margin", ChEmail, "Promotional", "Use your holdings as margin", "Dear {name},\n\nYou have {count} holding(s) that are not pledged. Pledged as margin, they would give about ₹{margin} after haircuts, while you keep ownership and corporate benefits. Exchange rules require at least half of the margin for derivatives in cash.\n\nYou can request a pledge from the depository's site or ask us. This is information about your account, not investment advice.\n\n{firm}", ""),
-		t("insight.dormant", ChEmail, "Service", "Your trading account will be marked inactive on {date}", "Dear {name},\n\nThere has been no activity in your trading account {ucc} since {last}. Under the stock exchanges' rules it will be marked inactive on {date}, after which you cannot trade until it is reactivated with a fresh verification.\n\nAny trade or an update of your KYC details keeps it active. If you no longer need the account, you can ask us to close it.\n\n{firm}", ""),
+		t("insight.dormant", ChEmail, "Service", "Your trading account will be marked inactive on {date}", "Dear {name},\n\nThere has been no activity in your trading account {ucc} since {last}. Under the stock exchanges' rules it will be marked inactive on {date}, after which you cannot trade until it is reactivated with a fresh verification.\n\nIf your email, mobile number or address has changed, please tell us so we can update your KYC record. If you no longer need the account, you can ask us to close it.\n\n{firm}", ""),
 		t("insight.fo_expiry", ChWhatsApp, "Transactional", "", "⚠️ {name}, your {contract} position expires on {expiry}. Stock derivatives held at expiry settle by delivery: you would {action} {qty} {symbol} shares, about ₹{value}. Close or roll over before expiry if you do not want delivery.", ""),
 		t("insight.advance_tax", ChWhatsApp, "Service", "", "{name}, advance tax instalment due {due}. Capital gains booked this year: short-term ₹{stcg}, long-term ₹{ltcg}; estimated tax about ₹{tax}. Reply TAX for details. Information only, not tax advice.", ""),
 		t("insight.corp_action", ChWhatsApp, "Service", "", "{name}, {symbol} has announced a {what}. Record date {record}, ex-date {ex}. You hold {held} shares.", ""),
 		t("insight.idle_funds", ChWhatsApp, "Promotional", "", "{name}, ₹{amount} is in your trading account {ucc} with no trades since {since}. You can withdraw it any time from the client portal → Funds & payouts. Reply BAL for your balance.", ""),
 		t("insight.pledge_margin", ChWhatsApp, "Promotional", "", "{name}, {count} of your holdings are not pledged. As margin they would give about ₹{margin} after haircuts; you keep ownership and dividends. Ask us or pledge from the depository's site. Information only, not advice.", ""),
-		t("insight.dormant", ChWhatsApp, "Service", "", "{name}, there has been no activity in your trading account {ucc} since {last}. Under exchange rules it will be marked inactive on {date}. Any trade or a KYC update keeps it active.", ""),
+		t("insight.dormant", ChWhatsApp, "Service", "", "{name}, there has been no activity in your trading account {ucc} since {last}. Under exchange rules it will be marked inactive on {date}; using it after that needs a fresh verification. If your contact details have changed, please tell us.", ""),
 		t("whatsapp.consent", ChEmail, "Service", "Get your account messages on WhatsApp?", "Dear {name},\n\nWould you like to receive messages about your trading account {ucc} on WhatsApp at {mobile}: alerts on funds, margin and contract notes, and information about your own account such as tax on your gains and offers on shares you hold?\n\nTo choose, open this link: {link}\n\nYou can stop at any time by replying STOP on WhatsApp. Contract notes, statements and regulatory alerts continue by email and SMS either way.\n\n{firm}", ""),
 		t("whatsapp.consent", ChSMS, "Service", "", "Dear {name}, get your account alerts from {firm} on WhatsApp? Choose here: {link} -{firm}", "1107166000000000011"),
 		t("yearend.pack", ChEmail, "Service", "Your year-end statement for FY {fy}", "Dear {name},\n\nYour year-end statement for the financial year {fy} is ready in the client portal (Tax & insights → Year-end statements). It has your capital gains, futures and options result, charges paid, the closing balance and holdings, and a statement of the securities transaction tax you paid, by exchange (STT paid: ₹{stt}).\n\nPlease check it and tell us of any discrepancy within 30 days.\n\n{firm}", ""),
@@ -157,12 +158,39 @@ func DefaultTemplates() []Template {
 	return ts
 }
 
+// retiredTemplateBodies are default texts withdrawn because a rule changed,
+// by event and channel. A stored template still holding one, word for word,
+// was never edited by the firm, so it takes the current default.
+//   - insight.dormant: NSE/INSP/64718 (circular 80/2024, 25 October 2024,
+//     point 5): a notice before an account is flagged inactive must not ask
+//     the client to trade to keep it active.
+var retiredTemplateBodies = map[string][]string{
+	"insight.dormant|" + ChEmail:    {"Dear {name},\n\nThere has been no activity in your trading account {ucc} since {last}. Under the stock exchanges' rules it will be marked inactive on {date}, after which you cannot trade until it is reactivated with a fresh verification.\n\nAny trade or an update of your KYC details keeps it active. If you no longer need the account, you can ask us to close it.\n\n{firm}"},
+	"insight.dormant|" + ChWhatsApp: {"{name}, there has been no activity in your trading account {ucc} since {last}. Under exchange rules it will be marked inactive on {date}. Any trade or a KYC update keeps it active."},
+}
+
 func (o *Ops) templates(ctx context.Context, tenant string) ([]Template, error) {
 	ts, err := docs.List[Template](ctx, o.Docs, tenant, cTemplate, "")
 	if err != nil {
 		return ts, err
 	}
 	if len(ts) > 0 {
+		// Default texts withdrawn since the firm was set up: a template
+		// the firm never edited takes the current default.
+		defs := map[string]Template{}
+		for _, t := range DefaultTemplates() {
+			defs[t.Event+"|"+t.Channel] = t
+		}
+		for i, t := range ts {
+			d, ok := defs[t.Event+"|"+t.Channel]
+			if !ok || !slices.Contains(retiredTemplateBodies[t.Event+"|"+t.Channel], t.Body) {
+				continue
+			}
+			ts[i].Subject, ts[i].Body = d.Subject, d.Body
+			if err := docs.Upsert(ctx, o.Docs, tenant, cTemplate, t.ID, ts[i], "system"); err != nil {
+				return nil, err
+			}
+		}
 		// Templates for events added since the firm was set up.
 		have := map[string]bool{}
 		for _, t := range ts {
@@ -274,6 +302,8 @@ func (o *Ops) deliver(ctx context.Context, tenant, actor string, t Template, c C
 		m.To = c.Mobile
 		if !reMobile.MatchString(c.Mobile) {
 			m.Status, m.Note = "Failed", "no valid mobile number"
+		} else if id, held := o.mnrlHeld(ctx, tenant, c.Mobile); held {
+			m.Status, m.Note = "Held", mnrlHeldNote(id) // the number is on DoT's revocation list (mnrl.go)
 		} else if t.DLT == "" {
 			m.Status, m.Note = "Failed", "template has no DLT template ID"
 		} else if t.Category == "Promotional" && (now.Hour() < 9 || now.Hour() >= 21) {
@@ -283,7 +313,9 @@ func (o *Ops) deliver(ctx context.Context, tenant, actor string, t Template, c C
 		}
 	case ChWhatsApp:
 		m.To = c.Mobile
-		if !c.WhatsApp {
+		if id, held := o.mnrlHeld(ctx, tenant, c.Mobile); held {
+			m.Status, m.Note = "Held", mnrlHeldNote(id)
+		} else if !c.WhatsApp {
 			m.Status, m.Note = "Not opted in", "client has not opted in to WhatsApp"
 		}
 	}
@@ -471,9 +503,16 @@ func (o *Ops) WhatsAppInbound(ctx context.Context, tenant, from, text, date stri
 	}
 	var reply string
 	var ucc string
-	if len(mine) == 0 {
+	_, held := o.mnrlHeld(ctx, tenant, mobile)
+	switch {
+	case len(mine) == 0:
 		reply = "This number is not registered with " + set.Firm + ". Please write from the mobile number registered with your trading account."
-	} else {
+	case held:
+		// The number is on DoT's revocation list and may be someone else's
+		// now: nothing about the account goes to it (mnrl.go).
+		reply = "We cannot answer on this number at present. Please write to us from your registered email address or contact your branch."
+		o.log(ctx, tenant, "whatsapp", "whatsapp.held", maskMobile(mobile), nil)
+	default:
 		c := mine[0]
 		if len(words) > 1 {
 			for _, x := range mine {

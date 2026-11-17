@@ -1,0 +1,8 @@
+/* Revoked mobiles and deceased clients (clientlists.js). */
+#cl-mt .tbl td.cl-next { min-width: 220px; max-width: 360px; }
+#cl-mt .split, #cl-dt .split { flex-wrap: wrap; gap: 4px; }
+#cl-dt .tbl td { vertical-align: top; }
+#cl-dt .pill + .dim { margin-top: 2px; }
+.cl-hist { list-style: none; margin: 0; padding: 0; }
+.cl-hist li { padding: 7px 0; border-bottom: 1px solid var(--line, #e5e7eb); font-size: 13px; }
+.cl-hist li:last-child { border-bottom: 0; }

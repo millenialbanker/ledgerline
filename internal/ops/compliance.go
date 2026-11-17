@@ -70,7 +70,7 @@ type ClientDoc struct {
 }
 
 // DocKinds are the document kinds held for clients.
-var DocKinds = []string{"PAN card", "Address proof", "Photograph", "Signature", "Bank proof", "Income proof", "KYC form", "Account opening agreement", "DDPI / POA", "Demat proof", "Nomination form", "IPV / VIPV record", "Other"}
+var DocKinds = []string{"PAN card", "Address proof", "Photograph", "Signature", "Bank proof", "Income proof", "KYC form", "Account opening agreement", "DDPI / POA", "Demat proof", "Nomination form", DocFATCA, "IPV / VIPV record", "Other"}
 
 func reKYCYears(risk string) int {
 	switch risk {
@@ -405,13 +405,18 @@ func (o *Ops) prepareCompliance(ctx context.Context, tenant, actor, source, date
 			return n, dup, err
 		}, errs
 	case "KRA-STATUS":
-		type st struct{ pan, status, remark string }
+		// The optional FATCA column says whether the client's FATCA/CRS
+		// self-certification is on record at the KRA: Y or N (fatca.go).
+		type st struct{ pan, status, remark, fatca string }
 		var ss []st
 		valid := map[string]bool{"Registered": true, "Validated": true, "On hold": true, "Rejected": true, "Under process": true, "Not available": true}
 		for _, r := range rows {
-			s := st{strings.ToUpper(r.get("PAN")), r.get("Status"), r.get("Remarks")}
+			s := st{strings.ToUpper(r.get("PAN")), r.get("Status"), r.get("Remarks"), r.get("FATCA")}
 			if !valid[s.status] {
 				bad(r.line, "Status", "must be Registered, Validated, On hold, Rejected, Under process or Not available")
+			}
+			if s.fatca != "" && fatcaYN(s.fatca) == "" {
+				bad(r.line, "FATCA", "must be Y (on record at the KRA), N or empty")
 			}
 			ss = append(ss, s)
 		}
@@ -430,6 +435,7 @@ func (o *Ops) prepareCompliance(ctx context.Context, tenant, actor, source, date
 				}
 				c, err := docs.Update(ctx, o.Docs, tenant, cClient, u, actor, func(x *Client) error {
 					x.KRAStatus, x.KRARemark = s.status, s.remark
+					noteKRAFATCA(x, s.fatca, s.remark, o.fileDate(date))
 					return nil
 				})
 				if err != nil {
@@ -496,33 +502,6 @@ func (o *Ops) prepareCompliance(ctx context.Context, tenant, actor, source, date
 		}, errs
 	}
 	return nil, []ingest.ParseError{{Msg: "unknown compliance file " + source}}
-}
-
-// KRAUploadFile lists clients whose KYC must be uploaded to the KRA: new
-// accounts and changed contact details since `since`.
-func (o *Ops) KRAUploadFile(ctx context.Context, tenant, since string) ([]byte, error) {
-	cs, err := o.Clients(ctx, tenant)
-	if err != nil {
-		return nil, err
-	}
-	rows := [][]string{{"PAN", "Name", "DOB", "Mobile", "Email", "City", "State", "KYCMode", "IPVDone", "AccountOpened", "Change", "UCC"}}
-	for _, c := range cs {
-		change := ""
-		switch {
-		case c.KYCDate >= since && c.KRAStatus == "":
-			change = "New"
-		case c.KYCUpdatedOn >= since && c.KYCUpdatedOn != "":
-			change = "Modify"
-		default:
-			continue
-		}
-		ipv := "Y"
-		if strings.Contains(c.KYCRoute, "DigiLocker") || strings.Contains(c.KYCRoute, "offline e-KYC") {
-			ipv = "NA" // not required: Aadhaar via DigiLocker or UIDAI's offline e-KYC
-		}
-		rows = append(rows, []string{c.PAN, c.Name, c.DOB, c.Mobile, c.Email, c.City, c.State, c.KYCRoute, ipv, c.KYCDate, change, c.UCC})
-	}
-	return CSV(rows), nil
 }
 
 // CKYCRequestFile lists active clients without a CKYC number for a bulk

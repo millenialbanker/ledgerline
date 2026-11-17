@@ -166,12 +166,25 @@ type Client struct {
 	// (dponly.go): no segments, no exchange UCC, front-office files,
 	// limits, contract notes or running account settlement.
 	DPOnly bool `json:"dp_only,omitempty"`
+	// FATCA is the client's FATCA/CRS self-certification (fatca.go): tax
+	// residency with TINs, place and country of birth, nationality, US
+	// person, controlling persons, the account's classification, its
+	// validity and date, and where it stands at the KRA. Required for a new
+	// client; nil for a client from the previous system until recorded.
+	FATCA *FATCADecl `json:"fatca,omitempty"`
 	// Incomplete lists, in words ("Mobile", "PAN", "Bank account number",
 	// "Address"…), the details the previous system did not have, or had in
 	// a form Ledgerline cannot accept, when an inactive client was migrated
 	// with them as they were. They are completed before the client may be
 	// reactivated; see incomplete.go.
 	Incomplete []string `json:"incomplete,omitempty"`
+	// MNRL: the client's registered mobile, or a joint holder's, is on
+	// DoT's Mobile Number Revocation List; SMS and WhatsApp to the number
+	// are held until the match is cleared (mnrl.go).
+	MNRL []MNRLFlag `json:"mnrl,omitempty"`
+	// Deceased: the KRA reported the client as deceased; debits (payouts,
+	// demat debits, orders) are blocked until transmission (deceased.go).
+	Deceased *DeceasedFlag `json:"deceased,omitempty"`
 }
 
 var (
@@ -400,6 +413,16 @@ func (o *Ops) createApplication(ctx context.Context, tenant, actor string, c Cli
 		o.log(ctx, tenant, actor, "onboarding.debarred", c.PAN, map[string]any{"order": d.OrderNo, "regulator": d.Regulator})
 		return Client{}, &ValidationError{[]FieldError{{"pan", "This PAN is debarred from the securities market (" + d.Regulator + " order " + d.OrderNo + "); the account cannot be opened"}}}
 	}
+	// The FATCA/CRS self-certification is part of the account opening
+	// (SEBI/HO/MIRSD/SECFATF/P/CIR/2024/12; SEBI circular of 11 November
+	// 2026, para 6); it goes to the KRA with the KYC (fatca.go).
+	mode := FATCAModeForm
+	if strings.HasPrefix(actor, "applicant:") {
+		mode = FATCAModeESign
+	}
+	if err := requireFATCA(&c, actor, mode, o.now().Format(time.RFC3339)); err != nil {
+		return Client{}, err
+	}
 	if c.UCC == "" {
 		n, err := o.next(ctx, tenant, "ucc", actor)
 		if err != nil {
@@ -415,10 +438,15 @@ func (o *Ops) createApplication(ctx context.Context, tenant, actor string, c Cli
 	if c.WhatsApp {
 		c.setConsent(true, o.now().Format(time.RFC3339), SrcOnboarding, actor, "application "+c.UCC)
 	}
+	if c.Partner != "" {
+		o.ensureAPBaseline(ctx, tenant) // before the client exists, so it is not taken as an existing mapping
+	}
 	if _, err := docs.Put(ctx, o.Docs, tenant, cClient, c.UCC, c, 0, actor); err != nil {
 		return Client{}, err
 	}
 	o.log(ctx, tenant, actor, "client.application.created", c.UCC, map[string]any{"pan": MaskPAN(c.PAN), "segments": c.Segments, "dp_only": c.DPOnly})
+	// A new client of an AP, for the weekly report of clients mapped to APs.
+	o.recordAPChange(ctx, tenant, actor, c, "", c.Partner, APViaOpening, true)
 	return c, nil
 }
 
@@ -484,6 +512,10 @@ func (o *Ops) SetBlocked(ctx context.Context, tenant, actor, ucc string, blocked
 		if x.Status != "Active" {
 			return fmt.Errorf("%w: only active clients can be blocked", ErrState)
 		}
+		if x.Deceased != nil && !blocked {
+			// Lifted only when the intimation is found false (deceased.go).
+			return fmt.Errorf("%w: %s; the block is lifted only if the intimation is found false, on Compliance → Deceased clients", ErrState, deceasedWhy(*x))
+		}
 		x.Blocked, x.BlockedReason = blocked, reason
 		if !blocked {
 			x.BlockedReason = ""
@@ -507,5 +539,14 @@ func (c Client) Public() Client {
 	c.Banks = maskBanks(registeredBanks(c))
 	c.PAN = MaskPAN(c.PAN)
 	c.Nominees = maskNominees(c.Nominees)
+	if len(c.MNRL) > 0 {
+		fs := make([]MNRLFlag, len(c.MNRL))
+		for i, f := range c.MNRL {
+			f.Mobile = maskMobile(f.Mobile)
+			fs[i] = f
+		}
+		c.MNRL = fs
+	}
+	c.FATCA = c.FATCA.masked()
 	return c
 }

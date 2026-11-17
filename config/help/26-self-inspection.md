@@ -41,10 +41,10 @@ Each failing test opens one **exception**, which is a card on the Ledgerline boa
 title: The self-inspection's tests and their rules
 screen: selfinspect
 roles: Compliance officer, Admin, Ops maker, Ops checker, Risk manager
-ask: list of self inspection tests; which circular does the test follow; segregation test; client money test; cuspa test; contract notes 24 hours test; complaints 21 days; payouts to registered bank; third party funds test; kyc test; inactive accounts test; ddpi test; alerts 45 days; holding statement test; segmon test; weekly statement test; debarred clients test; ucc test; bsda test
+ask: list of self inspection tests; which circular does the test follow; segregation test; client money test; cuspa test; contract notes 24 hours test; complaints 21 days; payouts to registered bank; third party funds test; kyc test; inactive accounts test; ddpi test; alerts 45 days; holding statement test; segmon test; weekly statement test; debarred clients test; ucc test; bsda test; mnrl test; deceased clients test
 related: self-inspection, self-inspection-exceptions
 
-Each test reuses the check Ledgerline already makes on its own screen. 21 are real; 1 waits for data.
+Each test reuses the check Ledgerline already makes on its own screen. 23 are real; 1 waits for data.
 
 - **Client money fully covered** (high): the segregation check; SEBI/HO/MIRSD/MIRSD2/CIR/P/2016/95 of 26 September 2016, para 3.3.1.
 - **Running accounts settled on each client's chosen date** (high): SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197 of 28 December 2023 and the exchanges' joint calendar; idle balances returned on the upcoming monthly settlement date (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/1 of 6 January 2025).
@@ -61,5 +61,7 @@ Each test reuses the check Ledgerline already makes on its own screen. 21 are re
 - **Weekly statement of funds and securities** (medium): NSE/INSP/47227 of 3 February 2021 and NSE/INSP/48431 of 28 May 2021; to confirm that it still applies, since the 2025 investor charter lists monthly statements.
 - **No trades by debarred clients** (high): SEBI's debarment orders as the exchanges circulate them; needs the debarred list loaded with PANs.
 - **Client details match the exchanges' UCC records** (medium): NSE/ISC/73973 of 30 April 2026 and the exchanges' UCC answers.
+- **Client mobiles on DoT's revocation list taken up in time** (medium): NSE/ISC/45168 of 29 July 2020, NSE/ISC/47834 of 31 March 2021 and NSE/ISC/72805 of 13 February 2026; the 3 business days and 30 days are the firm's practice (to confirm).
+- **Deceased clients' UCCs closed by the cut-off, with debits blocked** (high): NSE/ISC/77375 of 9 November 2026 and NSE/ISC/76893 of 14 October 2026; SEBI/HO/OIAE/OIAE_IAD-1/P/CIR/2023/0000000163 of 3 October 2023.
 - **BSDA review each quarter** (low), **The day's files received and made** (low) and **No compliance calendar duty overdue** (medium): the firm's own Periodic work, file timetable and calendar.
 - **DDPI or POA used only for permitted purposes** waits for data: the depository records Ledgerline loads do not say which debits were made under a DDPI (SEBI/HO/MIRSD/MIRSD-PoD-1/P/CIR/2022/137 of 6 October 2022).

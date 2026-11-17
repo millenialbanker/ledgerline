@@ -41,7 +41,7 @@ type Column struct {
 	Decimals int    `json:"decimals,omitempty"` // for dec: digits after the point
 	Fixed    bool   `json:"fixed,omitempty"`    // for dec: always write all decimals
 	Const    string `json:"const,omitempty"`    // a value the field always has (record codes)
-	Quote    string `json:"quote,omitempty"`    // "always": in double quotes even when empty; "set": quoted when it has a value
+	Quote    string `json:"quote,omitempty"`    // "always": in double quotes even when empty; "set": quoted when it has a value; "digits": quoted when it is all digits (an account number), so a spreadsheet keeps its leading zeros
 	Required bool   `json:"required,omitempty"`
 	Note     string `json:"note,omitempty"`
 	// Aliases are other header texts the column is known by (a circular
@@ -53,6 +53,11 @@ type Column struct {
 	// MayOmit (trailing_empty specs): a line may stop before this column,
 	// as before a reserved one, and it reads as empty.
 	MayOmit bool `json:"may_omit,omitempty"`
+	// Pattern is a regular expression a non-empty value must match (the
+	// whole value); a layout read by its header names also uses it to read
+	// a file that has no header row (Spec.NoHeader).
+	Pattern string `json:"pattern,omitempty"`
+	rx      *regexp.Regexp
 }
 
 // reserved says whether a column is a reserved or dummy field.
@@ -111,12 +116,18 @@ type Spec struct {
 	TrailingEmpty bool     `json:"trailing_empty,omitempty"`
 	Columns       []Column `json:"columns,omitempty"`
 	Records       []Record `json:"records,omitempty"`
-	JSONShape     any      `json:"json_shape,omitempty"`
-	Confirmed     bool     `json:"confirmed"` // every column's meaning is from the published spec or the file's own header
-	Linked        string   `json:"linked"`    // what Ledgerline does with it ("" = layout known, not used yet)
-	Source        string   `json:"source,omitempty"`
-	nameRx        []*regexp.Regexp
-	notRx         []*regexp.Regexp
+	// HeaderScan and NoHeader are for a layout read by its header names
+	// (format "headers", headers.go): the header row is looked for in the
+	// first HeaderScan lines (10 when 0); NoHeader are the column keys, in
+	// order, for a file with no header row.
+	HeaderScan int      `json:"header_scan,omitempty"`
+	NoHeader   []string `json:"no_header,omitempty"`
+	JSONShape  any      `json:"json_shape,omitempty"`
+	Confirmed  bool     `json:"confirmed"` // every column's meaning is from the published spec or the file's own header
+	Linked     string   `json:"linked"`    // what Ledgerline does with it ("" = layout known, not used yet)
+	Source     string   `json:"source,omitempty"`
+	nameRx     []*regexp.Regexp
+	notRx      []*regexp.Regexp
 }
 
 // Library is the set of known layouts.
@@ -222,8 +233,23 @@ func (s *Spec) compile() error {
 				seen[c.Key] = true
 			}
 		}
+	} else if s.Format == "headers" {
+		if err := s.compileHeaders(); err != nil {
+			return err
+		}
 	} else if s.Format != "json" {
-		return fmt.Errorf("%s: format must be delimited, json or workbook", s.ID)
+		return fmt.Errorf("%s: format must be delimited, json, workbook or headers", s.ID)
+	}
+	for _, r := range s.allRecords() {
+		for i := range r.Columns {
+			if p := r.Columns[i].Pattern; p != "" {
+				rx, err := regexp.Compile("^(?:" + p + ")$")
+				if err != nil {
+					return fmt.Errorf("%s: column %s: pattern %q: %w", s.ID, r.Columns[i].Name, p, err)
+				}
+				r.Columns[i].rx = rx
+			}
+		}
 	}
 	for _, n := range s.Names {
 		rx, err := regexp.Compile("(?i)^(?:" + n + ")$")
@@ -383,6 +409,11 @@ func (l *Library) Recognise(name string, data []byte) (*Spec, error) {
 	}
 	if len(byName) == 1 {
 		return byName[0], nil
+	}
+	// Layouts read by their header names are told apart by the most
+	// columns found, and only among those whose name matched (headers.go).
+	if s, ok, err := bestByHeaders(name, byName, data); ok {
+		return s, err
 	}
 	// Several layouts share a name (NSE Clearing's <member>.txt files) or
 	// none matched: decide by the header row.
@@ -576,6 +607,9 @@ func (s *Spec) Read(name string, data []byte) (*Table, error) {
 	if s.Format == "workbook" {
 		return s.readWorkbook(t, data)
 	}
+	if s.Format == "headers" {
+		return t, s.Scan(data, t, nil)
+	}
 	if s.Format == "json" {
 		var v any
 		if err := json.Unmarshal(data, &v); err != nil {
@@ -715,6 +749,9 @@ func (c Column) check(v string) string {
 	if c.Const != "" && t != c.Const {
 		return fmt.Sprintf("is %q, expected %q", t, c.Const)
 	}
+	if c.rx != nil && !c.rx.MatchString(t) {
+		return fmt.Sprintf("%q is not in the form this column takes", short(t))
+	}
 	switch c.Type {
 	case "blank":
 		return "" // reserved fields may be used later
@@ -851,7 +888,7 @@ func (s *Spec) Write(rows []Row) ([]byte, error) {
 			if c.Required && v == "" {
 				return nil, fmt.Errorf("xfile: %s row %d: %s is required", s.ID, n+1, c.Name)
 			}
-			f[i] = s.quote(v, c.Quote == "always" || c.Quote == "set" && v != "")
+			f[i] = s.quote(v, c.Quote == "always" || c.Quote == "set" && v != "" || c.Quote == "digits" && allDigits(v))
 		}
 		if r.Fields > 0 && s.TrailingEmpty {
 			// as the line came: with its trailing empty fields, or without
@@ -868,6 +905,19 @@ func (s *Spec) Write(rows []Row) ([]byte, error) {
 		b.WriteString(eol)
 	}
 	return b.Bytes(), nil
+}
+
+// allDigits says whether a value is a number written with digits only.
+func allDigits(v string) bool {
+	if v == "" {
+		return false
+	}
+	for _, r := range v {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Spec) quote(v string, always bool) string {
@@ -961,7 +1011,7 @@ func (s *Spec) RoundTrip(name string, data []byte) (same bool, diff string, err 
 	if err != nil {
 		return false, "", err
 	}
-	if s.Format == "json" || s.Format == "workbook" {
+	if s.Format == "json" || s.Format == "workbook" || s.Format == "headers" {
 		return true, "", nil // structure only: these are read, never rewritten byte for byte
 	}
 	cp := *s

@@ -405,6 +405,9 @@ func (o *Ops) DecideReactivation(ctx context.Context, tenant, actor, date, id st
 		return r, err
 	}
 	o.log(ctx, tenant, actor, "reactivation.approved", r.UCC, map[string]any{"id": id})
+	if r.DetailsChanged && r.Mobile != "" {
+		o.mnrlSync(ctx, tenant, actor) // a number on DoT's revocation list replaced (mnrl.go)
+	}
 	o.reactivationLetter(ctx, tenant, actor, r)
 	return r, nil
 }
@@ -446,5 +449,8 @@ func (o *Ops) UpdateContact(ctx context.Context, tenant, actor, date, ucc, email
 		return c, err
 	}
 	o.log(ctx, tenant, actor, "client.kyc_updated", c.UCC, map[string]any{"kra": kraStatus, "email_changed": c.Email != before.Email, "mobile_changed": c.Mobile != before.Mobile, "address_changed": c.City != before.City})
+	if c.Mobile != before.Mobile {
+		o.mnrlSync(ctx, tenant, actor) // a number on DoT's revocation list replaced (mnrl.go)
+	}
 	return c.Public(), nil
 }

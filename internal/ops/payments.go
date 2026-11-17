@@ -549,6 +549,10 @@ func (o *Ops) Withdrawable(ctx context.Context, tenant, date, ucc string) (Withd
 			return w, err
 		}
 	}
+	if c, err := o.Client(ctx, tenant, ucc); err == nil && c.Deceased != nil {
+		// Nothing is paid out until transmission (deceased.go).
+		w.Blocked, w.BlockedWhy, w.Note = true, "reported deceased", deceasedWhy(c)
+	}
 	if w.Blocked || w.Available < 0 {
 		w.Available = 0
 	}
@@ -611,6 +615,9 @@ func (o *Ops) RequestPayoutTo(ctx context.Context, tenant, actor, date, ucc stri
 	if err != nil {
 		return PayoutRequest{}, invalid("client %s not found", ucc)
 	}
+	if c.Deceased != nil {
+		return PayoutRequest{}, fmt.Errorf("%w: %s; pay the nominee or legal heirs through the transmission", ErrState, deceasedWhy(c))
+	}
 	if amount <= 0 {
 		return PayoutRequest{}, invalid("amount must be above zero")
 	}
@@ -671,6 +678,9 @@ func (o *Ops) DecidePayout(ctx context.Context, tenant, actor, date, id string, 
 	}
 	status := "Rejected"
 	if approve {
+		if c, err := o.Client(ctx, tenant, p.UCC); err == nil && c.Deceased != nil {
+			return p, fmt.Errorf("%w: %s; reject the request", ErrState, deceasedWhy(c))
+		}
 		w, err := o.Withdrawable(ctx, tenant, date, p.UCC)
 		if err != nil {
 			return p, err
@@ -763,6 +773,12 @@ func (o *Ops) CreatePayoutBatch(ctx context.Context, tenant, actor, date string)
 		}
 		c, err := o.Client(ctx, tenant, p.UCC)
 		if err != nil {
+			continue
+		}
+		if c.Deceased != nil {
+			// Approved before the death was reported: held, not paid
+			// (deceased.go).
+			b.Held = append(b.Held, p.ID+": "+deceasedWhy(c))
 			continue
 		}
 		// The chosen registered account, or the primary (clientbanks.go);

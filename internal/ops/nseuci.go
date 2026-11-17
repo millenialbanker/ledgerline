@@ -47,9 +47,12 @@ import (
 //     {"request": {memberCode, ucc: [codes]}} (at most 50) give each UCC's
 //     PAN verification (P pending, A approved, I incorrect PAN), Aadhaar
 //     seeding and whether it is permitted to trade.
-//   - UAT base https://uat.connect2nsccl.com/uciservice/api. The production
-//     address is not in the document; www.connect2nsccl.com is assumed and
-//     can be changed on the connection.
+//   - Addresses: production https://api.nseindia.com/uciservice/api and UAT
+//     https://clientprofilinguat.nseindia.com/uciservice/api, from
+//     3 January 2026 (NSE/ISC/70019, circular 32/2025 of 4 September 2025).
+//     Only the hosts changed; the paths are the same. The connect2nsccl.com
+//     addresses of the interface document no longer answer, so one saved on
+//     a connection is replaced by the new address (nseUCIRetired).
 //   - The document gives no service hours; Ledgerline sends from 08:00 to
 //     22:00.
 
@@ -59,8 +62,8 @@ const (
 	cUCCRun      = "uccrun"      // key: EXCHANGE-nnnnn
 	cNSEUCIState = "nseucistate" // one document: the login and the last runs
 
-	nseUCILive = "https://www.connect2nsccl.com/uciservice/api"
-	nseUCIUAT  = "https://uat.connect2nsccl.com/uciservice/api"
+	nseUCILive = "https://api.nseindia.com/uciservice/api"
+	nseUCIUAT  = "https://clientprofilinguat.nseindia.com/uciservice/api"
 	// nseUCIBatch is NSE's limit of records per call ("50 clients per
 	// request"; counted here as records, the safer reading).
 	nseUCIBatch = 50
@@ -105,10 +108,18 @@ func parseNSEUCIConn(c Connection) (nseUCIConn, error) {
 	if !x.live {
 		x.base = nseUCIUAT
 	}
-	if u := strings.TrimRight(strings.TrimSpace(c.Values["url"]), "/"); u != "" {
+	if u := strings.TrimRight(strings.TrimSpace(c.Values["url"]), "/"); u != "" && !nseUCIRetired(u) {
 		x.base = u
 	}
 	return x, nil
+}
+
+// nseUCIRetired: the UCI API addresses NSE switched off on 3 January 2026
+// (NSE/ISC/70019): ims.connect2nsccl.com, uat.connect2nsccl.com and the
+// www. address Ledgerline assumed before. A connection saved with one of
+// them uses NSE's new address for its environment instead.
+func nseUCIRetired(u string) bool {
+	return strings.Contains(strings.ToLower(u), "connect2nsccl.com/uciservice")
 }
 
 // nseUCIHTTP is replaced in tests.

@@ -96,19 +96,28 @@ func branchTree(bs []Branch) map[string][]string {
 
 // Partner is an authorised person, relationship manager or referrer.
 type Partner struct {
-	Code      string       `json:"code"`
-	Name      string       `json:"name"`
-	Kind      string       `json:"kind"` // Authorised person, Relationship manager
-	Branch    string       `json:"branch"`
-	Parent    string       `json:"parent,omitempty"`
-	PAN       string       `json:"pan,omitempty"`
-	GSTIN     string       `json:"gstin,omitempty"`
-	RegNo     string       `json:"reg_no,omitempty"` // exchange AP registration
-	SharePct  money.Dec    `json:"share_pct"`        // of brokerage on its clients
-	Bank      string       `json:"bank,omitempty"`
-	Account   string       `json:"account,omitempty"`
-	IFSC      string       `json:"ifsc,omitempty"`
-	Email     string       `json:"email,omitempty"`
+	Code   string `json:"code"`
+	Name   string `json:"name"`
+	Kind   string `json:"kind"` // Authorised person, Relationship manager
+	Branch string `json:"branch"`
+	Parent string `json:"parent,omitempty"`
+	PAN    string `json:"pan,omitempty"`
+	GSTIN  string `json:"gstin,omitempty"`
+	RegNo  string `json:"reg_no,omitempty"` // exchange AP registration
+	// ExchangeRegs is the AP's registration number at each exchange (NSE,
+	// BSE, MCX, NCDEX, MSE) when the exchanges gave it different numbers;
+	// an exchange not listed uses RegNo. The weekly report of clients
+	// mapped to APs (apmapping.go) names the AP by it.
+	ExchangeRegs map[string]string `json:"exchange_regs,omitempty"`
+	SharePct     money.Dec         `json:"share_pct"` // of brokerage on its clients
+	Bank         string            `json:"bank,omitempty"`
+	Account      string            `json:"account,omitempty"`
+	IFSC         string            `json:"ifsc,omitempty"`
+	Email        string            `json:"email,omitempty"`
+	// Mobile is the AP's own mobile number. NSE/COMP/63628 (28 Aug 2024,
+	// Annexure A item 28): an AP's own mobile and email must not be on any
+	// of its clients' UCC.
+	Mobile    string       `json:"mobile,omitempty"`
 	Active    bool         `json:"active"`
 	Clients   int          `json:"clients"`
 	Downline  []string     `json:"downline"`
@@ -189,6 +198,9 @@ func (o *Ops) SavePartner(ctx context.Context, tenant, actor string, p Partner) 
 	if probs := checkPartner(&p, parent); len(probs) > 0 {
 		return p, invalid("%s", probs[0][1])
 	}
+	if p.Email != "" && !reEmail.MatchString(p.Email) {
+		return p, invalid("the email is not an email address")
+	}
 	p.Clients, p.Downline, p.Brokerage, p.Team = 0, nil, 0, 0
 	if err := docs.Upsert(ctx, o.Docs, tenant, cPartner, p.Code, p, actor); err != nil {
 		return p, err
@@ -224,6 +236,29 @@ func checkPartner(p *Partner, parent map[string]string) [][2]string {
 		add("GSTIN", "GSTIN is not valid")
 	}
 	p.PAN, p.GSTIN = strings.ToUpper(p.PAN), strings.ToUpper(p.GSTIN)
+	p.RegNo, p.Email, p.Mobile = strings.ToUpper(strings.TrimSpace(p.RegNo)), strings.TrimSpace(p.Email), digitsOf(p.Mobile)
+	if len(p.Mobile) == 12 && strings.HasPrefix(p.Mobile, "91") {
+		p.Mobile = p.Mobile[2:]
+	}
+	if p.Mobile != "" && !reMobile.MatchString(p.Mobile) {
+		add("Mobile", "the AP's mobile must be a 10-digit Indian mobile number")
+	}
+	regs := map[string]string{}
+	for x, n := range p.ExchangeRegs {
+		x, n = strings.ToUpper(strings.TrimSpace(x)), strings.ToUpper(strings.TrimSpace(n))
+		if n == "" {
+			continue
+		}
+		if !contains(discExchangeOrder, x) {
+			add("ExchangeRegs", "exchange "+x+": use "+strings.Join(discExchangeOrder, ", "))
+			continue
+		}
+		regs[x] = n
+	}
+	p.ExchangeRegs = regs
+	if len(regs) == 0 {
+		p.ExchangeRegs = nil
+	}
 	if p.Parent == p.Code {
 		add("Parent", "a partner cannot report to itself")
 		return out
@@ -358,7 +393,12 @@ func (o *Ops) AssignClient(ctx context.Context, tenant, actor, ucc, branch, part
 	if from != "" && !ledger.ValidDate(from) {
 		return Client{}, invalid("referral start must be YYYY-MM-DD")
 	}
+	// The register of AP mappings starts (if it has not) before the change,
+	// so a mapping that was there before is recorded as it was.
+	o.ensureAPBaseline(ctx, tenant)
+	was := ""
 	c, err := docs.Update(ctx, o.Docs, tenant, cClient, ucc, actor, func(x *Client) error {
+		was = x.Partner
 		x.Branch, x.Partner, x.RM = branch, strings.ToUpper(partner), strings.ToUpper(rm)
 		if x.ReferredBy != referrer {
 			x.ReferredBy, x.ReferredFrom = referrer, from
@@ -367,6 +407,7 @@ func (o *Ops) AssignClient(ctx context.Context, tenant, actor, ucc, branch, part
 	})
 	if err == nil {
 		o.log(ctx, tenant, actor, "client.mapped", ucc, map[string]any{"branch": branch, "partner": partner, "rm": rm, "referrer": referrer})
+		o.recordAPChange(ctx, tenant, actor, c, was, c.Partner, APViaMapping, false)
 	}
 	return c, err
 }

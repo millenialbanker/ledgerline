@@ -1,0 +1,299 @@
+{
+ "id": "kra-kyc-upload",
+ "title": "KYC upload with FATCA/CRS (KRA)",
+ "party": "KRA",
+ "direction": "out",
+ "when": "Daily (new and changed clients); once for the legacy FATCA/CRS backlog",
+ "purpose": "New accounts and changed KYC details for the KRA, with each client's FATCA/CRS self-certification after Ledgerline's own twelve columns. The legacy bulk file of clients onboarded before 1 August 2024 uses the same layout, as modifications.",
+ "names": [
+  "kra_upload_.*\\.csv",
+  "kra_fatca_legacy_.*\\.csv"
+ ],
+ "template": "kra_upload_{date:2006-01-02}.csv",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "crlf": false,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": "KYC & PMLA: the KRA upload file (and the nightly KRA upload job); FATCA / CRS: the legacy bulk file. Marking a file uploaded records each certification as at the KRA.",
+ "source": "The first twelve columns are Ledgerline's generic KRA file. The FATCA/CRS columns after them are named as in KFintech KRA circular KARVY/OPS/INTERM/GENRL/24-07 of 11 June 2024 (the FATCA/CRS fields and their validations); CVL KRA communique CVL/OPS/INTERM/GENRL/24-200 of 28 June 2024 (FATCA/CRS with the KYC upload from 1 August 2024). The TIN exemption reason and issuing country, nationality, US person and the fields of SEBI HO/38/14/(18)2026-MIRSD-POD2/I/25560/2026 of 11 November 2026, paras 6.1-6.3 (validity indicator, controlling persons, account type and pre-existing or new) are not in a KRA format yet: Ledgerline's column names, to confirm with the KRA. Edit this layout to match your KRA's template.",
+ "columns": [
+  {
+   "name": "PAN",
+   "key": "PAN",
+   "type": "str",
+   "note": "Ledgerline's own column, as in the KRA upload file before FATCA/CRS"
+  },
+  {
+   "name": "Name",
+   "key": "Name",
+   "type": "str",
+   "note": "Ledgerline's own column, as in the KRA upload file before FATCA/CRS"
+  },
+  {
+   "name": "DOB",
+   "key": "DOB",
+   "type": "str",
+   "note": "Ledgerline's own column, as in the KRA upload file before FATCA/CRS"
+  },
+  {
+   "name": "Mobile",
+   "key": "Mobile",
+   "type": "str",
+   "note": "Ledgerline's own column, as in the KRA upload file before FATCA/CRS"
+  },
+  {
+   "name": "Email",
+   "key": "Email",
+   "type": "str",
+   "note": "Ledgerline's own column, as in the KRA upload file before FATCA/CRS"
+  },
+  {
+   "name": "City",
+   "key": "City",
+   "type": "str",
+   "note": "Ledgerline's own column, as in the KRA upload file before FATCA/CRS"
+  },
+  {
+   "name": "State",
+   "key": "State",
+   "type": "str",
+   "note": "Ledgerline's own column, as in the KRA upload file before FATCA/CRS"
+  },
+  {
+   "name": "KYCMode",
+   "key": "KYCMode",
+   "type": "str",
+   "note": "Ledgerline's own column, as in the KRA upload file before FATCA/CRS"
+  },
+  {
+   "name": "IPVDone",
+   "key": "IPVDone",
+   "type": "str",
+   "note": "Y, or NA when Aadhaar was verified through DigiLocker or UIDAI's offline e-KYC (SEBI/HO/MIRSD/DOP/CIR/P/2020/73)"
+  },
+  {
+   "name": "AccountOpened",
+   "key": "AccountOpened",
+   "type": "str",
+   "note": "Ledgerline's own column, as in the KRA upload file before FATCA/CRS"
+  },
+  {
+   "name": "Change",
+   "key": "Change",
+   "type": "str",
+   "note": "New (a new account) or Modify (changed details; an updated FATCA/CRS certification is a modification, KARVY/OPS/INTERM/GENRL/24-07)",
+   "codes": {
+    "New": "New account",
+    "Modify": "Modification of the KYC record"
+   }
+  },
+  {
+   "name": "UCC",
+   "key": "UCC",
+   "type": "str",
+   "note": "Ledgerline's own column, as in the KRA upload file before FATCA/CRS"
+  },
+  {
+   "name": "Place of Birth",
+   "key": "PlaceOfBirth",
+   "type": "str",
+   "note": "KRA field (KARVY/OPS/INTERM/GENRL/24-07): a valid place; no special characters, not only numbers. For a non-individual, the place of incorporation"
+  },
+  {
+   "name": "Country of Birth",
+   "key": "CountryOfBirth",
+   "type": "str",
+   "note": "KRA field: ISO 3166 country code, checked against the KRA's country master"
+  },
+  {
+   "name": "Tax Residency other than India?",
+   "key": "TaxResidencyOtherThanIndia",
+   "type": "str",
+   "note": "KRA field: Y (FATCA/CRS applies; at least one Country of Tax Residency other than India) or N (tax resident of India only)",
+   "codes": {
+    "Y": "Yes",
+    "N": "No"
+   }
+  },
+  {
+   "name": "Country of Tax Residency1",
+   "key": "CountryOfTaxResidency1",
+   "type": "str",
+   "note": "KRA field: ISO 3166 country code; an Indian residency is not sent"
+  },
+  {
+   "name": "Country of Tax Residency2",
+   "key": "CountryOfTaxResidency2",
+   "type": "str",
+   "note": "KRA field: ISO 3166 country code; an Indian residency is not sent"
+  },
+  {
+   "name": "Country of Tax Residency3",
+   "key": "CountryOfTaxResidency3",
+   "type": "str",
+   "note": "KRA field: ISO 3166 country code; an Indian residency is not sent"
+  },
+  {
+   "name": "Country of Tax Residency4",
+   "key": "CountryOfTaxResidency4",
+   "type": "str",
+   "note": "KRA field: ISO 3166 country code; an Indian residency is not sent"
+  },
+  {
+   "name": "Tax Identification Number1",
+   "key": "TaxIdentificationNumber1",
+   "type": "str",
+   "note": "KRA field: the TIN for Country of Tax Residency of the same number; 9 or 16 characters for the US. The KRA does not validate other countries' TINs"
+  },
+  {
+   "name": "Tax Identification Number2",
+   "key": "TaxIdentificationNumber2",
+   "type": "str",
+   "note": "KRA field: the TIN for Country of Tax Residency of the same number; 9 or 16 characters for the US. The KRA does not validate other countries' TINs"
+  },
+  {
+   "name": "Tax Identification Number3",
+   "key": "TaxIdentificationNumber3",
+   "type": "str",
+   "note": "KRA field: the TIN for Country of Tax Residency of the same number; 9 or 16 characters for the US. The KRA does not validate other countries' TINs"
+  },
+  {
+   "name": "Tax Identification Number4",
+   "key": "TaxIdentificationNumber4",
+   "type": "str",
+   "note": "KRA field: the TIN for Country of Tax Residency of the same number; 9 or 16 characters for the US. The KRA does not validate other countries' TINs"
+  },
+  {
+   "name": "Date of Declaration",
+   "key": "DateOfDeclaration",
+   "type": "date",
+   "layout": "02-01-2006",
+   "note": "KRA field: the date of the self-certification, dd-mm-yyyy"
+  },
+  {
+   "name": "TIN Exemption Reason1",
+   "key": "TINExemptionReason1",
+   "type": "str",
+   "note": "Not named in the KRA circular, which says only that a reason is to be given when the TIN is exempt; column name to confirm. Reasons of the CBDT Guidance Note on FATCA and CRS (24 July 2026)",
+   "codes": {
+    "A": "The country does not issue TINs to its residents",
+    "B": "The person can get a TIN but has not yet obtained one",
+    "C": "The country's law does not require the TIN to be collected"
+   }
+  },
+  {
+   "name": "TIN Exemption Reason2",
+   "key": "TINExemptionReason2",
+   "type": "str",
+   "note": "Not named in the KRA circular, which says only that a reason is to be given when the TIN is exempt; column name to confirm. Reasons of the CBDT Guidance Note on FATCA and CRS (24 July 2026)",
+   "codes": {
+    "A": "The country does not issue TINs to its residents",
+    "B": "The person can get a TIN but has not yet obtained one",
+    "C": "The country's law does not require the TIN to be collected"
+   }
+  },
+  {
+   "name": "TIN Exemption Reason3",
+   "key": "TINExemptionReason3",
+   "type": "str",
+   "note": "Not named in the KRA circular, which says only that a reason is to be given when the TIN is exempt; column name to confirm. Reasons of the CBDT Guidance Note on FATCA and CRS (24 July 2026)",
+   "codes": {
+    "A": "The country does not issue TINs to its residents",
+    "B": "The person can get a TIN but has not yet obtained one",
+    "C": "The country's law does not require the TIN to be collected"
+   }
+  },
+  {
+   "name": "TIN Exemption Reason4",
+   "key": "TINExemptionReason4",
+   "type": "str",
+   "note": "Not named in the KRA circular, which says only that a reason is to be given when the TIN is exempt; column name to confirm. Reasons of the CBDT Guidance Note on FATCA and CRS (24 July 2026)",
+   "codes": {
+    "A": "The country does not issue TINs to its residents",
+    "B": "The person can get a TIN but has not yet obtained one",
+    "C": "The country's law does not require the TIN to be collected"
+   }
+  },
+  {
+   "name": "TIN Issuing Country1",
+   "key": "TINIssuingCountry1",
+   "type": "str",
+   "note": "Not in the KRA circular; the country that issued the TIN (CRS XML 'issuedBy'). Column name to confirm"
+  },
+  {
+   "name": "TIN Issuing Country2",
+   "key": "TINIssuingCountry2",
+   "type": "str",
+   "note": "Not in the KRA circular; the country that issued the TIN (CRS XML 'issuedBy'). Column name to confirm"
+  },
+  {
+   "name": "TIN Issuing Country3",
+   "key": "TINIssuingCountry3",
+   "type": "str",
+   "note": "Not in the KRA circular; the country that issued the TIN (CRS XML 'issuedBy'). Column name to confirm"
+  },
+  {
+   "name": "TIN Issuing Country4",
+   "key": "TINIssuingCountry4",
+   "type": "str",
+   "note": "Not in the KRA circular; the country that issued the TIN (CRS XML 'issuedBy'). Column name to confirm"
+  },
+  {
+   "name": "Nationality",
+   "key": "Nationality",
+   "type": "str",
+   "note": "Not in the KRA circular's FATCA/CRS list; ISO 3166 code. Column name to confirm"
+  },
+  {
+   "name": "US Person",
+   "key": "USPerson",
+   "type": "str",
+   "note": "Not in the KRA circular; Y for a US citizen or US resident for tax (FATCA). Column name to confirm",
+   "codes": {
+    "Y": "Yes",
+    "N": "No"
+   }
+  },
+  {
+   "name": "Self-certification Valid",
+   "key": "SelfCertificationValid",
+   "type": "str",
+   "note": "SEBI circular of 11 Nov 2026, para 6.1: the validity indicator (Y: a valid self-certification was obtained; Form 166 / CRS XML v3.0 CRS901, N: CRS902). No KRA format yet: column name to confirm",
+   "codes": {
+    "Y": "Yes",
+    "N": "No"
+   }
+  },
+  {
+   "name": "Account Type",
+   "key": "AccountType",
+   "type": "str",
+   "note": "SEBI circular of 11 Nov 2026, para 6.3; codes of the OECD CRS XML schema v3.0 (AccountType). No KRA format yet: column name to confirm",
+   "codes": {
+    "CRS1102": "Custodial account",
+    "CRS1101": "Depository account",
+    "CRS1104": "Debt or equity interest in an investment entity",
+    "CRS1103": "Cash value insurance or annuity contract"
+   }
+  },
+  {
+   "name": "Pre-existing or New Account",
+   "key": "AccountStatus",
+   "type": "str",
+   "note": "SEBI circular of 11 Nov 2026, para 6.3; codes of the OECD CRS XML schema v3.0 (DDProcedure). New when opened from 1 January 2016 (CRS). No KRA format yet: column name to confirm",
+   "codes": {
+    "CRS1201": "New account",
+    "CRS1202": "Pre-existing account"
+   }
+  },
+  {
+   "name": "Controlling Persons",
+   "key": "ControllingPersons",
+   "type": "str",
+   "note": "SEBI circular of 11 Nov 2026, para 6.2: how many controlling persons the client named; their details are in the controlling persons file (kra-fatca-controlling-persons). Column name to confirm"
+  }
+ ]
+}

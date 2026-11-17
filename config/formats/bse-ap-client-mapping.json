@@ -1,0 +1,68 @@
+{
+ "id": "bse-ap-client-mapping",
+ "title": "Clients mapped and unmapped to authorised persons, weekly (BSE)",
+ "party": "BSE",
+ "direction": "out",
+ "when": "Weekly, by the 2nd trading day of the next week",
+ "purpose": "The week's clients newly mapped, re-mapped or unmapped to an authorised person (AP), and new clients of APs, against each AP's BSE registration number. A re-mapping is two rows: D for the AP before and A for the new one. Written on Branches & partners → AP client reporting. Columns Ledgerline can fill (by key): member, exchange, ap_reg, ap_code, ap_name, ucc, pan, name, action (A or D), action_words (Map or Unmap), date, kind (Mapped, Re-mapped, Unmapped), new_client (Y or N). Change the columns, their headers and order here to BSE's template.",
+ "names": [
+  "\\d+_BSE_AP_CLIENTS_\\d{8}\\.csv"
+ ],
+ "template": "{member}_BSE_AP_CLIENTS_{date:02012006}.csv",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "crlf": true,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "AP Registration Number",
+   "key": "ap_reg",
+   "type": "str",
+   "required": true,
+   "note": "the AP's registration number at BSE (Branches & partners)"
+  },
+  {
+   "name": "Client Code",
+   "key": "ucc",
+   "type": "str",
+   "required": true,
+   "note": "the client's UCC at BSE"
+  },
+  {
+   "name": "PAN",
+   "key": "pan",
+   "type": "str",
+   "required": true,
+   "note": "as on the exchange's UCC"
+  },
+  {
+   "name": "Client Name",
+   "key": "name",
+   "type": "str",
+   "required": true,
+   "note": "as on the exchange's UCC"
+  },
+  {
+   "name": "Action",
+   "key": "action",
+   "type": "str",
+   "required": true,
+   "codes": {
+    "A": "mapped to the AP (a new client of the AP, or moved to it)",
+    "D": "unmapped from the AP (moved to another AP, or left with none)"
+   }
+  },
+  {
+   "name": "Date",
+   "key": "date",
+   "type": "date",
+   "layout": "02-01-2006",
+   "note": "the day the mapping took effect"
+  }
+ ],
+ "confirmed": false,
+ "linked": "Written from the register of clients' AP mappings (Branches & partners → AP client reporting)",
+ "source": "No BSE notice on the weekly AP client upload was found or read; the requirement is the same as NSE/COMP/49509 (3 Sep 2021) and MSE circular 10854 (4 Sep 2021). Confirm the module and template on BSE's member portal. The columns are Ledgerline's choice from what the circulars ask (the client's details as on the exchange's UCC, against each AP): to confirm."
+}

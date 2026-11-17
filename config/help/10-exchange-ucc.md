@@ -37,7 +37,7 @@ ask: set up nse ucc api; nse uci api user; register nse api user; uci api passwo
 related: ucc-api, connections
 
 1. Register the API user once on NSE's API registration page (connect2nsccl.com, **api-reg**): the member code, a password and the e-mail address; NSE e-mails a one-time code to finish. Then write to NSE's UCI desk (uci@nse.co.in) to **activate** the user. The same page resets the password.
-2. In [[connections|Connections]], open **NSE UCC API (UCI)** and enter the member code, the password, and the environment: **UAT** while testing with NSE, **Production** once NSE has approved the firm. The address is filled in; change it only if NSE gives another.
+2. In [[connections|Connections]], open **NSE UCC API (UCI)** and enter the member code, the password, and the environment: **UAT** while testing with NSE, **Production** once NSE has approved the firm. The address is filled in; change it only if NSE gives another. Since 3 January 2026 NSE's addresses are api.nseindia.com (production) and clientprofilinguat.nseindia.com (UAT) (NSE/ISC/70019); an old connect2nsccl.com address saved earlier is replaced by the new one.
 3. Switch **Send new and changed clients automatically** On when the firm is ready: Ledgerline then sends every 15 minutes from 08:00 to 22:00 and refreshes PAN status once a day. With it Off, staff send from the Exchange UCC screen.
 
 If NSE allows calls only from listed addresses, give NSE the server address shown on the Connections page.

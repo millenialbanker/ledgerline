@@ -1,0 +1,58 @@
+{
+ "id": "dot-mnrl",
+ "title": "Mobile Number Revocation List (DoT Digital Intelligence Platform)",
+ "party": "DoT",
+ "direction": "in",
+ "when": "Daily (near real time on DIP)",
+ "purpose": "DoT's list of disconnected mobile numbers with the date and reason of disconnection, downloaded from the Digital Intelligence Platform (diu.sancharsaathi.gov.in). DoT publishes no file layout to the public: the columns are read by their header names, which this layout lists (add a header text here when DIP's differs). A file with no header row is read as the mobile number, the date and the reason.",
+ "linked": "Matched with every client's mobile and the joint holders' mobiles Ledgerline keeps, on Clients & onboarding → Revoked mobiles.",
+ "names": [
+  ".*mnrl.*",
+  ".*revocation.*",
+  ".*revoked.*"
+ ],
+ "not_names": [
+  ".*reactivat.*"
+ ],
+ "compress": "none",
+ "format": "headers",
+ "delimiter": "auto",
+ "header": false,
+ "columns": [
+  {
+   "name": "Mobile Number",
+   "key": "mobile",
+   "type": "str",
+   "required": true,
+   "pattern": "[+0-9][0-9 ()+-]{9,17}",
+   "aliases": ["Mobile No", "Mobile", "MobileNo", "Mobile_No", "MSISDN", "Revoked Mobile Number", "Disconnected Mobile Number", "Disconnected Number", "Number"]
+  },
+  {
+   "name": "Date of Disconnection",
+   "key": "date",
+   "type": "str",
+   "aliases": ["Disconnection Date", "Date of Revocation", "Revocation Date", "Disconnected On", "Date"]
+  },
+  {
+   "name": "Reason of Disconnection",
+   "key": "reason",
+   "type": "str",
+   "aliases": ["Reason", "Reason for Disconnection", "Disconnection Reason", "Reason of Revocation", "Revocation Reason"]
+  },
+  {
+   "name": "TSP",
+   "key": "tsp",
+   "type": "str",
+   "aliases": ["Telecom Service Provider", "Service Provider", "Operator", "TSP Name"]
+  },
+  {
+   "name": "LSA",
+   "key": "lsa",
+   "type": "str",
+   "aliases": ["Licensed Service Area", "Service Area", "Circle"]
+  }
+ ],
+ "no_header": ["mobile", "date", "reason"],
+ "confirmed": false,
+ "source": "NSE/COMP/74753 (17 Jun 2026): DIP gives the MNRL, \"a list of all disconnected mobile numbers, with the reasons and dates of disconnection\", near real time, with API integration possible; CDSL/OPS/DP/POLCY/2026/517 (30 Jul 2026): DPs download and verify the MNRL daily on DIP. No file layout is published."
+}

@@ -111,15 +111,31 @@ Each quarter, within 15 calendar days of its end, the firm reports the status of
 On [[surv|Surveillance & AML]], **Referred to exchange** records the date and observation for Format II; **Add an action** records a Format III entry. An alert counts as closed in the quarter Ledgerline first sees it Closed (or STR filed). [[reports|Regulatory reports]] → *Surveillance obligation report* downloads the three formats for the quarter ended before the chosen date, with **NIL** where there is nothing to report; the compliance calendar has the quarterly duty.
 
 ## upi-collection
-title: Collect client money by UPI: validated UPI IDs and the SEBI QR
+title: Collect money by UPI: validated UPI IDs and the SEBI QR
 screen: settings
 roles: Compliance officer, Admin
-ask: upi id; validated upi; brk@valid; @valid upi handle; sebi check; upi qr code; add funds by upi; old upi id; collect money by upi
-related: live-bank-credits, unknown-credit
+ask: upi id; validated upi; brk@valid; ra@valid; ia@valid; @valid upi handle; sebi check; upi qr code; add funds by upi; old upi id; collect money by upi; research analyst fee by upi; investment adviser fee by upi; upi id for ra or ia fees
+related: live-bank-credits, unknown-credit, upi-fee-credit
 
-SEBI's circular SEBI/HO/DEPA-II/DEPA-II_SRG/P/CIR/2025/86 (11 June 2025) lets a stock broker collect investors' money by UPI only through a standardised, validated UPI ID: a readable username, **.brk**, and an **@valid** handle with the bank's name, for example *abc.brk@validhdfc*, available from 1 October 2025. The QR code comes from SEBI's SI portal and is shown on the website, the client portal and payment pages. NSE asks every account given to investors for payment to be linked to an @valid ID so it can be checked in SEBI Check (NSE/COMP/75700).
+SEBI's circular SEBI/HO/DEPA-II/DEPA-II_SRG/P/CIR/2025/86 (11 June 2025) has SEBI-registered intermediaries collect investors' money by UPI only through a standardised, validated UPI ID: a readable username, the **category** of the registration, and an **@valid** handle with the bank's name, for example *abc.brk@validhdfc*, available from 1 October 2025. Old IDs were to be stopped within 180 days. The categories are in its Annexure B: **.brk** stock broker, **.dp** depository participant, **.ra** research analyst, **.ia** investment adviser, and others (bti, invit, mf, pms, sreit, reit). A firm with several registrations applies for a handle for each one. The RA and IA master circulars of 6 February 2026 (paras 26 and 28) refer research analysts and investment advisers to it. The QR code comes from SEBI's SI portal and is shown on the website, the client portal and payment pages. NSE asks every account given to investors for payment to be linked to an @valid ID so it can be checked in SEBI Check (NSE/COMP/75700).
 
-1. Get the validated UPI ID from your bank and the QR code from the SI portal.
-2. In [[settings|Settings]] → *UPI collection* → **Change**, enter each ID (with the bank and the client bank account it credits) and upload the QR image (PNG or JPEG). Only IDs of the form *name.brk@valid<bank>* are accepted.
-3. The client portal's **Add funds** panel then shows the QR and the UPI ID first, with the bank account for NEFT, RTGS or IMPS as the alternative. Ledgerline does not start payments.
-4. Statement credits say which UPI ID they were paid to when the bank gives it (the optional *PayeeVPA* column of the bank statement file, or *UPI ID paid to* on a live bank connection). A credit to the firm's validated ID is its own collection and is matched as usual (it must still come from the client's registered account); a credit to any other UPI ID opens a work item to stop the old ID.
+1. Get the validated UPI IDs from your bank and the QR code from the SI portal.
+2. In [[settings|Settings]] → *UPI collection* → **Change**, enter each ID (with the bank and the account it credits) and upload the QR image (PNG or JPEG). Ledgerline takes the categories of the firm's registrations: **.brk** always (broking money); **.dp** when the firm is a depository participant; **.ra** and **.ia** when Settings → *Firm profile* lists those registrations. The window shows which are taken and why not.
+3. The client portal's **Add funds** panel then shows the QR and the client-money ID first (.brk; .dp for a client of the DP only), with the bank account for NEFT, RTGS or IMPS as the alternative. A research or advisory fee ID is never shown there. Ledgerline does not start payments.
+4. Statement credits say which UPI ID they were paid to when the bank gives it (the optional *PayeeVPA* column of the bank statement file, or *UPI ID paid to* on a live bank connection). A credit to a client-money ID is matched as usual (it must still come from the client's registered account); a credit to the firm's .ra or .ia ID is the firm's fee (see [[bank|Bank reconciliation]]); a credit to any other UPI ID opens a work item to stop the old ID.
+
+Ledgerline has no research or advisory fee module: link the .ra and .ia IDs to the firm's own account, where the fees belong.
+
+## upi-fee-credit
+title: Research or advisory fee paid to the firm's UPI ID
+screen: bank
+roles: Ops checker, Ops maker
+ask: fee paid to ra upi id; advisory fee on bank statement; research fee on bank statement; firm's fee bank credit; move fee to own account; ra fee not client money; ia fee upi credit
+related: upi-collection, unknown-credit
+
+A fee paid to the firm's research analyst (.ra) or investment adviser (.ia) UPI ID is the firm's money, never client money. When one shows on the client bank statement, Ledgerline does not credit any client's ledger: it is held in the bank suspense account (left out of the client-money check), shown as **Firm's fee** on [[bank|Bank reconciliation]], and an Ops checker gets a work item.
+
+1. Transfer it from the client bank account to the firm's own account.
+2. Click **Move to firm's account** and give the transfer reference. Ledgerline posts it out of the client bank account into the firm's own bank, against *Research and advisory fees receivable*, where the firm's accountant matches it to the fee invoice.
+3. If it was paid by mistake, **Return** it to the payer instead.
+4. Ask the bank to link the .ra or .ia ID to the firm's own account, so fees no longer come into the client bank account.

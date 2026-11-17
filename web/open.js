@@ -7,7 +7,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const KEY = 'll-apply-' + T;
 const store = { get() { try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; } }, set(v) { try { v ? localStorage.setItem(KEY, v) : localStorage.removeItem(KEY); } catch (e) {} } };
 let CFG = null, APP = null, SECRET = store.get(), DEV = {}, ERR = null, BUSY = false, STEP = null;
-const STEP_TITLES = { contact: 'Confirm your mobile and email', identity: 'Your PAN and identity', address: 'Your Aadhaar and address', bank: 'Your bank account', profile: 'How you will trade', nominee: 'Nominee', photo: 'Photograph and signature', review: 'Review and sign' };
+const STEP_TITLES = { contact: 'Confirm your mobile and email', identity: 'Your PAN and identity', address: 'Your Aadhaar and address', tax: 'Where you pay tax', bank: 'Your bank account', profile: 'How you will trade', nominee: 'Nominee', photo: 'Photograph and signature', review: 'Review and sign' };
 
 class ApiErr extends Error { constructor(b, st) { super(b?.error?.message || 'Something went wrong (' + st + ')'); this.fields = b?.error?.details?.fields || []; } }
 async function call(method, path, body, raw) {
@@ -47,6 +47,30 @@ const sel = (id, label, opts, val) => `<div class="fld"><label for="${id}">${lab
 const checks = names => { const cs = (APP?.checks || []).filter(c => names.includes(c.name)); return cs.length ? `<div class="res">${cs.map(c => `<div><span class="pill ${c.status.split(' ')[0]}">${esc(c.status)}</span><span>${esc(c.name)}: ${esc(c.detail)}</span></div>`).join('')}</div>` : ''; };
 const hasDoc = k => (APP?.docs || []).some(d => d.kind === k);
 const errBox = () => ERR && !ERR.fields.length ? `<div class="note bad">${esc(ERR.message)}</div>` : ERR?.fields.length ? `<div class="note bad">Please correct the highlighted fields.</div>` : '';
+// The tax step: the FATCA/CRS self-certification (SEBI circular of 20 February 2024). Countries are
+// ISO 3166 codes from the server (CFG.fatca); up to 4 countries other than India, each with its TIN
+// or the reason there is none (A, B or C).
+const fcodes = () => CFG.fatca || { countries: [['IN', 'India']], no_tin_reasons: {}, max_countries: 4 };
+const copts = (v, blank) => (blank ? `<option value="">${esc(blank)}</option>` : '') + fcodes().countries.map(([k, l]) => `<option value="${esc(k)}" ${k === v ? 'selected' : ''}>${esc(l)}</option>`).join('');
+const csel = (id, label, v) => `<div class="fld"><label for="${id}">${label}</label><select class="in" id="${id}">${copts(v)}</select></div>`;
+const taxRow = r => `<fieldset class="nom tres"><div class="row"><div class="fld"><label>Country where you pay tax</label><select class="in t-c">${copts(r.country || '', 'Choose')}</select></div><div class="fld"><label>Your tax number (TIN) there</label><input class="in mono t-tin" value="${esc(r.tin || '')}" autocapitalize="characters"></div></div>
+  <div class="fld"><label>No TIN? Say why</label><select class="in t-nt"><option value="">I have a TIN</option>${Object.entries(fcodes().no_tin_reasons).map(([k, l]) => `<option value="${k}" ${r.no_tin === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
+  <div class="fld t-whyf" ${r.no_tin === 'B' ? '' : 'hidden'}><label>Why you do not have it yet</label><input class="in t-why" value="${esc(r.no_tin_why || '')}"></div>
+  <button class="linkish small t-del" type="button">Remove this country</button></fieldset>`;
+let TAXDRAFT = null; // what the applicant typed, kept when the server asks for a correction
+const taxErrs = () => (ERR?.fields || []).filter(f => f.field.startsWith('fatca')).map(f => `<span class="err">${esc(f.message)}</span>`).join('<br>');
+function taxRead() {
+  const other = document.querySelector('input[name="otr"]:checked')?.value === 'Y', v = id => ($(id)?.value || '').trim();
+  if (!other) return { other_than_india: 'N', place_of_birth: v('pob'), country_of_birth: v('cob') || 'IN', nationality: 'IN', us_person: 'N' };
+  return { other_than_india: 'Y', place_of_birth: v('pob'), country_of_birth: v('cob'), nationality: v('nat'), us_person: v('usp') || 'N',
+    residences: [...document.querySelectorAll('fieldset.tres')].map(f => ({ country: f.querySelector('.t-c').value, tin: f.querySelector('.t-tin').value.trim(), no_tin: f.querySelector('.t-nt').value, no_tin_why: f.querySelector('.t-why').value.trim() })).filter(r => r.country || r.tin) };
+}
+function taxBind() {
+  document.querySelectorAll('input[name="otr"]').forEach(x => { x.onchange = () => { $('taxother').hidden = document.querySelector('input[name="otr"]:checked')?.value !== 'Y'; }; });
+  $('taxadd').onclick = () => { if (document.querySelectorAll('fieldset.tres').length >= (fcodes().max_countries || 4)) return; $('taxadd').insertAdjacentHTML('beforebegin', taxRow({})); taxBind(); };
+  document.querySelectorAll('.t-del').forEach(b => { b.onclick = () => { if (document.querySelectorAll('fieldset.tres').length > 1) b.closest('fieldset').remove(); }; });
+  document.querySelectorAll('.t-nt').forEach(s => { s.onchange = () => { s.closest('fieldset').querySelector('.t-whyf').hidden = s.value !== 'B'; }; });
+}
 
 function nextStep() { if (!APP) return 'start'; if (APP.status !== 'Draft') return 'done'; return CFG.steps.find(s => !(APP.steps || []).includes(s)) || 'review'; }
 let SHOWN = '';
@@ -93,6 +117,15 @@ const V = {
       <button class="choice" data-m="digilocker"><b>${done ? 'Share again through DigiLocker' : 'Use DigiLocker'}</b><span class="dim small">Quickest: sign in with Aadhaar and an OTP to your Aadhaar-linked mobile, then allow access. Your PAN record comes too. No DigiLocker account? You can create one in the same step.</span></button>
       ${off ? `<button class="choice" data-m="aadhaar_offline"><b>${done ? 'Upload a new Aadhaar offline e-KYC file' : 'Upload an Aadhaar offline e-KYC file'}</b><span class="dim small">If you do not want to use DigiLocker: download a signed ZIP from UIDAI's myAadhaar site with a 4-digit share code of your choice, then upload it. You will add a photo of your PAN card later.</span></button>` : ''}
     </div>`; },
+  tax: () => { const f = TAXDRAFT || APP.fatca || {}, other = f.other_than_india === 'Y';
+    return `<p class="dim">The law asks every investor where they are resident for tax (FATCA and CRS). Most people need only the first choice.</p>
+    <label class="check"><input type="radio" name="otr" value="N" ${other ? '' : 'checked'}> <span><b>I am a tax resident of India only</b>, an Indian citizen, and not a US citizen or green card holder</span></label>
+    <label class="check"><input type="radio" name="otr" value="Y" ${other ? 'checked' : ''}> <span>I am also a tax resident of another country, or a US citizen or green card holder</span></label>
+    <div class="row">${fld('pob', 'Place of birth (town or city)', f.place_of_birth)}${csel('cob', 'Country of birth', f.country_of_birth || 'IN')}</div>
+    <div id="taxother" ${other ? '' : 'hidden'}>${csel('nat', 'Nationality', f.nationality || 'IN')}
+      <div class="fld"><label for="usp">US person (a US citizen, or resident in the US for tax)</label><select class="in" id="usp"><option value="N">No</option><option value="Y" ${f.us_person === 'Y' ? 'selected' : ''}>Yes</option></select></div>
+      ${(f.residences && f.residences.length ? f.residences : [{}]).map(taxRow).join('')}<button class="btn" type="button" id="taxadd">Add another country</button></div>
+    ${taxErrs()}<button class="btn pri" id="go">Continue</button>`; },
   bank: () => `<p class="dim">Money is paid out only to this account, and only money from it is accepted. We check it by sending ₹1.</p>
     ${fld('bankname', 'Bank', APP.bank)}<div class="row">${fld('ifsc', 'IFSC', APP.ifsc, 'maxlength="11" autocapitalize="characters"')}${fld('account', 'Account number', APP.account, 'inputmode="numeric" maxlength="18"')}</div>
     ${checks(['Bank account'])}<button class="btn pri" id="go">Verify bank account</button>`,
@@ -111,7 +144,7 @@ const V = {
     <div class="media"><b>Your signature</b><canvas class="sig" id="sig" width="600" height="180"></canvas><div class="acts start"><button class="btn" id="sigclr">Clear</button><button class="btn" id="sigsave">Save signature</button></div>${hasDoc('Signature') ? '<span class="small dim">Signature saved ✓</span>' : ''}</div>
     ${hasDoc('PAN (DigiLocker)') ? '' : `<div class="fld"><label for="f-pan">Photo of your PAN card (needed because your PAN record did not come from DigiLocker)</label><input class="in" type="file" id="f-pan" accept="image/*,application/pdf">${hasDoc('PAN card') ? '<span class="small dim">Uploaded ✓</span>' : ''}</div>`}
     ${checks(['Face match'])}<button class="btn pri" id="go">Continue</button>`,
-  review: () => `<dl class="kv"><dt>Name</dt><dd>${esc(APP.name)}</dd><dt>PAN</dt><dd>${esc(APP.pan)}</dd><dt>Mobile</dt><dd>${esc(APP.mobile)}</dd><dt>Email</dt><dd>${esc(APP.email)}</dd><dt>Address</dt><dd>${esc([APP.address, APP.city, APP.state, APP.pin].join(', '))}</dd><dt>Bank</dt><dd>${esc(APP.bank)} · ${esc(APP.ifsc)}</dd><dt>Segments</dt><dd>${esc((APP.segments || []).map(s => CFG.segments[s]).join(', '))}</dd><dt>Nominees</dt><dd>${APP.nominee_opt_out ? 'None (I chose not to nominate)' : (APP.nominees || []).map(n => esc(`${n.name} (${n.relation}), ${n.share}%`)).join('<br>')}</dd></dl>
+  review: () => `<dl class="kv"><dt>Name</dt><dd>${esc(APP.name)}</dd><dt>PAN</dt><dd>${esc(APP.pan)}</dd><dt>Mobile</dt><dd>${esc(APP.mobile)}</dd><dt>Email</dt><dd>${esc(APP.email)}</dd><dt>Address</dt><dd>${esc([APP.address, APP.city, APP.state, APP.pin].join(', '))}</dd><dt>Tax residency</dt><dd>${APP.fatca ? (APP.fatca.other_than_india === 'N' ? 'India only' : esc((APP.fatca.residences || []).map(r => r.country).join(', '))) + (APP.fatca.place_of_birth ? ' · born ' + esc(APP.fatca.place_of_birth) : '') : ''}</dd><dt>Bank</dt><dd>${esc(APP.bank)} · ${esc(APP.ifsc)}</dd><dt>Segments</dt><dd>${esc((APP.segments || []).map(s => CFG.segments[s]).join(', '))}</dd><dt>Nominees</dt><dd>${APP.nominee_opt_out ? 'None (I chose not to nominate)' : (APP.nominees || []).map(n => esc(`${n.name} (${n.relation}), ${n.share}%`)).join('<br>')}</dd></dl>
     <a class="small" href="/onboard/${encodeURIComponent(T)}/form?s=${encodeURIComponent(SECRET)}" target="_blank" rel="noopener">Read the account opening form you are signing</a>
     ${Object.entries(CFG.declarations).map(([k, v]) => `<label class="check"><input type="checkbox" data-decl="${k}"> <span>${esc(v)}</span></label>`).join('')}
     <label class="check"><input type="checkbox" id="wa"> <span>Send me account messages on WhatsApp too (optional; reply STOP any time)</span></label>
@@ -139,6 +172,7 @@ function bind(step) {
     if (!CFG.digilocker_redirect) return saveStep('address', { digilocker: true });
     const r = await call('POST', '/digilocker', { method: b.dataset.m }); location.href = r.url; await new Promise(() => {}); // leaving the page
   }));
+  if (step === 'tax') { taxBind(); go.onclick = () => { TAXDRAFT = taxRead(); run(() => saveStep('tax', { fatca: TAXDRAFT }).then(() => { TAXDRAFT = null; })); }; }
   if (step === 'bank') go.onclick = () => run(() => saveStep('bank', { bank: v('bankname'), ifsc: v('ifsc'), account: v('account') }));
   if (step === 'profile') { fileUp('f-inc', 'Income proof');
     go.onclick = () => run(() => saveStep('profile', { segments: [...document.querySelectorAll('[data-seg]:checked')].map(x => x.dataset.seg), income: v('income'), occupation: v('occupation'), experience: v('experience'), ras: v('ras'), demat_id: v('demat_id') })); }

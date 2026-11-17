@@ -22,7 +22,8 @@ func cdslTestClient(t *testing.T, o *Ops, ctx context.Context, pan, name, boid s
 	c := Client{Name: name, Type: "Individual", PAN: pan, DOB: "1990-04-12", Mobile: "9876500011", Email: strings.ToLower(strings.Fields(name)[0]) + "@example.test", City: "Pune", State: "Maharashtra",
 		Segments: []string{"CM"}, Income: "5-10L", Bank: BankAccount{Bank: "Sample Bank", IFSC: "SBIN0001234", Account: "123456789012"}, Demat: Demat{Depository: "CDSL", ID: boid}, RiskDisclosure: true,
 		Nominee: "Opted in", NomineeName: "Asha " + strings.Fields(name)[len(strings.Fields(name))-1],
-		Nominees: []Nominee{{Name: "Asha " + strings.Fields(name)[len(strings.Fields(name))-1], Relation: "Spouse", Share: "100", IDType: "PAN", ID: "ABCPA1234B", DOB: "1991-01-01", Address: "Flat 4, Lake View, Kothrud, Pune 411038"}}}
+		Nominees: []Nominee{{Name: "Asha " + strings.Fields(name)[len(strings.Fields(name))-1], Relation: "Spouse", Share: "100", IDType: "PAN", ID: "ABCPA1234B", DOB: "1991-01-01", Address: "Flat 4, Lake View, Kothrud, Pune 411038"}},
+		FATCA:    IndiaOnlyFATCA("Pune", "")}
 	n, err := o.CreateApplication(ctx, T, "priya.nair", c)
 	if err != nil {
 		t.Fatal(err)

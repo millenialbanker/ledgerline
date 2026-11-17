@@ -73,7 +73,7 @@ var bankCreditFields = []struct{ Key, Label string }{
 	{"path_payer_ifsc", "Payer IFSC"},
 	{"path_payer_name", "Payer name"},
 	{"path_mode", "Mode (NEFT, RTGS, IMPS, UPI)"},
-	{"path_payee_vpa", "UPI ID paid to (the firm's .brk@valid ID)"},
+	{"path_payee_vpa", "UPI ID paid to (the firm's validated @valid ID)"},
 	{"path_time", "Credit date and time"},
 	{"path_to_account", "Firm's account paid into (for the equity or commodity ledger)"},
 	{"path_narration", "Remitter's narration or remarks"},
@@ -231,6 +231,9 @@ func (o *Ops) recordCredits(ctx context.Context, tenant string, c Connection, so
 			res.Duplicate++
 			continue
 		}
+		// The line, with the firm's account paid into, for the daily client
+		// money reconciliation (clientmoney.go).
+		o.keepBankLines(ctx, tenant, "bank", []BankLine{{Date: t.Date, Time: t.Time, Mode: t.Mode, Ref: t.Ref, Party: t.Remitter, PartyAccount: t.Account, Amount: t.Amount, DrCr: "CR", Account: t.ToAccount, Source: source + " (live)"}})
 		t, err := o.matchCredit(ctx, tenant, "bank", t, clients)
 		if err != nil {
 			return res, err

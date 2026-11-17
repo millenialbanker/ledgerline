@@ -31,7 +31,7 @@ import (
 func importSources() []masterSrc {
 	return []masterSrc{
 		{"BRANCHES", "The firm's offices (migration: the previous back office's branch master). Code and Name are required; optional City, Manager, Kind (Zone, Region, Branch or Franchise; Branch when blank), Parent (the office it reports to, which may be further down the file) and Active (Y or N, Y when blank). Rows replace the offices with the same code. Load before the partners and the client master", []string{"Code", "Name"}, false, "Once at go-live, then on change"},
-		{"PARTNERS", "Authorised persons and relationship managers (migration: the previous back office's sub-broker or AP master). Code, Name and Kind (Authorised person or Relationship manager) are required; optional Branch, Parent (the partner it reports to), PAN, GSTIN, RegNo (exchange AP registration), SharePct (its share of brokerage, 0 to 100), Bank, Account, IFSC, Email and Active (Y or N, Y when blank). Load after the branches and before the client master, whose AP and RM columns name them", []string{"Code", "Name", "Kind"}, false, "Once at go-live, then on change"},
+		{"PARTNERS", "Authorised persons and relationship managers (migration: the previous back office's sub-broker or AP master). Code, Name and Kind (Authorised person or Relationship manager) are required; optional Branch, Parent (the partner it reports to), PAN, GSTIN, RegNo (exchange AP registration), SharePct (its share of brokerage, 0 to 100), Bank, Account, IFSC, Email, Mobile (the AP's own) and Active (Y or N, Y when blank). Load after the branches and before the client master, whose AP and RM columns name them", []string{"Code", "Name", "Kind"}, false, "Once at go-live, then on change"},
 		{"UCC-DETAILS", "Each client's details for the exchanges' UCC that the client master does not hold (migration): address in lines with PIN (6 digits in India), permanent address, gender, father's or spouse's name, marital status, nationality, occupation, PEP, IPV, POA, UPI, agreement date, CIN, bank account type, and whose the mobile and e-mail are. Required columns UCC, Address1, City, State, PIN; optional Category, Address2, Address3, Country, PermAddress1, PermAddress2, PermAddress3, PermCity, PermState, PermCountry, PermPIN, Gender, Guardian, Marital, Nationality, Occupation, OccupationDetail, IncomeAsOn, PEP, IPV, POAFunds, POASecurities, UPI, AgreementDate, CIN, BankType, MobileRelation, EmailRelation. A blank cell leaves what is stored; the client must exist (load after the client master)", []string{"UCC", "Address1", "City", "State", "PIN"}, false, "Once at go-live, then on change"},
 		{"UCC-CONTACTS", "Contact persons of non-individual clients for the exchanges' UCC: partners, karta, directors, trustees (migration). UCC, Name and Designation are required; optional PAN, Address, Phone, Email and DIN. A client's rows replace their contact persons, at most 5; the client must exist", []string{"UCC", "Name", "Designation"}, false, "Once at go-live, then on change"},
 		{"DP-ACCOUNTS", "The DP's record of each client's demat accounts (migration: the previous back office's DP client master), one row per account: a client may have several, and a DP-only client (DPOnly Y in the client master) has only these. UCC, BOID, Depository (CDSL or NSDL) and Status (Active, Frozen, Closed or Not opened) are required; optional Opened and ClosedOn (dates), BSDA and DDPI (Y or N), Freeze (Debit, Credit or Both) and FreezeReason, both needed for a frozen account; Primary (Y or N: the client's primary demat account; when no row of a client says Y, the client master's demat account if it is one of them and open, else the client's first open row); Holder2Name, Holder2PAN, Holder3Name and Holder3PAN for the second and third holders of a joint account. The UCC must be a client (trading or DP-only; load after the client master) and a BO account of the DP belongs to one client", []string{"UCC", "BOID", "Depository", "Status"}, false, "Once at go-live, then on change"},
@@ -153,7 +153,7 @@ func (o *Ops) prepareImport(ctx context.Context, tenant, actor, source string, r
 		for _, r := range rows {
 			p := Partner{Code: strings.ToUpper(strings.TrimSpace(r.get("Code"))), Name: strings.Join(strings.Fields(r.get("Name")), " "), Branch: strings.TrimSpace(r.get("Branch")),
 				Parent: strings.ToUpper(strings.TrimSpace(r.get("Parent"))), PAN: strings.TrimSpace(r.get("PAN")), GSTIN: strings.TrimSpace(r.get("GSTIN")), RegNo: r.get("RegNo"),
-				Bank: r.get("Bank"), Account: r.get("Account"), IFSC: strings.ToUpper(r.get("IFSC")), Email: r.get("Email"), Active: ynCell(r, "Active", true, bad)}
+				Bank: r.get("Bank"), Account: r.get("Account"), IFSC: strings.ToUpper(r.get("IFSC")), Email: r.get("Email"), Mobile: r.get("Mobile"), Active: ynCell(r, "Active", true, bad)}
 			for _, k := range PartnerKinds {
 				if strings.EqualFold(k, strings.TrimSpace(r.get("Kind"))) {
 					p.Kind = k
@@ -194,6 +194,14 @@ func (o *Ops) prepareImport(ctx context.Context, tenant, actor, source string, r
 			n, same := 0, 0
 			for _, p := range ps {
 				if old, _, err := docs.Get[Partner](ctx, o.Docs, tenant, cPartner, p.Code); err == nil {
+					// The AP's own mobile and its numbers at each exchange,
+					// given on Branches & partners, stay when the file has none.
+					if p.Mobile == "" {
+						p.Mobile = old.Mobile
+					}
+					if p.ExchangeRegs == nil {
+						p.ExchangeRegs = old.ExchangeRegs
+					}
 					old.Clients, old.Downline, old.Brokerage, old.Team = 0, nil, 0, 0
 					if sameJSON(old, p) {
 						same++

@@ -1,0 +1,67 @@
+{
+ "id": "nsdl-mnrl",
+ "title": "MNRL matches of the DP's accounts (NSDL e-PASS)",
+ "party": "NSDL",
+ "direction": "in",
+ "when": "Daily (e-PASS > iAssist > Download)",
+ "purpose": "NSDL's DP-ID-wise list of demat accounts whose mobile number is on DoT's MNRL: e-PASS > iAssist > Download > View/Search - BSDA/MNRL/Email Bounce, the DP ID, file type MNRL, the month and year. NSDL does not publish the columns: they are read by their header names, which this layout lists (add a header text here when e-PASS's differs).",
+ "linked": "Matched with the DP's NSDL accounts and their holders' mobiles on Clients & onboarding → Revoked mobiles.",
+ "names": [
+  ".*mnrl.*",
+  ".*e-?pass.*"
+ ],
+ "not_names": [
+  ".*reactivat.*"
+ ],
+ "compress": "none",
+ "format": "headers",
+ "delimiter": "auto",
+ "header": false,
+ "columns": [
+  {
+   "name": "Client ID",
+   "key": "client",
+   "type": "str",
+   "required": true,
+   "aliases": ["Client Id", "ClientID", "Client_ID", "BO ID", "BOID", "Beneficiary Account", "Beneficiary Account Number", "Beneficiary ID", "Client Account", "Demat Account", "Account Number"]
+  },
+  {
+   "name": "DP ID",
+   "key": "dpid",
+   "type": "str",
+   "aliases": ["DPID", "DP Id", "DP_ID", "DP Code"]
+  },
+  {
+   "name": "Mobile Number",
+   "key": "mobile",
+   "type": "str",
+   "aliases": ["Mobile No", "Mobile", "MobileNo", "Mobile_No", "Registered Mobile Number", "MSISDN"]
+  },
+  {
+   "name": "Holder Name",
+   "key": "name",
+   "type": "str",
+   "aliases": ["Name", "Client Name", "First Holder Name", "Account Holder Name", "BO Name"]
+  },
+  {
+   "name": "Holder",
+   "key": "holder",
+   "type": "str",
+   "aliases": ["Holder Type", "Holder No", "Holder Number", "Holder Sequence"]
+  },
+  {
+   "name": "PAN",
+   "key": "pan",
+   "type": "str",
+   "aliases": ["PAN No", "PAN Number"]
+  },
+  {
+   "name": "Date",
+   "key": "date",
+   "type": "str",
+   "aliases": ["Disconnection Date", "Date of Disconnection", "MNRL Date", "Report Date"]
+  }
+ ],
+ "confirmed": false,
+ "source": "NSDL/POLICY/2026/0090 (16 Jun 2026): NSDL gives DP-ID-wise MNRL matches on e-PASS (Annexure A: e-PASS > iAssist > Download > View/Search - BSDA/MNRL/Email Bounce). The circular's exhibits are screenshots; no column layout is published."
+}

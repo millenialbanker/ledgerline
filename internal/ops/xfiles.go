@@ -58,7 +58,15 @@ type XFormat struct {
 // xWrittenOn are outgoing files Ledgerline writes on another screen, not
 // from Exchange files.
 var xWrittenOn = map[string]string{"hdfc-enet-payout": "Receipts & payouts → payout batches (HDFC ENet file)", "cdsl-bo-upload": "Depository → CDSL requests",
-	"bow-fund": "Live RMS → Front-office files (BOW funds file)", "bow-dp-holding": "Live RMS → Front-office files (BOW holdings file)"}
+	"bow-fund": "Live RMS → Front-office files (BOW funds file)", "bow-dp-holding": "Live RMS → Front-office files (BOW holdings file)",
+	// The weekly clients mapped to APs, one file per exchange (apmapping.go).
+	"nse-ap-client-mapping": apWrittenOn, "bse-ap-client-mapping": apWrittenOn, "mcx-ap-client-mapping": apWrittenOn, "ncdex-ap-client-mapping": apWrittenOn, "mse-ap-client-mapping": apWrittenOn,
+	// The UCC-wise running account settlement report (rasucc.go).
+	"nse-ras-ucc": "Receipts & payouts → Running account (UCC-wise reports)",
+	// The KRA upload and the FATCA/CRS controlling persons file (fatca.go).
+	"kra-kyc-upload": "Compliance → KYC & PMLA (KRA upload file; FATCA / CRS → legacy bulk file)", "kra-fatca-controlling-persons": "Compliance → KYC & PMLA → FATCA / CRS (controlling persons file)"}
+
+const apWrittenOn = "Branches & partners → AP client reporting (weekly)"
 
 // xWriters are the outgoing files Ledgerline writes.
 var xWriters = map[string]bool{"ncl-allocation": true, "ncl-allocation-api": true, "holding-statement-api": true, "segmon-client-funds": true, "ncl-client-collateral": true, "ncl-cuspa-mtf-payout": true, "ncl-margin-reporting": true, "ncl-margin-reporting-fo": true, "mcx-margin-reporting": true, "ncl-short-allocation-reporting": true, "ncl-shortage-reporting": true, "cdsl-txn-upload": true, "bse-ucc": true, "mcx-ucc": true}
@@ -103,6 +111,7 @@ type XFileResult struct {
 	Added    int           `json:"added"`
 	Skipped  int           `json:"skipped"`
 	Note     string        `json:"note,omitempty"`
+	FileID   string        `json:"file_id,omitempty"` // the file as kept
 }
 
 // MaxXFileBytes caps one upload.
@@ -171,10 +180,11 @@ func (o *Ops) LoadExchangeFile(ctx context.Context, tenant, actor, name string, 
 			return out, err
 		}
 		detail := map[string]any{"format": s.ID, "rows": r.Rows, "problems": r.Problems, "file": rf.ID}
+		r.FileID = rf.ID
 		switch {
 		case !load:
 			r.Loaded = "Checked only"
-		case r.Problems > 0:
+		case r.Problems > 0 && !isListLayout(s.ID): // a list leaves out the rows that do not fit (listfiles.go)
 			r.Loaded = "Not loaded: the file does not match its layout"
 		default:
 			o.loadXFile(ctx, tenant, actor, s, f, t, &r)
@@ -287,6 +297,9 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 		}
 		r.Loaded, r.Added = "Loaded as G-sec and T-bill prices of "+date, n
 	default:
+		if o.loadListXFile(ctx, tenant, actor, s, f, t, r) { // revocation lists and the KRAs' demise list (listfiles.go)
+			return
+		}
 		if o.loadMCXUCCFile(ctx, tenant, actor, s, f, rows, r) { // MCX UCC response, refused file, State-City master (mcxucc.go)
 			return
 		}

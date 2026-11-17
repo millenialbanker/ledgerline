@@ -218,10 +218,11 @@
    ],
    "changed": "Since upstreaming (SEBI 2023/84, from July 2023) the single 'Client Account' is split into USCNBA (receipts) and DSCNBA (payments) with client money upstreamed to the CC at EOD, so the reconciliation now covers USCNBA, the CC, DSCNBA, the settlement account and own accounts. Nothing is filed with NSE/BSE/MSE/MCX/NCDEX, despite the calendar's 'where' column. SEBI HO/38/11/(1)2026-MIRSD-POD/I/7656/2026 (23 Mar 2026, NSE/INSP/73436) removed demat account reporting only; bank account naming and reporting stay.",
    "ledgerline": {
-    "screen": "bank",
-    "screen_name": "Receipts & payouts → Bank reconciliation",
-    "what": "Bank reconciliation matches every transfer between the client, settlement and own accounts; the nightly self-inspection confirms client money is fully covered.",
-    "check": "funds_segregation"
+    "screen": "clientmoney",
+    "screen_name": "Receipts & payouts → Client money reconciliation",
+    "what": "Ledgerline prepares each business day's statement of transfers between the USCNBA, DSCNBA, settlement and own accounts and the clearing corporation, flags receipts or payments outside the nodal accounts, money taken to own beyond the charges debited to clients and a DSCNBA balance at end of day, and a checker signs it off.",
+    "task": "client_money_recon",
+    "check": "client_money_recon"
    }
   },
   {
@@ -982,7 +983,7 @@
    "api": {
     "status": "file",
     "name": "Weekly upload on each exchange portal",
-    "detail": "No API found; each exchange takes an upload in the format of its annexure/user manual (format not confirmed here)."
+    "detail": "No API: Ledgerline makes each exchange's weekly file (the columns are Ledgerline's until an exchange's template is confirmed); it is uploaded on each exchange's portal."
    },
    "items": [
     "T13"
@@ -996,8 +997,10 @@
    "changed": "Still in force (listed among NSE's current AP circulars; in MSE's 2024 membership master circular). It is not in NSE's common-submission lists (NSE/INSP/69184, NSE/INSP/70505), so file with every exchange. Since 2024 NSE also wants AP client counts kept current in exchange records and no AP mobile/email in any client's UCC.",
    "ledgerline": {
     "screen": "partners",
-    "screen_name": "Branches & partners",
-    "what": "Branches & partners holds each client's authorised person; the week's mapped and unmapped clients are reported on the exchange portal."
+    "screen_name": "Branches & partners → AP client reporting",
+    "what": "Ledgerline keeps every change of a client's authorised person and makes each exchange's weekly file of clients mapped and unmapped, checked against the exchange UCC; the file is uploaded on each exchange's portal and the upload recorded.",
+    "task": "ap_mapping",
+    "check": "ap_mapping_weekly"
    }
   },
   {
@@ -1391,7 +1394,7 @@
    "api": {
     "status": "file",
     "name": "NSE member portal upload (ZIP/CSV)",
-    "detail": "No API found; Ledgerline could build the CSV from its RAS batches.",
+    "detail": "No API: Ledgerline builds the ZIP and CSV from the settlement; upload it on NSE's member portal (Inspection > Statement Upload > Settlement Statement).",
     "url": "https://archives.nseindia.com/content/circulars/INSP55135.pdf"
    },
    "items": [
@@ -1410,7 +1413,9 @@
    "ledgerline": {
     "screen": "ras",
     "screen_name": "Receipts & payouts → Running account",
-    "what": "The running account settlement holds each client's settled amount; the exchange's client-wise report is uploaded on its portal."
+    "what": "Ledgerline makes the UCC-wise file (a ZIP holding the CSV, named PAN_QS_DDMMYYYY_NN) after each settlement, shows its due date 10 trading days on, and keeps the upload record; the upload itself is on NSE's member portal.",
+    "task": "ras_ucc_report",
+    "check": "ras_ucc_report"
    }
   },
   {
@@ -2295,7 +2300,7 @@
      "says": "From 1 Jan 2024: verify the death certificate by next working day and update the KRA; on 'Blocked Permanently' block debits at once; transmission info within 5 days."
     }
    ],
-   "how": "portal",
+   "how": "ledgerline",
    "api": {
     "status": "file",
     "name": "ENIT download + UCI Online 'Upload Client Status' bulk file",
@@ -2317,9 +2322,11 @@
    "steps_from": "NSE/ISC/77375 (9 Nov 2026) and NSE/ISC/76893 (14 Oct 2026); SEBI demise circular of 3 Oct 2023 on blocking, false intimation and transmission",
    "changed": "No longer an ad hoc download: since Aug 2026 NSE issues a monthly circular with a hard date after which demise-flagged PANs are Not Permitted to Trade (31 Oct 2026, then 21 Nov 2026). Due now: close the UCCs on NSE's list (PANs reported to 31 Oct 2026) before 21 Nov 2026.",
    "ledgerline": {
-    "screen": "clients",
-    "screen_name": "Clients & onboarding → Clients",
-    "what": "Download the list from the exchange portal and mark and freeze the matching accounts in Clients."
+    "screen": "deceased",
+    "screen_name": "Compliance → Deceased clients",
+    "what": "Load NSE's monthly list from ENIT: Ledgerline blocks debits on each match at once, tracks the death verification, the UCC closure on each exchange and the transmission information, and counts down to the month's cut-off.",
+    "task": "kra_demise",
+    "check": "deceased_ucc"
    }
   },
   {
@@ -2377,7 +2384,7 @@
      "says": "Lists the MNRL file among the files members must monitor."
     }
    ],
-   "how": "portal",
+   "how": "ledgerline",
    "api": {
     "status": "available",
     "name": "DoT Digital Intelligence Platform (DIP) API",
@@ -2399,9 +2406,11 @@
    ],
    "changed": "Monthly is out of date: since NSE/ISC/72805 (13 Feb 2026) the report is daily, because DoT moved the MNRL from the TRAI website to its DIP. NSE/COMP/74753 (17 Jun 2026) adds DIP onboarding and the Financial Fraud Risk Indicator list.",
    "ledgerline": {
-    "screen": "clients",
-    "screen_name": "Clients & onboarding → Clients",
-    "what": "Download the revocation list and check it against clients' mobile numbers (Ledgerline does not match it by itself yet)."
+    "screen": "mnrl",
+    "screen_name": "Clients & onboarding → Revoked mobiles",
+    "what": "Load NSE's daily report (or DoT's list from DIP): Ledgerline matches it to clients' mobiles, holds SMS and WhatsApp to listed numbers, and tracks each match until the number is updated with the exchanges.",
+    "task": "mnrl_trading",
+    "check": "mnrl_matches"
    }
   },
   {
@@ -4155,7 +4164,7 @@
    "ledgerline": {
     "screen": "helpdesk",
     "screen_name": "Compliance → Investor complaints",
-    "what": "Investor complaints keeps the DP complaints and builds the month's figures."
+    "what": "Investor complaints keeps the DP's complaints and builds the DP's own monthly table for the website."
    }
   },
   {
@@ -4552,7 +4561,14 @@
     "By the 10th of the next month, email NSDL (dp_igreport@nsdl.com) each instance: DP ID, DP name, particulars, action taken and status"
    ],
    "steps_from": "NSDL/POLICY/2024/0048 (18 Apr 2024)",
-   "changed": "NSDL needs no nil report (NSDL/POLICY/2024/0048). Not listed in CDSL's 2026-27 compliance table; CDSL's communiqué DP2024-234 was not read, so confirm its mode and whether it wants a nil report."
+   "changed": "NSDL needs no nil report (NSDL/POLICY/2024/0048). Not listed in CDSL's 2026-27 compliance table; CDSL's communiqué DP2024-234 was not read, so confirm its mode and whether it wants a nil report.",
+   "ledgerline": {
+    "screen": "helpdesk",
+    "screen_name": "Compliance → Investor complaints → Impersonation",
+    "what": "Keep each case in the impersonation register; Ledgerline builds the month's report for the depository in NSDL's columns.",
+    "task": "dp_impersonation",
+    "check": "impersonation_report"
+   }
   },
   {
    "id": "CC-D-CONCURRENT-AUDIT",
@@ -5991,7 +6007,7 @@
      "says": "Earlier CDSL MNRL communiques, superseded in practice by DP2026-517; listed on CDSL's communique pages."
     }
    ],
-   "how": "portal",
+   "how": "ledgerline",
    "api": {
     "status": "available",
     "name": "DoT Digital Intelligence Platform (DIP) API",
@@ -6012,9 +6028,11 @@
    "steps_from": "NSDL/POLICY/2026/0090 (16 Jun 2026) and its Annexure A; CDSL/OPS/DP/POLCY/2026/517 (30 Jul 2026)",
    "changed": "'15th of every month' is out of date: DoT moved the MNRL from the TRAI website to DIP (real time; portal publication stopped after Jan 2025). CDSL now asks for daily verification of MNRL and FRI on DIP (DP2026-517); NSDL gives the MNRL on e-PASS and a monthly reactivation list from Jul 2026 (NSDL/POLICY/2026/0090).",
    "ledgerline": {
-    "screen": "clients",
-    "screen_name": "Clients & onboarding → Clients",
-    "what": "Check the revocation list against account holders' mobile numbers (Ledgerline does not match it by itself yet)."
+    "screen": "mnrl",
+    "screen_name": "Clients & onboarding → Revoked mobiles",
+    "what": "Load DoT's list from DIP (CDSL accounts) or NSDL's e-PASS report, and NSDL's monthly reactivation data: Ledgerline matches account holders' mobiles, holds messages to listed numbers, and tracks each match until the depository's records are updated.",
+    "task": "mnrl_demat",
+    "check": "mnrl_matches"
    }
   },
   {
@@ -6287,8 +6305,9 @@
    "changed": "From 1 Apr 2026 the basis moved from Rules 114F-114H / Form 61B to Income-tax Act 2025 section 508, Rules 238-240 and Form 166 (SEBI circular of 11 Nov 2026). New fields to capture: validity indicator, controlling-person roles, account type and pre-existing/new status.",
    "ledgerline": {
     "screen": "kyc",
-    "screen_name": "Compliance → KYC & PMLA",
-    "what": "KYC & PMLA makes the KRA upload files (the FATCA/CRS fields are not in them yet)."
+    "screen_name": "Compliance → KYC & PMLA → FATCA / CRS",
+    "what": "The self-certification is a step of opening an account; Ledgerline checks it against the KYC data and puts the FATCA/CRS columns in the KRA upload file.",
+    "check": "fatca_new"
    }
   },
   {
@@ -6351,8 +6370,9 @@
    "changed": "The deadline passed: about 29 Sep 2024 under SEBI's 90 days, 31 Oct 2024 for legacy individuals per the KRA. Keep this only as a catch-up check, not a recurring item. The non-individual format date was not confirmed.",
    "ledgerline": {
     "screen": "kyc",
-    "screen_name": "Compliance → KYC & PMLA",
-    "what": "KYC & PMLA makes the KRA upload files."
+    "screen_name": "Compliance → KYC & PMLA → FATCA / CRS",
+    "what": "The FATCA / CRS tab lists clients from before August 2024 whose certification is not yet at the KRA, with a bulk file.",
+    "check": "fatca_legacy"
    }
   },
   {
@@ -6451,7 +6471,7 @@
      "says": "Para 7.5 and Annexure C: same tables for IAs, with an impersonation line; para 2.4: home page without scrolling, font 12+, within 7 days of month end. Investor charter revised by SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/80 (2 Jun 2025). [full text via LiveLaw mirror]"
     }
    ],
-   "how": "firm",
+   "how": "ledgerline",
    "api": {
     "status": "none",
     "detail": "Published on the firm's own website and app; nothing is submitted to BSE for this item."
@@ -6469,7 +6489,12 @@
     "Publish separate RA and IA tables beside the broker's own monthly table: the formats differ (no 'stock exchanges' row, impersonation line).",
     "Use the same figures in the half-yearly periodic report to BSE (R07, Part B)."
    ],
-   "changed": "Formats are now Annexure E (RA) and Annexure C (IA) of the 6 Feb 2026 master circulars, which add a line for complaints received due to impersonation; IAs must also show the table on the home page without scrolling (IA MC para 2.4). Investor charters were revised on 2 Jun 2025 (SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/81 for RAs, /2025/80 for IAs)."
+   "changed": "Formats are now Annexure E (RA) and Annexure C (IA) of the 6 Feb 2026 master circulars, which add a line for complaints received due to impersonation; IAs must also show the table on the home page without scrolling (IA MC para 2.4). Investor charters were revised on 2 Jun 2025 (SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/81 for RAs, /2025/80 for IAs).",
+   "ledgerline": {
+    "screen": "helpdesk",
+    "screen_name": "Compliance → Investor complaints → Monthly disclosure",
+    "what": "Ledgerline builds the research analyst's and investment adviser's tables (Annexures E and C, with the impersonation line) for the website and app."
+   }
   },
   {
    "id": "CC-R-FINGATE-CHECK",
@@ -6699,7 +6724,7 @@
      "says": "Annexure C: the monthly complaints table counts complaints received due to impersonation. [full text via LiveLaw mirror]"
     }
    ],
-   "how": "firm",
+   "how": "portal",
    "api": {
     "status": "portal",
     "name": "BSE Membership Portal – Report Impersonation",
@@ -6720,7 +6745,14 @@
    "practice": [
     "The notices do not say a nil report is needed; record a nil check each month and confirm with BSE whether the module expects a nil entry."
    ],
-   "changed": "Since 7 Aug 2025 this is a monthly report to BSE within 7 days of month end, not only an advisory to clients; the website complaints table (R01) now also counts impersonation complaints. The IA update's notice number (20250804-58) comes from BSE's index; its text was read only through a summary."
+   "changed": "Since 7 Aug 2025 this is a monthly report to BSE within 7 days of month end, not only an advisory to clients; the website complaints table (R01) now also counts impersonation complaints. The IA update's notice number (20250804-58) comes from BSE's index; its text was read only through a summary.",
+   "ledgerline": {
+    "screen": "helpdesk",
+    "screen_name": "Compliance → Investor complaints → Impersonation",
+    "what": "Keep each case in the impersonation register; Ledgerline builds the month's report for BSE's portal and records the submission or a nil check.",
+    "task": "raia_impersonation",
+    "check": "impersonation_report"
+   }
   },
   {
    "id": "CC-R-RA-IMPERSONATION",
@@ -6761,7 +6793,7 @@
      "says": "Annexure E: monthly complaints table includes complaints received due to impersonation of the RA. [full text via CSE India mirror]"
     }
    ],
-   "how": "firm",
+   "how": "portal",
    "api": {
     "status": "portal",
     "name": "BSE Membership Portal – Report Impersonation",
@@ -6782,7 +6814,14 @@
    "practice": [
     "The notice does not say a nil report is needed; record a nil check each month and confirm with BSE whether the module expects a nil entry."
    ],
-   "changed": "Since 7 Aug 2025 this is a monthly report to BSE within 7 days of month end (BSE 20250804-59), on top of the December 2024 advisory; the website complaints table (R01) now counts impersonation complaints."
+   "changed": "Since 7 Aug 2025 this is a monthly report to BSE within 7 days of month end (BSE 20250804-59), on top of the December 2024 advisory; the website complaints table (R01) now counts impersonation complaints.",
+   "ledgerline": {
+    "screen": "helpdesk",
+    "screen_name": "Compliance → Investor complaints → Impersonation",
+    "what": "Keep each case in the impersonation register; Ledgerline builds the month's report for BSE's portal and records the submission or a nil check.",
+    "task": "raia_impersonation",
+    "check": "impersonation_report"
+   }
   },
   {
    "id": "CC-R-DATABASE-REPORT",
@@ -7129,7 +7168,12 @@
     "If it is: keep the ITDREIN current, prepare the statement in the reporting utility, sign with the Designated Director's DSC and upload by 31 May; file NIL if there are no reportable accounts.",
     "An individual or proprietor RA/IA cannot be a reporting financial institution, and an advice-only RA/IA entity is a non-reporting financial institution."
    ],
-   "changed": "Form 61B is replaced by Form 166 from 1 Apr 2026 (Income-tax Act 2025 s.508; IT Rules 2026 rules 238–240); the next statement (calendar year 2026) is due 31 May 2027. This is an entity-level duty of a reporting financial institution: for this firm it arises from broking/DP (custodial institution), not from the RA/IA registration, which alone is non-reporting. Move it to the Trading/DP sheet and keep it here only as a cross-reference."
+   "changed": "Form 61B is replaced by Form 166 from 1 Apr 2026 (Income-tax Act 2025 s.508; IT Rules 2026 rules 238–240); the next statement (calendar year 2026) is due 31 May 2027. This is an entity-level duty of a reporting financial institution: for this firm it arises from broking/DP (custodial institution), not from the RA/IA registration, which alone is non-reporting. Move it to the Trading/DP sheet and keep it here only as a cross-reference.",
+   "ledgerline": {
+    "screen": "kyc",
+    "screen_name": "Compliance → KYC & PMLA → FATCA / CRS",
+    "what": "Ledgerline holds what Form 166 needs from each client (tax residencies and TINs, account type, new or pre-existing, controlling persons); it does not make the Form 166 file itself."
+   }
   },
   {
    "id": "CC-R-SOCIAL-MEDIA",
@@ -7704,7 +7748,12 @@
     "Ask the bank for a validated UPI ID for the RA/IA fee account, retire other UPI IDs given to clients, and show the ID and SEBI QR on the website and invoices.",
     "Clients can check the ID with SEBI Check; NEFT/RTGS/IMPS and BSE's CeFCoM stay available."
    ],
-   "changed": "Not confirmed that the validated ID is mandatory for RAs/IAs: the master circulars only say they are 'advised to refer' to the circular (the same wording they use for CSCRF, from which standalone RAs/IAs are exempt), and the category suffix for RA/IA IDs was not found. For brokers it is mandatory from 1 Oct 2025. Ledgerline accepts only broker IDs (name.brk@valid<bank>). A firm onboarding now that collects RA/IA fees by UPI should get the validated ID from its bank before collecting, or collect by NEFT/RTGS/IMPS or CeFCoM."
+   "changed": "Not confirmed that the validated ID is mandatory for RAs/IAs: the master circulars only say they are 'advised to refer' to the circular (the same wording they use for CSCRF, from which standalone RAs/IAs are exempt), and the category suffix for RA/IA IDs was not found. For brokers it is mandatory from 1 Oct 2025. Ledgerline accepts only broker IDs (name.brk@valid<bank>). A firm onboarding now that collects RA/IA fees by UPI should get the validated ID from its bank before collecting, or collect by NEFT/RTGS/IMPS or CeFCoM.",
+   "ledgerline": {
+    "screen": "settings",
+    "screen_name": "Settings → UPI collection",
+    "what": "Settings accepts the firm's validated .ra and .ia UPI IDs (from the bank) beside .brk; fees paid to them are kept apart from client money."
+   }
   },
   {
    "id": "CC-R-PARRVA",

@@ -30,9 +30,11 @@ import (
 //     required bank details for initiating electronic fund transfers")
 //     go to the primary account unless the client chooses another of the
 //     registered accounts for a payout.
-//   - Payments by UPI come in through the firm's validated .brk@valid IDs
-//     (SEBI circular of 11 June 2025, upicollect.go) and are matched like
-//     any credit: from a registered account of the client, or third-party.
+//   - Payments by UPI come in through the firm's validated @valid IDs for
+//     client money (.brk; SEBI circular of 11 June 2025, upicollect.go) and
+//     are matched like any credit: from a registered account of the
+//     client, or third-party. A research or advisory fee paid to the firm's
+//     .ra or .ia ID is never credited to a client (bank.go).
 //   - The number of accounts is limited by the exchanges' UCC records,
 //     which carry the client's bank accounts with a primary/secondary flag:
 //     BSE UCC 5 (BANKNAME1..5, PRIMARYORSECONDARYBANK1..5), NSE UCI 5
