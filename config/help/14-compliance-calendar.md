@@ -1,6 +1,55 @@
-Ledgy help articles: the exchanges' RAS calendar, the system audit cycle, common submissions filed with NSE only, and the other dated duties in the compliance calendar.
+Ledgy help articles: the compliance calendar's duties (Trading, DP, RA & IA) with their circulars, steps and how each is done, the month sheet, the exchanges' RAS calendar, the system audit cycle, common submissions filed with NSE only, and the other dated duties.
 
 # Compliance calendar
+
+## compliance-duties
+title: The compliance calendar: every duty, its circulars, steps and how it is done
+screen: circulars
+roles: Compliance officer, Admin, Ops maker, Ops checker, Risk manager
+ask: compliance calendar; compliance sheet; monthly compliance; what is due this month; daily compliance checks; which compliances can be done by api; api compliance; circular for this compliance; steps to file; how to file on fingate; scores login; smart odr; mnrl; demise cases; dp monthly reports; nil report; change in directors intimation; cyber incident 6 hours; record an event; one time compliance; compliance doesn't apply; ra ia compliance; month sheet csv; download compliance sheet
+related: compliance-month-sheet, compliance-profile, shared-filing, ras-calendar
+
+[[circulars|Circulars & calendar]] → **Compliance calendar** lists the firm's recurring compliance work in three groups: **Trading** (the stock broker), **DP** (the depository participant) and **RA & IA** (a firm also registered as a research analyst or investment adviser). Each duty is one line of a broker's compliance sheet, and carries:
+
+- **The circulars** that set it: issuer, number, date, what each requires, and a link. The deadline is given as the circular states it ("within T+1", "by the 10th of the next month, nil report included"), and Ledgerline turns it into dates.
+- **Steps in the circular.** When a circular, its annexure or the portal's user manual lists the steps (the portal path, the format, who approves), they are shown in order with where they come from. When no circular lists steps, the usual practice is shown, marked as practice.
+- **How it is done:**
+  - **By API**: Ledgerline sends it through an API it has, for example the holding statement or the clearing allocation;
+  - **By Ledgerline**: statements, settlements, registers;
+  - **File for the portal**: Ledgerline has the data; a person uploads it;
+  - **On the portal**: FINGate, SCORES, SMART ODR, CDSL's reporting;
+  - **Independent auditor**;
+  - **The firm**: board, website, policies.
+- **API.** Whether an official API exists that Ledgerline does not use yet. Filter with *How it is done → API exists, not connected* to see what could move to an API.
+- **In Ledgerline.** The screen that does it, and the self-inspection test that checks it each night. When that test passed on a recent run, the duty shows **Done by Ledgerline** and is not chased. When it fails, the duty says so, and the exception is on the Self-inspection board.
+- **Whether it applies.** Read from the firm profile: CDSL or NSDL participant, exchanges and segments, clearing, MTF, algo, internet-based trading, authorised persons, branches, CSCRF category, RA/IA registration. A duty that doesn't apply is shown with the reason and is never chased. When the profile doesn't say, the duty shows **Not sure** with the question to answer (Settings → Firm profile).
+
+**Kinds of deadline**
+- **Daily duties** (each trading day, or T+1 to T+5) go to their owner's work queue as one item, *Daily compliance checks*. **Mark done** has *Every day still open up to today*.
+- **Weekly duties** fall due a set number of trading days after the week's last trading day.
+- **Fortnightly duties** fall due on the 15th and on the month's last day.
+- **Settlement duties** fall due a number of trading days after each running account settlement.
+- **Event-driven duties**: a change of directors or address, a cyber incident within 6 hours, the compliance report on an audit within 30 days. Choose **Record an event**: give when it happened (and the time, for deadlines in hours) and what happened. It falls due from then and goes straight to the owner's work queue.
+- **One-time duties** stay due until marked done, however old the deadline.
+- **As required** duties have no date. **Done by Ledgerline** duties need nothing marked.
+
+Each **Mark done** keeps who did it, when, and the evidence named; *late* is shown when it was done after the due date. Duties are queued a week before they fall due. The compliance officer can change a duty's title, due rule, owner or evidence. The change is kept, and Ledgerline's catalogue no longer replaces it, but the circulars and steps still update with each Ledgerline release.
+
+## compliance-month-sheet
+title: The month's compliance sheet
+screen: circulars
+roles: Compliance officer, Admin, Ops maker, Ops checker, Risk manager
+ask: compliance sheet for the month; november compliance; monthly compliance calendar; print compliance calendar; export compliance calendar; csv of compliance; which duties fall due this month
+related: compliance-duties
+
+**Circulars & calendar → Month sheet** sets out the month the way a compliance consultant's monthly sheet does: Trading, DP and RA & IA, each duty with:
+- its frequency;
+- the deadline in the circular's words;
+- the dates it falls due that month (daily duties show the number of trading days);
+- where it is filed and how it is done (API, Ledgerline, file for the portal, portal, auditor or the firm);
+- the owner and its status, and what was done in the month.
+
+Choose the month at the top. **Show what doesn't apply** adds the duties the firm profile rules out, greyed. **Download CSV** gives the same sheet as a file, with the circulars of each duty.
 
 ## ras-calendar
 title: Keep the exchanges' RAS dates

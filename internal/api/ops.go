@@ -3739,6 +3739,7 @@ func (s *Server) dutyDone(w http.ResponseWriter, r *http.Request) {
 	var b struct {
 		Date     string `json:"date"`
 		Evidence string `json:"evidence"`
+		All      bool   `json:"all"`
 	}
 	if !decode(w, r, &b) {
 		return
@@ -3746,7 +3747,7 @@ func (s *Server) dutyDone(w http.ResponseWriter, r *http.Request) {
 	if _, okd := dateParam(w, b.Date, "date", false); !okd {
 		return
 	}
-	v, err := s.ops.DoneDuty(r.Context(), tenant(r), actor(r), b.Date, r.PathValue("id"), b.Evidence)
+	v, err := s.ops.DoneDutyFor(r.Context(), tenant(r), actor(r), b.Date, r.PathValue("id"), ops.DutyDoneReq{Evidence: b.Evidence, All: b.All})
 	ok(w, v, err)
 }
 

@@ -159,7 +159,7 @@ function ccProfilePanel(fp) {
     ${(fp.questions || []).length ? `<div class="note warn" style="margin-bottom:10px"><b>Still to answer:</b> ${fp.questions.map(esc).join(' ')}</div>` : ''}
     <div class="fp-facts">${facts}</div>
     <div class="form" style="margin-top:12px">
-      ${yn('cdsl', 'CDSL depository participant')}${yn('nsdl', 'NSDL depository participant')}${yn('algo', 'Algorithmic trading (the firm’s own, or clients’ through its systems)')}
+      ${yn('cdsl', 'CDSL depository participant')}${yn('nsdl', 'NSDL depository participant')}${yn('algo', 'Algorithmic trading (the firm’s own, or clients’ through its systems)')}${yn('ibt', 'Internet-based trading (clients trade through the firm’s website or app)')}
       ${yn('nri', 'NRI clients')}${yn('ap', 'Authorised persons')}${yn('branches', 'Branch offices')}
       <div class="fld"><label for="fp-cscrf">CSCRF category</label><select class="in" id="fp-cscrf"><option value="">Not known</option>${(fp.cscrf_categories || []).map(x => `<option value="${esc(x.ID)}" ${p.cscrf === x.ID ? 'selected' : ''}>${esc(x.Name)}</option>`).join('')}</select><div class="dim small" id="fp-cscrf-n">${esc(((fp.cscrf_categories || []).find(x => x.ID === p.cscrf) || {}).Note || 'By registered clients and clients’ trading in the year (SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2025/60)')}</div></div>
       <label class="check"><input type="checkbox" id="fp-mtf" ${fp.mtf ? 'checked' : ''}> Margin trading facility (MTF) approved</label>
@@ -189,7 +189,7 @@ Object.assign(A, {
   ccProfSave: async () => {
     const v = k => $('fp-' + k).value, regs = [...document.querySelectorAll('[data-fp-reg]')].filter(x => x.checked).map(x => x.dataset.fpReg);
     try {
-      await api('PUT', '/v1/firm-profile', { cdsl: v('cdsl'), nsdl: v('nsdl'), algo: v('algo'), nri: v('nri'), ap: v('ap'), branches: v('branches'), cscrf: v('cscrf'), mtf: $('fp-mtf').checked, registrations: regs, other_registration: $('fp-other').value });
+      await api('PUT', '/v1/firm-profile', { cdsl: v('cdsl'), nsdl: v('nsdl'), algo: v('algo'), ibt: v('ibt'), nri: v('nri'), ap: v('ap'), branches: v('branches'), cscrf: v('cscrf'), mtf: $('fp-mtf').checked, registrations: regs, other_registration: $('fp-other').value });
       toast('Firm profile saved: circulars are checked against it'); render({ keep: true });
     } catch (e) { toast(e.message, true); }
   },

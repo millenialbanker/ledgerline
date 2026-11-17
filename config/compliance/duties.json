@@ -1,0 +1,9 @@
+{
+ "version": 1,
+ "updated": "2026-11-17",
+ "source": "Draft",
+ "duties": [
+  {"id": "CC-T-GRIEVANCE-MAIL", "group": "Trading", "title": "Check the investor grievance mailbox and update the complaints register", "frequency": "Daily", "due_text": "The same day (EOD)", "rule": "TDAY", "applies": ["broker"], "role": "Compliance officer", "filed_with": "Kept by the firm", "evidence": "The complaints register", "refs": [{"issuer": "SEBI", "no": "SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/22", "date": "2025-02-21"}], "how": "ledgerline", "api": {"status": "none"}, "items": ["T02"]},
+  {"id": "CC-D-CHANGE-DIRECTORS", "group": "DP", "title": "Tell the depository about a change in directors", "frequency": "On event", "due_text": "Immediately", "rule": "EVENT", "event_within": "7d", "applies": ["dp"], "role": "Compliance officer", "filed_with": "CDSL", "evidence": "The intimation and the depository's acknowledgement", "refs": [{"issuer": "CDSL", "no": "DP Operating Instructions"}], "how": "portal", "api": {"status": "portal"}, "items": ["D28"]}
+ ]
+}

@@ -48,6 +48,7 @@ type FirmProfile struct {
 	CDSL     string `json:"cdsl"`     // a CDSL depository participant
 	NSDL     string `json:"nsdl"`     // an NSDL depository participant
 	Algo     string `json:"algo"`     // algorithmic trading: the firm's own, or clients' through its systems
+	IBT      string `json:"ibt"`      // internet-based trading: clients trade through the firm's website or app
 	NRI      string `json:"nri"`      // NRI clients
 	AP       string `json:"ap"`       // authorised persons
 	Branches string `json:"branches"` // branch offices
@@ -119,6 +120,7 @@ type firmFacts struct {
 	NSDL    tri
 	MTF     tri
 	Algo    tri
+	IBT     tri
 	NRI     tri
 	AP      tri
 	Branch  tri
@@ -240,6 +242,7 @@ func (o *Ops) firmProfileFacts(ctx context.Context, tenant string) (firmFacts, [
 	f.MTF = triOf(cp.MTF)
 	facts = append(facts, FirmFact{Key: "mtf", Label: "Margin trading facility (MTF)", Value: map[bool]string{true: "Yes", false: "No"}[cp.MTF], Known: true, From: "Compliance profile (also on Circulars & calendar → RAS dates & profile)", Edit: true})
 	f.Algo = yn("algo", "Algorithmic trading (the firm's own, or clients' through its systems)", p.Algo, triUnknown, "nothing in Ledgerline says")
+	f.IBT = yn("ibt", "Internet-based trading (clients trade through the firm's website or app)", p.IBT, triUnknown, "nothing in Ledgerline says")
 
 	cl, _ := o.ClientMap(ctx, tenant)
 	nri := 0
@@ -308,6 +311,8 @@ func (o *Ops) FirmProfileFor(ctx context.Context, tenant, actor string) (FirmPro
 			v.Questions = append(v.Questions, map[string]string{"cdsl": "Is the firm a CDSL depository participant?", "nsdl": "Is the firm an NSDL depository participant?"}[x.Key])
 		case "algo":
 			v.Questions = append(v.Questions, "Does the firm run or offer algorithmic trading?")
+		case "ibt":
+			v.Questions = append(v.Questions, "Do clients trade through the firm's website or app (internet-based trading)?")
 		case "cscrf":
 			v.Questions = append(v.Questions, "What is the firm's category under SEBI's cyber security and cyber resilience framework (CSCRF)?")
 		case "nri":
@@ -326,7 +331,7 @@ func (o *Ops) SaveFirmProfile(ctx context.Context, tenant, actor string, p FirmP
 	if err := o.require(ctx, tenant, actor, "Changing the firm profile", RoleCompliance); err != nil {
 		return FirmProfileView{}, err
 	}
-	for _, x := range []struct{ name, v string }{{"CDSL participant", p.CDSL}, {"NSDL participant", p.NSDL}, {"algo trading", p.Algo}, {"NRI clients", p.NRI}, {"authorised persons", p.AP}, {"branch offices", p.Branches}} {
+	for _, x := range []struct{ name, v string }{{"CDSL participant", p.CDSL}, {"NSDL participant", p.NSDL}, {"algo trading", p.Algo}, {"internet-based trading", p.IBT}, {"NRI clients", p.NRI}, {"authorised persons", p.AP}, {"branch offices", p.Branches}} {
 		if x.v != "" && x.v != AnswerYes && x.v != AnswerNo {
 			return FirmProfileView{}, invalid("%s is yes, no, or left to what Ledgerline knows", x.name)
 		}
@@ -353,7 +358,7 @@ func (o *Ops) SaveFirmProfile(ctx context.Context, tenant, actor string, p FirmP
 	if err := docs.Upsert(ctx, o.Docs, tenant, cFirmProfile, "main", p, actor); err != nil {
 		return FirmProfileView{}, err
 	}
-	o.log(ctx, tenant, actor, "firm.profile", "main", map[string]any{"cdsl": p.CDSL, "nsdl": p.NSDL, "algo": p.Algo, "nri": p.NRI, "ap": p.AP, "branches": p.Branches, "registrations": p.Registrations, "other": p.OtherReg, "cscrf": p.CSCRF})
+	o.log(ctx, tenant, actor, "firm.profile", "main", map[string]any{"cdsl": p.CDSL, "nsdl": p.NSDL, "algo": p.Algo, "ibt": p.IBT, "nri": p.NRI, "ap": p.AP, "branches": p.Branches, "registrations": p.Registrations, "other": p.OtherReg, "cscrf": p.CSCRF})
 	if cp := o.CompProfile(ctx, tenant); mtf != nil && *mtf != cp.MTF {
 		cp.MTF, cp.By, cp.At = *mtf, actor, p.At
 		if err := docs.Upsert(ctx, o.Docs, tenant, cCompProfile, "main", cp, actor); err != nil {
