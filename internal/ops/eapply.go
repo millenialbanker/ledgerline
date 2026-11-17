@@ -92,6 +92,10 @@ type Application struct {
 	// (otherwise Yes/No), as the applicant chooses.
 	NomineesOnStatement bool `json:"nominees_on_statement,omitempty"`
 
+	// FATCA is the applicant's FATCA/CRS self-certification (the tax
+	// step; fatca.go).
+	FATCA *FATCADecl `json:"fatca,omitempty"`
+
 	Declarations map[string]bool `json:"declarations,omitempty"`
 	WhatsApp     bool            `json:"whatsapp,omitempty"`
 
@@ -139,7 +143,11 @@ type AppCheck struct {
 // (SEBI/HO/MIRSD/DOP/CIR/P/2020/73) does not require IPV or VIPV when the
 // KYC is completed through Aadhaar authentication or documents fetched
 // from DigiLocker.
-var AppSteps = []string{"contact", "identity", "address", "bank", "profile", "nominee", "photo", "review"}
+//
+// The tax step is the FATCA/CRS self-certification (SEBI/HO/MIRSD/SECFATF/
+// P/CIR/2024/12; SEBI circular of 11 November 2026, para 6.1): one choice
+// for a tax resident of India only, with the place of birth.
+var AppSteps = []string{"contact", "identity", "address", "tax", "bank", "profile", "nominee", "photo", "review"}
 
 // AppDeclarations must all be accepted before signing.
 var AppDeclarations = map[string]string{
@@ -148,6 +156,7 @@ var AppDeclarations = map[string]string{
 	"tariff":  "I accept the tariff sheet.",
 	"ras":     "I authorise settlement of my running account at the frequency I chose.",
 	"kra":     "I consent to my KYC records being fetched from and uploaded to the KRA and CKYC registry.",
+	"fatca":   "My tax residency declaration (FATCA/CRS) is true and complete. I will tell you within 30 days if it changes, and I consent to it being uploaded to the KRA.",
 	"correct": "The information I have given is true and complete.",
 }
 
@@ -249,13 +258,16 @@ type AppConfig struct {
 	// AadhaarMethods are the ways the applicant can share Aadhaar:
 	// "digilocker", and "aadhaar_offline" when the KYC plugin offers it.
 	AadhaarMethods []string `json:"aadhaar_methods"`
+	// FATCA are the code lists of the tax step (countries, reasons for no
+	// TIN).
+	FATCA FATCACodes `json:"fatca"`
 }
 
 // ApplyConfig describes the firm for the public page.
 func (o *Ops) ApplyConfig(ctx context.Context, tenant string) AppConfig {
 	set, _ := o.Settings(ctx, tenant)
 	return AppConfig{Firm: set.Firm, SEBIReg: set.SEBIReg, Email: set.ComplianceEmail, Provider: o.kycName(ctx, tenant), Dev: o.DevCodes, Segments: SegmentNames, Declare: AppDeclarations, Steps: AppSteps,
-		DocKinds: []string{"PAN card", "Photograph", "Signature", "Income proof", "Bank proof"}, DigiLockerRedirect: isFlow(o.kyc()), AadhaarMethods: o.aadhaarMethods(ctx)}
+		DocKinds: []string{"PAN card", "Photograph", "Signature", "Income proof", "Bank proof"}, DigiLockerRedirect: isFlow(o.kyc()), AadhaarMethods: o.aadhaarMethods(ctx), FATCA: FATCACodeLists()}
 }
 
 // aadhaarMethods asks the KYC plugin which ways it offers; other
@@ -531,6 +543,19 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 			return a, invalid("online account opening needs DigiLocker, which is not connected yet. Please contact us to open your account")
 		}
 		a.AddrSource = "DigiLocker"
+	case "tax":
+		// The FATCA/CRS self-certification of an individual opening an
+		// account today: a new, custodial account (fatca.go).
+		if d.FATCA == nil {
+			return a, invalid("answer the tax residency question")
+		}
+		x := *d.FATCA
+		x.ControllingPersons, x.Mode, x.AccountType, x.AccountStatus, x.DeclaredOn, x.SelfCert = nil, FATCAModeESign, "", "", now[:10], "Y"
+		x.restoreMasked(a.FATCA)
+		if err := prepareFATCA(&x, Client{Type: "Individual"}, now[:10]); err != nil {
+			return a, err
+		}
+		a.FATCA = &x
 	case "bank":
 		d.IFSC = strings.ToUpper(strings.TrimSpace(d.IFSC))
 		d.Account = strings.TrimSpace(d.Account)
@@ -702,6 +727,7 @@ var appFormTmpl = template.Must(template.New("form").Parse(`<!doctype html><html
 <h2>Contact and address</h2><table><tr><td>Mobile (verified)</td><td>{{.A.Mobile}}</td></tr><tr><td>Email (verified)</td><td>{{.A.Email}}</td></tr><tr><td>Address ({{.A.AddrSource}})</td><td>{{.A.Address}}, {{.A.City}}, {{.A.State}} {{.A.PIN}}</td></tr></table>
 <h2>Bank and demat</h2><table><tr><td>Bank</td><td>{{.A.Bank}} · {{.A.IFSC}} · {{.AcctMasked}}</td></tr><tr><td>Demat account</td><td>{{if .A.DematID}}{{.A.Depository}} {{.A.DematID}}{{else}}To be opened with us{{end}}</td></tr></table>
 <h2>Trading</h2><table><tr><td>Segments</td><td>{{.Segments}}</td></tr><tr><td>Annual income</td><td>{{.A.Income}}</td></tr><tr><td>Occupation</td><td>{{.A.Occupation}}</td></tr><tr><td>Trading experience</td><td>{{.A.Experience}}</td></tr><tr><td>Running account settlement</td><td>{{.A.RAS}}</td></tr></table>
+<h2>Tax residency (FATCA/CRS self-certification)</h2><table>{{with .A.FATCA}}<tr><td>Tax resident of</td><td>{{if eq .OtherThanIndia "N"}}India only{{else}}{{range $i, $r := .Residences}}{{if $i}}; {{end}}{{$r.Country}}{{if $r.TIN}} · TIN {{$r.TIN}}{{else}} · no TIN, reason {{$r.NoTIN}}{{if $r.NoTINWhy}} ({{$r.NoTINWhy}}){{end}}{{end}}{{end}}{{end}}</td></tr><tr><td>Place and country of birth</td><td>{{.PlaceOfBirth}}, {{.CountryOfBirth}}</td></tr><tr><td>Nationality</td><td>{{.Nationality}}</td></tr><tr><td>US person (US citizen or resident for tax)</td><td>{{if eq .USPerson "Y"}}Yes{{else}}No{{end}}</td></tr><tr><td>Date of declaration</td><td>{{.DeclaredOn}}</td></tr>{{end}}</table>
 <h2>Nomination</h2><table>{{if .A.NomineeOptOut}}<tr><td>Nominee</td><td>I do not wish to nominate. I could name up to 3 nominees, giving only each one's name and relationship (and the date of birth of anyone under 18), and may do so later. I understand that without a nominee the securities and money in this account will go to my legal heirs only after they produce the documents the law requires, such as a succession certificate or probate.</td></tr>{{else}}{{range $n := .A.Nominees}}<tr><td>Nominee</td><td>{{$n.Name}} ({{$n.Relation}}), {{$n.Share}}%{{if $n.ID}} · {{$n.IDType}} {{$n.MaskedID}}{{end}}{{if or $n.IsMinor $n.Guardian}} · minor{{if $n.DOB}}, born {{$n.DOB}}{{end}}{{if $n.Guardian}}, guardian {{$n.Guardian}}{{if $n.GuardianRelation}} ({{$n.GuardianRelation}}){{end}}{{end}}{{end}}</td></tr>{{end}}<tr><td>Statements show</td><td>{{if .A.NomineesOnStatement}}the nominees' names{{else}}whether there is a nomination (Yes/No){{end}}</td></tr>{{end}}</table>
 <h2>Declarations</h2><ul>{{range .Decl}}<li>{{.}}</li>{{end}}</ul>
 <p class="small">Signed electronically by {{.A.Name}}. The document hash is recorded with the signature.</p></body></html>`))
@@ -781,7 +807,7 @@ func (o *Ops) submitApplication(ctx context.Context, tenant string, a Applicatio
 	c := Client{Name: a.Name, Type: "Individual", PAN: a.PAN, DOB: a.DOB, Mobile: a.Mobile, Email: a.Email, City: a.City, State: a.State, Segments: a.Segments,
 		Risk: "Low", Income: a.Income, RAS: a.RAS, Bank: BankAccount{Bank: a.Bank, IFSC: a.IFSC, Account: a.Account}, Demat: Demat{Depository: a.Depository, ID: a.DematID},
 		Nominee: nom, NomineeName: a.NomineeName, Nominees: a.Nominees, NominationOn: o.now().Format("2006-01-02"), NominationMode: "Online with e-Sign", NomineesOnStatement: a.NomineesOnStatement && !a.NomineeOptOut, KYCRoute: kycRoute(a), IncomeProof: a.hasDoc("Income proof"), RiskDisclosure: true,
-		WhatsApp: a.WhatsApp, Partner: a.Partner, Tags: []string{"ONLINE"}}
+		WhatsApp: a.WhatsApp, Partner: a.Partner, Tags: []string{"ONLINE"}, FATCA: a.FATCA}
 	if c.Demat.Depository == "" {
 		c.Demat.Depository = "CDSL"
 	}

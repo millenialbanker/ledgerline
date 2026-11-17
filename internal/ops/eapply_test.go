@@ -61,6 +61,21 @@ func TestOnlineAccountOpening(t *testing.T) {
 	if a.City != "Bengaluru" || a.AddrSource != "DigiLocker" {
 		t.Fatalf("digilocker: %+v", a)
 	}
+	// The tax residency step (FATCA/CRS): one choice for India only, with
+	// the place of birth; a foreign residence needs its TIN or a reason.
+	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "tax"}); err == nil {
+		t.Fatal("tax step with no answer")
+	}
+	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "tax", Application: Application{FATCA: IndiaOnlyFATCA("", "")}}); err == nil || !strings.Contains(err.Error(), "place of birth") {
+		t.Fatalf("no place of birth: %v", err)
+	}
+	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "tax", Application: Application{FATCA: &FATCADecl{OtherThanIndia: "Y", Residences: []TaxResidence{{Country: "GB"}}, PlaceOfBirth: "Leeds", CountryOfBirth: "GB", Nationality: "IN", USPerson: "N"}}}); err == nil || !strings.Contains(err.Error(), "TIN") {
+		t.Fatalf("foreign residence without a TIN: %v", err)
+	}
+	a = step("tax", Application{FATCA: IndiaOnlyFATCA("Mysuru", "2020-01-01")}, false)
+	if a.FATCA == nil || a.FATCA.OtherThanIndia != "N" || a.FATCA.Mode != FATCAModeESign || a.FATCA.AccountStatus != AccountNew || a.FATCA.AccountType != "CRS1102" || a.FATCA.DeclaredOn != o.now().Format("2006-01-02") {
+		t.Fatalf("tax step: %+v", a.FATCA)
+	}
 	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "bank", Application: Application{Bank: "HDFC Bank", IFSC: "HDFC0001234", Account: "123456780000"}}); err == nil {
 		t.Fatal("failed penny drop accepted")
 	}
@@ -127,6 +142,12 @@ func TestOnlineAccountOpening(t *testing.T) {
 	// Autopilot edition: activation is on Suggest, so a person activates.
 	if c.Status != "KYC verification" || c.KYCRoute != "Online (Aadhaar via DigiLocker)" || c.Partner != "AP001" || !c.WhatsApp || c.WAConsent == nil || !c.IncomeProof {
 		t.Fatalf("client: %+v", c)
+	}
+	if c.FATCA == nil || c.FATCA.PlaceOfBirth != "Mysuru" || c.FATCA.By != "applicant:"+a.ID || c.FATCA.Mode != FATCAModeESign || c.FATCA.KRA != "" {
+		t.Fatalf("self-certification: %+v", c.FATCA)
+	}
+	if f, _ := o.AppForm(ctx, T, a); !strings.Contains(string(f), "India only") || !strings.Contains(string(f), "Mysuru") {
+		t.Fatal("the signed form has no tax residency")
 	}
 	ds, _ := o.ClientDocs(ctx, T, a.UCC)
 	if len(ds) != 5 { // income, photo, signature, PAN, signed form

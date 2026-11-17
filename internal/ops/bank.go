@@ -21,7 +21,7 @@ type BankTxn struct {
 	Remitter string       `json:"remitter"`
 	Account  string       `json:"account"` // remitter account, stored in full
 	Amount   money.Amount `json:"amount"`
-	Status   string       `json:"status"` // Matched, Third-party, Unidentified, Returned, Identified
+	Status   string       `json:"status"` // Matched, Third-party, Unidentified, Returned, Identified, Firm's fee, Fee moved
 	UCC      string       `json:"ucc,omitempty"`
 	EntryID  string       `json:"entry_id,omitempty"`
 	Note     string       `json:"note,omitempty"`
@@ -34,7 +34,9 @@ type BankTxn struct {
 	PayerIFSC      string `json:"payer_ifsc,omitempty"`
 	Source         string `json:"source,omitempty"`
 	// PayeeVPA is the UPI ID a UPI credit was paid to; Channel says whether
-	// it is one of the firm's validated .brk@valid IDs (upicollect.go).
+	// it is one of the firm's validated @valid IDs, and whether that ID
+	// collects client money or the firm's research or advisory fees
+	// (upicollect.go).
 	PayeeVPA string `json:"payee_vpa,omitempty"`
 	Channel  string `json:"channel,omitempty"`
 	// With a separate commodity ledger (segledger.go): the firm's account
@@ -69,8 +71,21 @@ func (o *Ops) BankTxns(ctx context.Context, tenant string) ([]BankTxn, error) {
 	return ts, err
 }
 
+// Bank credit statuses for the firm's research or advisory fees.
+const (
+	BankFirmFee  = "Firm's fee"
+	BankFeeMoved = "Fee moved"
+)
+
+// ReceivableFees is where research and advisory fee receipts are credited
+// in the firm's own books, against the fee invoices.
+const ReceivableFees = "RECEIVABLE:RA_IA_FEES"
+
 // matchCredit classifies and posts one statement credit. A credit from a
-// client's registered account is a receipt. Anything else is parked in the
+// client's registered account is a receipt. A research or advisory fee
+// paid to the firm's ra or ia UPI ID is the firm's money, never a client's:
+// it is parked, out of every client's ledger and out of client money, until
+// it is moved to the firm's own account. Anything else is parked in the
 // bank suspense account until it is returned or identified: third-party if
 // the remitter name resembles a client, unidentified otherwise.
 func (o *Ops) matchCredit(ctx context.Context, tenant, actor string, t BankTxn, clients []Client) (BankTxn, error) {
@@ -90,7 +105,19 @@ func (o *Ops) matchCredit(ctx context.Context, tenant, actor string, t BankTxn, 
 	} else if !set.sepCom() {
 		t.ToAccount, t.Narration = "", "" // kept only where they decide the ledger
 	}
-	if byAcct != nil {
+	if t.Channel == ChannelFeeUPI {
+		// The firm's fee (SEBI/HO/DEPA-II/DEPA-II_SRG/P/CIR/2025/86 gives
+		// research analysts and investment advisers their own UPI IDs):
+		// held apart in the bank suspense account, which the client-money
+		// check leaves out, until it leaves the client bank account.
+		t.Status = BankFirmFee
+		if byAcct != nil {
+			t.UCC = byAcct.UCC // who paid it, for the record; no client is credited
+		}
+		entry.Key = "FEE:" + t.Ref
+		entry.Narration = fmt.Sprintf("Research or advisory fee paid to %s · %s %s · the firm's money, not client money", t.PayeeVPA, t.Mode, t.Ref)
+		entry.Postings = []ledger.Posting{{Account: ledger.BankClient, Debit: t.Amount}, {Account: ledger.SuspenseBank, Credit: t.Amount, Memo: "firm's fee: " + t.Remitter}}
+	} else if byAcct != nil {
 		t.Status, t.UCC = "Matched", byAcct.UCC
 		if t.Hint != "" && t.Hint != byAcct.UCC {
 			t.Note = fmt.Sprintf("Paid into %s's virtual account from %s's registered account", t.Hint, byAcct.UCC)
@@ -139,7 +166,48 @@ func (o *Ops) matchCredit(ctx context.Context, tenant, actor string, t BankTxn, 
 		o.raiseAlert(ctx, tenant, actor, Alert{Source: "Internal", Type: "Third-party funds attempt", UCC: t.UCC, Severity: "Medium",
 			Detail: fmt.Sprintf("%s credit of ₹%s from an unregistered account (%s, %s)", t.Mode, formatINR(t.Amount.Dec()), t.Remitter, MaskAccount(t.Account))}, "TPF:"+t.Ref)
 	}
+	if t.Status == BankFirmFee {
+		o.raiseWork(ctx, tenant, "upi-fee", t.Ref, "Research or advisory fee in the client bank account: move it out",
+			fmt.Sprintf("₹%s was paid by UPI to the firm's fee ID %s (reference %s) and came into the client bank account. It is the firm's fee, not client money: no client's ledger was credited. Transfer it to the firm's own account and record the transfer on Bank reconciliation (Move to firm's account), or return it. Ask the bank to link %s to the firm's own account.", formatINR(t.Amount.Dec()), t.PayeeVPA, t.Ref, t.PayeeVPA),
+			t.UCC, RoleChecker, "bank", t.Date)
+	}
 	return t, nil
+}
+
+// MoveFeeCredit records that a research or advisory fee which came into
+// the client bank account was transferred to the firm's own account: out
+// of the client bank account and the suspense account, into the firm's
+// own bank, against the fees receivable.
+func (o *Ops) MoveFeeCredit(ctx context.Context, tenant, actor, id, ref string) (BankTxn, error) {
+	if err := o.require(ctx, tenant, actor, "Moving a fee to the firm's account", RoleChecker); err != nil {
+		return BankTxn{}, err
+	}
+	if strings.TrimSpace(ref) == "" {
+		return BankTxn{}, invalid("give the reference of the transfer to the firm's own account")
+	}
+	t, _, err := docs.Get[BankTxn](ctx, o.Docs, tenant, cBankTxn, id)
+	if err != nil {
+		return t, err
+	}
+	if t.Status != BankFirmFee {
+		return t, fmt.Errorf("%w: credit %s is %s", ErrState, t.Ref, t.Status)
+	}
+	e, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "FEEOUT:" + t.Ref, ValueDate: o.now().Format("2006-01-02"),
+		Narration: "Research or advisory fee moved to the firm's own account · " + t.Ref + " · " + strings.TrimSpace(ref), Source: ledger.SourceRef{Kind: "BANK", ID: t.Ref}, CreatedBy: actor,
+		Postings: []ledger.Posting{{Account: ledger.SuspenseBank, Debit: t.Amount}, {Account: ledger.BankClient, Credit: t.Amount, Memo: "to the firm's own account"},
+			{Account: ledger.BankOwn, Debit: t.Amount, Memo: "fee " + t.Ref}, {Account: ReceivableFees, Credit: t.Amount, Memo: "fee received by UPI " + t.PayeeVPA}}})
+	if err != nil {
+		return t, err
+	}
+	t, err = docs.Update(ctx, o.Docs, tenant, cBankTxn, id, actor, func(x *BankTxn) error {
+		x.Status, x.Note, x.By, x.EntryID = BankFeeMoved, strings.TrimSpace(ref), actor, e.ID
+		return nil
+	})
+	if err == nil {
+		o.closeWork(ctx, tenant, actor, "upi-fee", t.Ref, "moved to the firm's own account")
+		o.log(ctx, tenant, actor, "bank.fee.moved", t.Ref, map[string]any{"amount": t.Amount.String(), "ref": ref})
+	}
+	return t, err
 }
 
 func lastWord(s string) string {
@@ -163,9 +231,10 @@ func (o *Ops) ReturnCredit(ctx context.Context, tenant, actor, id, note string) 
 	if err != nil {
 		return t, err
 	}
-	if t.Status != "Third-party" && t.Status != "Unidentified" {
+	if t.Status != "Third-party" && t.Status != "Unidentified" && t.Status != BankFirmFee {
 		return t, fmt.Errorf("%w: credit %s is %s", ErrState, t.Ref, t.Status)
 	}
+	fee := t.Status == BankFirmFee
 	e, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "RET:" + t.Ref, ValueDate: o.now().Format("2006-01-02"),
 		Narration: "Returned to remitter · " + t.Ref, Source: ledger.SourceRef{Kind: "BANK", ID: t.Ref}, CreatedBy: actor,
 		Postings: []ledger.Posting{{Account: ledger.SuspenseBank, Debit: t.Amount}, {Account: ledger.BankClient, Credit: t.Amount, Memo: "Refund to source account"}}})
@@ -177,6 +246,9 @@ func (o *Ops) ReturnCredit(ctx context.Context, tenant, actor, id, note string) 
 		return nil
 	})
 	if err == nil {
+		if fee {
+			o.closeWork(ctx, tenant, actor, "upi-fee", t.Ref, "returned to the payer")
+		}
 		o.log(ctx, tenant, actor, "bank.credit.returned", t.Ref, map[string]any{"amount": t.Amount.String()})
 	}
 	return t, err

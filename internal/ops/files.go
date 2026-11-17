@@ -80,7 +80,8 @@ func baseSources() []masterSrc {
 		{"MF-ORDERS", "Mutual fund orders from the exchange platform", []string{"OrderNo", "UCC", "Scheme", "Type", "Amount", "Platform", "Status"}, false, "Daily"},
 		{"CIRCULARS", "Circulars from SEBI, the exchanges, clearing corporations and depositories (Date YYYY-MM-DD or DD-Mon-YYYY); optional columns Department, URL, Text. Each is triaged into areas, priority and actions", []string{"Source", "Ref", "Date", "Subject"}, false, "Daily"},
 		{"DEBARRED-LIST", "SEBI / exchange debarment orders and UN sanctions lists; PAN matches are blocked, name matches raised for review", []string{"PAN", "Name", "Regulator", "OrderNo", "OrderDate", "Till"}, false, "On every new order"},
-		{"KRA-STATUS", "KYC status from the KRA (Registered, Validated, On hold, Rejected)", []string{"PAN", "Status", "Remarks"}, false, "Daily"},
+		{"KRA-STATUS", "KYC status from the KRA (Registered, Validated, On hold, Rejected). Optional column FATCA: Y when the client's FATCA/CRS self-certification is on record at the KRA, N when it is not (the Remarks say why)", []string{"PAN", "Status", "Remarks"}, false, "Daily"},
+		{"FATCA-CRS", "Clients' FATCA/CRS self-certifications held by the previous system or on paper, for clients who have none in Ledgerline (a client who has one keeps it: change it by change request). OtherThanIndia is Y or N (tax resident of India only); DeclaredOn is the date of the self-certification. Optional columns: PlaceOfBirth, CountryOfBirth, Nationality (ISO 3166 codes or English names), USPerson (Y or N), Country1-4 with TIN1-4, NoTINReason1-4 (A, B or C) and TINCountry1-4, SelfCertValid (Y or N), AccountStatus (CRS1201 new, CRS1202 pre-existing; from the account opening date when blank), AccountType (CRS1102 custodial when blank), Mode, AtKRA (Y when the previous system already uploaded it to the KRA). A row that repeats the UCC with CPName adds a controlling person: CPType (CRS801 to CRS813), CPPAN, CPDOB, CPCountryOfBirth, CPNationality, CPOtherThanIndia, CPCountry1, CPTIN1, CPNoTINReason1, CPSelfCertValid", []string{"UCC", "OtherThanIndia", "DeclaredOn"}, false, "Once at go-live"},
 		{"CKYC-NUMBERS", "CKYC identifiers downloaded from CERSAI", []string{"PAN", "CKYCNumber"}, false, "On response"},
 		{"STT-STATEMENT", "Exchange statement of turnover and STT by segment, for reconciliation", []string{"Exchange", "Segment", "Turnover", "STT"}, true, "Daily"},
 		{"LTP-SNAPSHOT", "Last traded prices during the day for live risk (InstrumentType, Expiry and Strike blank for equity)", []string{"Exchange", "Segment", "Symbol", "InstrumentType", "Expiry", "Strike", "LTP", "Time"}, true, "Every few minutes"},
@@ -284,6 +285,8 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		return o.loadNRICaution(ctx, tenant, actor, date, rows)
 	case "NOMINEES":
 		return o.prepareNominees(ctx, tenant, actor, rows)
+	case "FATCA-CRS":
+		return o.prepareFATCAImport(ctx, tenant, actor, rows)
 	case "CLIENT-BANKS":
 		return o.prepareClientBanks(ctx, tenant, actor, rows)
 	case "CLIENT-DEMATS":
@@ -541,6 +544,11 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 					}
 					if c.GSTIN == "" {
 						c.GSTIN = old.GSTIN
+					}
+					// The FATCA/CRS self-certification is not in the client
+					// master; it stays (fatca.go).
+					if c.FATCA == nil {
+						c.FATCA = old.FATCA
 					}
 				}
 				// What the previous system did not have: an inactive client's

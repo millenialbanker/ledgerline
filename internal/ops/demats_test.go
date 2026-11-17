@@ -560,7 +560,7 @@ func TestMigrationDPAccountsReconcile(t *testing.T) {
 func TestDPOnlyNewClient(t *testing.T) {
 	o, ctx := newOps(t)
 	c := Client{Name: "Test Depository Only", Type: "Individual", PAN: "ABCPQ1234Q", DOB: "1985-02-03", Mobile: "9876500077", Email: "dponly@example.test", City: "Pune", State: "Maharashtra",
-		Income: "5-10L", Bank: BankAccount{Bank: "Sample Bank", IFSC: "SBIN0001234", Account: "123456789077"}, DPOnly: true}
+		Income: "5-10L", Bank: BankAccount{Bank: "Sample Bank", IFSC: "SBIN0001234", Account: "123456789077"}, DPOnly: true, FATCA: IndiaOnlyFATCA("Pune", "")}
 	trading := c
 	trading.DPOnly = false
 	if _, err := o.CreateApplication(ctx, T, "priya.nair", trading); err == nil {

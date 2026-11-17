@@ -55,7 +55,8 @@ func TestCDSLBOAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	c, err := o.CreateApplication(ctx, "demo", "priya.nair", ops.Client{Name: "Bhavna Shah", Type: "Individual", PAN: "ABCPB3333B", Mobile: "9876500011", Email: "bhavna@example.test", City: "Pune",
-		Segments: []string{"CM"}, Bank: ops.BankAccount{Bank: "Sample Bank", IFSC: "SBIN0001234", Account: "123456789012"}, Demat: ops.Demat{Depository: "CDSL", ID: "1201090000003333"}, RiskDisclosure: true})
+		Segments: []string{"CM"}, Bank: ops.BankAccount{Bank: "Sample Bank", IFSC: "SBIN0001234", Account: "123456789012"}, Demat: ops.Demat{Depository: "CDSL", ID: "1201090000003333"}, RiskDisclosure: true,
+		FATCA: ops.IndiaOnlyFATCA("Pune", "")})
 	if err != nil {
 		t.Fatal(err)
 	}

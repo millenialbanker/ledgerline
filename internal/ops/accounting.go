@@ -59,6 +59,7 @@ var systemNames = map[string]string{
 	IncomeCharges: "Other charges recovered", ReceivableGateway: "Payment gateway receivable", InputIGST: "Input IGST", InputCGST: "Input CGST", InputSGST: "Input SGST",
 	"EXPENSE:GATEWAY_FEES": "Payment gateway fees", ExpenseBadDebts: "Bad debts written off", IncomeDP: "Depository (DP) charges", IncomeMTFInterest: "Interest on margin trading funding", PayableDepository: "Payable to depository (CDSL / NSDL)",
 	PayableDPStamp: "Stamp duty on off-market transfers, payable to the depository",
+	ReceivableFees: "Research and advisory fees receivable (fees received by UPI are credited here)",
 }
 
 func accountType(code string) string {

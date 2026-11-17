@@ -11,8 +11,8 @@ related: online-opening, activate-client, ucc-upload
 
 Two ways:
 
-- **Individuals with Aadhaar and PAN:** send them the online account opening link from [[apps|Online applications]]. They do e-KYC, DigiLocker, bank check, nominees (up to 3, or the opt-out declaration) and e-Sign on their phone; no in-person or video verification is needed with Aadhaar.
-- **Walk-in, HUF, corporate, NRI and others:** on [[clients|Clients & onboarding]] click **New client** and fill in the five steps (identity, bank & demat, segments & risk, nominee & declarations, review).
+- **Individuals with Aadhaar and PAN:** send them the online account opening link from [[apps|Online applications]]. They do e-KYC, DigiLocker, the tax residency (FATCA/CRS) declaration, bank check, nominees (up to 3, or the opt-out declaration) and e-Sign on their phone; no in-person or video verification is needed with Aadhaar.
+- **Walk-in, HUF, corporate, NRI and others:** on [[clients|Clients & onboarding]] click **New client** and fill in the six steps (identity, bank & demat, segments & risk, tax residency, nominee & declarations, review). The tax residency step is the client's FATCA/CRS self-certification: see "FATCA/CRS self-certifications".
 
 Either way the client lands at **KYC verification** and moves through the stages to **Active**: see "activate a client".
 
@@ -25,7 +25,7 @@ related: new-client, activate-client
 
 1. Share the link shown at the top of [[apps|Online applications]] (on your website, by WhatsApp, or with an AP code so the AP is credited).
 2. When an applicant submits, the application appears here and the client is created at **KYC verification**.
-3. Click **Open** to see every check (PAN, KRA, Aadhaar, bank account, face match, e-Sign) and the documents: the e-Aadhaar and PAN record from DigiLocker, or the UIDAI-signed offline e-KYC file.
+3. Click **Open** to see every check (PAN, KRA, Aadhaar, bank account, face match, e-Sign) and the documents: the e-Aadhaar and PAN record from DigiLocker, or the UIDAI-signed offline e-KYC file. The signed form includes the applicant's tax residency (FATCA/CRS) declaration; it is on [[kyc|KYC & PMLA]] → FATCA / CRS once the client is created.
 4. There is no in-person verification: Aadhaar comes from DigiLocker or from UIDAI's offline e-KYC file (not older than 3 days), which SEBI's KYC circular accepts without IPV or video.
 5. **Aadhaar (offline e-KYC): check manually** usually means the mobile and email the applicant confirmed are not the ones linked to that Aadhaar, so the file may be someone else's. Call the applicant, or ask them to use DigiLocker or download a fresh file themselves.
 6. On Autopilot set to activate (always in Full autopilot), an application whose every check passed is activated by itself. Otherwise, or when something is marked **Check manually** or **Failed** (a name that differs from Aadhaar, say), check it, then move the client through the stages on [[clients|Clients & onboarding]], or **Reject** with a reason, which is sent to the applicant.
@@ -220,10 +220,10 @@ title: Fix KRA status and KRA uploads
 screen: kyc
 roles: Ops maker, Ops checker, Compliance officer
 ask: kra status; kra not validated; kra rejected; kra upload; kra on hold; kyc registered; kra file; ckyc number
-related: change-contact, ucc-rejected
+related: change-contact, ucc-rejected, fatca-crs
 
-1. New clients and every KYC change go to the KRA in the **KRA upload file** from [[kyc|KYC & PMLA]]. Autopilot builds it each evening.
-2. Load the KRA's status file back on [[files|Files]]; each client then shows their KRA status.
+1. New clients and every KYC change go to the KRA in the **KRA upload file** from [[kyc|KYC & PMLA]], with each client's FATCA/CRS self-certification (see the FATCA / CRS tab). Autopilot builds it each evening. Once uploaded, mark the file uploaded on FATCA / CRS.
+2. Load the KRA's status file back on [[files|Files]]; each client then shows their KRA status. An optional FATCA column (Y or N) records whether the FATCA/CRS certification is on record at the KRA.
 3. **On hold or rejected:** the KRA's response says why (usually a missing or unclear document, or a name mismatch with PAN). Collect the document, update the details, and the next upload file resends it.
 4. **CKYC:** download the **CKYC bulk request** for clients without a CKYC number and load CERSAI's response on Files.
 

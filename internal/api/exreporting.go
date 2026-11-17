@@ -32,6 +32,7 @@ func (s *Server) exchangeReportingRoutes() {
 	s.complianceCalendarRoutes(R)
 	s.surveillanceReturnRoutes(R)
 	s.upiCollectRoutes(R)
+	s.fatcaRoutes(R)
 }
 
 func (s *Server) segmonCheck(w http.ResponseWriter, r *http.Request) {
