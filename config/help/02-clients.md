@@ -215,6 +215,8 @@ A client migrated with **details missing from the previous system** (the client 
 
 **Flagging:** [[inactive|Inactive accounts]] lists accounts due; select them and **Flag selected inactive**, or let Autopilot do it.
 
+**The notice before flagging:** the client may be told beforehand, but the notice must not ask them to trade to keep the account active (NSE/INSP/64718). Ledgerline's "Turning inactive" message says when the account turns inactive and asks the client to tell the firm if their contact details have changed. A firm whose stored message still had the older wording ("Any trade … keeps it active") gets the new text automatically, unless it had edited the message itself. If the firm registered the WhatsApp message with Meta, register the new text there too.
+
 ## kra-status
 title: Fix KRA status and KRA uploads
 screen: kyc

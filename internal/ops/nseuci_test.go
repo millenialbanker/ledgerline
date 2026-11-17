@@ -515,3 +515,28 @@ func TestNSEUCILoginRefused(t *testing.T) {
 		t.Fatalf("%+v", v)
 	}
 }
+
+// TestNSEUCIAddress: NSE moved the UCI API on 3 January 2026
+// (NSE/ISC/70019); an old connect2nsccl.com address saved on a connection
+// is replaced, any other address is kept.
+func TestNSEUCIAddress(t *testing.T) {
+	conn := func(env, url string) Connection {
+		return Connection{Provider: connNSEUCI, Values: map[string]string{"member": "12345", "env": env, "url": url}, Secrets: map[string]string{"password": "x"}}
+	}
+	for _, tc := range []struct{ env, url, want string }{
+		{"Production", "", "https://api.nseindia.com/uciservice/api"},
+		{"UAT", "", "https://clientprofilinguat.nseindia.com/uciservice/api"},
+		{"Production", "https://ims.connect2nsccl.com/uciservice/api/", "https://api.nseindia.com/uciservice/api"},
+		{"Production", "https://www.connect2nsccl.com/uciservice/api", "https://api.nseindia.com/uciservice/api"},
+		{"UAT", "https://uat.connect2nsccl.com/uciservice/api", "https://clientprofilinguat.nseindia.com/uciservice/api"},
+		{"Production", "https://uci-proxy.example.in/uciservice/api/", "https://uci-proxy.example.in/uciservice/api"},
+	} {
+		x, err := parseNSEUCIConn(conn(tc.env, tc.url))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if x.base != tc.want {
+			t.Errorf("%s %q: base %q, want %q", tc.env, tc.url, x.base, tc.want)
+		}
+	}
+}

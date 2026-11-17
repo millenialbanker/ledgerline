@@ -219,3 +219,45 @@ func (f *fakeMailer) Send(_ context.Context, m Mail) (string, error) {
 	f.got = append(f.got, m)
 	return "<id@test>", nil
 }
+
+// TestRetiredTemplateText: a firm set up with the old dormant-account text
+// (NSE/INSP/64718: don't ask clients to trade to stay active) gets the new
+// default; a text the firm edited itself is left alone.
+func TestRetiredTemplateText(t *testing.T) {
+	o, ctx := setup(t)
+	ts, err := o.Templates(ctx, T)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var email, wa Template
+	for _, x := range ts {
+		if x.Event == "insight.dormant" && x.Channel == ChEmail {
+			email = x
+		}
+		if x.Event == "insight.dormant" && x.Channel == ChWhatsApp {
+			wa = x
+		}
+	}
+	if email.ID == "" || wa.ID == "" {
+		t.Fatal("dormant templates missing")
+	}
+	if strings.Contains(email.Body, "Any trade") || strings.Contains(wa.Body, "Any trade") {
+		t.Fatalf("default still asks for a trade: %q / %q", email.Body, wa.Body)
+	}
+	email.Body = retiredTemplateBodies["insight.dormant|"+ChEmail][0]
+	wa.Body = "{name}, your account {ucc} turns inactive on {date}. Any trade keeps it active (our own text)."
+	for _, x := range []Template{email, wa} {
+		if err := docs.Upsert(ctx, o.Docs, T, cTemplate, x.ID, x, "test"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ts, _ = o.Templates(ctx, T)
+	for _, x := range ts {
+		switch {
+		case x.ID == email.ID && strings.Contains(x.Body, "Any trade"):
+			t.Errorf("unedited old text not replaced: %q", x.Body)
+		case x.ID == wa.ID && !strings.Contains(x.Body, "our own text"):
+			t.Errorf("the firm's own text was replaced: %q", x.Body)
+		}
+	}
+}
