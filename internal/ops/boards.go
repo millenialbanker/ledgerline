@@ -80,10 +80,10 @@ type Board struct {
 	Template    bool              `json:"template,omitempty"`
 	Closed      bool              `json:"closed,omitempty"`
 	Starred     []string          `json:"starred,omitempty"`
-	EmailKey    string            `json:"email_key,omitempty"` // email-to-board (boardextras.go)
-	EmailList   string            `json:"email_list,omitempty"`
 	CardSeq     int64             `json:"card_seq"`
 	Settings    map[string]string `json:"settings,omitempty"` // for the other board files
+	Watchers    []string          `json:"watchers,omitempty"` // told about cards added, moved, completed, commented on, re-dated (boardlists.go)
+	Perms       BoardPerms        `json:"perms"`              // who may comment, add members, join (boardlists.go)
 	Deleted     bool              `json:"deleted,omitempty"`
 	CreatedBy   string            `json:"created_by"`
 	CreatedAt   string            `json:"created_at"`
@@ -105,6 +105,9 @@ type BoardList struct {
 	Limit    int     `json:"limit,omitempty"` // most cards it should hold (0: no limit)
 	Archived bool    `json:"archived,omitempty"`
 	Source   string  `json:"source,omitempty"` // the record status a Ledgerline board's list stands for
+	// Watchers are told when a card is added to the list or moved into it.
+	Watchers []string `json:"watchers,omitempty"`
+	MovedTo  string   `json:"moved_to,omitempty"` // the board the list moved to (it stays here, archived, for its archived cards)
 }
 
 // BoardLabel is a coloured label, named or not.
@@ -151,6 +154,7 @@ type Card struct {
 	Mirror      *CardRef          `json:"mirror,omitempty"` // shows another card (boardextras.go)
 	Template    bool              `json:"template,omitempty"`
 	Archived    bool              `json:"archived,omitempty"`
+	Stickers    []string          `json:"stickers,omitempty"` // stickers on the card's front, at most 10 (boardextras.go)
 	// Deleted cards are kept (the store keeps every record) but no longer shown.
 	Deleted   bool   `json:"deleted,omitempty"`
 	MovedTo   string `json:"moved_to,omitempty"` // "<board>|<card>" when it went to another board
@@ -203,6 +207,7 @@ type CardComment struct {
 	Text      string              `json:"text"`
 	Edited    string              `json:"edited,omitempty"`
 	Mentions  []string            `json:"mentions,omitempty"`
+	Groups    []string            `json:"groups,omitempty"` // "board", "card": the @board and @card that notified people
 	Reactions map[string][]string `json:"reactions,omitempty"`
 }
 
@@ -244,7 +249,22 @@ type BoardNotice struct {
 	By    string `json:"by,omitempty"`
 	Text  string `json:"text"`
 	Read  bool   `json:"read,omitempty"`
+	// Kind says what the notice is about (NoticeAdded …), so people can
+	// choose which kinds reach them by email. Older notices have none.
+	Kind string `json:"kind,omitempty"`
 }
+
+// Kinds of board notice.
+const (
+	NoticeAdded      = "added"      // added to a board, a card or a checklist item
+	NoticeMention    = "mention"    // @mentioned in a comment
+	NoticeComment    = "comment"    // a comment on a card one watches or is on
+	NoticeMoved      = "moved"      // a card one watches moved
+	NoticeDue        = "due"        // a due date reminder
+	NoticeWatch      = "watch"      // anything else on a card, list or board one watches
+	NoticeAutomation = "automation" // sent by an automation rule or about one
+	NoticeOther      = "other"
+)
 
 type boardFileDoc struct {
 	ID    string `json:"id"`
@@ -263,7 +283,7 @@ type boardFileDoc struct {
 type BoardEvent struct {
 	Board string            `json:"board"`
 	Card  string            `json:"card,omitempty"`
-	Kind  string            `json:"kind"` // card.created, card.moved, card.label_added, card.member_added, card.due_set, card.due_done, checklist.done, card.archived, comment.added, card.updated
+	Kind  string            `json:"kind"` // card.created, card.moved, card.reordered, card.renamed, card.label_added, card.label_removed, card.member_added, card.due_set, card.due_done, card.due_undone, card.field_set, card.attachment_added, checklist.done, checklist.item_done, checklist.item_undone, checklist.item_added, card.archived, card.unarchived, comment.added, card.updated
 	Actor string            `json:"actor"`
 	Data  map[string]string `json:"data,omitempty"` // e.g. from_list, to_list, label, member, checklist
 }
@@ -317,6 +337,22 @@ func cardKey(board, card string) string { return board + "|" + card }
 var boardColors = []string{"green", "yellow", "orange", "red", "purple", "blue", "sky", "lime", "pink", "black"}
 
 func boardColorOK(c string) bool { return c == "" || contains(boardColors, c) }
+
+// Labels have 30 colours, as in Trello: each of the ten in a subtle, normal
+// and bold shade ("green_subtle", "green", "green_bold"). Lists, covers and
+// backgrounds keep the ten.
+func boardLabelColorOK(c string) bool {
+	h, shade, _ := strings.Cut(c, "_")
+	return c == "" || contains(boardColors, h) && (shade == "" && !strings.Contains(c, "_") || shade == "subtle" || shade == "bold")
+}
+
+// labelColorName is a label colour for people: "green", "subtle green".
+func labelColorName(c string) string {
+	if h, shade, ok := strings.Cut(c, "_"); ok {
+		return shade + " " + h
+	}
+	return c
+}
 
 // boardDate accepts YYYY-MM-DD or YYYY-MM-DDTHH:MM, or "".
 func boardDate(s string) (string, error) {
@@ -395,6 +431,9 @@ func (o *Ops) boardUser(ctx context.Context, tenant, actor string) (User, error)
 
 // boardRole is a person's role on a board ("" when they cannot see it).
 func boardRole(b Board, u User) string {
+	if b.Kind == BoardInbox { // a person's own Inbox (boardplanner.go): no one else, admins included
+		return inboxRole(b, u)
+	}
 	if b.Kind == BoardLedgerline && (u.Role == RoleBranch || u.Role == RoleAP) {
 		return "" // Ledgerline boards hold head-office records
 	}
@@ -466,7 +505,14 @@ func (o *Ops) BoardRev(ctx context.Context, tenant, actor, id string) (int64, er
 }
 
 func (o *Ops) boardNotify(ctx context.Context, tenant, actor string, b Board, card string, users []string, text string) {
+	o.boardNotifyKind(ctx, tenant, actor, b, card, NoticeOther, users, text)
+}
+
+// boardNotifyKind leaves a notice of the given kind for each person in
+// users, except the one who acted.
+func (o *Ops) boardNotifyKind(ctx context.Context, tenant, actor string, b Board, card, kind string, users []string, text string) {
 	seen := map[string]bool{}
+	users = inboxOnly(b, users) // an Inbox's notices go to its owner only
 	for _, u := range users {
 		if u == "" || u == actor || seen[u] || strings.HasPrefix(u, "system:") {
 			continue
@@ -477,7 +523,7 @@ func (o *Ops) boardNotify(ctx context.Context, tenant, actor string, b Board, ca
 			continue
 		}
 		id := fmt.Sprintf("%s|%012d", u, n)
-		_ = docs.Upsert(ctx, o.Docs, tenant, cBoardNote, id, BoardNotice{ID: id, User: u, At: o.now().Format(time.RFC3339), Board: b.ID, Card: card, By: actor, Text: text}, actor)
+		_ = docs.Upsert(ctx, o.Docs, tenant, cBoardNote, id, BoardNotice{ID: id, User: u, At: o.now().Format(time.RFC3339), Board: b.ID, Card: card, By: actor, Text: text, Kind: kind}, actor)
 	}
 }
 
@@ -559,7 +605,7 @@ func (o *Ops) Boards(ctx context.Context, tenant, actor string) ([]BoardSummary,
 	out := []BoardSummary{}
 	for _, b := range bs {
 		r := boardRole(b, u)
-		if r == "" || b.Deleted {
+		if r == "" || b.Deleted || b.Kind == BoardInbox { // the Inbox is shown on its own (boardplanner.go)
 			continue
 		}
 		lists := 0
@@ -592,6 +638,7 @@ type BoardInput struct {
 	Members     []BoardPerson `json:"members,omitempty"`
 	Template    *bool         `json:"template,omitempty"`
 	Lists       []string      `json:"lists,omitempty"` // a new board's lists (default To do, Doing, Done)
+	Perms       *BoardPerms   `json:"perms,omitempty"` // nil leaves them as they are
 }
 
 func defaultLabels() []BoardLabel {
@@ -678,6 +725,10 @@ type BoardView struct {
 	Role  string         `json:"role"`
 	Rev   int64          `json:"rev"`
 	Users []BoardUserRef `json:"users"` // people who can be added or mentioned
+	// For the person reading it (boardlists.go): the lists they collapsed,
+	// and whether they may join the board as a member.
+	Collapsed []string `json:"collapsed"`
+	CanJoin   bool     `json:"can_join,omitempty"`
 }
 
 // BoardUserRef is a person shown on a board.
@@ -719,8 +770,9 @@ func (o *Ops) GetBoard(ctx context.Context, tenant, actor, id string, archived b
 		}
 	}
 	if !v.can(BoardAdmin) {
-		out.Board.EmailKey = "" // the email address is for the board's admins
 	}
+	out.Collapsed = o.boardCollapsed(ctx, tenant, actor, b)
+	out.CanJoin = boardCanJoin(b, v) == nil
 	return out, nil
 }
 
@@ -750,8 +802,12 @@ func (o *Ops) UpdateBoard(ctx context.Context, tenant, actor, id string, in Boar
 	if err != nil {
 		return b, err
 	}
+	if err := inboxFixed(b, in); err != nil {
+		return b, err
+	}
 	var changes []string
 	b, err = docs.Update(ctx, o.Docs, tenant, cBoard, id, actor, func(x *Board) error {
+		changes = nil
 		if in.Name != "" && in.Name != x.Name {
 			n, err := textField("board name", in.Name, 120, true)
 			if err != nil {
@@ -789,6 +845,13 @@ func (o *Ops) UpdateBoard(ctx context.Context, tenant, actor, id string, in Boar
 		if in.CoversOn != nil {
 			x.CoversOn = *in.CoversOn
 		}
+		if in.Perms != nil {
+			ch, err := applyBoardPerms(x, *in.Perms)
+			if err != nil {
+				return err
+			}
+			changes = append(changes, ch...)
+		}
 		if in.Template != nil && *in.Template != x.Template {
 			if x.Kind == BoardLedgerline {
 				return invalid("a Ledgerline board cannot be a template")
@@ -801,7 +864,7 @@ func (o *Ops) UpdateBoard(ctx context.Context, tenant, actor, id string, in Boar
 			}
 			for i := range in.Labels {
 				l := &in.Labels[i]
-				if !boardColorOK(l.Color) {
+				if !boardLabelColorOK(l.Color) {
 					return invalid("unknown label colour %q", l.Color)
 				}
 				n, err := textField("label name", l.Name, 60, false)
@@ -864,7 +927,7 @@ func (o *Ops) UpdateBoard(ctx context.Context, tenant, actor, id string, in Boar
 			x.Members = in.Members
 			if len(added) > 0 {
 				changes = append(changes, "added "+strings.Join(added, ", ")+" to the board")
-				defer o.boardNotify(ctx, tenant, actor, *x, "", added, fmt.Sprintf("%s added you to the board %s", actor, x.Name))
+				defer o.boardNotifyKind(ctx, tenant, actor, *x, "", NoticeAdded, added, fmt.Sprintf("%s added you to the board %s", actor, x.Name))
 			}
 		}
 		x.UpdatedAt = o.now().Format(time.RFC3339)
@@ -884,8 +947,10 @@ func (o *Ops) UpdateBoard(ctx context.Context, tenant, actor, id string, in Boar
 
 // SetBoardClosed closes or reopens a board (board admins).
 func (o *Ops) SetBoardClosed(ctx context.Context, tenant, actor, id string, closed bool) (Board, error) {
-	if _, _, err := o.boardFor(ctx, tenant, actor, id, BoardAdmin); err != nil {
+	if b, _, err := o.boardFor(ctx, tenant, actor, id, BoardAdmin); err != nil {
 		return Board{}, err
+	} else if b.Kind == BoardInbox {
+		return Board{}, invalid("your Inbox stays open")
 	}
 	b, err := docs.Update(ctx, o.Docs, tenant, cBoard, id, actor, func(x *Board) error {
 		x.Closed, x.UpdatedAt = closed, o.now().Format(time.RFC3339)
@@ -1050,6 +1115,9 @@ func (o *Ops) AddList(ctx context.Context, tenant, actor, board, name string, po
 	if b.Kind == BoardLedgerline {
 		return BoardList{}, invalid("a Ledgerline board's lists are its records' stages")
 	}
+	if b.Kind == BoardInbox {
+		return BoardList{}, invalid("your Inbox has one list; move cards to a board to sort them")
+	}
 	n, err := textField("list name", name, 120, true)
 	if err != nil {
 		return BoardList{}, err
@@ -1120,6 +1188,9 @@ func (o *Ops) UpdateList(ctx context.Context, tenant, actor, board, list string,
 			if in.Archived != nil {
 				if x.Kind == BoardLedgerline && *in.Archived {
 					return invalid("a Ledgerline board's lists are its records' stages")
+				}
+				if l.MovedTo != "" && !*in.Archived {
+					return invalid("the list %s moved to another board; only its archived cards stayed here", l.Name)
 				}
 				l.Archived = *in.Archived
 				what = map[bool]string{true: "archived the list ", false: "restored the list "}[l.Archived] + l.Name
@@ -1255,6 +1326,13 @@ func (o *Ops) AddCard(ctx context.Context, tenant, actor, board string, in CardI
 		c = Card{Title: firstOf(strings.TrimSpace(in.Title), t.Title), Description: t.Description, Labels: t.Labels, Members: t.Members, Checklists: copyChecklists(t.Checklists, true),
 			Fields: copyMap(t.Fields), Cover: t.Cover, Location: t.Location}
 	}
+	// Members are staff, as UpdateCard checks.
+	c.Members = nonEmptyUniq(c.Members)
+	for _, m := range c.Members {
+		if r, err := o.RoleOf(ctx, tenant, m); err != nil || r == RoleClient {
+			return Card{}, invalid("%s is not a staff user", m)
+		}
+	}
 	pos := math.NaN()
 	if in.Pos != nil {
 		pos = *in.Pos
@@ -1264,6 +1342,13 @@ func (o *Ops) AddCard(ctx context.Context, tenant, actor, board string, in CardI
 
 // addCard writes a new card (callers checked the person may).
 func (o *Ops) addCard(ctx context.Context, tenant, actor string, b Board, list string, c Card, pos float64) (Card, error) {
+	return o.addCardOpt(ctx, tenant, actor, b, list, c, pos, false)
+}
+
+// addCardOpt is addCard; quiet leaves the notices (to the card's members,
+// and to the people watching the list or board) to the caller, which tells
+// them once about many cards.
+func (o *Ops) addCardOpt(ctx context.Context, tenant, actor string, b Board, list string, c Card, pos float64, quiet bool) (Card, error) {
 	l, ok := boardList(b, list)
 	if !ok || l.Archived {
 		return Card{}, invalid("choose an open list for the card")
@@ -1317,8 +1402,11 @@ func (o *Ops) addCard(ctx context.Context, tenant, actor string, b Board, list s
 		return Card{}, err
 	}
 	o.boardLog(ctx, tenant, actor, b, c.ID, "card.created", fmt.Sprintf("added #%d %s to %s", c.No, clip(c.Title, 80), l.Name), map[string]string{"list": list})
-	if len(c.Members) > 0 {
-		o.boardNotify(ctx, tenant, actor, b, c.ID, c.Members, fmt.Sprintf("%s added you to the card %s on %s", actor, clip(c.Title, 80), b.Name))
+	if len(c.Members) > 0 && !quiet {
+		o.boardNotifyKind(ctx, tenant, actor, b, c.ID, NoticeAdded, c.Members, fmt.Sprintf("%s added you to the card %s on %s", actor, clip(c.Title, 80), b.Name))
+	}
+	if !quiet {
+		o.boardWatchNotify(ctx, tenant, actor, b, c.ID, list, c.Members, fmt.Sprintf("%s added %s to %s on %s", actor, clip(c.Title, 80), l.Name, b.Name))
 	}
 	o.boardEvent(ctx, tenant, BoardEvent{Board: b.ID, Card: c.ID, Kind: "card.created", Actor: actor, Data: map[string]string{"list": list}})
 	return c, nil
@@ -1335,10 +1423,20 @@ func (o *Ops) GetCard(ctx context.Context, tenant, actor, board, card string) (C
 		return Card{}, b, fmt.Errorf("%w: no such card", ErrNotFound)
 	}
 	if c.Deleted {
-		return Card{}, b, fmt.Errorf("%w: the card moved to another board (%s)", ErrNotFound, c.MovedTo)
+		to, id, _ := strings.Cut(c.MovedTo, "|")
+		return Card{}, b, &CardMovedError{Board: to, Card: id}
 	}
 	return c, b, nil
 }
+
+// CardMovedError says a card went to another board, and where, so old
+// links can follow it. It is a not-found error.
+type CardMovedError struct{ Board, Card string }
+
+func (e *CardMovedError) Error() string {
+	return fmt.Sprintf("%v: the card moved to another board (%s|%s)", ErrNotFound, e.Board, e.Card)
+}
+func (e *CardMovedError) Unwrap() error { return ErrNotFound }
 
 // CardPatch changes some of a card's fields; nil leaves a field as it is.
 type CardPatch struct {
@@ -1367,6 +1465,7 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 	var logs [][2]string
 	var events []BoardEvent
 	var newMembers []string
+	var watchNews []string // for the people watching the board
 	ev := func(kind string, data map[string]string) {
 		events = append(events, BoardEvent{Board: board, Card: card, Kind: kind, Actor: actor, Data: data})
 	}
@@ -1374,7 +1473,7 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 		if x.Deleted {
 			return errCardGone
 		}
-		logs, events, newMembers = nil, nil, nil
+		logs, events, newMembers, watchNews = nil, nil, nil, nil
 		if p.Title != nil {
 			t, err := textField("card title", *p.Title, 500, true)
 			if err != nil {
@@ -1382,6 +1481,7 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 			}
 			if t != x.Title {
 				logs = append(logs, [2]string{"card.renamed", "renamed #" + fmt.Sprint(x.No) + " to " + clip(t, 80)})
+				ev("card.renamed", map[string]string{"from": x.Title})
 				x.Title = t
 			}
 		}
@@ -1404,7 +1504,7 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 			for _, id := range *p.Labels {
 				if !contains(x.Labels, id) {
 					l, _ := boardLabel(b, id)
-					logs = append(logs, [2]string{"card.label_added", fmt.Sprintf("added the %s label %s to #%d", l.Color, l.Name, x.No)})
+					logs = append(logs, [2]string{"card.label_added", fmt.Sprintf("added the %s label %s to #%d", labelColorName(l.Color), l.Name, x.No)})
 					ev("card.label_added", map[string]string{"label": id})
 				}
 			}
@@ -1420,6 +1520,9 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 				r, err := o.RoleOf(ctx, tenant, m)
 				if err != nil || r == RoleClient {
 					return invalid("%s is not a staff user", m)
+				}
+				if b.Kind == BoardInbox && m != inboxOwner(b) {
+					return invalid("only you can be on a card in your Inbox; move it to a board to add people")
 				}
 				if !contains(x.Members, m) {
 					newMembers = append(newMembers, m)
@@ -1450,9 +1553,11 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 				x.Due, x.Reminded = d, ""
 				if d == "" {
 					logs = append(logs, [2]string{"card.due_removed", fmt.Sprintf("removed the due date of #%d", x.No)})
+					watchNews = append(watchNews, fmt.Sprintf("%s removed the due date of %s on %s", actor, clip(x.Title, 80), b.Name))
 				} else {
 					logs = append(logs, [2]string{"card.due_set", fmt.Sprintf("set #%d due %s", x.No, d)})
 					ev("card.due_set", map[string]string{"due": d})
+					watchNews = append(watchNews, fmt.Sprintf("%s set %s due %s on %s", actor, clip(x.Title, 80), boardDateText(d), b.Name))
 				}
 			}
 		}
@@ -1464,6 +1569,9 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 			if x.DueDone {
 				logs = append(logs, [2]string{"card.due_done", fmt.Sprintf("marked #%d complete", x.No)})
 				ev("card.due_done", nil)
+				watchNews = append(watchNews, fmt.Sprintf("%s marked %s complete on %s", actor, clip(x.Title, 80), b.Name))
+			} else {
+				ev("card.due_undone", nil)
 			}
 		}
 		if p.Reminder != nil {
@@ -1501,6 +1609,11 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 					vals[id] = v
 				}
 			}
+			for _, f := range b.Fields {
+				if x.Fields[f.ID] != vals[f.ID] {
+					ev("card.field_set", map[string]string{"field": f.ID, "value": vals[f.ID]})
+				}
+			}
 			x.Fields = vals
 		}
 		if p.Location != nil {
@@ -1523,12 +1636,19 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 			x.Template = *p.Template
 		}
 		if p.Archived != nil && *p.Archived != x.Archived {
+			if l, ok := boardList(b, x.List); !*p.Archived && (!ok || l.Archived) {
+				if l.MovedTo != "" {
+					return invalid("the list %s moved to another board; move the card to an open list instead", l.Name)
+				}
+				return invalid("the list %s is archived; restore the list first, or move the card to an open list", firstOf(l.Name, "it was in"))
+			}
 			x.Archived = *p.Archived
 			if x.Archived {
 				logs = append(logs, [2]string{"card.archived", fmt.Sprintf("archived #%d", x.No)})
 				ev("card.archived", nil)
 			} else {
 				logs = append(logs, [2]string{"card.restored", fmt.Sprintf("restored #%d", x.No)})
+				ev("card.unarchived", nil)
 			}
 		}
 		x.UpdatedAt = o.now().Format(time.RFC3339)
@@ -1544,7 +1664,10 @@ func (o *Ops) UpdateCard(ctx context.Context, tenant, actor, board, card string,
 		o.boardLog(ctx, tenant, actor, b, card, l[0], l[1], nil)
 	}
 	if len(newMembers) > 0 {
-		o.boardNotify(ctx, tenant, actor, b, card, newMembers, fmt.Sprintf("%s added you to the card %s on %s", actor, clip(c.Title, 80), b.Name))
+		o.boardNotifyKind(ctx, tenant, actor, b, card, NoticeAdded, newMembers, fmt.Sprintf("%s added you to the card %s on %s", actor, clip(c.Title, 80), b.Name))
+	}
+	for _, t := range watchNews {
+		o.boardWatchNotify(ctx, tenant, actor, b, card, "", newMembers, t)
 	}
 	if len(events) == 0 && len(logs) == 0 {
 		ev("card.updated", nil)
@@ -1684,10 +1807,12 @@ func (o *Ops) MoveCard(ctx context.Context, tenant, actor, board, card string, m
 	}
 	if moved {
 		o.boardLog(ctx, tenant, actor, b, card, "card.moved", fmt.Sprintf("moved #%d from %s to %s", c.No, from.Name, to.Name), map[string]string{"from_list": from.ID, "to_list": to.ID})
-		o.boardNotify(ctx, tenant, actor, b, card, c.Watchers, fmt.Sprintf("%s moved %s to %s on %s", actor, clip(c.Title, 80), to.Name, b.Name))
+		o.boardNotifyKind(ctx, tenant, actor, b, card, NoticeMoved, c.Watchers, fmt.Sprintf("%s moved %s to %s on %s", actor, clip(c.Title, 80), to.Name, b.Name))
+		o.boardWatchNotify(ctx, tenant, actor, b, card, to.ID, c.Watchers, fmt.Sprintf("%s moved %s to %s on %s", actor, clip(c.Title, 80), to.Name, b.Name))
 		o.boardEvent(ctx, tenant, BoardEvent{Board: board, Card: card, Kind: "card.moved", Actor: actor, Data: map[string]string{"from_list": from.ID, "to_list": to.ID}})
 	} else {
 		o.boardLog(ctx, tenant, actor, b, card, "card.reordered", fmt.Sprintf("moved #%d within %s", c.No, to.Name), nil)
+		o.boardEvent(ctx, tenant, BoardEvent{Board: board, Card: card, Kind: "card.reordered", Actor: actor, Data: map[string]string{"list": to.ID}})
 	}
 	return c, nil
 }
@@ -1700,17 +1825,63 @@ func (o *Ops) moveCardToBoard(ctx context.Context, tenant, actor string, from Bo
 	if from.Kind == BoardLedgerline || to.Kind == BoardLedgerline {
 		return Card{}, invalid("a card moves between team boards only; mirror or copy it instead")
 	}
-	nc := c
-	nc.Labels = nil // labels belong to their board
-	nc.Comments = append([]CardComment(nil), c.Comments...)
-	if len(c.Fields) > 0 {
-		nc.Fields = nil
-	}
 	pos := math.NaN()
 	if m.Pos != nil {
 		pos = *m.Pos
 	}
-	moved, err := o.addCard(ctx, tenant, actor, to, m.List, nc, pos)
+	moved, err := o.cardOntoBoard(ctx, tenant, actor, from, c, to, m.List, pos, cardMoveOpts{})
+	if err != nil {
+		return moved, err
+	}
+	o.boardLog(ctx, tenant, actor, from, "", "card.moved_out", fmt.Sprintf("moved #%d %s to the board %s", c.No, clip(c.Title, 80), to.Name), nil)
+	l, _ := boardList(to, m.List)
+	text := fmt.Sprintf("%s moved %s to %s on %s", actor, clip(c.Title, 80), l.Name, to.Name)
+	o.boardNotifyKind(ctx, tenant, actor, to, moved.ID, NoticeMoved, c.Watchers, text)
+	o.boardWatchNotify(ctx, tenant, actor, to, moved.ID, m.List, c.Watchers, text)
+	return moved, nil
+}
+
+// cardMoveOpts are what goes with a card to another board.
+type cardMoveOpts struct {
+	labels, fields map[string]string // this board's label and field IDs to the other's (nil: they stay behind)
+	people         map[string]bool   // who can see the other board (nil: every member and watcher goes)
+}
+
+// cardOntoBoard moves a card to a list on another team board: a new card
+// there, with that board's next number, keeps the comments, attachments,
+// checklists, members and watchers; the old one becomes a tombstone that
+// points at it, so old links still find it. It tells no one; callers do.
+func (o *Ops) cardOntoBoard(ctx context.Context, tenant, actor string, from Board, c Card, to Board, list string, pos float64, opt cardMoveOpts) (Card, error) {
+	nc := c
+	nc.Labels, nc.Fields = nil, nil // labels and fields belong to their board
+	for _, id := range c.Labels {
+		if nl, ok := opt.labels[id]; ok {
+			nc.Labels = append(nc.Labels, nl)
+		}
+	}
+	for id, v := range c.Fields {
+		if nf, ok := opt.fields[id]; ok {
+			if nc.Fields == nil {
+				nc.Fields = map[string]string{}
+			}
+			nc.Fields[nf] = v
+		}
+	}
+	people := func(xs []string) []string {
+		if opt.people == nil {
+			return xs
+		}
+		var out []string
+		for _, x := range xs {
+			if opt.people[x] {
+				out = append(out, x)
+			}
+		}
+		return out
+	}
+	nc.Members, nc.Watchers = people(c.Members), people(c.Watchers)
+	nc.Comments = append([]CardComment(nil), c.Comments...)
+	moved, err := o.addCardOpt(ctx, tenant, actor, to, list, nc, pos, true)
 	if err != nil {
 		return Card{}, err
 	}
@@ -1724,7 +1895,7 @@ func (o *Ops) moveCardToBoard(ctx context.Context, tenant, actor string, from Bo
 		if x.Deleted {
 			return errCardGone
 		}
-		x.Attachments, x.Comments, x.Checklists, x.Members, x.Watchers, x.Cover, x.CreatedBy, x.CreatedAt = c.Attachments, c.Comments, c.Checklists, c.Members, c.Watchers, c.Cover, c.CreatedBy, c.CreatedAt
+		x.Attachments, x.Comments, x.Checklists, x.Members, x.Watchers, x.Cover, x.CreatedBy, x.CreatedAt = c.Attachments, c.Comments, c.Checklists, nc.Members, nc.Watchers, c.Cover, c.CreatedBy, c.CreatedAt
 		return nil
 	})
 	if _, err := docs.Update(ctx, o.Docs, tenant, cBoardCard, cardKey(from.ID, c.ID), actor, func(x *Card) error {
@@ -1736,7 +1907,6 @@ func (o *Ops) moveCardToBoard(ctx context.Context, tenant, actor string, from Bo
 	}); err != nil {
 		return moved, err
 	}
-	o.boardLog(ctx, tenant, actor, from, "", "card.moved_out", fmt.Sprintf("moved #%d %s to the board %s", c.No, clip(c.Title, 80), to.Name), nil)
 	moved, _, err = docs.Get[Card](ctx, o.Docs, tenant, cBoardCard, cardKey(to.ID, moved.ID))
 	return moved, err
 }
@@ -1845,7 +2015,8 @@ type ChecklistOp struct {
 	Member    *string `json:"member,omitempty"`
 	Due       *string `json:"due,omitempty"`
 	Index     *int    `json:"index,omitempty"`     // move_item: new place in the list
-	CopyFrom  string  `json:"copy_from,omitempty"` // add_list: copy items of a checklist on this card
+	CopyFrom  string  `json:"copy_from,omitempty"` // add_list: copy the items of this checklist …
+	CopyCard  string  `json:"copy_card,omitempty"` // … on this card of the board ("": this card)
 }
 
 // EditChecklist applies one checklist change.
@@ -1856,11 +2027,22 @@ func (o *Ops) EditChecklist(ctx context.Context, tenant, actor, board, card stri
 	}
 	var done []string // checklists completed by this change
 	var logText string
+	var evs []BoardEvent // items ticked, unticked or added
+	var from []Checklist // add_list copying from another card: that card's checklists
+	if op.Op == "add_list" && op.CopyFrom != "" && op.CopyCard != "" && op.CopyCard != card {
+		src, _, err := docs.Get[Card](ctx, o.Docs, tenant, cBoardCard, cardKey(board, op.CopyCard))
+		if err != nil || src.Deleted {
+			return Card{}, fmt.Errorf("%w: no such card to copy the checklist from", ErrNotFound)
+		}
+		if from = src.Checklists; from == nil {
+			from = []Checklist{}
+		}
+	}
 	c, err := docs.Update(ctx, o.Docs, tenant, cBoardCard, cardKey(board, card), actor, func(x *Card) error {
 		if x.Deleted {
 			return errCardGone
 		}
-		done, logText = nil, ""
+		done, logText, evs = nil, "", nil
 		find := func() (*Checklist, error) {
 			for i := range x.Checklists {
 				if x.Checklists[i].ID == op.Checklist {
@@ -1880,10 +2062,17 @@ func (o *Ops) EditChecklist(ctx context.Context, tenant, actor, board, card stri
 			}
 			cl := Checklist{ID: boardID("CL-", 4), Name: n}
 			if op.CopyFrom != "" {
-				for _, y := range x.Checklists {
+				src, found := x.Checklists, false
+				if from != nil {
+					src = from
+				}
+				for _, y := range src {
 					if y.ID == op.CopyFrom {
-						cl.Items = copyChecklists([]Checklist{y}, true)[0].Items
+						cl.Items, found = copyChecklists([]Checklist{y}, true)[0].Items, true
 					}
+				}
+				if !found {
+					return fmt.Errorf("%w: no such checklist to copy", ErrNotFound)
 				}
 			}
 			x.Checklists = append(x.Checklists, cl)
@@ -1917,6 +2106,7 @@ func (o *Ops) EditChecklist(ctx context.Context, tenant, actor, board, card stri
 				return err
 			}
 			cl.Items = append(cl.Items, CheckItem{ID: boardID("I-", 4), Text: t})
+			evs = append(evs, BoardEvent{Board: board, Card: card, Kind: "checklist.item_added", Actor: actor, Data: map[string]string{"checklist": cl.ID, "item": cl.Items[len(cl.Items)-1].ID, "text": t}})
 		case "update_item", "delete_item", "move_item":
 			cl, err := find()
 			if err != nil {
@@ -1958,6 +2148,7 @@ func (o *Ops) EditChecklist(ctx context.Context, tenant, actor, board, card stri
 				}
 				if op.Done != nil && *op.Done != it.Done {
 					it.Done = *op.Done
+					evs = append(evs, BoardEvent{Board: board, Card: card, Kind: map[bool]string{true: "checklist.item_done", false: "checklist.item_undone"}[it.Done], Actor: actor, Data: map[string]string{"checklist": cl.ID, "item": it.ID, "text": it.Text}})
 					if it.Done {
 						logText = fmt.Sprintf("completed %s on #%d", clip(it.Text, 80), x.No)
 						all := true
@@ -1982,11 +2173,14 @@ func (o *Ops) EditChecklist(ctx context.Context, tenant, actor, board, card stri
 	if logText != "" {
 		o.boardLog(ctx, tenant, actor, b, card, "checklist."+op.Op, logText, nil)
 	}
+	for _, e := range evs {
+		o.boardEvent(ctx, tenant, e)
+	}
 	for _, id := range done {
 		o.boardEvent(ctx, tenant, BoardEvent{Board: board, Card: card, Kind: "checklist.done", Actor: actor, Data: map[string]string{"checklist": id}})
 	}
 	if op.Op == "update_item" && op.Member != nil && *op.Member != "" {
-		o.boardNotify(ctx, tenant, actor, b, card, []string{*op.Member}, fmt.Sprintf("%s gave you a checklist item on %s", actor, clip(c.Title, 80)))
+		o.boardNotifyKind(ctx, tenant, actor, b, card, NoticeAdded, []string{*op.Member}, fmt.Sprintf("%s gave you a checklist item on %s", actor, clip(c.Title, 80)))
 	}
 	return c, nil
 }
@@ -1995,29 +2189,41 @@ func (o *Ops) EditChecklist(ctx context.Context, tenant, actor, board, card stri
 
 var mentionRe = regexp.MustCompile(`@([a-z0-9][a-z0-9._-]*)`)
 
-// AddComment comments on a card; @user mentions notify those people.
+// AddComment comments on a card; @user mentions notify those people,
+// @card the card's members and watchers, and @board (from the board's
+// admins and members) every admin and member of the board.
 func (o *Ops) AddComment(ctx context.Context, tenant, actor, board, card, text string) (Card, error) {
-	b, _, err := o.boardFor(ctx, tenant, actor, board, BoardAdmin, BoardMember, BoardObserver)
+	b, v, err := o.boardFor(ctx, tenant, actor, board, BoardAdmin, BoardMember, BoardObserver)
 	if err != nil {
 		return Card{}, err
 	}
 	if b.Closed {
 		return Card{}, fmt.Errorf("%w: the board is closed", ErrState)
 	}
+	if err := boardCommentErr(b, v); err != nil {
+		return Card{}, err
+	}
 	t, err := textField("comment", text, 5000, true)
 	if err != nil {
 		return Card{}, err
 	}
-	var ments []string
+	var ments, groups []string
 	us, _ := o.Users(ctx, tenant)
 	for _, m := range mentionRe.FindAllStringSubmatch(t, -1) {
+		m[1] = strings.TrimRight(m[1], "._-") // "@board." ends a sentence
+		switch g := m[1]; {
+		case g == "card" && !contains(groups, g):
+			groups = append(groups, g)
+		case g == "board" && !contains(groups, g) && v.can(BoardAdmin, BoardMember): // an observer's @board is plain text
+			groups = append(groups, g)
+		}
 		for _, u := range us {
 			if u.ID == m[1] && u.Active && boardRole(b, u) != "" && !contains(ments, u.ID) {
 				ments = append(ments, u.ID)
 			}
 		}
 	}
-	cm := CardComment{ID: boardID("CM-", 5), By: actor, At: o.now().Format(time.RFC3339), Text: t, Mentions: ments}
+	cm := CardComment{ID: boardID("CM-", 5), By: actor, At: o.now().Format(time.RFC3339), Text: t, Mentions: ments, Groups: groups}
 	c, err := docs.Update(ctx, o.Docs, tenant, cBoardCard, cardKey(board, card), actor, func(x *Card) error {
 		if x.Deleted {
 			return errCardGone
@@ -2036,22 +2242,36 @@ func (o *Ops) AddComment(ctx context.Context, tenant, actor, board, card, text s
 		return c, err
 	}
 	o.boardLog(ctx, tenant, actor, b, card, "comment.added", fmt.Sprintf("commented on #%d: %s", c.No, clip(t, 120)), map[string]string{"comment": cm.ID})
-	o.boardNotify(ctx, tenant, actor, b, card, ments, fmt.Sprintf("%s mentioned you on %s: %s", actor, clip(c.Title, 60), clip(t, 120)))
+	o.boardNotifyKind(ctx, tenant, actor, b, card, NoticeMention, ments, fmt.Sprintf("%s mentioned you on %s: %s", actor, clip(c.Title, 60), clip(t, 120)))
+	told := append([]string(nil), ments...) // one notice each: the most specific
+	for _, g := range groups {
+		var to []string
+		for _, u := range boardGroup(b, c, g, us) {
+			if !contains(told, u) {
+				to, told = append(to, u), append(told, u)
+			}
+		}
+		o.boardNotifyKind(ctx, tenant, actor, b, card, NoticeMention, to, fmt.Sprintf("%s mentioned @%s on %s: %s", actor, g, clip(c.Title, 60), clip(t, 120)))
+	}
 	var others []string
 	for _, w := range append(append([]string(nil), c.Watchers...), c.Members...) {
-		if !contains(ments, w) {
+		if !contains(told, w) {
 			others = append(others, w)
 		}
 	}
-	o.boardNotify(ctx, tenant, actor, b, card, others, fmt.Sprintf("%s commented on %s: %s", actor, clip(c.Title, 60), clip(t, 120)))
+	o.boardNotifyKind(ctx, tenant, actor, b, card, NoticeComment, others, fmt.Sprintf("%s commented on %s: %s", actor, clip(c.Title, 60), clip(t, 120)))
+	o.boardWatchNotify(ctx, tenant, actor, b, card, "", append(told, others...), fmt.Sprintf("%s commented on %s on %s: %s", actor, clip(c.Title, 60), b.Name, clip(t, 120)))
 	o.boardEvent(ctx, tenant, BoardEvent{Board: board, Card: card, Kind: "comment.added", Actor: actor, Data: map[string]string{"comment": cm.ID, "text": t}})
 	return c, nil
 }
 
 // EditComment changes or deletes ("" text) the person's own comment.
 func (o *Ops) EditComment(ctx context.Context, tenant, actor, board, card, id, text string, del bool) (Card, error) {
-	_, v, err := o.boardFor(ctx, tenant, actor, board, BoardAdmin, BoardMember, BoardObserver)
+	b, v, err := o.boardFor(ctx, tenant, actor, board, BoardAdmin, BoardMember, BoardObserver)
 	if err != nil {
+		return Card{}, err
+	}
+	if err := boardCommentErr(b, v); err != nil && !del {
 		return Card{}, err
 	}
 	return docs.Update(ctx, o.Docs, tenant, cBoardCard, cardKey(board, card), actor, func(x *Card) error {
@@ -2087,7 +2307,11 @@ func (o *Ops) ReactComment(ctx context.Context, tenant, actor, board, card, id, 
 	if !contains(reactions, emoji) {
 		return Card{}, invalid("react with one of %s", strings.Join(reactions, " "))
 	}
-	if _, _, err := o.boardFor(ctx, tenant, actor, board, BoardAdmin, BoardMember, BoardObserver); err != nil {
+	b, v, err := o.boardFor(ctx, tenant, actor, board, BoardAdmin, BoardMember, BoardObserver)
+	if err != nil {
+		return Card{}, err
+	}
+	if err := boardCommentErr(b, v); err != nil {
 		return Card{}, err
 	}
 	return docs.Update(ctx, o.Docs, tenant, cBoardCard, cardKey(board, card), actor, func(x *Card) error {
@@ -2159,6 +2383,7 @@ func (o *Ops) AttachFile(ctx context.Context, tenant, actor, board, card, name s
 	})
 	if err == nil {
 		o.boardLog(ctx, tenant, actor, b, card, "card.attached", fmt.Sprintf("attached %s to #%d", name, c.No), nil)
+		o.boardEvent(ctx, tenant, BoardEvent{Board: board, Card: card, Kind: "card.attachment_added", Actor: actor, Data: map[string]string{"name": name}})
 	}
 	return c, err
 }
@@ -2188,6 +2413,7 @@ func (o *Ops) AttachLink(ctx context.Context, tenant, actor, board, card, url, n
 	})
 	if err == nil {
 		o.boardLog(ctx, tenant, actor, b, card, "card.attached", fmt.Sprintf("attached a link to #%d", c.No), nil)
+		o.boardEvent(ctx, tenant, BoardEvent{Board: board, Card: card, Kind: "card.attachment_added", Actor: actor, Data: map[string]string{"name": n}})
 	}
 	return c, err
 }
@@ -2309,6 +2535,7 @@ func (o *Ops) SearchCards(ctx context.Context, tenant, actor, q string) ([]CardH
 	if err != nil {
 		return nil, err
 	}
+	bs = append(bs, o.inboxSummary(ctx, tenant, actor)...) // and the person's own Inbox
 	out := []CardHit{}
 	for _, s := range bs {
 		b, _, err := docs.Get[Board](ctx, o.Docs, tenant, cBoard, s.ID)
@@ -2378,7 +2605,7 @@ func (o *Ops) boardDueReminders(ctx context.Context, tenant string, now time.Tim
 			if _, err := docs.Update(ctx, o.Docs, tenant, cBoardCard, cardKey(b.ID, c.ID), SystemActor, func(x *Card) error { x.Reminded = x.Due; return nil }); err != nil {
 				continue
 			}
-			o.boardNotify(ctx, tenant, SystemActor, b, c.ID, append(append([]string(nil), c.Members...), c.Watchers...), fmt.Sprintf("%s on %s %s", clip(c.Title, 80), b.Name, when))
+			o.boardNotifyKind(ctx, tenant, SystemActor, b, c.ID, NoticeDue, append(append([]string(nil), c.Members...), c.Watchers...), fmt.Sprintf("%s on %s %s", clip(c.Title, 80), b.Name, when))
 		}
 	}
 }

@@ -21,15 +21,24 @@ const BR_INTRO = {
   due: 'A due-date command runs once for each card, a set time before or after the card’s due date. A due date without a time counts as 23:59.',
   log: 'Every run of every rule, button and command on this board: what set it off, what it did, or why it stopped.'
 };
-const BR_EVENTS = [['card_added', 'a card is added to'], ['card_moved_in', 'a card is moved into'], ['card_moved_out', 'a card is moved out of'], ['label_added', 'a label is added to a card'], ['label_removed', 'a label is removed from a card'],
-  ['member_added', 'someone is added to a card'], ['due_set', 'a due date is set on a card'], ['card_done', 'a card is marked complete'], ['checklist_done', 'a checklist on a card is completed'], ['card_archived', 'a card is archived'], ['comment_posted', 'a comment is posted on a card']];
+const BR_EVENTS = [['card_added', 'a card is added to'], ['card_moved_in', 'a card is moved into'], ['card_moved_out', 'a card is moved out of'], ['card_moved_end', 'a card is moved to the top or bottom of'],
+  ['card_renamed', 'a card is renamed'], ['label_added', 'a label is added to a card'], ['label_removed', 'a label is removed from a card'], ['member_added', 'someone is added to a card'],
+  ['due_set', 'a due date is set on a card'], ['card_done', 'a card is marked complete'], ['card_undone', 'a card is marked not complete'],
+  ['checklist_done', 'a checklist on a card is completed'], ['item_checked', 'a checklist item is ticked'], ['item_unchecked', 'a checklist item is unticked'], ['item_added', 'an item is added to a checklist'],
+  ['attachment_added', 'an attachment is added to a card'], ['field_set', 'a custom field is set or changed'],
+  ['card_archived', 'a card is archived'], ['card_unarchived', 'a card is sent back to the board'], ['comment_posted', 'a comment is posted on a card']];
 const BR_CONDS = [['has_label', 'it has the label'], ['lacks_label', 'it does not have the label'], ['has_member', 'it has the member'], ['lacks_member', 'it does not have the member'], ['in_list', 'it is in the list'], ['not_in_list', 'it is not in the list'],
-  ['title_contains', 'its title contains'], ['has_due', 'it has a due date'], ['no_due', 'it has no due date'], ['overdue', 'it is overdue'], ['complete', 'it is complete'], ['not_complete', 'it is not complete']];
-const BR_ACTS = [['move', 'Move the card to', 'card'], ['copy', 'Copy the card to', 'card'], ['add_label', 'Add the label', 'card'], ['remove_label', 'Remove the label', 'card'], ['add_member', 'Add the member', 'card'], ['remove_member', 'Remove the member', 'card'],
-  ['join', 'Add the person who set it off', 'card'], ['set_due', 'Set the due date', 'card'], ['clear_due', 'Remove the due date', 'card'], ['mark_done', 'Mark it complete', 'card'], ['mark_undone', 'Mark it not complete', 'card'],
-  ['add_checklist', 'Add a checklist', 'card'], ['comment', 'Post a comment', 'card'], ['archive', 'Archive the card', 'card'], ['sort_list', 'Sort a list', 'any'], ['notify', 'Notify people', 'any'],
+  ['title_contains', 'its title contains'], ['has_due', 'it has a due date'], ['no_due', 'it has no due date'], ['overdue', 'it is overdue'], ['complete', 'it is complete'], ['not_complete', 'it is not complete'],
+  ['items_all_done', 'all its checklist items are done'], ['items_some_done', 'some of its checklist items are done'], ['items_none_done', 'none of its checklist items are done']];
+const BR_ACTS = [['move', 'Move the card to', 'card'], ['move_top', 'Move it to the top of its list', 'card'], ['move_bottom', 'Move it to the bottom of its list', 'card'], ['copy', 'Copy the card to', 'card'], ['copy_board', 'Copy it to another board', 'card'],
+  ['add_label', 'Add the label', 'card'], ['remove_label', 'Remove the label', 'card'], ['remove_labels', 'Remove every label', 'card'],
+  ['add_member', 'Add the member', 'card'], ['remove_member', 'Remove the member', 'card'], ['remove_members', 'Remove every member', 'card'], ['join', 'Add the person who set it off', 'card'], ['add_watcher', 'Add a watcher', 'card'],
+  ['set_due', 'Set the due date', 'card'], ['clear_due', 'Remove the due date', 'card'], ['mark_done', 'Mark it complete', 'card'], ['mark_undone', 'Mark it not complete', 'card'],
+  ['add_checklist', 'Add a checklist', 'card'], ['check_all', 'Tick every checklist item', 'card'], ['uncheck_all', 'Untick every checklist item', 'card'], ['set_field', 'Set a custom field', 'card'],
+  ['comment', 'Post a comment', 'card'], ['archive', 'Archive the card', 'card'], ['sort_list', 'Sort a list', 'any'], ['notify', 'Notify people', 'any'], ['email', 'Email people', 'any'],
   ['create_card', 'Create a card', 'board'], ['move_all', 'Move every card of a list', 'board'], ['archive_list', 'Archive every card of a list', 'board']];
-const BR_NOT_LL = ['move', 'copy', 'archive', 'create_card', 'move_all', 'archive_list'];
+const BR_NOT_LL = ['move', 'copy', 'copy_board', 'archive', 'create_card', 'move_all', 'archive_list'];
+const BR_TEXT_ACTS = ['comment', 'notify', 'email', 'create_card', 'add_checklist', 'set_field'];
 const BR_SORTS = [['due', 'due date'], ['title', 'title'], ['newest', 'newest first'], ['oldest', 'oldest first']];
 const BR_EVERY = [['day', 'Every day'], ['weekday', 'Every weekday (Mon–Fri)'], ['working_day', 'Every working day'], ['weekdays', 'On chosen weekdays'], ['month_day', 'On a day of the month'], ['first_working', 'On the first working day of the month'], ['last_working', 'On the last working day of the month']];
 const BR_WD = [[1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'Thu'], [5, 'Fri'], [6, 'Sat'], [0, 'Sun']];
@@ -65,15 +74,43 @@ const brTk = (cls, text) => `<span class="br-tk ${cls}">${esc(text)}</span>`;
 const brTkList = (ctx, id) => brTk('br-tk-list', brListName(ctx, id));
 const brTkWho = id => brTk('br-tk-who', '@' + id);
 const brTkText = s => brTk('br-tk-text', '“' + brClip(s, 90) + '”');
-function brTkLabel(ctx, id) { const l = brLabels(ctx).find(x => x.id === id); if (!l) return brTk('br-tk-gone', 'a deleted'); return `<span class="br-tk br-tk-label br-lc-${esc(l.color)}">${esc(l.name || l.color)}</span>`; }
+// Label colours come from boards.js (30 of them): a dot in the label's colour, then its name.
+const brLabelHex = c => (BOARDS.labelHex ? BOARDS.labelHex(c) : '#98A2B3');
+const brLabelText = l => l.name || (BOARDS.labelName ? BOARDS.labelName(l.color) : l.color);
+const brDot = c => `<i class="br-dot" style="background:${esc(brLabelHex(c))}" aria-hidden="true"></i>`;
+function brTkLabel(ctx, id) { const l = brLabels(ctx).find(x => x.id === id); if (!l) return brTk('br-tk-gone', 'a deleted'); return `<span class="br-tk br-tk-label">${brDot(l.color)}${esc(brLabelText(l))}</span>`; }
 function brAnd(xs) { xs = xs.filter(Boolean); return xs.length < 2 ? (xs[0] || '') : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1]; }
+function brByText(by) {
+  const me = S.me?.actor || '';
+  if (!by) return '';
+  if (by === me) return ' by ' + brTk('br-tk-who', 'me');
+  if (by === '!' + me) return ' by ' + brTk('br-tk-who', 'someone else');
+  if (by[0] === '!') return ` by anyone but ${brTkWho(by.slice(1))}`;
+  return ` by ${brTkWho(by)}`;
+}
+function brFieldName(ctx, id) { const f = (ctx?.board?.fields || []).find(x => x.id === id); return f ? f.name : 'a deleted field'; }
+function brFieldValue(ctx, id, v) {
+  const f = (ctx?.board?.fields || []).find(x => x.id === id);
+  if (f?.type === 'checkbox') return v === 'true' ? 'ticked' : 'not ticked';
+  return v ? brTkText(v) : 'empty';
+}
 function brTrigger(ctx, t) {
   if (!t) return 'When something happens';
-  const by = t.by ? ` by ${brTkWho(t.by)}` : '';
+  const by = brByText(t.by);
+  const words = what => t.words ? ` ${what} ${brTkText(t.words)}` : '';
   switch (t.event) {
     case 'card_added': return `When a card is added to ${t.list ? brTkList(ctx, t.list) : 'the board'}${by}`;
     case 'card_moved_in': return `When a card is moved into ${t.list ? brTkList(ctx, t.list) : 'another list'}${by}`;
     case 'card_moved_out': return `When a card is moved out of ${t.list ? brTkList(ctx, t.list) : 'a list'}${by}`;
+    case 'card_moved_end': return `When a card is moved to the ${t.pos === 'bottom' ? 'bottom' : 'top'} of ${t.list ? brTkList(ctx, t.list) : 'its list'}${by}`;
+    case 'card_renamed': return `When a card is renamed${by}`;
+    case 'card_undone': return `When a card is marked not complete${by}`;
+    case 'item_checked': return `When a checklist item${words('containing')} is ticked${by}`;
+    case 'item_unchecked': return `When a checklist item${words('containing')} is unticked${by}`;
+    case 'item_added': return `When an item${words('containing')} is added to a checklist${by}`;
+    case 'attachment_added': return `When an attachment${words('named with')} is added to a card${by}`;
+    case 'field_set': return `When ${t.field ? brTk('br-tk-list', brFieldName(ctx, t.field)) : 'a custom field'} is set${t.field && t.value ? ' to ' + brFieldValue(ctx, t.field, t.value) : ''}${by}`;
+    case 'card_unarchived': return `When a card is sent back to the board${by}`;
     case 'label_added': return `When ${t.label ? 'the ' + brTkLabel(ctx, t.label) + ' label is' : 'a label is'} added to a card${by}`;
     case 'label_removed': return `When ${t.label ? 'the ' + brTkLabel(ctx, t.label) + ' label is' : 'a label is'} removed from a card${by}`;
     case 'member_added': return `When ${t.member ? brTkWho(t.member) : 'someone'} is added to a card${by}`;
@@ -99,6 +136,9 @@ function brCond(ctx, c) {
     case 'overdue': return 'it is overdue';
     case 'complete': return 'it is complete';
     case 'not_complete': return 'it is not complete';
+    case 'items_all_done': return 'all its checklist items are done';
+    case 'items_some_done': return 'some of its checklist items are done';
+    case 'items_none_done': return 'none of its checklist items are done';
   }
   return '';
 }
@@ -113,7 +153,17 @@ function brWho(ctx, to) {
 function brAction(ctx, a) {
   switch (a.kind) {
     case 'move': return `move it to the ${a.top ? 'top' : 'bottom'} of ${brTkList(ctx, a.list)}`;
+    case 'move_top': return 'move it to the top of its list';
+    case 'move_bottom': return 'move it to the bottom of its list';
     case 'copy': return `copy it to ${brTkList(ctx, a.list)}`;
+    case 'copy_board': { const ob = brOtherBoard(a.board); const l = (ob?.lists || []).find(x => x.id === a.list); return `copy it to ${brTk('br-tk-list', l ? l.name : 'a list')} on ${brTk('br-tk-list', ob ? ob.name : 'another board')}`; }
+    case 'remove_labels': return 'remove every label';
+    case 'remove_members': return 'remove every member';
+    case 'add_watcher': return `make ${a.member ? brTkWho(a.member) : 'someone'} watch it`;
+    case 'check_all': return 'tick every checklist item';
+    case 'uncheck_all': return 'untick every checklist item';
+    case 'set_field': return a.field ? `set ${brTk('br-tk-list', brFieldName(ctx, a.field))} to ${brFieldValue(ctx, a.field, a.text)}` : 'set a custom field';
+    case 'email': return `email ${brWho(ctx, a.to)}`;
     case 'add_label': return `add the ${brTkLabel(ctx, a.label)} label`;
     case 'remove_label': return `remove the ${brTkLabel(ctx, a.label)} label`;
     case 'add_member': return `add ${a.member ? brTkWho(a.member) : 'someone'}`;
@@ -186,6 +236,7 @@ async function brLoad(board) {
 function brEnsure(ctx) {
   if (!ctx?.board?.id) return;
   if (UI.brBoard !== ctx.board.id || Date.now() - UI.brAt > 60000) brLoad(ctx.board.id).catch(() => {});
+  brRepsEnsure(ctx);
 }
 function brSyncCardButtons() {
   const keep = BOARDS.cardButtons.filter(b => !String(b.id).startsWith('br-cb-'));
@@ -205,8 +256,8 @@ function brHeaderInner(ctx) {
 }
 function brPaintHeader() { const el = $('br-hbs'); if (el) el.innerHTML = brHeaderInner(brCtx()); }
 
-BOARDS.boardMenu.push({ id: 'br-automation', icon: 'bolt', label: 'Automation', order: 40, run: ctx => brOpen(ctx) });
-BOARDS.headerButtons.push({ id: 'br-board-buttons', order: 60, render: ctx => { brEnsure(ctx); return `<span class="br-hbs" id="br-hbs">${brHeaderInner(ctx)}</span>`; } });
+BOARDS.boardMenu.push({ id: 'br-automation', icon: 'bolt', label: 'Automation', order: 40, show: ctx => ctx.board.kind !== 'inbox', run: ctx => brOpen(ctx) });
+BOARDS.headerButtons.push({ id: 'br-board-buttons', order: 60, render: ctx => { if (ctx.board.kind === 'inbox') return ''; brEnsure(ctx); return `<span class="br-hbs" id="br-hbs">${brHeaderInner(ctx)}</span>`; } });
 
 function brRunText(run) {
   if (!run) return '';
@@ -254,6 +305,9 @@ async function brOpen(ctx, tab) {
   document.querySelector('#mroot .md')?.classList.add('br-md');
   try { await brLoad(UI.brCtx.board.id); } catch (e) { const r = $('br-root'); if (r) r.innerHTML = `<div class="br-pad">${errHTML(e)}</div>`; return; }
   brRender();
+  // Other boards' names and lists, for "copy it to another board".
+  UI.brBoards = null;
+  brLoadBoards().then(() => (UI.brData?.autos || []).forEach(a => (a.actions || []).forEach(x => { if (x.kind === 'copy_board') brLoadBoardLists(x.board); })));
   if (UI.brTab === 'log') brLoadLog();
 }
 function brCount(kind) { return (UI.brData?.autos || []).filter(a => a.kind === kind).length; }
@@ -344,7 +398,10 @@ function brDefAct(kind) {
   switch (kind) {
     case 'move': case 'copy': return { kind, list: last, top: false };
     case 'add_label': case 'remove_label': return { kind, label: lab };
-    case 'add_member': case 'remove_member': return { kind, member: who };
+    case 'add_member': case 'remove_member': case 'add_watcher': return { kind, member: who };
+    case 'copy_board': { brLoadBoards(); const ob = (UI.brBoards || []).find(b => b.id !== ctx?.board?.id); if (ob) brLoadBoardLists(ob.id); return { kind, board: ob?.id || '', list: (UI.brBoardLists || {})[ob?.id]?.[0]?.id || '', top: false }; }
+    case 'set_field': { const f = (ctx?.board?.fields || [])[0]; return { kind, field: f?.id || '', text: f?.type === 'checkbox' ? 'true' : f?.type === 'list' ? (f.options || [])[0] || '' : '' }; }
+    case 'email': return { kind, to: UI.brDraft?.kind === 'schedule' ? (who ? [who] : []) : ['card_members'], text: '' };
     case 'set_due': return { kind, days: 1, time: '17:00', working_days: false };
     case 'add_checklist': return { kind, name: 'Checklist', items: [] };
     case 'comment': return { kind, text: '' };
@@ -364,7 +421,36 @@ const brTimeIn = (path, v, label) => `<input class="in br-in br-time" data-brf="
 const brChk = (path, v, text) => `<label class="br-chk"><input type="checkbox" data-brf="${path}" data-brt="bool" ${v ? 'checked' : ''}> ${text}</label>`;
 const brMulti = (path, vals, opts, type) => `<div class="br-chips">${opts.map(([k, l, cls]) => `<label class="br-chip ${cls || ''} ${(vals || []).map(String).includes(String(k)) ? 'on' : ''}"><input type="checkbox" data-brf="${path}" data-brt="${type || 'multi'}" value="${esc(k)}" ${(vals || []).map(String).includes(String(k)) ? 'checked' : ''}> ${l}</label>`).join('')}</div>`;
 const brListOpts = (ctx, extra) => [...(extra || []), ...brLists(ctx).map(l => [l.id, l.name])];
-const brLabelOpts = (ctx, extra) => [...(extra || []), ...brLabels(ctx).map(l => [l.id, (l.name || '') + (l.name ? ' · ' : '') + l.color])];
+// "by me" and "by someone else" are the person saving: someone else is "!" and their id.
+function brByOpts(ctx, cur) {
+  const me = S.me?.actor || '';
+  const o = [['', 'by anyone'], ...(me ? [[me, 'by me'], ['!' + me, 'by someone else']] : []), ...brPeople(ctx).filter(u => u.id !== me).map(u => [u.id, `by ${u.name || u.id} (@${u.id})`])];
+  if (cur && !o.some(x => x[0] === cur)) o.push([cur, cur[0] === '!' ? `by anyone but @${cur.slice(1)}` : `by @${cur}`]);
+  return o;
+}
+// A custom field's value: a list's options, ticked or not, a date, a number or text.
+function brFieldIn(path, f, v, any) {
+  if (f.type === 'list') return brSel(path, v, [...(any ? [['', 'any value']] : [['', '(empty)']]), ...(f.options || []).map(x => [x, x])], f.name);
+  if (f.type === 'checkbox') return brSel(path, v || (any ? '' : 'true'), [...(any ? [['', 'any value']] : []), ['true', 'ticked'], ...(any ? [] : [['false', 'not ticked']])], f.name);
+  if (f.type === 'date') return `<input class="in br-in" type="date" data-brf="${path}" value="${esc(v || '')}" aria-label="${esc(f.name)}">`;
+  if (f.type === 'number') return `<input class="in br-in br-num" type="number" step="any" data-brf="${path}" value="${esc(v || '')}" placeholder="${any ? 'any' : ''}" aria-label="${esc(f.name)}">`;
+  return brTxt(path, v, any ? 'any value (optional)' : 'Value, e.g. {username}', f.name, 'br-wide');
+}
+/* Other boards, for "copy it to another board": names, and each one's lists once asked for. */
+function brOtherBoard(id) { const b = (UI.brBoards || []).find(x => x.id === id); return b ? { name: b.name, lists: (UI.brBoardLists || {})[id] || [] } : null; }
+async function brLoadBoards() {
+  if (UI.brBoards) return;
+  try { UI.brBoards = (await get('/v1/boards')).filter(b => b.kind === 'team' && !b.closed && !b.template && ['admin', 'member'].includes(b.role)); } catch (e) { UI.brBoards = []; }
+  if ($('br-root')) brRenderBody();
+}
+async function brLoadBoardLists(id) {
+  UI.brBoardLists ||= {};
+  if (!id || UI.brBoardLists[id]) return;
+  try { const v = await get(`/v1/boards/${brEnc(id)}`); UI.brBoardLists[id] = (v.board.lists || []).filter(l => !l.archived).sort((a, b) => a.pos - b.pos); } catch (e) { UI.brBoardLists[id] = []; }
+  (UI.brDraft?.actions || []).forEach(a => { if (a.kind === 'copy_board' && a.board === id && !UI.brBoardLists[id].some(l => l.id === a.list)) a.list = UI.brBoardLists[id][0]?.id || ''; });
+  if ($('br-root')) brRenderBody();
+}
+const brLabelOpts = (ctx, extra) => [...(extra || []), ...brLabels(ctx).map(l => [l.id, l.name ? `${l.name} · ${(BOARDS.labelName ? BOARDS.labelName(l.color) : l.color).toLowerCase()}` : brLabelText(l)])];
 const brWhoOpts = (ctx, extra) => [...(extra || []), ...brPeople(ctx).map(u => [u.id, `${u.name || u.id} (@${u.id})`])];
 
 function brEditorHTML() {
@@ -379,7 +465,7 @@ function brEditorHTML() {
       <ol class="br-rows br-acts">${d.actions.map((a, i) => brActRow(ctx, d, a, i)).join('')}</ol>
       <button class="br-add" data-act="brAddAct">Add an action</button>
       ${ll ? '<p class="br-hint">On a Ledgerline board cards follow their records: automation can label, assign, date, check off, comment on and sort cards, and notify people.</p>' : ''}
-      ${d.actions.some(a => ['comment', 'notify', 'create_card', 'add_checklist'].includes(a.kind)) ? '<p class="br-hint">In text you can use {card}, {no}, {list}, {due}, {board}, {user} (who set it off) and {date} (today).</p>' : ''}
+      ${d.actions.some(a => BR_TEXT_ACTS.includes(a.kind)) ? '<p class="br-hint">In text you can use {cardname}, {cardlink}, {boardname}, {listname}, {username} (who set it off), {date} (today) and {duedate}; also {no} (the card’s number).</p>' : ''}
     </div></section>
     <div class="br-dock">
       <div class="br-prev"><small>Reads as</small><p id="br-prev" aria-live="polite"></p></div>
@@ -398,7 +484,15 @@ function brWhenHTML(ctx, d) {
     if (ev === 'label_added' || ev === 'label_removed') p = `<span class="br-w">label</span>${brSel('trigger.label', t.label, brLabelOpts(ctx, [['', 'any label']]), 'Label')}`;
     if (ev === 'member_added') p = `<span class="br-w">who</span>${brSel('trigger.member', t.member, brWhoOpts(ctx, [['', 'anyone']]), 'Person')}`;
     if (ev === 'comment_posted') p = `<span class="br-w">containing</span>${brTxt('trigger.words', t.words, 'any words (optional)', 'Words', 'br-wide')}`;
-    return `<section class="br-step"><div class="br-k">When</div><div class="br-v"><div class="br-line">${brSel('trigger.event', ev, BR_EVENTS, 'What sets it off')}${p}${brSel('trigger.by', t.by, brWhoOpts(ctx, [['', 'by anyone']]).map(([k, l]) => [k, k ? 'by ' + l : l]), 'By whom')}</div></div></section>`;
+    if (ev === 'card_moved_end') p = `${brSel('trigger.pos', t.pos || 'top', [['top', 'the top'], ['bottom', 'the bottom']], 'Top or bottom')}<span class="br-w">of</span>${brSel('trigger.list', t.list, brListOpts(ctx, [['', 'any list']]), 'List')}`;
+    if (['item_checked', 'item_unchecked', 'item_added'].includes(ev)) p = `<span class="br-w">containing</span>${brTxt('trigger.words', t.words, 'any words (optional)', 'Words', 'br-wide')}`;
+    if (ev === 'attachment_added') p = `<span class="br-w">named with</span>${brTxt('trigger.words', t.words, 'any name (optional)', 'Words in the name', 'br-wide')}`;
+    if (ev === 'field_set') {
+      const fs = ctx?.board?.fields || [], f = fs.find(x => x.id === t.field);
+      p = fs.length ? `${brSel('trigger.field', t.field, [['', 'any field'], ...fs.map(x => [x.id, x.name])], 'Custom field')}${f ? `<span class="br-w">to</span>${brFieldIn('trigger.value', f, t.value, true)}` : ''}`
+        : '<span class="br-hint br-inl">This board has no custom fields yet.</span>';
+    }
+    return `<section class="br-step"><div class="br-k">When</div><div class="br-v"><div class="br-line">${brSel('trigger.event', ev, BR_EVENTS, 'What sets it off')}${p}${brSel('trigger.by', t.by, brByOpts(ctx, t.by), 'By whom')}</div></div></section>`;
   }
   if (d.kind === 'card_button') return `<section class="br-step"><div class="br-k">Where</div><div class="br-v"><p class="br-fixed">In the card window of every card on this board, under Actions.</p></div></section>`;
   if (d.kind === 'board_button') return `<section class="br-step"><div class="br-k">On</div><div class="br-v"><div class="br-line"><span class="br-w">each open card in</span>${brSel('list', d.list, brListOpts(ctx, [['', 'every list of the board']]), 'Cards of')}</div><p class="br-hint">It asks before acting on more than ${UI.brData?.confirm_over || 20} cards.</p></div></section>`;
@@ -446,7 +540,19 @@ function brActParams(ctx, d, a, i) {
   switch (a.kind) {
     case 'move': case 'copy': return `${brSel(p('list'), a.list, lists, 'List')}${brSel(p('top'), a.top ? '1' : '', [['', 'at the bottom'], ['1', 'at the top']], 'Where in the list')}`;
     case 'add_label': case 'remove_label': return brSel(p('label'), a.label, brLabelOpts(ctx), 'Label');
-    case 'add_member': case 'remove_member': return brSel(p('member'), a.member, brWhoOpts(ctx), 'Person');
+    case 'add_member': case 'remove_member': case 'add_watcher': return brSel(p('member'), a.member, brWhoOpts(ctx), 'Person');
+    case 'copy_board': {
+      const bs = (UI.brBoards || []).filter(b => b.id !== ctx?.board?.id);
+      if (!UI.brBoards) return '<span class="br-hint br-inl">Loading your boards…</span>';
+      if (!bs.length) return '<span class="br-hint br-inl">You can add cards to no other team board.</span>';
+      const ob = brOtherBoard(a.board), ls = ob?.lists || [];
+      return `<span class="br-w">on</span>${brSel(p('board'), a.board, [...(a.board && !bs.some(b => b.id === a.board) ? [[a.board, 'a board you cannot add cards to']] : []), ...bs.map(b => [b.id, b.name])], 'Board')}<span class="br-w">in</span>${ls.length ? brSel(p('list'), a.list, ls.map(l => [l.id, l.name]), 'List on that board') : '<span class="br-hint br-inl">Loading its lists…</span>'}${brSel(p('top'), a.top ? '1' : '', [['', 'at the bottom'], ['1', 'at the top']], 'Where in the list')}`;
+    }
+    case 'set_field': {
+      const fs = ctx?.board?.fields || [], f = fs.find(x => x.id === a.field);
+      if (!fs.length) return '<span class="br-hint br-inl">This board has no custom fields yet: add them in the board menu, under Custom fields.</span>';
+      return `${brSel(p('field'), a.field, fs.map(x => [x.id, x.name]), 'Custom field')}${f ? `<span class="br-w">to</span>${brFieldIn(p('text'), f, a.text, false)}` : ''}`;
+    }
     case 'set_due': return `<span class="br-w">in</span>${brNum(p('days'), a.days, 0, 365, 'Days')}${brSel(p('working_days'), a.working_days ? '1' : '', [['', 'days'], ['1', 'working days']], 'Days or working days')}<span class="br-w">at</span>${brTimeIn(p('time'), a.time, 'Time')}`;
     case 'add_checklist': return brTxt(p('name'), a.name, 'Checklist name', 'Checklist name');
     case 'sort_list': return `${brSel(p('list'), a.list, d.kind === 'schedule' || (d.kind === 'board_button' && !d.list) ? lists : brListOpts(ctx, [['', d.kind === 'board_button' ? 'the button’s list' : 'the card’s list']]), 'List')}<span class="br-w">by</span>${brSel(p('by'), a.by, BR_SORTS, 'Sort by')}`;
@@ -461,12 +567,12 @@ function brActMore(ctx, d, a, i) {
   switch (a.kind) {
     case 'add_checklist': return `<textarea class="in br-in br-area" rows="3" data-brf="${p('items')}" data-brt="lines" placeholder="One item a line" aria-label="Checklist items">${esc((a.items || []).join('\n'))}</textarea>`;
     case 'comment': return `<textarea class="in br-in br-area" rows="2" data-brf="${p('text')}" placeholder="e.g. {card} is ready for checking" aria-label="Comment">${esc(a.text || '')}</textarea>`;
-    case 'notify': {
+    case 'notify': case 'email': {
       const who = d.kind === 'schedule' ? [] : [['card_members', 'The card’s members'], ['watchers', 'Its watchers']];
-      return `${brMulti(p('to'), a.to, [...who.map(([k, l]) => [k, l, 'br-chip-k']), ...brPeople(ctx).map(u => [u.id, '@' + esc(u.id)])])}${brTxt(p('text'), a.text, 'Message (optional): e.g. {card} needs you', 'Message', 'br-full')}`;
+      return `${brMulti(p('to'), a.to, [...who.map(([k, l]) => [k, l, 'br-chip-k']), ...brPeople(ctx).map(u => [u.id, '@' + esc(u.id)])])}${brTxt(p('text'), a.text, 'Message (optional): e.g. {cardname} needs you', 'Message', 'br-full')}${a.kind === 'email' ? '<p class="br-hint">Each person gets it in the bell and by email within about 5 minutes, unless they have no email address in their notification settings, paused email or chose never.</p>' : ''}`;
     }
     case 'create_card': return `<div class="br-sub">${brTxt(p('text'), a.text, 'Card title, e.g. Daily recon {date}', 'Card title', 'br-full')}
-      ${brLabels(ctx).length ? `<div class="br-subl"><span>Labels</span>${brMulti(p('labels'), a.labels, brLabels(ctx).map(l => [l.id, esc(l.name || l.color), 'br-lc-' + l.color]))}</div>` : ''}
+      ${brLabels(ctx).length ? `<div class="br-subl"><span>Labels</span>${brMulti(p('labels'), a.labels, brLabels(ctx).map(l => [l.id, brDot(l.color) + esc(brLabelText(l))]))}</div>` : ''}
       <div class="br-subl"><span>Members</span>${brMulti(p('members'), a.members, brPeople(ctx).map(u => [u.id, '@' + esc(u.id)]))}</div>
       <div class="br-line">${brChk(p('due'), a.due, 'Due')}${a.due ? `<span class="br-w">in</span>${brNum(p('days'), a.days, 0, 365, 'Days')}${brSel(p('working_days'), a.working_days ? '1' : '', [['', 'days'], ['1', 'working days']], 'Days or working days')}<span class="br-w">at</span>${brTimeIn(p('time'), a.time, 'Time')}` : ''}</div>
       <div class="br-subl"><span>Checklist</span>${brTxt(p('name'), a.name, 'Checklist name (optional)', 'Checklist name')}</div>
@@ -496,6 +602,9 @@ function brChanged(el, structural) {
   let m;
   if ((m = /^actions\.(\d+)\.kind$/.exec(path))) UI.brDraft.actions[+m[1]] = brDefAct(v);
   else if ((m = /^conditions\.(\d+)\.kind$/.exec(path))) { const ctx = brCtx(); UI.brDraft.conditions[+m[1]] = { kind: v, value: /label/.test(v) ? brLabels(ctx)[0]?.id || '' : /list/.test(v) ? brLists(ctx)[0]?.id || '' : '' }; }
+  else if ((m = /^actions\.(\d+)\.field$/.exec(path))) { const f = (brCtx()?.board?.fields || []).find(x => x.id === v); Object.assign(UI.brDraft.actions[+m[1]], { field: v, text: f?.type === 'checkbox' ? 'true' : f?.type === 'list' ? (f.options || [])[0] || '' : '' }); }
+  else if ((m = /^actions\.(\d+)\.board$/.exec(path))) { Object.assign(UI.brDraft.actions[+m[1]], { board: v, list: (UI.brBoardLists || {})[v]?.[0]?.id || '' }); brLoadBoardLists(v); }
+  else if (path === 'trigger.field') { UI.brDraft.trigger.field = v; UI.brDraft.trigger.value = ''; }
   else brSet(path, v);
   if (el.type === 'checkbox' && el.closest('.br-chip')) el.closest('.br-chip').classList.toggle('on', el.checked);
   if (structural) brRenderBody(); else brPreview();
@@ -515,14 +624,18 @@ function brPayload(d) {
   const str = v => String(v ?? '').trim();
   const act = a => {
     const x = { kind: a.kind };
-    ['list', 'from', 'label', 'member', 'time', 'name', 'text', 'by'].forEach(k => { if (a[k] != null && str(a[k]) !== '') x[k] = k === 'text' ? String(a[k]) : str(a[k]); });
+    ['board', 'list', 'from', 'label', 'field', 'member', 'time', 'name', 'text', 'by'].forEach(k => { if (a[k] != null && str(a[k]) !== '') x[k] = k === 'text' ? String(a[k]) : str(a[k]); });
     ['top', 'working_days', 'due'].forEach(k => { if (a[k]) x[k] = true; });
     if (a.days) x.days = +a.days || 0;
     ['items', 'to', 'labels', 'members'].forEach(k => { if (Array.isArray(a[k])) x[k] = a[k].map(str).filter(Boolean); });
     return x;
   };
   const p = { kind: d.kind, name: str(d.name) || brClip(brPlain(brSentence(ctx, d)).replace(/\.$/, ''), 120), conditions: (d.conditions || []).map(c => ({ kind: c.kind, value: str(c.value) })), actions: (d.actions || []).map(act) };
-  if (d.kind === 'rule') { const t = d.trigger || {}; p.trigger = { event: t.event }; ['list', 'label', 'member', 'words', 'by'].forEach(k => { if (str(t[k])) p.trigger[k] = str(t[k]); }); }
+  if (d.kind === 'rule') {
+    const t = d.trigger || {}; p.trigger = { event: t.event };
+    if (t.event === 'card_moved_end') t.pos ||= 'top';
+    ['list', 'label', 'member', 'words', 'pos', 'field', 'value', 'by'].forEach(k => { if (str(t[k])) p.trigger[k] = str(t[k]); });
+  }
   if (d.kind === 'board_button' && d.list) p.list = d.list;
   if (d.kind === 'schedule') { const w = d.when || {}; p.when = { every: w.every, at: str(w.at) }; if (w.every === 'weekdays') p.when.days = (w.days || []).map(Number); if (w.every === 'month_day') p.when.day = +w.day || 0; if (w.skip_holidays) p.when.skip_holidays = true; delete p.conditions; }
   if (d.kind === 'due') { const x = d.due || {}; p.due = { n: +x.n || 0, unit: x.unit || 'days', when: x.when || 'before' }; if (x.list) p.due.list = x.list; if (x.label) p.due.label = x.label; if (x.done) p.due.done = true; }
@@ -556,8 +669,199 @@ function brLogHTML() {
   }).join('')}</tbody></table></div>${UI.brLogMore ? '<div class="br-more"><button class="btn sm" data-act="brLogMore">Show older runs</button></div>' : ''}`;
 }
 
+/* ---------- the card repeater (Trello's Card Repeater) ----------
+   "Repeat" in the card window opens the repeat window (a popover); the
+   card shows a Repeat section and a badge on its front. Server:
+   internal/ops/boardrepeat.go. */
+BD_IC.repeat = '<path d="M16.5 3.8 19.7 7l-3.2 3.2"/><path d="M4.3 12V11a4 4 0 0 1 4-4h11.2"/><path d="M7.5 20.2 4.3 17l3.2-3.2"/><path d="M19.7 12v1a4 4 0 0 1-4 4H4.5"/>';
+Object.assign(UI, { brReps: {}, brRepsBoard: '', brRepsAt: 0, brRepsLoading: '', brRep: null, brRepAsk: '' });
+const BR_REP_EVERY = [['day', 'Every day'], ['weekday', 'Every weekday (Mon–Fri)'], ['working_day', 'Every working day'], ['weekly', 'Every week'], ['monthly', 'Every month'], ['quarterly', 'Every quarter'], ['yearly', 'Every year']];
+const BR_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const BR_QMONTH = [[1, 'first month (Jan, Apr, Jul, Oct)'], [2, 'second month (Feb, May, Aug, Nov)'], [3, 'third month (Mar, Jun, Sep, Dec)']];
+
+const brRepOf = card => card && UI.brRepsBoard === (card.board || UI.bdBoard) ? UI.brReps[card.id] || null : null;
+function brRepWhen(iso, withYear) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}:\d{2})/.exec(iso || ''); if (!m) return '';
+  const thisYear = m[1] === brToday().slice(0, 4);
+  return `${+m[3]} ${MON[+m[2] - 1]}${withYear || !thisYear ? ' ' + m[1] : ''}, ${m[4]}`;
+}
+async function brLoadReps(board, paint) {
+  if (!board || UI.brRepsLoading === board) return;
+  UI.brRepsLoading = board;
+  try {
+    const rs = await get(`/v1/boards/${brEnc(board)}/repeats`);
+    if (UI.bdBoard !== board) return;
+    UI.brReps = Object.fromEntries(rs.map(r => [r.card, r])); UI.brRepsBoard = board;
+    if (paint !== false && typeof bdPaint === 'function') bdPaint();
+  } catch (e) { /* the board shows without repeats */ } finally { UI.brRepsAt = Date.now(); if (UI.brRepsLoading === board) UI.brRepsLoading = ''; }
+}
+function brRepsEnsure(ctx) {
+  const id = ctx?.board?.id; if (!id) return;
+  if (UI.brRepsBoard !== id || Date.now() - UI.brRepsAt > 60000) brLoadReps(id);
+}
+
+BOARDS.cardButtons.push({ id: 'br-repeat', icon: 'repeat', label: 'Repeat', group: 'actions', order: 25,
+  show: (c, ctx) => !!ctx?.canEdit && !['ledgerline', 'inbox'].includes(ctx.board.kind) && !c.link && !c.mirror && !c.archived,
+  run: (c, ctx, el) => brRepOpen(c, ctx, el) });
+BOARDS.cardBadges.push(c => {
+  const r = brRepOf(c); if (!r || r.ended) return '';
+  const next = r.upcoming?.[0] ? ' · next ' + brRepWhen(r.upcoming[0]) : '';
+  const short = { day: 'Daily', weekday: 'Weekdays', working_day: 'Working days', weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', yearly: 'Yearly' }[r.every] || 'Repeats';
+  return `<span class="bd-bdg br-rep-bdg" title="${esc(r.text + next)}">${bdI('repeat')}<span aria-hidden="true">${short}</span>${bdSr(esc(r.text + next))}</span>`;
+});
+BOARDS.cardSections.push({ id: 'br-repeat', order: 12, render: (card, ctx) => brRepSection(card, ctx) });
+
+function brRepSection(card, ctx) {
+  const r = brRepOf(card); if (!r) return '';
+  const can = !!ctx?.canEdit && ctx.board.kind !== 'ledgerline' && !card.link;
+  const next = !r.ended && r.upcoming?.[0] ? ` · next ${esc(brRepWhen(r.upcoming[0]))}` : '';
+  const made = r.made ? `Made ${nf(r.made)} cop${r.made === 1 ? 'y' : 'ies'} so far${r.last_no ? ` · last <button class="bd-lnk" data-act="brRepOpenCard" data-id="${esc(r.last_card)}">#${r.last_no}</button>` : ''}` : 'No copies yet';
+  let flag = '';
+  if (r.ended) flag = `<div class="br-flag nt"><b>Stopped:</b> ${esc(r.ended)}.${can ? ' <button class="bd-lnk" data-act="brRepEdit" data-popkey="br-repeat">Set it to repeat again</button>' : ''}</div>`;
+  else if (r.last_status === 'failed') flag = `<div class="br-flag bad"><b>The last copy failed.</b> ${esc(r.last_error)}</div>`;
+  else if (r.last_status === 'skipped') flag = `<div class="br-flag nt">Skipped ${esc(brRepWhen(r.last_run))}: ${esc(r.last_error)}.</div>`;
+  const ask = UI.brRepAsk === card.id ? `<div class="br-ask"><span>Stop repeating this card? The copies already made stay.</span><button class="btn sm" data-act="brRepStopNo">Keep it</button><button class="btn sm br-danger" data-act="brRepStopYes">Stop repeating</button></div>` : '';
+  return `<section class="bd-cs br-rep-sec" aria-label="Repeat"><div class="bd-cs-hd">${bdI('repeat')}<h3>Repeat</h3><span class="bd-sp"></span>${can && !r.ended ? `<button class="btn sm" data-act="brRepEdit" data-popkey="br-repeat">Edit</button><button class="btn sm" data-act="brRepStopAsk">Stop</button>` : ''}</div>
+    <div class="br-rep-body${r.ended ? ' off' : ''}"><p class="br-rep-say"><b>${esc(r.text)}</b>${next}</p><p class="br-rep-meta">${esc(r.where)}</p><p class="br-rep-meta">${made}</p>${flag}${ask}</div></section>`;
+}
+
+function brRepDraft(card, r) {
+  if (r && !r.ended) {
+    return { every: r.every, days: r.days?.length ? r.days : [new Date(brToday() + 'T12:00:00').getDay()], which: r.which || 'day', day: r.day || 1, month: r.month || 1, at: r.at, list: r.list || '', due: !!r.due, due_days: r.due_days || 0, due_time: r.due_time || '',
+      working_days: !!r.working_days, end: r.end_after ? 'after' : r.end_on ? 'on' : 'never', end_after: r.end_after || 12, end_on: r.end_on || '' };
+  }
+  const due = /^(\d{4})-(\d{2})-(\d{2})/.exec(card.due || '') || /^(\d{4})-(\d{2})-(\d{2})/.exec(brToday());
+  const wd = new Date(brToday() + 'T12:00:00').getDay();
+  return { every: 'monthly', days: [wd], which: 'day', day: +due[3], month: +due[2], at: '10:00', list: '', due: !!card.due, due_days: 5, due_time: '', working_days: false, end: 'never', end_after: 12, end_on: '' };
+}
+function brRepPayload(d) {
+  const p = { every: d.every, at: d.at || '', list: d.list || '' };
+  if (d.every === 'weekly') p.days = (d.days || []).map(Number);
+  if (['monthly', 'quarterly', 'yearly'].includes(d.every)) {
+    p.which = d.which || 'day';
+    if (p.which === 'day') p.day = +d.day || 0;
+    if (d.every === 'quarterly') p.month = Math.min(3, Math.max(1, +d.month || 1));
+    if (d.every === 'yearly') p.month = +d.month || 1;
+  }
+  if (d.due) Object.assign(p, { due: true, due_days: +d.due_days || 0, due_time: d.due_time || '', working_days: !!d.working_days });
+  if (d.end === 'after') p.end_after = +d.end_after || 0;
+  if (d.end === 'on') p.end_on = d.end_on || '';
+  return p;
+}
+function brRepOpen(card, ctx, el) {
+  if (!card || !ctx?.board) return;
+  const r = brRepOf(card), editing = !!(r && !r.ended);
+  UI.brRep = { board: ctx.board.id, card: card.id, no: card.no, list: card.list, d: brRepDraft(card, r), editing, prev: null, err: '', ask: false, busy: false };
+  bdPop('br-repeat', el, editing ? 'Edit the repeat' : 'Repeat this card', brRepHTML, { wide: true, live: false });
+  BD.pop?.el.classList.add('br-rep-pop');
+  if (typeof bdPopPlace === 'function') bdPopPlace();
+  brRepPreview(true);
+}
+function brRepHTML() {
+  const s = UI.brRep; if (!s) return '';
+  const d = s.d, ctx = brCtx(), lists = brLists(ctx), own = lists.find(l => l.id === s.list);
+  const opt = (v, cur, l) => `<option value="${esc(v)}" ${String(v) === String(cur) ? 'selected' : ''}>${esc(l)}</option>`;
+  const monthly = ['monthly', 'quarterly', 'yearly'].includes(d.every);
+  let when = '';
+  if (d.every === 'weekly') {
+    when = `<fieldset class="br-rep-fs"><legend>On</legend><div class="br-rep-days">${BR_WD.map(([k, l]) => `<button type="button" class="br-rep-day${d.days.includes(k) ? ' on' : ''}" data-act="brRepDay" data-id="${k}" aria-pressed="${d.days.includes(k)}" aria-label="${BR_WDN[k]}">${l}</button>`).join('')}</div></fieldset>`;
+  }
+  if (monthly) {
+    const whichL = d.every === 'quarterly' ? ['On day', 'On the first working day', 'On the last working day'] : ['On day', 'On the first working day', 'On the last working day'];
+    when = `<div class="br-rep-row">
+      <div class="fld"><label for="brr-which">On</label><select class="in" id="brr-which" data-brr="which">${opt('day', d.which, whichL[0] + '…')}${opt('first_working', d.which, whichL[1])}${opt('last_working', d.which, whichL[2])}</select></div>
+      ${d.which === 'day' ? `<div class="fld br-rep-n"><label for="brr-day">Day</label><input class="in" id="brr-day" type="number" min="1" max="31" inputmode="numeric" data-brr="day" value="${esc(d.day)}"></div>` : ''}</div>
+      ${d.every === 'quarterly' ? `<div class="fld"><label for="brr-month">Of each quarter’s</label><select class="in" id="brr-month" data-brr="month">${BR_QMONTH.map(([k, l]) => opt(k, d.month, l)).join('')}</select></div>` : ''}
+      ${d.every === 'yearly' ? `<div class="fld"><label for="brr-month">${d.which === 'day' ? 'Month' : 'Of'}</label><select class="in" id="brr-month" data-brr="month">${BR_MONTHS.map((m, i) => opt(i + 1, d.month, m)).join('')}</select></div>` : ''}
+      ${d.which === 'day' && +d.day > 28 ? '<p class="bd-hint">In shorter months it uses the month’s last day.</p>' : ''}`;
+  }
+  const dueHTML = d.due ? `<div class="br-rep-row br-rep-due"><div class="fld"><label for="brr-dd">Due, after it is made</label><div class="br-rep-pair"><input class="in br-rep-sm" id="brr-dd" type="number" min="0" max="365" inputmode="numeric" data-brr="due_days" value="${esc(d.due_days)}">
+      <select class="in" data-brr="working_days" aria-label="Days or working days">${opt('', d.working_days ? '1' : '', 'days')}${opt('1', d.working_days ? '1' : '', 'working days')}</select></div></div>
+      <div class="fld br-rep-t"><label for="brr-dt">At <span class="dim">(optional)</span></label><input class="in" id="brr-dt" type="time" data-brr="due_time" value="${esc(d.due_time)}"></div></div>` : '';
+  const endHTML = `<div class="br-rep-row br-rep-end"><div class="fld"><label for="brr-end">Ends</label><select class="in" id="brr-end" data-brr="end">${opt('never', d.end, 'Never')}${opt('after', d.end, 'After a number of copies')}${opt('on', d.end, 'On a date')}</select></div>
+      ${d.end === 'after' ? `<div class="fld br-rep-t"><label for="brr-ea">Copies</label><input class="in" id="brr-ea" type="number" min="1" max="1000" inputmode="numeric" data-brr="end_after" value="${esc(d.end_after)}"></div>` : ''}
+      ${d.end === 'on' ? `<div class="fld br-rep-t br-rep-date"><label for="brr-eo">Last day</label><input class="in" id="brr-eo" type="date" data-brr="end_on" value="${esc(d.end_on)}"></div>` : ''}</div>`;
+  const prev = brRepPrevHTML(s);
+  const ask = s.ask ? `<div class="br-ask"><span>Stop repeating? The copies already made stay.</span><button class="btn sm" data-act="brRepAskNo">Keep it</button><button class="btn sm br-danger" data-act="brRepStopYes">Stop repeating</button></div>` : '';
+  return `<div class="br-rep" id="br-rep">
+    <div class="br-rep-row"><div class="fld"><label for="brr-every">Repeat</label><select class="in" id="brr-every" data-brr="every" data-autofocus>${BR_REP_EVERY.map(([k, l]) => opt(k, d.every, l)).join('')}</select></div>
+      <div class="fld br-rep-t"><label for="brr-at">At <span class="dim">(IST)</span></label><input class="in" id="brr-at" type="time" data-brr="at" value="${esc(d.at)}"></div></div>
+    ${d.every === 'working_day' ? '<p class="bd-hint">Monday to Friday, except the firm’s trading holidays in Settings.</p>' : ''}
+    ${when}
+    <div class="fld"><label for="brr-list">Put each copy in</label><select class="in" id="brr-list" data-brr="list">${opt('', d.list, `This card’s list${own ? ' (' + own.name + ')' : ''}`)}${lists.map(l => opt(l.id, d.list, l.name)).join('')}</select></div>
+    <div class="fld"><label class="br-chk"><input type="checkbox" data-brr="due" ${d.due ? 'checked' : ''}> Give each copy a due date</label>${dueHTML}</div>
+    ${endHTML}
+    <div class="br-rep-prev" id="brr-prev" aria-live="polite">${prev}</div>
+    ${ask}
+    <div class="bd-row"><button class="btn pri sm" data-act="brRepSave" ${s.busy ? 'disabled' : ''}>${s.editing ? 'Save changes' : 'Start repeating'}</button><button class="btn sm" data-act="bdPopClose">Cancel</button>${s.editing ? '<span class="bd-sp"></span><button class="btn sm br-ghost" data-act="brRepAskStop">Stop repeating</button>' : ''}</div>
+    <p class="bd-hint">Each copy has this card’s title, description, labels, members, custom fields and checklists, with every item unticked. Copies do not repeat themselves.</p>
+  </div>`;
+}
+function brRepPrevHTML(s) {
+  const p = s.prev;
+  if (p?.error) return `<p class="br-rep-perr" role="alert">${esc(p.error)}</p>`;
+  if (!p) return '<p class="br-rep-meta">Working out the next dates…</p>';
+  return `<p><b>${esc(p.text)}</b> at ${esc(s.d.at)} IST</p><p class="br-rep-meta">${esc(p.where)}</p>${p.upcoming?.length ? `<p class="br-rep-meta">Next: ${p.upcoming.map(x => esc(brRepWhen(x, true))).join(' · ')}</p>` : ''}`;
+}
+function brRepPaint() { if (BD.pop?.key === 'br-repeat') bdPopRefresh(); }
+function brRepPrevPaint() { const el = $('brr-prev'); if (el && UI.brRep) { el.innerHTML = brRepPrevHTML(UI.brRep); if (typeof bdPopPlace === 'function') bdPopPlace(); } }
+let brRepT = 0;
+function brRepPreview(now) {
+  clearTimeout(brRepT);
+  brRepT = setTimeout(async () => {
+    const s = UI.brRep; if (!s) return;
+    const mine = s.d;
+    try { const v = await post(`/v1/boards/${brEnc(s.board)}/cards/${brEnc(s.card)}/repeat/preview`, brRepPayload(mine)); if (UI.brRep === s) s.prev = v; }
+    catch (e) { if (UI.brRep === s) s.prev = { error: e.message }; }
+    if (UI.brRep === s && s.d === mine) brRepPrevPaint();
+  }, now ? 0 : 350);
+}
+function brRepChanged(el, structural) {
+  const s = UI.brRep; if (!s) return;
+  const k = el.dataset.brr;
+  let v = el.type === 'checkbox' ? el.checked : el.value;
+  if (k === 'working_days') v = el.value === '1';
+  if (['day', 'month', 'due_days', 'end_after'].includes(k)) v = parseInt(el.value, 10) || 0;
+  s.d = Object.assign({}, s.d, { [k]: v });
+  if (k === 'every' && s.d.every === 'quarterly' && s.d.month > 3) s.d.month = 1;
+  if (k === 'end' && v === 'on' && !s.d.end_on) s.d.end_on = String(+brToday().slice(0, 4) + 1) + brToday().slice(4);
+  if (structural) brRepPaint();
+  brRepPreview();
+}
+document.addEventListener('input', e => { const el = e.target; if (!el.dataset?.brr || !el.closest('#br-rep')) return; if (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'radio') return; brRepChanged(el, false); });
+document.addEventListener('change', e => { const el = e.target; if (!el.dataset?.brr || !el.closest('#br-rep')) return; if (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'radio') brRepChanged(el, ['every', 'which', 'due', 'end'].includes(el.dataset.brr)); });
+
+async function brRepStop(board, card, no) {
+  try {
+    await post(`/v1/boards/${brEnc(board)}/cards/${brEnc(card)}/repeat/stop`);
+    toast(`#${no} no longer repeats`);
+    UI.brRepAsk = ''; if (BD.pop?.key === 'br-repeat') bdPopClose(true);
+    await brLoadReps(board, false); await BOARDS.reload();
+  } catch (e) { toast(e.message, true); }
+}
+
 /* ---------- actions ---------- */
 Object.assign(A, {
+  brRepEdit: (id, el) => brRepOpen(BD.cd, BOARDS.ctx(), el),
+  brRepOpenCard: id => { const c = UI.bdBoard; if (c && id) BOARDS.openCard(c, id); },
+  brRepDay: id => { const s = UI.brRep; if (!s) return; const k = +id, ds = s.d.days || []; s.d = Object.assign({}, s.d, { days: ds.includes(k) ? ds.filter(x => x !== k) : [...ds, k] }); brRepPaint(); brRepPreview(); },
+  brRepAskStop: () => { if (UI.brRep) { UI.brRep.ask = true; brRepPaint(); } },
+  brRepAskNo: () => { if (UI.brRep) { UI.brRep.ask = false; brRepPaint(); } },
+  brRepStopAsk: () => { if (BD.cd) { UI.brRepAsk = BD.cd.id; bdCwPaint(); } },
+  brRepStopNo: () => { UI.brRepAsk = ''; bdCwPaint(); },
+  brRepStopYes: () => { const s = UI.brRep, c = BD.cd; if (BD.pop?.key === 'br-repeat' && s) brRepStop(s.board, s.card, s.no); else if (c) brRepStop(UI.bdBoard, c.id, c.no); },
+  brRepSave: async (id, el) => {
+    const s = UI.brRep; if (!s) return;
+    s.busy = true; if (el) el.disabled = true;
+    try {
+      const r = await api('PUT', `/v1/boards/${brEnc(s.board)}/cards/${brEnc(s.card)}/repeat`, brRepPayload(s.d));
+      toast(`#${s.no} ${r.text.replace(/^Repeats/, 'repeats')}${r.upcoming?.[0] ? ' · next ' + brRepWhen(r.upcoming[0]) : ''}`);
+      UI.brReps[s.card] = r; UI.brRepsBoard = s.board;
+      bdPopClose();
+      await BOARDS.reload();
+      brLoadReps(s.board, false);
+    } catch (e) { s.busy = false; s.prev = { error: e.message }; brRepPaint(); }
+  },
   brOpen: () => brOpen(brCtx()),
   brTab: id => { UI.brTab = id; UI.brDraft = null; UI.brAsk = ''; if (id === 'log') UI.brLog = null; brRender(); if (id === 'log') brLoadLog(); },
   brNew: () => { UI.brDraft = brNewDraft(UI.brTab); UI.brAsk = ''; brRenderBody(); $('br-name')?.focus(); },

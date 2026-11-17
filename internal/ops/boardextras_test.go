@@ -1,7 +1,6 @@
 package ops
 
 import (
-	"encoding/base64"
 	"errors"
 	"strings"
 	"testing"
@@ -341,93 +340,49 @@ const sampleMail = "From: =?UTF-8?Q?Ravi_K=C3=BCmar?= <Ravi.Kumar@example.com>\r
 
 var testPNG = []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82")
 
-// sampleBoardMail is a sample inbound email with a PNG and a refused .exe.
-func sampleBoardMail() []byte {
-	b64 := base64.StdEncoding.EncodeToString(testPNG)
-	return []byte(strings.Replace(sampleMail, "%PNG%", b64[:40]+"\r\n"+b64[40:], 1))
-}
-
-func TestBoardEmail(t *testing.T) {
+func TestCardStickers(t *testing.T) {
 	o, ctx := setup(t)
-	maker, checker := "priya.nair", "farhan.khan"
-	b, _ := o.CreateBoard(ctx, T, maker, BoardInput{Name: "Onboarding inbox"})
-	b, _ = o.UpdateBoard(ctx, T, maker, b.ID, BoardInput{Members: []BoardPerson{{maker, BoardAdmin}, {checker, BoardMember}}})
-	if _, err := o.SetBoardEmail(ctx, T, checker, b.ID, BoardEmailInput{On: true}); !errors.Is(err, ErrForbidden) {
-		t.Fatalf("a member switched on email: %v", err)
+	maker, observer := "priya.nair", "farhan.khan"
+	b, _ := o.CreateBoard(ctx, T, maker, BoardInput{Name: "Stickers"})
+	c, _ := o.AddCard(ctx, T, maker, b.ID, CardInput{List: b.Lists[0].ID, Title: "Sticky"})
+	if _, err := o.CardSticker(ctx, T, observer, b.ID, c.ID, StickerOp{Add: "star"}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("an observer added a sticker: %v", err)
 	}
-	in, err := o.SetBoardEmail(ctx, T, maker, b.ID, BoardEmailInput{On: true, List: b.Lists[1].ID})
-	if err != nil {
-		t.Fatal(err)
+	if _, err := o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{Add: "skull"}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("unknown sticker: %v", err)
 	}
-	key := strings.TrimPrefix(in.Path, "/inbound/boards/"+T+"/")
-	if !in.On || len(key) != 64 || in.List != b.Lists[1].ID || len(in.Lists) != 3 {
-		t.Fatalf("email settings %+v", in)
+	if _, err := o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("nothing to do: %v", err)
 	}
-	if v, _ := o.GetBoard(ctx, T, checker, b.ID, false); v.Board.EmailKey != "" {
-		t.Fatal("a member sees the board's address")
+	for i := 0; i < MaxCardStickers; i++ {
+		var err error
+		if c, err = o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{Add: BoardStickers[i]}); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if !o.BoardEmailKnown(ctx, T, key) || o.BoardEmailKnown(ctx, T, strings.Repeat("0", 64)) || o.BoardEmailKnown(ctx, "beta", key) {
-		t.Fatal("key lookup")
+	if _, err := o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{Add: "tick"}); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "at most 10") {
+		t.Fatalf("an eleventh sticker: %v", err)
 	}
-
-	c, dup, err := o.BoardInboundMail(ctx, T, key, sampleBoardMail())
-	if err != nil || dup {
-		t.Fatalf("%v %v", err, dup)
+	one, bad := 1, 10
+	if _, err := o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{Remove: &bad}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("remove out of range: %v", err)
 	}
-	if c.Title != "KYC documents – BH1004" || c.List != b.Lists[1].ID {
-		t.Fatalf("title %q list %s", c.Title, c.List)
+	c, err := o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{Remove: &one})
+	if err != nil || len(c.Stickers) != 9 || c.Stickers[0] != "tick" || c.Stickers[1] != "flag" {
+		t.Fatalf("removed %v %v", c.Stickers, err)
 	}
-	lines := strings.Split(c.Description, "\n")
-	if lines[0] != "From: Ravi Kümar <ravi.kumar@example.com>" || !strings.Contains(c.Description, "Café address is the new one.") || strings.Contains(c.Description, "<b>") {
-		t.Fatalf("description %q", c.Description)
+	if c, err = o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{Add: "tick"}); err != nil || len(c.Stickers) != 10 || c.Stickers[9] != "tick" {
+		t.Fatalf("the same sticker twice %v %v", c.Stickers, err)
 	}
-	if len(c.Attachments) != 1 || c.Attachments[0].Name != "pan.png" || !c.Attachments[0].Image || !strings.Contains(c.Description, "Not attached: tool.exe") {
-		t.Fatalf("attachments %+v / %q", c.Attachments, c.Description)
+	if len(BoardStickers) != 24 {
+		t.Fatalf("%d stickers", len(BoardStickers))
 	}
-	if _, _, _, data, err := o.BoardFile(ctx, T, checker, c.Attachments[0].File); err != nil || string(data) != string(testPNG) {
-		t.Fatalf("attachment content %v", err)
-	}
-	// The provider sends it again: no second card.
-	c2, dup, err := o.BoardInboundMail(ctx, T, key, sampleBoardMail())
-	if err != nil || !dup || c2.ID != c.ID {
-		t.Fatalf("redelivery %v %v %s", err, dup, c2.ID)
-	}
-	acts, _ := o.BoardActivityList(ctx, T, checker, b.ID, "", 0, 0)
-	if acts[0].What != "email.received" || !strings.Contains(acts[0].Text, "ravi.kumar@example.com") {
+	acts, _ := o.BoardActivityList(ctx, T, maker, b.ID, c.ID, 0, 1)
+	if acts[0].What != "card.sticker" {
 		t.Fatalf("activity %+v", acts[0])
 	}
-
-	// An HTML-only email, without a subject.
-	htmlOnly := "From: ops@example.com\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<html><head><style>p{color:red}</style></head><body><p>Client&nbsp;BH1007 wants&amp;needs a call</p><ul><li>PAN</li><li>Bank</li></ul><script>alert(1)</script></body></html>"
-	c3, _, err := o.BoardInboundMail(ctx, T, key, []byte(htmlOnly))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c3.Title != "Email from ops@example.com" || !strings.Contains(c3.Description, "Client BH1007 wants&needs a call") || !strings.Contains(c3.Description, "- PAN") ||
-		strings.Contains(c3.Description, "color") || strings.Contains(c3.Description, "alert") || strings.Contains(c3.Description, "<") {
-		t.Fatalf("html email %q / %q", c3.Title, c3.Description)
-	}
-	if _, _, err := o.BoardInboundMail(ctx, T, key, []byte("not an email")); !errors.Is(err, ErrInvalid) {
-		t.Fatalf("junk: %v", err)
-	}
-
-	// A new address: the old one stops working.
-	in2, err := o.SetBoardEmail(ctx, T, maker, b.ID, BoardEmailInput{On: true, Rotate: true})
-	if err != nil || in2.Path == in.Path || o.BoardEmailKnown(ctx, T, key) {
-		t.Fatalf("rotate %+v %v", in2, err)
-	}
-	key = strings.TrimPrefix(in2.Path, "/inbound/boards/"+T+"/")
-	// A closed board takes no mail.
-	if _, err := o.SetBoardClosed(ctx, T, maker, b.ID, true); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := o.BoardInboundMail(ctx, T, key, []byte(htmlOnly)); !errors.Is(err, ErrState) {
-		t.Fatalf("mail to a closed board: %v", err)
-	}
-	if _, err := o.SetBoardClosed(ctx, T, maker, b.ID, false); err != nil {
-		t.Fatal(err)
-	}
-	if in3, err := o.SetBoardEmail(ctx, T, maker, b.ID, BoardEmailInput{On: false}); err != nil || in3.On || in3.Path != "" || o.BoardEmailKnown(ctx, T, key) {
-		t.Fatalf("off %+v %v", in3, err)
+	o.SetBoardClosed(ctx, T, maker, b.ID, true)
+	if _, err := o.CardSticker(ctx, T, maker, b.ID, c.ID, StickerOp{Remove: &one}); err == nil {
+		t.Fatal("a sticker changed on a closed board")
 	}
 }

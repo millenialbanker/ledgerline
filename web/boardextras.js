@@ -3,12 +3,17 @@
    (boards.js); server: internal/ops/boardextras.go, internal/api/boardextras.go.
      Boards home      the template gallery (Ledgerline's and the firm's own)
      Board menu       Make template / Stop being a template, Custom fields,
-                      Change background, Email-to-board
-     Card window      Make template, Mirror to another board; sections for
-                      the mirror's original and custom fields (covers and
-                      votes are the core's, in boards.js)
-     Card fronts      Template, Mirror and "on front" field badges
+                      Change background (email-to-board was taken out)
+     Card window      Make template, Mirror to another board, Stickers,
+                      Summarise this card and Suggest a checklist (AI, shown
+                      only while the AI gate allows them); sections for the
+                      mirror's original, custom fields, stickers and the AI's
+                      reply (covers and votes are the core's, in boards.js)
+     Card fronts      Template, Mirror and "on front" field badges; up to
+                      three stickers on the cover area
      List composer    Create from template (the board's card templates)
+   Import, export, print, collections, recently viewed and the card's Share
+   are in boardio.js.
    Actions and UI keys start with bx. */
 
 const BX_COLORS = { green: '#2E9E6A', yellow: '#D9A400', orange: '#E07B24', red: '#D14343', purple: '#7A5AF8', blue: '#2F45C8', sky: '#2E90D1', lime: '#6E9F2B', pink: '#D6489B', black: '#344054' };
@@ -36,6 +41,9 @@ const bxEnc = encodeURIComponent;
 const bxMe = () => S.me?.actor || '';
 const bxName = (id, ctx) => (ctx?.users || []).find(u => u.id === id)?.name || (typeof meUser === 'function' && meUser()?.id === id ? meUser().name : '') || id;
 const bxColor = c => BX_COLORS[c] || BX_COLORS.blue;
+// Labels have 30 colours (green_subtle, green, green_bold and so on): the core names and colours them.
+const bxLabelHex = c => (typeof BOARDS.labelHex === 'function' ? BOARDS.labelHex(c) : bxColor(String(c).split('_')[0]));
+const bxLabelName = c => (typeof BOARDS.labelName === 'function' ? BOARDS.labelName(c) : BX_COLOR_NAMES[c] || c);
 const bxPlural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 // Board changes go through PUT; the patch carries only what changes.
 const bxPut = (ctx, patch) => api('PUT', `/v1/boards/${bxEnc(ctx.board.id)}`, { ...patch });
@@ -50,23 +58,44 @@ function bxFieldText(f, v) {
   return v;
 }
 
-/* A small popover anchored to a button, above the card window. */
+/* A small popover anchored to a button, above the card window. It is placed
+   again whenever its content changes (content that loads later, such as the
+   mirror's boards, can make it taller), so it always stays on the screen:
+   below the button if it fits, else above, else on the roomier side with
+   its body scrolling. */
 function bxPop(anchor, title, body, w = 304) {
   bxPopClose();
   const p = document.createElement('div');
   p.className = 'bx-pop'; p.id = 'bx-pop'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', title);
-  p.style.width = Math.min(w, innerWidth - 16) + 'px';
   p.innerHTML = `<div class="bx-pop-hd"><b>${esc(title)}</b><button class="bx-x" data-act="bxPopClose" aria-label="Close">×</button></div><div class="bx-pop-bd" id="bx-pop-bd">${body}</div>`;
   document.body.appendChild(p);
-  const r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: innerWidth / 2 - w / 2, top: 96, bottom: 96 };
-  const left = Math.min(Math.max(8, r.left), innerWidth - p.offsetWidth - 8);
-  let top = r.bottom + 6;
-  if (top + p.offsetHeight > innerHeight - 8) top = Math.max(8, r.top - p.offsetHeight - 6);
-  p.style.left = left + 'px'; p.style.top = top + 'px';
+  bxPop.at = { anchor, w };
+  bxPopPlace();
+  bxPop.mo?.disconnect();
+  bxPop.mo = new MutationObserver(() => bxPopPlace());
+  bxPop.mo.observe(p.querySelector('.bx-pop-bd'), { childList: true, subtree: true, characterData: true });
   if (anchor && anchor.setAttribute) anchor.setAttribute('aria-expanded', 'true');
   return p;
 }
-function bxPopClose() { const p = document.getElementById('bx-pop'); if (p) p.remove(); }
+function bxPopPlace() {
+  const p = document.getElementById('bx-pop'), at = bxPop.at || {};
+  if (!p) return;
+  const a = at.anchor, w = at.w || 304;
+  const r = a && a.getBoundingClientRect && document.contains(a) ? a.getBoundingClientRect() : { left: innerWidth / 2 - w / 2, top: 96, bottom: 96 };
+  p.style.width = Math.min(w, innerWidth - 16) + 'px';
+  p.style.maxHeight = '';
+  const h = p.offsetHeight, below = innerHeight - r.bottom - 14, above = r.top - 14;
+  let top;
+  if (h <= below) top = r.bottom + 6;
+  else if (h <= above) top = r.top - h - 6;
+  else if (below >= above) { p.style.maxHeight = Math.max(160, below) + 'px'; top = r.bottom + 6; }
+  else { p.style.maxHeight = above + 'px'; top = r.top - Math.min(h, above) - 6; }
+  top = Math.min(Math.max(8, top), Math.max(8, innerHeight - p.offsetHeight - 8));
+  const left = Math.min(Math.max(8, r.left), Math.max(8, innerWidth - p.offsetWidth - 8));
+  p.style.left = left + 'px'; p.style.top = top + 'px';
+}
+function bxPopClose() { const p = document.getElementById('bx-pop'); bxPop.mo?.disconnect(); bxPop.mo = null; if (p) p.remove(); }
+addEventListener('resize', () => bxPopPlace());
 document.addEventListener('mousedown', e => { const p = document.getElementById('bx-pop'); if (p && !p.contains(e.target)) p.remove(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('bx-pop')) { e.stopPropagation(); e.preventDefault(); bxPopClose(); } }, true);
 
@@ -107,7 +136,7 @@ function bxUseModal(id) {
   if (!t) return;
   const scoped = typeof scopedUser === 'function' && scopedUser();
   const pre = `<div class="bx-use-pre" style="--bx-c:${bxColor(t.color)}"><div class="bx-lab">Lists</div><div class="bx-use-lists">${t.lists.map(l => `<div class="bx-use-col"><span>${esc(l)}</span><i></i><i></i></div>`).join('')}</div>
-    ${t.labels.length ? `<div class="bx-lab">Labels</div><div class="bx-use-labels">${t.labels.map(l => `<span class="bx-lbl" style="--bx-l:${bxColor(l.color)}">${esc(l.name || BX_COLOR_NAMES[l.color] || l.color)}</span>`).join('')}</div>` : ''}
+    ${t.labels.length ? `<div class="bx-lab">Labels</div><div class="bx-use-labels">${t.labels.map(l => `<span class="bx-lbl" style="--bx-l:${bxLabelHex(l.color)}">${esc(l.name || bxLabelName(l.color))}</span>`).join('')}</div>` : ''}
     ${t.fields.length ? `<div class="bx-lab">Custom fields</div><div class="bx-use-labels">${t.fields.map(f => `<span class="bx-chip">${esc(f)}</span>`).join('')}</div>` : ''}
     ${t.cards.length ? `<div class="bx-lab">Starter cards</div><ul class="bx-use-cards">${t.cards.slice(0, 8).map(c => `<li>${esc(c)}</li>`).join('')}${t.cards.length > 8 ? `<li class="dim">and ${t.cards.length - 8} more</li>` : ''}</ul>` : ''}</div>`;
   modal(mhd('Create a board from a template', esc(t.name) + (t.builtin ? ' · Ledgerline template' : ' · Firm template')) + `<div class="bd"><div class="bx-use">
@@ -177,41 +206,11 @@ function bxBgPanel(ctx) {
   };
 }
 
-/* ---- email-to-board ---- */
-function bxMailBody(m, ctx) {
-  const url = m.on ? (m.url || location.origin + m.path) : '';
-  const lists = `<select class="in" id="bx-mail-list" aria-label="List for new cards">${(m.lists || []).map(l => `<option value="${esc(l.id)}" ${l.id === m.list ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>`;
-  return `<div class="bx-mail">
-    <div class="bx-mail-st">${m.on ? pill('On', 'good') : pill('Off')}<span>${m.on ? 'Emails sent to this board become cards in' : 'When it is on, emails become cards in'}</span>${lists}</div>
-    ${m.on ? `<div class="fld"><label for="bx-mail-url">Inbound address</label><div class="bx-url"><input class="in mono" id="bx-mail-url" readonly value="${esc(url)}"><button class="btn sm" data-act="bxMailCopy">Copy</button></div>
-      <span class="bx-help">In your mail provider's inbound settings (Amazon SES, SendGrid or Postmark), have mail for this board posted to this address as the raw message.</span></div>` : ''}
-    <ul class="bx-mail-how"><li>The subject becomes the card's title and the text its description, with the sender on the first line.</li><li>Attachments are added if they pass the same checks as an upload (photos, PDF, Office files, CSV, text or ZIP, up to 15 MB each); others are listed on the card.</li><li>Each delivery is recorded in the board's activity. A closed board refuses mail.</li></ul>
-    ${m.on ? '<div class="note warn">Anyone who has the address can add cards to this board. Keep it between the firm and its mail provider, and give the board a new address if it leaks.</div>' : ''}
-    <div id="bx-mail-err"></div></div>`;
-}
-async function bxEmailPanel(ctx) {
-  UI.bxCtx = ctx;
-  modal(mhd('Email-to-board', esc(ctx.board.name)) + '<div class="bd" id="bx-mail-bd"><div class="bx-empty">Loading…</div></div><div class="ft" id="bx-mail-ft"></div>');
-  try { UI.bxMail = await get(`/v1/boards/${bxEnc(ctx.board.id)}/email`); bxMailDraw(); } catch (e) { document.getElementById('bx-mail-bd').innerHTML = errHTML(e); }
-}
-function bxMailDraw() {
-  const m = UI.bxMail, bd = document.getElementById('bx-mail-bd'), ft = document.getElementById('bx-mail-ft');
-  if (!bd || !m) return;
-  bd.innerHTML = bxMailBody(m, UI.bxCtx);
-  ft.innerHTML = m.on ? '<button class="btn bad" data-act="bxMailOff">Switch off</button><button class="btn" data-act="bxMailRotate">Give it a new address</button><button class="btn pri" data-act="close">Done</button>'
-    : '<button class="btn" data-act="close">Cancel</button><button class="btn pri" data-act="bxMailOn">Switch on</button>';
-}
-async function bxMailSet(body, msg) {
-  const ctx = UI.bxCtx;
-  try { UI.bxMail = await post(`/v1/boards/${bxEnc(ctx.board.id)}/email`, body); bxMailDraw(); if (msg) toast(msg); } catch (e) { const el = document.getElementById('bx-mail-err'); if (el) el.innerHTML = errHTML(e); else toast(e.message, true); }
-}
-
 BOARDS.boardMenu.push(
   { id: 'bxBackground', icon: 'image', label: 'Change background', order: 30, show: ctx => bxAdmin(ctx), run: bxBgPanel },
   { id: 'bxFields', icon: 'desc', label: 'Custom fields', order: 40, show: ctx => bxAdmin(ctx), run: bxFieldsPanel },
   { id: 'bxMakeTpl', icon: 'copy', label: 'Make template', order: 60, show: ctx => bxAdmin(ctx) && ctx.board.kind === 'team' && !ctx.board.template, run: ctx => bxSetTemplate(ctx, true) },
-  { id: 'bxStopTpl', icon: 'copy', label: 'Stop being a template', order: 60, show: ctx => bxAdmin(ctx) && !!ctx.board.template, run: ctx => bxSetTemplate(ctx, false) },
-  { id: 'bxEmail', icon: 'comment', label: 'Email-to-board', order: 70, show: ctx => bxAdmin(ctx) && ctx.board.kind === 'team', run: bxEmailPanel }
+  { id: 'bxStopTpl', icon: 'copy', label: 'Stop being a template', order: 60, show: ctx => bxAdmin(ctx) && !!ctx.board.template, run: ctx => bxSetTemplate(ctx, false) }
 );
 
 /* ============================== card window ============================== */
@@ -326,7 +325,7 @@ function bxFromTemplate(listId, ctx) {
     <div class="bx-picks" role="radiogroup" aria-label="Card template">${ts.map(c => {
       const items = (c.checklists || []).reduce((n, cl) => n + (cl.items || []).length, 0);
       return `<button class="bx-pick ${c.id === UI.bxTplPick ? 'on' : ''}" role="radio" aria-checked="${c.id === UI.bxTplPick}" data-act="bxTplPick" data-id="${esc(c.id)}"><b>${esc(c.title)}</b>
-        <span class="bx-pick-meta">${(c.labels || []).map(id => label(id)).filter(Boolean).map(l => `<span class="bx-lbl sm" style="--bx-l:${bxColor(l.color)}">${esc(l.name || BX_COLOR_NAMES[l.color])}</span>`).join('')}<span class="dim small">${[(c.checklists || []).length ? bxPlural(c.checklists.length, 'checklist') + ` (${bxPlural(items, 'item')})` : '', (c.members || []).length ? bxPlural(c.members.length, 'member') : ''].filter(Boolean).join(' · ') || 'No checklists'}</span></span></button>`;
+        <span class="bx-pick-meta">${(c.labels || []).map(id => label(id)).filter(Boolean).map(l => `<span class="bx-lbl sm" style="--bx-l:${bxLabelHex(l.color)}">${esc(l.name || bxLabelName(l.color))}</span>`).join('')}<span class="dim small">${[(c.checklists || []).length ? bxPlural(c.checklists.length, 'checklist') + ` (${bxPlural(items, 'item')})` : '', (c.members || []).length ? bxPlural(c.members.length, 'member') : ''].filter(Boolean).join(' · ') || 'No checklists'}</span></span></button>`;
     }).join('')}</div>
     <div class="fld"><label for="bx-tp-title">Title of the new card</label><input class="in" id="bx-tp-title" maxlength="500" value="${esc(ts[0].title)}"></div>
     <span class="dim small">The new card gets the template's description, labels, members, checklists, custom fields and cover. Dates are not copied.</span><div id="bx-tp-err"></div></div>
@@ -352,7 +351,6 @@ document.addEventListener('change', e => {
     return;
   }
   if (el.id === 'bx-mi-b') { const t = (UI.bxMirrorTargets || []).find(x => x.id === el.value); document.getElementById('bx-mi-l').innerHTML = bxMirrorLists(t); return; }
-  if (el.id === 'bx-mail-list' && UI.bxMail) { bxMailSet({ on: UI.bxMail.on, list: el.value }, 'Cards from email go to ' + el.options[el.selectedIndex].text); }
 });
 document.addEventListener('input', e => {
   const el = e.target;
@@ -377,10 +375,6 @@ Object.assign(A, {
     try { await bxPut(ctx, { fields: fs }); closeModal(); toast('Custom fields saved'); BOARDS.reload(); } catch (e) { document.getElementById('bx-fl-err').innerHTML = errHTML(e); el.disabled = false; }
   },
   bxBgColor: async id => { const ctx = UI.bxCtx; try { await bxPut(ctx, { background: id }); closeModal(); toast(`Background: ${BX_COLOR_NAMES[id]}`); BOARDS.reload(); } catch (e) { document.getElementById('bx-bg-err').innerHTML = errHTML(e); } },
-  bxMailOn: () => bxMailSet({ on: true, list: document.getElementById('bx-mail-list')?.value || '' }, 'Email-to-board is on'),
-  bxMailOff: () => confirmModal('Switch off email-to-board', esc(UI.bxCtx.board.name), '<div class="note warn">Mail sent to the board\'s address will be refused. Switching it on again gives the board a new address.</div>', 'Switch off', async () => { await post(`/v1/boards/${bxEnc(UI.bxCtx.board.id)}/email`, { on: false }); closeModal(); toast('Email-to-board is off'); }, true),
-  bxMailRotate: () => confirmModal('Give the board a new address', esc(UI.bxCtx.board.name), '<div class="note warn">The current address stops working at once. Update the address in your mail provider\'s inbound settings straight after.</div>', 'Give it a new address', async () => { const ctx = UI.bxCtx; closeModal(); await bxEmailPanel(ctx); await bxMailSet({ on: true, rotate: true }, 'The board has a new address'); }),
-  bxMailCopy: async () => { const el = document.getElementById('bx-mail-url'); try { await navigator.clipboard.writeText(el.value); toast('Address copied'); } catch (e) { el.select(); toast('Select the address and copy it'); } },
   bxMirrorGo: async (id, el) => {
     const card = UI.bxCard, b = document.getElementById('bx-mi-b').value, l = document.getElementById('bx-mi-l').value;
     el.disabled = true;
@@ -405,5 +399,213 @@ Object.assign(A, {
     if (ti && (!ti.value.trim() || ti.value === prev?.title)) ti.value = t?.title || '';
     UI.bxTplPick = id;
     document.querySelectorAll('.bx-pick').forEach(b => { const on = b.dataset.id === id; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+  },
+});
+
+/* ============================== stickers ============================== */
+/* Ledgerline's own sticker set: hand-drawn, inline SVG, no images from
+   anywhere else. The server keeps the names (ops.BoardStickers). */
+const BX_O = 'stroke="#1D2939" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"';
+const BX_STK = {
+  tick: ['Done', `<circle cx="16" cy="16" r="12.5" fill="#1F9D63" ${BX_O}/><path d="M10 16.4l4.1 4.1 8-9" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>`],
+  star: ['Star', `<path d="M16 3.4l3.8 7.7 8.4 1.2-6.1 5.9 1.4 8.4L16 22.7l-7.5 3.9 1.4-8.4-6.1-5.9 8.4-1.2z" fill="#F5C518" ${BX_O}/><path d="M11.6 13.6l2.6-.4" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>`],
+  flag: ['Flag', `<path d="M8 4.2v24.6" fill="none" ${BX_O} stroke-width="2.4"/><path d="M8.6 5.6c4.2-2.2 7.2 2.1 11.2-.1 2.8-1.5 4.6-1.2 6 .1v11.2c-1.3-1.2-3.2-1.7-6 0-4 2.3-7-2-11.2.1z" fill="#D64541" ${BX_O}/>`],
+  warning: ['Warning', `<path d="M16 4.3 29 27.3H3z" fill="#F5B518" ${BX_O}/><path d="M16 12.2v7" stroke="#1D2939" stroke-width="2.8" stroke-linecap="round"/><circle cx="16" cy="23.1" r="1.7" fill="#1D2939"/>`],
+  fire: ['On fire', `<path d="M16.2 3c1 5.2 7.3 7.3 7.3 14.3a7.4 7.4 0 0 1-14.8 0c0-4.1 2-6.3 3.1-8.2.1 3 1.1 4.2 2.2 4.3-1.1-4.2-.1-7.4 2.2-10.4z" fill="#E8770F" ${BX_O}/><path d="M16.1 15.4c.5 3 3.6 3.6 3.6 7.1a3.6 3.6 0 0 1-7.2 0c0-2 1.5-3.1 2.1-4.1.4 1.2.9 1.7 1.5 1.7-.5-1.9-.4-3.3 0-4.7z" fill="#F5C518"/>`],
+  rocket: ['Rocket', `<path d="M12.2 14.6 7.6 15l-3.1 3.1 5.1 1zM17.5 19.8l-.4 4.6-3.1 3.1-1-5.1z" fill="#D64541" ${BX_O}/><path d="M20.4 5.4c3.6-1 5.7-1 6.2-.5s.5 2.6-.5 6.2l-9.3 9.3-5.2-5.2z" fill="#fff" ${BX_O}/><circle cx="21" cy="11" r="2.3" fill="#1C8FC4" stroke="#1D2939" stroke-width="1.4"/><path d="M10.6 21.4c-2.1.5-3.6 2.1-4.1 5.1 3-.5 4.6-2 5.1-4.1z" fill="#F5C518" ${BX_O}/>`],
+  thumbsup: ['Thumbs up', `<path d="M5.6 14.2h4.4v13H5.6z" fill="#2F45C8" ${BX_O}/><path d="M10 14.2l4.6-8.1c1.5-1.6 3.6-.6 3.5 1.5L17.2 13h7c1.8 0 2.9 1.6 2.4 3.3l-2.6 8.7a3 3 0 0 1-2.9 2.2H10z" fill="#F5C518" ${BX_O}/>`],
+  heart: ['Heart', `<path d="M16 27.2S4 19.6 4 11.9A5.9 5.9 0 0 1 16 9.1a5.9 5.9 0 0 1 12 2.8c0 7.7-12 15.3-12 15.3z" fill="#E5484D" ${BX_O}/><path d="M8.9 10.6a3.1 3.1 0 0 1 3-2.1" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>`],
+  clock: ['Waiting', `<circle cx="16" cy="16" r="12.5" fill="#1C8FC4" ${BX_O}/><circle cx="16" cy="16" r="9.4" fill="#fff" stroke="#1D2939" stroke-width="1.4"/><path d="M16 10.2v6.3l4 2.6" fill="none" stroke="#1D2939" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>`],
+  pin: ['Pinned', `<path d="M16 19.4v9" stroke="#1D2939" stroke-width="2.3" stroke-linecap="round"/><path d="M11 4h10l-1.6 2.1v5.4c2.6 1.1 4.6 3.1 4.6 6.6H8c0-3.5 2-5.5 4.6-6.6V6.1z" fill="#D64541" ${BX_O}/><path d="M13.5 12.6v3" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>`],
+  rupee: ['Money', `<circle cx="16" cy="16" r="12.5" fill="#F5C518" ${BX_O}/><circle cx="16" cy="16" r="9.5" fill="none" stroke="#B88A00" stroke-width="1.3"/><path d="M11.6 10.4h8.8M11.6 13.9h8.8M13.1 10.4c4.9 0 4.9 7 0 7h-1.5l6.6 7.1" fill="none" stroke="#1D2939" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>`],
+  chartup: ['Going up', `<rect x="4" y="5" width="24" height="22" rx="4" fill="#fff" ${BX_O}/><path d="M8.6 21.6l5-5.6 3.6 3 6.4-8M18.9 10.6h4.9v5" fill="none" stroke="#1F9D63" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/>`],
+  chartdown: ['Going down', `<rect x="4" y="5" width="24" height="22" rx="4" fill="#fff" ${BX_O}/><path d="M8.6 10.4l5 5.6 3.6-3 6.4 8M18.9 21.4h4.9v-5" fill="none" stroke="#D64541" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/>`],
+  bell: ['Reminder', `<path d="M16 3.4v2.2" fill="none" ${BX_O} stroke-width="2.2"/><path d="M12.9 26.2a3.1 3.1 0 0 0 6.2 0" fill="#F5C518" ${BX_O}/><path d="M8 22.4v-8.2a8 8 0 0 1 16 0v8.2l2.1 2.5H5.9z" fill="#F5C518" ${BX_O}/><path d="M11.6 13.2a4.4 4.4 0 0 1 2.5-3.4" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>`],
+  lock: ['Locked', `<path d="M10.6 14.2v-4.1a5.4 5.4 0 0 1 10.8 0v4.1" fill="none" ${BX_O} stroke-width="2.5"/><rect x="6.5" y="13.6" width="19" height="14" rx="3.2" fill="#7356D6" ${BX_O}/><circle cx="16" cy="19.4" r="2.1" fill="#fff"/><path d="M16 20.8v3" stroke="#fff" stroke-width="2.1" stroke-linecap="round"/>`],
+  bug: ['Bug', `<path d="M10.2 11.2 7 8M21.8 11.2 25 8M8.6 17.4H4.2M23.4 17.4h4.4M9.6 22.6l-3.4 3.5M22.4 22.6l3.4 3.5" fill="none" ${BX_O}/><ellipse cx="16" cy="18.2" rx="7.6" ry="9" fill="#1F9D63" ${BX_O}/><path d="M16 9.8v17.2" stroke="#1D2939" stroke-width="1.6"/><circle cx="16" cy="9.2" r="4" fill="#1D2939"/><circle cx="12.4" cy="16.8" r="1.5" fill="#1D2939"/><circle cx="19.6" cy="21.2" r="1.5" fill="#1D2939"/>`],
+  bulb: ['Idea', `<path d="M3.6 12.2h2.2M26.2 12.2h2.2M6.6 4.6l1.6 1.6M25.4 4.6l-1.6 1.6" fill="none" ${BX_O}/><path d="M16 4.4a8 8 0 0 0-4.6 14.6c.9.7 1.6 1.8 1.6 3h6c0-1.2.7-2.3 1.6-3A8 8 0 0 0 16 4.4z" fill="#F5C518" ${BX_O}/><path d="M13 24.4h6M13.9 27.4h4.2" fill="none" ${BX_O}/><path d="M13.3 12.6a3.1 3.1 0 0 1 2.6-2.1" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>`],
+  coffee: ['Coffee', `<path d="M11 3.8c-1.2 1.6 1.1 2.6 0 4.4M15.6 3.8c-1.2 1.6 1.1 2.6 0 4.4" fill="none" stroke="#98A2B3" stroke-width="1.7" stroke-linecap="round"/><path d="M22 14h2.1a3.1 3.1 0 0 1 0 6.2H22" fill="none" ${BX_O} stroke-width="2.2"/><path d="M5.8 11.6h16.4v8.6a6.1 6.1 0 0 1-6.1 6.1h-4.2a6.1 6.1 0 0 1-6.1-6.1z" fill="#B07A4F" ${BX_O}/><path d="M8.6 14.6c2 .6 3.8.6 5.6 0" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>`],
+  trophy: ['Win', `<path d="M9.6 7.2H6a3.6 3.6 0 0 0 4.1 4.8M22.4 7.2H26a3.6 3.6 0 0 1-4.1 4.8" fill="none" ${BX_O}/><path d="M16 17.6v4.4" fill="none" ${BX_O} stroke-width="2.6"/><path d="M11 27.4h10l-1-4.6h-8z" fill="#E8770F" ${BX_O}/><path d="M9.5 4.8h13V11a6.5 6.5 0 0 1-13 0z" fill="#F5C518" ${BX_O}/><path d="M13 7.6v3.2" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>`],
+  eyes: ['Looking', `<ellipse cx="10.9" cy="16" rx="5.6" ry="8.2" fill="#fff" ${BX_O}/><ellipse cx="21.1" cy="16" rx="5.6" ry="8.2" fill="#fff" ${BX_O}/><circle cx="12.5" cy="17.6" r="2.7" fill="#1D2939"/><circle cx="22.7" cy="17.6" r="2.7" fill="#1D2939"/><circle cx="13.4" cy="16.7" r=".9" fill="#fff"/><circle cx="23.6" cy="16.7" r=".9" fill="#fff"/>`],
+  hundred: ['100', `<g transform="rotate(-8 16 16)"><path d="M5.4 11.4l3-2.5v13.2" fill="none" stroke="#D64541" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="15.1" cy="15.5" rx="3.6" ry="6.3" fill="none" stroke="#D64541" stroke-width="2.9"/><ellipse cx="24.5" cy="15.5" rx="3.6" ry="6.3" fill="none" stroke="#D64541" stroke-width="2.9"/><path d="M5 25.6h22M7.4 28.6h17" stroke="#D64541" stroke-width="2.2" stroke-linecap="round"/></g>`],
+  party: ['Celebrate', `<path d="M4.8 27.6 10.4 12.4l9.4 9.4z" fill="#7356D6" ${BX_O}/><path d="M8 20.2l4 4M9.6 16l6.6 6.6" stroke="#F5C518" stroke-width="1.9" stroke-linecap="round"/><circle cx="22.2" cy="6.8" r="1.7" fill="#E5484D"/><circle cx="26.6" cy="14" r="1.5" fill="#1C8FC4"/><path d="M16 5.2l1.6 2.6M24 18.6l2.6 1M19.4 11.6c1.6-2.1 3.6-2.1 4.6-4.4" fill="none" stroke="#1F9D63" stroke-width="1.9" stroke-linecap="round"/><rect x="12.4" y="7.8" width="2.8" height="2.8" rx=".6" transform="rotate(20 13.8 9.2)" fill="#F5C518"/>`],
+  question: ['Question', `<path d="M5 7.6A3.6 3.6 0 0 1 8.6 4h14.8A3.6 3.6 0 0 1 27 7.6v10.8a3.6 3.6 0 0 1-3.6 3.6H14l-6 5v-5h.6A3.6 3.6 0 0 1 5 18.4z" fill="#2F45C8" ${BX_O}/><path d="M13 10.6a3 3 0 1 1 4.3 2.7c-.9.4-1.3 1-1.3 1.9v.3" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><circle cx="16" cy="18.6" r="1.5" fill="#fff"/>`],
+  stop: ['Stop', `<path d="M11 3.4h10l7.6 7.6v10L21 28.6H11L3.4 21V11z" fill="#D64541" ${BX_O}/><path d="M9.4 16h13.2" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>`]
+};
+const BX_STK_MAX = 10;
+const bxStkName = n => BX_STK[n]?.[0] || n;
+const bxStkSvg = (n, px = 28) => `<svg class="bx-stk-svg" viewBox="0 0 32 32" width="${px}" height="${px}" aria-hidden="true" focusable="false">${BX_STK[n]?.[1] || ''}</svg>`;
+function bxStkList(xs) { const ns = xs.map(bxStkName); return ns.length < 3 ? ns.join(' and ') : ns.slice(0, -1).join(', ') + ' and ' + ns[ns.length - 1]; }
+
+async function bxStkDo(card, body, msg) {
+  try {
+    const c = await api('POST', `/v1/boards/${bxEnc(card.board)}/cards/${bxEnc(card.id)}/stickers`, body);
+    if (typeof bdGot === 'function') bdGot(c); else await BOARDS.reload();
+    if (msg) toast(msg);
+    return c;
+  } catch (e) { toast(e.message, true); return null; }
+}
+function bxStkPickBody(card) {
+  const n = (card.stickers || []).length, full = n >= BX_STK_MAX;
+  return `<div class="bx-stk-grid" role="group" aria-label="Stickers">${Object.keys(BX_STK).map(k => `<button class="bx-stk-b" data-act="bxStkAdd" data-id="${k}" aria-label="Add the ${esc(bxStkName(k))} sticker" title="${esc(bxStkName(k))}" ${full ? 'disabled' : ''}>${bxStkSvg(k, 30)}</button>`).join('')}</div>
+    <p class="bx-pop-note">${full ? `This card has ${BX_STK_MAX} stickers, the most it can have. Take one off in the card window to add another.` : `${n ? `${bxPlural(n, 'sticker')} on this card; up to ${BX_STK_MAX}. ` : ''}The first three show on the card's front. Click a sticker in the card window to take it off.`}</p>`;
+}
+function bxStkPick(card, ctx, el) {
+  UI.bxCard = card;
+  bxPop(el, 'Stickers', bxStkPickBody(card), 300);
+}
+function bxStkSection(card, ctx) {
+  const xs = card.stickers || [];
+  if (!xs.length) return '';
+  const can = bxEdit(ctx);
+  return `<section class="bx-sec bx-stk-sec"><h4 class="bx-sec-h">Stickers</h4><div class="bx-stk-row">${xs.map((k, i) => can
+    ? `<button class="bx-stk-b on" data-act="bxStkDel" data-id="${i}" aria-label="Remove the ${esc(bxStkName(k))} sticker" title="Remove ${esc(bxStkName(k))}">${bxStkSvg(k, 34)}</button>`
+    : `<span class="bx-stk-b ro" role="img" aria-label="${esc(bxStkName(k))} sticker" title="${esc(bxStkName(k))}">${bxStkSvg(k, 34)}</span>`).join('')}
+    ${can && xs.length < BX_STK_MAX ? `<button class="bx-stk-more" data-act="bxStkMore" aria-label="Add a sticker">${bdI('plus')}</button>` : ''}</div>
+    ${can ? '<p class="bx-help">Click a sticker to take it off.</p>' : ''}</section>`;
+}
+function bxStkFront(c) {
+  const xs = c.stickers || [];
+  if (!xs.length) return '';
+  const more = xs.length - 3;
+  return `<span class="bx-stk-front" role="img" aria-label="Stickers: ${esc(bxStkList(xs))}">${xs.slice(0, 3).map(k => `<span class="bx-stk-f">${bxStkSvg(k, 22)}</span>`).join('')}${more > 0 ? `<span class="bx-stk-n" aria-hidden="true">+${more}</span>` : ''}</span>`;
+}
+
+/* ============================== AI on cards ============================== */
+/* Summarise a card, or suggest checklist items, through Ledgerline's AI
+   gate (internal/ops/boardai.go). The actions show only while the gate
+   allows them for the card; a refusal shows its reason and nothing else.
+   Nothing the AI writes is posted or added until the person chooses. */
+UI.bxAI = UI.bxAI || {};    // card id -> { on, why, can_suggest, at }
+UI.bxAIRes = UI.bxAIRes || {}; // card id -> the panel: { kind, busy, text, items, picked, by, note, refused }
+if (typeof BD_IC === 'object') {
+  BD_IC.spark = BD_IC.spark || '<path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/>';
+  BD_IC.sticker = BD_IC.sticker || '<path d="M19.8 13.6A7.8 7.8 0 1 1 10.4 4.2"/><path d="M10.4 4.2a9.4 9.4 0 0 0 9.4 9.4c0-5.2-4.2-9.4-9.4-9.4z"/>';
+}
+const bxAIUrl = (card, p = '') => `/v1/boards/${bxEnc(card.board)}/cards/${bxEnc(card.id)}/ai${p}`;
+function bxAIState(card) {
+  const s = UI.bxAI[card.id];
+  if (s && Date.now() - s.at < 60e3) return s;
+  if (!s?.loading) {
+    UI.bxAI[card.id] = { ...(s || {}), loading: true, at: s?.at || 0 };
+    get(bxAIUrl(card)).then(r => {
+      const was = !!UI.bxAI[card.id]?.on;
+      UI.bxAI[card.id] = { ...r, at: Date.now() };
+      if (!!r.on !== was) bxCwRepaint();
+    }).catch(() => { UI.bxAI[card.id] = { on: false, at: Date.now() }; });
+  }
+  return s || {};
+}
+function bxCwRepaint() { if (typeof bdCwPaint === 'function') bdCwPaint(); else BOARDS.reload(); }
+function bxAIPaint(cardId) {
+  const el = document.getElementById('bx-ai-' + cardId);
+  const card = (typeof BD !== 'undefined' && BD.cd?.id === cardId) ? BD.cd : UI.bxCard;
+  if (el && card) el.outerHTML = bxAIPanel(card, bxCtx()); else bxCwRepaint();
+}
+async function bxAIRun(card, kind) {
+  UI.bxAIRes[card.id] = { kind, busy: true };
+  bxAIPaint(card.id);
+  document.getElementById('bx-ai-' + card.id)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  try {
+    const r = await post(bxAIUrl(card, kind === 'summary' ? '/summary' : '/checklist'), {});
+    UI.bxAIRes[card.id] = { kind, text: r.text || '', items: r.items || [], picked: new Set((r.items || []).map((_, i) => i)), by: r.by, note: r.note };
+  } catch (e) {
+    // The gate refused (or the provider failed): its reason, and nothing
+    // else. A refusal also takes the AI buttons away until it allows again.
+    UI.bxAIRes[card.id] = { kind, refused: e.message };
+    if (e.status === 422 || e.status === 403) { UI.bxAI[card.id] = { on: false, why: e.message, at: Date.now() }; bxCwRepaint(); }
+  }
+  bxAIPaint(card.id);
+  setTimeout(() => document.querySelector(`#bx-ai-${CSS.escape(card.id)} [data-autofocus]`)?.focus({ preventScroll: true }), 0);
+}
+function bxAIPanel(card, ctx) {
+  const r = UI.bxAIRes[card.id];
+  if (!r) return `<div id="bx-ai-${esc(card.id)}" hidden></div>`;
+  const what = r.kind === 'summary' ? 'Summary of this card' : 'Suggested checklist';
+  const hd = `<div class="bx-ai-hd">${bdI('spark')}<b>${what}</b>${r.by ? `<span class="bx-ai-by">AI · ${esc(r.by)}</span>` : ''}<span class="bd-sp"></span><button class="bx-x bx-ai-x" data-act="bxAIClose" data-id="${esc(card.id)}" aria-label="Close">×</button></div>`;
+  let body;
+  if (r.busy) body = `<div class="bx-ai-busy" role="status"><span class="bx-ai-dots" aria-hidden="true"><i></i><i></i><i></i></span>${r.kind === 'summary' ? 'Reading the card and writing a summary…' : 'Reading the card and thinking of steps…'}</div>`;
+  else if (r.refused) body = `<div class="note warn bx-ai-refused" role="alert" data-autofocus tabindex="-1"><b>AI is not available.</b> ${esc(r.refused)}</div>`;
+  else if (r.kind === 'summary') body = `<div class="bx-ai-text" data-autofocus tabindex="-1">${esc(r.text)}</div><p class="bx-help">${esc(r.note || '')}</p>
+      <div class="bx-ai-acts">${bxCanComment(ctx) ? `<button class="btn sm pri" data-act="bxAIPost" data-id="${esc(card.id)}">Post as a comment</button>` : ''}<button class="btn sm" data-act="bxAICopy" data-id="${esc(card.id)}">Copy</button><button class="btn sm" data-act="bxAIClose" data-id="${esc(card.id)}">Discard</button></div>`;
+  else {
+    const its = r.items || [];
+    const cls = (card.checklists || []);
+    body = its.length ? `<ul class="bx-ai-items" aria-label="Suggested items">${its.map((t, i) => `<li><label class="bx-check sm"><input type="checkbox" data-bxai="${esc(card.id)}" data-i="${i}" ${r.picked?.has(i) ? 'checked' : ''}><span>${esc(t)}</span></label></li>`).join('')}</ul>
+      <div class="bx-ai-to"><label for="bx-ai-to-${esc(card.id)}">Add to</label><select class="in" id="bx-ai-to-${esc(card.id)}"><option value="">A new checklist</option>${cls.map(cl => `<option value="${esc(cl.id)}">${esc(cl.name)}</option>`).join('')}</select><input class="in" id="bx-ai-name-${esc(card.id)}" maxlength="200" value="Suggested steps" aria-label="Name of the new checklist"></div>
+      <p class="bx-help">${esc(r.note || '')}</p>
+      <div class="bx-ai-acts"><button class="btn sm pri" data-act="bxAIAdd" data-id="${esc(card.id)}" data-autofocus ${r.picked?.size ? '' : 'disabled'}>Add ${bxPlural(r.picked?.size || 0, 'item')}</button><button class="btn sm" data-act="bxAIClose" data-id="${esc(card.id)}">Discard</button></div>`
+      : `<p class="bx-help" data-autofocus tabindex="-1">${esc(r.note || 'No suggestions for this card.')}</p>`;
+  }
+  return `<section class="bx-ai${r.refused ? ' refused' : ''}" id="bx-ai-${esc(card.id)}" aria-live="polite">${hd}${body}</section>`;
+}
+const bxCanComment = ctx => !!ctx && !!ctx.role && !ctx.board.closed;
+const bxAIOn = c => !!UI.bxAI[c.id]?.on;
+
+BOARDS.cardSections.push(
+  { id: 'bxAI', order: 12, render: (card, ctx) => { bxAIState(card); return bxAIPanel(card, ctx); } },
+  { id: 'bxStickers', order: 6, render: (card, ctx) => bxStkSection(card, ctx) }
+);
+BOARDS.cardButtons.push(
+  { id: 'bxStickers', icon: 'sticker', label: 'Stickers', group: 'add', order: 65, show: (c, ctx) => bxEdit(ctx) && !c.archived, run: bxStkPick },
+  { id: 'bxAISum', icon: 'spark', label: 'Summarise this card', group: 'actions', order: 80, show: c => bxAIOn(c), run: c => bxAIRun(c, 'summary') },
+  { id: 'bxAICl', icon: 'spark', label: 'Suggest a checklist', group: 'actions', order: 81, show: (c, ctx) => bxAIOn(c) && !!UI.bxAI[c.id]?.can_suggest && bxEdit(ctx), run: c => bxAIRun(c, 'checklist') }
+);
+BOARDS.cardBadges.push(c => bxStkFront(c));
+
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (!el.dataset?.bxai) return;
+  const r = UI.bxAIRes[el.dataset.bxai]; if (!r) return;
+  if (el.checked) r.picked.add(+el.dataset.i); else r.picked.delete(+el.dataset.i);
+  const b = document.querySelector(`#bx-ai-${CSS.escape(el.dataset.bxai)} [data-act="bxAIAdd"]`);
+  if (b) { b.textContent = 'Add ' + bxPlural(r.picked.size, 'item'); b.disabled = !r.picked.size; }
+});
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (!el.id?.startsWith('bx-ai-to-')) return;
+  const nm = document.getElementById('bx-ai-name-' + el.id.slice(9)); if (nm) nm.hidden = !!el.value;
+});
+
+Object.assign(A, {
+  bxStkAdd: async id => {
+    const card = (typeof BD !== 'undefined' && BD.cd) || UI.bxCard; if (!card) return;
+    const c = await bxStkDo(card, { add: id });
+    if (c) { UI.bxCard = c; const bd = document.getElementById('bx-pop-bd'); if (bd) bd.innerHTML = bxStkPickBody(c); toast(`${bxStkName(id)} sticker added`); }
+  },
+  bxStkDel: async id => {
+    const card = (typeof BD !== 'undefined' && BD.cd) || UI.bxCard; if (!card) return;
+    const name = bxStkName((card.stickers || [])[+id]);
+    if (await bxStkDo(card, { remove: +id })) toast(`${name} sticker taken off`);
+  },
+  bxStkMore: (id, el) => { const card = (typeof BD !== 'undefined' && BD.cd) || UI.bxCard; if (card) bxStkPick(card, bxCtx(), el); },
+  bxAIClose: id => { delete UI.bxAIRes[id]; bxAIPaint(id); },
+  bxAICopy: async id => { const t = UI.bxAIRes[id]?.text || ''; try { await navigator.clipboard.writeText(t); toast('Summary copied'); } catch (e) { toast('Select the summary and copy it'); } },
+  bxAIPost: async (id, el) => {
+    const r = UI.bxAIRes[id], card = (typeof BD !== 'undefined' && BD.cd?.id === id) ? BD.cd : null;
+    if (!r?.text || !card) return;
+    el.disabled = true;
+    try {
+      const c = await post(`/v1/boards/${bxEnc(card.board)}/cards/${bxEnc(card.id)}/comments`, { text: `Summary written with AI (${r.by || 'AI'}) and checked by me:\n\n${r.text}`.slice(0, 5000) });
+      delete UI.bxAIRes[id];
+      if (typeof bdGot === 'function') bdGot(c); else await BOARDS.reload();
+      toast('Summary posted as a comment');
+    } catch (e) { toast(e.message, true); el.disabled = false; }
+  },
+  bxAIAdd: async (id, el) => {
+    const r = UI.bxAIRes[id], card = (typeof BD !== 'undefined' && BD.cd?.id === id) ? BD.cd : null;
+    if (!r || !card || !r.picked?.size) return;
+    const items = [...r.picked].sort((a, b) => a - b).map(i => r.items[i]);
+    const to = document.getElementById('bx-ai-to-' + id)?.value || '', name = (document.getElementById('bx-ai-name-' + id)?.value || '').trim() || 'Suggested steps';
+    const url = `/v1/boards/${bxEnc(card.board)}/cards/${bxEnc(card.id)}/checklists`;
+    el.disabled = true;
+    try {
+      let c, cl = to;
+      if (!cl) { c = await post(url, { op: 'add_list', name }); cl = c.checklists[c.checklists.length - 1].id; }
+      for (const t of items) c = await post(url, { op: 'add_item', checklist: cl, name: t });
+      delete UI.bxAIRes[id];
+      if (typeof bdGot === 'function') bdGot(c); else await BOARDS.reload();
+      toast(`${bxPlural(items.length, 'item')} added`);
+    } catch (e) { toast(e.message, true); el.disabled = false; }
   },
 });

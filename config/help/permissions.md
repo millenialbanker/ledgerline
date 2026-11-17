@@ -134,6 +134,7 @@ Importing dealers and terminals | Ops maker, Compliance officer
 Invoking pledges | Risk manager
 Invoking unpaid CUSPA securities for sale | Ops checker, Risk manager
 Issuing DIS books | Ops maker, Ops checker
+Joining a firm-wide board | Ops maker, Ops checker, Risk manager, Compliance officer
 Loading DP accounts | Ops checker
 Loading MF files | Ops maker, Ops checker
 Loading brokerage rates | Ops checker
@@ -158,6 +159,7 @@ Matching stock SIP orders to trades | Ops maker, Ops checker, Risk manager
 Month-end postings | Ops checker
 Moving money between MCX and equity | Ops maker, Ops checker, Risk manager
 NRI registration | Ops checker, Compliance officer
+Opening a person's Inbox (read-only, with a reason) | Compliance officer
 Opening a trading account | Ops maker, Ops checker
 Passing a margin penalty to a client | Risk manager, Compliance officer
 Pay-out hold rules | Risk manager
@@ -269,6 +271,7 @@ Signing in to BOW | Risk manager
 Square-off | Risk manager
 Submitting the holding statement to NSE | Ops maker, Ops checker, Compliance officer
 Switching AI off or on | Compliance officer
+Switching board email for the firm | Admin
 Switching the autopilot schedule | Admin
 Taking a backup | Admin
 Tendering for a client | Ops maker, Ops checker

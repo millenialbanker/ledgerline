@@ -1,4 +1,4 @@
-Ledgy help articles: board templates, card templates, custom fields, covers and backgrounds, votes, mirror cards and email-to-board on Boards.
+Ledgy help articles: board templates, card templates, custom fields, covers and backgrounds, votes, mirror cards, stickers and AI on cards on Boards.
 
 # Boards: templates and extras
 
@@ -81,16 +81,43 @@ A mirror shows a card's title, description, due date and completion on another t
 A mirror shows nothing of its original unless everyone who can see the mirror's board can see the original's: otherwise it reads **Mirror of a card on another board**, and only people who can see the original see its details in the card window.
 
 ## email-to-board
-title: Email-to-board: turn emails into cards
+title: Why emails can't be sent to a board or a card
 screen: boards
 roles: Ops maker, Ops checker, Risk manager, Compliance officer, Admin
-ask: email to board; email a board; inbound email; emails become cards; board email address; forward email to board; sendgrid inbound parse; postmark inbound; ses inbound; rotate board email address; switch off board email
-related: board-templates
+ask: email to board; email a board; inbound email; emails become cards; board email address; forward email to board; email to a card; email for this card; card email address; trello email to board
+related: board-templates, card-share
 
-Each team board can have its own inbound address. A board admin sets it up:
+Ledgerline boards and cards have no email address. Mail from outside the firm would bring in attachments that nothing scans for malware, which SEBI's Cybersecurity and Cyber Resilience Framework (CSCRF, SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113) asks brokers to guard against, and anyone with the address could add records to a board. So the feature was taken out.
 
-1. Board menu → **Email-to-board** → choose the list new cards go to → **Switch on**.
-2. Copy the **Inbound address** and, in the mail provider's inbound settings (Amazon SES, SendGrid or Postmark), have mail for the board posted to it as the raw message (SendGrid: post the raw, full MIME message; Postmark: include the raw email content).
-3. Each email becomes a card: the subject is the title, the text the description with the sender on its first line, and attachments that pass the same checks as an upload are attached; any that do not are listed on the card. Each delivery is recorded in the board's activity, a message sent twice makes one card, and a closed board refuses mail.
+To bring an email onto a card, save the email or its attachment and upload it to the card (drop it on the card window, or on a list to make a new card).
 
-Anyone who has the address can add cards to the board, so keep it private. **Give it a new address** stops the old one at once; **Switch off** refuses all mail to the board.
+## card-stickers
+title: Stickers on cards
+screen: boards
+roles: Ops maker, Ops checker, Risk manager, Compliance officer, Admin
+ask: sticker; stickers; add a sticker to a card; remove a sticker; sticker on card; tick sticker; star sticker; fire sticker; rocket sticker; thumbs up on a card; how many stickers
+related: board-covers, card-votes
+
+Stickers are small drawings that make a card easy to spot: a tick, a star, a flag, a warning sign, fire, a rocket, thumbs up, a heart, a clock, a pin, money (the rupee), a chart going up or down, a bell, a lock, a bug, an idea bulb, coffee, a trophy, eyes, 100, a party popper, a question and a stop sign.
+
+1. In the card window choose **Stickers** (under **Add to card**) and click the ones you want. The same sticker can go on more than once.
+2. The first three show on the card's front, on its cover or at its top, with the number of any more.
+3. To take one off, click it under **Stickers** in the card window.
+
+A card can have up to 10 stickers. Members and admins of the board add and remove them; observers see them. Cards with a full cover show their stickers in the card window only.
+
+## card-ai
+title: AI on cards: summarise a card, suggest a checklist
+screen: boards
+roles: Ops maker, Ops checker, Risk manager, Compliance officer, Admin
+ask: ai summary of a card; summarise this card; summarize card; suggest a checklist; ai checklist; atlassian intelligence; ai on boards; card summary; why is the ai button missing; ai on board cards
+related: card-templates
+
+When the firm allows it, the card window has two AI actions under **Actions**:
+
+- **Summarise this card**: a few sentences on what the card is about, where it stands and who is doing what, from its description, checklists and last 30 comments. **Post as a comment** adds it to the card (saying it was written with AI), **Copy** copies it, **Discard** throws it away. Nothing is posted by itself.
+- **Suggest a checklist** (members of the board): up to 10 steps from the card's title and description. Untick the ones you do not want, choose a new checklist or an existing one, then **Add**. Nothing is added until you do.
+
+Before anything is sent, client names and codes, PAN, Aadhaar-like numbers, phone numbers, emails, bank account numbers and staff names are replaced by tokens; the reply has them put back. Every call goes through the firm's AI controls, is charged from the AI credit and is written to the AI answer log.
+
+The actions show only while AI may be used: an Admin switches on **AI on board cards** in [[settings|Settings]], and AI must not be switched off on [[aictl|AI controls]]. They are offered on team boards only: never on Ledgerline boards, whose cards are the firm's records, nor in your Inbox. If AI is refused when you press one (for example, AI was switched off a moment ago), the reason is shown and nothing else happens.

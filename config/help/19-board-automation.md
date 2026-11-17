@@ -1,4 +1,4 @@
-Ledgy help articles: automation on Boards — rules, card and board buttons, scheduled and due-date commands, and the automation log.
+Ledgy help articles: automation on Boards — rules, card and board buttons, scheduled and due-date commands, the automation log and the card repeater.
 
 # Board automation
 
@@ -6,19 +6,34 @@ Ledgy help articles: automation on Boards — rules, card and board buttons, sch
 title: Make a board rule (when this happens to a card, do that)
 screen: boards
 roles: Ops maker, Ops checker, Risk manager, Compliance officer, Admin
-ask: board rule; butler rule; trello butler; automate a board; automation on a board; when a card is moved into done mark it complete; when a card is moved to a list do something; move card automatically when label added; notify someone when a card moves; automatically assign a card; card automation trigger
+ask: board rule; butler rule; trello butler; automate a board; automation on a board; when a checklist item is ticked; when a custom field is set; when a card is renamed; when an attachment is added; card created by me; by someone else; set a custom field automatically; tick all checklist items; remove all labels; copy card to another board; add a watcher automatically; email a board member; cardname cardlink variables; when a card is moved into done mark it complete; when a card is moved to a list do something; move card automatically when label added; notify someone when a card moves; automatically assign a card; card automation trigger
 related: board-automation-buttons, board-automation-scheduled, board-automation-due, board-automation-log
 
 On a board, open the board menu → **Automation**. The **Rules** tab lists the board's rules as sentences, for example: *When a card is moved into Done, mark it complete and notify @farhan.khan.* Board admins and members make and change rules; observers can read them.
 
-1. **New rule**, then choose what sets it off: a card added to the board or to a list, moved into or out of a list, a label added or removed, someone added, a due date set, the card marked complete, a checklist completed, the card archived, or a comment posted (optionally only comments containing some words). **by anyone** can be narrowed to one person.
-2. **Only if** (optional): the card has or does not have a label or member, is or is not in a list, its title contains some words, it has or has no due date, it is overdue, it is complete or not.
-3. **Then**: the actions, in order — move or copy the card (top or bottom of a list), add or remove a label or member, add the person who set it off, set the due date (in N days or working days, at a time) or remove it, mark it complete or not, add a checklist, post a comment, archive it, sort a list, notify people (named people, the card's members, its watchers), create a card, move or archive every card of a list. Text can use {card}, {no}, {list}, {due}, {board}, {user} and {date}.
+1. **New rule**, then choose what sets it off:
+   - a card added to the board or to a list, moved into or out of a list, or moved to the top or bottom of a list (within the list too);
+   - a card renamed, a label added or removed, someone added, a due date set, the card marked complete or not complete;
+   - a checklist completed, a checklist item ticked or unticked, an item added to a checklist (each optionally only items containing some words);
+   - an attachment added, a custom field set or changed (any field, or one field, optionally only to one value);
+   - the card archived or sent back to the board, a comment posted (optionally only comments containing some words).
+   **by anyone** can be narrowed to **by me** (you, who saves the rule), **by someone else** (anyone but you; automation does not count), or one person. "Created by me" is *a card is added to the board, by me*.
+2. **Only if** (optional): the card has or does not have a label or member, is or is not in a list, its title contains some words, it has or has no due date, it is overdue, it is complete or not, and all, some or none of its checklist items are done (with none, a card without a checklist counts).
+3. **Then**: the actions, in order:
+   - move the card to a list (top or bottom), or to the top or bottom of its own list; copy it within the board, or **copy it to another board** you can add cards to;
+   - add or remove a label, remove every label; add or remove a member, remove every member, add the person who set it off, **add a watcher**;
+   - set the due date (in N days or working days, at a time) or remove it, mark it complete or not;
+   - add a checklist, tick or untick every checklist item, **set a custom field** (or clear it);
+   - post a comment, archive it, sort a list, **notify people** or **email people** (named people, the card's members, its watchers), create a card, move or archive every card of a list.
+   Text can use Trello's names {cardname}, {cardlink}, {boardname}, {listname}, {username} (who set it off), {date} (today) and {duedate}, and {no} for the card's number; the older {card}, {list}, {board}, {user} and {due} still work. {cardlink} is the card's address in Ledgerline.
 4. The box **Reads as** shows the whole rule as a sentence while you build it. **Save rule**. Left without a name, the rule is named from its sentence.
 
 Rules act as **Automation**: the board's activity shows each change by Automation and a line naming the rule that made it. The switch beside a rule turns it off without deleting it. A rule that fails (say its list was archived) never undoes or blocks the change that set it off; the rule shows **Last run failed** and the reason, and the log keeps it.
 
-A rule's actions can set off other rules. A chain stops at the third rule in a row, and the log shows **Stopped: loop**, so two rules moving a card back and forth cannot run forever. A comment posted by automation does not set off comment rules. A board runs at most 1,000 automations a day; when it reaches that, automation stops until midnight, the log says so and the board's admins get a notice. On a Ledgerline board, whose cards follow their records, automation can label, assign, date, check off, comment on and sort cards and notify people, but not move, copy, archive or create cards.
+A rule's actions can set off other rules. A chain stops at the third rule in a row, and the log shows **Stopped: loop**, so two rules moving a card back and forth cannot run forever. A comment posted by automation does not set off comment rules. A board runs at most 1,000 automations a day; when it reaches that, automation stops until midnight, the log says so and the board's admins get a notice. On a Ledgerline board, whose cards follow their records, automation can label, assign, date, check off, comment on and sort cards, move them up or down their own list and notify or email people, but not move them to another list, copy, archive or create cards. A card linked to a Ledgerline record is never moved to another list or copied to another board by automation.
+
+- **Email people** leaves a notification in each person's bell, as **Notify people** does, and sends an email within about five minutes saying a message from an automation rule is waiting (the message itself stays in Ledgerline), whatever they chose to have emailed and how often, unless they have no confirmed address, paused email or chose **Never** (see [[board-email-notifications|Board notifications by email]]).
+- **Copy it to another board** works only while the person who last saved the rule can still add cards to that board; if they lose that, the run fails and says why. Labels and custom fields belong to their board, so the copy keeps the title, description, dates, checklists and members.
 
 ## board-automation-buttons
 title: Card buttons and board buttons
@@ -77,3 +92,29 @@ Board menu → **Automation** → **Log** lists every run of the board's rules, 
 - **Skipped**, a scheduled command on a trading holiday.
 
 Pick one rule, button or command in the box to see only its runs; **Log** beside each one opens this directly. Everyone who can see the board can read the log. Each change automation makes is also in the board's activity and the card's activity, by Automation.
+
+## board-card-repeater
+title: Repeat a card (every day, week, month, quarter or year)
+screen: boards
+roles: Ops maker, Ops checker, Risk manager, Compliance officer, Admin
+ask: repeat a card; recurring card; card repeater; trello card repeater; copy a card every month; monthly filing card; quarterly card; yearly card; repeat every working day; repeat on the last working day of the month; stop repeating a card; card repeats; recurring compliance task
+related: board-automation-scheduled, board-templates, ras-calendar
+
+Open a card on a team board and press **Repeat** (under Actions; board admins and members). Choose:
+
+- **Repeat**: every day, every weekday (Monday to Friday), every **working day** (Monday to Friday except the firm's trading holidays, as scheduled commands use them), every week on the days you pick, every month, every quarter or every year;
+- for months, quarters and years: on a day of the month (day 31 uses the last day of shorter months), or on the **first** or **last working day**; for quarters, in the first, second or third month of each quarter (day 15 of the first month is 15 January, April, July and October); for years, the month;
+- **At**: the time (IST) the copy is made;
+- **Put each copy in**: the card's own list, or another list of the board;
+- **Give each copy a due date**: N days, or working days, after it is made, at a time if you like;
+- **Ends**: never, after a number of copies, or on a date.
+
+The box under the form reads the repeat back and shows the next three dates. **Start repeating** saves it. The card then shows a **Repeat** section (for example *Repeats every month on the last working day · next 30 Nov, 10:00*) with **Edit** and **Stop**, and a repeat badge on its front.
+
+Each time, Automation adds a copy of the card: the same title, description, labels, members and custom fields, and its checklists with every item unticked (items lose their own dates). Attachments, comments and image covers stay on the original. The copy does not repeat; the card's members are told about it, and the card's activity says which copy was made.
+
+- A repeat runs once for each time, even if Ledgerline restarts. If Ledgerline was not running at the time, it makes one copy when it comes back (for the latest time it missed, however many it missed) and the activity says it was late.
+- It stops when the card is archived, deleted or moved to another board (the section says why; **Set it to repeat again** starts it afresh). While the board is closed its times are skipped; reopened, it carries on from the next time.
+- Cards on Ledgerline boards, cards linked to a Ledgerline record and mirror cards do not repeat: their records, or the original card, decide what they are.
+
+It suits the **Compliance calendar** board template: make a card for each filing with its checklist and custom fields (Period, Filed with), set it to repeat monthly, quarterly or yearly on the day the circular sets (or the last working day), put the copies in the list for that period, and give them a due date a few working days on. Each period then gets its own card to tick through, and the filed ones move to **Filed**.

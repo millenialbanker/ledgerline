@@ -1,28 +1,13 @@
 package ops
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"html"
-	"io"
 	"math"
-	"mime"
-	"mime/multipart"
-	"mime/quotedprintable"
-	"net/mail"
-	"net/textproto"
-	"net/url"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"ledgerline/internal/docs"
 )
@@ -38,21 +23,20 @@ import (
 //     made them, or are undone with a notice saying why. A mirror shows
 //     nothing of its original unless everyone who can see the mirror's
 //     board can also see the original's.
-//   - Email-to-board: a team board's admins switch on an address that a
-//     mail provider posts inbound mail to; each email becomes a card.
+//   - Email-to-board and email to a card were taken out: mail from
+//     outside the firm came in with attachments that nothing scanned for
+//     malware (SEBI's CSCRF), and it let anyone with the address put
+//     records on a board.
+//   - Stickers on cards. (The AI on cards is in boardai.go; import,
+//     export, collections and recently viewed boards in boardio.go.)
 //
 // Card templates, custom fields, covers, backgrounds and votes use the core
 // operations in boards.go; their screens are in web/boardextras.js.
 
 const (
 	cBoardMirror = "boardmirror" // "<original board>|<original card>|<mirror board>|<mirror card>"
-	cBoardMail   = "boardmail"   // "<board>|<hash of the Message-ID>"
 
 	mirrorActor = "system:mirror"
-	mailActor   = "system:email"
-
-	// BoardMaxMail is the largest email a board takes.
-	BoardMaxMail = 10 << 20
 
 	mirrorHiddenTitle = "Mirror of a card on another board"
 )
@@ -898,377 +882,59 @@ func (o *Ops) EditMirrorSource(ctx context.Context, tenant, actor, board, card s
 	return o.MirrorSource(ctx, tenant, actor, board, card)
 }
 
-// ---- email-to-board ----
+// ---- stickers ----
 
-// BoardEmailInfo is a board's email-to-board settings, for its admins.
-type BoardEmailInfo struct {
-	On    bool        `json:"on"`
-	Path  string      `json:"path,omitempty"` // where the mail provider posts: /inbound/boards/<tenant>/<key>
-	List  string      `json:"list"`
-	Lists []BoardList `json:"lists"`
+// BoardStickers are the stickers a card can carry; web/boardextras.js
+// draws them.
+var BoardStickers = []string{"tick", "star", "flag", "warning", "fire", "rocket", "thumbsup", "heart", "clock", "pin", "rupee", "chartup",
+	"chartdown", "bell", "lock", "bug", "bulb", "coffee", "trophy", "eyes", "hundred", "party", "question", "stop"}
+
+// MaxCardStickers is the most stickers one card carries.
+const MaxCardStickers = 10
+
+// StickerOp adds a sticker to a card or takes one off (by its place).
+type StickerOp struct {
+	Add    string `json:"add,omitempty"`
+	Remove *int   `json:"remove,omitempty"`
 }
 
-// BoardEmailInput switches email-to-board on or off, chooses the list new
-// cards go to, or gives the board a new address.
-type BoardEmailInput struct {
-	On     bool   `json:"on"`
-	List   string `json:"list"`
-	Rotate bool   `json:"rotate"`
-}
-
-func boardEmailInfo(tenant string, b Board) BoardEmailInfo {
-	in := BoardEmailInfo{On: b.EmailKey != "", List: b.EmailList, Lists: []BoardList{}}
-	if in.On {
-		in.Path = "/inbound/boards/" + url.PathEscape(tenant) + "/" + b.EmailKey
-	}
-	for _, l := range b.Lists {
-		if !l.Archived {
-			in.Lists = append(in.Lists, l)
-		}
-	}
-	sort.SliceStable(in.Lists, func(i, j int) bool { return in.Lists[i].Pos < in.Lists[j].Pos })
-	if l, ok := boardList(b, in.List); (!ok || l.Archived) && len(in.Lists) > 0 {
-		in.List = in.Lists[0].ID
-	}
-	return in
-}
-
-// BoardEmail is a board's email-to-board settings (board admins).
-func (o *Ops) BoardEmail(ctx context.Context, tenant, actor, id string) (BoardEmailInfo, error) {
-	b, _, err := o.boardFor(ctx, tenant, actor, id, BoardAdmin)
+// CardSticker adds or removes a sticker (members and admins of the board).
+func (o *Ops) CardSticker(ctx context.Context, tenant, actor, board, card string, op StickerOp) (Card, error) {
+	b, _, err := o.boardFor(ctx, tenant, actor, board, BoardAdmin, BoardMember)
 	if err != nil {
-		return BoardEmailInfo{}, err
+		return Card{}, err
 	}
-	if b.Kind != BoardTeam {
-		return BoardEmailInfo{}, invalid("email-to-board is for team boards")
+	if (op.Add == "") == (op.Remove == nil) {
+		return Card{}, invalid("add one sticker or remove one")
 	}
-	return boardEmailInfo(tenant, b), nil
-}
-
-// SetBoardEmail changes a board's email-to-board settings (board admins).
-func (o *Ops) SetBoardEmail(ctx context.Context, tenant, actor, id string, in BoardEmailInput) (BoardEmailInfo, error) {
-	b, _, err := o.boardFor(ctx, tenant, actor, id, BoardAdmin)
-	if err != nil {
-		return BoardEmailInfo{}, err
+	if op.Add != "" && !contains(BoardStickers, op.Add) {
+		return Card{}, invalid("unknown sticker %q", op.Add)
 	}
-	if b.Kind != BoardTeam {
-		return BoardEmailInfo{}, invalid("email-to-board is for team boards")
-	}
-	var what []string
-	b, err = docs.Update(ctx, o.Docs, tenant, cBoard, id, actor, func(x *Board) error {
-		what = nil
-		if in.List != "" && in.List != x.EmailList {
-			l, ok := boardList(*x, in.List)
-			if !ok || l.Archived {
-				return invalid("choose an open list for the cards made from email")
-			}
-			x.EmailList = in.List
-			what = append(what, "cards made from email now go to "+l.Name)
+	var what string
+	c, err := docs.Update(ctx, o.Docs, tenant, cBoardCard, cardKey(board, card), actor, func(x *Card) error {
+		if x.Deleted {
+			return errCardGone
 		}
-		switch {
-		case !in.On && x.EmailKey != "":
-			x.EmailKey = ""
-			what = append(what, "switched off email-to-board")
-		case in.On && x.EmailKey == "":
-			x.EmailKey = boardID("", 32)
-			what = append(what, "switched on email-to-board")
-		case in.On && in.Rotate:
-			x.EmailKey = boardID("", 32)
-			what = append(what, "gave the board a new email address; the old one no longer works")
-		}
-		if l, ok := boardList(*x, x.EmailList); x.EmailKey != "" && (!ok || l.Archived) {
-			info := boardEmailInfo(tenant, *x)
-			if len(info.Lists) == 0 {
-				return invalid("the board needs an open list for the cards made from email")
+		if op.Add != "" {
+			if len(x.Stickers) >= MaxCardStickers {
+				return invalid("a card can have at most %d stickers; remove one first", MaxCardStickers)
 			}
-			x.EmailList = info.Lists[0].ID
+			x.Stickers = append(x.Stickers, op.Add)
+			what = fmt.Sprintf("added a %s sticker to #%d", op.Add, x.No)
+		} else {
+			i := *op.Remove
+			if i < 0 || i >= len(x.Stickers) {
+				return invalid("no such sticker on the card")
+			}
+			what = fmt.Sprintf("removed a %s sticker from #%d", x.Stickers[i], x.No)
+			x.Stickers = append(x.Stickers[:i:i], x.Stickers[i+1:]...)
 		}
 		x.UpdatedAt = o.now().Format(time.RFC3339)
 		return nil
 	})
 	if err != nil {
-		return BoardEmailInfo{}, err
+		return c, err
 	}
-	for _, w := range what {
-		o.boardLog(ctx, tenant, actor, b, "", "board.email", w, nil)
-		o.log(ctx, tenant, actor, "board.email", b.ID, map[string]any{"change": w})
-	}
-	return boardEmailInfo(tenant, b), nil
-}
-
-func (o *Ops) boardByEmailKey(ctx context.Context, tenant, key string) (Board, bool) {
-	if len(key) < 32 || len(key) > 128 {
-		return Board{}, false
-	}
-	bs, err := docs.List[Board](ctx, o.Docs, tenant, cBoard, "")
-	if err != nil {
-		return Board{}, false
-	}
-	var found Board
-	ok := false
-	for _, b := range bs {
-		if b.EmailKey != "" && !b.Deleted && subtle.ConstantTimeCompare([]byte(b.EmailKey), []byte(key)) == 1 {
-			found, ok = b, true
-		}
-	}
-	return found, ok
-}
-
-// BoardEmailKnown reports whether a key is a board's email address.
-func (o *Ops) BoardEmailKnown(ctx context.Context, tenant, key string) bool {
-	_, ok := o.boardByEmailKey(ctx, tenant, key)
-	return ok
-}
-
-type boardMailDoc struct {
-	Board string `json:"board"`
-	Card  string `json:"card"`
-	From  string `json:"from"`
-	At    string `json:"at"`
-}
-
-// BoardInboundMail makes a card from an email (a raw RFC 822 message) sent
-// to a board's address: the subject is the title, the text the
-// description, the attachments the card's attachments. dup is true when
-// the same message (by its Message-ID) already made a card.
-func (o *Ops) BoardInboundMail(ctx context.Context, tenant, key string, raw []byte) (c Card, dup bool, err error) {
-	b, ok := o.boardByEmailKey(ctx, tenant, key)
-	if !ok {
-		return Card{}, false, fmt.Errorf("%w: no board takes mail at this address", ErrNotFound)
-	}
-	if b.Closed {
-		return Card{}, false, fmt.Errorf("%w: the board %s is closed and takes no mail", ErrState, b.Name)
-	}
-	if b.Kind != BoardTeam {
-		return Card{}, false, invalid("email-to-board is for team boards")
-	}
-	if len(raw) == 0 || len(raw) > BoardMaxMail {
-		return Card{}, false, invalid("an email can be up to %d MB", BoardMaxMail>>20)
-	}
-	pm, err := parseBoardMail(raw)
-	if err != nil {
-		return Card{}, false, err
-	}
-	var seen string
-	if pm.MessageID != "" {
-		sum := sha256.Sum256([]byte(pm.MessageID))
-		seen = b.ID + "|" + hex.EncodeToString(sum[:16])
-		if d, _, err := docs.Get[boardMailDoc](ctx, o.Docs, tenant, cBoardMail, seen); err == nil {
-			if c, _, err := docs.Get[Card](ctx, o.Docs, tenant, cBoardCard, cardKey(b.ID, d.Card)); err == nil && !c.Deleted {
-				return c, true, nil
-			}
-		}
-	}
-	info := boardEmailInfo(tenant, b)
-	if len(info.Lists) == 0 {
-		return Card{}, false, invalid("the board %s has no open list for new cards", b.Name)
-	}
-	sender := firstOf(pm.From, "an unknown sender")
-	from := sender
-	if pm.FromName != "" && pm.From != "" {
-		from = pm.FromName + " <" + pm.From + ">"
-	}
-	desc := "From: " + from
-	if t := strings.TrimSpace(pm.Text); t != "" {
-		desc += "\n\n" + clip(t, 18000)
-	}
-	title := clip(firstOf(pm.Subject, "Email from "+sender), 480)
-	c, err = o.addCard(ctx, tenant, mailActor, b, info.List, Card{Title: title, Description: desc}, math.NaN())
-	if err != nil {
-		return Card{}, false, err
-	}
-	attached := 0
-	var skipped []string
-	for i, f := range pm.Files {
-		if i >= 25 {
-			skipped = append(skipped, fmt.Sprintf("%d more files (25 at most from one email)", len(pm.Files)-i))
-			break
-		}
-		nc, err := o.AttachFile(ctx, tenant, mailActor, b.ID, c.ID, f.Name, f.Data)
-		if err != nil {
-			skipped = append(skipped, fmt.Sprintf("%s (%s)", clip(firstOf(f.Name, "a file with no name"), 80), strings.TrimPrefix(err.Error(), "invalid: ")))
-			continue
-		}
-		c = nc
-		attached++
-	}
-	if len(skipped) > 0 {
-		if nc, err := docs.Update(ctx, o.Docs, tenant, cBoardCard, cardKey(b.ID, c.ID), mailActor, func(x *Card) error {
-			x.Description = clip(x.Description+"\n\nNot attached: "+strings.Join(skipped, "; "), 19900)
-			return nil
-		}); err == nil {
-			c = nc
-		}
-	}
-	now := o.now().Format(time.RFC3339)
-	if seen != "" {
-		_ = docs.Upsert(ctx, o.Docs, tenant, cBoardMail, seen, boardMailDoc{Board: b.ID, Card: c.ID, From: pm.From, At: now}, mailActor)
-	}
-	text := fmt.Sprintf("received an email from %s as #%d %s", sender, c.No, clip(title, 80))
-	if attached > 0 {
-		text += fmt.Sprintf(" (%d attachment%s)", attached, map[bool]string{true: "", false: "s"}[attached == 1])
-	}
-	o.boardLog(ctx, tenant, mailActor, b, c.ID, "email.received", text, map[string]string{"from": pm.From, "attached": fmt.Sprint(attached), "not_attached": fmt.Sprint(len(skipped))})
-	o.log(ctx, tenant, mailActor, "board.email_received", b.ID, map[string]any{"card": c.ID, "from": pm.From, "attached": attached, "not_attached": len(skipped)})
-	return c, false, nil
-}
-
-// ---- reading an email ----
-
-type boardMail struct {
-	From, FromName, Subject, MessageID string
-	Text                               string
-	Files                              []boardMailFile
-}
-
-type boardMailFile struct {
-	Name string
-	Data []byte
-}
-
-func mailCharset(charset string, in io.Reader) (io.Reader, error) {
-	b, err := io.ReadAll(in)
-	if err != nil {
-		return nil, err
-	}
-	return strings.NewReader(mailText(b, charset)), nil
-}
-
-// mailText is text in a charset as UTF-8: UTF-8 and ASCII as they are,
-// Latin-1 and Windows-1252 byte by byte; anything else is kept where it is
-// valid UTF-8.
-func mailText(b []byte, charset string) string {
-	switch strings.ToLower(strings.TrimSpace(charset)) {
-	case "iso-8859-1", "latin1", "latin-1", "windows-1252", "cp1252", "iso-8859-15":
-		r := make([]rune, len(b))
-		for i, c := range b {
-			r[i] = rune(c)
-		}
-		return string(r)
-	}
-	return strings.ToValidUTF8(string(b), "�")
-}
-
-var mailWords = &mime.WordDecoder{CharsetReader: mailCharset}
-
-func mailHeader(s string) string {
-	d, err := mailWords.DecodeHeader(s)
-	if err != nil {
-		d = s
-	}
-	return strings.Join(strings.Fields(d), " ")
-}
-
-func parseBoardMail(raw []byte) (boardMail, error) {
-	m, err := mail.ReadMessage(bytes.NewReader(raw))
-	if err != nil {
-		return boardMail{}, invalid("this is not an email message (RFC 822): %v", err)
-	}
-	pm := boardMail{Subject: mailHeader(m.Header.Get("Subject")), MessageID: strings.TrimSpace(m.Header.Get("Message-Id"))}
-	if a, err := (&mail.AddressParser{WordDecoder: mailWords}).Parse(m.Header.Get("From")); err == nil {
-		pm.From, pm.FromName = strings.ToLower(a.Address), strings.Join(strings.Fields(a.Name), " ")
-	} else {
-		pm.From = clip(mailHeader(m.Header.Get("From")), 200)
-	}
-	var plain, htm string
-	if err := walkMail(textproto.MIMEHeader(m.Header), m.Body, 0, &plain, &htm, &pm.Files); err != nil && plain == "" && htm == "" && len(pm.Files) == 0 {
-		return boardMail{}, invalid("the email could not be read: %v", err)
-	}
-	pm.Text = tidyMailText(plain)
-	if pm.Text == "" && htm != "" {
-		pm.Text = tidyMailText(htmlText(htm))
-	}
-	return pm, nil
-}
-
-func transferDecoder(cte string, r io.Reader) io.Reader {
-	switch strings.ToLower(strings.TrimSpace(cte)) {
-	case "base64":
-		return base64.NewDecoder(base64.StdEncoding, r)
-	case "quoted-printable":
-		return quotedprintable.NewReader(r)
-	}
-	return r
-}
-
-func walkMail(h textproto.MIMEHeader, body io.Reader, depth int, plain, htm *string, files *[]boardMailFile) error {
-	mt, params, err := mime.ParseMediaType(firstOf(h.Get("Content-Type"), "text/plain"))
-	if err != nil {
-		mt, params = "text/plain", map[string]string{}
-	}
-	if strings.HasPrefix(mt, "multipart/") {
-		if depth > 8 || params["boundary"] == "" {
-			return nil
-		}
-		mr := multipart.NewReader(body, params["boundary"])
-		for {
-			p, err := mr.NextPart()
-			if err == io.EOF {
-				return nil
-			}
-			if err != nil {
-				return err
-			}
-			if err := walkMail(p.Header, p, depth+1, plain, htm, files); err != nil {
-				return err
-			}
-		}
-	}
-	data, err := io.ReadAll(io.LimitReader(transferDecoder(h.Get("Content-Transfer-Encoding"), body), BoardMaxMail))
-	if err != nil {
-		return err
-	}
-	disp, dp, _ := mime.ParseMediaType(h.Get("Content-Disposition"))
-	name := mailHeader(firstOf(dp["filename"], params["name"]))
-	if disp == "attachment" || (name != "" && mt != "text/plain" && mt != "text/html") {
-		if name == "" {
-			if exts, _ := mime.ExtensionsByType(mt); len(exts) > 0 {
-				name = "attachment" + exts[0]
-			}
-		}
-		*files = append(*files, boardMailFile{Name: name, Data: data})
-		return nil
-	}
-	switch mt {
-	case "text/plain":
-		if *plain == "" {
-			*plain = mailText(data, params["charset"])
-		}
-	case "text/html":
-		if *htm == "" {
-			*htm = mailText(data, params["charset"])
-		}
-	}
-	return nil
-}
-
-var (
-	mailDropRe  = regexp.MustCompile(`(?is)<(script|style|head|title)\b[^>]*>.*?</(script|style|head|title)\s*>`)
-	mailBreakRe = regexp.MustCompile(`(?i)<\s*(br|/p|/div|/li|/tr|/h[1-6]|/table|/blockquote)\b[^>]*>`)
-	mailItemRe  = regexp.MustCompile(`(?i)<\s*li\b[^>]*>`)
-	mailTagRe   = regexp.MustCompile(`(?s)<[^>]*>`)
-	mailGapRe   = regexp.MustCompile(`\n{3,}`)
-)
-
-// htmlText is an HTML email's text: the tags taken out, the line breaks
-// kept.
-func htmlText(s string) string {
-	s = mailDropRe.ReplaceAllString(s, "")
-	s = mailBreakRe.ReplaceAllString(s, "\n")
-	s = mailItemRe.ReplaceAllString(s, "\n- ")
-	s = mailTagRe.ReplaceAllString(s, "")
-	return html.UnescapeString(s)
-}
-
-func tidyMailText(s string) string {
-	s = strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n")
-	lines := strings.Split(s, "\n")
-	for i, l := range lines {
-		lines[i] = strings.TrimRight(strings.ReplaceAll(l, " ", " "), " \t")
-	}
-	s = mailGapRe.ReplaceAllString(strings.Join(lines, "\n"), "\n\n")
-	if !utf8.ValidString(s) {
-		s = strings.ToValidUTF8(s, "�")
-	}
-	return strings.TrimSpace(s)
+	o.boardLog(ctx, tenant, actor, b, card, "card.sticker", what, nil)
+	return c, nil
 }
