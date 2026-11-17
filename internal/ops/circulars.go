@@ -301,6 +301,9 @@ func (o *Ops) Circulars(ctx context.Context, tenant string) ([]Circular, error) 
 func (c *Circular) annotate(f firmFacts) {
 	a := circApplicability(*c, f)
 	c.Applies, c.Review = &a, len(c.toReview())
+	for i := range c.Proposals {
+		c.Proposals[i].DueOn, c.Proposals[i].DueRule = c.Proposals[i].due(*c)
+	}
 }
 
 // taskAccepted says whether an action has been taken on as a task: by

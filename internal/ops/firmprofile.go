@@ -227,19 +227,19 @@ func (o *Ops) firmProfileFacts(ctx context.Context, tenant string) (firmFacts, [
 			x.From = foundFrom
 		}
 		x.Known = v != triUnknown
-		x.Value = map[tri]string{triYes: "Yes", triNo: "No", triUnknown: "Not known: answer it below"}[v]
+		x.Value = map[tri]string{triYes: "Yes", triNo: "No", triUnknown: "Not known"}[v]
 		facts = append(facts, x)
 		return v
 	}
-	cdslFound, cdslFrom := triUnknown, "Not known: no CDSL connection with a DP ID"
+	cdslFound, cdslFrom := triUnknown, "no CDSL connection with a DP ID in Connections"
 	if _, ok := o.cdslConnFor(ctx, tenant); ok {
 		cdslFound, cdslFrom = triYes, "Connections → CDSL (the firm's DP ID)"
 	}
 	f.CDSL = yn("cdsl", "CDSL depository participant", p.CDSL, cdslFound, cdslFrom)
-	f.NSDL = yn("nsdl", "NSDL depository participant", p.NSDL, triUnknown, "Not known")
+	f.NSDL = yn("nsdl", "NSDL depository participant", p.NSDL, triUnknown, "nothing in Ledgerline says")
 	f.MTF = triOf(cp.MTF)
 	facts = append(facts, FirmFact{Key: "mtf", Label: "Margin trading facility (MTF)", Value: map[bool]string{true: "Yes", false: "No"}[cp.MTF], Known: true, From: "Compliance profile (also on Circulars & calendar → RAS dates & profile)", Edit: true})
-	f.Algo = yn("algo", "Algorithmic trading (the firm's own, or clients' through its systems)", p.Algo, triUnknown, "Not known")
+	f.Algo = yn("algo", "Algorithmic trading (the firm's own, or clients' through its systems)", p.Algo, triUnknown, "nothing in Ledgerline says")
 
 	cl, _ := o.ClientMap(ctx, tenant)
 	nri := 0
@@ -248,7 +248,7 @@ func (o *Ops) firmProfileFacts(ctx context.Context, tenant string) (firmFacts, [
 			nri++
 		}
 	}
-	nriFound, nriFrom := triUnknown, "Not known: no clients yet"
+	nriFound, nriFrom := triUnknown, "no clients yet"
 	if len(cl) > 0 {
 		nriFound, nriFrom = triOf(nri > 0), fmt.Sprintf("Your clients: %d NRI", nri)
 	}
@@ -286,7 +286,7 @@ func (o *Ops) firmProfileFacts(ctx context.Context, tenant string) (firmFacts, [
 	if n := cscrfName(p.CSCRF); n != "" {
 		cat.Value, cat.Known = n, true
 	} else {
-		cat.Value, cat.From = "Not known: answer it below", "Firm profile"
+		cat.Value = "Not known"
 	}
 	facts = append(facts, cat)
 	return f, facts

@@ -1,0 +1,58 @@
+/* Ledgerline console: circulars become cards (circulars.js). */
+
+/* the inbox of new circulars */
+.cc-inbox{margin:0 0 4px;padding:12px 14px;border-bottom:1px solid var(--line);display:grid;gap:8px}
+.cc-inbox-hd{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.cc-inbox-hd h3{margin:0;font-size:14px}
+.cc-inbox-hd p{margin:2px 0 0;font-size:13px;color:var(--ink2)}
+.cc-inbox-acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cc-ai{font-size:12.5px;color:var(--ink2)}
+.cc-ai.on{color:var(--accent)}
+.cc-q{font-size:12.5px}
+.cc-rows{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.cc-row{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);cursor:pointer}
+.cc-row:hover{border-color:var(--accent)}
+.cc-row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.cc-row-t,.cc-row-a{display:grid;gap:2px;min-width:0}
+.cc-row-t b{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cc-row small{color:var(--ink2);font-size:12px}
+.cc-row-a{grid-auto-flow:row;justify-items:start}
+.cc-row-n{font-size:12.5px;white-space:nowrap}
+.cc-why{max-width:260px;white-space:normal}
+
+/* the circular's window */
+.cc-md{display:grid;gap:10px}
+.cc-app{padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--sunk);display:grid;gap:6px}
+.cc-app.cc-applies{background:var(--good-soft);border-color:color-mix(in srgb,var(--good) 30%,transparent)}
+.cc-app.cc-unsure{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 30%,transparent)}
+.cc-app-h{font-size:13.5px}
+.cc-dec{display:grid;gap:6px;margin-top:2px}
+.cc-dec label{font-size:12.5px;color:var(--ink2)}
+.cc-aibox{padding:10px 12px;border-radius:8px;border:1px dashed color-mix(in srgb,var(--accent) 45%,transparent);display:grid;gap:4px;font-size:13px}
+.cc-aibox.off{border-color:var(--line);color:var(--ink2)}
+.cc-aibox-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.cc-props h3,.cc-h{margin:4px 0 6px;font-size:14px}
+.cc-prop-l{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.cc-prop{padding:10px 12px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;display:grid;gap:6px;background:var(--card)}
+.cc-prop-t{font-size:13.5px}
+.cc-ob-m{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--ink2);margin-top:3px}
+.cc-ob-m b{color:var(--ink)}
+.cc-upd{color:var(--bad);font-weight:600}
+.cc-steps{margin:2px 0 0;padding-left:20px;font-size:12.5px;color:var(--ink2)}
+.cc-done summary,.cc-add summary{cursor:pointer;font-size:13px;color:var(--accent);padding:4px 0}
+.cc-done ul{margin:4px 0 0;padding-left:18px;font-size:13px;display:grid;gap:4px}
+.cc-files a{color:var(--accent)}
+
+/* Settings: the firm profile */
+.fp-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.fp-fact{display:grid;gap:2px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sunk);font-size:13px}
+.fp-fact small{color:var(--ink2);font-size:12px}
+.fp-regs{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+.fp-regs legend{font-size:12.5px;color:var(--ink2);padding:0 4px}
+.fp-regs .in{flex:1 1 220px}
+
+@media (max-width:600px){
+  .cc-row{grid-template-columns:minmax(0,1fr)}
+  .cc-row-t b{white-space:normal}
+  .fp-facts{grid-template-columns:minmax(0,1fr)}
+}
