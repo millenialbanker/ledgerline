@@ -149,6 +149,7 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 		}
 		ctx := context.WithValue(r.Context(), keyTenant, tenant)
 		ctx = context.WithValue(ctx, keyActor, actor)
+		ctx = ingest.WithActor(ctx, actor) // who stored a file, for the malware scanner's audit entries
 		if mutating && s.ops != nil {
 			if _, err := s.ops.RoleOf(ctx, tenant, actor); err != nil {
 				fail(w, err, nil)
@@ -217,6 +218,8 @@ func fail(w http.ResponseWriter, err error, details any) {
 		writeErr(w, 409, "invalid_state", err.Error(), details)
 	case errors.Is(err, ingest.ErrRejected):
 		writeErr(w, 422, "file_rejected", err.Error(), details)
+	case errors.Is(err, ingest.ErrScanUnavailable):
+		writeErr(w, 503, "scanner_unavailable", err.Error(), details)
 	case errors.Is(err, ops.ErrForbidden):
 		writeErr(w, 403, "forbidden", err.Error(), details)
 	case errors.Is(err, docs.ErrStale):

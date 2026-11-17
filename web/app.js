@@ -2639,6 +2639,8 @@ function sealHTML(s) {
   return `<div class="panel"><div class="hd"><h3>Data protection</h3><small>${s.encrypted ? 'Encrypted' : 'Not encrypted'}</small></div><div class="bd">${head}
     ${s.encrypted ? `<div class="kv"><div><small>Encryption</small><b>${esc(s.cipher)}</b></div><div><small>Keys</small><b>${esc(s.key_source)}</b></div><div><small>Key version in use</small><b>${s.key_version}${s.key_versions.length > 1 ? ` (also holds ${s.key_versions.filter(v => v !== s.key_version).join(', ')} for older data)` : ''}</b></div></div>
     <div class="grid2" style="margin-top:10px"><div><small class="dim">Encrypted at rest</small><ul class="small">${s.covers.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div><div><small class="dim">Kept in clear (no personal data)</small><ul class="small">${s.in_clear.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>` : ''}
+    <h4 style="margin:14px 0 6px">Malware scanning of uploaded files ${s.malware_scan?.on ? pill('On', 'good') : pill('Off', 'warn')}</h4>
+    <p class="small" style="margin:0">${esc(s.malware_scan?.line || '')}</p>
     <h4 style="margin:14px 0 6px">Where data is kept and sent ${s.india_only ? pill('India-only mode on', 'good') : pill('India-only mode off', 'nt')}</h4>
     ${tbl([['What'], ['Where'], ['In India?'], ['Note']], (s.residency || []).map(r => `<tr><td>${esc(r.what)}</td><td>${esc(r.where)}</td><td>${{ india: pill('Yes', 'good'), outside: pill('No', 'bad'), none: pill('Nothing sent', 'nt'), check: pill('Check', 'warn') }[r.status] || ''}</td><td class="wrap dim">${esc(r.note || '')}</td></tr>`))}</div></div>`;
 }
