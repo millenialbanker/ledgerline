@@ -24,11 +24,15 @@ type RASRow struct {
 	SettlesOn  string    `json:"settles_on"`
 	Settled    bool      `json:"settled"`
 	Bank       string    `json:"bank"`
-	// Idle30: a credit balance with no transaction for 30 calendar days
-	// (NSE/INSP/53820, FAQ 2–4). It is returned within three working days
-	// of IdleFrom (by IdleDue), not on the monthly or quarterly date.
-	// LastActivity is the later of the last trade and the last funds
-	// received; a client with open positions or margin is not idle.
+	// Idle30: a credit balance with no transaction for 30 calendar days.
+	// Since SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/1 of 6 January 2025
+	// (NSE/INSP/66014) it is returned on the upcoming monthly settlement
+	// date of the exchanges' calendar, whatever the client chose (it was
+	// within three working days under NSE/INSP/53820). IdleFrom is when the
+	// 30 days are up; SettlesOn the monthly settlement on or after it and
+	// IdleDue the last day of that settlement's window. LastActivity is the
+	// later of the last trade and the last funds received; a client with
+	// open positions or margin is not idle.
 	Idle30       bool   `json:"idle_30,omitempty"`
 	LastActivity string `json:"last_activity,omitempty"`
 	IdleFrom     string `json:"idle_from,omitempty"`
@@ -42,8 +46,28 @@ type RASRow struct {
 // rasIdleDays is the rule's period without a transaction: 30 calendar days.
 const rasIdleDays = 30
 
-// rasIdleWorkingDays is how many working days the broker then has.
+// rasIdleWorkingDays: the old three working days (NSE/INSP/53820), used
+// only when the RAS calendar has no monthly date left.
 const rasIdleWorkingDays = 3
+
+// idleRASDates are when an idle credit balance is settled and by when:
+// the upcoming monthly settlement (the day the firm runs it, and the last
+// day of its Friday/Saturday window) on or after the day the 30 days are
+// up (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/1).
+func idleRASDates(set Settings, prof ComplianceProfile, from string) (settle, due string) {
+	if r, ok := prof.rasWindow(RASKindMonthly, from); ok {
+		settle = r.RunOn
+		if settle < from {
+			settle = r.Last()
+		}
+		return settle, r.Last()
+	}
+	if set.RASMonthly >= from {
+		return set.RASMonthly, set.RASMonthly
+	}
+	d := addWorkingDays(set, from, rasIdleWorkingDays) // no calendar left: add the next year's
+	return d, d
+}
 
 // addWorkingDays is the n-th business day after date.
 func addWorkingDays(set Settings, date string, n int) string {
@@ -55,7 +79,7 @@ func addWorkingDays(set Settings, date string, n int) string {
 }
 
 // lastFundsIn is each client's last receipt of funds: fresh funds restart
-// the 30 days (NSE/INSP/53820, FAQ 2).
+// the 30 days (NSE/INSP/53820, FAQ 2; SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/1).
 func (o *Ops) lastFundsIn(ctx context.Context, tenant, asOf string) map[string]string {
 	out := map[string]string{}
 	rs, _ := o.Receipts(ctx, tenant)
@@ -133,9 +157,10 @@ func (o *Ops) lastTrades(ctx context.Context, tenant string) (map[string]string,
 // credit balance are paid out the excess over their retention (margin
 // requirement plus the configured buffer). Monthly clients settle on the
 // monthly date and quarterly clients on the quarterly date. A client with
-// a credit balance and no transaction for 30 calendar days is settled
-// within three working days, whatever their choice (NSE/INSP/53820): such
-// a row is included in any settlement run from IdleFrom on.
+// a credit balance and no transaction for 30 calendar days is settled on
+// the upcoming monthly date, whatever their choice
+// (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/1): such a row is included in any
+// settlement run from IdleFrom on.
 func (o *Ops) RAS(ctx context.Context, tenant, asOf string) (RASView, error) {
 	set, err := o.Settings(ctx, tenant)
 	if err != nil {
@@ -174,6 +199,7 @@ func (o *Ops) RAS(ctx context.Context, tenant, asOf string) (RASView, error) {
 		idleDays = set.InactiveDays
 	}
 	funds := o.lastFundsIn(ctx, tenant, asOf)
+	prof := o.CompProfile(ctx, tenant)
 	for _, r := range risk.Rows {
 		// The client as a whole: with a separate commodity ledger, every
 		// ledger's money against every segment's margin.
@@ -199,7 +225,6 @@ func (o *Ops) RAS(ctx context.Context, tenant, asOf string) (RASView, error) {
 		if required.Sign() <= 0 && row.LastActivity != "" && int64(daysBetween(row.LastActivity, asOf)) >= idleDays {
 			row.Idle30, row.Inactive = true, true
 			row.IdleFrom = addDays(row.LastActivity, int(idleDays))
-			row.IdleDue = addWorkingDays(set, row.IdleFrom, rasIdleWorkingDays)
 		}
 		row.Retention = required.Pct(money.DecInt(100 + set.RASBufferPct)).CeilRupee()
 		if r.Ledgers != nil {
@@ -213,7 +238,7 @@ func (o *Ops) RAS(ctx context.Context, tenant, asOf string) (RASView, error) {
 		row.Inactive = row.Inactive || row.LastActivity == ""
 		switch {
 		case row.Idle30:
-			row.SettlesOn = row.IdleDue
+			row.SettlesOn, row.IdleDue = idleRASDates(set, prof, row.IdleFrom)
 			row.Settled = lastDone[r.UCC] >= row.IdleFrom
 		case row.Inactive || c.RAS == "Monthly":
 			row.SettlesOn = set.RASMonthly
@@ -230,7 +255,7 @@ func (o *Ops) RAS(ctx context.Context, tenant, asOf string) (RASView, error) {
 
 // dueIn says whether a row is settled by a run for settleDate: its own
 // settlement date, or, for an idle credit balance, any run from the day
-// the 30 days are up (the earlier the better; the deadline is IdleDue).
+// the 30 days are up (the deadline is IdleDue, the monthly settlement).
 func (r RASRow) dueIn(settleDate string) bool {
 	if r.Settled {
 		return false
@@ -241,15 +266,15 @@ func (r RASRow) dueIn(settleDate string) bool {
 	return r.SettlesOn == settleDate
 }
 
-// IdleRASDue lists the idle credit balances to return as of date, and
-// those past their three-working-day deadline.
+// IdleRASDue lists the idle credit balances to return as of date (their
+// monthly settlement has come), and those past its window.
 func (o *Ops) IdleRASDue(ctx context.Context, tenant, date string) (due, overdue []RASRow, err error) {
 	v, err := o.RAS(ctx, tenant, date)
 	if err != nil {
 		return nil, nil, err
 	}
 	for _, r := range v.Rows {
-		if r.Idle30 && r.dueIn(date) && r.Payout.Round(money.UnitPaisa) > 0 {
+		if r.Idle30 && r.dueIn(date) && date >= r.SettlesOn && r.Payout.Round(money.UnitPaisa) > 0 {
 			due = append(due, r)
 			if date > r.IdleDue {
 				overdue = append(overdue, r)
@@ -271,7 +296,7 @@ func queueIdleRAS(r *runCtx, date string, due []RASRow) {
 		}
 	}
 	r.queue("ras30:"+date, fmt.Sprintf("Return idle credit balances of %d clients (no transaction for 30 days)", len(due)),
-		fmt.Sprintf("₹%s to %d clients who have not transacted for 30 days must be returned within three working days (the first by %s), not on the next settlement date (NSE/INSP/53820). Approving settles them and sends each the settlement statement.", formatINR(total), len(due), fmtDay(first)),
+		fmt.Sprintf("₹%s to %d clients who have not transacted for 30 days is returned on the monthly settlement date (the first by %s), whatever each chose (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/1). Approving settles them and sends each the settlement statement.", formatINR(total), len(due), fmtDay(first)),
 		"", RoleChecker, "ras", first+" 17:00", &Proposal{Kind: "ras.settle", Label: "Settle and pay out", Args: map[string]string{"date": date}})
 }
 

@@ -47,7 +47,7 @@ related: self-inspection, self-inspection-exceptions
 Each test reuses the check Ledgerline already makes on its own screen. 21 are real; 1 waits for data.
 
 - **Client money fully covered** (high): the segregation check; SEBI/HO/MIRSD/MIRSD2/CIR/P/2016/95 of 26 September 2016, para 3.3.1.
-- **Running accounts settled on each client's chosen date** (high): SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197 of 28 December 2023 and the exchanges' joint calendar; idle balances within three working days of 30 days (NSE/INSP/53820, to confirm).
+- **Running accounts settled on each client's chosen date** (high): SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197 of 28 December 2023 and the exchanges' joint calendar; idle balances returned on the upcoming monthly settlement date (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/1 of 6 January 2025).
 - **Unpaid securities kept within 2.25 × (margin − ledger)** (medium), **Notice given before invoking** (high), **Nothing kept past the 6th trading day** (medium): SEBI HO/38/11/(9)2026-MIRSD-POD/I/15382/2026 of 3 July 2026 and NSE circular 41/2026 (NSE/INSP/75508) of 31 July 2026.
 - **Margin penalties worked out, and passed to clients only where allowed** (high): NSE/INSP/64315 of 1 October 2024 (dishonoured cheque, or a hedge break disclosed in the risk policy).
 - **Contract notes sent within 24 hours** (high): the investor charter (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/22 of 21 February 2025).

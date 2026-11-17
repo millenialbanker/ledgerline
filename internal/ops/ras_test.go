@@ -6,9 +6,10 @@ import (
 	"ledgerline/internal/money"
 )
 
-// A credit balance with no transaction for 30 calendar days is returned
-// within three working days, not on the next settlement date
-// (NSE/INSP/53820), under the RAS policy and its checker approval.
+// A credit balance with no transaction for 30 calendar days is returned on
+// the upcoming monthly settlement date of the exchanges' calendar, whatever
+// the client chose (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/1), under the RAS
+// policy and its checker approval.
 func TestRASIdle30(t *testing.T) {
 	o, ctx := setup(t)
 	set, _ := o.Settings(ctx, T)
@@ -29,8 +30,21 @@ func TestRASIdle30(t *testing.T) {
 		t.Fatalf("sample day has %d idle credit balances", len(idle))
 	}
 	x := idle[0]
-	if x.IdleFrom != addDays(x.LastActivity, 30) || x.IdleDue != addWorkingDays(set, x.IdleFrom, 3) || x.SettlesOn != x.IdleDue || x.SettlesOn == set.RASMonthly {
-		t.Fatalf("dates: %+v", x)
+	prof := o.CompProfile(ctx, T)
+	win, ok := prof.rasWindow(RASKindMonthly, x.IdleFrom)
+	if !ok || x.IdleFrom != addDays(x.LastActivity, 30) || x.IdleDue != win.Last() || x.SettlesOn != win.RunOn {
+		t.Fatalf("dates: %+v (monthly window %+v)", x, win)
+	}
+	// The upcoming monthly settlement of the FY 2026-27 calendar: the
+	// Friday the firm settles, due by the end of the Friday/Saturday window.
+	for _, c := range []struct{ from, settle, due string }{
+		{"2026-10-20", "2026-11-06", "2026-11-07"},
+		{"2026-11-07", "2026-11-07", "2026-11-07"}, // the 30 days end on the Saturday
+		{"2026-11-08", "2026-12-04", "2026-12-05"},
+	} {
+		if s, d := idleRASDates(set, prof, c.from); s != c.settle || d != c.due {
+			t.Errorf("idle from %s: settle %s due %s, want %s %s", c.from, s, d, c.settle, c.due)
+		}
 	}
 	// Fresh funds restart the 30 days.
 	y := idle[1]

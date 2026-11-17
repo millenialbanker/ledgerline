@@ -12,6 +12,8 @@ import (
 func (s *Server) complianceCalendarRoutes(R func(string, http.HandlerFunc, bool)) {
 	R("GET /v1/compliance/profile", s.compProfile, false)
 	R("PUT /v1/compliance/profile", s.saveCompProfile, true)
+	R("GET /v1/duties/sheet", s.dutySheet, false)
+	R("POST /v1/duties/{id}/events", s.dutyEvent, true)
 	R("GET /v1/holding-api/bse", s.bseHoldingView, false)
 	R("POST /v1/holding-api/bse", s.bseHoldingUploaded, true)
 }
@@ -27,6 +29,35 @@ func (s *Server) saveCompProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.SaveCompProfile(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+// dutySheet is the month's compliance sheet (?month=YYYY-MM), as JSON or,
+// with format=csv, as a file.
+func (s *Server) dutySheet(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	v, err := s.ops.DutySheetFor(r.Context(), tenant(r), actor(r), q.Get("month"), q.Get("date"))
+	if err == nil && q.Get("format") == "csv" {
+		sendFile(w, "compliance-sheet-"+v.Month+".csv", "text/csv; charset=utf-8", v.CSV())
+		return
+	}
+	ok(w, v, err)
+}
+
+// dutyEvent records that something happened that an event-driven duty
+// must answer.
+func (s *Server) dutyEvent(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		ops.DutyEventReq
+		On string `json:"on"` // the business date (today)
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if _, okd := dateParam(w, b.On, "on", false); !okd {
+		return
+	}
+	v, err := s.ops.RecordDutyEvent(r.Context(), tenant(r), actor(r), b.On, r.PathValue("id"), b.DutyEventReq)
 	ok(w, v, err)
 }
 

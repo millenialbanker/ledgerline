@@ -654,8 +654,40 @@ type Duty struct {
 	Filing  string `json:"filing,omitempty"`  // where it is filed, for this firm
 	Warning string `json:"warning,omitempty"` // something to fix before it can be done
 	NextDue string `json:"next_due,omitempty"`
+	DueAt   string `json:"due_at,omitempty"` // the time on NextDue, for an event due in hours
 	Period  string `json:"period,omitempty"`
 	Overdue bool   `json:"overdue,omitempty"`
+
+	// From the calendar's catalogue (compduties.go), applied when the
+	// calendar is read: the group, the deadline in the circular's words,
+	// who it applies to, where it is filed, the circulars, their steps (or
+	// the usual practice), how it is done and whether by API, and what in
+	// Ledgerline does it.
+	Group       string    `json:"group,omitempty"`
+	DueText     string    `json:"due_text,omitempty"`
+	EventWithin string    `json:"event_within,omitempty"`
+	Applies     []string  `json:"applies,omitempty"`
+	FiledWith   string    `json:"filed_with,omitempty"`
+	Refs        []DutyRef `json:"refs,omitempty"`
+	Steps       []string  `json:"steps,omitempty"`
+	StepsFrom   string    `json:"steps_from,omitempty"`
+	Practice    []string  `json:"practice,omitempty"`
+	How         string    `json:"how,omitempty"`
+	API         *DutyAPI  `json:"api,omitempty"`
+	Link        *DutyLink `json:"ledgerline,omitempty"`
+	Changed     string    `json:"changed,omitempty"`
+	Items       []string  `json:"items,omitempty"`
+	// Custom: the compliance officer changed the title, due rule, owner or
+	// evidence; the catalogue no longer replaces them.
+	Custom     bool            `json:"custom,omitempty"`
+	Events     []DutyEvent     `json:"events,omitempty"`
+	Extensions []DutyExtension `json:"extensions,omitempty"`
+	// Worked out when listed: whether it applies to the firm, the latest
+	// result of the self-inspection test that checks it, and where it
+	// stands in words.
+	Applicability *Applicability `json:"applicability,omitempty"`
+	Check         *DutyCheck     `json:"check,omitempty"`
+	Status        string         `json:"status,omitempty"`
 }
 
 // DutyRun is one time it was done.
@@ -715,6 +747,9 @@ var dutyTasks = map[string]string{"OB-RAS": "ras", "OB-RAS-M": "ras"}
 // retiredDuty: duties for returns that were discontinued are switched off
 // once, with a note (the weekly client funds monitoring return, NSE/INSP/61121).
 func retiredDuty(d Duty) (string, bool) {
+	if strings.HasPrefix(d.ID, "CC-") {
+		return "", false // the catalogue says itself what is discontinued
+	}
 	t := strings.ToLower(d.Title)
 	if d.Task == "es_return" || strings.Contains(t, "client funds monitoring") || strings.Contains(t, "enhanced supervision") {
 		return "Discontinued from 18 March 2024 (NSE/INSP/61121)", true
@@ -800,6 +835,17 @@ func (o *Ops) Duties(ctx context.Context, tenant, date string) ([]Duty, error) {
 	if ok, _ := bseHoldingApplies(set, date); ok {
 		defs = append(defs, bseHoldingDuty())
 	}
+	// The calendar's catalogue: its CC- duties are seeded like the
+	// defaults; its text (circulars, steps, how it is done) is applied to
+	// those and to the OB- duties it describes when the calendar is read.
+	cat, _ := dutyCatalogue()
+	catByID := map[string]DutyDef{}
+	for _, d := range cat.Duties {
+		catByID[d.ID] = d
+		if strings.HasPrefix(d.ID, "CC-") {
+			defs = append(defs, d.seed(date))
+		}
+	}
 	for _, x := range defs {
 		i, ok := have[x.ID]
 		if !ok {
@@ -842,10 +888,33 @@ func (o *Ops) Duties(ctx context.Context, tenant, date string) ([]Duty, error) {
 		}
 		return false
 	}
+	var facts firmFacts
+	var checks map[string]DutyCheck
+	if len(catByID) > 0 {
+		nri := false
+		for _, d := range cat.Duties {
+			for _, n := range d.Applies {
+				nri = nri || strings.Contains(n, "nri")
+			}
+		}
+		facts, _ = o.firmProfileFactsOpt(ctx, tenant, nri)
+		checks = o.siLatest(ctx, tenant, date)
+	}
 	for i := range obs {
 		x := &obs[i]
 		if x.Done == nil {
 			x.Done = []DutyRun{}
+		}
+		if d, ok := catByID[x.ID]; ok {
+			d.overlay(x)
+		}
+		if len(x.Applies) > 0 {
+			a := dutyApplies(x.Applies, facts)
+			x.Applicability = &a
+			if a.Verdict == ApplyNo {
+				x.NextDue, x.Period, x.DueAt, x.Overdue = "", "", "", false
+				continue
+			}
 		}
 		if x.Shared {
 			x.Filing = sharedFilingNote(set)
@@ -896,28 +965,19 @@ func (o *Ops) Duties(ctx context.Context, tenant, date string) ([]Duty, error) {
 			x.Overdue = x.Active && x.NextDue != "" && x.NextDue < date
 			continue
 		}
-		rule := resolveRule(x.Rule, prof)
 		// The next due is the earliest one not yet done, which may be past.
-		from := addDays(date, -120)
-		if x.Since > from {
-			from = x.Since
+		dueDuty(set, prof, x, date)
+		if x.Link != nil && x.Link.Check != "" {
+			// Ledgerline's nightly self-inspection checks it: a pass on a
+			// recent run leaves nothing to chase; a failure is on the
+			// Self-inspection board.
+			if c, ok := checks[x.Link.Check]; ok {
+				x.Check = &c
+				if c.Status == SIPass && c.Date >= addDays(date, -4) {
+					x.NextDue, x.Period, x.DueAt, x.Overdue = "", "", "", false
+				}
+			}
 		}
-		for k := 0; k < 30; k++ {
-			d, p := nextDue(rule, from)
-			if d == "" {
-				break
-			}
-			done := false
-			for _, r := range x.Done {
-				done = done || r.Period == p
-			}
-			if !done {
-				x.NextDue, x.Period = d, p
-				break
-			}
-			from = addDays(d, 1)
-		}
-		x.Overdue = x.Active && x.NextDue != "" && x.NextDue < date
 		if x.Task == "" {
 			x.Task = dutyTasks[x.ID]
 		}
@@ -929,6 +989,9 @@ func (o *Ops) Duties(ctx context.Context, tenant, date string) ([]Duty, error) {
 				x.NextDue, x.Overdue = "", false
 			}
 		}
+	}
+	for i := range obs {
+		obs[i].Status = dutyStatus(obs[i], date)
 	}
 	sort.SliceStable(obs, func(i, j int) bool { return obs[i].NextDue < obs[j].NextDue })
 	return obs, nil
@@ -953,8 +1016,24 @@ func (o *Ops) bseHoldingDue(ctx context.Context, tenant string, set Settings, da
 	}
 }
 
+// DutyDoneReq is what DoneDutyFor records.
+type DutyDoneReq struct {
+	Evidence string `json:"evidence"`
+	// All: a duty due every day is marked done for every day still open
+	// up to the date, with the same evidence.
+	All bool `json:"all,omitempty"`
+}
+
 // DoneDuty records an obligation met for its current period.
 func (o *Ops) DoneDuty(ctx context.Context, tenant, actor, date, id, evidence string) (Duty, error) {
+	return o.DoneDutyFor(ctx, tenant, actor, date, id, DutyDoneReq{Evidence: evidence})
+}
+
+// DoneDutyFor records an obligation met: for its current period, every
+// open day of a daily duty (All), the open event of an event-driven duty,
+// a one-time duty, or one done as and when required.
+func (o *Ops) DoneDutyFor(ctx context.Context, tenant, actor, date, id string, req DutyDoneReq) (Duty, error) {
+	evidence := req.Evidence
 	obs, err := o.Duties(ctx, tenant, date)
 	if err != nil {
 		return Duty{}, err
@@ -984,17 +1063,70 @@ func (o *Ops) DoneDuty(ctx context.Context, tenant, actor, date, id, evidence st
 		}
 		return *x, nil
 	}
-	if x.NextDue == "" {
-		return *x, fmt.Errorf("%w: nothing is due on this duty now", ErrState)
+	if x.Applicability != nil && x.Applicability.Verdict == ApplyNo {
+		return *x, fmt.Errorf("%w: this doesn't apply to the firm (%s); change the firm profile if that is wrong", ErrState, x.Applicability.Reason)
 	}
-	run := DutyRun{Period: x.Period, Due: x.NextDue, At: o.now().Format(time.RFC3339), By: actor, Evidence: strings.TrimSpace(evidence), Late: date > x.NextDue}
+	now, ev := o.now().Format(time.RFC3339), strings.TrimSpace(evidence)
+	var runs []DutyRun
+	event := ""
+	switch {
+	case x.Rule == "AUTO":
+		return *x, fmt.Errorf("%w: Ledgerline does this by itself; nothing to mark", ErrState)
+	case x.Rule == "ASNEEDED":
+		runs = []DutyRun{{Period: date, At: now, By: actor, Evidence: ev}}
+	case x.Rule == "EVENT":
+		if !strings.HasPrefix(x.Period, "event ") {
+			return *x, fmt.Errorf("%w: record what happened first (Record an event), then mark it done", ErrState)
+		}
+		event = strings.TrimPrefix(x.Period, "event ")
+		runs = []DutyRun{{Period: x.Period, Due: x.NextDue, At: now, By: actor, Evidence: ev, Late: date > x.NextDue}}
+	case x.Period == "once" && x.NextDue == "":
+		runs = []DutyRun{{Period: "once", At: now, By: actor, Evidence: ev}}
+	case x.NextDue == "":
+		return *x, fmt.Errorf("%w: nothing is due on this duty now", ErrState)
+	case req.All && dailyRule(x.Rule):
+		// Every day still open, oldest first, up to today.
+		set, _ := o.Settings(ctx, tenant)
+		from := addDays(date, -dutyLookback(x.Rule))
+		if x.Since > from {
+			from = x.Since
+		}
+		done := map[string]bool{}
+		for _, r := range x.Done {
+			done[r.Period] = true
+		}
+		for _, oc := range dutyOccurrences(set, o.CompProfile(ctx, tenant), x.Rule, from, addDays(date, 31), 400) {
+			if oc.Period > date {
+				break
+			}
+			if !done[oc.Period] {
+				runs = append(runs, DutyRun{Period: oc.Period, Due: oc.Due, At: now, By: actor, Evidence: ev, Late: date > oc.Due})
+			}
+		}
+		if len(runs) == 0 {
+			return *x, fmt.Errorf("%w: nothing is open on this duty up to %s", ErrState, fmtDay(date))
+		}
+	default:
+		runs = []DutyRun{{Period: x.Period, Due: x.NextDue, At: now, By: actor, Evidence: ev, Late: date > x.NextDue}}
+	}
 	saved, err := docs.Update(ctx, o.Docs, tenant, cObligation, id, actor, func(y *Duty) error {
-		y.Done = append(y.Done, run)
+		y.Done = append(y.Done, runs...)
+		for i := range y.Events {
+			if y.Events[i].ID == event && y.Events[i].Done == nil {
+				r := runs[0]
+				y.Events[i].Done = &r
+			}
+		}
 		return nil
 	})
 	if err == nil {
-		o.log(ctx, tenant, actor, "obligation.done", id, map[string]any{"period": run.Period, "late": run.Late})
-		o.closeWork(ctx, tenant, actor, "compliance", id+"|"+run.Period, "done")
+		for _, run := range runs {
+			o.log(ctx, tenant, actor, "obligation.done", id, map[string]any{"period": run.Period, "late": run.Late})
+			o.closeWork(ctx, tenant, actor, "compliance", id+"|"+run.Period, "done")
+		}
+		if dailyRule(x.Rule) {
+			o.closeWork(ctx, tenant, actor, "compliance", "daily|"+date, "done")
+		}
 	}
 	return saved, err
 }
@@ -1007,8 +1139,11 @@ func (o *Ops) SaveDuty(ctx context.Context, tenant, actor string, x Duty) (Duty,
 	if strings.TrimSpace(x.Title) == "" || !contains([]string{RoleMaker, RoleChecker, RoleRisk, RoleCompliance, RoleAdmin}, x.Role) {
 		return x, invalid("an obligation needs a title and an owner role")
 	}
-	if d, _ := nextDue(x.Rule, "2026-01-01"); d == "" && !contains(dutyRules, x.Rule) {
-		return x, invalid("due rule must be D07 (day of next month), MM-DD dates such as 05-15,11-15, RASM or RASQ (the exchanges' monthly or quarterly RAS dates), NETWORTH, SYSPLAN, SYSPRELIM, SYSATR or DAILY")
+	if !validDutyRule(x.Rule) {
+		return x, invalid("due rule must be D07 (day of next month), MM-DD dates such as 05-15,11-15, RASM or RASQ (the exchanges' monthly or quarterly RAS dates), RAS+10 (trading days after each settlement), AUTO (Ledgerline does it by itself), TDAY or TDAY+1 (each trading day, due then or N trading days later), WEEK+3 or WEEKEND, FORTNIGHT, MEND, NETWORTH, SYSPLAN, SYSPRELIM, SYSATR, DAILY, EVENT (with how soon after it: 0, 6h, 1wd, 7d), ONCE or ONCE:YYYY-MM-DD, or ASNEEDED")
+	}
+	if (x.Rule == "EVENT") != (x.EventWithin != "") || (x.EventWithin != "" && !reEventWithin.MatchString(x.EventWithin)) {
+		return x, invalid("an event-driven duty says how soon it is due after the event: 0 (the same day), 6h, 1wd (the next working day), 7d …")
 	}
 	if x.ID == "" {
 		n, err := o.next(ctx, tenant, "obligation", actor)
@@ -1019,8 +1154,19 @@ func (o *Ops) SaveDuty(ctx context.Context, tenant, actor string, x Duty) (Duty,
 	}
 	old, _, err := docs.Get[Duty](ctx, o.Docs, tenant, cObligation, x.ID)
 	if err == nil {
-		x.Done, x.Shared = old.Done, old.Shared
+		x.Done, x.Shared, x.Events = old.Done, old.Shared, old.Events
 	}
+	// A default or catalogue duty changed by the compliance officer keeps
+	// their version of the title, rule, owner and evidence.
+	cat, _ := dutyCatalogue()
+	for _, d := range cat.Duties {
+		x.Custom = x.Custom || d.ID == x.ID
+	}
+	for _, d := range DefaultDuties() {
+		x.Custom = x.Custom || d.ID == x.ID
+	}
+	// Worked out when listed, not kept.
+	x.Applicability, x.Check, x.Status, x.DueAt = nil, nil, "", ""
 	// A saved duty keeps the person's version: defaults are not applied to it again.
 	x.Rev, x.Filing, x.Warning, x.NextDue, x.Period, x.Overdue = dutyRev, "", "", "", "", false
 	if x.Done == nil {
@@ -1054,11 +1200,28 @@ func autoCompliance(r *runCtx) error {
 	if err != nil {
 		return err
 	}
+	var daily []string
+	dailyRole := ""
 	for _, x := range obs {
 		if !x.Active || x.NextDue == "" || daysBetween(r.date, x.NextDue) > 7 || x.Task != "" { // Periodic work chases its own
 			continue
 		}
-		r.queue(x.ID+"|"+x.Period, x.Title+" · due "+fmtDay(x.NextDue), "Keep: "+x.Evidence+". Mark it done on Circulars & calendar.", "", x.Role, "circulars", x.NextDue+" 18:00", nil)
+		if dailyRule(x.Rule) {
+			// The day's checks go in one item, not one each.
+			if x.NextDue <= r.date {
+				daily = append(daily, x.Title)
+				if dailyRole == "" || x.Role == RoleCompliance {
+					dailyRole = x.Role
+				}
+			}
+			continue
+		}
+		when := x.NextDue + " " + firstOf(x.DueAt, "18:00")
+		r.queue(x.ID+"|"+x.Period, x.Title+" · due "+fmtDay(x.NextDue), "Keep: "+x.Evidence+". Mark it done on Circulars & calendar.", "", x.Role, "circulars", when, nil)
+	}
+	if len(daily) > 0 {
+		sort.Strings(daily)
+		r.queue("daily|"+r.date, fmt.Sprintf("Daily compliance checks · %d open", len(daily)), "Do and mark done on Circulars & calendar → Compliance calendar (Daily): "+strings.Join(daily, "; ")+".", "", dailyRole, "circulars", r.date+" 18:00", nil)
 	}
 	cs, err := r.o.Circulars(r.ctx, r.tenant)
 	if err != nil {
