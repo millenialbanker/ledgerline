@@ -6,7 +6,7 @@ Ledgy help articles: CDSL's APIs for demat accounts (opening, modification, acti
 title: CDSL APIs: demat accounts
 screen: cdslreq
 roles: Ops maker, Ops checker, Compliance officer, Admin
-ask: cdsl api; open demat account through api; bo setup file; bo modify file; cdsl upload file format; 08 file; 11 file; joint holder died; delete name of deceased holder; cdsl signature upload file; cdsl closure upload file; bo online; bo id not received; bo setup upload; bo modify upload; send change to cdsl; cdsl request failed; retry cdsl request; account transfer cum closure; close demat account through cdsl; client did not get otp from cdsl; add beneficiary; off market beneficiary; buyer seller link; active demat account count; how many demat accounts for this pan; bo defaults; do in cdas
+ask: cdsl api; open demat account through api; bo setup file; bo modify file; bsda change to cdsl; bsda review file; rsnbsdamod; cdsl upload file format; 08 file; 11 file; joint holder died; delete name of deceased holder; cdsl signature upload file; cdsl closure upload file; bo online; bo id not received; bo setup upload; bo modify upload; send change to cdsl; cdsl request failed; retry cdsl request; account transfer cum closure; close demat account through cdsl; client did not get otp from cdsl; add beneficiary; off market beneficiary; buyer seller link; active demat account count; how many demat accounts for this pan; bo defaults; do in cdas
 related: dp-requests, dis, change-contact
 
 Every call the DP makes to CDSL about a demat account is a **CDSL request**, on [[cdslreq|CDSL requests]] (Depository). Each request shows its status, CDSL's reference, what was sent and CDSL's answers. A checker who did not raise a request approves it before anything goes to CDSL.
@@ -38,6 +38,7 @@ Then switch each API family on once it has passed CDSL's mock testing. CDSL acce
 - An approved change of email, mobile, address, bank account or nomination on a CDSL account raises a **Modify account** request with its BO modify file already made. The file carries only what changed; a field that becomes blank (an address line no longer used) is sent as '@' to the field's length, as CDSL asks.
 - A nomination change modifies the nominees that stay, adds new ones and deletes those removed, and sets the nomination opt-out.
 - A checker approves it; the file is uploaded and Ledgerline asks CDSL for its status until it is processed. CDSL's response file is kept with the request; open it for each account's result.
+- **BSDA review.** When a checker applies the quarterly BSDA review, each changed CDSL account gets a **Modify account** request whose file carries only the BSDA flag (and, in the CSV, CDSL's reason: VHCPL for holdings above the limit, BOHMA for a holder with another demat account, DFT for a conversion to BSDA). The checker who applied the review is its approver, so with the BO API on each request goes to CDSL at once. With it off, the review keeps one BO modify file of all its CDSL accounts for upload in CDAS, and a work item asks for it.
 - A **BO setup file** made for a client goes the same way. When CDSL has processed it, record the new BO ID from CDSL's response file with **Record BO ID**.
 
 **Deceased joint holder.** **Deceased holder** deletes the name of a joint holder who died within the last 365 days (older deaths go through transmission):

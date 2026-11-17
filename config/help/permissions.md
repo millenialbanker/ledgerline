@@ -267,6 +267,7 @@ Sending early pay-ins | Ops checker
 Sending legacy debt reminders | Ops maker, Ops checker, Risk manager, Compliance officer
 Sending statements | Ops maker, Ops checker
 Sending stock SIP orders to the OMS | Ops maker, Ops checker, Risk manager
+Sending the DIS master to CDSL | Ops maker, Ops checker
 Sending year-end packs | Ops maker, Ops checker, Compliance officer
 Setting CDSL account defaults | Ops checker
 Setting a client's default ledger | Ops checker, Risk manager

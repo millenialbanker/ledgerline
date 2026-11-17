@@ -43,6 +43,10 @@ type boLine struct {
 	No     int
 	Who    string // for problems: "Holder", "Nominee 1"…
 	V      map[string]string
+	// H are values only the harmonised upload carries, by ISO tag (the
+	// reason for a BSDA change); the fixed-width file has no place for
+	// them and leaves them out.
+	H map[string]string
 }
 
 // boFile is a whole upload file.

@@ -845,7 +845,13 @@ func (o *Ops) cdslModifyFile(ctx context.Context, tenant, actor string, x cdslCo
 }
 
 func (o *Ops) cdslWriteModify(ctx context.Context, tenant, actor string, x cdslConn, def map[string]string, rec []boLine, probs, warns []string) (string, []byte, []string, []string, error) {
-	file := boFile{Prefix: "11", DPID: x.DPID, Operator: boOperator(def, x), Records: [][]boLine{rec}}
+	return o.cdslWriteModifies(ctx, tenant, actor, x, def, [][]boLine{rec}, probs, warns)
+}
+
+// cdslWriteModifies writes BO modify records as one file, in the firm's
+// BO upload format.
+func (o *Ops) cdslWriteModifies(ctx context.Context, tenant, actor string, x cdslConn, def map[string]string, recs [][]boLine, probs, warns []string) (string, []byte, []string, []string, error) {
+	file := boFile{Prefix: "11", DPID: x.DPID, Operator: boOperator(def, x), Records: recs}
 	if file.Operator == "" {
 		probs = append(probs, "set the CDAS operator ID for upload files in the BO defaults")
 	}
@@ -1119,6 +1125,10 @@ func (o *Ops) cdslRegenerate(ctx context.Context, tenant, actor string, x cdslCo
 			return err
 		}
 		o.cdslPutFile(ctx, tenant, actor, r, "Holder deletion", m.name, m.data, m.probs, m.warns, nil)
+		return nil
+	}
+	if r.Fields["bsda"] != "" { // from a BSDA review (bsda.go)
+		o.cdslBSDAFill(ctx, tenant, actor, x, r)
 		return nil
 	}
 	switch r.Kind {

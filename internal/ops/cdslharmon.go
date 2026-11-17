@@ -604,6 +604,9 @@ func cdslBOUploadRows(in boCSVIn) ([]xfile.Row, []string) {
 				if acct["BnfcryAcctCtgy"] == "" && l.V["bo_category"] != "" {
 					acct["BnfcryAcctCtgy"] = l.V["bo_category"]
 				}
+				for k, v := range l.H {
+					acct[k] = v
+				}
 			case "06":
 				v := map[string]string{"Purpse": "POALB"}
 				put(v, l, boCSVPOA)
