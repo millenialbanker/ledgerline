@@ -88,6 +88,11 @@ type BOAccount struct {
 	// up to, for a plan that bills it a year in advance.
 	Plans       []DPPlanAt `json:"plans,omitempty"`
 	AMCPaidUpto string     `json:"amc_paid_upto,omitempty"`
+	// HolderDeceased: the client is reported deceased by the KRA, so
+	// nothing leaves the account until transmission (deceased.go). It is
+	// worked out when the account is read for a client (boFor), never
+	// stored, so finding the intimation false lifts it.
+	HolderDeceased string `json:"-"`
 }
 
 // BOCDSL is the account as CDSL's client master (CLN_MSTR) shows it.
@@ -158,6 +163,9 @@ func (b BOAccount) freezeFor() string {
 		add(firstOf(b.Freeze, "Both"))
 	}
 	add(b.CDSLFreeze)
+	if b.HolderDeceased != "" {
+		add("Debit")
+	}
 	switch {
 	case d && c:
 		return "Both"
@@ -184,6 +192,9 @@ func (b BOAccount) freezeWhy() string {
 	}
 	if b.CDSLFreeze != "" {
 		why = append(why, firstOf(b.CDSLFreezeWhy, "frozen at CDSL"))
+	}
+	if b.HolderDeceased != "" {
+		why = append(why, b.HolderDeceased)
 	}
 	return firstOf(strings.Join(why, "; "), "frozen")
 }

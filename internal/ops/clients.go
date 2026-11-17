@@ -172,6 +172,13 @@ type Client struct {
 	// with them as they were. They are completed before the client may be
 	// reactivated; see incomplete.go.
 	Incomplete []string `json:"incomplete,omitempty"`
+	// MNRL: the client's registered mobile, or a joint holder's, is on
+	// DoT's Mobile Number Revocation List; SMS and WhatsApp to the number
+	// are held until the match is cleared (mnrl.go).
+	MNRL []MNRLFlag `json:"mnrl,omitempty"`
+	// Deceased: the KRA reported the client as deceased; debits (payouts,
+	// demat debits, orders) are blocked until transmission (deceased.go).
+	Deceased *DeceasedFlag `json:"deceased,omitempty"`
 }
 
 var (
@@ -484,6 +491,10 @@ func (o *Ops) SetBlocked(ctx context.Context, tenant, actor, ucc string, blocked
 		if x.Status != "Active" {
 			return fmt.Errorf("%w: only active clients can be blocked", ErrState)
 		}
+		if x.Deceased != nil && !blocked {
+			// Lifted only when the intimation is found false (deceased.go).
+			return fmt.Errorf("%w: %s; the block is lifted only if the intimation is found false, on Compliance → Deceased clients", ErrState, deceasedWhy(*x))
+		}
 		x.Blocked, x.BlockedReason = blocked, reason
 		if !blocked {
 			x.BlockedReason = ""
@@ -507,5 +518,13 @@ func (c Client) Public() Client {
 	c.Banks = maskBanks(registeredBanks(c))
 	c.PAN = MaskPAN(c.PAN)
 	c.Nominees = maskNominees(c.Nominees)
+	if len(c.MNRL) > 0 {
+		fs := make([]MNRLFlag, len(c.MNRL))
+		for i, f := range c.MNRL {
+			f.Mobile = maskMobile(f.Mobile)
+			fs[i] = f
+		}
+		c.MNRL = fs
+	}
 	return c
 }

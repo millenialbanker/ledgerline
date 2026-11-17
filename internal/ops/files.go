@@ -492,6 +492,9 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 					}
 					c.Tags = tags
 					c.Blocked, c.BlockedReason = old.Blocked, old.BlockedReason
+					// A revoked mobile's flag and a reported death stay
+					// (mnrl.go, deceased.go).
+					c.MNRL, c.Deceased = old.MNRL, old.Deceased
 					if !given[c.UCC+"|inactive"] {
 						c.Inactive, c.InactiveSince = old.Inactive, old.InactiveSince
 					}

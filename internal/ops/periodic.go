@@ -49,8 +49,11 @@ var PeriodicTasks = []PeriodicTask{
 	{"month_end", "Month-end postings", "Accounts", "Monthly", "Interest on debit balances, MTF interest, DP bills with GST and the authorised persons' brokerage share (commission) for the month just ended.", "By the 5th", "", true, "autopilot", ""},
 	{"ledger_statements", "Monthly statement of account", "Clients", "Monthly", "Emails every active client a signed statement of account for the month just ended.", "By the 7th", "Exchange rules on statements of accounts to clients", true, "dispatch", ""},
 	{"dp_statements", "DP transaction and holding statements", "Depository", "Monthly", "Emails every demat account its signed statement of transactions and holdings for the month just ended.", "By the 10th", "Depository rules on statements to beneficial owners", true, "dp", ""},
+	{"kra_demise", "Deceased clients reported by the KRAs: close the UCCs", "Compliance", "Monthly", "Each month NSE posts <TMcode>_Demise_Clients_by_KRA on ENIT (Log > Downloads) with a cut-off in that month's circular. Load it on Compliance → Deceased clients: debits are blocked at once, and each client's UCC is closed on every exchange after the death is verified, before the cut-off; the nominee or legal heirs get the transmission procedure within 5 days of the KRA notice.", "Before the cut-off in the month's NSE circular", "NSE/ISC/77375 of 9 Nov 2026 and NSE/ISC/76893 of 14 Oct 2026; SEBI/HO/OIAE/OIAE_IAD-1/P/CIR/2023/0000000163 of 3 Oct 2023", true, "deceased", "nse-kra-demise"},
 	{"complaints_disclosure", "Investor complaints disclosure", "Compliance", "Monthly", "Builds the month's complaints data (received, resolved, pending, average days) for the website disclosure.", "By the 7th", "SEBI circular on disclosure of investor complaints", true, "helpdesk", ""},
 	{"ras", "Running account settlement", "Money", "Monthly / quarterly", "Settles running accounts on the settlement date (monthly or quarterly as each client chose), pays out the funds and sends each client the settlement statement.", "On the exchanges' RAS dates (Circulars & calendar)", "SEBI rules on running account settlement", true, "ras", ""},
+	{"mnrl_trading", "Revoked mobiles (MNRL): trading accounts", "Clients", "Daily", "Every trading day: load NSE's report for disconnected mobile numbers (or DoT's MNRL from DIP) on Clients & onboarding → Revoked mobiles. Each client whose mobile is on it is flagged, SMS and WhatsApp to the number are held, and an Ops maker confirms the client's number through another registered channel and has it changed; the UCC modification follows.", "Each trading day", "NSE/ISC/72805 of 13 Feb 2026 (daily report); NSE/ISC/45168 of 29 Jul 2020 and NSE/ISC/47834 of 31 Mar 2021 (confirm and update the back office and the UCC)", true, "mnrl", "nse-mnrl"},
+	{"mnrl_demat", "Revoked mobiles (MNRL): demat accounts", "Depository", "Daily", "Every business day: load DoT's MNRL from DIP (CDSL accounts) or NSDL's MNRL matches from e-PASS (NSDL accounts), and each month NSDL's reactivation data, on Clients & onboarding → Revoked mobiles. Matches are flagged and held as for trading accounts; a number DoT reconnected to the same person lifts only the MNRL hold.", "Each business day", "CDSL/OPS/DP/POLCY/2026/517 of 30 Jul 2026 (daily on DIP); NSDL/POLICY/2026/0090 of 16 Jun 2026 (e-PASS, monthly reactivation data)", true, "mnrl", "dot-mnrl"},
 	{"ras_idle", "Return idle credit balances (30 days)", "Money", "Daily", "Every morning: clients with a credit balance and no transaction (trade, open position or funds received) for 30 calendar days are settled and paid out on the upcoming monthly settlement date of the exchanges' calendar, whatever their monthly or quarterly choice, under the running account settlement policy in Autopilot; one still unpaid after that date is settled at once.", "On the upcoming monthly settlement date", "SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/1 of 6 January 2025 (NSE/INSP/66014)", true, "ras", ""},
 	{"bsda_review", "BSDA review", "Depository", "Quarterly", "Checks every demat account against the BSDA rules: eligible regular accounts become BSDA unless the client opted out; BSDAs above the limit become regular. A checker applies it; the depository modification file is kept and clients are told.", "By the 10th after the quarter", "SEBI circular on Basic Services Demat Accounts", false, "dp", ""},
 }
@@ -178,6 +181,22 @@ func (o *Ops) periodFor(ctx context.Context, tenant string, t PeriodicTask, date
 	case "bsda_review":
 		end := prevQuarterEnd(date)
 		return quarterID(end), quarterLabel(end), addDays(end, 10)
+	case "mnrl_trading", "mnrl_demat":
+		if !o.mnrlTaskApplies(ctx, tenant, t.ID) {
+			return "", "", ""
+		}
+		set, _ := o.Settings(ctx, tenant)
+		d := date
+		if !set.IsBusinessDay(d) {
+			d = set.PrevBusinessDay(d)
+		}
+		return d, fmtDay(d), d
+	case "kra_demise":
+		if !o.mnrlTaskApplies(ctx, tenant, "mnrl_trading") {
+			return "", "", ""
+		}
+		m := prevMonth(date)
+		return m, "PANs reported up to the end of " + monthLabel(m), o.demiseDue(ctx, tenant, m)
 	}
 	return date, fmtDay(date), date
 }
@@ -211,7 +230,7 @@ func (o *Ops) periodicStatus(ctx context.Context, tenant string, t PeriodicTask,
 	done, note := o.periodicDone(ctx, tenant, t, p, date)
 	switch {
 	case p == "":
-		s.Status, s.Note = "Nothing to do", "No RAS date is listed: add the exchanges' dates on Circulars & calendar → RAS dates & profile."
+		s.Status, s.Note = "Nothing to do", firstOf(listTaskNone[t.ID], "No RAS date is listed: add the exchanges' dates on Circulars & calendar → RAS dates & profile.")
 	case done:
 		s.Status, s.Note = "Done", note
 	case s.Run != nil && s.Run.Status != "Done" && s.Run.Status != "Due":
@@ -288,6 +307,12 @@ func (o *Ops) periodicDone(ctx context.Context, tenant string, t PeriodicTask, p
 		if err == nil {
 			return false, fmt.Sprintf("%d changes proposed, waiting for a checker", len(r.Lines))
 		}
+	case "mnrl_trading", "mnrl_demat":
+		if l, ok := o.mnrlLoadedOn(ctx, tenant, period, mnrlTaskLists[t.ID]...); ok {
+			return true, fmt.Sprintf("%s list of %s loaded: %d new match%s", l.Source, fmtDay(l.Date), l.New, map[bool]string{true: "es", false: ""}[l.New != 1])
+		}
+	case "kra_demise":
+		return o.demiseDone(ctx, tenant, period)
 	}
 	return false, ""
 }
@@ -313,6 +338,9 @@ func (o *Ops) RunPeriodic(ctx context.Context, tenant, actor, id, period, date s
 		period, _, _ = o.periodFor(ctx, tenant, t, date)
 	}
 	if period == "" {
+		if why := listTaskNone[t.ID]; why != "" {
+			return PeriodicRun{}, invalid("nothing to run: %s", why)
+		}
 		return PeriodicRun{}, invalid("there is no period to run: add the exchanges' RAS dates on Circulars & calendar → RAS dates & profile")
 	}
 	run := PeriodicRun{ID: t.ID + "|" + period, Task: t.ID, Period: period, Status: "Done", By: actor, At: o.now().Format("2006-01-02 15:04")}
@@ -476,6 +504,12 @@ func (o *Ops) runPeriodic(ctx context.Context, tenant, actor string, t PeriodicT
 		return fmt.Sprintf("Idle balances (30 days): %s", s), nil, nil
 	case "cuspa_review":
 		return o.cuspaReview(ctx, tenant, actor, date)
+	case "mnrl_trading", "mnrl_demat":
+		s, err := o.mnrlPeriodic(ctx, tenant, actor, t.ID, period)
+		return s, nil, err
+	case "kra_demise":
+		s, err := o.demisePeriodic(ctx, tenant, actor, period, date)
+		return s, nil, err
 	case "settlement_master":
 		msg := fmt.Sprintf("NSE Clearing's settlement master for %s is not loaded: download it from the member portal and load it on Exchange files", monthLabel(period))
 		o.raiseWork(ctx, tenant, "periodic", "settmaster:"+period, "Load the settlement master for "+monthLabel(period), msg, "", RoleMaker, "xfiles", date)

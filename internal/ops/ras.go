@@ -211,6 +211,9 @@ func (o *Ops) RAS(ctx context.Context, tenant, asOf string) (RASView, error) {
 			continue
 		}
 		c := clients[r.UCC]
+		if c.Deceased != nil {
+			continue // held until transmission, not paid to the client's bank (deceased.go)
+		}
 		lt := last[r.UCC]
 		if c.LastTrade > lt {
 			lt = c.LastTrade

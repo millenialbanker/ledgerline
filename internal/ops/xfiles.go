@@ -103,6 +103,7 @@ type XFileResult struct {
 	Added    int           `json:"added"`
 	Skipped  int           `json:"skipped"`
 	Note     string        `json:"note,omitempty"`
+	FileID   string        `json:"file_id,omitempty"` // the file as kept
 }
 
 // MaxXFileBytes caps one upload.
@@ -171,10 +172,11 @@ func (o *Ops) LoadExchangeFile(ctx context.Context, tenant, actor, name string, 
 			return out, err
 		}
 		detail := map[string]any{"format": s.ID, "rows": r.Rows, "problems": r.Problems, "file": rf.ID}
+		r.FileID = rf.ID
 		switch {
 		case !load:
 			r.Loaded = "Checked only"
-		case r.Problems > 0:
+		case r.Problems > 0 && !isListLayout(s.ID): // a list leaves out the rows that do not fit (listfiles.go)
 			r.Loaded = "Not loaded: the file does not match its layout"
 		default:
 			o.loadXFile(ctx, tenant, actor, s, f, t, &r)
@@ -287,6 +289,9 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 		}
 		r.Loaded, r.Added = "Loaded as G-sec and T-bill prices of "+date, n
 	default:
+		if o.loadListXFile(ctx, tenant, actor, s, f, t, r) { // revocation lists and the KRAs' demise list (listfiles.go)
+			return
+		}
 		if o.loadMCXUCCFile(ctx, tenant, actor, s, f, rows, r) { // MCX UCC response, refused file, State-City master (mcxucc.go)
 			return
 		}

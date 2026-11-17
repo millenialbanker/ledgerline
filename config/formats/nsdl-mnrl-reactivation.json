@@ -1,0 +1,53 @@
+{
+ "id": "nsdl-mnrl-reactivation",
+ "title": "Reactivation Data of DoT (NSDL e-PASS)",
+ "party": "NSDL",
+ "direction": "in",
+ "when": "Monthly, from July 2026 (e-PASS > iAssist > Download)",
+ "purpose": "Mobile numbers DoT has reconnected to the same person, as NSDL gives them each month on e-PASS (file type \"Reactivation Data of DoT\"). Only the hold Ledgerline placed because of the MNRL is lifted. NSDL does not publish the columns: they are read by their header names, which this layout lists (add a header text here when e-PASS's differs). DoT's own reactivation list reads the same way.",
+ "linked": "Clears the matching MNRL matches on Clients & onboarding → Revoked mobiles as Reactivated.",
+ "names": [
+  ".*reactivat.*"
+ ],
+ "compress": "none",
+ "format": "headers",
+ "delimiter": "auto",
+ "header": false,
+ "columns": [
+  {
+   "name": "Mobile Number",
+   "key": "mobile",
+   "type": "str",
+   "required": true,
+   "pattern": "[+0-9][0-9 ()+-]{9,17}",
+   "aliases": ["Mobile No", "Mobile", "MobileNo", "Mobile_No", "MSISDN", "Reactivated Mobile Number", "Reconnected Mobile Number", "Number"]
+  },
+  {
+   "name": "Client ID",
+   "key": "client",
+   "type": "str",
+   "aliases": ["Client Id", "ClientID", "Client_ID", "BO ID", "BOID", "Beneficiary Account", "Beneficiary ID", "Client Account", "Demat Account"]
+  },
+  {
+   "name": "DP ID",
+   "key": "dpid",
+   "type": "str",
+   "aliases": ["DPID", "DP Id", "DP_ID"]
+  },
+  {
+   "name": "Holder Name",
+   "key": "name",
+   "type": "str",
+   "aliases": ["Name", "Client Name", "First Holder Name", "Account Holder Name"]
+  },
+  {
+   "name": "Reactivation Date",
+   "key": "date",
+   "type": "str",
+   "aliases": ["Date of Reactivation", "Reconnection Date", "Date of Reconnection", "Reactivated On", "Date"]
+  }
+ ],
+ "no_header": ["mobile", "date"],
+ "confirmed": false,
+ "source": "NSDL/POLICY/2026/0090 (16 Jun 2026), Annexure A: file type \"Reactivation Data of DoT\" on e-PASS, monthly from July 2026; remove only the suspension levied because of the MNRL. No column layout is published."
+}

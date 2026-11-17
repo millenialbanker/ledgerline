@@ -571,6 +571,16 @@ func (o *Ops) boClients(ctx context.Context, tenant string) map[string]string {
 // primary), or one made from the client's list when Ledgerline has no
 // record of it (an account with another DP, or not yet loaded).
 func (o *Ops) boFor(ctx context.Context, tenant string, c Client, boid string) BOAccount {
+	b := o.boForRecord(ctx, tenant, c, boid)
+	if c.Deceased != nil {
+		// Nothing leaves a deceased client's account until transmission
+		// (deceased.go): every debit checks the freeze.
+		b.HolderDeceased = "the holder is reported deceased by the KRA (" + c.Deceased.Case + ")"
+	}
+	return b
+}
+
+func (o *Ops) boForRecord(ctx context.Context, tenant string, c Client, boid string) BOAccount {
 	d := primaryDemat(c)
 	if boid = normDematID(boid); boid != "" {
 		if x, ok := dematOf(c, boid); ok {

@@ -1,0 +1,65 @@
+{
+ "id": "nse-kra-demise",
+ "title": "Clients the KRAs report as deceased (NSE ENIT)",
+ "party": "NSE",
+ "direction": "in",
+ "when": "Monthly cycle (ENIT > Log > Downloads)",
+ "purpose": "The file <TMcode>_Demise_Clients_by_KRA on NSE's member portal (enit.nseindia.com > ENIT > Log > Downloads): PANs of the firm's clients that the KRAs report as deceased up to the date in that month's circular. NSE does not publish the columns: they are read by their header names, which this layout lists (add a header text here when NSE's differs). A file with no header row is read as PAN, then client code.",
+ "linked": "Matched by PAN (and client code) on Compliance → Deceased clients: debits are blocked at once and the steps to the UCC closure and transmission are tracked against the month's cut-off.",
+ "names": [
+  "[A-Za-z0-9]*_?Demise_Clients_by_KRA.*"
+ ],
+ "compress": "none",
+ "format": "headers",
+ "delimiter": "auto",
+ "header": false,
+ "columns": [
+  {
+   "name": "PAN",
+   "key": "pan",
+   "type": "str",
+   "required": true,
+   "pattern": "[A-Za-z]{5}[0-9]{4}[A-Za-z]",
+   "aliases": ["PAN No", "PAN Number", "Client PAN", "PANNO", "PAN_NO", "Investor PAN"]
+  },
+  {
+   "name": "Client Code",
+   "key": "ucc",
+   "type": "str",
+   "aliases": ["UCC", "UCC Code", "Client Code (UCC)", "ClientCode", "Client_Cd", "Client Cd", "Unique Client Code"]
+  },
+  {
+   "name": "Client Name",
+   "key": "name",
+   "type": "str",
+   "aliases": ["Name", "Investor Name", "Name of the Client"]
+  },
+  {
+   "name": "KRA",
+   "key": "kra",
+   "type": "str",
+   "aliases": ["KRA Name", "Reporting KRA"]
+  },
+  {
+   "name": "KRA Status",
+   "key": "status",
+   "type": "str",
+   "aliases": ["Status", "KYC Status", "Primary KYC Status"]
+  },
+  {
+   "name": "Date",
+   "key": "date",
+   "type": "str",
+   "aliases": ["Demise Date", "Date of Demise", "Reported On", "Reported Date", "Date of Reporting", "KRA Date", "Modification Date"]
+  },
+  {
+   "name": "Member Code",
+   "key": "member",
+   "type": "str",
+   "aliases": ["TM Code", "TMCode", "Trading Member Code"]
+  }
+ ],
+ "no_header": ["pan", "ucc"],
+ "confirmed": false,
+ "source": "NSE/ISC/77375 (9 Nov 2026) and NSE/ISC/76893 (14 Oct 2026): the file <TMcode>_Demise_Clients_by_KRA at https://enit.nseindia.com/MemberPortal/ > ENIT > Log > Downloads; neither gives its columns, so they are read by header names."
+}
