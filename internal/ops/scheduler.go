@@ -305,6 +305,9 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.dealersTick(ctx, tenant, now)
 	// Expected exchange and clearing files still missing after their time.
 	o.dailyFileAlertTick(ctx, tenant, now)
+	// The nightly self-inspection, after the day's work (selfinspect.go);
+	// it only finds what needs fixing, so it runs in every edition.
+	o.selfInspectTick(ctx, tenant, now)
 	// AI on/off history (for the exchange AI & ML reports) and answer-log retention.
 	o.aiControlsTick(ctx, tenant, now)
 	// CDSL (DP): demat account requests, transactions, eDIS and report set-ups.

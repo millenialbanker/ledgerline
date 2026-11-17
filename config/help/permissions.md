@@ -2,6 +2,7 @@
 # TestPermissionsMatchCode fails when they differ (LL_UPDATE_HELP=1 rewrites this file).
 # Admin may do everything. Format: What | Roles
 
+Accepting a self-inspection risk | Compliance officer
 Activating a client | Ops checker
 Adding client documents | Ops maker, Ops checker, Compliance officer, Branch staff
 Adding or changing dealers and terminals | Ops maker, Compliance officer
@@ -67,6 +68,7 @@ Changing the account type | Ops checker
 Changing the chart of accounts | Ops checker
 Changing the compliance calendar | Compliance officer
 Changing the firm's UPI collection IDs | Compliance officer
+Changing the self-inspection schedule | Compliance officer
 Changing vendors | Ops maker, Ops checker
 Chasing missing daily files | Ops maker, Ops checker, Risk manager, Compliance officer
 Checking CDSL demat account counts | Ops maker, Ops checker, Compliance officer
@@ -158,6 +160,7 @@ Marking a report uploaded | Ops checker, Compliance officer
 Matching stock SIP orders to trades | Ops maker, Ops checker, Risk manager
 Month-end postings | Ops checker
 Moving money between MCX and equity | Ops maker, Ops checker, Risk manager
+Muting a self-inspection test | Compliance officer
 NRI registration | Ops checker, Compliance officer
 Opening a person's Inbox (read-only, with a reason) | Compliance officer
 Opening a trading account | Ops maker, Ops checker
@@ -233,11 +236,13 @@ Running periodic work | Ops maker, Ops checker
 Running prepaid adjustments | Ops checker
 Running stock SIP instalments | Ops maker, Ops checker, Risk manager
 Running surveillance rules | Ops checker, Compliance officer
+Running the self-inspection | Compliance officer
 Scanning vendor bills | Ops maker, Ops checker
 Scheduling jobs | Admin
 Searching the document archive | Ops maker, Ops checker, Risk manager, Compliance officer
 See full client identifiers | Ops checker, Compliance officer
 Seeing mail sent to staff | Compliance officer, Admin
+Seeing the self-inspection | Ops maker, Ops checker, Risk manager, Compliance officer
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
 Sending IPO bids to the exchange | Ops maker, Ops checker
 Sending UCC to BSE | Ops maker, Ops checker
@@ -320,6 +325,7 @@ Viewing the surveillance report | Ops checker, Compliance officer
 Viewing vendor bills | Ops maker, Ops checker, Compliance officer
 Viewing vendors | Ops maker, Ops checker, Compliance officer
 Withdrawing a stock SIP basket file | Ops maker, Ops checker, Risk manager
+Working a self-inspection exception | Ops maker, Ops checker, Risk manager, Compliance officer
 Working client insights | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Working complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Working out MF commission | Ops checker, Compliance officer

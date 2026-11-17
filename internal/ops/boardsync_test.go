@@ -48,7 +48,7 @@ func TestLedgerlineBoardSetUp(t *testing.T) {
 		t.Fatalf("unknown source: %v", err)
 	}
 	first, err := o.SetUpLedgerlineBoards(ctx, T, "admin", nil)
-	if err != nil || len(first) != 6 {
+	if err != nil || len(first) != len(bsSources) {
 		t.Fatalf("set up %+v %v", first, err)
 	}
 	for _, s := range first {
@@ -68,7 +68,7 @@ func TestLedgerlineBoardSetUp(t *testing.T) {
 			n++
 		}
 	}
-	if n != 6 {
+	if n != len(bsSources) {
 		t.Fatalf("%d Ledgerline boards", n)
 	}
 	board := func(src string) Board {
@@ -122,7 +122,7 @@ func TestLedgerlineBoardSetUp(t *testing.T) {
 	}
 	// The boards home: every board with counts per list.
 	home, err := o.LedgerlineBoards(ctx, T, "priya.nair")
-	if err != nil || len(home.Boards) != 6 || home.CanSetUp || len(home.Sources) != 6 {
+	if err != nil || len(home.Boards) != len(bsSources) || home.CanSetUp || len(home.Sources) != len(bsSources) {
 		t.Fatalf("home %+v %v", home, err)
 	}
 	for _, b := range home.Boards {
@@ -130,7 +130,7 @@ func TestLedgerlineBoardSetUp(t *testing.T) {
 			t.Fatalf("onboarding counts %+v", b)
 		}
 	}
-	if h, _ := o.LedgerlineBoards(ctx, T, "anita.rao"); len(h.Boards) != 5 {
+	if h, _ := o.LedgerlineBoards(ctx, T, "anita.rao"); len(h.Boards) != len(bsSources)-1 { // all but leads
 		t.Fatalf("risk sees %d boards", len(h.Boards))
 	}
 	if h, _ := o.LedgerlineBoards(ctx, T, "admin"); !h.CanSetUp {
