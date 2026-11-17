@@ -30,6 +30,7 @@ func (s *Server) exchangeReportingRoutes() {
 	R("GET /v1/holding-api", s.holdingAPIView, false)
 	R("POST /v1/holding-api/submit", s.holdingAPISubmit, true)
 	s.complianceCalendarRoutes(R)
+	s.clientListRoutes(R)
 	s.surveillanceReturnRoutes(R)
 	s.upiCollectRoutes(R)
 }

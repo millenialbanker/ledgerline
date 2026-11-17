@@ -70,6 +70,13 @@ import (
 //   - NSE/ISC/73973 of 30 April 2026 (the UCC master circular).
 //   - SEBI/HO/MIRSD/MIRSD-PoD-1/P/CIR/2022/137 of 6 October 2022 (DDPI
 //     purposes).
+//   - NSE/ISC/45168 of 29 July 2020, NSE/ISC/47834 of 31 March 2021 and
+//     NSE/ISC/72805 of 13 February 2026: clients' mobiles on DoT's
+//     revocation list confirmed with the client and updated immediately.
+//   - NSE/ISC/77375 of 9 November 2026 (and NSE/ISC/76893 of 14 October
+//     2026): the UCCs of clients the KRAs report as deceased closed before
+//     the month's cut-off; SEBI/HO/OIAE/OIAE_IAD-1/P/CIR/2023/0000000163 of
+//     3 October 2023: their debits blocked at once.
 
 const (
 	siAlertDays = 45 // NSE/SURV/48818
@@ -177,6 +184,17 @@ var siTests = []SITest{
 		Checks: "Active clients' UCC records the exchanges rejected, need fixing, hold a PAN the exchange could not verify, or are not permitted to trade.",
 		Fix:    "Correct the client's details and send the UCC again on Exchange UCC.",
 		Screen: "uccapi", ScreenName: "Clients & onboarding → Exchange UCC", Real: true, run: siUCC},
+	{ID: "mnrl_matches", Title: "Client mobiles on DoT's revocation list taken up in time", Area: "Clients", Severity: "medium", Owner: RoleMaker,
+		Source:    "NSE/ISC/45168 of 29 Jul 2020 and NSE/ISC/47834 of 31 Mar 2021 (confirm the number with the client; update the back office and the UCC immediately); NSE/ISC/72805 of 13 Feb 2026 (daily report); CDSL/OPS/DP/POLCY/2026/517 of 30 Jul 2026; NSDL/POLICY/2026/0090 of 16 Jun 2026",
+		ToConfirm: "The circulars say immediately: the 3 business days to take a match up and the 30 days for a contacted client to give a number are the firm's practice.",
+		Checks:    "Matches from the revocation lists (NSE's report, DoT's MNRL, NSDL's e-PASS) still New after 3 business days, or Contacted for more than 30 days with no number confirmed.",
+		Fix:       "Contact the client through another registered channel and raise the mobile change on Change requests; or mark the match on Revoked mobiles with what the check found.",
+		Screen:    "mnrl", ScreenName: "Clients & onboarding → Revoked mobiles", Real: true, run: siMNRL},
+	{ID: "deceased_ucc", Title: "Deceased clients' UCCs closed by the cut-off, with debits blocked", Area: "Clients", Severity: "high", Owner: RoleCompliance,
+		Source: "NSE/ISC/77375 of 9 Nov 2026 and NSE/ISC/76893 of 14 Oct 2026 (UCCs closed before the month's cut-off); NSE/ISC/75724 of 13 Aug 2026; SEBI/HO/OIAE/OIAE_IAD-1/P/CIR/2023/0000000163 of 3 Oct 2023 (debits blocked at once)",
+		Checks: "Clients on the KRAs' demise list: the UCC closed on every exchange before the cut-off in the month's NSE circular, and debits blocked from the day the list was loaded (unless the intimation was found false).",
+		Fix:    "Verify the death and close the UCCs on Deceased clients (the UCC upload sends them), or record the closure made on each exchange's portal; tell the KRA the same day if the intimation is false.",
+		Screen: "deceased", ScreenName: "Compliance → Deceased clients", Real: true, run: siDeceased},
 	{ID: "bsda_review", Title: "BSDA review done each quarter", Area: "Depository", Severity: "low", Owner: RoleChecker,
 		Source:    "SEBI circulars on Basic Services Demat Accounts (from CIR/MRD/DP/22/2012 of 27 Aug 2012)",
 		ToConfirm: "The quarterly timing is Ledgerline's Periodic work; SEBI's 2024 revision has DPs reassess eligibility each billing cycle (number to confirm).",

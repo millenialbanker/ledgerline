@@ -200,6 +200,7 @@ func (o *Ops) SaveCDSLBODetail(ctx context.Context, tenant, actor, ucc string, d
 		return d, err
 	}
 	o.log(ctx, tenant, actor, "cdsl.bo_detail", d.UCC, map[string]any{"holders": len(d.Holders)})
+	o.mnrlSync(ctx, tenant, actor) // a joint holder's number on DoT's revocation list replaced (mnrl.go)
 	return d, nil
 }
 

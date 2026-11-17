@@ -302,6 +302,8 @@ func (o *Ops) deliver(ctx context.Context, tenant, actor string, t Template, c C
 		m.To = c.Mobile
 		if !reMobile.MatchString(c.Mobile) {
 			m.Status, m.Note = "Failed", "no valid mobile number"
+		} else if id, held := o.mnrlHeld(ctx, tenant, c.Mobile); held {
+			m.Status, m.Note = "Held", mnrlHeldNote(id) // the number is on DoT's revocation list (mnrl.go)
 		} else if t.DLT == "" {
 			m.Status, m.Note = "Failed", "template has no DLT template ID"
 		} else if t.Category == "Promotional" && (now.Hour() < 9 || now.Hour() >= 21) {
@@ -311,7 +313,9 @@ func (o *Ops) deliver(ctx context.Context, tenant, actor string, t Template, c C
 		}
 	case ChWhatsApp:
 		m.To = c.Mobile
-		if !c.WhatsApp {
+		if id, held := o.mnrlHeld(ctx, tenant, c.Mobile); held {
+			m.Status, m.Note = "Held", mnrlHeldNote(id)
+		} else if !c.WhatsApp {
 			m.Status, m.Note = "Not opted in", "client has not opted in to WhatsApp"
 		}
 	}
@@ -499,9 +503,16 @@ func (o *Ops) WhatsAppInbound(ctx context.Context, tenant, from, text, date stri
 	}
 	var reply string
 	var ucc string
-	if len(mine) == 0 {
+	_, held := o.mnrlHeld(ctx, tenant, mobile)
+	switch {
+	case len(mine) == 0:
 		reply = "This number is not registered with " + set.Firm + ". Please write from the mobile number registered with your trading account."
-	} else {
+	case held:
+		// The number is on DoT's revocation list and may be someone else's
+		// now: nothing about the account goes to it (mnrl.go).
+		reply = "We cannot answer on this number at present. Please write to us from your registered email address or contact your branch."
+		o.log(ctx, tenant, "whatsapp", "whatsapp.held", maskMobile(mobile), nil)
+	default:
 		c := mine[0]
 		if len(words) > 1 {
 			for _, x := range mine {

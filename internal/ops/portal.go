@@ -629,6 +629,9 @@ func (o *Ops) DecideChange(ctx context.Context, tenant, actor, id string, approv
 	})
 	if err == nil {
 		o.log(ctx, tenant, actor, "change."+strings.ToLower(r.Status), id, map[string]any{"ucc": r.UCC, "kind": r.Kind, "reason": reason})
+		if approve && r.Kind == "Mobile" {
+			o.mnrlSync(ctx, tenant, actor) // a number on DoT's revocation list replaced (mnrl.go)
+		}
 		o.notify(ctx, tenant, actor, "change."+strings.ToLower(r.Status), r.UCC, map[string]string{"kind": r.Kind, "id": r.ID, "reason": reason})
 	}
 	return r.public(), err
@@ -820,8 +823,12 @@ func (o *Ops) sendDirectAs(ctx context.Context, tenant, actor, channel, to, ucc,
 		}
 	}
 	if channel == ChSMS || channel == ChWhatsApp {
-		o.transmit(ctx, tenant, &m, "", nil)
-		m.TriedAt = m.At
+		if id, held := o.mnrlHeld(ctx, tenant, to); held {
+			m.Status, m.Note = "Held", mnrlHeldNote(id) // on DoT's revocation list (mnrl.go)
+		} else {
+			o.transmit(ctx, tenant, &m, "", nil)
+			m.TriedAt = m.At
+		}
 	}
 	m.Body = kept
 	_ = docs.Upsert(ctx, o.Docs, tenant, cMessage, m.ID, m, actor)

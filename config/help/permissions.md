@@ -71,6 +71,7 @@ Changing the MTF policy | Risk manager, Admin
 Changing the account type | Ops checker
 Changing the chart of accounts | Ops checker
 Changing the compliance calendar | Compliance officer
+Changing the demise list's cut-off | Ops checker, Compliance officer
 Changing the firm profile | Compliance officer
 Changing the firm's UPI collection IDs | Compliance officer
 Changing the self-inspection schedule | Compliance officer
@@ -88,6 +89,7 @@ Claiming IPO commission | Ops checker
 Clearing cheques | Ops maker, Ops checker
 Client code modification | Ops maker, Ops checker
 Closing MTF positions | Ops checker, Risk manager
+Closing a deceased client's UCCs | Ops checker, Compliance officer
 Closing out a short delivery | Ops checker
 Closing the day | Ops checker
 Confirming allocation | Ops checker, Risk manager
@@ -100,6 +102,7 @@ Crediting dividends | Ops checker
 DP billing | Ops checker
 DP requests | Ops maker, Ops checker, Compliance officer, Branch staff
 Deciding a pledge request | Ops maker, Ops checker, Risk manager
+Deciding a reported death | Compliance officer
 Deciding whether a circular applies | Compliance officer
 Discarding scanned bills | Ops maker, Ops checker
 Downloading BOW upload files | Ops maker, Ops checker, Risk manager
@@ -152,6 +155,8 @@ Loading brokerage rates | Ops checker
 Loading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
 Loading exchange holidays | Ops maker, Ops checker, Compliance officer
 Loading files | Ops maker, Ops checker, Risk manager, Compliance officer
+Loading revocation lists | Ops maker, Ops checker, Compliance officer
+Loading the KRAs' demise list | Ops maker, Ops checker, Compliance officer
 Looking at NSE's extranet | Ops maker, Ops checker, Risk manager, Compliance officer
 MTF enrolment | Ops checker, Risk manager
 MTF margin calls | Ops checker, Risk manager
@@ -207,6 +212,7 @@ Recording MTF pledges | Ops maker, Ops checker, Risk manager
 Recording N-MASS changes | Ops checker, Risk manager
 Recording WhatsApp consent | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Recording a bounce | Ops maker, Ops checker, Admin
+Recording a deceased client's steps | Ops maker, Ops checker, Compliance officer
 Recording a physical dispatch | Ops maker, Ops checker, Admin
 Recording a receipt | Ops maker, Ops checker, Branch staff
 Recording a stock SIP fill | Ops maker, Ops checker
@@ -323,6 +329,7 @@ Viewing backups | Ops checker, Compliance officer
 Viewing clients BSE does not permit to trade | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing connections | Compliance officer, Admin
 Viewing dealers and terminals | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing deceased clients | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing eDIS authorisations | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing exchange UCC registrations | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing exchange disclosures | Compliance officer
@@ -330,6 +337,7 @@ Viewing inspection packs | Compliance officer
 Viewing margin penalty evidence | Ops checker, Risk manager, Compliance officer
 Viewing nominations | Ops maker, Ops checker, Compliance officer
 Viewing order-to-trade ratios | Risk manager, Compliance officer
+Viewing revoked mobile numbers | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the AI answer log | Compliance officer
 Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
@@ -346,4 +354,5 @@ Working a self-inspection exception | Ops maker, Ops checker, Risk manager, Comp
 Working client insights | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Working complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Working out MF commission | Ops checker, Compliance officer
+Working revoked mobile numbers | Ops maker, Ops checker, Compliance officer
 Writing off a debt | Ops checker

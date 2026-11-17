@@ -52,8 +52,8 @@ func (o *Ops) reactivationLetter(ctx context.Context, tenant, actor string, r Re
 }
 
 func (o *Ops) closureLetter(ctx context.Context, tenant, actor string, c Client, ch SegmentChange) {
-	if ch.To != "Closed" {
-		return
+	if ch.To != "Closed" || c.Deceased != nil {
+		return // a deceased client's balance goes through the transmission (deceased.go)
 	}
 	paras := []string{fmt.Sprintf("Your trading account %s has been closed in the %s segment from %s (%s).", c.UCC, ch.Segment, fmtDay(ch.On), ch.Reason),
 		"Any funds and securities due to you are paid out to your registered bank and demat accounts. Your statement of account to the date of closure is available on request."}
