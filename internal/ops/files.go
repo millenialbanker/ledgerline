@@ -475,10 +475,18 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		return func() (int, int, error) {
 			n := 0
 			for _, c := range cs {
+				if c.Partner != "" {
+					o.ensureAPBaseline(ctx, tenant) // the AP mappings on record before this file
+					break
+				}
+			}
+			for _, c := range cs {
 				// Groups, blocks, inactivity and other back-office fields are
 				// kept when a re-import does not carry them.
 				var was []string // the details listed as missing before
+				existed, wasAP := false, ""
 				if old, _, err := docs.Get[Client](ctx, o.Docs, tenant, cClient, c.UCC); err == nil {
+					existed, wasAP = true, old.Partner
 					was = old.Incomplete
 					// An inactive client's detail the file has blank or
 					// wrong does not replace one on record that is right.
@@ -566,6 +574,14 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 				}
 				if err := docs.Upsert(ctx, o.Docs, tenant, cClient, c.UCC, c, actor); err != nil {
 					return n, 0, err
+				}
+				// The client's AP: a client new to Ledgerline comes with the
+				// previous system's mapping (an existing mapping); a changed AP
+				// is a change for the weekly report (apmapping.go).
+				if existed {
+					o.recordAPChange(ctx, tenant, actor, c, wasAP, c.Partner, APViaImport, false)
+				} else if c.Partner != "" {
+					o.recordAPExisting(ctx, tenant, actor, c, APViaImport)
 				}
 				// A new primary takes the holdings kept for the primary.
 				if now := primaryDemat(c); wasPrimary.ID != "" && normDematID(wasPrimary.ID) != normDematID(now.ID) {

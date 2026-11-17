@@ -124,14 +124,14 @@ title: Handle an investor complaint
 screen: helpdesk
 roles: Ops maker, Ops checker, Compliance officer
 ask: complaint; investor grievance; scores complaint; client complaint; service request; resolve complaint; complaint overdue; monthly complaint disclosure
-related: portal-access
+related: portal-access, raia-complaints-tables, impersonation-register
 
 On [[helpdesk|Investor complaints]]:
 
 1. Complaints from the portal arrive by themselves; **Record a complaint** for email, phone, branch, SCORES or exchange ones.
 2. **Reply**, add an **Internal note**, or **Reply & resolve**.
 3. Deadlines: complaints within **21 calendar days**, service requests within **7**. Autopilot assigns and escalates.
-4. The **monthly disclosure** table (choose the month, **Show**) is what you publish on your website by the 7th.
+4. The **monthly disclosure** table (choose the month, **Show**) is what you publish on your website by the 7th. Each business has its own table (broking, DP, research analyst, investment adviser): mark the business each complaint concerns. See *Publish the complaints tables of the broker, DP, RA and IA*.
 
 ## circulars
 title: Track circulars and compliance deadlines

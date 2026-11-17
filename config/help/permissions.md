@@ -68,6 +68,7 @@ Changing settings | Admin
 Changing the AI inventory | Compliance officer
 Changing the DP tariff | Ops checker, Admin
 Changing the MTF policy | Risk manager, Admin
+Changing the RA and IA reporting settings | Compliance officer
 Changing the account type | Ops checker
 Changing the chart of accounts | Ops checker
 Changing the compliance calendar | Compliance officer
@@ -157,6 +158,7 @@ MTF enrolment | Ops checker, Risk manager
 MTF margin calls | Ops checker, Risk manager
 Making BSE dealer files | Ops maker, Compliance officer
 Making inspection packs | Compliance officer
+Making the AP client reporting file | Ops maker, Ops checker, Compliance officer
 Making the NSE Clearing key | Admin
 Managing SIPs | Ops maker, Ops checker
 Managing branches | Ops checker, Admin
@@ -165,6 +167,7 @@ Managing partners | Ops checker, Admin
 Managing the firm's saved logins | Admin
 Mapping clients to BOW | Risk manager
 Mapping clients | Ops checker, Admin
+Marking a complaint's business | Ops maker, Ops checker, Compliance officer
 Marking a dealer as left | Compliance officer
 Marking a report uploaded | Ops checker, Compliance officer
 Matching stock SIP orders to trades | Ops maker, Ops checker, Risk manager
@@ -216,8 +219,11 @@ Recording bounces | Ops maker, Ops checker, Admin
 Recording clearing deposits | Ops checker
 Recording clients' UPI IDs | Ops maker, Ops checker, Branch staff, Authorised person
 Recording complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
+Recording impersonation cases | Ops maker, Ops checker, Compliance officer
 Recording re-KYC | Ops maker, Ops checker, Compliance officer
 Recording recovery of a legacy debt | Ops maker, Ops checker, Risk manager, Compliance officer
+Recording the AP client count reconciliation | Ops maker, Ops checker, Compliance officer
+Recording the AP client reporting upload | Ops maker, Ops checker, Compliance officer
 Recording the BSDA choice | Ops maker, Ops checker
 Recording the funds pay-out | Ops checker, Risk manager
 Recording the holding statement sent to BSE | Ops maker, Ops checker, Compliance officer
@@ -231,6 +237,7 @@ Releasing CUSPA securities | Ops maker, Ops checker, Risk manager
 Releasing clearing deposits | Ops checker
 Releasing payouts | Ops checker
 Removing the signing certificate | Admin
+Reporting impersonation cases | Compliance officer
 Reporting short allocation | Ops maker, Ops checker, Risk manager
 Requesting reactivation | Ops maker, Ops checker
 Resetting passwords | Admin
@@ -293,6 +300,7 @@ Switching AI off or on | Compliance officer
 Switching board email for the firm | Admin
 Switching the autopilot schedule | Admin
 Taking a backup | Admin
+Taking the AP mappings as reported | Compliance officer
 Tendering for a client | Ops maker, Ops checker
 Testing connections | Admin
 Testing templates | Ops checker, Compliance officer
@@ -332,10 +340,12 @@ Viewing nominations | Ops maker, Ops checker, Compliance officer
 Viewing order-to-trade ratios | Risk manager, Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the AI answer log | Compliance officer
+Viewing the AP client reporting | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Viewing the compliance calendar | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 Viewing the firm profile | Compliance officer
+Viewing the impersonation register | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the migration | Ops checker, Compliance officer
 Viewing the signing certificate | Ops checker, Compliance officer, Admin
 Viewing the surveillance report | Ops checker, Compliance officer

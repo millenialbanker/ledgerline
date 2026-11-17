@@ -43,16 +43,43 @@ var PeriodicTasks = []PeriodicTask{
 	{"funds_securities", "Weekly statement of funds and securities", "Clients", "Weekly", "Emails every client with a balance, a movement or securities with the broker a signed statement of the week's funds and securities.", "Saturday, for the week to Friday", "Exchange and SEBI rules on statements of accounts to clients", true, "dispatch", ""},
 	{"cuspa_review", "Unpaid securities (CUSPA): daily review", "Settlement", "Daily", "Every trading day under SEBI's CUSPA framework: records the shares the depository released at the end of the 6th trading day after pay-out, releases what is over each client's limit of 2.25 × (margin − ledger balance) oldest first, finds the sale of invoked shares in the trades, and puts in the work queue the notices, invocations (up to the 5th trading day after pay-out) and sales due.", "Each trading day, before the market opens", "SEBI circular HO/38/11/(9)2026-MIRSD-POD/I/15382/2026 (CUSPA framework); NSE circulars 35/2026 and 41/2026", true, "settlement", ""},
 	{"dis_master", "DIS master upload to CDSL", "Depository", "Weekly", "Builds CDSL's transaction upload (DIS issue) for the delivery instruction slip books issued in the week and sends it through CDSL's common upload API when it is on (else for upload on CDSL's system).", "Monday, for the week to Friday", "CDSL operating instructions on DIS issuance", true, "dp", "cdsl-txn-upload"},
+	{"ap_mapping", "Clients mapped to authorised persons: weekly report to each exchange", "Compliance", "Weekly", "Makes each exchange's file of the week's clients newly mapped, re-mapped or unmapped to an authorised person, and new clients of APs, checked against the client's UCC at that exchange, and queues the upload. Upload it on each exchange's portal and record the acknowledgement on Branches & partners → AP client reporting.", "By the 2nd trading day of the next week", "NSE/COMP/49509 (3 Sep 2021); MSE circular 10854 (4 Sep 2021), item 15 of MSE/MEM/15275/2024 (30 Apr 2024)", true, "partners", "nse-ap-client-mapping"},
 	{"cuspa_mtf_payout", "CUSPA and MTF pay-out reporting", "Settlement", "Settlement day", "Reports to NSE Clearing the settlement's purchases that are not paid out to clients' demat accounts: unpaid purchases kept in CUSPA and MTF purchases kept for the pledge.", "Settlement day, before pay-out", "SEBI and NSE Clearing rules on pay-out of securities to clients", true, "settlement", "ncl-cuspa-mtf-payout"},
 	{"settlement_master", "Settlement calendar for the coming month", "Settlement", "Monthly", "Checks that NSE Clearing's settlement master for the coming month is loaded: settlement numbers and pay-in and pay-out dates used by the pay-out reporting and the settlement screen.", "Before the month starts", "", true, "xfiles", "ncl-settlement-master"},
 	{"ccil_prices", "CCIL prices of G-secs and T-bills", "Risk", "Monthly", "Checks that CCIL's month-end valuation prices are loaded, so G-secs and T-bills held or given as collateral are valued at month end. With the CCIL prices connection's fetch on, they are downloaded from CCIL's website each business day and the task is done by itself.", "By the 5th", "", true, "xfiles", "ccil-gsec-price"},
 	{"month_end", "Month-end postings", "Accounts", "Monthly", "Interest on debit balances, MTF interest, DP bills with GST and the authorised persons' brokerage share (commission) for the month just ended.", "By the 5th", "", true, "autopilot", ""},
 	{"ledger_statements", "Monthly statement of account", "Clients", "Monthly", "Emails every active client a signed statement of account for the month just ended.", "By the 7th", "Exchange rules on statements of accounts to clients", true, "dispatch", ""},
 	{"dp_statements", "DP transaction and holding statements", "Depository", "Monthly", "Emails every demat account its signed statement of transactions and holdings for the month just ended.", "By the 10th", "Depository rules on statements to beneficial owners", true, "dp", ""},
-	{"complaints_disclosure", "Investor complaints disclosure", "Compliance", "Monthly", "Builds the month's complaints data (received, resolved, pending, average days) for the website disclosure.", "By the 7th", "SEBI circular on disclosure of investor complaints", true, "helpdesk", ""},
+	{"complaints_disclosure", "Investor complaints disclosure", "Compliance", "Monthly", "Builds the month's complaints tables for the website: the broker's, the DP's when the firm is a depository participant, and the research analyst's and investment adviser's, each with its line for complaints due to impersonation, when the firm holds those registrations.", "By the 7th", "SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/22 (Annexure B); RA and IA master circulars of 6 Feb 2026 (Annexure E, Annexure C)", true, "helpdesk", ""},
+	{"raia_impersonation", "Impersonation cases to BSE (research analyst, investment adviser)", "Compliance", "Monthly", "Builds the month's report of the cases of someone impersonating the firm's research analyst or investment adviser business, with the number of complaints they caused, for BSE's portal (RAIA Inspection → Report Impersonation). With no case, record the month's nil check.", "Within 7 days of the month's end", "BSE notices 20250804-58 (IA) and 20250804-59 (RA) of 4 Aug 2025", true, "helpdesk", ""},
+	{"ap_client_count", "AP client counts reconciled with each exchange", "Compliance", "Monthly", "Compares the number of clients each exchange shows for each authorised person at the month's end with Ledgerline's own count, so the exchange's records stay current.", "By the 10th (Ledgerline's date; no circular sets one)", "NSE/COMP/63628 (28 Aug 2024), para 5", true, "partners", ""},
+	{"dp_impersonation", "Impersonation of the DP: report to the depository", "Depository", "Monthly", "Builds the month's report of the cases of someone impersonating the firm's depository participant business, in NSDL's columns (DP ID, DP name, particulars, action taken, status), to email to NSDL; with no case there is nothing to send.", "By the 10th", "NSDL/POLICY/2024/0048 (18 Apr 2024); CDSL communiqué DP2024-234 (30 Apr 2024)", true, "helpdesk", ""},
 	{"ras", "Running account settlement", "Money", "Monthly / quarterly", "Settles running accounts on the settlement date (monthly or quarterly as each client chose), pays out the funds and sends each client the settlement statement.", "On the exchanges' RAS dates (Circulars & calendar)", "SEBI rules on running account settlement", true, "ras", ""},
 	{"ras_idle", "Return idle credit balances (30 days)", "Money", "Daily", "Every morning: clients with a credit balance and no transaction (trade, open position or funds received) for 30 calendar days are settled and paid out on the upcoming monthly settlement date of the exchanges' calendar, whatever their monthly or quarterly choice, under the running account settlement policy in Autopilot; one still unpaid after that date is settled at once.", "On the upcoming monthly settlement date", "SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/1 of 6 January 2025 (NSE/INSP/66014)", true, "ras", ""},
 	{"bsda_review", "BSDA review", "Depository", "Quarterly", "Checks every demat account against the BSDA rules: eligible regular accounts become BSDA unless the client opted out; BSDAs above the limit become regular. A checker applies it; the depository modification file is kept and clients are told.", "By the 10th after the quarter", "SEBI circular on Basic Services Demat Accounts", false, "dp", ""},
+}
+
+// periodicApplies are the tasks that only some firms have, with who they
+// apply to, read against the firm profile as the compliance calendar's
+// duties are (compduties.go dutyNeed). A task that does not apply is listed
+// with nothing to do and does not run.
+var periodicApplies = map[string][]string{
+	"ap_mapping":         {"broker", "ap"},
+	"ap_client_count":    {"broker", "ap"},
+	"raia_impersonation": {"ra|ia"},
+	"dp_impersonation":   {"dp"},
+}
+
+// periodicApplicability says whether a task applies to the firm (nil: to
+// every firm).
+func (o *Ops) periodicApplicability(ctx context.Context, tenant, id string) *Applicability {
+	needs := periodicApplies[id]
+	if len(needs) == 0 {
+		return nil
+	}
+	f, _ := o.firmProfileFactsOpt(ctx, tenant, false)
+	a := dutyApplies(needs, f)
+	return &a
 }
 
 // RetiredPeriodicTasks were periodic tasks that no rule requires any more,
@@ -160,12 +187,25 @@ func (o *Ops) periodFor(ctx context.Context, tenant string, t PeriodicTask, date
 	case "settlement_master":
 		m := addDays(date, 10)[:7]
 		return m, monthLabel(m), addDays(m+"-01", -1)
-	case "ledger_statements", "complaints_disclosure":
+	case "ledger_statements", "complaints_disclosure", "raia_impersonation":
+		// raia_impersonation: within 7 days of the month's end (BSE notices
+		// 20250804-58 and 20250804-59).
 		m := prevMonth(date)
 		return m, monthLabel(m), addMonths(m+"-01", 1)[:8] + "07"
-	case "dp_statements":
+	case "dp_statements", "dp_impersonation":
+		// dp_impersonation: by the 10th of the following month
+		// (NSDL/POLICY/2024/0048).
 		m := prevMonth(date)
 		return m, monthLabel(m), addMonths(m+"-01", 1)[:8] + "10"
+	case "ap_mapping":
+		// The week Monday to Sunday, due on the 2nd trading day of the next
+		// week (MSE/MEM/15275/2024, item 15; NSE/COMP/49509).
+		set, _ := o.Settings(ctx, tenant)
+		sun := apLastWeek(date)
+		return sun, "Week of " + apWeekLabel(sun), apWeekDue(set, sun)
+	case "ap_client_count":
+		m := prevMonth(date)
+		return m, monthLabel(m), apCountDue(m)
 	case "ras":
 		set, _ := o.Settings(ctx, tenant)
 		d := ""
@@ -205,6 +245,10 @@ func (o *Ops) Periodic(ctx context.Context, tenant, date string) ([]PeriodicStat
 func (o *Ops) periodicStatus(ctx context.Context, tenant string, t PeriodicTask, date string) PeriodicStatus {
 	p, label, due := o.periodFor(ctx, tenant, t, date)
 	s := PeriodicStatus{PeriodicTask: t, Period: p, Label: label, DueOn: due}
+	if a := o.periodicApplicability(ctx, tenant, t.ID); a != nil && a.Verdict == ApplyNo {
+		s.Status, s.Note, s.DueOn = "Nothing to do", "Doesn't apply: "+a.Reason+".", ""
+		return s
+	}
 	if run, _, err := docs.Get[PeriodicRun](ctx, o.Docs, tenant, cPeriodicRun, t.ID+"|"+p); err == nil {
 		s.Run = &run
 	}
@@ -288,6 +332,14 @@ func (o *Ops) periodicDone(ctx context.Context, tenant string, t PeriodicTask, p
 		if err == nil {
 			return false, fmt.Sprintf("%d changes proposed, waiting for a checker", len(r.Lines))
 		}
+	case "ap_mapping":
+		return o.apWeekDone(ctx, tenant, period, date)
+	case "ap_client_count":
+		return o.apCountDone(ctx, tenant, period)
+	case "raia_impersonation":
+		return o.impReportsDone(ctx, tenant, period, impBodiesRAIA)
+	case "dp_impersonation":
+		return o.impReportsDone(ctx, tenant, period, impBodiesDP)
 	}
 	return false, ""
 }
@@ -300,6 +352,9 @@ func (o *Ops) RunPeriodic(ctx context.Context, tenant, actor, id, period, date s
 	t, ok := periodicTask(id)
 	if !ok {
 		return PeriodicRun{}, fmt.Errorf("%w: periodic task %q", ErrNotFound, id)
+	}
+	if a := o.periodicApplicability(ctx, tenant, id); a != nil && a.Verdict == ApplyNo {
+		return PeriodicRun{}, fmt.Errorf("%w: %s doesn't apply to the firm: %s (Settings → Firm profile)", ErrState, t.Name, a.Reason)
 	}
 	if actor != SystemActor {
 		if err := o.require(ctx, tenant, actor, "Running periodic work", RoleMaker, RoleChecker); err != nil {
@@ -416,19 +471,42 @@ func (o *Ops) runPeriodic(ctx context.Context, tenant, actor string, t PeriodicT
 		s, err := o.runMonthly(ctx, tenant, actor, period)
 		return s, nil, err
 	case "complaints_disclosure":
-		d, err := o.ComplaintsDisclosure(ctx, tenant, period)
-		if err != nil {
-			return "", nil, err
+		// One table for each business the firm has: the broker's always,
+		// the DP's, the RA's and the IA's when it has them (helpdesk.go).
+		var files []PeriodicFile
+		var parts []string
+		for _, biz := range o.disclosureBusinesses(ctx, tenant) {
+			d, err := o.ComplaintsDisclosureFor(ctx, tenant, biz, period)
+			if err != nil {
+				return "", nil, err
+			}
+			name := "ComplaintsDisclosure_" + period + ".csv"
+			if biz != BizBroking {
+				name = "ComplaintsDisclosure_" + biz + "_" + period + ".csv"
+			}
+			f, err := o.keepFile(ctx, tenant, name, d.CSV())
+			if err != nil {
+				return "", nil, err
+			}
+			files = append(files, f)
+			part := fmt.Sprintf("%d received, %d resolved, %d pending at the end of %s", d.Total.Received, d.Total.Resolved, d.Total.Pending, monthLabel(period))
+			if biz != BizBroking {
+				part = biz + ": " + part
+				if d.Impersonation != nil {
+					part += fmt.Sprintf(", %d due to impersonation", *d.Impersonation)
+				}
+			}
+			parts = append(parts, part)
 		}
-		rows := [][]string{{"Received from", "Pending at the end of last month", "Received", "Resolved", "Total pending", "Pending over 3 months", "Average resolution time (days)"}}
-		for _, r := range append(d.Rows, d.Total) {
-			rows = append(rows, []string{r.Source, fmt.Sprint(r.PendingAtOpen), fmt.Sprint(r.Received), fmt.Sprint(r.Resolved), fmt.Sprint(r.Pending), fmt.Sprint(r.Over3Months), fmt.Sprint(r.AvgDays)})
-		}
-		f, err := o.keepFile(ctx, tenant, "ComplaintsDisclosure_"+period+".csv", csvBytesOf(rows))
-		if err != nil {
-			return "", nil, err
-		}
-		return fmt.Sprintf("%d received, %d resolved, %d pending at the end of %s", d.Total.Received, d.Total.Resolved, d.Total.Pending, monthLabel(period)), []PeriodicFile{f}, nil
+		return strings.Join(parts, "; "), files, nil
+	case "ap_mapping":
+		return o.runAPMapping(ctx, tenant, period, date)
+	case "ap_client_count":
+		return o.runAPCount(ctx, tenant, period, date)
+	case "raia_impersonation":
+		return o.runImpReports(ctx, tenant, period, date, impBodiesRAIA)
+	case "dp_impersonation":
+		return o.runImpReports(ctx, tenant, period, date, impBodiesDP)
 	case "ras":
 		if date < period {
 			return "", nil, invalid("the settlement date %s has not come", period)
