@@ -12,9 +12,8 @@ import (
 // connected (LEDGERLINE_CLAMD), ScanningRawStore checks a file before it is
 // stored, by what kind of file it is (the Kind function, from its Source):
 //
-//   - ScanDocument: files from people and from outside (board attachments
-//     and mail to a board or card, KYC and client documents, vendor bills,
-//     evidence, chat). Always scanned. A file too large for the scanner is
+//   - ScanDocument: files from people and from outside (board attachments,
+//     KYC and client documents, vendor bills, evidence, chat). Always scanned. A file too large for the scanner is
 //     refused, never stored unscanned.
 //   - ScanBulk: data files from the exchanges, clearing corporations and
 //     depositories, whether fetched from their servers or uploaded through

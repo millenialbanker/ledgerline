@@ -67,6 +67,8 @@ func (f *fakeClamd) serve(c net.Conn) {
 	switch string(cmd) {
 	case "zPING":
 		c.Write([]byte("PONG\x00"))
+	case "zVERSION":
+		c.Write([]byte("ClamAV 1.4.1/27470/Mon Nov 16 09:12:00 2026\x00"))
 	case "zINSTREAM":
 		f.mu.Lock()
 		f.scans++
@@ -241,5 +243,18 @@ func TestScanningRawStoreFailsClosed(t *testing.T) {
 	var plain RawStore = NewMemRawStore()
 	if _, err := plain.Put(ctx, raw("BOARD", "x", []byte(fakeMarker))); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// The daemon's version is read for the Security panel.
+func TestClamdVersion(t *testing.T) {
+	f := newFakeClamd(t, "tcp")
+	c, err := ParseClamd("tcp://" + f.ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := c.Version(context.Background())
+	if err != nil || !strings.HasPrefix(v, "ClamAV 1.4.1/") {
+		t.Fatalf("version %q %v", v, err)
 	}
 }

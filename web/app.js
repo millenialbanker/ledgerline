@@ -2625,6 +2625,20 @@ function aiUsageHTML(v) {
     <p class="dim small" style="margin:8px 0 0">Each AI answer is charged from this prepaid credit by the tokens it used. Questions are not stored here. When credit runs out, Ledgy keeps answering from its help articles without AI.</p>
   </div></div>`;
 }
+// The malware scanner on the Security panel: whether it is on and answers,
+// its version, and the last 30 days' refusals (counts, kinds of file and
+// signatures only; no file names).
+function malwareHTML(m) {
+  const state = !m.on ? pill('Off', 'warn') : m.healthy ? pill('On', 'good') : pill('Not answering', 'bad');
+  const kinds = Object.entries(m.sources || {}).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${esc(k)} ${n}`).join(', ');
+  return `<h4 style="margin:14px 0 6px">Malware scanning of uploaded files ${state}</h4>
+    <p class="small" style="margin:0">${esc(m.line || '')}</p>
+    ${m.on ? `${m.problem ? `<div class="note bad" style="margin-top:8px">${esc(m.problem)}</div>` : ''}
+    <div class="kv" style="margin-top:8px"><div><small>Scanner</small><b>${esc(m.scanner || '')}</b></div><div><small>Version and signatures</small><b>${esc(m.version || (m.healthy ? 'Not reported' : '—'))}</b></div><div><small>Checked</small><b>${esc((m.checked_at || '').replace('T', ' ').slice(0, 16))}</b></div></div>
+    <div class="kv" style="margin-top:8px"><div><small>Refused, malware found (30 days)</small><b>${m.infected || 0}</b></div><div><small>Refused, too large to scan</small><b>${m.too_large || 0}</b></div><div><small>Refused, scanner down</small><b>${m.unavailable || 0}</b></div><div><small>Exchange files stored unscanned (over ${m.max_mb || 25} MB)</small><b>${m.not_scanned || 0}</b></div></div>
+    ${(m.signatures || []).length ? `<p class="small" style="margin:8px 0 0">Found: ${m.signatures.map(esc).join(', ')}${kinds ? ` · by kind of file: ${kinds}` : ''}. Details are in the audit trail.</p>` : ''}` : ''}`;
+}
+
 function sealHTML(s) {
   const a = s.audit;
   const head = !s.encrypted ? `<div class="note bad">Client data is not encrypted on this server: it was started without data keys.</div>` :
@@ -2633,8 +2647,7 @@ function sealHTML(s) {
   return `<div class="panel"><div class="hd"><h3>Data protection</h3><small>${s.encrypted ? 'Encrypted' : 'Not encrypted'}</small></div><div class="bd">${head}
     ${s.encrypted ? `<div class="kv"><div><small>Encryption</small><b>${esc(s.cipher)}</b></div><div><small>Keys</small><b>${esc(s.key_source)}</b></div><div><small>Key version in use</small><b>${s.key_version}${s.key_versions.length > 1 ? ` (also holds ${s.key_versions.filter(v => v !== s.key_version).join(', ')} for older data)` : ''}</b></div></div>
     <div class="grid2" style="margin-top:10px"><div><small class="dim">Encrypted at rest</small><ul class="small">${s.covers.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div><div><small class="dim">Kept in clear (no personal data)</small><ul class="small">${s.in_clear.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>` : ''}
-    <h4 style="margin:14px 0 6px">Malware scanning of uploaded files ${s.malware_scan?.on ? pill('On', 'good') : pill('Off', 'warn')}</h4>
-    <p class="small" style="margin:0">${esc(s.malware_scan?.line || '')}</p>
+    ${malwareHTML(s.malware_scan || {})}
     <h4 style="margin:14px 0 6px">Where data is kept and sent ${s.india_only ? pill('India-only mode on', 'good') : pill('India-only mode off', 'nt')}</h4>
     ${tbl([['What'], ['Where'], ['In India?'], ['Note']], (s.residency || []).map(r => `<tr><td>${esc(r.what)}</td><td>${esc(r.where)}</td><td>${{ india: pill('Yes', 'good'), outside: pill('No', 'bad'), none: pill('Nothing sent', 'nt'), check: pill('Check', 'warn') }[r.status] || ''}</td><td class="wrap dim">${esc(r.note || '')}</td></tr>`))}</div></div>`;
 }

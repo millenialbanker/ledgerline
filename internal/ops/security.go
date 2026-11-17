@@ -37,7 +37,7 @@ func (o *Ops) Security(ctx context.Context, tenant, actor string, verify bool) (
 	if err := o.require(ctx, tenant, actor, "view data protection", RoleCompliance); err != nil {
 		return SecurityStatus{}, err
 	}
-	s := SecurityStatus{KeyVersions: []int{}, Covers: []string{}, InClear: []string{}, IndiaOnly: o.Residency.IndiaOnly, Residency: o.ResidencyLines(), MalwareScan: o.MalwareScan()}
+	s := SecurityStatus{KeyVersions: []int{}, Covers: []string{}, InClear: []string{}, IndiaOnly: o.Residency.IndiaOnly, Residency: o.ResidencyLines(), MalwareScan: o.MalwareScan(ctx, tenant)}
 	va := o.vaultAudit()
 	if va == nil {
 		s.KeySource = "Not encrypted: the server was started without data keys."

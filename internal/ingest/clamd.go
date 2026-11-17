@@ -116,6 +116,20 @@ func (c *Clamd) Ping(ctx context.Context) error {
 	return nil
 }
 
+// Version is the daemon's engine and signature version, for example
+// "ClamAV 1.4.1/27470/Mon Nov 16 09:12:00 2026".
+func (c *Clamd) Version(ctx context.Context) (string, error) {
+	conn, err := c.dial(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+	if _, err := conn.Write([]byte("zVERSION\x00")); err != nil {
+		return "", err
+	}
+	return reply(conn)
+}
+
 // Scan sends data to the daemon and reads its verdict.
 func (c *Clamd) Scan(ctx context.Context, data []byte) (ScanResult, error) {
 	conn, err := c.dial(ctx)
