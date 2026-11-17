@@ -274,10 +274,13 @@ func (o *Ops) ccilTick(ctx context.Context, tenant string, now time.Time) {
 	if hm < ccilFromHM || !set.IsBusinessDay(today) {
 		d = set.PrevBusinessDay(today)
 	}
-	if p, ok := o.gsecPricesOn(ctx, tenant, d); ok && p.Date == d {
+	st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cCCILState, "state", CCILState{})
+	if st.LastOK == d {
 		return
 	}
-	st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cCCILState, "state", CCILState{})
+	if _, _, err := docs.Get[GSecPrices](ctx, o.Docs, tenant, cGSecPrice, d); err == nil {
+		return // loaded by hand
+	}
 	if t, err := time.Parse(time.RFC3339, st.LastRun); err == nil && st.LastDate == d && now.Sub(t) < 30*time.Minute {
 		return
 	}
