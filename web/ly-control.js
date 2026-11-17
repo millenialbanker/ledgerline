@@ -29,8 +29,13 @@ LYS.control = {
 function ctlTimeline(steps) {
   const today = S.date === lyNow().slice(0, 10), now = lyNow().slice(11);
   const at = st => st.last && st.last.slice(0, 10) === S.date ? lyHHMM(st.last) : st.at;
-  const bands = LY_SESS.map(([k, name]) => { const [a, b] = CTL_BANDS[k]; return `<div class="ctl-band" style="left:${ctlPos(a).toFixed(2)}%;width:${(ctlPos(b) - ctlPos(a)).toFixed(2)}%"><span>${esc(name)}</span><small class="mono">${a}</small></div>`; }).join('');
-  const marks = steps.filter(st => st.state !== 'na').map(st => { const t = at(st); return `<button class="ctl-mark ${st.state}" style="left:${ctlPos(t).toFixed(2)}%" data-act="go" data-id="${ctlStepView(st)}" title="${esc(`${t} · ${st.n}. ${st.name}: ${st.note}`)}" aria-label="${esc(`Step ${st.n}, ${st.name}: ${LY_ST[st.state][0]}, ${st.note}`)}"></button>`; }).join('');
+  const bands = LY_SESS.map(([k, name]) => { const [a, b] = CTL_BANDS[k]; return `<div class="ctl-band ${ctlPos(b) > 96 ? 'end' : ''}" style="left:${ctlPos(a).toFixed(2)}%;width:${(ctlPos(b) - ctlPos(a)).toFixed(2)}%"><span>${esc(name)}</span><small class="mono">${a}</small></div>`; }).join('');
+  // Marks closer than a mark's width go on a second lane below the track.
+  let lastPos = -9, lane = 0;
+  const marks = steps.filter(st => st.state !== 'na').map(st => ({ st, t: at(st) })).sort((x, y) => ctlPos(x.t) - ctlPos(y.t)).map(({ st, t }) => {
+    const p = ctlPos(t); lane = p - lastPos < 1.3 ? 1 - lane : 0; lastPos = p;
+    return `<button class="ctl-mark ${st.state} ${lane ? 'low' : ''}" style="left:${p.toFixed(2)}%" data-act="go" data-id="${ctlStepView(st)}" title="${esc(`${t} · ${st.n}. ${st.name}: ${st.note}`)}" aria-label="${esc(`Step ${st.n}, ${st.name}: ${LY_ST[st.state][0]}, ${st.note}`)}"></button>`;
+  }).join('');
   const nowLine = today && ctlMin(now) >= CTL_T0 ? `<div class="ctl-now" style="left:${ctlPos(now).toFixed(2)}%"><span class="mono">now ${esc(now)}</span></div>` : '';
   const cnt = s => steps.filter(x => x.state === s).length;
   return `<section class="ctl-pn ctl-day" aria-label="The day so far">
@@ -81,9 +86,13 @@ function ctlNeeds() {
 }
 function ctlChecks(d) {
   const parts = (d.eod.parts || []).filter(p => p.needed);
-  return `<section class="ctl-pn ctl-span5"><div class="ctl-row"><h2 class="ctl-pt">The close</h2><span class="dim small">${esc(eodStatus(d.eod))}</span></div>
-    ${parts.map(p => `<div class="ctl-part"><b>${esc(p.name)}</b> ${p.closed ? pill('Closed', 'good') : pill(`${(p.checks || []).filter(c => c.ok).length} of ${(p.checks || []).length} checks pass`, (p.checks || []).every(c => c.ok) ? 'acc' : 'warn')}</div>
-      ${(p.checks || []).map(c => `<button class="ctl-check" data-act="go" data-id="${esc(viewAllowed(c.view) ? c.view : 'dashboard')}"><i class="ctl-k ${c.ok ? 'done' : 'needs'}"></i><span>${esc(c.name)}</span><small class="mono">${esc(c.detail || '')}</small></button>`).join('')}`).join('') || '<div class="dim small">No close needed for this date.</div>'}</section>`;
+  // Checks that fail are listed; those that pass fold into one line.
+  const part = p => { const ch = p.checks || [], bad = ch.filter(c => !c.ok), ok = ch.filter(c => c.ok);
+    return `<div class="ctl-part"><b>${esc(p.name)}</b> ${p.closed ? pill('Closed ' + esc((p.closed_at || '').slice(11, 16)), 'good') : pill(`${ok.length} of ${ch.length} checks pass`, bad.length ? 'warn' : 'acc')}</div>
+      ${p.closed ? '' : bad.map(c => `<button class="ctl-check" data-act="go" data-id="${esc(viewAllowed(c.view) ? c.view : 'dashboard')}"><i class="ctl-k needs"></i><span>${esc(c.name)}<small>${esc(c.detail || '')}</small></span></button>`).join('')}
+      ${ok.length && !p.closed ? `<div class="ctl-check ok"><i class="ctl-k done"></i><span>${esc(ok.map(c => c.name).join(' · '))}</span></div>` : ''}`; };
+  return `<section class="ctl-pn ctl-span5"><div class="ctl-row"><h2 class="ctl-pt">The close</h2><button class="linkish small" data-act="go" data-id="dashboard">${esc(eodStatus(d.eod))}</button></div>
+    ${parts.map(part).join('') || '<div class="dim small">No close needed for this date.</div>'}</section>`;
 }
 
 V.lyControl = {

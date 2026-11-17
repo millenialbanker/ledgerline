@@ -1,1 +1,100 @@
-/* The D · Control room layout (ly-control.js). */
+/* The D · Control room layout (ly-control.js). Colours come from the theme
+   (the layout is dark unless the person chose light), so the screen also
+   reads well opened from another layout. */
+body[data-layout="control"] .top{background:color-mix(in srgb,var(--panel) 70%,var(--bg));padding-top:8px;padding-bottom:8px}
+.ctl-top{gap:12px}
+.ctl-clock{font-size:12.5px;color:var(--ink2)}
+.ctl{display:flex;flex-direction:column;gap:12px;min-width:0;container:ctl / inline-size}
+.ctl-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.ctl-head h1{margin:0;font-family:var(--f-cond);font-size:22px;font-weight:700;letter-spacing:-.01em}
+.ctl-head p{margin:2px 0 0;color:var(--ink2);font-size:13px}
+.ctl-pn{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:9px;min-width:0;color:var(--ink);font:inherit;text-align:left}
+button.ctl-pn{cursor:pointer}
+button.ctl-pn:hover{border-color:var(--line2);background:color-mix(in srgb,var(--panel) 92%,var(--accent))}
+button.ctl-pn[disabled]{cursor:default;opacity:1}
+.ctl-pt{margin:0;font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink2)}
+.ctl-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.ctl-row h1{margin:0;font-size:16px;font-weight:650}
+.ctl-sub{font-size:12px;color:var(--ink2)}
+.ctl .good{color:var(--good)}.ctl .warn{color:var(--warn)}.ctl .bad{color:var(--bad)}
+
+/* status keys: done circle, needs diamond, not yet hollow */
+.ctl-k{flex:none;display:inline-block;width:9px;height:9px;border-radius:50%}
+.ctl-k.done{background:var(--good)}
+.ctl-k.needs{border-radius:2px;background:var(--warn);transform:rotate(45deg)}
+.ctl-k.needs.over{background:var(--bad)}
+.ctl-k.wait{box-shadow:inset 0 0 0 2px var(--ink3)}
+.ctl-legend{display:flex;gap:14px;font-size:12px;color:var(--ink2)}
+.ctl-legend span{display:inline-flex;align-items:center;gap:6px}
+
+/* the day so far */
+.ctl-tl{position:relative;height:70px;margin:2px 4px 0}
+.ctl-track{position:absolute;left:0;right:0;top:32px;height:10px;border-radius:99px;background:var(--sunk);box-shadow:inset 0 0 0 1px var(--line)}
+.ctl-band{position:absolute;top:0;height:46px;border-left:1px solid var(--line2);padding-left:6px;display:flex;flex-direction:column;line-height:1.15;overflow:hidden}
+.ctl-band span{font-size:11.5px;font-weight:600;color:var(--ink2);white-space:nowrap}
+.ctl-band small{font-size:10.5px;color:var(--ink3)}
+.ctl-band.end{border-left:0;border-right:1px solid var(--line2);padding:0 6px 0 0;align-items:flex-end;overflow:visible;text-align:right}
+.ctl-mark{position:absolute;top:31px;width:12px;height:12px;margin-left:-6px;padding:0;border:0;border-radius:50%;cursor:pointer;background:var(--good);box-shadow:0 0 0 2px var(--panel)}
+.ctl-mark.needs{border-radius:2px;background:var(--warn);transform:rotate(45deg)}
+.ctl-mark.low{top:49px}
+.ctl-mark.wait{background:var(--panel);box-shadow:0 0 0 2px var(--panel),inset 0 0 0 2px var(--ink3)}
+.ctl-mark:hover,.ctl-mark:focus-visible{outline:2px solid var(--accent);outline-offset:2px;z-index:2}
+.ctl-now{position:absolute;top:22px;bottom:4px;width:2px;margin-left:-1px;background:var(--accent)}
+.ctl-now span{position:absolute;top:30px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--accent);white-space:nowrap}
+.ctl-steps{display:flex;gap:8px;flex-wrap:wrap}
+.ctl-chip{display:inline-flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--line);border-radius:99px;background:var(--sunk);color:var(--ink);cursor:pointer;font:inherit;font-size:12.5px;max-width:100%}
+.ctl-chip b{font-weight:600;white-space:nowrap}
+.ctl-chip span{color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctl-chip:hover{border-color:var(--line2)}
+
+/* the day's numbers */
+.ctl-kpis{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px}
+.ctl-kpi{gap:3px;padding:11px 12px}
+.ctl-kpi>span{font-size:12px;color:var(--ink2)}
+.ctl-kpi b{font-family:var(--f-mono);font-size:21px;font-weight:600;letter-spacing:-.01em;color:var(--ink);white-space:nowrap}
+.ctl-kpi small{font-size:11.5px;color:var(--ink3);line-height:1.3}
+
+.ctl-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
+.ctl-span3{grid-column:span 3}.ctl-span4{grid-column:span 4}.ctl-span5{grid-column:span 5}.ctl-span7{grid-column:span 7}
+.ctl-bar{display:flex;gap:2px;height:14px;border-radius:99px;overflow:hidden;background:var(--sunk)}
+.ctl-bar.thin{height:6px;gap:0}
+.ctl-bar i{display:block;min-width:2px}
+.ctl-bar i.good{background:var(--good)}.ctl-bar i.acc{background:var(--accent)}.ctl-bar i.warn{background:var(--warn)}.ctl-bar i.bad{background:var(--bad)}
+.ctl-buckets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.ctl-buckets span{display:flex;flex-direction:column}
+.ctl-buckets b{font-size:18px;font-family:var(--f-mono)}
+.ctl-buckets small{font-size:12px;color:var(--ink2)}
+.ctl-foot{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--ink2);padding-top:6px;border-top:1px solid var(--line)}
+.ctl-foot b{color:var(--ink);margin-right:8px}
+.ctl-stage{display:flex;flex-direction:column;gap:4px}
+.ctl-stage>div:first-child{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.ctl-stage small{color:var(--ink2);font-size:12px}
+.ctl-notes{display:flex;align-items:center;gap:14px}
+.ctl-notes>div{display:flex;flex-direction:column;gap:3px;font-size:13px}
+.ctl-notes b{font-size:20px;font-family:var(--f-mono)}
+.ctl-ring{fill:none;stroke:var(--sunk);stroke-width:8}
+.ctl-ring.on{stroke:var(--good);stroke-linecap:round}
+.ctl-att{display:flex;gap:10px;align-items:center;width:100%;padding:7px 0;border:0;border-top:1px solid var(--line);background:none;color:var(--ink);cursor:pointer;font:inherit;text-align:left}
+.ctl-att>span{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.ctl-att b{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctl-att small{font-size:12px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctl-att em{font-style:normal;font-size:12px;color:var(--ink2);white-space:nowrap}
+.ctl-att:hover b{color:var(--accent)}
+.ctl-part{display:flex;align-items:center;gap:8px;font-size:13px;margin-top:2px}
+.ctl-check{display:flex;gap:10px;align-items:flex-start;width:100%;padding:6px 0;border:0;border-top:1px solid var(--line);background:none;color:var(--ink);cursor:pointer;font:inherit;font-size:13px;text-align:left}
+.ctl-check .ctl-k{margin-top:5px}
+.ctl-check span{min-width:0;display:flex;flex-direction:column;gap:1px}
+.ctl-check small{font-family:var(--f-mono);font-size:11.5px;color:var(--ink2);overflow-wrap:anywhere}
+.ctl-check.ok{cursor:default;color:var(--ink2);font-size:12.5px}
+button.ctl-check:hover>span{color:var(--accent)}
+
+/* Sized by the room the screen has, so it also fits beside the classic sidebar. */
+@container ctl (max-width:1240px){.ctl-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@container ctl (max-width:1040px){.ctl-span3,.ctl-span4,.ctl-span5,.ctl-span7{grid-column:span 6}}
+@container ctl (max-width:700px){
+  .ctl-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ctl-span3,.ctl-span4,.ctl-span5,.ctl-span7{grid-column:span 12}
+  .ctl-band small,.ctl-band.end span,.ctl-legend{display:none}
+  .ctl-band span{font-size:10.5px}
+}
+@media (max-width:760px){.ctl-clock{display:none}}

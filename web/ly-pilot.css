@@ -1,1 +1,75 @@
 /* The E · Supervised Autopilot layout (ly-pilot.js). */
+
+/* ---------- header: tell Ledgerline what to do ---------- */
+.pil-top{gap:12px}
+.pil-cmd{flex:1 1 380px;max-width:720px;margin:0 auto;display:flex;align-items:center;gap:10px;height:42px;padding:0 6px 0 12px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line2));border-radius:12px;background:color-mix(in srgb,var(--accent-soft) 55%,var(--panel))}
+.pil-cmd:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.pil-cmd input{flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:14px;color:var(--ink)}
+.pil-l{flex:none;width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:700;display:grid;place-items:center}
+.pil-top .ly-kbtn{flex:0 1 150px}
+@media (max-width:900px){.pil-cmd{order:9;flex-basis:100%;max-width:none}}
+
+/* ---------- the home: three columns ---------- */
+.pil{display:grid;grid-template-columns:minmax(260px,320px) minmax(0,1fr) minmax(260px,320px);gap:20px;align-items:start}
+.pil-col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.pil-left{position:sticky;top:calc(var(--ly-top,57px) + 16px);max-height:calc(100vh - var(--ly-top,57px) - 32px);overflow-y:auto;border-radius:14px}
+@media (max-width:1280px){.pil{grid-template-columns:minmax(250px,300px) minmax(0,1fr)}.pil-right{grid-column:1 / -1;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}}
+@media (max-width:900px){.pil{grid-template-columns:minmax(0,1fr)}.pil-left{position:static;max-height:none}.pil-mid{order:-1}.pil-right{display:flex}}
+
+.pil-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.pil-h{display:flex;flex-direction:column;gap:4px}
+.pil-h.row{flex-direction:row;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.pil-h h2,.pil-card h2{margin:0;font-family:var(--f-cond);font-size:15.5px;font-weight:650}
+.pil-ph{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:flex-start}
+.pil-ph h1{margin:2px 0 0;font-family:var(--f-cond);font-size:24px;font-weight:700;letter-spacing:-.015em}
+.pil-check .pil-ph h2{font-size:18px;font-weight:700;margin-top:2px}
+
+/* how much Autopilot does alone */
+.pil-area h3{margin:6px 0 2px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
+.pil-lv{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.pil-lv-n{display:flex;flex-direction:column;gap:2px;min-width:0;font-size:13px;line-height:1.35}
+.pil-lv-n small{font-size:11.5px;line-height:1.35}
+.pil-seg{flex:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;padding:2px;border-radius:8px;background:var(--sunk);width:174px}
+.pil-seg button{border:0;background:none;border-radius:6px;padding:4px 0;font:inherit;font-size:12px;font-weight:500;color:var(--ink2);cursor:pointer}
+.pil-seg button:hover:not([disabled]){color:var(--ink);background:color-mix(in srgb,var(--panel) 60%,transparent)}
+.pil-seg button.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.14)}
+.pil-seg button[disabled]:not(.on){opacity:.4;cursor:not-allowed}
+.pil-seg button.on[disabled]{cursor:default}
+
+/* the plan */
+.pil-counts{display:flex;flex-wrap:wrap;gap:8px}
+.pil-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.pil-st{display:flex;gap:12px;align-items:flex-start;padding:11px 6px;border-top:1px solid var(--line)}
+.pil-st.approve{background:color-mix(in srgb,var(--accent-soft) 70%,transparent);border-radius:8px}
+.pil-n{width:18px;text-align:right;font-size:12.5px;padding-top:1px}
+.pil-dot{flex:none;width:12px;height:12px;margin-top:4px;border-radius:50%}
+.pil-dot.done{background:var(--good)}
+.pil-dot.people{background:var(--warn);border-radius:2px;transform:rotate(45deg) scale(.85)}
+.pil-dot.approve{background:var(--accent)}
+.pil-dot.later{box-shadow:inset 0 0 0 2px var(--line2)}
+.pil-st-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.pil-st-name{font-size:14px;font-weight:600;text-decoration:none;color:var(--ink);text-align:left}
+.pil-st-name:hover{text-decoration:underline}
+.pil-who{flex:none;font-size:11.5px;font-weight:600;border-radius:999px;padding:2px 8px;background:var(--sunk);color:var(--ink2)}
+.pil-who.auto{background:var(--accent-soft);color:var(--accent)}
+
+/* the checkpoint */
+.pil-check{border-color:color-mix(in srgb,var(--accent) 35%,var(--line));box-shadow:0 0 0 3px var(--accent-soft)}
+.pil-check.none{box-shadow:none;border-color:var(--line)}
+.pil-check.none p{margin:0}
+.pil-kick{font-size:12.5px;color:var(--accent);font-weight:600}
+.pil-detail{margin:0;font-size:13.5px;line-height:1.55;color:var(--ink);overflow-wrap:anywhere}
+.pil-meta{display:flex;flex-wrap:wrap;gap:16px;padding:10px 14px;border-radius:10px;background:var(--sunk);font-size:13px}
+.pil-more{display:flex;flex-direction:column;gap:4px;padding-top:10px;border-top:1px solid var(--line);font-size:13px}
+.pil-mi{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;padding:7px 8px;border:0;border-radius:8px;background:none;cursor:pointer;color:var(--ink);font:inherit;font-size:13px;text-align:left}
+.pil-mi:hover{background:var(--sunk)}
+.pil-mi>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* what Autopilot did */
+.pil-did{display:flex;gap:12px;padding-top:10px;border-top:1px solid var(--line)}
+.pil-did .pil-dot{width:8px;height:8px;margin-top:6px}
+.pil-did-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;font-size:13.5px}
+.pil-did-b .linkish{align-self:flex-start}
+.pil-stp{display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid var(--line)}
+.pil-foot{border:1px dashed var(--line2);border-radius:14px;padding:14px 16px;font-size:12.5px;color:var(--ink2);line-height:1.5}
+.pil-cap,.pil-note{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}

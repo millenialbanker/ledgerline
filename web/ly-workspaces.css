@@ -1,1 +1,63 @@
 /* The C · Workspaces layout (ly-workspaces.js). */
+/* The rail beside the page: as specific as layouts.css's general shell rule, so this one wins. */
+body[data-layout="workspaces"]:not(.signed-out) .app{grid-template-columns:248px minmax(0,1fr);grid-template-areas:"top top" "side page"}
+.ws-top{flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:0}
+.ws-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;min-height:38px;padding-bottom:6px}
+body[data-layout="workspaces"] .top{padding-bottom:0}
+.ws-tabs{display:flex;gap:18px;overflow-x:auto;scrollbar-width:none;margin:0 -4px}
+.ws-tabs::-webkit-scrollbar{display:none}
+.ws-tab{display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 4px;border:0;border-bottom:2px solid transparent;background:none;color:var(--ink2);font:inherit;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap}
+.ws-tab:hover{color:var(--ink)}
+.ws-tab.on{color:var(--ink);font-weight:650;border-bottom-color:var(--accent)}
+.ws-dot{width:7px;height:7px;border-radius:50%;background:var(--warn);display:inline-block}
+/* the rail */
+.ws-rail{display:flex;flex-direction:column;gap:14px;min-height:100%}
+.ws-hub{font-weight:600}
+.ws-step{justify-content:flex-start}
+.ws-step .ly-mk{width:16px;height:16px;font-size:0}
+.ws-step .ly-mk.needs{width:10px;height:10px;margin:3px}
+.ws-step .ly-mk.done svg{width:9px;height:9px}
+.ws-sn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-step[disabled]{opacity:.55;cursor:default}
+.ws-fill{flex:1}
+.ws-all{align-self:flex-start}
+/* the hub */
+.ws-strip{list-style:none;margin:0;padding:12px 14px;display:grid;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.ws-strip li{min-width:0}
+.ws-strip button{display:flex;flex-direction:column;gap:6px;width:100%;padding:2px;border:0;background:none;color:var(--ink);cursor:pointer;text-align:left;font:inherit}
+.ws-strip button[disabled]{cursor:default}
+.ws-strip b{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-strip span{font-size:12px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-strip span.neg{color:var(--warn)}
+.ws-bar{display:block;height:5px;border-radius:99px;background:var(--line)}
+.ws-bar.done{background:var(--good)}.ws-bar.needs{background:var(--warn)}
+.ws-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;align-items:start}
+.ws-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.ws-ch{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.ws-ch h2{margin:0;font-family:var(--f-cond);font-size:16px;font-weight:650}
+.ws-note{margin:0;font-size:13.5px;font-weight:500}
+.ws-card.needs .ws-note{color:var(--warn)}
+.ws-about{margin:0;font-size:13px;color:var(--ink2);line-height:1.5}
+.ws-items{display:flex;flex-direction:column}
+.ws-it{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 0;border-top:1px solid var(--line);font-size:13px}
+.ws-it-t{flex:1 1 200px;min-width:0;display:flex;flex-wrap:wrap;gap:2px 6px;align-items:baseline}
+.ws-it-t .dim{flex-basis:100%}
+.ws-open{align-self:flex-start;font-size:13.5px;font-weight:500;text-decoration:none;margin-top:auto}
+.ws-tiles-h h3{margin:4px 0 0;font-family:var(--f-cond);font-size:15.5px}
+.ws-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.ws-tile{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);cursor:pointer;text-align:left;font:inherit}
+.ws-tile:hover{border-color:var(--line2);background:var(--sunk)}
+.ws-tile b{font-size:13.5px;font-weight:600}
+.ws-tc{font-size:12px;font-weight:600;color:var(--warn)}
+@media (max-width:1100px){.ws-strip{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
+@media (max-width:900px){
+  body[data-layout="workspaces"] .side{flex-direction:column;align-items:stretch;overflow-x:hidden;padding:8px max(12px,env(safe-area-inset-right,0px)) 8px max(12px,env(safe-area-inset-left,0px))}
+  .ws-rail{min-width:0;width:100%;flex-direction:row;flex-wrap:nowrap;overflow-x:auto;gap:8px;min-height:0;align-items:flex-start}
+  .ws-rail .ly-navg{flex-direction:row;flex:none;align-items:center;gap:4px}
+  .ws-rail .ly-navg h6{display:none}
+  .ws-rail .ly-nav{width:auto;white-space:nowrap}
+  .ws-sn{overflow:visible}
+  .ws-fill{display:none}
+  .ws-strip{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .ws-cards{grid-template-columns:minmax(0,1fr)}
+}

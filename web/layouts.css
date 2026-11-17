@@ -53,15 +53,15 @@ body:not([data-layout="classic"]):not(.signed-out) .page{grid-area:page}
 body:not([data-layout="classic"]):not(.signed-out) .side{grid-area:side}
 body[data-layout="control"] .side,body[data-layout="autopilot"] .side,body[data-layout="rolehome"] .side{display:none}
 /* A rail beside the page, under the header. */
-body[data-layout="runbook"] .app{grid-template-columns:300px minmax(0,1fr);grid-template-areas:"top top" "side page"}
-body[data-layout="workspaces"] .app{grid-template-columns:248px minmax(0,1fr);grid-template-areas:"top top" "side page"}
-body[data-layout="grid"] .app{grid-template-columns:210px minmax(0,1fr);grid-template-areas:"top top" "side page"}
+body[data-layout="runbook"]:not(.signed-out) .app{grid-template-columns:300px minmax(0,1fr);grid-template-areas:"top top" "side page"}
+body[data-layout="workspaces"]:not(.signed-out) .app{grid-template-columns:248px minmax(0,1fr);grid-template-areas:"top top" "side page"}
+body[data-layout="grid"]:not(.signed-out) .app{grid-template-columns:210px minmax(0,1fr);grid-template-areas:"top top" "side page"}
 body[data-layout="runbook"] .side,body[data-layout="workspaces"] .side,body[data-layout="grid"] .side{position:sticky;top:var(--ly-top,57px);height:calc(100vh - var(--ly-top,57px));background:var(--panel);color:var(--ink);border-right:1px solid var(--line);padding:14px 10px 20px;gap:10px}
 /* The inbox's icon rail runs the full height, beside the header. */
-body[data-layout="inbox"] .app{grid-template-columns:76px minmax(0,1fr);grid-template-areas:"side top" "side page"}
+body[data-layout="inbox"]:not(.signed-out) .app{grid-template-columns:76px minmax(0,1fr);grid-template-areas:"side top" "side page"}
 body[data-layout="inbox"] .side{position:sticky;top:0;height:100vh;padding:12px 8px;gap:4px}
 /* Phone approvals: header, page, and a bar of tabs fixed at the bottom. */
-body[data-layout="phone"] .app{grid-template-areas:"top" "page"}
+body[data-layout="phone"]:not(.signed-out) .app{grid-template-areas:"top" "page"}
 body[data-layout="phone"] .side{position:fixed;left:0;right:0;bottom:0;top:auto;height:auto;z-index:25;padding:0 0 env(safe-area-inset-bottom,0px);background:var(--panel);color:var(--ink);border-top:1px solid var(--line);flex-direction:row;gap:0;overflow:visible}
 body[data-layout="phone"] .page{padding-bottom:96px}
 @media (max-width:900px){
@@ -97,6 +97,7 @@ kbd{font-family:var(--f-mono);font-size:11px;border:1px solid var(--line2);borde
 .ly-nav .ct{font-family:var(--f-mono);font-size:11px;font-weight:600;padding:0 7px;border-radius:99px;background:var(--warn-soft);color:var(--warn)}
 .ly-menu{columns:3 220px;column-gap:18px}
 .ly-mg{break-inside:avoid;margin-bottom:10px}
+.ly-mg h6{margin:6px 0 4px;padding:0 10px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
 .ly-mg[hidden],.ly-nav[hidden]{display:none}
 
 /* ---------- step marks, shared by the layouts that show the day ---------- */

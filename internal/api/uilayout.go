@@ -39,13 +39,18 @@ func (s *Server) uiLayoutMine(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uiLayoutPolicy(w http.ResponseWriter, r *http.Request) {
-	var b ops.UIPolicy
+	// The command bar is on unless the request turns it off.
+	var b struct {
+		ops.UIPolicy
+		CommandBar *bool `json:"command_bar"`
+	}
 	if !decode(w, r, &b) {
 		return
 	}
 	if !s.allowed(w, r, "Setting the firm's screen layout", ops.RoleAdmin) {
 		return
 	}
-	v, err := s.ops.SaveUIPolicy(r.Context(), tenant(r), actor(r), b)
+	b.UIPolicy.CommandBar = b.CommandBar == nil || *b.CommandBar
+	v, err := s.ops.SaveUIPolicy(r.Context(), tenant(r), actor(r), b.UIPolicy)
 	ok(w, v, err)
 }

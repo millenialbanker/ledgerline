@@ -52,6 +52,15 @@ func TestUILayoutRoutes(t *testing.T) {
 	if c, b := call("PUT", "/v1/ui/policy", "admin", `{"default":"inbox","staff_choose":true}`); c != 200 || !strings.Contains(b, `"default": "inbox"`) {
 		t.Fatalf("admin sets the firm's layout: %d %s", c, b)
 	}
+	if _, b := call("GET", "/v1/me/ui", "admin", ""); !strings.Contains(b, `"command_bar": true`) {
+		t.Fatalf("a policy without command_bar turned it off: %s", b)
+	}
+	if _, b := call("PUT", "/v1/ui/policy", "admin", `{"default":"inbox","staff_choose":true,"command_bar":false}`); !strings.Contains(b, `"command_bar": false`) {
+		t.Fatalf("command bar off: %s", b)
+	}
+	if _, b := call("PUT", "/v1/ui/policy", "admin", `{"default":"inbox","staff_choose":true}`); !strings.Contains(b, `"command_bar": true`) {
+		t.Fatalf("command bar back on: %s", b)
+	}
 	// /v1/me carries what applies, so the console draws it at once.
 	c, b := call("GET", "/v1/me", "farhan.khan", "")
 	var me struct {

@@ -1,4 +1,6 @@
 /* The A · Day runbook layout (ly-runbook.js). */
+/* The rail beside the page: as specific as layouts.css's general shell rule, so this one wins. */
+body[data-layout="runbook"]:not(.signed-out) .app{grid-template-columns:300px minmax(0,1fr);grid-template-areas:"top top" "side page"}
 .rb-top{min-height:36px}
 .rb-rail{display:flex;flex-direction:column;gap:14px;min-height:100%}
 .rb-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;padding:3px;border-radius:9px;background:var(--sunk)}
@@ -68,7 +70,8 @@
 .rb-pt .small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* narrow screens: the steps run across in a strip */
 @media (max-width:900px){
-  .rb-rail{gap:10px}
+  body[data-layout="runbook"] .side{flex-direction:column;align-items:stretch;overflow-x:hidden;padding:10px max(12px,env(safe-area-inset-right,0px)) 10px max(12px,env(safe-area-inset-left,0px))}
+  .rb-rail{gap:10px;min-width:0;width:100%}
   .rb-steps{flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:4px;scroll-snap-type:x proximity}
   .rb-sess{flex-direction:row;gap:6px}
   .rb-sh{display:none}
@@ -76,3 +79,6 @@
   .rb-note{max-width:150px}
   .rb-foot{display:none}
 }
+/* the header keeps to one line on a laptop */
+.rb-top .ly-kbtn{flex:1 1 180px;max-width:300px}
+@media (max-width:1240px){.rb-top .ubtn>span:not(.av){display:none}.rb-top .ubtn{padding:4px}}

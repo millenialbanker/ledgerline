@@ -1,1 +1,75 @@
 /* The G · Spreadsheet workbench layout (ly-grid.js). */
+
+/* ---------- rail and header ---------- */
+.gr-rail .gr-sv{padding-left:22px;font-size:13px;color:var(--ink2)}
+.gr-rail .gr-sv.on{color:var(--ink)}
+.gr-tip{margin-top:auto;padding:10px;line-height:1.45}
+.gr-crumb{font-weight:600;font-size:14px;white-space:nowrap}
+
+/* ---------- views and tools ---------- */
+.gr{display:flex;flex-direction:column;gap:12px;min-width:0}
+.gr-views{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:10px}
+.gr-vt{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--line2);border-radius:8px;background:var(--panel);color:var(--ink);cursor:pointer;font:inherit;font-size:13px;white-space:nowrap}
+.gr-vt.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.gr-vt.on .dim{color:inherit;opacity:.75}
+.gr-vt.mine{padding:0 4px 0 12px}
+.gr-vt.mine>button{border:0;background:none;color:inherit;font:inherit;cursor:pointer;padding:0}
+.gr-vt.add{border-style:dashed;color:var(--ink2)}
+.gr-x{border:0;background:none;color:inherit;cursor:pointer;font-size:16px;line-height:1;padding:2px 6px;border-radius:6px;opacity:.7}
+.gr-x:hover{opacity:1;background:color-mix(in srgb,var(--ink) 10%,transparent)}
+.gr-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.gr-search{display:flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--line2);border-radius:8px;background:var(--panel);color:var(--ink3);flex:0 1 280px;min-width:180px}
+.gr-search .in{border:0;padding:0;height:28px;background:transparent;flex:1;min-width:0;outline:none}
+.gr-chip{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 4px 0 10px;border-radius:99px;background:var(--accent-soft);color:var(--ink);font-size:12.5px}
+.gr-chip.base{padding-right:10px;background:var(--sunk);border:1px solid var(--line)}
+.gr-chip button{border:0;background:none;cursor:pointer;color:var(--ink2);font-size:15px;padding:0 6px;border-radius:99px}
+.gr-chip button:hover{color:var(--ink);background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.gr-sel{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2)}
+.gr-tools .btn.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+/* ---------- the table and the peek ---------- */
+.gr-body{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-items:start}
+.gr-body.peeking{grid-template-columns:minmax(0,1fr) 320px}
+.gr-peek:empty{display:none}
+.gr-main{overflow:hidden}
+.gr-tw{max-height:calc(100vh - var(--ly-top,57px) - 210px);min-height:240px;overflow:auto}
+.gr-tbl{font-size:13px}
+.gr-tbl th .srt{white-space:nowrap}
+.gr-tbl .gr-ck{width:34px;min-width:34px;padding-right:0}
+/* The checkbox and first column stay in place while the table scrolls sideways. */
+.gr-tbl th.gr-ck,.gr-tbl td.gr-ck{position:sticky;left:0;z-index:2;background:var(--panel)}
+.gr-tbl th.gr-ck{z-index:4;background:var(--sunk)}
+.gr-tbl tr>:nth-child(2){position:sticky;left:34px;z-index:1;background:var(--panel);box-shadow:6px 0 6px -6px rgba(16,24,40,.22)}
+.gr-tbl thead tr>:nth-child(2){z-index:4;background:var(--sunk)}
+.gr-tbl tbody tr{cursor:default}
+.gr-tbl tbody tr.sel td,.gr-tbl tbody tr.sel>:nth-child(2),.gr-tbl tbody tr.sel .gr-ck{background:color-mix(in srgb,var(--accent-soft) 70%,var(--panel))}
+.gr-tbl tbody tr.cur td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+.gr-tbl tbody tr.peek td,.gr-tbl tbody tr.peek>:nth-child(2),.gr-tbl tbody tr.peek .gr-ck{background:var(--accent-soft)}
+.gr-tbl tr.gr-grp td{background:var(--sunk);font-size:12.5px;position:static}
+.gr-tbl tr.gr-grp td:first-child{position:sticky;left:0}
+.gr-tbl tfoot td{position:sticky;bottom:0;z-index:2}
+.gr-tbl tfoot tr>:nth-child(2){z-index:3;background:var(--sunk)}
+.gr-tbl tfoot td.gr-ck{background:var(--sunk)}
+.gr-count{font-weight:500;color:var(--ink2);font-size:12.5px}
+.gr-more{display:flex;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line)}
+.gr-note{padding:8px 14px;border-top:1px solid var(--line)}
+.gr-bulk{border-radius:0}
+
+.gr-peek{position:sticky;top:calc(var(--ly-top,57px) + 12px);padding:14px 16px;display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - var(--ly-top,57px) - 24px);overflow-y:auto}
+.gr-pk-h{display:flex;justify-content:space-between;align-items:center}
+.gr-pk-name{display:flex;flex-direction:column;gap:2px}
+.gr-pk-t{font-size:17px;font-family:var(--f-cond);line-height:1.25}
+.gr-dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;margin:0;font-size:13px}
+.gr-dl dt{color:var(--ink2)}
+.gr-dl dd{margin:0;overflow-wrap:anywhere}
+.gr-pk-a{display:flex;flex-wrap:wrap;gap:6px}
+.gr-colpick{columns:2 180px;margin-bottom:8px}
+/* On a narrow screen the rail is a row of tables to scroll sideways. */
+@media (max-width:900px){
+  body[data-layout="grid"] .side{flex-direction:row;align-items:center;overflow-x:auto;gap:6px;padding:8px 12px}
+  body[data-layout="grid"] .side .ly-navg{flex-direction:row;align-items:center;gap:4px}
+  body[data-layout="grid"] .side .ly-navg h6,body[data-layout="grid"] .gr-tip,body[data-layout="grid"] .gr-rail .gr-sv{display:none}
+  body[data-layout="grid"] .side .ly-nav{width:auto;white-space:nowrap}
+}
+@media (max-width:1100px){.gr-body.peeking{grid-template-columns:minmax(0,1fr)}.gr-peek{position:static;max-height:none;order:-1}}
+@media (max-width:700px){.gr-tw{max-height:none}.gr-search{flex-basis:100%}}

@@ -38,6 +38,9 @@ function lyCur() {
 // lyApply: the layout, look, density and theme as attributes the CSS keys on.
 function lyApply() {
   const l = lyCur(), e = uiE(), root = document.documentElement;
+  // A layout may set the header's height (--ly-top) for its rail; another
+  // layout starts without it.
+  if (document.body.dataset.layout !== l) document.body.style.removeProperty('--ly-top');
   document.body.dataset.layout = l;
   root.dataset.look = S.me ? e.look || 'classic' : 'classic';
   document.body.dataset.density = e.density || 'comfortable';
@@ -102,7 +105,8 @@ const LY_CHECK = {
   billing: d => d.billed ? { done: true, note: 'Bills posted' } : { note: d.trades ? 'After reconciliation' : 'No trades loaded' },
   settle: d => { const n = SETT_X.reduce((s, k) => s + (d.settlement[k] || 0), 0); return n ? { needs: n, note: `${lyPlural(n, 'exception')} · pay-in ${fmtDate(d.extra.pay_in)}` } : d.billed ? { done: true, note: 'Ready for pay-in' } : {}; },
   notes: d => { const t = d.notes.total || 0, s = d.notes.Sent || 0; return !t ? { note: 'Not generated yet' } : t > s ? { needs: t - s, note: `${s} of ${t} sent${d.notes.Bounced ? ` · ${d.notes.Bounced} bounced` : ''}` } : { done: true, note: `${t} sent` }; },
-  penalty: d => num(d.penalty) > 0 ? { note: `${inr(d.penalty)} estimated` } : {},
+  // Prepared penalties wait for approval, so a run alone doesn't make the step done.
+  penalty: d => num(d.penalty) > 0 ? { done: false, note: `${inr(d.penalty)} estimated · approval on Margin reporting` } : d.trades ? { done: true, note: 'No short collection' } : {},
   reports: d => d.reports_due ? { needs: d.reports_due, note: `${lyPlural(d.reports_due, 'report')} not uploaded` } : {},
   surv: d => d.alerts.open ? { needs: d.alerts.open, note: `${d.alerts.open} open alerts · ${d.alerts.high || 0} high` } : {},
   close: d => { const p = (d.eod.parts || []).find(x => x.id === 'equity'); if (!p) return d.eod.closed ? { done: true, note: 'Closed' } : {}; if (p.closed) return { done: true, note: 'Closed ' + (p.closed_at || '').slice(11, 16) }; const bad = (p.checks || []).filter(c => !c.ok); return { done: false, note: bad.length ? `Waits on ${lyPlural(bad.length, 'check')}` : 'Ready to close' }; },
