@@ -138,12 +138,12 @@ title: Track circulars and compliance deadlines
 screen: circulars
 roles: Compliance officer
 ask: circular; new sebi circular; exchange circular; compliance calendar; due dates; compliance deadline; recurring compliance; what is due this month
-related: regulatory-reports, ras-calendar, compliance-profile, shared-filing, surveillance-return
+related: regulatory-reports, ras-calendar, compliance-profile, shared-filing, surveillance-return, circular-applies, circulars-ai, circulars-board
 
 On [[circulars|Circulars & calendar]]:
 
-1. **Load circulars file** (or they arrive once the exchange connection is set up). Each is sorted by area and priority with suggested actions, owners and due dates.
-2. Work each action: **Done**, **Not needed**, **Not applicable**, or **Add action**.
+1. **Load circulars file** (or they arrive once the exchange connection is set up). Each is checked against the firm profile for whether it applies (see *Does a circular apply to the firm?*) and sorted by area and priority with suggested actions, owners and due dates; **New circulars** at the top shows what to review.
+2. Work each action: **Done**, **Not needed**, **Not applicable**, or **Add action**. With AI reading on, accept or reject the obligations it proposes (see *Obligations proposed by AI*); on the Circulars board each obligation is a card (see *The Circulars board*).
 3. The **calendar** lists recurring obligations (complaints disclosure, CTR, RAS, audits, net worth, cyber audit, AP inspection). **Mark done** with the evidence each time.
 4. **RAS dates & profile** holds the exchanges' joint RAS calendar (see *Keep the exchanges' RAS dates*) and the system audit cycle, auditor and MTF approval that date the audit and net worth duties (see *System audit cycle, auditor and MTF*).
 5. Common submissions that a member of NSE and other exchanges files with NSE only show once, marked **File with NSE (shared with the other exchanges)** (see *Submissions filed with NSE only*).

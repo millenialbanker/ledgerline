@@ -86,7 +86,14 @@ type bsRec struct {
 	Closed   bool
 	ClosedAt time.Time // zero: not known; the sync remembers when it saw it
 	Order    string
+	// New, when set, gives a new card its description and checklists;
+	// after that they are people's (circboard.go).
+	New func() (string, []Checklist)
 }
+
+// bsLinkKinds show the records of link kinds other files add (the card
+// window's BoardLinkRecord), for a person who may see them.
+var bsLinkKinds = map[string]func(ctx context.Context, o *Ops, tenant, actor string, s bsSeer, id string) (LinkHit, error){}
 
 type bsEnv struct {
 	now     time.Time
@@ -164,7 +171,7 @@ func init() {
 	for i, s := range LeadSources {
 		leadLabels = append(leadLabels, bsLabel{"source:" + s, s, leadColor[i%len(leadColor)]})
 	}
-	bsSources = []*bsSource{
+	bsSources = append([]*bsSource{
 		{ID: "work", Name: "Work queue", Background: "blue", Screen: "Automation → Autopilot & work queue", Kinds: []string{"work"},
 			About: "Autopilot's work queue: what only a person can finish, with the role who should act and when it is due. Cards follow the queue; move one to Done to close its item.",
 			Lists: []bsList{{"Open", "Open", ""}, {"Done", "Done", "green"}, {"Cleared", "Cleared", ""}}, Closed: []string{"Done", "Cleared"},
@@ -196,7 +203,7 @@ func init() {
 			About:  "Open leads, and those converted or lost in the last week, by stage, with the next follow-up as the due date. Move a card to change the stage; convert or mark lost on Leads & CRM.",
 			Lists:  []bsList{{"New", "New", ""}, {"Contacted", "Contacted", ""}, {"Interested", "Interested", ""}, {"Documents pending", "Documents pending", "yellow"}, {"Converted", "Converted", "green"}, {"Lost", "Lost", ""}},
 			Closed: []string{"Converted", "Lost"}, Labels: leadLabels, Roles: []string{RoleMaker, RoleChecker, RoleCompliance}, since: weekAgo, list: bsLeads, move: bsLeadMove},
-	}
+	}, bsSources...) // and any other file's (circboard.go), whichever init runs first
 	boardReadHooks = append(boardReadHooks, func(ctx context.Context, o *Ops, tenant string, b Board) error {
 		if b.Kind == BoardLedgerline {
 			o.bsSync(ctx, tenant, b, o.now(), bsReadGap)
@@ -1314,6 +1321,10 @@ func (o *Ops) bsCreate(ctx context.Context, tenant string, bb *bsBoard, recs []b
 		link := r.Link
 		c := Card{Board: b.ID, ID: boardID("C-", 6), No: start + int64(i) + 1, List: l.ID, Pos: bb.bottom[l.ID], Title: clip(firstOf(strings.TrimSpace(bsScrub(r.Title)), r.Link.ID), 500),
 			Labels: bb.labelIDs(r), Due: r.Due, DueDone: r.Closed && r.Due != "", Link: &link, CreatedBy: bsActor, CreatedAt: ts, UpdatedAt: ts}
+		if r.New != nil {
+			c.Description, c.Checklists = r.New()
+			c.Description = clip(bsScrub(c.Description), 20000)
+		}
 		if _, err := docs.Put(ctx, o.Docs, tenant, cBoardCard, cardKey(b.ID, c.ID), c, 0, bsActor); err != nil {
 			return err
 		}
@@ -1778,6 +1789,10 @@ func (o *Ops) BoardLinkSearch(ctx context.Context, tenant, actor, q, kind string
 
 var errBSHidden = fmt.Errorf("%w: no such record, or you cannot see it", ErrNotFound)
 
+// bsRecordKinds lets another file show its own linked records in the card
+// window (kind → the record as the person may see it, or errBSHidden).
+var bsRecordKinds = map[string]func(ctx context.Context, o *Ops, tenant, actor, id string) (LinkHit, error){}
+
 // BoardLinkRecord is a linked record as it is now, for the card window,
 // if the person may see it on its own screen.
 func (o *Ops) BoardLinkRecord(ctx context.Context, tenant, actor, kind, id string) (LinkHit, error) {
@@ -1908,7 +1923,20 @@ func (o *Ops) BoardLinkRecord(ctx context.Context, tenant, actor, kind, id strin
 			}
 		}
 	default:
-		return h, invalid("unknown link kind %q", kind)
+		// Two registries from two features: link kinds that see what the
+		// person may see (bsLinkKinds), and record kinds that only need the
+		// actor (bsRecordKinds).
+		if f, ok := bsLinkKinds[kind]; ok {
+			if h, err = f(ctx, o, tenant, actor, s, id); err != nil {
+				return h, err
+			}
+		} else if g, ok := bsRecordKinds[kind]; ok {
+			if h, err = g(ctx, o, tenant, actor, id); err != nil {
+				return h, err
+			}
+		} else {
+			return h, invalid("unknown link kind %q", kind)
+		}
 	}
 	if h.ID == "" {
 		return h, errBSHidden

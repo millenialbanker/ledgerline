@@ -142,6 +142,26 @@ func (o *Ops) ledgerlineAISystems() []AISystem {
 			Safeguards:    safeguards,
 			Categories:    "Natural language processing (large language model)",
 		},
+		{
+			ID: AIFeatureCirculars, Source: "ledgerline", Name: "Reading circulars with AI (proposed obligations)",
+			Purpose:  "Reads the text of a SEBI, exchange, clearing corporation or depository circular and proposes what the firm must do (what, by when, owner role, evidence, steps and the Ledgerline area it may change), for the compliance officer to accept, change or reject.",
+			Provider: prov, Model: model,
+			DataSent:  "The circular's number, date, issuer, subject, effective date and public text, masked like any other text (client names and codes, PAN, Aadhaar-like numbers, phones, emails, account numbers and staff names replaced by tokens). Nothing about the firm, its clients or its records.",
+			WhoCanUse: "The compliance officer and Admins, when they press Read with AI on a circular; new circulars of high or medium priority that may apply are also read once by themselves while the feature is on.",
+			Controls: append(aiCommonControls(),
+				"Proposals only: nothing becomes a task, a card in work or a work-queue item until the compliance officer accepts each obligation (changing it if needed) or rejects it with the reason; the firm is solely responsible for AI output under regulation 16C of the SEBI (Intermediaries) Regulations, 2008 (SEBI/LAD-NRO/GN/2025/226 of 6 February 2025).",
+				"Whether a circular applies is decided by Ledgerline's rules on the firm profile and by the compliance officer, never by the model.",
+				"Without AI, or on any error or refusal, the circular keeps its rule-based actions; replies capped at "+fmt.Sprint(help.MaxComposeTokens)+" tokens."),
+			Switch:         "Settings → Ledgy: Read circulars with AI",
+			OrderExecution: "N", Discretionary: "N", Advice: "N", CyberSecurity: "N",
+			Claims:        "Proposes the obligations a regulatory circular sets out, from its text, to save reading time; a person accepts each one. No investment, trading, advisory or security claims are made.",
+			Tool:          tool,
+			Implemented:   impl,
+			InSystemAudit: "Y",
+			Description:   "On the Calendar & circulars screen of the Ledgerline back office, a large language model (natural language processing) reads a circular's public text and lists the obligations it finds. They are shown to the compliance officer as proposals; each becomes a task and a card on the Circulars board only when the compliance officer accepts it.",
+			Safeguards:    safeguards,
+			Categories:    "Natural language processing (large language model)",
+		},
 	}
 }
 

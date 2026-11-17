@@ -2,8 +2,11 @@
 # TestPermissionsMatchCode fails when they differ (LL_UPDATE_HELP=1 rewrites this file).
 # Admin may do everything. Format: What | Roles
 
+Accepting a self-inspection risk | Compliance officer
+Accepting obligations from circulars | Compliance officer
 Activating a client | Ops checker
 Adding client documents | Ops maker, Ops checker, Compliance officer, Branch staff
+Adding inspection documents | Compliance officer
 Adding or changing dealers and terminals | Ops maker, Compliance officer
 Adding users | Admin
 Advancing onboarding | Ops maker, Ops checker
@@ -55,6 +58,8 @@ Changing client brokerage rates | Ops checker
 Changing client groups | Ops maker, Ops checker
 Changing client interest rates | Ops checker
 Changing connections | Admin
+Changing inspection pack settings | Compliance officer
+Changing inspection pack templates | Compliance officer
 Changing missing-file alerts | Risk manager, Compliance officer
 Changing mutual fund settings | Compliance officer
 Changing order-to-trade ratio alerts | Compliance officer
@@ -66,7 +71,9 @@ Changing the MTF policy | Risk manager, Admin
 Changing the account type | Ops checker
 Changing the chart of accounts | Ops checker
 Changing the compliance calendar | Compliance officer
+Changing the firm profile | Compliance officer
 Changing the firm's UPI collection IDs | Compliance officer
+Changing the self-inspection schedule | Compliance officer
 Changing vendors | Ops maker, Ops checker
 Chasing missing daily files | Ops maker, Ops checker, Risk manager, Compliance officer
 Checking CDSL demat account counts | Ops maker, Ops checker, Compliance officer
@@ -92,10 +99,12 @@ Crediting dividends | Ops checker
 DP billing | Ops checker
 DP requests | Ops maker, Ops checker, Compliance officer, Branch staff
 Deciding a pledge request | Ops maker, Ops checker, Risk manager
+Deciding whether a circular applies | Compliance officer
 Discarding scanned bills | Ops maker, Ops checker
 Downloading BOW upload files | Ops maker, Ops checker, Risk manager
 Downloading Finspot block and client files | Ops maker, Ops checker, Risk manager
 Downloading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
+Downloading inspection packs | Compliance officer
 Downloading pay-out hold files | Ops maker, Ops checker, Risk manager
 Downloading periodic files | Ops maker, Ops checker, Compliance officer
 Downloading stock SIP basket files | Ops maker, Ops checker, Risk manager
@@ -145,6 +154,7 @@ Looking at NSE's extranet | Ops maker, Ops checker, Risk manager, Compliance off
 MTF enrolment | Ops checker, Risk manager
 MTF margin calls | Ops checker, Risk manager
 Making BSE dealer files | Ops maker, Compliance officer
+Making inspection packs | Compliance officer
 Making the NSE Clearing key | Admin
 Managing SIPs | Ops maker, Ops checker
 Managing branches | Ops checker, Admin
@@ -158,6 +168,7 @@ Marking a report uploaded | Ops checker, Compliance officer
 Matching stock SIP orders to trades | Ops maker, Ops checker, Risk manager
 Month-end postings | Ops checker
 Moving money between MCX and equity | Ops maker, Ops checker, Risk manager
+Muting a self-inspection test | Compliance officer
 NRI registration | Ops checker, Compliance officer
 Opening a person's Inbox (read-only, with a reason) | Compliance officer
 Opening a trading account | Ops maker, Ops checker
@@ -181,6 +192,7 @@ Raising CDSL requests | Ops maker, Ops checker
 Raising pledge invocations | Risk manager
 Raising stock SIP top-up debits | Ops maker, Ops checker
 Re-pledging clients' collateral | Ops maker, Risk manager
+Reading circulars with AI | Compliance officer
 Reconciling a migration | Ops checker, Compliance officer
 Recording CDSL results | Ops checker, Risk manager
 Recording DP responses | Ops maker, Ops checker
@@ -233,11 +245,13 @@ Running periodic work | Ops maker, Ops checker
 Running prepaid adjustments | Ops checker
 Running stock SIP instalments | Ops maker, Ops checker, Risk manager
 Running surveillance rules | Ops checker, Compliance officer
+Running the self-inspection | Compliance officer
 Scanning vendor bills | Ops maker, Ops checker
 Scheduling jobs | Admin
 Searching the document archive | Ops maker, Ops checker, Risk manager, Compliance officer
 See full client identifiers | Ops checker, Compliance officer
 Seeing mail sent to staff | Compliance officer, Admin
+Seeing the self-inspection | Ops maker, Ops checker, Risk manager, Compliance officer
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
 Sending IPO bids to the exchange | Ops maker, Ops checker
 Sending UCC to BSE | Ops maker, Ops checker
@@ -306,6 +320,7 @@ Viewing dealers and terminals | Ops maker, Ops checker, Risk manager, Compliance
 Viewing eDIS authorisations | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing exchange UCC registrations | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing exchange disclosures | Compliance officer
+Viewing inspection packs | Compliance officer
 Viewing margin penalty evidence | Ops checker, Risk manager, Compliance officer
 Viewing nominations | Ops maker, Ops checker, Compliance officer
 Viewing order-to-trade ratios | Risk manager, Compliance officer
@@ -314,12 +329,14 @@ Viewing the AI answer log | Compliance officer
 Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Viewing the compliance calendar | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
+Viewing the firm profile | Compliance officer
 Viewing the migration | Ops checker, Compliance officer
 Viewing the signing certificate | Ops checker, Compliance officer, Admin
 Viewing the surveillance report | Ops checker, Compliance officer
 Viewing vendor bills | Ops maker, Ops checker, Compliance officer
 Viewing vendors | Ops maker, Ops checker, Compliance officer
 Withdrawing a stock SIP basket file | Ops maker, Ops checker, Risk manager
+Working a self-inspection exception | Ops maker, Ops checker, Risk manager, Compliance officer
 Working client insights | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Working complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Working out MF commission | Ops checker, Compliance officer
