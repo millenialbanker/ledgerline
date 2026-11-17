@@ -47,7 +47,7 @@ function ccObligCell(c) {
 function ccUpdates(d) {
   const out = [];
   d.circulars.forEach(c => {
-    if (c.status === 'Not applicable') return;
+    if (c.status === 'Not applicable' || c.applies?.verdict === 'no') return;
     c.tasks.filter(t => t.status === 'Open' && ccSoft(t.area)).forEach(t => out.push({ c, id: t.id, title: t.title, area: t.area, role: t.role, due: t.due, st: ccAccepted(c, t) ? (t.stage || 'Accepted') : 'To review' }));
     (c.proposals || []).filter(p => p.status === 'Proposed' && ccSoft(p.area)).forEach(p => out.push({ c, id: p.id, title: p.what, area: p.area, role: p.role, due: p.due_on, st: 'Proposed' }));
   });
@@ -85,7 +85,7 @@ function ccObHTML(o) {
 function ccProposalsHTML(c) {
   const ps = c.proposals || [], open = ps.filter(p => p.status === 'Proposed'), done = ps.filter(p => p.status !== 'Proposed'), comp = ccComp();
   if (!ps.length) return '';
-  const card = p => `<li class="cc-prop"><div class="cc-prop-t"><span class="tag">${esc(p.id)}</span> <b>${esc(p.what)}</b></div>${ccObHTML({ role: p.role, due: p.due_on, rule: p.due_rule, needs: p.evidence, area: p.area, steps: p.steps })}
+  const card = p => `<li class="cc-prop"><div class="cc-prop-t"><b>${esc(p.what)}</b></div>${ccObHTML({ role: p.role, due: p.due_on, rule: p.due_rule, needs: p.evidence, area: p.area, steps: p.steps })}
     ${comp && c.status !== 'Not applicable' ? `<div class="tools"><button class="btn sm pri" data-act="ccAccept" data-id="${esc(c.id)}" data-p="${esc(p.id)}" data-quick="1">Accept</button><button class="btn sm" data-act="ccAccept" data-id="${esc(c.id)}" data-p="${esc(p.id)}">Change and accept</button><button class="btn sm" data-act="ccReject" data-id="${esc(c.id)}" data-p="${esc(p.id)}">Reject</button></div>` : ''}</li>`;
   return `<section class="cc-props" aria-labelledby="cc-props-h"><h3 id="cc-props-h">Proposed by AI · ${open.length} to review</h3>
     ${open.length ? `<ul class="cc-prop-l">${open.map(card).join('')}</ul>` : '<p class="dim small">Every proposal has been accepted or rejected.</p>'}
@@ -95,13 +95,15 @@ function ccProposalsHTML(c) {
 function ccTasksHTML(c) {
   const comp = ccComp();
   const files = t => (t.files || []).length ? `<div class="small cc-files">Evidence files: ${t.files.map(f => f.file ? `<a href="/v1/board-files/${encodeURIComponent(f.file)}" target="_blank" rel="noopener">${esc(f.name)}</a>` : f.url ? `<a href="${esc(f.url)}" target="_blank" rel="noopener noreferrer">${esc(f.name)}</a>` : esc(f.name)).join(', ')}</div>` : '';
-  return tbl([['Action'], ['Owner'], ['Due'], ['Status'], ['']], c.tasks.map(t => {
+  if (!c.tasks.length) return '<p class="dim small">No actions yet. Add one below, or have the circular read with AI.</p>';
+  return `<ul class="cc-acts">${c.tasks.map(t => {
     const acc = ccAccepted(c, t), open = t.status === 'Open', mine = has(t.role, 'Compliance officer');
-    const status = !open ? pill(t.status, t.status === 'Done' ? 'good' : 'nt') : !acc ? pill('To review', 'warn') : pill(t.stage || 'To do', t.stage ? 'acc' : 'warn');
+    const status = !open ? pill(t.status, t.status === 'Done' ? 'good' : 'nt') : !acc ? pill('To review', 'warn') : pill(t.stage || 'To do', t.stage ? 'acc' : 'nt');
     const stage = open && acc && mine && c.status !== 'Not applicable' ? `<select class="in sm" data-cc-stage="${esc(t.id)}" data-id="${esc(c.id)}" aria-label="Stage of ${esc(t.title)}">${CC_STAGES.map(([v, l]) => `<option value="${esc(v)}" ${(t.stage || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>` : '';
     const btns = open ? `${!acc && comp ? `<button class="btn sm pri" data-act="ccAcceptTask" data-id="${esc(c.id)}" data-t="${esc(t.id)}">Accept</button>` : ''}${mine ? `<button class="btn sm" data-act="ciTaskDone" data-id="${esc(c.id)}" data-t="${esc(t.id)}">Done</button>` : ''}${comp ? `<button class="btn sm" data-act="ciTaskDrop" data-id="${esc(c.id)}" data-t="${esc(t.id)}">Not needed</button>` : ''}` : '';
-    return `<tr><td class="wrap" style="max-width:420px"><b>${esc(t.title)}</b>${t.source === 'ai' ? ' <span class="tag">from AI</span>' : ''}${ccObHTML({ needs: t.needs, none: t.no_evidence, area: t.area, rule: '' })}${t.evidence ? `<div class="dim small">${esc(t.by)}: ${esc(t.evidence)}</div>` : ''}${files(t)}</td><td class="small">${esc(t.role)}</td><td class="n">${t.due ? fmtDate(t.due) : '—'}${t.due_rule ? `<div class="dim small">${esc(t.due_rule)}</div>` : ''}</td><td>${status}${stage ? `<div style="margin-top:4px">${stage}</div>` : ''}</td><td><div class="split">${btns}</div></td></tr>`;
-  }), { empty: 'No actions.' });
+    return `<li class="cc-act${open ? '' : ' closed'}"><div class="cc-act-t"><b>${esc(t.title)}</b>${t.source === 'ai' ? ' <span class="tag">from AI</span>' : ''}<span class="cc-act-s">${stage || status}</span></div>
+      ${ccObHTML({ role: t.role, due: t.due, rule: t.due_rule, needs: t.needs, none: t.no_evidence, area: t.area, steps: [] })}${t.evidence ? `<div class="dim small">${esc(t.by)}: ${esc(t.evidence)}</div>` : ''}${files(t)}${btns ? `<div class="tools">${btns}</div>` : ''}</li>`;
+  }).join('')}</ul>`;
 }
 
 function ciModal(id) {
@@ -161,7 +163,7 @@ function ccProfilePanel(fp) {
       ${yn('nri', 'NRI clients')}${yn('ap', 'Authorised persons')}${yn('branches', 'Branch offices')}
       <div class="fld"><label for="fp-cscrf">CSCRF category</label><select class="in" id="fp-cscrf"><option value="">Not known</option>${(fp.cscrf_categories || []).map(x => `<option value="${esc(x.ID)}" ${p.cscrf === x.ID ? 'selected' : ''}>${esc(x.Name)}</option>`).join('')}</select><div class="dim small" id="fp-cscrf-n">${esc(((fp.cscrf_categories || []).find(x => x.ID === p.cscrf) || {}).Note || 'By registered clients and clients’ trading in the year (SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2025/60)')}</div></div>
       <label class="check"><input type="checkbox" id="fp-mtf" ${fp.mtf ? 'checked' : ''}> Margin trading facility (MTF) approved</label>
-      <fieldset class="fld full fp-regs"><legend>Other SEBI registrations</legend>${(fp.registrations || []).map(r => `<label class="check"><input type="checkbox" data-fp-reg="${esc(r.ID)}" ${(p.registrations || []).includes(r.ID) ? 'checked' : ''}> ${esc(r.Name)}</label>`).join('')}<input class="in" id="fp-other" placeholder="Another registration (optional)" value="${esc(p.other_registration || '')}" aria-label="Another registration"></fieldset>
+      <fieldset class="full fp-regs"><legend>Other SEBI registrations</legend><div class="fp-regs-l">${(fp.registrations || []).map(r => `<label><input type="checkbox" data-fp-reg="${esc(r.ID)}" ${(p.registrations || []).includes(r.ID) ? 'checked' : ''}> ${esc(r.Name)}</label>`).join('')}</div><input class="in" id="fp-other" placeholder="Another registration (optional)" value="${esc(p.other_registration || '')}" aria-label="Another registration"></fieldset>
     </div>
     <div class="tools" style="margin-top:10px"><button class="btn pri" data-act="ccProfSave">Save the firm profile</button>${p.by ? `<span class="dim small">Last changed by ${esc(p.by)}${p.at ? ' on ' + fmtDate(p.at.slice(0, 10)) : ''}</span>` : ''}</div>
     <p class="dim small" style="margin:8px 0 0">Exchanges, segments and the clearing route come from member codes and Cleared through above. Nothing here is client data, and it is never sent to an AI model.</p>
@@ -220,7 +222,7 @@ if (typeof BOARDS !== 'undefined') {
       const b = ctx?.board, lid = b?.settings?.['bs.label.circ:update'];
       if (!b || b.kind !== 'ledgerline' || b.source !== 'circulars' || !lid) return '';
       const on = UI.bdF.labels.length === 1 && UI.bdF.labels[0] === lid;
-      return `<button class="bd-hb${on ? ' on' : ''}" data-act="ccUpdFilter" data-id="${esc(lid)}" aria-pressed="${on}" title="Only the cards that may need a change to Ledgerline">${typeof bdI === 'function' ? bdI('filter') : ''}<span>Ledgerline updates</span></button>`;
+      return `<button class="bd-hb${on ? ' on' : ''}" data-act="ccUpdFilter" data-id="${esc(lid)}" aria-pressed="${on}" aria-label="Ledgerline updates: only the cards that may need a change to Ledgerline" title="Only the cards that may need a change to Ledgerline">${typeof bdI === 'function' ? bdI('gear') : ''}<span>Ledgerline updates</span></button>`;
     },
   });
   A.ccUpdFilter = id => BOARDS.filterBy('label', id);

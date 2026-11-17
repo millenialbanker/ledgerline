@@ -123,7 +123,7 @@ type ruleAction struct {
 
 var triageRules = []triageRule{
 	{regexp.MustCompile(`(?i)cyber|CSCRF|VAPT|system audit|information security|business continuity|disaster recovery`), "IT and cyber security", "High",
-		[]ruleAction{{"Check the requirement against the firm's cyber security policy and the system audit plan", RoleCompliance, "cscrf", "The updated cyber security policy or audit plan, approved"},
+		[]ruleAction{{"Check the requirement against the firm's cyber security policy and the system audit plan", RoleCompliance, "none", "The updated cyber security policy or audit plan, approved"},
 			{"Tell the technology vendor and the IT committee", RoleAdmin, "cscrf", "The message to the vendor and the IT committee's note"}}},
 	{regexp.MustCompile(`(?i)margin|peak|SPAN|exposure|collateral|haircut|pledge|square.?off`), "Risk and margins", "High",
 		[]ruleAction{{"Check limits, margin rules and the risk policy", RoleRisk, "margins", "The updated risk policy or limit set-up, approved"}}},
@@ -136,7 +136,7 @@ var triageRules = []triageRule{
 	{regexp.MustCompile(`(?i)contract note|STT|stamp duty|transaction charge|turnover fee|GST`), "Charges and contract notes", "Medium",
 		[]ruleAction{{"Update the charge schedule or the contract note format", RoleChecker, "charges", "The updated charge schedule or a sample contract note"}}},
 	{regexp.MustCompile(`(?i)report(ing)?|submission|disclos|return|certificate|net ?worth`), "Reporting", "Medium",
-		[]ruleAction{{"Add or change the report and its due date in the compliance calendar", RoleCompliance, "reporting", "The duty in the compliance calendar, or the first filing's acknowledgement"}}},
+		[]ruleAction{{"Add or change the report and its due date in the compliance calendar", RoleCompliance, "calendar", "The duty in the compliance calendar, or the first filing's acknowledgement"}}},
 	{regexp.MustCompile(`(?i)authori[sz]ed person|\bAP\b|branch|sub.?broker|franchise`), "Authorised persons and branches", "Medium",
 		[]ruleAction{{"Tell authorised persons and branches; check AP agreements", RoleCompliance, "none", "The notice sent to authorised persons and branches"}}},
 	{regexp.MustCompile(`(?i)algo|API|order (placement|type)|trading terminal|CTCL|kill switch`), "Trading systems", "Medium",
@@ -195,12 +195,12 @@ func triage(c *Circular) {
 		c.Tasks = append(c.Tasks, CircularTask{ID: fmt.Sprintf("T%d", len(c.Tasks)+1), Title: a.title, Role: a.role, Due: due, Status: "Open",
 			Source: "rules", Area: ruleArea(a.area, text), Needs: a.needs, DueRule: dueRule})
 	}
+	// No rule matched: it stays New for the compliance officer to look at
+	// (whether it applies is worked out separately, circapply.go), rather
+	// than being closed by words it does not use. Information is done.
 	c.Status = "New"
-	if len(c.Tasks) == 0 {
-		c.Status = "Not applicable"
-		if c.Priority == "Information" {
-			c.Status = "Done"
-		}
+	if len(c.Tasks) == 0 && c.Priority == "Information" {
+		c.Status = "Done"
 	}
 }
 

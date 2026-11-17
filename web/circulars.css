@@ -42,14 +42,23 @@
 .cc-done summary,.cc-add summary{cursor:pointer;font-size:13px;color:var(--accent);padding:4px 0}
 .cc-done ul{margin:4px 0 0;padding-left:18px;font-size:13px;display:grid;gap:4px}
 .cc-files a{color:var(--accent)}
+.cc-acts{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.cc-act{padding:10px 12px;border:1px solid var(--line);border-radius:8px;display:grid;gap:4px;background:var(--card)}
+.cc-act.closed{background:var(--sunk)}
+.cc-act-t{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;justify-content:space-between;font-size:13.5px}
+.cc-act-t b{flex:1 1 260px}
+.cc-act-s{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.cc-act .tools{margin-top:4px}
 
 /* Settings: the firm profile */
 .fp-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .fp-fact{display:grid;gap:2px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sunk);font-size:13px}
 .fp-fact small{color:var(--ink2);font-size:12px}
-.fp-regs{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+.fp-regs{border:1px solid var(--line);border-radius:8px;padding:8px 12px 12px;margin:0;display:grid;gap:8px;min-width:0}
 .fp-regs legend{font-size:12.5px;color:var(--ink2);padding:0 4px}
-.fp-regs .in{flex:1 1 220px}
+.fp-regs-l{display:flex;flex-wrap:wrap;gap:6px 18px}
+.fp-regs-l label{display:inline-flex;gap:6px;align-items:center;font-size:13px;cursor:pointer}
+.fp-regs .in{max-width:420px}
 
 @media (max-width:600px){
   .cc-row{grid-template-columns:minmax(0,1fr)}

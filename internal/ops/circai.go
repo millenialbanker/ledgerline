@@ -130,7 +130,7 @@ var (
 // ruleArea refines a triage rule's area from the circular's words.
 func ruleArea(area, text string) string {
 	switch {
-	case area == "margins" && reAreaCUSPA.MatchString(text), area == "payouts" && reAreaCUSPA.MatchString(text):
+	case area == "payouts" && reAreaCUSPA.MatchString(text):
 		return "cuspa"
 	case area == "ucc" && reAreaNominee.MatchString(text):
 		return "nomination"

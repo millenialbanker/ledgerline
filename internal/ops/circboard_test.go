@@ -97,8 +97,8 @@ func TestCircularApplicability(t *testing.T) {
 	}
 	// The rules decide nothing by themselves: every one is still to review.
 	for _, c := range by {
-		if c.Status == "Not applicable" && len(c.Tasks) > 0 {
-			t.Fatalf("%s closed by the rules", c.Ref)
+		if c.Status != "New" {
+			t.Fatalf("%s is %s: the rules closed it", c.Ref, c.Status)
 		}
 	}
 
@@ -458,7 +458,7 @@ func TestCircularBoard(t *testing.T) {
 	if l.Source != "review" || cd.Link.View != "circulars" || cd.Link.Status != "To review" || !strings.HasPrefix(cd.Title, "NSE/INSP/2026/905: ") {
 		t.Fatalf("card %+v in %s", cd, l.Name)
 	}
-	for _, s := range []string{"NSE circular NSE/INSP/2026/905 of 15-Oct-2026", "**What to do:** " + tk.Title, "**Owner:** " + tk.Role, "**Evidence needed:** " + tk.Needs, "Applies: you are a member of NSE", "Ledgerline may need a change:** Reporting formats"} {
+	for _, s := range []string{"NSE circular NSE/INSP/2026/905 of 15-Oct-2026", "**What to do:** " + tk.Title, "**Owner:** " + tk.Role, "**Evidence needed:** " + tk.Needs, "Applies: you are a member of NSE", "Ledgerline may need a change:** Compliance calendar"} {
 		if !strings.Contains(cd.Description, s) {
 			t.Fatalf("description lacks %q:\n%s", s, cd.Description)
 		}

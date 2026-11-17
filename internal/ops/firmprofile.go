@@ -305,7 +305,7 @@ func (o *Ops) FirmProfileFor(ctx context.Context, tenant, actor string) (FirmPro
 		}
 		switch x.Key {
 		case "cdsl", "nsdl":
-			v.Questions = append(v.Questions, "Is the firm a "+strings.ToUpper(x.Key)+" depository participant?")
+			v.Questions = append(v.Questions, map[string]string{"cdsl": "Is the firm a CDSL depository participant?", "nsdl": "Is the firm an NSDL depository participant?"}[x.Key])
 		case "algo":
 			v.Questions = append(v.Questions, "Does the firm run or offer algorithmic trading?")
 		case "cscrf":
