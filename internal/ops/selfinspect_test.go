@@ -937,3 +937,42 @@ func TestSelfInspectNightly(t *testing.T) {
 		t.Fatalf("screen %+v %v", v.Trend, err)
 	}
 }
+
+// The self-inspection's results go into an inspection pack as CSV files.
+func TestSelfInspectionInPack(t *testing.T) {
+	o, ctx := setup(t)
+	siClock(o, siAt(D, "23:00"))
+	if _, err := o.RunSelfInspection(ctx, T, siCO, D); err != nil {
+		t.Fatal(err)
+	}
+	set, _ := o.Settings(ctx, T)
+	b := &PackBuild{O: o, Tenant: T, Actor: siCO, From: D, To: D, Set: set, Today: D, Watermark: "Prepared for a test"}
+	sec, ok := packSection("self_inspection")
+	if !ok {
+		t.Fatal("no self_inspection section")
+	}
+	if why := sec.Ready(ctx, o, T, PackItem{Section: "self_inspection"}); why != "" {
+		t.Fatalf("not ready: %s", why)
+	}
+	p, err := sec.Build(ctx, b, PackItem{Section: "self_inspection", Period: "period"})
+	if err != nil || p.NotAvailable != "" || p.Records == 0 {
+		t.Fatalf("part %+v %v", p, err)
+	}
+	names := map[string]string{}
+	for _, f := range p.Files {
+		names[f.Name] = string(f.Data)
+	}
+	for _, n := range []string{"self_inspection_runs.csv", "self_inspection_results.csv", "self_inspection_exceptions.csv"} {
+		if !strings.HasPrefix(names[n], "Prepared for a test") {
+			t.Fatalf("%s missing or without the watermark: %q", n, names[n])
+		}
+	}
+	if !strings.Contains(names["self_inspection_results.csv"], "ddpi_purpose") || !strings.Contains(p.Note, "1 run;") {
+		t.Fatalf("results %q note %q", names["self_inspection_results.csv"][:200], p.Note)
+	}
+	// A period with no run says so.
+	b.From, b.To = "2026-09-01", "2026-09-02"
+	if p, _ := sec.Build(ctx, b, PackItem{Section: "self_inspection", Period: "period"}); !strings.Contains(p.NotAvailable, "did not run") {
+		t.Fatalf("no run %+v", p)
+	}
+}

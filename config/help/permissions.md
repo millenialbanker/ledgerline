@@ -5,6 +5,7 @@
 Accepting a self-inspection risk | Compliance officer
 Activating a client | Ops checker
 Adding client documents | Ops maker, Ops checker, Compliance officer, Branch staff
+Adding inspection documents | Compliance officer
 Adding or changing dealers and terminals | Ops maker, Compliance officer
 Adding users | Admin
 Advancing onboarding | Ops maker, Ops checker
@@ -56,6 +57,8 @@ Changing client brokerage rates | Ops checker
 Changing client groups | Ops maker, Ops checker
 Changing client interest rates | Ops checker
 Changing connections | Admin
+Changing inspection pack settings | Compliance officer
+Changing inspection pack templates | Compliance officer
 Changing missing-file alerts | Risk manager, Compliance officer
 Changing mutual fund settings | Compliance officer
 Changing order-to-trade ratio alerts | Compliance officer
@@ -98,6 +101,7 @@ Discarding scanned bills | Ops maker, Ops checker
 Downloading BOW upload files | Ops maker, Ops checker, Risk manager
 Downloading Finspot block and client files | Ops maker, Ops checker, Risk manager
 Downloading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
+Downloading inspection packs | Compliance officer
 Downloading pay-out hold files | Ops maker, Ops checker, Risk manager
 Downloading periodic files | Ops maker, Ops checker, Compliance officer
 Downloading stock SIP basket files | Ops maker, Ops checker, Risk manager
@@ -147,6 +151,7 @@ Looking at NSE's extranet | Ops maker, Ops checker, Risk manager, Compliance off
 MTF enrolment | Ops checker, Risk manager
 MTF margin calls | Ops checker, Risk manager
 Making BSE dealer files | Ops maker, Compliance officer
+Making inspection packs | Compliance officer
 Making the NSE Clearing key | Admin
 Managing SIPs | Ops maker, Ops checker
 Managing branches | Ops checker, Admin
@@ -311,6 +316,7 @@ Viewing dealers and terminals | Ops maker, Ops checker, Risk manager, Compliance
 Viewing eDIS authorisations | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing exchange UCC registrations | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing exchange disclosures | Compliance officer
+Viewing inspection packs | Compliance officer
 Viewing margin penalty evidence | Ops checker, Risk manager, Compliance officer
 Viewing nominations | Ops maker, Ops checker, Compliance officer
 Viewing order-to-trade ratios | Risk manager, Compliance officer
