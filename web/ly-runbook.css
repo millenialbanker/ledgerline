@@ -1,0 +1,78 @@
+/* The A · Day runbook layout (ly-runbook.js). */
+.rb-top{min-height:36px}
+.rb-rail{display:flex;flex-direction:column;gap:14px;min-height:100%}
+.rb-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;padding:3px;border-radius:9px;background:var(--sunk)}
+.rb-tabs button{height:30px;border:0;border-radius:7px;background:transparent;color:var(--ink2);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer}
+.rb-tabs button.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.14)}
+.rb-loading{padding:8px 6px}
+/* progress */
+.rb-prog{display:flex;flex-direction:column;gap:7px;padding:2px 4px}
+.rb-prog-h{display:flex;justify-content:space-between;align-items:baseline}
+.rb-prog-h b{font-size:14px}.rb-prog-h span{font-size:12.5px;color:var(--ink2)}
+.rb-bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden;display:flex;gap:2px}
+.rb-bar i{display:block;height:100%}
+.rb-bar i.done{background:var(--good)}.rb-bar i.needs{background:var(--warn)}
+.rb-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--ink2)}
+.rb-legend span{display:inline-flex;align-items:center;gap:5px}
+.rb-legend i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.rb-legend i.done{background:var(--good)}
+.rb-legend i.needs{background:var(--warn);border-radius:1px;transform:rotate(45deg)}
+.rb-legend i.wait{box-shadow:inset 0 0 0 2px var(--line2)}
+/* steps */
+.rb-steps{display:flex;flex-direction:column;gap:6px}
+.rb-sess{display:flex;flex-direction:column;gap:1px}
+.rb-sh{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:8px 6px 4px}
+.rb-sh b{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
+.rb-sh span{font-size:12px;color:var(--ink3)}
+.rb-step{display:flex;align-items:center;gap:9px;width:100%;padding:7px 8px;border:0;border-radius:9px;background:none;color:var(--ink);cursor:pointer;font:inherit;text-align:left}
+.rb-step:hover{background:var(--sunk)}
+.rb-step.on{background:var(--accent-soft);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent)}
+.rb-step[disabled]{cursor:default;opacity:.6}
+.rb-step[disabled]:hover{background:none}
+.rb-n{width:18px;flex:none;text-align:right;font-size:11.5px;color:var(--ink3);font-family:var(--f-mono)}
+.rb-step .ly-mk{width:18px;height:18px;font-size:0}
+.rb-step .ly-mk.needs{width:11px;height:11px;margin:3.5px}
+.rb-step .ly-mk.done svg{width:10px;height:10px}
+.rb-txt{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.rb-name{font-size:13.5px;font-weight:500}
+.rb-step.on .rb-name{font-weight:650}
+.rb-step.done .rb-name{color:var(--ink2)}
+.rb-note{font-size:12px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rb-step.needs .rb-note{color:var(--warn)}
+.rb-ct{flex:none;font-family:var(--f-mono);font-size:11px;font-weight:700;padding:0 7px;border-radius:99px;background:var(--warn-soft);color:var(--warn)}
+.rb-foot{margin:auto 4px 0;padding-top:10px;font-size:12px;color:var(--ink3);line-height:1.5}
+.rb-intro{margin:0 4px;font-size:13px;color:var(--ink2);line-height:1.5}
+.rb-links{display:flex;flex-direction:column;gap:6px}
+.rb-link{display:flex;flex-direction:column;gap:2px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);cursor:pointer;text-align:left;font:inherit}
+.rb-link:hover{border-color:var(--line2);background:var(--sunk)}
+.rb-link.on{border-color:var(--accent)}
+.rb-link b{font-size:13.5px;font-weight:600}.rb-link span{font-size:12px;color:var(--ink2)}
+/* the step banner above a screen */
+.rb-head{display:flex;flex-direction:column;gap:9px;padding:14px 18px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line2);border-radius:12px}
+.rb-head.needs{border-left-color:var(--warn)}.rb-head.done{border-left-color:var(--good)}
+.rb-crumb{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;color:var(--ink2)}
+.rb-hrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.rb-hrow h2{margin:0;font-family:var(--f-cond);font-size:19px;font-weight:700;letter-spacing:-.01em}
+.rb-hrow .btn .dim{max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.rb-about{margin:0;font-size:13.5px;line-height:1.5;color:var(--ink2);max-width:90ch}
+.rb-meta{display:flex;flex-wrap:wrap;gap:6px 8px;font-size:12.5px;color:var(--ink2)}
+.rb-meta span{padding:3px 9px;border-radius:7px;background:var(--sunk)}
+.rb-meta b{color:var(--ink);font-weight:600}
+.rb-views{display:flex;flex-wrap:wrap;gap:4px}
+.rb-views button{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:7px;background:none;padding:4px 10px;font:inherit;font-size:12.5px;color:var(--ink2);cursor:pointer}
+.rb-views button.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.rb-views .ct{font-family:var(--f-mono);font-size:10.5px;font-weight:700;padding:0 6px;border-radius:99px;background:var(--warn-soft);color:var(--warn)}
+.rb-prep{display:flex;flex-direction:column;gap:6px;padding-top:8px;border-top:1px solid var(--line)}
+.rb-pi{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.rb-pt{flex:1 1 260px;min-width:0;display:flex;flex-direction:column;font-size:13px}
+.rb-pt .small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* narrow screens: the steps run across in a strip */
+@media (max-width:900px){
+  .rb-rail{gap:10px}
+  .rb-steps{flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:4px;scroll-snap-type:x proximity}
+  .rb-sess{flex-direction:row;gap:6px}
+  .rb-sh{display:none}
+  .rb-step{flex:none;width:auto;max-width:240px;border:1px solid var(--line);scroll-snap-align:start}
+  .rb-note{max-width:150px}
+  .rb-foot{display:none}
+}

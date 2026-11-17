@@ -12,15 +12,16 @@
 
 /* ============================== state ============================== */
 const LY = { d: null, ap: null, at: 0, date: '', boot: true, k: null };
+const LYS = {}; // layout id → { side(), top(), pre(view), key(e) }: each ly-*.js adds its layout
 Object.assign(UI, { rbTab: 'today', rbStep: '', lyInSel: '', lyInArea: 'All', lyInMine: '', lyInHelp: false, wsCur: '', rhRole: '', grSrc: 'clients', grView: '', grQ: '', grF: {}, grSort: '', grGroup: '', grCols: null, grSel: new Set(), grPeek: '', phTab: 'approve', phSeg: 'wait', phItem: '', phQ: '', cpUcc: '', lyMenuQ: '' });
 const LY_NAMES = { classic: 'Classic', runbook: 'Day runbook', inbox: 'Exceptions inbox', workspaces: 'Workspaces', control: 'Control room', autopilot: 'Supervised Autopilot', rolehome: 'Role home', grid: 'Spreadsheet workbench', phone: 'Phone approvals' };
 const LY_HOMEV = { inbox: 'lyInbox', workspaces: 'lyHub', control: 'lyControl', autopilot: 'lyPilot', rolehome: 'lyRole', grid: 'lyGrid', phone: 'lyPhone' };
 const LY_OWN_VIEWS = [['lyInbox', 'Inbox'], ['lyHub', 'Workspace'], ['lyControl', 'Control room'], ['lyPilot', 'Supervised Autopilot'], ['lyRole', 'Home'], ['lyGrid', 'Workbench'], ['lyPhone', 'Approvals'], ['lyClient', 'Client page'], ['lyDay', 'Today']];
 // Every layout can open these, so they join the screen list (links, the
-// command bar and Ledgy's screen names); "Screen layout" sits under Admin.
-NAV.find(g => g[0] === 'Admin')[1].push(['layout', 'Screen layout']);
-NAV_VIEWS.push(['layout', 'Screen layout'], ...LY_OWN_VIEWS);
-VIEWS.push('layout', ...LY_OWN_VIEWS.map(v => v[0]));
+// command bar and Ledgy's screen names). "Screen layout" is under Admin in
+// app.js's NAV.
+NAV_VIEWS.push(...LY_OWN_VIEWS);
+VIEWS.push(...LY_OWN_VIEWS.map(v => v[0]));
 SCOPED_VIEWS.push('layout', 'lyInbox', 'lyGrid', 'lyPhone', 'lyClient');
 try { const h = location.hash.slice(1); if (VIEWS.includes(h)) S.view = h; } catch (e) {}
 
@@ -30,8 +31,9 @@ const lyPhoneSize = () => matchMedia('(max-width: 640px)').matches;
 function lyCur() {
   if (!S.me || clientUser() || document.body.classList.contains('signed-out')) return 'classic';
   const e = uiE();
-  if (e.phone_auto && lyPhoneSize()) return 'phone';
-  return LY_NAMES[e.layout] ? e.layout : 'classic';
+  if (e.phone_auto && lyPhoneSize() && LYS.phone?.top) return 'phone';
+  // A layout whose file didn't load falls back to the classic layout.
+  return LYS[e.layout]?.top ? e.layout : 'classic';
 }
 // lyApply: the layout, look, density and theme as attributes the CSS keys on.
 function lyApply() {
@@ -175,7 +177,7 @@ function lyNavList(groups, cls) {
 }
 
 /* ============================== shell hooks ============================== */
-const LYS = {}; // layout id → { side(), top(), pre(view) }
+// LYS (layout id → { side(), top(), pre(view), key(e) }) is declared with the state.
 {
   const baseSide = renderSide, baseTop = renderTop, baseBar = groupBar, baseRender = render, baseCounts = refreshCounts, baseLogin = showLogin;
   renderSide = () => { const l = lyCur(); if (l === 'classic') { baseSide(); return; } $('side').innerHTML = LYS[l].side ? LYS[l].side() : ''; };
@@ -184,7 +186,7 @@ const LYS = {}; // layout id → { side(), top(), pre(view) }
     if (l === 'classic') {
       baseTop();
       const m = $('umenu'); if (m && !clientUser()) m.insertAdjacentHTML('afterbegin', `<button data-act="go" data-id="layout" role="menuitem">Screen layout · Classic</button>`);
-      if (uiE().command_bar && !clientUser() && $('gsearch')) $('gsearch').placeholder = `Find client by name, UCC or PAN  ( / )   ·   ${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'} K for everything`;
+      if (uiE().command_bar && !clientUser() && $('gsearch')) $('gsearch').placeholder = `Find a client ( / ) · ${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'} K for everything`;
       return;
     }
     $('top').innerHTML = LYS[l].top();

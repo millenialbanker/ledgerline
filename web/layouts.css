@@ -1,0 +1,170 @@
+/* Screen layouts (layouts.js): the shell of each layout, the new look,
+   table density, the all-screens menu, the command bar, the client page and
+   the screen layout settings. Each layout's own parts are in ly-*.css. */
+
+/* ---------- the new look: one accent, cool greys, status shapes ---------- */
+:root[data-look="new"]{
+  --bg:#F5F6F8; --panel:#FFFFFF; --sunk:#F2F4F7; --line:#E4E7EC; --line2:#D0D5DD;
+  --ink:#101828; --ink2:#475467; --ink3:#667085;
+  --accent:#2F45C8; --accent-ink:#FFFFFF; --accent-soft:#EEF1FD;
+  --good:#127A5B; --good-soft:#E7F4EE; --warn:#B54708; --warn-soft:#FEF0E6; --bad:#B42318; --bad-soft:#FEE4E2;
+  --side-bg:#0F1728; --side-fg:#E4E7EC; --side-dim:#98A2B3; --side-hi:#1D2939;
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.08);
+  --f-sans:Inter,'Inter Variable',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --f-cond:Inter,'Inter Variable',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root[data-look="new"]:not([data-theme="light"]){
+  --bg:#0B1220; --panel:#121A2B; --sunk:#172036; --line:#243049; --line2:#2E3B57;
+  --ink:#E7EBF3; --ink2:#A9B3C6; --ink3:#8792A8;
+  --accent:#8C9AF0; --accent-ink:#0B1220; --accent-soft:#1B2550;
+  --good:#3CCB97; --good-soft:#10291F; --warn:#F5A524; --warn-soft:#2E2310; --bad:#FF7A6B; --bad-soft:#33171A;
+  --side-bg:#070C17; --side-fg:#E7EBF3; --side-dim:#8792A8; --side-hi:#172036;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.45); color-scheme:dark}}
+:root[data-look="new"][data-theme="dark"]{
+  --bg:#0B1220; --panel:#121A2B; --sunk:#172036; --line:#243049; --line2:#2E3B57;
+  --ink:#E7EBF3; --ink2:#A9B3C6; --ink3:#8792A8;
+  --accent:#8C9AF0; --accent-ink:#0B1220; --accent-soft:#1B2550;
+  --good:#3CCB97; --good-soft:#10291F; --warn:#F5A524; --warn-soft:#2E2310; --bad:#FF7A6B; --bad-soft:#33171A;
+  --side-bg:#070C17; --side-fg:#E7EBF3; --side-dim:#8792A8; --side-hi:#172036;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.45); color-scheme:dark}
+:root[data-look="new"] body{font-feature-settings:"tnum" 1,"cv11" 1;-webkit-font-smoothing:antialiased}
+:root[data-look="new"] .ph h1{font-weight:700;letter-spacing:-.02em}
+:root[data-look="new"] .panel,:root[data-look="new"] .kpi{border-radius:14px}
+/* Status: shape and colour together, so it reads without colour. */
+:root[data-look="new"] .pill.warn::before{border-radius:1px;transform:rotate(45deg);width:6px;height:6px}
+:root[data-look="new"] .pill.bad::before{border-radius:1px}
+:root[data-look="new"] .pill.nt::before{background:none;box-shadow:inset 0 0 0 1.5px currentColor}
+:root[data-look="new"] .pill.acc::before{background:none;box-shadow:inset 0 0 0 2px currentColor}
+
+/* ---------- table density ---------- */
+body[data-density="compact"] .tbl{font-size:12.5px}
+body[data-density="compact"] .tbl td{padding:4px 8px}
+body[data-density="compact"] .tbl th{padding:5px 8px}
+body[data-density="compact"] .kpi{padding:9px 12px}
+body[data-density="compact"] .page{gap:12px}
+
+/* ---------- the shell of each layout ----------
+   #side and #top hold each layout's menu and header; #page the screens.
+   The .main wrapper steps aside so the three can sit on one grid. */
+body:not([data-layout="classic"]):not(.signed-out) .main{display:contents}
+body:not([data-layout="classic"]):not(.signed-out) .app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr;grid-template-areas:"top" "page";min-height:100vh}
+body:not([data-layout="classic"]):not(.signed-out) .top{grid-area:top;position:sticky;top:0;z-index:20}
+body:not([data-layout="classic"]):not(.signed-out) .page{grid-area:page}
+body:not([data-layout="classic"]):not(.signed-out) .side{grid-area:side}
+body[data-layout="control"] .side,body[data-layout="autopilot"] .side,body[data-layout="rolehome"] .side{display:none}
+/* A rail beside the page, under the header. */
+body[data-layout="runbook"] .app{grid-template-columns:300px minmax(0,1fr);grid-template-areas:"top top" "side page"}
+body[data-layout="workspaces"] .app{grid-template-columns:248px minmax(0,1fr);grid-template-areas:"top top" "side page"}
+body[data-layout="grid"] .app{grid-template-columns:210px minmax(0,1fr);grid-template-areas:"top top" "side page"}
+body[data-layout="runbook"] .side,body[data-layout="workspaces"] .side,body[data-layout="grid"] .side{position:sticky;top:var(--ly-top,57px);height:calc(100vh - var(--ly-top,57px));background:var(--panel);color:var(--ink);border-right:1px solid var(--line);padding:14px 10px 20px;gap:10px}
+/* The inbox's icon rail runs the full height, beside the header. */
+body[data-layout="inbox"] .app{grid-template-columns:76px minmax(0,1fr);grid-template-areas:"side top" "side page"}
+body[data-layout="inbox"] .side{position:sticky;top:0;height:100vh;padding:12px 8px;gap:4px}
+/* Phone approvals: header, page, and a bar of tabs fixed at the bottom. */
+body[data-layout="phone"] .app{grid-template-areas:"top" "page"}
+body[data-layout="phone"] .side{position:fixed;left:0;right:0;bottom:0;top:auto;height:auto;z-index:25;padding:0 0 env(safe-area-inset-bottom,0px);background:var(--panel);color:var(--ink);border-top:1px solid var(--line);flex-direction:row;gap:0;overflow:visible}
+body[data-layout="phone"] .page{padding-bottom:96px}
+@media (max-width:900px){
+  body:not([data-layout="classic"]):not([data-layout="phone"]):not(.signed-out) .app{grid-template-columns:minmax(0,1fr);grid-template-areas:"top" "side" "page"}
+  body[data-layout="runbook"] .side,body[data-layout="workspaces"] .side,body[data-layout="grid"] .side,body[data-layout="inbox"] .side{position:static;height:auto;max-height:none;border-right:0;border-bottom:1px solid var(--line)}
+  body[data-layout="inbox"] .side{flex-direction:row;overflow-x:auto}
+  body:not([data-layout="classic"]) .top{position:static}
+}
+
+/* ---------- shared header pieces ---------- */
+.ly-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;width:100%;min-width:0}
+.ly-brand{display:flex;align-items:center;gap:10px;background:none;border:0;padding:0;cursor:pointer;color:inherit;text-align:left;font:inherit}
+.ly-brand .mark{width:28px;height:28px;padding:6px 6px}
+.ly-brand b{font-family:var(--f-cond);font-weight:700;font-size:15.5px;display:block;line-height:1.15}
+.ly-brand small{display:block;font-size:11.5px;color:var(--ink3);line-height:1.2}
+.ly-date{display:flex;align-items:center;gap:4px}
+.ly-date .in{height:30px;padding:0 8px}
+.ly-kbtn{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 300px;height:34px;padding:0 10px;border:1px solid var(--line2);border-radius:9px;background:var(--bg);color:var(--ink3);cursor:pointer;font:inherit;font-size:13px;text-align:left}
+.ly-kbtn span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ly-kbtn:hover{border-color:var(--ink3)}
+kbd{font-family:var(--f-mono);font-size:11px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:var(--ink2);background:var(--panel);white-space:nowrap}
+.ly-menub span{white-space:nowrap}
+.ly-push{margin-left:auto}
+.ly-top .umenu{margin-left:0}
+@media (max-width:700px){.ly-menub span,.ly-kbtn kbd{display:none}.ly-kbtn{flex-basis:100%;order:9}}
+
+/* ---------- menus: a light list of screens ---------- */
+.ly-navg{display:flex;flex-direction:column;gap:1px}
+.ly-navg h6{margin:6px 0 4px;padding:0 10px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
+.ly-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:7px 10px;border:0;border-radius:8px;background:none;color:var(--ink);cursor:pointer;font:inherit;font-size:13.5px;text-align:left}
+.ly-nav:hover{background:var(--sunk)}
+.ly-nav.on{background:var(--accent-soft);font-weight:600;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 30%,transparent)}
+.ly-nav .ct{font-family:var(--f-mono);font-size:11px;font-weight:600;padding:0 7px;border-radius:99px;background:var(--warn-soft);color:var(--warn)}
+.ly-menu{columns:3 220px;column-gap:18px}
+.ly-mg{break-inside:avoid;margin-bottom:10px}
+.ly-mg[hidden],.ly-nav[hidden]{display:none}
+
+/* ---------- step marks, shared by the layouts that show the day ---------- */
+.ly-mk{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;font-family:var(--f-mono)}
+.ly-mk.done{background:var(--good);color:#fff}
+.ly-mk.done svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ly-mk.needs{width:14px;height:14px;margin:4px;border-radius:2px;background:var(--warn);transform:rotate(45deg)}
+.ly-mk.wait{box-shadow:inset 0 0 0 2px var(--line2);color:var(--ink3)}
+.ly-mk.na{box-shadow:inset 0 0 0 2px var(--line);color:var(--ink3);opacity:.6}
+
+/* ---------- the search and command bar (⌘K) ---------- */
+.kp-ov{position:fixed;inset:0;z-index:60;background:rgba(16,24,40,.42);display:flex;justify-content:center;align-items:flex-start;padding:max(10vh,env(safe-area-inset-top,0px)) 16px 24px}
+.kp{width:100%;max-width:640px;background:var(--panel);border:1px solid var(--line2);border-radius:14px;box-shadow:0 24px 64px rgba(0,0,0,.28);display:flex;flex-direction:column;overflow:hidden;max-height:80vh}
+.kp-in{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);color:var(--ink3)}
+.kp-in input{flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:16px;color:var(--ink)}
+.kp-res{overflow-y:auto;padding:6px}
+.kp-sec{padding:8px 10px 4px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
+.kp-it{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border:0;border-radius:8px;background:none;cursor:pointer;color:var(--ink);font:inherit;font-size:14px;text-align:left}
+.kp-it>span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kp-it.hl{background:var(--accent-soft)}
+.kp-empty{padding:18px;color:var(--ink3);font-size:13.5px}
+.kp-ft{display:flex;gap:14px;flex-wrap:wrap;padding:8px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink2);background:var(--sunk)}
+.kp-ft kbd{margin-right:3px}
+
+/* ---------- the client page ---------- */
+.cpage{display:flex;flex-direction:column;gap:12px}
+.cpage>.linkish{align-self:flex-start}
+.cpage-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+.cpage-main{overflow:hidden}
+.cpage-main>.hd{display:flex;justify-content:space-between;align-items:flex-start;padding:18px 20px 10px}
+.cpage-main>.hd h2{margin:0;font-family:var(--f-cond);font-size:26px;letter-spacing:-.01em}
+.cpage-main>.hd p{margin:4px 0 0;color:var(--ink2)}
+.cpage-main>.hd .x{display:none}
+.cpage-main>.bd{padding:6px 20px 20px;display:flex;flex-direction:column;gap:16px}
+.cpage-main>.ft{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;padding:12px 20px;border-top:1px solid var(--line);background:var(--sunk);position:sticky;bottom:0}
+.cpage-nav{display:flex;gap:4px;flex-wrap:wrap;padding:0 16px 10px;border-bottom:1px solid var(--line);position:sticky;top:var(--ly-top,57px);background:var(--panel);z-index:3}
+body[data-layout="classic"] .cpage-nav{top:58px}
+.cpage-nav button{border:0;background:none;padding:6px 10px;border-radius:7px;cursor:pointer;color:var(--ink2);font:inherit;font-size:13px}
+.cpage-nav button:hover{background:var(--sunk);color:var(--ink)}
+.cps-h{scroll-margin-top:120px}
+.cpage-side{display:flex;flex-direction:column;gap:12px;position:sticky;top:calc(var(--ly-top,57px) + 12px)}
+.cp-item{display:flex;flex-direction:column;gap:6px;padding:8px 0;border-bottom:1px solid var(--line)}
+.cp-item:last-child{border-bottom:0}
+.cp-item .btn{align-self:flex-start}
+.ly-do{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+@media (max-width:1100px){.cpage-grid{grid-template-columns:minmax(0,1fr)}.cpage-side{position:static}}
+
+/* ---------- screen layout settings ---------- */
+.ly-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.ly-card{display:flex;flex-direction:column;gap:6px;padding:12px;border:1px solid var(--line2);border-radius:12px;background:var(--panel);cursor:pointer;text-align:left;color:var(--ink);font:inherit}
+.ly-card:hover{border-color:var(--ink3)}
+.ly-card.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft),inset 0 0 0 1px var(--accent)}
+.ly-card b{font-size:14px}
+.ly-card span{font-size:12.5px;color:var(--ink2);line-height:1.45}
+.ly-card em{font-style:normal;font-size:11.5px;color:var(--ink3)}
+.ly-card.follow{justify-content:center;border-style:dashed}
+.ly-thumb{width:100%;height:auto;border-radius:6px;background:var(--sunk);border:1px solid var(--line)}
+.ly-thumb .t-b{fill:var(--panel);stroke:var(--line2);stroke-width:.6}
+.ly-thumb .t-h{fill:var(--panel);stroke:var(--line2);stroke-width:.6}
+.ly-thumb .t-p{fill:var(--panel);stroke:var(--line);stroke-width:.6}
+.ly-thumb .t-l{fill:var(--line2)}
+.ly-thumb .t-a{fill:var(--accent)}
+.ly-thumb .t-a2{fill:var(--accent-soft);stroke:var(--accent);stroke-width:.6}
+.ly-thumb .t-d{fill:#18213A}
+.ly-thumb .t-dk{fill:#2A3854}
+.ly-prefs{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px 18px;margin-top:12px}
+.ly-prefs .fld{display:flex;flex-direction:column;gap:6px}
+.ly-prefs label{font-size:12.5px;color:var(--ink2);font-weight:600}
+.ly-allowed{display:flex;flex-direction:column;gap:4px;margin:6px 0 10px 24px}
+.ly-allowed[hidden]{display:none}
+label.ck{display:flex;align-items:center;gap:8px;font-size:13.5px;padding:3px 0}

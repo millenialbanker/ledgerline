@@ -141,7 +141,7 @@ const NAV = [
   ['Investments', [['ipo', 'IPO & public issues'], ['@mfg'], ['stocksip', 'Stock SIPs']]],
   ['Depository', [['@dpg']]],
   ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['@partnersg']]],
-  ['Admin', [['connections', 'Connections'], ['backups', 'Backups'], ['settings', 'Settings']]]];
+  ['Admin', [['connections', 'Connections'], ['backups', 'Backups'], ['settings', 'Settings'], ['layout', 'Screen layout']]]];
 // Every staff screen with its name, groups opened up.
 const NAV_VIEWS = NAV.flatMap(g => g[1].flatMap(([k, l]) => k[0] === '@' ? GROUPS[k.slice(1)][1] : [[k, l]]));
 const groupOf = v => Object.keys(GROUPS).find(g => GROUPS[g][1].some(([k]) => k === v));
