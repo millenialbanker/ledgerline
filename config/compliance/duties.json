@@ -481,7 +481,7 @@
    ],
    "changed": "Broader than the calendar's 'check pop-ups': from 10 Jan 2025 the pop-up must list every applicable indicator (ASM/GSM/ESM/IBC, price and non-price alerts, T2T, F&O ban, SME, high PE etc.), orders go only on 'Yes', and display logs must be kept and reported to the Board (NSE/SURV/64402). NSE replaced REG_IND with REG1_IND from 6 Dec 2024 (NSE/SURV/64924). The rules now sit in NSE/SURV/74008 (30 Apr 2026).",
    "ledgerline": {
-    "what": "The alert is shown by the trading front end (Finspot) when an order is placed in such a scrip; check it there."
+    "what": "The alert is shown by the trading front end the firm uses (Finspot, BOW or another) when an order is placed in such a scrip; check it there."
    }
   },
   {
