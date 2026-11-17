@@ -73,7 +73,7 @@ var bankCreditFields = []struct{ Key, Label string }{
 	{"path_payer_ifsc", "Payer IFSC"},
 	{"path_payer_name", "Payer name"},
 	{"path_mode", "Mode (NEFT, RTGS, IMPS, UPI)"},
-	{"path_payee_vpa", "UPI ID paid to (the firm's .brk@valid ID)"},
+	{"path_payee_vpa", "UPI ID paid to (the firm's validated @valid ID)"},
 	{"path_time", "Credit date and time"},
 	{"path_to_account", "Firm's account paid into (for the equity or commodity ledger)"},
 	{"path_narration", "Remitter's narration or remarks"},

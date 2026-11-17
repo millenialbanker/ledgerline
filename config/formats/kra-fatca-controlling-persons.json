@@ -1,0 +1,209 @@
+{
+ "id": "kra-fatca-controlling-persons",
+ "title": "FATCA/CRS controlling persons (KRA)",
+ "party": "KRA",
+ "direction": "out",
+ "when": "With a KRA upload file that has non-individual clients",
+ "purpose": "The controlling persons of the non-individual clients in a KRA upload file, one line a person, with their role, tax residency and TINs.",
+ "names": [
+  "kra_fatca_controlling_persons_.*\\.csv"
+ ],
+ "template": "kra_fatca_controlling_persons_{date:2006-01-02}.csv",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "crlf": false,
+ "final_eol": true,
+ "confirmed": false,
+ "linked": "KYC & PMLA → FATCA / CRS: the controlling persons of a KRA file's clients.",
+ "source": "No KRA format for controlling persons was found: KFintech KRA's circular KARVY/OPS/INTERM/GENRL/24-009 of 28 September 2024 says the process and data formats for non-individual clients will be notified separately. The data is what SEBI HO/38/14/(18)2026-MIRSD-POD2/I/25560/2026 of 11 November 2026, paras 6.1-6.3 (validity indicator, controlling persons, account type and pre-existing or new) asks for; the columns follow the client file's names where they can. To confirm with the KRA.",
+ "columns": [
+  {
+   "name": "PAN",
+   "key": "PAN",
+   "type": "str",
+   "note": "The client's (entity's) PAN"
+  },
+  {
+   "name": "UCC",
+   "key": "UCC",
+   "type": "str"
+  },
+  {
+   "name": "Name",
+   "key": "Name",
+   "type": "str",
+   "note": "The client's name"
+  },
+  {
+   "name": "Serial",
+   "key": "Serial",
+   "type": "str",
+   "note": "1, 2, 3 … for each controlling person of the client"
+  },
+  {
+   "name": "Controlling Person Name",
+   "key": "PersonName",
+   "type": "str"
+  },
+  {
+   "name": "Controlling Person Type",
+   "key": "PersonType",
+   "type": "str",
+   "note": "SEBI circular of 11 Nov 2026, para 6.2 (settlor, trustee, protector, beneficiary and others); codes of the OECD CRS XML schema v3.0 (CtrlgPersonType)",
+   "codes": {
+    "CRS801": "Legal person: controlling ownership interest",
+    "CRS802": "Legal person: control by other means",
+    "CRS803": "Legal person: senior managing official",
+    "CRS804": "Trust: settlor",
+    "CRS805": "Trust: trustee",
+    "CRS806": "Trust: protector",
+    "CRS807": "Trust: beneficiary",
+    "CRS808": "Trust: other",
+    "CRS809": "Other legal arrangement: settlor-equivalent",
+    "CRS810": "Other legal arrangement: trustee-equivalent",
+    "CRS811": "Other legal arrangement: protector-equivalent",
+    "CRS812": "Other legal arrangement: beneficiary-equivalent",
+    "CRS813": "Other legal arrangement: other-equivalent"
+   }
+  },
+  {
+   "name": "Controlling Person PAN",
+   "key": "PersonPAN",
+   "type": "str"
+  },
+  {
+   "name": "Date of Birth",
+   "key": "PersonDOB",
+   "type": "date",
+   "layout": "02-01-2006",
+   "note": "dd-mm-yyyy"
+  },
+  {
+   "name": "Place of Birth",
+   "key": "PersonPlaceOfBirth",
+   "type": "str"
+  },
+  {
+   "name": "Country of Birth",
+   "key": "PersonCountryOfBirth",
+   "type": "str",
+   "note": "ISO 3166 country code"
+  },
+  {
+   "name": "Nationality",
+   "key": "PersonNationality",
+   "type": "str",
+   "note": "ISO 3166 country code"
+  },
+  {
+   "name": "Tax Residency other than India?",
+   "key": "TaxResidencyOtherThanIndia",
+   "type": "str",
+   "note": "Y or N, as for the client",
+   "codes": {
+    "Y": "Yes",
+    "N": "No"
+   }
+  },
+  {
+   "name": "Country of Tax Residency1",
+   "key": "CountryOfTaxResidency1",
+   "type": "str",
+   "note": "ISO 3166 country code"
+  },
+  {
+   "name": "Country of Tax Residency2",
+   "key": "CountryOfTaxResidency2",
+   "type": "str",
+   "note": "ISO 3166 country code"
+  },
+  {
+   "name": "Country of Tax Residency3",
+   "key": "CountryOfTaxResidency3",
+   "type": "str",
+   "note": "ISO 3166 country code"
+  },
+  {
+   "name": "Country of Tax Residency4",
+   "key": "CountryOfTaxResidency4",
+   "type": "str",
+   "note": "ISO 3166 country code"
+  },
+  {
+   "name": "Tax Identification Number1",
+   "key": "TaxIdentificationNumber1",
+   "type": "str"
+  },
+  {
+   "name": "Tax Identification Number2",
+   "key": "TaxIdentificationNumber2",
+   "type": "str"
+  },
+  {
+   "name": "Tax Identification Number3",
+   "key": "TaxIdentificationNumber3",
+   "type": "str"
+  },
+  {
+   "name": "Tax Identification Number4",
+   "key": "TaxIdentificationNumber4",
+   "type": "str"
+  },
+  {
+   "name": "TIN Exemption Reason1",
+   "key": "TINExemptionReason1",
+   "type": "str",
+   "note": "A, B or C",
+   "codes": {
+    "A": "The country does not issue TINs to its residents",
+    "B": "The person can get a TIN but has not yet obtained one",
+    "C": "The country's law does not require the TIN to be collected"
+   }
+  },
+  {
+   "name": "TIN Exemption Reason2",
+   "key": "TINExemptionReason2",
+   "type": "str",
+   "note": "A, B or C",
+   "codes": {
+    "A": "The country does not issue TINs to its residents",
+    "B": "The person can get a TIN but has not yet obtained one",
+    "C": "The country's law does not require the TIN to be collected"
+   }
+  },
+  {
+   "name": "TIN Exemption Reason3",
+   "key": "TINExemptionReason3",
+   "type": "str",
+   "note": "A, B or C",
+   "codes": {
+    "A": "The country does not issue TINs to its residents",
+    "B": "The person can get a TIN but has not yet obtained one",
+    "C": "The country's law does not require the TIN to be collected"
+   }
+  },
+  {
+   "name": "TIN Exemption Reason4",
+   "key": "TINExemptionReason4",
+   "type": "str",
+   "note": "A, B or C",
+   "codes": {
+    "A": "The country does not issue TINs to its residents",
+    "B": "The person can get a TIN but has not yet obtained one",
+    "C": "The country's law does not require the TIN to be collected"
+   }
+  },
+  {
+   "name": "Self-certification Valid",
+   "key": "SelfCertificationValid",
+   "type": "str",
+   "note": "Y: a valid self-certification of the controlling person (Form 166: CRS1001, N: CRS1002)",
+   "codes": {
+    "Y": "Yes",
+    "N": "No"
+   }
+  }
+ ]
+}

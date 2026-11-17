@@ -62,7 +62,9 @@ var xWrittenOn = map[string]string{"hdfc-enet-payout": "Receipts & payouts → p
 	// The weekly clients mapped to APs, one file per exchange (apmapping.go).
 	"nse-ap-client-mapping": apWrittenOn, "bse-ap-client-mapping": apWrittenOn, "mcx-ap-client-mapping": apWrittenOn, "ncdex-ap-client-mapping": apWrittenOn, "mse-ap-client-mapping": apWrittenOn,
 	// The UCC-wise running account settlement report (rasucc.go).
-	"nse-ras-ucc": "Receipts & payouts → Running account (UCC-wise reports)"}
+	"nse-ras-ucc": "Receipts & payouts → Running account (UCC-wise reports)",
+	// The KRA upload and the FATCA/CRS controlling persons file (fatca.go).
+	"kra-kyc-upload": "Compliance → KYC & PMLA (KRA upload file; FATCA / CRS → legacy bulk file)", "kra-fatca-controlling-persons": "Compliance → KYC & PMLA → FATCA / CRS (controlling persons file)"}
 
 const apWrittenOn = "Branches & partners → AP client reporting (weekly)"
 

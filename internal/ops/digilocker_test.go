@@ -79,6 +79,7 @@ func apply(t *testing.T, o *Ops, ctx context.Context, mobile, pan string, viaPlu
 	if a, err = o.SaveAppStep(ctx, T, secret, AppStep{Step: "address", DigiLocker: true}); err != nil {
 		return a, err
 	}
+	must(o.SaveAppStep(ctx, T, secret, AppStep{Step: "tax", Application: Application{FATCA: IndiaOnlyFATCA("Mysuru", "")}}))
 	must(o.SaveAppStep(ctx, T, secret, AppStep{Step: "bank", Application: Application{Bank: "HDFC Bank", IFSC: "HDFC0001234", Account: "50100123456789"}}))
 	for _, k := range []string{"Photograph", "Signature"} {
 		must(o.AddAppDoc(ctx, T, secret, k, k+".png", png1))

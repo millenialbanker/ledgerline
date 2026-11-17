@@ -116,6 +116,10 @@ type PortalAccount struct {
 	Inactive    bool              `json:"inactive"`
 	WhatsApp    bool              `json:"whatsapp"`
 	Names       map[string]string `json:"segment_names"`
+	// Type and FATCA (TINs masked): the client's tax residency
+	// declaration, which the client can change from the portal (fatca.go).
+	Type  string     `json:"type"`
+	FATCA *FATCADecl `json:"fatca,omitempty"`
 }
 
 // PortalView is a client's home screen.
@@ -141,6 +145,9 @@ type PortalView struct {
 	// Documents are the signed contract notes and statements sent to the
 	// client, newest first, each downloadable from the portal.
 	Documents []PortalDocument `json:"documents"`
+	// FATCACodes are the code lists of the tax residency declaration the
+	// client can change (fatca.go).
+	FATCACodes FATCACodes `json:"fatca_codes"`
 }
 
 // PortalDocument is one signed document in the client's portal.
@@ -163,7 +170,8 @@ func portalAccount(c Client) PortalAccount {
 		bs = append(bs, x)
 	}
 	return PortalAccount{UCC: c.UCC, Name: c.Name, PAN: MaskPAN(c.PAN), Email: c.Email, Mobile: c.Mobile, City: c.City, Bank: b, Banks: bs, Demat: c.Demat, DPOnly: c.DPOnly, Demats: []DematRow{},
-		Segments: c.Segments, Nominee: c.Nominee, NomineeName: c.NomineeName, Nominees: maskNominees(c.Nominees), RAS: c.RAS, Blocked: c.Blocked, Inactive: c.Inactive, WhatsApp: c.WhatsApp, Names: SegmentNames}
+		Segments: c.Segments, Nominee: c.Nominee, NomineeName: c.NomineeName, Nominees: maskNominees(c.Nominees), RAS: c.RAS, Blocked: c.Blocked, Inactive: c.Inactive, WhatsApp: c.WhatsApp, Names: SegmentNames,
+		Type: c.Type, FATCA: c.FATCA.masked()}
 }
 
 // PortalAccounts lists the accounts a user may see in the portal.
@@ -273,14 +281,15 @@ func (o *Ops) Portal(ctx context.Context, tenant, actor, date, ucc string) (Port
 	sort.Slice(v.Tickets, func(i, j int) bool { return v.Tickets[i].ID > v.Tickets[j].ID })
 	set, _ := o.Settings(ctx, tenant)
 	v.Firm = map[string]string{"name": set.Firm, "sebi_reg": set.SEBIReg, "compliance_email": set.ComplianceEmail, "payin_account": set.PayoutDebitAccount}
-	// Validated UPI IDs and the SEBI QR (SEBI circular of 11 June 2025).
+	// Validated UPI IDs and the SEBI QR (SEBI circular of 11 June 2025):
+	// only those for client money (brk; dp for a client of the DP only),
+	// never a research or advisory fee ID (upicollect.go).
 	if upi := o.UPICollectConfig(ctx, tenant); len(upi.Handles) > 0 {
-		var ids []string
-		for _, h := range upi.Handles {
-			ids = append(ids, h.VPA)
+		if ids := upi.clientMoneyIDs(v.Account.DPOnly); len(ids) > 0 {
+			v.Firm["upi_ids"], v.Firm["upi_qr"] = strings.Join(ids, ","), upi.QR
 		}
-		v.Firm["upi_ids"], v.Firm["upi_qr"] = strings.Join(ids, ","), upi.QR
 	}
+	v.FATCACodes = FATCACodeLists()
 	v.Documents = []PortalDocument{}
 	ds, _ := docs.List[Dispatch](ctx, o.Docs, tenant, cDispatch, "")
 	seen := map[string]bool{}
@@ -298,7 +307,7 @@ func (o *Ops) Portal(ctx context.Context, tenant, actor, date, ucc string) (Port
 // ---- profile change requests ----
 
 // ChangeKinds are the details a client may ask to change.
-var ChangeKinds = []string{"Email", "Mobile", "Address", "Bank account", "Demat account", "Nomination"}
+var ChangeKinds = []string{"Email", "Mobile", "Address", "Bank account", "Demat account", "Nomination", ChangeFATCA}
 
 // ChangeRequest is a request to change a client's KYC or account details,
 // applied when a head-office checker approves it.
@@ -347,6 +356,8 @@ func changeOld(c Client, kind string) map[string]string {
 		return map[string]string{"primary": primaryDemat(c).ID, "accounts": fmt.Sprint(len(activeDemats(c))), "payout": c.PayoutDemat}
 	case "Nomination":
 		return nominationOld(c)
+	case ChangeFATCA:
+		return fatcaOld(c)
 	}
 	return map[string]string{}
 }
@@ -381,6 +392,13 @@ func applyChange(c *Client, r ChangeRequest) error {
 			return err
 		}
 		c.NominationOn = time.Now().Format("2006-01-02")
+	case ChangeFATCA:
+		// A new self-certification (fatca.go): the client reported a
+		// change, or the KYC desk corrected one (SEBI/HO/MIRSD/SECFATF/P/
+		// CIR/2024/12 para 6).
+		if err := fatcaChange(c, r); err != nil {
+			return err
+		}
 	default:
 		return invalid("change must be one of %s", strings.Join(ChangeKinds, ", "))
 	}
@@ -440,6 +458,12 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 		if err := bankLimitErr(c, trial, set.maxClientBanks()); err != nil {
 			return r, err
 		}
+	}
+	if kind == ChangeFATCA {
+		if err := o.fatcaChangeProof(ctx, tenant, ucc, src, doc); err != nil {
+			return r, err
+		}
+		r.New["summary"] = fatcaSummaryOfNew(c, r.New)
 	}
 	if kind == "Nomination" && r.New["nominee"] == "Opted in" {
 		if err := o.checkNominationConsent(ctx, tenant, ucc, r.New); err != nil {

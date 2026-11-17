@@ -166,6 +166,12 @@ type Client struct {
 	// (dponly.go): no segments, no exchange UCC, front-office files,
 	// limits, contract notes or running account settlement.
 	DPOnly bool `json:"dp_only,omitempty"`
+	// FATCA is the client's FATCA/CRS self-certification (fatca.go): tax
+	// residency with TINs, place and country of birth, nationality, US
+	// person, controlling persons, the account's classification, its
+	// validity and date, and where it stands at the KRA. Required for a new
+	// client; nil for a client from the previous system until recorded.
+	FATCA *FATCADecl `json:"fatca,omitempty"`
 	// Incomplete lists, in words ("Mobile", "PAN", "Bank account number",
 	// "Address"…), the details the previous system did not have, or had in
 	// a form Ledgerline cannot accept, when an inactive client was migrated
@@ -407,6 +413,16 @@ func (o *Ops) createApplication(ctx context.Context, tenant, actor string, c Cli
 		o.log(ctx, tenant, actor, "onboarding.debarred", c.PAN, map[string]any{"order": d.OrderNo, "regulator": d.Regulator})
 		return Client{}, &ValidationError{[]FieldError{{"pan", "This PAN is debarred from the securities market (" + d.Regulator + " order " + d.OrderNo + "); the account cannot be opened"}}}
 	}
+	// The FATCA/CRS self-certification is part of the account opening
+	// (SEBI/HO/MIRSD/SECFATF/P/CIR/2024/12; SEBI circular of 11 November
+	// 2026, para 6); it goes to the KRA with the KYC (fatca.go).
+	mode := FATCAModeForm
+	if strings.HasPrefix(actor, "applicant:") {
+		mode = FATCAModeESign
+	}
+	if err := requireFATCA(&c, actor, mode, o.now().Format(time.RFC3339)); err != nil {
+		return Client{}, err
+	}
 	if c.UCC == "" {
 		n, err := o.next(ctx, tenant, "ucc", actor)
 		if err != nil {
@@ -531,5 +547,6 @@ func (c Client) Public() Client {
 		}
 		c.MNRL = fs
 	}
+	c.FATCA = c.FATCA.masked()
 	return c
 }

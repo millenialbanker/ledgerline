@@ -164,6 +164,7 @@ Looking at NSE's extranet | Ops maker, Ops checker, Risk manager, Compliance off
 MTF enrolment | Ops checker, Risk manager
 MTF margin calls | Ops checker, Risk manager
 Making BSE dealer files | Ops maker, Compliance officer
+Making KRA upload files | Ops maker, Ops checker, Compliance officer
 Making inspection packs | Compliance officer
 Making the AP client reporting file | Ops maker, Ops checker, Compliance officer
 Making the NSE Clearing key | Admin
@@ -175,11 +176,13 @@ Managing partners | Ops checker, Admin
 Managing the firm's saved logins | Admin
 Mapping clients to BOW | Risk manager
 Mapping clients | Ops checker, Admin
+Marking KRA files uploaded | Ops maker, Ops checker, Compliance officer
 Marking a complaint's business | Ops maker, Ops checker, Compliance officer
 Marking a dealer as left | Compliance officer
 Marking a report uploaded | Ops checker, Compliance officer
 Matching stock SIP orders to trades | Ops maker, Ops checker, Risk manager
 Month-end postings | Ops checker
+Moving a fee to the firm's account | Ops checker
 Moving money between MCX and equity | Ops maker, Ops checker, Risk manager
 Muting a self-inspection test | Compliance officer
 NRI registration | Ops checker, Compliance officer
@@ -255,6 +258,7 @@ Requesting reactivation | Ops maker, Ops checker
 Resetting passwords | Admin
 Resetting the BSE UCC API password | Admin
 Resetting two-factor sign-in | Admin
+Resolving FATCA/CRS warnings | Ops checker, Compliance officer
 Restricting client data | Compliance officer, Admin
 Returning a bank credit | Ops maker, Ops checker
 Reviewing BSDA eligibility | Ops maker, Ops checker

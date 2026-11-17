@@ -94,6 +94,7 @@ func TestOnboardingConsent(t *testing.T) {
 	o, ctx := setup(t)
 	c, _ := o.Client(ctx, T, "BH1001")
 	c.UCC, c.PAN, c.Name, c.WhatsApp, c.WAConsent = "", "ABCPZ9999K", "Kavya Iyer", true, &WAConsent{On: true, Source: "forged"}
+	c.FATCA = IndiaOnlyFATCA("Chennai", "")
 	n, err := o.CreateApplication(ctx, T, "priya.nair", c)
 	if err != nil {
 		t.Fatal(err)

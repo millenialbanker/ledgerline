@@ -83,10 +83,22 @@ func (s *Server) bseHoldingUploaded(w http.ResponseWriter, r *http.Request) {
 func (s *Server) upiCollectRoutes(R func(string, http.HandlerFunc, bool)) {
 	R("GET /v1/settings/upi-collect", s.upiCollect, false)
 	R("PUT /v1/settings/upi-collect", s.saveUPICollect, true)
+	R("POST /v1/bank/{id}/move-fee", s.moveFeeCredit, true)
 }
 
 func (s *Server) upiCollect(w http.ResponseWriter, r *http.Request) {
-	ok(w, s.ops.UPICollectConfig(r.Context(), tenant(r)), nil)
+	ok(w, s.ops.UPICollectFor(r.Context(), tenant(r)), nil)
+}
+
+// moveFeeCredit records that a research or advisory fee paid into the
+// client bank account was moved to the firm's own account.
+func (s *Server) moveFeeCredit(w http.ResponseWriter, r *http.Request) {
+	var b struct{ Ref string }
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.MoveFeeCredit(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Ref)
+	ok(w, v.Public(), err)
 }
 
 func (s *Server) saveUPICollect(w http.ResponseWriter, r *http.Request) {
@@ -94,8 +106,11 @@ func (s *Server) saveUPICollect(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &b) {
 		return
 	}
-	v, err := s.ops.SaveUPICollect(r.Context(), tenant(r), actor(r), b)
-	ok(w, v, err)
+	if _, err := s.ops.SaveUPICollect(r.Context(), tenant(r), actor(r), b); err != nil {
+		fail(w, err, nil)
+		return
+	}
+	ok(w, s.ops.UPICollectFor(r.Context(), tenant(r)), nil)
 }
 
 // surveillanceReturnRoutes: the quarterly surveillance obligation report

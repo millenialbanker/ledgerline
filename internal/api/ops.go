@@ -2543,15 +2543,14 @@ func (s *Server) kraUpload(w http.ResponseWriter, r *http.Request) {
 	if !okd {
 		return
 	}
-	f, err := s.ops.KRAUploadFile(r.Context(), tenant(r), since)
+	// With the clients' FATCA/CRS self-certifications; the file is kept as
+	// a batch to mark uploaded (fatca.go).
+	f, err := s.ops.KRAUploadBatch(r.Context(), tenant(r), actor(r), since)
 	if err != nil {
 		fail(w, err, nil)
 		return
 	}
-	s.app.Log(r.Context(), tenant(r), actor(r), "kra.upload_file", since, nil)
-	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	w.Header().Set("Content-Disposition", `attachment; filename="kra_upload_`+since+`.csv"`)
-	w.Write(f)
+	sendKRAFile(w, f)
 }
 
 func (s *Server) ckycRequest(w http.ResponseWriter, r *http.Request) {

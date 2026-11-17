@@ -311,7 +311,7 @@ func TestAPMappingBaselineAndFound(t *testing.T) {
 	}
 	// A new client of the AP, from its account opening.
 	nc, err := o.CreateApplication(ctx, T, "priya.nair", Client{Name: "Made Up Person", Type: "Individual", PAN: "ZZZPZ9999Z", Mobile: "9000000001", Email: "made.up@example.com", City: "Mumbai", Segments: []string{"CM"}, Risk: "Low", Income: "1-5 Lakh", RAS: "Quarterly",
-		Bank: BankAccount{Bank: "Made-up Bank", IFSC: "HDFC0000001", Account: "123456789012"}, Demat: Demat{Depository: "CDSL", ID: "1234567800000001"}, RiskDisclosure: true, Partner: "AP001"})
+		Bank: BankAccount{Bank: "Made-up Bank", IFSC: "HDFC0000001", Account: "123456789012"}, Demat: Demat{Depository: "CDSL", ID: "1234567800000001"}, RiskDisclosure: true, Partner: "AP001", FATCA: IndiaOnlyFATCA("Mumbai", "")})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,0 +1,8 @@
+/* FATCA/CRS self-certifications (fatca.js). */
+.fa-form .fa-res, .fa-form .fa-cp { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin: 0 0 8px; }
+.fa-form .fa-cp { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fa-form .fa-del { align-self: end; }
+.fa-form fieldset.fld .check { margin: 4px 0; }
+.fa-checks .fa-warn { margin: 2px 0 6px; line-height: 1.4; }
+.fa-checks .fa-warn .small { margin-top: 2px; }
+@media (max-width: 720px) { .fa-form .fa-res, .fa-form .fa-cp { grid-template-columns: minmax(0, 1fr); } }
