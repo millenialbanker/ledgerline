@@ -85,6 +85,7 @@ Checking Finspot | Risk manager
 Checking PAN status at BSE | Ops maker, Ops checker
 Checking PAN status at the exchange | Ops maker, Ops checker, Compliance officer
 Checking UCC status at MCX | Ops maker, Ops checker, Compliance officer
+Checking UPI blocks with NSE Clearing | Ops maker, Ops checker, Risk manager
 Checking a backup | Ops checker, Compliance officer
 Checking a migration package | Admin
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
@@ -211,6 +212,7 @@ Raising pledge invocations | Risk manager
 Raising stock SIP top-up debits | Ops maker, Ops checker
 Re-pledging clients' collateral | Ops maker, Risk manager
 Reading circulars with AI | Compliance officer
+Reading trades from NSE Clearing's NCMS | Ops maker, Ops checker, Risk manager
 Reconciling a migration | Ops checker, Compliance officer
 Recording CDSL results | Ops checker, Risk manager
 Recording DP responses | Ops maker, Ops checker

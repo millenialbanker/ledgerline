@@ -89,6 +89,11 @@ type LiveRow struct {
 	// files), when there is one today; Margin uses it when it
 	// is higher than Ledgerline's estimate.
 	ExchangeMargin *money.Dec `json:"exchange_margin,omitempty"`
+	// ExchangeCashMargin is NSE Clearing's margin for the client's cash
+	// segment trades, used the same way against the cash estimate;
+	// ExchangeSLBMargin its SLB margin, added to Margin.
+	ExchangeCashMargin *money.Dec `json:"exchange_cash_margin,omitempty"`
+	ExchangeSLBMargin  *money.Dec `json:"exchange_slb_margin,omitempty"`
 	// PayoutHold is sale money awaiting pay-out held back from the client's
 	// allocation and limit (payouthold.go); it comes off Free.
 	PayoutHold *money.Dec `json:"payout_hold,omitempty"`
@@ -270,6 +275,9 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 	if exMargin == nil {
 		exMargin = map[string]money.Dec{}
 	}
+	// NSE Clearing's cash and SLB margins (Margin Equities API).
+	exCash, cashAt, _ := o.nclmMarginsIn(ctx, tenant, date, "CM")
+	exSLB, slbAt, _ := o.nclmMarginsIn(ctx, tenant, date, "SLB")
 	// MCXCCL's own margin for the client (peak snapshots of the day, the
 	// end-of-day margin file), added to NSE Clearing's (mcxfiles.go).
 	mcxMargin := map[string]money.Dec{}
@@ -284,7 +292,11 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 		exAt = laterTime(exAt, at)
 	}
 	payoutHeld := o.payoutHeld(ctx, tenant, date)
-	if len(exMargin) > 0 {
+	ub := o.upixBlocked(ctx, tenant) // NSE Clearing's UPI block balances (upix.go)
+	if len(exCash) > 0 || len(exSLB) > 0 {
+		exAt = laterTime(laterTime(exAt, cashAt), slbAt)
+	}
+	if len(exMargin) > 0 || len(exCash) > 0 || len(exSLB) > 0 {
 		v.ExchangeMarginAt = exAt
 	}
 	for _, u := range sortedKeys(in.clients) {
@@ -327,7 +339,16 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 			r.ExchangeMargin = &ex
 			deriv = money.Max(deriv, ex)
 		}
-		r.Margin = cm[u].Add(deriv)
+		cashM := cm[u]
+		if ex, ok := exCash[strings.ToUpper(u)]; ok {
+			r.ExchangeCashMargin = &ex
+			cashM = money.Max(cashM, ex)
+		}
+		r.Margin = cashM.Add(deriv)
+		if ex, ok := exSLB[strings.ToUpper(u)]; ok {
+			r.ExchangeSLBMargin = &ex
+			r.Margin = r.Margin.Add(ex)
+		}
 		for _, l := range cmLegs[u] {
 			inst, ok := look.Get(l.ex, "CM", l.key)
 			ltp := money.Dec{}
@@ -354,7 +375,7 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 				}
 			}
 		}
-		cash := money.Max(r.Funds, money.Dec{}).Add(c.UPIBlock.Dec())
+		cash := money.Max(r.Funds, money.Dec{}).Add(upiBlock(c, ub))
 		usable := cash.Add(money.Min(r.Collateral, cash)).Add(money.Min(r.Funds, money.Dec{}))
 		// Losses count at once; profits are not given intraday.
 		r.Free = usable.Sub(r.Margin).Add(money.Min(r.MTM, money.Dec{})).Sub(r.Unbilled).Sub(r.Auction)

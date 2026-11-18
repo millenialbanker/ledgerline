@@ -446,12 +446,13 @@ func (o *Ops) Risk(ctx context.Context, tenant, date string) (RiskView, error) {
 	if len(in.look.m) == 0 {
 		v.Warning = "Market data is not loaded for this date, so positions are valued at trade price and carry no margin."
 	}
+	ub := o.upixBlocked(ctx, tenant) // NSE Clearing's UPI block balances (upix.go)
 	for _, u := range sortedKeys(in.clients) {
 		c := in.clients[u]
 		if c.Status != "Active" {
 			continue
 		}
-		r := RiskRow{UCC: u, Name: c.Name, Funds: funds[u].Dec(), UPI: c.UPIBlock.Dec(), Collateral: coll[u].Total(), CashEqColl: coll[u].CashEq, NonCashColl: coll[u].NonCash, Blocked: c.Blocked || c.Inactive, Inactive: c.Inactive, Positions: len(pos[u])}
+		r := RiskRow{UCC: u, Name: c.Name, Funds: funds[u].Dec(), UPI: upiBlock(c, ub), Collateral: coll[u].Total(), CashEqColl: coll[u].CashEq, NonCashColl: coll[u].NonCash, Blocked: c.Blocked || c.Inactive, Inactive: c.Inactive, Positions: len(pos[u])}
 		if lf != nil {
 			f := lf[u]
 			r.Funds = f.Equity.Dec()
@@ -789,12 +790,13 @@ func (o *Ops) Margins(ctx context.Context, tenant, date string) (MarginReport, e
 	ccMargin, _ := o.mcxChargedMargins(ctx, tenant, date)
 	ccPeaks := o.mcxPeaks(ctx, tenant, date)
 	levied := o.mcxLevied(ctx, tenant, date)
+	ub := o.upixBlocked(ctx, tenant)
 	for _, u := range sortedKeys(in.clients) {
 		c := in.clients[u]
 		if c.Status != "Active" {
 			continue
 		}
-		cash := money.Max(pre[u].Dec(), money.Dec{}).Add(c.UPIBlock.Dec())
+		cash := money.Max(pre[u].Dec(), money.Dec{}).Add(upiBlock(c, ub))
 		collected := cash.Add(money.Min(coll[u].Total(), cash))
 		// A separate commodity ledger (segledger.go): equity money covers
 		// NSE and BSE margin, with the pledged securities; commodity money

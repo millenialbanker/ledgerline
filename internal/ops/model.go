@@ -357,6 +357,8 @@ type Ops struct {
 	// Notis is NSE's trade API (NOTIS); nil uses the real one.
 	Notis      NotisAPI
 	NCLMargins NCLMarginsAPI // NSE Clearing margins API; nil for the real one
+	NCMS       NCMSAPI       // NSE Clearing NCMS API; nil for the real one
+	UPIX       UPIXAPI       // NSE Clearing UPIX API; nil for the real one
 	// Mailer sends email (contract notes, statements). Nil: development
 	// servers simulate delivery; production servers hold the mail.
 	Mailer Mailer

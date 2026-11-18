@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"ledgerline/internal/docs"
+	"ledgerline/internal/money"
 )
 
 // fakeNCLM plays NSE Clearing: it encrypts the login to the member's public
@@ -27,6 +28,7 @@ type fakeNCLM struct {
 	key, iv  string // as sent in the login reply
 	kb, ivb  []byte
 	token    string
+	valid    map[string]bool // tokens handed out (each segment's API has its own)
 	logins   int
 	calls    []string
 	bodies   []map[string]any
@@ -50,6 +52,10 @@ func (f *fakeNCLM) Post(ctx context.Context, u string, h http.Header, body []byt
 		}
 		f.logins++
 		f.token = fmt.Sprintf("ee1073de-45d0-4040-b9c2-eddfa80280c%d", f.logins)
+		if f.valid == nil {
+			f.valid = map[string]bool{}
+		}
+		f.valid[f.token] = true
 		plain := fmt.Sprintf(`{"access_token":%q,"token_type":"bearer","expires_in":"3600","scope":"api_scope","key":%q,"iv":%q}`, f.token, f.key, f.iv)
 		ct, err := rsa.EncryptPKCS1v15(crand.Reader, f.pub, []byte(plain))
 		if err != nil {
@@ -59,7 +65,7 @@ func (f *fakeNCLM) Post(ctx context.Context, u string, h http.Header, body []byt
 	}
 	// Data calls: the bearer and body are encrypted with this login's key.
 	tok, err := aesCBCDecrypt(f.kb, f.ivb, strings.TrimPrefix(h.Get("Authorization"), "Bearer "))
-	if err != nil || string(tok) != f.token || f.expired || (len(h["consumerKey"]) != 1 || h["consumerKey"][0] != "ck-test") {
+	if err != nil || !f.valid[string(tok)] || f.expired || (len(h["consumerKey"]) != 1 || h["consumerKey"][0] != "ck-test") {
 		return 401, nil, js(map[string]any{"messages": map[string]string{"code": "0101401"}, "status": "error"}), nil
 	}
 	var wire map[string]string
@@ -322,4 +328,105 @@ func TestNCLMarginsPieces(t *testing.T) {
 func docsGetConn(ctx context.Context, o *Ops) (Connection, bool, error) {
 	c, _, err := docs.Get[Connection](ctx, o.Docs, T, cConn, connNCLMargins)
 	return c, err == nil, err
+}
+
+// The Margin Equities protocol's own sample records (client code changed).
+const (
+	nclEqSampleCM     = "XXXXX,409961019.00,2717728.00,412678747.00,7098306.56,174917432.99,182015739.55,44.10,0.00,7098306.56,0.00,,,,,,"
+	nclEqSampleCliCM  = "XXXXX,Mr.XYZLtd,XXXXX,Mr.ABCLtd,BH1003,409961019.00,2717728.00,90766.86,67952.71,4645.80,,,163365.37,179492210.21,1214188.00,153762.96,,,,,,"
+	nclEqSampleCliSLB = ",,XXXXX,Mr.ABCLtd,BH1003,409961019.00,2717728.00,,,,0.00,163365.37,163365.37,179492210.21,1214188.00,153762.96,,,,,,"
+	nclEqSampleSec    = "XXXXX,M2025114,BH1003,BSEEQ,4740.00,60,4740.00,60,,4740.00,0,0.00,,,,0.00,0,100000.00,0.00,,,,,,"
+	nclEqSampleSett   = "XXXXX,BH1003,Z2025114,514734437.52,2936176.91,0.00,,,,182015739.55,,,,,,"
+)
+
+func TestNCLMarginsCashSLB(t *testing.T) {
+	o, ctx := setup(t)
+	at := time.Date(2026, 10, 29, 10, 0, 0, 0, ist)
+	o.Now = func() time.Time { return at }
+	if _, err := o.SaveConnection(ctx, T, "admin", connNCLMargins, map[string]string{"member": "M1234", "segments": "FO, XX", "env": "UAT", "fetch": "On"},
+		map[string]string{"api_key": "ck-test", "secret": "cs-test"}); err == nil || !strings.Contains(err.Error(), "XX is not one of them") {
+		t.Fatalf("segment XX: %v", err)
+	}
+	setupNCLMargins(t, o, ctx, "FO, CM, SLB")
+	f := fakeFor(t, o, ctx)
+	f.replies["cm-margins"] = []string{nclEqSampleCM}
+	f.replies["cli-margins"] = []string{nclEqSampleCliCM, nclEqSampleCliSLB}
+	f.replies["security-margin"] = []string{nclEqSampleSec}
+	f.replies["settlement-margin"] = []string{nclEqSampleSett}
+
+	// The cash segment's member figure comes in the cash layout.
+	if res, err := o.NCLMarginsFetch(ctx, T, "admin", "CM", "cm", nil); err != nil || res.Rows != 1 {
+		t.Fatalf("cm: %+v %v", res, err)
+	}
+	if f.calls[len(f.calls)-1] != "Margins-CM-API cm-margins" {
+		t.Fatalf("calls %v", f.calls)
+	}
+	v := o.NCLMarginsStatus(ctx, T, "2026-10-29")
+	var snap NCLMSnapshot
+	for _, x := range v.Snaps {
+		if x.Segment == "CM" && x.Kind == "cm" {
+			snap = x
+		}
+	}
+	if len(snap.Columns) != 11 || snap.Columns[9] != "Trade margin (prop)" || snap.Rows[0][9] != "7098306.56" {
+		t.Fatalf("cash member snapshot %+v", snap)
+	}
+	// Each client's cash and SLB margins.
+	if res, err := o.NCLMarginsFetch(ctx, T, "admin", "CM", "cli", []string{"BH1003"}); err != nil || res.Rows != 1 {
+		t.Fatalf("cli CM: %+v %v", res, err)
+	}
+	at = at.Add(20 * time.Second) // one call every 10 seconds per endpoint
+	if res, err := o.NCLMarginsFetch(ctx, T, "admin", "SLB", "cli", []string{"BH1003"}); err != nil || res.Rows != 1 {
+		t.Fatalf("cli SLB: %+v %v", res, err)
+	}
+	cm, _, _ := docs.Get[NCLMClient](ctx, o.Docs, T, cNCLMCli, "CM|2026-10-29|BH1003")
+	if cm.Total.String() != "163365.37" || cm.Trade.String() != "67952.71" || cm.ICMTM.String() != "4645.8" || cm.MTM.String() != "90766.86" || cm.TM != "XXXXX" {
+		t.Fatalf("cash client %+v", cm)
+	}
+	slb, _, _ := docs.Get[NCLMClient](ctx, o.Docs, T, cNCLMCli, "SLB|2026-10-29|BH1003")
+	if slb.Total.String() != "163365.37" || slb.ReverseLeg.String() != "163365.37" || slb.FirstLeg.Sign() != 0 {
+		t.Fatalf("SLB client %+v", slb)
+	}
+	// By security (with early pay-in) and by settlement.
+	if res, err := o.NCLMarginsFetch(ctx, T, "admin", "CM", "security", []string{"BH1003"}); err != nil || res.Rows != 1 {
+		t.Fatalf("security: %+v %v", res, err)
+	}
+	if res, err := o.NCLMarginsFetch(ctx, T, "admin", "CM", "settlement", []string{"BH1003"}); err != nil || res.Rows != 1 {
+		t.Fatalf("settlement: %+v %v", res, err)
+	}
+	ds := o.NCLMClientDetails(ctx, T, "2026-10-29", "bh1003")
+	if len(ds) != 1 || len(ds[0].Securities) != 1 || len(ds[0].Settlements) != 1 {
+		t.Fatalf("details %+v", ds)
+	}
+	if x := ds[0].Securities[0]; x.Symbol != "BSEEQ" || x.Settlement != "M2025114" || x.EPIFunds.String() != "100000" || x.Total.String() != "4740" {
+		t.Fatalf("security %+v", x)
+	}
+	if x := ds[0].Settlements[0]; x.Settlement != "Z2025114" || x.Upfront.String() != "514734437.52" || x.Total.String() != "182015739.55" {
+		t.Fatalf("settlement %+v", x)
+	}
+	if b := f.bodies[len(f.bodies)-1]; fmt.Sprint(b["data"].(map[string]any)["cliList"]) != "[BH1003]" {
+		t.Fatalf("settlement request %v", b)
+	}
+	// Calls the cash segment and SLB do not have, and the other way round.
+	for _, c := range [][2]string{{"SLB", "cm"}, {"CM", "positions"}, {"CM", "mwpl"}, {"FO", "security"}, {"FO", "settlement-all"}} {
+		if _, err := o.NCLMarginsFetch(ctx, T, "admin", c[0], c[1], nil); err == nil {
+			t.Errorf("%s %s was allowed", c[0], c[1])
+		}
+	}
+	// Live RMS: the cash margin is set against Ledgerline's cash estimate,
+	// and the SLB margin added.
+	lv, err := o.LiveRisk(ctx, T, "2026-10-29", "")
+	if err != nil || lv.ExchangeMarginAt == "" {
+		t.Fatalf("live %v %v", lv.ExchangeMarginAt, err)
+	}
+	for _, r := range lv.Rows {
+		if r.UCC == "BH1003" {
+			if r.ExchangeCashMargin == nil || r.ExchangeCashMargin.String() != "163365.37" || r.ExchangeSLBMargin == nil ||
+				r.Margin.Cmp(money.MustDec("326730.74")) < 0 {
+				t.Fatalf("live row %+v", r)
+			}
+			return
+		}
+	}
+	t.Fatal("BH1003 not in live risk")
 }

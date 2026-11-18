@@ -290,6 +290,8 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	// fetching on in Connections.
 	o.notisTick(ctx, tenant, now)
 	o.nclMarginsTick(ctx, tenant, now)
+	o.ncmsTick(ctx, tenant, now)
+	o.upixTick(ctx, tenant, now)
 	o.retryMessages(ctx, tenant, now)
 	o.extranetTick(ctx, tenant, now)
 	o.mcxSFTPTick(ctx, tenant, now)

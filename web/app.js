@@ -3511,7 +3511,7 @@ A.noticeHide = id => { const h = noticeHidden(); h.push(id); try { localStorage.
 /* ---------- exchange files: the exact files of exchanges, CCs, depositories, front end and bank ---------- */
 /* ---------- clearing data: the day's clearing and depository files at work ---------- */
 V.ccdata = {
-  load: () => get(`/v1/clearing-data?date=${S.date}`),
+  load: async () => { const [d, f] = await Promise.all([get(`/v1/clearing-data?date=${S.date}`), get('/v1/ncl-feeds').catch(() => null)]); d.feeds = f; return d; },
   html: d => {
     const secs = d.sections, mk = has('Ops maker', 'Ops checker', 'Risk manager');
     const panel = s => {
@@ -3522,9 +3522,38 @@ V.ccdata = {
         <div class="pad dim small">${esc(s.about)}${s.file ? ` <span class="mono">${esc(s.file)}</span>` : ''}</div>${s.loaded ? tbl(sa && mk ? [...cols, ['']] : cols, rows, { empty: 'Nothing in the file.' }) : ''}</div>`;
     };
     return ph('Clearing data', 'The clearing corporations’ and CDSL’s daily files at work: their client margins, collateral, short allocations, stamp duty, obligations, re-pledged securities and direct pay-outs, set against Ledgerline’s own figures. Load the files on Exchange files; the reporting files built from them (margin reporting, short allocation) are downloaded there.', '<button class="btn" data-act="go" data-id="xfiles">Exchange files</button>') +
-      `<div class="kpis">${kpi('Files loaded', secs.filter(s => s.loaded).length + ' of ' + secs.length, 'for ' + fmtDate(S.date))}${kpi('Differences', secs.reduce((a, s) => a + s.differences, 0), 'to look into', secs.some(s => s.differences) ? 'warn' : 'good')}</div>` + secs.map(panel).join('');
+      `<div class="kpis">${kpi('Files loaded', secs.filter(s => s.loaded).length + ' of ' + secs.length, 'for ' + fmtDate(S.date))}${kpi('Differences', secs.reduce((a, s) => a + s.differences, 0), 'to look into', secs.some(s => s.differences) ? 'warn' : 'good')}</div>` + ccFeeds(d.feeds, mk) + secs.map(panel).join('');
   }
 };
+// NSE Clearing's APIs at work: margins, NCMS (CP codes) and UPIX (UPI blocks).
+function ccFeeds(f, mk) {
+  if (!f) return '';
+  const when = t => t ? esc(fmtTS(t)) : '—';
+  const st = (err, ok) => err ? pill('Problem', 'bad') + ' <span class="small wrap">' + esc(err) + '</span>' : ok ? pill('Working', 'good') : pill('Not run yet', 'nt');
+  const rows = [];
+  const m = f.margins || {};
+  for (const s of (m.segments || []).filter(s => (m.enabled || []).includes(s.segment))) {
+    const last = Object.values(s.last || {}).sort().pop();
+    rows.push(`<tr><td><b>Margins</b> · ${esc(s.segment)}</td><td>${st(s.last_error, last)}</td><td class="n dim">${when(last)}</td><td class="small">${Object.entries(s.rows || {}).map(([k, n]) => `${esc(k)} ${n}`).join(' · ')}</td><td></td></tr>`);
+  }
+  const n = f.ncms || {};
+  if (n.set) {
+    const ns = n.state || {};
+    rows.push(`<tr><td><b>NCMS</b> · F&amp;O trades and CP codes</td><td>${st(ns.last_error, ns.last_ok)}${n.fix ? '' : ' ' + pill('CP correction off', 'nt')}</td><td class="n dim">${when(ns.last_run)}</td><td class="small">${ns.trades || 0} trades · ${ns.actions || 0} actions · ${(n.cp_changes || []).length} CP changes${(n.wrong_cp || []).length ? ' · ' + pill((n.wrong_cp || []).length + ' NRI trades on the wrong CP code', 'warn') : ''}</td><td>${mk ? `<button class="btn sm" data-act="ncmsFetch">Read now</button>${(n.wrong_cp || []).length ? `<button class="btn sm pri" data-act="ncmsFix">Correct CP codes</button>` : ''}` : ''}</td></tr>`);
+  }
+  const u = f.upix || {};
+  if (u.set) {
+    const us = u.state || {};
+    rows.push(`<tr><td><b>UPIX</b> · UPI blocks</td><td>${u.address ? st(us.last_error, us.bal_at) : pill('Waiting for NSE Clearing\'s address', 'warn')}</td><td class="n dim">${when(us.last_run)}</td><td class="small">${u.registered || 0} clients registered · ${esc(inr(u.blocked || 0))} blocked · ${(u.debits || []).length} debits today${(u.debits || []).some(x => x.problem) ? ' · ' + pill('debits not posted', 'bad') : ''}</td><td>${mk && u.address ? '<button class="btn sm" data-act="upixSync">Check now</button>' : ''}</td></tr>`);
+  }
+  if (!rows.length) return '';
+  return `<div class="panel"><div class="hd"><h3>NSE Clearing APIs</h3><small>read during the day; problems also go to the work queue</small></div>${tbl([['Feed'], ['Status'], ['Last run'], ['Today'], ['']], rows)}</div>`;
+}
+Object.assign(A, {
+  ncmsFetch: () => act(() => post('/v1/ncms/fetch', { fix: false }), r => `${r.trades} trades and ${r.actions} actions read from NCMS${(r.problems || []).length ? ' · ' + r.problems[0] : ''}`),
+  ncmsFix: () => act(() => post('/v1/ncms/fetch', { fix: true }), r => `${r.cp_changes_sent} CP code change(s) sent to NCMS${(r.problems || []).length ? ' · ' + r.problems[0] : ''}`),
+  upixSync: () => act(() => post('/v1/upix/sync', { full: false }), r => `${r.balances} balances and ${r.debits} new debit(s) from UPIX, ${r.posted} posted${(r.problems || []).length ? ' · ' + r.problems[0] : ''}`),
+});
 Object.assign(A, {
   saWhy: (id, el) => {
     const codes = C.ccdata.reason_codes;

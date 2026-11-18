@@ -298,3 +298,18 @@ related: client-documents, ucc-upload
 3. Ask your Ledgerline administrator to update the client's segments. It's on the list to become a proper maker-checker request.
 
 Never enable derivatives without income proof on file: it's checked in exchange inspections.
+
+## ncms-cp-codes
+title: Correct the CP code on an NRI client's F&O trades
+screen: ccdata
+roles: Admin, Ops maker, Risk manager
+ask: cp code; custodial participant code; cp modification; ncms; ncms api; nri f&o trade without cp code; wrong cp code; custodian rejected trade; cp trade; give up trade; nri derivatives custodian
+related: nri-client, connections
+
+An NRI client trades derivatives through a custodian: every F&O trade must carry the client's custodial participant (CP) code, given on [[nri|NRI (PIS)]]. A trade punched without it, or with another one, stays in the firm's own books unless the CP code is corrected in NSE Clearing's NCMS the same day. Ledgerline can watch for this and correct it.
+
+1. Register for NSE Clearing's NCMS API (member code, name, e-mail and the server's address shown on Connections). NSE Clearing e-mails the consumer key and secret.
+2. On [[connections|Connections]] (Admin), open **NSE Clearing NCMS API**: the clearing member code, the key and secret, UAT or Live, and **Read trades and actions during the day** On. Turn **Correct NRI clients' CP codes automatically** On once the firm has seen it work.
+3. Every five minutes from 09:15 to 17:30 Ledgerline reads the day's F&O trades and every action on them. **NSE Clearing APIs** on [[ccdata|Clearing data]] shows the feed and any NRI trade still on the wrong CP code; **Correct CP codes** sends the corrections at once.
+
+Each correction is sent once. If NCMS refuses it, an Ops maker gets a work item with NCMS's reason, to correct in NCMS before the cut-off. If the custodian rejects a trade, the Risk manager gets a work item: the trade stays in the firm's books, so speak to the client and the custodian. Ledgerline does not approve trades given up to the firm (that takes on another member's obligation).

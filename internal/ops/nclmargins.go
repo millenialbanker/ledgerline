@@ -31,14 +31,19 @@ import (
 	"ledgerline/internal/money"
 )
 
-// ---- NSE Clearing margins API (NMASS Margins, FO / CD / CO) ----
+// ---- NSE Clearing margins API (NMASS Margins, FO / CD / CO / CM / SLB) ----
 //
-// NSE Clearing's margin API (protocol v1.2, circular NCL/CMPT/76433) gives a
-// clearing member, during the day, the margins NSE Clearing itself is
-// charging: for the clearing member, for each trading member under it and
-// for each client, plus client positions, member open interest and the
-// market-wide position limits. Live RMS uses the client margins in place of
-// Ledgerline's own estimate whenever NSE Clearing's figure is higher.
+// NSE Clearing's margin API (derivatives: protocol v1.2 of 22 Jul 2026,
+// circular NCL/CMPT/76433; cash and SLB: "Margin Equities" v1.1 of
+// 6 Jun 2026) gives a clearing member, during the day, the margins NSE
+// Clearing itself is charging: for the clearing member, for each trading
+// member under it and for each client. For derivatives it also gives client
+// positions, member open interest and the market-wide position limits; for
+// cash and SLB, each client's margin by security (with early pay-in) and by
+// settlement. Live RMS uses the client margins in place of Ledgerline's own
+// estimate whenever NSE Clearing's figure is higher: derivatives against
+// the derivatives estimate, cash against the cash estimate; SLB margin is
+// added (Ledgerline makes no SLB estimate of its own).
 //
 // Logging in: Basic consumer key and secret; NSE Clearing answers with the
 // access token, an AES key and IV, encrypted (RSA PKCS#1 v1.5) to the
@@ -59,6 +64,8 @@ const (
 	cNCLMSnap      = "nclmsnap"  // key: seg|date|kind (cm, tm, moi, mwpl)
 	cNCLMCli       = "nclmcli"   // key: seg|date|ucc
 	cNCLMPos       = "nclmpos"   // key: seg|date|ucc
+	cNCLMSec       = "nclmsec"   // key: seg|date|ucc (cash, SLB: by security)
+	cNCLMSett      = "nclmsett"  // key: seg|date|ucc (cash, SLB: by settlement)
 
 	nclmLive = "https://www.connect2nsccl.com"
 	nclmUAT  = "https://uat.connect2nsccl.com"
@@ -79,6 +86,50 @@ var NCLMKinds = map[string]struct {
 	"mwpl":          {"mwpl", "", "Market-wide position limits", 10 * time.Second},
 	"cli-all":       {"cli-margins/generate-all", "cli-margins/inquiry", "All client margins (file)", 300 * time.Second},
 	"positions-all": {"positions/generate-all", "positions/inquiry", "All client positions (file)", 300 * time.Second},
+	// Cash and SLB only.
+	"security":       {"security-margin", "", "Client margins by security", 10 * time.Second},
+	"settlement":     {"settlement-margin", "", "Client margins by settlement", 10 * time.Second},
+	"security-all":   {"security-margin/generate-all", "security-margin/inquiry", "All client margins by security (file)", 300 * time.Second},
+	"settlement-all": {"settlement-margin/generate-all", "settlement-margin/inquiry", "All client margins by settlement (file)", 300 * time.Second},
+}
+
+// nclmAllSegments are the segments NSE Clearing's margins API serves.
+var nclmAllSegments = []string{"FO", "CD", "CO", "CM", "SLB"}
+
+// nclmEquity: the cash segment and SLB, which have their own layouts.
+func nclmEquity(seg string) bool { return seg == "CM" || seg == "SLB" }
+
+// nclmKindFor says whether a call is given for a segment.
+func nclmKindFor(seg, kind string) error {
+	eq := nclmEquity(seg)
+	switch strings.TrimSuffix(kind, "-all") {
+	case "positions", "moi", "mwpl":
+		if eq {
+			return invalid("%s is given for F&O, currency and commodity; for cash and SLB ask for security or settlement margins", kind)
+		}
+		if kind == "mwpl" && seg != "FO" {
+			return invalid("market-wide position limits are for F&O only")
+		}
+	case "security", "settlement":
+		if !eq {
+			return invalid("margins by %s are given for the cash segment and SLB", kind)
+		}
+	case "cm":
+		if seg == "SLB" {
+			return invalid("NSE Clearing gives no clearing member margin for SLB; ask for tm")
+		}
+	}
+	return nil
+}
+
+// checkNCLMSegments: each segment is one the margins API serves.
+func checkNCLMSegments(v string) error {
+	for _, seg := range nclmSegments(v) {
+		if !contains(nclmAllSegments, seg) {
+			return invalid("the NSE Clearing margins segments are %s; %s is not one of them", strings.Join(nclmAllSegments, ", "), seg)
+		}
+	}
+	return nil
 }
 
 // nclmColumns name the fields of each record, in NSE Clearing's order
@@ -93,13 +144,32 @@ var nclmColumns = map[string][]string{
 	"mwpl": {"Symbol", "NSE Clearing FUTEQ OI", "Limit", "FUTEQ OI %"},
 }
 
+// nclmEqColumns are the cash and SLB layouts of the member calls.
+var nclmEqColumns = map[string][]string{
+	"cm": {"CM code", "Cash collateral", "Non-cash collateral", "Effective deposit", "Prop margin", "TM margin above 90%", "Total margin", "Utilisation %",
+		"MTM loss (prop)", "Trade margin (prop)", "ICMTM (prop)"},
+	"tm": {"TM/CP code", "TM/CP name", "Cash collateral", "Non-cash collateral", "Effective deposit", "Prop margin", "Client margin above 90%", "Non-cash benefit TM",
+		"Non-cash benefit CM (cash)", "Total margin", "Utilisation %", "TM/CP margin above 90% (cash)", "MTM loss (prop, cash)", "ICMTM (prop, cash)",
+		"Trade margin (prop, cash)", "First leg margin (SLB)", "Reverse leg margin (SLB)"},
+}
+
+// nclmCols are a member call's columns in a segment.
+func nclmCols(seg, kind string) []string {
+	if c, ok := nclmEqColumns[kind]; ok && nclmEquity(seg) {
+		return c
+	}
+	return nclmColumns[kind]
+}
+
 func init() {
 	ConnProviders = append(ConnProviders, ConnProvider{ID: connNCLMargins, Name: "NSE Clearing margins API", Group: "Exchanges", Test: "https",
-		Purpose: "Margins NSE Clearing charges during the day (clearing member, trading members, each client), client positions, open interest and MWPL, for F&O, currency and commodity. Register on NMASS → API Access Management (mail risk_ops@nsccl.co.in first)",
+		Purpose: "Margins NSE Clearing charges during the day (clearing member, trading members, each client) for F&O, currency, commodity, cash and SLB; client positions, open interest and MWPL for derivatives; each client's margin by security and by settlement for cash and SLB. Register on NMASS → API Access Management (mail risk_ops@nsccl.co.in first)",
 		Fields: []ConnField{{Key: "member", Label: "Clearing member code"}, {Key: "api_key", Label: "Consumer key (from NSE Clearing's email, after the certificate is approved)", Secret: true, Optional: true},
 			{Key: "secret", Label: "Consumer secret", Secret: true, Optional: true},
 			{Key: "private_key", Label: "Private key (PEM) for the certificate uploaded to NMASS; leave empty if Ledgerline made the key", Secret: true, Optional: true},
-			{Key: "segments", Label: "Segments", Options: []string{"FO", "FO, CD", "FO, CO", "FO, CD, CO", "CD", "CO", "CD, CO"}},
+			{Key: "segments", Label: "Segments (any of FO, CD, CO, CM, SLB, comma separated)", Placeholder: "FO, CM"},
+			{Key: "api_key_eq", Label: "Consumer key for CM and SLB (only if NSE Clearing gave one apart from the derivatives key)", Secret: true, Optional: true},
+			{Key: "secret_eq", Label: "Consumer secret for CM and SLB (with that key)", Secret: true, Optional: true},
 			{Key: "env", Label: "Environment", Options: []string{"Live", "UAT"}},
 			{Key: "fetch", Label: "Fetch during the day", Options: []string{"On", "Off"}},
 			{Key: "url", Label: "Address (leave empty for NSE Clearing's)", Optional: true, Placeholder: nclmLive}, fNotes}})
@@ -134,10 +204,64 @@ type NCLMClient struct {
 	Delivery        money.Dec `json:"delivery"` // CO: additional margin
 	ExtremeLoss     money.Dec `json:"extreme_loss"`
 	Total           money.Dec `json:"total"`
-	MTM             money.Dec `json:"mtm"`
+	MTM             money.Dec `json:"mtm"` // cash: the MTM loss
 	Excess90        money.Dec `json:"above_90"`
 	ExcessNonCash90 money.Dec `json:"non_cash_above_90"`
 	EligibleNonCash money.Dec `json:"eligible_non_cash"`
+	// Cash: trade margin (VaR and ELM) and ICMTM; SLB: margins on the
+	// first and reverse legs.
+	Trade      money.Dec `json:"trade_margin"`
+	ICMTM      money.Dec `json:"icmtm"`
+	FirstLeg   money.Dec `json:"first_leg"`
+	ReverseLeg money.Dec `json:"reverse_leg"`
+}
+
+// NCLMSecurity is NSE Clearing's margin on one security of a client's
+// settlement, cash and SLB (security-margin).
+type NCLMSecurity struct {
+	TM         string    `json:"tm"`
+	Settlement string    `json:"settlement"` // type and number, e.g. M2025114
+	Symbol     string    `json:"symbol"`     // symbol and series
+	Total      money.Dec `json:"total"`
+	NetQty     money.Dec `json:"net_qty"`   // cash
+	NetValue   money.Dec `json:"net_value"` // cash
+	BuyQty     money.Dec `json:"buy_qty"`
+	BuyValue   money.Dec `json:"buy_value"`  // cash
+	BuyMargin  money.Dec `json:"buy_margin"` // SLB
+	SellQty    money.Dec `json:"sell_qty"`
+	SellValue  money.Dec `json:"sell_value"`  // cash
+	SellMargin money.Dec `json:"sell_margin"` // SLB
+	Obligation money.Dec `json:"obligation"`  // SLB
+	LendFee    money.Dec `json:"lend_fee"`    // SLB
+	ICMTM      money.Dec `json:"icmtm"`       // cash
+	EPIQty     money.Dec `json:"epi_qty"`     // early pay-in of securities
+	EPIFunds   money.Dec `json:"epi_funds"`   // cash: early pay-in of funds
+	EODMTM     money.Dec `json:"eod_mtm"`     // cash
+}
+
+// NCLMSettlement is NSE Clearing's margin on one of a client's settlements,
+// cash and SLB (settlement-margin).
+type NCLMSettlement struct {
+	TM         string    `json:"tm"`
+	Settlement string    `json:"settlement"`
+	Upfront    money.Dec `json:"upfront"`     // cash
+	ICMTM      money.Dec `json:"icmtm"`       // cash
+	MTMLoss    money.Dec `json:"mtm_loss"`    // cash: end-of-day MTM loss
+	BuyMargin  money.Dec `json:"buy_margin"`  // SLB
+	SellMargin money.Dec `json:"sell_margin"` // SLB
+	LendFee    money.Dec `json:"lend_fee"`    // SLB
+	Total      money.Dec `json:"total"`
+}
+
+// NCLMClientDetail is a client's margins by security and by settlement in
+// the cash segment or SLB.
+type NCLMClientDetail struct {
+	Segment     string           `json:"segment"`
+	Date        string           `json:"date"`
+	At          string           `json:"at"`
+	UCC         string           `json:"ucc"`
+	Securities  []NCLMSecurity   `json:"securities,omitempty"`
+	Settlements []NCLMSettlement `json:"settlements,omitempty"`
 }
 
 // NCLMPosition is one open position NSE Clearing holds for a client.
@@ -223,9 +347,18 @@ func nclmSlot(key string, every time.Duration, now time.Time) (bool, time.Durati
 
 type nclmConn struct {
 	base, member, key, secret string
+	keyEq, secretEq           string // cash and SLB, when NSE Clearing gave a key of their own
 	priv                      *rsa.PrivateKey
 	segments                  []string
 	fetch                     bool
+}
+
+// creds are the consumer key and secret for a segment.
+func (c nclmConn) creds(seg string) (string, string) {
+	if nclmEquity(seg) && c.keyEq != "" && c.secretEq != "" {
+		return c.keyEq, c.secretEq
+	}
+	return c.key, c.secret
 }
 
 func nclmSegments(s string) []string {
@@ -240,9 +373,12 @@ func nclmSegments(s string) []string {
 
 func parseNCLMConn(c Connection) (nclmConn, error) {
 	n := nclmConn{member: strings.ToUpper(strings.TrimSpace(c.Values["member"])), key: c.Secrets["api_key"], secret: c.Secrets["secret"],
-		segments: nclmSegments(c.Values["segments"]), fetch: c.Values["fetch"] == "On"}
+		keyEq: c.Secrets["api_key_eq"], secretEq: c.Secrets["secret_eq"], segments: nclmSegments(c.Values["segments"]), fetch: c.Values["fetch"] == "On"}
 	if l := len(n.member); l < 4 || l > 5 || n.key == "" || n.secret == "" {
 		return n, invalid("the NSE Clearing margins connection needs the 4 or 5 character clearing member code, consumer key and consumer secret")
+	}
+	if err := checkNCLMSegments(c.Values["segments"]); err != nil {
+		return n, err
 	}
 	if c.Secrets["private_key"] == "" {
 		return n, invalid("the NSE Clearing margins connection has no private key: make one with Make key, or paste the key of the certificate uploaded to NMASS")
@@ -441,7 +577,8 @@ func nclmCodeText(code string) string {
 	what := map[string]string{"0000": "accepted", "0001": "duplicate message number", "0200": "control and data records do not match", "0201": "too short",
 		"0202": "too long", "0204": "missing", "0206": "wrong format", "0241": "system error at NSE Clearing", "0242": "service unavailable",
 		"0243": "request not understood", "0244": "no data", "0245": "file still being made", "0246": "more than 50,000 clients", "0247": "too many calls (rate limit)",
-		"400": "encryption or request error", "401": "login refused or expired", "500": "server error at NSE Clearing", "503": "service unavailable"}[code[4:]]
+		"400": "encryption or request error", "401": "login refused or expired", "403": "access to this data is turned off for the member", "404": "address not found",
+		"405": "wrong method", "500": "server error at NSE Clearing", "503": "service unavailable", "570": "no such file request registered (asked again)"}[code[4:]]
 	if what == "" {
 		return ""
 	}
@@ -525,6 +662,74 @@ func nclmClients(seg, date, at string, recs [][]string) []NCLMClient {
 	return out
 }
 
+// nclmEqClients reads cash and SLB client-margin records: memCode, memName
+// (empty for SLB), tmCode, tmName, clientCode, then cash and non-cash
+// collateral, MTM loss, trade margin, ICMTM (cash), first and reverse leg
+// margins (SLB), total margin, margin above 90%, 90% of excess non-cash and
+// eligible non-cash.
+func nclmEqClients(seg, date, at string, recs [][]string) []NCLMClient {
+	var out []NCLMClient
+	tm := ""
+	for _, f := range recs {
+		switch {
+		case len(f) >= 16:
+			tm, f = f[2], f[4:16]
+		case len(f) >= 12:
+			f = f[:12]
+		default:
+			continue
+		}
+		if f[0] == "" {
+			continue
+		}
+		d := func(i int) money.Dec { return nclmDec(f[i]) }
+		out = append(out, NCLMClient{Segment: seg, Date: date, At: at, UCC: strings.ToUpper(f[0]), TM: tm, CashCollateral: d(1), NonCash: d(2), MTM: d(3), Trade: d(4),
+			ICMTM: d(5), FirstLeg: d(6), ReverseLeg: d(7), Total: d(8), Excess90: d(9), ExcessNonCash90: d(10), EligibleNonCash: d(11)})
+	}
+	return out
+}
+
+// nclmSecurities reads security-margin records, by client: tm/CP code,
+// settlement, client, symbol and series, total margin, net quantity and
+// value, buy quantity, buy margin (SLB), buy value, sell quantity, sell
+// value, sell margin, obligation, lending fee (SLB), ICMTM, early pay-in
+// quantity and funds, end-of-day MTM.
+func nclmSecurities(recs [][]string) map[string][]NCLMSecurity {
+	out := map[string][]NCLMSecurity{}
+	for _, f := range recs {
+		if len(f) < 5 || f[2] == "" {
+			continue
+		}
+		for len(f) < 19 {
+			f = append(f, "")
+		}
+		d := func(i int) money.Dec { return nclmDec(f[i]) }
+		u := strings.ToUpper(f[2])
+		out[u] = append(out[u], NCLMSecurity{TM: f[0], Settlement: f[1], Symbol: f[3], Total: d(4), NetQty: d(5), NetValue: d(6), BuyQty: d(7), BuyMargin: d(8), BuyValue: d(9),
+			SellQty: d(10), SellValue: d(11), SellMargin: d(12), Obligation: d(13), LendFee: d(14), ICMTM: d(15), EPIQty: d(16), EPIFunds: d(17), EODMTM: d(18)})
+	}
+	return out
+}
+
+// nclmSettlements reads settlement-margin records, by client: tm/CP code,
+// client, settlement, upfront margin, ICMTM, MTM loss (cash), buy and sell
+// margins, lending fee (SLB), total margins.
+func nclmSettlements(recs [][]string) map[string][]NCLMSettlement {
+	out := map[string][]NCLMSettlement{}
+	for _, f := range recs {
+		if len(f) < 3 || f[1] == "" {
+			continue
+		}
+		for len(f) < 10 {
+			f = append(f, "")
+		}
+		d := func(i int) money.Dec { return nclmDec(f[i]) }
+		u := strings.ToUpper(f[1])
+		out[u] = append(out[u], NCLMSettlement{TM: f[0], Settlement: f[2], Upfront: d(3), ICMTM: d(4), MTMLoss: d(5), BuyMargin: d(6), SellMargin: d(7), LendFee: d(8), Total: d(9)})
+	}
+	return out
+}
+
 // nclmPositions reads position records: tmCode, clientCode, instrument,
 // symbol, expiry (yyyyMMdd), strike, option type, six fillers, open quantity.
 func nclmPositions(recs [][]string) map[string][]NCLMPosition {
@@ -567,7 +772,8 @@ type nclmSession struct {
 
 // nclmLogin returns the held token, or logs in when it has expired.
 func (o *Ops) nclmLogin(ctx context.Context, c nclmConn, st *NCLMState, now time.Time) (nclmSession, error) {
-	s := nclmSession{consumer: c.key}
+	ck, cs := c.creds(st.Segment)
+	s := nclmSession{consumer: ck}
 	if exp, err := time.Parse(time.RFC3339, st.TokenExp); err == nil && now.Before(exp) && st.Token != "" {
 		k, _ := base64.StdEncoding.DecodeString(st.Key)
 		iv, _ := base64.StdEncoding.DecodeString(st.IV)
@@ -576,11 +782,11 @@ func (o *Ops) nclmLogin(ctx context.Context, c nclmConn, st *NCLMState, now time
 			return s, nil
 		}
 	}
-	if ok, wait := nclmSlot(c.key+"|"+st.Segment+"|token", time.Minute, now); !ok {
+	if ok, wait := nclmSlot(ck+"|"+st.Segment+"|token", time.Minute, now); !ok {
 		return s, fmt.Errorf("%w: %v (next login in %ds)", ErrState, errNCLMWait, int(wait.Seconds())+1)
 	}
 	h := http.Header{}
-	h.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(c.key+":"+c.secret)))
+	h.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(ck+":"+cs)))
 	h.Set("Content-Type", "application/x-www-form-urlencoded")
 	h.Set("grant_type", "client_credentials")
 	nclmHeaders(h, now)
@@ -663,6 +869,9 @@ func (o *Ops) nclmCall(ctx context.Context, c nclmConn, s nclmSession, seg, path
 	if code == 401 {
 		return "", env.Code, errNCLMLogin
 	}
+	if code == 570 { // an inquiry for a file NSE Clearing does not hold
+		return "", env.Code, nclmCodeErr{"0101570"}
+	}
 	if code != 200 && len(env.Code) == 8 { // a check on the message, not an HTTP failure
 		return "", env.Code, nclmCodeErr{env.Code}
 	}
@@ -737,10 +946,10 @@ func (o *Ops) NCLMarginsFetch(ctx context.Context, tenant, actor, seg, kind stri
 	res := NCLMResult{Segment: seg, Kind: kind}
 	k, ok := NCLMKinds[kind]
 	if !ok {
-		return res, invalid("kind is one of cm, tm, cli, positions, moi, mwpl, cli-all, positions-all")
+		return res, invalid("kind is one of cm, tm, cli, positions, moi, mwpl, cli-all, positions-all (derivatives), security, settlement, security-all, settlement-all (cash, SLB)")
 	}
-	if kind == "mwpl" && seg != "FO" {
-		return res, invalid("market-wide position limits are for F&O only")
+	if err := nclmKindFor(seg, kind); err != nil {
+		return res, err
 	}
 	if actor != SystemActor {
 		if err := o.require(ctx, tenant, actor, "Fetching margins from NSE Clearing", RoleMaker, RoleChecker, RoleRisk); err != nil {
@@ -783,7 +992,8 @@ func (o *Ops) NCLMarginsFetch(ctx context.Context, tenant, actor, seg, kind stri
 	if pending != "" {
 		path, every = k.Inquiry, 10*time.Second
 	}
-	if ok, wait := nclmSlot(c.key+"|"+seg+"|"+path, every, now); !ok {
+	ck, _ := c.creds(seg)
+	if ok, wait := nclmSlot(ck+"|"+seg+"|"+path, every, now); !ok {
 		return res, fmt.Errorf("%w: %v (try again in %ds)", ErrState, errNCLMWait, int(wait.Seconds())+1)
 	}
 	s, err := o.nclmLogin(ctx, c, &st, now)
@@ -808,7 +1018,7 @@ func (o *Ops) NCLMarginsFetch(ctx context.Context, tenant, actor, seg, kind stri
 			data["memCode"] = c.member
 		}
 	}
-	if kind == "cli" || kind == "positions" {
+	if kind == "cli" || kind == "positions" || kind == "security" || kind == "settlement" {
 		if len(uccs) == 0 {
 			if uccs, err = o.nclmClientList(ctx, tenant, seg); err != nil {
 				return fail(err)
@@ -858,8 +1068,22 @@ func (o *Ops) NCLMarginsFetch(ctx context.Context, tenant, actor, seg, kind stri
 	base := strings.TrimSuffix(kind, "-all")
 	switch base {
 	case "cli":
-		for _, cl := range nclmClients(seg, date, at, recs) {
+		read := nclmClients
+		if nclmEquity(seg) {
+			read = nclmEqClients
+		}
+		for _, cl := range read(seg, date, at, recs) {
 			_ = docs.Upsert(ctx, o.Docs, tenant, cNCLMCli, seg+"|"+date+"|"+cl.UCC, cl, SystemActor)
+			res.Rows++
+		}
+	case "security":
+		for u, xs := range nclmSecurities(recs) {
+			_ = docs.Upsert(ctx, o.Docs, tenant, cNCLMSec, seg+"|"+date+"|"+u, NCLMClientDetail{Segment: seg, Date: date, At: at, UCC: u, Securities: xs}, SystemActor)
+			res.Rows++
+		}
+	case "settlement":
+		for u, xs := range nclmSettlements(recs) {
+			_ = docs.Upsert(ctx, o.Docs, tenant, cNCLMSett, seg+"|"+date+"|"+u, NCLMClientDetail{Segment: seg, Date: date, At: at, UCC: u, Settlements: xs}, SystemActor)
 			res.Rows++
 		}
 	case "positions":
@@ -868,7 +1092,7 @@ func (o *Ops) NCLMarginsFetch(ctx context.Context, tenant, actor, seg, kind stri
 			res.Rows++
 		}
 	default:
-		cols := nclmColumns[base]
+		cols := nclmCols(seg, base)
 		snap := NCLMSnapshot{Segment: seg, Date: date, Kind: base, At: at, Columns: cols, Rows: [][]string{}}
 		for _, f := range recs {
 			if len(f) > len(cols) {
@@ -906,9 +1130,14 @@ func (o *Ops) nclmClientList(ctx context.Context, tenant, seg string) ([]string,
 // NCLMClientMargins are NSE Clearing's margins for each client on a date,
 // added across segments, and the time of the latest figure.
 func (o *Ops) NCLMClientMargins(ctx context.Context, tenant, date string) (map[string]money.Dec, string, error) {
+	return o.nclmMarginsIn(ctx, tenant, date, "FO", "CD", "CO")
+}
+
+// nclmMarginsIn are the client margins of some segments, added together.
+func (o *Ops) nclmMarginsIn(ctx context.Context, tenant, date string, segs ...string) (map[string]money.Dec, string, error) {
 	out := map[string]money.Dec{}
 	latest := ""
-	for _, seg := range []string{"FO", "CD", "CO"} {
+	for _, seg := range segs {
 		cs, err := docs.List[NCLMClient](ctx, o.Docs, tenant, cNCLMCli, seg+"|"+date+"|")
 		if err != nil {
 			return nil, "", err
@@ -948,7 +1177,7 @@ func (o *Ops) NCLMarginsStatus(ctx context.Context, tenant, date string) NCLMVie
 	if cn, _, err := docs.Get[Connection](ctx, o.Docs, tenant, cConn, connNCLMargins); err == nil && cn.Status != "Not set" {
 		v.Enabled = nclmSegments(cn.Values["segments"])
 	}
-	for _, seg := range []string{"FO", "CD", "CO"} {
+	for _, seg := range nclmAllSegments {
 		st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cNCLMState, seg, NCLMState{Segment: seg})
 		st.Token, st.Key, st.IV = "", "", ""
 		v.Segments = append(v.Segments, st)
@@ -963,6 +1192,26 @@ func (o *Ops) NCLMarginsStatus(ctx context.Context, tenant, date string) NCLMVie
 		v.Top = v.Top[:50]
 	}
 	return v
+}
+
+// NCLMClientDetails are a client's cash and SLB margins by security and by
+// settlement at NSE Clearing on a date.
+func (o *Ops) NCLMClientDetails(ctx context.Context, tenant, date, ucc string) []NCLMClientDetail {
+	out := []NCLMClientDetail{}
+	for _, seg := range []string{"CM", "SLB"} {
+		k := seg + "|" + date + "|" + strings.ToUpper(ucc)
+		d := NCLMClientDetail{Segment: seg, Date: date, UCC: strings.ToUpper(ucc)}
+		if x, _, err := docs.Get[NCLMClientDetail](ctx, o.Docs, tenant, cNCLMSec, k); err == nil {
+			d.Securities, d.At = x.Securities, x.At
+		}
+		if x, _, err := docs.Get[NCLMClientDetail](ctx, o.Docs, tenant, cNCLMSett, k); err == nil {
+			d.Settlements, d.At = x.Settlements, laterTime(d.At, x.At)
+		}
+		if len(d.Securities)+len(d.Settlements) > 0 {
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 // NCLMClientPositions are a client's positions at NSE Clearing on a date.
@@ -988,8 +1237,11 @@ func (o *Ops) nclMarginsTick(ctx context.Context, tenant string, now time.Time) 
 	hm := now.In(ist).Format("15:04")
 	for _, seg := range nclmSegments(cn.Values["segments"]) {
 		closeAt := "15:45"
-		if seg == "CO" {
+		switch seg {
+		case "CO":
 			closeAt = "23:30"
+		case "SLB":
+			closeAt = "17:15"
 		}
 		if hm < "09:15" || hm > closeAt {
 			continue
@@ -999,14 +1251,22 @@ func (o *Ops) nclMarginsTick(ctx context.Context, tenant string, now time.Time) 
 			t, err := time.Parse(time.RFC3339, st.Last[kind])
 			return err != nil || now.Sub(t) >= every || st.Pending[kind] != ""
 		}
-		cli := "cli"
+		all := ""
 		if list, _ := o.nclmClientList(ctx, tenant, seg); len(list) > nclmCliMax {
-			cli = "cli-all"
+			all = "-all"
 		}
-		for _, k := range []struct {
+		type call struct {
 			kind  string
 			every time.Duration
-		}{{cli, 5 * time.Minute}, {"cm", 15 * time.Minute}, {"tm", 15 * time.Minute}} {
+		}
+		calls := []call{{"cli" + all, 5 * time.Minute}, {"cm", 15 * time.Minute}, {"tm", 15 * time.Minute}}
+		switch seg {
+		case "SLB":
+			calls = []call{{"cli" + all, 5 * time.Minute}, {"tm", 15 * time.Minute}, {"settlement" + all, 30 * time.Minute}, {"security" + all, 30 * time.Minute}}
+		case "CM":
+			calls = append(calls, call{"settlement" + all, 30 * time.Minute}, call{"security" + all, 30 * time.Minute})
+		}
+		for _, k := range calls {
 			if due(k.kind, k.every) {
 				_, _ = o.NCLMarginsFetch(ctx, tenant, SystemActor, seg, k.kind, nil)
 			}

@@ -323,17 +323,17 @@ A trade whose client code was changed shows under the new code. Cancelled trades
 title: Get NSE Clearing's own margin figures during the day
 screen: live
 roles: Admin, Risk manager
-ask: ncl margin api; nsccl margin api; nmass api; margins api; exchange margin; clearing margin during the day; client margin from nse clearing; cli margins; tm margins; cm margins; mwpl api; open interest api; rsa certificate; api access management
+ask: ncl margin api; nsccl margin api; nmass api; margins api; exchange margin; clearing margin during the day; client margin from nse clearing; cli margins; tm margins; cm margins; mwpl api; open interest api; rsa certificate; api access management; cash segment margin api; slb margin api; margin equities api; security margin; settlement margin; early pay-in margin
 related: nse-trade-api, margin-shortfall, peak-margin
 
-NSE Clearing can give the margins it is actually charging, during market hours, for F&O, currency and commodity: for the clearing member, for each trading member, and for each client, with client positions, member open interest and market-wide position limits. [[live|Live RMS]] then uses NSE Clearing's margin for a client whenever it is higher than Ledgerline's own estimate, so a shortfall shows before the end-of-day file.
+NSE Clearing can give the margins it is actually charging, during market hours, for F&O, currency, commodity, the cash segment and SLB: for the clearing member, for each trading member, and for each client. For derivatives it also gives client positions, member open interest and market-wide position limits; for cash and SLB, each client's margin by security (with the early pay-in it counted) and by settlement. [[live|Live RMS]] then uses NSE Clearing's margin for a client whenever it is higher than Ledgerline's own estimate (derivatives against the derivatives estimate, cash against the cash estimate) and adds the SLB margin, so a shortfall shows before the end-of-day file. The feeds' state is on [[ccdata|Clearing data]].
 
 1. Email risk_ops@nsccl.co.in, subject "API Facility in NMASS-Margins", with your NMASS super admin's details.
 2. On [[connections|Connections]] (Admin), open **NSE Clearing margins API**, enter the clearing member code and save. Then press **Make key**: Ledgerline makes the key pair, keeps the private key in its vault and gives you the certificate file `RSA_<member code>.pem`. (Or paste the private key of a certificate you already have.)
 3. On NMASS, under **API Access Management**, choose the margins service, enter your server's IP addresses (up to 25) and upload the `.pem` file. After NSE Clearing approves, the super admin gets the consumer key and secret by email.
-4. Enter the key and secret, the segments, UAT or Live, and turn **Fetch during the day** on.
+4. Enter the key and secret, the segments (any of FO, CD, CO, CM and SLB), UAT or Live, and turn **Fetch during the day** on. If NSE Clearing gives the cash and SLB service a key of its own, enter it as well; otherwise the one key serves every segment.
 
-Ledgerline then asks for client margins every 5 minutes, and for the clearing and trading member figures every 15, from 09:15 to 15:45 (commodity until 23:30), keeping to NSE Clearing's limits. With more than 50,000 clients it asks for the whole-book file instead. The certificate lasts a year: make a new key and upload it again before it runs out.
+Ledgerline then asks for client margins every 5 minutes, for the clearing and trading member figures every 15 and, for cash and SLB, for the margins by settlement and by security every 30, from 09:15 to 15:45 (SLB until 17:15, commodity until 23:30), keeping to NSE Clearing's limits. With more than 50,000 clients it asks for the whole-book file instead. The certificate lasts a year: make a new key and upload it again before it runs out.
 
 ## nse-extranet-api
 title: Fetch NSE's files automatically from the extranet
@@ -576,3 +576,18 @@ related: mcx-only-bank-account, payout
 3. It counts from its date: the next Finspot BOD limit file and NSE Clearing allocation carry it.
 
 Nothing is posted: the client's ledger, statement and balance do not change; only which side the money counts for. A move cannot take more than the side it comes from has. Every request and decision is in the audit trail.
+
+## upix-upi-block
+title: Clients who trade on money blocked by UPI (UPIX)
+screen: ccdata
+roles: Admin, Risk manager, Ops checker
+ask: upi block; upix; blocked amount; asba trading; trading supported by blocked amount; upi mandate; block balance; block debit; nse clearing debited upi block; upi block release; upi block not in limit
+related: margin-shortfall, connections
+
+A client using the UPI block keeps the money in their own bank: NSE Clearing debits the block for the client's obligations and releases what is left. NSE Clearing's UPIX system tells the firm, by API, who is registered, how much is still blocked and every debit it made, so nobody types them in.
+
+1. NSE Clearing gives the address and a shared key (32 bytes). On [[connections|Connections]] (Admin), open **NSE Clearing UPIX (UPI block)**: CM or TM, the member code, the key, the address and the segments. Give NSE Clearing the address for its notifications: the server's address followed by `/hooks/<firm>/upix/v1/notify/` (Ledgerline takes blockdebit, blockcreate, blockrelease, regdereg and transfer).
+2. Every 15 minutes from 09:00 to 23:45 Ledgerline reads each registered client's blocked amount; [[rms|RMS & limits]] and [[live|Live RMS]] use it in place of the amount on the client record. Registrations are read once a day, and as NSE Clearing notifies them; a notified change to a block is read again within a minute.
+3. Each debit NSE Clearing makes on a block is posted to the client's ledger as money received from the client and paid straight to NSE Clearing (debit the NSE clearing account, credit the client), once, under NSE Clearing's reference. If it cannot be posted, an Ops checker gets a work item. Turn **Post each block debit** Off to only record them.
+
+**NSE Clearing APIs** on [[ccdata|Clearing data]] shows the clients registered, the amount blocked and the day's debits. Releasing a block or moving blocked money between segments is done on the client's request and is not sent by Ledgerline yet.

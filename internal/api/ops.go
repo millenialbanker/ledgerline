@@ -120,6 +120,12 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/ncl-margins/positions/{ucc}", s.nclMarginsPositions, false)
 	R("POST /v1/ncl-margins/fetch", s.nclMarginsFetch, true)
 	R("POST /v1/ncl-margins/key", s.nclMarginsKey, true)
+	R("GET /v1/ncl-feeds", s.nclFeeds, false)
+	R("POST /v1/ncms/fetch", s.ncmsFetch, true)
+	R("POST /v1/upix/sync", s.upixSync, true)
+	// NSE Clearing's UPIX notifications: not signed in, each carries NSE
+	// Clearing's JWT, checked against the key shared with the firm.
+	s.mux.HandleFunc("POST /hooks/{tenant}/upix/{version}/notify/{kind}", s.upixHook)
 	R("GET /v1/nse-extranet", s.extranetStatus, false)
 	R("GET /v1/nse-extranet/browse", s.extranetBrowse, false)
 	R("POST /v1/nse-extranet/fetch", s.extranetFetch, true)
@@ -657,7 +663,7 @@ func (s *Server) nclMarginsPositions(w http.ResponseWriter, r *http.Request) {
 		date = s.ops.NCLMarginsStatus(r.Context(), tenant(r), "").Date
 	}
 	ps, err := s.ops.NCLMClientPositions(r.Context(), tenant(r), date, r.PathValue("ucc"))
-	ok(w, map[string]any{"date": date, "positions": ps}, err)
+	ok(w, map[string]any{"date": date, "positions": ps, "cash_slb": s.ops.NCLMClientDetails(r.Context(), tenant(r), date, r.PathValue("ucc"))}, err)
 }
 
 func (s *Server) nclMarginsFetch(w http.ResponseWriter, r *http.Request) {
@@ -680,6 +686,53 @@ func (s *Server) nclMarginsKey(w http.ResponseWriter, r *http.Request) {
 	}
 	k, err := s.ops.NCLMarginsMakeKey(r.Context(), tenant(r), actor(r), b)
 	ok(w, k, err)
+}
+
+// nclFeeds: NSE Clearing's margins, NCMS and UPIX feeds, for Clearing data.
+func (s *Server) nclFeeds(w http.ResponseWriter, r *http.Request) {
+	m := s.ops.NCLMarginsStatus(r.Context(), tenant(r), "")
+	m.Snaps, m.Sizes = nil, nil
+	ok(w, map[string]any{"margins": m, "ncms": s.ops.NCMSStatus(r.Context(), tenant(r)), "upix": s.ops.UPIXStatus(r.Context(), tenant(r))}, nil)
+}
+
+func (s *Server) ncmsFetch(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Fix bool `json:"fix"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	run, err := s.ops.NCMSFetch(r.Context(), tenant(r), actor(r), b.Fix)
+	ok(w, run, err)
+}
+
+func (s *Server) upixSync(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Full bool `json:"full"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	run, err := s.ops.UPIXSync(r.Context(), tenant(r), actor(r), b.Full)
+	ok(w, run, err)
+}
+
+// upixHook answers NSE Clearing as the protocol asks: {"status":"01010000"}.
+func (s *Server) upixHook(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 8<<20))
+	if err != nil {
+		writeJSON(w, 400, map[string]any{"code": 400, "messages": []string{"cannot read the body"}})
+		return
+	}
+	if _, err := s.ops.UPIXHook(r.Context(), r.PathValue("tenant"), r.PathValue("version"), r.PathValue("kind"), r.Header.Get("Authorization"), body); err != nil {
+		code := 400
+		if strings.Contains(err.Error(), "JWT") {
+			code = 401
+		}
+		writeJSON(w, code, map[string]any{"code": code, "messages": []string{err.Error()}})
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "01010000"})
 }
 
 func (s *Server) extranetStatus(w http.ResponseWriter, r *http.Request) {
