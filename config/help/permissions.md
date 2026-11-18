@@ -133,6 +133,7 @@ Entering unpledge requests | Ops maker, Ops checker, Risk manager
 Entering vouchers | Ops maker, Ops checker
 Exporting dealers with PANs | Ops maker, Compliance officer
 Exporting migrated history | Ops checker, Compliance officer
+FINGate reporting | Compliance officer
 Fetching CCIL's prices | Ops maker, Ops checker, Risk manager
 Fetching files from BSE's SFTP | Ops maker, Ops checker, Risk manager
 Fetching files from MCX's SFTP | Ops maker, Ops checker, Risk manager
@@ -202,6 +203,7 @@ Posting MTF interest | Ops checker, Risk manager
 Posting interest | Ops checker, Risk manager
 Posting referral rewards | Ops checker
 Prepaid schemes | Ops checker, Admin
+Preparing STRs for FINGate | Compliance officer
 Preparing margin penalties | Ops checker, Risk manager, Compliance officer
 Preparing the client money reconciliation | Ops maker, Ops checker
 Producing the payout bank file | Ops maker, Ops checker

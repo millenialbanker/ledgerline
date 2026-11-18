@@ -209,7 +209,7 @@ func TestQuestions(t *testing.T) {
 		{"accept pledge request", "", "pledge"},
 		{"interest on debit balance", "", "debit-interest"},
 		// Compliance and admin.
-		{"file an STR", "", "surveillance"},
+		{"file an STR", "", "fingate-str"}, {"close a surveillance alert", "", "surveillance"},
 		{"SCORES complaint", "", "complaints"},
 		{"add a new user", "", "add-user"},
 		{"user locked out", "", "reset-password"},

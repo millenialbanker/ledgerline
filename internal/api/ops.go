@@ -357,6 +357,11 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/interest/client/{ucc}", s.clientInterest, false)
 	R("GET /v1/alerts", s.alerts, false)
 	R("POST /v1/alerts/{id}/{action}", s.alertAction, true)
+	R("GET /v1/fingate", s.fingateStatus, false)
+	R("PUT /v1/fingate/settings", s.fingateSettings, true)
+	R("POST /v1/fingate/metadata/{list}", s.fingateMeta, true)
+	R("GET /v1/fingate/upload", s.fingateUpload, false)
+	R("GET /v1/fingate/upload.zip", s.fingateUploadZip, false)
 	R("POST /v1/surveillance/run", s.runRules, true)
 	R("GET /v1/ipo", s.ipo, false)
 	R("GET /v1/mf", s.mf, false)
@@ -1263,12 +1268,70 @@ func (s *Server) alerts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) alertAction(w http.ResponseWriter, r *http.Request) {
-	var b struct{ Note string }
+	var b struct {
+		Note string
+		ops.STRInput
+	}
 	if !decode(w, r, &b) {
+		return
+	}
+	if r.PathValue("action") == "str" {
+		if strings.TrimSpace(b.Grounds) == "" {
+			b.Grounds = b.Note
+		}
+		v, err := s.ops.DecideSTR(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.STRInput)
+		ok(w, v, err)
 		return
 	}
 	v, err := s.ops.ActOnAlert(r.Context(), tenant(r), actor(r), r.PathValue("id"), r.PathValue("action"), b.Note)
 	ok(w, v, err)
+}
+
+func (s *Server) fingateStatus(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.FINGateStatus(r.Context(), tenant(r), actor(r))
+	ok(w, v, err)
+}
+
+func (s *Server) fingateSettings(w http.ResponseWriter, r *http.Request) {
+	var b ops.FINGateSettings
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveFINGateSettings(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) fingateMeta(w http.ResponseWriter, r *http.Request) {
+	data, err := io.ReadAll(io.LimitReader(r.Body, 64<<20))
+	if err != nil {
+		ok(w, nil, err)
+		return
+	}
+	n, err := s.ops.LoadFINGateMeta(r.Context(), tenant(r), actor(r), r.PathValue("list"), data)
+	ok(w, map[string]int{"loaded": n}, err)
+}
+
+func fingateIDs(r *http.Request) []string {
+	if v := r.URL.Query().Get("ids"); v != "" {
+		return strings.Split(v, ",")
+	}
+	return nil
+}
+
+// fingateUpload is what the upload holds, and the fields it leaves for
+// FINGate's portal.
+func (s *Server) fingateUpload(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.FINGateUpload(r.Context(), tenant(r), actor(r), fingateIDs(r))
+	ok(w, v, err)
+}
+
+func (s *Server) fingateUploadZip(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.FINGateUpload(r.Context(), tenant(r), actor(r), fingateIDs(r))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	sendFile(w, v.Name, "application/zip", v.Zip)
 }
 
 func (s *Server) runRules(w http.ResponseWriter, r *http.Request) {

@@ -107,17 +107,34 @@ title: Work a surveillance or AML alert
 screen: surv
 roles: Compliance officer
 ask: surveillance alert; aml alert; suspicious transaction; file str; close alert; exchange alert; turnover more than income; fiu
-related: kyc-pmla, kill-switch, surveillance-return
+related: kyc-pmla, kill-switch, surveillance-return, fingate-str
 
 On [[surv|Surveillance & AML]]:
 
 1. Exchange alerts and internal rules (turnover against income, third-party funds, frequent client code changes, dormant accounts) land in one queue. **Run internal rules** to scan again.
 2. **Review**: look at the client's trades, funds and history; get the client's explanation if needed.
-3. **Close** with a written rationale, or **File STR** with FIU-IND if it's suspicious.
+3. **Close** with a written rationale, or **File STR** if it's suspicious: the Principal Officer's decision, with the grounds. The STR is then due on FIU-IND's FINGate within 7 working days (see *File an STR on FINGate 2.0*).
 
 Closing or filing needs the compliance officer. Never tell the client an STR was filed.
 
 Each quarter the alerts' status goes to the exchanges in the surveillance obligation report (Formats I to III, within 15 days of the quarter's end): record **Referred to exchange** and other actions here as they happen (see *Quarterly surveillance obligation report*).
+
+## fingate-str
+title: File an STR on FINGate 2.0
+screen: surv
+roles: Compliance officer
+ask: fingate; fingate 2.0; fiu-ind str; upload str; str bulk upload; fiu metadata; str batch id; finnet; str due 7 days; principal officer str
+related: surveillance, kyc-pmla
+
+Once **File STR** is recorded on an alert (status *STR to file*), the STR is due on FINGate 2.0 (fingate.gov.in) within 7 working days of the decision (PML Rules 8(2)). A work item, seen only by compliance and without the client's name, tracks the due date.
+
+1. **Once:** on FINGate, open **Learning and Resources** and download the metadata CSVs (country, state, district, city, nationality, customer type, occupation, account type, account holder type, and the grounds-of-suspicion tags). On [[surv|Surveillance & AML]] → FINGate 2.0, **Load a metadata CSV** for each, and in **Settings** enter the branch code of the firm's RE profile.
+2. On the alert, **File STR**: the grounds (the narration), the period of the transactions to report (the alert's date if left empty), the source and destination of funds, and the four grounds-of-suspicion tags.
+3. **FINGate file** downloads the Bulk Data Upload: a zip with KC1 or KC2 (the client's KYC), Account_Detail and Account_Person_Relation (the trading account, with the last 12 months' debits and credits), TS7 (the client's trades in the period) and GS1 (the grounds). Ledgerline lists any field it could not fill: a value not in FINGate's lists, or not on record (the district is never kept).
+4. On FINGate: **My Reports → Bulk Data Upload**, *Fresh data*; correct what FINGate flags; **Batch Creation** (report type STR); sign with DSC or eSign and submit. Attachments, if any, are added on FINGate.
+5. Back on the alert, **Record filing** with FINGate's batch ID and report ID: the alert becomes *STR filed* and the work item closes.
+
+FINGate also takes reports by API (Client ID and Secret from RE Details → API Credential Details), described in a separate FIU-IND specification; Ledgerline uses the upload until that specification is in hand.
 
 ## complaints
 title: Handle an investor complaint
