@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"ledgerline/internal/docs"
 )
 
 func TestExtranetPasswordVector(t *testing.T) {
@@ -161,5 +164,82 @@ func TestExtranetListShapes(t *testing.T) {
 		if files != 1 || folders != 1 {
 			t.Errorf("%s: %+v", b, es)
 		}
+	}
+}
+
+func TestExtranetSharedLogin(t *testing.T) {
+	o, ctx := setup(t)
+	day := time.Date(2026, 11, 18, 10, 0, 0, 0, ist)
+	o.Now = func() time.Time { return day }
+	// Another program logs in with the same login after every login of
+	// Ledgerline's, so each new token is refused at once, until "fixed".
+	logins, fixed := 0, false
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/extranet-api/login/2.0" {
+			logins++
+			w.Write([]byte(`{"token":"tok-` + string(rune('0'+logins)) + `","code":["601"],"status":"success"}`))
+			return
+		}
+		if !fixed {
+			w.WriteHeader(401)
+			w.Write([]byte(`{"code":["803"],"status":"error"}`))
+			return
+		}
+		w.Write([]byte(`{"code":["601"],"status":"success","data":[]}`))
+	}))
+	defer srv.Close()
+	old := extranetHTTP
+	extranetHTTP = srv.Client()
+	defer func() { extranetHTTP = old }()
+	vals := map[string]string{"member": "12345", "login": "llapi", "network": "Internet", "segments": "CM, XYZ",
+		"folders": "member:/Onlinebackup", "fetch": "On", "url": srv.URL + "/extranet-api"}
+	secrets := map[string]string{"password": "Nsejan@123", "api_key": "XBaNb0xmK2TNRIfcHA3F306Oi14HWAeYmtUd0qRheTc="}
+	if _, err := o.SaveConnection(ctx, T, "admin", connNSEExtranet, vals, secrets); err == nil || !strings.Contains(err.Error(), "XYZ is not one of them") {
+		t.Fatalf("segment XYZ: %v", err)
+	}
+	vals["segments"] = "CM, DEBT"
+	if _, err := o.SaveConnection(ctx, T, "admin", connNSEExtranet, vals, secrets); err != nil {
+		t.Fatal(err)
+	}
+	_, err := o.ExtranetFetch(ctx, T, SystemActor, "")
+	if !errors.Is(err, errExtranetShared) || logins != 2 {
+		t.Fatalf("shared login: %v (logins %d)", err, logins)
+	}
+	cn, _, _ := docs.Get[Connection](ctx, o.Docs, T, cConn, connNSEExtranet)
+	if cn.Status != "Problem" || !strings.HasPrefix(cn.Problem, "This login is being used elsewhere") {
+		t.Fatalf("connection %s: %s", cn.Status, cn.Problem)
+	}
+	work := func() WorkItem {
+		ws, _ := docs.List[WorkItem](ctx, o.Docs, T, cWorkItem, "")
+		for _, w := range ws {
+			if w.Process == "nse-extranet" && strings.HasPrefix(w.Key, "nse-extranet:shared-login:") {
+				return w
+			}
+		}
+		return WorkItem{}
+	}
+	if w := work(); w.Status != "Open" || w.Role != RoleAdmin || w.View != "connections" || !strings.Contains(w.Detail, "llapi") {
+		t.Fatalf("work item %+v", w)
+	}
+	// Ledgerline stops logging in on its own: the 15-minute fetch and the
+	// system's fetch leave the other program alone.
+	day = day.Add(30 * time.Minute)
+	o.extranetTick(ctx, T, day)
+	if _, err := o.ExtranetFetch(ctx, T, SystemActor, ""); !errors.Is(err, errExtranetShared) || logins != 2 {
+		t.Fatalf("stopped: %v (logins %d)", err, logins)
+	}
+	// A person's fetch still runs; once the login is Ledgerline's alone it
+	// works, the connection is Working and the Admin's item is done.
+	fixed = true
+	if _, err := o.ExtranetFetch(ctx, T, "priya.nair", ""); err != nil {
+		t.Fatal(err)
+	}
+	cn, _, _ = docs.Get[Connection](ctx, o.Docs, T, cConn, connNSEExtranet)
+	if cn.Status != "Working" || cn.Problem != "" {
+		t.Fatalf("connection after the fix %s: %s", cn.Status, cn.Problem)
+	}
+	if w := work(); w.Status != "Done" {
+		t.Fatalf("work item after the fix %+v", w)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"crypto/aes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -55,7 +56,26 @@ const (
 	extranetLease = "https://172.19.125.70:443/extranet-api"
 	// extranetPerRun caps downloads in one scheduled run.
 	extranetPerRun = 40
+	// extranetMaxRelogins: logging in again more often than this in one
+	// run means another program is using the same login (errExtranetShared).
+	extranetMaxRelogins = 3
 )
+
+// extranetSegments are the segments NSE's extranet API serves and an admin
+// can give a login (FAQ on Extranet API v6.0, March 2026, Q12).
+var extranetSegments = []string{"CM", "FO", "CD", "CO", "SLB", "DEBT"}
+
+// errExtranetShared: NSE keeps only the newest token of a login valid, one
+// login at a time (FAQ Q14). A token replaced again and again means another
+// program logs in with the same Extranet API login, so the run stops and
+// says so. A sub-user can log in to the API from the day after it is made
+// (Q15), once the admin gives it the segments and Extranet-Common (Q12).
+var errExtranetShared = fmt.Errorf("%w: %s", ErrState, extranetSharedMsg)
+
+// extranetSharedMsg is shown on the connection while the automatic fetch is
+// stopped. Saving the connection again (with Ledgerline's own sub-user)
+// starts it again.
+const extranetSharedMsg = "This login is being used elsewhere: NSE keeps replacing its token because another program logs in with the same Extranet API login, and NSE allows one login at a time. Give Ledgerline a sub-user of its own: the firm's admin creates it on NSE's Member Portal and gives it the segments and Extranet-Common; it works from the next day. Then enter it here and save"
 
 func init() {
 	ConnProviders = append(ConnProviders, ConnProvider{ID: connNSEExtranet, Name: "NSE extranet API", Group: "Exchanges", Test: "https",
@@ -64,7 +84,7 @@ func init() {
 			{Key: "password", Label: "Extranet API password (set at registration)", Secret: true}, {Key: "api_key", Label: "Secret key (from NSE's email)", Secret: true},
 			{Key: "network", Label: "Network", Options: []string{"Internet", "Lease line"}},
 			{Key: "version", Label: "API version", Options: []string{"2.0", "1.0"}, Optional: true},
-			{Key: "segments", Label: "Segments", Options: []string{"CM", "CM, FO", "CM, FO, CD", "CM, FO, CD, CO", "FO", "CM, FO, CD, CO, SLB"}},
+			{Key: "segments", Label: "Segments (any of CM, FO, CD, CO, SLB, DEBT, comma separated)", Placeholder: "CM, FO"},
 			{Key: "folders", Label: "Folders to look in (member: or common:, comma separated)", Optional: true, Placeholder: "member:/Onlinebackup, member:/Reports"},
 			{Key: "fetch", Label: "Fetch new files automatically", Options: []string{"On", "Off"}},
 			{Key: "url", Label: "Address (leave empty for NSE's)", Optional: true, Placeholder: extranetLive}, fNotes}})
@@ -80,6 +100,8 @@ type ExtranetState struct {
 	Fetched   int            `json:"fetched"` // files downloaded in the last run
 	Loaded    int            `json:"loaded"`  // of them, loaded
 	Total     map[string]int `json:"total,omitempty"`
+	// SharedWork is the Admin's open work item about a shared login.
+	SharedWork string `json:"shared_work,omitempty"`
 }
 
 // ExtranetEntry is one folder or file in a listing.
@@ -110,11 +132,24 @@ type extranetConn struct {
 	fetch                                       bool
 }
 
+// checkExtranetSegments: each segment is one NSE's extranet API serves.
+func checkExtranetSegments(v string) error {
+	for _, seg := range nclmSegments(firstOf(v, "CM")) {
+		if !contains(extranetSegments, seg) {
+			return invalid("the NSE extranet segments are " + strings.Join(extranetSegments, ", ") + "; " + seg + " is not one of them")
+		}
+	}
+	return nil
+}
+
 func parseExtranetConn(c Connection) (extranetConn, error) {
 	x := extranetConn{member: strings.TrimSpace(c.Values["member"]), login: strings.TrimSpace(c.Values["login"]), password: c.Secrets["password"], key: c.Secrets["api_key"],
 		version: firstOf(c.Values["version"], "2.0"), segments: nclmSegments(firstOf(c.Values["segments"], "CM")), fetch: c.Values["fetch"] == "On"}
 	if x.member == "" || x.login == "" || x.password == "" || x.key == "" {
 		return x, invalid("the NSE extranet connection needs the member code, login ID, password and secret key")
+	}
+	if err := checkExtranetSegments(c.Values["segments"]); err != nil {
+		return x, err
 	}
 	x.base = extranetLive
 	if c.Values["network"] == "Lease line" {
@@ -384,6 +419,9 @@ func (o *Ops) ExtranetFetch(ctx context.Context, tenant, actor, date string) (Ex
 	if err != nil || cn.Status == "Not set" {
 		return run, fmt.Errorf("%w: set up the NSE extranet API in Settings → Connections", ErrState)
 	}
+	if actor == SystemActor && extranetStopped(cn) {
+		return run, errExtranetShared
+	}
 	x, err := parseExtranetConn(cn)
 	if err != nil {
 		return run, err
@@ -411,19 +449,37 @@ func (o *Ops) ExtranetFetch(ctx context.Context, tenant, actor, date string) (Ex
 	}
 	save()
 	// get calls the API, logging in again once if the token was replaced.
+	// A token refused straight after logging in, or more than a few new
+	// logins in one run, means another program shares the login.
+	relogins := 0
+	replaced := func(code int, b []byte) bool {
+		codes, _, _ := extranetCodes(b)
+		return contains(codes, "803") || code == 401
+	}
 	get := func(p string) (int, http.Header, []byte, error) {
 		code, h, b, err := x.do(ctx, http.MethodGet, p, tok, nil)
-		if err == nil && code != 200 {
-			if codes, _, _ := extranetCodes(b); contains(codes, "803") || code == 401 {
-				st.Token = ""
-				if tok, err = o.extranetLogin(ctx, x, &st, now); err != nil {
-					return code, h, b, err
-				}
-				save()
-				code, h, b, err = x.do(ctx, http.MethodGet, p, tok, nil)
+		if err == nil && code != 200 && replaced(code, b) {
+			if relogins++; relogins > extranetMaxRelogins {
+				return code, h, b, errExtranetShared
+			}
+			st.Token = ""
+			if tok, err = o.extranetLogin(ctx, x, &st, now); err != nil {
+				return code, h, b, err
+			}
+			save()
+			code, h, b, err = x.do(ctx, http.MethodGet, p, tok, nil)
+			if err == nil && code != 200 && replaced(code, b) {
+				return code, h, b, errExtranetShared
 			}
 		}
 		return code, h, b, err
+	}
+	shared := func(err error) (ExtranetRun, error) {
+		st.Token, st.LastError, st.SharedWork = "", err.Error(), "shared-login:"+day.Format("2006-01-02")
+		save()
+		o.extranetShared(ctx, tenant, x.login, st.SharedWork, day.Format("2006-01-02"))
+		o.log(ctx, tenant, actor, "extranet.login_shared", day.Format("2006-01-02"), map[string]any{"login": x.login, "folders": run.Looked, "files": len(run.Fetched)})
+		return run, err
 	}
 	type folder struct {
 		seg, kind, path string
@@ -441,6 +497,9 @@ func (o *Ops) ExtranetFetch(ctx context.Context, tenant, actor, date string) (Ex
 		q := url.Values{"segment": {f.seg}, "folderPath": {f.path}}
 		code, _, b, err := get("/" + f.kind + "/content/" + x.version + "?" + q.Encode())
 		run.Looked++
+		if errors.Is(err, errExtranetShared) {
+			return shared(err)
+		}
 		if err != nil || code != 200 {
 			if err == nil {
 				codes, _, _ := extranetCodes(b)
@@ -473,6 +532,9 @@ func (o *Ops) ExtranetFetch(ctx context.Context, tenant, actor, date string) (Ex
 			}
 			dq := url.Values{"segment": {f.seg}, "folderPath": {f.path}, "filename": {e.Name}}
 			code, h, data, err := get("/" + f.kind + "/file/download/" + x.version + "?" + dq.Encode())
+			if errors.Is(err, errExtranetShared) {
+				return shared(err)
+			}
 			if err == nil && code == 200 && strings.Contains(h.Get("Content-Type"), "json") {
 				// A JSON reply is an error, or the file inside it.
 				codes, _, raw := extranetCodes(data)
@@ -523,9 +585,49 @@ func (o *Ops) ExtranetFetch(ctx context.Context, tenant, actor, date string) (Ex
 	} else {
 		st.LastOK = now.Format(time.RFC3339)
 	}
+	o.extranetResumed(ctx, tenant, actor, cn, &st)
 	save()
 	o.log(ctx, tenant, actor, "extranet.fetched", day.Format("2006-01-02"), map[string]any{"files": len(run.Fetched), "folders": run.Looked, "problems": len(run.Problems)})
 	return run, nil
+}
+
+// extranetStopped: the automatic fetch stopped because the login is shared.
+func extranetStopped(cn Connection) bool {
+	return cn.Status == "Problem" && cn.Problem == extranetSharedMsg
+}
+
+// extranetShared stops the automatic fetch: the connection shows why, and
+// the Admin gets a work item. Ledgerline does not keep logging in, which
+// would log the other program out each time.
+func (o *Ops) extranetShared(ctx context.Context, tenant, login, key, date string) {
+	_, _ = docs.Update(ctx, o.Docs, tenant, cConn, connNSEExtranet, SystemActor, func(c *Connection) error {
+		if c.Status == "Not set" {
+			return docs.ErrStale
+		}
+		c.Status, c.Problem, c.TestedAt, c.TestedBy = "Problem", extranetSharedMsg, o.now().Format(time.RFC3339), SystemActor
+		return nil
+	})
+	o.raiseWork(ctx, tenant, "nse-extranet", key, "NSE extranet: give Ledgerline its own login",
+		"Ledgerline stopped fetching files from NSE's extranet because the login "+login+" is being used by another program as well (NSE allows one login at a time). Create a sub-user for Ledgerline on NSE's Member Portal with the segments and Extranet-Common, enter it in Connections → NSE extranet API and save; it works from the next day.",
+		"", RoleAdmin, "connections", date)
+}
+
+// extranetResumed clears the shared-login stop after a fetch that worked
+// (the connection may already have been saved again with a new login).
+func (o *Ops) extranetResumed(ctx context.Context, tenant, actor string, cn Connection, st *ExtranetState) {
+	if extranetStopped(cn) {
+		_, _ = docs.Update(ctx, o.Docs, tenant, cConn, connNSEExtranet, SystemActor, func(c *Connection) error {
+			if !extranetStopped(*c) {
+				return docs.ErrStale
+			}
+			c.Status, c.Problem, c.TestedAt, c.TestedBy = "Working", "", o.now().Format(time.RFC3339), actor
+			return nil
+		})
+	}
+	if st.SharedWork != "" {
+		o.closeWork(ctx, tenant, actor, "nse-extranet", st.SharedWork, "fetching from NSE's extranet works again")
+		st.SharedWork = ""
+	}
 }
 
 // ExtranetBrowse lists one folder, for the screen.
@@ -566,8 +668,11 @@ func (o *Ops) ExtranetBrowse(ctx context.Context, tenant, actor, seg, kind, fold
 
 // ExtranetView is the screen: the feed's state and the latest files.
 type ExtranetView struct {
-	State ExtranetState  `json:"state"`
-	Files []ExtranetFile `json:"files"`
+	Set     bool           `json:"set"`               // the connection is set up
+	Auto    bool           `json:"auto"`              // fetching every 15 minutes
+	Stopped string         `json:"stopped,omitempty"` // why the automatic fetch stopped
+	State   ExtranetState  `json:"state"`
+	Files   []ExtranetFile `json:"files"`
 }
 
 // ExtranetStatus shows the last run and the files fetched most recently.
@@ -582,14 +687,21 @@ func (o *Ops) ExtranetStatus(ctx context.Context, tenant string) ExtranetView {
 	if fs == nil {
 		fs = []ExtranetFile{}
 	}
-	return ExtranetView{State: st, Files: fs}
+	v := ExtranetView{State: st, Files: fs}
+	if cn, _, err := docs.Get[Connection](ctx, o.Docs, tenant, cConn, connNSEExtranet); err == nil && cn.Status != "Not set" {
+		v.Set, v.Auto = true, cn.Values["fetch"] == "On"
+		if extranetStopped(cn) {
+			v.Stopped = cn.Problem
+		}
+	}
+	return v
 }
 
 // extranetTick fetches new files every 15 minutes when switched on, outside
 // NSE's 05:00 to 06:00 maintenance hour.
 func (o *Ops) extranetTick(ctx context.Context, tenant string, now time.Time) {
 	cn, _, err := docs.Get[Connection](ctx, o.Docs, tenant, cConn, connNSEExtranet)
-	if err != nil || cn.Status == "Not set" || cn.Values["fetch"] != "On" {
+	if err != nil || cn.Status == "Not set" || cn.Values["fetch"] != "On" || extranetStopped(cn) {
 		return
 	}
 	if hm := now.In(ist).Format("15:04"); hm >= "05:00" && hm < "06:30" {

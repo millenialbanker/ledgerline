@@ -268,6 +268,11 @@ func (o *Ops) SaveConnection(ctx context.Context, tenant, actor, id string, valu
 			return ConnectionView{}, err
 		}
 	}
+	if id == connNSEExtranet {
+		if err := checkExtranetSegments(nc.Values["segments"]); err != nil {
+			return ConnectionView{}, err
+		}
+	}
 	if id == connCreditsBank {
 		if err := checkCreditConn(nc); err != nil {
 			return ConnectionView{}, err

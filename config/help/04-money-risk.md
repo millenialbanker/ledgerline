@@ -339,16 +339,18 @@ Ledgerline then asks for client margins every 5 minutes, and for the clearing an
 title: Fetch NSE's files automatically from the extranet
 screen: xfiles
 roles: Admin, Ops maker
-ask: nse extranet api; extranet download; download nse files automatically; onlinebackup; trade file from extranet; udiff trade file download; extranet secret key; extranet registration; member portal extranet; common folder; extranet error 701; extranet error 803
-related: nse-trade-api
+ask: nse extranet api; extranet download; download nse files automatically; onlinebackup; trade file from extranet; udiff trade file download; extranet secret key; extranet registration; member portal extranet; common folder; extranet error 701; extranet error 803; extranet login used elsewhere; extranet sub-user; extranet debt segment; extranet fetch stopped
+related: nse-trade-api, connections
 
 Instead of someone downloading the day's files from the NSE extranet and uploading them, Ledgerline can fetch them itself through NSE's extranet API and load each one it reads, just as an uploaded file is loaded.
 
 1. On NSE's Member Portal, register for the Extranet API (the help file is in NSE circular MSD55065). Set a password; NSE emails the login ID and a secret key. The admin user must give that login access to the segments (and to common files, if wanted).
-2. On [[connections|Connections]] (Admin), open **NSE extranet API**: enter the member code, login ID, password and secret key, Internet or lease line, the segments, and turn **Fetch new files automatically** on.
+2. On [[connections|Connections]] (Admin), open **NSE extranet API**: enter the member code, login ID, password and secret key, Internet or lease line, the segments (any of CM, FO, CD, CO, SLB and DEBT, as the admin user gave the login), and turn **Fetch new files automatically** on.
 3. **Folders to look in** defaults to `member:/Onlinebackup, member:/Reports` (the day's trade files and reports). Add `common:/…` folders for common files.
 
-Every 15 minutes (not from 05:00 to 06:30, NSE's maintenance hour) Ledgerline logs in, looks through those folders and two levels below them, and downloads each file of the day that it reads and has not already fetched. Files it does not read are left on the extranet. NSE keeps one login valid at a time, so do not use the same API login in another program.
+Every 15 minutes (not from 05:00 to 06:30, NSE's maintenance hour) Ledgerline logs in, looks through those folders and two levels below them, and downloads each file of the day that it reads and has not already fetched. Files it does not read are left on the extranet. The API only lists and downloads files; uploads to NSE still go through the portal.
+
+**Give Ledgerline a login of its own.** NSE keeps one login valid at a time: when another program (or a person's tool) logs in with the same API login, Ledgerline's token stops working. If that keeps happening, Ledgerline stops fetching on its own, so the two programs do not keep logging each other out. The connection then shows **This login is being used elsewhere**, and the Admin gets a work item. The firm's admin user creates a sub-user for Ledgerline on NSE's Member Portal, gives it the segments and Extranet-Common, and enters it on the connection; a new sub-user works from the next day. Saving the connection starts the automatic fetch again. **Fetch now** on the screen still runs in the meantime.
 
 ## margin-shortfall
 title: Handle a client's margin shortfall
