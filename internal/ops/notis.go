@@ -42,6 +42,8 @@ import (
 const (
 	connNotisCM = "notis-cm"
 	connNotisFO = "notis-fo"
+	connNotisCD = "notis-cd"
+	connNotisCO = "notis-co"
 	cNotisState = "notisstate"
 	cNotisTrade = "notistrade"
 	cNotisAct   = "notisaction"
@@ -56,7 +58,15 @@ const (
 var notisPaths = map[string][2]string{ // segment -> trades, actions
 	"CM": {"/notis-cm/trades-inquiry", "/notis-cm/actions-inquiry"},
 	"FO": {"/inquiry-fo/trades-inquiry", "/inquiry-fo/actions-inquiry"},
+	"CD": {"/notis-cd/trades-inquiry", "/notis-cd/actions-inquiry"}, // NOTIS CD API 1.5
+	"CO": {"/notis-co/trades-inquiry", ""},                          // NOTIS CO API 1.1: trades only
 }
+
+// notisConns are the segments' connections.
+var notisConns = map[string]string{"CM": connNotisCM, "FO": connNotisFO, "CD": connNotisCD, "CO": connNotisCO}
+
+// notisSegments in order.
+var notisSegments = []string{"CM", "FO", "CD", "CO"}
 
 func init() {
 	f := func() []ConnField {
@@ -69,6 +79,10 @@ func init() {
 			Purpose: "Cash-market trades from NSE during the day, for live risk. Credentials from NSE (mail msm@nse.co.in) for the server's static IP"},
 		ConnProvider{ID: connNotisFO, Name: "NSE trade API (NOTIS), F&O", Group: "Exchanges", Test: "https", Fields: f(),
 			Purpose: "F&O trades from NSE during the day, for live risk. Credentials from NSE (Member Portal → API Management) for the server's static IP"},
+		ConnProvider{ID: connNotisCD, Name: "NSE trade API (NOTIS), currency derivatives", Group: "Exchanges", Test: "https", Fields: f(),
+			Purpose: "Currency derivatives trades from NSE during the day, for live risk. Credentials from NSE (Member Portal → API Management) for the server's static IP"},
+		ConnProvider{ID: connNotisCO, Name: "NSE trade API (NOTIS), commodity", Group: "Exchanges", Test: "https", Fields: f(),
+			Purpose: "NSE commodity derivatives trades during the day, for live risk. Credentials from NSE (Member Portal → API Management) for the server's static IP"},
 	)
 }
 
@@ -251,9 +265,9 @@ var errNotisWait = errors.New("NSE allows one call every 15 seconds; try again s
 // rows came back.
 func (o *Ops) NotisFetch(ctx context.Context, tenant, actor, seg, kind string) (NotisState, int, error) {
 	seg = strings.ToUpper(seg)
-	id := map[string]string{"CM": connNotisCM, "FO": connNotisFO}[seg]
+	id := notisConns[seg]
 	if id == "" {
-		return NotisState{}, 0, invalid("segment is CM or FO")
+		return NotisState{}, 0, invalid("segment is CM, FO, CD or CO")
 	}
 	if actor != SystemActor {
 		if err := o.require(ctx, tenant, actor, "Fetching trades from NSE", RoleMaker, RoleChecker, RoleRisk); err != nil {
@@ -278,6 +292,9 @@ func (o *Ops) NotisFetch(ctx context.Context, tenant, actor, seg, kind string) (
 	}
 	if kind == "" {
 		kind = firstOf(st.Next, "trades")
+	}
+	if kind == "actions" && notisPaths[seg][1] == "" {
+		kind = "trades" // commodity has no actions inquiry
 	}
 	api := o.notisAPI()
 	save := func() { _ = docs.Upsert(ctx, o.Docs, tenant, cNotisState, seg, st, SystemActor) }
@@ -389,7 +406,7 @@ func (o *Ops) NotisFetch(ctx context.Context, tenant, actor, seg, kind string) (
 			st.TradeSeq = maxSeq
 		}
 		// Actions are asked for every fifth call.
-		if st.MsgSeq%5 == 0 {
+		if st.MsgSeq%5 == 0 && notisPaths[seg][1] != "" {
 			st.Next = "actions"
 		} else {
 			st.Next = "trades"
@@ -460,10 +477,15 @@ func from1980(s int64) time.Time  { return time.Unix(s+nseEpoch, 0).In(ist) }
 var notisCancel = map[string]bool{"5440": true, "5520": true, "5560": true}
 var notisCancelAct = map[string]bool{"7": true, "109": true, "110": true, "111": true}
 
-// notisTrade reads one trade row: 39 fields for cash, 37 for F&O. A cash
-// security name containing commas is put back together.
+// notisTrade reads one trade row: 39 fields for cash, 37 for F&O and
+// currency, 29 for commodity. A cash security name containing commas is
+// put back together. Prices are in paise, but currency prices in 10^-7
+// rupees (USDINR 71.535 comes as 715350000).
 func notisTrade(seg string, f []string) (NotisTrade, error) {
-	want := map[string]int{"CM": 39, "FO": 37}[seg]
+	want := map[string]int{"CM": 39, "FO": 37, "CD": 37, "CO": 29}[seg]
+	if (seg == "CD" || seg == "CO") && len(f) > want {
+		f = f[:want] // fillers
+	}
 	if seg == "CM" && len(f) > want {
 		extra := len(f) - want
 		name := strings.Join(f[28:29+extra], ",")
@@ -473,7 +495,8 @@ func notisTrade(seg string, f []string) (NotisTrade, error) {
 		return NotisTrade{}, fmt.Errorf("trade row has %d fields, not %d", len(f), want)
 	}
 	n := func(i int) int64 { v, _ := strconv.ParseInt(f[i], 10, 64); return v }
-	paise := func(i int) money.Dec { return money.DecInt(n(i)).Mul(money.MustDec("0.01")) }
+	unit := map[string]string{"CD": "0.0000001"}[seg]
+	paise := func(i int) money.Dec { return money.DecInt(n(i)).Mul(money.MustDec(firstOf(unit, "0.01"))) }
 	t := NotisTrade{Segment: seg, TradeNo: f[2], Qty: n(5), Price: paise(6), OrderNo: f[8], Pro: f[11] == "2", Client: f[12], CP: f[13],
 		Activity: f[15], TxnCode: f[16]}
 	t.Seq, _ = strconv.ParseInt(f[0], 10, 64)
@@ -501,6 +524,29 @@ func notisTrade(seg string, f []string) (NotisTrade, error) {
 		if t.Instrument == "" {
 			return t, fmt.Errorf("unknown instrument %s %s", inst, f[28])
 		}
+	case "CD", "CO":
+		// Currency: the F&O layout. Commodity: member code at 18, CTCL
+		// at 21, symbol, instrument, expiry, strike and option type at 25
+		// to 29.
+		at := map[string][5]int{"CD": {23, 25, 26, 27, 28}, "CO": {24, 25, 26, 27, 28}}[seg]
+		t.Terminal, t.Symbol = f[20], f[at[0]]
+		if seg == "CD" {
+			t.Status, t.Series = f[21], f[24]
+		}
+		inst := strings.ToUpper(f[at[1]])
+		t.Expiry = from1980(n(at[2])).Format("2006-01-02")
+		switch {
+		case strings.HasPrefix(inst, "FUT"):
+			t.Instrument = "FUT"
+		case strings.HasPrefix(inst, "OPT"):
+			t.Instrument = map[string]string{"CE": "CE", "CA": "CE", "PE": "PE", "PA": "PE"}[strings.ToUpper(strings.TrimSpace(f[at[4]]))]
+			if k := n(at[3]); k > 0 {
+				t.Strike = paise(at[3]).String()
+			}
+		}
+		if t.Instrument == "" {
+			return t, fmt.Errorf("unknown instrument %s %s", inst, f[at[4]])
+		}
 	}
 	t.Cancelled = notisCancel[t.TxnCode] || notisCancelAct[t.Activity]
 	return t, nil
@@ -510,7 +556,7 @@ func notisTrade(seg string, f []string) (NotisTrade, error) {
 // (cancelled ones left out).
 func (o *Ops) NotisTrades(ctx context.Context, tenant, date string) ([]ingest.TradeEvent, error) {
 	var out []ingest.TradeEvent
-	for _, seg := range []string{"CM", "FO"} {
+	for _, seg := range notisSegments {
 		ts, err := docs.List[NotisTrade](ctx, o.Docs, tenant, cNotisTrade, seg+"|"+date+"|")
 		if err != nil {
 			return nil, err
@@ -540,7 +586,7 @@ type NotisView struct {
 // NotisStatus shows where each segment's feed stands.
 func (o *Ops) NotisStatus(ctx context.Context, tenant string) NotisView {
 	v := NotisView{}
-	for _, seg := range []string{"CM", "FO"} {
+	for _, seg := range notisSegments {
 		st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cNotisState, seg, NotisState{Segment: seg})
 		st.Token = ""
 		v.Segments = append(v.Segments, st)
@@ -551,10 +597,16 @@ func (o *Ops) NotisStatus(ctx context.Context, tenant string) NotisView {
 // notisTick makes the next due call for each segment whose fetching is on,
 // during the day.
 func (o *Ops) notisTick(ctx context.Context, tenant string, now time.Time) {
-	if hm := now.In(ist).Format("15:04"); hm < "09:00" || hm > "16:30" {
+	hm := now.In(ist).Format("15:04")
+	if hm < "09:00" {
 		return
 	}
-	for seg, id := range map[string]string{"CM": connNotisCM, "FO": connNotisFO} {
+	// Cash and F&O to 16:30, currency to 17:15, commodity to 23:55.
+	until := map[string]string{"CM": "16:30", "FO": "16:30", "CD": "17:15", "CO": "23:55"}
+	for seg, id := range notisConns {
+		if hm > until[seg] {
+			continue
+		}
 		if c, _, err := docs.Get[Connection](ctx, o.Docs, tenant, cConn, id); err == nil && c.Values["fetch"] == "On" && c.Status != "Not set" {
 			_, _, _ = o.NotisFetch(ctx, tenant, SystemActor, seg, "")
 		}

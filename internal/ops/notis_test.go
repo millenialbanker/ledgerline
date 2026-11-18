@@ -152,3 +152,17 @@ func decodeB64(s string) (string, error) {
 }
 
 func base64Std(s string) ([]byte, error) { return base64.StdEncoding.DecodeString(s) }
+
+func TestNotisCurrencyAndCommodityRows(t *testing.T) {
+	// NSE's own sample rows (NOTIS CD API 1.5, NOTIS CO API 1.1).
+	cd := strings.Split("116426,1,116426,82441285773058,6109,21,715350000,1,1000000000753545,4,1497,1,B83L005,AXISX0000001,,2,6001,1257953964,1,,400028023057130,P,09018,USDINR, ,FUTCUR,1259280000,-1, ,,,,,,,,", ",")
+	tr, err := notisTrade("CD", cd)
+	if err != nil || tr.Price.String() != "71.535" || tr.Qty != 21 || tr.Side != "B" || tr.Client != "B83L005" || tr.Symbol != "USDINR" || tr.Instrument != "FUT" || tr.Expiry != "2019-11-27" || tr.Strike != "" {
+		t.Fatalf("currency %+v %v", tr, err)
+	}
+	co := strings.Split("87332,1,36,89068142592000,1446,15,100000,1,1000000000004870,3,10048,1,EWFH661645,10412,,2,6001,10412,1,1359281303,400064002874100,87332,7,10,COPPER,OPTBAS,1371911400,7600000,PE", ",")
+	tr, err = notisTrade("CO", co)
+	if err != nil || tr.Price.String() != "1000" || tr.Qty != 15 || tr.Client != "EWFH661645" || tr.Symbol != "COPPER" || tr.Instrument != "PE" || tr.Strike != "76000" || tr.Expiry != "2023-06-22" {
+		t.Fatalf("commodity %+v %v", tr, err)
+	}
+}
