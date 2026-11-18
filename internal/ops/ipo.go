@@ -159,20 +159,24 @@ type IPOApp struct {
 	Ack         string `json:"ack,omitempty"`
 	// Pending is an action waiting to go to the exchange (New, Modify,
 	// Cancel); Sent the one sent and not yet answered.
-	Pending    string `json:"pending,omitempty"`
-	Sent       string `json:"sent,omitempty"`
-	SentAt     string `json:"sent_at,omitempty"`
-	Batch      string `json:"batch,omitempty"`
-	AppNo      string `json:"app_no,omitempty"` // the platform's application number
-	ExchStatus string `json:"exch_status,omitempty"`
-	ExchReason string `json:"exch_reason,omitempty"`
-	DPCheck    string `json:"dp_check,omitempty"` // Verified, Mismatch, Pending
-	UMN        string `json:"umn,omitempty"`
-	PayStatus  string `json:"pay_status,omitempty"` // sponsor bank code
-	MandateAt  string `json:"mandate_at,omitempty"`
-	MandateWhy string `json:"mandate_reason,omitempty"`
-	Reinit     string `json:"reinitiated,omitempty"` // when a failed mandate was re-sent (once)
-	CancelOn   string `json:"cancelled_on,omitempty"`
+	Pending string `json:"pending,omitempty"`
+	Sent    string `json:"sent,omitempty"`
+	SentAt  string `json:"sent_at,omitempty"`
+	Batch   string `json:"batch,omitempty"`
+	AppNo   string `json:"app_no,omitempty"` // the platform's application number
+	// ExchBids are the bids NSE's eIPO holds for the application, with
+	// their bid numbers, and ExchTS its last timestamp: a change sends them.
+	ExchBids   []EIPOBidLine `json:"exch_bids,omitempty"`
+	ExchTS     string        `json:"exch_ts,omitempty"`
+	ExchStatus string        `json:"exch_status,omitempty"`
+	ExchReason string        `json:"exch_reason,omitempty"`
+	DPCheck    string        `json:"dp_check,omitempty"` // Verified, Mismatch, Pending
+	UMN        string        `json:"umn,omitempty"`
+	PayStatus  string        `json:"pay_status,omitempty"` // sponsor bank code
+	MandateAt  string        `json:"mandate_at,omitempty"`
+	MandateWhy string        `json:"mandate_reason,omitempty"`
+	Reinit     string        `json:"reinitiated,omitempty"` // when a failed mandate was re-sent (once)
+	CancelOn   string        `json:"cancelled_on,omitempty"`
 	// After the issue closes.
 	AllotDate   string       `json:"allot_date,omitempty"`
 	Shares      int64        `json:"allotted_shares,omitempty"`

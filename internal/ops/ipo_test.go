@@ -2,7 +2,6 @@ package ops
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -554,24 +553,40 @@ func TestIPOPortal(t *testing.T) {
 
 // fakeEIPO stands in for NSE's eIPO API.
 type fakeEIPO struct {
-	sent []EIPOBid
-	cfg  EIPOConfig
+	sent   []EIPOBid
+	cfg    EIPOConfig
+	master []EIPOMaster
+	allot  []EIPOAllot
+}
+
+func (f *fakeEIPO) Master(_ context.Context, _ EIPOConfig) ([]EIPOMaster, error) {
+	return f.master, nil
+}
+func (f *fakeEIPO) Allotment(_ context.Context, _ EIPOConfig, _ string) ([]EIPOAllot, error) {
+	return f.allot, nil
 }
 
 func (f *fakeEIPO) SendBids(_ context.Context, c EIPOConfig, bids []EIPOBid) ([]IPOStatusUpdate, error) {
 	f.cfg = c
 	f.sent = append(f.sent, bids...)
 	var out []IPOStatusUpdate
-	for i, b := range bids {
-		out = append(out, IPOStatusUpdate{Ref: b.Ref, AppNo: fmt.Sprintf("88%014d", i+1), Status: "success", PayStatus: "10", Source: "fake eIPO"})
+	for _, b := range bids {
+		var lines []EIPOBidLine
+		for i, l := range b.Bids {
+			if l.ActivityType != "cancel" {
+				l.BidRef, l.Status = json.Number(fmt.Sprintf("20261028%08d", len(f.sent)*10+i)), "success"
+				lines = append(lines, l)
+			}
+		}
+		out = append(out, IPOStatusUpdate{Ref: b.Bids[0].Remark, AppNo: b.AppNo, Status: "success", PayStatus: "10", Source: "fake eIPO", Lines: lines, At: "28-10-2026 11:00:00"})
 	}
 	return out, nil
 }
 
-func (f *fakeEIPO) Inquire(_ context.Context, _ EIPOConfig, _ string, refs []string) ([]IPOStatusUpdate, error) {
+func (f *fakeEIPO) Inquire(_ context.Context, _ EIPOConfig, _ string, apps []string) ([]IPOStatusUpdate, error) {
 	var out []IPOStatusUpdate
-	for _, r := range refs {
-		out = append(out, IPOStatusUpdate{Ref: r, PayStatus: "31", Source: "fake inquiry"})
+	for _, a := range apps {
+		out = append(out, IPOStatusUpdate{AppNo: a, PayStatus: "31", Source: "fake inquiry"})
 	}
 	return out, nil
 }
@@ -602,46 +617,58 @@ func TestIPOEIPOAPIAndCallback(t *testing.T) {
 	if _, err := o.SaveConnection(ctx, T, "admin", connNSEEIPO, vals, secrets); err != nil {
 		t.Fatal(err)
 	}
-	// Without NSE's document (endpoints) nothing is sent.
-	if _, err := o.EIPOSend(ctx, T, "priya.nair", iss.ID); err == nil || !strings.Contains(err.Error(), "API document is needed") {
-		t.Fatalf("send without the spec: %v", err)
-	}
-	if v := o.EIPOStatus(ctx, T); !v.Set || v.Usable || v.Needs == "" || !v.Token {
+	if v := o.EIPOStatus(ctx, T); !v.Set || !v.Usable || !v.Token {
 		t.Fatalf("status %+v", v)
 	}
-	vals["url"], vals["bid_path"], vals["inquiry_path"] = "https://eipo.example.test/api", "/bids", "/bids/inquiry"
-	if _, err := o.SaveConnection(ctx, T, "admin", connNSEEIPO, vals, nil); err != nil {
-		t.Fatal(err)
-	}
 	b, err := o.EIPOSend(ctx, T, "priya.nair", iss.ID)
-	if err != nil || b.Via != "API" || len(fake.sent) != 2 || fake.cfg.Member != "90311" || fake.cfg.Live {
+	if err != nil || b.Via != "API" || len(fake.sent) != 2 || fake.cfg.Member != "90311" || fake.cfg.Live || fake.cfg.Base != eipoUAT {
 		t.Fatalf("API send %+v %v (%d sent)", b, err, len(fake.sent))
 	}
-	if s := fake.sent[0]; s.UPIFlag != "Y" || s.Ref != bids[0].ID || s.Bids[0].ActivityType != "new" || !s.Bids[0].AtCutOff || s.Bids[0].Quantity != 150 || s.Category != "RII" {
-		t.Fatalf("API bid %+v", s)
+	// Ledgerline gives the application number (member code and a running
+	// number) and its bid number in the remark; a UPI bid has no ASBA
+	// reference.
+	s0 := fake.sent[0]
+	if s0.UPIFlag != "Y" || s0.Ref != "" || s0.AppNo != "9031100000000001" || s0.Bids[0].Remark != bids[0].ID ||
+		s0.Bids[0].ActivityType != "new" || !s0.Bids[0].AtCutOff || s0.Bids[0].Price != "" || s0.Bids[0].Quantity != 150 || s0.Category != "RII" {
+		t.Fatalf("API bid %+v", s0)
 	}
-	if a := bidOf(t, o, ctx, bids[0].ID); a.Status != BidMandatePending || a.AppNo != "8800000000000001" || a.Sent != "" {
-		t.Fatalf("after send %+v", a)
+	app0 := s0.AppNo
+	a0 := bidOf(t, o, ctx, bids[0].ID)
+	if a0.Status != BidMandatePending || a0.AppNo != app0 || a0.Sent != "" || len(a0.ExchBids) != 1 || a0.ExchBids[0].BidRef == "" || a0.ExchTS == "" {
+		t.Fatalf("after send %+v", a0)
 	}
-	// The callback: wrong token, address not listed, then the real one.
-	body := []byte(`{"status":"success","data":[{"symbol":"APICO","referenceNumber":"` + bids[0].ID + `","applicationNumber":8800000000000001,"upiPaymentStatus":"100","umn":"UMN-1","dpVerStatusFlag":"Y"},
-		{"symbol":"APICO","referenceNumber":"NOT-OURS","upiPaymentStatus":"100"}]}`)
-	if _, err := o.EIPOCallback(ctx, T, "wrong", "203.0.113.5:443", body); !errors.Is(err, ErrForbidden) {
+	// NSE's callbacks, at <member url>/v1/apppaystatus and appdpstatus,
+	// with the Authorization made from the callback password.
+	auth := eipoCallbackAuth("made-up-password")
+	pay := []byte(`{"symbol":"APICO","applicationNumber":"` + app0 + `","upiPaymentStatusFlag":100,"upiAmtBlocked":15000.00,"upiPayReason":null}`)
+	dp := []byte(`{"symbol":"APICO","applicationNumber":"` + app0 + `","dpVerStatusFlag":"S","dpVerReason":null,"dpVerFailCode":null}`)
+	if _, err := o.EIPOCallback(ctx, T, "cb-token-made-up-0123456789", "apppaystatus", eipoCallbackAuth("other"), "203.0.113.9:443", pay); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("wrong callback password: %v", err)
+	}
+	if _, err := o.EIPOCallback(ctx, T, "wrong", "apppaystatus", auth, "203.0.113.5:443", pay); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("wrong token: %v", err)
 	}
 	vals["callback_ips"] = "203.0.113.9"
 	if _, err := o.SaveConnection(ctx, T, "admin", connNSEEIPO, vals, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := o.EIPOCallback(ctx, T, "cb-token-made-up-0123456789", "203.0.113.5:443", body); !errors.Is(err, ErrForbidden) {
+	if _, err := o.EIPOCallback(ctx, T, "cb-token-made-up-0123456789", "apppaystatus", auth, "203.0.113.5:443", pay); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("unlisted address: %v", err)
 	}
-	res, err := o.EIPOCallback(ctx, T, "cb-token-made-up-0123456789", "203.0.113.9:443", body)
-	if err != nil || res.Applied != 1 || res.Unknown != 1 {
-		t.Fatalf("callback %+v %v", res, err)
+	for _, body := range [][]byte{pay, dp} {
+		if res, err := o.EIPOCallback(ctx, T, "cb-token-made-up-0123456789", "apppaystatus", auth, "203.0.113.9:443", body); err != nil || res.Applied != 1 {
+			t.Fatalf("callback %+v %v", res, err)
+		}
 	}
-	if a := bidOf(t, o, ctx, bids[0].ID); a.Status != BidAccepted || a.UMN != "UMN-1" || a.DPCheck != "Verified" || a.AppNo != "8800000000000001" {
+	if a := bidOf(t, o, ctx, bids[0].ID); a.Status != BidAccepted || a.DPCheck != "Verified" || a.AppNo != app0 {
 		t.Fatalf("after callback %+v", a)
+	}
+	// NSE's notification that an issue changed asks for the master again.
+	if _, err := o.EIPOCallback(ctx, T, "cb-token-made-up-0123456789", "notification", auth, "203.0.113.9:443", []byte(`{"type":1,"symbol":"APICO","timestamp":"28-10-2026 11:05:00"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if st := o.EIPOStatus(ctx, T).State; !st.MasterRefresh {
+		t.Fatalf("state %+v", st)
 	}
 	// Inquiry: the other client declined.
 	if n, err := o.EIPOInquire(ctx, T, "priya.nair", iss.ID); err != nil || n != 1 {
@@ -675,22 +702,118 @@ func TestIPOEIPOAPIAndCallback(t *testing.T) {
 }
 
 func TestIPOEIPOHTTPClient(t *testing.T) {
+	// The protocol's example: the callback Authorization for "Pass@123".
+	if got := eipoCallbackAuth("Pass@123"); got != "MTdiOTNmNWFiNTZhZjYxNGUwZDg5OGVkNDcxYTZhMjlkZjNmYTJhYWQ1YjI3M2ZiZDlhOWVmYjhhMWMxYWNmMg==" {
+		t.Fatalf("callback auth %s", got)
+	}
 	srv := newEIPOFake(t)
 	c := nseEIPOHTTP{client: srv.Client()}
-	cfg := EIPOConfig{Base: srv.URL + "/eipo", Member: "90311", Login: "LLAPI01", Password: "pw-made-up", BidPath: "/bids"}
-	ups, err := c.SendBids(context.Background(), cfg, []EIPOBid{{Symbol: "APICO", Ref: "IPB-0000001", PAN: "AAAAA0000A", UPIFlag: "Y", UPI: "x@okicici", Bids: []EIPOBidLine{{ActivityType: "new", Quantity: 150, AtCutOff: true, Price: "100.00", Amount: "15000.00"}}}})
-	if err != nil || len(ups) != 1 || ups[0].Ref != "IPB-0000001" || ups[0].AppNo != "12345678901234567890" || ups[0].Status != "success" {
+	cfg := EIPOConfig{Base: srv.URL + "/eipo", Member: "90311", Login: "LLAPI01", Password: "pw-made-up"}
+	bid := EIPOBid{Symbol: "APICO", AppNo: "9031100000000001", Category: "IND", Depository: "CDSL", ClientBenID: "1208160000000001", PAN: "AAAAA0000A", AllotmentMode: "demat",
+		UPIFlag: "Y", UPI: "x@okicici", LedgerlineID: "IPB-0000001", Bids: []EIPOBidLine{{ActivityType: "new", Quantity: 150, AtCutOff: true, Amount: "15000.00", Remark: "IPB-0000001"}}}
+	ups, err := c.SendBids(context.Background(), cfg, []EIPOBid{bid})
+	if err != nil || len(ups) != 1 || ups[0].Ref != "IPB-0000001" || ups[0].AppNo != "9031100000000001" || ups[0].Status != "success" || len(ups[0].Lines) != 1 ||
+		ups[0].Lines[0].BidRef != "2026102800000382" || ups[0].DPStatus != "P" || ups[0].At != "28-10-2026 11:00:00" {
 		t.Fatalf("HTTP send %+v %v", ups, err)
 	}
+	ups, err = c.Inquire(context.Background(), cfg, "APICO", []string{"9031100000000001", "NOSUCHAPP"})
+	if err != nil || len(ups) != 1 || ups[0].PayStatus != "100" || ups[0].Activity != "" {
+		t.Fatalf("inquiry %+v %v", ups, err)
+	}
+	ms, err := c.Master(context.Background(), cfg)
+	if err != nil || len(ms) != 1 || ms[0].Symbol != "TESTIPO" || len(ms[0].SubCategorySettings) != 2 {
+		t.Fatalf("master %+v %v", ms, err)
+	}
+	if iss, ok := eipoIssue(ms[0]); !ok || iss.Type != IssueMainboard || iss.Open != "2026-11-20" || iss.LotSize != 100 || iss.PriceHigh.String() != "12.5" || len(iss.Categories) != 1 ||
+		iss.Categories[0].Code != "IND" || !iss.Categories[0].CutOff || iss.Categories[0].Discount.String() != "1" || iss.Categories[0].Upto != money.MustAmount("200000") {
+		t.Fatalf("issue from the master %+v %v", iss, ok)
+	}
+	al, err := c.Allotment(context.Background(), cfg, "APICO")
+	if err != nil || len(al) != 1 || al[0].AppNo != "9031100000000001" || al[0].Qty != 150 {
+		t.Fatalf("allotment %+v %v", al, err)
+	}
 	cfg.Password = "wrong"
-	if _, err := c.SendBids(context.Background(), cfg, []EIPOBid{{Ref: "IPB-0000002"}}); err == nil || !strings.Contains(err.Error(), "refused the login") {
+	if _, err := c.SendBids(context.Background(), EIPOConfig{Base: cfg.Base, Member: "90311", Login: "OTHER", Password: "wrong"}, []EIPOBid{bid}); err == nil || !strings.Contains(err.Error(), "refused the login") {
 		t.Fatalf("bad login: %v", err)
 	}
-	if _, err := c.SendBids(context.Background(), EIPOConfig{Base: srv.URL}, nil); err != nil {
-		t.Fatalf("nothing to send: %v", err)
+}
+
+func TestIPOEIPOMasterAndAllotment(t *testing.T) {
+	o, ctx := setup(t)
+	o.Now = func() time.Time { return ipoAt(2026, 11, 18, 9, 0) }
+	fake := &fakeEIPO{}
+	old := eipoClient
+	eipoClient = fake
+	t.Cleanup(func() { eipoClient = old })
+	if _, err := o.SaveConnection(ctx, T, "admin", connNSEEIPO, map[string]string{"member": "90311", "login": "LLAPI01", "env": "Mock (UAT)", "send": "On", "master": "On", "allotment": "On"},
+		map[string]string{"password": "made-up-password"}); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := c.Inquire(context.Background(), EIPOConfig{Base: srv.URL}, "APICO", nil); err == nil {
-		t.Fatal("inquiry without the endpoint")
+	var m EIPOMaster
+	json.Unmarshal([]byte(`{"symbol":"NEWCO","name":"New Co Ltd","issueType":"EQUITY","lotSize":1,"minBidQuantity":40,"faceValue":10,"minPrice":350,"maxPrice":370,"tickSize":1,
+		"biddingStartDate":"18-11-2026","biddingEndDate":"20-11-2026","dailyStartTime":"10:00:00","dailyEndTime":"17:00:00","isin":"INE000N01011","registrar":"XYZ Registrars",
+		"subCategorySettings":[{"caCode":"RETAIL","subCatCode":"IND","minValue":0,"maxValue":200000,"allowCutOff":true,"allowUpi":true},
+		{"caCode":"NII","subCatCode":"SNII","minValue":200001,"maxValue":1000000,"allowCutOff":false,"allowUpi":true},{"caCode":"QIB","subCatCode":"FI","allowUpi":false}]}`), &m)
+	rights := EIPOMaster{Symbol: "RTS", IssueType: "RIGHTS", BiddingStartDate: "18-11-2026", BiddingEndDate: "25-11-2026"}
+	fake.master = []EIPOMaster{m, rights}
+	// The morning tick sets the issue up from NSE's master, once.
+	o.ipoTick(ctx, T, ipoAt(2026, 11, 18, 8, 45))
+	is, _ := o.IPOIssues(ctx, T)
+	var got IPOIssue
+	for _, i := range is {
+		if i.Symbol == "NEWCO" {
+			got = i
+		}
+		if i.Symbol == "RTS" {
+			t.Fatal("a rights issue was set up")
+		}
+	}
+	if got.ID == "" || got.Source != "NSE eIPO master" || got.LotSize != 40 || got.Close != "2026-11-20" || len(got.Categories) != 2 || got.Categories[1].Individual {
+		t.Fatalf("issue %+v", got)
+	}
+	if a, c, err := o.EIPOSyncMaster(ctx, T, "priya.nair"); err != nil || a != 0 || c != 0 {
+		t.Fatalf("again %d %d %v", a, c, err)
+	}
+	// NSE moves the closing date: the issue follows.
+	m.BiddingEndDate = "21-11-2026"
+	fake.master = []EIPOMaster{m}
+	if a, c, err := o.EIPOSyncMaster(ctx, T, "priya.nair"); err != nil || a != 0 || c != 1 {
+		t.Fatalf("changed %d %d %v", a, c, err)
+	}
+	// A client bids; a change is sent against the bid NSE holds.
+	o.Now = func() time.Time { return ipoAt(2026, 11, 18, 11, 0) }
+	cs := ipoClients(t, o, ctx, 2)
+	regUPI(t, o, ctx, cs[0].UCC)
+	b, err := o.PlaceIPOBid(ctx, T, "priya.nair", IPOBidInput{Issue: got.ID, UCC: cs[0].UCC, Category: "IND", Options: opt(1, "", true), UPI: vpaOf(cs[0].UCC), Instruction: staffSaid(o)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.EIPOSend(ctx, T, "priya.nair", got.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.ModifyIPOBid(ctx, T, "priya.nair", b.ID, IPOModifyInput{Options: opt(2, "", true), Instruction: staffSaid(o)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.EIPOSend(ctx, T, "priya.nair", got.ID); err != nil {
+		t.Fatal(err)
+	}
+	mod := fake.sent[len(fake.sent)-1]
+	if mod.Bids[0].ActivityType != "modify" || mod.Bids[0].BidRef == "" || mod.Bids[0].Quantity != 80 || mod.Timestamp == "" || mod.AppNo != fake.sent[0].AppNo {
+		t.Fatalf("modify %+v", mod)
+	}
+	// Allotment from NSE: 40 shares at ₹370 is one lot; the price comes
+	// with it.
+	if _, _, err := o.ApplyIPOUpdates(ctx, T, SystemActor, []IPOStatusUpdate{{Symbol: "NEWCO", AppNo: mod.AppNo, PayStatus: "100", Source: "eIPO callback"}}); err != nil {
+		t.Fatal(err)
+	}
+	fake.allot = []EIPOAllot{{Symbol: "NEWCO", AppNo: flexStr(mod.AppNo), Qty: 40, Price: "370"}}
+	o.Now = func() time.Time { return ipoAt(2026, 11, 24, 11, 0) }
+	res, err := o.EIPOSyncAllotment(ctx, T, "priya.nair", got.ID)
+	if err != nil || res.Allotted != 1 {
+		t.Fatalf("allotment %+v %v", res, err)
+	}
+	if a := bidOf(t, o, ctx, b.ID); a.Allotted != 1 || a.Status != BidAllotted {
+		t.Fatalf("allotted %+v", a)
 	}
 }
 
@@ -800,23 +923,55 @@ func TestIPOOfferForSale(t *testing.T) {
 	}
 }
 
-// newEIPOFake is a stand-in eIPO server: Basic sign-in as NSE's published
-// query API uses, and a reply naming the application by number.
+// newEIPOFake is a stand-in eIPO server speaking NSE's v1 protocol.
 func newEIPOFake(t *testing.T) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Basic "+base64.StdEncoding.EncodeToString([]byte("90311^LLAPI01:pw-made-up")) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/eipo/v1/login" {
+			var l map[string]string
+			json.NewDecoder(r.Body).Decode(&l)
+			if l["member"] != "90311" || l["loginId"] != "LLAPI01" || l["password"] != "pw-made-up" {
+				w.Write([]byte(`{"member":"90311","status":"failed","reason":"Invalid credentials"}`))
+				return
+			}
+			w.Write([]byte(`{"member":"90311","loginId":"LLAPI01","status":"success","currentTime":"28-10-2026 10:59:00","token":"tok-1"}`))
+			return
+		}
+		if r.Header.Get("Access-Token") != "tok-1" {
 			w.WriteHeader(401)
 			return
 		}
-		var b EIPOBid
-		if r.URL.Path != "/eipo/bids" || json.NewDecoder(r.Body).Decode(&b) != nil || b.Ref == "" {
-			w.WriteHeader(400)
-			w.Write([]byte(`{"status":"failed","reason":"bad request"}`))
-			return
+		switch r.URL.Path {
+		case "/eipo/v1/transactions/add":
+			var b EIPOBid
+			if json.NewDecoder(r.Body).Decode(&b) != nil || b.AppNo == "" || b.ClientBenID != "1208160000000001" {
+				w.WriteHeader(400)
+				return
+			}
+			w.Write([]byte(`{"symbol":"APICO","applicationNumber":"` + b.AppNo + `","category":"IND","depository":"CDSL","clientBenId":1208160000000001,"pan":"AAAAA0000A","allotmentMode":"demat",
+				"upiFlag":"Y","upi":"x@okicici","dpVerStatusFlag":"P","upiAmtBlocked":0.00,"timestamp":"28-10-2026 11:00:00","status":"success",
+				"bids":[{"activityType":"new","bidReferenceNumber":2026102800000382,"quantity":150,"atCutOff":true,"amount":15000.00,"remark":"IPB-0000001","status":"success"}]}`))
+		case "/eipo/v1/transactions/fetch":
+			var q map[string]string
+			json.NewDecoder(r.Body).Decode(&q)
+			if q["applicationNumber"] != "9031100000000001" {
+				w.Write([]byte(`{"status":"failed","reason":"No Records Found"}`))
+				return
+			}
+			w.Write([]byte(`{"status":"success","transactions":[{"symbol":"APICO","applicationNumber":"9031100000000001","upiPaymentStatusFlag":100,"status":"success",
+				"bids":[{"activityType":"new","bidReferenceNumber":2026102800000382,"quantity":150,"atCutOff":true,"amount":15000.00,"status":"success"}]}]}`))
+		case "/eipo/v1/ipomaster":
+			w.Write([]byte(`{"status":"success","data":[{"symbol":"TESTIPO","name":"Test Industries","issueType":"EQUITY","lotSize":1,"minBidQuantity":100,"faceValue":10.00,
+				"minPrice":12.00,"maxPrice":12.50,"tickSize":0.05,"cutoffPrice":12.50,"biddingStartDate":"20-11-2026","biddingEndDate":"24-11-2026","dailyStartTime":"10:00:00",
+				"dailyEndTime":"17:00:00","isin":"INE121212121","registrar":"XYZ Registrars","categoryDetails":[{"code":"RETAIL","startTime":"10:00:00","endTime":"17:00:00"}],
+				"subCategorySettings":[{"caCode":"QIB","subCatCode":"FI","minValue":200001.00,"maxValue":6841800000.00,"allowCutOff":false,"allowUpi":false},
+				{"caCode":"RETAIL","subCatCode":"IND","minValue":0.00,"maxValue":200000.00,"allowCutOff":true,"discountType":"A","discountPrice":1,"allowUpi":true,"maxUpiLimit":200000.00}]}]}`))
+		case "/eipo/v1/allotment/fetch":
+			w.Write([]byte(`{"transactions":[{"symbol":"APICO","applicationNumber":"9031100000000001","price":100.0,"nameOfSecurity":"API Co","allotedQuantity":150,"panNumber":"AAAAA0000A"}],"status":"success"}`))
+		default:
+			w.WriteHeader(404)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"success","applicationNumber":12345678901234567890,"symbol":"APICO"}`))
 	}))
 	t.Cleanup(srv.Close)
 	return srv

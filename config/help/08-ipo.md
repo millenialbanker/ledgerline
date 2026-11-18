@@ -79,15 +79,18 @@ related: ipo-eipo-api, exchange-files
 title: Connect NSE's eIPO API and callback
 screen: connections
 roles: Admin
-ask: eipo api; nse ipo api; ipo callback; eipo callback url; send ipo bids by api; whitelist callback; login without otp
+ask: eipo api; nse ipo api; ipo callback; eipo callback url; send ipo bids by api; whitelist callback; login without otp; ipo master; new ipo set up automatically; ipo allotment api; appdpstatus; apppaystatus
 related: ipo-bid-file, connections
 
 NSE gives API access to members on request: email msm@nse.co.in with the member code and user ID (API access, and login without OTP), and the callback address to whitelist (4 to 5 working days).
 
-1. In [[connections|Connections]], **NSE eIPO API**: member code, user ID, password, and a **callback token** (a long random phrase).
-2. Give NSE the callback address shown on [[ipo|IPO & public issues]] (Files & eIPO API), with your token in it. Optionally list the addresses NSE calls from.
-3. NSE's API document is given to members, not published. Enter the API address and the bid and inquiry endpoint paths from it; until then Ledgerline does not send bids by API and they go by file.
-4. Switch **Send bids through the API** on: waiting UPI bids then go every 5 minutes during bidding hours, and bids in flight are asked about every 15 minutes. Callbacks update bids and UPI mandates as they come.
+Ledgerline follows NSE's Protocol for WEB API, Initial Public Offer System (v1.20.7).
+
+1. In [[connections|Connections]], **NSE eIPO API**: member code, user ID, password, Live or Mock (UAT), and a **callback token** (a long random phrase). If NSE registered a separate callback password, enter it too.
+2. Give NSE the callback address shown on [[ipo|IPO & public issues]] (Files & eIPO API), with your token in it; NSE adds `/v1/appdpstatus`, `/v1/apppaystatus` and `/v1/notification`. Optionally list the addresses NSE calls from.
+3. Switch **Send bids through the API** on: waiting UPI bids then go every 5 minutes during bidding hours, and bids in flight are asked about every 15 minutes. Ledgerline gives each application its number (member code and a running number) and keeps NSE's bid numbers, so a change or cancellation goes against the bids NSE holds. Callbacks update the depository check and UPI mandate as they come.
+4. **Set up new issues from NSE's IPO master** (on unless switched off): each morning at 08:30, and when NSE says an issue changed, Ledgerline sets up the coming mainboard, SME and debt issues it does not have (price band, lot, dates, the UPI categories and any discount) and keeps their dates and price band in step. Set the commission on the issue if the issuer pays one. Issues set up by staff are left alone.
+5. **Read allotment from NSE** (on unless switched off): from the allotment date, every half hour for three days, Ledgerline reads the issue's allotment and records it (and the final price, if not set): allotted lots for each application named, none for the other valid bids.
 
 ## ipo-mandates
 title: Follow up UPI mandates before the cut-off

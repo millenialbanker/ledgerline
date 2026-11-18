@@ -41,6 +41,9 @@ type IPOStatusUpdate struct {
 	DPReason  string `json:"dp_reason,omitempty"`
 	At        string `json:"at,omitempty"`
 	Source    string `json:"source,omitempty"`
+	// Lines are the bids the eIPO API now holds for the application (nil
+	// when the news does not say).
+	Lines []EIPOBidLine `json:"lines,omitempty"`
 }
 
 // payText explains the sponsor bank's pay status codes (NSE IPO Sponsor
@@ -120,6 +123,12 @@ func applyUpdate(a *IPOApp, u IPOStatusUpdate, now time.Time, by string) string 
 	if u.AppNo != "" && a.AppNo != u.AppNo {
 		a.AppNo = strings.TrimSpace(u.AppNo)
 		did = append(did, "application number "+a.AppNo)
+	}
+	if u.Lines != nil && (u.Status == "" || !strings.EqualFold(u.Status, "failed")) {
+		a.ExchBids = u.Lines
+		if u.At != "" {
+			a.ExchTS = u.At
+		}
 	}
 	act := activityOf(u.Activity)
 	if act == "" {

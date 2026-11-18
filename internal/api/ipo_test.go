@@ -170,8 +170,12 @@ func TestIPORoutes(t *testing.T) {
 	if code := ipoCall(t, srv, "POST", "/hooks/demo/eipo?token=made-up-callback-token-42", "", cb, &cr); code != 200 || cr["applied"] != float64(1) {
 		t.Fatalf("callback %d %v", code, cr)
 	}
+	// NSE's own callback address: <member url>/v1/apppaystatus.
+	if code := ipoCall(t, srv, "POST", "/hooks/demo/eipo/made-up-callback-token-42/v1/apppaystatus", "", cb, nil); code != 403 {
+		t.Fatalf("callback without NSE's Authorization: %d", code)
+	}
 	var st ops.EIPOView
-	if code := ipoCall(t, srv, "GET", "/v1/ipo/eipo", "priya.nair", nil, &st); code != 200 || st.State.Callbacks != 1 || st.Usable {
+	if code := ipoCall(t, srv, "GET", "/v1/ipo/eipo", "priya.nair", nil, &st); code != 200 || st.State.Callbacks != 1 || !st.Usable {
 		t.Fatalf("eIPO status %d %+v", code, st)
 	}
 }

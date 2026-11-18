@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -72,6 +73,9 @@ func (s *Server) ipoRoutes() {
 	// NSE's eIPO calls back here (not signed in: the token in the address
 	// registered with NSE, and optionally its listed addresses, admit it).
 	s.mux.HandleFunc("POST /hooks/{tenant}/eipo", s.eipoHook)
+	s.mux.HandleFunc("POST /hooks/{tenant}/eipo/{token}/{version}/{kind}", s.eipoNSEHook)
+	R("POST /v1/ipo/eipo/master", s.eipoMaster, true)
+	R("POST /v1/ipo/issues/{id}/eipo-allotment", s.eipoAllotment, true)
 }
 
 func (s *Server) ipoIssues(w http.ResponseWriter, r *http.Request) {
@@ -413,10 +417,45 @@ func (s *Server) eipoHook(w http.ResponseWriter, r *http.Request) {
 	if token == "" {
 		token = r.Header.Get("X-Callback-Token")
 	}
-	res, err := s.ops.EIPOCallback(r.Context(), r.PathValue("tenant"), token, r.RemoteAddr, body)
+	res, err := s.ops.EIPOCallback(r.Context(), r.PathValue("tenant"), token, "", "", r.RemoteAddr, body)
 	if err != nil {
 		fail(w, err, nil)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"status": "success", "received": res.Received, "applied": res.Applied})
+}
+
+// eipoNSEHook receives NSE's eIPO callbacks as the protocol names them:
+// <memberurl>/<version>/appdpstatus, apppaystatus or notification, where
+// the member URL is /hooks/<tenant>/eipo/<callback token>.
+func (s *Server) eipoNSEHook(w http.ResponseWriter, r *http.Request) {
+	kind := r.PathValue("kind")
+	if kind != "appdpstatus" && kind != "apppaystatus" && kind != "notification" {
+		writeJSON(w, 404, map[string]string{"status": "failed", "reason": "no such callback"})
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeJSON(w, 400, map[string]string{"status": "failed", "reason": "cannot read the body"})
+		return
+	}
+	if _, err := s.ops.EIPOCallback(r.Context(), r.PathValue("tenant"), r.PathValue("token"), kind, r.Header.Get("Authorization"), r.RemoteAddr, body); err != nil {
+		code := 400
+		if errors.Is(err, ops.ErrForbidden) {
+			code = 403
+		}
+		writeJSON(w, code, map[string]string{"status": "failed", "reason": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "success"})
+}
+
+func (s *Server) eipoMaster(w http.ResponseWriter, r *http.Request) {
+	added, changed, err := s.ops.EIPOSyncMaster(r.Context(), tenant(r), actor(r))
+	ok(w, map[string]int{"added": added, "changed": changed}, err)
+}
+
+func (s *Server) eipoAllotment(w http.ResponseWriter, r *http.Request) {
+	res, err := s.ops.EIPOSyncAllotment(r.Context(), tenant(r), actor(r), r.PathValue("id"))
+	ok(w, res, err)
 }

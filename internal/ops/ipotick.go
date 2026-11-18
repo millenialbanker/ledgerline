@@ -66,13 +66,17 @@ func (o *Ops) ipoDone(ctx context.Context, tenant, issue string) map[string]stri
 // demat credits are confirmed and late credits and releases raised.
 func (o *Ops) ipoTick(ctx context.Context, tenant string, now time.Time) {
 	is, err := docs.List[IPOIssue](ctx, o.Docs, tenant, cIPOIssue, "")
-	if err != nil || len(is) == 0 {
+	if err != nil {
 		return
 	}
 	set, _ := o.Settings(ctx, tenant)
 	now = now.In(ist)
 	today, hm := now.Format("2006-01-02"), now.Format("15:04")
 	eipo, eipoOK := o.eipoConnection(ctx, tenant)
+	if eipoOK && eipo.usable {
+		o.eipoHousekeeping(ctx, tenant, eipo, is, set, now)
+		is, _ = docs.List[IPOIssue](ctx, o.Docs, tenant, cIPOIssue, "")
+	}
 	for _, iss := range is {
 		iss.defaults()
 		iss.Timeline = iss.timeline(set)
@@ -94,6 +98,48 @@ func (o *Ops) ipoTick(ctx context.Context, tenant string, now time.Time) {
 			o.ipoFollowUp(ctx, tenant, iss, now)
 		}
 	}
+}
+
+// eipoHousekeeping reads NSE's IPO master each morning (08:30) and again
+// when NSE says an issue changed, and from the allotment date reads the
+// allotment of issues still waiting for it, every half hour for three days.
+func (o *Ops) eipoHousekeeping(ctx context.Context, tenant string, c eipoConn, is []IPOIssue, set Settings, now time.Time) {
+	st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cIPOState, "eipo", EIPOState{})
+	today, hm := now.Format("2006-01-02"), now.Format("15:04")
+	if c.master && hm >= "08:30" && hm <= "20:00" && (st.MasterRefresh || !strings.HasPrefix(laterIST(st.LastMaster), today)) {
+		_, _, _ = o.EIPOSyncMaster(ctx, tenant, SystemActor)
+	}
+	if !c.allot {
+		return
+	}
+	if t, err := time.Parse(time.RFC3339, st.LastAllot); err == nil && now.Sub(t) < 30*time.Minute {
+		return
+	}
+	for _, iss := range is {
+		iss.defaults()
+		iss.Timeline = iss.timeline(set)
+		a := iss.Timeline.Allot
+		if iss.Withdrawn || iss.Type == IssueOFS || !contains(iss.Exchanges, "NSE") || a == "" || today < a || daysBetween(a, today) > 3 || hm < "10:00" {
+			continue
+		}
+		bids, _ := o.issueBids(ctx, tenant, iss.ID)
+		waiting := false
+		for _, b := range bids {
+			waiting = waiting || (allottable(b) && b.AppNo != "" && b.AllotDate == "")
+		}
+		if waiting {
+			_, _ = o.EIPOSyncAllotment(ctx, tenant, SystemActor, iss.ID)
+		}
+	}
+}
+
+// laterIST is an RFC 3339 time as an IST date and time ("" stays "").
+func laterIST(s string) string {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return ""
+	}
+	return t.In(ist).Format("2006-01-02 15:04")
 }
 
 // eipoTick sends waiting bids every 5 minutes while bidding is open, and
