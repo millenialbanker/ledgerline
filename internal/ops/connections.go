@@ -313,6 +313,11 @@ func (o *Ops) SaveConnection(ctx context.Context, tenant, actor, id string, valu
 			return ConnectionView{}, err
 		}
 	}
+	if id == connNSEEIPO {
+		if err := checkEIPOConn(nc); err != nil {
+			return ConnectionView{}, err
+		}
+	}
 	if err := docs.Upsert(ctx, o.Docs, tenant, cConn, id, nc, actor); err != nil {
 		return ConnectionView{}, err
 	}

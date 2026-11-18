@@ -420,12 +420,23 @@ func (s *Server) eipoHook(w http.ResponseWriter, r *http.Request) {
 	if token == "" {
 		token = r.Header.Get("X-Callback-Token")
 	}
-	res, err := s.ops.EIPOCallback(r.Context(), r.PathValue("tenant"), token, "", "", r.RemoteAddr, body)
+	res, err := s.ops.EIPOCallbackHTTP(r.Context(), r.PathValue("tenant"), token, "", r.Header, r.RemoteAddr, body)
 	if err != nil {
 		fail(w, err, nil)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"status": "success", "received": res.Received, "applied": res.Applied})
+	s.eipoReply(w, r, token, 200, map[string]any{"status": "success", "received": res.Received, "applied": res.Applied})
+}
+
+// eipoReply answers NSE's callback: sealed for NSE when the connection is
+// on v2 (advanced security), plain JSON otherwise.
+func (s *Server) eipoReply(w http.ResponseWriter, r *http.Request, token string, code int, v any) {
+	h, b := s.ops.EIPOCallbackReply(r.Context(), r.PathValue("tenant"), token, v)
+	for k, vs := range h {
+		w.Header()[k] = vs
+	}
+	w.WriteHeader(code)
+	_, _ = w.Write(b)
 }
 
 // eipoNSEHook receives NSE's eIPO callbacks as the protocol names them:
@@ -442,15 +453,15 @@ func (s *Server) eipoNSEHook(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"status": "failed", "reason": "cannot read the body"})
 		return
 	}
-	if _, err := s.ops.EIPOCallback(r.Context(), r.PathValue("tenant"), r.PathValue("token"), kind, r.Header.Get("Authorization"), r.RemoteAddr, body); err != nil {
+	if _, err := s.ops.EIPOCallbackHTTP(r.Context(), r.PathValue("tenant"), r.PathValue("token"), kind, r.Header, r.RemoteAddr, body); err != nil {
 		code := 400
 		if errors.Is(err, ops.ErrForbidden) {
 			code = 403
 		}
-		writeJSON(w, code, map[string]string{"status": "failed", "reason": err.Error()})
+		s.eipoReply(w, r, r.PathValue("token"), code, map[string]string{"status": "failed", "reason": err.Error()})
 		return
 	}
-	writeJSON(w, 200, map[string]string{"status": "success"})
+	s.eipoReply(w, r, r.PathValue("token"), 200, map[string]string{"status": "success"})
 }
 
 func (s *Server) ofsSend(w http.ResponseWriter, r *http.Request) {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/hmac"
+	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
@@ -54,8 +55,10 @@ import (
 //     password))))) of the callback password the firm registered.
 //
 // Rate limits (Appendix C): login 2 a second; add 1,000 a second; fetch 25
-// a second; allotment fetch 10 a second. Advanced security (v2, RSA and
-// AES) is not used: basic security is what NSE hosts for every member.
+// a second; allotment fetch 10 a second. Advanced security (v2: requests
+// and replies encrypted with AES and RSA, and signed) can be chosen on the
+// connection; it lives in the transport (call, and the callback check) in
+// ipoeipov2.go, so every call gets it.
 
 const connNSEEIPO = "nse-eipo"
 
@@ -69,12 +72,14 @@ const (
 
 func init() {
 	ConnProviders = append(ConnProviders, ConnProvider{ID: connNSEEIPO, Name: "NSE eIPO API (public issues)", Group: "Exchanges", Test: "https",
-		Purpose: "Sends IPO, SME and NCD bids to NSE's eIPO, takes bid, depository and UPI mandate status from NSE's callback, sets up new issues from NSE's IPO master and reads allotment. Ask msm@nse.co.in for API access (member code, user ID), login without OTP and the callback address to whitelist",
+		Purpose: "Sends IPO, SME and NCD bids to NSE's eIPO, takes bid, depository and UPI mandate status from NSE's callback, sets up new issues from NSE's IPO master and reads allotment. Ask msm@nse.co.in for API access (member code, user ID), login without OTP and the callback address to whitelist; for v2 (advanced security) also for NSE's public key for the firm, and send NSE the firm's public key",
 		Fields: []ConnField{{Key: "member", Label: "Member code"}, {Key: "login", Label: "eIPO user ID enabled for the API"},
 			{Key: "password", Label: "eIPO password", Secret: true},
 			{Key: "env", Label: "Environment", Options: []string{"Live", "Mock (UAT)"}},
 			{Key: "url", Label: "Address (leave empty for NSE's)", Optional: true, Placeholder: eipoLive},
-			{Key: "version", Label: "API version (empty: v3)", Optional: true, Options: []string{eipoV3, eipoV1}},
+			{Key: "version", Label: "API version (empty: v3)", Optional: true, Options: []string{eipoV3, eipoV2, eipoV1}},
+			{Key: "private_key", Label: "v2 only: the firm's RSA private key (PEM, 2048-bit); its public key is the one given to NSE", Secret: true, Optional: true},
+			{Key: "nse_public_key", Label: "v2 only: NSE's public key for the firm (PEM public key or certificate, from NSE)", Secret: true, Optional: true},
 			{Key: "asba_location", Label: "ASBA location code (6 characters, from eIPO): used for ASBA bids when a bank has no location code of its own", Optional: true},
 			{Key: "callback_token", Label: "Callback token: a long random phrase that goes in the callback address given to NSE", Secret: true, Optional: true},
 			{Key: "callback_password", Label: "Callback password registered with NSE (empty: the eIPO password)", Secret: true, Optional: true},
@@ -88,13 +93,21 @@ func init() {
 type EIPOConfig struct {
 	Base, Member, Login, Password string
 	Live                          bool
-	Version                       string // "v3" (empty) or "v1"
+	Version                       string // "v3" (empty), "v2" or "v1"
+	// v2 (advanced security) only: the firm's own key, which signs
+	// requests and opens replies, and NSE's public key for the firm, which
+	// seals requests and checks callbacks.
+	MemberKey *rsa.PrivateKey
+	NSEKey    *rsa.PublicKey
 }
 
 // path is an API path under the connection's version.
 func (c EIPOConfig) path(p string) string {
-	if c.Version == "v1" {
+	switch c.Version {
+	case "v1":
 		return "/v1" + p
+	case "v2":
+		return "/v2" + p
 	}
 	return "/v3" + p
 }
@@ -201,6 +214,11 @@ type eipoToken struct {
 }
 
 func (h nseEIPOHTTP) login(ctx context.Context, c EIPOConfig, fresh bool) (string, error) {
+	if c.Version == "v2" {
+		// v2 calls are authenticated by their signature and need no token;
+		// the APIs v2 does not cover go by v3, which logs in on /v3/login.
+		c.Version = "v3"
+	}
 	k := c.Base + "|" + c.Member + "|" + c.Login
 	if t, ok := eipoTokens.Load(k); ok && !fresh && time.Now().Before(t.(eipoToken).exp) {
 		return t.(eipoToken).tok, nil
@@ -227,8 +245,17 @@ func (h nseEIPOHTTP) login(ctx context.Context, c EIPOConfig, fresh bool) (strin
 	return r.Token, nil
 }
 
-// call sends one request, logging in (again, once) as needed.
+// call sends one request, logging in (again, once) as needed. On a v2
+// connection an API the protocol lists for advanced security goes sealed
+// and signed (callV2); any other goes by basic security under /v3.
 func (h nseEIPOHTTP) call(ctx context.Context, c EIPOConfig, method, path string, body any) ([]byte, error) {
+	if c.Version == "v2" {
+		api := strings.TrimPrefix(path, "/v2")
+		if eipoV2Covers(api) {
+			return h.callV2(ctx, c, method, path, body)
+		}
+		c.Version, path = "v3", "/v3"+api
+	}
 	var b []byte
 	if body != nil {
 		b, _ = json.Marshal(body)
@@ -463,6 +490,7 @@ type eipoConn struct {
 	token, cbPassword   string
 	asbaLocation        string
 	ips                 []string
+	keyErr              error // v2: what is wrong with the keys
 	send, master, allot bool
 	usable              bool // the login is entered
 }
@@ -478,8 +506,11 @@ func (o *Ops) eipoConnection(ctx context.Context, tenant string) (eipoConn, bool
 		base = u
 	}
 	ver := "v3"
-	if c.Values["version"] == eipoV1 {
+	switch c.Values["version"] {
+	case eipoV1:
 		ver = "v1"
+	case eipoV2:
+		ver = "v2"
 	}
 	x := eipoConn{cfg: EIPOConfig{Base: base, Member: strings.TrimSpace(c.Values["member"]), Login: strings.TrimSpace(c.Values["login"]), Password: c.Secrets["password"], Live: live, Version: ver},
 		asbaLocation: strings.ToUpper(strings.TrimSpace(c.Values["asba_location"])),
@@ -490,7 +521,10 @@ func (o *Ops) eipoConnection(ctx context.Context, tenant string) (eipoConn, bool
 			x.ips = append(x.ips, ip)
 		}
 	}
-	x.usable = x.cfg.Member != "" && x.cfg.Login != "" && x.cfg.Password != ""
+	if ver == "v2" {
+		x.cfg.MemberKey, x.cfg.NSEKey, x.keyErr = eipoV2Keys(c.Secrets, true)
+	}
+	x.usable = x.cfg.Member != "" && x.cfg.Login != "" && x.cfg.Password != "" && x.keyErr == nil
 	return x, true
 }
 
@@ -530,6 +564,9 @@ func (o *Ops) EIPOStatus(ctx context.Context, tenant string) EIPOView {
 		Version: firstOf(c.cfg.Version, "v3"), Banks: o.EIPOBankCodes(ctx, tenant), ASBALocation: c.asbaLocation}
 	if !c.usable {
 		v.Needs = "enter the eIPO member code, API user ID and password"
+		if c.keyErr != nil {
+			v.Needs = strings.TrimPrefix(c.keyErr.Error(), ErrInvalid.Error()+": ")
+		}
 	}
 	return v
 }
@@ -772,12 +809,26 @@ type EIPOCallbackResult struct {
 }
 
 // EIPOCallback takes NSE's eIPO callbacks (appdpstatus, apppaystatus,
-// notification; kind "" for an older single address). The address carries
-// the firm's callback token; NSE's Authorization header must match the
-// callback password; it must come from a listed address when addresses
-// are set. The message is kept as received.
+// notification; kind "" for an older single address) given only the
+// Authorization header; see EIPOCallbackHTTP.
 func (o *Ops) EIPOCallback(ctx context.Context, tenant, token, kind, auth, remote string, body []byte) (EIPOCallbackResult, error) {
+	h := http.Header{}
+	if auth != "" {
+		h.Set("Authorization", auth)
+	}
+	return o.EIPOCallbackHTTP(ctx, tenant, token, kind, h, remote, body)
+}
+
+// EIPOCallbackHTTP takes NSE's eIPO callbacks with their headers. The
+// address carries the firm's callback token; NSE's Authorization header
+// must match the callback password; it must come from a listed address
+// when addresses are set. On a v2 connection the callback must also be
+// sealed for the firm and signed with NSE's key (advanced security): one
+// that fails the check is refused and nothing in it is used. The message
+// is kept as received (decrypted, for v2).
+func (o *Ops) EIPOCallbackHTTP(ctx context.Context, tenant, token, kind string, h http.Header, remote string, body []byte) (EIPOCallbackResult, error) {
 	var res EIPOCallbackResult
+	auth := h.Get("Authorization")
 	conn, ok := o.eipoConnection(ctx, tenant)
 	if !ok || conn.token == "" {
 		return res, fmt.Errorf("%w: the NSE eIPO callback is not set up", ErrForbidden)
@@ -785,7 +836,10 @@ func (o *Ops) EIPOCallback(ctx context.Context, tenant, token, kind, auth, remot
 	if !hmac.Equal([]byte(strings.TrimSpace(token)), []byte(conn.token)) {
 		return res, fmt.Errorf("%w: the callback token does not match", ErrForbidden)
 	}
-	if kind != "" && conn.cbPassword != "" && !hmac.Equal([]byte(strings.TrimSpace(auth)), []byte(eipoCallbackAuth(conn.cbPassword))) {
+	v2 := conn.cfg.Version == "v2"
+	// In v2 NSE's signature authenticates the callback; the Authorization
+	// of the callback section is checked as well when NSE sends it.
+	if kind != "" && conn.cbPassword != "" && (!v2 || auth != "") && !hmac.Equal([]byte(strings.TrimSpace(auth)), []byte(eipoCallbackAuth(conn.cbPassword))) {
 		return res, fmt.Errorf("%w: the callback's Authorization does not match the callback password", ErrForbidden)
 	}
 	if len(conn.ips) > 0 {
@@ -796,6 +850,19 @@ func (o *Ops) EIPOCallback(ctx context.Context, tenant, token, kind, auth, remot
 		if !contains(conn.ips, host) {
 			return res, fmt.Errorf("%w: callbacks are taken only from the listed addresses", ErrForbidden)
 		}
+	}
+	if v2 {
+		if conn.keyErr != nil {
+			return res, fmt.Errorf("%w: the NSE eIPO connection is set to v2 but %s", ErrState, strings.TrimPrefix(conn.keyErr.Error(), ErrInvalid.Error()+": "))
+		}
+		if m := strings.TrimSpace(h.Get("member")); m != "" && !strings.EqualFold(m, eipoNSEIdent) {
+			return res, fmt.Errorf("%w: the callback's member header is %q, not NSE", ErrForbidden, m)
+		}
+		plain, err := eipoOpen(conn.cfg.MemberKey, conn.cfg.NSEKey, h, body, true, true)
+		if err != nil {
+			return res, fmt.Errorf("%w: the callback failed the v2 security check (%v); nothing in it was used", ErrForbidden, err)
+		}
+		body = plain
 	}
 	sum := sha256.Sum256(body)
 	if _, err := o.App.Ingest.Raw.Put(ctx, ingest.RawFile{Tenant: tenant, Source: "IPO-EIPO-CALLBACK", Name: "eipo-" + firstOf(kind, "callback") + "-" + o.now().Format("20060102T150405") + ".json", SHA256: hex.EncodeToString(sum[:]), Content: body}); err != nil {
