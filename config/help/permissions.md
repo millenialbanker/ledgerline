@@ -89,6 +89,7 @@ Checking UPI blocks with NSE Clearing | Ops maker, Ops checker, Risk manager
 Checking a backup | Ops checker, Compliance officer
 Checking a migration package | Admin
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
+Choosing CBRICS settlement accounts | Ops maker, Ops checker
 Claiming IPO commission | Ops checker
 Clearing cheques | Ops maker, Ops checker
 Client code modification | Ops maker, Ops checker
@@ -124,6 +125,7 @@ Editing message templates | Ops checker, Compliance officer
 Entering ASBA bank codes | Ops checker, Admin
 Entering a payout request | Ops maker, Ops checker, Branch staff, Authorised person
 Entering broker funds | Risk manager
+Entering corporate bond deals | Ops maker, Ops checker
 Entering delivery instructions | Ops maker, Ops checker, Branch staff
 Entering early pay-ins | Ops maker, Ops checker
 Entering margin pledge requests | Ops maker, Ops checker, Risk manager
@@ -156,6 +158,7 @@ Invoking pledges | Risk manager
 Invoking unpaid CUSPA securities for sale | Ops checker, Risk manager
 Issuing DIS books | Ops maker, Ops checker
 Joining a firm-wide board | Ops maker, Ops checker, Risk manager, Compliance officer
+Keeping CBRICS participants | Ops maker, Ops checker
 Loading DP accounts | Ops checker
 Loading MF files | Ops maker, Ops checker
 Loading brokerage rates | Ops checker
@@ -215,6 +218,7 @@ Raising CDSL requests | Ops maker, Ops checker
 Raising pledge invocations | Risk manager
 Raising stock SIP top-up debits | Ops maker, Ops checker
 Re-pledging clients' collateral | Ops maker, Risk manager
+Reading NSE CBRICS | Ops maker, Ops checker, Risk manager, Compliance officer
 Reading circulars with AI | Compliance officer
 Reading trades from NSE Clearing's NCMS | Ops maker, Ops checker, Risk manager
 Reconciling a migration | Ops checker, Compliance officer
@@ -285,12 +289,14 @@ See full client identifiers | Ops checker, Compliance officer
 Seeing mail sent to staff | Compliance officer, Admin
 Seeing the self-inspection | Ops maker, Ops checker, Risk manager, Compliance officer
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
+Sending CBRICS participants | Ops checker
 Sending IPO bids to the exchange | Ops maker, Ops checker
 Sending UCC to BSE | Ops maker, Ops checker
 Sending UCC to MCX | Ops maker, Ops checker
 Sending bulk messages | Ops checker, Compliance officer
 Sending clients to the exchange UCC | Ops maker, Ops checker
 Sending contract notes | Ops maker, Ops checker
+Sending corporate bond deals to CBRICS | Ops checker
 Sending demat requests to CDSL DESTAT | Ops checker
 Sending documents | Ops maker, Ops checker
 Sending early pay-ins | Ops checker

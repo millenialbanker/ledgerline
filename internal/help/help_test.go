@@ -153,6 +153,12 @@ func TestQuestions(t *testing.T) {
 		{"dealer nism certificate expired", "", "dealers-nism"},
 		{"who uses terminal 40001", "", "dealers-nism"},
 		{"bse dealer registration file", "", "dealers-nism"},
+		// Corporate bonds through CBRICS.
+		{"how do I report a client's otc bond deal to cbrics", "", "cbrics-deal"},
+		{"cbrics password expired", "", "cbrics-setup"},
+		{"client not on cbrics how to add", "", "cbrics-participants"},
+		{"why no ledger entry for bond deal", "", "cbrics-settlement"},
+		{"seller reported to client need to accept", "", "cbrics-confirm"},
 		// CDSL APIs.
 		{"open demat account through cdsl api", "", "cdsl-demat-api"},
 		{"bo id not received from cdsl", "", "cdsl-demat-api"},

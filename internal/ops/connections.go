@@ -288,6 +288,11 @@ func (o *Ops) SaveConnection(ctx context.Context, tenant, actor, id string, valu
 			return ConnectionView{}, err
 		}
 	}
+	if id == connCBRICS {
+		if err := checkCBRICSConn(nc); err != nil {
+			return ConnectionView{}, err
+		}
+	}
 	if id == "sms" {
 		if err := checkSMSConn(nc); err != nil {
 			return ConnectionView{}, err
@@ -391,6 +396,8 @@ func (o *Ops) TestConnection(ctx context.Context, tenant, actor, id string) (Con
 		status, problem = o.bowTest(ctx, tenant, c)
 	case id == connFinspotAPI: // the sign-in
 		status, problem = o.finspotAPITest(ctx, tenant, c)
+	case id == connCBRICS: // the login, then logout
+		status, problem = o.cbricsTest(ctx, tenant)
 	case p.Test == "https" && c.Values["url"] != "":
 		status, problem = o.checkAddress(ctx, c.Values["url"])
 	case id == connVerify && verifyBases[c.Values["provider"]][0] != "":
