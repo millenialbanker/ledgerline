@@ -21,9 +21,12 @@ type Alert struct {
 	Name     string   `json:"name,omitempty"`
 	Detail   string   `json:"detail"`
 	Severity string   `json:"severity"` // High, Medium, Low
-	Status   string   `json:"status"`   // Open, Under review, Closed, STR filed
+	Status   string   `json:"status"`   // Open, Under review, Closed, STR to file, STR filed
 	Notes    []string `json:"notes"`
 	Owner    string   `json:"owner,omitempty"`
+	// STR is the suspicious transaction report decided on the alert and
+	// its filing on FIU-IND's FINGate (fingate.go).
+	STR *AlertSTR `json:"str,omitempty"`
 }
 
 var sevRank = map[string]int{"High": 0, "Medium": 1, "Low": 2}
@@ -127,7 +130,10 @@ func (o *Ops) RunRules(ctx context.Context, tenant, actor, date string) (int, er
 	return n, nil
 }
 
-// ActOnAlert moves an alert: review, close (with rationale) or str.
+// ActOnAlert moves an alert: review, close (with rationale), str (the
+// Principal Officer decides to report it: the STR is then due on FINGate
+// within 7 working days, PML Rules 8(2)) or filed (the FINGate batch and
+// report IDs, once submitted).
 func (o *Ops) ActOnAlert(ctx context.Context, tenant, actor, id, action, note string) (Alert, error) {
 	roles := []string{RoleCompliance}
 	if action == "review" {
@@ -139,9 +145,21 @@ func (o *Ops) ActOnAlert(ctx context.Context, tenant, actor, id, action, note st
 	if (action == "close" || action == "str") && strings.TrimSpace(note) == "" {
 		return Alert{}, invalid("record the rationale before closing or filing")
 	}
+	if action == "filed" && strings.TrimSpace(note) == "" {
+		return Alert{}, invalid("give the FINGate batch ID and report ID")
+	}
+	set, _ := o.Settings(ctx, tenant)
+	now := o.now()
+	today := now.In(ist).Format("2006-01-02")
 	a, err := docs.Update(ctx, o.Docs, tenant, cAlert, id, actor, func(x *Alert) error {
 		if x.Status == "Closed" || x.Status == "STR filed" {
 			return fmt.Errorf("%w: alert is already %s", ErrState, x.Status)
+		}
+		if (x.Status == "STR to file") != (action == "filed") {
+			if action == "filed" {
+				return fmt.Errorf("%w: decide the STR first", ErrState)
+			}
+			return fmt.Errorf("%w: the STR is decided; record its filing on FINGate", ErrState)
 		}
 		switch action {
 		case "review":
@@ -149,7 +167,15 @@ func (o *Ops) ActOnAlert(ctx context.Context, tenant, actor, id, action, note st
 		case "close":
 			x.Status = "Closed"
 		case "str":
+			x.Status = "STR to file"
+			due := today
+			for i := 0; i < strDueWorkingDays; i++ {
+				due = set.NextBusinessDay(due)
+			}
+			x.STR = &AlertSTR{DecidedOn: today, DecidedBy: actor, Due: due, Grounds: strings.TrimSpace(note), From: x.Date, To: x.Date}
+		case "filed":
 			x.Status = "STR filed"
+			x.STR.Filing, x.STR.FiledOn, x.STR.FiledBy = strings.TrimSpace(note), today, actor
 		default:
 			return invalid("unknown action %q", action)
 		}
@@ -163,6 +189,16 @@ func (o *Ops) ActOnAlert(ctx context.Context, tenant, actor, id, action, note st
 	}
 	if err == nil {
 		o.log(ctx, tenant, actor, "alert."+action, id, map[string]any{"note": note})
+		switch action {
+		case "str":
+			// No client name: an STR is confidential (PMLA s.12) and only
+			// compliance sees the item.
+			o.raiseWork(ctx, tenant, "aml", "str-"+id, "STR to file on FINGate: alert "+id,
+				"The Principal Officer decided to report alert "+id+" to FIU-IND. Download the FINGate upload from Surveillance & AML, upload it on FINGate 2.0 (Bulk Data Upload), create and sign the batch, then record the batch ID and report ID on the alert. Due within 7 working days of the decision (PML Rules 8(2)).",
+				"", RoleCompliance, "surveillance", a.STR.Due)
+		case "filed":
+			o.closeWork(ctx, tenant, actor, "aml", "str-"+id, "filed on FINGate: "+a.STR.Filing)
+		}
 	}
 	return a, err
 }
