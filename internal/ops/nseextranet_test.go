@@ -243,3 +243,47 @@ func TestExtranetSharedLogin(t *testing.T) {
 		t.Fatalf("work item after the fix %+v", w)
 	}
 }
+
+func TestExtranetBetaAPI(t *testing.T) {
+	o, ctx := setup(t)
+	day := time.Date(2026, 11, 18, 19, 0, 0, 0, ist)
+	o.Now = func() time.Time { return day }
+	var seen []string
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/auth/login" {
+			w.Write([]byte(`{"memberCode":"12345","responseCode":["601"],"loginId":"llapi","token":"beta-tok","status":"success"}`))
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer beta-tok" || r.Header.Get("MemberCode") != "12345" || r.Header.Get("LoginId") != "llapi" {
+			w.WriteHeader(401)
+			w.Write([]byte(`{"responseCode":["802"]}`))
+			return
+		}
+		seen = append(seen, r.URL.Path+"?"+r.URL.Query().Get("segment"))
+		switch r.URL.Path {
+		case "/NSEextranet-api/member/content/v2":
+			w.Write([]byte(`{"timestamp":"2026-11-18T13:06:07Z","responseCode":["601"],"responseDesc":"Success","data":[
+				{"folderPath":"12345","name":"cdsftp_12345_note.txt","type":"File","lastUpdated":"18-11-2026 17:27:07"}]}`))
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer srv.Close()
+	old := extranetHTTP
+	extranetHTTP = srv.Client()
+	defer func() { extranetHTTP = old }()
+	vals := map[string]string{"member": "12345", "login": "llapi", "network": "Internet", "segments": "CD, MFSS", "service": "Extranet Beta API (NSE/MSD/77087)",
+		"folders": "member:/", "fetch": "On", "url": srv.URL}
+	if _, err := o.SaveConnection(ctx, T, "admin", connNSEExtranet, vals, map[string]string{"password": "Nsejan@123", "api_key": "XBaNb0xmK2TNRIfcHA3F306Oi14HWAeYmtUd0qRheTc="}); err != nil {
+		t.Fatal(err)
+	}
+	run, err := o.ExtranetFetch(ctx, T, "priya.nair", "")
+	if err != nil || run.Looked != 2 || run.Unknown != 2 {
+		t.Fatalf("run %+v %v", run, err)
+	}
+	// Currency goes as CDS, as the Beta API names it.
+	if len(seen) != 2 || seen[0] != "/NSEextranet-api/member/content/v2?CDS" || seen[1] != "/NSEextranet-api/member/content/v2?MFSS" {
+		t.Fatalf("calls %v", seen)
+	}
+}

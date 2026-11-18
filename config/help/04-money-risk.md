@@ -339,7 +339,7 @@ Ledgerline then asks for client margins every 5 minutes, for the clearing and tr
 title: Fetch NSE's files automatically from the extranet
 screen: xfiles
 roles: Admin, Ops maker
-ask: nse extranet api; extranet download; download nse files automatically; onlinebackup; trade file from extranet; udiff trade file download; extranet secret key; extranet registration; member portal extranet; common folder; extranet error 701; extranet error 803; extranet login used elsewhere; extranet sub-user; extranet debt segment; extranet fetch stopped
+ask: nse extranet api; extranet download; download nse files automatically; onlinebackup; trade file from extranet; udiff trade file download; extranet secret key; extranet registration; member portal extranet; common folder; extranet error 701; extranet error 803; extranet login used elsewhere; extranet sub-user; extranet debt segment; extranet fetch stopped; extranet beta api; nse extranet beta
 related: nse-trade-api, connections
 
 Instead of someone downloading the day's files from the NSE extranet and uploading them, Ledgerline can fetch them itself through NSE's extranet API and load each one it reads, just as an uploaded file is loaded.
@@ -347,6 +347,8 @@ Instead of someone downloading the day's files from the NSE extranet and uploadi
 1. On NSE's Member Portal, register for the Extranet API (the help file is in NSE circular MSD55065). Set a password; NSE emails the login ID and a secret key. The admin user must give that login access to the segments (and to common files, if wanted).
 2. On [[connections|Connections]] (Admin), open **NSE extranet API**: enter the member code, login ID, password and secret key, Internet or lease line, the segments (any of CM, FO, CD, CO, SLB and DEBT, as the admin user gave the login), and turn **Fetch new files automatically** on.
 3. **Folders to look in** defaults to `member:/Onlinebackup, member:/Reports` (the day's trade files and reports). Add `common:/…` folders for common files.
+
+NSE's new **Extranet Beta API** (NSE/MSD/77087, in UAT until NSE gives a go-live date) is a choice on the same connection (**Extranet service**). It uses the same login and folders, at NSE's new addresses, and adds the MFSS, WDM and EGR segments. Like the current API it only lists and downloads files.
 
 Every 15 minutes (not from 05:00 to 06:30, NSE's maintenance hour) Ledgerline logs in, looks through those folders and two levels below them, and downloads each file of the day that it reads and has not already fetched. Files it does not read are left on the extranet. The API only lists and downloads files; uploads to NSE still go through the portal.
 

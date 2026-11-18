@@ -269,7 +269,7 @@ func (o *Ops) SaveConnection(ctx context.Context, tenant, actor, id string, valu
 		}
 	}
 	if id == connNSEExtranet {
-		if err := checkExtranetSegments(nc.Values["segments"]); err != nil {
+		if err := checkExtranetSegments(nc.Values["segments"]); err != nil && !strings.HasPrefix(nc.Values["service"], "Extranet Beta") {
 			return ConnectionView{}, err
 		}
 	}

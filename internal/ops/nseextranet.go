@@ -65,6 +65,49 @@ const (
 // can give a login (FAQ on Extranet API v6.0, March 2026, Q12).
 var extranetSegments = []string{"CM", "FO", "CD", "CO", "SLB", "DEBT"}
 
+// extranetBetaSegments are the Beta API's; it names currency CDS and
+// commodity COM.
+var extranetBetaSegments = []string{"CM", "FO", "CD", "CO", "SLB", "DEBT", "MFSS", "WDM", "EGR", "CDS", "COM"}
+
+// NSE Extranet Beta API (NSE/MSD/77087, 26 Oct 2026): the same six calls
+// at new addresses (/auth/login; /NSEextranet-api/<member|common>/content/v2
+// and /file/download, which also takes a date and then gives the whole
+// folder's day as a zip), with MemberCode and LoginId headers. UAT only
+// until NSE gives the go-live date.
+const extranetBetaUAT = "https://extranetuat.nseindia.com"
+
+// path is the address of a call: login, logout, content or download.
+func (x extranetConn) path(kind, op string) string {
+	if x.beta {
+		switch op {
+		case "login":
+			return "/auth/login"
+		case "logout":
+			return "/auth/logout"
+		case "content":
+			return "/NSEextranet-api/" + kind + "/content/v2"
+		}
+		return "/NSEextranet-api/" + kind + "/file/download"
+	}
+	switch op {
+	case "login":
+		return "/login/" + x.version
+	case "logout":
+		return "/logout/" + x.version
+	case "content":
+		return "/" + kind + "/content/" + x.version
+	}
+	return "/" + kind + "/file/download/" + x.version
+}
+
+// seg is a segment as the service names it.
+func (x extranetConn) seg(s string) string {
+	if x.beta {
+		return firstOf(map[string]string{"CD": "CDS", "CO": "COM"}[s], s)
+	}
+	return s
+}
+
 // errExtranetShared: NSE keeps only the newest token of a login valid, one
 // login at a time (FAQ Q14). A token replaced again and again means another
 // program logs in with the same Extranet API login, so the run stops and
@@ -84,7 +127,8 @@ func init() {
 			{Key: "password", Label: "Extranet API password (set at registration)", Secret: true}, {Key: "api_key", Label: "Secret key (from NSE's email)", Secret: true},
 			{Key: "network", Label: "Network", Options: []string{"Internet", "Lease line"}},
 			{Key: "version", Label: "API version", Options: []string{"2.0", "1.0"}, Optional: true},
-			{Key: "segments", Label: "Segments (any of CM, FO, CD, CO, SLB, DEBT, comma separated)", Placeholder: "CM, FO"},
+			{Key: "service", Label: "Extranet service", Options: []string{"Extranet API", "Extranet Beta API (NSE/MSD/77087)"}, Optional: true},
+			{Key: "segments", Label: "Segments (any of CM, FO, CD, CO, SLB, DEBT; with the Beta API also MFSS, WDM, EGR; comma separated)", Placeholder: "CM, FO"},
 			{Key: "folders", Label: "Folders to look in (member: or common:, comma separated)", Optional: true, Placeholder: "member:/Onlinebackup, member:/Reports"},
 			{Key: "fetch", Label: "Fetch new files automatically", Options: []string{"On", "Off"}},
 			{Key: "url", Label: "Address (leave empty for NSE's)", Optional: true, Placeholder: extranetLive}, fNotes}})
@@ -126,6 +170,7 @@ type ExtranetFile struct {
 }
 
 type extranetConn struct {
+	beta                                        bool // NSE Extranet Beta API (spec v1, 24 Sep 2026)
 	base, version, member, login, password, key string
 	segments                                    []string
 	folders                                     [][2]string // kind, path
@@ -148,10 +193,21 @@ func parseExtranetConn(c Connection) (extranetConn, error) {
 	if x.member == "" || x.login == "" || x.password == "" || x.key == "" {
 		return x, invalid("the NSE extranet connection needs the member code, login ID, password and secret key")
 	}
-	if err := checkExtranetSegments(c.Values["segments"]); err != nil {
+	x.beta = strings.HasPrefix(c.Values["service"], "Extranet Beta")
+	if err := checkExtranetSegments(c.Values["segments"]); err != nil && !x.beta {
 		return x, err
 	}
+	if x.beta {
+		for _, seg := range x.segments {
+			if !contains(extranetBetaSegments, seg) {
+				return x, invalid("the NSE Extranet Beta API segments are CM, FO, CD (CDS), CO (COM), SLB, DEBT, MFSS, WDM and EGR; %s is not one of them", seg)
+			}
+		}
+	}
 	x.base = extranetLive
+	if x.beta {
+		x.base = extranetBetaUAT
+	}
 	if c.Values["network"] == "Lease line" {
 		x.base = extranetLease
 	}
@@ -258,6 +314,10 @@ func (x extranetConn) do(ctx context.Context, method, p, token string, body any)
 	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
+		if x.beta {
+			req.Header.Set("MemberCode", x.member)
+			req.Header.Set("LoginId", x.login)
+		}
 	}
 	resp, err := extranetHTTP.Do(req)
 	if err != nil {
@@ -276,7 +336,7 @@ func (o *Ops) extranetLogin(ctx context.Context, x extranetConn, st *ExtranetSta
 	if err != nil {
 		return "", err
 	}
-	code, _, b, err := x.do(ctx, http.MethodPost, "/login/"+x.version, "", map[string]string{"memberCode": x.member, "loginId": x.login, "password": pw})
+	code, _, b, err := x.do(ctx, http.MethodPost, x.path("", "login"), "", map[string]string{"memberCode": x.member, "loginId": x.login, "password": pw})
 	if err != nil {
 		return "", err
 	}
@@ -494,8 +554,8 @@ func (o *Ops) ExtranetFetch(ctx context.Context, tenant, actor, date string) (Ex
 	for len(queue) > 0 && len(run.Fetched) < extranetPerRun {
 		f := queue[0]
 		queue = queue[1:]
-		q := url.Values{"segment": {f.seg}, "folderPath": {f.path}}
-		code, _, b, err := get("/" + f.kind + "/content/" + x.version + "?" + q.Encode())
+		q := url.Values{"segment": {x.seg(f.seg)}, "folderPath": {f.path}}
+		code, _, b, err := get(x.path(f.kind, "content") + "?" + q.Encode())
 		run.Looked++
 		if errors.Is(err, errExtranetShared) {
 			return shared(err)
@@ -530,8 +590,8 @@ func (o *Ops) ExtranetFetch(ctx context.Context, tenant, actor, date string) (Ex
 			if len(run.Fetched) >= extranetPerRun {
 				break
 			}
-			dq := url.Values{"segment": {f.seg}, "folderPath": {f.path}, "filename": {e.Name}}
-			code, h, data, err := get("/" + f.kind + "/file/download/" + x.version + "?" + dq.Encode())
+			dq := url.Values{"segment": {x.seg(f.seg)}, "folderPath": {f.path}, "filename": {e.Name}}
+			code, h, data, err := get(x.path(f.kind, "download") + "?" + dq.Encode())
 			if errors.Is(err, errExtranetShared) {
 				return shared(err)
 			}
@@ -654,8 +714,8 @@ func (o *Ops) ExtranetBrowse(ctx context.Context, tenant, actor, seg, kind, fold
 		return nil, err
 	}
 	_ = docs.Upsert(ctx, o.Docs, tenant, cExtranetState, "state", st, SystemActor)
-	q := url.Values{"segment": {strings.ToUpper(seg)}, "folderPath": {firstOf(strings.ReplaceAll(folder, "\\", "/"), "/")}}
-	code, _, b, err := x.do(ctx, http.MethodGet, "/"+kind+"/content/"+x.version+"?"+q.Encode(), tok, nil)
+	q := url.Values{"segment": {x.seg(strings.ToUpper(seg))}, "folderPath": {firstOf(strings.ReplaceAll(folder, "\\", "/"), "/")}}
+	code, _, b, err := x.do(ctx, http.MethodGet, x.path(kind, "content")+"?"+q.Encode(), tok, nil)
 	if err != nil {
 		return nil, err
 	}
