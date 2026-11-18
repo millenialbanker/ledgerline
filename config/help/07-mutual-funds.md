@@ -37,7 +37,7 @@ What goes through the API and what is done on the platform's own site:
 - NSE: client registration, purchases, redemptions, switches, order cancellation and XSIP registration go through the API. XSIP cancellation and pauses, and mandates, are done on NSE's site and recorded here.
 - Order status, allotment and mandate status come from the platforms' report files (see "Load the platforms' and RTAs' files").
 
-Switch on **Check orders during the day** on a connection for Ledgerline to ask the platform every 30 minutes for what its API offers.
+Switch on **Check orders during the day** on a connection for Ledgerline to ask the platform every 30 minutes for what its API offers. On NSE MF Invest that is the order status report, the allotment statement (units, NAV and folio go on the order) and the mandate status report (NSE's protocol v1.9.8), so none of these files needs loading by hand.
 
 ## mf-register-client
 title: Register a client for mutual funds

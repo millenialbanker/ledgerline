@@ -37,6 +37,8 @@ type nseFake struct {
 	seq   int
 	// fail makes the next answer for a path a failure with this remark.
 	fail map[string]string
+	// reports are the rows each report gives (none: "No Record Found").
+	reports map[string][]map[string]any
 }
 
 func (f *nseFake) last(path string) map[string]string {
@@ -76,6 +78,22 @@ func newNSEFake(t *testing.T) (*nseFake, *httptest.Server) {
 			return
 		}
 		path := strings.TrimPrefix(r.URL.Path, "/nsemfdesk/api/v2/")
+		if strings.HasPrefix(path, "reports/") {
+			// The reports (v1.9.8): a flat request, report_data back.
+			var q map[string]string
+			json.NewDecoder(r.Body).Decode(&q)
+			f.mu.Lock()
+			f.calls = append(f.calls, nseCall{path, q})
+			rows := f.reports[path]
+			f.mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			if rows == nil {
+				json.NewEncoder(w).Encode(map[string]any{"response_status": "F", "report_data_total": "0", "report_data": "", "error_remark": "No Record Found"})
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]any{"response_status": "S", "report_data_total": fmt.Sprint(len(rows)), "report_data": rows, "error_remark": ""})
+			return
+		}
 		var body map[string][]map[string]string
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			w.WriteHeader(400)

@@ -25,7 +25,10 @@ import (
 // ---- NSE MF Invest ----
 //
 // Built from NSE's "Protocol for Non-NEAT Front End (NNF) Mutual Funds
-// Service System" v1.9.7 (June 2026),
+// Service System" v1.9.7 (June 2026), checked against v1.9.8 (August 2026:
+// the 183-column fields are unchanged; the order status, mandate status and
+// allotment statement reports are now read by API; Bank ELog upload, which
+// Ledgerline did not use, is withdrawn),
 // https://nseinvestuat.nseindia.com/nsemfdesk/resources/upload/apidetails/NSEMF_API_Details_V1.9.7.pdf
 // (pages 1-54 of the public copy could be read), and NSE's API FAQ
 // (https://nsearchives.nseindia.com/web/sites/default/files/inline-files/NSE%20INVEST%20API%20FAQ_310725.pdf).
@@ -160,12 +163,16 @@ func nseMFDecrypt(enc, licenseKey string) (string, error) {
 	return string(out[:len(out)-p]), nil
 }
 
-func (nseMFInvest) post(ctx context.Context, cn mfConn, path, list string, rows []map[string]string) (map[string]any, error) {
+func (n nseMFInvest) post(ctx context.Context, cn mfConn, path, list string, rows []map[string]string) (map[string]any, error) {
+	return n.postJSON(ctx, cn, path, map[string]any{list: rows})
+}
+
+func (nseMFInvest) postJSON(ctx context.Context, cn mfConn, path string, payload any) (map[string]any, error) {
 	pw, err := nseMFPassword(cn.Secret, cn.LicenseKey, nseMFRand)
 	if err != nil {
 		return nil, err
 	}
-	body, _ := json.Marshal(map[string]any{list: rows})
+	body, _ := json.Marshal(payload)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cn.Base+nseMFAPI+path, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -451,14 +458,106 @@ func (nseMFInvest) RegisterMandate(context.Context, mfConn, mfMandateReq) (mfRep
 	return mfReply{}, mfNoAPI(MFNSE, "mandate registration", "the mandate registration API's section of NSE's specification could not be read; register the mandate on NSE MF Invest and record it here")
 }
 
-func (nseMFInvest) MandateStatus(context.Context, mfConn, string, string) ([]mfMandateRow, error) {
-	return nil, mfNoAPI(MFNSE, "mandate status", "the mandate status report API's section could not be read; load NSE's mandate report through MF imports")
+// nseReport posts a report request and returns its rows ("report_data").
+func (n nseMFInvest) nseReport(ctx context.Context, cn mfConn, path string, req map[string]string) ([]map[string]any, error) {
+	m, err := n.postJSON(ctx, cn, path, req)
+	if err != nil {
+		return nil, err
+	}
+	if !strings.EqualFold(nseStr(m["response_status"]), "S") {
+		why := nseStr(m["error_remark"])
+		if strings.Contains(strings.ToUpper(why), "NO RECORD") || strings.Contains(strings.ToUpper(why), "NO DATA") {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("NSE MF Invest's %s report: %s", path, firstOf(why, "failed"))
+	}
+	var out []map[string]any
+	if rows, ok := m["report_data"].([]any); ok {
+		for _, r := range rows {
+			if x, ok := r.(map[string]any); ok {
+				out = append(out, x)
+			}
+		}
+	}
+	return out, nil
 }
 
-func (nseMFInvest) OrderStatus(context.Context, mfConn, string, string) ([]mfStatusRow, error) {
-	return nil, mfNoAPI(MFNSE, "order status", "the order status report API's section could not be read; load NSE's order status report through MF imports")
+// nseSpans splits from..to (YYYY-MM-DD) into spans of at most days days.
+func nseSpans(from, to string, days int) [][2]time.Time {
+	f, err1 := time.Parse("2006-01-02", from)
+	t, err2 := time.Parse("2006-01-02", to)
+	if err1 != nil || err2 != nil || t.Before(f) {
+		return nil
+	}
+	var out [][2]time.Time
+	for s := f; !s.After(t); s = s.AddDate(0, 0, days) {
+		e := s.AddDate(0, 0, days-1)
+		if e.After(t) {
+			e = t
+		}
+		out = append(out, [2]time.Time{s, e})
+	}
+	return out
 }
 
-func (nseMFInvest) Allotments(context.Context, mfConn, string, string) ([]mfAllotRow, error) {
-	return nil, mfNoAPI(MFNSE, "allotment statement", "the allotment statement API's section could not be read; load NSE's allotment statement through MF imports")
+// MandateStatus reads the mandate status report (reports/MANDATE_STATUS).
+func (n nseMFInvest) MandateStatus(ctx context.Context, cn mfConn, from, to string) ([]mfMandateRow, error) {
+	var out []mfMandateRow
+	for _, sp := range nseSpans(from, to, 30) {
+		rows, err := n.nseReport(ctx, cn, "reports/MANDATE_STATUS", map[string]string{"mandate_id": "", "client_code": "", "from_date": sp[0].Format("2006-01-02"), "to_date": sp[1].Format("2006-01-02"), "memberMandateIds": ""})
+		if err != nil {
+			return out, err
+		}
+		for _, r := range rows {
+			out = append(out, mfMandateRow{MandateID: strings.TrimSpace(nseStr(r["mandateId"])), UMRN: strings.TrimSpace(nseStr(r["umrnNo"])), Status: strings.TrimSpace(nseStr(r["status"])), Remark: strings.TrimSpace(nseStr(r["remarks"]))})
+		}
+	}
+	return out, nil
+}
+
+// OrderStatus reads the order status report (reports/ORDER_STATUS, at
+// most 7 days a request). An allotment is left to the allotment
+// statement, which carries the units.
+func (n nseMFInvest) OrderStatus(ctx context.Context, cn mfConn, from, to string) ([]mfStatusRow, error) {
+	var out []mfStatusRow
+	for _, sp := range nseSpans(from, to, 7) {
+		rows, err := n.nseReport(ctx, cn, "reports/ORDER_STATUS", map[string]string{"from_date": sp[0].Format("2006-01-02"), "to_date": sp[1].Format("2006-01-02"),
+			"trans_type": "ALL", "order_type": "ALL", "sub_order_type": "ALL", "client_code": "", "order_status": "", "settlement_type": "", "order_ids": "", "member_unique_ids": ""})
+		if err != nil {
+			return out, err
+		}
+		for _, r := range rows {
+			st, remark := strings.ToUpper(strings.TrimSpace(nseStr(r["order_status"]))), strings.TrimSpace(nseStr(r["order_remark"]))
+			status := remark
+			switch {
+			case st == "INVALID":
+				status = "REJECTED"
+			case strings.Contains(strings.ToUpper(remark), "ALLOT"):
+				status = "" // the allotment statement records it with the units
+			}
+			out = append(out, mfStatusRow{OrderNo: strings.TrimSpace(nseStr(r["order_id"])), Status: status, Remark: remark})
+		}
+	}
+	return out, nil
+}
+
+// Allotments reads the allotment statement (reports/ALLOTMENT_STATEMENT,
+// by allotment date, at most 30 days a request, dates DD-MM-YYYY).
+func (n nseMFInvest) Allotments(ctx context.Context, cn mfConn, from, to string) ([]mfAllotRow, error) {
+	var out []mfAllotRow
+	for _, sp := range nseSpans(from, to, 30) {
+		rows, err := n.nseReport(ctx, cn, "reports/ALLOTMENT_STATEMENT", map[string]string{"order_ids": "", "from_date": sp[0].Format("02-01-2006"), "to_date": sp[1].Format("02-01-2006"),
+			"order_type": "ALL", "sub_order_type": "ALL", "client_code": "", "transaction_type": "", "order_status": "", "settlement_type": "", "date_type": "ALT_DATE", "member_unique_ids": ""})
+		if err != nil {
+			return out, err
+		}
+		for _, r := range rows {
+			if !strings.EqualFold(strings.TrimSpace(nseStr(r["validflag"])), "Y") {
+				continue
+			}
+			out = append(out, mfAllotRow{OrderNo: strings.TrimSpace(nseStr(r["orderno"])), Units: strings.TrimSpace(nseStr(r["allottedqty"])), NAV: strings.TrimSpace(nseStr(r["allottednav"])),
+				Amount: strings.TrimSpace(nseStr(r["allotmentamt"])), Date: strings.TrimSpace(nseStr(r["reportdate"])), Folio: strings.TrimSpace(nseStr(r["foliono"]))})
+		}
+	}
+	return out, nil
 }

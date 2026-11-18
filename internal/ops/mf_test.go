@@ -838,26 +838,37 @@ func TestMFPolling(t *testing.T) {
 	e.register(t, ucc)
 	a, _ := o.PlaceMFOrder(ctx, T, e.maker, MFOrderInput{UCC: ucc, Platform: "NSE", Type: "Purchase", ISIN: isinBlueReg, Amount: "3000"})
 	b, _ := o.PlaceMFOrder(ctx, T, e.maker, MFOrderInput{UCC: ucc, Platform: "NSE", Type: "Purchase", ISIN: isinBlueReg, Amount: "4000"})
-	// The real connectors say what they cannot do, once per call.
-	o.mfTick(ctx, T, at("2026-10-29 10:00"))
-	st, _, _ := docs.Get[MFPollState](ctx, o.Docs, T, cMFState, "poll-NSE")
-	if len(st.NoAPI) != 3 || st.LastError != "" {
-		t.Fatalf("poll state %+v", st)
+	// NSE's reports by API (v1.9.8): the order status report moves an
+	// order on, the allotment statement records units, the mandate report
+	// approves a mandate.
+	e.nse.mu.Lock()
+	e.nse.reports = map[string][]map[string]any{
+		"reports/ORDER_STATUS": {{"order_id": a.OrderNo, "order_status": "VALID", "order_remark": "PAYMENT CONFIRMATION PENDING"}, {"order_id": "nobody", "order_status": "VALID", "order_remark": "X"}},
+		"reports/ALLOTMENT_STATEMENT": {{"orderno": b.OrderNo, "reportdate": "2026-10-30", "allottednav": "52.41", "allottedqty": "76.32", "allotmentamt": "4000.00",
+			"foliono": "F123", "validflag": "Y"}, {"orderno": "nobody", "validflag": "N"}},
 	}
-	old := mfPlatforms["NSE"]
-	defer func() { mfPlatforms["NSE"] = old }()
-	mfPlatforms["NSE"] = fakePlatform{mfPlatform: old, status: []mfStatusRow{{OrderNo: a.OrderNo, Status: "PAYMENT CONFIRMATION PENDING"}, {OrderNo: "nobody", Status: "X"}},
-		allot: []mfAllotRow{{OrderNo: b.OrderNo, Units: "76.32", NAV: "52.41", Date: "2026-10-30"}}}
-	o.mfTick(ctx, T, at("2026-10-29 10:20")) // within 30 minutes: nothing
-	o.mfTick(ctx, T, at("2026-10-29 10:31"))
+	e.nse.mu.Unlock()
+	o.mfTick(ctx, T, at("2026-10-29 10:00"))
 	x, _, _ := docs.Get[MFOrder](ctx, o.Docs, T, cMF, a.ID)
 	y, _, _ := docs.Get[MFOrder](ctx, o.Docs, T, cMF, b.ID)
 	if x.PlatformStat != "PAYMENT CONFIRMATION PENDING" || x.Status != MFPlaced || y.Status != MFAllotted || y.Allotted.String() != "76.32" {
 		t.Fatalf("after polling %+v %+v", x, y)
 	}
-	st, _, _ = docs.Get[MFPollState](ctx, o.Docs, T, cMFState, "poll-NSE")
-	if len(st.NoAPI) != 0 || st.Applied != 2 {
+	st, _, _ := docs.Get[MFPollState](ctx, o.Docs, T, cMFState, "poll-NSE")
+	if len(st.NoAPI) != 0 || st.LastError != "" || st.Applied != 2 {
 		t.Fatalf("poll state %+v", st)
+	}
+	if call := e.nse.last("reports/ORDER_STATUS"); call["trans_type"] != "ALL" || call["from_date"] == "" {
+		t.Fatalf("order status request %v", call)
+	}
+	if call := e.nse.last("reports/ALLOTMENT_STATEMENT"); call["date_type"] != "ALT_DATE" || len(call["from_date"]) != 10 || call["from_date"][2] != '-' {
+		t.Fatalf("allotment request %v", call)
+	}
+	// Within 30 minutes nothing is asked again.
+	n := len(e.nse.calls)
+	o.mfTick(ctx, T, at("2026-10-29 10:20"))
+	if len(e.nse.calls) != n {
+		t.Fatal("polled again within 30 minutes")
 	}
 	v, err := o.MFStatus(ctx, T)
 	if err != nil || len(v.Platforms) != 2 || v.Schemes != 5 || v.NAV.NAVDate != "2026-10-28" || v.Platforms[1].Connection != "Saved" {
