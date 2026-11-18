@@ -138,7 +138,7 @@ const NAV = [
   ['Risk', [['@riskg'], ['@collg'], ['@debtg'], ['mtf', 'Margin trading (MTF)']]],
   ['Accounts', [['ledger', 'Ledger'], ['@moneyg'], ['books', 'Firm accounts & GST'], ['@brokg']]],
   ['Compliance', [['@regg'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['deceased', 'Deceased clients'], ['selfinspect', 'Self-inspection'], ['inspack', 'Inspection packs'], ['audit', 'Audit trail']]],
-  ['Investments', [['ipo', 'IPO & public issues'], ['@mfg'], ['stocksip', 'Stock SIPs']]],
+  ['Investments', [['ipo', 'IPO & public issues'], ['rfq', 'Bonds (RFQ deals)'], ['@mfg'], ['stocksip', 'Stock SIPs']]],
   ['Depository', [['@dpg']]],
   ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['@partnersg']]],
   ['Admin', [['connections', 'Connections'], ['backups', 'Backups'], ['settings', 'Settings'], ['layout', 'Screen layout']]]];

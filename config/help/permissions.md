@@ -105,6 +105,7 @@ Creating a limit override | Ops maker, Risk manager, Branch staff, Authorised pe
 Crediting dividends | Ops checker
 DP billing | Ops checker
 DP requests | Ops maker, Ops checker, Compliance officer, Branch staff
+Deciding RFQ deal amendments | Ops checker
 Deciding a pledge request | Ops maker, Ops checker, Risk manager
 Deciding a reported death | Compliance officer
 Deciding whether a circular applies | Compliance officer
@@ -207,6 +208,7 @@ Preparing STRs for FINGate | Compliance officer
 Preparing margin penalties | Ops checker, Risk manager, Compliance officer
 Preparing the client money reconciliation | Ops maker, Ops checker
 Producing the payout bank file | Ops maker, Ops checker
+Proposing RFQ deal confirmations | Ops maker, Ops checker
 Proposing a migration load | Admin
 Proposing legacy debts | Ops maker, Ops checker, Risk manager, Compliance officer
 Pushing limits to BOW | Risk manager
@@ -215,6 +217,7 @@ Raising CDSL requests | Ops maker, Ops checker
 Raising pledge invocations | Risk manager
 Raising stock SIP top-up debits | Ops maker, Ops checker
 Re-pledging clients' collateral | Ops maker, Risk manager
+Reading RFQ deals from NSE | Ops maker, Ops checker
 Reading circulars with AI | Compliance officer
 Reading trades from NSE Clearing's NCMS | Ops maker, Ops checker, Risk manager
 Reconciling a migration | Ops checker, Compliance officer
@@ -226,6 +229,7 @@ Recording MF allotments | Ops maker, Ops checker
 Recording MF mandates | Ops maker, Ops checker
 Recording MTF pledges | Ops maker, Ops checker, Risk manager
 Recording N-MASS changes | Ops checker, Risk manager
+Recording RFQ deal settlement | Ops maker, Ops checker
 Recording WhatsApp consent | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Recording a bounce | Ops maker, Ops checker, Admin
 Recording a deceased client's steps | Ops maker, Ops checker, Compliance officer
@@ -286,6 +290,7 @@ Seeing mail sent to staff | Compliance officer, Admin
 Seeing the self-inspection | Ops maker, Ops checker, Risk manager, Compliance officer
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
 Sending IPO bids to the exchange | Ops maker, Ops checker
+Sending RFQ deal confirmations to NSE | Ops checker
 Sending UCC to BSE | Ops maker, Ops checker
 Sending UCC to MCX | Ops maker, Ops checker
 Sending bulk messages | Ops checker, Compliance officer
@@ -350,6 +355,7 @@ Viewing CDSL freezes | Ops maker, Ops checker, Risk manager, Compliance officer,
 Viewing CDSL requests | Ops maker, Ops checker, Compliance officer
 Viewing Finspot pushes | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing MCX UCC registrations | Ops maker, Ops checker, Compliance officer
+Viewing RFQ deals | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing backups | Ops checker, Compliance officer
 Viewing clients BSE does not permit to trade | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing connections | Compliance officer, Admin
