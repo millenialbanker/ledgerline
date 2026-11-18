@@ -116,6 +116,11 @@ func Run(ctx context.Context, o Options) (res *Result, err error) {
 	if o.Survey == nil {
 		return nil, errors.New("nothing to migrate")
 	}
+	// The run works on its own copy of the survey: it fills in each firm's
+	// as-of date while the screen may be showing the caller's survey.
+	sv := *o.Survey
+	sv.Firms = append(sv.Firms[:0:0], o.Survey.Firms...)
+	o.Survey = &sv
 	if o.Now == nil {
 		o.Now = time.Now
 	}
