@@ -64,10 +64,24 @@ const (
 	IssueSME       = "SME"
 	IssueNCD       = "NCD"
 	IssueOFS       = "OFS"
+	// Products of NSE's eIPO other than public issues (ipoeipo_prod.go):
+	// non-competitive bids in G-secs, T-bills and SDLs, sovereign gold
+	// bonds, and tender offers (buy-back, open offer, delisting). Their
+	// client orders are kept apart from IPO bids (EIPOOrder).
+	IssueNCB    = "NCB"
+	IssueSGB    = "SGB"
+	IssueTender = "Tender"
 )
 
 // IssueTypes lists the issue types in display order.
-var IssueTypes = []string{IssueMainboard, IssueSME, IssueNCD, IssueOFS}
+var IssueTypes = []string{IssueMainboard, IssueSME, IssueNCD, IssueOFS, IssueNCB, IssueSGB, IssueTender}
+
+// eipoProduct reports whether an issue type is one of the eIPO products
+// whose orders are EIPOOrders rather than IPO bids: the IPO bid flow (UPI
+// mandates, bid files, allotment, refunds, commission) skips them.
+func eipoProduct(typ string) bool {
+	return typ == IssueNCB || typ == IssueSGB || typ == IssueTender
+}
 
 // Bid statuses.
 const (
@@ -329,6 +343,12 @@ func DefaultIPOCategories(typ string) []IPOCategory {
 			{Code: "III", Name: "Category III: individuals above ₹10 lakh", Above: 10 * lakh, Individual: true, Modify: "any"},
 			{Code: "II", Name: "Category II: non-institutional (companies, trusts, firms)", MinAmount: 10_000_00, Modify: "any"},
 		}
+	case IssueNCB, IssueSGB:
+		return []IPOCategory{} // NCB and SGB orders carry no category
+	case IssueTender:
+		// A tender order carries a category code; the protocol's example is
+		// IND. Set the offer's own codes from the exchange's notice.
+		return []IPOCategory{{Code: "IND", Name: "Individual (set the offer's codes from the exchange's notice)", Modify: "any"}}
 	case IssueOFS:
 		return []IPOCategory{
 			{Code: "RETAIL", Name: "Retail (up to ₹2 lakh, on T+1)", Upto: 2 * lakh, CutOff: true, Individual: true, Modify: "any", Day: "T+1"},
@@ -407,9 +427,11 @@ type IPOIssue struct {
 	AllotDate  string         `json:"allotment_date,omitempty"`
 	Listing    string         `json:"listing_date,omitempty"`
 	Withdrawn  bool           `json:"withdrawn,omitempty"`
-	Source     string         `json:"source,omitempty"` // Staff, Imported
-	By         string         `json:"by,omitempty"`
-	Updated    string         `json:"updated,omitempty"`
+	// Product is the rest of an NCB, SGB or tender offer's master record.
+	Product *IPOProduct `json:"product,omitempty"`
+	Source  string      `json:"source,omitempty"` // Staff, Imported
+	By      string      `json:"by,omitempty"`
+	Updated string      `json:"updated,omitempty"`
 	// Worked out when shown.
 	Status   string      `json:"status"` // Upcoming, Open, Closed, Allotment, Listed, Withdrawn
 	Timeline IPOTimeline `json:"timeline"`
@@ -444,6 +466,9 @@ func (iss *IPOIssue) defaults() {
 	if len(iss.Categories) == 0 {
 		iss.Categories = DefaultIPOCategories(iss.Type)
 	}
+	if eipoProduct(iss.Type) {
+		iss.MandateCutoff = "" // no UPI mandates
+	}
 	if iss.Tick.Sign() <= 0 {
 		iss.Tick = money.DecInt(1)
 	}
@@ -462,6 +487,14 @@ func (iss IPOIssue) timeline(set Settings) IPOTimeline {
 		t.Allot = iss.Close
 		t.Credit = set.NextSettlementDay(iss.Close)
 		t.Unblock = t.Credit
+		return t
+	}
+	if eipoProduct(iss.Type) {
+		// No T+3 timetable: the allotment date is the master's (or staff's).
+		t.Allot = iss.AllotDate
+		if iss.Product != nil {
+			t.Allot = firstOf(iss.AllotDate, iss.Product.AllotDate)
+		}
 		return t
 	}
 	t.Allot = firstOf(iss.AllotDate, set.NextBusinessDay(iss.Close))
@@ -533,7 +566,7 @@ func (o *Ops) saveIPOIssue(ctx context.Context, tenant, actor string, iss IPOIss
 	iss.Name = strings.TrimSpace(iss.Name)
 	iss.ISIN = strings.ToUpper(strings.TrimSpace(iss.ISIN))
 	if iss.Name == "" && iss.Symbol != "" {
-		iss.Name = iss.Symbol + " " + map[string]string{IssueNCD: "NCD", IssueOFS: "OFS"}[iss.Type]
+		iss.Name = iss.Symbol + " " + map[string]string{IssueNCD: "NCD", IssueOFS: "OFS", IssueNCB: "non-competitive bid", IssueSGB: "sovereign gold bond", IssueTender: "tender offer"}[iss.Type]
 		if iss.Type == IssueMainboard || iss.Type == IssueSME || iss.Type == "" {
 			iss.Name = iss.Symbol + " IPO"
 		}
@@ -550,11 +583,16 @@ func (o *Ops) saveIPOIssue(ctx context.Context, tenant, actor string, iss IPOIss
 	}
 	iss.Exchanges = exs
 	iss.defaults()
+	if eipoProduct(iss.Type) {
+		if err := iss.productCheck(); err != nil {
+			return iss, err
+		}
+	}
 	switch {
 	case !reSymbol.MatchString(iss.Symbol):
 		return iss, invalid("give the issue symbol as the exchange shows it (letters and digits)")
 	case !contains(IssueTypes, iss.Type):
-		return iss, invalid("issue type is Mainboard, SME, NCD or OFS")
+		return iss, invalid("issue type is Mainboard, SME, NCD, OFS, NCB, SGB or Tender")
 	case len(iss.Exchanges) == 0:
 		return iss, invalid("choose the exchange(s) the issue bids on")
 	case !validDate(iss.Open) || !validDate(iss.Close) || iss.Close < iss.Open:
@@ -565,7 +603,7 @@ func (o *Ops) saveIPOIssue(ctx context.Context, tenant, actor string, iss IPOIss
 		return iss, invalid("the ISIN is 12 characters starting IN")
 	case iss.LotSize <= 0:
 		return iss, invalid("give the lot size (shares, or NCD units, in a lot)")
-	case iss.PriceLow.Sign() <= 0:
+	case iss.PriceLow.Sign() <= 0 && !eipoProduct(iss.Type):
 		return iss, invalid("give the price band (the floor price for an offer for sale, the face value for NCDs)")
 	case iss.CommPerApp < 0 || iss.CommPct.Sign() < 0 || iss.CommPct.Cmp(money.DecInt(10)) > 0:
 		return iss, invalid("commission must be zero or more (at most 10%% of the value)")
@@ -586,6 +624,8 @@ func (o *Ops) saveIPOIssue(ctx context.Context, tenant, actor string, iss IPOIss
 	switch iss.Type {
 	case IssueNCD:
 		iss.PriceHigh = iss.PriceLow
+	case IssueNCB, IssueSGB, IssueTender:
+		// productCheck has checked the prices.
 	case IssueOFS:
 		if iss.PriceHigh.Sign() != 0 && iss.PriceHigh.Cmp(iss.PriceLow) < 0 {
 			return iss, invalid("the retail cut-off price cannot be below the floor price")

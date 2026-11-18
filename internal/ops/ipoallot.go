@@ -59,6 +59,9 @@ func (o *Ops) RecordIPOAllotment(ctx context.Context, tenant, actor, issueID, da
 	if iss.Type == IssueOFS {
 		return res, invalid("record an offer for sale's allocation with its price instead")
 	}
+	if eipoProduct(iss.Type) {
+		return res, invalid("%s orders take their allotment or acceptance on the Bonds, SGB & tenders tab", iss.Type)
+	}
 	if !validDate(date) || date < iss.Close {
 		return res, invalid("give the allotment date (on or after the closing date %s)", iss.Close)
 	}
@@ -436,7 +439,7 @@ func (o *Ops) SyncIPOCredits(ctx context.Context, tenant, actor, issueID string)
 	if err != nil {
 		return 0, err
 	}
-	if iss.ISIN == "" || iss.Type == IssueOFS {
+	if iss.ISIN == "" || iss.Type == IssueOFS || eipoProduct(iss.Type) {
 		return 0, nil
 	}
 	bids, err := o.issueBids(ctx, tenant, issueID)

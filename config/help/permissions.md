@@ -89,6 +89,7 @@ Checking UPI blocks with NSE Clearing | Ops maker, Ops checker, Risk manager
 Checking a backup | Ops checker, Compliance officer
 Checking a migration package | Admin
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
+Choosing the eIPO products the firm offers | Ops checker
 Claiming IPO commission | Ops checker
 Clearing cheques | Ops maker, Ops checker
 Client code modification | Ops maker, Ops checker
@@ -196,6 +197,7 @@ Passing a margin penalty to a client | Risk manager, Compliance officer
 Pay-out hold rules | Risk manager
 Paying vendor bills | Ops maker, Ops checker
 Placing IPO bids for clients | Ops maker, Ops checker, Branch staff, Authorised person
+Placing NCB, SGB and tender orders for clients | Ops maker, Ops checker, Branch staff, Authorised person
 Placing mutual fund orders | Ops maker, Ops checker
 Posting AP payouts | Ops checker
 Posting IPO allotments | Ops maker, Ops checker
@@ -286,6 +288,7 @@ Seeing mail sent to staff | Compliance officer, Admin
 Seeing the self-inspection | Ops maker, Ops checker, Risk manager, Compliance officer
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
 Sending IPO bids to the exchange | Ops maker, Ops checker
+Sending NCB, SGB and tender orders to NSE | Ops maker, Ops checker
 Sending UCC to BSE | Ops maker, Ops checker
 Sending UCC to MCX | Ops maker, Ops checker
 Sending bulk messages | Ops checker, Compliance officer
@@ -350,6 +353,7 @@ Viewing CDSL freezes | Ops maker, Ops checker, Risk manager, Compliance officer,
 Viewing CDSL requests | Ops maker, Ops checker, Compliance officer
 Viewing Finspot pushes | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing MCX UCC registrations | Ops maker, Ops checker, Compliance officer
+Viewing an issue's demand | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing backups | Ops checker, Compliance officer
 Viewing clients BSE does not permit to trade | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing connections | Compliance officer, Admin

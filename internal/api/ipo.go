@@ -79,13 +79,15 @@ func (s *Server) ipoRoutes() {
 	R("POST /v1/ipo/eipo/banks", s.eipoBankLoad, true)
 	R("POST /v1/ipo/issues/{id}/ofs-send", s.ofsSend, true)
 	R("POST /v1/ipo/issues/{id}/eipo-allotment", s.eipoAllotment, true)
+	s.ipoProductRoutes() // NCB, SGB, tender offers and demand (ipoproducts.go)
 }
 
 func (s *Server) ipoIssues(w http.ResponseWriter, r *http.Request) {
 	v, err := s.ops.IPOIssues(r.Context(), tenant(r))
 	ok(w, map[string]any{"issues": v, "types": ops.IssueTypes, "defaults": map[string]any{
 		ops.IssueMainboard: ops.DefaultIPOCategories(ops.IssueMainboard), ops.IssueSME: ops.DefaultIPOCategories(ops.IssueSME),
-		ops.IssueNCD: ops.DefaultIPOCategories(ops.IssueNCD), ops.IssueOFS: ops.DefaultIPOCategories(ops.IssueOFS)}}, err)
+		ops.IssueNCD: ops.DefaultIPOCategories(ops.IssueNCD), ops.IssueOFS: ops.DefaultIPOCategories(ops.IssueOFS),
+		ops.IssueNCB: ops.DefaultIPOCategories(ops.IssueNCB), ops.IssueSGB: ops.DefaultIPOCategories(ops.IssueSGB), ops.IssueTender: ops.DefaultIPOCategories(ops.IssueTender)}}, err)
 }
 
 func (s *Server) ipoSaveIssue(w http.ResponseWriter, r *http.Request) {

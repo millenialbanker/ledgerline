@@ -175,7 +175,7 @@ roles: Ops maker, Ops checker
 ask: client apply ipo online; portal ipo; client portal ipo application; client upi declaration
 related: portal-access, ipo-bid
 
-Clients see open and upcoming issues in the client portal (IPOs & public issues), with the lots each category allows, and apply from their own account. They confirm their UPI ID is on their own bank account, which records it. A family login sees family accounts but only the account holder applies. The client gets the same acknowledgement, and can withdraw where the rules allow.
+Clients see open and upcoming IPOs, SME IPOs, NCDs and offers for sale in the client portal (IPOs & public issues), with the lots each category allows, and apply from their own account. They confirm their UPI ID is on their own bank account, which records it. A family login sees family accounts but only the account holder applies. The client gets the same acknowledgement, and can withdraw where the rules allow. G-sec and T-bill bids, gold bonds and tender offers are taken by staff only.
 
 ## ipo-records
 title: The IPO consent log and records
@@ -185,3 +185,78 @@ ask: ipo consent log; proof of client instruction ipo; ipo records inspection; i
 related: ipo-bid, audit-seals
 
 Every instruction (place, modify, cancel, re-send a mandate) is in the **Consent log** tab: when the client gave it and how, the reference, what was asked, who recorded it, and the acknowledgement number sent to the client. **Download** gives it as a file for inspection. Bid files, response files and eIPO callbacks are kept as received. Nothing is deleted: records are kept at least 3 years (NSE circular 65/2025).
+
+## ipo-products-setup
+title: Offer G-secs, gold bonds and tender offers through NSE's eIPO
+screen: ipo
+roles: Ops checker, Ops maker, Admin
+ask: g-sec ncb; non competitive bidding; t-bill through broker; sovereign gold bond through broker; sgb eipo; buyback through eipo; tender offer eipo; ncb master; sgb master; tender master; bonds sgb tenders tab
+related: ipo-ncb, ipo-sgb, ipo-tender, ipo-eipo-api
+
+The same NSE eIPO login that takes IPO bids also takes **non-competitive bids in G-secs, T-bills and SDLs** (NCB), **sovereign gold bonds** (SGB) and **tender offers** (buy-back, open offer, delisting). Ask msm@nse.co.in to enable the products the firm offers on its eIPO user ID.
+
+1. Set up the **NSE eIPO API** in [[connections|Connections]] as for IPOs.
+2. On [[ipo|IPO & public issues]] → **Bonds, SGB & tenders**, an Ops checker ticks the products the firm offers and saves.
+3. Each morning at 08:30 Ledgerline reads NSE's NCB, SGB and tender masters and sets up the coming and open issues (dates, times, lot, minimum and maximum, prices, T1 window, allotment date). **Read NSE's masters** does it at once. Set up or correct one by hand with **New** or **Edit**: for a tender offer, the kind, the record date and the category codes from the exchange's notice; for NCB, the percentage above face value to hold on the ledger.
+4. With **Send bids through the API** on, waiting orders go every 5 minutes while bidding is open, and their status is asked every 15 minutes. **Send by API** and **Ask status** do it at once.
+
+Orders are taken by staff on the client's instruction; the client portal does not offer these products.
+
+## ipo-ncb
+title: Take a non-competitive bid in a G-sec, T-bill or SDL
+screen: ipo
+roles: Ops maker, Ops checker, Branch staff, Authorised person
+ask: ncb bid; non competitive bid for client; buy t-bill for client; buy government security; g-sec auction retail; ncb funds; ncb mismatch; funds pending nsccl; ncb allotment
+related: ipo-products-setup, ipo-sgb
+
+On **Bonds, SGB & tenders**, **New order** and choose the security:
+
+1. The amount is in **rupees of face value**: at least the minimum, in multiples of the lot, at most the maximum NSE's master gives (usually ₹10,000 multiples up to ₹2 crore an auction). The price is set in the auction; a non-competitive bid carries none.
+2. The money comes from the **client's ledger**: Ledgerline checks the client's free funds and holds the face value (plus the issue's buffer, if set). Collect the money first if the client has not enough. One bid per PAN in an auction.
+3. Record how the client instructed. The client gets an acknowledgement.
+
+Once NSE takes the bid it shows **funds pending**: a work item tells the checker how much to pay in to NSCCL. When NSE gives the **amount payable** after the auction, the money held follows it. A **mismatch** (PAN and demat account do not match) goes to the work queue: correct the client master and **Modify** the order during bidding or in the T1 window. A rejected or cancelled bid gets its money back on the ledger; an order NSE never took is released after the close.
+
+## ipo-sgb
+title: Apply for sovereign gold bonds for a client
+screen: ipo
+roles: Ops maker, Ops checker, Branch staff, Authorised person
+ask: sgb application; sovereign gold bond for client; sgb online price; sgb certificate; sgb incomplete; sgb missing details; sgb date of birth; sgb bank account; sgb 4 kg limit
+related: ipo-products-setup, ipo-ncb
+
+On **Bonds, SGB & tenders**, **New order** and choose the tranche:
+
+1. The quantity in **grams**, within NSE's minimum and maximum. Individuals and HUFs may subscribe up to 4 kg a financial year and trusts 20 kg; Ledgerline counts the client's applications through the firm. NRIs and companies cannot subscribe.
+2. **Offline price** by default; tick **online price** only if the client applied online and pays digitally (₹50 a gram less). An application cannot be taken until RBI's price is on the issue.
+3. **In demat** (the client's usual account, or another one named) or **as a certificate**.
+4. The money comes from the client's ledger and is held until it is paid in to NSCCL, as for NCB.
+
+RBI needs details a demat application does not carry. When NSE lists an application as **incomplete**, a work item asks an Ops maker to open the order and **Send missing details** (date of birth, state, bank account, joint holders, guardian) before NSE's last day for them. Ledgerline fills in what the client master has; check each detail. Nomination is not sent through NSE's API.
+
+## ipo-tender
+title: Tender offers through NSE's eIPO (buy-back, open offer, delisting)
+screen: ipo
+roles: Ops maker, Ops checker, Branch staff, Authorised person
+ask: tender through eipo; tender offer api; delisting bid; delisting reverse book building; open offer tender eipo; tendermaster; physical shares tender; early pay in tender; tender block demat; record tender acceptance
+related: ipo-products-setup, buyback
+
+This is the route through NSE's eIPO API. A buy-back can also be recorded on [[corp|Corporate actions]] and tendered with a bid file (see the buy-back article). On **Bonds, SGB & tenders**, **New order** and choose the offer:
+
+1. The **shares** to tender. From demat, Ledgerline checks they are free in the client's demat account as it holds it (the registrar checks the holding on the record date), less the client's other tenders in the offer. Physical shares need the folio and up to three certificates with their distinctive numbers.
+2. The **price**: a buy-back or open offer is at the offer price; a delisting takes a price in the offer's range. Choose the category from the offer.
+3. Record how the client instructed. No money is taken.
+
+Once NSE takes the tenders, a work item asks the desk to confirm the shares were **blocked** in each client's demat account (from the clearing corporation's or depository's report), and to send physical certificates to the registrar.
+
+After the close, an Ops checker records the registrar's **basis of acceptance** (**Record acceptance**): accepted demat shares leave the client's holding and the proceeds are credited to the client's ledger against the clearing corporation. Enter a buy-back's proceeds net of the tax the company deducted, as paid. A work item asks to match the payout and check shares not accepted came back.
+
+## ipo-demand
+title: See an issue's demand on NSE
+screen: ipo
+roles: Ops maker, Ops checker, Risk manager, Compliance officer
+ask: ipo subscription status; ipo demand; how many bids in ipo; category wise demand; demand at price; eipo query server; ipo subscribed how many times
+related: ipo-eipo-api, ipo-issue-setup
+
+For an issue bidding on NSE, **Demand** (on the Issues tab, or Bonds, SGB & tenders) shows NSE's figures from the **eIPO Query Server**: quantity and bids by category and sub-category, and at each price (with cut-off and cumulative figures). **Read again** takes a fresh reading, at most every 3 minutes.
+
+Set up **NSE eIPO Query Server** in [[connections|Connections]] with the login NSE gives for it; fields left empty use the NSE eIPO API connection's.
