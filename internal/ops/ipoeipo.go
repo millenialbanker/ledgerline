@@ -26,8 +26,8 @@ import (
 
 // ---- NSE eIPO API (Protocol for WEB API, Initial Public Offer System 2.0.0) ----
 //
-// NSE's eIPO host (Production eipo.nseindia.com/eipo, UAT
-// uat-ipo.nseindia.com/eipo) takes a member's IPO, SME and debt issue bids
+// NSE's eIPO host (Production bidcollection.nseindia.com/eipo, UAT
+// eipouat.nseindia.com/eipo) takes a member's IPO, SME and debt issue bids
 // by API and tells it what happened to them:
 //
 //   - POST /v3/login with member, loginId and password gives a token sent
@@ -63,8 +63,10 @@ import (
 const connNSEEIPO = "nse-eipo"
 
 const (
-	eipoLive = "https://eipo.nseindia.com/eipo"
-	eipoUAT  = "https://uat-ipo.nseindia.com/eipo"
+	// Appendix B of protocol 2.0.0 (1.20.7 had eipo.nseindia.com and
+	// uat-ipo.nseindia.com).
+	eipoLive = "https://bidcollection.nseindia.com/eipo"
+	eipoUAT  = "https://eipouat.nseindia.com/eipo"
 
 	eipoV3 = "v3 (Bearer token, protocol 2.0.0)"
 	eipoV1 = "v1 (Access-Token, protocol 1.20)"
