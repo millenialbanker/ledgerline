@@ -334,6 +334,9 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	// Debt deals on NSE's RFQ platform: read while the market is open,
 	// and after NSE's notification, when switched on.
 	o.rfqTick(ctx, tenant, now)
+	// Corporate bond deals: reporting time limits, and CBRICS read every
+	// 10 minutes (and after NSE's notifications) when switched on.
+	o.cbricsTick(ctx, tenant, now)
 	if o.manual(ctx, tenant) {
 		return 0, nil // Manual edition: none of the firm's jobs run on a timer
 	}

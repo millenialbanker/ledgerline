@@ -359,6 +359,12 @@ type Ops struct {
 	NCLMargins NCLMarginsAPI // NSE Clearing margins API; nil for the real one
 	NCMS       NCMSAPI       // NSE Clearing NCMS API; nil for the real one
 	UPIX       UPIXAPI       // NSE Clearing UPIX API; nil for the real one
+	// CBRICS sends NSE CBRICS's requests (cbrics.go); nil uses a plain
+	// HTTPS client. cbricsKeys are the CBRICS sessions' login keys and
+	// cbricsMu keeps one read of CBRICS running at a time.
+	CBRICS     CBRICSDoer
+	cbricsKeys sync.Map
+	cbricsMu   sync.Mutex
 	// Mailer sends email (contract notes, statements). Nil: development
 	// servers simulate delivery; production servers hold the mail.
 	Mailer Mailer
