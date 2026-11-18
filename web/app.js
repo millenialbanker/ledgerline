@@ -3722,7 +3722,7 @@ Object.assign(A, {
     const fld = f => {
       const v = c.values[f.key] || '', lab = `<label for="cn-${f.key}">${esc(f.label)}${f.optional ? ' <span class="dim">(optional)</span>' : ''}</label>`;
       if (f.options) return `<div class="fld">${lab}<select class="in" id="cn-${f.key}"><option value="">Choose</option>${f.options.map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
-      if (f.secret && f.key === 'private_key') return `<div class="fld full">${lab}<textarea class="in mono" rows="4" id="cn-${f.key}" autocomplete="off" spellcheck="false" placeholder="${c.secret_set[f.key] ? 'Saved: leave blank to keep' : '-----BEGIN PRIVATE KEY-----'}"></textarea></div>`;
+      if (f.secret && (f.key === 'private_key' || f.key === 'nse_public_key')) return `<div class="fld full">${lab}<textarea class="in mono" rows="4" id="cn-${f.key}" autocomplete="off" spellcheck="false" placeholder="${c.secret_set[f.key] ? 'Saved: leave blank to keep' : f.key === 'private_key' ? '-----BEGIN PRIVATE KEY-----' : '-----BEGIN PUBLIC KEY----- or -----BEGIN CERTIFICATE-----'}"></textarea></div>`;
       if (f.secret) return `<div class="fld">${lab}<input class="in" type="password" id="cn-${f.key}" autocomplete="new-password" placeholder="${c.secret_set[f.key] ? 'Saved: leave blank to keep' : ''}"></div>`;
       return `<div class="fld ${f.key === 'notes' || f.key === 'url' ? 'full' : ''}">${lab}<input class="in ${f.key === 'url' || f.key === 'host' ? 'mono' : ''}" id="cn-${f.key}" value="${esc(v)}" placeholder="${esc(f.placeholder || '')}"></div>`;
     };

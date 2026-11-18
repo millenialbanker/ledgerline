@@ -79,12 +79,12 @@ related: ipo-eipo-api, exchange-files
 title: Connect NSE's eIPO API and callback
 screen: connections
 roles: Admin
-ask: eipo api; nse ipo api; ipo callback; eipo callback url; send ipo bids by api; whitelist callback; login without otp; ipo master; new ipo set up automatically; ipo allotment api; appdpstatus; apppaystatus; asba by api; asba bank code; asba location code; eipo v3; asba forms
+ask: eipo api; nse ipo api; ipo callback; eipo callback url; send ipo bids by api; whitelist callback; login without otp; ipo master; new ipo set up automatically; ipo allotment api; appdpstatus; apppaystatus; asba by api; asba bank code; asba location code; eipo v3; asba forms; eipo v2; eipo advanced security; eipo rsa key; nse public key for eipo; eipo encryption
 related: ipo-bid-file, connections
 
 NSE gives API access to members on request: email msm@nse.co.in with the member code and user ID (API access, and login without OTP), and the callback address to whitelist (4 to 5 working days).
 
-Ledgerline follows NSE's Protocol for WEB API, Initial Public Offer System (2.0.0): the API version is **v3**, signed in with a Bearer token. If NSE still has the firm on 1.20, choose **v1** under API version.
+Ledgerline follows NSE's Protocol for WEB API, Initial Public Offer System (2.0.0): the API version is **v3**, signed in with a Bearer token. NSE also offers **v2**, advanced security (see below). If NSE still has the firm on 1.20, choose **v1** under API version.
 
 1. In [[connections|Connections]], **NSE eIPO API**: member code, user ID, password, Live or Mock (UAT), and a **callback token** (a long random phrase). If NSE registered a separate callback password, enter it too.
 2. Give NSE the callback address shown on [[ipo|IPO & public issues]] (Files & eIPO API), with your token in it; NSE adds the version and `appdpstatus`, `apppaystatus` or `notification` (for example `/v3/apppaystatus`). Optionally list the addresses NSE calls from.
@@ -93,6 +93,17 @@ Ledgerline follows NSE's Protocol for WEB API, Initial Public Offer System (2.0.
 5. **Read allotment from NSE** (on unless switched off): from the allotment date, every half hour for three days, Ledgerline reads the issue's allotment and records it (and the final price, if not set): allotted lots for each application named, none for the other valid bids.
 6. **ASBA bids** (blocked in the client's own bank account: above ₹5 lakh, and non-individuals) go by API too, once NSE's codes for the client's bank are in. NSE gives each bank a **bank code** and a **location code** (6 characters each; find them on eIPO). Enter the firm's location code on the connection, and each bank's code on IPO → Files & eIPO API → **ASBA bank codes**, by IFSC (one at a time, or a CSV of IFSC, bank code, location code, bank name). A bid whose bank has no codes yet stays for the bid file, and a work item asks for them; once entered, the next send takes it.
 7. The API replaces the upload, not the form: each day ASBA bids go, a work item lists how many signed ASBA forms go to which bank's branch for syndicate ASBA, so the money is blocked before the issue closes.
+
+**Advanced security (v2).** In v2 every request and reply is encrypted (AES-256, with the AES key sent RSA-encrypted) and every request is signed. Each side has a 2048-bit RSA key pair: NSE makes a key pair for the firm and sends the firm its public key; the firm makes its own key pair and sends NSE its public key. Neither private key ever leaves its owner.
+
+1. Email msm@nse.co.in with the member code and user ID: ask for v2, and for NSE's public key for the firm.
+2. Have the firm's key pair made on a secure computer (2048-bit RSA, no passphrase), for example with OpenSSL: `openssl genrsa -out eipo-key.pem 2048`, then `openssl rsa -in eipo-key.pem -pubout -out eipo-public.pem`. Send NSE only the public key file.
+3. On the connection choose **v2 (advanced security: RSA and AES)**. Paste the firm's private key (the whole PEM file, PKCS#1 or PKCS#8) and NSE's public key (a PEM public key or certificate). Ledgerline checks on saving that both are 2048-bit RSA keys and that NSE's key is not the firm's own.
+4. Keep the password entered: the calls the protocol does not offer in v2 (login, heartbeat, notifications, mismatches, the allotment report, NCB, tender, SGB, the holiday master) still go by v3.
+
+On v2, a reply from NSE that fails the check (changed on the way, or sealed for another key) is an error, and nothing in it is used. NSE's callbacks must come sealed for the firm and signed with NSE's key; any that fail are refused. Ledgerline's answers to callbacks go back sealed for NSE.
+
+Before going live on v2, confirm with NSE the points the protocol leaves open: the AES-GCM IV (Ledgerline puts a random 12-byte IV in front of the ciphertext), how the key3 signature is made (Ledgerline uses the protocol's RSA-OAEP transformation with the private key), that v2 calls need no login token, and that NSE's callbacks are sealed and signed on v2.
 
 ## ipo-mandates
 title: Follow up UPI mandates before the cut-off
