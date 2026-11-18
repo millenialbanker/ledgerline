@@ -74,13 +74,16 @@ func (o *Ops) ipoTick(ctx context.Context, tenant string, now time.Time) {
 	today, hm := now.Format("2006-01-02"), now.Format("15:04")
 	eipo, eipoOK := o.eipoConnection(ctx, tenant)
 	if eipoOK && eipo.usable {
+		// NCB, SGB and tender offers (ipoeipo_prod.go) go first: they read
+		// NSE's "issue changed" flag that the IPO master read then clears.
+		o.eipoProductTick(ctx, tenant, eipo, set, now)
 		o.eipoHousekeeping(ctx, tenant, eipo, is, set, now)
 		is, _ = docs.List[IPOIssue](ctx, o.Docs, tenant, cIPOIssue, "")
 	}
 	for _, iss := range is {
 		iss.defaults()
 		iss.Timeline = iss.timeline(set)
-		if iss.Withdrawn || today < iss.Open {
+		if iss.Withdrawn || today < iss.Open || eipoProduct(iss.Type) {
 			continue
 		}
 		if eipoOK && eipo.send && eipo.usable && contains(iss.Exchanges, "NSE") && iss.Type != IssueOFS {
@@ -122,7 +125,7 @@ func (o *Ops) eipoHousekeeping(ctx context.Context, tenant string, c eipoConn, i
 		iss.defaults()
 		iss.Timeline = iss.timeline(set)
 		a := iss.Timeline.Allot
-		if iss.Withdrawn || iss.Type == IssueOFS || !contains(iss.Exchanges, "NSE") || a == "" || today < a || daysBetween(a, today) > 3 || hm < "10:00" {
+		if iss.Withdrawn || iss.Type == IssueOFS || eipoProduct(iss.Type) || !contains(iss.Exchanges, "NSE") || a == "" || today < a || daysBetween(a, today) > 3 || hm < "10:00" {
 			continue
 		}
 		bids, _ := o.issueBids(ctx, tenant, iss.ID)
@@ -288,7 +291,7 @@ func (o *Ops) IPOMandates(ctx context.Context, tenant, actor string) ([]IPOManda
 	f := o.ClientScope(ctx, tenant, actor)
 	out := []IPOMandateIssue{}
 	for _, iss := range is {
-		if iss.Type == IssueOFS || iss.Withdrawn || today < iss.Open || today > set.NextBusinessDay(iss.Close) {
+		if iss.Type == IssueOFS || eipoProduct(iss.Type) || iss.Withdrawn || today < iss.Open || today > set.NextBusinessDay(iss.Close) {
 			continue
 		}
 		m := IPOMandateIssue{Issue: iss, Cutoff: iss.Close + " " + iss.MandateCutoff, Pending: []IPOApp{}, Failed: []IPOApp{}, Alerts: o.ipoDone(ctx, tenant, iss.ID)}

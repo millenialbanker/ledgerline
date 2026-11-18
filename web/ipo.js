@@ -14,6 +14,9 @@ const ipoOpts = b => (b.options || []).map(o => `${o.lots} lot${o.lots > 1 ? 's'
 const ipoIssueOf = id => (C.ipo?.is?.issues || []).find(i => i.id === id);
 const ipoCanBid = () => has('Ops maker', 'Ops checker', 'Branch staff', 'Authorised person');
 const ipoMk = () => has('Ops maker', 'Ops checker');
+// NCB, SGB and tender offers have their own tab (ipoprod.js), not IPO bids.
+const ipoProdTypes = ['NCB', 'SGB', 'Tender'];
+const ipoIsProd = i => ipoProdTypes.includes(i.type);
 
 /* ---------- staff screen ---------- */
 V.ipo = {
@@ -21,18 +24,19 @@ V.ipo = {
     const tab = UI.ipoTab || 'bids', iq = UI.ipoIssue ? `issue=${ipoEnc(UI.ipoIssue)}` : '';
     const [is, bids] = await Promise.all([get('/v1/ipo/issues'), get('/v1/ipo/bids?' + iq)]);
     const d = { is, bids };
-    if (!UI.ipoIssue && is.issues.length && (tab === 'allot')) UI.ipoIssue = is.issues[0].id;
+    if (!UI.ipoIssue && is.issues.some(i => !ipoIsProd(i)) && (tab === 'allot')) UI.ipoIssue = is.issues.find(i => !ipoIsProd(i)).id;
     if (tab === 'mandates') d.mandates = await get('/v1/ipo/mandates');
     if (tab === 'allot' && UI.ipoIssue) d.recon = await get(`/v1/ipo/issues/${ipoEnc(UI.ipoIssue)}/reconciliation`).catch(e => ({ error: e.message }));
     if (tab === 'files') [d.batches, d.eipo] = await Promise.all([get('/v1/ipo/batches?' + iq), get('/v1/ipo/eipo')]);
     if (tab === 'log') d.log = await get(`/v1/ipo/instructions?from=${ipoEnc(UI.ipoFrom || '')}&to=${ipoEnc(UI.ipoTo || '')}`);
     if (tab === 'mf') [d.mf, d.legacy] = await Promise.all([get('/v1/mf'), get('/v1/ipo')]);
+    if (tab === 'prod') d.prod = await get('/v1/ipo/products');
     return d;
   },
   html: d => {
     const tab = UI.ipoTab || 'bids', iss = d.is.issues, open = iss.filter(i => i.status === 'Open'), c = d.bids.counts || {};
-    const acts = `${ipoMk() ? '<button class="btn" data-act="ipoIssueEdit">New issue</button>' : ''}${ipoCanBid() && iss.some(i => ['Open', 'Upcoming'].includes(i.status)) ? '<button class="btn pri" data-act="ipoBidNew">New bid</button>' : ''}`;
-    const tabs = [['bids', 'Bids'], ['issues', 'Issues'], ['mandates', 'UPI mandates'], ['allot', 'Allotment & refunds'], ['files', 'Files & eIPO API'], ['log', 'Consent log'], ['mf', 'Mutual funds & older bids']];
+    const acts = `${ipoMk() ? '<button class="btn" data-act="ipoIssueEdit">New issue</button>' : ''}${ipoCanBid() && iss.some(i => !ipoIsProd(i) && ['Open', 'Upcoming'].includes(i.status)) ? '<button class="btn pri" data-act="ipoBidNew">New bid</button>' : ''}`;
+    const tabs = [['bids', 'Bids'], ['issues', 'Issues'], ['prod', 'Bonds, SGB & tenders'], ['mandates', 'UPI mandates'], ['allot', 'Allotment & refunds'], ['files', 'Files & eIPO API'], ['log', 'Consent log'], ['mf', 'Mutual funds & older bids']];
     return ph('IPO & public issues', 'IPOs, SME IPOs, NCDs and offers for sale: the issue’s rules, each bid on the client’s prior instruction with an acknowledgement, the day’s bid file (or NSE’s eIPO API), UPI mandates to the 5 pm cut-off, then allotment, release of blocked money and the demat credit by T+2.', acts) +
       `<div class="kpis">${kpi('Issues open', open.length, open.map(i => esc(i.name)).join(', ') || 'none today', open.length ? 'good' : '')}${kpi('Bids', d.bids.bids.length, `${c.Draft || 0} not yet sent`)}${kpi('Mandates pending', (c['Mandate pending'] || 0) + (c.Uploaded || 0), `${c.Accepted || 0} accepted · ${(c.Declined || 0) + (c.Failed || 0)} declined or failed`, (c['Mandate pending'] || 0) ? 'warn' : '')}${kpi('Allotted', (c.Allotted || 0) + (c.Unblocked || 0) + (c.Credited || 0), `${c.Credited || 0} credited to demat`)}</div>` +
       `<div class="gtabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" class="${tab === k ? 'on' : ''}" aria-selected="${tab === k}" data-act="ipoTab" data-id="${k}">${l}</button>`).join('')}</div>` +
@@ -41,7 +45,7 @@ V.ipo = {
 };
 
 function ipoIssuePick(d, all) {
-  return `<select class="in sm" id="ipo-iss" aria-label="Issue">${all ? '<option value="">All issues</option>' : ''}${d.is.issues.map(i => `<option value="${esc(i.id)}" ${UI.ipoIssue === i.id ? 'selected' : ''}>${esc(i.name)} · ${esc(i.status)}</option>`).join('')}</select>`;
+  return `<select class="in sm" id="ipo-iss" aria-label="Issue">${all ? '<option value="">All issues</option>' : ''}${d.is.issues.filter(i => !ipoIsProd(i)).map(i => `<option value="${esc(i.id)}" ${UI.ipoIssue === i.id ? 'selected' : ''}>${esc(i.name)} · ${esc(i.status)}</option>`).join('')}</select>`;
 }
 
 P.ipo_bids = d => {
@@ -57,13 +61,13 @@ P.ipo_bids = d => {
 };
 
 P.ipo_issues = d => `<div class="panel"><div class="hd"><h3>Issues</h3>${ipoMk() ? '<div class="tools"><button class="btn sm" data-act="ipoImport">Import issues (CSV)</button></div>' : ''}</div>` +
-  tbl([['Issue'], ['Type'], ['Bidding'], ['Price', 'r'], ['Lot', 'r'], ['T+1 · T+2 · T+3'], ['Status'], ['']], d.is.issues.map(i => `<tr>
+  tbl([['Issue'], ['Type'], ['Bidding'], ['Price', 'r'], ['Lot', 'r'], ['T+1 · T+2 · T+3'], ['Status'], ['']], d.is.issues.filter(i => !ipoIsProd(i)).map(i => `<tr>
     <td><b>${esc(i.name)}</b><div class="dim small">${esc(i.symbol)} · ${esc((i.exchanges || []).join(', '))}${i.registrar ? ' · ' + esc(i.registrar) : ''}${i.isin ? ' · ' + esc(i.isin) : ''}</div></td>
     <td>${esc(i.type)}</td><td class="n small">${fmtDate(i.open)} – ${fmtDate(i.close)}<div class="dim">${esc(i.open_time)}–${esc(i.day_close)}, ${esc(i.close_time)} on T</div></td>
     <td class="r">${i.type === 'NCD' ? '₹' + esc(i.price_low) + ' FV' : `₹${esc(i.price_low)}${num(i.price_high) && i.price_high !== i.price_low ? '–' + esc(i.price_high) : ''}`}${num(i.issue_price) ? `<div class="dim small">final ₹${esc(i.issue_price)}</div>` : ''}</td>
     <td class="r">${nf(i.lot_size)}</td><td class="n small">${fmtDate(i.timeline.allotment)} · ${fmtDate(i.timeline.unblock_by)} · ${fmtDate(i.timeline.listing) || '—'}</td>
     <td>${pill(i.status, ISS_ST[i.status] || 'nt')}</td>
-    <td><div class="tools">${ipoMk() ? `<button class="btn sm" data-act="ipoIssueEdit" data-id="${esc(i.id)}">Edit</button>` : ''}${ipoMk() && i.type !== 'OFS' && i.status === 'Open' ? (i.exchanges || []).map(x => `<button class="btn sm" data-act="ipoFile" data-id="${esc(i.id)}" data-x="${x}">${x} bid file</button>`).join('') : ''}</div></td></tr>`), { empty: 'No issues set up. New issue, or import them.' }) +
+    <td><div class="tools">${ipoMk() ? `<button class="btn sm" data-act="ipoIssueEdit" data-id="${esc(i.id)}">Edit</button>` : ''}${ipoMk() && i.type !== 'OFS' && i.status === 'Open' ? (i.exchanges || []).map(x => `<button class="btn sm" data-act="ipoFile" data-id="${esc(i.id)}" data-x="${x}">${x} bid file</button>`).join('') : ''}${i.type !== 'OFS' && i.status === 'Open' && (i.exchanges || []).includes('NSE') && has('Ops maker', 'Ops checker', 'Risk manager', 'Compliance officer') ? `<button class="btn sm" data-act="ipoDemand" data-id="${esc(i.id)}">Demand</button>` : ''}</div></td></tr>`), { empty: 'No issues set up. New issue, or import them.' }) +
   '<div class="pad dim small">Categories, limits and the commission come from the red herring prospectus. SME issues: an individual bids exactly 2 lots, no cut-off, no cancellation or lower revision. Offers for sale: non-retail bids on T, retail on T+1, 100% cash margin from the client’s ledger.</div></div>';
 
 P.ipo_mandates = d => (d.mandates.length ? d.mandates.map(m => {
@@ -111,7 +115,7 @@ P.ipo_files = d => {
       ${has('Ops checker', 'Admin') ? '<div class="tools"><button class="btn sm" data-act="ipoBank">Enter a bank’s codes</button><button class="btn sm" data-act="ipoBanks">Load codes (CSV)</button></div>' : ''}
       ${e.state.last_error ? `<div class="note bad" style="margin-top:8px">${esc(e.state.last_error)}</div>` : ''}
       <p class="dim small">Set it up in Settings → Connections (NSE eIPO API). Access: email msm@nse.co.in with the member code and user ID (API access and login without OTP), and the callback address to whitelist.</p>
-      ${e.usable && ipoMk() ? `<div class="tools"><button class="btn sm" data-act="ipoMaster">Read NSE's IPO master</button>${d.is.issues.filter(i => i.status === 'Open' && i.exchanges.includes('NSE') && i.type !== 'OFS').map(i => `<button class="btn sm" data-act="ipoApi" data-id="${esc(i.id)}">Send ${esc(i.symbol)} by API</button><button class="btn sm" data-act="ipoInq" data-id="${esc(i.id)}">Ask status</button>`).join('')}${d.is.issues.filter(i => i.status === 'Open' && i.exchanges.includes('NSE') && i.type === 'OFS').map(i => `<button class="btn sm" data-act="ofsApi" data-id="${esc(i.id)}">Place ${esc(i.symbol)} OFS bids by API</button>`).join('')}</div>` : ''}</div></div></div>
+      ${e.usable && ipoMk() ? `<div class="tools"><button class="btn sm" data-act="ipoMaster">Read NSE's IPO master</button>${d.is.issues.filter(i => i.status === 'Open' && i.exchanges.includes('NSE') && i.type !== 'OFS' && !ipoIsProd(i)).map(i => `<button class="btn sm" data-act="ipoApi" data-id="${esc(i.id)}">Send ${esc(i.symbol)} by API</button><button class="btn sm" data-act="ipoInq" data-id="${esc(i.id)}">Ask status</button>`).join('')}${d.is.issues.filter(i => i.status === 'Open' && i.exchanges.includes('NSE') && i.type === 'OFS').map(i => `<button class="btn sm" data-act="ofsApi" data-id="${esc(i.id)}">Place ${esc(i.symbol)} OFS bids by API</button>`).join('')}</div>` : ''}</div></div></div>
     <div class="panel"><div class="hd"><h3>Sent to the exchanges</h3><div class="tools">${ipoIssuePick(d, true)}</div></div>` +
     tbl([['Batch'], ['Issue'], ['Exchange'], ['Via'], ['Bids', 'r'], ['Lines', 'r'], ['When'], ['By'], ['']], d.batches.map(b => `<tr><td class="n">${esc(b.id)}</td><td>${esc((ipoIssueOf(b.issue) || {}).name || b.issue)}</td><td>${esc(b.exchange)}</td><td>${esc(b.via)}</td><td class="r">${Object.keys(b.bids || {}).length}</td><td class="r">${b.lines}</td><td class="small">${ipoTime(b.created)}</td><td class="dim">${esc(b.by)}</td><td>${b.file && ipoMk() ? `<button class="btn sm" data-act="dl" data-id="/v1/ipo/batches/${esc(b.id)}/file" data-name="${esc(b.name)}">${esc(b.name)}</button>` : esc(b.note || '')}</td></tr>`), { empty: 'Nothing sent yet.' }) + '</div>';
 };
@@ -159,7 +163,7 @@ Object.assign(A, {
   ipoTab: id => { UI.ipoTab = id; render({ keep: true }); },
   ipoMoreOpt: () => { const tr = document.querySelector('.md tr.ipo-more[hidden]'); if (tr) tr.hidden = false; },
   ipoBidNew: () => {
-    const open = C.ipo.is.issues.filter(i => ['Open', 'Upcoming'].includes(i.status));
+    const open = C.ipo.is.issues.filter(i => !ipoIsProd(i) && ['Open', 'Upcoming'].includes(i.status));
     const iss = open.find(i => i.id === UI.ipoIssue) || open[0];
     modal(mhd('New bid', 'On the client’s prior instruction. The client gets an acknowledgement; UPI bids need the client’s own UPI ID, approved in their UPI app by 5 pm on the closing day.') + `<form class="bd" id="ipo-bf"><div class="form">
       <div class="fld"><label for="ib-iss">Issue</label><select class="in" id="ib-iss">${open.map(i => `<option value="${esc(i.id)}" ${i === iss ? 'selected' : ''}>${esc(i.name)} · ${esc(i.type)} · ${esc(i.status)}</option>`).join('')}</select></div>
@@ -237,7 +241,7 @@ Object.assign(A, {
       <div class="fld"><label for="ii-sym">Symbol (as on the platform)</label><input class="in mono" id="ii-sym" value="${esc(i.symbol || '')}" required ${id ? 'readonly' : ''}></div>
       <div class="fld"><label for="ii-name">Name</label><input class="in" id="ii-name" value="${esc(i.name || '')}"></div>
       <div class="fld"><label for="ii-co">Company</label><input class="in" id="ii-co" value="${esc(i.company || '')}"></div>
-      <div class="fld"><label for="ii-type">Type</label><select class="in" id="ii-type" ${id ? 'disabled' : ''}>${C.ipo.is.types.map(t => `<option ${i.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+      <div class="fld"><label for="ii-type">Type</label><select class="in" id="ii-type" ${id ? 'disabled' : ''}>${C.ipo.is.types.filter(t => !ipoProdTypes.includes(t)).map(t => `<option ${i.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
       <div class="fld"><label>Exchanges</label><div class="tools">${['NSE', 'BSE'].map(x => `<label class="check"><input type="checkbox" class="ii-x" value="${x}" ${(i.exchanges || []).includes(x) ? 'checked' : ''}> ${x}</label>`).join('')}</div></div>
       <div class="fld"><label for="ii-isin">ISIN (when known)</label><input class="in mono" id="ii-isin" value="${esc(i.isin || '')}"></div>
       <div class="fld"><label for="ii-open">Opens</label><input class="in" type="date" id="ii-open" value="${esc(i.open || '')}"></div>

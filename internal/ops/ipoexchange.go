@@ -389,6 +389,8 @@ func (o *Ops) sendable(ctx context.Context, tenant string, iss IPOIssue, exchang
 	switch {
 	case iss.Type == IssueOFS:
 		return set, invalid("offer-for-sale bids are placed in the OFS window of the trading system; record each as placed")
+	case eipoProduct(iss.Type):
+		return set, invalid("%s orders go through NSE's eIPO API from the Bonds, SGB & tenders tab", iss.Type)
 	case !contains(iss.Exchanges, exchange):
 		return set, invalid("%s bids on %s", iss.Name, strings.Join(iss.Exchanges, " and "))
 	case !iss.liveAt(set, o.now()):

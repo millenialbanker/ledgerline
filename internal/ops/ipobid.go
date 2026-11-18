@@ -619,6 +619,9 @@ func (o *Ops) placeIPOBid(ctx context.Context, tenant, actor string, in IPOBidIn
 	if err != nil {
 		return IPOApp{}, err
 	}
+	if eipoProduct(iss.Type) {
+		return IPOApp{}, invalid("%s is a %s: take the client's order on the Bonds, SGB & tenders tab", iss.Name, iss.Type)
+	}
 	cat, ok := iss.category(in.Category)
 	if !ok {
 		var cs []string
@@ -1117,6 +1120,9 @@ func (o *Ops) PortalIPO(ctx context.Context, tenant, actor, ucc string) (PortalI
 	now := o.now()
 	is, _ := o.IPOIssues(ctx, tenant)
 	for _, iss := range is {
+		if eipoProduct(iss.Type) {
+			continue // NCB, SGB and tender orders are taken by staff only
+		}
 		if iss.Status != "Open" && iss.Status != "Upcoming" && mine[iss.ID] == nil {
 			continue
 		}
