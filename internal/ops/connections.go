@@ -396,6 +396,8 @@ func (o *Ops) TestConnection(ctx context.Context, tenant, actor, id string) (Con
 		status, problem = o.bowTest(ctx, tenant, c)
 	case id == connFinspotAPI: // the sign-in
 		status, problem = o.finspotAPITest(ctx, tenant, c)
+	case id == connNSERFQ: // the sign-in and the market timings
+		status, problem = o.rfqTest(ctx, tenant, c)
 	case p.Test == "https" && c.Values["url"] != "":
 		status, problem = o.checkAddress(ctx, c.Values["url"])
 	case id == connVerify && verifyBases[c.Values["provider"]][0] != "":

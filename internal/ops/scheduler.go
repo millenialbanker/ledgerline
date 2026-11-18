@@ -331,6 +331,9 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.mfTick(ctx, tenant, now)
 	// Public issues: 4 pm and 5 pm mandate reminders, response files, allotment checks.
 	o.ipoTick(ctx, tenant, now)
+	// Debt deals on NSE's RFQ platform: read while the market is open,
+	// and after NSE's notification, when switched on.
+	o.rfqTick(ctx, tenant, now)
 	if o.manual(ctx, tenant) {
 		return 0, nil // Manual edition: none of the firm's jobs run on a timer
 	}
