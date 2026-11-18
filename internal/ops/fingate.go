@@ -91,8 +91,11 @@ var FINGateLists = []struct{ Key, Name string }{
 
 // FINGateCode is one metadata value.
 type FINGateCode struct {
-	ID   string `json:"id"`
-	Text string `json:"text"`
+	ID     string `json:"id"`
+	Text   string `json:"text"`
+	Alt    string `json:"alt,omitempty"`    // another name it goes by (a state's code)
+	Parent string `json:"parent,omitempty"` // the country (states), state (districts, cities) or source of alert (red flags)
+	Extra  string `json:"extra,omitempty"`  // a city's district
 }
 
 // FINGateMeta is one loaded metadata list.
@@ -109,7 +112,7 @@ type FINGateMeta struct {
 type FINGateSettings struct {
 	BranchCode     string `json:"branch_code"`
 	AccountType    string `json:"account_type"`     // e.g. Trading Account
-	RelationType   string `json:"relation_type"`    // e.g. Primary Account Holder
+	RelationType   string `json:"relation_type"`    // e.g. Account Holder
 	CustTypeInd    string `json:"cust_type_ind"`    // customer type for individuals
 	CustTypeEntity string `json:"cust_type_entity"` // and for non-individuals
 	SourceAlert    string `json:"source_alert"`     // GoS Tag 2 when the STR does not say
@@ -145,18 +148,24 @@ func (o *Ops) fingateCodes(ctx context.Context, tenant string) fgCodes {
 
 // code is a value's ID in a list ("" when not found); an ID given as such
 // is kept.
-func (c fgCodes) code(list, v string) string {
+func (c fgCodes) code(list, v string) string { return c.row(list, v, "").ID }
+
+// row is a value's row in a list, within a parent when one is given.
+func (c fgCodes) row(list, v, parent string) FINGateCode {
 	v = strings.TrimSpace(v)
 	if v == "" {
-		return ""
+		return FINGateCode{}
 	}
 	n := fgNorm(v)
 	for _, r := range c[list].Rows {
-		if fgNorm(r.Text) == n || r.ID == v {
-			return r.ID
+		if parent != "" && r.Parent != "" && r.Parent != parent {
+			continue
+		}
+		if fgNorm(r.Text) == n || r.ID == v || (r.Alt != "" && fgNorm(r.Alt) == n) {
+			return r
 		}
 	}
-	return ""
+	return FINGateCode{}
 }
 
 // FINGateStatus is the codes page.
@@ -196,21 +205,46 @@ func (o *Ops) SaveFINGateSettings(ctx context.Context, tenant, actor string, s F
 	return s, nil
 }
 
-var reFGID = regexp.MustCompile(`(?i)^(entry ?id|id|.*[ _]id|code)$`)
+// fgColumns are, for each list, the columns of FINGate's metadata CSV:
+// the name, and the columns giving its other name, parent and extra.
+var fgColumns = map[string]struct{ text, alt, parent, extra string }{
+	"country": {"Country Name", "Country Code (3 Char)", "", ""}, "state": {"State", "State Code", "Country", ""},
+	"district": {"District Name", "", "State", ""}, "city": {"City", "", "State", "District"},
+	"nationality": {"Nationality", "Country Code", "", ""}, "customer_type": {"Customer Type", "", "", ""},
+	"occupation": {"Occupation Type", "", "", ""}, "account_type": {"Account Type", "", "", ""},
+	"relation_type": {"Account Holder Type", "", "", ""}, "suspicion": {"Suspicious Category Description", "", "", ""},
+	"source_alert": {"Source of Alert", "", "", ""}, "red_flag": {"Red Flag Indicator", "", "Source of Alert", "Applicable RE Type"},
+	"offence": {"Tag Value", "", "", ""},
+}
 
-// LoadFINGateMeta reads one of FINGate's metadata CSVs: the ID column
-// (Entry ID, or a column named …ID) and the first other column as its name.
-// Source of Alert takes its exact text, so its name is its value.
+// fgDetect names the list a metadata CSV holds, by its headings.
+func fgDetect(col map[string]int) string {
+	has := func(h string) bool { _, ok := col[fgNorm(h)]; return ok }
+	for _, x := range []struct{ list, head string }{{"country", "Country Name"}, {"city", "City"}, {"state", "State Code"}, {"district", "District Name"},
+		{"nationality", "Nationality"}, {"customer_type", "Customer Type"}, {"occupation", "Occupation Type"}, {"account_type", "Account Type"},
+		{"relation_type", "Account Holder Type"}, {"suspicion", "Suspicious Category Description"}, {"red_flag", "Red Flag Indicator"}, {"offence", "Tag Value"}} {
+		if has(x.head) {
+			return x.list
+		}
+	}
+	if has("Source of Alert") && len(col) == 1 {
+		return "source_alert"
+	}
+	return ""
+}
+
+// fgREs are the reporting entity types whose red flags a broker uses:
+// brokerage firm and depository participant.
+var fgREs = map[string]bool{"BF": true, "DP": true}
+
+// LoadFINGateMeta reads one of FINGate's metadata CSVs (Learning and
+// Resources): the Entry ID and the list's name column, with a state's or
+// city's parent and a red flag's source of alert. Values whose End Date
+// has passed are left out; red flags only for brokers and depositories.
+// Source of Alert is taken by its exact text, so its name is its value.
 func (o *Ops) LoadFINGateMeta(ctx context.Context, tenant, actor, list string, data []byte) (int, error) {
 	if err := o.require(ctx, tenant, actor, "FINGate reporting", RoleCompliance); err != nil {
 		return 0, err
-	}
-	known := false
-	for _, l := range FINGateLists {
-		known = known || l.Key == list
-	}
-	if !known {
-		return 0, invalid("no such FINGate list %q", list)
 	}
 	r := csv.NewReader(bytes.NewReader(bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))))
 	r.FieldsPerRecord, r.LazyQuotes = -1, true
@@ -218,33 +252,63 @@ func (o *Ops) LoadFINGateMeta(ctx context.Context, tenant, actor, list string, d
 	if err != nil || len(recs) < 2 {
 		return 0, invalid("not a metadata CSV (a header row, then values): %v", err)
 	}
-	idc, txc := -1, -1
+	col := map[string]int{}
 	for i, h := range recs[0] {
-		h = strings.TrimSpace(strings.TrimPrefix(h, "\uFEFF"))
-		if idc < 0 && reFGID.MatchString(h) {
-			idc = i
-		} else if txc < 0 && h != "" {
-			txc = i
+		col[fgNorm(strings.TrimPrefix(h, "\uFEFF"))] = i
+	}
+	if list == "" || list == "auto" {
+		if list = fgDetect(col); list == "" {
+			return 0, invalid("not one of the FINGate metadata files Ledgerline uses (Pincode, IFSC and Reason Code are not needed)")
 		}
 	}
-	if list == "source_alert" {
-		if txc < 0 {
-			txc = idc
+	cols, known := fgColumns[list]
+	if !known {
+		return 0, invalid("no such FINGate list %q", list)
+	}
+	at := func(name string) int {
+		if name == "" {
+			return -1
 		}
+		if i, ok := col[fgNorm(name)]; ok {
+			return i
+		}
+		return -1
+	}
+	idc, txc, alc, pac, exc, endc := at("Entry ID"), at(cols.text), at(cols.alt), at(cols.parent), at(cols.extra), at("End Date")
+	if list == "source_alert" {
 		idc = txc
 	}
 	if idc < 0 || txc < 0 {
-		return 0, invalid("the CSV needs an ID column (Entry ID) and a name column")
+		return 0, invalid("this is not FINGate's %s metadata: it needs the columns Entry ID and %s", list, cols.text)
 	}
+	cell := func(rec []string, i int) string {
+		if i < 0 || i >= len(rec) {
+			return ""
+		}
+		return strings.TrimSpace(rec[i])
+	}
+	today := o.now().In(ist).Format("2006-01-02")
 	var rows []FINGateCode
 	for _, rec := range recs[1:] {
-		if idc >= len(rec) || txc >= len(rec) {
+		id, tx := cell(rec, idc), cell(rec, txc)
+		if id == "" || tx == "" {
 			continue
 		}
-		id, tx := strings.TrimSpace(rec[idc]), strings.TrimSpace(rec[txc])
-		if id != "" && tx != "" {
-			rows = append(rows, FINGateCode{ID: id, Text: tx})
+		if end := cell(rec, endc); len(end) >= 10 && end[:10] < today {
+			continue
 		}
+		x := FINGateCode{ID: id, Text: tx, Alt: cell(rec, alc), Parent: cell(rec, pac), Extra: cell(rec, exc)}
+		if list == "red_flag" {
+			if !fgREs[x.Extra] {
+				continue
+			}
+			x.Text = x.Parent + ": " + tx
+			if x.Extra == "DP" {
+				x.Text += " (depository)"
+			}
+			x.Extra = ""
+		}
+		rows = append(rows, x)
 	}
 	if len(rows) == 0 {
 		return 0, invalid("no values in the CSV")
@@ -255,6 +319,27 @@ func (o *Ops) LoadFINGateMeta(ctx context.Context, tenant, actor, list string, d
 	}
 	o.log(ctx, tenant, actor, "fingate.metadata", list, map[string]any{"values": len(rows)})
 	return len(rows), nil
+}
+
+// LoadFINGateMetaAuto loads a metadata CSV whichever list it is, and says
+// which.
+func (o *Ops) LoadFINGateMetaAuto(ctx context.Context, tenant, actor string, data []byte) (string, int, error) {
+	r := csv.NewReader(bytes.NewReader(bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))))
+	r.LazyQuotes = true
+	h, err := r.Read()
+	if err != nil {
+		return "", 0, invalid("not a CSV: %v", err)
+	}
+	col := map[string]int{}
+	for i, x := range h {
+		col[fgNorm(x)] = i
+	}
+	list := fgDetect(col)
+	if list == "" {
+		return "", 0, invalid("not one of the FINGate metadata files Ledgerline uses (Pincode, IFSC and Reason Code are not needed)")
+	}
+	n, err := o.LoadFINGateMeta(ctx, tenant, actor, list, data)
+	return list, n, err
 }
 
 // ---- The STR's own details ----
@@ -323,30 +408,35 @@ type FINGateExport struct {
 }
 
 var (
-	fgKC1 = []string{"Report Reference Number", "UCIC", "Customer ID", "PAN", "Declaration (If PAN is not available)", "CKYC Number", "Declaration (If CKYC is not available)",
-		"Passport Number", "Voter ID", "Drivers License Number", "NREGA Card", "DIN / DPIN", "First Name", "Middle Name", "Last Name", "Declaration (If Last name is not available)",
-		"Name of Father", "Name of Mother", "Spouse/Partner Name", "Gender", "Date of Birth", "Nationality", "Mobile Number", "Alternate Mobile Number", "Telephone Number", "Email ID",
-		"Primary Address 1", "Primary Address Country", "Primary Address Pin Code", "Primary Address Locality", "Primary Address State", "Primary Address District", "Primary Address City",
-		"Secondary Address 1", "Secondary Address Country", "Secondary Address Pin Code", "Secondary Address Locality", "Secondary Address State", "Secondary Address District", "Secondary Address City",
-		"Customer Type", "Other Customer Type", "Annual Income (INR)", "Occupation", "Other Occupation", "Employer Name", "Employer Address 1", "Employer Address Country", "Employer Address Pin Code",
-		"Employer Address Locality", "Employer Address State", "Employer Address District", "Employer Address City", "Date of Customer On-boarding", "Date of Last KYC / re-KYC", "Customer Risk Level",
-		"NPR", "PEKRN", "Primary State Name", "Primary District Name", "Primary City Name", "Secondary State Name", "Secondary District Name", "Secondary City Name",
-		"Employee State Name", "Employee District Name", "Employee City Name", "Identity verified using Aadhaar ID"}
-	fgKC2 = []string{"Report Reference Number", "UCIC", "Entity Name", "Company ID Type", "Company ID Number", "PAN Number", "Declaration (If PAN is not available)", "TAN", "GSTIN",
-		"No identifier available", "IEC", "Declaration (If IEC is not available)", "Telephone Number", "Mobile Number", "Email ID", "Company Website", "Country", "Address Line 1", "PIN Code",
-		"Locality", "State", "District", "City / Village / Town", "Line of Business", "FCRA Status", "FCRA Registration State", "FCRA Registration Number", "Customer ID", "Registered Country",
-		"Registered Address", "Registered PIN Code", "Registered Locality", "Registered State", "Registered District", "Registered City / Village / Town", "Date Of Incorporation",
-		"Customer Type", "Last KYC Date", "Onboarding Date", "Customer Risk Level", "Declaration (If UBO is not available)", "PEKRN", "State Name", "District Name",
-		"City / Village / Town Name", "Registered State Name", "Registered District Name", "Registered City / Village / Town Name", "Other Customer Type"}
+	// The headings of FINGate's bulk templates (Learning and Resources:
+	// KC1 and KC2 of 22 Sep 2026, GS1 of 6 Mar 2025), in their order.
+	fgKC1 = []string{"Report Reference Number", "Report Type", "UCIC", "PAN", "Declaration (If PAN is not available)", "PEKRN", "CKYC Number", "Declaration (If CKYC is not available)",
+		"Passport Number", "Voter ID", "Drivers License Number", "NREGA Card", "NPR", "Identity verified using Aadhaar ID", "DIN / DPIN", "First Name", "Middle Name", "Last Name",
+		"Declaration (If Last name is not available)", "Spouse/Partner Name", "Name of Father", "Name of Mother", "Gender", "Date of Birth", "Nationality", "Telephone Number", "Mobile Number",
+		"Alternate Mobile Number", "Email ID", "Primary Address 1", "Primary Address Locality", "Primary Address Country", "Primary Address Pin Code", "Primary Address State",
+		"Primary Address District", "Primary Address City", "Primary State Name", "Primary District Name", "Primary City Name", "Secondary Address 1", "Secondary Address Locality",
+		"Secondary Address Country", "Secondary Address Pin Code", "Secondary Address State", "Secondary Address District", "Secondary Address City", "Secondary State Name",
+		"Secondary District Name", "Secondary City Name", "Customer Type", "Other Customer Type", "Customer ID", "Annual Income (INR)", "Occupation", "Other Occupation", "Employer Name",
+		"Employer Address 1", "Employer Address Locality", "Employer Address Country", "Employer Address Pin Code", "Employer Address State", "Employer Address District",
+		"Employer Address City", "Employee State Name", "Employee District Name", "Employee City Name", "Date of Customer On-boarding", "Date of Last KYC / re-KYC", "Customer Risk Level",
+		"Other Identifier Name", "Other Identifier Number", "Minor/HUF/Trust/Others", "Name as in PAN", "Primary Entity"}
+	fgKC2 = []string{"Report Reference Number", "Report Type", "UCIC", "Entity Name", "Company ID Type", "Company ID Number", "PAN Number", "Declaration (If PAN is not available)", "TAN",
+		"GSTIN", "No identifier available", "IEC", "Declaration (If IEC is not available)", "PEKRN", "Telephone Number", "Mobile Number", "Email ID", "Company Website", "Address Line 1",
+		"Locality", "Country", "PIN Code", "State", "District", "City / Village / Town", "State Name", "District Name", "City / Village / Town Name", "Line of Business", "FCRA Status",
+		"FCRA Registration State", "FCRA Registration Number", "Registered Address", "Registered Locality", "Registered Country", "Registered PIN Code", "Registered State",
+		"Registered District", "Registered City / Village / Town", "Registered State Name", "Registered District Name", "Registered City / Village / Town Name", "Date Of Incorporation",
+		"Customer Type", "Other Customer Type", "Last KYC Date", "Onboarding Date", "Customer Risk Level", "Declaration (If UBO is not available)", "Other Identifier Name",
+		"Other Identifier Number", "Sole Proprietor Firm", "UCIC of Owner of Sole Proprietor Firm", "Name of Owner of Sole Proprietor Firm",
+		"Declaration (If Related Individual Details are Not Available)", "HUF/Trust/MIM/Others", "Name as in PAN", "Primary Entity"}
 	fgAcct = []string{"Report Reference Number", "Report Type", "Account Type", "Account Number", "Branch Code of Account", "Date of Account Opening", "Date of Account Closing", "Account Status",
-		"No Of Debits (In last 12 months)", "Total Debit Amount (In last 12 months)", "No Of Credits (In last 12 months)", "Total Credit Amount (In last 12 months)",
-		"No Of Cash Transaction (In last 12 months)", "Total Cash Deposit (In last 12 months)", "Total Cash Withdrawal (In last 12 months)", "Reason for Account Freeze"}
-	fgAPR = []string{"Report Reference Number", "Report Type", "Account Number", "Relationship Type", "Unique Reference Number", "Individual / Non-individual", "Name of Non-customer"}
-	fgTS7 = []string{"Report Reference Number", "Relationship Flag", "Transaction ID", "Transaction Type", "Trade Type", "Trade Date", "Trade Time", "Amount", "DP ID",
-		"Declaration (If DP ID is not available)", "Related Bank Account Number", "Client ID/Customer ID/UCIC", "Related AC IFSC", "ISIN/ Product Code/Commodity", "Security Code",
-		"Commodity Exchange Code", "Rate Per Unit / Lot", "No Of Units / Lots", "Expiry Date", "Call / Put", "Strike Price", "Report Type"}
+		"Reason for Account Freeze", "No Of Debits (In last 12 months)", "Total Debit Amount (In last 12 months)", "No Of Credits (In last 12 months)", "Total Credit Amount (In last 12 months)",
+		"No Of Cash Transaction (In last 12 months)", "Total Cash Deposit (In last 12 months)", "Total Cash Withdrawal (In last 12 months) Amount"}
+	fgAPR = []string{"Report Reference Number", "Account Number", "Relationship Type", "Unique Reference Number", "Individual / Non-individual", "Name of Non-customer", "Report Type"}
+	fgTS7 = []string{"Report Reference Number", "Relationship Flag", "Transaction ID", "Transaction Type", "Trade Type", "Trade Date", "Trade Time", "Transaction Amount", "DP ID",
+		"Declaration (If DP ID is not available)", "Related Bank Account Number", "Client ID/Customer ID/UCIC", "Related AC IFSC", "ISIN/ Product Code", "Commodity Exchange Code",
+		"Security Code", "Rate Per Unit / Lot", "No Of Units / Lots", "Expiry Date", "Call / Put", "Strike Price", "Report Type"}
 	fgGS1 = []string{"Report Reference Number", "KYC Source of Funds", "KYC Destination of Funds", "GoS Tag 1 - Suspicion Due To", "GoS Tag 2 - Source of Alert", "GoS Tag 3 - Red Flag Indicator",
-		"Other Red Flag Indicator", "Narration", "GoS Tag 4 - Type of Suspicion Suspected", "Other Offence Type"}
+		"Other Red Flag Indicator", "Narration", "GoS Tag 4 - Type of Suspicion Suspected", "Other Offence Type", "Attempted Transaction", "Report Type"}
 )
 
 type fgTable struct {
@@ -458,6 +548,24 @@ func (o *Ops) FINGateUpload(ctx context.Context, tenant, actor string, ids []str
 		}
 		return id
 	}
+	// fgPlace codes an Indian address's country, state, district and city:
+	// the city within its state gives its district.
+	fgPlace := func(ref, file, prefix, state, city string) (string, string, string, string) {
+		country := coded(ref, file, prefix+"Country", "country", "India")
+		st := codes.row("state", state, country)
+		if st.ID == "" {
+			coded(ref, file, prefix+"State", "state", state)
+		}
+		ct := codes.row("city", city, st.ID)
+		if ct.ID == "" {
+			coded(ref, file, prefix+"City", "city", city)
+		}
+		dist := ct.Extra
+		if dist == "" {
+			gap(ref, file, prefix+"District", "found from the city: pick it on FINGate")
+		}
+		return country, st.ID, dist, ct.ID
+	}
 	for _, a := range as {
 		s, ref := *a.STR, a.STR.Ref
 		if ref == "" {
@@ -488,7 +596,8 @@ func (o *Ops) FINGateUpload(ctx context.Context, tenant, actor string, ids []str
 		}
 		if individual {
 			f := strings.Fields(reFGName.ReplaceAllString(c.Name, " "))
-			v := map[string]string{"Report Reference Number": ref, "UCIC": c.UCC, "Customer ID": c.UCC, "PAN": c.PAN, "CKYC Number": c.CKYC,
+			v := map[string]string{"Report Reference Number": ref, "Report Type": "STR", "UCIC": c.UCC, "Customer ID": c.UCC, "PAN": c.PAN, "CKYC Number": c.CKYC,
+				"Name as in PAN": fgText(c.Name, 1, 100), "Primary Entity": "Yes",
 				"Gender":        map[string]string{"male": "Male", "m": "Male", "female": "Female", "f": "Female", "transgender": "Others", "t": "Others", "u": "Others", "others": "Others"}[strings.ToLower(d.Gender)],
 				"Date of Birth": fgDate(c.DOB), "Mobile Number": fgMobile(c.Mobile), "Email ID": strings.TrimSpace(c.Email), "Name of Father": fgText(reFGName.ReplaceAllString(d.Guardian, " "), 3, 100),
 				"Primary Address 1": addr, "Primary Address Pin Code": pin, "Primary Address Locality": loc,
@@ -508,14 +617,12 @@ func (o *Ops) FINGateUpload(ctx context.Context, tenant, actor string, ids []str
 			} else {
 				v["Declaration (If Last name is not available)"] = "NA"
 			}
-			v["Nationality"] = coded(ref, "KC1", "Nationality", "nationality", firstOf(d.Nationality, "Indian"))
-			v["Primary Address Country"] = coded(ref, "KC1", "Primary Address Country", "country", "India")
-			v["Primary Address State"] = coded(ref, "KC1", "Primary Address State", "state", state)
-			v["Primary Address City"] = coded(ref, "KC1", "Primary Address City", "city", city)
-			v["Primary Address District"] = codes.code("district", city)
-			if v["Primary Address District"] == "" {
-				gap(ref, "KC1", "Primary Address District", "Ledgerline does not keep the district: pick it on FINGate")
+			nat := firstOf(d.Nationality, "India")
+			if strings.EqualFold(nat, "Indian") {
+				nat = "India"
 			}
+			v["Nationality"] = coded(ref, "KC1", "Nationality", "nationality", nat)
+			v["Primary Address Country"], v["Primary Address State"], v["Primary Address District"], v["Primary Address City"] = fgPlace(ref, "KC1", "Primary Address ", state, city)
 			v["Customer Type"] = coded(ref, "KC1", "Customer Type", "customer_type", firstOf(set.CustTypeInd, "Individual"))
 			if d.Occupation != "" {
 				v["Occupation"] = codes.code("occupation", firstOf(d.OccupationDetail, d.Occupation))
@@ -527,7 +634,8 @@ func (o *Ops) FINGateUpload(ctx context.Context, tenant, actor string, ids []str
 			}
 			kc1.add(v)
 		} else {
-			v := map[string]string{"Report Reference Number": ref, "UCIC": c.UCC, "Customer ID": c.UCC, "Entity Name": fgText(c.Name, 2, 100), "PAN Number": c.PAN, "GSTIN": c.GSTIN,
+			v := map[string]string{"Report Reference Number": ref, "Report Type": "STR", "UCIC": c.UCC, "Entity Name": fgText(c.Name, 2, 100), "PAN Number": c.PAN, "GSTIN": c.GSTIN,
+				"Name as in PAN": fgText(c.Name, 1, 100), "Primary Entity": "Yes",
 				"Mobile Number": fgMobile(c.Mobile), "Email ID": strings.TrimSpace(c.Email), "Address Line 1": addr, "PIN Code": pin, "Locality": loc,
 				"FCRA Status": "No", "Date Of Incorporation": fgDate(c.DOB), "Last KYC Date": lastKYC, "Onboarding Date": onboard, "Customer Risk Level": risk}
 			if d.CIN != "" {
@@ -536,13 +644,7 @@ func (o *Ops) FINGateUpload(ctx context.Context, tenant, actor string, ids []str
 			if c.PAN == "" {
 				v["Declaration (If PAN is not available)"] = "NA"
 			}
-			v["Country"] = coded(ref, "KC2", "Country", "country", "India")
-			v["State"] = coded(ref, "KC2", "State", "state", state)
-			v["City / Village / Town"] = coded(ref, "KC2", "City / Village / Town", "city", city)
-			v["District"] = codes.code("district", city)
-			if v["District"] == "" {
-				gap(ref, "KC2", "District", "Ledgerline does not keep the district: pick it on FINGate")
-			}
+			v["Country"], v["State"], v["District"], v["City / Village / Town"] = fgPlace(ref, "KC2", "", state, city)
 			v["Customer Type"] = coded(ref, "KC2", "Customer Type", "customer_type", firstOf(set.CustTypeEntity, c.Type))
 			if risk == "" {
 				gap(ref, "KC2", "Customer Risk Level", "not on record")
@@ -568,9 +670,9 @@ func (o *Ops) FINGateUpload(ctx context.Context, tenant, actor string, ids []str
 			"Account Number": c.UCC, "Branch Code of Account": branch, "Date of Account Opening": onboard, "Account Status": status,
 			"No Of Debits (In last 12 months)": fmt.Sprint(stat.debits), "Total Debit Amount (In last 12 months)": stat.debit.Dec().Fixed(2),
 			"No Of Credits (In last 12 months)": fmt.Sprint(stat.credits), "Total Credit Amount (In last 12 months)": stat.credit.Dec().Fixed(2),
-			"No Of Cash Transaction (In last 12 months)": "0", "Total Cash Deposit (In last 12 months)": "0", "Total Cash Withdrawal (In last 12 months)": "0"})
+			"No Of Cash Transaction (In last 12 months)": "0", "Total Cash Deposit (In last 12 months)": "0", "Total Cash Withdrawal (In last 12 months) Amount": "0"})
 		apr.add(map[string]string{"Report Reference Number": ref, "Report Type": "STR", "Account Number": c.UCC,
-			"Relationship Type":       coded(ref, "Account_Person_Relation", "Relationship Type", "relation_type", firstOf(set.RelationType, "Primary Account Holder")),
+			"Relationship Type":       coded(ref, "Account_Person_Relation", "Relationship Type", "relation_type", firstOf(set.RelationType, "Account Holder")),
 			"Unique Reference Number": c.UCC, "Individual / Non-individual": map[bool]string{true: "Individual", false: "Non-individual"}[individual]})
 		// The client's trades in the period.
 		_, dpid, ben, _ := splitDemat(c.Demat)
@@ -600,8 +702,8 @@ func (o *Ops) FINGateUpload(ctx context.Context, tenant, actor string, ids []str
 				}
 				v := map[string]string{"Report Reference Number": ref, "Relationship Flag": "Customer", "Transaction ID": fgText(reFGAlnm.ReplaceAllString(t.Exchange+t.Segment+t.TradeNo, ""), 1, 50),
 					"Transaction Type": map[string]string{"B": "Buy", "S": "Sell"}[t.Side], "Trade Type": tt, "Trade Date": fgDate(t.TradeDate), "Trade Time": fgTime(t.TradeTime),
-					"Amount": t.Value().Fixed(2), "Related Bank Account Number": c.Bank.Account, "Client ID/Customer ID/UCIC": c.UCC, "Related AC IFSC": strings.ToUpper(c.Bank.IFSC),
-					"ISIN/ Product Code/Commodity": firstOf(isin, t.Symbol), "Security Code": t.Symbol, "Commodity Exchange Code": t.Exchange,
+					"Transaction Amount": t.Value().Fixed(2), "Related Bank Account Number": c.Bank.Account, "Client ID/Customer ID/UCIC": c.UCC, "Related AC IFSC": strings.ToUpper(c.Bank.IFSC),
+					"ISIN/ Product Code": firstOf(isin, t.Symbol), "Security Code": t.Symbol, "Commodity Exchange Code": t.Exchange,
 					"Rate Per Unit / Lot": t.Price.Fixed(2), "No Of Units / Lots": fmt.Sprint(t.Qty), "Report Type": "STR"}
 				if dpid != "" {
 					v["DP ID"] = dpid + ben
@@ -633,7 +735,8 @@ func (o *Ops) FINGateUpload(ctx context.Context, tenant, actor string, ids []str
 		gv := map[string]string{"Report Reference Number": ref,
 			"KYC Source of Funds":      fgText(firstOf(s.FundSource, "Funds received from the client's registered bank account"+fgBank(c)), 1, 1000),
 			"KYC Destination of Funds": fgText(firstOf(s.FundDest, "Pay-outs to the client's registered bank account"+fgBank(c)), 1, 1000),
-			"Narration":                fgText(narr, 1, 20000), "Other Red Flag Indicator": fgText(s.RedFlagNote, 3, 50), "Other Offence Type": fgText(s.OffenceNote, 3, 50)}
+			"Narration":                fgText(narr, 1, 20000), "Other Red Flag Indicator": fgText(s.RedFlagNote, 3, 50), "Other Offence Type": fgText(s.OffenceNote, 3, 50),
+			"Attempted Transaction": "No", "Report Type": "STR"}
 		gv["GoS Tag 1 - Suspicion Due To"] = coded(ref, "GS1", "GoS Tag 1 - Suspicion Due To", "suspicion", s.Suspicion)
 		src := firstOf(s.SourceAlert, firstOf(set.SourceAlert, "Transaction Monitoring"))
 		if id := codes.code("source_alert", src); id != "" || len(codes["source_alert"].Rows) == 0 {
@@ -641,7 +744,22 @@ func (o *Ops) FINGateUpload(ctx context.Context, tenant, actor string, ids []str
 		} else {
 			gap(ref, "GS1", "GoS Tag 2 - Source of Alert", fmt.Sprintf("%q is not in FINGate's source of alert list", src))
 		}
-		gv["GoS Tag 3 - Red Flag Indicator"] = coded(ref, "GS1", "GoS Tag 3 - Red Flag Indicator", "red_flag", s.RedFlag)
+		// The red flag: the one chosen, else "Others" under the source of
+		// alert, described by the alert's type.
+		rf := codes.row("red_flag", s.RedFlag, "")
+		if rf.ID == "" && s.RedFlag != "" {
+			rf = codes.row("red_flag", src+": "+s.RedFlag, src)
+		}
+		if rf.ID == "" && s.RedFlag == "" {
+			rf = codes.row("red_flag", src+": Others", src)
+		}
+		gv["GoS Tag 3 - Red Flag Indicator"] = rf.ID
+		if strings.HasSuffix(rf.Text, ": Others") && gv["Other Red Flag Indicator"] == "" {
+			gv["Other Red Flag Indicator"] = fgText(a.Type, 3, 50)
+		}
+		if rf.ID == "" {
+			coded(ref, "GS1", "GoS Tag 3 - Red Flag Indicator", "red_flag", firstOf(s.RedFlag, src+": Others"))
+		}
 		gv["GoS Tag 4 - Type of Suspicion Suspected"] = coded(ref, "GS1", "GoS Tag 4 - Type of Suspicion Suspected", "offence", s.Offence)
 		gs1.add(gv)
 	}

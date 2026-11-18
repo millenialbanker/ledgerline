@@ -1307,8 +1307,13 @@ func (s *Server) fingateMeta(w http.ResponseWriter, r *http.Request) {
 		ok(w, nil, err)
 		return
 	}
-	n, err := s.ops.LoadFINGateMeta(r.Context(), tenant(r), actor(r), r.PathValue("list"), data)
-	ok(w, map[string]int{"loaded": n}, err)
+	if l := r.PathValue("list"); l != "auto" {
+		n, err := s.ops.LoadFINGateMeta(r.Context(), tenant(r), actor(r), l, data)
+		ok(w, map[string]any{"list": l, "loaded": n}, err)
+		return
+	}
+	l, n, err := s.ops.LoadFINGateMetaAuto(r.Context(), tenant(r), actor(r), data)
+	ok(w, map[string]any{"list": l, "loaded": n}, err)
 }
 
 func fingateIDs(r *http.Request) []string {
