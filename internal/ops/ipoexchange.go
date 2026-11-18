@@ -473,6 +473,12 @@ func (o *Ops) IPOBidFile(ctx context.Context, tenant, actor, issueID, exchange s
 	if err != nil {
 		return b, err
 	}
+	for _, x := range bids {
+		if x.Mode == ModeASBA && x.Pending == "New" {
+			o.asbaFormsWork(ctx, tenant, iss, now)
+			break
+		}
+	}
 	o.log(ctx, tenant, actor, "ipo.bid_file", b.ID, map[string]any{"issue": iss.ID, "exchange": exchange, "bids": len(acts), "lines": len(rows), "file": rf.ID, "provisional_layout": !spec.Confirmed})
 	return b, nil
 }

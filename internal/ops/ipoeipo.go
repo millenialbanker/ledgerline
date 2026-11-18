@@ -23,38 +23,48 @@ import (
 	"ledgerline/internal/money"
 )
 
-// ---- NSE eIPO API (Protocol for WEB API, Initial Public Offer System v1.20.7) ----
+// ---- NSE eIPO API (Protocol for WEB API, Initial Public Offer System 2.0.0) ----
 //
 // NSE's eIPO host (Production eipo.nseindia.com/eipo, UAT
 // uat-ipo.nseindia.com/eipo) takes a member's IPO, SME and debt issue bids
 // by API and tells it what happened to them:
 //
-//   - POST /v1/login with member, loginId and password gives a token sent
-//     as the Access-Token header; it lapses after an hour idle. API access
-//     and login without OTP are enabled by msm@nse.co.in.
-//   - POST /v1/transactions/add adds, modifies or cancels an application
+//   - POST /v3/login with member, loginId and password gives a token sent
+//     as "Authorization: Bearer <token>" (protocol 2.0.0, basic security
+//     v3); it lapses after an hour idle. Protocol 1.20.x had /v1 with an
+//     Access-Token header, which the connection can still choose; on v3
+//     Ledgerline sends the token both ways, as 2.0.0's login section still
+//     names Access-Token. API access and login without OTP are enabled by
+//     msm@nse.co.in.
+//   - POST /v3/transactions/add adds, modifies or cancels an application
 //     and its bids (each bid line: new, or modify/cancel by its
 //     bidReferenceNumber, with the application's last timestamp). The
-//     member gives the application number; a UPI bid needs no ASBA
-//     reference. Ledgerline puts its own bid number in each line's remark,
-//     which NSE echoes back.
-//   - POST /v1/transactions/fetch is the status of one application.
-//   - GET /v1/ipomaster is every open and coming issue: Ledgerline sets
+//     member gives the application number. A UPI bid has upiFlag Y and the
+//     UPI ID; an ASBA bid (blocked in the client's bank account) upiFlag N
+//     with the bank's and location's codes (ipoeipoasba.go). Neither needs
+//     a blocking reference from a member (only a 3-in-1 account bid, prefix
+//     T). Ledgerline puts its own bid number in each line's remark, which
+//     NSE echoes back.
+//   - POST /v3/transactions/fetch is the status of one application.
+//   - GET /v3/ipomaster is every open and coming issue: Ledgerline sets
 //     new ones up by itself when switched on.
-//   - POST /v1/allotment/fetch is the issue's allotment, by application.
+//   - POST /v3/allotment/fetch is the issue's allotment, by application.
 //   - NSE calls the member back (appdpstatus, apppaystatus, notification)
 //     with an Authorization header of base64(hex(sha256(hex(sha1(
 //     password))))) of the callback password the firm registered.
 //
 // Rate limits (Appendix C): login 2 a second; add 1,000 a second; fetch 25
 // a second; allotment fetch 10 a second. Advanced security (v2, RSA and
-// AES) is not used: v1 is what NSE hosts for every member.
+// AES) is not used: basic security is what NSE hosts for every member.
 
 const connNSEEIPO = "nse-eipo"
 
 const (
 	eipoLive = "https://eipo.nseindia.com/eipo"
 	eipoUAT  = "https://uat-ipo.nseindia.com/eipo"
+
+	eipoV3 = "v3 (Bearer token, protocol 2.0.0)"
+	eipoV1 = "v1 (Access-Token, protocol 1.20)"
 )
 
 func init() {
@@ -64,6 +74,8 @@ func init() {
 			{Key: "password", Label: "eIPO password", Secret: true},
 			{Key: "env", Label: "Environment", Options: []string{"Live", "Mock (UAT)"}},
 			{Key: "url", Label: "Address (leave empty for NSE's)", Optional: true, Placeholder: eipoLive},
+			{Key: "version", Label: "API version (empty: v3)", Optional: true, Options: []string{eipoV3, eipoV1}},
+			{Key: "asba_location", Label: "ASBA location code (6 characters, from eIPO): used for ASBA bids when a bank has no location code of its own", Optional: true},
 			{Key: "callback_token", Label: "Callback token: a long random phrase that goes in the callback address given to NSE", Secret: true, Optional: true},
 			{Key: "callback_password", Label: "Callback password registered with NSE (empty: the eIPO password)", Secret: true, Optional: true},
 			{Key: "callback_ips", Label: "Addresses NSE calls back from (comma separated; empty allows any)", Optional: true},
@@ -76,6 +88,15 @@ func init() {
 type EIPOConfig struct {
 	Base, Member, Login, Password string
 	Live                          bool
+	Version                       string // "v3" (empty) or "v1"
+}
+
+// path is an API path under the connection's version.
+func (c EIPOConfig) path(p string) string {
+	if c.Version == "v1" {
+		return "/v1" + p
+	}
+	return "/v3" + p
 }
 
 // EIPOBidLine is one bid of an application as the API takes it.
@@ -108,7 +129,9 @@ type EIPOBid struct {
 	AllotmentMode string        `json:"allotmentMode"`
 	UPIFlag       string        `json:"upiFlag"`
 	UPI           string        `json:"upi,omitempty"`
-	Timestamp     string        `json:"timestamp,omitempty"` // the last reply's, for a change
+	BankCode      string        `json:"bankCode,omitempty"`     // ASBA (upiFlag N): NSE's code for the bank
+	LocationCode  string        `json:"locationCode,omitempty"` // and for the location
+	Timestamp     string        `json:"timestamp,omitempty"`    // the last reply's, for a change
 	Bids          []EIPOBidLine `json:"bids"`
 
 	LedgerlineID string `json:"-"` // Ledgerline's bid number
@@ -183,7 +206,7 @@ func (h nseEIPOHTTP) login(ctx context.Context, c EIPOConfig, fresh bool) (strin
 		return t.(eipoToken).tok, nil
 	}
 	b, _ := json.Marshal(map[string]string{"member": c.Member, "loginId": c.Login, "password": c.Password})
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.Base+"/v1/login", bytes.NewReader(b))
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.Base+c.path("/login"), bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "Ledgerline")
 	resp, err := h.client.Do(req)
@@ -222,6 +245,9 @@ func (h nseEIPOHTTP) call(ctx context.Context, c EIPOConfig, method, path string
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("User-Agent", "Ledgerline")
 		req.Header.Set("Access-Token", tok)
+		if c.Version != "v1" {
+			req.Header.Set("Authorization", "Bearer "+tok)
+		}
 		resp, err := h.client.Do(req)
 		if err != nil {
 			return nil, fmt.Errorf("could not reach NSE's eIPO: %v", err)
@@ -280,7 +306,7 @@ func (t eipoTxn) update(source string) IPOStatusUpdate {
 func (h nseEIPOHTTP) SendBids(ctx context.Context, c EIPOConfig, bids []EIPOBid) ([]IPOStatusUpdate, error) {
 	var out []IPOStatusUpdate
 	for _, b := range bids {
-		reply, err := h.call(ctx, c, http.MethodPost, "/v1/transactions/add", b)
+		reply, err := h.call(ctx, c, http.MethodPost, c.path("/transactions/add"), b)
 		if err != nil {
 			return out, err
 		}
@@ -301,7 +327,7 @@ func (h nseEIPOHTTP) SendBids(ctx context.Context, c EIPOConfig, bids []EIPOBid)
 func (h nseEIPOHTTP) Inquire(ctx context.Context, c EIPOConfig, symbol string, appNos []string) ([]IPOStatusUpdate, error) {
 	var out []IPOStatusUpdate
 	for _, a := range appNos {
-		reply, err := h.call(ctx, c, http.MethodPost, "/v1/transactions/fetch", map[string]string{"symbol": symbol, "applicationNumber": a})
+		reply, err := h.call(ctx, c, http.MethodPost, c.path("/transactions/fetch"), map[string]string{"symbol": symbol, "applicationNumber": a})
 		if err != nil {
 			return out, err
 		}
@@ -322,7 +348,7 @@ func (h nseEIPOHTTP) Inquire(ctx context.Context, c EIPOConfig, symbol string, a
 }
 
 func (h nseEIPOHTTP) Master(ctx context.Context, c EIPOConfig) ([]EIPOMaster, error) {
-	reply, err := h.call(ctx, c, http.MethodGet, "/v1/ipomaster", nil)
+	reply, err := h.call(ctx, c, http.MethodGet, c.path("/ipomaster"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +363,7 @@ func (h nseEIPOHTTP) Master(ctx context.Context, c EIPOConfig) ([]EIPOMaster, er
 }
 
 func (h nseEIPOHTTP) Allotment(ctx context.Context, c EIPOConfig, symbol string) ([]EIPOAllot, error) {
-	reply, err := h.call(ctx, c, http.MethodPost, "/v1/allotment/fetch", map[string]string{"symbol": symbol})
+	reply, err := h.call(ctx, c, http.MethodPost, c.path("/allotment/fetch"), map[string]string{"symbol": symbol})
 	if err != nil {
 		return nil, err
 	}
@@ -435,6 +461,7 @@ func eipoUpdates(b []byte, source string) []IPOStatusUpdate {
 type eipoConn struct {
 	cfg                 EIPOConfig
 	token, cbPassword   string
+	asbaLocation        string
 	ips                 []string
 	send, master, allot bool
 	usable              bool // the login is entered
@@ -450,8 +477,13 @@ func (o *Ops) eipoConnection(ctx context.Context, tenant string) (eipoConn, bool
 	if u := strings.TrimRight(strings.TrimSpace(c.Values["url"]), "/"); u != "" {
 		base = u
 	}
-	x := eipoConn{cfg: EIPOConfig{Base: base, Member: strings.TrimSpace(c.Values["member"]), Login: strings.TrimSpace(c.Values["login"]), Password: c.Secrets["password"], Live: live},
-		token: c.Secrets["callback_token"], cbPassword: firstOf(c.Secrets["callback_password"], c.Secrets["password"]),
+	ver := "v3"
+	if c.Values["version"] == eipoV1 {
+		ver = "v1"
+	}
+	x := eipoConn{cfg: EIPOConfig{Base: base, Member: strings.TrimSpace(c.Values["member"]), Login: strings.TrimSpace(c.Values["login"]), Password: c.Secrets["password"], Live: live, Version: ver},
+		asbaLocation: strings.ToUpper(strings.TrimSpace(c.Values["asba_location"])),
+		token:        c.Secrets["callback_token"], cbPassword: firstOf(c.Secrets["callback_password"], c.Secrets["password"]),
 		send: c.Values["send"] == "On", master: c.Values["master"] != "Off", allot: c.Values["allotment"] != "Off"}
 	for _, ip := range strings.Split(c.Values["callback_ips"], ",") {
 		if ip = strings.TrimSpace(ip); ip != "" {
@@ -484,13 +516,18 @@ type EIPOView struct {
 	Token    bool      `json:"callback_token_set"`
 	State    EIPOState `json:"state"`
 	Needs    string    `json:"needs,omitempty"`
+	Version  string    `json:"version"`
+	// ASBA bids by API: the banks' codes and the firm's location code.
+	Banks        []EIPOBankCode `json:"banks"`
+	ASBALocation string         `json:"asba_location,omitempty"`
 }
 
 // EIPOStatus is the API connection's state.
 func (o *Ops) EIPOStatus(ctx context.Context, tenant string) EIPOView {
 	st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cIPOState, "eipo", EIPOState{})
 	c, ok := o.eipoConnection(ctx, tenant)
-	v := EIPOView{Set: ok, Send: c.send, Usable: c.usable, Token: c.token != "", State: st, Callback: "/hooks/" + tenant + "/eipo/<callback token>"}
+	v := EIPOView{Set: ok, Send: c.send, Usable: c.usable, Token: c.token != "", State: st, Callback: "/hooks/" + tenant + "/eipo/<callback token>",
+		Version: firstOf(c.cfg.Version, "v3"), Banks: o.EIPOBankCodes(ctx, tenant), ASBALocation: c.asbaLocation}
 	if !c.usable {
 		v.Needs = "enter the eIPO member code, API user ID and password"
 	}
@@ -561,8 +598,9 @@ func eipoLines(a IPOApp, iss IPOIssue, cat IPOCategory) []EIPOBidLine {
 	return out
 }
 
-// EIPOSend sends an issue's waiting UPI bids to NSE through the API (ASBA
-// bids through a bank account go by file).
+// EIPOSend sends an issue's waiting bids to NSE through the API: UPI bids,
+// and ASBA bids whose bank has its eIPO codes entered (the others stay for
+// the bid file, with a work item asking for the codes).
 func (o *Ops) EIPOSend(ctx context.Context, tenant, actor, issueID string) (IPOBatch, error) {
 	if err := o.require(ctx, tenant, actor, "Sending IPO bids to the exchange", RoleMaker, RoleChecker); err != nil {
 		return IPOBatch{}, err
@@ -588,9 +626,23 @@ func (o *Ops) EIPOSend(ctx context.Context, tenant, actor, issueID string) (IPOB
 	now := o.now()
 	var list []EIPOBid
 	acts := map[string]string{}
-	skipped := 0
+	skipped, asba := 0, false
+	cm, _ := o.ClientMap(ctx, tenant)
+	codes := o.eipoBankCodeMap(ctx, tenant)
 	for _, b := range bids {
-		if b.Mode != ModeUPI {
+		var bankCode, locCode string
+		switch b.Mode {
+		case ModeUPI:
+		case ModeASBA:
+			c := cm[b.UCC]
+			var ok bool
+			if bankCode, locCode, ok = eipoASBACodes(codes, conn, c.Bank.IFSC); !ok {
+				o.eipoNeedBank(ctx, tenant, c.Bank, conn, codes)
+				skipped++
+				continue
+			}
+			o.closeWork(ctx, tenant, SystemActor, "ipo", "eipo-bank-"+ifscPrefix(c.Bank.IFSC), "codes entered")
+		default:
 			skipped++
 			continue
 		}
@@ -620,6 +672,9 @@ func (o *Ops) EIPOSend(ctx context.Context, tenant, actor, issueID string) (IPOB
 		}
 		e := EIPOBid{Symbol: iss.Symbol, AppNo: b.AppNo, Category: code, ClientName: b.Name, Depository: strings.ToUpper(b.Depository), ClientBenID: json.Number(strings.TrimSpace(b.BenID)),
 			PAN: b.PAN, AllotmentMode: "demat", UPIFlag: "Y", UPI: b.UPI, LedgerlineID: b.ID}
+		if b.Mode == ModeASBA {
+			e.UPIFlag, e.UPI, e.BankCode, e.LocationCode = "N", "", bankCode, locCode
+		}
 		if strings.EqualFold(b.Depository, "NSDL") {
 			e.DPID = b.DPID
 		}
@@ -632,9 +687,10 @@ func (o *Ops) EIPOSend(ctx context.Context, tenant, actor, issueID string) (IPOB
 		}
 		list = append(list, e)
 		acts[b.ID] = b.Pending
+		asba = asba || (b.Mode == ModeASBA && b.Pending == "New")
 	}
 	if len(list) == 0 {
-		return IPOBatch{}, invalid("no UPI bids are waiting to go to NSE for %s%s", iss.Name, map[bool]string{true: " (ASBA bids go by file)", false: ""}[skipped > 0])
+		return IPOBatch{}, invalid("no bids are waiting to go to NSE for %s%s", iss.Name, map[bool]string{true: " (ASBA bids whose bank has no eIPO codes yet go by file)", false: ""}[skipped > 0])
 	}
 	ups, err := eipoClient.SendBids(ctx, conn.cfg, list)
 	if err != nil && len(ups) == 0 {
@@ -663,6 +719,9 @@ func (o *Ops) EIPOSend(ctx context.Context, tenant, actor, issueID string) (IPOB
 			s.LastError = err.Error()
 		}
 	})
+	if asba {
+		o.asbaFormsWork(ctx, tenant, iss, now)
+	}
 	o.log(ctx, tenant, actor, "ipo.eipo_sent", b.ID, map[string]any{"issue": iss.ID, "applications": len(list), "answered": n})
 	return b, nil
 }

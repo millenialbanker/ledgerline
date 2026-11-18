@@ -79,18 +79,20 @@ related: ipo-eipo-api, exchange-files
 title: Connect NSE's eIPO API and callback
 screen: connections
 roles: Admin
-ask: eipo api; nse ipo api; ipo callback; eipo callback url; send ipo bids by api; whitelist callback; login without otp; ipo master; new ipo set up automatically; ipo allotment api; appdpstatus; apppaystatus
+ask: eipo api; nse ipo api; ipo callback; eipo callback url; send ipo bids by api; whitelist callback; login without otp; ipo master; new ipo set up automatically; ipo allotment api; appdpstatus; apppaystatus; asba by api; asba bank code; asba location code; eipo v3; asba forms
 related: ipo-bid-file, connections
 
 NSE gives API access to members on request: email msm@nse.co.in with the member code and user ID (API access, and login without OTP), and the callback address to whitelist (4 to 5 working days).
 
-Ledgerline follows NSE's Protocol for WEB API, Initial Public Offer System (v1.20.7).
+Ledgerline follows NSE's Protocol for WEB API, Initial Public Offer System (2.0.0): the API version is **v3**, signed in with a Bearer token. If NSE still has the firm on 1.20, choose **v1** under API version.
 
 1. In [[connections|Connections]], **NSE eIPO API**: member code, user ID, password, Live or Mock (UAT), and a **callback token** (a long random phrase). If NSE registered a separate callback password, enter it too.
-2. Give NSE the callback address shown on [[ipo|IPO & public issues]] (Files & eIPO API), with your token in it; NSE adds `/v1/appdpstatus`, `/v1/apppaystatus` and `/v1/notification`. Optionally list the addresses NSE calls from.
-3. Switch **Send bids through the API** on: waiting UPI bids then go every 5 minutes during bidding hours, and bids in flight are asked about every 15 minutes. Ledgerline gives each application its number (member code and a running number) and keeps NSE's bid numbers, so a change or cancellation goes against the bids NSE holds. Callbacks update the depository check and UPI mandate as they come.
+2. Give NSE the callback address shown on [[ipo|IPO & public issues]] (Files & eIPO API), with your token in it; NSE adds the version and `appdpstatus`, `apppaystatus` or `notification` (for example `/v3/apppaystatus`). Optionally list the addresses NSE calls from.
+3. Switch **Send bids through the API** on: waiting bids then go every 5 minutes during bidding hours, and bids in flight are asked about every 15 minutes. Ledgerline gives each application its number (member code and a running number) and keeps NSE's bid numbers, so a change or cancellation goes against the bids NSE holds. Callbacks update the depository check and UPI mandate as they come.
 4. **Set up new issues from NSE's IPO master** (on unless switched off): each morning at 08:30, and when NSE says an issue changed, Ledgerline sets up the coming mainboard, SME and debt issues it does not have (price band, lot, dates, the UPI categories and any discount) and keeps their dates and price band in step. Set the commission on the issue if the issuer pays one. Issues set up by staff are left alone.
 5. **Read allotment from NSE** (on unless switched off): from the allotment date, every half hour for three days, Ledgerline reads the issue's allotment and records it (and the final price, if not set): allotted lots for each application named, none for the other valid bids.
+6. **ASBA bids** (blocked in the client's own bank account: above ₹5 lakh, and non-individuals) go by API too, once NSE's codes for the client's bank are in. NSE gives each bank a **bank code** and a **location code** (6 characters each; find them on eIPO). Enter the firm's location code on the connection, and each bank's code on IPO → Files & eIPO API → **ASBA bank codes**, by IFSC (one at a time, or a CSV of IFSC, bank code, location code, bank name). A bid whose bank has no codes yet stays for the bid file, and a work item asks for them; once entered, the next send takes it.
+7. The API replaces the upload, not the form: each day ASBA bids go, a work item lists how many signed ASBA forms go to which bank's branch for syndicate ASBA, so the money is blocked before the issue closes.
 
 ## ipo-mandates
 title: Follow up UPI mandates before the cut-off

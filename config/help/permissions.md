@@ -121,6 +121,7 @@ Downloading the collateral file | Ops maker, Ops checker, Risk manager, Complian
 Editing exchange UCC details | Ops maker, Ops checker
 Editing exchange disclosures | Compliance officer
 Editing message templates | Ops checker, Compliance officer
+Entering ASBA bank codes | Ops checker, Admin
 Entering a payout request | Ops maker, Ops checker, Branch staff, Authorised person
 Entering broker funds | Risk manager
 Entering delivery instructions | Ops maker, Ops checker, Branch staff

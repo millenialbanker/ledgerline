@@ -732,6 +732,16 @@ func TestIPOEIPOHTTPClient(t *testing.T) {
 	if err != nil || len(al) != 1 || al[0].AppNo != "9031100000000001" || al[0].Qty != 150 {
 		t.Fatalf("allotment %+v %v", al, err)
 	}
+	// Protocol 1.20's v1, with the Access-Token header, still works; and an
+	// ASBA bid carries the bank's and location's codes.
+	asba := bid
+	asba.UPIFlag, asba.UPI, asba.BankCode, asba.LocationCode = "N", "", "HDFC01", "MUM001"
+	if ups, err := c.SendBids(context.Background(), EIPOConfig{Base: cfg.Base, Member: "90311", Login: "LLAPI01", Password: "pw-made-up", Version: "v1"}, []EIPOBid{asba}); err != nil || len(ups) != 1 || ups[0].Status != "success" {
+		t.Fatalf("v1 ASBA send %+v %v", ups, err)
+	}
+	if b, _ := json.Marshal(bid); strings.Contains(string(b), "bankCode") {
+		t.Fatalf("a UPI bid carries no bank code: %s", b)
+	}
 	cfg.Password = "wrong"
 	if _, err := c.SendBids(context.Background(), EIPOConfig{Base: cfg.Base, Member: "90311", Login: "OTHER", Password: "wrong"}, []EIPOBid{bid}); err == nil || !strings.Contains(err.Error(), "refused the login") {
 		t.Fatalf("bad login: %v", err)
@@ -923,12 +933,18 @@ func TestIPOOfferForSale(t *testing.T) {
 	}
 }
 
-// newEIPOFake is a stand-in eIPO server speaking NSE's v1 protocol.
+// newEIPOFake is a stand-in eIPO server speaking NSE's protocol: v3 (2.0.0,
+// Bearer token) or v1 (1.20, Access-Token).
 func newEIPOFake(t *testing.T) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path == "/eipo/v1/login" {
+		ver, p, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/eipo/"), "/")
+		if ver != "v1" && ver != "v3" {
+			w.WriteHeader(404)
+			return
+		}
+		if p == "login" {
 			var l map[string]string
 			json.NewDecoder(r.Body).Decode(&l)
 			if l["member"] != "90311" || l["loginId"] != "LLAPI01" || l["password"] != "pw-made-up" {
@@ -938,21 +954,22 @@ func newEIPOFake(t *testing.T) *httptest.Server {
 			w.Write([]byte(`{"member":"90311","loginId":"LLAPI01","status":"success","currentTime":"28-10-2026 10:59:00","token":"tok-1"}`))
 			return
 		}
-		if r.Header.Get("Access-Token") != "tok-1" {
+		if (ver == "v3" && r.Header.Get("Authorization") != "Bearer tok-1") || (ver == "v1" && r.Header.Get("Access-Token") != "tok-1") {
 			w.WriteHeader(401)
 			return
 		}
-		switch r.URL.Path {
-		case "/eipo/v1/transactions/add":
+		switch p {
+		case "transactions/add":
 			var b EIPOBid
-			if json.NewDecoder(r.Body).Decode(&b) != nil || b.AppNo == "" || b.ClientBenID != "1208160000000001" {
+			if json.NewDecoder(r.Body).Decode(&b) != nil || b.AppNo == "" || b.ClientBenID != "1208160000000001" ||
+				(b.UPIFlag == "N" && (len(b.BankCode) != 6 || len(b.LocationCode) != 6 || b.UPI != "")) {
 				w.WriteHeader(400)
 				return
 			}
 			w.Write([]byte(`{"symbol":"APICO","applicationNumber":"` + b.AppNo + `","category":"IND","depository":"CDSL","clientBenId":1208160000000001,"pan":"AAAAA0000A","allotmentMode":"demat",
 				"upiFlag":"Y","upi":"x@okicici","dpVerStatusFlag":"P","upiAmtBlocked":0.00,"timestamp":"28-10-2026 11:00:00","status":"success",
 				"bids":[{"activityType":"new","bidReferenceNumber":2026102800000382,"quantity":150,"atCutOff":true,"amount":15000.00,"remark":"IPB-0000001","status":"success"}]}`))
-		case "/eipo/v1/transactions/fetch":
+		case "transactions/fetch":
 			var q map[string]string
 			json.NewDecoder(r.Body).Decode(&q)
 			if q["applicationNumber"] != "9031100000000001" {
@@ -961,13 +978,13 @@ func newEIPOFake(t *testing.T) *httptest.Server {
 			}
 			w.Write([]byte(`{"status":"success","transactions":[{"symbol":"APICO","applicationNumber":"9031100000000001","upiPaymentStatusFlag":100,"status":"success",
 				"bids":[{"activityType":"new","bidReferenceNumber":2026102800000382,"quantity":150,"atCutOff":true,"amount":15000.00,"status":"success"}]}]}`))
-		case "/eipo/v1/ipomaster":
+		case "ipomaster":
 			w.Write([]byte(`{"status":"success","data":[{"symbol":"TESTIPO","name":"Test Industries","issueType":"EQUITY","lotSize":1,"minBidQuantity":100,"faceValue":10.00,
 				"minPrice":12.00,"maxPrice":12.50,"tickSize":0.05,"cutoffPrice":12.50,"biddingStartDate":"20-11-2026","biddingEndDate":"24-11-2026","dailyStartTime":"10:00:00",
 				"dailyEndTime":"17:00:00","isin":"INE121212121","registrar":"XYZ Registrars","categoryDetails":[{"code":"RETAIL","startTime":"10:00:00","endTime":"17:00:00"}],
 				"subCategorySettings":[{"caCode":"QIB","subCatCode":"FI","minValue":200001.00,"maxValue":6841800000.00,"allowCutOff":false,"allowUpi":false},
 				{"caCode":"RETAIL","subCatCode":"IND","minValue":0.00,"maxValue":200000.00,"allowCutOff":true,"discountType":"A","discountPrice":1,"allowUpi":true,"maxUpiLimit":200000.00}]}]}`))
-		case "/eipo/v1/allotment/fetch":
+		case "allotment/fetch":
 			w.Write([]byte(`{"transactions":[{"symbol":"APICO","applicationNumber":"9031100000000001","price":100.0,"nameOfSecurity":"API Co","allotedQuantity":150,"panNumber":"AAAAA0000A"}],"status":"success"}`))
 		default:
 			w.WriteHeader(404)
@@ -975,4 +992,89 @@ func newEIPOFake(t *testing.T) *httptest.Server {
 	}))
 	t.Cleanup(srv.Close)
 	return srv
+}
+
+// TestIPOEIPOASBA: ASBA bids go through the eIPO API once their bank's
+// codes are entered, with a daily list of the forms for the banks.
+func TestIPOEIPOASBA(t *testing.T) {
+	o, ctx := setup(t)
+	o.Now = func() time.Time { return ipoAt(2026, 10, 28, 11, 0) }
+	fake := &fakeEIPO{}
+	old := eipoClient
+	eipoClient = fake
+	t.Cleanup(func() { eipoClient = old })
+	iss := mainboard(t, o, ctx, "ASBACO")
+	cs := ipoClients(t, o, ctx, 2)
+	b, err := o.PlaceIPOBid(ctx, T, "priya.nair", IPOBidInput{Issue: iss.ID, UCC: cs[0].UCC, Category: "BNII", Options: opt(70, "99", false), Instruction: staffSaid(o)})
+	if err != nil || b.Mode != ModeASBA {
+		t.Fatalf("ASBA bid %+v %v", b, err)
+	}
+	vals := map[string]string{"member": "90311", "login": "LLAPI01", "env": "Mock (UAT)", "send": "On"}
+	if _, err := o.SaveConnection(ctx, T, "admin", connNSEEIPO, vals, map[string]string{"password": "made-up-password"}); err != nil {
+		t.Fatal(err)
+	}
+	if v := o.EIPOStatus(ctx, T); v.Version != "v3" || len(v.Banks) != 0 {
+		t.Fatalf("status %+v", v)
+	}
+	// No codes for the bank yet: the bid waits for the file, and a work item
+	// asks for them.
+	p := ifscPrefix(cs[0].Bank.IFSC)
+	if _, err := o.EIPOSend(ctx, T, "priya.nair", iss.ID); err == nil || !strings.Contains(err.Error(), "ASBA bids whose bank has no eIPO codes") || len(fake.sent) != 0 {
+		t.Fatalf("send without codes: %v (%d sent)", err, len(fake.sent))
+	}
+	wid := "W-ipo-eipo-bank-" + p
+	if w, _, err := docs.Get[WorkItem](ctx, o.Docs, T, cWorkItem, wid); err != nil || w.Status != "Open" || !strings.Contains(w.Detail, "bank code and location code") {
+		t.Fatalf("codes work item %+v %v", w, err)
+	}
+	// Codes: the maker cannot enter them; a bad code is refused; a bank code
+	// without any location code is not enough.
+	if _, err := o.SetEIPOBankCode(ctx, T, "priya.nair", EIPOBankCode{Prefix: cs[0].Bank.IFSC, BankCode: "B00001"}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("maker enters codes: %v", err)
+	}
+	if _, err := o.SetEIPOBankCode(ctx, T, "admin", EIPOBankCode{Prefix: cs[0].Bank.IFSC, BankCode: "TOOLONG1"}); err == nil {
+		t.Fatal("a 7-character code was taken")
+	}
+	if n, err := o.LoadEIPOBankCodes(ctx, T, "admin", []byte("IFSC,Bank code,Location code,Bank\n"+cs[0].Bank.IFSC+",b00001,,Made-up Bank\n")); err != nil || n != 1 {
+		t.Fatalf("CSV %d %v", n, err)
+	}
+	if _, err := o.EIPOSend(ctx, T, "priya.nair", iss.ID); err == nil {
+		t.Fatal("sent without a location code")
+	}
+	if w, _, _ := docs.Get[WorkItem](ctx, o.Docs, T, cWorkItem, wid); !strings.Contains(w.Detail, "a location code") {
+		t.Fatalf("work item now asks for %q", w.Detail)
+	}
+	vals["asba_location"] = "mum001"
+	if _, err := o.SaveConnection(ctx, T, "admin", connNSEEIPO, vals, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.SetEIPOBankCode(ctx, T, "admin", EIPOBankCode{Prefix: p, Bank: "Made-up Bank", BankCode: "b00001"}); err != nil {
+		t.Fatal(err)
+	}
+	if w, _, _ := docs.Get[WorkItem](ctx, o.Docs, T, cWorkItem, wid); w.Status != "Done" {
+		t.Fatalf("codes work item %+v", w)
+	}
+	batch, err := o.EIPOSend(ctx, T, "priya.nair", iss.ID)
+	if err != nil || batch.Via != "API" || len(fake.sent) != 1 {
+		t.Fatalf("ASBA send %+v %v (%d sent)", batch, err, len(fake.sent))
+	}
+	s0 := fake.sent[0]
+	if s0.UPIFlag != "N" || s0.UPI != "" || s0.BankCode != "B00001" || s0.LocationCode != "MUM001" || s0.Ref != "" || s0.Bids[0].Price != "99.00" || s0.Bids[0].Quantity != 70*150 {
+		t.Fatalf("ASBA bid by API %+v", s0)
+	}
+	if a := bidOf(t, o, ctx, b.ID); a.AppNo == "" || len(a.ExchBids) != 1 || a.Status == BidDraft {
+		t.Fatalf("after send %+v", a)
+	}
+	// The forms for the banks, listed for the day.
+	fw, _, err := docs.Get[WorkItem](ctx, o.Docs, T, cWorkItem, "W-ipo-asba-forms-"+iss.ID+"-2026-10-28")
+	if err != nil || fw.Status != "Open" || !strings.Contains(fw.Title, "send 1 ASBA form") || !strings.Contains(fw.Detail, cs[0].Bank.Bank+" 1") {
+		t.Fatalf("forms work item %+v %v", fw, err)
+	}
+	// A second bank without codes still waits, alongside a UPI bid going.
+	regUPI(t, o, ctx, cs[1].UCC)
+	if _, err := o.PlaceIPOBid(ctx, T, "priya.nair", IPOBidInput{Issue: iss.ID, UCC: cs[1].UCC, Category: "RII", Options: opt(1, "", true), UPI: vpaOf(cs[1].UCC), Instruction: staffSaid(o)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.EIPOSend(ctx, T, "priya.nair", iss.ID); err != nil || len(fake.sent) != 2 || fake.sent[1].UPIFlag != "Y" || fake.sent[1].BankCode != "" {
+		t.Fatalf("UPI send %v %+v", err, fake.sent)
+	}
 }

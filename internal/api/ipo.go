@@ -75,6 +75,8 @@ func (s *Server) ipoRoutes() {
 	s.mux.HandleFunc("POST /hooks/{tenant}/eipo", s.eipoHook)
 	s.mux.HandleFunc("POST /hooks/{tenant}/eipo/{token}/{version}/{kind}", s.eipoNSEHook)
 	R("POST /v1/ipo/eipo/master", s.eipoMaster, true)
+	R("PUT /v1/ipo/eipo/banks/{prefix}", s.eipoBankSet, true)
+	R("POST /v1/ipo/eipo/banks", s.eipoBankLoad, true)
 	R("POST /v1/ipo/issues/{id}/ofs-send", s.ofsSend, true)
 	R("POST /v1/ipo/issues/{id}/eipo-allotment", s.eipoAllotment, true)
 }
@@ -459,6 +461,27 @@ func (s *Server) ofsSend(w http.ResponseWriter, r *http.Request) {
 func (s *Server) eipoMaster(w http.ResponseWriter, r *http.Request) {
 	added, changed, err := s.ops.EIPOSyncMaster(r.Context(), tenant(r), actor(r))
 	ok(w, map[string]int{"added": added, "changed": changed}, err)
+}
+
+func (s *Server) eipoBankSet(w http.ResponseWriter, r *http.Request) {
+	var b ops.EIPOBankCode
+	if !decode(w, r, &b) {
+		return
+	}
+	b.Prefix = r.PathValue("prefix")
+	v, err := s.ops.SetEIPOBankCode(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+// eipoBankLoad takes a CSV of banks' eIPO codes.
+func (s *Server) eipoBankLoad(w http.ResponseWriter, r *http.Request) {
+	data, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		ok(w, nil, err)
+		return
+	}
+	n, err := s.ops.LoadEIPOBankCodes(r.Context(), tenant(r), actor(r), data)
+	ok(w, map[string]int{"loaded": n}, err)
 }
 
 func (s *Server) eipoAllotment(w http.ResponseWriter, r *http.Request) {
