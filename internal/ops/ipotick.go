@@ -86,6 +86,9 @@ func (o *Ops) ipoTick(ctx context.Context, tenant string, now time.Time) {
 		if eipoOK && eipo.send && eipo.usable && contains(iss.Exchanges, "NSE") && iss.Type != IssueOFS {
 			o.eipoTick(ctx, tenant, iss, set, now)
 		}
+		if iss.Type == IssueOFS && contains(iss.Exchanges, "NSE") {
+			o.ofsTick(ctx, tenant, iss, set, now)
+		}
 		if iss.Type != IssueOFS && today == iss.Close {
 			if hm >= iss.CloseTime {
 				o.mandateAlert(ctx, tenant, iss, "close", now)

@@ -145,14 +145,14 @@ After allotment, on the Allotment & refunds tab, **Claim commission** posts it a
 title: Bid in an offer for sale
 screen: ipo
 roles: Ops maker, Ops checker
-ask: offer for sale; ofs bid; ofs retail; ofs margin; ofs allocation; ofs contract note
+ask: offer for sale; ofs bid; ofs retail; ofs margin; ofs allocation; ofs contract note; ofs api; place ofs bid by api; eofs
 related: ipo-bid, run-billing, contract-notes
 
 An offer for sale runs on two days: non-retail bids on T, retail bids (up to ₹2 lakh, cut-off allowed once the price is known) on T+1, each with **100% cash margin**.
 
 1. Set the issue up as type OFS (T and T+1, floor price; enter the retail cut-off price as the cap once known).
 2. **New bid**: the margin is taken from the client's ledger when the bid is taken, after checking the client's free funds. It moves with a revision and comes back on cancellation.
-3. Place the bid in the OFS window of the trading system and **Record platform status** with the order number.
+3. Place the bid in the OFS window of the trading system and **Record platform status** with the order number. Or let Ledgerline place it: with **NSE OFS API** set up in [[connections|Connections]] (member ID, OFS user ID and password, from NSE) and **Place bids through the API** on, waiting bids go every two minutes while the window is open (non-retail on T, retail on T+1; series IS, RS or ES, 100% margin, cut-off as a market order), changes and cancellations against NSE's order number, and NSE's order book confirms them. A refused bid shows NSE's reason.
 4. **Record allocation** with the shares and price: margins come back, and each allotment is billed as the day's trade. If the day's trade file does not carry it, tick the box to add it to the day's exchange trades; then run billing and contract notes for the day as usual.
 
 ## ipo-portal

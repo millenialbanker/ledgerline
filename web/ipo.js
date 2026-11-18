@@ -107,7 +107,7 @@ P.ipo_files = d => {
       <p class="dim small">NSE calls back at the address above followed by <span class="mono">/v1/appdpstatus</span>, <span class="mono">/v1/apppaystatus</span> and <span class="mono">/v1/notification</span>.</p>
       ${e.state.last_error ? `<div class="note bad" style="margin-top:8px">${esc(e.state.last_error)}</div>` : ''}
       <p class="dim small">Set it up in Settings → Connections (NSE eIPO API). Access: email msm@nse.co.in with the member code and user ID (API access and login without OTP), and the callback address to whitelist.</p>
-      ${e.usable && ipoMk() ? `<div class="tools"><button class="btn sm" data-act="ipoMaster">Read NSE's IPO master</button>${d.is.issues.filter(i => i.status === 'Open' && i.exchanges.includes('NSE') && i.type !== 'OFS').map(i => `<button class="btn sm" data-act="ipoApi" data-id="${esc(i.id)}">Send ${esc(i.symbol)} by API</button><button class="btn sm" data-act="ipoInq" data-id="${esc(i.id)}">Ask status</button>`).join('')}</div>` : ''}</div></div></div>
+      ${e.usable && ipoMk() ? `<div class="tools"><button class="btn sm" data-act="ipoMaster">Read NSE's IPO master</button>${d.is.issues.filter(i => i.status === 'Open' && i.exchanges.includes('NSE') && i.type !== 'OFS').map(i => `<button class="btn sm" data-act="ipoApi" data-id="${esc(i.id)}">Send ${esc(i.symbol)} by API</button><button class="btn sm" data-act="ipoInq" data-id="${esc(i.id)}">Ask status</button>`).join('')}${d.is.issues.filter(i => i.status === 'Open' && i.exchanges.includes('NSE') && i.type === 'OFS').map(i => `<button class="btn sm" data-act="ofsApi" data-id="${esc(i.id)}">Place ${esc(i.symbol)} OFS bids by API</button>`).join('')}</div>` : ''}</div></div></div>
     <div class="panel"><div class="hd"><h3>Sent to the exchanges</h3><div class="tools">${ipoIssuePick(d, true)}</div></div>` +
     tbl([['Batch'], ['Issue'], ['Exchange'], ['Via'], ['Bids', 'r'], ['Lines', 'r'], ['When'], ['By'], ['']], d.batches.map(b => `<tr><td class="n">${esc(b.id)}</td><td>${esc((ipoIssueOf(b.issue) || {}).name || b.issue)}</td><td>${esc(b.exchange)}</td><td>${esc(b.via)}</td><td class="r">${Object.keys(b.bids || {}).length}</td><td class="r">${b.lines}</td><td class="small">${ipoTime(b.created)}</td><td class="dim">${esc(b.by)}</td><td>${b.file && ipoMk() ? `<button class="btn sm" data-act="dl" data-id="/v1/ipo/batches/${esc(b.id)}/file" data-name="${esc(b.name)}">${esc(b.name)}</button>` : esc(b.note || '')}</td></tr>`), { empty: 'Nothing sent yet.' }) + '</div>';
 };
@@ -278,6 +278,7 @@ Object.assign(A, {
     catch (e) { toast(e.message, true); }
   },
   ipoApi: id => act(() => post(`/v1/ipo/issues/${ipoEnc(id)}/eipo-send`), b => `${b.lines} bid(s) sent to NSE · ${b.note || ''}`),
+  ofsApi: id => act(() => post(`/v1/ipo/issues/${ipoEnc(id)}/ofs-send`), r => `${r.sent} OFS bid(s) sent, ${r.confirmed} confirmed${r.refused ? ', ' + r.refused + ' refused' : ''}${(r.problems || []).length ? ' · ' + r.problems[0] : ''}`),
   ipoMaster: () => act(() => post('/v1/ipo/eipo/master'), r => `${r.added} issue(s) set up and ${r.changed} updated from NSE's IPO master`),
   ipoInq: id => act(() => post(`/v1/ipo/issues/${ipoEnc(id)}/eipo-inquire`), r => `${r.updated} bid(s) updated`),
   ipoResp: () => {

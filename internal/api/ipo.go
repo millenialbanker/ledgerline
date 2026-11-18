@@ -75,6 +75,7 @@ func (s *Server) ipoRoutes() {
 	s.mux.HandleFunc("POST /hooks/{tenant}/eipo", s.eipoHook)
 	s.mux.HandleFunc("POST /hooks/{tenant}/eipo/{token}/{version}/{kind}", s.eipoNSEHook)
 	R("POST /v1/ipo/eipo/master", s.eipoMaster, true)
+	R("POST /v1/ipo/issues/{id}/ofs-send", s.ofsSend, true)
 	R("POST /v1/ipo/issues/{id}/eipo-allotment", s.eipoAllotment, true)
 }
 
@@ -448,6 +449,11 @@ func (s *Server) eipoNSEHook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]string{"status": "success"})
+}
+
+func (s *Server) ofsSend(w http.ResponseWriter, r *http.Request) {
+	res, err := s.ops.OFSSend(r.Context(), tenant(r), actor(r), r.PathValue("id"))
+	ok(w, res, err)
 }
 
 func (s *Server) eipoMaster(w http.ResponseWriter, r *http.Request) {
