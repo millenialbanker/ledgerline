@@ -591,3 +591,18 @@ A client using the UPI block keeps the money in their own bank: NSE Clearing deb
 3. Each debit NSE Clearing makes on a block is posted to the client's ledger as money received from the client and paid straight to NSE Clearing (debit the NSE clearing account, credit the client), once, under NSE Clearing's reference. If it cannot be posted, an Ops checker gets a work item. Turn **Post each block debit** Off to only record them.
 
 **NSE Clearing APIs** on [[ccdata|Clearing data]] shows the clients registered, the amount blocked and the day's debits. Releasing a block or moving blocked money between segments is done on the client's request and is not sent by Ledgerline yet.
+
+## bse-sftp
+title: Fetch BSE's files automatically by SFTP
+screen: xfiles
+roles: Admin, Ops maker
+ask: bse sftp; bse extranet sftp; bse files download; bse firewall whitelisting; bse static ip; bispl; bse technologies; bse port 3313; bse dr server; bse bcp server
+related: nse-extranet-api, connections
+
+Instead of someone downloading the day's BSE files and uploading them, Ledgerline can fetch them from BSE's SFTP server and load each one it reads.
+
+1. Submit the server's static IP address (shown on [[connections|Connections]]) to BSE Technologies or BSE Index Services Pvt. Ltd. (BISPL) for firewall whitelisting, and get the SFTP login and the production port BSE assigns.
+2. On [[connections|Connections]] (Admin), open **BSE SFTP**: the production server and its port, the DR/BCP server (it uses port 3313), the user, password and member code, and turn **Fetch new files automatically** on. Leave **Folders to look in** empty for the member folder and Common, or list the folders BSE gave.
+3. The first try shows the server's host key: check it with BSE and save it on the connection.
+
+Every half hour from 06:30 to 23:00 Ledgerline signs in, looks in those folders and their date folders of the last few days, and loads each file it reads, once. If BSE's production server is down, switch **Connect to** to DR/BCP. A failed run gives an Ops maker a work item; the feed and **Fetch now** are on [[xfiles|Exchange files]].

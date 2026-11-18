@@ -20,6 +20,19 @@ func (s *Server) mcxRoutes() {
 	s.route("GET /v1/mcx/contracts", s.mcxContracts, false)
 	s.route("GET /v1/mcx/sftp", s.mcxSFTPStatus, false)
 	s.route("POST /v1/mcx/sftp/fetch", s.mcxSFTPFetch, true)
+	s.route("GET /v1/bse/sftp", s.bseSFTPStatus, false)
+	s.route("POST /v1/bse/sftp/fetch", s.bseSFTPFetch, true)
+}
+
+// bseSFTPStatus is the BSE SFTP feed's last run and latest files.
+func (s *Server) bseSFTPStatus(w http.ResponseWriter, r *http.Request) {
+	ok(w, s.ops.BSESFTPStatus(r.Context(), tenant(r)), nil)
+}
+
+// bseSFTPFetch fetches new files from BSE's SFTP now.
+func (s *Server) bseSFTPFetch(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.BSESFTPFetch(r.Context(), tenant(r), actor(r))
+	ok(w, v, err)
 }
 
 // mcxContracts is the latest MCX product master (?symbol= for one).

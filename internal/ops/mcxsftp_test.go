@@ -94,3 +94,32 @@ func TestMCXDateFolder(t *testing.T) {
 		}
 	}
 }
+
+func TestBSESFTPFetch(t *testing.T) {
+	o, ctx := setup(t)
+	o.Now = func() time.Time { return time.Date(2026, 10, 16, 9, 0, 0, 0, ist) }
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "0923", "16102026"), 0o755)
+	os.MkdirAll(filepath.Join(root, "Common"), 0o755)
+	os.WriteFile(filepath.Join(root, "0923", "16102026", "notes.txt"), []byte("x"), 0o644)
+	addr, key := sftpTestServer(t, root)
+	vals := map[string]string{"host": addr, "user": "DP081600", "member": "0923", "site": "DR/BCP", "fetch": "On",
+		"folders": root + "/0923, " + root + "/Common", "hostkey": ssh.FingerprintSHA256(key)}
+	c := Connection{Provider: connBSESFTP, Status: "Saved", Values: vals, Secrets: map[string]string{"password": "pw"}}
+	if _, err := parseBSESFTP(c); err == nil || !strings.Contains(err.Error(), "DR/BCP") {
+		t.Fatalf("DR without a server: %v", err)
+	}
+	vals["dr_host"] = "dr.example.test"
+	if x, err := parseBSESFTP(c); err != nil || x.addr != "dr.example.test:3313" {
+		t.Fatalf("DR address %+v %v", x, err)
+	}
+	vals["site"] = "Production"
+	docs.Upsert(ctx, o.Docs, T, cConn, connBSESFTP, c, "admin")
+	run, err := o.BSESFTPFetch(ctx, T, "priya.nair")
+	if err != nil || len(run.Folders) != 3 || run.Unknown != 1 || len(run.Fetched) != 0 {
+		t.Fatalf("run %+v %v", run, err)
+	}
+	if v := o.BSESFTPStatus(ctx, T); v.State.LastOK == "" {
+		t.Fatalf("status %+v", v)
+	}
+}

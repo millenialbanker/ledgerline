@@ -133,6 +133,7 @@ Entering vouchers | Ops maker, Ops checker
 Exporting dealers with PANs | Ops maker, Compliance officer
 Exporting migrated history | Ops checker, Compliance officer
 Fetching CCIL's prices | Ops maker, Ops checker, Risk manager
+Fetching files from BSE's SFTP | Ops maker, Ops checker, Risk manager
 Fetching files from MCX's SFTP | Ops maker, Ops checker, Risk manager
 Fetching files from NSE's extranet | Ops maker, Ops checker, Risk manager
 Fetching margins from NSE Clearing | Ops maker, Ops checker, Risk manager
