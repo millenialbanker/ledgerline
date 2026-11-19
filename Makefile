@@ -1,4 +1,4 @@
-.PHONY: kyc test vet sqltest demo run build build-pgx integration fmt migrate-tool
+.PHONY: kyc test vet sqltest demo run build build-pgx integration fmt migrate-tool signer
 
 test:            ## unit and end-to-end tests (no database needed)
 	go test -race -count=1 ./...
@@ -29,6 +29,11 @@ integration:     ## full day against PostgreSQL (LEDGERLINE_TEST_DB, LEDGERLINE_
 
 fmt:
 	gofmt -w .
+
+# ---- Ledgerline Signer (the USB token signer at the broker's office; see cmd/ledgerline-signer) ----
+signer:          ## ledgerline-signer.exe for Windows, in bin/ (test it on a real token with -selftest)
+	mkdir -p bin
+	GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o bin/ledgerline-signer.exe ./cmd/ledgerline-signer
 
 # ---- migration tool (runs at the broker's office; see cmd/ledgerline-migrate) ----
 MIGRATE_VERSION ?= 1.0

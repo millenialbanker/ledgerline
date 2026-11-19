@@ -396,6 +396,13 @@ type Ops struct {
 	MigrateSync bool
 	migMu       sync.Mutex
 	migRun      map[string]bool
+	// SignAgentWait is how long a document waits for the USB token signer
+	// to sign it (signagent.go); zero means 60 seconds. SignAgentPollWait is
+	// how long the signer's poll waits for work; zero means 25 seconds.
+	// Tests make both short.
+	SignAgentWait     time.Duration
+	SignAgentPollWait time.Duration
+	signWake          waker
 }
 
 // New builds Ops and installs the client-code-modification hook on the app.

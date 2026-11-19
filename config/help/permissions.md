@@ -32,6 +32,7 @@ Approving pledge invocations | Compliance officer
 Approving pledges to lenders | Ops checker
 Approving re-pledges | Ops checker, Risk manager
 Approving reactivation | Ops checker, Compliance officer
+Approving the USB token signer's certificate | Compliance officer
 Approving unpledges | Ops checker, Risk manager
 Approving vouchers | Ops checker
 Asking CDSL about eDIS authorisations | Ops maker, Ops checker, Risk manager
@@ -89,6 +90,7 @@ Checking UPI blocks with NSE Clearing | Ops maker, Ops checker, Risk manager
 Checking a backup | Ops checker, Compliance officer
 Checking a migration package | Admin
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
+Checking the digital signature | Compliance officer
 Choosing CBRICS settlement accounts | Ops maker, Ops checker
 Choosing the eIPO products the firm offers | Ops checker
 Claiming IPO commission | Ops checker
@@ -100,6 +102,7 @@ Closing out a short delivery | Ops checker
 Closing the day | Ops checker
 Confirming allocation | Ops checker, Risk manager
 Confirming payouts | Ops maker, Ops checker
+Connecting the USB token signer | Admin
 Corporate actions | Ops maker, Ops checker
 Correcting a bill | Ops checker
 Creating a client | Ops maker, Ops checker
@@ -273,6 +276,7 @@ Reporting short allocation | Ops maker, Ops checker, Risk manager
 Requesting reactivation | Ops maker, Ops checker
 Resetting passwords | Admin
 Resetting the BSE UCC API password | Admin
+Resetting the USB token signer's key | Admin
 Resetting two-factor sign-in | Admin
 Resolving FATCA/CRS warnings | Ops checker, Compliance officer
 Restricting client data | Compliance officer, Admin
@@ -317,6 +321,7 @@ Setting CDSL account defaults | Ops checker
 Setting a client's default ledger | Ops checker, Risk manager
 Setting client risk | Compliance officer
 Setting the AI answer log retention | Compliance officer
+Setting the USB token signer's certificate | Admin
 Setting the deployment for exchange disclosures | Compliance officer
 Setting the firm's default dashboard | Admin
 Setting the firm's screen layout | Admin
