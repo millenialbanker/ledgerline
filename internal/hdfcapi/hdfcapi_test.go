@@ -125,17 +125,17 @@ func TestClientAgainstFakeBank(t *testing.T) {
 	pay := func(ref string, typ string) hdfcapi.Payment {
 		return hdfcapi.Payment{Type: typ, BeneCode: "C001", Account: "50100012345678", Amount: "1500.00", Name: "Asha Rao", CustRef: ref, Date: "19/11/2026", IFSC: "ICIC0000056"}
 	}
-	r, err := c.SendBatch(ctx, "", hdfcapi.BatchRequest{ClientCode: "BALJIT", GroupID: "BALJITG", Maker: "APIUSER", Count: "2", FileRef: "000001", Payments: []hdfcapi.Payment{pay("00000000000001", "N"), pay("00000000000002", "I")}})
+	r, err := c.SendBatch(ctx, "", hdfcapi.BatchRequest{ClientCode: "ABCD", GroupID: "ABCDG", Maker: "APIUSER", Count: "2", FileRef: "000001", Payments: []hdfcapi.Payment{pay("00000000000001", "N"), pay("00000000000002", "I")}})
 	if err != nil || !r.Accepted() || r.BatchNum == "" {
 		t.Fatalf("send %+v %v", r, err)
 	}
 	// The same file reference again on the same day is refused by the bank.
-	_, err = c.SendBatch(ctx, "", hdfcapi.BatchRequest{ClientCode: "BALJIT", GroupID: "BALJITG", Maker: "APIUSER", Count: "1", FileRef: "000001", Payments: []hdfcapi.Payment{pay("00000000000003", "N")}})
+	_, err = c.SendBatch(ctx, "", hdfcapi.BatchRequest{ClientCode: "ABCD", GroupID: "ABCDG", Maker: "APIUSER", Count: "1", FileRef: "000001", Payments: []hdfcapi.Payment{pay("00000000000003", "N")}})
 	var ae *hdfcapi.APIError
 	if !errors.As(err, &ae) || !ae.Sure() || !strings.Contains(ae.Reason, "Duplicate") {
 		t.Fatalf("duplicate file reference %v", err)
 	}
-	q := hdfcapi.InquiryRequest{GroupID: "BALJITG", Maker: "APIUSER", BatchNum: string(r.BatchNum), Date: "19/11/2026", FileRef: "000001"}
+	q := hdfcapi.InquiryRequest{GroupID: "ABCDG", Maker: "APIUSER", BatchNum: string(r.BatchNum), Date: "19/11/2026", FileRef: "000001"}
 	for i, want := range []string{"accepted your request", "under process"} {
 		x, err := c.Inquire(ctx, q)
 		if err != nil || !strings.Contains(string(x.Message), want) || len(x.Lines) != 0 {
@@ -154,11 +154,11 @@ func TestClientAgainstFakeBank(t *testing.T) {
 	if l := x.Lines[1]; l.Status != "R" || l.Reason != "Account closed" {
 		t.Fatalf("line 2 %+v", l)
 	}
-	n, err := c.BatchNumber(ctx, hdfcapi.BatchNumberRequest{GroupID: "BALJITG", Maker: "APIUSER", Date: "19/11/2026", FileRef: "000001"})
+	n, err := c.BatchNumber(ctx, hdfcapi.BatchNumberRequest{GroupID: "ABCDG", Maker: "APIUSER", Date: "19/11/2026", FileRef: "000001"})
 	if err != nil || n.BatchNum != r.BatchNum {
 		t.Fatalf("batch number %+v %v", n, err)
 	}
-	n, err = c.BatchNumber(ctx, hdfcapi.BatchNumberRequest{GroupID: "BALJITG", Maker: "APIUSER", Date: "19/11/2026", FileRef: "000009"})
+	n, err = c.BatchNumber(ctx, hdfcapi.BatchNumberRequest{GroupID: "ABCDG", Maker: "APIUSER", Date: "19/11/2026", FileRef: "000009"})
 	if err != nil || n.BatchNum != "" || !strings.Contains(string(n.Message), "No record") {
 		t.Fatalf("unknown file reference %+v %v", n, err)
 	}
