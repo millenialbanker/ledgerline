@@ -543,6 +543,7 @@ type cur struct {
 	partnerCodes map[string]string
 	chart        *chart
 	segCache     map[string]segH
+	prods        map[string]spProduct // SharePro's product codes (PRDMAST)
 
 	derivClients int
 	// demat is each client's demat account in the client master (DematID)

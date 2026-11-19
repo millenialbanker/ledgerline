@@ -472,12 +472,23 @@ points at it in `OTHBRKG.brkgbasket` per CO from `EffectDate` [verified,
 
 Cards and own rates are versioned alike: for every date on which any row
 (or `OTHBRKG` minimum) takes effect, a version with the latest row of each
-line in force on that date. `PRODUCTCD` is the trading channel: blank →
-every channel, DIR → dealer, IBT → online, MBT → mobile [assumed from the
-basket report; other codes are warned and not converted]. Fill-ins: the
-firm default card when clients are on no basket and have no own rows
-(`brokerage-default`), and the terminal list when any line has a channel
-(`terminal-channels`).
+line in force on that date. `PRODUCTCD` is the firm's product code, read from its
+own product master `PRDMAST` by description [verified, 19 Nov]: blank →
+every channel; "internet" → online, "mobile" → mobile, "dealer" → dealer;
+"physical delivery" future / option (P-F, P-O as shipped) → FO-FUT / FO-OPT
+with the physical case; any other code a channel of its own named after
+the code (DIR "direct trading by client" → `dir`). Without PRDMAST the code
+alone is read the same way. The F&O event of a delivery row is in
+`NSDBRKG.ONCAT` (Expiry, Excercise, Assignm, Delivery) [verified].
+
+TERMINAL-CHANNELS: SharePro has no terminal table, but every trade carries
+its product code and CTCL ID (`TRFILE.PRODUCTCD`, `CTCLID`) [verified]. A
+terminal is listed with a channel the cards price apart (not dealer) when
+at least 90% of its year's trades carry it; mixed terminals are counted.
+
+Fill-ins: the firm default card when clients are on no basket and have no
+own rows (`brokerage-default`), and the terminal list only when channels
+are priced apart but no terminal could be listed (`terminal-channels`).
 
 | SharePro | Ledgerline |
 |---|---|

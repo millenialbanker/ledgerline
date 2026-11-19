@@ -44,11 +44,73 @@ const (
 // channel for the terminal to be listed as that channel.
 const termShare = 0.9
 
-// sharePro's trading channels on rate rows (PRODUCTCD) as Ledgerline
-// channels: blank is every channel, so a channel's own line wins over it.
-// P-F and P-O are not channels but futures and options settled by delivery
-// (on delivery rows only; see convertRate).
-var spChannels = map[string]string{"": "", "DIR": "dealer", "IBT": "online", "MBT": "mobile", "P-F": "", "P-O": ""}
+const qProducts = `/*sp:products*/ SELECT RTRIM(PRODUCTCD) AS productcd, RTRIM(DESCR) AS descr FROM PRDMAST`
+
+// spProduct is what a SharePro product code (PRODUCTCD on rate rows and
+// trades) means: a trading channel, or futures / options settled by
+// delivery of shares. The codes are the firm's own, from SharePro's
+// product master (PRDMAST), read by their description, so a firm with
+// other codes needs no change here:
+//   - "internet" → online, "mobile" → mobile, "dealer" → dealer;
+//   - "physical delivery" with "future" or "option" → physical (P-F, P-O);
+//   - any other code becomes a channel of its own, named after the code
+//     (e.g. "dir" for DIR, "direct trading by client"), so its rates are
+//     kept apart as SharePro kept them.
+//
+// Blank is every channel: a channel's own line wins over it. A code not
+// in PRDMAST (or a backup without PRDMAST) is read the same way from the
+// code alone (IBT, MBT, P-F, P-O as SharePro ships them).
+type spProduct struct {
+	channel  string
+	physical string // "FUT" or "OPT" for delivery of futures / options
+}
+
+func readSPProduct(code, descr string) spProduct {
+	d := strings.ToUpper(descr + " " + code)
+	switch {
+	case code == "":
+		return spProduct{}
+	case strings.Contains(d, "DELIVERY") && (strings.Contains(d, "PHYSICAL") || strings.Contains(d, "PHISICAL")) || code == "P-F" || code == "P-O":
+		if strings.Contains(d, "OPTION") || code == "P-O" {
+			return spProduct{physical: "OPT"}
+		}
+		return spProduct{physical: "FUT"}
+	case strings.Contains(d, "INTERNET") || code == "IBT":
+		return spProduct{channel: "online"}
+	case strings.Contains(d, "MOBILE") || code == "MBT":
+		return spProduct{channel: "mobile"}
+	case strings.Contains(d, "DEALER"):
+		return spProduct{channel: "dealer"}
+	}
+	ch := strings.Trim(reNonSlug.ReplaceAllString(strings.ToLower(code), "-"), "-")
+	if len(ch) < 2 {
+		ch = "ch-" + ch
+	}
+	return spProduct{channel: ch}
+}
+
+// products is SharePro's product master, read once.
+func (c *cur) products(ctx context.Context) map[string]spProduct {
+	if c.prods != nil {
+		return c.prods
+	}
+	c.prods = map[string]spProduct{}
+	if c.s.has("PRDMAST") {
+		_ = c.d.query(ctx, qProducts, func(r migrate.Row) error {
+			code := upper(r, "productcd")
+			c.prods[code] = readSPProduct(code, str(r, "descr"))
+			return nil
+		})
+	}
+	return c.prods
+}
+
+func (c *cur) product(ctx context.Context, code string) spProduct {
+	if p, ok := c.products(ctx)[code]; ok {
+		return p
+	}
+	return readSPProduct(code, "")
+}
 
 type rateRow struct {
 	kind                     string // Q or D
@@ -140,13 +202,13 @@ func (c *cur) rateVersions(lines []rateLine, os []othRow) []rateVersion {
 
 // convertRows turns a client's or basket's rate rows into lines for the
 // firm's COs, warning on each row that cannot be converted.
-func (c *cur) convertRows(area, who string, rs []rateRow, items map[string][2]string) []rateLine {
+func (c *cur) convertRows(ctx context.Context, area, who string, rs []rateRow, items map[string][2]string) []rateLine {
 	var lines []rateLine
 	for _, x := range rs {
 		if !contains(c.f.COs, x.co) {
 			continue
 		}
-		ls, err := c.convertRate(x, items)
+		ls, err := c.convertRate(ctx, x, items)
 		if err != nil {
 			c.rep.warnf(area, who, "convert", "Set this rate by hand in Ledgerline", "Rate row of %s from %s (CO %s, item %s): %v", x.kind, x.from, x.co, x.item, err)
 			continue
@@ -264,14 +326,14 @@ func (c *cur) writeBrokerage(ctx context.Context) error {
 	}
 	cardOf := map[string]string{} // basket -> the Card value written
 	slugs := map[string]bool{}
-	channels := false
+	used := map[string]bool{} // channels the converted lines price apart
 	noRates := 0
 	for _, b := range sortedKeys(baskets) {
 		if _, ok := c.cm.clients[b]; ok {
 			c.rep.warnf(area, "", "basket-is-client", "Check the basket in SharePro", "Basket %s is also a client code; its rows are taken as the client's own rates, not as a card", b)
 			continue
 		}
-		lines := c.convertRows(area, "", rows[b], items)
+		lines := c.convertRows(ctx, area, "", rows[b], items)
 		if len(lines) == 0 {
 			noRates++
 			continue
@@ -285,7 +347,7 @@ func (c *cur) writeBrokerage(ctx context.Context) error {
 		for _, v := range c.rateVersions(lines, others[b]) {
 			for _, row := range v.rows {
 				row["Card"], row["Name"] = card, b
-				channels = channels || row["Channel"] != ""
+				used[row["Channel"]] = row["Channel"] != ""
 				if err := cw.Write(rec(headers[srcBrokCards], row)); err != nil {
 					cw.Close()
 					return err
@@ -368,7 +430,7 @@ func (c *cur) writeBrokerage(ctx context.Context) error {
 				}
 			}
 		}
-		lines := c.convertRows(area, u, rs, items)
+		lines := c.convertRows(ctx, area, u, rs, items)
 		if len(lines) == 0 {
 			if !onCard[u] {
 				neither++
@@ -382,7 +444,7 @@ func (c *cur) writeBrokerage(ctx context.Context) error {
 		for _, v := range c.rateVersions(lines, os) {
 			for _, row := range v.rows {
 				row["UCC"] = u
-				channels = channels || row["Channel"] != ""
+				used[row["Channel"]] = row["Channel"] != ""
 				if err := cw.Write(rec(headers[srcBrokRates], row)); err != nil {
 					cw.Close()
 					return err
@@ -397,47 +459,49 @@ func (c *cur) writeBrokerage(ctx context.Context) error {
 	if neither > 0 {
 		c.rep.ask(pkg.FillBrokerageDefault, fmt.Sprintf("%d clients (%d of them traded this year) are on no brokerage basket and have no rates of their own in SharePro. They pay the firm default card, which SharePro does not record: set it on Brokerage before the first bills.", neither, neitherTraded))
 	}
-	terms, err := c.writeTerminalChannels(ctx)
+	delete(used, "")
+	delete(used, "dealer") // the default channel needs no terminals
+	for k, v := range used {
+		if !v {
+			delete(used, k)
+		}
+	}
+	terms, err := c.writeTerminalChannels(ctx, used)
 	if err != nil {
 		return err
 	}
-	if channels && terms == 0 {
+	if len(used) > 0 && terms == 0 {
 		c.rep.ask(pkg.FillTerminalChannels, "SharePro's rates differ by trading channel (dealer, internet, mobile), but its trades do not show which terminal (CTCL ID) is which channel. Until the list is filled in, every trade is billed at the dealer rate.")
 	}
 	return nil
 }
 
-// writeTerminalChannels lists the terminals whose trades SharePro marked
-// internet (IBT) or mobile (MBT): SharePro has no terminal table, but each
-// trade carries its channel (TRFILE.PRODUCTCD) and CTCL ID. A terminal is
-// listed when at least 90% of its trades carry one of those channels;
-// every other terminal is the default channel (dealer). The year's trades
-// are the sample.
-func (c *cur) writeTerminalChannels(ctx context.Context) (int, error) {
+// writeTerminalChannels lists the terminals whose trades SharePro gave a
+// channel the cards price apart (e.g. internet, mobile): SharePro has no
+// terminal table, but each trade carries its product code
+// (TRFILE.PRODUCTCD, read as for the rates) and CTCL ID. A terminal is
+// listed when at least termShare of its trades carry one such channel;
+// every other terminal is the default channel (dealer). The current
+// year's trades are the sample.
+func (c *cur) writeTerminalChannels(ctx context.Context, used map[string]bool) (int, error) {
 	cw, err := c.w.Master(c.f.Code, srcTermChan, headers[srcTermChan])
 	if err != nil {
 		return 0, err
 	}
-	type tally struct{ total, online, mobile int }
-	ts := map[string]*tally{}
-	if c.s.has("TRFILE") && c.s.hasCol("TRFILE", "CTCLID") && c.s.hasCol("TRFILE", "PRODUCTCD") {
+	ts := map[string]map[string]int{} // terminal -> channel -> trades ("" = total)
+	if len(used) > 0 && c.s.has("TRFILE") && c.s.hasCol("TRFILE", "CTCLID") && c.s.hasCol("TRFILE", "PRODUCTCD") {
 		if err := c.d.query(ctx, fmt.Sprintf(qTermCh, inList(c.f.COs)), func(r migrate.Row) error {
 			id := strings.TrimSpace(str(r, "ctcl"))
 			if id == "" {
 				return nil
 			}
-			t := ts[id]
-			if t == nil {
-				t = &tally{}
-				ts[id] = t
+			if ts[id] == nil {
+				ts[id] = map[string]int{}
 			}
 			n, _ := strconv.Atoi(num(dec(r, "n")))
-			t.total += n
-			switch upper(r, "productcd") {
-			case "IBT":
-				t.online += n
-			case "MBT":
-				t.mobile += n
+			ts[id][""] += n
+			if ch := c.product(ctx, upper(r, "productcd")).channel; used[ch] {
+				ts[id][ch] += n
 			}
 			return nil
 		}); err != nil {
@@ -447,20 +511,23 @@ func (c *cur) writeTerminalChannels(ctx context.Context) (int, error) {
 	}
 	listed, mixed := 0, 0
 	for _, id := range sortedKeys(ts) {
-		t := ts[id]
-		ch := ""
+		t, best, most, some := ts[id], "", 0, 0
+		for _, ch := range sortedKeys(t) {
+			if ch != "" {
+				some += t[ch]
+				if t[ch] > most {
+					best, most = ch, t[ch]
+				}
+			}
+		}
 		switch {
-		case float64(t.online) >= termShare*float64(t.total):
-			ch = "online"
-		case float64(t.mobile) >= termShare*float64(t.total):
-			ch = "mobile"
-		case t.online+t.mobile > 0:
+		case some == 0:
+			continue
+		case float64(most) < termShare*float64(t[""]):
 			mixed++
 			continue
-		default:
-			continue
 		}
-		if err := cw.Write(rec(headers[srcTermChan], map[string]string{"Terminal": id, "Channel": ch})); err != nil {
+		if err := cw.Write(rec(headers[srcTermChan], map[string]string{"Terminal": id, "Channel": best})); err != nil {
 			cw.Close()
 			return 0, err
 		}
@@ -470,16 +537,16 @@ func (c *cur) writeTerminalChannels(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	if listed > 0 {
-		c.rep.infof("Brokerage", "", "terminals", "%d terminals (CTCL IDs) listed as online or mobile from the channel SharePro gave their trades this year; other terminals bill as dealer", listed)
+		c.rep.infof("Brokerage", "", "terminals", "%d terminals (CTCL IDs) listed by the channel SharePro gave their trades this year (%s); other terminals bill as dealer", listed, strings.Join(sortedKeys(used), ", "))
 	}
 	if mixed > 0 {
-		c.rep.infof("Brokerage", "", "terminals-mixed", "%d terminals carried online or mobile trades but mostly dealer ones; they bill as dealer. Check them on Brokerage plans → Trading channels", mixed)
+		c.rep.infof("Brokerage", "", "terminals-mixed", "%d terminals carried %s trades but mostly others; they bill as dealer. Check them on Brokerage plans → Trading channels", mixed, strings.Join(sortedKeys(used), " or "))
 	}
 	return listed, nil
 }
 
 // convertRate turns one SharePro rate row into Ledgerline rate lines.
-func (c *cur) convertRate(x rateRow, items map[string][2]string) ([]rateLine, error) {
+func (c *cur) convertRate(ctx context.Context, x rateRow, items map[string][2]string) ([]rateLine, error) {
 	seg := c.f.segOf(x.co)
 	if seg == "" {
 		return nil, fmt.Errorf("SharePro company %s is not an exchange segment", x.co)
@@ -539,14 +606,14 @@ func (c *cur) convertRate(x rateRow, items map[string][2]string) ([]rateLine, er
 		default:
 			products, kase = []string{fut}, charges.CaseExpiry
 		}
-		// P-F and P-O: futures and options settled by delivery of shares
-		switch x.prod {
-		case "P-F":
+		// futures and options settled by delivery of shares (P-F, P-O)
+		switch c.product(ctx, x.prod).physical {
+		case "FUT":
 			products = []string{fut}
-		case "P-O":
+		case "OPT":
 			products = []string{opt}
 		}
-		if (x.prod == "P-F" || x.prod == "P-O") && kase != charges.CaseExercise && kase != charges.CaseAssignment {
+		if c.product(ctx, x.prod).physical != "" && kase != charges.CaseExercise && kase != charges.CaseAssignment {
 			kase = charges.CasePhysical
 		}
 	}
@@ -560,10 +627,7 @@ func (c *cur) convertRate(x rateRow, items map[string][2]string) ([]rateLine, er
 			products = []string{fut, opt}
 		}
 	}
-	channel, ok := spChannels[x.prod]
-	if !ok {
-		return nil, fmt.Errorf("trading channel %s (PRODUCTCD) is not one Ledgerline knows", x.prod)
-	}
+	channel := c.product(ctx, x.prod).channel
 	rule := charges.BrokerageRule{}
 	v := map[string]string{"Exchange": c.f.exchOf(x.co), "Channel": channel, "_co": x.co}
 	perLot := strings.Contains(x.flatPer, "LOT")

@@ -14,13 +14,18 @@ import (
 // stay overrides, and the trading channel (PRODUCTCD) is kept apart.
 func TestBrokerageBaskets(t *testing.T) {
 	co := companyFake("TT2627")
+	// the firm's own product codes, read by their descriptions: INT is this
+	// firm's internet code (SharePro ships IBT), ALG a code of its own
+	co.table("PRDMAST", "PRODUCTCD,DESCR")
+	co.on("products", migrate.Row{"productcd": "DIR", "descr": "DIRECT TRADING BY CLIENT"}, migrate.Row{"productcd": "INT", "descr": "INTERNET BASE TRADING"},
+		migrate.Row{"productcd": "MBT", "descr": "MOBILE BASE TRADING"}, migrate.Row{"productcd": "P-F", "descr": "Phisical Delivery-Future"}, migrate.Row{"productcd": "ALG", "descr": "ALGO"})
 	co.on("brokerage-sqr",
 		// basket B1: intraday 0.02% by dealer, 0.008% online; options ₹20 a lot on mobile
 		migrate.Row{"subcd": "B1", "effectdate": d("2024-04-01"), "itemcd": "ALL", "co": "02", "productcd": "", "sqbrptge": ".020000"},
 		migrate.Row{"subcd": "B1", "effectdate": d("2024-04-01"), "itemcd": "ALL", "co": "02", "productcd": "IBT", "sqbrptge": ".008000"},
-		migrate.Row{"subcd": "B1", "effectdate": d("2025-04-01"), "itemcd": "ALL", "co": "02", "productcd": "IBT", "sqbrptge": ".007000"},
+		migrate.Row{"subcd": "B1", "effectdate": d("2025-04-01"), "itemcd": "ALL", "co": "02", "productcd": "INT", "sqbrptge": ".007000"},
 		migrate.Row{"subcd": "B1", "effectdate": d("2024-04-01"), "itemcd": "ALLOPT", "co": "03", "productcd": "MBT", "sqbrflrt": "20.0000", "sqflatper": "Lot"},
-		migrate.Row{"subcd": "B1", "effectdate": d("2024-04-01"), "itemcd": "ALL", "co": "02", "productcd": "XYZ", "sqbrptge": ".01"},
+		migrate.Row{"subcd": "B1", "effectdate": d("2024-04-01"), "itemcd": "ALL", "co": "02", "productcd": "ALG", "sqbrptge": ".01"},
 		// two baskets whose codes make the same card ID
 		migrate.Row{"subcd": "19.5.06", "effectdate": d("2024-04-01"), "itemcd": "ALL", "co": "02", "sqbrptge": ".030000"},
 		migrate.Row{"subcd": "19-5-06", "effectdate": d("2024-04-01"), "itemcd": "ALL", "co": "02", "sqbrptge": ".040000"},
@@ -44,11 +49,11 @@ func TestBrokerageBaskets(t *testing.T) {
 	)
 	// the channel SharePro gave each terminal's trades
 	co.on("terminal-channels",
-		migrate.Row{"ctcl": "111111111111116", "productcd": "IBT", "n": 100},
+		migrate.Row{"ctcl": "111111111111116", "productcd": "INT", "n": 100},
 		migrate.Row{"ctcl": "222222222222116", "productcd": "MBT", "n": 95},
 		migrate.Row{"ctcl": "222222222222116", "productcd": "", "n": 5},
 		migrate.Row{"ctcl": "333333333333131", "productcd": "DIR", "n": 50},
-		migrate.Row{"ctcl": "333333333333131", "productcd": "IBT", "n": 30},
+		migrate.Row{"ctcl": "333333333333131", "productcd": "INT", "n": 30},
 		migrate.Row{"ctcl": "444444444444131", "productcd": "", "n": 10},
 		migrate.Row{"ctcl": "", "productcd": "IBT", "n": 7},
 	)
@@ -60,7 +65,7 @@ func TestBrokerageBaskets(t *testing.T) {
 		got = append(got, fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s", c["Card"], c["Name"], c["From"], c["Product"], c["Channel"]+c["Case"], c["Pct"], c["PerLot"], c["Min"]))
 	}
 	for _, w := range []string{
-		"B1|B1|2024-04-01|CM-INTRA||0.02||20", "B1|B1|2024-04-01|CM-INTRA|online|0.008||20",
+		"B1|B1|2024-04-01|CM-INTRA||0.02||20", "B1|B1|2024-04-01|CM-INTRA|online|0.008||20", "B1|B1|2024-04-01|CM-INTRA|alg|0.01||20",
 		"B1|B1|2025-04-01|CM-INTRA||0.02||20", "B1|B1|2025-04-01|CM-INTRA|online|0.007||20",
 		"B1|B1|2024-04-01|FO-OPT|mobile||20|", "B1|B1|2024-04-01|FO-OPT|exercise|0.05||", "B1|B1|2024-04-01|FO-FUT|physical|0.15||",
 		"19-5-06|19-5-06|2024-04-01|CM-INTRA||0.04||", "19.5.06~2|19.5.06|2024-04-01|CM-INTRA||0.03||",
@@ -68,9 +73,6 @@ func TestBrokerageBaskets(t *testing.T) {
 		if !contains(got, w) {
 			t.Errorf("card line %q not in\n%s", w, strings.Join(got, "\n"))
 		}
-	}
-	if len(issues(r, "Brokerage", "XYZ")) != 1 {
-		t.Error("unknown channel not reported")
 	}
 	if len(issues(r, "Brokerage", "1 brokerage baskets that clients point at have no rates")) != 1 {
 		t.Errorf("basket without rates not reported: %+v", r.Manifest.Issues)
@@ -88,7 +90,7 @@ func TestBrokerageBaskets(t *testing.T) {
 	}
 
 	_, own := readCSV(t, r, "firms/02/master/BROKERAGE-CLIENT-RATES.csv")
-	if len(own) != 1 || own[0]["UCC"] != "TEST001" || own[0]["Channel"] != "dealer" || own[0]["Pct"] != "0.015" {
+	if len(own) != 1 || own[0]["UCC"] != "TEST001" || own[0]["Channel"] != "dir" || own[0]["Pct"] != "0.015" {
 		t.Errorf("own rates %v", own)
 	}
 	var items []string
@@ -102,7 +104,7 @@ func TestBrokerageBaskets(t *testing.T) {
 	if len(tc) != 2 || tc[0]["Terminal"] != "111111111111116" || tc[0]["Channel"] != "online" || tc[1]["Terminal"] != "222222222222116" || tc[1]["Channel"] != "mobile" {
 		t.Errorf("terminals %v", tc)
 	}
-	if len(issues(r, "Brokerage", "1 terminals carried online or mobile trades but mostly dealer")) != 1 {
+	if len(issues(r, "Brokerage", "1 terminals carried")) != 1 {
 		t.Error("mixed terminal not reported")
 	}
 
