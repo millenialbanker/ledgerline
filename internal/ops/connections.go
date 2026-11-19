@@ -105,6 +105,11 @@ var ConnProviders = []ConnProvider{
 	{ID: "upi", Name: "UPI collection IDs (@valid)", Group: "Money", Purpose: "The firm's SEBI-validated UPI IDs clients pay to, each with its SEBI QR code: .brk for broking money, .dp for the DP's charges (maintenance and other DP bills)", System: "Set here or in Settings → UPI collection"},
 }
 
+// pemField: a key or certificate pasted in PEM, which may be a long chain.
+func pemField(k string) bool {
+	return k == "private_key" || k == "nse_public_key" || k == "certificate" || k == "bank_certificate"
+}
+
 func connProvider(id string) (ConnProvider, bool) {
 	for _, p := range ConnProviders {
 		if p.ID == id {
@@ -250,7 +255,7 @@ func (o *Ops) SaveConnection(ctx context.Context, tenant, actor, id string, valu
 			if s == "" && !f.Optional {
 				return ConnectionView{}, invalid("enter the %s", strings.ToLower(f.Label))
 			}
-			if len(s) > 4000 {
+			if max := 4000; len(s) > max && !(pemField(f.Key) && len(s) <= 20000) {
 				return ConnectionView{}, invalid("%s is too long", f.Label)
 			}
 			if s != "" {
@@ -303,6 +308,11 @@ func (o *Ops) SaveConnection(ctx context.Context, tenant, actor, id string, valu
 	}
 	if id == connCreditsECMS {
 		if err := checkECMSConn(nc); err != nil {
+			return ConnectionView{}, err
+		}
+	}
+	if id == connHDFCPay {
+		if err := checkHDFCPayConn(nc); err != nil {
 			return ConnectionView{}, err
 		}
 	}
@@ -421,6 +431,8 @@ func (o *Ops) TestConnection(ctx context.Context, tenant, actor, id string) (Con
 		status, problem = o.finspotAPITest(ctx, tenant, c)
 	case id == connNSERFQ: // the sign-in and the market timings
 		status, problem = o.rfqTest(ctx, tenant, c)
+	case id == connHDFCPay: // an OAuth token: mutual TLS, key, secret, scope
+		status, problem = o.hdfcPayTest(ctx, tenant)
 	case id == connCBRICS: // the login, then logout
 		status, problem = o.cbricsTest(ctx, tenant)
 	case p.Test == "https" && c.Values["url"] != "":

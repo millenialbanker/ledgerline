@@ -89,6 +89,12 @@ const ReceivableFees = "RECEIVABLE:RA_IA_FEES"
 // bank suspense account until it is returned or identified: third-party if
 // the remitter name resembles a client, unidentified otherwise.
 func (o *Ops) matchCredit(ctx context.Context, tenant, actor string, t BankTxn, clients []Client) (BankTxn, error) {
+	// A payout the bank returned after it was paid (an NEFT or RTGS
+	// return names the payout's UTR): the payout is reversed, not taken
+	// as a new receipt (hdfcpay.go).
+	if r, ok, err := o.payoutReturned(ctx, tenant, actor, t); err != nil || ok {
+		return r, err
+	}
 	// Paid through the firm's validated UPI handle: its own collection.
 	o.tagUPI(ctx, tenant, &t)
 	var byAcct *Client

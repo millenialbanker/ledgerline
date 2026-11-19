@@ -17,6 +17,44 @@ func (s *Server) hdfcENetRoutes(R func(string, http.HandlerFunc, bool)) {
 	R("GET /v1/payouts/hdfc-seq", s.hdfcSeqGet, false)
 	R("PUT /v1/payouts/hdfc-seq", s.hdfcSeqPut, true)
 	R("POST /v1/payouts/{id}/rtgs", s.payoutRTGS, true)
+	// The same batch by HDFC's CBX batch payment API (hdfcpay.go).
+	R("GET /v1/payouts/batches/{id}/hdfc-api", s.hdfcAPIView, false)
+	R("POST /v1/payouts/batches/{id}/hdfc-api", s.hdfcAPISend, true)
+	R("POST /v1/payouts/batches/{id}/hdfc-api/check", s.hdfcAPICheck, true)
+	R("POST /v1/hdfc-pay/key", s.hdfcPayKey, true)
+}
+
+func (s *Server) hdfcAPIView(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.HDFCPayView(r.Context(), tenant(r), r.PathValue("id"))
+	ok(w, v, err)
+}
+
+func (s *Server) hdfcAPISend(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.SendPayoutBatchHDFC(r.Context(), tenant(r), actor(r), r.PathValue("id"))
+	var b *ops.PayoutFileBlocked
+	if errors.As(err, &b) {
+		fields := make([]map[string]string, len(b.Problems))
+		for i, p := range b.Problems {
+			fields[i] = map[string]string{"field": "", "message": p}
+		}
+		writeErr(w, 422, "invalid", "Batch "+b.Batch+" cannot go to HDFC yet. Fix these and try again:", map[string]any{"fields": fields, "problems": b.Problems})
+		return
+	}
+	ok(w, v, err)
+}
+
+func (s *Server) hdfcAPICheck(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.CheckPayoutBatchHDFC(r.Context(), tenant(r), actor(r), r.PathValue("id"))
+	ok(w, v, err)
+}
+
+func (s *Server) hdfcPayKey(w http.ResponseWriter, r *http.Request) {
+	var b ops.NCLMSubject
+	if !decode(w, r, &b) {
+		return
+	}
+	k, err := s.ops.HDFCPayMakeKey(r.Context(), tenant(r), actor(r), b)
+	ok(w, k, err)
 }
 
 func (s *Server) hdfcView(w http.ResponseWriter, r *http.Request) {

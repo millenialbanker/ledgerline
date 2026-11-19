@@ -301,6 +301,8 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.bseSFTPTick(ctx, tenant, now)
 	// CCIL's G-sec and T-bill prices from its website, when switched on.
 	o.ccilTick(ctx, tenant, now)
+	// Payout batches with HDFC Bank by API: lookups and inquiries due.
+	o.hdfcPayTick(ctx, tenant, now)
 	// Client registration with the exchanges by API (UCC), when switched on.
 	o.nseUCITick(ctx, tenant, now)
 	o.bseUCCTick(ctx, tenant, now)

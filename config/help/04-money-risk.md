@@ -136,6 +136,31 @@ Commas and line breaks are taken out of names and bank names. HDFC doesn't publi
 - **Next file number:** set it to carry on from the previous system's last file. There is an optional **second series** with its own number. Tick *Number from the second series* when producing a file.
 - **Instruction reference prefix**, **customer reference suffix** (PAY), **RTGS from**, **transaction type**, **HDFC-to-HDFC transfers**, **allow a client twice**.
 
+## payout-hdfc-api
+title: Send payout batches to HDFC Bank by API
+screen: money
+roles: Ops maker, Ops checker, Admin
+ask: hdfc api payout; cbx api; cbx batch payment; bulk payment api; send payouts by api; payout without enet file; corporate banking experience; hdfc jose; payout utr automatic; payout pending approval; cbx approver; payout returned; neft return; hdfc developer portal
+related: payout-bank-file, payout, live-bank-credits
+
+Instead of making the ENet file and uploading it, a payout batch can go to HDFC Bank's CBX by API (the bank's "Corporate Banking Experience - Batch Payments v1"). The API is only the **maker**: your verifier and authorisers still approve every payment in CBX, as they do an uploaded file.
+
+1. **Set it up once** (Admin) on [[connections|Connections]] → **HDFC Bank CBX payments (API)**:
+    - from the bank: the CBX client code for client payouts, the domain (group) ID, the CBX user ID of the API maker, and from HDFC's developer portal the consumer key, consumer secret, scope and HDFC's certificate;
+    - click **Make key**, give the signing request to a certificate authority, upload the signed certificate on HDFC's developer portal with the server's IP address, and paste the certificate with its chain into the connection;
+    - **Test** gets a token from the bank: it checks the address, the mutual TLS, the key, the secret and the scope, and pays nothing.
+2. On [[money|Receipts & payouts]] → Payout batches, click **HDFC by API** on a batch, then **Send to HDFC**. The same checks as the ENet file run first (registered account, IFSC, amounts, names, emails). A payout paid from the MCX-only account cannot go this way; use the ENet file for it.
+3. Approve the batch in CBX as usual.
+4. Ledgerline asks the bank for the result on HDFC's own schedule: 15, 20 and 25 minutes after sending, again 45 minutes later, then at 19:30 on each of the next 3 days; never more than 6 times a day. **Ask HDFC now** asks at once (5 minutes apart at least).
+
+**What happens to the money.** Each client was debited when the batch was released, so the money cannot be withdrawn twice while CBX waits. A payment the bank reports **paid** gets its UTR and the client is told. One the bank **rejects** (or the beneficiary's bank returns, RBI status TXREJE) is credited back to the client at once. Nothing is ever credited back because time has passed: a payment with no final state after the schedule goes to the work queue, to check in CBX and enter by hand (**Enter bank result** then asks only for the open payments).
+
+**Sending once.** Ledgerline keeps the batch's file reference before sending. If the bank's reply is lost, it asks HDFC for the batch by that reference; if HDFC has no record 30 minutes later, the batch can be sent again (HDFC refuses a second batch with the same reference the same day). A batch sent by API cannot also have an ENet file, and the other way round, unless the file is cancelled.
+
+**Returned later.** An NEFT or RTGS can come back a day or two after it was paid. A credit whose narration names a paid payout's UTR, for the same amount, within 15 days, reverses that payout: the money is the client's again, the payout shows Failed, and a work item asks you to check the client's bank details.
+
+**Vendor, government and salary payments** are not sent this way yet. In CBX they should run under their own client code and workflow, so that only the authorisers allowed for the firm's own payments approve them.
+
 ## ras
 title: Run the running account settlement (RAS)
 screen: ras

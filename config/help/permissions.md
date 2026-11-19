@@ -90,6 +90,7 @@ Checking UPI blocks with NSE Clearing | Ops maker, Ops checker, Risk manager
 Checking a backup | Ops checker, Compliance officer
 Checking a migration package | Admin
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
+Checking payouts with the bank | Ops maker, Ops checker
 Checking the digital signature | Compliance officer
 Choosing CBRICS settlement accounts | Ops maker, Ops checker
 Choosing the eIPO products the firm offers | Ops checker
@@ -179,6 +180,7 @@ Making BSE dealer files | Ops maker, Compliance officer
 Making KRA upload files | Ops maker, Ops checker, Compliance officer
 Making inspection packs | Compliance officer
 Making the AP client reporting file | Ops maker, Ops checker, Compliance officer
+Making the HDFC Bank API key | Admin
 Making the NSE Clearing key | Admin
 Making the UCC-wise settlement report | Ops maker, Ops checker, Compliance officer
 Managing SIPs | Ops maker, Ops checker
@@ -313,6 +315,7 @@ Sending demat requests to CDSL DESTAT | Ops checker
 Sending documents | Ops maker, Ops checker
 Sending early pay-ins | Ops checker
 Sending legacy debt reminders | Ops maker, Ops checker, Risk manager, Compliance officer
+Sending payouts to the bank | Ops maker, Ops checker
 Sending statements | Ops maker, Ops checker
 Sending stock SIP orders to the OMS | Ops maker, Ops checker, Risk manager
 Sending the DIS master to CDSL | Ops maker, Ops checker

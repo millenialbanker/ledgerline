@@ -715,7 +715,7 @@ type PayoutBatch struct {
 	Date    string         `json:"date"`
 	Items   []PayoutItem   `json:"items"`
 	Total   money.Amount   `json:"total"`
-	Status  string         `json:"status"` // Sent to bank, Confirmed
+	Status  string         `json:"status"` // Sent to bank, Part confirmed, Confirmed
 	By      string         `json:"by"`
 	Results map[string]int `json:"results,omitempty"`
 	// Held are approved payouts left out because their account is no
@@ -852,48 +852,97 @@ func (o *Ops) PayoutFile(ctx context.Context, tenant, id string) ([]byte, error)
 }
 
 // ConfirmPayouts records the bank's result for a batch: UTRs for paid
-// transfers; failed transfers are reversed back to the client.
+// transfers; failed transfers are reversed back to the client. Transfers
+// already settled (by the bank's API, hdfcpay.go) are left as they are;
+// every other one needs a UTR or a failure.
 func (o *Ops) ConfirmPayouts(ctx context.Context, tenant, actor, id string, utrs map[string]string, failed map[string]string) (PayoutBatch, error) {
 	if err := o.require(ctx, tenant, actor, "Confirming payouts", RoleMaker, RoleChecker); err != nil {
 		return PayoutBatch{}, err
 	}
-	b, _, err := docs.Get[PayoutBatch](ctx, o.Docs, tenant, cPOBatch, id)
+	if s, ok := o.hdfcSendOf(ctx, tenant, id); ok && s.State == HSUnclear {
+		return PayoutBatch{}, fmt.Errorf("%w: the batch was sent to HDFC by API and its answer is still being looked up; wait for it", ErrState)
+	}
+	return o.settlePayouts(ctx, tenant, actor, id, utrs, failed, true, "entered")
+}
+
+// settlePayouts applies results to a batch's open transfers. With all,
+// every open transfer must be given a result. The batch is Confirmed once
+// every transfer is paid or failed, Part confirmed before.
+func (o *Ops) settlePayouts(ctx context.Context, tenant, actor, id string, utrs, failed map[string]string, all bool, via string) (PayoutBatch, error) {
+	b, ver, err := docs.Get[PayoutBatch](ctx, o.Docs, tenant, cPOBatch, id)
 	if err != nil {
 		return b, err
 	}
 	if b.Status == "Confirmed" {
 		return b, fmt.Errorf("%w: batch %s is already confirmed", ErrState, id)
 	}
-	res := map[string]int{"Paid": 0, "Failed": 0}
+	final := func(st string) bool { return st == "Paid" || st == "Failed" }
+	if all {
+		for _, it := range b.Items {
+			if _, bad := failed[it.Request]; !final(it.Status) && !bad && strings.TrimSpace(utrs[it.Request]) == "" {
+				return b, invalid("give the UTR for %s or mark it failed", it.Request)
+			}
+		}
+	}
+	type note struct{ ucc, event, amount, extra string }
+	var notes []note
+	changed := 0
 	for i, it := range b.Items {
-		status, utr := "Paid", utrs[it.Request]
-		if why, bad := failed[it.Request]; bad {
+		if final(it.Status) {
+			continue
+		}
+		status, utr := "", strings.TrimSpace(utrs[it.Request])
+		why, bad := failed[it.Request]
+		switch {
+		case bad:
 			status = "Failed"
 			if _, _, err := o.App.Ledger.Reverse(ctx, tenant, it.Entry, actor, "payout returned by bank: "+why, b.Date); err != nil {
 				return b, err
 			}
-		} else if utr == "" {
-			return b, invalid("give the UTR for %s or mark it failed", it.Request)
+		case utr != "":
+			status = "Paid"
+		default:
+			continue
 		}
 		b.Items[i].Status, b.Items[i].UTR = status, utr
-		res[status]++
+		changed++
 		pr, _ := docs.Update(ctx, o.Docs, tenant, cPayout, it.Request, actor, func(x *PayoutRequest) error {
 			x.Status, x.UTR = status, utr
 			if status == "Failed" {
-				x.Reason = failed[it.Request]
+				x.Reason = why
 			}
 			return nil
 		})
 		if status == "Paid" {
-			o.notify(ctx, tenant, actor, "payout.paid", pr.UCC, map[string]string{"amount": formatINR(pr.Amount.Dec()), "utr": utr})
+			notes = append(notes, note{pr.UCC, "payout.paid", formatINR(pr.Amount.Dec()), utr})
 		} else {
-			o.notify(ctx, tenant, actor, "payout.failed", pr.UCC, map[string]string{"amount": formatINR(pr.Amount.Dec()), "reason": failed[it.Request]})
+			notes = append(notes, note{pr.UCC, "payout.failed", formatINR(pr.Amount.Dec()), why})
 		}
 	}
-	b.Status, b.Results = "Confirmed", res
-	if err := docs.Upsert(ctx, o.Docs, tenant, cPOBatch, b.ID, b, actor); err != nil {
+	res := map[string]int{"Paid": 0, "Failed": 0}
+	open := 0
+	for _, it := range b.Items {
+		if final(it.Status) {
+			res[it.Status]++
+		} else {
+			open++
+		}
+	}
+	b.Results = res
+	b.Status = "Confirmed"
+	if open > 0 {
+		b.Status = "Part confirmed"
+	}
+	if _, err := docs.Put(ctx, o.Docs, tenant, cPOBatch, b.ID, b, ver, actor); err != nil {
 		return b, err
 	}
-	o.log(ctx, tenant, actor, "payout.confirmed", b.ID, map[string]any{"paid": res["Paid"], "failed": res["Failed"]})
+	for _, n := range notes {
+		if n.event == "payout.paid" {
+			o.notify(ctx, tenant, actor, n.event, n.ucc, map[string]string{"amount": n.amount, "utr": n.extra})
+		} else {
+			o.notify(ctx, tenant, actor, n.event, n.ucc, map[string]string{"amount": n.amount, "reason": n.extra})
+		}
+	}
+	o.log(ctx, tenant, actor, "payout.confirmed", b.ID, map[string]any{"paid": res["Paid"], "failed": res["Failed"], "open": open, "changed": changed, "via": via})
 	return b, nil
 }

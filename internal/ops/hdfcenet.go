@@ -586,6 +586,9 @@ func (o *Ops) MakeHDFCPayoutFile(ctx context.Context, tenant, actor, batch, seri
 		return HDFCFile{}, err
 	}
 	_, _, probs := o.hdfcRows(ctx, tenant, set, b, placeholderRefs(set, b))
+	if s, ok := o.hdfcSendOf(ctx, tenant, b.ID); ok && !s.resendable() {
+		probs = append(probs, "the batch was sent to HDFC by API ("+strings.ToLower(s.State)+"); an ENet file for it would pay it twice")
+	}
 	for _, it := range b.Items {
 		if n, ok := in[it.Request]; ok {
 			probs = append(probs, fmt.Sprintf("%s %s is already in file %s; cancel that file first", it.Request, it.UCC, n))
