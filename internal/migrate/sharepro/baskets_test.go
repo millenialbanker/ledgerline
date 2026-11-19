@@ -42,6 +42,16 @@ func TestBrokerageBaskets(t *testing.T) {
 		migrate.Row{"subcd": "TEST003", "co": "02", "effectdate": d("2024-04-01"), "brkgbasket": "NORATES"},
 		migrate.Row{"subcd": "B1", "co": "02", "effectdate": d("2024-04-01"), "ord_minbrk": "20.00"},
 	)
+	// the channel SharePro gave each terminal's trades
+	co.on("terminal-channels",
+		migrate.Row{"ctcl": "111111111111116", "productcd": "IBT", "n": 100},
+		migrate.Row{"ctcl": "222222222222116", "productcd": "MBT", "n": 95},
+		migrate.Row{"ctcl": "222222222222116", "productcd": "", "n": 5},
+		migrate.Row{"ctcl": "333333333333131", "productcd": "DIR", "n": 50},
+		migrate.Row{"ctcl": "333333333333131", "productcd": "IBT", "n": 30},
+		migrate.Row{"ctcl": "444444444444131", "productcd": "", "n": 10},
+		migrate.Row{"ctcl": "", "productcd": "IBT", "n": 7},
+	)
 	r, _ := runCurrentOn(t, migrate.Plan{ClientInterest: "firm"}, co)
 
 	_, cards := readCSV(t, r, "firms/02/master/BROKERAGE-CARDS.csv")
@@ -85,8 +95,15 @@ func TestBrokerageBaskets(t *testing.T) {
 	for _, f := range r.Manifest.FillIn {
 		items = append(items, f.Item)
 	}
-	if !contains(items, pkg.FillTerminalChannels) || !contains(items, pkg.FillBrokerageDefault) {
+	if contains(items, pkg.FillTerminalChannels) || !contains(items, pkg.FillBrokerageDefault) {
 		t.Errorf("fill in %v", items)
+	}
+	_, tc := readCSV(t, r, "firms/02/master/TERMINAL-CHANNELS.csv")
+	if len(tc) != 2 || tc[0]["Terminal"] != "111111111111116" || tc[0]["Channel"] != "online" || tc[1]["Terminal"] != "222222222222116" || tc[1]["Channel"] != "mobile" {
+		t.Errorf("terminals %v", tc)
+	}
+	if len(issues(r, "Brokerage", "1 terminals carried online or mobile trades but mostly dealer")) != 1 {
+		t.Error("mixed terminal not reported")
 	}
 
 	// interest: the firm's rate for everyone; the grace days stay

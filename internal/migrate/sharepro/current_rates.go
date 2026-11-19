@@ -37,7 +37,12 @@ const (
 	qItems   = `/*sp:items*/ SELECT RTRIM(i.ITEMCD) AS itemcd, %s FROM ITC i`
 	qItemISN = `/*sp:item-isin*/ SELECT RTRIM(ITEMCD) AS itemcd, RTRIM(ISINCD) AS isin FROM ISINMAST`
 	qIntDtl  = `/*sp:interest*/ SELECT %s FROM INTERESTDTL ORDER BY Subcd, EffectDate`
+	qTermCh  = `/*sp:terminal-channels*/ SELECT RTRIM(CTCLID) AS ctcl, RTRIM(PRODUCTCD) AS productcd, COUNT(*) AS n FROM TRFILE WHERE CO IN (%s) GROUP BY RTRIM(CTCLID), RTRIM(PRODUCTCD)`
 )
+
+// termShare is the share of a terminal's trades that must carry one
+// channel for the terminal to be listed as that channel.
+const termShare = 0.9
 
 // sharePro's trading channels on rate rows (PRODUCTCD) as Ledgerline
 // channels: blank is every channel, so a channel's own line wins over it.
@@ -172,7 +177,7 @@ func (c *cur) writeBrokerage(ctx context.Context) error {
 	area := "Brokerage"
 	open := func(src string) (*pkg.CSV, error) { return c.w.Master(c.f.Code, src, headers[src]) }
 	if !c.s.has("NSQBRKG") && !c.s.has("NSDBRKG") {
-		for _, src := range []string{srcBrokCards, srcBrokClient, srcBrokRates} {
+		for _, src := range []string{srcBrokCards, srcBrokClient, srcBrokRates, srcTermChan} {
 			cw, err := open(src)
 			if err != nil {
 				return err
@@ -392,10 +397,85 @@ func (c *cur) writeBrokerage(ctx context.Context) error {
 	if neither > 0 {
 		c.rep.ask(pkg.FillBrokerageDefault, fmt.Sprintf("%d clients (%d of them traded this year) are on no brokerage basket and have no rates of their own in SharePro. They pay the firm default card, which SharePro does not record: set it on Brokerage before the first bills.", neither, neitherTraded))
 	}
-	if channels {
-		c.rep.ask(pkg.FillTerminalChannels, "SharePro's rates differ by trading channel (dealer, internet, mobile), but the backup has no list of which terminal (CTCL ID) is which channel. Until the list is filled in, every trade is billed at the dealer rate.")
+	terms, err := c.writeTerminalChannels(ctx)
+	if err != nil {
+		return err
+	}
+	if channels && terms == 0 {
+		c.rep.ask(pkg.FillTerminalChannels, "SharePro's rates differ by trading channel (dealer, internet, mobile), but its trades do not show which terminal (CTCL ID) is which channel. Until the list is filled in, every trade is billed at the dealer rate.")
 	}
 	return nil
+}
+
+// writeTerminalChannels lists the terminals whose trades SharePro marked
+// internet (IBT) or mobile (MBT): SharePro has no terminal table, but each
+// trade carries its channel (TRFILE.PRODUCTCD) and CTCL ID. A terminal is
+// listed when at least 90% of its trades carry one of those channels;
+// every other terminal is the default channel (dealer). The year's trades
+// are the sample.
+func (c *cur) writeTerminalChannels(ctx context.Context) (int, error) {
+	cw, err := c.w.Master(c.f.Code, srcTermChan, headers[srcTermChan])
+	if err != nil {
+		return 0, err
+	}
+	type tally struct{ total, online, mobile int }
+	ts := map[string]*tally{}
+	if c.s.has("TRFILE") && c.s.hasCol("TRFILE", "CTCLID") && c.s.hasCol("TRFILE", "PRODUCTCD") {
+		if err := c.d.query(ctx, fmt.Sprintf(qTermCh, inList(c.f.COs)), func(r migrate.Row) error {
+			id := strings.TrimSpace(str(r, "ctcl"))
+			if id == "" {
+				return nil
+			}
+			t := ts[id]
+			if t == nil {
+				t = &tally{}
+				ts[id] = t
+			}
+			n, _ := strconv.Atoi(num(dec(r, "n")))
+			t.total += n
+			switch upper(r, "productcd") {
+			case "IBT":
+				t.online += n
+			case "MBT":
+				t.mobile += n
+			}
+			return nil
+		}); err != nil {
+			cw.Close()
+			return 0, err
+		}
+	}
+	listed, mixed := 0, 0
+	for _, id := range sortedKeys(ts) {
+		t := ts[id]
+		ch := ""
+		switch {
+		case float64(t.online) >= termShare*float64(t.total):
+			ch = "online"
+		case float64(t.mobile) >= termShare*float64(t.total):
+			ch = "mobile"
+		case t.online+t.mobile > 0:
+			mixed++
+			continue
+		default:
+			continue
+		}
+		if err := cw.Write(rec(headers[srcTermChan], map[string]string{"Terminal": id, "Channel": ch})); err != nil {
+			cw.Close()
+			return 0, err
+		}
+		listed++
+	}
+	if err := cw.Close(); err != nil {
+		return 0, err
+	}
+	if listed > 0 {
+		c.rep.infof("Brokerage", "", "terminals", "%d terminals (CTCL IDs) listed as online or mobile from the channel SharePro gave their trades this year; other terminals bill as dealer", listed)
+	}
+	if mixed > 0 {
+		c.rep.infof("Brokerage", "", "terminals-mixed", "%d terminals carried online or mobile trades but mostly dealer ones; they bill as dealer. Check them on Brokerage plans → Trading channels", mixed)
+	}
+	return listed, nil
 }
 
 // convertRate turns one SharePro rate row into Ledgerline rate lines.

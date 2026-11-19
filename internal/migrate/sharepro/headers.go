@@ -18,6 +18,7 @@ const (
 	srcHoldLots   = "HOLDING-LOTS"
 	srcBrokCards  = "BROKERAGE-CARDS"
 	srcBrokClient = "BROKERAGE-CLIENTS"
+	srcTermChan   = "TERMINAL-CHANNELS"
 
 	// Imports added on the Ledgerline side for the migration (fixed
 	// layouts; pendingRequired holds them for a branch whose
@@ -56,6 +57,9 @@ var headers = map[string][]string{
 	srcBrokCards: {"Card", "From", "Product", "Mode", "Name", "Exchange", "Channel", "Case", "Scrip", "Group", "Underlying", "Pct", "Flat", "PerLot", "PerShare",
 		"MinPerShare", "MinPerLot", "Min", "Max", "MinPerNote", "Basis", "Note"},
 	srcBrokClient: {"UCC", "Card", "From", "Segment", "Exchange"},
+	// which terminals (CTCL IDs) are online and mobile, from the channel
+	// SharePro gave each trade
+	srcTermChan: {"Terminal", "Channel"},
 	srcInterest:   {"UCC", "From", "Rate", "GraceDays", "Free", "Note"},
 	srcKRA:        {"PAN", "Status", "Remarks"},
 	srcCKYC:       {"PAN", "CKYCNumber"},
