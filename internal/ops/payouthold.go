@@ -1772,14 +1772,23 @@ func (o *Ops) payoutNMASSFile(ctx context.Context, tenant string, hs []PayoutHol
 	if len(rows) == 0 {
 		return "", nil, invalid("nothing is waiting to be done in N-MASS")
 	}
-	seq := "2"
-	if release {
-		seq = "3"
+	b, err := s.Write(rows)
+	if err != nil {
+		return "", nil, err
 	}
-	name, err := s.FileName(xfile.Vars{"date": date, "seq": seq, "member": tm})
+	// The day's next allocation file number (allocfileseq.go), so the hold
+	// and release files never take a number another file of the day has.
+	what := "Pay-out holds"
+	if release {
+		what = "Pay-out hold releases"
+	}
+	seq, err := o.allocFileSeq(ctx, tenant, "NSE", date, what, b, 0)
+	if err != nil {
+		return "", nil, err
+	}
+	name, err := s.FileName(xfile.Vars{"date": date, "seq": fmt.Sprint(seq), "member": tm})
 	if err != nil {
 		return "", nil, invalid("%v", err)
 	}
-	b, err := s.Write(rows)
-	return name, b, err
+	return name, b, nil
 }

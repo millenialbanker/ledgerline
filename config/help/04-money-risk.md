@@ -457,7 +457,7 @@ On [[rms|RMS & limits]], use the kill switch on the client's row. Their limit dr
 title: Pay-out holds for big sellers
 screen: payouthold
 roles: Risk manager, Ops checker
-ask: pay-out hold; payout hold; big seller; big sellers; sale proceeds awaiting payout; sale money awaiting pay-out; hold sale money; broker funds tied up; de-allocate sale money; reduce allocation until payout; payout not received; nse clearing payout credit; release pay-out hold
+ask: pay-out hold; payout hold; big seller; big sellers; sale proceeds awaiting payout; sale money awaiting pay-out; hold sale money; broker funds tied up; de-allocate sale money; reduce allocation until payout; payout not received; nse clearing payout credit; release pay-out hold; allocation file number; n-mass file number; t0002; t0003
 related: clearing-allocation, bod-files, live-bank-credits
 
 **Why.** A client who sold on T has the sale money as a ledger credit on T+1, and the start-of-day allocation gives it to the client at NSE Clearing. The clearing corporation pays the sale money out only around 13:00 on T+1. Until then that allocation is backed by the **firm's own funds** at NSE Clearing, and one or two big sellers can tie up most of them. Pay-out holds take most of that money back from the allocation and the OMS limit until the pay-out lands, and then give it back.
@@ -471,7 +471,7 @@ related: clearing-allocation, bod-files, live-bank-credits
 
 **What is changed.**
 - With NSE Clearing's allocation API on, each hold is sent as the client's **final** allocation (confirmed level less the hold, action D); the release sends the confirmed level plus the hold (action U). One request per client is out at a time; results come back as for any allocation request. A rejected hold is not put back into money in.
-- With the API off, download the **N-MASS hold file** (or release file), upload it in N-MASS, then press **Done in N-MASS**.
+- With the API off, download the **N-MASS hold file** (or release file), upload it in N-MASS, then press **Done in N-MASS**. Like every allocation file Ledgerline writes, it takes the day's next free file number (`.T0001`, `.T0002` …), counted per exchange from Settings → NSE Clearing allocation → **First allocation file number of the day**. Downloading the same file again keeps its number. If the office also uploads its own allocation files, start Ledgerline's numbers above theirs.
 - The trading front end has no API: download the **OMS hold file** and later the **OMS release file** and upload them. They are Finspot RMS Limits files, the same line as the BOD limit file: the ledger balance less the amount held (on release, less only what is still held), with the client's notional cash again so the upload does not wipe it.
 - [[live|Live RMS]] shows the hold and takes it off the client's free funds. Later allocation batches that day keep the hold; after release they use the normal figure.
 

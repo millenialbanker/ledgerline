@@ -509,7 +509,7 @@ func firmPAN(set Settings) string {
 type XFileOptions struct {
 	Exchange string `json:"exchange"` // NSE (default) or MCX, for allocation files
 	Segment  string `json:"segment"`  // CM, FO, CD or COM, for the collateral file
-	Seq      int    `json:"seq"`      // file number of the day (default 1; for the MCX UCC file, the date's next batch)
+	Seq      int    `json:"seq"`      // file number of the day (default 1; for allocation files and the MCX UCC file, the date's next number)
 }
 
 // ExchangeFile writes an outgoing file for a date.
@@ -533,6 +533,7 @@ func (o *Ops) ExchangeFile(ctx context.Context, tenant, actor, id, date string, 
 		return "", nil, err
 	}
 	seqGiven := opt.Seq > 0
+	allocOpt := opt // allocation files take the day's next number unless one is given
 	if opt.Seq <= 0 {
 		opt.Seq = 1
 	}
@@ -541,7 +542,7 @@ func (o *Ops) ExchangeFile(ctx context.Context, tenant, actor, id, date string, 
 	var content []byte
 	switch id {
 	case "ncl-allocation", "ncl-allocation-api":
-		name, content, err = o.allocationFile(ctx, tenant, s, set, date, opt, vars)
+		name, content, err = o.allocationFile(ctx, tenant, s, set, date, allocOpt, vars)
 	case "holding-statement-api":
 		name, content, err = o.holdingStatementFile(ctx, tenant, s, set, date, vars)
 	case "segmon-client-funds":
@@ -632,16 +633,25 @@ func (o *Ops) allocationFile(ctx context.Context, tenant string, s *xfile.Spec, 
 		if ex == "MCX" {
 			vars["member"] = "M" + vars["member"]
 		}
-		name, err := s.FileName(vars)
-		if err != nil {
-			return "", nil, invalid("%v", err)
-		}
 		xr := make([]xfile.Row, len(rows))
 		for i, r := range rows {
 			xr[i] = xfile.Row{Values: r}
 		}
 		b, err := s.Write(xr)
-		return name, b, err
+		if err != nil {
+			return "", nil, err
+		}
+		// The day's next file number (allocfileseq.go), unless one was given.
+		seq, err := o.allocFileSeq(ctx, tenant, ex, date, "Client allocation", b, opt.Seq)
+		if err != nil {
+			return "", nil, err
+		}
+		vars["seq"] = fmt.Sprint(seq)
+		name, err := s.FileName(vars)
+		if err != nil {
+			return "", nil, invalid("%v", err)
+		}
+		return name, b, nil
 	}
 	// The API message.
 	type req struct {

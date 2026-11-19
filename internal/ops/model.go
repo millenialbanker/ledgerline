@@ -228,6 +228,11 @@ type Settings struct {
 	AllocAPILive     bool   `json:"alloc_api_live,omitempty"`
 	AllocAutoPush    bool   `json:"alloc_auto_push,omitempty"`
 	AllocPushSegment string `json:"alloc_push_segment,omitempty"`
+	// AllocFileStart is the first number Ledgerline gives its N-MASS
+	// allocation files on a day (the .Tnnnn of the name), 1 when not set:
+	// higher when the office also uploads its own files that day
+	// (allocfileseq.go).
+	AllocFileStart int `json:"alloc_file_start,omitempty"`
 	// Backups (backups.go): how many each tier keeps, whether the year
 	// for yearly backups ends in March or December, and when a day that
 	// was not closed is backed up anyway.
@@ -524,6 +529,9 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	s.AllocPushSegment = strings.ToUpper(strings.TrimSpace(s.AllocPushSegment))
 	if s.AllocPushSegment != "" && s.AllocPushSegment != "CM" && s.AllocPushSegment != "FO" && s.AllocPushSegment != "CD" {
 		return invalid("money coming in is allocated to CM, FO or CD")
+	}
+	if s.AllocFileStart < 0 || s.AllocFileStart > 9000 {
+		return invalid("the first allocation file number of the day is 1 to 9000")
 	}
 	if s.AllocAPILive {
 		if _, _, err := o.allocCodes(s); err != nil {
