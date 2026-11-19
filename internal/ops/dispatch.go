@@ -130,6 +130,13 @@ func (o *Ops) dispatchDoc(ctx context.Context, tenant, actor string, r docReques
 	data, info, err := o.signPDF(ctx, tenant, r.Report, r.Title, DocKindNames[r.Kind])
 	if err != nil {
 		d.Status, d.Reason = "Held", "not signed: "+err.Error()
+		if errors.Is(err, errSignerOffline) {
+			// The USB token signer is away: the document waits and is sent
+			// by itself when the signer is back (signagent.go), which also
+			// raises its own work item while it stays away.
+			d.Reason += "; it is sent when the signer is back"
+			return save()
+		}
 		o.raiseWork(ctx, tenant, "dispatch", "unsigned", "Documents are held: no digital signature",
 			"Contract notes and statements cannot be sent unsigned. Set up the firm's certificate in Settings → Digital signature, then send the held documents from the Dispatch register.", "", RoleAdmin, "dispatch", r.Date)
 		return save()

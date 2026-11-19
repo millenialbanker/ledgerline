@@ -53,6 +53,9 @@ type Server struct {
 	seq  atomic.Int64
 
 	loginLimit limiter
+	// The USB token signer's calls: per firm, and failed keys per address.
+	signLimit limiter
+	signBad   limiter
 	// ProviderKey authorises the software provider's own endpoints under
 	// /provider/ (adding AI credit, usage for invoicing). Empty disables them.
 	ProviderKey string
@@ -63,7 +66,8 @@ type Server struct {
 
 // New builds a server. keys maps API keys to tenant IDs.
 func New(a *app.App, o *ops.Ops, keys map[string]string, log *slog.Logger, dev bool) *Server {
-	s := &Server{app: a, ops: o, dev: dev, keys: keys, log: log, mux: http.NewServeMux(), loginLimit: limiter{max: 30, per: 15 * time.Minute}}
+	s := &Server{app: a, ops: o, dev: dev, keys: keys, log: log, mux: http.NewServeMux(), loginLimit: limiter{max: 30, per: 15 * time.Minute},
+		signLimit: limiter{max: 1200, per: time.Minute}, signBad: limiter{max: 20, per: 10 * time.Minute}}
 	s.mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
 	s.route("GET /v1/adapters", s.adapters, false)
 	s.route("POST /v1/files", s.uploadFile, true)

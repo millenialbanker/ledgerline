@@ -115,6 +115,19 @@ func (l *limiter) allow(key string) bool {
 	return true
 }
 
+// full says whether key has used up its tries, without counting one.
+func (l *limiter) full(key string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	n, now := 0, time.Now()
+	for _, t := range l.hits[key] {
+		if now.Sub(t) < l.per {
+			n++
+		}
+	}
+	return n >= l.max
+}
+
 func (s *Server) authRoutes() {
 	s.mux.HandleFunc("POST /v1/auth/login", s.login)
 	s.mux.HandleFunc("POST /v1/auth/logout", s.logout)

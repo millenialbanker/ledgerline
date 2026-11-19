@@ -2,8 +2,11 @@ package api
 
 import (
 	"encoding/base64"
+	"errors"
 	"io"
+	"net"
 	"net/http"
+	"strings"
 
 	"ledgerline/internal/ops"
 )
@@ -16,6 +19,16 @@ func (s *Server) dispatchRoutes() {
 	R("POST /v1/signing/file", s.signingFile, true)
 	R("POST /v1/signing/remote", s.signingRemote, true)
 	R("POST /v1/signing/off", s.signingOff, true)
+	R("POST /v1/signing/check", s.signingCheck, true)
+	R("POST /v1/signing/agent", s.signingAgentConnect, true)
+	R("POST /v1/signing/agent/certificate", s.signingAgentCert, true)
+	R("POST /v1/signing/agent/approve", s.signingAgentApprove, true)
+	R("POST /v1/signing/agent/reset-key", s.signingAgentReset, true)
+	// Ledgerline Signer next to the firm's USB token: no session; the agent
+	// key names the firm (signagent.go).
+	s.mux.HandleFunc("POST /v1/signing/agent/hello", s.signAgentCall(s.signAgentHello))
+	s.mux.HandleFunc("POST /v1/signing/agent/poll", s.signAgentCall(s.signAgentPoll))
+	s.mux.HandleFunc("POST /v1/signing/agent/result", s.signAgentCall(s.signAgentResult))
 	R("GET /v1/dispatch", s.dispatchList, false)
 	R("GET /v1/dispatch.csv", s.dispatchCSV, false)
 	R("GET /v1/dispatch/{id}/file", s.dispatchFile, false)
@@ -68,6 +81,163 @@ func (s *Server) signingRemote(w http.ResponseWriter, r *http.Request) {
 func (s *Server) signingOff(w http.ResponseWriter, r *http.Request) {
 	v, err := s.ops.SetSigningOff(r.Context(), tenant(r), actor(r))
 	ok(w, v, err)
+}
+
+func (s *Server) signingCheck(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.CheckSigning(r.Context(), tenant(r), actor(r))
+	ok(w, v, err)
+}
+
+func (s *Server) signingAgentConnect(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Cert     string `json:"cert"` // base64 of the token's .cer/.crt; optional
+		Location string `json:"location"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	data, err := base64.StdEncoding.DecodeString(b.Cert)
+	if err != nil {
+		writeErr(w, 400, "bad_file", "Send the certificate file as base64 in \"cert\".", nil)
+		return
+	}
+	v, err := s.ops.ConnectSignAgent(r.Context(), tenant(r), actor(r), data, b.Location)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	writeJSON(w, 201, map[string]any{"key": v.Key, "server": s.publicURL(r), "signing": v.View})
+}
+
+func (s *Server) signingAgentCert(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Cert string `json:"cert"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	data, err := base64.StdEncoding.DecodeString(b.Cert)
+	if err != nil || len(data) == 0 {
+		writeErr(w, 400, "bad_file", "Send the certificate file as base64 in \"cert\".", nil)
+		return
+	}
+	v, err := s.ops.SetSignAgentCert(r.Context(), tenant(r), actor(r), data)
+	ok(w, v, err)
+}
+
+func (s *Server) signingAgentApprove(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		SHA256 string `json:"sha256"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.ApproveSignAgentCert(r.Context(), tenant(r), actor(r), b.SHA256)
+	ok(w, v, err)
+}
+
+func (s *Server) signingAgentReset(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.ResetSignAgentKey(r.Context(), tenant(r), actor(r))
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"key": v.Key, "server": s.publicURL(r), "signing": v.View})
+}
+
+// signAgentCall checks the agent key on Ledgerline Signer's calls. Wrong
+// keys are limited per address, and each firm's calls per minute.
+func (s *Server) signAgentCall(h func(http.ResponseWriter, *http.Request, string, string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+		key, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if s.signBad.full(ip) {
+			writeErr(w, 429, "too_many", "Too many attempts with a wrong key; wait ten minutes.", nil)
+			return
+		}
+		t, found := ops.SignAgentTenant(key)
+		if !found || !s.knownTenant(t) {
+			s.signBad.allow(ip)
+			writeErr(w, 401, "unauthorized", "This agent key is not valid. Make a new one in Ledgerline (Settings → Digital signature) and set Ledgerline Signer up again.", nil)
+			return
+		}
+		if !s.signLimit.allow(t) {
+			writeErr(w, 429, "too_many", "Too many calls; slow down.", nil)
+			return
+		}
+		h(w, r, t, key)
+	}
+}
+
+// signAgentFail answers a failed call; a wrong or reset key is 401.
+func (s *Server) signAgentFail(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, ops.ErrForbidden) {
+		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+		s.signBad.allow(ip)
+		msg := "This agent key is not valid, or was reset in Ledgerline. Set up Ledgerline Signer again with the new key."
+		if strings.Contains(err.Error(), "USB token signer now") {
+			msg = "The firm does not sign with a USB token signer now (Settings → Digital signature)."
+		}
+		writeErr(w, 401, "unauthorized", msg, nil)
+		return
+	}
+	fail(w, err, nil)
+}
+
+// signAgentBody is the body of every signer call; each uses its own fields.
+type signAgentBody struct {
+	CertDER string `json:"cert_der_b64"`
+	Version string `json:"agent_version"`
+	Host    string `json:"host"`
+	Max     int    `json:"max"`
+	ID      string `json:"id"`
+	Sig     string `json:"signature_b64"`
+	Error   string `json:"error"`
+}
+
+func (s *Server) signAgentHello(w http.ResponseWriter, r *http.Request, t, key string) {
+	var b signAgentBody
+	if !decode(w, r, &b) {
+		return
+	}
+	der, err := base64.StdEncoding.DecodeString(b.CertDER)
+	if err != nil || len(der) == 0 {
+		writeErr(w, 400, "bad_certificate", "Send the token's certificate (DER) as base64 in \"cert_der_b64\".", nil)
+		return
+	}
+	v, err := s.ops.SignAgentHello(r.Context(), t, key, ops.SignAgentMeta{Version: b.Version, Host: b.Host}, der)
+	if err != nil {
+		s.signAgentFail(w, r, err)
+		return
+	}
+	writeJSON(w, 200, v)
+}
+
+func (s *Server) signAgentPoll(w http.ResponseWriter, r *http.Request, t, key string) {
+	var b signAgentBody
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SignAgentPoll(r.Context(), t, key, ops.SignAgentMeta{Version: b.Version, Host: b.Host}, b.Max)
+	if err != nil {
+		s.signAgentFail(w, r, err)
+		return
+	}
+	writeJSON(w, 200, v)
+}
+
+func (s *Server) signAgentResult(w http.ResponseWriter, r *http.Request, t, key string) {
+	var b signAgentBody
+	if !decode(w, r, &b) {
+		return
+	}
+	err := s.ops.SignAgentResult(r.Context(), t, key, ops.SignAgentMeta{Version: b.Version, Host: b.Host}, ops.SignAgentResultIn{ID: b.ID, Signature: b.Sig, Error: b.Error})
+	if err != nil {
+		s.signAgentFail(w, r, err)
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"ok": true})
 }
 
 func dispatchFilter(r *http.Request) ops.DispatchFilter {

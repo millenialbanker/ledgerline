@@ -186,26 +186,7 @@ func (o *Ops) SendNotes(ctx context.Context, tenant, actor, date, ucc string) (s
 		if (ucc != "" && n.UCC != ucc) || (ucc == "" && (n.Status == "Sent" || n.Status == "Paper")) {
 			continue
 		}
-		d, err := o.sendNote(ctx, tenant, actor, n)
-		if err != nil {
-			return sent, bounced, err
-		}
-		result := map[string]string{"Sent": "Sent", "Bounced": "Bounced", "Physical pending": "Paper", "Held": "Held"}[d.Status]
-		if result == "" {
-			result = "Failed"
-		}
-		if result == "Sent" {
-			o.notify(ctx, tenant, actor, "contract_note.sent", n.UCC, map[string]string{"no": n.No, "date": date})
-		}
-		_, err = docs.Update(ctx, o.Docs, tenant, cNote, noteID(date, n.UCC, n.Part), actor, func(x *ContractNote) error {
-			x.Status, x.Email, x.Dispatch = result, d.To, d.ID
-			x.SentAt = ""
-			x.Attempts++
-			if result == "Sent" {
-				x.SentAt = at
-			}
-			return nil
-		})
+		result, _, err := o.sendNoteRecorded(ctx, tenant, actor, n, at)
 		if err != nil {
 			return sent, bounced, err
 		}
@@ -218,6 +199,32 @@ func (o *Ops) SendNotes(ctx context.Context, tenant, actor, date, ucc string) (s
 	}
 	o.log(ctx, tenant, actor, "notes.sent", date, map[string]any{"sent": sent, "bounced": bounced})
 	return sent, bounced, nil
+}
+
+// sendNoteRecorded sends one note and records the result on it: Sent,
+// Bounced, Paper, Held or Failed. at is the time of day it is sent.
+func (o *Ops) sendNoteRecorded(ctx context.Context, tenant, actor string, n ContractNote, at string) (string, Dispatch, error) {
+	d, err := o.sendNote(ctx, tenant, actor, n)
+	if err != nil {
+		return "", d, err
+	}
+	result := map[string]string{"Sent": "Sent", "Bounced": "Bounced", "Physical pending": "Paper", "Held": "Held"}[d.Status]
+	if result == "" {
+		result = "Failed"
+	}
+	if result == "Sent" {
+		o.notify(ctx, tenant, actor, "contract_note.sent", n.UCC, map[string]string{"no": n.No, "date": n.Date})
+	}
+	_, err = docs.Update(ctx, o.Docs, tenant, cNote, noteID(n.Date, n.UCC, n.Part), actor, func(x *ContractNote) error {
+		x.Status, x.Email, x.Dispatch = result, d.To, d.ID
+		x.SentAt = ""
+		x.Attempts++
+		if result == "Sent" {
+			x.SentAt = at
+		}
+		return nil
+	})
+	return result, d, err
 }
 
 var noteTmpl = template.Must(template.New("note").Funcs(template.FuncMap{

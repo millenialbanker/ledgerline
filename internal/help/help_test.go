@@ -153,6 +153,10 @@ func TestQuestions(t *testing.T) {
 		{"dealer nism certificate expired", "", "dealers-nism"},
 		{"who uses terminal 40001", "", "dealers-nism"},
 		{"bse dealer registration file", "", "dealers-nism"},
+		// Signing with a USB token at the office.
+		{"our dsc is on an epass2003 usb token how do we sign contract notes", "", "usb-token-signing"},
+		{"usb token signer not connected", "dispatch", "usb-token-signing"},
+		{"contract notes held because the token signer is offline", "", "usb-token-signing"},
 		// Corporate bonds through CBRICS.
 		{"how do I report a client's otc bond deal to cbrics", "", "cbrics-deal"},
 		{"cbrics password expired", "", "cbrics-setup"},

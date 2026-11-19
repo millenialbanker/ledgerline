@@ -37,14 +37,18 @@ import (
 //   - a signing service: where the certificate stays on a USB token or an
 //     HSM, a small service next to it receives the SHA-256 of each document
 //     and returns a CMS signature (POST {"sha256","signing_time","document"}
-//     → {"cms": base64}). Ledgerline checks every signature it gets back.
+//     → {"cms": base64}). Ledgerline checks every signature it gets back;
+//   - a USB token signer (signagent.go): where the token sits in a computer
+//     at the office that Ledgerline cannot reach, a small program there
+//     connects out to Ledgerline, takes each document's digest, signs it
+//     with the token and sends the signature back.
 // Development servers use a test certificate, marked as not valid.
 
 const cSigning = "signing"
 
 // SigningConfig is the firm's signing set-up.
 type SigningConfig struct {
-	Mode      string    `json:"mode"`               // file, remote, test, off
+	Mode      string    `json:"mode"`               // file, remote, agent, test, off
 	File      string    `json:"file,omitempty"`     // base64 of the uploaded file (never returned)
 	Password  string    `json:"password,omitempty"` // (never returned)
 	RemoteURL string    `json:"remote_url,omitempty"`
@@ -69,6 +73,8 @@ type SigningView struct {
 	Problem   string    `json:"problem,omitempty"`
 	ExpiresIn int       `json:"expires_in_days"`
 	Test      bool      `json:"test"`
+	// Agent is the USB token signer's state (agent mode).
+	Agent *SignAgentView `json:"agent,omitempty"`
 }
 
 type signerCache struct {
@@ -106,8 +112,14 @@ func (o *Ops) Signing(ctx context.Context, tenant, actor string) (SigningView, e
 		v.Problem = err.Error()
 	} else {
 		v.Ready, v.Info = true, info
-		if t, err := time.Parse(time.RFC3339, info.Until); err == nil {
-			v.ExpiresIn = int(t.Sub(o.now()).Hours() / 24)
+	}
+	if t, err := time.Parse(time.RFC3339, v.Info.Until); err == nil {
+		v.ExpiresIn = int(t.Sub(o.now()).Hours() / 24)
+	}
+	if c.Mode == "agent" {
+		v.Agent = o.signAgentView(ctx, tenant)
+		if v.Info.Name == "" && v.Agent.Cert != nil {
+			v.Info = *v.Agent.Cert
 		}
 	}
 	return v, nil
@@ -205,6 +217,8 @@ func (o *Ops) docSigner(ctx context.Context, tenant string) (func([]byte, time.T
 			}
 			return cms, nil
 		}, c.Info, nil
+	case "agent":
+		return o.agentDocSigner(ctx, tenant)
 	case "test":
 		s := testSigner(tenant)
 		return s.SignDetached, sign.CertInfo(s.Cert), nil

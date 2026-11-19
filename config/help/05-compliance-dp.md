@@ -23,11 +23,11 @@ title: Signed contract notes, statements and the dispatch register
 screen: dispatch
 roles: Compliance officer, Ops checker, Ops maker
 ask: dispatch register; proof of delivery; contract note bounced; email bounced; printed contract note; courier copy; signed pdf; digital signature certificate; documents held; statements not sent; margin statement; ras statement; dp statement; bounce report
-related: regulatory-reports
+related: regulatory-reports, usb-token-signing
 
 Contract notes and statements go to clients as PDFs digitally signed with the firm's certificate. Every one is in the [[dispatch|Dispatch register]] with the file exactly as sent and its SHA-256 fingerprint: SEBI treats this log as proof of delivery.
 
-1. **Digital signature** (Admin): load the firm's Class 3 document signer certificate (.pfx with its password), or connect a signing service or HSM. Without one, documents are **held**, never sent unsigned.
+1. **Digital signature** (Admin): load the firm's Class 3 document signer certificate (.pfx with its password), connect a signing service or HSM, or, for a certificate on a USB token at the office, connect **Ledgerline Signer** (see "Sign documents with a USB token"). Without one, documents are **held**, never sent unsigned.
 2. Contract notes are signed and sent from [[notes|Contract notes]]. Daily margin statements go out by a scheduled job; the weekly funds and securities, monthly account, DP and running account statements are [[periodic|Periodic work]], each with its due date. **Send statements** sends any of them by hand.
 3. A **bounced** email (from the mail server, **Mark bounced**, or **Load bounce report**) opens a work item: print the signed PDF, send it by courier and record the courier reference with **Printed copy sent**. Clients who chose paper (ECN = N) get a printed copy every time.
 4. **Check signature** re-verifies a stored PDF; **Download register** gives the log for inspection.

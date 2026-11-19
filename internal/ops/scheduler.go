@@ -293,6 +293,9 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.ncmsTick(ctx, tenant, now)
 	o.upixTick(ctx, tenant, now)
 	o.retryMessages(ctx, tenant, now)
+	// The USB token signer: a work item when it is away in working hours,
+	// and documents held for a signature sent once it is back.
+	o.signAgentTick(ctx, tenant, now)
 	o.extranetTick(ctx, tenant, now)
 	o.mcxSFTPTick(ctx, tenant, now)
 	o.bseSFTPTick(ctx, tenant, now)

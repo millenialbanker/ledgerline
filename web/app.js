@@ -3469,25 +3469,62 @@ async function dspModal(id) {
     ${mk && x.status === 'Sent' && x.channel === 'email' ? `<h4 style="margin:16px 0 8px">Bounced later?</h4><div class="form"><div class="fld full"><label for="dsp-why">Bounce reason from the mail server</label><input class="in" id="dsp-why" placeholder="e.g. 550 mailbox does not exist"></div></div>` : ''}
   </div><div class="ft"><button class="btn" data-act="close">Close</button>${f ? `<button class="btn" data-act="dspVerify" data-id="${x.id}">Check signature</button><button class="btn" data-act="dl" data-id="/v1/dispatch/${x.id}/file" data-name="${esc(f.name)}">Download PDF</button>` : ''}${mk && x.status === 'Sent' && x.channel === 'email' ? `<button class="btn bad" data-act="dspBounce" data-id="${x.id}">Mark bounced</button>` : ''}${mk && ['Held', 'Failed', 'Bounced'].includes(x.status) ? `<button class="btn" data-act="dspResend" data-id="${x.id}">Send again</button>` : ''}${mk && (x.status === 'Bounced' || x.status === 'Physical pending') ? `<button class="btn pri" data-act="dspPhysical" data-id="${x.id}">Printed copy sent</button>` : ''}</div>`);
 }
+let SIG = null; // the signing set-up shown in the modal
+const skv = (k, v) => v ? `<div><small>${k}</small><b>${v}</b></div>` : '';
+const sigCert = c => c ? `${esc(c.name)} · issued by ${esc(c.issuer)} · serial ${esc(c.serial)} · valid ${fmtDate(c.valid_from.slice(0, 10))} to ${fmtDate(c.valid_until.slice(0, 10))}<div class="mono small dim wrap">SHA-256 ${esc(c.sha256)}</div>` : '';
 function sigModal() {
   get('/v1/signing').then(s => {
+    SIG = s;
     const admin = has('Admin'), i = s.info || {};
-    const kv = (k, v) => v ? `<div><small>${k}</small><b>${v}</b></div>` : '';
-    modal(mhd('Digital signature', 'Contract notes and statements must be digitally signed under the IT Act (SEBI circular on electronic contract notes). Use the firm’s Class 3 document signer certificate, either as a .pfx file or through a signing service or HSM that signs on request.') + `<div class="bd">
-      <div class="kv">${kv('Mode', { file: 'Certificate file', remote: 'Signing service', test: 'Test certificate (development)', off: 'Not set up' }[s.mode] || s.mode)}${kv('State', s.ready ? pill(s.test ? 'Test only' : 'Ready', s.test ? 'warn' : 'good') : pill(s.problem || 'Not set up', 'bad'))}${kv('Signer', esc(i.name))}${kv('Issued by', esc(i.issuer))}${kv('Serial', esc(i.serial))}${kv('Valid', i.from ? `${fmtDate(i.from.slice(0, 10))} to ${fmtDate(i.until.slice(0, 10))}${s.ready && !s.test ? ` <span class="dim">(${s.expires_in_days} days left)</span>` : ''}` : '')}${kv('Fingerprint', i.sha256 ? `<span class="mono small">${esc(i.sha256)}</span>` : '')}${kv('Signing service', esc(s.remote_url))}${kv('Location', esc(s.location))}${kv('Changed', s.updated_by ? esc(s.updated_by) + ' · ' + esc(s.updated_at) : '')}</div>
-      ${admin ? `<h4 style="margin:16px 0 8px">Change</h4>${segBtns('sigMode', [['file', 'Certificate file'], ['remote', 'Signing service'], ['off', 'Remove']], 'sig-f')}
+    if (s.mode === 'agent') UI.sigMode = 'agent';
+    modal(mhd('Digital signature', 'Contract notes and statements must be digitally signed under the IT Act (SEBI circular on electronic contract notes). Use the firm’s Class 3 document signer certificate: as a .pfx file, through a signing service or HSM, or on a USB token at the office with Ledgerline Signer.') + `<div class="bd">
+      <div class="kv">${skv('Mode', { file: 'Certificate file', remote: 'Signing service', agent: 'USB token signer', test: 'Test certificate (development)', off: 'Not set up' }[s.mode] || s.mode)}${skv('State', s.ready ? pill(s.test ? 'Test only' : 'Ready', s.test ? 'warn' : 'good') : pill(s.problem || 'Not set up', 'bad'))}${skv('Signer', esc(i.name))}${skv('Issued by', esc(i.issuer))}${skv('Serial', esc(i.serial))}${skv('Valid', i.valid_from ? `${fmtDate(i.valid_from.slice(0, 10))} to ${fmtDate(i.valid_until.slice(0, 10))}${!s.test ? ` <span class="dim">(${s.expires_in_days} days left)</span>` : ''}` : '')}${skv('Fingerprint', i.sha256 ? `<span class="mono small">${esc(i.sha256)}</span>` : '')}${skv('Signing service', esc(s.remote_url))}${skv('Location', esc(s.location))}${skv('Changed', s.updated_by ? esc(s.updated_by) + ' · ' + esc(s.updated_at) : '')}</div>
+      ${s.agent ? sigAgentHTML(s.agent) : ''}<div id="sig-chk"></div>
+      ${admin ? `<h4 style="margin:16px 0 8px">Change</h4>${segBtns('sigMode', [['file', 'Certificate file'], ['remote', 'Signing service'], ['agent', 'USB token'], ['off', 'Remove']], 'sig-f')}
       <div class="form" id="sig-f"></div><div id="sig-err"></div>` : '<div class="dim small">Only an Admin can change the certificate.</div>'}
-    </div><div class="ft"><button class="btn" data-act="close">Close</button>${admin ? '<button class="btn pri" data-act="sigSave">Save</button>' : ''}</div>`);
+    </div><div class="ft"><button class="btn" data-act="close">Close</button>${has('Compliance officer') && s.mode !== 'off' ? '<button class="btn" data-act="sigCheck">Check signing</button>' : ''}${admin ? '<button class="btn pri" data-act="sigSave">Save</button>' : ''}</div>`);
     if (admin) sigForm();
   }).catch(e => toast(e.message, true));
+}
+// sigAgentHTML is the USB token signer's state: connection, certificate
+// (approved, and one waiting for approval), and the day's count.
+function sigAgentHTML(a) {
+  const seen = a.seen ? fmtTS(a.seen) : 'never';
+  return `<h4 style="margin:16px 0 8px">USB token signer</h4>
+    <div class="kv">${skv('Signer', a.connected ? pill('Connected', 'good') : pill('Not connected', 'bad'))}${skv('Last seen', esc(seen))}${skv('Computer', esc(a.host))}${skv('Signer version', esc(a.version))}${skv('Signed today', nf(a.signed_today))}${skv('Failed today', a.failed_today ? nf(a.failed_today) : '')}${skv('Last failure', a.last_error ? esc(a.last_error) + ' · ' + esc(fmtTS(a.last_error_at)) : '')}${skv('Agent key', a.key_made ? 'made ' + esc(fmtTS(a.key_made)) + ' by ' + esc(a.key_by) : '')}${skv('Approved certificate', sigCert(a.cert))}${skv('Approved by', a.approved_by ? esc(a.approved_by) + ' · ' + esc(fmtTS(a.approved_at)) : '')}</div>
+    ${!a.connected ? '<div class="note bad">Documents are held while the signer is not connected and are sent by themselves when it is back. Keep the office computer on, the token plugged in and Ledgerline Signer running.</div>' : ''}
+    ${a.warning ? `<div class="note warn">${esc(a.warning)}</div>` : ''}
+    ${a.cert && !a.cert_matches && a.connected ? '<div class="note bad">The signer has a different certificate from the approved one. Nothing is signed until it is approved.</div>' : ''}
+    ${a.pending ? `<div class="note ${a.pending_problem ? 'bad' : 'warn'}"><b>Certificate waiting for approval</b>, sent by ${esc(a.pending_from || 'the signer')} at ${esc(fmtTS(a.pending_at))}<div style="margin:6px 0">${sigCert(a.pending)}</div>${a.pending_problem ? `<div>It cannot be approved: ${esc(a.pending_problem)}.</div>` : `${a.pending_warning ? `<div>${esc(a.pending_warning)}</div>` : ''}<div class="small">Check that it is the firm’s signing certificate (name, issuer, serial and SHA-256 as on the token) before approving.</div>${has('Compliance officer') ? `<button class="btn sm pri" data-act="sigApprove" data-id="${esc(a.pending.sha256)}">Approve this certificate</button>` : ''}`}</div>` : ''}
+    ${has('Admin') ? '<button class="btn sm" data-act="sigReset">Reset agent key</button>' : ''}`;
 }
 UI.sigMode = 'file';
 function sigForm() { const el = $('sig-f'); if (el) el.innerHTML = P['sig-f'](); }
 P['sig-f'] = () => {
-  return UI.sigMode === 'file' ? `<div class="fld full"><label for="sig-file">Certificate file (.pfx, .p12 or PEM with the private key)</label><input class="in" type="file" id="sig-file" accept=".pfx,.p12,.pem,.crt,.key"></div><div class="fld"><label for="sig-pw">File password</label><input class="in" type="password" id="sig-pw" autocomplete="off"></div><div class="fld"><label for="sig-loc">Place of signing</label><input class="in" id="sig-loc" placeholder="e.g. Mumbai"></div><div class="dim small full">The file and its password are stored encrypted with the firm’s data key and are never shown again. A USB token cannot be used from a server; use a signing service for one.</div>`
+  if (UI.sigMode === 'agent') {
+    const on = SIG && SIG.mode === 'agent';
+    return `<div class="fld full"><label for="sig-cer">${on ? 'Replace the approved certificate (.cer or .crt, optional)' : 'The token’s certificate (.cer or .crt, optional)'}</label><input class="in" type="file" id="sig-cer" accept=".cer,.crt,.pem,.der"></div>${on ? '' : '<div class="fld"><label for="sig-loc">Place of signing</label><input class="in" id="sig-loc" placeholder="e.g. Mumbai"></div>'}
+      <div class="dim small full">${on ? 'A certificate you upload is approved by you and used from the next document. Without one, the certificate Ledgerline Signer sends waits for approval above.' : 'Save makes the agent key for <b>Ledgerline Signer</b>, a small Windows program on the office computer with the USB token. It connects out to Ledgerline, so nothing needs to reach your office. Upload the token’s public certificate now if you have it (export it from the token’s software); otherwise the signer sends it when it first connects and an Admin or the Compliance officer approves it.'}</div>`;
+  }
+  return UI.sigMode === 'file' ? `<div class="fld full"><label for="sig-file">Certificate file (.pfx, .p12 or PEM with the private key)</label><input class="in" type="file" id="sig-file" accept=".pfx,.p12,.pem,.crt,.key"></div><div class="fld"><label for="sig-pw">File password</label><input class="in" type="password" id="sig-pw" autocomplete="off"></div><div class="fld"><label for="sig-loc">Place of signing</label><input class="in" id="sig-loc" placeholder="e.g. Mumbai"></div><div class="dim small full">The file and its password are stored encrypted with the firm’s data key and are never shown again. For a certificate on a USB token, choose USB token.</div>`
     : UI.sigMode === 'remote' ? `<div class="fld full"><label for="sig-url">Signing service address (https)</label><input class="in mono" id="sig-url" placeholder="https://sign.firm.internal/v1/sign"></div><div class="fld"><label for="sig-key">API key</label><input class="in" type="password" id="sig-key" autocomplete="off"></div><div class="fld"><label for="sig-loc">Place of signing</label><input class="in" id="sig-loc" placeholder="e.g. Mumbai"></div><div class="dim small full">Ledgerline sends only the SHA-256 of each document and checks every signature that comes back against the certificate fixed when you save.</div>`
     : '<div class="note bad full">Removing the certificate holds every contract note and statement until a new one is set up.</div>';
 };
+async function fileB64(f) { const buf = new Uint8Array(await f.arrayBuffer()); let bin = ''; for (let i = 0; i < buf.length; i += 8192) bin += String.fromCharCode(...buf.subarray(i, i + 8192)); return btoa(bin); }
+// sigKeyModal shows a new agent key once, with the steps to install the signer.
+function sigKeyModal(r) {
+  const cmd = `ledgerline-signer setup -server ${r.server}`, a = r.signing?.agent || {};
+  modal(mhd('Connect the USB token signer', 'The agent key is shown only once. Ledgerline keeps only its fingerprint; if it is lost, reset it.') + `<div class="bd">
+    <div class="secret mono" id="sig-key-v">${esc(r.key)}</div><button class="btn sm" data-act="sigCopyKey">Copy</button>
+    <ol class="rp-howto">
+      <li>On the office computer with the USB token (Windows), install the token’s driver from its maker, plug the token in and check that its certificate shows in the token’s software.</li>
+      <li>Get <b>ledgerline-signer.exe</b> from your Ledgerline provider and put it in a folder of its own, such as C:\Ledgerline Signer.</li>
+      <li>In Command Prompt, in that folder, run:<pre class="rp-cmd">${esc(cmd)}</pre>Paste the agent key when asked, then type the number of the firm’s signing certificate.</li>
+      <li>Start it, enter the token PIN once, and keep the window open while documents are signed:<pre class="rp-cmd">ledgerline-signer</pre></li>
+      <li>${a.cert ? 'The certificate you uploaded is approved, so the signer starts signing at once.' : 'When it first connects, the signer sends its certificate. An Admin or the Compliance officer approves it on this screen; then it signs.'} Use <b>Check signing</b> to sign a test document through it.</li>
+    </ol></div><div class="ft"><button class="btn pri" data-act="sigKeyDone">I have noted it</button></div>`);
+  setTimeout(() => { modalLocked = true; });
+}
 Object.assign(A, {
   dspOpen: id => dspModal(id),
   dspCSV: () => { const f = UI.dspFrom || addDaysJS(S.date, -30), t = UI.dspTo || S.date; download(`/v1/dispatch.csv?from=${f}&to=${t}${UI.dspKind ? '&kind=' + UI.dspKind : ''}${UI.dspTab ? '&status=' + encodeURIComponent(UI.dspTab) : ''}`, `dispatch-register_${f}_${t}.csv`); },
@@ -3510,15 +3547,32 @@ Object.assign(A, {
   sigSave: async () => {
     const err = $('sig-err'); err.innerHTML = '';
     try {
+      if (UI.sigMode === 'agent') {
+        const f = $('sig-cer').files[0], cert = f ? await fileB64(f) : '';
+        if (SIG && SIG.mode === 'agent') {
+          if (!f) { toast('Choose the certificate file, or close'); return; }
+          await post('/v1/signing/agent/certificate', { cert }); toast('Certificate approved for the USB token signer'); sigModal(); return;
+        }
+        const r = await post('/v1/signing/agent', { cert, location: $('sig-loc').value }); sigKeyModal(r); return;
+      }
       if (UI.sigMode === 'file') {
         const f = $('sig-file').files[0]; if (!f) { toast('Choose the certificate file'); return; }
-        const buf = new Uint8Array(await f.arrayBuffer()); let bin = ''; for (let i = 0; i < buf.length; i += 8192) bin += String.fromCharCode(...buf.subarray(i, i + 8192));
-        await post('/v1/signing/file', { file: btoa(bin), password: $('sig-pw').value, location: $('sig-loc').value });
+        await post('/v1/signing/file', { file: await fileB64(f), password: $('sig-pw').value, location: $('sig-loc').value });
       } else if (UI.sigMode === 'remote') await post('/v1/signing/remote', { url: $('sig-url').value, key: $('sig-key').value, location: $('sig-loc').value });
       else await post('/v1/signing/off');
       toast(UI.sigMode === 'off' ? 'Certificate removed: documents will be held' : 'Signing certificate saved'); closeModal(); if (S.view === 'dispatch') render({ keep: true });
     } catch (e) { err.innerHTML = errHTML(e); }
   },
+  sigApprove: sha => confirmModal('Approve the certificate', 'Contract notes and statements will be signed with it from the next document.', `<div class="small">${sigCert(SIG?.agent?.pending)}</div>`, 'Approve', async () => { await post('/v1/signing/agent/approve', { sha256: sha }); toast('Certificate approved'); sigModal(); }),
+  sigReset: () => confirmModal('Reset the agent key', 'The signer at the office stops working at once, until it is set up again with the new key.', '', 'Reset key', async () => { const r = await post('/v1/signing/agent/reset-key'); sigKeyModal(r); }, true),
+  sigCheck: async (id, el) => {
+    const out = $('sig-chk'); el.disabled = true; out.innerHTML = '<div class="note">Signing a test document…</div>';
+    try { const r = await post('/v1/signing/check'); out.innerHTML = `<div class="note good">Signed a test document as <b>${esc(r.signer.name)}</b> in ${nf(r.millis / 1000, 1)} s; the signature checks.</div>`; }
+    catch (e) { out.innerHTML = errHTML(e); }
+    el.disabled = false;
+  },
+  sigCopyKey: () => { try { navigator.clipboard.writeText($('sig-key-v').textContent); toast('Copied'); } catch (e) {} },
+  sigKeyDone: () => { closeModal(); sigModal(); if (S.view === 'dispatch') render({ keep: true }); },
 });
 document.addEventListener('change', e => {
   const id = e.target.id;
