@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
 	"ledgerline/internal/docs"
+	"ledgerline/internal/qr"
 )
 
 // ---- collecting client money by UPI: validated handles and the SEBI QR ----
@@ -59,6 +61,17 @@ type UPIHandle struct {
 	// the money is in Ledgerline (UPIClientMoney or UPIFirmFee).
 	Category string `json:"category,omitempty"`
 	Purpose  string `json:"purpose,omitempty"`
+	// QR is this ID's SEBI-portal QR code (a data: URL, PNG or JPEG); each
+	// validated ID has its own. On a save, "" keeps the saved one and "-"
+	// removes it.
+	QR     string `json:"qr,omitempty"`
+	QRName string `json:"qr_name,omitempty"`
+	// QRMade: no QR was uploaded, so the one shown is a UPI payment QR
+	// Ledgerline made from the ID (views only, never saved).
+	QRMade bool `json:"qr_made,omitempty"`
+	// QRFirm: the QR shown is the firm's single QR, saved before each ID
+	// had its own (views only).
+	QRFirm bool `json:"qr_firm,omitempty"`
 }
 
 // What money a validated UPI ID collects.
@@ -195,6 +208,59 @@ func (c UPICollect) clientMoneyIDs(dpOnly bool) []string {
 	return brk
 }
 
+// qrFor is the QR code to show with these IDs: the first one's uploaded
+// QR, else the firm's single QR (saved before each ID had its own), else
+// a UPI payment QR made from the first ID.
+func (c UPICollect) qrFor(ids []string, firm string) string {
+	for _, id := range ids {
+		if h, ok := c.handle(id); ok && h.QR != "" {
+			return h.QR
+		}
+	}
+	if c.QR != "" || len(ids) == 0 {
+		return c.QR
+	}
+	return upiPayQR(ids[0], firm)
+}
+
+// upiPayLink is the UPI link for paying a validated ID: pa as it is (a
+// validated ID has only letters, digits, . _ - and @, which UPI apps read
+// unescaped), pn escaped, as banks' own QRs write them.
+func upiPayLink(vpa, name string) string {
+	link := "upi://pay?pa=" + normVPA(vpa)
+	if name = strings.TrimSpace(name); name != "" {
+		link += "&pn=" + strings.ReplaceAll(url.QueryEscape(name), "+", "%20")
+	}
+	return link + "&cu=INR"
+}
+
+// upiPayQR is a UPI payment QR for a validated ID (NPCI's UPI link,
+// upi://pay with the payee address, name and INR) as a PNG data: URL. It
+// pays like the QR from SEBI's SI portal but has no SEBI Check mark, so
+// the firm should upload SEBI's when it has it.
+func upiPayQR(vpa, name string) string {
+	c, err := qr.Encode([]byte(upiPayLink(vpa, name)))
+	if err != nil {
+		return ""
+	}
+	b, err := c.PNG(8)
+	if err != nil {
+		return ""
+	}
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(b)
+}
+
+// dpIDs are the DP's own client-money IDs (.dp).
+func (c UPICollect) dpIDs() []string {
+	var out []string
+	for _, h := range c.Handles {
+		if h, _ = c.handle(h.VPA); h.Category == "dp" {
+			out = append(out, h.VPA)
+		}
+	}
+	return out
+}
+
 // UPICategoryState is a category and whether the firm can use it.
 type UPICategoryState struct {
 	UPICategory
@@ -213,8 +279,16 @@ type UPICollectView struct {
 // registrations allow it.
 func (o *Ops) UPICollectFor(ctx context.Context, tenant string) UPICollectView {
 	c := o.UPICollectConfig(ctx, tenant)
+	set, _ := o.Settings(ctx, tenant)
 	for i, h := range c.Handles {
 		c.Handles[i], _ = c.handle(h.VPA)
+		switch {
+		case c.Handles[i].QR != "":
+		case i == 0 && c.QR != "":
+			c.Handles[i].QR, c.Handles[i].QRName, c.Handles[i].QRFirm = c.QR, c.QRName, true
+		default:
+			c.Handles[i].QR, c.Handles[i].QRMade = upiPayQR(h.VPA, set.Firm), true
+		}
 	}
 	v := UPICollectView{UPICollect: c}
 	allowed := o.upiAllowed(ctx, tenant)
@@ -232,6 +306,7 @@ func (o *Ops) SaveUPICollect(ctx context.Context, tenant, actor string, c UPICol
 	}
 	seen := map[string]bool{}
 	allowed := o.upiAllowed(ctx, tenant)
+	old := o.UPICollectConfig(ctx, tenant)
 	var hs []UPIHandle
 	for _, h := range c.Handles {
 		h.VPA, h.Bank, h.Account = normVPA(h.VPA), strings.TrimSpace(h.Bank), strings.TrimSpace(h.Account)
@@ -256,13 +331,25 @@ func (o *Ops) SaveUPICollect(ctx context.Context, tenant, actor string, c UPICol
 		if seen[h.VPA] {
 			continue
 		}
+		switch h.QR = strings.TrimSpace(h.QR); h.QR {
+		case "":
+			if was, ok := old.handle(h.VPA); ok {
+				h.QR, h.QRName = was.QR, was.QRName
+			}
+		case "-":
+			h.QR, h.QRName = "", ""
+		default:
+			if err := checkQRImage(h.QR); err != nil {
+				return c, fmt.Errorf("%s: %w", h.VPA, err)
+			}
+			h.QRName = strings.TrimSpace(h.QRName)
+		}
 		seen[h.VPA] = true
 		hs = append(hs, h)
 	}
 	if hs == nil {
 		hs = []UPIHandle{}
 	}
-	old := o.UPICollectConfig(ctx, tenant)
 	out := UPICollect{Handles: hs, QR: old.QR, QRName: old.QRName, By: actor, At: o.now().Format(time.RFC3339)}
 	switch c.QR = strings.TrimSpace(c.QR); c.QR {
 	case "":
@@ -280,11 +367,14 @@ func (o *Ops) SaveUPICollect(ctx context.Context, tenant, actor string, c UPICol
 	if err := docs.Upsert(ctx, o.Docs, tenant, cUPICollect, "main", out, actor); err != nil {
 		return out, err
 	}
-	cats := map[string]int{}
+	cats, qrs := map[string]int{}, 0
 	for _, h := range out.Handles {
 		cats[h.Category]++
+		if h.QR != "" {
+			qrs++
+		}
 	}
-	o.log(ctx, tenant, actor, "upi.collect.saved", "main", map[string]any{"handles": len(out.Handles), "categories": cats, "qr": out.QR != ""})
+	o.log(ctx, tenant, actor, "upi.collect.saved", "main", map[string]any{"handles": len(out.Handles), "categories": cats, "qr": out.QR != "", "id_qrs": qrs})
 	return out, nil
 }
 

@@ -102,6 +102,7 @@ var ConnProviders = []ConnProvider{
 	{ID: "mail", Name: "Mail server", Group: "Messages", Purpose: "Signed contract notes and statements to clients", Required: true, Test: "smtp",
 		Fields: []ConnField{{Key: "host", Label: "Server", Placeholder: "smtp.firm.in"}, {Key: "port", Label: "Port", Placeholder: "587 (STARTTLS) or 465 (TLS)"}, {Key: "from", Label: "Send as", Placeholder: "notes@firm.in"}, fUser, fPass, fNotes}},
 	{ID: "signing", Name: "Digital signature certificate", Group: "Messages", Purpose: "Signing contract notes and statements", System: "Set in Dispatch register → Digital signature"},
+	{ID: "upi", Name: "UPI collection IDs (@valid)", Group: "Money", Purpose: "The firm's SEBI-validated UPI IDs clients pay to, each with its SEBI QR code: .brk for broking money, .dp for the DP's charges (maintenance and other DP bills)", System: "Set here or in Settings → UPI collection"},
 }
 
 func connProvider(id string) (ConnProvider, bool) {
@@ -161,6 +162,23 @@ func (o *Ops) systemConnStatus(ctx context.Context, tenant, id string) (string, 
 			return "Not set", firstOf(sv.Problem, "no certificate")
 		}
 		return "Working", fmt.Sprintf("%s, %d days left", sv.Info.Name, sv.ExpiresIn)
+	case "upi":
+		u := o.UPICollectConfig(ctx, tenant)
+		if len(u.Handles) == 0 {
+			return "Not set", "no validated UPI ID: clients see only the bank account"
+		}
+		var ids []string
+		made := 0
+		for _, h := range u.Handles {
+			ids = append(ids, h.VPA)
+			if h.QR == "" && (u.QR == "" || h.VPA != u.Handles[0].VPA) {
+				made++
+			}
+		}
+		if made > 0 {
+			return "Working", fmt.Sprintf("%s; QR made from the ID for %d (upload SEBI's QR to show the SEBI Check mark)", strings.Join(ids, ", "), made)
+		}
+		return "Working", strings.Join(ids, ", ")
 	case "digilocker":
 		if o.KYC != nil {
 			return "Working", "connected"

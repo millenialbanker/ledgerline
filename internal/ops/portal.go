@@ -286,7 +286,12 @@ func (o *Ops) Portal(ctx context.Context, tenant, actor, date, ucc string) (Port
 	// never a research or advisory fee ID (upicollect.go).
 	if upi := o.UPICollectConfig(ctx, tenant); len(upi.Handles) > 0 {
 		if ids := upi.clientMoneyIDs(v.Account.DPOnly); len(ids) > 0 {
-			v.Firm["upi_ids"], v.Firm["upi_qr"] = strings.Join(ids, ","), upi.QR
+			v.Firm["upi_ids"], v.Firm["upi_qr"] = strings.Join(ids, ","), upi.qrFor(ids, set.Firm)
+		}
+		// A trading client pays the DP's charges (maintenance and other DP
+		// bills) to the DP's own ID, shown apart.
+		if dp := upi.dpIDs(); !v.Account.DPOnly && len(dp) > 0 {
+			v.Firm["upi_dp_ids"], v.Firm["upi_dp_qr"] = strings.Join(dp, ","), upi.qrFor(dp, set.Firm)
 		}
 	}
 	v.FATCACodes = FATCACodeLists()

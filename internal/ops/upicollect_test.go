@@ -189,3 +189,60 @@ func TestUPICategoriesAndFees(t *testing.T) {
 		t.Fatalf("return %+v %v", r, err)
 	}
 }
+
+// Each validated ID has its own QR: uploaded, or made from the ID. A
+// trading client sees the broking ID and, apart, the DP's ID for DP
+// charges; the IDs also show on Connections.
+func TestUPIIDsWithQRs(t *testing.T) {
+	o, ctx := setup(t)
+	if _, err := o.SaveFirmProfile(ctx, T, "vikram.shah", FirmProfile{CDSL: AnswerYes}); err != nil {
+		t.Fatal(err)
+	}
+	dpQR := "data:image/png;base64," + base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\ndp-qr"))
+	if _, err := o.SaveUPICollect(ctx, T, "vikram.shah", UPICollect{Handles: []UPIHandle{{VPA: "bh.brk@validhdfc", Bank: "HDFC Bank"}, {VPA: "bh.dp@validhdfc", QR: dpQR, QRName: "dp.png"}}}); err != nil {
+		t.Fatal(err)
+	}
+	v := o.UPICollectFor(ctx, T)
+	brk, dp := v.Handles[0], v.Handles[1]
+	if !brk.QRMade || !strings.HasPrefix(brk.QR, "data:image/png;base64,") || dp.QRMade || dp.QR != dpQR {
+		t.Fatalf("view %+v", v.Handles)
+	}
+	png, _ := base64.StdEncoding.DecodeString(strings.TrimPrefix(brk.QR, "data:image/png;base64,"))
+	if len(png) < 100 || string(png[1:4]) != "PNG" {
+		t.Fatal("made QR is not a PNG")
+	}
+	// a save that does not touch the QRs keeps the uploaded one and makes none
+	if c, err := o.SaveUPICollect(ctx, T, "vikram.shah", UPICollect{Handles: []UPIHandle{{VPA: "bh.brk@validhdfc"}, {VPA: "bh.dp@validhdfc"}}}); err != nil || c.Handles[1].QR != dpQR || c.Handles[0].QR != "" {
+		t.Fatalf("resave %+v %v", c.Handles, err)
+	}
+	if _, _, err := o.PortalAccess(ctx, T, "farhan.khan", "BH1001", nil, false); err != nil {
+		t.Fatal(err)
+	}
+	pv, err := o.Portal(ctx, T, "bh1001", D, "BH1001")
+	if err != nil || pv.Firm["upi_ids"] != "bh.brk@validhdfc" || pv.Firm["upi_qr"] != brk.QR || pv.Firm["upi_dp_ids"] != "bh.dp@validhdfc" || pv.Firm["upi_dp_qr"] != dpQR {
+		t.Fatalf("portal %v %v", pv.Firm, err)
+	}
+	// removing the uploaded QR goes back to one made from the ID
+	if _, err := o.SaveUPICollect(ctx, T, "vikram.shah", UPICollect{Handles: []UPIHandle{{VPA: "bh.brk@validhdfc"}, {VPA: "bh.dp@validhdfc", QR: "-"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if h := o.UPICollectFor(ctx, T).Handles[1]; !h.QRMade {
+		t.Fatalf("after removal %+v", h)
+	}
+	cv, err := o.Connections(ctx, T, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cv.Connections {
+		if c.ID == "upi" && (c.Status != "Working" || !strings.Contains(c.Problem, "bh.brk@validhdfc, bh.dp@validhdfc")) {
+			t.Fatalf("connections row %+v", c)
+		}
+	}
+}
+
+func TestUPIPayLink(t *testing.T) {
+	// the link inside the QR is checked by reading back what was encoded
+	if got := upiPayLink("BH.brk@ValidHDFC", "Baljit Securities & Co"); got != "upi://pay?pa=bh.brk@validhdfc&pn=Baljit%20Securities%20%26%20Co&cu=INR" {
+		t.Fatal(got)
+	}
+}
