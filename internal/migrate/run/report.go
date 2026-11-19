@@ -235,7 +235,7 @@ func Report(res *Result, o Options, beside bool) []byte {
 	if years == 0 {
 		years = 8
 	}
-	d.Plan = "History: " + IndianInt(int64(years)) + " year(s). Archived documents: " + map[bool]string{true: "included", false: "left out"}[o.Plan.Documents] + ". Dormant clients: " + map[bool]string{true: "left out", false: "migrated as inactive"}[o.Plan.DormantMode == "skip"] + "."
+	d.Plan = "History: " + IndianInt(int64(years)) + " year(s). Archived documents: " + map[bool]string{true: "included", false: "left out"}[o.Plan.Documents] + ". Dormant clients: " + map[bool]string{true: "left out", false: "migrated as inactive"}[o.Plan.DormantMode == "skip"] + ". Clients' own interest rates: " + map[bool]string{true: "moved to the firm's rate", false: "kept"}[o.Plan.ClientInterest == "firm"] + "."
 	for _, i := range m.Issues {
 		switch sevRank(i.Severity) {
 		case 0:

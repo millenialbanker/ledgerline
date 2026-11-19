@@ -54,6 +54,10 @@ type Plan struct {
 	Years       int       // how many financial years of history and documents (default 8)
 	Documents   bool      // archive documents (contract notes, statements) from mail databases
 	DormantMode string    // "inactive" (default) or "skip": clients with no active segment
+	// ClientInterest is "keep" (default: clients' own interest rates come
+	// across) or "firm" (every client moves to the firm's rate; their own
+	// interest-free and grace-day terms still come across).
+	ClientInterest string
 }
 
 // Mapper turns one back office's databases into a package.

@@ -135,6 +135,9 @@ type AppCheck struct {
 	Detail   string `json:"detail"`
 	Provider string `json:"provider"`
 	At       string `json:"at"`
+	// Unavailable: the provider could not be reached, so nothing was
+	// checked (Status is Check manually).
+	Unavailable bool `json:"unavailable,omitempty"`
 }
 
 // Application steps in order.

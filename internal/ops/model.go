@@ -170,6 +170,11 @@ type Settings struct {
 	// exchanges the firm trades on, 3 with MCX, otherwise 5; see
 	// clientbanks.go).
 	MaxClientBanks int64 `json:"max_client_banks,omitempty"`
+	// BankPennyDrop: a new client bank account needs a penny drop (the
+	// verification provider in Connections) as well as the bank proof a
+	// checker sees; without the provider, or when it cannot be reached,
+	// the account is not taken (clientbanks.go).
+	BankPennyDrop bool `json:"bank_penny_drop,omitempty"`
 	// MigrationMaxGB is the largest migration package (.llmig) the firm may
 	// upload, in GB (0: 100 GB). See migration.go.
 	MigrationMaxGB int64 `json:"migration_max_gb,omitempty"`

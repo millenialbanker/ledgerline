@@ -524,6 +524,11 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 			return r, invalid("a %s change for %s is already waiting for approval (%s)", strings.ToLower(kind), ucc, x.ID)
 		}
 	}
+	if bankAct == BankReplace || bankAct == BankAdd {
+		if set, _ := o.Settings(ctx, tenant); set.BankPennyDrop && o.verifier(ctx, tenant) == nil {
+			return r, invalid("the firm checks every new bank account with a penny drop as well as the proof, and no verification provider is connected: connect one in Settings → Connections → Bank account and PAN checks")
+		}
+	}
 	if (bankAct == BankReplace || bankAct == BankAdd) && o.verifier(ctx, tenant) != nil {
 		// The account is checked in the client's name before a checker sees
 		// it; one the bank says is closed or wrong is not taken.
@@ -531,6 +536,9 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 		ck.At = o.now().Format(time.RFC3339)
 		if ck.Status == "Failed" {
 			return r, invalid("%s", ck.Detail)
+		}
+		if set, _ := o.Settings(ctx, tenant); set.BankPennyDrop && ck.Unavailable {
+			return r, invalid("the penny drop could not be done just now (%s); the firm checks every new bank account with one, so try again later", ck.Detail)
 		}
 		r.Check = &ck
 	}

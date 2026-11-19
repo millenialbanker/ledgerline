@@ -15,6 +15,7 @@ import (
 	"ledgerline/internal/charges"
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
+	"ledgerline/internal/migrate/pkg"
 	"ledgerline/internal/money"
 )
 
@@ -291,6 +292,9 @@ func (o *Ops) assignAs(ctx context.Context, tenant, actor string, in PlanAssignm
 		return a, err
 	}
 	o.log(ctx, tenant, actor, "brokerage.assigned", target, map[string]any{"plan": planID, "from": from, "scope": scope})
+	if target == "default" {
+		o.brokFillInDone(ctx, tenant, actor, pkg.FillBrokerageDefault)
+	}
 	return a, nil
 }
 
@@ -760,6 +764,7 @@ func (o *Ops) saveBrokerageSetup(ctx context.Context, tenant, actor string, s Br
 		return s, err
 	}
 	o.log(ctx, tenant, actor, "brokerage.setup", "setup", map[string]any{"channels": len(s.Channels), "terminals": len(s.Terminals)})
+	o.brokFillInDone(ctx, tenant, actor, pkg.FillTerminalChannels)
 	return s, nil
 }
 

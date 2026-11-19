@@ -70,7 +70,7 @@ func TestDPTariffs(t *testing.T) {
 	}
 	// SharePro has no firm-wide tariff: the firm fills it in; the pledge
 	// charges are known (rates and DPTRTYPE)
-	if f := r.Manifest.FillIn; len(f) != 1 || f[0].Item != pkg.FillDPFirmTariff || f[0].Firm != "02" || !strings.Contains(f[0].Why, "Accounts on no plan (") {
+	if f := dpFillIns(r.Manifest.FillIn); len(f) != 1 || f[0].Item != pkg.FillDPFirmTariff || f[0].Firm != "02" || !strings.Contains(f[0].Why, "Accounts on no plan (") {
 		t.Errorf("fill in %+v", f)
 	}
 	for _, tag := range []string{"check-dp-tariff-accounts", "check-dp-amc-ahead"} {
@@ -89,7 +89,7 @@ func TestDPTariffsMissingTables(t *testing.T) {
 	if r.Has("firms/02/master/DP-TARIFFS.csv") || check(r, pkg.CheckDPTariffVersions) != "<none>" {
 		t.Errorf("a check with no tariff tables")
 	}
-	if f := r.Manifest.FillIn; len(f) != 2 || f[0].Item != pkg.FillDPFirmTariff || f[1].Item != pkg.FillDPPledgeCharges || len(f[1].Plans) != 0 {
+	if f := dpFillIns(r.Manifest.FillIn); len(f) != 2 || f[0].Item != pkg.FillDPFirmTariff || f[1].Item != pkg.FillDPPledgeCharges || len(f[1].Plans) != 0 {
 		t.Errorf("fill in %+v", f)
 	}
 }
@@ -110,16 +110,27 @@ func TestDPPledgeChargesUnknown(t *testing.T) {
 		return out
 	}
 	r, _ := runCurrentOn(t, migrate.Plan{}, co)
-	if f := r.Manifest.FillIn; len(f) != 2 || f[0].Item != pkg.FillDPPledgeCharges || strings.Join(f[0].Plans, ",") != "B001,P001,Z001" || !strings.Contains(f[0].Why, "no pledge or unpledge charges") {
+	if f := dpFillIns(r.Manifest.FillIn); len(f) != 2 || f[0].Item != pkg.FillDPPledgeCharges || strings.Join(f[0].Plans, ",") != "B001,P001,Z001" || !strings.Contains(f[0].Why, "no pledge or unpledge charges") {
 		t.Errorf("no pledge rows: fill in %+v", f)
 	}
 	co = companyFake("TT2627")
 	delete(co.tables, "DPTRTYPE")
 	r, _ = runCurrentOn(t, migrate.Plan{}, co)
-	if f := r.Manifest.FillIn; len(f) != 2 || f[0].Item != pkg.FillDPPledgeCharges || strings.Join(f[0].Plans, ",") != "B001" || !strings.Contains(f[0].Why, "do not say whether pledges are charged") {
+	if f := dpFillIns(r.Manifest.FillIn); len(f) != 2 || f[0].Item != pkg.FillDPPledgeCharges || strings.Join(f[0].Plans, ",") != "B001" || !strings.Contains(f[0].Why, "do not say whether pledges are charged") {
 		t.Errorf("no DPTRTYPE: fill in %+v", f)
 	}
 	if len(issues(r, "DP tariffs", "SharePro charges pledges on the depository's rows")) != 0 {
 		t.Error("a pledge warning without DPTRTYPE")
 	}
+}
+
+// dpFillIns are the DP items of a package's fill-ins.
+func dpFillIns(fs []pkg.FillIn) []pkg.FillIn {
+	var out []pkg.FillIn
+	for _, f := range fs {
+		if strings.HasPrefix(f.Item, "dp-") {
+			out = append(out, f)
+		}
+	}
+	return out
 }

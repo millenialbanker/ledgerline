@@ -49,11 +49,16 @@ var headers = map[string][]string{
 	// Pledged exact, with decimals for mutual fund units
 	srcHoldings:  {"UCC", "ISIN", "Symbol", "Qty", "Pledged", "AvgCost", "BOID"},
 	srcPositions: {"UCC", "Exchange", "Segment", "Symbol", "Type", "Expiry", "Strike", "Qty", "AvgPrice"},
-	srcBrokRates: {"UCC", "From", "Product", "Mode", "Exchange", "Case", "Scrip", "Underlying", "Pct", "Flat", "PerLot", "PerShare",
+	srcBrokRates: {"UCC", "From", "Product", "Mode", "Exchange", "Channel", "Case", "Scrip", "Group", "Underlying", "Pct", "Flat", "PerLot", "PerShare",
 		"MinPerShare", "MinPerLot", "Min", "Max", "MinPerNote", "Basis", "Note"},
-	srcInterest: {"UCC", "From", "Rate", "GraceDays", "Free", "Note"},
-	srcKRA:      {"PAN", "Status", "Remarks"},
-	srcCKYC:     {"PAN", "CKYCNumber"},
+	// SharePro's brokerage baskets (dummy client codes) as rate cards, and
+	// which basket each client is on, per exchange segment, with history
+	srcBrokCards: {"Card", "From", "Product", "Mode", "Name", "Exchange", "Channel", "Case", "Scrip", "Group", "Underlying", "Pct", "Flat", "PerLot", "PerShare",
+		"MinPerShare", "MinPerLot", "Min", "Max", "MinPerNote", "Basis", "Note"},
+	srcBrokClient: {"UCC", "Card", "From", "Segment", "Exchange"},
+	srcInterest:   {"UCC", "From", "Rate", "GraceDays", "Free", "Note"},
+	srcKRA:        {"PAN", "Status", "Remarks"},
+	srcCKYC:       {"PAN", "CKYCNumber"},
 
 	srcUCCDetails: {"UCC", "Address1", "City", "State", "PIN",
 		"Category", "Address2", "Address3", "Country", "PermAddress1", "PermAddress2", "PermAddress3", "PermCity", "PermState", "PermCountry", "PermPIN",

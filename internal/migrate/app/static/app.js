@@ -388,6 +388,7 @@ function setupChoose() {
       years: Number($('years').value),
       documents: $('docs').checked,
       dormant: document.querySelector('input[name=dormant]:checked').value,
+      interest: document.querySelector('input[name=interest]:checked').value,
       out: $('out').value.trim(),
       passphrase: $('pp1').value,
       passphrase2: $('pp2').value,

@@ -848,6 +848,7 @@ type Choice struct {
 	Years       int      `json:"years"`
 	Documents   bool     `json:"documents"`
 	Dormant     string   `json:"dormant"`
+	Interest    string   `json:"interest"` // clients' own interest rates: keep (default) or firm
 	Out         string   `json:"out"`
 	Passphrase  string   `json:"passphrase"`
 	Passphrase2 string   `json:"passphrase2"`
@@ -865,6 +866,9 @@ func (s *Session) Validate(c Choice) error {
 	}
 	if c.Years < 1 || c.Years > 8 {
 		return errors.New("choose between 1 and 8 years of history")
+	}
+	if c.Interest != "" && c.Interest != "keep" && c.Interest != "firm" {
+		return errors.New("choose what to do with clients' own interest rates")
 	}
 	if c.Dormant != "" && c.Dormant != "inactive" && c.Dormant != "skip" {
 		return errors.New("choose what to do with dormant clients")
@@ -921,10 +925,14 @@ func (s *Session) Start(c Choice) error {
 	if dormant == "" {
 		dormant = "inactive"
 	}
+	interest := c.Interest
+	if interest == "" {
+		interest = "keep"
+	}
 	maxPart := int64(c.MaxPartGB * (1 << 30))
 	opts := run.Options{
 		Survey:     sv,
-		Plan:       migrate.Plan{Firms: c.Firms, Years: c.Years, Documents: c.Documents, DormantMode: dormant},
+		Plan:       migrate.Plan{Firms: c.Firms, Years: c.Years, Documents: c.Documents, DormantMode: dormant, ClientInterest: interest},
 		Server:     s.end.String(),
 		Out:        strings.TrimSpace(c.Out),
 		Work:       s.Work,

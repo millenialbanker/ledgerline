@@ -3,22 +3,32 @@ package sharepro
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 
 	"ledgerline/internal/charges"
 	"ledgerline/internal/migrate"
+	"ledgerline/internal/migrate/pkg"
 	"ledgerline/internal/money"
 )
 
-// Brokerage. SharePro keeps each client's own rate rows per CO (exchange
-// segment) with an effective date: NSQBRKG for square-off (intraday, and
-// futures and options trades), NSDBRKG for delivery (and, in derivatives,
-// expiry, exercise and assignment). OTHBRKG adds minimums per order and per
-// contract note. Ledgerline gets them as BROKERAGE-CLIENT-RATES: for every
-// date on which any of a client's rows changes, a version with every line
-// in force from that date.
+// Brokerage. SharePro keeps rate rows per CO (exchange segment) with an
+// effective date: NSQBRKG for square-off (intraday, and futures and options
+// trades), NSDBRKG for delivery (and, in derivatives, expiry, exercise and
+// assignment), PRODUCTCD the trading channel. OTHBRKG adds minimums per
+// order and per contract note, and the client's basket (brkgbasket).
+// Baskets are not a table of their own: a basket is a dummy client code
+// with its own rate rows and OTHBRKG rows, absent from the client master.
+// Ledgerline gets:
+//   - BROKERAGE-CARDS: every basket a client points at, as a rate card;
+//   - BROKERAGE-CLIENTS: which basket each client is on, per exchange
+//     segment, from the dates OTHBRKG gives;
+//   - BROKERAGE-CLIENT-RATES: a client's own rows, which win over the
+//     basket line by line (as in SharePro).
+// Cards and clients' own rates are versioned the same way: for every date
+// on which any row changes, a version with every line in force from then.
 
 const (
 	qBrokQ   = `/*sp:brokerage-sqr*/ SELECT %s FROM NSQBRKG ORDER BY SUBCD, EffectDate`
@@ -28,6 +38,10 @@ const (
 	qItemISN = `/*sp:item-isin*/ SELECT RTRIM(ITEMCD) AS itemcd, RTRIM(ISINCD) AS isin FROM ISINMAST`
 	qIntDtl  = `/*sp:interest*/ SELECT %s FROM INTERESTDTL ORDER BY Subcd, EffectDate`
 )
+
+// sharePro's trading channels on rate rows (PRODUCTCD) as Ledgerline
+// channels: blank is every channel, so a channel's own line wins over it.
+var spChannels = map[string]string{"": "", "DIR": "dealer", "IBT": "online", "MBT": "mobile"}
 
 type rateRow struct {
 	kind                     string // Q or D
@@ -43,16 +57,130 @@ type rateLine struct {
 	from string
 }
 
+// othRow is one OTHBRKG row: a client's (or basket's) minimums and basket
+// for a CO from a date.
+type othRow struct {
+	co, from        string
+	minOrd, minNote money.Dec
+	minLot          money.Dec
+	template        string
+	basket          string
+}
+
+// rateVersion is one dated version of a card or of a client's own rates.
+type rateVersion struct {
+	from string
+	rows []map[string]string
+}
+
+// rateVersions turns rate lines and the OTHBRKG minimums into versions:
+// for every date on which a line or a minimum changes, the latest row of
+// each line in force on that date.
+func (c *cur) rateVersions(lines []rateLine, os []othRow) []rateVersion {
+	dates := map[string]bool{}
+	for _, l := range lines {
+		dates[l.from] = true
+	}
+	for _, o := range os {
+		if contains(c.f.COs, o.co) {
+			dates[o.from] = true
+		}
+	}
+	var out []rateVersion
+	for _, d := range sortedKeys(dates) {
+		cur := map[string]rateLine{}
+		for _, l := range lines {
+			if l.from <= d {
+				if old, ok := cur[l.key]; !ok || l.from >= old.from {
+					cur[l.key] = l
+				}
+			}
+		}
+		if len(cur) == 0 {
+			continue
+		}
+		minOrd := map[string]othRow{}
+		for _, o := range os {
+			if o.from <= d && contains(c.f.COs, o.co) && o.from >= minOrd[o.co].from {
+				minOrd[o.co] = o
+			}
+		}
+		v := rateVersion{from: d}
+		for _, k := range sortedKeys(cur) {
+			l := cur[k]
+			row := map[string]string{}
+			for a, b := range l.v {
+				row[a] = b
+			}
+			row["From"] = d
+			if o, ok := minOrd[row["_co"]]; ok && row["Mode"] != charges.PlanZero {
+				if o.minOrd.Sign() > 0 && row["Min"] == "" {
+					row["Min"] = o.minOrd.String()
+				}
+				if o.minNote.Sign() > 0 {
+					row["MinPerNote"] = o.minNote.String()
+				}
+				if o.minLot.Sign() > 0 && row["MinPerLot"] == "" && !strings.HasPrefix(row["Product"], "CM") {
+					row["MinPerLot"] = o.minLot.String()
+				}
+			}
+			v.rows = append(v.rows, row)
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+// convertRows turns a client's or basket's rate rows into lines for the
+// firm's COs, warning on each row that cannot be converted.
+func (c *cur) convertRows(area, who string, rs []rateRow, items map[string][2]string) []rateLine {
+	var lines []rateLine
+	for _, x := range rs {
+		if !contains(c.f.COs, x.co) {
+			continue
+		}
+		ls, err := c.convertRate(x, items)
+		if err != nil {
+			c.rep.warnf(area, who, "convert", "Set this rate by hand in Ledgerline", "Rate row of %s from %s (CO %s, item %s): %v", x.kind, x.from, x.co, x.item, err)
+			continue
+		}
+		lines = append(lines, ls...)
+	}
+	return lines
+}
+
+// cardSlug is the plan ID Ledgerline makes from a card's code (ops.cardID).
+func cardSlug(code string) string {
+	id := strings.Trim(reNonSlug.ReplaceAllString(strings.ToLower(strings.TrimSpace(code)), "-"), "-")
+	if len(id) < 2 || !reSlugOK.MatchString(id) {
+		id = "card-" + id
+	}
+	if len(id) > 41 {
+		id = strings.TrimRight(id[:41], "-")
+	}
+	return id
+}
+
+var (
+	reNonSlug = regexp.MustCompile(`[^a-z0-9]+`)
+	reSlugOK  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,40}$`)
+)
+
 func (c *cur) writeBrokerage(ctx context.Context) error {
 	area := "Brokerage"
-	h := headers[srcBrokRates]
+	open := func(src string) (*pkg.CSV, error) { return c.w.Master(c.f.Code, src, headers[src]) }
 	if !c.s.has("NSQBRKG") && !c.s.has("NSDBRKG") {
-		cw, err := c.w.Master(c.f.Code, srcBrokRates, h)
-		if err != nil {
-			return err
+		for _, src := range []string{srcBrokCards, srcBrokClient, srcBrokRates} {
+			cw, err := open(src)
+			if err != nil {
+				return err
+			}
+			if err := cw.Close(); err != nil {
+				return err
+			}
 		}
-		c.rep.infof(area, "", "no-tables", "This database has no brokerage tables (NSQBRKG, NSDBRKG); BROKERAGE-CLIENT-RATES is empty")
-		return cw.Close()
+		c.rep.infof(area, "", "no-tables", "This database has no brokerage tables (NSQBRKG, NSDBRKG); no brokerage is migrated")
+		return nil
 	}
 	items := map[string][2]string{} // item -> symbol, ISIN
 	if c.s.has("ITC") {
@@ -103,118 +231,55 @@ func (c *cur) writeBrokerage(ctx context.Context) error {
 	if err := read(qBrokD, "NSDBRKG", "D", map[string]string{"pct": "DLBRPTGE", "min": "DLBRKGMIN", "minper": "DLBRMNPER", "flat": "DLBRKGFLT", "flatper": "DLFLATPER", "slab": "DLSLABCD", "extra": "ONWHICH"}); err != nil {
 		return err
 	}
-	type oth struct {
-		co, from        string
-		minOrd, minNote money.Dec
-		minLot          money.Dec
-		template        string
-	}
-	others := map[string][]oth{}
+	others := map[string][]othRow{}
+	baskets := map[string]bool{} // basket codes clients point at
 	if c.s.has("OTHBRKG") {
 		list, _ := c.s.sel("OTHBRKG", "", "SUBCD", "CO", "EffectDate", "ORD_MINBRK", "CNT_MINBRK", "MINLOTBRKG", "DEFA_BRKG", "brkgbasket")
 		if err := c.d.query(ctx, fmt.Sprintf(qBrokOth, list), func(r migrate.Row) error {
 			u := upper(r, "subcd")
-			others[u] = append(others[u], oth{co: str(r, "co"), from: firstNonEmpty(date(r, "effectdate"), "2000-01-01"), minOrd: dec(r, "ord_minbrk"), minNote: dec(r, "cnt_minbrk"),
-				minLot: dec(r, "minlotbrkg"), template: upper(r, "defa_brkg")})
-			if b := str(r, "brkgbasket"); b != "" {
-				c.rep.warnf(area, u, "basket", "Set the client's brokerage by hand in Ledgerline", "Brokerage basket %s (OTHBRKG.brkgbasket) is not converted", b)
+			o := othRow{co: str(r, "co"), from: firstNonEmpty(date(r, "effectdate"), "2000-01-01"), minOrd: dec(r, "ord_minbrk"), minNote: dec(r, "cnt_minbrk"),
+				minLot: dec(r, "minlotbrkg"), template: upper(r, "defa_brkg"), basket: upper(r, "brkgbasket")}
+			others[u] = append(others[u], o)
+			if o.basket != "" {
+				baskets[o.basket] = true
 			}
 			return nil
 		}); err != nil {
 			return err
 		}
 	}
-	cw, err := c.w.Master(c.f.Code, srcBrokRates, h)
+
+	// The cards: every basket a client points at (clients of any status:
+	// a reactivated client comes back on their basket).
+	cw, err := open(srcBrokCards)
 	if err != nil {
 		return err
 	}
-	clients := 0
-	for _, u := range c.clientList() {
-		if !c.written[u] {
+	cardOf := map[string]string{} // basket -> the Card value written
+	slugs := map[string]bool{}
+	channels := false
+	noRates := 0
+	for _, b := range sortedKeys(baskets) {
+		if _, ok := c.cm.clients[b]; ok {
+			c.rep.warnf(area, "", "basket-is-client", "Check the basket in SharePro", "Basket %s is also a client code; its rows are taken as the client's own rates, not as a card", b)
 			continue
 		}
-		rs := rows[u]
-		os := others[u]
-		// a client whose rates are another client's (OTHBRKG.DEFA_BRKG)
-		if len(rs) == 0 {
-			for _, o := range os {
-				if o.template != "" && o.template != u && len(rows[o.template]) > 0 {
-					for _, x := range rows[o.template] {
-						x.ucc = u
-						rs = append(rs, x)
-					}
-					c.rep.infof(area, u, "template", "Rates copied from client %s, whose rates this client follows in SharePro (OTHBRKG.DEFA_BRKG)", o.template)
-					break
-				}
-			}
-		}
-		if len(rs) == 0 {
-			continue
-		}
-		// every row as Ledgerline lines
-		var lines []rateLine
-		for _, x := range rs {
-			if !contains(c.f.COs, x.co) {
-				continue
-			}
-			ls, err := c.convertRate(x, items)
-			if err != nil {
-				c.rep.warnf(area, u, "convert", "Set this rate by hand in Ledgerline", "Rate row of %s from %s (CO %s, item %s): %v", x.kind, x.from, x.co, x.item, err)
-				continue
-			}
-			lines = append(lines, ls...)
-		}
+		lines := c.convertRows(area, "", rows[b], items)
 		if len(lines) == 0 {
+			noRates++
 			continue
 		}
-		dates := map[string]bool{}
-		for _, l := range lines {
-			dates[l.from] = true
+		card := b
+		for i := 2; slugs[cardSlug(card)]; i++ {
+			card = fmt.Sprintf("%s~%d", b, i)
 		}
-		for _, o := range os {
-			if contains(c.f.COs, o.co) {
-				dates[o.from] = true
-			}
-		}
-		clients++
-		for _, d := range sortedKeys(dates) {
-			// the latest row of each line in force on d
-			cur := map[string]rateLine{}
-			for _, l := range lines {
-				if l.from <= d {
-					if old, ok := cur[l.key]; !ok || l.from >= old.from {
-						cur[l.key] = l
-					}
-				}
-			}
-			if len(cur) == 0 {
-				continue
-			}
-			minOrd := map[string]oth{}
-			for _, o := range os {
-				if o.from <= d && contains(c.f.COs, o.co) && o.from >= minOrd[o.co].from {
-					minOrd[o.co] = o
-				}
-			}
-			for _, k := range sortedKeys(cur) {
-				l := cur[k]
-				v := map[string]string{}
-				for a, b := range l.v {
-					v[a] = b
-				}
-				v["UCC"], v["From"] = u, d
-				if o, ok := minOrd[v["_co"]]; ok && v["Mode"] != charges.PlanZero {
-					if o.minOrd.Sign() > 0 && v["Min"] == "" {
-						v["Min"] = o.minOrd.String()
-					}
-					if o.minNote.Sign() > 0 {
-						v["MinPerNote"] = o.minNote.String()
-					}
-					if o.minLot.Sign() > 0 && v["MinPerLot"] == "" && !strings.HasPrefix(v["Product"], "CM") {
-						v["MinPerLot"] = o.minLot.String()
-					}
-				}
-				if err := cw.Write(rec(h, v)); err != nil {
+		slugs[cardSlug(card)] = true
+		cardOf[b] = card
+		for _, v := range c.rateVersions(lines, others[b]) {
+			for _, row := range v.rows {
+				row["Card"], row["Name"] = card, b
+				channels = channels || row["Channel"] != ""
+				if err := cw.Write(rec(headers[srcBrokCards], row)); err != nil {
 					cw.Close()
 					return err
 				}
@@ -224,7 +289,110 @@ func (c *cur) writeBrokerage(ctx context.Context) error {
 	if err := cw.Close(); err != nil {
 		return err
 	}
-	c.rep.infof(area, "", "summary", "%d clients have their own brokerage rates from SharePro; the others take the firm's default card, which is set in Ledgerline", clients)
+	if noRates > 0 {
+		c.rep.infof(area, "", "basket-no-rates", "%d brokerage baskets that clients point at have no rates in this firm's segments; they are not made into cards, and their clients pay the firm default card there", noRates)
+	}
+	c.rep.infof(area, "", "cards", "%d brokerage baskets made into rate cards (OTHBRKG.brkgbasket, with their own rate rows)", len(cardOf))
+
+	// Which basket each client is on, per exchange segment.
+	cw, err = open(srcBrokClient)
+	if err != nil {
+		return err
+	}
+	onCard, uncarded := map[string]bool{}, 0
+	for _, u := range c.clientList() {
+		if !c.written[u] {
+			continue
+		}
+		os := append([]othRow(nil), others[u]...)
+		sort.SliceStable(os, func(i, j int) bool { return os[i].from < os[j].from })
+		last := map[string]string{} // co -> card in force
+		for _, o := range os {
+			seg := c.f.segOf(o.co)
+			if seg == "" || !contains(c.f.COs, o.co) {
+				continue
+			}
+			card := cardOf[o.basket]
+			if o.basket != "" && card == "" {
+				uncarded++
+			}
+			if card == last[o.co] {
+				continue
+			}
+			last[o.co] = card
+			if card != "" {
+				onCard[u] = true
+			}
+			if err := cw.Write(rec(headers[srcBrokClient], map[string]string{"UCC": u, "Card": card, "From": o.from, "Segment": seg, "Exchange": c.f.exchOf(o.co)})); err != nil {
+				cw.Close()
+				return err
+			}
+		}
+	}
+	if err := cw.Close(); err != nil {
+		return err
+	}
+	if uncarded > 0 {
+		c.rep.infof(area, "", "basket-uncarded", "%d basket assignments name a basket with no rates in the segment; those clients pay the firm default card there", uncarded)
+	}
+
+	// Clients' own rates.
+	cw, err = open(srcBrokRates)
+	if err != nil {
+		return err
+	}
+	clients, neither, neitherTraded := 0, 0, 0
+	for _, u := range c.clientList() {
+		if !c.written[u] {
+			continue
+		}
+		rs := rows[u]
+		os := others[u]
+		// a client whose rates are another client's (OTHBRKG.DEFA_BRKG)
+		if len(rs) == 0 {
+			for _, o := range os {
+				if o.template != "" && o.template != u && len(rows[o.template]) > 0 && !baskets[o.template] {
+					for _, x := range rows[o.template] {
+						x.ucc = u
+						rs = append(rs, x)
+					}
+					c.rep.infof(area, u, "template", "Rates copied from client %s, whose rates this client follows in SharePro (OTHBRKG.DEFA_BRKG)", o.template)
+					break
+				}
+			}
+		}
+		lines := c.convertRows(area, u, rs, items)
+		if len(lines) == 0 {
+			if !onCard[u] {
+				neither++
+				if c.cm.lastTrade[u] >= day(fyStart(c.k.FY)) {
+					neitherTraded++
+				}
+			}
+			continue
+		}
+		clients++
+		for _, v := range c.rateVersions(lines, os) {
+			for _, row := range v.rows {
+				row["UCC"] = u
+				channels = channels || row["Channel"] != ""
+				if err := cw.Write(rec(headers[srcBrokRates], row)); err != nil {
+					cw.Close()
+					return err
+				}
+			}
+		}
+	}
+	if err := cw.Close(); err != nil {
+		return err
+	}
+	c.rep.infof(area, "", "summary", "%d clients have their own brokerage rates from SharePro, which win over their card line by line", clients)
+	if neither > 0 {
+		c.rep.ask(pkg.FillBrokerageDefault, fmt.Sprintf("%d clients (%d of them traded this year) are on no brokerage basket and have no rates of their own in SharePro. They pay the firm default card, which SharePro does not record: set it on Brokerage before the first bills.", neither, neitherTraded))
+	}
+	if channels {
+		c.rep.ask(pkg.FillTerminalChannels, "SharePro's rates differ by trading channel (dealer, internet, mobile), but the backup has no list of which terminal (CTCL ID) is which channel. Until the list is filled in, every trade is billed at the dealer rate.")
+	}
 	return nil
 }
 
@@ -299,8 +467,12 @@ func (c *cur) convertRate(x rateRow, items map[string][2]string) ([]rateLine, er
 			products = []string{fut, opt}
 		}
 	}
+	channel, ok := spChannels[x.prod]
+	if !ok {
+		return nil, fmt.Errorf("trading channel %s (PRODUCTCD) is not one Ledgerline knows", x.prod)
+	}
 	rule := charges.BrokerageRule{}
-	v := map[string]string{"Exchange": c.f.exchOf(x.co), "_co": x.co}
+	v := map[string]string{"Exchange": c.f.exchOf(x.co), "Channel": channel, "_co": x.co}
 	perLot := strings.Contains(x.flatPer, "LOT")
 	switch {
 	case x.pct.Sign() > 0:
@@ -343,7 +515,7 @@ func (c *cur) convertRate(x rateRow, items map[string][2]string) ([]rateLine, er
 		v["Basis"] = rule.Basis
 	}
 	if x.prod != "" {
-		v["Note"] = "SharePro product " + x.prod
+		v["Note"] = "SharePro channel " + x.prod
 	}
 	var out []rateLine
 	for _, p := range products {
@@ -358,7 +530,7 @@ func (c *cur) convertRate(x rateRow, items map[string][2]string) ([]rateLine, er
 		case und != "":
 			target = "und:" + und
 		}
-		key, err := charges.NewTargetKey(p, v["Exchange"], "", k, target)
+		key, err := charges.NewTargetKey(p, v["Exchange"], channel, k, target)
 		if err != nil {
 			return nil, err
 		}
@@ -393,6 +565,11 @@ func (c *cur) writeInterest(ctx context.Context) error {
 			t := term{from: firstNonEmpty(date(r, "effectdate"), day(fyStart(c.k.FY))), seg: str(r, "segmenttype")}
 			if p := dec(r, "interestper"); p.Sign() > 0 {
 				t.rate = p.String()
+				if c.plan.ClientInterest == "firm" {
+					// the firm chose to move everyone to its own rate
+					c.rep.infof("Client interest", upper(r, "subcd"), "own-rate", "SharePro's own interest rate of %s%% from %s is not migrated: every client moves to the firm's rate, as chosen for the migration", p.String(), t.from)
+					t.rate = ""
+				}
 			}
 			if flag(r, "nointerest") {
 				t.free, t.rate = "Y", ""

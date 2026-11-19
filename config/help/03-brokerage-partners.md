@@ -128,7 +128,7 @@ To price an order that has not happened, use [[charges|Charges calculator]] with
 title: Bring brokerage rates across from another back office
 screen: files
 roles: Ops checker
-ask: import brokerage; import rate cards; migrate brokerage; load brokerage rates; import client brokerage; brokerage for inactive clients; brokerage for suspended clients
+ask: import brokerage; import rate cards; migrate brokerage; load brokerage rates; import client brokerage; brokerage for inactive clients; brokerage for suspended clients; sharepro brokerage baskets; baskets from sharepro; online and dealer rates from sharepro
 related: brokerage-plans, client-rates, trading-channels, load-files
 
 Load these files on [[files|Files]], in this order. A converter for the old system writes them; loading a file twice changes nothing. Loading needs an **Ops checker**.
@@ -151,6 +151,12 @@ Load these files on [[files|Files]], in this order. A converter for the old syst
 Load the client master first: rows for unknown clients are refused, and so is the whole file. Every problem is listed with its row number (an unknown product, a scrip on a derivative line, a group not loaded, a bad date), and nothing in the file is loaded until it is clean.
 
 Clients' own interest rates load as **CLIENT-INTEREST** (see "client interest rate").
+
+**From SharePro**, the migration tool writes these files for you:
+- Every brokerage basket a client points at becomes a card under the basket's code. A basket's dealer, internet and mobile rates become lines for the dealer, online and mobile channels; a line SharePro gives for no channel applies to every channel.
+- Each client is put on their basket for each exchange segment, from the dates SharePro has, including inactive clients.
+- A client's own rate rows stay their own lines, which win over the basket line by line, as in SharePro.
+- Two things SharePro does not record become to-dos after the load: the **firm default card** (for clients on no basket and with no rates of their own) and **which terminals (CTCL IDs) are online, mobile and dealer**. Until the terminals are filled in, every trade is billed at the default channel's rates. Each to-do closes once you set it.
 
 ## charges-check
 title: Check a charge a client disputes

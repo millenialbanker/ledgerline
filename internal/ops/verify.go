@@ -164,7 +164,7 @@ func unreachable(name, who string, status int, err error, msg string) AppCheck {
 	case why == "":
 		why = fmt.Sprintf("answer %d", status)
 	}
-	return AppCheck{Name: name, Status: "Check manually", Detail: fmt.Sprintf("Could not be checked with %s just now (%s); verify from the documents.", who, why), Provider: who}
+	return AppCheck{Name: name, Status: "Check manually", Detail: fmt.Sprintf("Could not be checked with %s just now (%s); verify from the documents.", who, why), Provider: who, Unavailable: true}
 }
 
 // ---- name comparison (for providers that return only the name) ----

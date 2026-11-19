@@ -3,6 +3,7 @@ package ops
 import (
 	"context"
 	"encoding/json"
+	"ledgerline/internal/docs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -127,5 +128,39 @@ func TestVerifyNamesMatch(t *testing.T) {
 		if got := namesMatch(tc.a, tc.b); got != tc.want {
 			t.Errorf("%q vs %q: %v", tc.a, tc.b, got)
 		}
+	}
+}
+
+// A firm that checks every new bank account with a penny drop as well as
+// the proof: no provider, or one that cannot be reached, and the account
+// is not taken; a passed check goes to the checker as usual.
+func TestBankPennyDropRequired(t *testing.T) {
+	o, ctx := newOps(t)
+	c := cbClient(t, "CB001")
+	if err := docs.Upsert(ctx, o.Docs, T, cClient, c.UCC, c, "test"); err != nil {
+		t.Fatal(err)
+	}
+	set, _ := o.Settings(ctx, T)
+	set.BankPennyDrop = true
+	if err := o.SaveSettings(ctx, T, "admin", set); err != nil {
+		t.Fatal(err)
+	}
+	proof := cbProof(t, o, "CB001", "Bank proof")
+	add := func(acct string) error {
+		_, err := o.RequestChange(ctx, T, "priya.nair", "CB001", "Bank account", map[string]string{"action": "add", "bank": "Yes Bank", "ifsc": "YESB0000262", "account": acct}, proof)
+		return err
+	}
+	if err := add("026291800001191"); err == nil || !strings.Contains(err.Error(), "no verification provider is connected") {
+		t.Fatalf("no provider: %v", err)
+	}
+	srv, _ := fakeCashfree(t)
+	if _, err := o.SaveConnection(ctx, T, "admin", connVerify, map[string]string{"provider": "Cashfree", "client_id": "CF-ID", "mode": verifySandbox, "url": srv.URL}, map[string]string{"api_key": "CF-SECRET"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := add("999999999999"); err == nil || !strings.Contains(err.Error(), "could not be done just now") {
+		t.Fatalf("provider down: %v", err)
+	}
+	if err := add("026291800001191"); err != nil {
+		t.Fatalf("passed check: %v", err)
 	}
 }

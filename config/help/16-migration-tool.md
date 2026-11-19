@@ -15,7 +15,7 @@ The **Ledgerline migration tool** runs at your office, on your own computer. It 
 2. The tool finds SQL Server on the computer. The best place to run it is the **SharePro server** itself.
 3. **Drop your backups**: the latest SharePro backup and the archives of up to 8 earlier years (.7z, .zip or .bak, or whole folders of them). The next article says where SharePro keeps them.
 4. **What we found** lists every database: the company years (named like NC2627 for 2026-27), the mail archives (NCMAIL2627) and the admin database (shadmin). Years beyond the range you choose are shown as skipped. If the newest backup is more than 2 days old, take a fresh backup in SharePro first.
-5. **Choose** the firms, the years of history (1 to 8), whether to include archived documents, what to do with dormant clients, where to save, and a passphrase.
+5. **Choose** the firms, the years of history (1 to 8), whether to include archived documents, what to do with dormant clients, whether clients' own interest rates come across or everyone moves to the firm's rate, where to save, and a passphrase.
 6. When the package is ready, the tool shows the checks Ledgerline will verify and any issues with what to do. A printable **report** is saved beside the package.
 7. In Ledgerline, open [[migrate|Files → Migration from old system]] and upload the package. Ledgerline asks for the passphrase and recalculates every check (trial balance, client balances, holdings) before anything goes live.
 

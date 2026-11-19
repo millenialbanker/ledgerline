@@ -218,7 +218,7 @@ type Issue struct {
 // holds what depends on it (DP billing) until it is done.
 type FillIn struct {
 	Firm string `json:"firm,omitempty"`
-	Item string `json:"item"` // FillDPFirmTariff, FillDPPledgeCharges
+	Item string `json:"item"` // FillDPFirmTariff, FillDPPledgeCharges, FillBrokerageDefault, FillTerminalChannels
 	Why  string `json:"why"`  // what the backup lacks
 	// Plans are, for FillDPPledgeCharges, the DP tariff plans whose pledge
 	// charges are not known (none: every plan's).
@@ -229,6 +229,13 @@ type FillIn struct {
 const (
 	FillDPFirmTariff    = "dp-firm-tariff"    // the firm-wide DP tariff (accounts on no plan)
 	FillDPPledgeCharges = "dp-pledge-charges" // what the DP charges on pledges, unpledges and invocations
+	// FillBrokerageDefault: the firm's default rate card, for clients the
+	// old system lists on no card and with no rates of their own.
+	FillBrokerageDefault = "brokerage-default"
+	// FillTerminalChannels: which terminals (CTCL IDs) are which trading
+	// channel, when the cards price channels apart and the backup has no
+	// list of terminals.
+	FillTerminalChannels = "terminal-channels"
 )
 
 // ---- key and chunks ----

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -112,7 +113,10 @@ func mkPkg(t *testing.T, s mspec) []byte {
 		}
 		writeCSV(t, w, "01", "CLIENT-MASTER", cm)
 		writeCSV(t, w, "01", "CLIENT-BANKS", banks)
-		writeCSV(t, w, "01", "BROKERAGE-CARDS", [][]string{{"Card", "From", "Product", "Mode", "Pct", "Group"}, {"STD", "2026-04-01", "CM-DEL", "pct", "0.3", ""}, {"STD", "2026-04-01", "CM-DEL", "pct", "0.1", "ETF"}})
+		writeCSV(t, w, "01", "BROKERAGE-CARDS", [][]string{{"Card", "From", "Product", "Mode", "Name", "Exchange", "Channel", "Pct", "Group"}, {"STD", "2026-04-01", "CM-DEL", "pct", "", "", "", "0.3", ""}, {"STD", "2026-04-01", "CM-DEL", "pct", "", "", "", "0.1", "ETF"},
+			// a converted basket: dealer and online rates, and a card whose code clashed with another's
+			{"19.5.06~2", "2026-04-01", "CM-INTRA", "pct", "19.5.06", "NSE", "", "0.02", ""}, {"19.5.06~2", "2026-04-01", "CM-INTRA", "pct", "19.5.06", "NSE", "online", "0.008", ""}})
+		writeCSV(t, w, "01", "BROKERAGE-CLIENTS", [][]string{{"UCC", "Card", "From", "Segment", "Exchange"}, {"TA001", "19.5.06~2", "2026-04-01", "CM", "NSE"}, {"TB002", "19.5.06~2", "2026-04-01", "CM", "NSE"}, {"TB002", "", "2026-06-01", "CM", "NSE"}})
 		writeCSV(t, w, "01", "SCRIP-GROUPS", [][]string{{"Group", "Scrip"}, {"ETF", "NIFTYBEES"}})
 		ob := [][]string{{"Account", "Debit", "Credit"}, {"CLIENT:TA001", "1500.00", ""}, {"CLIENT:TB002", "", "2500.00"}, {"BANK:TESTBANK", "1000.00", ""}}
 		if s.bad {
@@ -389,12 +393,35 @@ func TestMigLoadReconcileHistoryArchiveUndo(t *testing.T) {
 			t.Fatalf("step %+v", s)
 		}
 	}
-	want := "BRANCHES CLIENT-MASTER CLIENT-BANKS SCRIP-GROUPS BROKERAGE-CARDS DP-ACCOUNTS DP-TARIFFS DP-TARIFF-ACCOUNTS OPENING-BALANCES DP-HOLDINGS LEDGER LEDGER CONTRACT-NOTES documents"
+	want := "BRANCHES CLIENT-MASTER CLIENT-BANKS SCRIP-GROUPS BROKERAGE-CARDS BROKERAGE-CLIENTS DP-ACCOUNTS DP-TARIFFS DP-TARIFF-ACCOUNTS OPENING-BALANCES DP-HOLDINGS LEDGER LEDGER CONTRACT-NOTES documents"
 	if strings.Join(order, " ") != want {
 		t.Fatalf("order %v", order)
 	}
 	if cs, _ := o.Clients(ctx, MT); len(cs) != 2 {
 		t.Fatalf("clients %d", len(cs))
+	}
+	// A converted basket: its card with dealer and online lines, a client on
+	// it for NSE cash, another taken off it from a date.
+	if ps, _ := o.Plans(ctx, MT); func() bool {
+		for _, p := range ps {
+			if p.ID == "19-5-06-2" && p.Name == "19.5.06" {
+				return false
+			}
+		}
+		return true
+	}() {
+		t.Fatalf("converted card missing: %+v", ps)
+	}
+	as, _ := o.Assignments(ctx, MT)
+	var on []string
+	for _, a := range as {
+		if a.PlanID == "19-5-06-2" || (a.Target == "ucc:TB002" && a.PlanID == "") {
+			on = append(on, a.Target+" "+a.Scope+" "+a.PlanID+" "+a.From)
+		}
+	}
+	sort.Strings(on)
+	if strings.Join(on, ",") != "ucc:TA001 CM-NSE 19-5-06-2 2026-04-01,ucc:TB002 CM-NSE  2026-06-01,ucc:TB002 CM-NSE 19-5-06-2 2026-04-01" {
+		t.Fatalf("assignments %v", on)
 	}
 	// Reconciliation: every known check passes; the unknown one is shown.
 	rc := m.Recon
@@ -734,5 +761,45 @@ func TestMigDPFillIn(t *testing.T) {
 		if w.Process == "dpfillin" && w.Status == "Open" {
 			t.Fatalf("to-do left open %+v", w)
 		}
+	}
+}
+
+// The brokerage the backup did not say (the firm default card, which
+// terminals are which channel) becomes to-dos that close when done.
+func TestMigBrokerageFillIn(t *testing.T) {
+	o, ctx := migSetup(t)
+	fill := []pkg.FillIn{{Firm: "01", Item: pkg.FillBrokerageDefault, Why: "2 clients are on no basket."}, {Firm: "01", Item: pkg.FillTerminalChannels, Why: "Rates differ by channel."}}
+	p := checked(t, o, ctx, mkPkg(t, mspec{masters: true, checks: goodChecks("2500.00", ""), fillIn: fill}), "office.llmig")
+	m, err := o.ProposeMigration(ctx, MT, "adm.one", MigProposal{Package: p.ID, Firm: "01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m, err = o.DecideMigration(ctx, MT, "chk.one", m.ID, true, mPass, ""); err != nil || m.Status != MigLoaded {
+		t.Fatalf("load %s %v", m.Status, err)
+	}
+	todo := func() []string {
+		ws, _ := o.WorkItems(ctx, MT, "")
+		var out []string
+		for _, w := range ws {
+			if w.Process == "brokfillin" && w.Status == "Open" {
+				out = append(out, w.Key)
+			}
+		}
+		sort.Strings(out)
+		return out
+	}
+	if got := strings.Join(todo(), ","); got != "brokfillin:brokerage-default,brokfillin:terminal-channels" {
+		t.Fatalf("to-dos %s", got)
+	}
+	if _, err := o.assignAs(ctx, MT, "chk.one", PlanAssignment{Target: "default", PlanID: "std", From: "2026-04-01"}); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := o.BrokerageSetup(ctx, MT)
+	s.Terminals = []TerminalChannel{{Terminal: "3333*", Channel: "online"}}
+	if _, err := o.SaveBrokerageSetup(ctx, MT, "chk.one", s); err != nil {
+		t.Fatal(err)
+	}
+	if got := todo(); len(got) != 0 {
+		t.Fatalf("still open %v", got)
 	}
 }

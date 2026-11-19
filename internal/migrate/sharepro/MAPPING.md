@@ -452,10 +452,32 @@ option whose type cannot be told is left out with a Warning. Symbol
 `ITC.EXP_DATE`; Strike `ITC.CONT_RATE`. Check open-positions: the same
 count on the server (`HAVING SUM(QTY) <> 0`).
 
-### BROKERAGE-CLIENT-RATES (`NSQBRKG`, `NSDBRKG`, `OTHBRKG`) [assumed]
+### BROKERAGE-CARDS, BROKERAGE-CLIENTS, BROKERAGE-CLIENT-RATES (`NSQBRKG`, `NSDBRKG`, `OTHBRKG`) [verified: baskets; assumed: channel codes]
 
-For every date on which any of a client's rows takes effect, a version
-with the latest row of each line in force on that date.
+SharePro has no basket table: a basket is a dummy client code (not in the
+client master) with its own rate rows and `OTHBRKG` rows, and a client
+points at it in `OTHBRKG.brkgbasket` per CO from `EffectDate` [verified,
+28 Oct: 418 codes, 414 with rate rows].
+
+- BROKERAGE-CARDS: every basket a client points at (any status) with rate
+  rows in the firm's COs; Card the basket code (with `~2`, `~3` added when
+  two codes make the same Ledgerline card ID, e.g. `19.5.06` and
+  `19-5-06`), Name the code. A basket with no rows in the firm's COs is
+  counted (Info) and its clients pay the firm default there.
+- BROKERAGE-CLIENTS: per client and CO, a row each time the basket changes
+  (Segment and Exchange of the CO); a blank `brkgbasket` after a basket
+  ends it from that date.
+- BROKERAGE-CLIENT-RATES: a client's own rows, which win over the basket
+  line by line [verified, 28 Oct: "the own rows override the basket"].
+
+Cards and own rates are versioned alike: for every date on which any row
+(or `OTHBRKG` minimum) takes effect, a version with the latest row of each
+line in force on that date. `PRODUCTCD` is the trading channel: blank →
+every channel, DIR → dealer, IBT → online, MBT → mobile [assumed from the
+basket report; other codes are warned and not converted]. Fill-ins: the
+firm default card when clients are on no basket and have no own rows
+(`brokerage-default`), and the terminal list when any line has a channel
+(`terminal-channels`).
 
 | SharePro | Ledgerline |
 |---|---|
@@ -478,16 +500,18 @@ with the latest row of each line in force on that date.
 | Exchange | the CO's exchange |
 | `PRODUCTCD` | Note |
 
-Not converted (warning per row): slab rates, baskets
-(`OTHBRKG.brkgbasket`), unknown `ALL…` groups, items not in the item
-master; sub-broker sharing (`NSBQBRKG`, `NSBDBRKG`). Every line is checked
-with Ledgerline's own rate-key and rule validation. BROKERAGE-CARDS,
-BROKERAGE-CLIENTS and SCRIP-GROUPS are not written: SharePro has no shared
-cards and `DLGROUP` holds client groups.
+Not converted (warning per row): slab rates, unknown `ALL…` groups and
+channel codes, items not in the item master; sub-broker sharing
+(`NSBQBRKG`, `NSBDBRKG`). Every line is checked with Ledgerline's own
+rate-key and rule validation. SCRIP-GROUPS is not written yet (where
+SharePro defines its scrip-group codes, such as SG…, is being checked);
+`DLGROUP` holds client groups.
 
 ### CLIENT-INTEREST (`INTERESTDTL`) [verified]
 
-From `EffectDate`; Rate `InterestPer` (> 0; 0 is the firm's rate); Free Y
+With Plan.ClientInterest "firm" (the tool's "Move everyone to the firm's
+rate") the own rates are left out (Info per row) and Free and GraceDays
+still come across. From `EffectDate`; Rate `InterestPer` (> 0; 0 is the firm's rate); Free Y
 `NoInterest`; GraceDays `cGraceDays` when a number ("Default" or blank is
 the firm's). Rows with none of them are the firm's terms (a row ending own
 terms when it follows them). `DLMAST.NoInterest` with no `INTERESTDTL` row
