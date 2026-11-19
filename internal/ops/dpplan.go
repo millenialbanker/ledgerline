@@ -19,7 +19,7 @@ import (
 // A firm's DP clients do not all pay the same: regular accounts, BSDA,
 // accounts without e-statements, a group of related clients, the firm's own
 // pool accounts and closed accounts each have a rate card of their own
-// (SharePro calls them baskets). A DPPlan is one rate card, with dated
+// (some back offices call them baskets). A DPPlan is one rate card, with dated
 // versions; each BO account is on one plan at a time and keeps its history
 // (BOAccount.Plans). An account on no plan pays the firm's tariff
 // (DPTariff), as before plans.
@@ -89,8 +89,8 @@ type DPChargeLine struct {
 	Own *DPRate `json:"own,omitempty"`
 	// Mail is a courier charge per request (demat, remat).
 	Mail money.Amount `json:"mail,omitempty"`
-	// Special is another rate set the old system kept (SharePro's SP
-	// rates), kept for the record; Ledgerline does not bill it.
+	// Special is another rate set the old system kept (a migrated
+	// second rate set), kept for the record; Ledgerline does not bill it.
 	Special *DPRate `json:"special,omitempty"`
 	// Off: not charged; the rates are kept (a pledge event the firm does
 	// not charge for, as the old system had it).
@@ -115,7 +115,7 @@ func (v DPPlanVersion) line(code string) (DPChargeLine, bool) {
 	return DPChargeLine{}, false
 }
 
-// DPPlan is a DP rate card (a SharePro basket).
+// DPPlan is a DP rate card (a tariff basket in some back offices).
 type DPPlan struct {
 	Code string `json:"code"`
 	Name string `json:"name"`

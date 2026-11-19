@@ -20,7 +20,7 @@ import (
 // opened in memory. A folder is checked file by file (not its subfolders).
 //
 //	ledgerctl check-file ~/Downloads/MCX/*.csv
-//	ledgerctl check-file -json MCX_NOBL_56845_20261104.csv
+//	ledgerctl check-file -json MCX_NOBL_12345_20261104.csv
 func checkFile(args []string, stdout io.Writer) (int, error) {
 	fl := flag.NewFlagSet("check-file", flag.ContinueOnError)
 	root := fl.String("root", "", "repository folder to read the layouts from (default: built into this binary)")

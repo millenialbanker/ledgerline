@@ -21,16 +21,16 @@ const (
 
 func inr(s string) money.Amount { a, _ := money.ParseAmount(s); return a }
 
-// sepSetup is Baljit's position before the incident: BJ01 has ₹10,000 in
+// sepSetup is a broker's position before the incident: AB01 has ₹10,000 in
 // the equity ledger and ₹2,00,000 in the commodity ledger, loaded as
-// opening balances with the Ledger column; BJ02 has ₹50,000 equity only.
+// opening balances with the Ledger column; AB02 has ₹50,000 equity only.
 // e-CMS pushes from HDFC are set up for two firm accounts.
 func sepSetup(t *testing.T) (*Ops, context.Context) {
 	t.Helper()
 	o, ctx := newOps(t)
 	for _, c := range []Client{
-		{UCC: "BJ01", Name: "Asha Rao", Status: "Active", Email: "a@x.example", Segments: []string{"CM", "FO", "COM"}, Bank: BankAccount{Bank: "HDFC Bank", IFSC: "HDFC0001234", Account: "50100011112222"}},
-		{UCC: "BJ02", Name: "Vikram Shah", Status: "Active", Email: "v@x.example", Segments: []string{"CM", "COM"}, Bank: BankAccount{Bank: "Axis Bank", IFSC: "UTIB0000123", Account: "91902033334444"}},
+		{UCC: "AB01", Name: "Asha Rao", Status: "Active", Email: "a@x.example", Segments: []string{"CM", "FO", "COM"}, Bank: BankAccount{Bank: "HDFC Bank", IFSC: "HDFC0001234", Account: "50100011112222"}},
+		{UCC: "AB02", Name: "Vikram Shah", Status: "Active", Email: "v@x.example", Segments: []string{"CM", "COM"}, Bank: BankAccount{Bank: "Axis Bank", IFSC: "UTIB0000123", Account: "91902033334444"}},
 	} {
 		if err := docs.Upsert(ctx, o.Docs, T, cClient, c.UCC, c, "t"); err != nil {
 			t.Fatal(err)
@@ -41,7 +41,7 @@ func sepSetup(t *testing.T) (*Ops, context.Context) {
 	if err := o.SaveSettings(ctx, T, "admin", set); err != nil {
 		t.Fatal(err)
 	}
-	csv := "Account,Debit,Credit,Ledger\nCLIENT:BJ01,,10000.00,Equity\nCLIENT:BJ01,,200000.00,Commodity\nCLIENT:BJ02,,50000.00,\nEQUITY:OPENING,260000.00,,\n"
+	csv := "Account,Debit,Credit,Ledger\nCLIENT:AB01,,10000.00,Equity\nCLIENT:AB01,,200000.00,Commodity\nCLIENT:AB02,,50000.00,\nEQUITY:OPENING,260000.00,,\n"
 	if _, err := o.LoadFile(ctx, T, "admin", "OPENING-BALANCES", sgOpen, "opening.csv", []byte(csv)); err != nil {
 		t.Fatal(err)
 	}
@@ -131,20 +131,20 @@ func TestFundsInstruction(t *testing.T) {
 func TestSepLedgerIncident(t *testing.T) {
 	t.Run("narration says MCX", func(t *testing.T) {
 		o, ctx := sepSetup(t)
-		wantFunds(t, ledgersOf(t, o, ctx, "BJ01"), "10000", "200000", "0")
+		wantFunds(t, ledgersOf(t, o, ctx, "AB01"), "10000", "200000", "0")
 		ecmsCredit(t, o, ctx, "S1", "UTR1", sgAcct, "50100011112222", "5000", "MCX MARGIN")
 		if c := credit(t, o, ctx, "UTR1"); c.Status != "Matched" || c.Ledger != "COM" || !strings.Contains(c.LedgerWhy, "MCX") || c.Narration != "MCX MARGIN NEFT" || c.ToAccount != sgAcct {
 			t.Fatalf("credit %+v", c)
 		}
-		wantFunds(t, ledgersOf(t, o, ctx, "BJ01"), "10000", "205000", "0")
+		wantFunds(t, ledgersOf(t, o, ctx, "AB01"), "10000", "205000", "0")
 		set, _ := o.Settings(ctx, T)
 		next := set.nextBusinessDay(sgD0)
-		if got := finspotCol5(t, o, ctx, next, "BJ01"); got != "10000.00" {
+		if got := finspotCol5(t, o, ctx, next, "AB01"); got != "10000.00" {
 			t.Fatalf("Finspot column 5 %s, want the equity ledger 10000.00", got)
 		}
 		bow, _ := o.bowFunds(ctx, T, next)
-		if bow["BJ01"].Cmp(mustDec("205000")) != 0 {
-			t.Fatalf("BOW funds %s", bow["BJ01"])
+		if bow["AB01"].Cmp(mustDec("205000")) != 0 {
+			t.Fatalf("BOW funds %s", bow["AB01"])
 		}
 		if as, _ := o.FundsAwaitingList(ctx, T, true); len(as) != 0 {
 			t.Fatalf("waiting %+v", as)
@@ -157,28 +157,28 @@ func TestSepLedgerIncident(t *testing.T) {
 		if c.Ledger != ledger.LedgerAwaiting {
 			t.Fatalf("credit %+v", c)
 		}
-		wantFunds(t, ledgersOf(t, o, ctx, "BJ01"), "10000", "200000", "5000")
+		wantFunds(t, ledgersOf(t, o, ctx, "AB01"), "10000", "200000", "5000")
 		set, _ := o.Settings(ctx, T)
 		next := set.nextBusinessDay(sgD0)
 		// Waiting: in neither front end's limit, but in the client's ledger.
-		if got := finspotCol5(t, o, ctx, next, "BJ01"); got != "10000.00" {
+		if got := finspotCol5(t, o, ctx, next, "AB01"); got != "10000.00" {
 			t.Fatalf("Finspot column 5 while waiting %s", got)
 		}
-		if bow, _ := o.bowFunds(ctx, T, next); bow["BJ01"].Cmp(mustDec("200000")) != 0 {
-			t.Fatalf("BOW funds while waiting %s", bow["BJ01"])
+		if bow, _ := o.bowFunds(ctx, T, next); bow["AB01"].Cmp(mustDec("200000")) != 0 {
+			t.Fatalf("BOW funds while waiting %s", bow["AB01"])
 		}
-		st, _ := o.clientStatement(ctx, T, "BJ01", "", next)
+		st, _ := o.clientStatement(ctx, T, "AB01", "", next)
 		if st.Closing != -inr("215000") {
 			t.Fatalf("the client's ledger has the money: closing %s", st.Closing)
 		}
 		as, _ := o.FundsAwaitingList(ctx, T, true)
-		if len(as) != 1 || as[0].UCC != "BJ01" || as[0].Amount != inr("5000") || as[0].Status != "Waiting" {
+		if len(as) != 1 || as[0].UCC != "AB01" || as[0].Amount != inr("5000") || as[0].Status != "Waiting" {
 			t.Fatalf("waiting %+v", as)
 		}
 		ws, _ := o.WorkItems(ctx, T, "Open")
 		found := false
 		for _, w := range ws {
-			if w.Process == wFundsAlloc && w.UCC == "BJ01" && w.Role == RoleRisk && strings.Contains(w.Title, "choose Equity or Commodity") && strings.Contains(w.Title, "5,000") {
+			if w.Process == wFundsAlloc && w.UCC == "AB01" && w.Role == RoleRisk && strings.Contains(w.Title, "choose Equity or Commodity") && strings.Contains(w.Title, "5,000") {
 				found = true
 			}
 		}
@@ -195,12 +195,12 @@ func TestSepLedgerIncident(t *testing.T) {
 		if _, err := o.AllocateFunds(ctx, T, "anita.rao", as[0].ID, "COM"); err == nil {
 			t.Fatal("allocated twice")
 		}
-		wantFunds(t, ledgersOf(t, o, ctx, "BJ01"), "15000", "200000", "0")
-		if got := finspotCol5(t, o, ctx, next, "BJ01"); got != "15000.00" {
+		wantFunds(t, ledgersOf(t, o, ctx, "AB01"), "15000", "200000", "0")
+		if got := finspotCol5(t, o, ctx, next, "AB01"); got != "15000.00" {
 			t.Fatalf("Finspot column 5 %s, want 15000.00", got)
 		}
-		if bow, _ := o.bowFunds(ctx, T, next); bow["BJ01"].Cmp(mustDec("200000")) != 0 {
-			t.Fatalf("BOW funds %s, want 200000 unchanged", bow["BJ01"])
+		if bow, _ := o.bowFunds(ctx, T, next); bow["AB01"].Cmp(mustDec("200000")) != 0 {
+			t.Fatalf("BOW funds %s, want 200000 unchanged", bow["AB01"])
 		}
 		if ws, _ := o.WorkItems(ctx, T, "Open"); len(ws) != 0 {
 			for _, w := range ws {
@@ -211,8 +211,8 @@ func TestSepLedgerIncident(t *testing.T) {
 		}
 		// The client's statement: one ledger, one running balance, no
 		// allocation line.
-		st, _ = o.clientStatement(ctx, T, "BJ01", "", next)
-		if st.Account != "CLIENT:BJ01" || st.Closing != -inr("215000") || len(st.Lines) != 3 {
+		st, _ = o.clientStatement(ctx, T, "AB01", "", next)
+		if st.Account != "CLIENT:AB01" || st.Closing != -inr("215000") || len(st.Lines) != 3 {
 			t.Fatalf("client statement %+v", st)
 		}
 		run := money.Amount(0)
@@ -226,11 +226,11 @@ func TestSepLedgerIncident(t *testing.T) {
 			t.Fatalf("receipt line %+v", st.Lines[2])
 		}
 		// Staff see every line, marked with its ledger.
-		ss, _ := o.staffStatement(ctx, T, "BJ01", "", next)
+		ss, _ := o.staffStatement(ctx, T, "AB01", "", next)
 		if len(ss.Lines) != 5 || ss.Closing != st.Closing || ss.Lines[1].Ledger != "COM" {
 			t.Fatalf("staff statement %+v", ss.Lines)
 		}
-		d, err := o.ClientDetail(ctx, T, "BJ01", next)
+		d, err := o.ClientDetail(ctx, T, "AB01", next)
 		if err != nil || d.Ledgers == nil || d.Ledgers.Equity.Cmp(mustDec("15000")) != 0 || d.Ledgers.Commodity.Cmp(mustDec("200000")) != 0 || d.Ledgers.Combined.Cmp(mustDec("215000")) != 0 {
 			t.Fatalf("drawer %+v %v", d.Ledgers, err)
 		}
@@ -246,7 +246,7 @@ func TestSepLedgerIncident(t *testing.T) {
 			t.Fatalf("mapping %v", set.BankAccountLedgers)
 		}
 		ecmsCredit(t, o, ctx, "S3", "UTR3", sgCom, "50100011112222", "5000", "")
-		wantFunds(t, ledgersOf(t, o, ctx, "BJ01"), "10000", "205000", "0")
+		wantFunds(t, ledgersOf(t, o, ctx, "AB01"), "10000", "205000", "0")
 	})
 	t.Run("left waiting past the firm's limit", func(t *testing.T) {
 		o, ctx := sepSetup(t)
@@ -257,9 +257,9 @@ func TestSepLedgerIncident(t *testing.T) {
 		}
 		ecmsCredit(t, o, ctx, "S4", "UTR4", sgAcct, "50100011112222", "5000", "")
 		o.fundsAllocTick(ctx, T, o.now().Add(10*60e9))
-		wantFunds(t, ledgersOf(t, o, ctx, "BJ01"), "10000", "200000", "5000")
+		wantFunds(t, ledgersOf(t, o, ctx, "AB01"), "10000", "200000", "5000")
 		o.fundsAllocTick(ctx, T, o.now().Add(31*60e9))
-		wantFunds(t, ledgersOf(t, o, ctx, "BJ01"), "10000", "205000", "0")
+		wantFunds(t, ledgersOf(t, o, ctx, "AB01"), "10000", "205000", "0")
 		as, _ := o.FundsAwaitingList(ctx, T, false)
 		if len(as) != 1 || !as[0].Auto || as[0].Ledger != "COM" {
 			t.Fatalf("%+v", as)
@@ -401,19 +401,19 @@ func TestSepLedgerSampleDay(t *testing.T) {
 // the client never sees it.
 func TestSepLedgerTransfer(t *testing.T) {
 	o, ctx := sepSetup(t)
-	if _, err := o.LedgerTransfer(ctx, T, "anita.rao", "BJ01", "COM", "COM", sgD0, inr("1000"), ""); err == nil {
+	if _, err := o.LedgerTransfer(ctx, T, "anita.rao", "AB01", "COM", "COM", sgD0, inr("1000"), ""); err == nil {
 		t.Fatal("transfer to the same ledger")
 	}
-	v, err := o.LedgerTransfer(ctx, T, "anita.rao", "BJ01", "COM", "EQ", sgD0, inr("40000"), "client asked")
-	if err != nil || v.Type != "Journal" || v.Status != "Pending" || len(v.Lines) != 2 || v.Lines[0].Account != "CLIENTCOM:BJ01" || v.Lines[1].Account != "CLIENT:BJ01" {
+	v, err := o.LedgerTransfer(ctx, T, "anita.rao", "AB01", "COM", "EQ", sgD0, inr("40000"), "client asked")
+	if err != nil || v.Type != "Journal" || v.Status != "Pending" || len(v.Lines) != 2 || v.Lines[0].Account != "CLIENTCOM:AB01" || v.Lines[1].Account != "CLIENT:AB01" {
 		t.Fatalf("%+v %v", v, err)
 	}
-	wantFunds(t, ledgersOf(t, o, ctx, "BJ01"), "10000", "200000", "0") // not until approved
+	wantFunds(t, ledgersOf(t, o, ctx, "AB01"), "10000", "200000", "0") // not until approved
 	if _, err := o.DecideVoucher(ctx, T, "farhan.khan", v.No, "approve", ""); err != nil {
 		t.Fatal(err)
 	}
-	wantFunds(t, ledgersOf(t, o, ctx, "BJ01"), "50000", "160000", "0")
-	st, _ := o.clientStatement(ctx, T, "BJ01", "", sgD0)
+	wantFunds(t, ledgersOf(t, o, ctx, "AB01"), "50000", "160000", "0")
+	st, _ := o.clientStatement(ctx, T, "AB01", "", sgD0)
 	for _, l := range st.Lines {
 		if strings.Contains(l.Narration, "Transfer") {
 			t.Fatalf("the client sees the transfer: %+v", l)
@@ -424,11 +424,11 @@ func TestSepLedgerTransfer(t *testing.T) {
 	}
 	// A journal may name the commodity ledger only when it is kept.
 	o2, ctx2 := newOps(t)
-	_, err = o2.SaveVoucher(ctx2, T, "priya.nair", Voucher{Type: "Journal", Date: sgD0, Narration: "x", Lines: []VoucherLine{{Account: "CLIENTCOM:BJ01", Debit: 100}, {Account: "CLIENT:BJ01", Credit: 100}}})
+	_, err = o2.SaveVoucher(ctx2, T, "priya.nair", Voucher{Type: "Journal", Date: sgD0, Narration: "x", Lines: []VoucherLine{{Account: "CLIENTCOM:AB01", Debit: 100}, {Account: "CLIENT:AB01", Credit: 100}}})
 	if err == nil || !strings.Contains(err.Error(), "one ledger per client") {
 		t.Fatalf("commodity line with one ledger: %v", err)
 	}
-	if _, err := o2.LedgerTransfer(ctx2, T, "anita.rao", "BJ01", "COM", "EQ", sgD0, 100, ""); err == nil {
+	if _, err := o2.LedgerTransfer(ctx2, T, "anita.rao", "AB01", "COM", "EQ", sgD0, 100, ""); err == nil {
 		t.Fatal("transfer with one ledger")
 	}
 }
@@ -437,15 +437,15 @@ func TestSepLedgerTransfer(t *testing.T) {
 // other: refused, unless the firm lets the payout transfer the shortfall.
 func TestSepLedgerPayout(t *testing.T) {
 	o, ctx := sepSetup(t)
-	w, err := o.Withdrawable(ctx, T, sgD0, "BJ01")
+	w, err := o.Withdrawable(ctx, T, sgD0, "AB01")
 	if err != nil || w.Ledgers == nil || w.Ledgers.Equity != inr("10000") || w.Ledgers.Commodity != inr("200000") || w.Available != inr("210000") {
 		t.Fatalf("%+v %+v %v", w, w.Ledgers, err)
 	}
-	_, err = o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "BJ01", inr("50000"), "Head office", "EQ")
+	_, err = o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "AB01", inr("50000"), "Head office", "EQ")
 	if err == nil || !strings.Contains(err.Error(), "Equity ledger can pay") || !strings.Contains(err.Error(), "40,000") {
 		t.Fatalf("equity payout beyond the equity ledger: %v", err)
 	}
-	p, err := o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "BJ01", inr("8000"), "Head office", "EQ")
+	p, err := o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "AB01", inr("8000"), "Head office", "EQ")
 	if err != nil || p.Ledger != "EQ" {
 		t.Fatalf("%+v %v", p, err)
 	}
@@ -454,11 +454,11 @@ func TestSepLedgerPayout(t *testing.T) {
 	if err := o.SaveSettings(ctx, T, "admin", set); err != nil {
 		t.Fatal(err)
 	}
-	p2, err := o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "BJ01", inr("50000"), "Head office", "EQ")
+	p2, err := o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "AB01", inr("50000"), "Head office", "EQ")
 	if err != nil {
 		t.Fatal(err)
 	}
-	p3, err := o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "BJ02", inr("20000"), "Head office", "")
+	p3, err := o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "AB02", inr("20000"), "Head office", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -477,17 +477,17 @@ func TestSepLedgerPayout(t *testing.T) {
 	}
 	// 8,000 from equity; then 50,000 from equity, 48,000 of it transferred
 	// in from commodity first (only 2,000 was left).
-	wantFunds(t, ledgersOf(t, o, ctx, "BJ01"), "0", "152000", "0")
-	wantFunds(t, ledgersOf(t, o, ctx, "BJ02"), "30000", "0", "0")
+	wantFunds(t, ledgersOf(t, o, ctx, "AB01"), "0", "152000", "0")
+	wantFunds(t, ledgersOf(t, o, ctx, "AB02"), "30000", "0", "0")
 	x, _, _ := docs.Get[PayoutRequest](ctx, o.Docs, T, cPayout, p2.ID)
 	if x.Transfer == "" {
 		t.Fatalf("no transfer recorded %+v", x)
 	}
 	e, _ := o.App.Ledger.Store.Get(ctx, T, x.Transfer)
-	if e.Source.Kind != srcLedgerXfer || e.Postings[0].Account != "CLIENTCOM:BJ01" || e.Postings[0].Debit != inr("48000") {
+	if e.Source.Kind != srcLedgerXfer || e.Postings[0].Account != "CLIENTCOM:AB01" || e.Postings[0].Debit != inr("48000") {
 		t.Fatalf("transfer %+v", e)
 	}
-	st, _ := o.clientStatement(ctx, T, "BJ01", "", sgD0)
+	st, _ := o.clientStatement(ctx, T, "AB01", "", sgD0)
 	if st.Closing != -inr("152000") {
 		t.Fatalf("closing %s", st.Closing)
 	}
@@ -510,12 +510,12 @@ func TestSepLedgerPayout(t *testing.T) {
 // leaves a ledger below zero.
 func TestSepLedgerRAS(t *testing.T) {
 	o, ctx := sepSetup(t)
-	// BJ02 owes ₹5,000 in equity and has ₹20,000 in commodity.
-	csv := "Account,Debit,Credit,Ledger\nCLIENT:BJ02,55000.00,,Equity\nCLIENT:BJ02,,20000.00,Commodity\nEQUITY:OPENING,,35000.00,\n"
+	// AB02 owes ₹5,000 in equity and has ₹20,000 in commodity.
+	csv := "Account,Debit,Credit,Ledger\nCLIENT:AB02,55000.00,,Equity\nCLIENT:AB02,,20000.00,Commodity\nEQUITY:OPENING,,35000.00,\n"
 	if _, err := o.LoadFile(ctx, T, "admin", "OPENING-BALANCES", sgOpen, "ob2.csv", []byte(csv)); err != nil {
 		t.Fatal(err)
 	}
-	wantFunds(t, ledgersOf(t, o, ctx, "BJ02"), "-5000", "20000", "0")
+	wantFunds(t, ledgersOf(t, o, ctx, "AB02"), "-5000", "20000", "0")
 	set, _ := o.Settings(ctx, T)
 	set.RASMonthly = "2026-10-30"
 	if err := o.SaveSettings(ctx, T, "admin", set); err != nil {
@@ -529,14 +529,14 @@ func TestSepLedgerRAS(t *testing.T) {
 	for _, r := range v.Rows {
 		pay[r.UCC] = r.Payout
 	}
-	if pay["BJ01"].Cmp(mustDec("210000")) != 0 || pay["BJ02"].Cmp(mustDec("15000")) != 0 {
+	if pay["AB01"].Cmp(mustDec("210000")) != 0 || pay["AB02"].Cmp(mustDec("15000")) != 0 {
 		t.Fatalf("payouts %v", pay)
 	}
 	if _, err := o.RunRAS(ctx, T, "farhan.khan", sgD0, "2026-10-30"); err != nil {
 		t.Fatal(err)
 	}
-	wantFunds(t, ledgersOf(t, o, ctx, "BJ01"), "0", "0", "0")
-	wantFunds(t, ledgersOf(t, o, ctx, "BJ02"), "0", "0", "0")
+	wantFunds(t, ledgersOf(t, o, ctx, "AB01"), "0", "0", "0")
+	wantFunds(t, ledgersOf(t, o, ctx, "AB02"), "0", "0", "0")
 }
 
 // The NSE Clearing allocation (and so NCL margin reporting, SEGMON) is
@@ -551,7 +551,7 @@ func TestSepLedgerAllocation(t *testing.T) {
 	for _, a := range al {
 		got[a.UCC+"|"+a.Segment] = a.Cash.Fixed(2)
 	}
-	if got["BJ01|CM"] != "10000.00" || got["BJ01|COM"] != "200000.00" || got["BJ02|CM"] != "50000.00" || got["BJ02|COM"] != "" {
+	if got["AB01|CM"] != "10000.00" || got["AB01|COM"] != "200000.00" || got["AB02|CM"] != "50000.00" || got["AB02|COM"] != "" {
 		t.Fatalf("allocation %v", got)
 	}
 	bs, b := segmonBalancesOf(t, o, ctx)
@@ -564,8 +564,8 @@ func TestSepLedgerAllocation(t *testing.T) {
 // not the equity ledger's ₹10,000.
 func TestSepLedgerMCXMarginReporting(t *testing.T) {
 	o, ctx := sepSetup(t)
-	mrg := strings.Join([]string{"29OCT2026", "56845", "BJ01", "1000.00", "200.00", "50.00", "", "", "", "", "", "100.00", "1000.00", "", "", "0.00", "0.00", "", ""}, ",") + "\n"
-	loadX(t, o, "MCX_MARGIN_56845_20261029.csv", []byte(mrg))
+	mrg := strings.Join([]string{"29OCT2026", "12345", "AB01", "1000.00", "200.00", "50.00", "", "", "", "", "", "100.00", "1000.00", "", "", "0.00", "0.00", "", ""}, ",") + "\n"
+	loadX(t, o, "MCX_MARGIN_12345_20261029.csv", []byte(mrg))
 	name, b, err := o.ExchangeFile(ctx, T, "priya.nair", "mcx-margin-reporting", sgD0, XFileOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -603,24 +603,24 @@ func segmonBalancesOf(t *testing.T, o *Ops, ctx context.Context) (string, bool) 
 // out of that ledger's front end only.
 func TestSepLedgerReceipt(t *testing.T) {
 	o, ctx := sepSetup(t)
-	r, err := o.RecordReceipt(ctx, T, "priya.nair", Receipt{UCC: "BJ01", Mode: "Cheque", Ref: "000111", Date: sgD0, Amount: inr("7000"), Ledger: "Commodity"})
+	r, err := o.RecordReceipt(ctx, T, "priya.nair", Receipt{UCC: "AB01", Mode: "Cheque", Ref: "000111", Date: sgD0, Amount: inr("7000"), Ledger: "Commodity"})
 	if err != nil || r.Ledger != "COM" {
 		t.Fatalf("%+v %v", r, err)
 	}
 	if _, err := o.DecideReceipt(ctx, T, "farhan.khan", r.ID, true, ""); err != nil {
 		t.Fatal(err)
 	}
-	wantFunds(t, ledgersOf(t, o, ctx, "BJ01"), "10000", "207000", "0")
+	wantFunds(t, ledgersOf(t, o, ctx, "AB01"), "10000", "207000", "0")
 	set, _ := o.Settings(ctx, T)
 	next := set.nextBusinessDay(sgD0)
-	if bow, _ := o.bowFunds(ctx, T, next); bow["BJ01"].Cmp(mustDec("200000")) != 0 {
-		t.Fatalf("uncleared commodity cheque in BOW: %s", bow["BJ01"])
+	if bow, _ := o.bowFunds(ctx, T, next); bow["AB01"].Cmp(mustDec("200000")) != 0 {
+		t.Fatalf("uncleared commodity cheque in BOW: %s", bow["AB01"])
 	}
-	if got := finspotCol5(t, o, ctx, next, "BJ01"); got != "10000.00" {
+	if got := finspotCol5(t, o, ctx, next, "AB01"); got != "10000.00" {
 		t.Fatalf("Finspot %s", got)
 	}
 	b, err := o.BOWFundsFile(ctx, T, next)
-	if err != nil || !strings.Contains(string(b), next+",BJ01,200000.00") {
+	if err != nil || !strings.Contains(string(b), next+",AB01,200000.00") {
 		t.Fatalf("%s %v", b, err)
 	}
 	// With one ledger a receipt cannot be for the commodity ledger.
@@ -638,23 +638,23 @@ func TestSepLedgerReceipt(t *testing.T) {
 func TestSepLedgerOpeningAndSwitch(t *testing.T) {
 	o, ctx := newOps(t)
 	for _, csv := range []string{
-		"Account,Debit,Credit,Ledger\nCLIENT:BJ01,,100.00,Commodity\nEQUITY:OPENING,100.00,,\n",
-		"Account,Debit,Credit\nCLIENTCOM:BJ01,,100.00\nEQUITY:OPENING,100.00,\n",
+		"Account,Debit,Credit,Ledger\nCLIENT:AB01,,100.00,Commodity\nEQUITY:OPENING,100.00,,\n",
+		"Account,Debit,Credit\nCLIENTCOM:AB01,,100.00\nEQUITY:OPENING,100.00,\n",
 	} {
 		if _, err := o.LoadFile(ctx, T, "admin", "OPENING-BALANCES", sgOpen, "ob.csv", []byte(csv)); err == nil {
 			t.Fatalf("commodity balance with one ledger: %q", csv)
 		}
 	}
 	o, ctx = sepSetup(t)
-	if _, err := o.LoadFile(ctx, T, "admin", "OPENING-BALANCES", sgOpen, "x.csv", []byte("Account,Debit,Credit,Ledger\nCLIENTCOM:BJ02,,1.00,Equity\nEQUITY:OPENING,1.00,,\n")); err == nil {
+	if _, err := o.LoadFile(ctx, T, "admin", "OPENING-BALANCES", sgOpen, "x.csv", []byte("Account,Debit,Credit,Ledger\nCLIENTCOM:AB02,,1.00,Equity\nEQUITY:OPENING,1.00,,\n")); err == nil {
 		t.Fatal("CLIENTCOM given as the equity ledger")
 	}
-	if _, err := o.LoadFile(ctx, T, "admin", "OPENING-BALANCES", sgOpen, "y.csv", []byte("Account,Debit,Credit,Ledger\nCLIENT:BJ02,,1.00,Gold\nEQUITY:OPENING,1.00,,\n")); err == nil {
+	if _, err := o.LoadFile(ctx, T, "admin", "OPENING-BALANCES", sgOpen, "y.csv", []byte("Account,Debit,Credit,Ledger\nCLIENT:AB02,,1.00,Gold\nEQUITY:OPENING,1.00,,\n")); err == nil {
 		t.Fatal("unknown ledger")
 	}
 	set, _ := o.Settings(ctx, T)
 	set.SeparateCommodityLedger = false
-	if err := o.SaveSettings(ctx, T, "admin", set); err == nil || !strings.Contains(err.Error(), "BJ01") {
+	if err := o.SaveSettings(ctx, T, "admin", set); err == nil || !strings.Contains(err.Error(), "AB01") {
 		t.Fatalf("turned off with commodity money held: %v", err)
 	}
 }

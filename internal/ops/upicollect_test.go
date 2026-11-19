@@ -242,7 +242,7 @@ func TestUPIIDsWithQRs(t *testing.T) {
 
 func TestUPIPayLink(t *testing.T) {
 	// the link inside the QR is checked by reading back what was encoded
-	if got := upiPayLink("BH.brk@ValidHDFC", "Baljit Securities & Co"); got != "upi://pay?pa=bh.brk@validhdfc&pn=Baljit%20Securities%20%26%20Co&cu=INR" {
+	if got := upiPayLink("BH.brk@ValidHDFC", "Example Securities & Co"); got != "upi://pay?pa=bh.brk@validhdfc&pn=Example%20Securities%20%26%20Co&cu=INR" {
 		t.Fatal(got)
 	}
 }

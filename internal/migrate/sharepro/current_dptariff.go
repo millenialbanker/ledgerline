@@ -40,7 +40,7 @@ const (
 // dpRateCodes are SharePro's transaction codes whose RATE is a charge per
 // certificate (demat, remat); on every other code RATE is a percentage of
 // the value [verified: 2201 RATE 3 = ₹3 per certificate, 2230 RATE 0.1 =
-// 0.1% with a ₹25 minimum, in Baljit's tariff note].
+// 0.1% with a ₹25 minimum, in the pilot's tariff note].
 var dpRateCodes = map[string]bool{"2201": true, "2205": true, "901": true, "902": true}
 
 // nsdlCodes are NSDL's transaction codes in DPTRTYPE, as the CDSL codes

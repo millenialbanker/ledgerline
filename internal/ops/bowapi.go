@@ -24,8 +24,8 @@ import (
 
 // ---- BOW (BOLTPlusOnWeb) client limits by API ----
 //
-// BOW is BSE's front end run by MarketPlace Tech Infra Services, which the
-// pilot broker uses for internet equity trading and for MCX. Its limits are
+// BOW is BSE's front end run by MarketPlace Tech Infra Services, which
+// brokers use for internet equity trading and for MCX. Its limits are
 // "user deposits" an admin login sets per client; this pushes them from the
 // ledger by the BOW API (v1.0.5), Securities and Commodities separately.
 //
@@ -119,7 +119,7 @@ func init() {
 		Fields: []ConnField{
 			{Key: "env", Label: "Environment", Options: []string{"UAT", "Live"}},
 			{Key: "url", Label: "Address (leave empty for BOW's, e.g. https://bow1mobile.bseindia.com/stocks)", Optional: true, Placeholder: bowUAT},
-			{Key: "user", Label: "BOW admin login ID (e.g. ADMIN-T9065)"},
+			{Key: "user", Label: "BOW admin login ID (e.g. ADMIN-T1234)"},
 			{Key: "password", Label: "Password", Secret: true},
 			{Key: "vendor_code", Label: "Vendor code (from the BOW team)"},
 			{Key: "version", Label: "Front-end version with vendor code, as BOW allotted (default LEDGERLINE_1.0)", Optional: true},
@@ -822,7 +822,7 @@ type bowMaster struct {
 }
 
 // bowMatch is the UCC a BOW login stands for: the ID itself, or the part
-// before the last "-" (CLIENT-T9065).
+// before the last "-" (CLIENT-T1234).
 func bowMatch(id string, cs map[string]Client) string {
 	id = strings.ToUpper(strings.TrimSpace(id))
 	if id == "" {
@@ -914,7 +914,7 @@ func (o *Ops) SetBOWUser(ctx context.Context, tenant, actor, ucc string, u BOWUs
 			return ov, invalid("BOW's internal user ID is a number (USID in BOW's client master)")
 		}
 		if u.LoginID == "" {
-			return ov, invalid("give the client's BOW login ID (e.g. %s-T9065)", ucc)
+			return ov, invalid("give the client's BOW login ID (e.g. %s-T1234)", ucc)
 		}
 		u.BackOffice = firstOf(u.BackOffice, u.LoginID)
 		ov.User = u

@@ -53,37 +53,37 @@ func synthFile(t *testing.T, s *Spec) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// The real file names a trading member (made-up code 56845) receives, the
+// The real file names a trading member (made-up code 12345) receives, the
 // layout each must be recognised as, and the field count of its first line
 // in the real files.
 var mcxReal = []struct {
 	name, id string
 	fields   int
 }{
-	{"MCX_NOBL_56845_20261104.csv", "mcx-obligation-tm", 13},
-	{"MCX_PNOBL_56845_20261104.csv", "mcx-obligation-tm", 13},
-	{"MCX_CD_56845_20261104.csv", "mcx-collateral", 11},            // 10 fields and a trailing comma
-	{"MCX_CD_56845_UCC_20261104.csv", "mcx-collateral-client", 13}, // 12 fields and a trailing comma
-	{"MCX_MARGIN_56845_20261104.csv", "mcx-client-margin", 19},
-	{"MCX_MRG_56845_20261104.csv", "mcx-margin-tm", 20},
-	{"MCX_PeakMargin56845_20261104_03.csv", "mcx-peak-margin-tm", 12},
-	{"MCX_NCMR_56845_20261104.csv", "mcx-ncmr", 31},
-	{"MCX_WebAllocationDeallocation56845_20261104.csv", "mcx-web-allocation", 19}, // 18 fields and a trailing comma
-	{"MCX_WebAllocationDeallcoation56845_20261104.csv", "mcx-web-allocation", 19},
+	{"MCX_NOBL_12345_20261104.csv", "mcx-obligation-tm", 13},
+	{"MCX_PNOBL_12345_20261104.csv", "mcx-obligation-tm", 13},
+	{"MCX_CD_12345_20261104.csv", "mcx-collateral", 11},            // 10 fields and a trailing comma
+	{"MCX_CD_12345_UCC_20261104.csv", "mcx-collateral-client", 13}, // 12 fields and a trailing comma
+	{"MCX_MARGIN_12345_20261104.csv", "mcx-client-margin", 19},
+	{"MCX_MRG_12345_20261104.csv", "mcx-margin-tm", 20},
+	{"MCX_PeakMargin12345_20261104_03.csv", "mcx-peak-margin-tm", 12},
+	{"MCX_NCMR_12345_20261104.csv", "mcx-ncmr", 31},
+	{"MCX_WebAllocationDeallocation12345_20261104.csv", "mcx-web-allocation", 19}, // 18 fields and a trailing comma
+	{"MCX_WebAllocationDeallcoation12345_20261104.csv", "mcx-web-allocation", 19},
 	{"MCX_CP MASTER_20261104.csv", "mcx-cp-master", 6},
 	{"MCX_ProductMaster.csv", "mcx-product-master", 68},
 	{"MCX_04112026ORD_1.csv", "mcx-orders", 43},
 	{"MCX_04112026ORD.txt", "mcx-orders", 43},
 	{"DailyIndexFile04112026.csv", "mcx-daily-index", 7},
-	{"MCX_DEBIT-CREDIT NOTE_56845_20261104.csv", "mcx-dc-note", 18},
-	{"MCX_EODSAR_56845_20261104.csv", "mcx-eod-short-allocation", 9},
-	{"MCX_INTRASAR_56845_20261104.csv", "mcx-intraday-short-allocation", 16},
-	{"Margin_MCXCCL_CO_0_TM_56845_20261104_F_0000.csv", "mcxccl-margin", 52},
-	{"Position_MCXCCL_CO_0_TM_56845_20261104_F_0000.csv", "mcxccl-position", 46},
-	{"Penalty_MCXCCL_CO_0_TM_56845_20261104_F_0000.csv", "mcxccl-penalty", 17},
-	{"CTT_MCXCCL_CO_0_TM_56845_20261104_F_0000.csv", "mcxccl-ctt", 49},
-	{"Stamp_MCXCCL_CO_0_TM_56845_20261104_F_0000.csv", "mcxccl-stamp", 38},
-	{"Trade_MCXCCL_CO_0_TM_56845_20261104_F_0000.csv", "mcx-trade", 46},
+	{"MCX_DEBIT-CREDIT NOTE_12345_20261104.csv", "mcx-dc-note", 18},
+	{"MCX_EODSAR_12345_20261104.csv", "mcx-eod-short-allocation", 9},
+	{"MCX_INTRASAR_12345_20261104.csv", "mcx-intraday-short-allocation", 16},
+	{"Margin_MCXCCL_CO_0_TM_12345_20261104_F_0000.csv", "mcxccl-margin", 52},
+	{"Position_MCXCCL_CO_0_TM_12345_20261104_F_0000.csv", "mcxccl-position", 46},
+	{"Penalty_MCXCCL_CO_0_TM_12345_20261104_F_0000.csv", "mcxccl-penalty", 17},
+	{"CTT_MCXCCL_CO_0_TM_12345_20261104_F_0000.csv", "mcxccl-ctt", 49},
+	{"Stamp_MCXCCL_CO_0_TM_12345_20261104_F_0000.csv", "mcxccl-stamp", 38},
+	{"Trade_MCXCCL_CO_0_TM_12345_20261104_F_0000.csv", "mcx-trade", 46},
 	{"Bhavcopy_MCX_CO_0_0_0_20261104_F_0000.csv", "mcx-bhavcopy", 34},
 	{"bhavcopy_mcxccl_co_0_0_0_20261104_f_0000.csv", "mcx-bhavcopy", 34},
 }

@@ -296,7 +296,7 @@ roles: Ops checker, Admin
 ask: dp tariff plan; pledge charges of a plan; edit pledge charges; tariff basket; basket from sharepro; change dp tariff of an account; different dp charges for some clients; amc paid up to; amc paid in advance; yearly amc; lifetime amc; corporate amc; dp plan history; which tariff is a client on; staff dp tariff; zero dp charges for some accounts
 related: dp-billing, migrate-reconcile
 
-Most DPs charge some accounts differently: staff, a group of clients, pool accounts. These are **tariff plans** (SharePro calls them baskets). An account on a plan pays the plan's rates; every other account pays the firm tariff.
+Most DPs charge some accounts differently: staff, a group of clients, pool accounts. These are **tariff plans** (some back offices call them baskets). An account on a plan pays the plan's rates; every other account pays the firm tariff.
 
 1. **The plans.** On [[dp|Demat accounts & DIS]] → **Billing & tariff**, **Tariff plans** lists each plan with its accounts, maintenance and charges. A plan has dated versions; the bill uses the version in force in the month billed. Plans come with the migration (DP-TARIFFS) or on **Files → Other uploads**.
 2. **Charges.** Each line is a depository transaction type (off-market delivery, pay-in, demat and so on): a flat amount, a % of value or an amount per certificate, with a minimum and maximum. A demat request adds the courier charge once. **Own trades** is the rate for transfers to or from the firm's pool accounts or clearing member; blank means free.
@@ -306,7 +306,7 @@ Most DPs charge some accounts differently: staff, a group of clients, pool accou
 
 - After a migration, the reconciliation checks the plan versions, the accounts on a plan and those with maintenance paid ahead against the old system.
 - Reloading the DP's accounts (DP-ACCOUNTS) keeps each account's plans and paid-up date.
-- The old system's other rate set (SharePro's SP rates) is shown on the plan for the record and is not billed. Ask the office what it was for.
+- A second rate set brought from the old system is shown on the plan for the record and is not billed. Ask the office what it was for.
 
 # Corporate actions and IPO
 

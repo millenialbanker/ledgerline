@@ -14,8 +14,8 @@ import (
 
 // ---- scrip groups: named lists of scrips a card can price separately ----
 //
-// A scrip group is a list the firm keeps (ETFs, a list of illiquid scrips,
-// SharePro's SL… and SG… groups), by symbol or ISIN, each member from a date
+// A scrip group is a list the firm keeps (ETFs, a list of illiquid scrips),
+// by symbol or ISIN, each member from a date
 // and optionally to a date. A rate line for "group:ETF" applies to orders in
 // any member; a line for the scrip itself still wins over it. A scrip in two
 // groups is priced by the group that comes first by name.

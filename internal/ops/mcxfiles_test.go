@@ -120,29 +120,29 @@ func TestMCXObligationMarginsPenalties(t *testing.T) {
 		}
 	}
 	nobl := func(mtm money.Dec) []byte {
-		return xwrite(t, "mcx-obligation-tm", xr("10", "Date", "16102026", "CM ID", "1234", "TM ID", "56845", "Due Date Of Payment", "19102026", "Number of Detail Records at End Client Level", "1",
+		return xwrite(t, "mcx-obligation-tm", xr("10", "Date", "16102026", "CM ID", "1234", "TM ID", "12345", "Due Date Of Payment", "19102026", "Number of Detail Records at End Client Level", "1",
 			"MTM Profit/Loss", mtm.Fixed(2), "Net Pay-In/Pay-Out", mtm.Fixed(2), "Currency Code", "INR"),
 			xr("20", "Account Type", "C", "Account ID", ucc, "Instrument Name", "FUTCOM", "Symbol", sym, "MTM Profit/Loss", mtm.Fixed(2), "Currency Code", "INR"))
 	}
-	r := loadX(t, o, "MCX_NOBL_56845_20261016.csv", nobl(mine))
+	r := loadX(t, o, "MCX_NOBL_12345_20261016.csv", nobl(mine))
 	if r.Format != "mcx-obligation-tm" {
 		t.Fatalf("%+v", r)
 	}
 	if s := ccSection(t, o, "mcx_obligation"); !s.Loaded || s.Diffs != 0 || len(s.Rows) == 0 {
 		t.Fatalf("obligation matched: %+v", s)
 	}
-	loadX(t, o, "MCX_NOBL_56845_20261016.csv", nobl(mine.Add(money.MustDec("50"))))
+	loadX(t, o, "MCX_NOBL_12345_20261016.csv", nobl(mine.Add(money.MustDec("50"))))
 	if s := ccSection(t, o, "mcx_obligation"); s.Diffs != 1 {
 		t.Fatalf("obligation break not raised: %+v", s)
 	}
 
 	// Margin charged (MCX_MRG) and peak snapshots: live RMS and margin reporting.
-	loadX(t, o, "MCX_MRG_56845_20261016.csv", xwrite(t, "mcx-margin-tm",
-		xr("10", "Date", "16102026", "CM ID", "1234", "TM ID", "56845", "Number of Detail Records at Summary - End Client Level", "1", "Actual Margin Levied", "1000.00"),
-		xr("30", "TM ID", "56845", "Account Type", "C", "Account ID", ucc, "Actual Margin Levied", "1000.00", "Net Buy Premium", "100.00", "Extreme Loss Margin", "50.00")))
-	loadX(t, o, "MCX_PeakMargin56845_20261016_01.csv", xwrite(t, "mcx-peak-margin-tm",
-		xr("", "Business Date", "16OCT2026", "Snapshot Interval", "11:00:00", "CM ID", "1234", "TM ID", "56845", "Client ID", ucc, "Total Upfront Margin", "900000.00", "Short allocation", "10.00"),
-		xr("", "Business Date", "16OCT2026", "Snapshot Interval", "11:00:00", "CM ID", "1234", "TM ID", "56845", "Client ID", "*OWN*", "Total Upfront Margin", "5.00")))
+	loadX(t, o, "MCX_MRG_12345_20261016.csv", xwrite(t, "mcx-margin-tm",
+		xr("10", "Date", "16102026", "CM ID", "1234", "TM ID", "12345", "Number of Detail Records at Summary - End Client Level", "1", "Actual Margin Levied", "1000.00"),
+		xr("30", "TM ID", "12345", "Account Type", "C", "Account ID", ucc, "Actual Margin Levied", "1000.00", "Net Buy Premium", "100.00", "Extreme Loss Margin", "50.00")))
+	loadX(t, o, "MCX_PeakMargin12345_20261016_01.csv", xwrite(t, "mcx-peak-margin-tm",
+		xr("", "Business Date", "16OCT2026", "Snapshot Interval", "11:00:00", "CM ID", "1234", "TM ID", "12345", "Client ID", ucc, "Total Upfront Margin", "900000.00", "Short allocation", "10.00"),
+		xr("", "Business Date", "16OCT2026", "Snapshot Interval", "11:00:00", "CM ID", "1234", "TM ID", "12345", "Client ID", "*OWN*", "Total Upfront Margin", "5.00")))
 	lv, err := o.LiveRisk(ctx, T, D, "")
 	if err != nil {
 		t.Fatal(err)
@@ -191,7 +191,7 @@ func TestMCXObligationMarginsPenalties(t *testing.T) {
 	put("Applicable Penalty %", "0.50")
 	put("Penalty Amount", "25.00")
 	ncmr := "TRADE DATE,CM ID,CM NAME,TM ID,TM NAME,CLIENT CODE" + strings.Repeat(",X", len(h)-6) + "\n" + strings.Join(line, ",") + "\n"
-	r = loadX(t, o, "MCX_NCMR_56845_20261016.csv", []byte(ncmr))
+	r = loadX(t, o, "MCX_NCMR_12345_20261016.csv", []byte(ncmr))
 	if r.Format != "mcx-ncmr" {
 		t.Fatalf("%+v", r)
 	}
@@ -237,9 +237,9 @@ func TestMCXAllocationTaxesPositionsOrders(t *testing.T) {
 	ucc, sym, exp := mcxClient(t, o)
 
 	// Web allocation: the commodity allocation level.
-	loadX(t, o, "MCX_WebAllocationDeallcoation56845_20261016.csv", xwrite(t, "mcx-web-allocation",
-		xr("", "CM ID", "1234", "TM ID", "56845", "Allocation at EoD", "100000.00"),
-		xr("", "CM ID", "1234", "TM ID", "56845", "End Client/CP Code", ucc, "Allocation at EoD", "3000.00", "OWN Collateral at EoD", "0.00")))
+	loadX(t, o, "MCX_WebAllocationDeallcoation12345_20261016.csv", xwrite(t, "mcx-web-allocation",
+		xr("", "CM ID", "1234", "TM ID", "12345", "Allocation at EoD", "100000.00"),
+		xr("", "CM ID", "1234", "TM ID", "12345", "End Client/CP Code", ucc, "Allocation at EoD", "3000.00", "OWN Collateral at EoD", "0.00")))
 	v, err := o.AllocationScreen(ctx, T, D)
 	if err != nil {
 		t.Fatal(err)
@@ -273,7 +273,7 @@ func TestMCXAllocationTaxesPositionsOrders(t *testing.T) {
 		xr("", "RptHdr", "10", "Sgmt", "CO", "Src", "MCXCCL", "TradDt", D, "TtlTaxs", "100.00"),
 		xr("", "RptHdr", "20", "Sgmt", "CO", "Src", "MCXCCL", "TradDt", D, "ClntId", ucc, "TtlTaxs", "100.00"),
 		xr("", "RptHdr", "40", "Sgmt", "CO", "Src", "MCXCCL", "TradDt", D, "ClntId", ucc, "TckrSymb", sym, "TtlTaxs", "100.00", "TaxblSellFutrsVal", "548200.00"))
-	loadX(t, o, "CTT_MCXCCL_CO_0_TM_56845_20261016_F_0000.csv", ctt)
+	loadX(t, o, "CTT_MCXCCL_CO_0_TM_12345_20261016_F_0000.csv", ctt)
 	rec, _ := o.STTReconcile(ctx, T, D)
 	got := false
 	for _, x := range rec.Rows {
@@ -285,9 +285,9 @@ func TestMCXAllocationTaxesPositionsOrders(t *testing.T) {
 		t.Fatalf("CTT %+v", rec.Rows)
 	}
 	stamp := xwrite(t, "mcxccl-stamp",
-		xr("", "RptHdr", "20", "Sgmt", "CO", "Src", "MCXCCL", "ClctnDt", D, "BrkrOrCtdnPtcptId", "56845", "ClntId", ucc, "StmpDtyAmt", "3.00"),
+		xr("", "RptHdr", "20", "Sgmt", "CO", "Src", "MCXCCL", "ClctnDt", D, "BrkrOrCtdnPtcptId", "12345", "ClntId", ucc, "StmpDtyAmt", "3.00"),
 		xr("", "RptHdr", "40", "Sgmt", "CO", "Src", "MCXCCL", "ClctnDt", D, "ClntId", ucc, "TckrSymb", sym, "StmpDtyAmt", "3.00"))
-	loadX(t, o, "Stamp_MCXCCL_CO_0_TM_56845_20261016_F_0000.csv", stamp)
+	loadX(t, o, "Stamp_MCXCCL_CO_0_TM_12345_20261016_F_0000.csv", stamp)
 	found := false
 	for _, x := range ccSection(t, o, "stamp").Rows {
 		if strings.HasPrefix(x[0], "MCX") && x[1] == ucc {

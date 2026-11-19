@@ -45,7 +45,7 @@
    "name": "Collateral Mode",
    "key": "CollateralMode",
    "type": "int",
-   "note": "Ledgerline writes 1, as SharePro's file and Finspot's sample do"
+   "note": "Ledgerline writes 1, as Finspot's sample does"
   },
   {
    "name": "Collateral Qty",
@@ -69,7 +69,7 @@
    "name": "DP Holdings Qty",
    "key": "DPHoldingsQty",
    "type": "int",
-   "note": "Quantity available for sale only. Ledgerline writes 0, as SharePro's file does (the sellable quantity is in Holdings Qty)"
+   "note": "Quantity available for sale only. Ledgerline writes 0, as the files Finspot already takes do (the sellable quantity is in Holdings Qty)"
   },
   {
    "name": "Close Price",
@@ -85,13 +85,13 @@
    "type": "dec",
    "decimals": 3,
    "fixed": true,
-   "note": "Ledgerline writes 0.000, as SharePro's file does"
+   "note": "Ledgerline writes 0.000, as the files Finspot already takes do"
   },
   {
    "name": "Unpledge Holdings",
    "key": "UnpledgeHoldings",
    "type": "blank",
-   "note": "Left empty, as SharePro's file does"
+   "note": "Left empty, as the files Finspot already takes do"
   },
   {
    "name": "Product",
@@ -137,5 +137,5 @@
  "final_eol": true,
  "confirmed": true,
  "linked": "Front office → T1 holding file (Finspot)",
- "source": "Finspot File_Formats.xlsx, sheet T1 - ISIN Holdings (the ISIN Holding columns, title line 'T1 - ISIN Holdings'); SharePro's FINSPOT_NSEBSE_T#_HOLDING_ISIN files"
+ "source": "Finspot File_Formats.xlsx, sheet T1 - ISIN Holdings (the ISIN Holding columns, title line 'T1 - ISIN Holdings'); files of this type a broker already uploads"
 }

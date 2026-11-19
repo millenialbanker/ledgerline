@@ -21,8 +21,8 @@ import (
 // deposit and user stock files, which it also takes during market hours.
 // No headers; a NOT NULL field in BOW's sheet must have a value.
 //
-// The two the pilot broker's current back office writes each morning (and
-// whose shape Ledgerline copies) are here; every other upload of the
+// The two a back office typically writes each morning (and whose shape
+// Ledgerline copies) are here; every other upload of the
 // workbook is in bowuploads.go:
 //
 //   - BOW_FUND_<dd-mm-yy hh_mm_ss AM>.csv (bow-fund, DEPOSIT_UPLOAD,

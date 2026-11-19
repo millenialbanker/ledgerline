@@ -154,7 +154,7 @@ func (f *fakeMCX) handler(w http.ResponseWriter, r *http.Request) {
 	defer f.mu.Unlock()
 	f.paths = append(f.paths, r.Method+" "+r.URL.Path)
 	if r.URL.Path == "/v1/ucc/token" {
-		if r.Method != http.MethodPost || r.Header.Get("tm-id") != "56845" || r.Header.Get("api-key") != mcxTestAPIKey {
+		if r.Method != http.MethodPost || r.Header.Get("tm-id") != "12345" || r.Header.Get("api-key") != mcxTestAPIKey {
 			f.plain(w, 401, map[string]string{"detail": "Invalid credentials"})
 			return
 		}
@@ -294,7 +294,7 @@ func TestMCXUCCAPISend(t *testing.T) {
 		t.Fatalf("send %+v, %d adds", res, len(f.adds))
 	}
 	add := f.adds[0]
-	if add["record_type"] != "10" || add["member_type"] != "M" || add["tmid"] != float64(56845) || add["date"] != "30102026" || add["batch_number"] != "01" || add["record_count"] != "2" {
+	if add["record_type"] != "10" || add["member_type"] != "M" || add["tmid"] != float64(12345) || add["date"] != "30102026" || add["batch_number"] != "01" || add["record_count"] != "2" {
 		t.Fatalf("add header %v", add)
 	}
 	for _, x := range add["records"].([]any) {
@@ -349,7 +349,7 @@ func TestMCXUCCAPISend(t *testing.T) {
 	}
 	up := f.updates[0]
 	rec := up["records"].([]any)[0].(map[string]any)
-	if up["tmid"] != "56845" || rec["client_code"] != "MCXA1" || rec["pan"] != "ABCPA1111A" || rec["client_email_id"] != "asha.new@example.in" {
+	if up["tmid"] != "12345" || rec["client_code"] != "MCXA1" || rec["pan"] != "ABCPA1111A" || rec["client_email_id"] != "asha.new@example.in" {
 		t.Fatalf("update body %v", up)
 	}
 	if a := mcxReg(t, o, ctx, "MCXA1"); a.Action != "Modify" || a.Status != UCCAccepted || a.AcceptedHash != a.Hash {

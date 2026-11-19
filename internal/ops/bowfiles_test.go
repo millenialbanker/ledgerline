@@ -174,7 +174,7 @@ func TestBOWFundFileEarmark(t *testing.T) {
 	o.Now = func() time.Time { return time.Date(2026, 10, 30, 8, 13, 0, 0, ist) }
 	next := "2026-10-30"
 	lims, _ := o.bowLimits(ctx, T, next)
-	if l := lims["BJ01"]; l.Securities.Cmp(mustDec("10000")) != 0 || l.Commodities.Cmp(mustDec("200000")) != 0 {
+	if l := lims["AB01"]; l.Securities.Cmp(mustDec("10000")) != 0 || l.Commodities.Cmp(mustDec("200000")) != 0 {
 		t.Fatalf("limits %+v", l)
 	}
 	name, b, err := o.BOWFundFile(ctx, T, "anita.rao", next, false)
@@ -194,10 +194,10 @@ func TestBOWFundFileEarmark(t *testing.T) {
 		return got
 	}
 	got := lines(b)
-	if got["BJ01|securities"] != "10000" || got["BJ01|commodities"] != "200000" || got["BJ01|"] != "" || got["BJ02|securities"] == "" {
+	if got["AB01|securities"] != "10000" || got["AB01|commodities"] != "200000" || got["AB01|"] != "" || got["AB02|securities"] == "" {
 		t.Fatalf("funds %v", got)
 	}
-	if !strings.Contains("\r\n"+string(b), "\r\nBJ01,,,,10000,0,0,0,securities,1,0,,,,,1,1,0,1,Y\r\nBJ01,,,,200000,0,0,0,commodities,1,0,,,,,1,1,0,1,Y\r\n") {
+	if !strings.Contains("\r\n"+string(b), "\r\nAB01,,,,10000,0,0,0,securities,1,0,,,,,1,1,0,1,Y\r\nAB01,,,,200000,0,0,0,commodities,1,0,,,,,1,1,0,1,Y\r\n") {
 		t.Fatalf("two lines %q", b)
 	}
 	for k := range got {
@@ -207,18 +207,18 @@ func TestBOWFundFileEarmark(t *testing.T) {
 	}
 	o.SaveConnection(ctx, T, "admin", connBOWFiles, map[string]string{"deposit_shape": bowShapeThree}, nil)
 	_, b, _ = o.BOWFundFile(ctx, T, "anita.rao", next, false)
-	if got = lines(b); got["BJ01|securities"] != "10000" || got["BJ01|commodities"] != "200000" || got["BJ01|"] != "210000" {
+	if got = lines(b); got["AB01|securities"] != "10000" || got["AB01|commodities"] != "200000" || got["AB01|"] != "210000" {
 		t.Fatalf("funds %v", got)
 	}
 	o.SaveConnection(ctx, T, "admin", connBOWFiles, map[string]string{"deposit_shape": bowShapeSingle}, nil)
 	_, b, _ = o.BOWFundFile(ctx, T, "anita.rao", next, false)
-	if got = lines(b); got["BJ01|"] != "210000" || got["BJ02|"] != "50000" || got["BJ01|securities"] != "" {
+	if got = lines(b); got["AB01|"] != "210000" || got["AB02|"] != "50000" || got["AB01|securities"] != "" {
 		t.Fatalf("funds %v", got)
 	}
 	// A product makes the lines 21 fields.
 	o.SaveConnection(ctx, T, "admin", connBOWFiles, map[string]string{"deposit_product": "Delivery"}, nil)
 	_, b, _ = o.BOWFundFile(ctx, T, "anita.rao", next, false)
-	if !strings.Contains("\r\n"+string(b), "\r\nBJ01,,,,10000,0,0,0,securities,1,0,,,,,1,1,0,1,Y,Delivery\r\n") {
+	if !strings.Contains("\r\n"+string(b), "\r\nAB01,,,,10000,0,0,0,securities,1,0,,,,,1,1,0,1,Y,Delivery\r\n") {
 		t.Fatalf("product %q", b)
 	}
 	readBOW(t, "bow-fund", name, b)

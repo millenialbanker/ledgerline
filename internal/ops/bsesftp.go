@@ -47,7 +47,7 @@ func init() {
 			{Key: "site", Label: "Connect to", Options: []string{"Production", "DR/BCP"}},
 			{Key: "user", Label: "SFTP user"},
 			{Key: "password", Label: "SFTP password", Secret: true},
-			{Key: "member", Label: "Member code (the folder name)", Placeholder: "e.g. 0923"},
+			{Key: "member", Label: "Member code (the folder name)", Placeholder: "e.g. 0999"},
 			{Key: "folders", Label: "Folders to look in (comma separated; empty: the member folder and Common)", Optional: true},
 			{Key: "hostkey", Label: "Server's host key (SHA256:… fingerprint or the full key line). Required; the first try shows the key the server offers", Optional: true},
 			{Key: "fetch", Label: "Fetch new files automatically", Options: []string{"On", "Off"}},

@@ -24,7 +24,7 @@ func sftpTestServer(t *testing.T, dir string) (addr string, key ssh.PublicKey) {
 		t.Fatal(err)
 	}
 	conf := &ssh.ServerConfig{PasswordCallback: func(c ssh.ConnMetadata, p []byte) (*ssh.Permissions, error) {
-		if c.User() == "DP081600" && string(p) == "pw" {
+		if c.User() == "DP012345" && string(p) == "pw" {
 			return nil, nil
 		}
 		return nil, os.ErrPermission
@@ -77,7 +77,7 @@ func TestFetchSFTPReal(t *testing.T) {
 	os.Mkdir(filepath.Join(dir, "sub"), 0o755)
 	addr, key := sftpTestServer(t, dir)
 	ctx := context.Background()
-	cfg := CDSLSFTPConfig{Host: addr, User: "DP081600", Password: "pw", Dir: dir}
+	cfg := CDSLSFTPConfig{Host: addr, User: "DP012345", Password: "pw", Dir: dir}
 
 	// No host key saved: refused, and the error names the key offered.
 	if _, err := fetchSFTP(ctx, cfg); err == nil || !strings.Contains(err.Error(), ssh.FingerprintSHA256(key)) {

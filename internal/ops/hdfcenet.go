@@ -37,7 +37,7 @@ const (
 
 	hdfcSpecID = "hdfc-enet-payout"
 	// HDFCDefaultFileName is the default name template: the firm's ENet
-	// client ID, the date as DDMM and a 3-digit sequence (BALJIT19910411.817).
+	// client ID, the date as DDMM and a 3-digit sequence (ABCD12340411.817).
 	HDFCDefaultFileName = "{hdfc_client_id}{date:0201}.{seq:3}"
 	// HDFCSeqRunning counts files across days (the default); HDFCSeqDaily
 	// restarts at 001 each day. Both wrap from 999 to 001.

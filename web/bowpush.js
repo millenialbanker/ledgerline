@@ -82,7 +82,7 @@ Object.assign(A, {
     const r = (C.live?.bow?.rows || []).find(x => x.ucc === id) || {}, u = r.user || {};
     confirmModal('BOW user · ' + esc(id), 'Normally found in BOW\'s client list by the UCC. Set it here when the BOW login is different; leave the ID empty to go back to the client list.',
       `<div class="grid g2"><div class="fld"><label for="bow-usid">BOW internal user ID (USID)</label><input class="in mono" id="bow-usid" value="${r.by_hand ? esc(u.usid || '') : ''}"></div>
-       <div class="fld"><label for="bow-login">BOW login ID</label><input class="in mono" id="bow-login" placeholder="${esc(id)}-T9065" value="${r.by_hand ? esc(u.login_id || '') : ''}"></div></div>`, 'Save',
+       <div class="fld"><label for="bow-login">BOW login ID</label><input class="in mono" id="bow-login" placeholder="${esc(id)}-T1234" value="${r.by_hand ? esc(u.login_id || '') : ''}"></div></div>`, 'Save',
       () => act(() => post(`/v1/bow/users/${encodeURIComponent(id)}`, { usid: $('bow-usid').value.trim(), login_id: $('bow-login').value.trim() }), 'BOW user saved'));
   },
 });

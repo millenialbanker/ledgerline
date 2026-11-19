@@ -9,9 +9,9 @@ import (
 
 func TestClientCode(t *testing.T) {
 	for acct, want := range map[string][2]string{
-		"CLIENT:BJ01":        {"BJ01", LedgerEquity},
-		"CLIENTCOM:BJ01":     {"BJ01", LedgerCommodity},
-		"CLIENTUNALLOC:BJ01": {"BJ01", LedgerAwaiting},
+		"CLIENT:AB01":        {"AB01", LedgerEquity},
+		"CLIENTCOM:AB01":     {"AB01", LedgerCommodity},
+		"CLIENTUNALLOC:AB01": {"AB01", LedgerAwaiting},
 	} {
 		u, k, ok := ClientCode(acct)
 		if !ok || u != want[0] || k != want[1] {

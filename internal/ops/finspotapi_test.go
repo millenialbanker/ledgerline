@@ -327,11 +327,11 @@ func TestFinspotAPILimits(t *testing.T) {
 
 	// 08:40: the start of day sends every client's limit.
 	o.finspotAPITick(ctx, T, clock)
-	if f.limits["BJ01"]["cash"] != "10000.00" || f.limits["BJ02"]["cash"] != "50000.00" || f.limits["BJ01"]["brkcollamt"] != "0.00" {
+	if f.limits["AB01"]["cash"] != "10000.00" || f.limits["AB02"]["cash"] != "50000.00" || f.limits["AB01"]["brkcollamt"] != "0.00" {
 		t.Fatalf("limits %v", f.limits)
 	}
-	st, _, _ := docs.Get[FinspotAPIClient](ctx, o.Docs, T, cFNClient, "BJ01")
-	if st.Status != FNPushed || st.Cash.Cmp(mustDec("10000")) != 0 || st.ActID != "BJ01" {
+	st, _, _ := docs.Get[FinspotAPIClient](ctx, o.Docs, T, cFNClient, "AB01")
+	if st.Status != FNPushed || st.Cash.Cmp(mustDec("10000")) != 0 || st.ActID != "AB01" {
 		t.Fatalf("state %+v", st)
 	}
 	sd, _, _ := docs.Get[fnStateDoc](ctx, o.Docs, T, cFNState, "state")
@@ -351,17 +351,17 @@ func TestFinspotAPILimits(t *testing.T) {
 		t.Fatalf("%d runs kept", len(runs))
 	}
 
-	// Equity money for BJ02 queues it; the next tick sends it at once.
+	// Equity money for AB02 queues it; the next tick sends it at once.
 	ecmsCredit(t, o, ctx, "S2", "UTR2", sgAcct, "91902033334444", "1000", "NSE FUNDS")
-	if q := o.fnQueuedUCCs(ctx, T); len(q) != 1 || q[0] != "BJ02" {
+	if q := o.fnQueuedUCCs(ctx, T); len(q) != 1 || q[0] != "AB02" {
 		t.Fatalf("queue %v", q)
 	}
 	clock = clock.Add(time.Minute)
 	o.finspotAPITick(ctx, T, clock)
-	if f.count("SetLimits") != n+1 || f.limits["BJ02"]["cash"] != "51000.00" || len(o.fnQueuedUCCs(ctx, T)) != 0 {
-		t.Fatalf("queued push: %d, %v", f.count("SetLimits")-n, f.limits["BJ02"])
+	if f.count("SetLimits") != n+1 || f.limits["AB02"]["cash"] != "51000.00" || len(o.fnQueuedUCCs(ctx, T)) != 0 {
+		t.Fatalf("queued push: %d, %v", f.count("SetLimits")-n, f.limits["AB02"])
 	}
-	// Commodity money is not Finspot's: BJ01 is not sent again.
+	// Commodity money is not Finspot's: AB01 is not sent again.
 	ecmsCredit(t, o, ctx, "S1", "UTR1", sgCom, "50100011112222", "5000", "MCX MARGIN")
 	clock = clock.Add(6 * time.Minute)
 	o.finspotAPITick(ctx, T, clock)
@@ -372,23 +372,23 @@ func TestFinspotAPILimits(t *testing.T) {
 	// The session ends: one new sign-in, and the push goes through.
 	f.expire = true
 	logins := f.logins
-	if run, err := o.FinspotAPIPush(ctx, T, "anita.rao", "", []string{FNPartLimits}, []string{"BJ01"}); err != nil || run.Parts[0].Pushed != 1 || f.logins != logins+1 {
+	if run, err := o.FinspotAPIPush(ctx, T, "anita.rao", "", []string{FNPartLimits}, []string{"AB01"}); err != nil || run.Parts[0].Pushed != 1 || f.logins != logins+1 {
 		t.Fatalf("after the session ended: %+v %v (%d sign-ins)", run, err, f.logins-logins)
 	}
 
 	// Finspot refuses a client: the state says so, and Risk is told.
-	f.refuse["BJ02"] = `Error Occurred : RED:"invalid input"`
+	f.refuse["AB02"] = `Error Occurred : RED:"invalid input"`
 	run, err := o.FinspotAPIPush(ctx, T, "anita.rao", "", []string{FNPartLimits}, nil)
-	if err != nil || run.Parts[0].Failed != 1 || run.Parts[0].Pushed != 1 || len(run.Failures) != 1 || !strings.Contains(run.Failures[0], "BJ02") {
+	if err != nil || run.Parts[0].Failed != 1 || run.Parts[0].Pushed != 1 || len(run.Failures) != 1 || !strings.Contains(run.Failures[0], "AB02") {
 		t.Fatalf("run %+v %v", run, err)
 	}
-	if s, _, _ := docs.Get[FinspotAPIClient](ctx, o.Docs, T, cFNClient, "BJ02"); s.Status != FNFailed || !strings.Contains(s.Error, "invalid input") || s.Cash.Cmp(mustDec("51000")) != 0 {
-		t.Fatalf("BJ02 %+v", s)
+	if s, _, _ := docs.Get[FinspotAPIClient](ctx, o.Docs, T, cFNClient, "AB02"); s.Status != FNFailed || !strings.Contains(s.Error, "invalid input") || s.Cash.Cmp(mustDec("51000")) != 0 {
+		t.Fatalf("AB02 %+v", s)
 	}
 	if w := fnOpenWork(o, ctx, "finspotapi:limits"); w == nil || w.Role != RoleRisk {
 		t.Fatalf("work item %+v", w)
 	}
-	delete(f.refuse, "BJ02")
+	delete(f.refuse, "AB02")
 
 	// The OMS is down (EOD/BOD): the run stops, the connection stays good.
 	f.down = true

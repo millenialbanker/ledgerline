@@ -13,7 +13,7 @@ import (
 
 // ---- go-live imports: offices, partners, exchange UCC details, BO accounts ----
 //
-// Data the back office holds that another system (SharePro first) also
+// Data the back office holds that the firm's previous system also
 // keeps, brought across at migration in plain CSV files with fixed columns:
 //
 //   BRANCHES      the firm's offices and their tree (before the client master)

@@ -50,7 +50,7 @@ type fakeDep struct {
 
 func newFakeBOW(t *testing.T) *fakeBOW {
 	return &fakeBOW{t: t, sessions: map[string]bool{}, deps: map[string][]*fakeDep{}, nextID: 97, refuse: map[string]string{},
-		users: [][]string{{"16377", "BJ01-T9065", "BJ01-T9065", "Asha", "Rao"}, {"16378", "bj02-T9065", "bj02-T9065", "Vikram", "Shah"}, {"16390", "ZZ99-T9065", "ZZ99-T9065", "Not", "Ours"}}}
+		users: [][]string{{"50377", "AB01-T1234", "AB01-T1234", "Asha", "Rao"}, {"50378", "ab02-T1234", "ab02-T1234", "Vikram", "Shah"}, {"16390", "ZZ99-T1234", "ZZ99-T1234", "Not", "Ours"}}}
 }
 
 func (f *fakeBOW) usidOf(login string) string {
@@ -78,7 +78,7 @@ func (f *fakeBOW) handler(w http.ResponseWriter, r *http.Request) {
 	switch name {
 	case "LoginServlet":
 		f.logins++
-		if fv("USLOGINID") != "ADMIN-T9065" || fv("VenderCode") != "1_LDG" || fv("ThickClient") != "Y" || fv("Version") != "LEDGERLINE_1.0" {
+		if fv("USLOGINID") != "ADMIN-T1234" || fv("VenderCode") != "1_LDG" || fv("ThickClient") != "Y" || fv("Version") != "LEDGERLINE_1.0" {
 			f.t.Errorf("login form %v", r.PostForm)
 		}
 		if fv("USPassword") != bowTestPass {
@@ -94,11 +94,11 @@ func (f *fakeBOW) handler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			f.sessions[key] = true
 		}
-		say("0||2||||||||||||||N|N|N||||||10|N|N||||~45|" + key + "|Sett No : 000000||ADMIN-T9065|3|false~292|8001|1|Test|0.0|^0^0~8001~Y|0~6|9|10|14~")
+		say("0||2||||||||||||||N|N|N||||||10|N|N||||~45|" + key + "|Sett No : 000000||ADMIN-T1234|3|false~292|8001|1|Test|0.0|^0^0~8001~Y|0~6|9|10|14~")
 		return
 	case "AuthenticationMode":
 		f.otpAsked++
-		if fv("verificationMode") != "1" || fv("USLOGINID") != "ADMIN-T9065" {
+		if fv("verificationMode") != "1" || fv("USLOGINID") != "ADMIN-T1234" {
 			f.t.Errorf("otp ask %v", r.PostForm)
 		}
 		say("0|OTP has been sent to registered mobile 98xxxxxx11 and registered Email Id.~")
@@ -125,9 +125,9 @@ func (f *fakeBOW) handler(w http.ResponseWriter, r *http.Request) {
 		}
 		s := fmt.Sprintf("0||%d~", len(f.users))
 		for _, u := range f.users {
-			s += u[0] + "|" + u[3] + "|" + u[4] + "|" + u[1] + "|" + u[2] + "|1|1|2018-08-14 13:42:44.93|N||ADMIN-T9065~"
+			s += u[0] + "|" + u[3] + "|" + u[4] + "|" + u[1] + "|" + u[2] + "|1|1|2018-08-14 13:42:44.93|N||ADMIN-T1234~"
 		}
-		s += "45|Admin|User|ADMIN-T9065|ADMIN-T9065|1|3|2018-08-14 13:42:44.93|N||ADMIN-T9065~" // an administrator: not a client
+		s += "45|Admin|User|ADMIN-T1234|ADMIN-T1234|1|3|2018-08-14 13:42:44.93|N||ADMIN-T1234~" // an administrator: not a client
 		say(s)
 	case "ListUserDeposit":
 		usid := f.usidOf(fv("USBackOfficeId"))
@@ -239,8 +239,8 @@ func (f *fakeBOW) count(name string) int {
 	return n
 }
 
-// bowSetup is Baljit's books (sepSetup: BJ01 ₹10,000 equity and ₹2,00,000
-// commodity, BJ02 ₹50,000 equity) with a fake BOW.
+// bowSetup is a broker's books (sepSetup: AB01 ₹10,000 equity and ₹2,00,000
+// commodity, AB02 ₹50,000 equity) with a fake BOW.
 func bowSetup(t *testing.T, twoFA bool) (*Ops, context.Context, *fakeBOW, *time.Time) {
 	t.Helper()
 	o, ctx := sepSetup(t)
@@ -257,7 +257,7 @@ func bowSetup(t *testing.T, twoFA bool) (*Ops, context.Context, *fakeBOW, *time.
 	if twoFA {
 		tf = bowOTPOn
 	}
-	if _, err := o.SaveConnection(ctx, T, "admin", connBOW, map[string]string{"env": "UAT", "url": srv.URL + "/stocks", "user": "ADMIN-T9065", "vendor_code": "1_LDG", "two_factor": tf, "send": "On"},
+	if _, err := o.SaveConnection(ctx, T, "admin", connBOW, map[string]string{"env": "UAT", "url": srv.URL + "/stocks", "user": "ADMIN-T1234", "vendor_code": "1_LDG", "two_factor": tf, "send": "On"},
 		map[string]string{"password": bowTestPass}); err != nil {
 		t.Fatal(err)
 	}
@@ -317,8 +317,8 @@ func TestBOWEncoding(t *testing.T) {
 	if f := bowForm(x, BOWUser{USID: "73", LoginID: "L"}, bowRowsFor(x, BOWLimit{Securities: mustDec("100")})); f.Get("UDMarkToMarketFactor1") != "10000" || f.Get("UDFIELD51") != "2000000" {
 		t.Fatalf("mtm %v", f)
 	}
-	cs := map[string]Client{"BJ01": {}, "A-B": {}}
-	for in, want := range map[string]string{"BJ01-T9065": "BJ01", "bj01": "BJ01", "A-B-T1": "A-B", "A-B": "A-B", "ZZ-T1": "", "": ""} {
+	cs := map[string]Client{"AB01": {}, "A-B": {}}
+	for in, want := range map[string]string{"AB01-T1234": "AB01", "ab01": "AB01", "A-B-T1": "A-B", "A-B": "A-B", "ZZ-T1": "", "": ""} {
 		if got := bowMatch(in, cs); got != want {
 			t.Errorf("match %q = %q, want %q", in, got, want)
 		}
@@ -346,16 +346,16 @@ func TestBOWPush(t *testing.T) {
 	if len(f.edits) != 2 {
 		t.Fatalf("%d edits at the start of the day (%v)", len(f.edits), f.paths)
 	}
-	sec, com, usr := f.dep("16377", "1"), f.dep("16377", "2"), f.dep("16377", "")
+	sec, com, usr := f.dep("50377", "1"), f.dep("50377", "2"), f.dep("50377", "")
 	if sec == nil || com == nil || usr == nil || sec.cash != 10000 || com.cash != 200000 || usr.cash != 210000 || sec.mult != 10000 || sec.level != "11" || usr.level != "0" ||
 		sec.eff != 100000000 || com.eff != 2000000000 || sec.mtm != "-1" || sec.mtmLim != "-1" || sec.adh != "0" {
-		t.Fatalf("BJ01 rows %+v %+v %+v", usr, sec, com)
+		t.Fatalf("AB01 rows %+v %+v %+v", usr, sec, com)
 	}
-	if d := f.dep("16378", "2"); d == nil || d.cash != 0 || f.dep("16378", "1").cash != 50000 {
-		t.Fatal("BJ02 rows")
+	if d := f.dep("50378", "2"); d == nil || d.cash != 0 || f.dep("50378", "1").cash != 50000 {
+		t.Fatal("AB02 rows")
 	}
-	if s := bowState(t, o, ctx, "BJ01"); s.Status != BOWPushed || s.USID != "16377" || s.Securities.Cmp(mustDec("10000")) != 0 || s.Commodities.Cmp(mustDec("200000")) != 0 || !strings.Contains(s.Request, "add Commodities cash ₹200000.00 × 1.0000") {
-		t.Fatalf("BJ01 state %+v", s)
+	if s := bowState(t, o, ctx, "AB01"); s.Status != BOWPushed || s.USID != "50377" || s.Securities.Cmp(mustDec("10000")) != 0 || s.Commodities.Cmp(mustDec("200000")) != 0 || !strings.Contains(s.Request, "add Commodities cash ₹200000.00 × 1.0000") {
+		t.Fatalf("AB01 state %+v", s)
 	}
 	st, _, _ := docs.Get[bowStateDoc](ctx, o.Docs, T, cBOWState, "state")
 	if st.BODDate != "2026-10-29" {
@@ -370,28 +370,28 @@ func TestBOWPush(t *testing.T) {
 		t.Fatalf("unchanged limits pushed again: %d", len(f.edits)-n)
 	}
 
-	// ₹5,000 MCX money for BJ01 by e-CMS: the sweep pushes BJ01 only, as a
+	// ₹5,000 MCX money for AB01 by e-CMS: the sweep pushes AB01 only, as a
 	// modify of BOW's rows.
 	ecmsCredit(t, o, ctx, "S1", "UTR1", sgCom, "50100011112222", "5000", "MCX MARGIN")
 	*clock = clock.Add(6 * time.Minute)
 	pre := f.count("PreEditUserDeposit")
 	o.bowTick(ctx, T, *clock)
-	if len(f.edits) != n+1 || f.edits[n].Get("USLOGINID") != "BJ01-T9065" || f.edits[n].Get("UDID0") == "" || f.edits[n].Get("UDID2") != com.id || f.count("PreEditUserDeposit") != pre+1 {
+	if len(f.edits) != n+1 || f.edits[n].Get("USLOGINID") != "AB01-T1234" || f.edits[n].Get("UDID0") == "" || f.edits[n].Get("UDID2") != com.id || f.count("PreEditUserDeposit") != pre+1 {
 		t.Fatalf("intraday push: %d edits, %v", len(f.edits)-n, f.edits[len(f.edits)-1])
 	}
-	if d := f.dep("16377", "2"); d.cash != 205000 || d.id != com.id || len(f.deps["16377"]) != 3 {
-		t.Fatalf("BJ01 commodities %+v (%d rows)", d, len(f.deps["16377"]))
+	if d := f.dep("50377", "2"); d.cash != 205000 || d.id != com.id || len(f.deps["50377"]) != 3 {
+		t.Fatalf("AB01 commodities %+v (%d rows)", d, len(f.deps["50377"]))
 	}
 
-	// Equity money for BJ02 queues the client; the next tick pushes it at
+	// Equity money for AB02 queues the client; the next tick pushes it at
 	// once, before the next sweep.
 	ecmsCredit(t, o, ctx, "S2", "UTR2", sgAcct, "91902033334444", "1000", "NSE FUNDS")
-	if q := o.bowQueuedUCCs(ctx, T); len(q) != 1 || q[0] != "BJ02" {
+	if q := o.bowQueuedUCCs(ctx, T); len(q) != 1 || q[0] != "AB02" {
 		t.Fatalf("queue %v", q)
 	}
 	*clock = clock.Add(time.Minute)
 	o.bowTick(ctx, T, *clock)
-	if len(f.edits) != n+2 || f.edits[n+1].Get("USLOGINID") != "bj02-T9065" || f.dep("16378", "1").cash != 51000 {
+	if len(f.edits) != n+2 || f.edits[n+1].Get("USLOGINID") != "ab02-T1234" || f.dep("50378", "1").cash != 51000 {
 		t.Fatalf("queued push: %d edits", len(f.edits)-n)
 	}
 	if q := o.bowQueuedUCCs(ctx, T); len(q) != 0 {
@@ -399,61 +399,61 @@ func TestBOWPush(t *testing.T) {
 	}
 
 	// BOW refuses a client: the state says so and Risk gets a work item.
-	f.refuse["bj02-T9065"] = "Deposit exceeds member limit"
-	if _, err := o.BOWPush(ctx, T, "anita.rao", "", []string{"BJ02"}); err != nil {
+	f.refuse["ab02-T1234"] = "Deposit exceeds member limit"
+	if _, err := o.BOWPush(ctx, T, "anita.rao", "", []string{"AB02"}); err != nil {
 		t.Fatal(err)
 	}
-	if s := bowState(t, o, ctx, "BJ02"); s.Status != BOWUnchanged {
-		t.Fatalf("BJ02 at BOW's values: %+v", s)
+	if s := bowState(t, o, ctx, "AB02"); s.Status != BOWUnchanged {
+		t.Fatalf("AB02 at BOW's values: %+v", s)
 	}
-	c, _ := o.Client(ctx, T, "BJ02")
+	c, _ := o.Client(ctx, T, "AB02")
 	c.Blocked = true
-	_ = docs.Upsert(ctx, o.Docs, T, cClient, "BJ02", c, "t")
-	run, err := o.BOWPush(ctx, T, "anita.rao", "", []string{"BJ02"})
+	_ = docs.Upsert(ctx, o.Docs, T, cClient, "AB02", c, "t")
+	run, err := o.BOWPush(ctx, T, "anita.rao", "", []string{"AB02"})
 	if err != nil || run.Failed != 1 {
 		t.Fatalf("run %+v %v", run, err)
 	}
-	if s := bowState(t, o, ctx, "BJ02"); s.Status != BOWFailed || !strings.Contains(s.Error, "Deposit exceeds member limit") {
-		t.Fatalf("BJ02 %+v", s)
+	if s := bowState(t, o, ctx, "AB02"); s.Status != BOWFailed || !strings.Contains(s.Error, "Deposit exceeds member limit") {
+		t.Fatalf("AB02 %+v", s)
 	}
-	if w := bowOpenWork(t, o, ctx, "bowpush:BJ02"); w == nil || w.Role != RoleRisk || w.View != "live" {
+	if w := bowOpenWork(t, o, ctx, "bowpush:AB02"); w == nil || w.Role != RoleRisk || w.View != "live" {
 		t.Fatalf("work item %+v", w)
 	}
 	// Taken the next time: blocked means 0 on both; the work item closes.
-	delete(f.refuse, "bj02-T9065")
-	if _, err := o.BOWPush(ctx, T, "anita.rao", "", []string{"BJ02"}); err != nil {
+	delete(f.refuse, "ab02-T1234")
+	if _, err := o.BOWPush(ctx, T, "anita.rao", "", []string{"AB02"}); err != nil {
 		t.Fatal(err)
 	}
-	if f.dep("16378", "1").cash != 0 || f.dep("16378", "2").cash != 0 || f.dep("16378", "").cash != 0 || bowOpenWork(t, o, ctx, "bowpush:BJ02") != nil {
+	if f.dep("50378", "1").cash != 0 || f.dep("50378", "2").cash != 0 || f.dep("50378", "").cash != 0 || bowOpenWork(t, o, ctx, "bowpush:AB02") != nil {
 		t.Fatal("blocked client not at 0, or the work item is open")
 	}
-	if s := bowState(t, o, ctx, "BJ02"); s.Why != "blocked" {
+	if s := bowState(t, o, ctx, "AB02"); s.Why != "blocked" {
 		t.Fatalf("why %+v", s)
 	}
 
 	// A client set by hand, and a closed client's rows removed.
-	if _, err := o.SetBOWUser(ctx, T, "anita.rao", "BJ02", BOWUser{USID: "16390", LoginID: "ZZ99-T9065"}); err != nil {
+	if _, err := o.SetBOWUser(ctx, T, "anita.rao", "AB02", BOWUser{USID: "16390", LoginID: "ZZ99-T1234"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := o.BOWPush(ctx, T, "anita.rao", "", []string{"BJ02"}); err != nil {
+	if _, err := o.BOWPush(ctx, T, "anita.rao", "", []string{"AB02"}); err != nil {
 		t.Fatal(err)
 	}
-	if last := f.edits[len(f.edits)-1]; last.Get("USLOGINID") != "ZZ99-T9065" || last.Get("UDUSID1") != "16390" || last.Get("UDID1") != "" {
+	if last := f.edits[len(f.edits)-1]; last.Get("USLOGINID") != "ZZ99-T1234" || last.Get("UDUSID1") != "16390" || last.Get("UDID1") != "" {
 		t.Fatalf("the hand-set user was not used: %v", last)
 	}
-	if _, err := o.SetBOWUser(ctx, T, "anita.rao", "BJ02", BOWUser{}); err != nil {
+	if _, err := o.SetBOWUser(ctx, T, "anita.rao", "AB02", BOWUser{}); err != nil {
 		t.Fatal(err)
 	}
 	c.Status = "Closed"
-	_ = docs.Upsert(ctx, o.Docs, T, cClient, "BJ02", c, "t")
-	if _, err := o.BOWPush(ctx, T, "anita.rao", "", []string{"BJ02"}); err != nil {
+	_ = docs.Upsert(ctx, o.Docs, T, cClient, "AB02", c, "t")
+	if _, err := o.BOWPush(ctx, T, "anita.rao", "", []string{"AB02"}); err != nil {
 		t.Fatal(err)
 	}
-	if last := f.edits[len(f.edits)-1]; last.Get("UDROWSTATE0") != "0" || last.Get("UDID0") == "" || len(f.deps["16378"]) != 0 {
-		t.Fatalf("closed client not removed: %v %d rows", last, len(f.deps["16378"]))
+	if last := f.edits[len(f.edits)-1]; last.Get("UDROWSTATE0") != "0" || last.Get("UDID0") == "" || len(f.deps["50378"]) != 0 {
+		t.Fatalf("closed client not removed: %v %d rows", last, len(f.deps["50378"]))
 	}
-	if s := bowState(t, o, ctx, "BJ02"); s.Status != BOWRemoved {
-		t.Fatalf("BJ02 %+v", s)
+	if s := bowState(t, o, ctx, "AB02"); s.Status != BOWRemoved {
+		t.Fatalf("AB02 %+v", s)
 	}
 
 	// The screen, and never the password or the session key in a record.
@@ -463,12 +463,12 @@ func TestBOWPush(t *testing.T) {
 	}
 	var b1 *BOWRow
 	for i := range v.Rows {
-		if v.Rows[i].UCC == "BJ01" {
+		if v.Rows[i].UCC == "AB01" {
 			b1 = &v.Rows[i]
 		}
 	}
 	if b1 == nil || b1.Differs || b1.User == nil || b1.Limit.Commodities.Cmp(mustDec("205000")) != 0 {
-		t.Fatalf("BJ01 row %+v", b1)
+		t.Fatalf("AB01 row %+v", b1)
 	}
 	runs, _ := docs.List[BOWPushRun](ctx, o.Docs, T, cBOWRun, "")
 	states, _ := docs.List[BOWClientState](ctx, o.Docs, T, cBOWClient, "")
@@ -527,7 +527,7 @@ func TestBOWOTPAndRefusedPassword(t *testing.T) {
 	// A refused password stops automatic pushes: BOW locks a login after
 	// three wrong passwords, so it is never tried again on its own.
 	o2, ctx2, f2, clock2 := bowSetup(t, false)
-	if _, err := o2.SaveConnection(ctx2, T, "admin", connBOW, map[string]string{"env": "UAT", "url": strings.TrimSuffix(bowURL(t, o2, ctx2), "/"), "user": "ADMIN-T9065", "vendor_code": "1_LDG", "two_factor": bowOTPOff, "send": "On"},
+	if _, err := o2.SaveConnection(ctx2, T, "admin", connBOW, map[string]string{"env": "UAT", "url": strings.TrimSuffix(bowURL(t, o2, ctx2), "/"), "user": "ADMIN-T1234", "vendor_code": "1_LDG", "two_factor": bowOTPOff, "send": "On"},
 		map[string]string{"password": "Wrong#123x"}); err != nil {
 		t.Fatal(err)
 	}
@@ -610,17 +610,17 @@ func TestBOWLimitsEarmark(t *testing.T) {
 			t.Fatalf("%s %s: Securities %s Commodities %s, want %s %s", date, ucc, l.Securities, l.Commodities, sec, com)
 		}
 	}
-	want(sgD0, "BJ01", "10000", "200000") // the MCX money came in today
-	want(sgD0, "BJ02", "53000", "0")      // equity money today
+	want(sgD0, "AB01", "10000", "200000") // the MCX money came in today
+	want(sgD0, "AB02", "53000", "0")      // equity money today
 	next := "2026-10-30"
-	want(next, "BJ01", "10000", "200000") // start of the next day
-	want(next, "BJ02", "53000", "0")
+	want(next, "AB01", "10000", "200000") // start of the next day
+	want(next, "AB02", "53000", "0")
 	fs, _ := o.finspotFunds(ctx, T, next)
 	bf, _ := o.bowFunds(ctx, T, next)
-	if fs["BJ01"].Cmp(mustDec("10000")) != 0 || bf["BJ01"].Cmp(mustDec("200000")) != 0 {
-		t.Fatalf("Finspot %s, BOW funds file %s", fs["BJ01"], bf["BJ01"])
+	if fs["AB01"].Cmp(mustDec("10000")) != 0 || bf["AB01"].Cmp(mustDec("200000")) != 0 {
+		t.Fatalf("Finspot %s, BOW funds file %s", fs["AB01"], bf["AB01"])
 	}
-	if b, err := o.BOWFundsFile(ctx, T, next); err != nil || !strings.Contains(string(b), "BJ01") {
+	if b, err := o.BOWFundsFile(ctx, T, next); err != nil || !strings.Contains(string(b), "AB01") {
 		t.Fatalf("BOW funds file %q %v", b, err)
 	}
 }

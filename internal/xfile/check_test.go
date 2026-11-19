@@ -20,10 +20,10 @@ func TestCheckShowsNoValues(t *testing.T) {
 	data := good + "\n" + strings.Join(cli, ",") + "\n" + short + "\n"
 	var gz bytes.Buffer
 	zw := gzip.NewWriter(&gz)
-	zw.Name = "MCX_NOBL_56845_20261104.csv"
+	zw.Name = "MCX_NOBL_12345_20261104.csv"
 	zw.Write([]byte(data))
 	zw.Close()
-	rs := l.Check("MCX_NOBL_56845_20261104.csv.gz", gz.Bytes())
+	rs := l.Check("MCX_NOBL_12345_20261104.csv.gz", gz.Bytes())
 	if len(rs) != 1 || rs[0].Spec != "mcx-obligation-tm" || rs[0].Rows != 2 || rs[0].Issues != 2 || rs[0].Fields[13] != 2 || rs[0].Fields[9] != 1 {
 		t.Fatalf("%+v", rs)
 	}
@@ -31,7 +31,7 @@ func TestCheckShowsNoValues(t *testing.T) {
 	WriteCheck(&out, rs[0])
 	js, _ := json.Marshal(rs)
 	for _, text := range []string{out.String(), string(js)} {
-		for _, leak := range []string{"SECRET", "12x45", "45.67", "56845", "20261104", "TEST"} {
+		for _, leak := range []string{"SECRET", "12x45", "45.67", "12345", "20261104", "TEST"} {
 			if strings.Contains(text, leak) {
 				t.Fatalf("%q shown:\n%s", leak, text)
 			}

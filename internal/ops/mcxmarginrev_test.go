@@ -27,9 +27,9 @@ func TestMCXClientMarginReportingRevision(t *testing.T) {
 			lib, _ := XFiles()
 
 			// Short allocations: client code and amount (fields 4 and 5).
-			intra := strings.Join([]string{"16OCT2026", "1234", "56845", ucc, "1500.00", "", "", "", v.sar9, "", "", "", "", "", v.sar15, v.sar16}, ",") + "\n"
-			eod := strings.Join([]string{"16OCT2026", "1234", "56845", ucc, "900.00", "", "", "", v.eod9}, ",") + "\n"
-			for name, data := range map[string]string{"MCX_INTRASAR_56845_20261016.csv": intra, "MCX_EODSAR_56845_20261016.csv": eod} {
+			intra := strings.Join([]string{"16OCT2026", "1234", "12345", ucc, "1500.00", "", "", "", v.sar9, "", "", "", "", "", v.sar15, v.sar16}, ",") + "\n"
+			eod := strings.Join([]string{"16OCT2026", "1234", "12345", ucc, "900.00", "", "", "", v.eod9}, ",") + "\n"
+			for name, data := range map[string]string{"MCX_INTRASAR_12345_20261016.csv": intra, "MCX_EODSAR_12345_20261016.csv": eod} {
 				s, err := lib.Recognise(name, []byte(data))
 				if err != nil {
 					t.Fatalf("%s: %v", name, err)
@@ -50,15 +50,15 @@ func TestMCXClientMarginReportingRevision(t *testing.T) {
 			}
 
 			// Margin file in, margin reporting upload out.
-			mrg := strings.Join([]string{"16OCT2026", "56845", ucc, "1000.00", "200.00", "50.00", "", "", "", "", "", "100.00", "1000.00", "", "", "0.00", "0.00", v.peakRef, v.intrasarRef}, ",") + "\n"
-			s, err := lib.Recognise("MCX_MARGIN_56845_20261016.csv", []byte(mrg))
+			mrg := strings.Join([]string{"16OCT2026", "12345", ucc, "1000.00", "200.00", "50.00", "", "", "", "", "", "100.00", "1000.00", "", "", "0.00", "0.00", v.peakRef, v.intrasarRef}, ",") + "\n"
+			s, err := lib.Recognise("MCX_MARGIN_12345_20261016.csv", []byte(mrg))
 			if err != nil || s.ID != "mcx-client-margin" {
 				t.Fatalf("margin file recognised as %v (%v)", s, err)
 			}
-			if tb, err := s.Read("MCX_MARGIN_56845_20261016.csv", []byte(mrg)); err != nil || len(tb.Issues) != 0 {
+			if tb, err := s.Read("MCX_MARGIN_12345_20261016.csv", []byte(mrg)); err != nil || len(tb.Issues) != 0 {
 				t.Fatalf("margin file: %v %+v", err, tb.Issues)
 			}
-			loadX(t, o, "MCX_MARGIN_56845_20261016.csv", []byte(mrg))
+			loadX(t, o, "MCX_MARGIN_12345_20261016.csv", []byte(mrg))
 			name, b, err := o.ExchangeFile(ctx, T, "priya.nair", "mcx-margin-reporting", D, XFileOptions{})
 			if err != nil || name != "MCX_MARGIN_20261016_.M01" {
 				t.Fatalf("margin reporting %s %v", name, err)

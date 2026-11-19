@@ -33,14 +33,14 @@ func TestMCXSFTPFetch(t *testing.T) {
 	put("Common/MCXRPF-20261016-1100-01-I.spn", []byte("<spn/>"), time.Time{})                       // risk parameters: not read
 	put("Common/Bhavcopy_MCX_CO_0_0_0_20260930_F_0000.csv", []byte("x"), o.Now().AddDate(0, 0, -30)) // old, relative to the test date
 	mrg := xwrite(t, "mcx-margin-tm",
-		xr("10", "Date", "16102026", "CM ID", "1234", "TM ID", "56845", "Number of Detail Records at Summary - End Client Level", "1", "Actual Margin Levied", "1000.00"),
-		xr("30", "TM ID", "56845", "Account Type", "C", "Account ID", "MC001", "Actual Margin Levied", "1000.00"))
-	put("56845/16102026/MCX_MRG_56845_20261016.csv", mrg, time.Time{})
-	put("56845/01102026/MCX_MRG_56845_20261001.csv", mrg, time.Time{}) // a date folder too old
-	put("56845/16102026/MCX_Empty_TRD.csv", nil, time.Time{})
+		xr("10", "Date", "16102026", "CM ID", "1234", "TM ID", "12345", "Number of Detail Records at Summary - End Client Level", "1", "Actual Margin Levied", "1000.00"),
+		xr("30", "TM ID", "12345", "Account Type", "C", "Account ID", "MC001", "Actual Margin Levied", "1000.00"))
+	put("12345/16102026/MCX_MRG_12345_20261016.csv", mrg, time.Time{})
+	put("12345/01102026/MCX_MRG_12345_20261001.csv", mrg, time.Time{}) // a date folder too old
+	put("12345/16102026/MCX_Empty_TRD.csv", nil, time.Time{})
 
 	addr, key := sftpTestServer(t, root)
-	c := Connection{Provider: connMCXSFTP, Status: "Saved", Values: map[string]string{"host": addr, "user": "DP081600", "member": "56845", "root": root, "fetch": "On"},
+	c := Connection{Provider: connMCXSFTP, Status: "Saved", Values: map[string]string{"host": addr, "user": "DP012345", "member": "12345", "root": root, "fetch": "On"},
 		Secrets: map[string]string{"password": "pw"}}
 	if err := docs.Upsert(ctx, o.Docs, T, cConn, connMCXSFTP, c, "admin"); err != nil {
 		t.Fatal(err)
@@ -59,7 +59,7 @@ func TestMCXSFTPFetch(t *testing.T) {
 		names = append(names, f.Name+"="+f.Format)
 	}
 	got := strings.Join(names, ",")
-	if len(run.Fetched) != 2 || !strings.Contains(got, "MCX_ProductMaster.csv=mcx-product-master") || !strings.Contains(got, "MCX_MRG_56845_20261016.csv=mcx-margin-tm") {
+	if len(run.Fetched) != 2 || !strings.Contains(got, "MCX_ProductMaster.csv=mcx-product-master") || !strings.Contains(got, "MCX_MRG_12345_20261016.csv=mcx-margin-tm") {
 		t.Fatalf("fetched %s; run %+v", got, run)
 	}
 	if run.Unknown < 1 || len(run.Folders) != 3 {
@@ -99,12 +99,12 @@ func TestBSESFTPFetch(t *testing.T) {
 	o, ctx := setup(t)
 	o.Now = func() time.Time { return time.Date(2026, 10, 16, 9, 0, 0, 0, ist) }
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, "0923", "16102026"), 0o755)
+	os.MkdirAll(filepath.Join(root, "0999", "16102026"), 0o755)
 	os.MkdirAll(filepath.Join(root, "Common"), 0o755)
-	os.WriteFile(filepath.Join(root, "0923", "16102026", "notes.txt"), []byte("x"), 0o644)
+	os.WriteFile(filepath.Join(root, "0999", "16102026", "notes.txt"), []byte("x"), 0o644)
 	addr, key := sftpTestServer(t, root)
-	vals := map[string]string{"host": addr, "user": "DP081600", "member": "0923", "site": "DR/BCP", "fetch": "On",
-		"folders": root + "/0923, " + root + "/Common", "hostkey": ssh.FingerprintSHA256(key)}
+	vals := map[string]string{"host": addr, "user": "DP012345", "member": "0999", "site": "DR/BCP", "fetch": "On",
+		"folders": root + "/0999, " + root + "/Common", "hostkey": ssh.FingerprintSHA256(key)}
 	c := Connection{Provider: connBSESFTP, Status: "Saved", Values: vals, Secrets: map[string]string{"password": "pw"}}
 	if _, err := parseBSESFTP(c); err == nil || !strings.Contains(err.Error(), "DR/BCP") {
 		t.Fatalf("DR without a server: %v", err)

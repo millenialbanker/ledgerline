@@ -56,9 +56,9 @@ func TestFinspotLimitLayoutReadsShareProLines(t *testing.T) {
 	}
 	// The broker's worked example: ledger -20,000, cash-equivalent
 	// collateral 1,50,000 (non-cash 4,75,000 goes in the ISIN Holding file).
-	l := finspotLimit{ID: "D224-BJT", Margin: mustDec("-20000"), NotionalCash: mustDec("150000")}
-	b, _ := s.Write([]xfile.Row{finspotLimitRow(finspotCfg{Suffix: "-BJT"}, l, l.Margin)})
-	if string(b) != "RMS Limits\r\nD224-BJT||||-20000.00||||||||||||no||||||||150000.00\r\n" {
+	l := finspotLimit{ID: "C101-ABC", Margin: mustDec("-20000"), NotionalCash: mustDec("150000")}
+	b, _ := s.Write([]xfile.Row{finspotLimitRow(finspotCfg{Suffix: "-ABC"}, l, l.Margin)})
+	if string(b) != "RMS Limits\r\nC101-ABC||||-20000.00||||||||||||no||||||||150000.00\r\n" {
 		t.Fatalf("%q", b)
 	}
 	tb, err = s.Read("FINSPOT_RMS_LIMIT_x.txt", b)
@@ -97,12 +97,12 @@ func TestCashEquivalentISINs(t *testing.T) {
 	}
 }
 
-// The broker's D224 example end to end: ledger -20,000; pledged G-sec and
+// The broker's C101 example end to end: ledger -20,000; pledged G-sec and
 // a listed liquid fund worth 1,50,000 after haircut (cash equivalent, in
 // Notional cash); pledged shares worth 4,75,000 after haircut (non-cash:
 // collateral in the ISIN Holding file, not in the limit line). The suffix
 // is on every Finspot file's client IDs.
-func TestFinspotD224Example(t *testing.T) {
+func TestFinspotC101Example(t *testing.T) {
 	o, ctx := setup(t)
 	set, _ := o.Settings(ctx, T)
 	next := set.nextBusinessDay(D)
@@ -115,12 +115,12 @@ func TestFinspotD224Example(t *testing.T) {
 		}
 	}
 	c := base
-	c.UCC, c.Name = "D224", "Example Client"
+	c.UCC, c.Name = "C101", "Example Client"
 	if err := docs.Upsert(ctx, o.Docs, T, cClient, c.UCC, c, "test"); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: T, Key: "D224-debit", ValueDate: D, Narration: "debit", Source: ledger.SourceRef{Kind: "MANUAL", ID: "D224"}, CreatedBy: "test",
-		Postings: []ledger.Posting{{Account: ledger.ClientAccount("D224"), Debit: money.MustAmount("20000")}, {Account: ledger.BankClient, Credit: money.MustAmount("20000")}}}); err != nil {
+	if _, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: T, Key: "C101-debit", ValueDate: D, Narration: "debit", Source: ledger.SourceRef{Kind: "MANUAL", ID: "C101"}, CreatedBy: "test",
+		Postings: []ledger.Posting{{Account: ledger.ClientAccount("C101"), Debit: money.MustAmount("20000")}, {Account: ledger.BankClient, Credit: money.MustAmount("20000")}}}); err != nil {
 		t.Fatal(err)
 	}
 	const gsec, fund, share = "IN0020990011", "INF000Z01019", "INE000Z01011"
@@ -133,9 +133,9 @@ func TestFinspotD224Example(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	for _, h := range []Holding{{UCC: "D224", ISIN: gsec, Symbol: "TESTGS", Qty: dq(1000), Pledged: dq(1000)}, // 1,00,000
-		{UCC: "D224", ISIN: fund, Symbol: "TESTLIQ", Qty: dq(60), Pledged: dq(50)},        // 50 x 1000 x 90% = 45,000 ...
-		{UCC: "D224", ISIN: share, Symbol: "TESTSHR", Qty: dq(1200), Pledged: dq(1000)}} { // 1000 x 500 x 95% = 4,75,000
+	for _, h := range []Holding{{UCC: "C101", ISIN: gsec, Symbol: "TESTGS", Qty: dq(1000), Pledged: dq(1000)}, // 1,00,000
+		{UCC: "C101", ISIN: fund, Symbol: "TESTLIQ", Qty: dq(60), Pledged: dq(50)},        // 50 x 1000 x 90% = 45,000 ...
+		{UCC: "C101", ISIN: share, Symbol: "TESTSHR", Qty: dq(1200), Pledged: dq(1000)}} { // 1000 x 500 x 95% = 4,75,000
 		docs.Upsert(ctx, o.Docs, T, cHolding, holdingID(h.UCC, h.ISIN), h, "test")
 	}
 	// ... and 50 more fund units' worth: 1,00,000 + 50,000 = 1,50,000 cash equivalent.
@@ -147,13 +147,13 @@ func TestFinspotD224Example(t *testing.T) {
 		}
 		return nil
 	})
-	if _, err := o.SaveConnection(ctx, T, "admin", connFinspot, map[string]string{"account_suffix": "-BJT", "cash_eq_isins": fund, "dealer_ids": "DLR01",
+	if _, err := o.SaveConnection(ctx, T, "admin", connFinspot, map[string]string{"account_suffix": "-ABC", "cash_eq_isins": fund, "dealer_ids": "DLR01",
 		"exchange_users": "NSE=9001:100000000001; BSE=9002:1000000000002; NFO=9003:100000000003; BFO=9004:100000000004; CDS=9005:100000000005; BCD=9006:100000000006; MCX=9007:100000000007", "segment_expiry": "30/06/2027"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	rv, _ := o.Risk(ctx, T, D)
 	for _, r := range rv.Rows {
-		if r.UCC == "D224" && (r.CashEqColl.Cmp(mustDec("150000")) != 0 || r.NonCashColl.Cmp(mustDec("475000")) != 0 || r.Collateral.Cmp(mustDec("625000")) != 0 || r.Funds.Cmp(mustDec("-20000")) != 0) {
+		if r.UCC == "C101" && (r.CashEqColl.Cmp(mustDec("150000")) != 0 || r.NonCashColl.Cmp(mustDec("475000")) != 0 || r.Collateral.Cmp(mustDec("625000")) != 0 || r.Funds.Cmp(mustDec("-20000")) != 0) {
 			t.Fatalf("risk row %+v", r)
 		}
 	}
@@ -166,16 +166,16 @@ func TestFinspotD224Example(t *testing.T) {
 		readFinspot(t, "finspot-rms-limit", name, b)
 		var got string
 		for _, l := range strings.Split(strings.TrimSpace(string(b)), "\r\n")[1:] {
-			if !strings.HasSuffix(strings.Split(l, "|")[0], "-BJT") || len(strings.Split(l, "|")) != 25 {
+			if !strings.HasSuffix(strings.Split(l, "|")[0], "-ABC") || len(strings.Split(l, "|")) != 25 {
 				t.Fatalf("line %q", l)
 			}
-			if strings.HasPrefix(l, "D224-BJT|") {
+			if strings.HasPrefix(l, "C101-ABC|") {
 				got = l
 			}
 		}
 		return got
 	}
-	if l := limitLine(); l != "D224-BJT||||-20000.00||||||||||||no||||||||150000.00" {
+	if l := limitLine(); l != "C101-ABC||||-20000.00||||||||||||no||||||||150000.00" {
 		t.Fatalf("limit line %q", l)
 	}
 	holding := func() map[string]map[string]string {
@@ -186,10 +186,10 @@ func TestFinspotD224Example(t *testing.T) {
 		}
 		out := map[string]map[string]string{}
 		for _, r := range readFinspot(t, "finspot-dp-holding", name, b).Rows {
-			if !strings.HasSuffix(r.Values["AccountId"], "-BJT") {
+			if !strings.HasSuffix(r.Values["AccountId"], "-ABC") {
 				t.Fatalf("%+v", r.Values)
 			}
-			if r.Values["AccountId"] == "D224-BJT" {
+			if r.Values["AccountId"] == "C101-ABC" {
 				out[r.Values["ISIN"]] = r.Values
 			}
 		}
@@ -223,30 +223,30 @@ func TestFinspotD224Example(t *testing.T) {
 			t.Fatalf("%s: no lines", f.kind)
 		}
 		for _, r := range tb.Rows {
-			if !strings.HasSuffix(r.Values[f.col], "-BJT") {
+			if !strings.HasSuffix(r.Values[f.col], "-ABC") {
 				t.Fatalf("%s: %s %q", f.kind, f.col, r.Values[f.col])
 			}
 		}
 	}
-	if _, err := o.SetBlocked(ctx, T, "anita.rao", "D224", true, "Debit"); err != nil {
+	if _, err := o.SetBlocked(ctx, T, "anita.rao", "C101", true, "Debit"); err != nil {
 		t.Fatal(err)
 	}
 	name, b, err := o.FinspotBlockFile(ctx, T, "anita.rao", next)
-	if err != nil || !strings.Contains(string(b), "\r\n||||D224-BJT||MIS|") {
+	if err != nil || !strings.Contains(string(b), "\r\n||||C101-ABC||MIS|") {
 		t.Fatalf("block file %s %v %q", name, err, b)
 	}
 	// Blocked: the debit stays, no notional cash, no collateral.
-	if l := limitLine(); l != "D224-BJT||||-20000.00||||||||||||no||||||||0.00" {
+	if l := limitLine(); l != "C101-ABC||||-20000.00||||||||||||no||||||||0.00" {
 		t.Fatalf("blocked limit line %q", l)
 	}
 	if v := holding()[share]; v["IsCollateral"] != "0" || v["CollateralQty"] != "0" || v["HoldingsQty"] != "1200" {
 		t.Fatalf("blocked share line %+v", v)
 	}
-	o.SetBlocked(ctx, T, "anita.rao", "D224", false, "")
+	o.SetBlocked(ctx, T, "anita.rao", "C101", false, "")
 
 	// Finspot's RMS account ID holds 10 characters: UCC + suffix is checked.
 	o.SaveConnection(ctx, T, "admin", connFinspot, map[string]string{"account_suffix": "-BROKER"}, nil)
-	if _, _, err := o.FinspotLimitFile(ctx, T, next); err == nil || !strings.Contains(err.Error(), "D224-BROKER") || !strings.Contains(err.Error(), "10 characters") {
+	if _, _, err := o.FinspotLimitFile(ctx, T, next); err == nil || !strings.Contains(err.Error(), "C101-BROKER") || !strings.Contains(err.Error(), "10 characters") {
 		t.Fatalf("long IDs: %v", err)
 	}
 	// The ISIN Holding file has no such limit.

@@ -12,15 +12,15 @@ import (
 
 // One ledger with MCX money earmarked (mcxearmark.go).
 
-// emSetup is Baljit on one ledger: BJ01 has ₹10,000 (opening balance) and
-// pays ₹2,00,000 into the firm's MCX collection account by e-CMS; BJ02
+// emSetup is a broker on one ledger: AB01 has ₹10,000 (opening balance) and
+// pays ₹2,00,000 into the firm's MCX collection account by e-CMS; AB02
 // has ₹50,000. With mcx set, sgCom is the MCX-only bank account.
 func emSetup(t *testing.T, mcx bool) (*Ops, context.Context) {
 	t.Helper()
 	o, ctx := newOps(t)
 	for _, c := range []Client{
-		{UCC: "BJ01", Name: "Asha Rao", Status: "Active", Email: "a@x.example", Segments: []string{"CM", "FO", "COM"}, Bank: BankAccount{Bank: "HDFC Bank", IFSC: "HDFC0001234", Account: "50100011112222"}},
-		{UCC: "BJ02", Name: "Vikram Shah", Status: "Active", Email: "v@x.example", Segments: []string{"CM", "COM"}, Bank: BankAccount{Bank: "Axis Bank", IFSC: "UTIB0000123", Account: "91902033334444"}},
+		{UCC: "AB01", Name: "Asha Rao", Status: "Active", Email: "a@x.example", Segments: []string{"CM", "FO", "COM"}, Bank: BankAccount{Bank: "HDFC Bank", IFSC: "HDFC0001234", Account: "50100011112222"}},
+		{UCC: "AB02", Name: "Vikram Shah", Status: "Active", Email: "v@x.example", Segments: []string{"CM", "COM"}, Bank: BankAccount{Bank: "Axis Bank", IFSC: "UTIB0000123", Account: "91902033334444"}},
 	} {
 		if err := docs.Upsert(ctx, o.Docs, T, cClient, c.UCC, c, "t"); err != nil {
 			t.Fatal(err)
@@ -33,7 +33,7 @@ func emSetup(t *testing.T, mcx bool) (*Ops, context.Context) {
 			t.Fatal(err)
 		}
 	}
-	csv := "Account,Debit,Credit\nCLIENT:BJ01,,10000.00\nCLIENT:BJ02,,50000.00\nEQUITY:OPENING,60000.00,\n"
+	csv := "Account,Debit,Credit\nCLIENT:AB01,,10000.00\nCLIENT:AB02,,50000.00\nEQUITY:OPENING,60000.00,\n"
 	if _, err := o.LoadFile(ctx, T, "admin", "OPENING-BALANCES", sgOpen, "opening.csv", []byte(csv)); err != nil {
 		t.Fatal(err)
 	}
@@ -85,10 +85,10 @@ func TestEarmarkIncident(t *testing.T) {
 		}
 		set, _ := o.Settings(ctx, T)
 		next := set.nextBusinessDay(sgD0)
-		if got := finspotCol5(t, o, ctx, next, "BJ01"); got != "15000.00" {
+		if got := finspotCol5(t, o, ctx, next, "AB01"); got != "15000.00" {
 			t.Fatalf("Finspot column 5 %s, want 15000.00", got)
 		}
-		wantEarmark(t, earmarkOf(t, o, ctx, "", "BJ01"), "215000", "200000")
+		wantEarmark(t, earmarkOf(t, o, ctx, "", "AB01"), "215000", "200000")
 	})
 	t.Run("MCX-only account", func(t *testing.T) {
 		o, ctx := emSetup(t, true)
@@ -98,17 +98,17 @@ func TestEarmarkIncident(t *testing.T) {
 		ecmsCredit(t, o, ctx, "S1", "UTR1", sgCom, "50100011112222", "5000", "")
 		set, _ := o.Settings(ctx, T)
 		next := set.nextBusinessDay(sgD0)
-		if got := finspotCol5(t, o, ctx, next, "BJ01"); got != "10000.00" {
+		if got := finspotCol5(t, o, ctx, next, "AB01"); got != "10000.00" {
 			t.Fatalf("Finspot column 5 %s, want 10000.00", got)
 		}
-		wantEarmark(t, earmarkOf(t, o, ctx, "", "BJ01"), "215000", "205000")
-		// The accounts are one ledger: CLIENT:BJ01 only.
-		if lf := ledgersOf(t, o, ctx, "BJ01"); lf.Equity != inr("215000") || lf.Commodity != 0 {
+		wantEarmark(t, earmarkOf(t, o, ctx, "", "AB01"), "215000", "205000")
+		// The accounts are one ledger: CLIENT:AB01 only.
+		if lf := ledgersOf(t, o, ctx, "AB01"); lf.Equity != inr("215000") || lf.Commodity != 0 {
 			t.Fatalf("ledger %+v", lf)
 		}
 		bow, _ := o.bowFunds(ctx, T, next)
-		if bow["BJ01"].Cmp(mustDec("205000")) != 0 {
-			t.Fatalf("BOW commodity funds %s", bow["BJ01"])
+		if bow["AB01"].Cmp(mustDec("205000")) != 0 {
+			t.Fatalf("BOW commodity funds %s", bow["AB01"])
 		}
 	})
 	t.Run("option unused", func(t *testing.T) {
@@ -119,7 +119,7 @@ func TestEarmarkIncident(t *testing.T) {
 		}
 		set, _ := o.Settings(ctx, T)
 		next := set.nextBusinessDay(sgD0)
-		if got := finspotCol5(t, o, ctx, next, "BJ01"); got != "215000.00" {
+		if got := finspotCol5(t, o, ctx, next, "AB01"); got != "215000.00" {
 			t.Fatalf("Finspot column 5 %s, want the whole ledger 215000.00", got)
 		}
 		rv, _ := o.Risk(ctx, T, sgD0)
@@ -128,20 +128,20 @@ func TestEarmarkIncident(t *testing.T) {
 				t.Fatalf("risk row split without the option: %+v", r)
 			}
 		}
-		w, _ := o.Withdrawable(ctx, T, sgD0, "BJ01")
+		w, _ := o.Withdrawable(ctx, T, sgD0, "AB01")
 		if w.Ledgers != nil || w.Available != inr("215000") {
 			t.Fatalf("withdrawable %+v", w)
 		}
-		if _, err := o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "BJ01", 100, "Head office", "COM"); err == nil {
+		if _, err := o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "AB01", 100, "Head office", "COM"); err == nil {
 			t.Fatal("MCX payout without the option")
 		}
-		if _, err := o.RequestMCXMove(ctx, T, "anita.rao", "BJ01", "EQ", sgD0, 100, ""); err == nil {
+		if _, err := o.RequestMCXMove(ctx, T, "anita.rao", "AB01", "EQ", sgD0, 100, ""); err == nil {
 			t.Fatal("move without the option")
 		}
 		if _, err := o.BOWFundsFile(ctx, T, next); err == nil {
 			t.Fatal("BOW funds without the option")
 		}
-		d, err := o.ClientDetail(ctx, T, "BJ01", sgD0)
+		d, err := o.ClientDetail(ctx, T, "AB01", sgD0)
 		if err != nil || d.Earmark != nil || d.Ledgers != nil {
 			t.Fatalf("drawer %+v %v", d.Earmark, err)
 		}
@@ -154,21 +154,21 @@ func TestEarmarkBills(t *testing.T) {
 	o, ctx := emSetup(t, true)
 	set, _ := o.Settings(ctx, T)
 	d1 := set.nextBusinessDay(sgD0)
-	postMCXBill(t, o, ctx, d1, "BJ01", "MCX", "COM", -inr("50000"))
-	wantEarmark(t, earmarkOf(t, o, ctx, d1, "BJ01"), "160000", "150000")
-	postMCXBill(t, o, ctx, d1, "BJ01", "MCX", "COM", inr("12000"))
-	wantEarmark(t, earmarkOf(t, o, ctx, d1, "BJ01"), "172000", "162000")
-	postMCXBill(t, o, ctx, d1, "BJ01", "NSE", "FO", inr("3000")) // equity profit: equity money
-	wantEarmark(t, earmarkOf(t, o, ctx, d1, "BJ01"), "175000", "162000")
+	postMCXBill(t, o, ctx, d1, "AB01", "MCX", "COM", -inr("50000"))
+	wantEarmark(t, earmarkOf(t, o, ctx, d1, "AB01"), "160000", "150000")
+	postMCXBill(t, o, ctx, d1, "AB01", "MCX", "COM", inr("12000"))
+	wantEarmark(t, earmarkOf(t, o, ctx, d1, "AB01"), "172000", "162000")
+	postMCXBill(t, o, ctx, d1, "AB01", "NSE", "FO", inr("3000")) // equity profit: equity money
+	wantEarmark(t, earmarkOf(t, o, ctx, d1, "AB01"), "175000", "162000")
 	// Before the day's bills (as live risk and margin collection read it).
 	em, _ := o.mcxEarmarks(ctx, T, d1, d1)
-	if e := em["BJ01"]; e.MCX != inr("200000") || e.Ledger != inr("210000") {
+	if e := em["AB01"]; e.MCX != inr("200000") || e.Ledger != inr("210000") {
 		t.Fatalf("before the day's bills %+v", e)
 	}
 	// The day before is untouched.
-	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "BJ01"), "210000", "200000")
+	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "AB01"), "210000", "200000")
 	// Finspot on the next day: the ledger less the earmark.
-	if got := finspotCol5(t, o, ctx, set.nextBusinessDay(d1), "BJ01"); got != "13000.00" {
+	if got := finspotCol5(t, o, ctx, set.nextBusinessDay(d1), "AB01"); got != "13000.00" {
 		t.Fatalf("Finspot column 5 %s, want 13000.00", got)
 	}
 }
@@ -250,44 +250,44 @@ func TestComputeEarmarks(t *testing.T) {
 // checker) frees MCX money for equity.
 func TestEarmarkPayoutsAndMoves(t *testing.T) {
 	o, ctx := emSetup(t, true)
-	w, err := o.Withdrawable(ctx, T, sgD0, "BJ01")
+	w, err := o.Withdrawable(ctx, T, sgD0, "AB01")
 	if err != nil || w.Ledgers == nil || w.Ledgers.Equity != inr("10000") || w.Ledgers.Commodity != inr("200000") || w.Available != inr("210000") {
 		t.Fatalf("%+v %+v %v", w, w.Ledgers, err)
 	}
-	_, err = o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "BJ01", inr("50000"), "Head office", "")
+	_, err = o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "AB01", inr("50000"), "Head office", "")
 	if err == nil || !strings.Contains(err.Error(), "MCX money") || !strings.Contains(err.Error(), "40,000") || !strings.Contains(err.Error(), "2,00,000") {
 		t.Fatalf("equity payout using MCX money: %v", err)
 	}
 	// RMS moves ₹40,000 to equity: not until a second person approves.
-	m, err := o.RequestMCXMove(ctx, T, "anita.rao", "BJ01", "EQ", sgD0, inr("40000"), "client asked")
+	m, err := o.RequestMCXMove(ctx, T, "anita.rao", "AB01", "EQ", sgD0, inr("40000"), "client asked")
 	if err != nil || m.Status != "Pending" || m.ID == "" {
 		t.Fatalf("%+v %v", m, err)
 	}
-	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "BJ01"), "210000", "200000")
+	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "AB01"), "210000", "200000")
 	if _, err := o.DecideMCXMove(ctx, T, "anita.rao", m.ID, true, ""); err == nil {
 		t.Fatal("the maker approved the move")
 	}
 	if _, err := o.DecideMCXMove(ctx, T, "vikram.shah", m.ID, true, ""); err == nil {
 		t.Fatal("compliance approved the move")
 	}
-	if _, err := o.RequestMCXMove(ctx, T, "anita.rao", "BJ01", "EQ", sgD0, inr("300000"), ""); err == nil {
+	if _, err := o.RequestMCXMove(ctx, T, "anita.rao", "AB01", "EQ", sgD0, inr("300000"), ""); err == nil {
 		t.Fatal("moved more than the MCX money")
 	}
-	if _, err := o.RequestMCXMove(ctx, T, "anita.rao", "BJ01", "MCX", sgD0, inr("20000"), ""); err == nil {
+	if _, err := o.RequestMCXMove(ctx, T, "anita.rao", "AB01", "MCX", sgD0, inr("20000"), ""); err == nil {
 		t.Fatal("moved more than the equity money to MCX")
 	}
 	if m, err = o.DecideMCXMove(ctx, T, "farhan.khan", m.ID, true, ""); err != nil || m.Status != "Approved" || m.Checker != "farhan.khan" {
 		t.Fatalf("%+v %v", m, err)
 	}
-	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "BJ01"), "210000", "160000")
-	p1, err := o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "BJ01", inr("50000"), "Head office", "")
+	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "AB01"), "210000", "160000")
+	p1, err := o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "AB01", inr("50000"), "Head office", "")
 	if err != nil || p1.Earmark != "" || p1.DebitAccount != "" {
 		t.Fatalf("%+v %v", p1, err)
 	}
 	// MCX money from the MCX-only account: 1,70,000 is the 1,60,000
 	// earmark and then 10,000 of equity money... less the 50,000 already
 	// approved, only within what may be withdrawn.
-	p2, err := o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "BJ01", inr("100000"), "Head office", "COM")
+	p2, err := o.RequestPayoutFrom(ctx, T, "priya.nair", sgD0, "AB01", inr("100000"), "Head office", "COM")
 	if err != nil || p2.Earmark != EarmarkMCX || p2.Ledger != "COM" || p2.DebitAccount != sgCom {
 		t.Fatalf("%+v %v", p2, err)
 	}
@@ -304,7 +304,7 @@ func TestEarmarkPayoutsAndMoves(t *testing.T) {
 	if err != nil || len(b.Items) != 2 {
 		t.Fatalf("%+v %v", b, err)
 	}
-	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "BJ01"), "60000", "60000")
+	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "AB01"), "60000", "60000")
 	f, err := o.PayoutFile(ctx, T, b.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -317,7 +317,7 @@ func TestEarmarkPayoutsAndMoves(t *testing.T) {
 		}
 	}
 	// One ledger: two payouts on the client's statement, nothing else.
-	st, _ := o.clientStatement(ctx, T, "BJ01", "", sgD0)
+	st, _ := o.clientStatement(ctx, T, "AB01", "", sgD0)
 	if st.Closing != -inr("60000") || len(st.Lines) != 4 {
 		t.Fatalf("%+v", st)
 	}
@@ -325,16 +325,16 @@ func TestEarmarkPayoutsAndMoves(t *testing.T) {
 	if _, err := o.ConfirmPayouts(ctx, T, "farhan.khan", b.ID, map[string]string{p1.ID: "UTR-P1"}, map[string]string{p2.ID: "account closed"}); err != nil {
 		t.Fatal(err)
 	}
-	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "BJ01"), "160000", "160000")
+	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "AB01"), "160000", "160000")
 	// Rejecting needs a reason; the moves are listed for the client.
-	m2, _ := o.RequestMCXMove(ctx, T, "anita.rao", "BJ01", "EQ", sgD0, inr("1000"), "")
+	m2, _ := o.RequestMCXMove(ctx, T, "anita.rao", "AB01", "EQ", sgD0, inr("1000"), "")
 	if _, err := o.DecideMCXMove(ctx, T, "farhan.khan", m2.ID, false, ""); err == nil {
 		t.Fatal("rejected without a reason")
 	}
-	if ms, _ := o.MCXMoves(ctx, T, "BJ01"); len(ms) != 2 || ms[0].ID != m2.ID {
+	if ms, _ := o.MCXMoves(ctx, T, "AB01"); len(ms) != 2 || ms[0].ID != m2.ID {
 		t.Fatalf("%+v", ms)
 	}
-	d, err := o.ClientDetail(ctx, T, "BJ01", sgD0)
+	d, err := o.ClientDetail(ctx, T, "AB01", sgD0)
 	if err != nil || d.Earmark == nil || d.Earmark.MCX != inr("160000") || len(d.Earmark.Moves) != 2 || d.Earmark.Accounts[0] != sgCom {
 		t.Fatalf("drawer %+v %v", d.Earmark, err)
 	}
@@ -344,11 +344,11 @@ func TestEarmarkPayoutsAndMoves(t *testing.T) {
 // are MCX money; an uncleared MCX cheque is kept out of the MCX side.
 func TestEarmarkReceipts(t *testing.T) {
 	o, ctx := emSetup(t, true)
-	r, err := o.RecordReceipt(ctx, T, "priya.nair", Receipt{UCC: "BJ02", Mode: "Cheque", Ref: "000111", Date: sgD0, Amount: inr("7000"), ToAccount: sgCom, Earmark: ""})
+	r, err := o.RecordReceipt(ctx, T, "priya.nair", Receipt{UCC: "AB02", Mode: "Cheque", Ref: "000111", Date: sgD0, Amount: inr("7000"), ToAccount: sgCom, Earmark: ""})
 	if err != nil || r.Earmark != EarmarkMCX {
 		t.Fatalf("%+v %v", r, err)
 	}
-	r2, err := o.RecordReceipt(ctx, T, "priya.nair", Receipt{UCC: "BJ02", Mode: "NEFT", Ref: "U9", Date: sgD0, Amount: inr("3000"), ToAccount: sgAcct, Earmark: EarmarkMCX})
+	r2, err := o.RecordReceipt(ctx, T, "priya.nair", Receipt{UCC: "AB02", Mode: "NEFT", Ref: "U9", Date: sgD0, Amount: inr("3000"), ToAccount: sgAcct, Earmark: EarmarkMCX})
 	if err != nil || r2.Earmark != "" {
 		t.Fatalf("the earmark comes from the account only: %+v %v", r2, err)
 	}
@@ -357,10 +357,10 @@ func TestEarmarkReceipts(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "BJ02"), "60000", "7000")
+	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "AB02"), "60000", "7000")
 	rv, _ := o.Risk(ctx, T, sgD0)
 	for _, x := range rv.Rows {
-		if x.UCC == "BJ02" && (x.Funds.Cmp(mustDec("53000")) != 0 || x.Ledgers == nil || x.Ledgers.Commodity.Sign() != 0 || !x.Ledgers.Earmark) {
+		if x.UCC == "AB02" && (x.Funds.Cmp(mustDec("53000")) != 0 || x.Ledgers == nil || x.Ledgers.Commodity.Sign() != 0 || !x.Ledgers.Earmark) {
 			t.Fatalf("risk with an uncleared MCX cheque %+v %+v", x, x.Ledgers)
 		}
 	}
@@ -368,19 +368,19 @@ func TestEarmarkReceipts(t *testing.T) {
 	if _, err := o.ClearCheque(ctx, T, "priya.nair", r.ID, sgD0, true, false, "funds insufficient"); err != nil {
 		t.Fatal(err)
 	}
-	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "BJ02"), "53000", "0")
+	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "AB02"), "53000", "0")
 	// A gateway payment whose notes name the MCX-only account.
 	set, _ := o.Settings(ctx, T)
 	set.GatewaySecret = "s3cret"
 	if err := o.SaveSettings(ctx, T, "admin", set); err != nil {
 		t.Fatal(err)
 	}
-	body := []byte(`{"event":"payment.captured","payload":{"payment":{"entity":{"id":"pay_1","amount":250000,"method":"upi","vpa":"v@upi","notes":{"ucc":"BJ02","to_account":"` + sgCom + `","value_date":"` + sgD0 + `"},"status":"captured"}}}}`)
+	body := []byte(`{"event":"payment.captured","payload":{"payment":{"entity":{"id":"pay_1","amount":250000,"method":"upi","vpa":"v@upi","notes":{"ucc":"AB02","to_account":"` + sgCom + `","value_date":"` + sgD0 + `"},"status":"captured"}}}}`)
 	g, created, err := o.GatewayWebhook(ctx, T, body, SignGateway("s3cret", body))
 	if err != nil || !created || g.Earmark != EarmarkMCX {
 		t.Fatalf("%+v %v %v", g, created, err)
 	}
-	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "BJ02"), "55500", "2500")
+	wantEarmark(t, earmarkOf(t, o, ctx, sgD0, "AB02"), "55500", "2500")
 }
 
 // NSE Clearing allocation and margin reporting, SEGMON: equity money;
@@ -395,14 +395,14 @@ func TestEarmarkAllocationAndReporting(t *testing.T) {
 	for _, a := range al {
 		got[a.UCC+"|"+a.Segment] = a.Cash.Fixed(2)
 	}
-	if got["BJ01|CM"] != "10000.00" || got["BJ01|COM"] != "200000.00" || got["BJ02|CM"] != "50000.00" || got["BJ02|COM"] != "" {
+	if got["AB01|CM"] != "10000.00" || got["AB01|COM"] != "200000.00" || got["AB02|CM"] != "50000.00" || got["AB02|COM"] != "" {
 		t.Fatalf("allocation %v", got)
 	}
 	if bs, _ := segmonBalancesOf(t, o, ctx); bs != "60000.00" {
 		t.Fatalf("SEGMON reads %s", bs)
 	}
-	mrg := strings.Join([]string{"29OCT2026", "56845", "BJ01", "1000.00", "200.00", "50.00", "", "", "", "", "", "100.00", "1000.00", "", "", "0.00", "0.00", "", ""}, ",") + "\n"
-	loadX(t, o, "MCX_MARGIN_56845_20261029.csv", []byte(mrg))
+	mrg := strings.Join([]string{"29OCT2026", "12345", "AB01", "1000.00", "200.00", "50.00", "", "", "", "", "", "100.00", "1000.00", "", "", "0.00", "0.00", "", ""}, ",") + "\n"
+	loadX(t, o, "MCX_MARGIN_12345_20261029.csv", []byte(mrg))
 	name, b, err := o.ExchangeFile(ctx, T, "priya.nair", "mcx-margin-reporting", sgD0, XFileOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -420,7 +420,7 @@ func TestEarmarkAllocationAndReporting(t *testing.T) {
 	for _, a := range al2 {
 		got[a.UCC+"|"+a.Segment] = a.Cash.Fixed(2)
 	}
-	if got["BJ01|CM"] != "210000.00" || got["BJ01|COM"] != "" {
+	if got["AB01|CM"] != "210000.00" || got["AB01|COM"] != "" {
 		t.Fatalf("allocation without the option %v", got)
 	}
 	if bs, _ := segmonBalancesOf(t, o2, ctx2); bs != "260000.00" {
@@ -513,7 +513,7 @@ func TestEarmarkSettings(t *testing.T) {
 		t.Fatalf("%v", set.MCXOnlyBankAccounts)
 	}
 	set.MCXOnlyBankAccounts = nil
-	if err := o.SaveSettings(ctx, T, "admin", set); err == nil || !strings.Contains(err.Error(), "BJ01") {
+	if err := o.SaveSettings(ctx, T, "admin", set); err == nil || !strings.Contains(err.Error(), "AB01") {
 		t.Fatalf("removed with MCX money earmarked: %v", err)
 	}
 }

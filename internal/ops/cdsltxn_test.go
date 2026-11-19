@@ -446,7 +446,7 @@ func TestCDSLReportSFTPFetch(t *testing.T) {
 	o, ctx := newOps(t)
 	cdxTestConn(t, o, "https://cdsl.example.test", cdslFamReport)
 	x, _ := o.cdxConn(ctx, T)
-	x.c.Values["sftp_host"], x.c.Values["sftp_user"] = "sftp.example.test:22", "DP081600"
+	x.c.Values["sftp_host"], x.c.Values["sftp_user"] = "sftp.example.test:22", "DP012345"
 	if err := docs.Upsert(ctx, o.Docs, T, cConn, connCDSL, x.c, "admin"); err != nil {
 		t.Fatal(err)
 	}

@@ -211,10 +211,10 @@ func TestPayoutHoldAutomatic(t *testing.T) {
 	m.Instruments = append(m.Instruments, Instrument{Exchange: "NSE", Segment: "CM", Symbol: "TESTGS", Type: "EQ", ISIN: "IN0020990011", LTP: money.MustDec("100"), Close: money.MustDec("100")})
 	docs.Upsert(ctx, o.Docs, T, cMarket, prev, m, "test")
 	docs.Update(ctx, o.Docs, T, cClient, "AL1", "test", func(c *Client) error { c.Segments = []string{"CM"}; return nil }) // a segment open: the limit is not zeroed
-	o.SaveConnection(ctx, T, "admin", connFinspot, map[string]string{"account_suffix": "-BJT"}, nil)
+	o.SaveConnection(ctx, T, "admin", connFinspot, map[string]string{"account_suffix": "-ABC"}, nil)
 	_, b, _ = o.PayoutHoldFile(ctx, T, "anita.rao", phP, "oms-release")
 	lines = strings.Split(strings.TrimSpace(string(b)), "\r\n")
-	if len(lines) != 2 || !strings.HasPrefix(lines[1], "AL1-BJT||||") || !strings.HasSuffix(lines[1], "||||||||"+bod.NotionalCash.Add(money.MustDec("1000")).Fixed(2)) {
+	if len(lines) != 2 || !strings.HasPrefix(lines[1], "AL1-ABC||||") || !strings.HasSuffix(lines[1], "||||||||"+bod.NotionalCash.Add(money.MustDec("1000")).Fixed(2)) {
 		t.Fatalf("oms release file with suffix %q", b)
 	}
 }

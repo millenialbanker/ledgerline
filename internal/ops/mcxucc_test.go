@@ -200,7 +200,7 @@ func mcxSetup(t *testing.T) (*Ops, context.Context) {
 	now := time.Date(2026, 10, 30, 11, 0, 0, 0, ist)
 	o.Now = func() time.Time { return now }
 	set, _ := o.Settings(ctx, T)
-	set.MemberCodes = map[string]string{"NSE": "90311", "MCX": "56845"} // made up
+	set.MemberCodes = map[string]string{"NSE": "90311", "MCX": "12345"} // made up
 	if err := o.SaveSettings(ctx, T, "admin", set); err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestMCXUCCFileAndResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.Name != "MCX_30102026_UCC56845.M01" || b.Batch != 1 || strings.Join(b.Clients, ",") != "MCXA1,MCXB2" {
+	if b.Name != "MCX_30102026_UCC12345.M01" || b.Batch != 1 || strings.Join(b.Clients, ",") != "MCXA1,MCXB2" {
 		t.Fatalf("batch %s %d %v %v", b.Name, b.Batch, b.Clients, b.Problems)
 	}
 	left := strings.Join(b.Problems, " | ")
@@ -248,7 +248,7 @@ func TestMCXUCCFileAndResponse(t *testing.T) {
 	}
 	content := string(b.Content)
 	lines := strings.Split(strings.TrimSuffix(content, "\r\n"), "\r\n")
-	if !strings.HasSuffix(content, "\r\n") || len(lines) != 3 || lines[0] != "10,M,56845,30102026,01,2" {
+	if !strings.HasSuffix(content, "\r\n") || len(lines) != 3 || lines[0] != "10,M,12345,30102026,01,2" {
 		t.Fatalf("file %q", content)
 	}
 	for _, l := range lines[1:] {
@@ -288,8 +288,8 @@ func TestMCXUCCFileAndResponse(t *testing.T) {
 	}
 
 	// MCX's answer: A taken, B refused for its name.
-	resp := "11,M,56845,30102026,01,2\r\nMCXA1,\r\nMCXB2,015\r\n"
-	res, err = o.LoadExchangeFile(ctx, T, "priya.nair", "MCX_30102026_UCC56845.E01", []byte(resp), true)
+	resp := "11,M,12345,30102026,01,2\r\nMCXA1,\r\nMCXB2,015\r\n"
+	res, err = o.LoadExchangeFile(ctx, T, "priya.nair", "MCX_30102026_UCC12345.E01", []byte(resp), true)
 	if err != nil || len(res) != 1 || res[0].Format != "mcx-ucc-response" || res[0].Problems != 0 || !strings.Contains(res[0].Loaded, "1 accepted, 1 rejected") {
 		t.Fatalf("response %+v %v", res, err)
 	}
@@ -328,7 +328,7 @@ func TestMCXUCCFileAndResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	b2, err := o.MCXUCCBatchFile(ctx, T, "priya.nair")
-	if err != nil || b2.Name != "MCX_30102026_UCC56845.M02" || strings.Join(b2.Clients, ",") != "MCXB2" {
+	if err != nil || b2.Name != "MCX_30102026_UCC12345.M02" || strings.Join(b2.Clients, ",") != "MCXB2" {
 		t.Fatalf("batch 2 %s %v %v", b2.Name, b2.Clients, err)
 	}
 	if _, err := o.MCXUCCMarkUploaded(ctx, T, "priya.nair", b2.Name); err != nil {
@@ -341,7 +341,7 @@ func TestMCXUCCFileAndResponse(t *testing.T) {
 	if r := mcxReg(t, o, ctx, "MCXB2"); r.Status != UCCNotSent || r.Hash != "" {
 		t.Fatalf("B after refusal %+v", r)
 	}
-	if b3, err := o.MCXUCCBatchFile(ctx, T, "priya.nair"); err != nil || b3.Name != "MCX_30102026_UCC56845.M03" {
+	if b3, err := o.MCXUCCBatchFile(ctx, T, "priya.nair"); err != nil || b3.Name != "MCX_30102026_UCC12345.M03" {
 		t.Fatalf("batch 3 %s %v", b3.Name, err)
 	}
 

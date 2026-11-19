@@ -17,7 +17,7 @@ import (
 
 // ---- Finspot uploads ----
 //
-// Finspot (the pilot broker's trading front end: OMS and RMS) takes its
+// Finspot (a trading front end: OMS and RMS) takes its
 // data as pipe-delimited files whose first line names the file type, in
 // the layouts of Finspot's format workbook (config/formats/finspot-*.json):
 //
@@ -79,7 +79,7 @@ func init() {
 			{Key: "nse_basket", Label: "NSE margin basket name (default NSEMIS)", Optional: true, Placeholder: "NSEMIS"},
 			{Key: "bse_basket", Label: "BSE margin basket name (default BSEMIS)", Optional: true, Placeholder: "BSEMIS"},
 			{Key: "basket_min_pct", Label: "Minimum margin % in the baskets (default 20)", Optional: true, Placeholder: "20"},
-			{Key: "account_suffix", Label: "Account ID suffix: added to the UCC in every Finspot file that carries a client's account or user ID (e.g. -BJT, the broker's code on Finspot)", Optional: true, Placeholder: "-BJT"},
+			{Key: "account_suffix", Label: "Account ID suffix: added to the UCC in every Finspot file that carries a client's account or user ID (e.g. -ABC, the broker's code on Finspot)", Optional: true, Placeholder: "-ABC"},
 			{Key: "group_validation", Label: "Group wise validation indicator in the RMS limit lines: no or yes (default no)", Optional: true, Placeholder: "no"},
 			{Key: "cash_eq_isins", Label: "Cash-equivalent collateral ISINs besides government securities (liquid and overnight fund units, liquid ETFs), comma-separated: their pledged value goes in Notional cash, not in the ISIN Holding collateral", Optional: true},
 			fNotes}})

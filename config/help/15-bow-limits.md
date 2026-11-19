@@ -47,7 +47,7 @@ ask: set up bow api; bow api connection; bow vendor code; bow admin login api; m
 related: bow-limits, bow-signin
 
 1. Ask MarketPlace Tech (the BOW team) for API access for the firm's **BOW admin login**, the **vendor code** and front-end version they allot, the API address for **UAT** and **live**, and to allow this server's address (shown on [[connections|Connections]]).
-2. In [[connections|Connections]], open **BOW (BOLTPlusOnWeb) limits API** and enter the environment, the admin login ID (e.g. ADMIN-T9065) and password, the vendor code, whether the login has two-factor sign-in, and the multipliers for Securities and Commodities (1 unless the firm gives leverage). MTM is not checked unless an MTM multiplier is entered.
+2. In [[connections|Connections]], open **BOW (BOLTPlusOnWeb) limits API** and enter the environment, the admin login ID (e.g. ADMIN-T1234) and password, the vendor code, whether the login has two-factor sign-in, and the multipliers for Securities and Commodities (1 unless the firm gives leverage). MTM is not checked unless an MTM multiplier is entered.
 3. Click **Test**: it signs in and asks BOW for the exchange status. Switch **Push to BOW automatically** on when the UAT results are right.
 
 BOW locks the login after three wrong passwords and asks for a new password every 14 days. If BOW refuses the password, automatic pushes stop and the connection shows **Problem**: change the password in the BOW Admin Terminal and save it here again.

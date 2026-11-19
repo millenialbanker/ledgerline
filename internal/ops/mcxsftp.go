@@ -49,7 +49,7 @@ func init() {
 			{Key: "host", Label: "SFTP server (host or host:port)"},
 			{Key: "user", Label: "SFTP user"},
 			{Key: "password", Label: "SFTP password", Secret: true},
-			{Key: "member", Label: "Trading member ID (the folder name)", Placeholder: "e.g. 56845"},
+			{Key: "member", Label: "Trading member ID (the folder name)", Placeholder: "e.g. 12345"},
 			{Key: "root", Label: "Root folder", Optional: true, Placeholder: "/"},
 			{Key: "hostkey", Label: "Server's host key (SHA256:… fingerprint or the full key line). Required; the first try shows the key the server offers", Optional: true},
 			{Key: "fetch", Label: "Fetch new files automatically", Options: []string{"On", "Off"}},

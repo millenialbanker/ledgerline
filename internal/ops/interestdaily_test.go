@@ -9,7 +9,7 @@ import (
 	"ledgerline/internal/money"
 )
 
-// Baljit's way: 24% a year, no grace days, from the pay-in date, posted
+// One firm's way: 24% a year, no grace days, from the pay-in date, posted
 // every day so that the next day's interest is on principal plus interest.
 func TestDailyInterestCompounds(t *testing.T) {
 	o, ctx := setup(t)
