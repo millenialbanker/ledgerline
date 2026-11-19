@@ -60,9 +60,9 @@ var headers = map[string][]string{
 	// which terminals (CTCL IDs) are online and mobile, from the channel
 	// SharePro gave each trade
 	srcTermChan: {"Terminal", "Channel"},
-	srcInterest:   {"UCC", "From", "Rate", "GraceDays", "Free", "Note"},
-	srcKRA:        {"PAN", "Status", "Remarks"},
-	srcCKYC:       {"PAN", "CKYCNumber"},
+	srcInterest: {"UCC", "From", "Rate", "GraceDays", "Free", "Note"},
+	srcKRA:      {"PAN", "Status", "Remarks"},
+	srcCKYC:     {"PAN", "CKYCNumber"},
 
 	srcUCCDetails: {"UCC", "Address1", "City", "State", "PIN",
 		"Category", "Address2", "Address3", "Country", "PermAddress1", "PermAddress2", "PermAddress3", "PermCity", "PermState", "PermCountry", "PermPIN",
