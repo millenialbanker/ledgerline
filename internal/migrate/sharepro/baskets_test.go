@@ -27,7 +27,12 @@ func TestBrokerageBaskets(t *testing.T) {
 		// a client's own row on top of the basket
 		migrate.Row{"subcd": "TEST001", "effectdate": d("2025-04-01"), "itemcd": "ALL", "co": "02", "productcd": "DIR", "sqbrptge": ".015000"},
 	)
-	co.on("brokerage-del")
+	co.on("brokerage-del",
+		// F&O events: the event is in ONCAT; P-F / P-O are futures and
+		// options settled by delivery of shares
+		migrate.Row{"subcd": "B1", "effectdate": d("2024-04-01"), "itemcd": "ALL", "co": "03", "atwhat": "", "onwhich": "Strike", "oncat": "Excercise", "dlbrptge": ".050000"},
+		migrate.Row{"subcd": "B1", "effectdate": d("2024-04-01"), "itemcd": "ALL", "co": "03", "productcd": "P-F", "onwhich": "Spot", "dlbrptge": ".150000"},
+	)
 	co.on("brokerage-other",
 		migrate.Row{"subcd": "TEST001", "co": "02", "effectdate": d("2024-04-01"), "brkgbasket": "B1"},
 		migrate.Row{"subcd": "TEST001", "co": "03", "effectdate": d("2024-04-01"), "brkgbasket": "B1"},
@@ -42,12 +47,12 @@ func TestBrokerageBaskets(t *testing.T) {
 	_, cards := readCSV(t, r, "firms/02/master/BROKERAGE-CARDS.csv")
 	var got []string
 	for _, c := range cards {
-		got = append(got, fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s", c["Card"], c["Name"], c["From"], c["Product"], c["Channel"], c["Pct"], c["PerLot"], c["Min"]))
+		got = append(got, fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s", c["Card"], c["Name"], c["From"], c["Product"], c["Channel"]+c["Case"], c["Pct"], c["PerLot"], c["Min"]))
 	}
 	for _, w := range []string{
 		"B1|B1|2024-04-01|CM-INTRA||0.02||20", "B1|B1|2024-04-01|CM-INTRA|online|0.008||20",
 		"B1|B1|2025-04-01|CM-INTRA||0.02||20", "B1|B1|2025-04-01|CM-INTRA|online|0.007||20",
-		"B1|B1|2024-04-01|FO-OPT|mobile||20|",
+		"B1|B1|2024-04-01|FO-OPT|mobile||20|", "B1|B1|2024-04-01|FO-OPT|exercise|0.05||", "B1|B1|2024-04-01|FO-FUT|physical|0.15||",
 		"19-5-06|19-5-06|2024-04-01|CM-INTRA||0.04||", "19.5.06~2|19.5.06|2024-04-01|CM-INTRA||0.03||",
 	} {
 		if !contains(got, w) {

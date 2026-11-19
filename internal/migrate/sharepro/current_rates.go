@@ -41,7 +41,9 @@ const (
 
 // sharePro's trading channels on rate rows (PRODUCTCD) as Ledgerline
 // channels: blank is every channel, so a channel's own line wins over it.
-var spChannels = map[string]string{"": "", "DIR": "dealer", "IBT": "online", "MBT": "mobile"}
+// P-F and P-O are not channels but futures and options settled by delivery
+// (on delivery rows only; see convertRate).
+var spChannels = map[string]string{"": "", "DIR": "dealer", "IBT": "online", "MBT": "mobile", "P-F": "", "P-O": ""}
 
 type rateRow struct {
 	kind                     string // Q or D
@@ -206,7 +208,7 @@ func (c *cur) writeBrokerage(ctx context.Context) error {
 			return nil
 		}
 		var names []string
-		for _, k := range []string{"SUBCD", "EffectDate", "ITEMCD", "UNDITEMCD", "CO", "PRODUCTCD", "ATWHAT", cols["pct"], cols["min"], cols["minper"], cols["of"], cols["flat"], cols["flatper"], cols["slab"], cols["extra"]} {
+		for _, k := range []string{"SUBCD", "EffectDate", "ITEMCD", "UNDITEMCD", "CO", "PRODUCTCD", "ATWHAT", cols["pct"], cols["min"], cols["minper"], cols["of"], cols["flat"], cols["flatper"], cols["slab"], cols["extra"], cols["event"]} {
 			if k != "" {
 				names = append(names, k)
 			}
@@ -215,7 +217,7 @@ func (c *cur) writeBrokerage(ctx context.Context) error {
 		return c.d.query(ctx, fmt.Sprintf(q, list), func(r migrate.Row) error {
 			lc := func(k string) string { return strings.ToLower(cols[k]) }
 			x := rateRow{kind: kind, co: str(r, "co"), ucc: upper(r, "subcd"), from: date(r, "effectdate"), item: upper(r, "itemcd"), und: upper(r, "unditemcd"),
-				prod: upper(r, "productcd"), atwhat: strings.ToUpper(strings.Join(strings.Fields(str(r, "atwhat")+" "+str(r, lc("extra"))), " ")),
+				prod: upper(r, "productcd"), atwhat: strings.ToUpper(strings.Join(strings.Fields(str(r, "atwhat")+" "+str(r, lc("extra"))+" "+str(r, lc("event"))), " ")),
 				minPer: upper(r, lc("minper")), of: upper(r, lc("of")), flatPer: upper(r, lc("flatper")), slab: str(r, lc("slab")),
 				pct: dec(r, lc("pct")), minRate: dec(r, lc("min")), flat: dec(r, lc("flat"))}
 			if x.from == "" {
@@ -228,7 +230,7 @@ func (c *cur) writeBrokerage(ctx context.Context) error {
 	if err := read(qBrokQ, "NSQBRKG", "Q", map[string]string{"pct": "SQBRPTGE", "min": "SQBRMNRT", "minper": "SQBRMNPER", "of": "OF", "flat": "SQBRFLRT", "flatper": "SQFLATPER", "slab": "SLABCD"}); err != nil {
 		return err
 	}
-	if err := read(qBrokD, "NSDBRKG", "D", map[string]string{"pct": "DLBRPTGE", "min": "DLBRKGMIN", "minper": "DLBRMNPER", "flat": "DLBRKGFLT", "flatper": "DLFLATPER", "slab": "DLSLABCD", "extra": "ONWHICH"}); err != nil {
+	if err := read(qBrokD, "NSDBRKG", "D", map[string]string{"pct": "DLBRPTGE", "min": "DLBRKGMIN", "minper": "DLBRMNPER", "flat": "DLBRKGFLT", "flatper": "DLFLATPER", "slab": "DLSLABCD", "extra": "ONWHICH", "event": "ONCAT"}); err != nil {
 		return err
 	}
 	others := map[string][]othRow{}
@@ -445,7 +447,8 @@ func (c *cur) convertRate(x rateRow, items map[string][2]string) ([]rateLine, er
 		und = firstNonEmpty(items[x.und][0], x.und)
 	}
 	if !cash && x.kind == "D" {
-		// delivery rows of derivatives: settlement at expiry
+		// delivery rows of derivatives: settlement at expiry; the event is
+		// in ONCAT (Expiry, Excercise, Assignm, Delivery)
 		switch {
 		case strings.Contains(x.atwhat, "ASSIGN"):
 			products, kase = []string{opt}, charges.CaseAssignment
@@ -455,6 +458,16 @@ func (c *cur) convertRate(x rateRow, items map[string][2]string) ([]rateLine, er
 			kase = charges.CasePhysical
 		default:
 			products, kase = []string{fut}, charges.CaseExpiry
+		}
+		// P-F and P-O: futures and options settled by delivery of shares
+		switch x.prod {
+		case "P-F":
+			products = []string{fut}
+		case "P-O":
+			products = []string{opt}
+		}
+		if (x.prod == "P-F" || x.prod == "P-O") && kase != charges.CaseExercise && kase != charges.CaseAssignment {
+			kase = charges.CasePhysical
 		}
 	}
 	if len(products) == 0 {
