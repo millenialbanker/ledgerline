@@ -154,13 +154,13 @@ function ccProfilePanel(fp) {
   if (!fp) return '';
   const p = fp.profile, f = k => (fp.facts || []).find(x => x.key === k) || {};
   const yn = (k, label) => { const x = f(k); return `<div class="fld"><label for="fp-${k}">${esc(label)}</label><select class="in" id="fp-${k}"><option value="" ${!p[k] ? 'selected' : ''}>Go by what Ledgerline finds</option><option value="yes" ${p[k] === 'yes' ? 'selected' : ''}>Yes</option><option value="no" ${p[k] === 'no' ? 'selected' : ''}>No</option></select><div class="dim small ${x.known ? '' : 'neg'}">${esc(x.answer ? 'Your answer' : `Ledgerline finds: ${x.value || 'not known'} · ${x.from || ''}`)}</div></div>`; };
-  const facts = ['exchanges', 'clearing'].map(k => { const x = f(k); return `<div class="fp-fact"><b>${esc(x.label || '')}</b><span>${esc(x.value || '')}</span><small>${esc(x.from || '')}</small></div>`; }).join('');
+  const facts = ['exchanges', 'clearing', 'ras'].map(k => { const x = f(k); return `<div class="fp-fact"><b>${esc(x.label || '')}</b><span>${esc(x.value || '')}</span><small>${esc(x.from || '')}</small></div>`; }).join('');
   return `<div class="panel cc-fp" style="grid-column:1/-1"><div class="hd"><h3>Firm profile</h3><small>What Ledgerline needs to tell whether a circular applies · compliance officer and Admin</small></div><div class="bd">
     ${(fp.questions || []).length ? `<div class="note warn" style="margin-bottom:10px"><b>Still to answer:</b> ${fp.questions.map(esc).join(' ')}</div>` : ''}
     <div class="fp-facts">${facts}</div>
     <div class="form" style="margin-top:12px">
-      ${yn('cdsl', 'CDSL depository participant')}${yn('nsdl', 'NSDL depository participant')}${yn('algo', 'Algorithmic trading (the firm’s own, or clients’ through its systems)')}${yn('ibt', 'Internet-based trading (clients trade through the firm’s website or app)')}
-      ${yn('nri', 'NRI clients')}${yn('ap', 'Authorised persons')}${yn('branches', 'Branch offices')}
+      ${yn('cdsl', 'CDSL depository participant')}${yn('nsdl', 'NSDL depository participant')}${yn('algo', 'Algorithmic trading (the firm’s own, or clients’ through its systems)')}${yn('ibt', 'Internet or mobile trading (clients trade through the firm’s website or app)')}
+      ${yn('nri', 'NRI clients')}${yn('ap', 'Authorised persons')}${yn('branches', 'Branch offices')}${yn('other_ai', 'AI or ML tools used outside Ledgerline')}
       <div class="fld"><label for="fp-cscrf">CSCRF category</label><select class="in" id="fp-cscrf"><option value="">Not known</option>${(fp.cscrf_categories || []).map(x => `<option value="${esc(x.ID)}" ${p.cscrf === x.ID ? 'selected' : ''}>${esc(x.Name)}</option>`).join('')}</select><div class="dim small" id="fp-cscrf-n">${esc(((fp.cscrf_categories || []).find(x => x.ID === p.cscrf) || {}).Note || 'By registered clients and clients’ trading in the year (SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2025/60)')}</div></div>
       <label class="check"><input type="checkbox" id="fp-mtf" ${fp.mtf ? 'checked' : ''}> Margin trading facility (MTF) approved</label>
       <fieldset class="full fp-regs"><legend>Other SEBI registrations</legend><div class="fp-regs-l">${(fp.registrations || []).map(r => `<label><input type="checkbox" data-fp-reg="${esc(r.ID)}" ${(p.registrations || []).includes(r.ID) ? 'checked' : ''}> ${esc(r.Name)}</label>`).join('')}</div><input class="in" id="fp-other" placeholder="Another registration (optional)" value="${esc(p.other_registration || '')}" aria-label="Another registration"></fieldset>
@@ -189,7 +189,7 @@ Object.assign(A, {
   ccProfSave: async () => {
     const v = k => $('fp-' + k).value, regs = [...document.querySelectorAll('[data-fp-reg]')].filter(x => x.checked).map(x => x.dataset.fpReg);
     try {
-      await api('PUT', '/v1/firm-profile', { cdsl: v('cdsl'), nsdl: v('nsdl'), algo: v('algo'), ibt: v('ibt'), nri: v('nri'), ap: v('ap'), branches: v('branches'), cscrf: v('cscrf'), mtf: $('fp-mtf').checked, registrations: regs, other_registration: $('fp-other').value });
+      await api('PUT', '/v1/firm-profile', { cdsl: v('cdsl'), nsdl: v('nsdl'), algo: v('algo'), ibt: v('ibt'), nri: v('nri'), ap: v('ap'), branches: v('branches'), other_ai: v('other_ai'), cscrf: v('cscrf'), mtf: $('fp-mtf').checked, registrations: regs, other_registration: $('fp-other').value });
       toast('Firm profile saved: circulars are checked against it'); render({ keep: true });
     } catch (e) { toast(e.message, true); }
   },

@@ -6,7 +6,7 @@ Ledgy help articles: the compliance calendar's duties (Trading, DP, RA & IA) wit
 title: The compliance calendar: every duty, its circulars, steps and how it is done
 screen: circulars
 roles: Compliance officer, Admin, Ops maker, Ops checker, Risk manager
-ask: compliance calendar; compliance sheet; monthly compliance; what is due this month; daily compliance checks; which compliances can be done by api; api compliance; circular for this compliance; steps to file; how to file on fingate; scores login; smart odr; mnrl; demise cases; dp monthly reports; nil report; change in directors intimation; cyber incident 6 hours; record an event; one time compliance; compliance doesn't apply; ra ia compliance; month sheet csv; download compliance sheet
+ask: compliance calendar; compliance sheet; monthly compliance; what is due this month; daily compliance checks; which compliances can be done by api; api compliance; circular for this compliance; steps to file; how to file on fingate; scores login; smart odr; mnrl; demise cases; dp monthly reports; nil report; change in directors intimation; cyber incident 6 hours; record an event; one time compliance; compliance doesn't apply; mark duty not applicable; duty withdrawn; remove a duty from the calendar; ra ia compliance; month sheet csv; download compliance sheet
 related: compliance-month-sheet, compliance-profile, shared-filing, ras-calendar
 
 [[circulars|Circulars & calendar]] → **Compliance calendar** lists the firm's recurring compliance work in three groups: **Trading** (the stock broker), **DP** (the depository participant) and **RA & IA** (a firm also registered as a research analyst or investment adviser). Each duty is one line of a broker's compliance sheet, and carries:
@@ -33,6 +33,8 @@ related: compliance-month-sheet, compliance-profile, shared-filing, ras-calendar
 - **One-time duties** stay due until marked done, however old the deadline.
 - **As required** duties have no date. **Done by Ledgerline** duties need nothing marked.
 
+**A duty that doesn't apply to your firm** (for example one withdrawn by a circular): open it and choose **Doesn't apply to us** (compliance officer). Give the reason, such as the circular that withdrew it. The duty stays in Ledgerline for other firms. For yours it shows *Doesn't apply* with your name, the date and the reason, and it is not chased. The decision is in the audit trail and in the duty's history. **It applies after all** takes it back.
+
 Each **Mark done** keeps who did it, when, and the evidence named; *late* is shown when it was done after the due date. Duties are queued a week before they fall due. The compliance officer can change a duty's title, due rule, owner or evidence. The change is kept, and Ledgerline's catalogue no longer replaces it, but the circulars and steps still update with each Ledgerline release.
 
 ## compliance-month-sheet
@@ -55,13 +57,15 @@ Choose the month at the top. **Show what doesn't apply** adds the duties the fir
 title: Keep the exchanges' RAS dates
 screen: circulars
 roles: Compliance officer, Admin
-ask: ras dates; ras calendar; running account settlement dates; first friday; friday or saturday settlement; quarterly settlement date; monthly settlement date; annual calendar for settlement of running account; next ras date
+ask: ras dates; ras calendar; running account settlement dates; first friday; friday or saturday settlement; settle on friday; quarterly settlement date; monthly settlement date; all clients quarterly; annual calendar for settlement of running account; next ras date
 related: ras, compliance-profile
 
 Running accounts are settled on the dates the exchanges set jointly for each financial year, not on the first Friday (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197 of 28 December 2023; NSE/INSP/60014). Each date is a Friday and/or the Saturday after it, separately for clients who chose monthly and quarterly settlement.
 
 1. On [[circulars|Circulars & calendar]] → **RAS dates & profile**, the list shows each settlement, the exchanges' dates and the day the firm settles. FY 2026-27 is already there (for example 17/18 April, 3/4 July, 16/17 October 2026 and 1/2 January 2027 for quarterly clients; 15/16 May, 6/7 November 2026 for monthly clients).
 2. **Edit RAS dates** (compliance officer or admin): one line per settlement — *Monthly* or *Quarterly*, the period (2026-11, or 2026-27 Q3; Q1 is April–June), the Friday and/or Saturday, and the day the firm settles (the Friday unless you choose the Saturday). Only Fridays and Saturdays are accepted.
+   - **The firm settles on:** *the Friday of every date* or *the Saturday of every date* sets the day for every line at once; *the day each line says* lets each line choose.
+   - **Clients are settled:** *each client's own choice*, or *every client quarterly*. With every client quarterly, the monthly settlement duty doesn't apply. If a client record still says monthly, the duty stays and a warning names the client. Clients idle for 30 days are still paid out on the monthly date.
 3. The next monthly and quarterly date in Settings, the [[ras|Running account]] screen, Periodic work and Autopilot all follow the list; it is applied each morning and whenever it is saved. The compliance calendar has one duty for quarterly clients and one for monthly clients, due on the last day of each window and done once the settlement has run.
 4. When the list ends within two months a work item asks for the next year's calendar, which the exchanges publish in January.
 
@@ -74,7 +78,7 @@ related: ras-calendar, shared-filing
 
 NSE's system audit circular NSE/INSP/73850 (22 April 2026) sets the cycle by member type: half-yearly for members trading through NEAT, NNF and algo (Type III); yearly for Type I and Type II members with more than 10 locations or 50 terminals, and for depository participants; once in 2 years for the smaller Type II members; none for NEAT-only members who are not DPs.
 
-On **RAS dates & profile** → **System audit, auditor and MTF** set the cycle, the auditor, and whether NSE has empanelled them (NSE/INSP/69631: only an empanelled auditor's report is accepted). The calendar then has three duties:
+On **RAS dates & profile** → **System audit, auditor and MTF** set the cycle, the auditor, and whether NSE has empanelled them (NSE/INSP/69631: only an empanelled auditor's report is accepted). A warning shows when the cycle does not match the firm profile's answer on algo trading (half-yearly is the cycle for algo members). The calendar then has three duties:
 
 - **Audit plan** on NSE's ENIT portal (auditor, systems, office locations to visit): by 5 June; also by 5 November for the April–September half year.
 - **Preliminary audit report**: by 30 June; also by 30 November for the half year (NSE/INSP/76769). The algo MIS, version confirmation, assessment details and the auditor's geo-tagged visit details go in first.
@@ -93,7 +97,7 @@ A member of NSE that is also a member of BSE, MSE, MCX or NCDEX files the common
 
 In the compliance calendar these duties appear once and say **File with NSE (shared with the other exchanges)** when the firm has an NSE member code and another exchange's in Settings. A firm that is not an NSE member sees **File with each exchange**. Bank account reporting to NSE uses the revised undertaking, authorisation and bank confirmation formats from 15 October 2025 (Annexures B to D of NSE/INSP/70505); Ledgerline does not print these letters.
 
-The yearly duty **Confirm your banks submit daily client bank balances to the exchange** remains: members stopped sending daily bank balances from 30 October 2023, but must ensure their banks send them to the exchange on T+1 (NSE/INSP/59044).
+**Daily client bank balances:** members stopped uploading them from 30 October 2023; the banks send them to the exchange on T+1 (NSE/INSP/59044). The daily upload is not on the calendar. A yearly duty remains to confirm that your banks send them for every reported account. If your firm decides that this doesn't apply to it either, open the duty and choose **Doesn't apply to us** with the reason.
 
 ## surveillance-return
 title: Quarterly surveillance obligation report (Formats I to III)

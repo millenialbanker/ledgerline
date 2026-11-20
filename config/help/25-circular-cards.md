@@ -24,13 +24,20 @@ The rules read words in the circular's subject and text. They are a first sort, 
 title: The firm profile for circulars
 screen: settings
 roles: Compliance officer, Admin
-ask: firm profile; what circulars apply to us; set cscrf category; cscrf category; are we a dp; nsdl participant; algo trading yes no; nri clients; other sebi registrations; portfolio manager registration; firm profile settings
-related: circular-applies, compliance-profile
+ask: firm profile; what circulars apply to us; set cscrf category; cscrf category; are we a dp; nsdl participant; algo trading yes no; internet trading; mobile trading; nri clients; other sebi registrations; portfolio manager registration; firm profile settings; ai tools outside ledgerline; no mtf
+related: circular-applies, compliance-profile, aiml-report, ras-calendar
 
 Settings → **Firm profile** (compliance officer and Admin) is what the rules read to tell whether a circular applies.
 
 - **Read from Ledgerline:** exchanges and segments (member codes and **Cleared through** in Settings); the clearing route of each segment (the firm's own clearing at a clearing corporation, or another clearing member); a CDSL DP (the CDSL connection has the firm's DP ID); MTF (also on Circulars & calendar → RAS dates & profile); authorised persons, branches and NRI clients (Partners, branches and the client list).
-- **Answered here:** CDSL and NSDL participant, algorithmic trading, NRI clients, authorised persons and branches (each **Yes**, **No** or **Go by what Ledgerline finds**), other SEBI registrations, and the CSCRF category.
+- **Answered here:** CDSL and NSDL participant, algorithmic trading, internet or mobile trading (clients trade through the firm's website or app), NRI clients, authorised persons, branches and AI or ML tools used outside Ledgerline (each **Yes**, **No** or **Go by what Ledgerline finds**), MTF, other SEBI registrations, and the CSCRF category.
+
+**What the answers change in the compliance calendar:**
+- **MTF:** with MTF the September net worth certificate is due by 14 November; without it by 29 November. The March certificate is due by 30 May either way.
+- **Internet or mobile trading, or algo trading,** with a mid-size or small-size CSCRF category: the cyber security audit is half-yearly. Without either, it is yearly. A qualified RE is always half-yearly.
+- **Algo trading:** the AI & ML report is half-yearly with algo, yearly without (unless you choose a cycle on Exchange disclosures). The compliance profile warns if the system audit cycle does not match.
+- **AI or ML tools outside Ledgerline: No:** the AI & ML report says there is nothing to report besides Ledgerline itself.
+- **Running account settlement** (shown here, set on Circulars & calendar → RAS dates & profile): with every client quarterly, the monthly settlement duty does not apply.
 
 CSCRF categories for stock brokers (SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2025/60 of 30 April 2025, under the framework of SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113 of 20 August 2024): **Qualified RE** (more than 10 lakh registered clients or more than ₹10,00,000 crore of clients' trading in the year), **Mid-size** (more than 1 lakh up to 10 lakh clients, or more than ₹1,00,000 crore up to ₹10,00,000 crore), **Small-size** (more than 10,000 up to 1 lakh, or more than ₹10,000 crore up to ₹1,00,000 crore), **Self-certification** (more than 1,000 up to 10,000, or more than ₹1,000 crore up to ₹10,000 crore); below both 1,000 clients and ₹1,000 crore the framework does not apply. The higher category applies when either measure puts the firm there.
 

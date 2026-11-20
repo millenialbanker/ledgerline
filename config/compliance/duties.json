@@ -1126,10 +1126,11 @@
    "group": "Trading",
    "title": "Running account settlement: clients who chose monthly settlement",
    "frequency": "Monthly",
-   "due_text": "On the monthly settlement dates in the exchanges' joint annual calendar (a Friday and/or the Saturday after it); quarterly clients on the quarterly dates. FY 2026-27 monthly dates: 17/18 Apr, 15/16 May, 5/6 Jun, 3/4 Jul, 7/8 Aug, 4/5 Sep, 16/17 Oct, 6/7 Nov, 4/5 Dec 2026, 1/2 Jan, 5/6 Feb, 5/6 Mar 2",
+   "due_text": "On the monthly settlement dates in the exchanges' joint annual calendar (a Friday and/or the Saturday after it); quarterly clients on the quarterly dates. FY 2026-27 monthly dates: 17/18 Apr, 15/16 May, 5/6 Jun, 3/4 Jul, 7/8 Aug, 4/5 Sep, 16/17 Oct, 6/7 Nov, 4/5 Dec 2026, 1/2 Jan, 5/6 Feb, 5/6 Mar 2027. A firm that settles every client quarterly has no monthly settlement, except for clients idle 30 days.",
    "rule": "RASM",
    "applies": [
-    "broker"
+    "broker",
+    "ras:monthly"
    ],
    "role": "Ops checker",
    "filed_with": "Kept by the firm (payouts to clients' banks; UCC-wise details filed under T19)",
@@ -3092,7 +3093,7 @@
    "applies": [
     "broker",
     "cscrf:qualified,mid,small",
-    "ibt|algo"
+    "cscrf:qualified|ibt|algo"
    ],
    "role": "Admin",
    "filed_with": "NSE ENIT > NEW-TRADE > Trade > Cyber Audit (common submission for members of other exchanges)",
@@ -3222,6 +3223,49 @@
    ],
    "steps_from": "NSE/INSP/73849 (ENIT paths, audit requirements, Annexures A-D)",
    "changed": "'Type-III' is a system audit term, not a cyber audit one. 31 Dec is only the April-September report; the October-March report is due 30 Jun, and each has an ATR (31 Mar / 30 Sep). Qualified REs are half-yearly whether or not they offer IBT or algo; Mid/Small REs without IBT or algo are yearly; self-certification REs have no cyber audit (they still do the yearly VAPT and join the Market SOC). For DPs, NSDL/POLICY/2026/0096 asks self-certification REs for a self-declaration instead (per brief, not re-read)."
+  },
+  {
+   "id": "OB-BANKBAL",
+   "group": "Trading",
+   "title": "Confirm your banks send the exchange the daily balances of client bank accounts (members' own daily upload stopped from 30 October 2023)",
+   "frequency": "Yearly",
+   "due_text": "Members no longer upload daily bank balances or bank statements: NSE discontinued it from 30 October 2023, as the banks report them on T+1 (NSE/INSP/59044). What remains is to make sure every reported client bank account is covered by the bank's daily submission; Ledgerline asks for it once a year, by 30 April.",
+   "rule": "04-30",
+   "applies": [
+    "broker"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "Nothing is filed by the member; the banks report to the exchange",
+   "evidence": "For every reported bank account: the bank's confirmation (NSE/INSP/70505 Annexure D) and the exchange's view that the bank's T+1 daily balances are coming in",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/59044",
+     "title": "Discontinuation of Reporting of Bank Account Balances and Bank Statements",
+     "url": "https://nsearchives.nseindia.com/content/circulars/INSP59044.pdf",
+     "says": "From 30 Oct 2023 banks send daily balances to NSE (T+1); members stop reporting them; the member must make sure its banks do. (Circular date not shown.)"
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/70505",
+     "date": "2025-09-29",
+     "title": "Technology based sharing mechanisms of common submissions among Exchanges",
+     "url": "https://nsearchives.nseindia.com/content/circulars/INSP70505.pdf",
+     "says": "Reporting of bank accounts is a common submission filed with NSE only from 15 Oct 2025, with revised undertaking, authorisation and bank confirmation formats (Annexures B to D)."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Nothing to submit: the members' daily bank balance upload was discontinued (NSE/INSP/59044)."
+   },
+   "practice": [
+    "List the client bank accounts reported to the exchange (USCNBA, DSCNBA, settlement accounts).",
+    "Get each bank's confirmation that it sends the account's daily balance to the exchange, in the NSE/INSP/70505 Annexure D format.",
+    "Keep the confirmations with the exchange's acknowledgement of the bank accounts."
+   ],
+   "changed": "The daily upload of client bank balances by members was withdrawn by NSE/INSP/59044 from 30 October 2023 and is not on the calendar. If the firm decides the yearly confirmation does not apply to it either, mark this duty not applicable with the reason.",
+   "shared": true
   },
   {
    "id": "OB-ANNUALRET",

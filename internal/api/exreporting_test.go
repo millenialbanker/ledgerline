@@ -68,4 +68,24 @@ func TestExchangeReportingRoutes(t *testing.T) {
 	if c := ipoCall(t, srv, "POST", "/v1/holding-api/submit", "anita.rao", map[string]string{"date": "2026-10-16"}, nil); c != 403 {
 		t.Fatalf("risk manager submitted: %d", c)
 	}
+
+	// A duty marked not applicable for this firm, with the reason, then taken back.
+	na := map[string]any{"on": "2026-10-16", "applies": false, "reason": "Withdrawn by the exchange (made-up reason)"}
+	if c := ipoCall(t, srv, "POST", "/v1/duties/OB-BANKBAL/applies", "priya.nair", na, nil); c != 403 {
+		t.Fatalf("a maker decided: %d", c)
+	}
+	if c := ipoCall(t, srv, "POST", "/v1/duties/OB-BANKBAL/applies", "vikram.shah", map[string]any{"on": "2026-10-16", "applies": false}, nil); c != 422 {
+		t.Fatalf("no reason: %d", c)
+	}
+	var d ops.Duty
+	if c := ipoCall(t, srv, "POST", "/v1/duties/OB-BANKBAL/applies", "vikram.shah", na, &d); c != 200 || d.NotApplicable == nil || d.Status != "Doesn't apply" {
+		t.Fatalf("not applicable %d %+v", c, d)
+	}
+	d = ops.Duty{}
+	if c := ipoCall(t, srv, "POST", "/v1/duties/OB-BANKBAL/applies", "vikram.shah", map[string]any{"on": "2026-10-16", "applies": true}, &d); c != 200 || d.NotApplicable != nil || len(d.NAHistory) != 1 {
+		t.Fatalf("taken back %d %+v", c, d)
+	}
+	if c := ipoCall(t, srv, "POST", "/v1/duties/OB-NOPE/applies", "vikram.shah", na, nil); c != 404 {
+		t.Fatalf("unknown duty: %d", c)
+	}
 }

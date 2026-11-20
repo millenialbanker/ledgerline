@@ -79,10 +79,14 @@ Each filing is a duty in the compliance calendar ([[circulars|Circulars & duties
 title: The AI & ML systems report
 screen: exdisc
 roles: Compliance officer, Admin
-ask: aiml report answers; ai ml half yearly; ai ml quarterly; is ledgy ai; order execution ai; does ledgy give advice; ai safeguards; system audit ai; single filing nse ai
-related: exchange-disclosures, ai-inventory
+ask: aiml report answers; ai ml half yearly; ai ml quarterly; ai ml yearly; is ledgy ai; order execution ai; does ledgy give advice; ai safeguards; system audit ai; single filing nse ai; no ai tools outside ledgerline; nothing to report ai; ai ml report without algo
+related: exchange-disclosures, ai-inventory, firm-profile
 
-SEBI's circular of 4 January 2019 (SEBI/HO/MIRSD/DOS2/CIR/P/2019/10) asks brokers to report the AI and ML systems they use. It was quarterly, within 15 days of the quarter's end; NSE and MCX now collect it **half-yearly** (April–September and October–March, within 15 days) from members trading through algorithms, and yearly from others. Choose the cycle under **Details for the forms**.
+SEBI's circular of 4 January 2019 (SEBI/HO/MIRSD/DOS2/CIR/P/2019/10) asks brokers to report the AI and ML systems they use. It was quarterly, within 15 days of the quarter's end; NSE and MCX now collect it **half-yearly** (April–September and October–March, within 15 days) from members trading through algorithms, and yearly from others.
+
+**The cycle** under **Details for the forms**: *From the firm profile* (the default) follows the answer on algo trading in Settings → Firm profile: half-yearly with algo trading, yearly without (due 15 April for April–March). It stays half-yearly until the profile says. You can also choose a cycle yourself.
+
+**Nothing besides Ledgerline:** answer *AI or ML tools used outside Ledgerline: No* in Settings → Firm profile. The report then says there is nothing to report besides Ledgerline's own features. If no Ledgerline AI feature was on either, the answer is **No**. If a tool in the AI inventory was in use in the period, the report warns that the profile and the inventory disagree.
 
 - The header comes from [[settings|Settings]]: SEBI registration, firm name and PAN.
 - Each AI system in use at any time in the period gets an entry, answered from the AI inventory: Ledgy does not initiate or route orders, manage portfolios, give advice (it answers staff questions about operations) or detect attacks; it is implemented by the vendor (Ledgerline) using the connected provider's model; its controls and safeguards are the kill switch, masking, the answer log and no autonomous actions.

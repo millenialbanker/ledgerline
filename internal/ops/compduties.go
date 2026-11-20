@@ -541,7 +541,7 @@ func eventWithinWords(within string) string {
 
 // ---- who a duty applies to ----
 
-var reDutyNeed = regexp.MustCompile(`^(no:)?(broker|clearing|dp|cdsl|nsdl|mtf|algo|ibt|nri|ap|branch|ra|ia|pms|derivatives|member:(NSE|BSE|MCX|MSE|NCDEX)|seg:(CM|FO|CD|COM)|cscrf:(qualified|mid|small|self|exempt)(,(qualified|mid|small|self|exempt))*)$`)
+var reDutyNeed = regexp.MustCompile(`^(no:)?(broker|clearing|dp|cdsl|nsdl|mtf|algo|ibt|nri|ap|branch|ra|ia|pms|derivatives|ras:monthly|member:(NSE|BSE|MCX|MSE|NCDEX)|seg:(CM|FO|CD|COM)|cscrf:(qualified|mid|small|self|exempt)(,(qualified|mid|small|self|exempt))*)$`)
 
 // validDutyNeed checks one condition ("a|b" for either).
 func validDutyNeed(n string) bool {
@@ -627,6 +627,8 @@ func dutyNeed(n string, f firmFacts) (tri, string) {
 		return fact(f.AP, "you have authorised persons", "you have no authorised persons", "tell Ledgerline whether the firm has authorised persons")
 	case n == "branch":
 		return fact(f.Branch, "you have branches", "you have no branches", "tell Ledgerline whether the firm has branches")
+	case n == "ras:monthly":
+		return fact(f.RASMonthly, "clients can be settled monthly", "every client is settled quarterly (compliance profile)", "")
 	case n == "ra", n == "ia", n == "pms":
 		name := map[string]string{"ra": "a research analyst", "ia": "an investment adviser", "pms": "a portfolio manager"}[n]
 		return fact(triOf(f.Regs[n]), "you are registered as "+name, "you are not registered as "+name+" (Settings → Firm profile)", "")
@@ -663,6 +665,123 @@ func dutyApplies(needs []string, f firmFacts) Applicability {
 		a.Reason = a.Reasons[0]
 	}
 	return a
+}
+
+// ---- a duty the firm decides does not apply ----
+
+// DutyNA is the compliance officer's decision that a duty does not apply
+// to the firm, with the reason and who decided it. The duty stays in the
+// catalogue for every other firm; for this firm it shows as not applicable
+// and is not chased, until the decision is taken back.
+type DutyNA struct {
+	Reason   string `json:"reason"`
+	By       string `json:"by"`
+	At       string `json:"at"`
+	Rules    string `json:"rules,omitempty"`     // what Ledgerline's rules said then
+	RulesWhy string `json:"rules_why,omitempty"` // and why
+	// Ended and EndedBy: when and by whom the decision was taken back.
+	Ended   string `json:"ended,omitempty"`
+	EndedBy string `json:"ended_by,omitempty"`
+}
+
+// naApplicability is how a duty marked not applicable reads in the calendar.
+func naApplicability(na DutyNA) Applicability {
+	why := "Marked not applicable by " + na.By
+	if len(na.At) >= 10 {
+		why += " on " + fmtDay(na.At[:10])
+	}
+	why += ": " + na.Reason
+	return Applicability{Verdict: ApplyNo, Reason: why, Reasons: []string{why}, Overridden: true, Rules: na.Rules, RulesWhy: na.RulesWhy, By: na.By, At: na.At}
+}
+
+// DutyAppliesReq is the decision SetDutyApplies records.
+type DutyAppliesReq struct {
+	// Applies false marks the duty not applicable to the firm (Reason is
+	// needed); true takes that decision back.
+	Applies bool   `json:"applies"`
+	Reason  string `json:"reason"`
+}
+
+// SetDutyApplies records the compliance officer's decision that a duty
+// does not apply to the firm, or takes it back. Only this firm's calendar
+// changes. Each decision is kept on the duty and in the audit trail.
+func (o *Ops) SetDutyApplies(ctx context.Context, tenant, actor, date, id string, req DutyAppliesReq) (Duty, error) {
+	if err := o.require(ctx, tenant, actor, "Deciding whether a compliance duty applies", RoleCompliance); err != nil {
+		return Duty{}, err
+	}
+	if !validDate(date) {
+		date = o.businessDate(ctx, tenant)
+	}
+	obs, err := o.Duties(ctx, tenant, date)
+	if err != nil {
+		return Duty{}, err
+	}
+	var x *Duty
+	for i := range obs {
+		if obs[i].ID == id {
+			x = &obs[i]
+		}
+	}
+	if x == nil {
+		return Duty{}, ErrNotFound
+	}
+	reason := clip(strings.TrimSpace(req.Reason), 300)
+	now := o.now().Format(time.RFC3339)
+	if !req.Applies && len(reason) < 5 {
+		return *x, invalid("say why the duty does not apply to the firm (for example the circular that withdrew it): the reason stays with the duty and in the audit trail")
+	}
+	if req.Applies && x.NotApplicable == nil {
+		return *x, fmt.Errorf("%w: %s is not marked not applicable", ErrState, x.Title)
+	}
+	period := x.Period
+	_, err = docs.Update(ctx, o.Docs, tenant, cObligation, id, actor, func(y *Duty) error {
+		if req.Applies {
+			if y.NotApplicable == nil {
+				return fmt.Errorf("%w: %s is not marked not applicable", ErrState, y.Title)
+			}
+			if n := len(y.NAHistory); n > 0 && y.NAHistory[n-1].Ended == "" {
+				y.NAHistory[n-1].Ended, y.NAHistory[n-1].EndedBy = now, actor
+			}
+			y.NotApplicable = nil
+			return nil
+		}
+		na := DutyNA{Reason: reason, By: actor, At: now}
+		if x.Applicability != nil && !x.Applicability.Overridden {
+			na.Rules, na.RulesWhy = x.Applicability.Verdict, x.Applicability.Reason
+		} else if x.NotApplicable != nil {
+			na.Rules, na.RulesWhy = x.NotApplicable.Rules, x.NotApplicable.RulesWhy
+		} else {
+			na.Rules = ApplyYes
+		}
+		if n := len(y.NAHistory); n > 0 && y.NAHistory[n-1].Ended == "" {
+			y.NAHistory[n-1].Ended, y.NAHistory[n-1].EndedBy = now, actor // a new reason replaces the old one
+		}
+		y.NotApplicable = &na
+		y.NAHistory = append(y.NAHistory, na)
+		return nil
+	})
+	if err != nil {
+		return *x, err
+	}
+	if req.Applies {
+		o.log(ctx, tenant, actor, "obligation.applies_again", id, map[string]any{"title": x.Title})
+	} else {
+		rules := ApplyYes
+		if x.Applicability != nil && !x.Applicability.Overridden {
+			rules = x.Applicability.Verdict
+		}
+		o.log(ctx, tenant, actor, "obligation.not_applicable", id, map[string]any{"title": x.Title, "reason": reason, "rules": rules})
+		if period != "" {
+			o.closeWork(ctx, tenant, actor, "compliance", id+"|"+period, "not applicable: "+reason)
+		}
+	}
+	ds, err := o.Duties(ctx, tenant, date)
+	for _, d := range ds {
+		if d.ID == id {
+			return d, err
+		}
+	}
+	return *x, err
 }
 
 // ---- the catalogue in the calendar ----

@@ -94,7 +94,8 @@ function dcModal(id) {
   const canDone = !na && dcCan(x) && x.rule !== 'AUTO' && (x.next_due || x.period === 'once' || x.rule === 'ASNEEDED');
   modal(mhd(esc(x.title), `${esc(x.group || 'Trading')} · ${esc(x.frequency)}${x.authority ? ' · ' + esc(dcClip(x.authority, 90)) : ''}`) + `<div class="bd cc-md dc-md">
     <div class="tools">${dcStPill(x)} ${x.next_due ? `<span class="tag">Next due ${fmtDate(x.next_due)}${x.due_at ? ' ' + esc(x.due_at) : ''} · ${esc(x.period || '')}</span>` : ''} ${(x.items || []).map(i => `<span class="tag" title="Item on the source calendar">${esc(i)}</span>`).join(' ')}</div>
-    ${ap ? `<div class="note ${ap.verdict === 'no' ? '' : ap.verdict === 'unsure' ? 'warn' : ''}"><b>${esc({ applies: 'Applies', no: 'Doesn’t apply', unsure: 'Not sure' }[ap.verdict] || '')}:</b> ${esc(ap.reason)}${ap.verdict !== 'applies' ? ' <button class="linkish" data-act="go" data-id="settings">Firm profile</button>' : ''}</div>` : ''}
+    ${ap ? `<div class="note ${ap.verdict === 'no' ? '' : ap.verdict === 'unsure' ? 'warn' : ''}"><b>${esc({ applies: 'Applies', no: 'Doesn’t apply', unsure: 'Not sure' }[ap.verdict] || '')}:</b> ${esc(ap.reason)}${ap.overridden && ap.rules ? `<div class="dim small">Ledgerline’s rules said: ${esc({ applies: 'applies', no: 'doesn’t apply', unsure: 'not sure' }[ap.rules] || ap.rules)}${ap.rules_why ? ' (' + esc(ap.rules_why) + ')' : ''}</div>` : ''}${ap.verdict !== 'applies' && !ap.overridden ? ' <button class="linkish" data-act="go" data-id="settings">Firm profile</button>' : ''}</div>` : ''}
+    ${(x.na_history || []).length ? `<details class="small"><summary>Decisions on whether it applies (${x.na_history.length})</summary><ul>${x.na_history.slice().reverse().map(h => `<li>${fmtDate(h.at.slice(0, 10))} · ${esc(h.by)}: not applicable, ${esc(h.reason)}${h.ended ? ` <span class="dim">· taken back ${fmtDate(h.ended.slice(0, 10))} by ${esc(h.ended_by)}</span>` : ''}</li>`).join('')}</ul></details>` : ''}
     ${x.changed ? `<div class="note warn"><b>Changed since the old calendar:</b> ${esc(x.changed)}</div>` : ''}
     ${x.warning ? `<div class="note warn">${esc(x.warning)}</div>` : ''}
     <div class="dc-grid"><div><small>Due</small><b>${esc(x.due_text || x.frequency)}</b></div><div><small>Filed with</small><b>${esc(x.filing || x.filed_with || '—')}</b></div><div><small>Owner</small><b>${esc(x.role)}</b></div><div><small>Keep as evidence</small><b>${esc(x.evidence)}</b></div></div>
@@ -103,7 +104,7 @@ function dcModal(id) {
     <h3 class="cc-h">Circulars</h3><ul class="dc-refs">${refs || '<li class="dim">None recorded.</li>'}</ul>
     ${events}
     <h3 class="cc-h">Done</h3>${hist}
-  </div><div class="ft">${x.rule === 'EVENT' && dcCan(x) && !na ? `<button class="btn" data-act="dcEvent" data-id="${esc(x.id)}">Record an event</button>` : ''}${canDone ? `<button class="btn pri" data-act="dcDone" data-id="${esc(x.id)}">Mark done</button>` : ''}<button class="btn" data-act="close">Close</button></div>`);
+  </div><div class="ft">${has('Compliance officer') ? x.not_applicable ? `<button class="btn" data-act="dcApplies" data-id="${esc(x.id)}">It applies after all</button>` : `<button class="btn" data-act="dcNotApplies" data-id="${esc(x.id)}">Doesn’t apply to us</button>` : ''}${x.rule === 'EVENT' && dcCan(x) && !na ? `<button class="btn" data-act="dcEvent" data-id="${esc(x.id)}">Record an event</button>` : ''}${canDone ? `<button class="btn pri" data-act="dcDone" data-id="${esc(x.id)}">Mark done</button>` : ''}<button class="btn" data-act="close">Close</button></div>`);
 }
 
 /* ---------- the month's sheet ---------- */
@@ -144,6 +145,17 @@ Object.assign(A, {
     confirmModal('Record an event · ' + esc(x.title), `It is due ${esc(x.due_text || '')}; Ledgerline dates it from when it happened${hours ? ' (the hour counts)' : ''} and puts it on the owner’s work queue.`,
       `<div class="form"><div class="fld"><label for="dc-ed">When it happened (or was noticed)</label><input class="in" type="date" id="dc-ed" value="${esc(S.date)}" max="${esc(S.date)}"></div>${hours ? '<div class="fld"><label for="dc-et">Time</label><input class="in" type="time" id="dc-et"></div>' : ''}<div class="fld"><label for="dc-edue">Due by (only if the notice gives a date)</label><input class="in" type="date" id="dc-edue"></div><div class="fld full"><label for="dc-ew">What happened</label><input class="in" id="dc-ew" placeholder="For example: a new director appointed on the board"></div></div>`,
       'Record', () => act(() => post(`/v1/duties/${encodeURIComponent(id)}/events`, { on: S.date, date: $('dc-ed').value, time: $('dc-et')?.value || '', due: $('dc-edue').value || '', what: $('dc-ew').value }), 'Recorded: it is on the work queue'));
+  },
+  dcNotApplies: id => {
+    const x = dcDuty(id); if (!x) return;
+    confirmModal('Doesn’t apply to us · ' + esc(x.title), 'The duty stays in Ledgerline for other firms. For your firm it is shown as not applicable and is not chased. Your name, the date and the reason are kept with the duty and in the audit trail.',
+      '<div class="fld"><label for="dc-na-why">Why it doesn’t apply (for example the circular that withdrew it)</label><input class="in" id="dc-na-why"></div>',
+      'Mark not applicable', () => act(() => post(`/v1/duties/${encodeURIComponent(id)}/applies`, { on: S.date, applies: false, reason: $('dc-na-why').value }), 'Marked not applicable'));
+  },
+  dcApplies: id => {
+    const x = dcDuty(id); if (!x) return;
+    confirmModal('It applies after all · ' + esc(x.title), 'Ledgerline’s rules decide again whether the duty applies, and it is chased when due. The earlier decision stays in the duty’s history.', '',
+      'It applies', () => act(() => post(`/v1/duties/${encodeURIComponent(id)}/applies`, { on: S.date, applies: true }), 'Back on the calendar'));
   },
   dcCSV: () => download(`/v1/duties/sheet?month=${encodeURIComponent(UI.dcMonth || S.date.slice(0, 7))}&date=${S.date}&format=csv`, `compliance-sheet-${UI.dcMonth || S.date.slice(0, 7)}.csv`),
 });

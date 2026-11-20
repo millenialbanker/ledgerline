@@ -109,7 +109,7 @@ func TestDutiesFilingAndSystemAudit(t *testing.T) {
 	if n != 2 {
 		t.Fatalf("shared duties made per exchange: %d", n)
 	}
-	if d := dutyByID(ds, "OB-BANKBAL"); d.Title != "Confirm your banks submit daily client bank balances to the exchange" || d.Frequency != "Yearly" {
+	if d := dutyByID(ds, "OB-BANKBAL"); !strings.HasPrefix(d.Title, "Confirm your banks send the exchange the daily balances") || d.Frequency != "Yearly" || d.Rule != "04-30" {
 		t.Fatalf("bank balances duty: %+v", d)
 	}
 	if d := dutyByID(ds, "OB-CHARTER"); !strings.Contains(d.Title, "2025/22") {
