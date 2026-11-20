@@ -329,6 +329,9 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.cdslPledgeTick(ctx, tenant, now)
 	// CDSL freezes: expiry and future-dated activation.
 	o.CDSLFreezeTick(ctx, tenant, now)
+	// Bank account changes staff raised that the client did not confirm
+	// in time expire (clientauth.go).
+	o.bankAuthTick(ctx, tenant, now)
 	// Stock SIP instalments, top-ups and fills: orders still go out only
 	// through the dealer's basket upload or the firm's OMS connection.
 	o.stockSIPTick(ctx, tenant, now)

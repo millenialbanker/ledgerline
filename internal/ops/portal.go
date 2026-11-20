@@ -267,7 +267,7 @@ func (o *Ops) Portal(ctx context.Context, tenant, actor, date, ucc string) (Port
 	cr, _ := docs.List[ChangeRequest](ctx, o.Docs, tenant, cChange, "")
 	for _, c := range cr {
 		if c.UCC == ucc {
-			v.Changes = append(v.Changes, c.public())
+			v.Changes = append(v.Changes, c.clientView())
 		}
 	}
 	sort.Slice(v.Changes, func(i, j int) bool { return v.Changes[i].ID > v.Changes[j].ID })
@@ -345,6 +345,14 @@ type ChangeRequest struct {
 	// UCCModify are the exchanges whose UCC record an approved bank
 	// account change modifies (clientbanks.go).
 	UCCModify []string `json:"ucc_modify,omitempty"`
+	// Auth is the client's authorisation of a bank account change (the
+	// portal request, the client's confirmation by code or link, or the
+	// signed letter), and History the request's steps (clientauth.go).
+	Auth    *ChangeAuth   `json:"auth,omitempty"`
+	History []ChangeEvent `json:"history,omitempty"`
+	// DevAuth are the codes and links sent to the client: development
+	// servers and tests only; never stored.
+	DevAuth map[string]string `json:"dev_auth,omitempty"`
 }
 
 func changeOld(c Client, kind string) map[string]string {
@@ -496,18 +504,9 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 			}
 		}
 	} else if bankAct == BankDeactivate || bankAct == BankPrimary {
-		// No new account, so no bank proof; from staff, the client's signed
-		// request (any document on the client's file) is its authorisation.
-		if src != "Portal" {
-			ds, _ := o.ClientDocs(ctx, tenant, ucc)
-			ok := false
-			for _, d := range ds {
-				ok = ok || (doc != "" && d.ID == doc)
-			}
-			if !ok {
-				return r, invalid("attach the client's signed request (letter or e-signed form) to remove an account or change the primary account")
-			}
-		}
+		// No new account, so no bank proof. From staff, the client's
+		// authorisation (confirmation or signed letter) is set below
+		// (clientauth.go).
 	} else if kind == "Bank account" || kind == "Address" {
 		need := map[string]string{"Bank account": "Bank proof", "Address": "Address proof"}[kind]
 		ds, _ := o.ClientDocs(ctx, tenant, ucc)
@@ -525,7 +524,7 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 	}
 	all, _ := docs.List[ChangeRequest](ctx, o.Docs, tenant, cChange, "")
 	for _, x := range all {
-		if x.UCC == ucc && x.Kind == kind && x.Status == "Pending" {
+		if x.UCC == ucc && x.Kind == kind && (x.Status == "Pending" || x.Status == ChangeWaitClient) {
 			return r, invalid("a %s change for %s is already waiting for approval (%s)", strings.ToLower(kind), ucc, x.ID)
 		}
 	}
@@ -547,11 +546,34 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 		}
 		r.Check = &ck
 	}
+	if kind == "Bank account" {
+		// The client's authorisation: the portal login, the signed letter,
+		// or the client's confirmation the request now waits for.
+		if err := o.prepBankAuth(ctx, tenant, actor, c, &r, doc); err != nil {
+			return r, err
+		}
+	}
 	n, err := o.next(ctx, tenant, "change", actor)
 	if err != nil {
 		return r, err
 	}
 	r.ID = fmt.Sprintf("CHG-%05d", n)
+	var bankSends []bankAuthSend
+	if kind == "Bank account" {
+		what := "Raised by " + actor + " (" + src + ")"
+		switch r.Auth.Form {
+		case AuthPortal:
+			what = "Raised by the client in the client portal (" + actor + "); no further authorisation needed"
+		case AuthLetter, AuthESign:
+			what += "; " + strings.ToLower(r.Auth.Form) + " attached (" + r.Auth.Doc + "); waiting for a checker"
+		case AuthClient:
+			if bankSends, err = o.armBankAuth(ctx, tenant, actor, c, &r); err != nil {
+				return r, err
+			}
+			what += "; waiting for the client to confirm"
+		}
+		r.event(r.At, actor, what)
+	}
 	code := ""
 	if src == "Portal" && (kind == "Email" || kind == "Mobile") {
 		code = otpCode()
@@ -561,6 +583,15 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 		return r, err
 	}
 	o.log(ctx, tenant, actor, "change.requested", r.ID, map[string]any{"ucc": ucc, "kind": kind, "source": src})
+	if len(bankSends) > 0 {
+		dev := o.sendBankAuth(ctx, tenant, actor, c, r, bankSends)
+		if x, _, err := docs.Get[ChangeRequest](ctx, o.Docs, tenant, cChange, r.ID); err == nil {
+			r = x
+		}
+		out := r.public()
+		out.DevAuth = dev // the API passes them on only on a development server
+		return out, nil
+	}
 	if code != "" {
 		to, ch := r.New["email"], ChEmail
 		if kind == "Mobile" {
@@ -577,7 +608,8 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 }
 
 func (r ChangeRequest) public() ChangeRequest {
-	r.OTPHash, r.OTPExpires, r.OTPTries, r.DevCode = "", "", 0, ""
+	r.OTPHash, r.OTPExpires, r.OTPTries, r.DevCode, r.DevAuth = "", "", 0, "", nil
+	r.Auth = r.Auth.public()
 	if a, ok := r.New["account"]; ok {
 		n := map[string]string{}
 		for k, v := range r.New {
@@ -609,7 +641,11 @@ func (o *Ops) DecideChange(ctx context.Context, tenant, actor, id string, approv
 	if err != nil {
 		return r, err
 	}
-	if r.Status != "Pending" {
+	if r.Status == ChangeWaitClient && approve {
+		// A bank change staff raised waits for the client (clientauth.go).
+		return r.public(), changeAuthOK(r)
+	}
+	if r.Status != "Pending" && r.Status != ChangeWaitClient {
 		return r.public(), fmt.Errorf("%w: %s is already %s", ErrState, id, strings.ToLower(r.Status))
 	}
 	if r.By == actor {
@@ -620,6 +656,14 @@ func (o *Ops) DecideChange(ctx context.Context, tenant, actor, id string, approv
 	}
 	if !approve && strings.TrimSpace(reason) == "" {
 		return r.public(), invalid("give the reason for rejecting")
+	}
+	if approve {
+		// The client's authorisation of a bank change staff raised: a
+		// request with neither the client's confirmation nor the letter
+		// cannot be approved (clientauth.go).
+		if err := changeAuthOK(r); err != nil {
+			return r.public(), err
+		}
 	}
 	date := o.now().Format("2006-01-02")
 	var approved, beforeAll Client
@@ -662,6 +706,21 @@ func (o *Ops) DecideChange(ctx context.Context, tenant, actor, id string, approv
 	r, err = docs.Update(ctx, o.Docs, tenant, cChange, id, actor, func(x *ChangeRequest) error {
 		x.Status, x.Checker, x.Reason, x.Decided = map[bool]string{true: "Approved", false: "Rejected"}[approve], actor, reason, o.now().Format(time.RFC3339)
 		x.UCCModify = uccMod
+		if x.Kind == "Bank account" {
+			what := "Approved by " + actor
+			if x.Auth != nil && x.Auth.Form != AuthPortal {
+				what += " on the " + strings.ToLower(x.Auth.Form)
+			}
+			if !approve {
+				what = "Rejected by " + actor + ": " + reason
+				if x.Auth != nil {
+					for i := range x.Auth.Sent {
+						x.Auth.Sent[i].CodeHash, x.Auth.Sent[i].LinkID = "", "" // the client's code and link stop working
+					}
+				}
+			}
+			x.event(x.Decided, actor, what)
+		}
 		return nil
 	})
 	if err == nil {

@@ -237,7 +237,11 @@ func TestIncompleteReactivation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ch, err := o.RequestChange(ctx, MT, "mkr.one", "TI001", "Bank account", map[string]string{"bank": "Test Bank", "ifsc": "TEST0123456", "account": "334455667788"}, doc.ID)
+	letter, err := o.AddClientDoc(ctx, MT, "mkr.one", "TI001", DocClientAuth, "letter.pdf", []byte("%PDF-1.4 made-up signed letter"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, err := o.RequestChange(ctx, MT, "mkr.one", "TI001", "Bank account", map[string]string{"bank": "Test Bank", "ifsc": "TEST0123456", "account": "334455667788", "auth_doc": letter.ID}, doc.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

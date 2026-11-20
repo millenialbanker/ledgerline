@@ -689,7 +689,7 @@ var scopedRoutes = map[string]bool{
 	"GET /v1/tags": true, "GET /v1/brokerage/client/{ucc}": true, "GET /v1/interest/client/{ucc}": true, "GET /v1/partners": true, "GET /v1/settings": true,
 	"GET /v1/prepaid": true, "POST /v1/prepaid/subscriptions": true,
 	"GET /v1/clients/{ucc}/documents": true, "POST /v1/clients/{ucc}/documents": true, "GET /v1/clients/{ucc}/documents/{id}": true,
-	"GET /v1/changes": true, "POST /v1/changes": true, "GET /v1/tickets": true, "POST /v1/tickets": true, "POST /v1/tickets/{id}": true,
+	"GET /v1/changes": true, "POST /v1/changes": true, "POST /v1/changes/{id}/authorisation": true, "GET /v1/tickets": true, "POST /v1/tickets": true, "POST /v1/tickets/{id}": true,
 	"GET /v1/external-trades": true, "POST /v1/external-trades": true, "GET /v1/crm": true, "POST /v1/leads": true, "POST /v1/leads/{id}/act": true,
 	"GET /v1/autopilot": true, "POST /v1/work/{id}": true, "GET /v1/me/ui": true, "PUT /v1/me/ui": true,
 	"GET /v1/insights": true, "POST /v1/insights/{id}": true, "GET /v1/tax-plan": true,
@@ -706,7 +706,7 @@ var clientRoutes = map[string]bool{
 	"POST /v1/changes": true, "GET /v1/tickets": true, "POST /v1/tickets": true, "POST /v1/tickets/{id}": true,
 	"GET /v1/external-trades": true, "POST /v1/external-trades": true, "POST /v1/external-trades/{ucc}/{id}/delete": true,
 	"GET /v1/clients/{ucc}/documents": true, "POST /v1/clients/{ucc}/documents": true, "GET /v1/clients/{ucc}/documents/{id}": true,
-	"POST /v1/portal/whatsapp": true, "POST /v1/changes/{id}/verify": true,
+	"POST /v1/portal/whatsapp": true, "POST /v1/changes/{id}/verify": true, "POST /v1/changes/{id}/answer": true,
 	"GET /v1/year-end/{fy}/{ucc}/document": true,
 	"GET /v1/portal/insights":              true, "POST /v1/portal/insights/prefs": true, "POST /v1/portal/buyback/{id}/tender": true,
 }

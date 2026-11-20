@@ -228,6 +228,13 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/changes", s.changes, false)
 	R("POST /v1/changes", s.requestChange, true)
 	R("POST /v1/changes/{id}/decide", s.decideChange, true)
+	// The client's authorisation of a bank change staff raised
+	// (clientauth.go): staff send it again or attach the letter; the
+	// client answers in the portal or on the link's page.
+	R("POST /v1/changes/{id}/authorisation", s.changeAuth, true)
+	R("POST /v1/changes/{id}/answer", s.answerChange, true)
+	s.mux.HandleFunc("GET /bank-confirm/{tenant}/{token}", s.bankConfirmPage)
+	s.mux.HandleFunc("POST /bank-confirm/{tenant}/{token}", s.bankConfirmPage)
 	R("GET /v1/external-trades", s.extTrades, false)
 	R("POST /v1/external-trades", s.addExtTrade, true)
 	R("POST /v1/external-trades/{ucc}/{id}/delete", s.delExtTrade, true)
@@ -2763,10 +2770,11 @@ func (s *Server) portal(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) changes(w http.ResponseWriter, r *http.Request) {
 	v, err := s.ops.ChangeRequests(r.Context(), tenant(r))
-	if f := s.scope(r); f != nil && err == nil {
+	if f, u := s.scope(r), strings.ToUpper(r.URL.Query().Get("ucc")); (f != nil || u != "") && err == nil {
+		// ?ucc= is one client's change log (the client's screen).
 		mine := []ops.ChangeRequest{}
 		for _, c := range v {
-			if f(c.UCC) {
+			if (f == nil || f(c.UCC)) && (u == "" || c.UCC == u) {
 				mine = append(mine, c)
 			}
 		}
@@ -2788,15 +2796,84 @@ func (s *Server) requestChange(w http.ResponseWriter, r *http.Request) {
 	if !s.canSee(w, r, b.UCC) {
 		return
 	}
-	v, err := s.ops.RequestChange(r.Context(), tenant(r), actor(r), b.UCC, b.Kind, b.Values, b.Doc)
+	// The client's confirmation link of a bank change is at this address.
+	ctx := ops.WithPublicURL(r.Context(), s.publicURL(r))
+	v, err := s.ops.RequestChange(ctx, tenant(r), actor(r), b.UCC, b.Kind, b.Values, b.Doc)
 	if err != nil {
 		fail(w, err, nil)
 		return
 	}
 	if !s.dev {
-		v.DevCode = ""
+		v.DevCode, v.DevAuth = "", nil
 	}
 	writeJSON(w, 201, v)
+}
+
+// changeAuth: staff send a bank change to the client again, or attach the
+// client's signed letter or e-signed request.
+func (s *Server) changeAuth(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Action string `json:"action"` // send, letter
+		Doc    string `json:"doc"`
+		Form   string `json:"form"` // letter, esign
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if f := s.scope(r); f != nil {
+		if rs, err := s.ops.ChangeRequests(r.Context(), tenant(r)); err == nil {
+			for _, x := range rs {
+				if x.ID == r.PathValue("id") && !f(x.UCC) {
+					ok(w, nil, ops.ErrNotFound)
+					return
+				}
+			}
+		}
+	}
+	ctx := ops.WithPublicURL(r.Context(), s.publicURL(r))
+	v, err := s.ops.ChangeAuthAction(ctx, tenant(r), actor(r), r.PathValue("id"), b.Action, b.Doc, b.Form)
+	if err == nil && !s.dev {
+		v.DevAuth = nil
+	}
+	ok(w, v, err)
+}
+
+// answerChange: the client, signed in to the portal, confirms a bank change
+// with the code sent to them, or refuses it.
+func (s *Server) answerChange(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Confirm bool   `json:"confirm"`
+		Code    string `json:"code"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.ClientAnswerChange(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Code, b.Confirm)
+	ok(w, v, err)
+}
+
+// bankConfirmPage is the public page the client's link opens; answering
+// needs a POST so that link scanners which fetch the page do not answer
+// for the client.
+func (s *Server) bankConfirmPage(w http.ResponseWriter, r *http.Request) {
+	t, tok := r.PathValue("tenant"), r.PathValue("token")
+	var p ops.BankAuthPage
+	if r.Method == http.MethodPost {
+		_ = r.ParseForm()
+		switch r.PostForm.Get("answer") {
+		case "confirm", "refuse":
+			p, _ = s.ops.AnswerBankAuthLink(r.Context(), t, tok, r.PostForm.Get("answer") == "confirm", clientIP(r))
+		default:
+			p, _, _, _ = s.ops.OpenBankAuthLink(r.Context(), t, tok)
+		}
+	} else {
+		p, _, _, _ = s.ops.OpenBankAuthLink(r.Context(), t, tok)
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
+	_ = ops.BankAuthHTML.Execute(w, p)
 }
 
 func (s *Server) decideChange(w http.ResponseWriter, r *http.Request) {

@@ -29,11 +29,15 @@ func cbProof(t *testing.T, o *Ops, ucc, kind string) string {
 	return d.ID
 }
 
-// cbChange raises a bank account change as a maker and has a checker
-// approve it.
+// cbChange raises a bank account change as a maker, with the client's
+// signed letter as its authorisation (clientauth_test.go has the client's
+// confirmation), and has a checker approve it.
 func cbChange(t *testing.T, o *Ops, ucc string, values map[string]string, doc string) ChangeRequest {
 	t.Helper()
 	ctx := t.Context()
+	if a := values["action"]; values["auth_doc"] == "" && a != BankDeactivate && a != BankPrimary {
+		values["auth_doc"] = cbProof(t, o, ucc, DocClientAuth)
+	}
 	r, err := o.RequestChange(ctx, T, "priya.nair", ucc, "Bank account", values, doc)
 	if err != nil {
 		t.Fatalf("request %v: %v", values, err)
@@ -228,12 +232,18 @@ func TestClientBankAccounts(t *testing.T) {
 		t.Fatalf("4 accounts at BSE: %v", b4.Values)
 	}
 
-	// Deactivating: the client's signed request (from staff); not the
-	// primary; then it takes no money and gets no payouts.
-	if _, err := o.RequestChange(ctx, T, "priya.nair", "CB001", "Bank account", map[string]string{"action": "deactivate", "target": "XXXXXXXX4567", "ifsc": "ICIC0000002"}, ""); err == nil || !strings.Contains(err.Error(), "signed request") {
-		t.Fatalf("deactivate without the client's request: %v", err)
+	// Deactivating: the client's authorisation (from staff); not the
+	// primary; then it takes no money and gets no payouts. Without a
+	// letter it waits for the client; any other document is not one.
+	if w, err := o.RequestChange(ctx, T, "priya.nair", "CB001", "Bank account", map[string]string{"action": "deactivate", "target": "XXXXXXXX4567", "ifsc": "ICIC0000002"}, ""); err != nil || w.Status != ChangeWaitClient {
+		t.Fatalf("deactivate without a letter: %+v %v", w, err)
+	} else if _, err := o.DecideChange(ctx, T, "farhan.khan", w.ID, false, "Raised twice"); err != nil {
+		t.Fatal(err)
 	}
-	letter := cbProof(t, o, "CB001", "Other")
+	if _, err := o.RequestChange(ctx, T, "priya.nair", "CB001", "Bank account", map[string]string{"action": "deactivate", "target": "XXXXXXXX4567", "ifsc": "ICIC0000002", "auth": "letter"}, cbProof(t, o, "CB001", "Other")); err == nil || !strings.Contains(err.Error(), DocClientAuth) {
+		t.Fatalf("deactivate with a document that is not the client's letter: %v", err)
+	}
+	letter := cbProof(t, o, "CB001", DocClientAuth)
 	if _, err := o.RequestChange(ctx, T, "priya.nair", "CB001", "Bank account", map[string]string{"action": "deactivate", "account": "50100012345678"}, letter); err == nil || !strings.Contains(err.Error(), "primary") {
 		t.Fatalf("deactivating the primary: %v", err)
 	}
@@ -283,6 +293,9 @@ func TestClientBankAccounts(t *testing.T) {
 	chs, _ := o.ChangeRequests(ctx, T)
 	prim, add := 0, 0
 	for _, ch := range chs {
+		if ch.Status != "Approved" {
+			continue
+		}
 		if ch.UCC == "CB001" && bankChangeTouchesPrimary(ch) {
 			prim++
 		} else if ch.UCC == "CB001" {
