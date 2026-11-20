@@ -121,7 +121,7 @@ func SplitSquareOff(ts []ingest.TradeEvent, date string) (out []ingest.TradeEven
 		if x.TradeTime != y.TradeTime {
 			return x.TradeTime < y.TradeTime
 		}
-		return x.TradeNo < y.TradeNo
+		return tradeNoLess(x.TradeNo, y.TradeNo)
 	})
 	left := map[string]int64{} // key|side -> intraday quantity still to take
 	for k, b := range buys {
@@ -157,6 +157,27 @@ func SplitSquareOff(ts []ingest.TradeEvent, date string) (out []ingest.TradeEven
 		}
 	}
 	return out, split
+}
+
+// tradeNoLess orders trades of the same second by trade number. Exchange
+// trade numbers are whole numbers that grow through the day, so they are
+// compared as numbers (trade 9 before trade 10), not as text.
+func tradeNoLess(a, b string) bool {
+	digits := func(s string) bool {
+		for _, c := range s {
+			if c < '0' || c > '9' {
+				return false
+			}
+		}
+		return s != ""
+	}
+	if digits(a) && digits(b) {
+		a, b = strings.TrimLeft(a, "0"), strings.TrimLeft(b, "0")
+		if len(a) != len(b) {
+			return len(a) < len(b)
+		}
+	}
+	return a < b
 }
 
 // Rollovers finds futures trades that move a position to a later expiry:

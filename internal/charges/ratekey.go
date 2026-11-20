@@ -25,6 +25,12 @@ import (
 //
 // So "options on NIFTY" beats "index options online", which beats "index
 // options", which beats "options".
+//
+// Auction trades are the exception a firm can choose (ops BrokerageSetup.
+// AuctionRate, on by default): the brokerage book first looks up the
+// auction lines alone (Strict, Cases [auction]), so any auction line beats
+// a line for the scrip or its group without the case, and only then the
+// order above.
 
 // Any is the wildcard part of a rate key.
 const Any = "*"
