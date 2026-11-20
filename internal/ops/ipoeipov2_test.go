@@ -141,7 +141,9 @@ func TestEIPOV2Format(t *testing.T) {
 		}
 	}
 	changed := append([]byte(nil), m.Body...)
-	changed[10] ^= 1
+	// another base64 letter, so the body still decodes (a flipped bit
+	// could make it not base64 at all)
+	changed[10] = map[bool]byte{true: 'B', false: 'A'}[changed[10] == 'A']
 	bad("changed body", nse, &member.PublicKey, h, changed, true, "changed on the way")
 	// Sig made again for a changed body: the signature no longer matches.
 	h2 := h.Clone()
