@@ -57,6 +57,17 @@ func (o *Ops) Security(ctx context.Context, tenant, actor string, verify bool) (
 		}
 		s.FirmKey, s.KeyVersion, s.KeyVersions = true, fk.Current, []int{}
 		s.KeySource = fmt.Sprintf("The firm's own key (%s), root version %d. Records saved before the firm moved stay under Ledgerline's key until they are next saved, and are served only while the firm's key is available.", name, fk.Current)
+		for i, l := range s.Residency {
+			if l.What != "Encryption keys" {
+				continue
+			}
+			s.Residency[i].Where, s.Residency[i].Status, s.Residency[i].Note = "The firm's own key: "+name, "check", "Keep the firm's key service in India."
+			for _, r := range fk.Roots {
+				if reg, _, err := vault.ParseKMSKeyARN(r.KeyID); err == nil && r.Version == fk.Current {
+					s.Residency[i].Where, s.Residency[i].Status, s.Residency[i].Note = "The firm's own AWS KMS key, "+reg, "india", "Ledgerline accepts KMS keys in Mumbai (ap-south-1) or Hyderabad (ap-south-2) only."
+				}
+			}
+		}
 	}
 	s.Covers = []string{
 		"Client master: name, PAN, date of birth, mobile, email, address, bank account, nominee",

@@ -142,8 +142,14 @@ func TestFirmKeyMoveRevokeRestoreRotate(t *testing.T) {
 	if n := len(firmKeyAudit(t, o, ctx, "firmkey.moved")); n != 1 {
 		t.Fatalf("moved audited %d times", n)
 	}
-	if s, _ := o.Security(ctx, T, "vikram.shah", false); !s.FirmKey || !strings.Contains(s.KeySource, "AWS KMS") {
+	s, _ := o.Security(ctx, T, "vikram.shah", false)
+	if !s.FirmKey || !strings.Contains(s.KeySource, "AWS KMS") {
 		t.Fatalf("security page: %+v", s)
+	}
+	for _, l := range s.Residency {
+		if l.What == "Encryption keys" && (l.Status != "india" || !strings.Contains(l.Where, "ap-south-1")) {
+			t.Fatalf("residency line for keys: %+v", l)
+		}
 	}
 	// Business as usual: old and new records.
 	if _, err := o.Client(ctx, T, ucc); err != nil {

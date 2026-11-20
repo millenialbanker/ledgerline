@@ -132,6 +132,15 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	vlt := vault.New(kr)
 	stores = vault.Protect(stores, vlt)
 	log.Info("client data encrypted", "keys", kr.Describe(), "key_version", kr.Current())
+	// A firm can hold its own key (Settings → Encryption keys; the vault's
+	// package comment). LEDGERLINE_FIRM_HELD_KEYS lists those firms' codes,
+	// comma separated: for them a key record missing from the database is
+	// refused, never taken as a firm on the server's keys, so removing the
+	// record cannot move new writes back to Ledgerline's key.
+	if v := strings.TrimSpace(os.Getenv("LEDGERLINE_FIRM_HELD_KEYS")); v != "" {
+		vlt.PinFirmKeys(strings.Split(v, ",")...)
+		log.Info("firms that hold their own encryption key", "firms", v)
+	}
 	if dev && len(keys) == 0 {
 		keys = map[string]string{devKey: "demo"}
 		log.Warn("development API key enabled", "key", devKey, "tenant", "demo")
