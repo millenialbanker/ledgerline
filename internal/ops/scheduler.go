@@ -261,6 +261,9 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	if err := o.backupTick(ctx, tenant, now); err != nil {
 		return 0, fmt.Errorf("backups: %w", err)
 	}
+	// Ledgerline support access whose hours ran out, or that nobody
+	// decided on, is closed in every edition (supportaccess.go).
+	o.supportAccessTick(ctx, tenant, now)
 	if err := o.holidayTick(ctx, tenant, now); err != nil {
 		return 0, fmt.Errorf("exchange holidays: %w", err)
 	}

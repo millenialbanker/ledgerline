@@ -49,6 +49,7 @@ Cancelling a payout bank file | Ops checker
 Changing AI masking | Admin
 Changing CDSL account details | Ops maker, Ops checker
 Changing CDSL pledge settings | Risk manager, Compliance officer
+Changing Ledgerline support access settings | Admin
 Changing a DP account's tariff plan | Ops checker, Admin
 Changing a segment's status | Ops checker, Compliance officer
 Changing a stock SIP | Ops maker, Ops checker
@@ -374,6 +375,7 @@ Viewing CDSL demat account counts | Ops maker, Ops checker, Risk manager, Compli
 Viewing CDSL freezes | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing CDSL requests | Ops maker, Ops checker, Compliance officer
 Viewing Finspot pushes | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing Ledgerline support access | Compliance officer
 Viewing MCX UCC registrations | Ops maker, Ops checker, Compliance officer
 Viewing RFQ deals | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing an issue's demand | Ops maker, Ops checker, Risk manager, Compliance officer

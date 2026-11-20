@@ -105,6 +105,13 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	var stores app.Stores
 	dsn := os.Getenv("LEDGERLINE_DB")
 	switch {
+	case dsn != "" && dev:
+		// Development mode seeds every firm with known demo logins (one
+		// password for all, an Admin among them), marks the firm as a
+		// sample (test signing certificate, simulated mail) and opens the
+		// /v1/dev routes. Against a real database that would be a shared
+		// way into firms' data, so the two are never combined.
+		return errors.New("-dev uses in-memory stores only; unset LEDGERLINE_DB or drop -dev")
 	case dsn != "":
 		if sqlDriver == "" {
 			return errors.New("LEDGERLINE_DB is set but this binary has no PostgreSQL driver; build with: go get github.com/jackc/pgx/v5 && go build -tags pgx ./cmd/ledgerline")
