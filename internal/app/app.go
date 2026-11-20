@@ -117,6 +117,8 @@ type App struct {
 	Audit    AuditStore
 	Docs     docs.Store
 	Snap     Snapshotter
+	Exits    ExitStore
+	Purge    Purger
 	Schedule charges.Schedule
 	Now      func() time.Time
 	// Adjust, when set, rewrites exchange trades before recon and billing,
@@ -144,13 +146,19 @@ type Stores struct {
 	Docs   docs.Store
 	// Snap backs up and restores a whole firm (nil: backups unavailable).
 	Snap Snapshotter
+	// Exits is the operator's record of firms that closed their account,
+	// kept outside every firm's data (exit.go). Purge deletes a firm whose
+	// exit was approved. Nil: exits are not available on this storage.
+	Exits ExitStore
+	Purge Purger
 }
 
 // MemoryStores returns in-memory implementations of every store.
 func MemoryStores() Stores {
 	l, r, t, b, a, d := ledger.NewMemStore(), ingest.NewMemRawStore(), ingest.NewMemTradeStore(), NewMemBreakStore(), NewMemAuditStore(), docs.NewMem()
-	return Stores{Ledger: l, Raw: r, Trades: t, Breaks: b, Audit: a, Docs: d,
-		Snap: &MemSnapshot{Ledger: l, Raw: r, Trades: t, Breaks: b, Audit: a, Docs: d}}
+	x := NewMemExitStore()
+	snap := &MemSnapshot{Ledger: l, Raw: r, Trades: t, Breaks: b, Audit: a, Docs: d, Exits: x}
+	return Stores{Ledger: l, Raw: r, Trades: t, Breaks: b, Audit: a, Docs: d, Snap: snap, Exits: x, Purge: snap}
 }
 
 // New builds an App.
@@ -158,7 +166,7 @@ func New(s Stores, reg *ingest.Registry, sched charges.Schedule) *App {
 	return &App{
 		Ledger: ledger.New(s.Ledger),
 		Ingest: &ingest.Service{Raw: s.Raw, Trades: s.Trades, Registry: reg},
-		Trades: s.Trades, Breaks: s.Breaks, Audit: s.Audit, Docs: s.Docs, Snap: s.Snap, Schedule: sched, Now: time.Now,
+		Trades: s.Trades, Breaks: s.Breaks, Audit: s.Audit, Docs: s.Docs, Snap: s.Snap, Exits: s.Exits, Purge: s.Purge, Schedule: sched, Now: time.Now,
 	}
 }
 
@@ -553,18 +561,41 @@ func (s *MemBreakStore) ImportTenant(tenant string, bs []BreakRecord) error {
 	return nil
 }
 
+// PurgeTenant removes every break of a tenant and returns how many were
+// removed. Only MemSnapshot.PurgeTenant calls it.
+func (s *MemBreakStore) PurgeTenant(tenant string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for k := range s.m {
+		if strings.HasPrefix(k, tenant+"|") {
+			delete(s.m, k)
+			n++
+		}
+	}
+	return n
+}
+
 // MemAuditStore is an in-memory AuditStore.
 type MemAuditStore struct {
-	mu sync.Mutex
-	ev []AuditEvent
+	mu   sync.Mutex
+	ev   []AuditEvent
+	last int64 // the highest sequence number given, so a purge never reuses one
 }
 
 func NewMemAuditStore() *MemAuditStore { return &MemAuditStore{} }
 
+// next is the next sequence number: one past every entry ever stored,
+// including entries of a firm since purged.
+func (s *MemAuditStore) next() int64 {
+	s.last = max(s.last, int64(len(s.ev))) + 1
+	return s.last
+}
+
 func (s *MemAuditStore) Log(_ context.Context, e AuditEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	e.Seq = int64(len(s.ev) + 1)
+	e.Seq = s.next()
 	s.ev = append(s.ev, e)
 	return nil
 }
@@ -584,7 +615,7 @@ func (s *MemAuditStore) LogSealed(_ context.Context, e AuditEvent, seal AuditSea
 	if err != nil {
 		return err
 	}
-	e.Hash, e.Seq = h, int64(len(s.ev)+1)
+	e.Hash, e.Seq = h, s.next()
 	s.ev = append(s.ev, e)
 	return nil
 }
@@ -628,7 +659,28 @@ func (s *MemAuditStore) ImportTenant(tenant string, es []AuditEvent) error {
 		}
 	}
 	s.ev = append(s.ev, es...)
+	for _, e := range es {
+		s.last = max(s.last, e.Seq)
+	}
 	return nil
+}
+
+// PurgeTenant removes a tenant's whole audit trail and returns how many
+// entries were removed. Only MemSnapshot.PurgeTenant calls it, for a firm
+// that has closed its account through the approved exit flow.
+func (s *MemAuditStore) PurgeTenant(tenant string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.last = max(s.last, int64(len(s.ev)))
+	keep := make([]AuditEvent, 0, len(s.ev))
+	for _, e := range s.ev {
+		if e.Tenant != tenant {
+			keep = append(keep, e)
+		}
+	}
+	n := len(s.ev) - len(keep)
+	s.ev = keep
+	return n
 }
 
 // Tamper changes a stored entry in place, for tests of the seal.

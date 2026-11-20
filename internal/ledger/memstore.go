@@ -120,3 +120,19 @@ func (m *MemStore) ImportTenant(tenant string, es []Entry) error {
 	}
 	return nil
 }
+
+// PurgeTenant removes every entry of a tenant and returns how many entries
+// and postings were removed. Only app.MemSnapshot.PurgeTenant calls it, for
+// a firm that has closed its account through the approved exit flow.
+func (m *MemStore) PurgeTenant(tenant string) (entries, postings int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, e := range m.entries[tenant] {
+		postings += len(e.Postings)
+		delete(m.byKey, tenant+"|"+e.Key)
+		delete(m.byID, tenant+"|"+e.ID)
+	}
+	entries = len(m.entries[tenant])
+	delete(m.entries, tenant)
+	return entries, postings
+}

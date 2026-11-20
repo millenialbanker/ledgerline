@@ -202,8 +202,25 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	} else {
 		log.Warn("BACKUPS ARE OFF: set LEDGERLINE_BACKUP_DIR to a folder on a separate disk")
 	}
-	// Work folder: migration packages being uploaded and checked, per firm
-	// (LEDGERLINE_WORK_DIR; a disk with room for the largest package twice).
+	// How long copies of backups kept off the server (off-site copies,
+	// database snapshots) are kept, in days. A firm that closes its account
+	// is told on its destruction certificate the date these age out; unset,
+	// the certificate says the date is to be confirmed by the operator.
+	if v := strings.TrimSpace(os.Getenv("LEDGERLINE_BACKUP_COPIES_DAYS")); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 3650 {
+			return fmt.Errorf("LEDGERLINE_BACKUP_COPIES_DAYS must be a number of days from 1 to 3650 (got %q)", v)
+		}
+		o.BackupCopiesDays = n
+	}
+	// Firms whose data was deleted when they closed their account are
+	// refused from the first request.
+	if err := o.LoadClosedFirms(ctx); err != nil {
+		log.Warn("the record of closed accounts cannot be read: apply db/migrations/0004_tenant_exit.sql", "err", err)
+	}
+	// Work folder: migration packages being uploaded and checked, and full
+	// data exports, per firm (LEDGERLINE_WORK_DIR; a disk with room for the
+	// largest package twice and the largest firm's export).
 	if dir := os.Getenv("LEDGERLINE_WORK_DIR"); dir != "" {
 		o.WorkDir = dir
 	} else if !dev {
@@ -350,12 +367,13 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	root := http.NewServeMux()
 	root.Handle("/v1/", apiSrv)
 	root.Handle("/healthz", apiSrv)
-	root.Handle("/hooks/", apiSrv)        // payment gateway and WhatsApp webhooks
-	root.Handle("/optin/", apiSrv)        // WhatsApp consent links sent to clients
-	root.Handle("/bank-confirm/", apiSrv) // clients' confirmation links for bank account changes
-	root.Handle("/onboard/", apiSrv)      // online account opening (public API)
-	root.Handle("/provider/", apiSrv)     // the software provider's own endpoints
-	root.Handle("/agent/", apiSrv)        // the Ledgerline bot on paired computers
+	root.Handle("/hooks/", apiSrv)            // payment gateway and WhatsApp webhooks
+	root.Handle("/optin/", apiSrv)            // WhatsApp consent links sent to clients
+	root.Handle("/bank-confirm/", apiSrv)     // clients' confirmation links for bank account changes
+	root.Handle("/onboard/", apiSrv)          // online account opening (public API)
+	root.Handle("/provider/", apiSrv)         // the software provider's own endpoints
+	root.Handle("/exit-certificate/", apiSrv) // destruction certificates of closed accounts
+	root.Handle("/agent/", apiSrv)            // the Ledgerline bot on paired computers
 	root.Handle("/", web.Handler(cfg))
 	srv := &http.Server{
 		Addr: addr, Handler: secure(root),

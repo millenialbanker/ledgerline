@@ -271,3 +271,43 @@ func (m *MemTradeStore) ImportTenant(tenant string, evs []TradeEvent) error {
 	}
 	return nil
 }
+
+// PurgeTenant removes every file of a tenant and returns how many were
+// removed. Only app.MemSnapshot.PurgeTenant calls it, for a firm that has
+// closed its account through the approved exit flow.
+func (m *MemRawStore) PurgeTenant(tenant string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n := 0
+	for k := range m.files {
+		if strings.HasPrefix(k, tenant+"|") {
+			delete(m.files, k)
+			n++
+		}
+	}
+	for k := range m.bySum {
+		if strings.HasPrefix(k, tenant+"|") {
+			delete(m.bySum, k)
+		}
+	}
+	return n
+}
+
+// PurgeTenant removes every trade of a tenant and returns how many were
+// removed. Only app.MemSnapshot.PurgeTenant calls it.
+func (m *MemTradeStore) PurgeTenant(tenant string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	keep := make([]string, 0, len(m.order))
+	n := 0
+	for _, k := range m.order {
+		if m.events[k].Tenant == tenant {
+			delete(m.events, k)
+			n++
+			continue
+		}
+		keep = append(keep, k)
+	}
+	m.order = keep
+	return n
+}

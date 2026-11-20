@@ -215,3 +215,20 @@ func (m *Mem) ImportTenant(tenant string, ds []Doc) error {
 	}
 	return nil
 }
+
+// PurgeTenant removes every document of a tenant and returns how many were
+// removed. It exists only for app.MemSnapshot.PurgeTenant, which deletes a
+// firm that has closed its account through the approved exit flow; nothing
+// else calls it.
+func (m *Mem) PurgeTenant(tenant string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n := 0
+	for k := range m.docs {
+		if strings.HasPrefix(k, tenant+"\x00") {
+			delete(m.docs, k)
+			n++
+		}
+	}
+	return n
+}

@@ -250,6 +250,11 @@ func (o *Ops) Jobs(ctx context.Context, tenant string) ([]Job, []JobRun, error) 
 
 // Tick runs every active job that is due at now and has not run today.
 func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, error) {
+	// A firm closing its account: once purged nothing runs; once the
+	// cooling-off has ended only the final export does (dataexit.go).
+	if o.exitTick(ctx, tenant, now) {
+		return 0, nil
+	}
 	js, err := docs.List[Job](ctx, o.Docs, tenant, cJob, "")
 	if err != nil {
 		return 0, err

@@ -182,8 +182,8 @@ func secLine(tenant string, e SecEvent) exportLine {
 	return exportLine{log: firstOf(e.Log, "security"), at: mustTime(e.At), sev: e.Severity, json: b, secID: e.ID}
 }
 
-// auditLine is an audit trail entry as exported, its detail masked.
-func auditLine(tenant string, a app.AuditEvent) exportLine {
+// siemAuditLine is an audit trail entry as exported, its detail masked.
+func siemAuditLine(tenant string, a app.AuditEvent) exportLine {
 	b, _ := json.Marshal(map[string]any{"log": "audit", "firm": tenant, "id": "audit-" + strconv.FormatInt(a.Seq, 10), "seq": a.Seq, "at": a.At.In(ist).Format(time.RFC3339Nano),
 		"actor": a.Actor, "action": a.Action, "object": maskPANs(a.Object), "detail": maskAuditDetail(a.Detail), "seal": a.Hash})
 	return exportLine{log: "audit", at: a.At, sev: SevInfo, json: b, seq: a.Seq}
@@ -285,7 +285,7 @@ func (o *Ops) pendingLines(ctx context.Context, tenant string, st ExportState, w
 			if a.At.After(auditUntil) {
 				break
 			}
-			out = append(out, auditLine(tenant, a))
+			out = append(out, siemAuditLine(tenant, a))
 		}
 	}
 	return out, nil
@@ -627,7 +627,7 @@ func (o *Ops) LogDownload(ctx context.Context, tenant, actor, from, to string, o
 			for _, x := range as {
 				after = x.Seq
 				if !x.At.Before(a) && x.At.Before(end) {
-					zw.Write(auditLine(tenant, x).json)
+					zw.Write(siemAuditLine(tenant, x).json)
 					zw.Write([]byte{'\n'})
 					n++
 				}

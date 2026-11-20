@@ -15,6 +15,7 @@ Allocating money to a ledger | Ops maker, Ops checker, Risk manager
 Applying corporate actions | Ops checker
 Applying pay-out holds | Ops checker, Risk manager
 Applying the BSDA review | Ops checker
+Approving a full data export | Compliance officer
 Approving a margin penalty pass-through | Ops checker, Risk manager, Compliance officer
 Approving a migration load | Ops checker
 Approving a move between MCX and equity | Ops checker, Risk manager
@@ -23,6 +24,7 @@ Approving a transfer between the firm's bank accounts | Ops checker
 Approving allocation | Ops checker, Risk manager
 Approving an override | Ops checker, Risk manager
 Approving client changes | Ops checker
+Approving closing the firm's account | Compliance officer
 Approving exchange holidays | Ops checker, Compliance officer
 Approving legacy debts | Ops checker, Compliance officer
 Approving margin pledges sent to CDSL | Ops checker, Risk manager
@@ -40,12 +42,14 @@ Asking CDSL about early pay-ins | Ops maker, Ops checker, Risk manager
 Asking CDSL about pledges | Ops maker, Ops checker, Risk manager
 Asking clients for WhatsApp consent | Ops checker, Compliance officer
 Asking for a client's authorisation | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
+Asking to close the firm's account | Admin
 Assigning brokerage plans | Ops checker
 Authorising sales and TPIN for clients (eDIS) | Ops maker, Ops checker, Branch staff
 Blocking clients in continuous debit | Risk manager
 Booking vendor bills | Ops maker, Ops checker
 Buy-back offers | Ops maker, Ops checker
 Cancelling a payout bank file | Ops checker
+Cancelling closing the firm's account | Compliance officer
 Changing AI masking | Admin
 Changing CDSL account details | Ops maker, Ops checker
 Changing CDSL pledge settings | Risk manager, Compliance officer
@@ -78,6 +82,7 @@ Changing the RA and IA reporting settings | Compliance officer
 Changing the account type | Ops checker
 Changing the chart of accounts | Ops checker
 Changing the compliance calendar | Compliance officer
+Changing the cooling-off period | Admin
 Changing the demise list's cut-off | Ops checker, Compliance officer
 Changing the firm profile | Compliance officer
 Changing the firm's UPI collection IDs | Compliance officer
@@ -120,9 +125,11 @@ Deciding a pledge request | Ops maker, Ops checker, Risk manager
 Deciding a reported death | Compliance officer
 Deciding whether a circular applies | Compliance officer
 Deciding whether a compliance duty applies | Compliance officer
+Deleting the firm's data | Admin
 Discarding scanned bills | Ops maker, Ops checker
 Downloading BOW upload files | Ops maker, Ops checker, Risk manager
 Downloading Finspot block and client files | Ops maker, Ops checker, Risk manager
+Downloading a full data export | Admin
 Downloading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
 Downloading inspection packs | Compliance officer
 Downloading pay-out hold files | Ops maker, Ops checker, Risk manager
@@ -352,6 +359,7 @@ Settling a buy-back | Ops checker
 Signing in to BOW | Risk manager
 Signing off the client money reconciliation | Ops checker
 Square-off | Risk manager
+Starting a full data export | Admin
 Submitting the holding statement to NSE | Ops maker, Ops checker, Compliance officer
 Switching AI off or on | Compliance officer
 Switching board email for the firm | Admin
@@ -390,6 +398,7 @@ Viewing an issue's demand | Ops maker, Ops checker, Risk manager, Compliance off
 Viewing backups | Ops checker, Compliance officer
 Viewing clients BSE does not permit to trade | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing connections | Compliance officer, Admin
+Viewing data export and account closing | Compliance officer
 Viewing dealers and terminals | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing deceased clients | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing eDIS authorisations | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff

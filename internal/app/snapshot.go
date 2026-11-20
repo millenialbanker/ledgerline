@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
@@ -51,6 +52,9 @@ type MemSnapshot struct {
 	Breaks *MemBreakStore
 	Audit  *MemAuditStore
 	Docs   *docs.Mem
+	// Exits holds the operator's exit records, which PurgeTenant checks.
+	Exits   *MemExitStore
+	purgeMu sync.Mutex
 }
 
 func (m *MemSnapshot) Backend() string { return "memory" }

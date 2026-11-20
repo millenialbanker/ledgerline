@@ -457,6 +457,11 @@ func (d *Docs) open(tenant string, x docs.Doc) (docs.Doc, error) {
 	return x, nil
 }
 
+// Decrypt opens a document read straight from the underlying store (a
+// backup snapshot row, a history row), for the firm's full data export.
+// Collection and ID must be set: the ciphertext is bound to them.
+func (d *Docs) Decrypt(tenant string, x docs.Doc) (docs.Doc, error) { return d.open(tenant, x) }
+
 func (d *Docs) Get(ctx context.Context, tenant, coll, id string) (docs.Doc, error) {
 	x, err := d.Inner.Get(ctx, tenant, coll, id)
 	if err != nil {

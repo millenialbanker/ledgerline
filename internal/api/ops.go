@@ -79,6 +79,7 @@ func (s *Server) opsRoutes() {
 	s.migrationRoutes()
 	s.selfInspectRoutes()
 	s.inspackRoutes()
+	s.dataExitRoutes()
 	s.circularCardRoutes()
 	s.uiLayoutRoutes()
 	s.firmKeyRoutes()
