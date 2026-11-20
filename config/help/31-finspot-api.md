@@ -6,7 +6,7 @@ Ledgy help articles: sending Finspot its limits, holdings, blocks, client logins
 title: Limits and holdings to Finspot by API
 screen: live
 roles: Risk manager, Ops maker, Ops checker, Compliance officer
-ask: finspot api; push to finspot; finspot limits by api; noren api; norenwcadmin; kambala; finspot limit not updated; finspot holdings by api; finspot t1 by api; finspot push failed; finspot refused; set limits finspot; check finspot limit; finspot limit differs
+ask: finspot api; push to finspot; finspot limits by api; noren api; norenwcadmin; kambala; finspot limit not updated; finspot holdings by api; finspot t1 by api; finspot push failed; finspot refused; set limits finspot; check finspot limit; finspot limit differs; finspot bod by file intraday by api; finspot morning file and api changes; finspot limit changes by api only
 related: finspot-api-setup, bod-files, bow-limits
 
 Finspot runs on **Noren**, Kambala Solutions' OMS, and its admin API takes what the Finspot upload files carry, one client at a time. With **Finspot by API** set up in [[connections|Connections]], Ledgerline sends it, and the **Finspot by API** panel at the foot of [[live|Live (intraday)]] shows each client's limit now, what Finspot was last given and the latest pushes with Finspot's answers.
@@ -15,6 +15,12 @@ What goes, and when (with automatic pushes on):
 
 - **Start of day** (08:40 by default, before 09:00): blocks (when they go by API), every client's **limit**, the **ISIN holdings**, the **T1 holdings** and, when switched on, the **margin baskets**. Each part is tried again every few minutes until it goes, and ticks off the day's file checklist as its file would.
 - **During the day** (09:00 to 20:00): a client whose money changed (money in, payouts, pay-out holds and releases, allocations) is sent within a few minutes; every few minutes, any limit, block or client login that differs from the last push. Only what changed is sent.
+
+**Morning by file, changes by API.** In the connection, each morning part can go by its file instead: **Start-of-day limits** by the RMS Limits file, **ISIN holdings** off (the ISIN Holding file), **T1 holdings** by the T1 file. Then:
+
+- The start-of-day push leaves those parts out. Make and upload their files as usual (Front-office files). They stay on the day's file checklist, the T1 file too.
+- With the limits by the file, nothing goes by API until the day's **RMS Limits file** is made, so a late morning upload never overwrites a change. After that, a client's limit goes by API only when it differs from the file's line (or from the day's last push): money in, payouts, pay-out holds and releases.
+- The pay-out holds still wait for the BOD limit file, as without the API.
 
 The figures are the files' (see [[bod-files|Send limits and holdings to the trading system]]):
 
@@ -37,7 +43,8 @@ related: finspot-api, bod-files
 2. In [[connections|Connections]], open **Finspot by API** and enter the environment, address, admin login ID and password, vendor code and vendor key. The firm's Finspot values (account ID suffix, exchange user IDs, order types, basket names) stay in **Finspot uploads**.
 3. Choose:
    - **Notional cash goes in**: Finspot's API has no field named notional cash; prevalued collateral (brkcollamt) is the default. Confirm with Finspot.
-   - **Holdings of clients without a POA or DDPI**: the same call as other holdings, or Finspot's NPOA ISIN Holdings call (with the DP account), as Finspot advises.
+   - **Start-of-day limits**, **ISIN holdings** and **T1 holdings**: by API (the default), or by their files with only the day's limit changes by API (see [[finspot-api|Limits and holdings to Finspot by API]]). T1 holdings follow the ISIN holdings unless set apart.
+   - **Holdings of clients without a POA or DDPI**: the same call as other holdings, or Finspot's NPOA ISIN Holdings call (with the DP account), as Finspot advises. The DP account is the full 16-digit BO ID, or its last 8 digits when **Finspot uploads → DP account** says so, as in the files.
    - **Blocks**: by the block file (the default), or by API. The API blocks the whole account or all fresh orders, where the file blocks new MIS and NRML positions and CNC buys only, so a blocked client can still sell holdings to clear a debit. Keep the file unless Finspot offers a block that allows selling.
    - **Client logins** and **margin baskets** by API: off by default. New clients are added without a password (Finspot sets it, as with the file); changed ones are modified without a password. Use either the API or the client files, not both.
 4. Click **Test**: it signs in. Push one part by hand on Live RMS in UAT, check a few clients with **Check Finspot**, then switch **Push to Finspot automatically** on.

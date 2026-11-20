@@ -75,7 +75,10 @@ import (
 //     missing ones are added; rows already at the values are left alone.
 //     A closed client's rows are removed (UDROWSTATE 0); a blocked,
 //     inactive or not active client gets 0 on both. A debit balance is
-//     sent as 0 (BOW has no use for a negative deposit).
+//     sent as 0 (BOW has no use for a negative deposit). Paise are sent as
+//     they are by default (amounts go × 10,000); the connection can round
+//     each deposit down to the rupee or to the nearest rupee, as the
+//     deposit file does (bowDepositBy).
 //   - The client's BOW login is found in the client master by its
 //     BackOfficeId or LoginId: the UCC itself, or the UCC before the last
 //     "-" (BOW writes CLIENT-T<member>). The master is fetched once a day;
@@ -127,6 +130,7 @@ func init() {
 			{Key: "sec_mult", Label: "Securities multiplier (default 1)", Optional: true, Placeholder: "1"},
 			{Key: "com_mult", Label: "Commodities multiplier (default 1)", Optional: true, Placeholder: "1"},
 			{Key: "mtm", Label: "MTM limit multiplier (empty: MTM not checked)", Optional: true},
+			{Key: "paise", Label: "Paise in the deposits (default kept; or whole rupees, as the deposit file)", Optional: true, Options: []string{bowPaiseKept, bowPaiseDown, bowPaiseNearest}},
 			{Key: "send", Label: "Push to BOW automatically (start of day, then 09:00 to 23:30)", Options: []string{"Off", "On"}},
 			{Key: "bod_at", Label: "Start-of-day push at (HH:MM, default 08:30)", Optional: true, Placeholder: "08:30"},
 			{Key: "every", Label: "Check for changed limits every (minutes, default 5)", Optional: true, Placeholder: "5"},
@@ -138,6 +142,7 @@ func init() {
 
 type bowConn struct {
 	base, user, pass, vendor, version, method string
+	paise                                     string // bowPaiseKept, bowPaiseDown or bowPaiseNearest
 	otp, auto, live                           bool
 	secMult, comMult                          money.Dec // as given (1 = 1×)
 	mtm                                       money.Dec // MTM multiplier; zero: not checked
@@ -170,6 +175,10 @@ func parseBOWConn(c Connection) (bowConn, error) {
 		otp: c.Values["two_factor"] != bowOTPOff, auto: c.Values["send"] == "On", bodAt: firstOf(strings.TrimSpace(c.Values["bod_at"]), "08:30"), every: 5 * time.Minute}
 	if x.user == "" || x.pass == "" || x.vendor == "" {
 		return x, invalid("the BOW connection needs the admin login ID, its password and the vendor code")
+	}
+	x.paise = firstOf(c.Values["paise"], bowPaiseKept)
+	if x.paise != bowPaiseKept && x.paise != bowPaiseDown && x.paise != bowPaiseNearest {
+		return x, invalid("paise in the deposits are %s, %s or %s", bowPaiseKept, bowPaiseDown, bowPaiseNearest)
 	}
 	var err error
 	if x.secMult, err = bowMult(c.Values["sec_mult"], "Securities"); err != nil {
@@ -629,6 +638,18 @@ func bowAmt(d money.Dec) int64 { return d.Round(money.UnitPaisa).Paise() * (bowS
 func bowMultAmt(d money.Dec) int64 { return d.MulInt(bowScale).Round(money.UnitRupee).Paise() / 100 }
 
 func bowStr(n int64) string { return strconv.FormatInt(n, 10) }
+
+// rounded applies the connection's rule for paise to every limit.
+func (x bowConn) rounded(lims map[string]BOWLimit) map[string]BOWLimit {
+	if x.paise == "" || x.paise == bowPaiseKept {
+		return lims
+	}
+	for u, l := range lims {
+		l.Securities, l.Commodities = bowDepositBy(l.Securities, x.paise), bowDepositBy(l.Commodities, x.paise)
+		lims[u] = l
+	}
+	return lims
+}
 
 // ---- the limits ----
 
@@ -1231,6 +1252,7 @@ func (o *Ops) bowPush(ctx context.Context, tenant, actor, date, kind string, ucc
 	if err != nil {
 		return run, err
 	}
+	lims = x.rounded(lims)
 	cs, _ := o.tradingClientMap(ctx, tenant)
 	cctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
@@ -1562,6 +1584,7 @@ func (o *Ops) BOWLimitsView(ctx context.Context, tenant, actor, date string) (BO
 	if err != nil {
 		return v, err
 	}
+	lims = x.rounded(lims)
 	cs, _ := o.tradingClientMap(ctx, tenant)
 	users, m, _ := o.bowUsers(ctx, tenant, nil, cs, false)
 	v.MasterDate, v.MasterSize = m.Date, m.Total

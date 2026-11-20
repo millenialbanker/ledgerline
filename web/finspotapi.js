@@ -28,7 +28,7 @@ function fnPanel(f) {
   if (!f) return '';
   if (f.error) return `<div class="panel"><div class="hd"><h3>Finspot by API</h3></div><div class="bd"><div class="note warn">${esc(f.error)}</div></div></div>`;
   const s = f.session || {}, parts = f.parts || [], last = (f.runs || [])[0];
-  const bod = parts.filter(p => p !== 'clients').map(p => `${FN_PART[p]}${f.bod_done[p] ? ' ✓' : ''}`).join(', ');
+  const bod = (f.bod_parts || parts.filter(p => p !== 'clients')).map(p => `${FN_PART[p]}${f.bod_done[p] ? ' ✓' : ''}`).join(', ') || 'nothing by API: the morning files';
   const diff = f.rows.filter(r => r.differs).length, failed = f.rows.filter(r => r.last.status === 'Failed').length;
   return `<div class="panel"><div class="hd"><h3>Finspot by API</h3><small>Noren WC Admin ${esc(f.env)} · ${parts.map(p => FN_PART[p]).join(', ')}</small>
       <div class="tools">${fnRisk() ? parts.map(p => `<button class="btn sm" data-act="fnPush" data-id="${p}">${FN_PART[p]}</button>`).join('') + '<button class="btn sm pri" data-act="fnPush" data-id="">Push to Finspot now</button>' : ''}</div></div>

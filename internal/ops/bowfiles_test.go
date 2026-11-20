@@ -47,6 +47,70 @@ func readBOW(t *testing.T, id, name string, b []byte) *xfile.Table {
 	return tb
 }
 
+// Nearest rupee: 50 paise and more away from zero, and a debit stays a
+// debit; the API's deposits keep their paise unless the connection rounds.
+func TestBOWRupeesNearest(t *testing.T) {
+	for in, want := range map[string]int64{"0": 0, "0.49": 0, "0.50": 1, "1234.49": 1234, "1234.50": 1235, "1234.60": 1235, "-2500": -2500, "-10.40": -10, "-10.50": -11, "-10.60": -11, "-0.40": -1, "-0.01": -1} {
+		if got := bowRupeesBy(mustDec(in), bowPaiseNearest); got != want {
+			t.Errorf("nearest %s: %d, want %d", in, got, want)
+		}
+		if bowRupeesBy(mustDec(in), bowPaiseDown) != bowRupees(mustDec(in)) || bowRupeesBy(mustDec(in), "") != bowRupees(mustDec(in)) {
+			t.Errorf("down %s", in)
+		}
+	}
+	for rule, want := range map[string]string{bowPaiseKept: "1234.6", "": "1234.6", bowPaiseDown: "1234", bowPaiseNearest: "1235"} {
+		if got := bowDepositBy(mustDec("1234.60"), rule); got.Cmp(mustDec(want)) != 0 {
+			t.Errorf("%q: %s, want %s", rule, got, want)
+		}
+	}
+}
+
+// The funds file's paise: rounded down by default, to the nearest rupee
+// when the connection says so.
+func TestBOWFundFilePaise(t *testing.T) {
+	o, ctx := newOps(t)
+	o.Now = func() time.Time { return time.Date(2026, 10, 16, 8, 13, 39, 0, ist) }
+	for _, u := range []string{"PA01", "PA02", "PA03", "PA04"} {
+		if err := docs.Upsert(ctx, o.Docs, T, cClient, u, Client{UCC: u, Name: u, Status: "Active", Segments: []string{"CM"}}, "t"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	csv := "Account,Debit,Credit\nCLIENT:PA01,,1234.60\nCLIENT:PA02,10.40,\nCLIENT:PA03,0.40,\nCLIENT:PA04,,1234.49\nEQUITY:OPENING,2458.29,\n"
+	if _, err := o.LoadFile(ctx, T, "admin", "OPENING-BALANCES", "2026-10-15", "opening.csv", []byte(csv)); err != nil {
+		t.Fatal(err)
+	}
+	file := func(vals map[string]string) map[string]string {
+		t.Helper()
+		if _, err := o.SaveConnection(ctx, T, "admin", connBOWFiles, vals, nil); err != nil {
+			t.Fatal(err)
+		}
+		name, b, err := o.BOWFundFile(ctx, T, "anita.rao", D, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[string]string{}
+		for _, r := range readBOW(t, "bow-fund", name, b).Rows {
+			got[r.Values["ClientID"]] = r.Values["TotalDeposit"]
+		}
+		return got
+	}
+	for vals, want := range map[string]map[string]string{
+		"":              {"PA01": "1234", "PA02": "-11", "PA03": "-1", "PA04": "1234"},
+		bowPaiseDown:    {"PA01": "1234", "PA02": "-11", "PA03": "-1", "PA04": "1234"},
+		bowPaiseNearest: {"PA01": "1235", "PA02": "-10", "PA03": "-1", "PA04": "1234"},
+	} {
+		got := file(map[string]string{"deposit_shape": bowShapeSingle, "deposit_paise": vals})
+		for u, w := range want {
+			if got[u] != w {
+				t.Errorf("%q %s: %s, want %s", vals, u, got[u], w)
+			}
+		}
+	}
+	if _, err := o.SaveConnection(ctx, T, "admin", connBOWFiles, map[string]string{"deposit_paise": "Up"}, nil); err == nil {
+		t.Fatal("an unknown paise rule was taken")
+	}
+}
+
 func TestBOWRupees(t *testing.T) {
 	for in, want := range map[string]int64{"0": 0, "1234.60": 1234, "1234.99": 1234, "70000": 70000, "-2500": -2500, "-10.40": -11, "-0.01": -1} {
 		if got := bowRupees(mustDec(in)); got != want {
@@ -382,6 +446,27 @@ func TestBOWHoldingFile(t *testing.T) {
 	_, b, _ = o.BOWHoldingFile(ctx, T, next)
 	if tb = readBOW(t, "bow-dp-holding", name, b); tb.Rows[0].Values["DPCFSHaircut"] != "10.5" || tb.Rows[0].Values["PoolCFSHaircut"] != "100" {
 		t.Fatalf("haircuts %+v", tb.Rows[0].Values)
+	}
+	// The pool haircut the same as the DP haircut: the line's DPCFSHaircut.
+	if _, err := o.SaveConnection(ctx, T, "admin", connBOWFiles, map[string]string{"dp_haircut": "10.5", "pool_haircut": "100", "pool_haircut_from": bowPoolAsDP}, nil); err != nil {
+		t.Fatal(err)
+	}
+	_, b, _ = o.BOWHoldingFile(ctx, T, next)
+	for _, r := range readBOW(t, "bow-dp-holding", name, b).Rows {
+		if r.Values["DPCFSHaircut"] != "10.5" || r.Values["PoolCFSHaircut"] != r.Values["DPCFSHaircut"] {
+			t.Fatalf("pool haircut as DP %+v", r.Values)
+		}
+	}
+	up, err := o.BOWUploadFile(ctx, T, "anita.rao", "bow-only-pool-holding", next, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pt := readBOW(t, "bow-only-pool-holding", up.Name, up.Data)
+	if len(pt.Rows) == 0 || pt.Rows[0].Values["PoolCFSHaircut"] != "10.5" {
+		t.Fatalf("pool-only file %+v", pt.Rows)
+	}
+	if _, err := o.SaveConnection(ctx, T, "admin", connBOWFiles, map[string]string{"pool_haircut_from": "Half"}, nil); err == nil {
+		t.Fatal("an unknown pool haircut choice was taken")
 	}
 }
 

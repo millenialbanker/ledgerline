@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ledger"
@@ -74,8 +75,8 @@ func TestCashEquivalentISINs(t *testing.T) {
 	if !isGovtISIN("IN0020990011") || !isGovtISIN("IN2920990019") || isGovtISIN("INE000Z01011") || isGovtISIN("INF000Z01019") {
 		t.Fatal("government ISINs")
 	}
-	if _, bad := cashEqISINList("INF000Z01019, xyz"); len(bad) != 1 || bad[0] != "XYZ" {
-		t.Fatalf("bad %v", bad)
+	if add, drop, bad := cashEqISINList("INF000Z01019, xyz, -INF000Z01027, -abc"); len(bad) != 2 || bad[0] != "XYZ" || bad[1] != "ABC" || !add["INF000Z01019"] || !drop["INF000Z01027"] || add["INF000Z01027"] {
+		t.Fatalf("add %v drop %v bad %v", add, drop, bad)
 	}
 	if _, err := o.SaveConnection(ctx, T, "admin", connFinspot, map[string]string{"cash_eq_isins": "INF000Z01019"}, nil); err != nil {
 		t.Fatal(err)
@@ -623,5 +624,218 @@ func TestFinspotDealerAndBasketFiles(t *testing.T) {
 		if len(f) != 22 || f[3] != "" || f[4] != "" || f[14] != "2" || f[21] != "A" || f[0] == "" {
 			t.Fatalf("line %q", l)
 		}
+	}
+}
+
+// The DP account Finspot is given: the full BO ID by default, its last 8
+// digits when the connection says so, in the ISIN Holding file and the
+// client login file alike.
+func TestFinspotDPAccountOption(t *testing.T) {
+	o, ctx := setup(t)
+	set, _ := o.Settings(ctx, T)
+	next := set.nextBusinessDay(D)
+	const bo = "1299990000004321" // made up
+	rows, _ := o.finspotHoldingRows(ctx, T, next, false)
+	if len(rows) == 0 {
+		t.Fatal("no holding lines in the sample")
+	}
+	u := rows[0].Values["AccountId"]
+	if _, err := docs.Update(ctx, o.Docs, T, cClient, u, "t", func(c *Client) error { c.Demat.ID = "12999900 00004321"; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	dp := func(kind, layout string) string {
+		t.Helper()
+		name, b, err := o.FinspotFile(ctx, T, "anita.rao", kind, next, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range readFinspot(t, layout, name, b).Rows {
+			if r.Values["AccountId"] == u {
+				return r.Values["DPAccount"]
+			}
+		}
+		t.Fatalf("%s: no line for %s", kind, u)
+		return ""
+	}
+	if got := dp("finspot-holdings", "finspot-dp-holding"); got != bo {
+		t.Fatalf("default holding DP account %q", got)
+	}
+	if got := dp("finspot-clients", "finspot-investor-client"); got != bo {
+		t.Fatalf("default client DP account %q", got)
+	}
+	if _, err := o.SaveConnection(ctx, T, "admin", connFinspot, map[string]string{"dp_account": finspotDPLast8}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := dp("finspot-holdings", "finspot-dp-holding"); got != "00004321" {
+		t.Fatalf("last 8 digits in the holding file: %q", got)
+	}
+	if got := dp("finspot-clients", "finspot-investor-client"); got != "00004321" {
+		t.Fatalf("last 8 digits in the client file: %q", got)
+	}
+	// An NSDL account: the client ID after the DP ID.
+	if (finspotCfg{DPLast8: true}).DPAcct("IN300999 10001234") != "10001234" || (finspotCfg{}).DPAcct("IN300999 10001234") != "IN30099910001234" || (finspotCfg{DPLast8: true}).DPAcct("1234") != "1234" {
+		t.Fatal("DPAcct")
+	}
+	if _, err := o.SaveConnection(ctx, T, "admin", connFinspot, map[string]string{"dp_account": "Middle digits"}, nil); err == nil {
+		t.Fatal("an unknown DP account choice was taken")
+	}
+}
+
+// Dealer client positions: BUYAMT / SELLAMT the value by default, the
+// average price when the connection says so.
+func TestFinspotDealerPositionAmount(t *testing.T) {
+	o, ctx := setup(t)
+	set, _ := o.Settings(ctx, T)
+	d := set.nextBusinessDay(D)
+	rv, _ := o.Risk(ctx, T, D)
+	want := map[string]PositionView{} // client|symbol|expiry|strike|type -> position
+	for u, ps := range rv.Positions {
+		for _, p := range ps {
+			if _, sym, exp, strike, opt, ok := finspotContract(p); ok && p.Segment != "CM" && p.Qty != 0 {
+				want[u+"|"+sym+"|"+exp+"|"+strike+"|"+opt] = p
+			}
+		}
+	}
+	file := func() []xfile.Row {
+		t.Helper()
+		name, b, err := o.FinspotDealerPositionFile(ctx, T, d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return readFinspot(t, "finspot-dealer-position", name, b).Rows
+	}
+	check := func(avg bool) {
+		t.Helper()
+		rows := file()
+		if len(rows) == 0 {
+			t.Fatal("no position lines")
+		}
+		for _, r := range rows {
+			v := r.Values
+			tm, _ := time.Parse("02-Jan-2006", v["EXP"])
+			p, ok := want[v["CLIENT"]+"|"+v["SYMBOL"]+"|"+tm.Format("2006-01-02")+"|"+v["STRIKE"]+"|"+v["OPTIONTYPE"]]
+			if !ok {
+				t.Fatalf("line %+v has no position", v)
+			}
+			amt, other := v["BUYAMT"], v["SELLAMT"]
+			if p.Qty < 0 {
+				amt, other = other, amt
+			}
+			exp := p.AvgPrice.MulInt(abs(p.Qty)).Fixed(2)
+			if avg {
+				exp = finspotPrice(p.AvgPrice)
+			}
+			if amt != exp || other != "0" {
+				t.Fatalf("%+v: amount %s, want %s", v, amt, exp)
+			}
+		}
+	}
+	o.SaveConnection(ctx, T, "admin", connFinspot, map[string]string{"dealer_ids": "DLR01"}, nil)
+	check(false)
+	o.SaveConnection(ctx, T, "admin", connFinspot, map[string]string{"dealer_ids": "DLR01", "position_amount": finspotAmtAvg}, nil)
+	check(true)
+	for in, w := range map[string]string{"250": "250.00", "83.2525": "83.2525", "83.25": "83.25", "1043.255": "1043.255", "0": "0.00"} {
+		if got := finspotPrice(mustDec(in)); got != w {
+			t.Errorf("finspotPrice(%s) = %s, want %s", in, got, w)
+		}
+	}
+}
+
+// NSE Clearing's cash-equivalent list, loaded on Exchange files by its
+// headings: its ISINs count as cash equivalent (notional cash, not ISIN
+// Holding collateral); the typed list adds to it and -ISIN leaves one out;
+// a file with no ISIN never empties it.
+func TestNCLCashEquivalentList(t *testing.T) {
+	o, ctx := setup(t)
+	set, _ := o.Settings(ctx, T)
+	next := set.nextBusinessDay(D)
+	const fund, etf, other = "INF000Z01019", "INF000Z01027", "INF000Z01035" // made up
+	cs, _ := o.Clients(ctx, T)
+	var u string
+	for _, c := range cs {
+		if c.Status == "Active" && finspotBlockWhy(c) == "" {
+			u = c.UCC
+			break
+		}
+	}
+	docs.Update(ctx, o.Docs, T, cMarket, D, "test", func(m *Market) error {
+		m.Instruments = append(m.Instruments,
+			Instrument{Exchange: "NSE", Segment: "CM", Symbol: "TESTLIQ", Type: "EQ", ISIN: fund, LTP: mustDec("1000"), Close: mustDec("1000")},
+			Instrument{Exchange: "NSE", Segment: "CM", Symbol: "TESTETF", Type: "EQ", ISIN: etf, LTP: mustDec("100"), Close: mustDec("100")})
+		return nil
+	})
+	for _, h := range []Holding{{UCC: u, ISIN: fund, Symbol: "TESTLIQ", Qty: dq(20), Pledged: dq(10)}, {UCC: u, ISIN: etf, Symbol: "TESTETF", Qty: dq(50), Pledged: dq(50)}} {
+		docs.Upsert(ctx, o.Docs, T, cHolding, holdingID(h.UCC, h.ISIN), h, "test")
+	}
+	cashEq := func() money.Dec {
+		t.Helper()
+		rv, _ := o.Risk(ctx, T, D)
+		for _, r := range rv.Rows {
+			if r.UCC == u {
+				return r.CashEqColl
+			}
+		}
+		t.Fatalf("no risk row for %s", u)
+		return money.Dec{}
+	}
+	base := cashEq()
+	if got := o.cashEquivalentISINs(ctx, T, []string{fund, etf}); got[fund] || got[etf] {
+		t.Fatalf("cash equivalent before the list: %v", got)
+	}
+	list := "Sr. No.,Name of the Scheme,ISIN Code,Category\r\n1,Test Liquid Fund - Direct Growth," + fund + ",Liquid\r\n2,Test Gold ETF," + etf + ",Non-Cash\r\n3,No ISIN here,,Liquid\r\n"
+	load := func(actor, name, body string) XFileResult {
+		t.Helper()
+		rs, err := o.LoadExchangeFile(ctx, T, actor, name, []byte(body), true)
+		if err != nil || len(rs) != 1 {
+			t.Fatalf("%v %+v", err, rs)
+		}
+		return rs[0]
+	}
+	if r := load("vikram.shah", "NCL_Cash_Equivalent_Collateral_01112026.csv", list); !strings.HasPrefix(r.Loaded, "Not loaded") {
+		t.Fatalf("compliance loaded the list: %+v", r)
+	}
+	r := load("anita.rao", "NCL_Cash_Equivalent_Collateral_01112026.csv", list)
+	if r.Format != CashEqListNCL || r.Added != 1 || r.Skipped != 2 || !strings.Contains(r.Note, "1 non-cash row") {
+		t.Fatalf("load %+v", r)
+	}
+	if l, _, _ := docs.Get[CashEqList](ctx, o.Docs, T, cCashEqList, "ncl"); l.Date != "2026-11-01" || l.ISINs[fund] != "Test Liquid Fund - Direct Growth" {
+		t.Fatalf("list %+v", l)
+	}
+	got := o.cashEquivalentISINs(ctx, T, []string{fund, etf, other})
+	if !got[fund] || got[etf] || got[other] {
+		t.Fatalf("after the list: %v", got)
+	}
+	// 10 units × 1,000, no haircut: cash equivalent now.
+	if c := cashEq(); c.Sub(base).Cmp(mustDec("10000")) != 0 {
+		t.Fatalf("cash-equivalent collateral %s, before %s", c, base)
+	}
+	rows, _ := o.finspotHoldingRows(ctx, T, next, false)
+	for _, r := range rows {
+		if r.Values["AccountId"] == u && r.Values["ISIN"] == fund && r.Values["IsCollateral"] != "0" {
+			t.Fatalf("a listed fund is ISIN Holding collateral: %+v", r.Values)
+		}
+		if r.Values["AccountId"] == u && r.Values["ISIN"] == etf && r.Values["IsCollateral"] != "1" {
+			t.Fatalf("a non-cash ETF is not collateral: %+v", r.Values)
+		}
+	}
+	// The typed list: -ISIN leaves a listed fund out, an ISIN adds one.
+	o.SaveConnection(ctx, T, "admin", connFinspot, map[string]string{"cash_eq_isins": "-" + fund + ", " + etf}, nil)
+	if got := o.cashEquivalentISINs(ctx, T, []string{fund, etf}); got[fund] || !got[etf] {
+		t.Fatalf("typed override: %v", got)
+	}
+	o.SaveConnection(ctx, T, "admin", connFinspot, map[string]string{}, nil)
+	// A file with no ISIN is refused and the list stays.
+	if r := load("priya.nair", "NCL_Cash_Equivalent_Collateral_01122026.csv", "Sr. No.,Name of the Scheme,ISIN Code\r\n1,Nothing,\r\n"); !strings.HasPrefix(r.Loaded, "Not loaded") {
+		t.Fatalf("empty list loaded: %+v", r)
+	}
+	if got := o.cashEquivalentISINs(ctx, T, []string{fund}); !got[fund] {
+		t.Fatal("the list was emptied")
+	}
+	// The next month's list replaces it: a scheme dropped stops counting.
+	if r := load("priya.nair", "Liquid_Funds_Approved_01122026.csv", "ISIN,Scheme Name\r\n"+other+",Another Liquid Fund\r\n"); r.Added != 1 {
+		t.Fatalf("next list %+v", r)
+	}
+	if got := o.cashEquivalentISINs(ctx, T, []string{fund, other}); got[fund] || !got[other] {
+		t.Fatalf("after the next list: %v", got)
 	}
 }

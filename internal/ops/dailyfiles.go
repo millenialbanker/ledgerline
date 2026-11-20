@@ -282,9 +282,11 @@ var DailyFiles = []DailyFile{
 	{ID: "cdsl-cln", Title: "CDSL client master (CLN_MSTR, incremental)", Format: "cdsl-client-master", Party: "CDSL", Segments: []string{"DP"}, Direction: "in", At: "09:00"},
 	{ID: "cdsl-dpe6", Title: "CDSL online freeze master report (DPE6), as it arrives", Format: "cdsl-freeze-master", Party: "CDSL", Segments: []string{"DP"}, Direction: "in", At: "09:00", Intraday: true},
 	// The trading front end, for a firm on Finspot (listed when Connections
-	// → Finspot uploads is saved; finspot.go): the BOD files it uploads.
+	// → Finspot uploads is saved, or a morning part of Finspot by API goes
+	// by its file; finspotChecklist): the BOD files it uploads.
 	{ID: "finspot-limit", Title: "Finspot BOD limit file (RMS Limits)", Format: "finspot-rms-limit", Party: "Finspot", Segments: []string{"CM", "FO", "CD", "COM"}, Direction: "out", At: "08:50"},
 	{ID: "finspot-holding", Title: "Finspot BOD holding file (ISIN Holding)", Format: "finspot-dp-holding", Party: "Finspot", Segments: []string{"CM"}, Direction: "out", At: "08:54"},
+	{ID: "finspot-t1", Title: "Finspot BOD T1 holding file (T1 - ISIN Holdings)", Format: "finspot-t1-holding", Party: "Finspot", Segments: []string{"CM"}, Direction: "out", At: "08:54"},
 	// BOW (BOLTPlusOnWeb), for a firm with the BOW limits API or BOW upload
 	// files connection saved (bowfiles.go): the funds file (the fallback of
 	// the API push) and the holding file (the only route for holdings).
@@ -400,7 +402,7 @@ func (o *Ops) DailyFileChecklist(ctx context.Context, tenant, date string) (File
 			serves = []string{"CDSL DP"}
 		}
 		if f.Party == "Finspot" {
-			if !finspot {
+			if !finspot[f.ID] {
 				continue
 			}
 			serves = []string{"Trading front end"}

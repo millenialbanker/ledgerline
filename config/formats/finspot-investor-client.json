@@ -26,7 +26,7 @@
   {"name": "Client Group", "key": "ClientGroup", "type": "str"},
   {"name": "DP id", "key": "DPId", "type": "str", "note": "First 8 digits of a CDSL BO ID (12…), or the NSDL DP ID (IN…)"},
   {"name": "DP name", "key": "DPName", "type": "str"},
-  {"name": "DP account number", "key": "DPAccount", "type": "str", "note": "The demat account as Ledgerline holds it"},
+  {"name": "DP account number", "key": "DPAccount", "type": "str", "note": "The demat account as Ledgerline holds it, or its last 8 digits when Connections → Finspot uploads → DP account says so"},
   {"name": "Decimal Preference", "key": "DecimalPreference", "type": "int"},
   {"name": "Pan Number", "key": "PAN", "type": "str"},
   {"name": "Client Type", "key": "ClientType", "type": "str", "note": "Retail in Finspot's sample"},

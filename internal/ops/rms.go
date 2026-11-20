@@ -320,47 +320,58 @@ func isGovtISIN(isin string) bool {
 // govtSeries are NSE's series for government securities: G-sec, T-bill, SDL.
 var govtSeries = map[string]bool{"GS": true, "TB": true, "SG": true}
 
-// cashEqISINList parses the firm's list of cash-equivalent ISINs; bad
-// are the entries that are not ISINs.
-func cashEqISINList(s string) (ok map[string]bool, bad []string) {
-	ok = map[string]bool{}
+// cashEqISINList parses the firm's typed list of cash-equivalent ISINs:
+// add are the ISINs that count, drop the ones written -ISIN, which do not
+// count whatever else says so (a scheme the firm does not accept though
+// NSE Clearing's list has it); bad are the entries that are not ISINs.
+func cashEqISINList(s string) (add, drop map[string]bool, bad []string) {
+	add, drop = map[string]bool{}, map[string]bool{}
 	for _, x := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ';' || r == ' ' || r == '\n' || r == '\t' || r == '\r' }) {
 		x = strings.ToUpper(x)
+		to := add
+		if strings.HasPrefix(x, "-") {
+			x, to = strings.TrimSpace(x[1:]), drop
+		}
 		if len(x) != 12 || !strings.HasPrefix(x, "IN") {
 			bad = append(bad, x)
 			continue
 		}
-		ok[x] = true
+		to[x] = true
 	}
-	return ok, bad
+	return add, drop, bad
 }
 
 // cashEquivalentISINs says which of the ISINs are collateral the clearing
 // corporations treat as cash equivalent: government securities (by ISIN,
-// or NSE series GS, TB or SG in the security master) and the ISINs the
-// firm lists on Connections -> Finspot uploads (units of liquid and
-// overnight fund schemes, liquid ETFs; empty until the firm fills it).
-// Neither NSE Clearing's approved securities file (symbol, ISIN, price,
-// haircut) nor its haircut file carries a cash / non-cash category, so
-// they cannot say. Ledgerline does not record FDRs or bank guarantees as
-// client collateral.
+// or NSE series GS, TB or SG in the security master), the liquid funds
+// and ETFs on NSE Clearing's cash-equivalent list as last loaded
+// (cashequiv.go), and the ISINs the firm types on Connections -> Finspot
+// uploads (units of liquid and overnight fund schemes, liquid ETFs). The
+// typed list is the override: an ISIN typed -ISIN never counts. Neither
+// NSE Clearing's approved securities file (symbol, ISIN, price, haircut)
+// nor its haircut file carries a cash / non-cash category, so they cannot
+// say. Ledgerline does not record FDRs or bank guarantees as client
+// collateral.
 func (o *Ops) cashEquivalentISINs(ctx context.Context, tenant string, isins []string) map[string]bool {
 	out := map[string]bool{}
 	if len(isins) == 0 {
 		return out
 	}
-	var list map[string]bool
+	var add, drop map[string]bool
 	if c, _, err := docs.Get[Connection](ctx, o.Docs, tenant, cConn, connFinspot); err == nil {
-		list, _ = cashEqISINList(c.Values["cash_eq_isins"])
+		add, drop, _ = cashEqISINList(c.Values["cash_eq_isins"])
 	}
+	ncl := o.nclCashEqISINs(ctx, tenant)
 	seen := map[string]bool{}
 	for _, isin := range isins {
 		if seen[isin] {
 			continue
 		}
 		seen[isin] = true
+		_, listed := ncl[isin]
 		switch {
-		case list[isin], isGovtISIN(isin):
+		case drop[isin]:
+		case add[isin], listed, isGovtISIN(isin):
 			out[isin] = true
 		default:
 			if ref, _, err := docs.Get[SecRef](ctx, o.Docs, tenant, cSecRef, isin); err == nil && govtSeries[strings.ToUpper(ref.Series)] {

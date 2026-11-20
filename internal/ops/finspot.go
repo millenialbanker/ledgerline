@@ -58,6 +58,11 @@ const (
 	cFinspotBlock  = "finspotblock" // UCC -> FinspotBlockState
 	cFinspotSent   = "finspotsent"  // kind|UCC -> finspotSentState
 	finspotTimeFmt = "03_04_05 PM"
+
+	finspotDPFull   = "Full BO ID (16 digits)"
+	finspotDPLast8  = "Last 8 digits (client ID)"
+	finspotAmtTotal = "Total value (quantity × average price)"
+	finspotAmtAvg   = "Average price"
 )
 
 var finspotMu sync.Mutex
@@ -81,7 +86,9 @@ func init() {
 			{Key: "basket_min_pct", Label: "Minimum margin % in the baskets (default 20)", Optional: true, Placeholder: "20"},
 			{Key: "account_suffix", Label: "Account ID suffix: added to the UCC in every Finspot file that carries a client's account or user ID (e.g. -ABC, the broker's code on Finspot)", Optional: true, Placeholder: "-ABC"},
 			{Key: "group_validation", Label: "Group wise validation indicator in the RMS limit lines: no or yes (default no)", Optional: true, Placeholder: "no"},
-			{Key: "cash_eq_isins", Label: "Cash-equivalent collateral ISINs besides government securities (liquid and overnight fund units, liquid ETFs), comma-separated: their pledged value goes in Notional cash, not in the ISIN Holding collateral", Optional: true},
+			{Key: "cash_eq_isins", Label: "Cash-equivalent collateral ISINs besides government securities and NSE Clearing's list (loaded on Exchange files), comma-separated: their pledged value goes in Notional cash, not in the ISIN Holding collateral. -ISIN leaves an ISIN of the list out", Optional: true},
+			{Key: "dp_account", Label: "DP account in the holding and client files and the API (default the full 16-digit BO ID)", Optional: true, Options: []string{finspotDPFull, finspotDPLast8}},
+			{Key: "position_amount", Label: "Dealer client position file BUYAMT / SELLAMT (default total value)", Optional: true, Options: []string{finspotAmtTotal, finspotAmtAvg}},
 			fNotes}})
 }
 
@@ -99,6 +106,22 @@ type finspotCfg struct {
 	BasketMin                           money.Dec
 	Suffix                              string // added to the UCC in client account/user IDs
 	GroupValidation                     string // RMS limit column 17: no or yes
+	DPLast8                             bool   // the DP account as its last 8 digits (DPAcct)
+	PosAvgPrice                         bool   // dealer position BUYAMT / SELLAMT: the average price, not the value
+}
+
+// DPAcct is a client's demat account as Finspot is given it, in every
+// Finspot file and request that carries one (ISIN Holding and T1 lines,
+// the NPOA holdings call's dp_acct_num, the client login file and
+// requests): the full ID as Ledgerline holds it (16-digit CDSL BO ID, or
+// the NSDL DP ID and client ID), or with DPLast8 its last 8 characters,
+// the client ID within the DP for both depositories.
+func (c finspotCfg) DPAcct(demat string) string {
+	d := normDematID(demat)
+	if c.DPLast8 && len(d) > 8 {
+		d = d[len(d)-8:]
+	}
+	return d
 }
 
 // ID is a client's account / user ID on Finspot: the UCC and the firm's suffix.
@@ -146,7 +169,21 @@ func (o *Ops) finspotConfig(ctx context.Context, tenant string) (finspotCfg, err
 	if cfg.GroupValidation != "no" && cfg.GroupValidation != "yes" {
 		return cfg, invalid("the group wise validation indicator is no or yes")
 	}
-	if _, bad := cashEqISINList(v["cash_eq_isins"]); len(bad) > 0 {
+	switch v["dp_account"] {
+	case "", finspotDPFull:
+	case finspotDPLast8:
+		cfg.DPLast8 = true
+	default:
+		return cfg, invalid("the DP account is %s or %s", finspotDPFull, finspotDPLast8)
+	}
+	switch v["position_amount"] {
+	case "", finspotAmtTotal:
+	case finspotAmtAvg:
+		cfg.PosAvgPrice = true
+	default:
+		return cfg, invalid("the dealer position amount is %s or %s", finspotAmtTotal, finspotAmtAvg)
+	}
+	if _, _, bad := cashEqISINList(v["cash_eq_isins"]); len(bad) > 0 {
 		return cfg, invalid("cash-equivalent ISINs: %s is not an ISIN (12 characters)", strings.Join(bad, ", "))
 	}
 	exp := strings.TrimSpace(v["segment_expiry"])
@@ -342,7 +379,7 @@ func (o *Ops) finspotHoldingRows(ctx context.Context, tenant, date string, t1 bo
 		rows = append(rows, xfile.Row{Values: map[string]string{
 			"AccountId": cfg.ID(u), "ISIN": isin, "HoldingsQty": fmt.Sprint(q), "IsCollateral": isColl, "CollateralMode": "1", "CollateralQty": fmt.Sprint(cq),
 			"Haircut": trimDec(hc.Fixed(4)), "BrokerCollateralQty": "0", "DPHoldingsQty": "0", "ClosePrice": px.Fixed(3), "BeneficiaryHoldings": "0",
-			"Product": "CNC", "ActualPrice": px.Fixed(3), "DPAccount": finspotText(normDematID(c.Demat.ID)), "POAFlag": poa[u]}})
+			"Product": "CNC", "ActualPrice": px.Fixed(3), "DPAccount": finspotText(cfg.DPAcct(c.Demat.ID)), "POAFlag": poa[u]}})
 	}
 	return rows, nil
 }
@@ -827,7 +864,7 @@ func (o *Ops) finspotClientRow(ctx context.Context, tenant string, c Client, cfg
 	}
 	v := map[string]string{
 		"AccountId": cfg.ID(c.UCC), "AccountName": c.Name, "LoginId": cfg.ID(c.UCC), "BranchId": branch, "Email": c.Email,
-		"ResidenceAddress": strings.Join(addr, ", "), "Mobile": c.Mobile, "ClientGroup": branch, "DPId": dpid, "DPAccount": demat,
+		"ResidenceAddress": strings.Join(addr, ", "), "Mobile": c.Mobile, "ClientGroup": branch, "DPId": dpid, "DPAccount": cfg.DPAcct(demat),
 		"DecimalPreference": "2", "PAN": c.PAN, "ClientType": cfg.ClientType, "BankAccount": c.Bank.Account, "BankName": c.Bank.Bank,
 		"BankAddress": c.Bank.Branch, "ClientStatus": "A", "UserRole": cfg.Role, "ClientType2": cfg.Type2, "AccessType": cfg.AccessTyp,
 		"DOB": c.DOB, "UserStatus": "E",
@@ -870,9 +907,19 @@ func finspotHash(rs []xfile.Row) string {
 	return hex.EncodeToString(h.Sum(nil))[:16]
 }
 
-// finspotChecklist says whether the firm sends Finspot files (the
-// connection is saved), for the daily file checklist.
-func (o *Ops) finspotChecklist(ctx context.Context, tenant string) bool {
-	cfg, _ := o.finspotConfig(ctx, tenant)
-	return cfg.Set
+// finspotChecklist are the Finspot files the daily file checklist expects
+// (by DailyFile ID): the BOD limit and holding files when the Finspot
+// uploads connection is saved, and each morning part Finspot by API sends
+// by its file (start-of-day limits, ISIN holdings, T1 holdings; fnConn.byFile).
+func (o *Ops) finspotChecklist(ctx context.Context, tenant string) map[string]bool {
+	out := map[string]bool{}
+	if cfg, _ := o.finspotConfig(ctx, tenant); cfg.Set {
+		out["finspot-limit"], out["finspot-holding"] = true, true
+	}
+	if _, x, err := o.finspotAPIConnection(ctx, tenant); err == nil {
+		for _, p := range x.byFile() {
+			out[fnPartFile[p]] = true
+		}
+	}
+	return out
 }

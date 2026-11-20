@@ -530,7 +530,7 @@ func (o *Ops) bowStockFile(ctx context.Context, tenant string, cfg bowFilesCfg, 
 			if h.Pool == 0 {
 				continue
 			}
-			v["PoolQuantity"], v["PoolAvePrice"], v["PoolCFSHaircut"] = strconv.FormatInt(h.Pool, 10), h.PoolAvg.Fixed(2), cfg.PoolHcut.String()
+			v["PoolQuantity"], v["PoolAvePrice"], v["PoolCFSHaircut"] = strconv.FormatInt(h.Pool, 10), h.PoolAvg.Fixed(2), cfg.poolHaircut(cfg.DPHaircut.String()) // as the DP-only file's DPCFSHaircut for the ISIN, with PoolAsDP
 		}
 		b.Rows = append(b.Rows, xfile.Row{Values: v})
 	}

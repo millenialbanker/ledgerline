@@ -4,7 +4,7 @@
  "party": "Front end (Finspot)",
  "direction": "out",
  "when": "BOD",
- "purpose": "Each client's open derivatives positions at the previous business day's close, under the dealer that handles them, product NRML: one line per client and contract, a long position as buy quantity and amount, a short one as sell quantity and amount. The amount is quantity × Ledgerline's average price of the open side (the column says amount; Finspot's sample value could also be read as a price, so confirm with Finspot). The dealer is the firm's default position dealer in Connections → Finspot uploads. Exchange: NFO, BFO, CDS, BCD, MCX, NCX; instrument OPTIDX, OPTSTK, FUTIDX, FUTSTK (FUTCUR, OPTCUR for currency; FUTCOM, OPTFUT for commodities); for futures the strike is 0 and the option type XX.",
+ "purpose": "Each client's open derivatives positions at the previous business day's close, under the dealer that handles them, product NRML: one line per client and contract, a long position as buy quantity and amount, a short one as sell quantity and amount. The amount is quantity × Ledgerline's average price of the open side by default, or the average price itself when Connections → Finspot uploads → Dealer client position amount says so (the column says amount; Finspot's sample value could also be read as a price, so confirm with Finspot). The dealer is the firm's default position dealer in Connections → Finspot uploads. Exchange: NFO, BFO, CDS, BCD, MCX, NCX; instrument OPTIDX, OPTSTK, FUTIDX, FUTSTK (FUTCUR, OPTCUR for currency; FUTCOM, OPTFUT for commodities); for futures the strike is 0 and the option type XX.",
  "names": [
   "FINSPOT_DEALER_CLIENT_POSITION_.*\\.txt"
  ],
