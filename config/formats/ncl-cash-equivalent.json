@@ -1,0 +1,60 @@
+{
+ "id": "ncl-cash-equivalent",
+ "title": "Cash-equivalent collateral list: approved liquid funds and ETFs (NSE Clearing)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "Monthly (when NSE Clearing publishes the list)",
+ "purpose": "NSE Clearing's published list of liquid mutual fund schemes and ETFs it accepts as cash-equivalent collateral. Ledgerline has no sample of this list yet: its columns are read by their header names, which this layout lists (add a header text here when NSE Clearing's differs). Only the ISIN column is needed; a row whose type or category says non-cash is left out.",
+ "linked": "Each load replaces the firm's cash-equivalent list: their pledged value goes in Finspot's Notional cash (RMS Limits column 25) and the risk screens' cash-equivalent collateral, besides government securities, T-bills and SDLs. The ISINs typed in Connections → Finspot uploads are added to it, and -ISIN there leaves one out.",
+ "names": [
+  ".*cash[ _-]*equiv.*",
+  ".*liquid[ _-]*(fund|etf|scheme|mf).*",
+  ".*approved[ _-]*(liquid|mf|mutual|etf).*"
+ ],
+ "compress": "none",
+ "format": "headers",
+ "delimiter": "auto",
+ "header": false,
+ "columns": [
+  {
+   "name": "ISIN",
+   "key": "isin",
+   "type": "str",
+   "required": true,
+   "pattern": "[A-Za-z]{2}[A-Za-z0-9]{10}",
+   "aliases": ["ISIN Code", "ISIN No", "ISIN Number", "Security ISIN", "Scheme ISIN"]
+  },
+  {
+   "name": "Scheme Name",
+   "key": "name",
+   "type": "str",
+   "aliases": ["Name of the Scheme", "Name of Scheme", "Security Name", "Name of Security", "Security Description", "Fund Name", "Scheme", "Name"]
+  },
+  {
+   "name": "Symbol",
+   "key": "symbol",
+   "type": "str",
+   "aliases": ["NSE Symbol", "Security Symbol", "Scrip Symbol"]
+  },
+  {
+   "name": "Type",
+   "key": "type",
+   "type": "str",
+   "aliases": ["Category", "Scheme Type", "Security Type", "Instrument Type", "Scheme Category", "Collateral Type", "Cash / Non-cash"]
+  },
+  {
+   "name": "AMC",
+   "key": "amc",
+   "type": "str",
+   "aliases": ["AMC Name", "Fund House", "Asset Management Company", "Mutual Fund"]
+  },
+  {
+   "name": "Haircut",
+   "key": "haircut",
+   "type": "str",
+   "aliases": ["Haircut %", "Haircut (%)", "Applicable Haircut", "Applicable Haircut %"]
+  }
+ ],
+ "confirmed": false,
+ "source": "No layout of NSE Clearing's cash-equivalent (approved liquid fund and ETF) list in the repository; the header texts are to confirm with a sample of the published list."
+}

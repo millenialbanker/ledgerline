@@ -10,8 +10,8 @@ import (
 	"ledgerline/internal/xfile"
 )
 
-// ---- lists read by their header names: the revocation lists and the
-// KRAs' demise list ----
+// ---- lists read by their header names: the revocation lists, the
+// KRAs' demise list and NSE Clearing's cash-equivalent list ----
 //
 // These lists have no published layout (config/formats lists the header
 // texts each column may have; xfile/headers.go). They are loaded on their
@@ -21,8 +21,8 @@ import (
 // not fit (a PAN not in the PAN form) is counted and left out rather than
 // stopping the whole list.
 
-// listLayouts are the layouts loaded here (mnrl.go, deceased.go).
-var listLayouts = map[string]bool{MNRLListNSE: true, MNRLListDoT: true, MNRLListNSDL: true, MNRLListReac: true, DemiseListNSE: true}
+// listLayouts are the layouts loaded here (mnrl.go, deceased.go, cashequiv.go).
+var listLayouts = map[string]bool{MNRLListNSE: true, MNRLListDoT: true, MNRLListNSDL: true, MNRLListReac: true, DemiseListNSE: true, CashEqListNCL: true}
 
 func isListLayout(id string) bool { return listLayouts[id] }
 
@@ -121,9 +121,12 @@ func (o *Ops) loadListXFile(ctx context.Context, tenant, actor string, s *xfile.
 	}
 	// The same people may load a list here as on its own screen.
 	var err error
-	if s.ID == DemiseListNSE {
+	switch s.ID {
+	case DemiseListNSE:
 		err = o.require(ctx, tenant, actor, "Loading the KRAs' demise list", RoleCompliance, RoleChecker, RoleMaker)
-	} else {
+	case CashEqListNCL:
+		err = o.require(ctx, tenant, actor, "Loading the cash-equivalent collateral list", RoleRisk, RoleMaker, RoleChecker)
+	default:
 		err = o.require(ctx, tenant, actor, "Loading revocation lists", RoleMaker, RoleChecker, RoleCompliance)
 	}
 	if err != nil {
@@ -131,6 +134,16 @@ func (o *Ops) loadListXFile(ctx context.Context, tenant, actor string, s *xfile.
 		return true
 	}
 	lf := &listFile{spec: s, name: f.Name, fileID: r.FileID, date: o.now().Format("2006-01-02"), feed: rowsFeed(t), issues: len(t.Issues)}
+	if s.ID == CashEqListNCL {
+		l, err := o.applyCashEqFile(ctx, tenant, actor, lf)
+		if err != nil {
+			r.Loaded = "Not loaded: " + strings.TrimPrefix(err.Error(), "invalid: ")
+			return true
+		}
+		r.Loaded, r.Added, r.Skipped = "Loaded as the cash-equivalent collateral list (Finspot notional cash, risk)", len(l.ISINs), l.NonCash+l.Bad
+		r.Note = l.summary()
+		return true
+	}
 	if s.ID == DemiseListNSE {
 		l, err := o.applyDemiseFile(ctx, tenant, actor, lf, "", "")
 		if err != nil {

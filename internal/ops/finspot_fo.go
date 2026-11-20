@@ -85,7 +85,10 @@ func (o *Ops) FinspotCostFile(ctx context.Context, tenant, date string) (string,
 // FinspotDealerPositionFile is Dealer Client position: each client's open
 // derivatives positions at the previous business day's close, under the
 // firm's position dealer, product NRML; a long position as buy quantity
-// and amount (quantity × average price), a short one as sell.
+// and amount, a short one as sell. The amount is the position's value
+// (quantity × average price) by default; with the connection's position
+// amount set to the average price, the average price itself (Finspot's
+// sample value reads either way; finspotPrice).
 func (o *Ops) FinspotDealerPositionFile(ctx context.Context, tenant, date string) (string, []byte, error) {
 	s, err := finspotSpec("finspot-dealer-position")
 	if err != nil {
@@ -123,6 +126,9 @@ func (o *Ops) FinspotDealerPositionFile(ctx context.Context, tenant, date string
 			v := map[string]string{"USER": cfg.PosDealer, "CLIENT": cfg.ID(u), "EXCH": exch, "INSTRUMENT": it, "SYMBOL": sym, "EXP": exp, "STRIKE": strike, "OPTIONTYPE": opt,
 				"BUYQTY": "0", "BUYAMT": "0", "SELLQTY": "0", "SELLAMT": "0", "PRODUCT": "NRML"}
 			amt := p.AvgPrice.MulInt(abs(p.Qty)).Fixed(2)
+			if cfg.PosAvgPrice {
+				amt = finspotPrice(p.AvgPrice)
+			}
 			if p.Qty > 0 {
 				v["BUYQTY"], v["BUYAMT"] = fmt.Sprint(p.Qty), amt
 			} else {
@@ -137,6 +143,18 @@ func (o *Ops) FinspotDealerPositionFile(ctx context.Context, tenant, date string
 	}
 	name, err := s.FileName(xfile.Vars{"date": date})
 	return name, b, err
+}
+
+// finspotPrice is a price with 2 decimals, or up to 4 when it has them
+// (currency contracts are priced to 4): "250.00", "83.2525".
+func finspotPrice(d money.Dec) string {
+	s := d.Fixed(4)
+	if strings.HasSuffix(s, "00") {
+		s = s[:len(s)-2]
+	} else if strings.HasSuffix(s, "0") {
+		s = s[:len(s)-1]
+	}
+	return s
 }
 
 // FinspotOrderTypeFile is Dealer – Order Type Enable: the firm's order

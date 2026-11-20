@@ -117,7 +117,7 @@
    "name": "DP account number",
    "key": "DPAccount",
    "type": "str",
-   "note": "The client's demat account as Ledgerline holds it (16-digit CDSL BO ID, or the NSDL DP ID and client ID)"
+   "note": "The client's demat account as Ledgerline holds it (16-digit CDSL BO ID, or the NSDL DP ID and client ID), or its last 8 digits (the client ID) when Connections → Finspot uploads → DP account says so"
   },
   {
    "name": "POA flag",

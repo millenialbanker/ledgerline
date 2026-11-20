@@ -35,7 +35,8 @@ import (
 //     a user-level line (category blank, their sum), or write the old back
 //     office's single user-level line (Securities + Commodities, signed: a
 //     debit in one ledger reduces the other). Debits are kept (negative); a
-//     blocked, inactive or not active client 0. Every active client is
+//     blocked, inactive or not active client 0. Paise are rounded down by
+//     default, or to the nearest rupee (bowRupeesBy); a debit stays a debit. Every active client is
 //     written, or with "changed" only the clients whose figures differ from
 //     the last file (the broker's second, small morning file); what each
 //     file said is kept per client (cBOWFundSent). A client no longer active
@@ -55,7 +56,9 @@ import (
 //     out and logged. The credit-for-sale haircuts (DPCFSHaircut,
 //     PoolCFSHaircut) are the firm's values in Connections → BOW upload
 //     files, 0 by default as in the broker's file; BOW's API document says a
-//     pool haircut of 100 gives no credit for sale (the T1 use).
+//     pool haircut of 100 gives no credit for sale (the T1 use). The pool
+//     haircut can instead be the same as the DP haircut: exactly the
+//     DPCFSHaircut value the same line carries (bowFilesCfg.poolHaircut).
 //
 // The files are on Live RMS → Front-office files and on the BOW panel; the
 // funds and holdings files are on the daily file checklist when the BOW
@@ -71,6 +74,13 @@ const (
 
 	bowCatSecurities  = "securities" // DEPOSIT_UPLOAD's category values, as BOW's samples spell them
 	bowCatCommodities = "commodities"
+
+	bowPaiseDown    = "Round down to the rupee"
+	bowPaiseNearest = "Nearest rupee"
+	bowPaiseKept    = "Kept (to the paisa)" // the API's default: BOW's amounts carry paise
+
+	bowPoolFixed = "The pool haircut % above"
+	bowPoolAsDP  = "Same as the DP haircut of the line (DPCFSHaircut)"
 )
 
 var bowFileMu sync.Mutex
@@ -81,8 +91,10 @@ func init() {
 		Fields: []ConnField{
 			{Key: "deposit_shape", Label: "Deposit (funds) file: lines per client (default two: securities and commodities, so commodity money never raises the equity limit)", Optional: true, Options: []string{bowShapeTwo, bowShapeThree, bowShapeSingle}},
 			{Key: "deposit_product", Label: "Deposit file Product (Delivery, Intraday …; empty: left out, 20 fields as the broker's file)", Optional: true},
+			{Key: "deposit_paise", Label: "Deposit file: paise (whole rupees; default round down; nearest: 50 paise and more go up, a debit stays a debit)", Optional: true, Options: []string{bowPaiseDown, bowPaiseNearest}},
 			{Key: "dp_haircut", Label: "DPCFSHaircut: credit-for-sale haircut % on DP holdings (0 to 100, default 0)", Optional: true, Placeholder: "0"},
 			{Key: "pool_haircut", Label: "PoolCFSHaircut: credit-for-sale haircut % on pool (T1) holdings (0 to 100, default 0; 100 gives no credit for sale)", Optional: true, Placeholder: "0"},
+			{Key: "pool_haircut_from", Label: "PoolCFSHaircut is (default the pool haircut % above)", Optional: true, Options: []string{bowPoolFixed, bowPoolAsDP}},
 			{Key: "owner_id", Label: "Owner Id for user additions: the admin ID (e.g. T1001) or mini admin ID (miniadmin-T1001)", Optional: true},
 			{Key: "offline_groups", Label: "Client groups of offline (CTCL) clients, comma-separated: they go in the offline user file, everyone else in the IBT file", Optional: true, Placeholder: "OFFLINE"},
 			{Key: "margin_product_pref", Label: "MarginProductPref for user additions (BOW's value, e.g. 1099511627775; empty: blank)", Optional: true},
@@ -107,7 +119,18 @@ type bowFilesCfg struct {
 	Set                 bool
 	Shape, Product      string
 	DPHaircut, PoolHcut money.Dec
+	PoolAsDP            bool              // PoolCFSHaircut: the line's DPCFSHaircut, not PoolHcut
+	Paise               string            // deposit file: bowPaiseDown or bowPaiseNearest
 	v                   map[string]string // every value, for bowuploads.go
+}
+
+// poolHaircut is a holding line's PoolCFSHaircut: the firm's pool haircut,
+// or with PoolAsDP exactly the DPCFSHaircut value the line carries (dp).
+func (c bowFilesCfg) poolHaircut(dp string) string {
+	if c.PoolAsDP {
+		return dp
+	}
+	return c.PoolHcut.String()
 }
 
 func (o *Ops) bowFilesConfig(ctx context.Context, tenant string) (bowFilesCfg, error) {
@@ -137,6 +160,17 @@ func (o *Ops) bowFilesConfig(ctx context.Context, tenant string) (bowFilesCfg, e
 	}
 	if cfg.PoolHcut, err = pct("pool_haircut", "pool"); err != nil {
 		return cfg, err
+	}
+	switch cfg.v["pool_haircut_from"] {
+	case "", bowPoolFixed:
+	case bowPoolAsDP:
+		cfg.PoolAsDP = true
+	default:
+		return cfg, invalid("PoolCFSHaircut is %s or %s", bowPoolFixed, bowPoolAsDP)
+	}
+	cfg.Paise = firstOf(cfg.v["deposit_paise"], bowPaiseDown)
+	if cfg.Paise != bowPaiseDown && cfg.Paise != bowPaiseNearest {
+		return cfg, invalid("the deposit file's paise are %s or %s", bowPaiseDown, bowPaiseNearest)
 	}
 	cfg.Shape = firstOf(cfg.v["deposit_shape"], bowShapeTwo)
 	if cfg.Shape != bowShapeTwo && cfg.Shape != bowShapeThree && cfg.Shape != bowShapeSingle {
@@ -241,6 +275,37 @@ func bowRupees(d money.Dec) int64 {
 	return r
 }
 
+// bowRupeesBy is an amount in whole rupees by the firm's rule for paise:
+// bowPaiseDown as bowRupees; bowPaiseNearest the nearest rupee, 50 paise
+// going away from zero (₹1,234.50 is 1,235; a debit of ₹10.50 is -11, of
+// ₹10.40 -10), and a debit never becomes 0 (a debit of 40 paise is -1), so
+// a debit stays a debit.
+func bowRupeesBy(d money.Dec, rule string) int64 {
+	if rule != bowPaiseNearest {
+		return bowRupees(d)
+	}
+	p := d.Round(money.UnitPaisa).Paise()
+	r := (p + 50) / 100
+	if p < 0 {
+		r = (p - 50) / 100
+		if r == 0 {
+			r = -1
+		}
+	}
+	return r
+}
+
+// bowDepositBy is a BOW API deposit (never negative) by the connection's
+// rule for paise: kept as they are (bowPaiseKept, the API's default), or in
+// whole rupees as bowRupeesBy.
+func bowDepositBy(d money.Dec, rule string) money.Dec {
+	switch rule {
+	case bowPaiseDown, bowPaiseNearest:
+		return money.DecInt(bowRupeesBy(d, rule))
+	}
+	return d
+}
+
 // BOWFundFile is the BOW_FUND upload: every active client's funds (see the
 // section comment), or with changedOnly the clients whose figures differ
 // from the last file and those never sent.
@@ -304,9 +369,9 @@ func (o *Ops) bowFundFile(ctx context.Context, tenant, actor, date string, chang
 		if c.Status == "Active" {
 			l := lims[u]
 			if cfg.Shape == bowShapeSingle {
-				now.Funds = bowRupees(l.Net)
+				now.Funds = bowRupeesBy(l.Net, cfg.Paise)
 			} else {
-				now.Sec, now.Com = bowRupees(l.NetSec), bowRupees(l.NetCom)
+				now.Sec, now.Com = bowRupeesBy(l.NetSec, cfg.Paise), bowRupeesBy(l.NetCom, cfg.Paise)
 				now.Funds = now.Sec + now.Com
 			}
 		} else if !known || was.zero() {
@@ -339,7 +404,7 @@ func (o *Ops) bowFundFile(ctx context.Context, tenant, actor, date string, chang
 			return "", nil, 0, err
 		}
 	}
-	o.log(ctx, tenant, actor, "frontoffice.bow_funds_file", name, map[string]any{"date": date, "lines": len(rows), "changed_only": changedOnly, "shape": cfg.Shape})
+	o.log(ctx, tenant, actor, "frontoffice.bow_funds_file", name, map[string]any{"date": date, "lines": len(rows), "changed_only": changedOnly, "shape": cfg.Shape, "paise": cfg.Paise})
 	if !changedOnly {
 		o.noteDailyFile(ctx, tenant, actor, "bow-fund", name, date)
 	}
@@ -457,10 +522,11 @@ func (o *Ops) BOWHoldingFile(ctx context.Context, tenant, date string) (string, 
 	}
 	var rows []xfile.Row
 	for _, h := range hs {
+		dp := cfg.DPHaircut.String()
 		rows = append(rows, xfile.Row{Values: map[string]string{
 			"BackOfficeID": h.UCC, "NSESymbol": h.Symbol, "Series": h.Series, "BSEScripCode": h.BSECode,
-			"DPQuantity": strconv.FormatInt(h.DP, 10), "DPAvePrice": h.DPAvg.Fixed(2), "DPCFSHaircut": cfg.DPHaircut.String(),
-			"PoolQuantity": strconv.FormatInt(h.Pool, 10), "PoolAvePrice": h.PoolAvg.Fixed(2), "PoolCFSHaircut": cfg.PoolHcut.String()}})
+			"DPQuantity": strconv.FormatInt(h.DP, 10), "DPAvePrice": h.DPAvg.Fixed(2), "DPCFSHaircut": dp,
+			"PoolQuantity": strconv.FormatInt(h.Pool, 10), "PoolAvePrice": h.PoolAvg.Fixed(2), "PoolCFSHaircut": cfg.poolHaircut(dp)}})
 	}
 	b, err := s.Write(rows)
 	if err != nil {

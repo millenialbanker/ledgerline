@@ -624,3 +624,50 @@ func TestBOWLimitsEarmark(t *testing.T) {
 		t.Fatalf("BOW funds file %q %v", b, err)
 	}
 }
+
+// The API's deposits keep their paise by default; with the connection's
+// rule they go in whole rupees, as the deposit file.
+func TestBOWAPIPaise(t *testing.T) {
+	o, ctx, _, _ := bowSetup(t, false)
+	ecmsCredit(t, o, ctx, "S9", "UTR9", sgAcct, "91902033334444", "1000.60", "NSE FUNDS")
+	push := func(paise string) BOWClientState {
+		t.Helper()
+		v := map[string]string{"env": "UAT", "url": bowURL(t, o, ctx), "user": "ADMIN-T1234", "vendor_code": "1_LDG", "two_factor": bowOTPOff, "send": "On", "paise": paise}
+		if _, err := o.SaveConnection(ctx, T, "admin", connBOW, v, map[string]string{"password": bowTestPass}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := o.BOWPush(ctx, T, "anita.rao", "", []string{"AB02"}); err != nil {
+			t.Fatal(err)
+		}
+		return bowState(t, o, ctx, "AB02")
+	}
+	if s := push(""); s.Securities.Cmp(mustDec("51000.60")) != 0 {
+		t.Fatalf("default: %s", s.Securities)
+	}
+	if s := push(bowPaiseNearest); s.Securities.Cmp(mustDec("51001")) != 0 || s.Status != BOWPushed {
+		t.Fatalf("nearest: %+v", s)
+	}
+	if s := push(bowPaiseDown); s.Securities.Cmp(mustDec("51000")) != 0 {
+		t.Fatalf("down: %s", s.Securities)
+	}
+	if v, err := o.BOWLimitsView(ctx, T, "anita.rao", ""); err != nil {
+		t.Fatal(err)
+	} else {
+		for _, r := range v.Rows {
+			if r.UCC == "AB02" && r.Differs {
+				t.Fatalf("the panel's rounding differs from the push: %+v", r)
+			}
+		}
+	}
+	x, err := parseBOWConn(Connection{Values: map[string]string{"user": "A", "vendor_code": "V", "paise": bowPaiseNearest}, Secrets: map[string]string{"password": "p"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fm := bowForm(x, BOWUser{USID: "7", LoginID: "L"}, bowRowsFor(x, x.rounded(map[string]BOWLimit{"A": {Securities: mustDec("1234.60"), Commodities: mustDec("10.40")}})["A"]))
+	if fm.Get("UDAmount11") != "12350000" || fm.Get("UDAmount12") != "100000" || fm.Get("UDAmount10") != "12450000" {
+		t.Fatalf("form %v", fm)
+	}
+	if _, err := parseBOWConn(Connection{Values: map[string]string{"user": "A", "vendor_code": "V", "paise": "Up"}, Secrets: map[string]string{"password": "p"}}); err == nil {
+		t.Fatal("an unknown paise rule was taken")
+	}
+}

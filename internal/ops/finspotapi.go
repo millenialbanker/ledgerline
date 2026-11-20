@@ -91,6 +91,16 @@ import (
 //   - Requests go a few at a time (the connection's parallel requests,
 //     default 4), each worker spaced by finspotGap, as the document sets no
 //     rate: a morning's holdings are one request per client and ISIN.
+//   - Each morning part can go by its file instead (start-of-day limits,
+//     ISIN holdings, T1 holdings), with only the day's limit changes by
+//     API. With the start-of-day limits by the RMS Limits file, the
+//     start-of-day push leaves limits out; a client's limit goes by API
+//     during the day only when it differs from the line the day's file
+//     gave (or from the last push of the day), and not before the day's
+//     RMS Limits file is made, so a later upload of the morning file never
+//     overwrites a change sent before it. The parts by file stay on the
+//     daily file checklist (finspotChecklist) and the pay-out holds' BOD
+//     gate waits for the limit file (payoutBODState).
 
 const (
 	connFinspotAPI = "finspot-api"
@@ -126,7 +136,16 @@ const (
 	fnBlocksFreeze = "Block fresh orders (FreezeAccount)"
 	fnNPOASame     = "Same call as other holdings"
 	fnNPOACall     = "NPOA ISIN Holdings call"
+	fnBODByAPI     = "By API"
+	fnBODByFile    = "By the RMS Limits file"
+	fnT1Same       = "Same as ISIN holdings"
+	fnT1ByAPI      = "By API"
+	fnT1ByFile     = "By the T1 file"
 )
+
+// fnPartFile is the daily file checklist item of a morning part sent by
+// its file (dailyfiles.go).
+var fnPartFile = map[string]string{FNPartLimits: "finspot-limit", FNPartHoldings: "finspot-holding", FNPartT1: "finspot-t1"}
 
 // fnParts are the parts of a push, in the order they go.
 var fnParts = []string{FNPartBlocks, FNPartLimits, FNPartHoldings, FNPartT1, FNPartBaskets, FNPartClients}
@@ -151,7 +170,9 @@ func init() {
 			{Key: "every", Label: "Check for changed limits every (minutes, default 5)", Optional: true, Placeholder: "5"},
 			{Key: "parallel", Label: "Requests at a time (1 to 8, default 4)", Optional: true, Placeholder: "4"},
 			{Key: "notional", Label: "Notional cash (RMS Limits column 25) goes in (confirm with Finspot)", Options: []string{fnNotionalColl, fnNotionalDay, fnNotionalNone}, Optional: true},
-			{Key: "holdings", Label: "ISIN and T1 holdings by API", Options: []string{"On", "Off"}, Optional: true},
+			{Key: "bod_limits", Label: "Start-of-day limits (default by API; by the file, only the day's changes go by API)", Options: []string{fnBODByAPI, fnBODByFile}, Optional: true},
+			{Key: "holdings", Label: "ISIN holdings by API (Off: the ISIN Holding file)", Options: []string{"On", "Off"}, Optional: true},
+			{Key: "t1_holdings", Label: "T1 holdings (default the same as ISIN holdings)", Options: []string{fnT1Same, fnT1ByAPI, fnT1ByFile}, Optional: true},
 			{Key: "npoa", Label: "Holdings of clients without a POA or DDPI", Options: []string{fnNPOASame, fnNPOACall}, Optional: true},
 			{Key: "blocks", Label: "Blocks", Options: []string{fnBlocksFile, fnBlocksAcct, fnBlocksFreeze}, Optional: true},
 			{Key: "clients", Label: "New and changed client logins by API", Options: []string{"Off", "On"}, Optional: true},
@@ -165,6 +186,7 @@ func init() {
 type fnConn struct {
 	base, user, pass, vendor, vendorKey, broker, mac, version string
 	live, auto, holdings, npoaCall, clients, baskets          bool
+	t1, bodLimitsFile                                         bool
 	bodAt, notional, blocks                                   string
 	access                                                    []string
 	every                                                     time.Duration
@@ -181,8 +203,10 @@ func (x fnConn) enabled(part string) bool {
 	switch part {
 	case FNPartLimits:
 		return true
-	case FNPartHoldings, FNPartT1:
+	case FNPartHoldings:
 		return x.holdings
+	case FNPartT1:
+		return x.t1
 	case FNPartBlocks:
 		return x.blocks != fnBlocksFile
 	case FNPartClients:
@@ -191,6 +215,22 @@ func (x fnConn) enabled(part string) bool {
 		return x.baskets
 	}
 	return false
+}
+
+// byFile are the morning parts the firm sends by their files rather than
+// by API: start-of-day limits, ISIN holdings, T1 holdings.
+func (x fnConn) byFile() []string {
+	var out []string
+	if x.bodLimitsFile {
+		out = append(out, FNPartLimits)
+	}
+	if !x.holdings {
+		out = append(out, FNPartHoldings)
+	}
+	if !x.t1 {
+		out = append(out, FNPartT1)
+	}
+	return out
 }
 
 // notionalField is the SetLimits field notional cash goes in ("" none).
@@ -212,6 +252,22 @@ func parseFinspotAPIConn(c Connection) (fnConn, error) {
 		live: v["env"] == "Live", auto: v["send"] == "On", holdings: v["holdings"] != "Off", npoaCall: v["npoa"] == fnNPOACall,
 		clients: v["clients"] == "On", baskets: v["baskets"] == "On", bodAt: firstOf(strings.TrimSpace(v["bod_at"]), "08:40"),
 		notional: firstOf(v["notional"], fnNotionalColl), blocks: firstOf(v["blocks"], fnBlocksFile), every: 5 * time.Minute, parallel: 4}
+	switch v["t1_holdings"] {
+	case "", fnT1Same:
+		x.t1 = x.holdings
+	case fnT1ByAPI:
+		x.t1 = true
+	case fnT1ByFile:
+	default:
+		return x, invalid("T1 holdings go %s, %s or %s", fnT1Same, fnT1ByAPI, fnT1ByFile)
+	}
+	switch v["bod_limits"] {
+	case "", fnBODByAPI:
+	case fnBODByFile:
+		x.bodLimitsFile = true
+	default:
+		return x, invalid("start-of-day limits go %s or %s", fnBODByAPI, fnBODByFile)
+	}
 	if x.base == "" || x.user == "" || x.pass == "" || x.vendor == "" || x.vendorKey == "" {
 		return x, invalid("the Finspot API connection needs the address, the admin login ID and password, the vendor code and the vendor key")
 	}
@@ -1011,13 +1067,14 @@ func (p *fnPush) limits() (FinspotAPIPart, error) {
 	for _, s := range all {
 		states[s.UCC] = s
 	}
+	fileLines := p.o.fnFileLines(p.ctx, p.tenant, p.c.x, p.date)
 	var todo []string
 	for _, u := range sortedKeys(lims) {
 		if !p.wanted(u) {
 			continue
 		}
 		l, st := lims[u], states[u]
-		if !p.force && st.Status == FNPushed && st.Cash.Cmp(l.Cash) == 0 && st.Notional.Cmp(l.Notional) == 0 {
+		if !p.force && fnLimitSame(st, fileLines, u, p.date, l) {
 			res.Unchanged++
 			p.o.fnDequeue(p.ctx, p.tenant, u, p.started)
 			continue
@@ -1065,6 +1122,49 @@ func (p *fnPush) limits() (FinspotAPIPart, error) {
 		res.Note = "notional cash not sent (Connections)"
 	}
 	return res, stop
+}
+
+// fnFileLines are the day's RMS Limits lines when the start-of-day limits
+// go by the file (nil otherwise): what Finspot has for a client the API
+// has not pushed today.
+func (o *Ops) fnFileLines(ctx context.Context, tenant string, x fnConn, date string) map[string]finspotLimit {
+	if !x.bodLimitsFile {
+		return nil
+	}
+	_, ls, err := o.finspotLimits(ctx, tenant, date)
+	if err != nil {
+		return nil
+	}
+	return ls
+}
+
+// fnLimitSame says whether Finspot already has a client's limit: the last
+// push, when it went; with the start-of-day limits by the file (fileLines
+// set) and no push yet that day, the file's line (its balance as cash,
+// its notional cash), as the morning upload gave it.
+func fnLimitSame(st FinspotAPIClient, fileLines map[string]finspotLimit, u, date string, l FinspotAPILimit) bool {
+	if fileLines != nil && fnDay(st.At) != date {
+		f, ok := fileLines[u]
+		return ok && f.Margin.Cmp(l.Cash) == 0 && f.NotionalCash.Cmp(l.Notional) == 0
+	}
+	return st.Status == FNPushed && st.Cash.Cmp(l.Cash) == 0 && st.Notional.Cmp(l.Notional) == 0
+}
+
+// fnDay is an RFC 3339 time's IST date ("" when there is none).
+func fnDay(at string) string {
+	t, err := time.Parse(time.RFC3339, at)
+	if err != nil {
+		return ""
+	}
+	return t.In(ist).Format("2006-01-02")
+}
+
+// fnBODFileMade says whether the day's RMS Limits file has been made (or
+// the limits pushed in full by hand), for the intraday pushes to wait for
+// when the start-of-day limits go by the file.
+func (o *Ops) fnBODFileMade(ctx context.Context, tenant, date string) bool {
+	recv, _ := docs.List[DailyFileRecv](ctx, o.Docs, tenant, cDailyRecv, date+"|finspot-rms-limit|")
+	return len(recv) > 0
 }
 
 // ---- holdings ----
@@ -1601,11 +1701,12 @@ func (p *fnPush) baskets() (FinspotAPIPart, error) {
 // ---- the scheduler ----
 
 // fnBODParts are the parts the start-of-day push sends: everything enabled
-// but client logins, which go with the changes.
+// but client logins, which go with the changes, and the limits when the
+// start-of-day limits go by the file.
 func (x fnConn) bodParts() []string {
 	var out []string
 	for _, p := range fnParts {
-		if p != FNPartClients && x.enabled(p) {
+		if p != FNPartClients && x.enabled(p) && !(p == FNPartLimits && x.bodLimitsFile) {
 			out = append(out, p)
 		}
 	}
@@ -1669,7 +1770,12 @@ func (o *Ops) finspotAPITick(ctx context.Context, tenant string, now time.Time) 
 	if !sweep && len(q) == 0 {
 		return
 	}
-	parts := []string{FNPartLimits}
+	// With the start-of-day limits by the file, limit changes wait for the
+	// day's RMS Limits file (the queue keeps them).
+	var parts []string
+	if !x.bodLimitsFile || o.fnBODFileMade(ctx, tenant, date) {
+		parts = append(parts, FNPartLimits)
+	}
 	if sweep {
 		st.LastSweep = now.Format(time.RFC3339)
 		_ = docs.Upsert(ctx, o.Docs, tenant, cFNState, "state", st, SystemActor)
@@ -1679,6 +1785,9 @@ func (o *Ops) finspotAPITick(ctx context.Context, tenant string, now time.Time) 
 				parts = append(parts, p)
 			}
 		}
+	}
+	if len(parts) == 0 {
+		return
 	}
 	_, _ = o.finspotAPIPush(ctx, tenant, SystemActor, date, "Intraday", parts, q, false)
 }
@@ -1707,7 +1816,9 @@ type FinspotAPIView struct {
 	Auto     bool              `json:"auto"`
 	BODAt    string            `json:"bod_at"`
 	Every    int               `json:"every"`
-	Parts    []string          `json:"parts"` // sent by API
+	Parts    []string          `json:"parts"`     // sent by API
+	BODParts []string          `json:"bod_parts"` // sent by the start-of-day push
+	ByFile   []string          `json:"by_file"`   // morning parts sent by their files
 	BODDone  map[string]bool   `json:"bod_done"`
 	Session  FinspotAPISession `json:"session"`
 	Notional string            `json:"notional"`
@@ -1735,9 +1846,24 @@ func (o *Ops) FinspotAPIPanel(ctx context.Context, tenant, actor, date string) (
 			v.Parts = append(v.Parts, p)
 		}
 	}
+	v.BODParts, v.ByFile = x.bodParts(), x.byFile()
 	st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cFNState, "state", fnStateDoc{})
 	for p, d := range st.BOD {
 		v.BODDone[p] = d == date
+	}
+	if len(v.ByFile) > 0 {
+		var names []string
+		for _, p := range v.ByFile {
+			names = append(names, strings.ToLower(fnPartName[p]))
+		}
+		v.Notes = append(v.Notes, "By their files each morning (Front-office files, on the daily file checklist): "+strings.Join(names, ", ")+".")
+	}
+	if x.bodLimitsFile {
+		n := "Start-of-day limits go by the RMS Limits file: during the day only a client whose limit differs from the file's line (or the day's last push) is sent by API"
+		if !o.fnBODFileMade(ctx, tenant, date) {
+			n += ", and nothing is sent until the day's RMS Limits file is made"
+		}
+		v.Notes = append(v.Notes, n+".")
 	}
 	v.Notes = append(v.Notes, "NFO cost price, dealer-client positions and dealer order types have no Finspot API: they stay as files (Front-office files).")
 	if x.notional == fnNotionalNone {
@@ -1757,6 +1883,7 @@ func (o *Ops) FinspotAPIPanel(ctx context.Context, tenant, actor, date string) (
 	for _, s := range all {
 		states[s.UCC] = s
 	}
+	fileLines := o.fnFileLines(ctx, tenant, x, date)
 	holds := map[string]FinspotAPIHolding{}
 	hs, _ := docs.List[FinspotAPIHolding](ctx, o.Docs, tenant, cFNHold, "")
 	for _, h := range hs {
@@ -1766,7 +1893,7 @@ func (o *Ops) FinspotAPIPanel(ctx context.Context, tenant, actor, date string) (
 		l, s := lims[u], states[u]
 		h := holds[u]
 		r := FinspotAPIRow{UCC: u, Name: cs[u].Name, Limit: l, Last: s, Holdings: len(h.Hold), HoldOn: h.HoldOn, T1: len(h.T1), Queued: queued[u]}
-		r.Differs = s.Status != FNPushed || s.Cash.Cmp(l.Cash) != 0 || s.Notional.Cmp(l.Notional) != 0
+		r.Differs = !fnLimitSame(s, fileLines, u, date, l)
 		v.Rows = append(v.Rows, r)
 	}
 	runs, _ := docs.List[FinspotAPIRun](ctx, o.Docs, tenant, cFNRun, "")

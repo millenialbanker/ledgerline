@@ -175,6 +175,7 @@ Loading exchange holidays | Ops maker, Ops checker, Compliance officer
 Loading files | Ops maker, Ops checker, Risk manager, Compliance officer
 Loading revocation lists | Ops maker, Ops checker, Compliance officer
 Loading the KRAs' demise list | Ops maker, Ops checker, Compliance officer
+Loading the cash-equivalent collateral list | Ops maker, Ops checker, Risk manager
 Looking at NSE's extranet | Ops maker, Ops checker, Risk manager, Compliance officer
 MTF enrolment | Ops checker, Risk manager
 MTF margin calls | Ops checker, Risk manager

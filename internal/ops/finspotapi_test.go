@@ -284,6 +284,20 @@ func TestFinspotAPIConnAndBody(t *testing.T) {
 	if err != nil || x.bodAt != "08:40" || x.parallel != 4 || x.notionalField() != "brkcollamt" || x.blocks != fnBlocksFile || x.enabled(FNPartBlocks) || !x.enabled(FNPartT1) || strings.Join(x.access, ",") != "WEB,MOB" {
 		t.Fatalf("%+v %v", x, err)
 	}
+	// By default every morning part goes by API.
+	if len(x.byFile()) != 0 || strings.Join(x.bodParts(), ",") != "limits,holdings,t1" {
+		t.Fatalf("default parts: by file %v, start of day %v", x.byFile(), x.bodParts())
+	}
+	// T1 follows the ISIN holdings unless set apart.
+	for vals, want := range map[[2]string]string{{"Off", ""}: "holdings,t1", {"Off", fnT1ByAPI}: "holdings", {"On", fnT1ByFile}: "t1", {"On", fnT1Same}: ""} {
+		c := Connection{Values: map[string]string{"holdings": vals[0], "t1_holdings": vals[1]}, Secrets: good.Secrets}
+		for a, b := range good.Values {
+			c.Values[a] = b
+		}
+		if x, err := parseFinspotAPIConn(c); err != nil || strings.Join(x.byFile(), ",") != want || x.enabled(FNPartT1) == strings.Contains(want, "t1") {
+			t.Errorf("holdings %s, T1 %q: by file %v %v", vals[0], vals[1], x.byFile(), err)
+		}
+	}
 	for k, v := range map[string]string{"url": "http://fs.example/NorenWCAdmin", "bod_at": "09:15", "parallel": "9", "every": "0", "access_types": "TWS"} {
 		c := Connection{Values: map[string]string{}, Secrets: good.Secrets}
 		for a, b := range good.Values {
@@ -548,6 +562,46 @@ func TestFinspotAPIHoldings(t *testing.T) {
 	if jd := f.last("NpoaISINHoldings"); jd["dp_acct_num"] == nil || jd["is_collateral"] == nil {
 		t.Fatalf("NPOA request %v", jd)
 	}
+	// The DP account as its last 8 digits (Finspot uploads), as in the file.
+	dpAccts := func(from int) []string {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		var out []string
+		for _, jd := range f.reqs["NpoaISINHoldings"][from:] {
+			if s, _ := jd["dp_acct_num"].(string); s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	full := dpAccts(0)
+	if len(full) == 0 || len(full[0]) != 16 {
+		t.Fatalf("default dp_acct_num %v", full)
+	}
+	n := f.count("NpoaISINHoldings")
+	o.SaveConnection(ctx, T, "admin", connFinspot, map[string]string{"dp_account": finspotDPLast8}, nil)
+	if _, err := o.FinspotAPIPush(ctx, T, "anita.rao", next, []string{FNPartHoldings}, nil); err != nil {
+		t.Fatal(err)
+	}
+	short := dpAccts(n)
+	if len(short) == 0 {
+		t.Fatal("no NPOA request with a DP account")
+	}
+	last8 := map[string]bool{}
+	for _, s := range full {
+		last8[s[len(s)-8:]] = true
+	}
+	for _, s := range short {
+		if len(s) != 8 || !last8[s] {
+			t.Fatalf("dp_acct_num %q, the full ones %v", s, full)
+		}
+	}
+	rows, _ = o.finspotHoldingRows(ctx, T, next, false)
+	for _, r := range rows {
+		if d := r.Values["DPAccount"]; d != "" && !contains(short, d) {
+			t.Fatalf("the file's DP account %q was not sent (%v)", d, short)
+		}
+	}
 }
 
 // Blocks, client logins and margin baskets, when switched on.
@@ -665,5 +719,82 @@ func TestFinspotAPIBlocksClientsBaskets(t *testing.T) {
 	pcts, _ := jd["margin_perc_array"].([]any)
 	if jd["exch"] != "NSE" || jd["basket_name"] != "NSEMIS" || jd["prod"] != "I" || len(toks) == 0 || len(toks) != len(pcts) {
 		t.Fatalf("basket %v", jd)
+	}
+}
+
+// The morning parts by their files, only the day's limit changes by API:
+// the start-of-day push sends nothing, the checklist expects the RMS
+// Limits, ISIN Holding and T1 files, and a limit goes by API during the day
+// only after the day's file is made and only when it differs from the
+// file's line.
+func TestFinspotAPIBODByFile(t *testing.T) {
+	o, ctx := sepSetup(t)
+	const date = "2026-10-29"
+	clock := time.Date(2026, 10, 29, 8, 40, 0, 0, ist)
+	o.Now = func() time.Time { return clock }
+	f, base := fnFake(t)
+	fnSave(t, o, ctx, base, map[string]string{"send": "On", "holdings": "Off", "bod_limits": fnBODByFile})
+	_, x, err := o.finspotAPIConnection(ctx, T)
+	if err != nil || len(x.bodParts()) != 0 || strings.Join(x.byFile(), ",") != "limits,holdings,t1" || !x.enabled(FNPartLimits) {
+		t.Fatalf("parts: start of day %v, by file %v %v", x.bodParts(), x.byFile(), err)
+	}
+	checklist := func() map[string]string {
+		t.Helper()
+		cl, _ := o.DailyFileChecklist(ctx, T, date)
+		got := map[string]string{}
+		for _, it := range cl.Items {
+			if it.Party == "Finspot" {
+				got[it.ID] = it.Status
+			}
+		}
+		return got
+	}
+	// No Finspot uploads connection saved: the files are expected all the same.
+	if got := checklist(); len(got) != 3 || got["finspot-limit"] == "" || got["finspot-limit"] == "Written" || got["finspot-holding"] == "" || got["finspot-t1"] == "" {
+		t.Fatalf("checklist %v", got)
+	}
+	// 08:40: no start-of-day push.
+	o.finspotAPITick(ctx, T, clock)
+	if f.count("SetLimits") != 0 || f.logins != 0 {
+		t.Fatalf("start of day sent %d limits (%d sign-ins)", f.count("SetLimits"), f.logins)
+	}
+	// 09:10: money in for AB02 before the day's file is made: it waits.
+	clock = time.Date(2026, 10, 29, 9, 10, 0, 0, ist)
+	ecmsCredit(t, o, ctx, "S2", "UTR2", sgAcct, "91902033334444", "1000", "NSE FUNDS")
+	o.finspotAPITick(ctx, T, clock)
+	if f.count("SetLimits") != 0 || len(o.fnQueuedUCCs(ctx, T)) != 1 {
+		t.Fatalf("sent before the file: %d, queue %v", f.count("SetLimits"), o.fnQueuedUCCs(ctx, T))
+	}
+	v, err := o.FinspotAPIPanel(ctx, T, "anita.rao", date)
+	if err != nil || len(v.BODParts) != 0 || len(v.ByFile) != 3 || !strings.Contains(strings.Join(v.Notes, " "), "until the day's RMS Limits file is made") {
+		t.Fatalf("panel %+v %v", v, err)
+	}
+	// The day's RMS Limits file: AB02 alone goes, as it stands now; AB01
+	// has the file's line.
+	if _, _, err := o.FinspotLimitFile(ctx, T, date); err != nil {
+		t.Fatal(err)
+	}
+	clock = clock.Add(time.Minute)
+	o.finspotAPITick(ctx, T, clock)
+	if f.count("SetLimits") != 1 || f.limits["AB02"]["cash"] != "51000.00" || f.limits["AB01"] != nil || len(o.fnQueuedUCCs(ctx, T)) != 0 {
+		t.Fatalf("after the file: %d sent, %v", f.count("SetLimits"), f.limits)
+	}
+	// The next sweep: nothing differs.
+	clock = clock.Add(6 * time.Minute)
+	o.finspotAPITick(ctx, T, clock)
+	if f.count("SetLimits") != 1 {
+		t.Fatalf("%d sent on the sweep", f.count("SetLimits"))
+	}
+	v, _ = o.FinspotAPIPanel(ctx, T, "anita.rao", date)
+	for _, r := range v.Rows {
+		if r.Differs {
+			t.Fatalf("%s differs: %+v", r.UCC, r)
+		}
+	}
+	if got := checklist(); got["finspot-limit"] != "Written" {
+		t.Fatalf("checklist after the file %v", got)
+	}
+	if recv, _ := docs.List[DailyFileRecv](ctx, o.Docs, T, cDailyRecv, date+"|"+payoutBODLimitFile+"|"); len(recv) == 0 {
+		t.Fatal("the pay-out holds' BOD gate was not told of the limit file")
 	}
 }

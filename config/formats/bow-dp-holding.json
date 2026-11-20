@@ -111,7 +111,7 @@
    "name": "PoolCFSHaircut",
    "key": "PoolCFSHaircut",
    "type": "dec",
-   "note": "NOT NULL in BOW's sheet. Credit-for-sale haircut % on the pool (T1) quantity; 100 means no credit for sale (BOW API document). The firm's value in Connections → BOW upload files (default 0, as the broker's file)",
+   "note": "NOT NULL in BOW's sheet. Credit-for-sale haircut % on the pool (T1) quantity; 100 means no credit for sale (BOW API document). The firm's value in Connections → BOW upload files (default 0, as the broker's file), or the same as the DP haircut (the DPCFSHaircut value the DP line carries) when the connection says so",
    "aliases": [
     "PoolCFSHaircut %"
    ]
