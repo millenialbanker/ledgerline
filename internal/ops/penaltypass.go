@@ -32,6 +32,13 @@ import (
 // picks the reason, gives the cheque or the policy clause and attaches the
 // evidence; a different person approves it; only then is the client's
 // ledger debited and the client sent a signed letter with the evidence.
+//
+// For the hedge break the firm records, once, the date it sent the risk
+// policy clause to clients (Settings.RiskPolicyClauseSentOn). Until it is
+// set no hedge-break penalty is passed on (proposing and approving both
+// refuse, and the penalty stays the firm's); from that date + 7 days it
+// may be, and the date given with each proposal must also be at least 7
+// days before the penalty.
 
 const (
 	cPenaltyPass = "penaltypass"
@@ -121,6 +128,31 @@ func (p PenaltyPass) EvidenceNames() string {
 }
 
 func penaltyPassID(date, ucc string) string { return date + "|" + strings.ToUpper(ucc) }
+
+// hedgeBreakBar is why a hedge-break penalty of date may not be passed to a
+// client, or "" when it may: the firm must have recorded the date the risk
+// management policy clause allowing it was sent to clients
+// (Settings.RiskPolicyClauseSentOn), and the penalty must be at least 7
+// days after it (NSE/INSP/64315). Until then the penalty is the firm's.
+func (s Settings) hedgeBreakBar(date string) string {
+	if s.RiskPolicyClauseSentOn == "" {
+		return "a hedge-break penalty cannot be passed to a client: the date the risk policy penalty clause was sent to clients is not set in Settings, so the penalty stays the firm's"
+	}
+	if from := addDays(s.RiskPolicyClauseSentOn, 7); date < from {
+		return fmt.Sprintf("a hedge-break penalty can be passed to a client only from %s, 7 days after the risk policy penalty clause was sent to clients on %s (Settings); the penalty of %s stays the firm's",
+			fmtDay(from), fmtDay(s.RiskPolicyClauseSentOn), fmtDay(date))
+	}
+	return ""
+}
+
+// penaltyPassHint is the work item's note on which reasons may pass the
+// penalty of date on.
+func (s Settings) penaltyPassHint(date string) string {
+	if s.hedgeBreakBar(date) != "" {
+		return "It may be passed to the client only for a dishonoured cheque (a hedge break cannot be: the risk policy penalty clause was not sent to clients at least 7 days before, per Settings)"
+	}
+	return "It may be passed to the client only for a dishonoured cheque or a hedge break disclosed in the risk policy"
+}
 
 func (o *Ops) penaltyPass(ctx context.Context, tenant, date, ucc string) (PenaltyPass, bool) {
 	p, _, err := docs.Get[PenaltyPass](ctx, o.Docs, tenant, cPenaltyPass, penaltyPassID(date, ucc))
@@ -244,7 +276,13 @@ func (o *Ops) ProposePenaltyPass(ctx context.Context, tenant, actor string, q Pe
 			return PenaltyPass{}, invalid("no dishonoured cheque %s of %s given on or before %s: record the bounce on Receipts first", ref, q.UCC, fmtDay(q.Date))
 		}
 	case PenaltyHedgeBreak:
-		p.PolicyClause, p.PolicyNotifiedOn = strings.TrimSpace(q.PolicyClause), strings.TrimSpace(q.PolicyNotifiedOn)
+		// The firm's record of when the clause went to clients comes first;
+		// the date given for this penalty (that date when left empty) must
+		// also be 7 days before it.
+		if why := set.hedgeBreakBar(q.Date); why != "" {
+			return PenaltyPass{}, fmt.Errorf("%w: %s", ErrState, why)
+		}
+		p.PolicyClause, p.PolicyNotifiedOn = strings.TrimSpace(q.PolicyClause), firstOf(strings.TrimSpace(q.PolicyNotifiedOn), set.RiskPolicyClauseSentOn)
 		if p.PolicyClause == "" {
 			return PenaltyPass{}, invalid("give the clause of the risk management policy that discloses the hedge break")
 		}
@@ -303,6 +341,13 @@ func (o *Ops) DecidePenaltyPass(ctx context.Context, tenant, actor, id string, a
 	set, _ := o.Settings(ctx, tenant)
 	if approve && !set.PenaltyPassThrough {
 		return p, fmt.Errorf("%w: penalty pass-through was switched off in Settings", ErrState)
+	}
+	if approve && p.Reason == PenaltyHedgeBreak {
+		// Checked again: the clause date may have been cleared or changed
+		// since the proposal.
+		if why := set.hedgeBreakBar(p.Date); why != "" {
+			return p, fmt.Errorf("%w: %s; reject it", ErrState, why)
+		}
 	}
 	p.Checker, p.CheckedAt, p.CheckerNote = actor, o.now().Format(time.RFC3339), strings.TrimSpace(note)
 	if !approve {

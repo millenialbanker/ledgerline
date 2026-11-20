@@ -1554,7 +1554,7 @@ func (o *Ops) BOWLimitsView(ctx context.Context, tenant, actor, date string) (BO
 	v := BOWView{Date: date, Status: cn.Status, Problem: cn.Problem, Env: map[bool]string{true: "Live", false: "UAT"}[x.live], Auto: x.auto, BODAt: x.bodAt,
 		Every: int(x.every / time.Minute), Session: o.bowSessionState(tenant, x), SecMult: x.secMult.String(), ComMult: x.comMult.String()}
 	if set, _ := o.Settings(ctx, tenant); !set.segApart() {
-		v.Note = "One client ledger and no MCX-only bank account: the whole balance goes to Securities and Commodities is 0, so BOW gives no MCX limit. Set the MCX-only bank account (or a separate commodity ledger) in Settings for MCX money to go to Commodities."
+		v.Note = "One client ledger and MCX money not kept apart: the whole balance goes to Securities and Commodities is 0, so BOW gives no MCX limit. In Settings, keep MCX money as a separate balance (or set an MCX-only bank account, or a separate commodity ledger) for MCX money to go to Commodities."
 	}
 	st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cBOWState, "state", bowStateDoc{})
 	v.BODDone = st.BODDate == date

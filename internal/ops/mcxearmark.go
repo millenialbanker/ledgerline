@@ -44,9 +44,17 @@ import (
 // client sees (statements, portal, messages, running account settlement,
 // debit ageing, interest) is the one ledger, unchanged.
 //
-// With no MCX-only account set, or with the separate commodity ledger on
-// (where the account's mapping to the commodity ledger does this), nothing
-// here changes anything.
+// A firm with one bank account for all exchanges keeps MCX money apart the
+// same way with no MCX-only account (Settings.MCXMoneyApart): money in is
+// then equity money, RMS moves a client's MCX money to its own balance
+// (MCXMove, maker-checker; also how existing MCX balances are brought in
+// at go-live, client by client), MCX bills add to or take from it, and a
+// payout of MCX money is paid from the usual payout account, in the same
+// payout file or bank API batch as equity payouts.
+//
+// With neither an MCX-only account nor that setting, or with the separate
+// commodity ledger on (where the account's mapping to the commodity ledger
+// does this), nothing here changes anything.
 
 const (
 	cMCXMove = "mcx_earmark_moves"
@@ -59,9 +67,16 @@ func isCommoditySegment(exchange, segment string) bool {
 	return strings.EqualFold(segment, "COM") || strings.EqualFold(exchange, "MCX")
 }
 
-// mcxEarmark reports whether MCX money is earmarked in one ledger: an
-// MCX-only bank account is set and the separate commodity ledger is off.
-func (s Settings) mcxEarmark() bool { return !s.sepCom() && len(s.MCXOnlyBankAccounts) > 0 }
+// mcxEarmark reports whether MCX money is earmarked in one ledger: the
+// separate commodity ledger is off, and an MCX-only bank account is set or
+// the firm keeps MCX money apart without one (MCXMoneyApart).
+func (s Settings) mcxEarmark() bool {
+	return !s.sepCom() && (len(s.MCXOnlyBankAccounts) > 0 || s.MCXMoneyApart)
+}
+
+// KeepsMCXMoneyApart reports whether each client's MCX money is a balance
+// of its own inside the one ledger (for the screens).
+func (s Settings) KeepsMCXMoneyApart() bool { return s.mcxEarmark() }
 
 // segApart reports whether equity and commodity money are kept apart for
 // limits, by separate ledgers or by the earmark.
@@ -91,7 +106,8 @@ func (s Settings) mcxOnly(acct string) bool {
 }
 
 // mcxPayoutAccount is the firm account MCX money is paid out from: the
-// first MCX-only account.
+// first MCX-only account; "" (the usual payout account, in the same file
+// or API batch as equity payouts) when the firm has none.
 func (s Settings) mcxPayoutAccount() string {
 	if len(s.MCXOnlyBankAccounts) == 0 {
 		return ""
@@ -116,6 +132,9 @@ func (o *Ops) checkMCXAccounts(ctx context.Context, tenant string, s *Settings) 
 	if len(out) > 0 && s.SeparateCommodityLedger {
 		return invalid("MCX-only bank accounts are for one ledger per client; with the separate commodity ledger on, put the account under \"money paid into these firm bank accounts\" as Commodity instead")
 	}
+	if s.MCXMoneyApart && s.SeparateCommodityLedger {
+		return invalid("keeping MCX money as a separate balance is for one ledger per client; the separate commodity ledger already keeps it apart")
+	}
 	prev, _ := o.Settings(ctx, tenant)
 	if prev.mcxEarmark() && !s.mcxEarmark() {
 		em, err := o.mcxEarmarks(ctx, tenant, "", "")
@@ -132,7 +151,7 @@ func (o *Ops) checkMCXAccounts(ctx context.Context, tenant string, s *Settings) 
 			if len(left) > 5 {
 				left = append(left[:5], fmt.Sprintf("and %d more", len(left)-5))
 			}
-			return invalid("clients have MCX money earmarked (%s): it would count for equity limits again; move it to equity on RMS first", strings.Join(left, ", "))
+			return invalid("clients have MCX money kept apart (%s): it would count for equity limits again; move it to equity on RMS first", strings.Join(left, ", "))
 		}
 	}
 	return nil
@@ -377,12 +396,15 @@ func (o *Ops) limitFunds(ctx context.Context, tenant string, set Settings, asOf,
 // which side of the one ledger the money counts for, once a second person
 // approves it (DecideMCXMove).
 func (o *Ops) RequestMCXMove(ctx context.Context, tenant, actor, ucc, to, date string, amount money.Amount, note string) (MCXMove, error) {
+	if actor == SystemActor {
+		return MCXMove{}, fmt.Errorf("%w: a person asks for a move between MCX and equity money", ErrForbidden)
+	}
 	if err := o.require(ctx, tenant, actor, "Moving money between MCX and equity", RoleRisk, RoleMaker, RoleChecker); err != nil {
 		return MCXMove{}, err
 	}
 	set, _ := o.Settings(ctx, tenant)
 	if !set.mcxEarmark() {
-		return MCXMove{}, invalid("MCX money is earmarked only with an MCX-only bank account and one ledger per client (Settings)")
+		return MCXMove{}, invalid("MCX money is kept apart only with one ledger per client and either an MCX-only bank account or \"keep MCX money as a separate balance\" on (Settings)")
 	}
 	to = strings.ToUpper(strings.TrimSpace(to))
 	switch to {
@@ -442,6 +464,9 @@ func (o *Ops) checkMCXMove(ctx context.Context, tenant string, m MCXMove) error 
 // DecideMCXMove approves or rejects a requested move; the person who
 // asked cannot decide it.
 func (o *Ops) DecideMCXMove(ctx context.Context, tenant, actor, id string, approve bool, reason string) (MCXMove, error) {
+	if actor == SystemActor {
+		return MCXMove{}, fmt.Errorf("%w: a person approves a move between MCX and equity money", ErrForbidden)
+	}
 	if err := o.require(ctx, tenant, actor, "Approving a move between MCX and equity", RoleChecker, RoleRisk); err != nil {
 		return MCXMove{}, err
 	}
@@ -516,18 +541,31 @@ func (o *Ops) clientEarmarkView(ctx context.Context, tenant string, set Settings
 
 // ---- payouts ----
 
-// checkEarmarkPayout refuses a payout of equity money (from the firm's
-// usual bank account) that would use MCX money: RMS moves it to equity
-// first. A payout of MCX money uses the earmark first, then equity money,
-// within what the client may withdraw.
+// checkEarmarkPayout keeps a payout to the balance it is paid from, each
+// within what that balance may pay (Withdrawable's Ledgers: its money less
+// its own margin, uncleared cheques and payouts already approved; equity
+// also less unposted interest). A payout of equity money may not use MCX
+// money, and a payout of MCX money may not use equity money: RMS moves the
+// difference first. (Before MCX money could be kept apart without an
+// MCX-only account, an MCX payout could run on into equity money; it no
+// longer does, as the client now chooses the balance and sees what each
+// can pay.)
 func checkEarmarkPayout(w Withdrawable, amount money.Amount, from string) error {
-	if w.Ledgers == nil || from == ledger.LedgerCommodity {
+	if w.Ledgers == nil {
 		return nil
+	}
+	if from == ledger.LedgerCommodity {
+		have := max(w.Ledgers.Commodity, 0)
+		if amount <= have {
+			return nil
+		}
+		return invalid("₹%s is more than the ₹%s of MCX money that can be withdrawn (MCX money less MCX margin, uncleared MCX cheques and MCX payouts already approved). Withdraw the rest from equity money, or ask RMS to move ₹%s to MCX money first",
+			formatINR(amount.Dec()), formatINR(have.Dec()), formatINR((amount - have).Dec()))
 	}
 	have := max(w.Ledgers.Equity, 0)
 	if amount <= have {
 		return nil
 	}
-	return invalid("₹%s is more than the ₹%s of equity money; ₹%s of this client's money is MCX money (paid into the MCX-only bank account). Pay it from MCX money, or ask RMS to move ₹%s to equity first",
+	return invalid("₹%s is more than the ₹%s of equity money that can be withdrawn; ₹%s of this client's money is MCX money. Withdraw it from MCX money, or ask RMS to move ₹%s to equity first",
 		formatINR(amount.Dec()), formatINR(have.Dec()), formatINR(max(w.Ledgers.Commodity, 0).Dec()), formatINR((amount - have).Dec()))
 }

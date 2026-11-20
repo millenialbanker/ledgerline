@@ -14,7 +14,7 @@ Ledgerline sets each client's limit in **BOW** (BSE's front end from MarketPlace
 What each client gets:
 
 1. **Securities**: the equity money: the ledger at the end of the previous business day less cheques not yet cleared (the same figure as Finspot's limit), plus money in and out since, less any pay-out hold.
-2. **Commodities**: the MCX money: with an **MCX-only bank account** (one ledger), the money earmarked for MCX; with a **separate commodity ledger**, the commodity ledger. With neither, Commodities is 0 and BOW gives no MCX limit.
+2. **Commodities**: the MCX money: with one ledger and an **MCX-only bank account** or **MCX money kept as a separate balance**, the client's MCX money; with a **separate commodity ledger**, the commodity ledger. Otherwise Commodities is 0 and BOW gives no MCX limit.
 3. A **blocked**, **inactive** or not active client gets 0 on both; a client with a debit balance gets 0. A **closed** client's deposits are removed from BOW.
 
 When it happens (with automatic pushes on in Connections):

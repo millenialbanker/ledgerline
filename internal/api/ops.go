@@ -423,9 +423,11 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 	if set.SeparateCommodityLedger && role != ops.RoleClient {
 		me["separate_commodity_ledger"] = true // staff screens show the equity and commodity ledgers
 	}
-	if !set.SeparateCommodityLedger && len(set.MCXOnlyBankAccounts) > 0 && role != ops.RoleClient {
-		me["mcx_earmark"] = true // staff screens show MCX money and equity money (ops/mcxearmark.go)
-		me["mcx_accounts"] = set.MCXOnlyBankAccounts
+	if set.KeepsMCXMoneyApart() && role != ops.RoleClient {
+		// Staff screens show MCX money and equity money (ops/mcxearmark.go),
+		// with or without an MCX-only bank account.
+		me["mcx_earmark"] = true
+		me["mcx_accounts"] = append([]string{}, set.MCXOnlyBankAccounts...)
 	}
 	writeJSON(w, 200, me)
 }
@@ -2144,7 +2146,9 @@ func (s *Server) requestPayout(w http.ResponseWriter, r *http.Request) {
 		Amount money.Amount `json:"amount"`
 		RTGS   bool         `json:"rtgs"` // send by RTGS whatever the threshold
 		// Ledger to pay from (EQ or COM) with a separate commodity ledger;
-		// empty pays from either. A client's own request never names one.
+		// empty pays from either. With MCX money kept apart in one ledger,
+		// COM (or MCX) is MCX money, anything else equity money; a client's
+		// own request may name it only then.
 		Ledger string `json:"ledger"`
 		// ToAccount (full or masked, with ToIFSC) chooses another of the
 		// client's active registered bank accounts, with ToReason; empty
@@ -2173,9 +2177,9 @@ func (s *Server) requestPayout(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 422, "invalid", "RTGS needs at least ₹2,00,000", nil)
 		return
 	}
-	if src == "Client" {
-		b.Ledger = ""
-	}
+	// A client chooses equity money or MCX money only where the firm keeps
+	// MCX money apart in the one ledger (ops.RequestPayoutTo drops the
+	// choice otherwise).
 	v, err := s.ops.RequestPayoutTo(r.Context(), tenant(r), actor(r), b.Date, b.UCC, b.Amount, src, b.Ledger, b.ToAccount, b.ToIFSC, b.ToReason)
 	if err != nil {
 		fail(w, err, nil)

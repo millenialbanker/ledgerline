@@ -273,6 +273,20 @@ type Settings struct {
 	// made from the first. Not used with the separate commodity ledger
 	// (map the account to Commodity in BankAccountLedgers there).
 	MCXOnlyBankAccounts []string `json:"mcx_only_bank_accounts,omitempty"`
+	// MCXMoneyApart keeps each client's MCX money as a balance of its own
+	// inside the one ledger (mcxearmark.go) for a firm with one bank
+	// account for all exchanges: no MCX-only account is needed. Money in
+	// is equity money; RMS moves it to MCX money (maker-checker), MCX
+	// bills add to or take from it, and MCX payouts go from the usual
+	// payout account in the same batch as equity payouts. Off (the
+	// default): MCX money is kept apart only with an MCX-only account.
+	MCXMoneyApart bool `json:"mcx_money_apart,omitempty"`
+	// RiskPolicyClauseSentOn is the date the risk management policy clause
+	// allowing a hedge-break margin penalty to be passed to clients was
+	// sent to them (NSE/INSP/64315). Empty (the default): no hedge-break
+	// penalty is ever passed to a client; from this date + 7 days it may
+	// be (penaltypass.go).
+	RiskPolicyClauseSentOn string `json:"risk_policy_clause_sent_on,omitempty"`
 	// From approved exchange holiday calendars (holidays.go), filled in
 	// when settings are loaded; never saved with them.
 	exTrading    map[string]string
@@ -604,6 +618,14 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 			return invalid("date %q must be YYYY-MM-DD", d)
 		}
 	}
+	if s.RiskPolicyClauseSentOn = strings.TrimSpace(s.RiskPolicyClauseSentOn); s.RiskPolicyClauseSentOn != "" {
+		if !ledger.ValidDate(s.RiskPolicyClauseSentOn) {
+			return invalid("the date the risk policy penalty clause was sent to clients must be YYYY-MM-DD")
+		}
+		if s.RiskPolicyClauseSentOn > o.now().In(ist).Format("2006-01-02") {
+			return invalid("the risk policy penalty clause cannot have been sent to clients after today; enter the date it was sent")
+		}
+	}
 	if err := checkClearing(&s); err != nil {
 		return err
 	}
@@ -636,6 +658,12 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 			masked[i] = MaskAccount(a)
 		}
 		o.log(ctx, tenant, actor, "settings.mcx_only_bank_accounts", "settings", map[string]any{"accounts": masked})
+	}
+	if prev.MCXMoneyApart != s.MCXMoneyApart {
+		o.log(ctx, tenant, actor, "settings.mcx_money_apart", "settings", map[string]any{"on": s.MCXMoneyApart})
+	}
+	if prev.RiskPolicyClauseSentOn != s.RiskPolicyClauseSentOn {
+		o.log(ctx, tenant, actor, "settings.risk_policy_clause_sent_on", "settings", map[string]any{"from": prev.RiskPolicyClauseSentOn, "to": s.RiskPolicyClauseSentOn})
 	}
 	o.log(ctx, tenant, actor, "settings.saved", "settings", map[string]any{"warn_util_pct": s.WarnUtilPct, "ras_buffer_pct": s.RASBufferPct, "penalty_pass_through": s.PenaltyPassThrough})
 	o.aiMarkState(ctx, tenant) // the AI features' on/off history (aicontrol.go)

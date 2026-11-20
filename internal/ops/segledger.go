@@ -626,7 +626,7 @@ func (o *Ops) bowFunds(ctx context.Context, tenant, date string) (map[string]mon
 func (o *Ops) BOWFundsFile(ctx context.Context, tenant, date string) ([]byte, error) {
 	set, _ := o.Settings(ctx, tenant)
 	if !set.segApart() {
-		return nil, invalid("commodity funds are kept apart only with a separate commodity ledger or an MCX-only bank account (Settings)")
+		return nil, invalid("commodity funds are kept apart only with a separate commodity ledger, an MCX-only bank account or MCX money kept as a separate balance (Settings)")
 	}
 	f, err := o.bowFunds(ctx, tenant, date)
 	if err != nil {

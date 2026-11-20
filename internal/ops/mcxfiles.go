@@ -549,7 +549,7 @@ func (o *Ops) queueLeviedPenalties(ctx context.Context, tenant, date string) {
 			continue
 		}
 		r.queue(penaltyPassID(date, u), fmt.Sprintf("Margin penalty ₹%s of %s: the firm's, unless the client caused it", formatINR(l.Penalty), u),
-			fmt.Sprintf("MCXCCL levied ₹%s on a shortfall of ₹%s on %s (%s%%, %s). It may be passed to the client only for a dishonoured cheque or a hedge break disclosed in the risk policy: give the reason and attach the evidence on RMS → Margin reporting, or dismiss to bear it.", formatINR(l.Penalty), formatINR(l.Short), fmtDay(date), l.Pct.String(), l.File),
+			fmt.Sprintf("MCXCCL levied ₹%s on a shortfall of ₹%s on %s (%s%%, %s). %s: give the reason and attach the evidence on RMS → Margin reporting, or dismiss to bear it.", formatINR(l.Penalty), formatINR(l.Short), fmtDay(date), l.Pct.String(), l.File, set.penaltyPassHint(date)),
 			u, RoleCompliance, "rms", "", nil)
 	}
 }

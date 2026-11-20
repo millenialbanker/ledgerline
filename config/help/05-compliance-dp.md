@@ -72,7 +72,7 @@ Under SEBI's nomination circular of 29 May 2026 (in force from 1 Sep 2026) a cli
 title: Pass a margin penalty to a client
 screen: margin
 roles: Compliance officer, Risk manager, Ops checker
-ask: pass penalty to client; charge penalty to client; margin penalty pass through; cheque bounce penalty; hedge break penalty; penalty evidence; penalty pass-through setting
+ask: pass penalty to client; charge penalty to client; margin penalty pass through; cheque bounce penalty; hedge break penalty; penalty evidence; penalty pass-through setting; risk policy clause date; risk policy penalty clause sent to clients; hedge break penalty refused; clause not sent 7 days
 related: peak-margin
 
 A clearing corporation's penalty for short collection of upfront margin is the firm's. Under NSE/INSP/64315 (for penalties from 1 Nov 2024) it may be charged to a client only when the client caused the shortfall:
@@ -81,6 +81,8 @@ A clearing corporation's penalty for short collection of upfront margin is the f
 - a **hedge break**: the client changed a hedge or a leg expired, and the firm's risk management policy says this can raise margins and was notified to clients at least 7 days before.
 
 Pass-through is **off** by default (Settings → *Allow passing penalties to clients case by case*). When it is on, nothing is charged by itself: Autopilot only puts each penalty in the work queue.
+
+**Hedge breaks need the clause date.** In Settings (Admin), enter **Risk policy penalty clause sent to clients on**: the date the risk management policy clause allowing it was sent to clients. It is empty by default, and while it is empty no hedge-break penalty is ever passed to a client: proposing and approving both refuse, and the penalty stays the firm's. From that date + 7 days a hedge-break penalty may be passed on. The date given with each proposal (the Settings date when left blank) must also be at least 7 days before the penalty. If the date is cleared or moved later, a proposal waiting for approval can no longer be approved.
 
 1. On [[margin|Margin reporting]], **Prepare penalties** lists them (nothing is debited); then a Compliance officer or Risk manager clicks **Pass to client…** on the row, chooses the reason and gives the dishonoured cheque (recorded as bounced on Receipts) or the policy clause and the date clients were notified of it.
 2. Attach the supporting documents (PDF or image): the bank's return memo, or the policy extract and its notice.

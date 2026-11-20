@@ -349,7 +349,12 @@ func (o *Ops) hdfcPayments(ctx context.Context, tenant string, b PayoutBatch, as
 	}
 	rows, _, probs := o.hdfcRows(ctx, tenant, set, b, refs)
 	for _, it := range b.Items {
-		if it.DebitAccount != "" {
+		// Only a payout from another firm account (an MCX-only account)
+		// cannot go under this CBX client code. MCX money paid from the
+		// usual payout account (one bank account for all exchanges) has no
+		// DebitAccount, or the payout account itself, and goes in the same
+		// batch as the equity payouts.
+		if it.DebitAccount != "" && normAcctNo(it.DebitAccount) != normAcctNo(set.PayoutDebitAccount) {
 			probs = append(probs, it.Request+" "+it.UCC+": paid from "+it.DebitAccount+", not the account of the API's CBX client code; make the ENet file for it")
 		}
 	}

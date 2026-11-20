@@ -86,6 +86,8 @@ related: payout-bank-file, ras
 
 "Only ₹X is available" means the request is more than that. Ask for a smaller amount or reject. Money goes only to the client's registered bank account.
 
+Where the firm keeps MCX money as a separate balance in the one ledger, the request says which balance it comes from, **equity money** or **MCX money**, and each pays only what it can (see *Withdraw equity money or MCX money*).
+
 ## payout-bank-file
 title: Send approved payouts to the bank
 screen: money
@@ -149,7 +151,7 @@ Instead of making the ENet file and uploading it, a payout batch can go to HDFC 
     - from the bank: the CBX client code for client payouts, the domain (group) ID, the CBX user ID of the API maker, and from HDFC's developer portal the consumer key, consumer secret, scope and HDFC's certificate;
     - click **Make key**, give the signing request to a certificate authority, upload the signed certificate on HDFC's developer portal with the server's IP address, and paste the certificate with its chain into the connection;
     - **Test** gets a token from the bank: it checks the address, the mutual TLS, the key, the secret and the scope, and pays nothing.
-2. On [[money|Receipts & payouts]] → Payout batches, click **HDFC by API** on a batch, then **Send to HDFC**. The same checks as the ENet file run first (registered account, IFSC, amounts, names, emails). A payout paid from the MCX-only account cannot go this way; use the ENet file for it.
+2. On [[money|Receipts & payouts]] → Payout batches, click **HDFC by API** on a batch, then **Send to HDFC**. The same checks as the ENet file run first (registered account, IFSC, amounts, names, emails). A payout paid from an MCX-only account cannot go this way; use the ENet file for it. MCX payouts paid from the usual payout account (one bank account for all exchanges) go in the same batch as the equity payouts.
 3. Approve the batch in CBX as usual.
 4. Ledgerline asks the bank for the result on HDFC's own schedule: 15, 20 and 25 minutes after sending, again 45 minutes later, then at 19:30 on each of the next 3 days; never more than 6 times a day. **Ask HDFC now** asks at once (5 minutes apart at least).
 
@@ -585,11 +587,37 @@ It never goes below zero (an MCX loss larger than the MCX money is borne by the 
 
 **Example.** A client has ₹10,000 of equity money and ₹2,00,000 of MCX money. ₹5,000 by e-CMS into the usual account: Finspot column 5 becomes ₹15,000. The same ₹5,000 into the MCX-only account: Finspot stays ₹10,000 and the MCX money is ₹2,05,000. An MCX loss of ₹50,000 brings the MCX money to ₹1,55,000; Finspot is unchanged.
 
-**Payouts.** In Receipts & payouts choose *Pay from*: **Equity money** (the usual payout account) may not use MCX money; a larger request is refused with the amount to move first. **MCX money** is paid from the first MCX-only account and uses the MCX money first, then equity money, within what the client may withdraw. A payout the client asks for on the portal is equity money.
+**Payouts.** In Receipts & payouts choose *Pay from*: **Equity money** (the usual payout account) may not use MCX money, and **MCX money** (paid from the first MCX-only account) may not use equity money; a larger request is refused with the amount RMS must move first. On the portal the client chooses the balance (see *Withdraw equity money or MCX money*).
 
 **Turning it off** is refused while any client has MCX money earmarked: move it to equity on RMS first.
 
 Good to know: the earmark is a figure, not a posting. Money already in the ledger when you switch it on is equity money; earmark a client's existing MCX money with a move to MCX (see *Move money between MCX money and equity money*).
+
+A firm with **one bank account for all exchanges** needs no MCX-only account: see *Keep MCX money as a separate balance with one bank account*.
+
+## mcx-money-apart
+title: Keep MCX money as a separate balance with one bank account
+screen: settings
+roles: Admin, Risk manager, Ops checker
+ask: one bank account for all exchanges; no mcx only bank account; mcx money separate balance; keep mcx money apart; mcx balance in one ledger; mcx payout same bank account; mcx payout same file; mcx money go live; move existing mcx balance; single bank account mcx and equity
+related: mcx-only-bank-account, mcx-earmark-move, mcx-portal-withdrawal, payout
+
+**Who needs it.** A firm that keeps **one ledger per client** and **one bank account** for all exchanges, but keeps each client's MCX money apart from equity money.
+
+**Switching it on.** On [[settings|Settings]] (Admin), under **MCX money in one ledger**, tick **Keep each client's MCX money as a separate balance**. Leave the MCX-only bank accounts empty. It is off by default, and it cannot be used with the separate commodity ledger (which already keeps MCX money apart).
+
+**What it does.** The client keeps one ledger and sees one balance on statements. Inside it, Ledgerline keeps each client's **MCX money** apart, exactly as with an MCX-only account, except that money paid in is always equity money:
+- RMS moves money between equity money and MCX money (a person asks, a different Ops checker or Risk manager approves);
+- MCX profits add to MCX money; MCX losses and charges take from it first;
+- MCX payouts take from it.
+
+Pledged shares cover **equity margin only**: MCX margin is met from MCX money. Finspot, NSE Clearing allocation and equity risk see equity money only; MCX allocation, MCXCCL margin reporting, MCX risk and BOW Commodities see MCX money.
+
+**Payouts.** MCX money is paid from the **same bank account** as equity money, in the **same payout file** (or HDFC API batch) as the equity payouts. Each payout comes from one balance and only up to what that balance can pay.
+
+**Going live.** Money already in the ledger is equity money. RMS moves each client's existing MCX balance to MCX money, client by client (see *Move money between MCX money and equity money*); no import is needed.
+
+**Turning it off** is refused while any client has MCX money: move it to equity first.
 
 ## mcx-earmark-move
 title: Move money between MCX money and equity money (one ledger)
@@ -598,11 +626,32 @@ roles: Risk manager, Ops maker, Ops checker
 ask: move mcx money to equity; move equity money to mcx; release mcx earmark; use mcx money for equity; mcx profit to equity with one ledger; payout refused mcx money; equity payout refused earmarked; earmark opening mcx balance
 related: mcx-only-bank-account, payout
 
-1. In the client drawer, under the balance, click **Move MCX money to equity** or **Move equity money to MCX** (or **Move** on the client's line on [[rms|RMS & limits]]), give the amount and a note.
-2. A second person, an Ops checker or Risk manager, approves it under RMS → **Moves between MCX money and equity money** (or in the drawer). The person who asked cannot.
+1. In the client drawer, under the balance, click **Move MCX money to equity** or **Move equity money to MCX** (or **Move** on the client's line on [[rms|RMS & limits]]), give the amount and a note. A Risk manager, Ops maker or Ops checker can ask.
+2. A second person, an Ops checker or Risk manager, approves it under RMS → **Moves between MCX money and equity money** (or in the drawer). The person who asked cannot, an Admin included, and Ledgerline never moves money by itself.
 3. It counts from its date: the next Finspot BOD limit file and NSE Clearing allocation carry it.
 
 Nothing is posted: the client's ledger, statement and balance do not change; only which side the money counts for. A move cannot take more than the side it comes from has. Every request and decision is in the audit trail.
+
+At go-live with one bank account (*Keep MCX money as a separate balance*), bring each client's existing MCX balance in with a move to MCX, one client at a time.
+
+## mcx-portal-withdrawal
+title: Withdraw equity money or MCX money
+screen: money
+roles: Ops maker, Ops checker, Risk manager, Client
+ask: withdraw mcx money; client withdraw mcx; portal withdraw from mcx; payout from mcx money; choose balance for payout; withdraw equity or mcx; mcx payout portal; mcx money withdrawable; mcx withdrawal refused
+related: mcx-money-apart, mcx-only-bank-account, payout, mcx-earmark-move
+
+Where the firm keeps MCX money apart in the one ledger (an MCX-only bank account, or *Keep each client's MCX money as a separate balance* in Settings), a withdrawal comes from one balance.
+
+**On the portal** (Funds & payouts) the client sees what they can withdraw from **equity money** and from **MCX money**, and picks one before entering the amount. MCX money is offered only when the client has some.
+
+**Staff** entering a request on [[money|Receipts & payouts]] choose *Pay from*: equity money or MCX money.
+
+What each balance can pay:
+- **Equity money**: equity money less equity margin not covered by pledged shares, uncleared cheques, unposted interest and equity payouts already approved.
+- **MCX money**: MCX money less MCX margin (pledged shares do not count for it), uncleared MCX cheques and MCX payouts already approved.
+
+Neither may be more than the client can withdraw in all. A larger request is refused with the amount to move: ask RMS to move it between the balances first. The payout then takes from the balance chosen. MCX money is paid from the usual payout account (or the MCX-only account, if the firm has one).
 
 ## upix-upi-block
 title: Clients who trade on money blocked by UPI (UPIX)

@@ -128,8 +128,12 @@ type PortalView struct {
 	Account      PortalAccount   `json:"account"`
 	Ledger       money.Amount    `json:"ledger"`
 	Withdrawable Withdrawable    `json:"withdrawable"`
-	Holdings     []HoldingView   `json:"holdings"`
-	HoldValue    money.Dec       `json:"holdings_value"`
+	// Balances is set only where the firm keeps MCX money as a balance of
+	// its own in the one ledger and the client has some: the client then
+	// chooses which balance a withdrawal comes from.
+	Balances  *PortalBalances `json:"balances,omitempty"`
+	Holdings  []HoldingView   `json:"holdings"`
+	HoldValue money.Dec       `json:"holdings_value"`
 	// HoldingTotals add the client's demat accounts up; DPBills are the
 	// DP's monthly bills.
 	HoldingTotals []HoldingView          `json:"holding_totals"`
@@ -148,6 +152,31 @@ type PortalView struct {
 	// FATCACodes are the code lists of the tax residency declaration the
 	// client can change (fatca.go).
 	FATCACodes FATCACodes `json:"fatca_codes"`
+}
+
+// PortalBalances are what a client may withdraw from each balance of the
+// one ledger, where the firm keeps MCX money apart (mcxearmark.go): equity
+// money, and MCX money; each is that balance less its own margin (pledged
+// shares count for equity margin only), uncleared cheques and payouts in
+// process, and never more than the client may withdraw in all.
+type PortalBalances struct {
+	Equity     money.Amount `json:"equity"`      // equity money that can be withdrawn
+	MCX        money.Amount `json:"mcx"`         // MCX money that can be withdrawn
+	MCXBalance money.Amount `json:"mcx_balance"` // the client's MCX money
+}
+
+// portalBalances is the client's choice of balance, or nil when there is
+// none to make.
+func (o *Ops) portalBalances(ctx context.Context, tenant string, set Settings, date, ucc string, w Withdrawable) *PortalBalances {
+	if !set.mcxEarmark() || w.Ledgers == nil || w.Blocked {
+		return nil
+	}
+	em, err := o.mcxEarmarks(ctx, tenant, date, "")
+	if err != nil || em[ucc].MCX <= 0 {
+		return nil
+	}
+	upTo := func(a money.Amount) money.Amount { return min(max(a, 0), w.Available) }
+	return &PortalBalances{Equity: upTo(w.Ledgers.Equity), MCX: upTo(w.Ledgers.Commodity), MCXBalance: em[ucc].MCX}
 }
 
 // PortalDocument is one signed document in the client's portal.
@@ -248,6 +277,9 @@ func (o *Ops) Portal(ctx context.Context, tenant, actor, date, ucc string) (Port
 		v.Ledger = -d.Statement.Lines[len(d.Statement.Lines)-1].Balance
 	}
 	v.Withdrawable, _ = o.Withdrawable(ctx, tenant, date, ucc)
+	if set, err := o.Settings(ctx, tenant); err == nil {
+		v.Balances = o.portalBalances(ctx, tenant, set, date, ucc, v.Withdrawable)
+	}
 	v.Withdrawable.Ledgers = nil // one ledger for the client
 	ns, _ := docs.List[ContractNote](ctx, o.Docs, tenant, cNote, "")
 	for _, n := range ns {

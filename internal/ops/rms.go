@@ -749,6 +749,11 @@ type MarginReport struct {
 	Snapshots []string    `json:"snapshots"`
 	Rows      []MarginRow `json:"rows"`
 	Posted    bool        `json:"penalties_posted"` // the day's penalties were prepared (none is debited without approval)
+	// HedgeBreakBar says why a hedge-break penalty of the date cannot be
+	// passed to a client (penaltypass.go); empty when it may be.
+	HedgeBreakBar string `json:"hedge_break_bar,omitempty"`
+	// ClauseSentOn is Settings.RiskPolicyClauseSentOn.
+	ClauseSentOn string `json:"clause_sent_on,omitempty"`
 }
 
 // Margins computes peak margin from the intraday snapshot times: positions
@@ -771,7 +776,7 @@ func (o *Ops) Margins(ctx context.Context, tenant, date string) (MarginReport, e
 	}
 	coll := in.collateral()
 	eod, _ := in.positions("")
-	rep := MarginReport{Date: date, Snapshots: in.set.SnapshotTimes, Rows: []MarginRow{}}
+	rep := MarginReport{Date: date, Snapshots: in.set.SnapshotTimes, Rows: []MarginRow{}, HedgeBreakBar: in.set.hedgeBreakBar(date), ClauseSentOn: in.set.RiskPolicyClauseSentOn}
 	type snap struct {
 		at  string
 		pos map[string][]PositionView
@@ -896,7 +901,7 @@ func (o *Ops) PreparePenalties(ctx context.Context, tenant, actor, date string) 
 				continue
 			}
 			r.queue(penaltyPassID(date, m.UCC), fmt.Sprintf("Margin penalty ₹%s of %s: the firm's, unless the client caused it", formatINR(m.Penalty), m.UCC),
-				fmt.Sprintf("Short collection of ₹%s on %s (%s%%). It may be passed to the client only for a dishonoured cheque or a hedge break disclosed in the risk policy: give the reason and attach the evidence on RMS → Margin reporting, or dismiss to bear it.", formatINR(m.Short), fmtDay(date), m.SlabPct),
+				fmt.Sprintf("Short collection of ₹%s on %s (%s%%). %s: give the reason and attach the evidence on RMS → Margin reporting, or dismiss to bear it.", formatINR(m.Short), fmtDay(date), m.SlabPct, set.penaltyPassHint(date)),
 				m.UCC, RoleCompliance, "rms", "", nil)
 			n++
 		}

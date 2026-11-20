@@ -467,8 +467,9 @@ type PayoutRequest struct {
 	Transfer string `json:"transfer,omitempty"`
 	// With the MCX earmark (mcxearmark.go): Earmark "MCX" (and Ledger
 	// COM) for a payout of MCX money, made from the firm's MCX-only bank
-	// account DebitAccount; otherwise it is equity money, from the usual
-	// payout account (Settings.PayoutDebitAccount).
+	// account DebitAccount (empty with no such account: the usual payout
+	// account); otherwise it is equity money, from the usual payout
+	// account (Settings.PayoutDebitAccount).
 	Earmark      string `json:"earmark,omitempty"`
 	DebitAccount string `json:"debit_account,omitempty"`
 	// ToAccount and ToIFSC are the registered account chosen for this
@@ -589,6 +590,11 @@ func (o *Ops) RequestPayoutFrom(ctx context.Context, tenant, actor, date, ucc st
 func (o *Ops) RequestPayoutTo(ctx context.Context, tenant, actor, date, ucc string, amount money.Amount, source, from, toAccount, toIFSC, toReason string) (PayoutRequest, error) {
 	ucc = strings.ToUpper(ucc)
 	set, _ := o.Settings(ctx, tenant)
+	if source == "Client" && !set.mcxEarmark() {
+		// A client sees one ledger and chooses a balance only where the
+		// firm keeps MCX money apart in it (the portal's withdrawal).
+		from = ""
+	}
 	if strings.TrimSpace(from) != "" {
 		k, ok := normLedger(from)
 		if !ok || !set.segApart() {
@@ -598,8 +604,10 @@ func (o *Ops) RequestPayoutTo(ctx context.Context, tenant, actor, date, ucc stri
 	}
 	earmark, debitAcct := "", ""
 	if set.mcxEarmark() {
-		// One ledger with MCX money earmarked: COM pays MCX money from the
-		// MCX-only bank account; anything else is equity money.
+		// One ledger with MCX money earmarked: COM pays MCX money, from the
+		// MCX-only bank account when the firm has one, otherwise from the
+		// usual payout account with the equity payouts (DebitAccount "");
+		// anything else is equity money.
 		if from == ledger.LedgerCommodity {
 			earmark, debitAcct = EarmarkMCX, set.mcxPayoutAccount()
 		} else {
