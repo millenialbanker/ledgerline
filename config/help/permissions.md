@@ -61,6 +61,7 @@ Changing client brokerage rates | Ops checker
 Changing client groups | Ops maker, Ops checker
 Changing client interest rates | Ops checker
 Changing connections | Admin
+Changing how long the firm's keys stay in memory | Admin
 Changing inspection pack settings | Compliance officer
 Changing inspection pack templates | Compliance officer
 Changing missing-file alerts | Risk manager, Compliance officer
@@ -201,6 +202,7 @@ Matching stock SIP orders to trades | Ops maker, Ops checker, Risk manager
 Month-end postings | Ops checker
 Moving a fee to the firm's account | Ops checker
 Moving money between MCX and equity | Ops maker, Ops checker, Risk manager
+Moving the firm onto its own encryption key | Admin
 Muting a self-inspection test | Compliance officer
 NRI registration | Ops checker, Compliance officer
 Opening a person's Inbox (read-only, with a reason) | Compliance officer
@@ -288,6 +290,7 @@ Restricting client data | Compliance officer, Admin
 Returning a bank credit | Ops maker, Ops checker
 Reviewing BSDA eligibility | Ops maker, Ops checker
 Reviewing Ledgy's unanswered questions | Compliance officer
+Rotating the firm's encryption key | Admin
 Running a sample day | Admin
 Running account settlement | Ops checker
 Running automations | Ops checker, Admin
@@ -400,6 +403,7 @@ Viewing the compliance calendar | Ops maker, Ops checker, Risk manager, Complian
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 Viewing the firm profile | Compliance officer
 Viewing the firm's bank accounts | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing the firm's encryption keys | Compliance officer
 Viewing the impersonation register | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the migration | Ops checker, Compliance officer
 Viewing the signing certificate | Ops checker, Compliance officer, Admin
