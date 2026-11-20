@@ -244,6 +244,11 @@ func TestQuestions(t *testing.T) {
 		{"does ledgy give investment advice", "", "aiml-report"},
 		{"how do I add a widget to my dashboard", "", "customize-dashboard"},
 		{"did last night's backup fail", "", "backups"},
+		// Data export and closing the account.
+		{"how do we export all our data", "", "full-data-export"},
+		{"we want to leave ledgerline and delete our data", "", "close-account"},
+		{"where is the destruction certificate", "", "close-account"},
+		{"how to check the export signature", "dataexit", "verify-data-export"},
 		{"how do I close MCX after the session", "", "eod-close"},
 		{"how do I load next year's NSE holiday list", "", "exchange-holidays"},
 		{"pay-in date is wrong because of a bank holiday", "", "exchange-holidays"},

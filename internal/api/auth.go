@@ -168,6 +168,10 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 401, "auth_failed", "Unknown firm code.", nil)
 		return
 	}
+	if s.ops.FirmClosed(b.Tenant) {
+		writeClosed(w)
+		return
+	}
 	ctx := context.WithValue(r.Context(), keyTenant, b.Tenant)
 	tok, st, err := s.ops.Login(ctx, b.Tenant, b.User, b.Password, b.OTP, ip, r.UserAgent())
 	switch {

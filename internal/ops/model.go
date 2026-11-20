@@ -425,6 +425,18 @@ type Ops struct {
 	SignAgentWait     time.Duration
 	SignAgentPollWait time.Duration
 	signWake          waker
+	// ExportSync builds full data exports before replying (tests);
+	// otherwise they build in the background (dataexport.go).
+	ExportSync bool
+	dxMu       sync.Mutex
+	dxRunning  map[string]bool
+	// BackupCopiesDays is how long copies of backups held outside the
+	// server (off-site copies, database snapshots) are kept, from the
+	// operator (LEDGERLINE_BACKUP_COPIES_DAYS); the destruction certificate
+	// states the date they age out. Zero: to be confirmed by the operator.
+	BackupCopiesDays int
+	closedMu         sync.Mutex
+	closed           map[string]bool // firms purged after closing their account (dataexit.go)
 }
 
 // New builds Ops and installs the client-code-modification hook on the app.

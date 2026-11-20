@@ -106,7 +106,27 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		s.log.Info("request", "request_id", id, "method", r.Method, "path", r.URL.Path, "status", rw.status, "ms", time.Since(start).Milliseconds())
 	}()
+	if s.closedPath(r.URL.Path) {
+		writeClosed(rw)
+		return
+	}
 	s.mux.ServeHTTP(rw, r.WithContext(context.WithValue(r.Context(), keyReqID, id)))
+}
+
+// closedPath reports a webhook, public link or bot call naming a firm
+// whose data was deleted: none of them may write it again. Signed-in and
+// API-key calls are checked in route.
+func (s *Server) closedPath(p string) bool {
+	if s.ops == nil {
+		return false
+	}
+	for _, pre := range []string{"/hooks/", "/optin/", "/bank-confirm/", "/onboard/", "/agent/v1/"} {
+		if rest, ok := strings.CutPrefix(p, pre); ok {
+			t, _, _ := strings.Cut(rest, "/")
+			return s.ops.FirmClosed(t)
+		}
+	}
+	return false
 }
 
 type statusWriter struct {
@@ -115,6 +135,16 @@ type statusWriter struct {
 }
 
 func (w *statusWriter) WriteHeader(c int) { w.status = c; w.ResponseWriter.WriteHeader(c) }
+
+// Unwrap lets http.ResponseController reach the connection (a long
+// download extends its write deadline).
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// writeClosed answers for a firm whose data was deleted when it closed its
+// account: nothing of it can be read or written any more.
+func writeClosed(w http.ResponseWriter) {
+	writeErr(w, http.StatusGone, "account_closed", "This firm closed its Ledgerline account and its data was deleted.", nil)
+}
 
 func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
@@ -146,6 +176,10 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 				return
 			}
 			tenant, actor = t, st.User
+		}
+		if s.ops != nil && s.ops.FirmClosed(tenant) {
+			writeClosed(w)
+			return
 		}
 		if mutating && actor == "" {
 			writeErr(w, http.StatusBadRequest, "actor_required", "Set the X-Actor header to the user making this change; it is recorded in the audit log.", nil)

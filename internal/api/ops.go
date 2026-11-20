@@ -77,6 +77,7 @@ func (s *Server) opsRoutes() {
 	s.migrationRoutes()
 	s.selfInspectRoutes()
 	s.inspackRoutes()
+	s.dataExitRoutes()
 	s.circularCardRoutes()
 	s.uiLayoutRoutes()
 	R("GET /v1/me", s.me, false)
