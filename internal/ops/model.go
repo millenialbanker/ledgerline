@@ -454,6 +454,9 @@ func (o *Ops) Users(ctx context.Context, tenant string) ([]User, error) {
 
 // PutUser creates or replaces a user (admin task).
 func (o *Ops) PutUser(ctx context.Context, tenant, actor string, u User) error {
+	if err := notSupport(actor, "Changing users"); err != nil {
+		return err
+	}
 	if !validID.MatchString(u.ID) {
 		return invalid("user id must be lower-case letters, digits, dots or dashes")
 	}
@@ -509,6 +512,11 @@ func (o *Ops) RoleOf(ctx context.Context, tenant, actor string) (string, error) 
 	if actor == SystemActor {
 		return RoleAdmin, nil
 	}
+	if IsSupportActor(actor) {
+		// A Ledgerline support session: only while the firm's approval
+		// is open (supportaccess.go), and never "every actor is Admin".
+		return o.supportRole(ctx, tenant, actor)
+	}
 	us, err := o.Users(ctx, tenant)
 	if err != nil {
 		return "", err
@@ -558,6 +566,12 @@ func (o *Ops) Settings(ctx context.Context, tenant string) (Settings, error) {
 func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings) error {
 	if err := o.require(ctx, tenant, actor, "Changing settings", RoleAdmin); err != nil {
 		return err
+	}
+	if IsSupportActor(actor) {
+		// Even with write approved, support does not weaken sign-in.
+		if old, _ := o.Settings(ctx, tenant); s.TwoFactor != old.TwoFactor || s.SessionIdleMinutes != old.SessionIdleMinutes {
+			return fmt.Errorf("%w: Ledgerline support cannot change two-factor sign-in or session time-out", ErrForbidden)
+		}
 	}
 	for _, p := range []string{s.FirmPAN, s.ClearingMemberPAN} {
 		if p != "" && !rePAN.MatchString(p) {

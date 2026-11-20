@@ -77,6 +77,9 @@ var RevealFields = map[string]string{"pan": "PAN", "account": "bank account numb
 // RevealClient returns one masked field in full, for a stated reason, and
 // records who saw what and why. Ops checkers, compliance and administrators.
 func (o *Ops) RevealClient(ctx context.Context, tenant, actor, ucc, field, reason string) (string, error) {
+	if err := notSupport(actor, "Seeing full client identifiers"); err != nil {
+		return "", err
+	}
 	if err := o.require(ctx, tenant, actor, "see full client identifiers", RoleChecker, RoleCompliance); err != nil {
 		return "", err
 	}

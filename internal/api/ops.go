@@ -47,6 +47,7 @@ func (s *Server) opsRoutes() {
 	s.chatRoutes()
 	s.boardRoutes()
 	s.supportRoutes()
+	s.supportAccessRoutes()
 	s.rpaRoutes()
 	s.dispatchRoutes()
 	s.noticeRoutes()
@@ -428,6 +429,9 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		us = mine
 	}
 	me := map[string]any{"auth": auth, "tenant": tenant(r), "actor": actor(r), "role": role, "users": us, "roles": ops.Roles, "firm": set.Firm, "dev": s.dev, "member_codes": set.MemberCodes, "holidays": set.TradingHolidays(), "sample_rates": s.app.Schedule.Sample, "schedule": s.app.Schedule.Version, "ledgy_ai": s.ops.LedgyAI != nil, "bill_ai": s.ops.BillAIAvailable(), "circular_ai": s.ops.CircularAIAvailable(), "edition": s.ops.EditionStatus(r.Context(), tenant(r)), "ui": s.ops.EffectiveUI(r.Context(), tenant(r), actor(r))}
+	if role != ops.RoleClient && s.ops.CanSeeSupportAccess(r.Context(), tenant(r), actor(r)) {
+		me["support_access"] = true // Admin → Security → Support access
+	}
 	if set.SeparateCommodityLedger && role != ops.RoleClient {
 		me["separate_commodity_ledger"] = true // staff screens show the equity and commodity ledgers
 	}

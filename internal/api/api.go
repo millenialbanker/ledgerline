@@ -40,6 +40,7 @@ const (
 	keyTenant ctxKey = iota
 	keyActor
 	keyReqID
+	keySupport // *ops.SupportAuth of a Ledgerline support session
 )
 
 // Server routes requests to the App.
@@ -119,6 +120,7 @@ func (w *statusWriter) WriteHeader(c int) { w.status = c; w.ResponseWriter.Write
 func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 		var tenant, actor string
+		var sup *ops.SupportAuth
 		if r.Header.Get("Authorization") != "" {
 			t, ok := s.auth(r)
 			if !ok {
@@ -145,7 +147,7 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 				writeErr(w, http.StatusForbidden, "csrf", "Missing the "+csrfHeader+" header.", nil)
 				return
 			}
-			tenant, actor = t, st.User
+			tenant, actor, sup = t, st.User, st.Support
 		}
 		if mutating && actor == "" {
 			writeErr(w, http.StatusBadRequest, "actor_required", "Set the X-Actor header to the user making this change; it is recorded in the audit log.", nil)
@@ -170,6 +172,12 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 				writeErr(w, http.StatusForbidden, "forbidden", "This is not available in the client portal.", nil)
 				return
 			}
+		}
+		// A Ledgerline support session: only what the firm approved,
+		// masked, and every request recorded (supportaccess.go).
+		if sup != nil {
+			s.supportServe(w, r.WithContext(context.WithValue(ctx, keySupport, sup)), pattern, sup, h)
+			return
 		}
 		// A large download (1 MB or more) is a security event; a very large
 		// one opens an incident (ops/secevents.go).
@@ -682,6 +690,11 @@ func ParseKeys(s string) (map[string]string, error) {
 		k, t, ok := strings.Cut(part, ":")
 		if !ok || len(k) < 16 || t == "" {
 			return nil, fmt.Errorf("api key entry %q must be <key of 16+ chars>:<tenant>", part)
+		}
+		if strings.HasPrefix(t, "_") {
+			// Names starting with "_" are Ledgerline's own (ops.SupportNS,
+			// the support operators); a key may never open one as a firm.
+			return nil, fmt.Errorf("api key entry for %q: a firm code must not start with \"_\"", t)
 		}
 		out[k] = t
 	}

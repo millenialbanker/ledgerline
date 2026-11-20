@@ -80,6 +80,9 @@ type Session struct {
 	IP       string `json:"ip,omitempty"`
 	Agent    string `json:"agent,omitempty"`
 	Revoked  bool   `json:"revoked,omitempty"`
+	// Support is the support access (supportaccess.go) a Ledgerline
+	// support session was opened under; empty for the firm's own users.
+	Support string `json:"support,omitempty"`
 }
 
 // AuthState tells the console what the signed-in user still has to do.
@@ -88,6 +91,9 @@ type AuthState struct {
 	MustChange        bool   `json:"must_change_password"`
 	TOTPSetupRequired bool   `json:"totp_setup_required"`
 	TOTPEnabled       bool   `json:"totp_enabled"`
+	// Support is set for a Ledgerline support session: what the firm let
+	// it do, for the banner and for the checks on every request.
+	Support *SupportAuth `json:"support,omitempty"`
 }
 
 // Restricted reports whether the session may only finish sign-in setup.
@@ -346,6 +352,14 @@ func (o *Ops) SessionUser(ctx context.Context, tenant, tok string) (AuthState, e
 		return AuthState{}, ErrSessionEnded
 	}
 	now := o.now()
+	if s.Support != "" {
+		st, err := o.supportSessionState(ctx, tenant, s)
+		if seen, _ := time.Parse(time.RFC3339, s.LastSeen); err == nil && now.Sub(seen) > 5*time.Minute {
+			s.LastSeen = now.Format(time.RFC3339)
+			docs.Put(ctx, o.Docs, tenant, cSession, id, s, ver, s.User) // best effort, as below
+		}
+		return st, err
+	}
 	set, err := o.Settings(ctx, tenant)
 	if err != nil {
 		return AuthState{}, err
@@ -487,6 +501,9 @@ func (o *Ops) UserViews(ctx context.Context, tenant string) ([]UserView, error) 
 // CreateUser adds a user with a one-time password they must change at
 // first sign-in. The temporary password is returned once and not stored.
 func (o *Ops) CreateUser(ctx context.Context, tenant, actor string, u User) (string, error) {
+	if err := notSupport(actor, "Adding users"); err != nil {
+		return "", err
+	}
 	if err := o.require(ctx, tenant, actor, "Adding users", RoleAdmin); err != nil {
 		return "", err
 	}
@@ -508,6 +525,9 @@ func (o *Ops) CreateUser(ctx context.Context, tenant, actor string, u User) (str
 
 // ResetPassword gives a user a new one-time password and ends their sessions.
 func (o *Ops) ResetPassword(ctx context.Context, tenant, actor, user string) (string, error) {
+	if err := notSupport(actor, "Resetting passwords"); err != nil {
+		return "", err
+	}
 	if err := o.require(ctx, tenant, actor, "Resetting passwords", RoleAdmin); err != nil {
 		return "", err
 	}
@@ -528,6 +548,9 @@ func (o *Ops) ResetPassword(ctx context.Context, tenant, actor, user string) (st
 // ResetTOTP turns off a user's two-factor sign-in (lost phone) and ends
 // their sessions. They set it up again at next sign-in if it is required.
 func (o *Ops) ResetTOTP(ctx context.Context, tenant, actor, user string) error {
+	if err := notSupport(actor, "Resetting two-factor sign-in"); err != nil {
+		return err
+	}
 	if err := o.require(ctx, tenant, actor, "Resetting two-factor sign-in", RoleAdmin); err != nil {
 		return err
 	}

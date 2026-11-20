@@ -132,6 +132,7 @@ const GROUPS = {
   dpg: ['Depository', [['dp', 'Demat accounts & DIS'], ['cdslreq', 'CDSL requests'], ['edis', 'eDIS authorisations'], ['cdsltxn', 'Transactions (API)']]],
   regg: ['Regulatory reports', [['reports', 'Regulatory reports'], ['exdisc', 'Exchange disclosures'], ['aictl', 'AI controls']]],
   secg: ['Security', [['incidents', 'Incidents'], ['logexport', 'Log export']]],
+  securityg: ['Security', [['supportaccess', 'Support access']]],
 };
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard'], ['boards', 'Boards'], ['chat', 'Team messages'], ['@automation'], ['@calendar']]],
@@ -142,7 +143,7 @@ const NAV = [
   ['Investments', [['ipo', 'IPO & public issues'], ['rfq', 'Bonds (RFQ deals)'], ['cbrics', 'Corporate bonds (CBRICS)'], ['@mfg'], ['stocksip', 'Stock SIPs']]],
   ['Depository', [['@dpg']]],
   ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['@partnersg']]],
-  ['Admin', [['connections', 'Connections'], ['backups', 'Backups'], ['settings', 'Settings'], ['layout', 'Screen layout']]]];
+  ['Admin', [['connections', 'Connections'], ['backups', 'Backups'], ['settings', 'Settings'], ['@securityg'], ['layout', 'Screen layout']]]];
 // Every staff screen with its name, groups opened up.
 const NAV_VIEWS = NAV.flatMap(g => g[1].flatMap(([k, l]) => k[0] === '@' ? GROUPS[k.slice(1)][1] : [[k, l]]));
 const groupOf = v => Object.keys(GROUPS).find(g => GROUPS[g][1].some(([k]) => k === v));
@@ -167,6 +168,7 @@ function viewAllowed(k) {
   if (scopedUser() && !SCOPED_VIEWS.includes(k)) return false;
   if (edition() === 'manual' && k === 'autopilot') return false;
   if (role() === 'Authorised person' && k === 'rpa') return false; // automations are for the firm's own staff
+  if (k === 'supportaccess' && !S.me?.support_access) return false; // the Admin, Compliance and the firm's chosen approver
   return true;
 }
 // groupTabs: the group's tabs this user may open.
@@ -202,7 +204,8 @@ function renderTop() {
     <div class="sep"></div><button data-act="signOut" role="menuitem">Sign out</button></div></div>` : ''}`;
 }
 async function refreshCounts() {
-  if (scopedUser() || clientUser()) { S.counts = {}; C.dashboard = null; renderSide(); renderTop(); return; }
+  const sup = S.me?.auth?.support; // a support session limited to some areas has no dashboard
+  if (scopedUser() || clientUser() || (sup && !sup.areas.includes('full'))) { S.counts = {}; C.dashboard = null; renderSide(); renderTop(); return; }
   try {
     const d = await get(`/v1/dashboard?date=${S.date}`);
     C.dashboard = d;
@@ -216,6 +219,7 @@ async function render(opts = {}) {
   if (clientUser() && !PORTAL_VIEWS.includes(S.view)) S.view = 'portal';
   else if (!clientUser() && PORTAL_VIEWS.includes(S.view) && S.view !== 'statements') S.view = 'dashboard';
   if (scopedUser() && !SCOPED_VIEWS.includes(S.view)) S.view = 'clients';
+  if (typeof supportStartView === 'function') supportStartView();
   persist();
   try { history.replaceState(null, '', '#' + S.view); } catch (e) {}
   renderSide(); renderTop();
@@ -224,7 +228,7 @@ async function render(opts = {}) {
   try {
     C[view] = await V[view].load();
     if (seq !== renderSeq) return;
-    p.innerHTML = groupBar(view) + V[view].html(C[view]);
+    p.innerHTML = (typeof supportBanner === 'function' ? supportBanner() : '') + groupBar(view) + V[view].html(C[view]);
     bindPage();
     showNotices();
   } catch (e) {
