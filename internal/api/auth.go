@@ -155,6 +155,13 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	ip := clientIP(r)
 	if !s.loginLimit.allow(ip) {
+		t := strings.ToLower(strings.TrimSpace(b.Tenant))
+		if ts := s.Tenants(); t == "" && len(ts) == 1 {
+			t = ts[0]
+		}
+		if s.knownTenant(t) {
+			s.ops.SecurityEvent(r.Context(), t, ops.SecEvent{Kind: "signin.rate_limited", Subject: strings.ToLower(strings.TrimSpace(b.User)), IP: ip, Message: "Sign-in refused: too many attempts from " + ip})
+		}
 		writeErr(w, 429, "too_many_attempts", "Too many sign-in attempts from this address. Wait 15 minutes and try again.", nil)
 		return
 	}

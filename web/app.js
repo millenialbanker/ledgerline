@@ -131,13 +131,14 @@ const GROUPS = {
   partnersg: ['Branches & partners', [['partners', 'Branches & partners'], ['dealers', 'Dealers & terminals']]],
   dpg: ['Depository', [['dp', 'Demat accounts & DIS'], ['cdslreq', 'CDSL requests'], ['edis', 'eDIS authorisations'], ['cdsltxn', 'Transactions (API)']]],
   regg: ['Regulatory reports', [['reports', 'Regulatory reports'], ['exdisc', 'Exchange disclosures'], ['aictl', 'AI controls']]],
+  secg: ['Security', [['incidents', 'Incidents'], ['logexport', 'Log export']]],
 };
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard'], ['boards', 'Boards'], ['chat', 'Team messages'], ['@automation'], ['@calendar']]],
   ['Operations', [['@filesg'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['@clientsg'], ['corp', 'Corporate actions'], ['@docsg']]],
   ['Risk', [['@riskg'], ['@collg'], ['@debtg'], ['mtf', 'Margin trading (MTF)']]],
   ['Accounts', [['ledger', 'Ledger'], ['@moneyg'], ['books', 'Firm accounts & GST'], ['@brokg']]],
-  ['Compliance', [['@regg'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['deceased', 'Deceased clients'], ['selfinspect', 'Self-inspection'], ['inspack', 'Inspection packs'], ['audit', 'Audit trail']]],
+  ['Compliance', [['@regg'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['deceased', 'Deceased clients'], ['selfinspect', 'Self-inspection'], ['inspack', 'Inspection packs'], ['audit', 'Audit trail'], ['@secg']]],
   ['Investments', [['ipo', 'IPO & public issues'], ['rfq', 'Bonds (RFQ deals)'], ['cbrics', 'Corporate bonds (CBRICS)'], ['@mfg'], ['stocksip', 'Stock SIPs']]],
   ['Depository', [['@dpg']]],
   ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['@partnersg']]],

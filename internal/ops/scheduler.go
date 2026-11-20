@@ -345,6 +345,10 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	// Corporate bond deals: reporting time limits, and CBRICS read every
 	// 10 minutes (and after NSE's notifications) when switched on.
 	o.cbricsTick(ctx, tenant, now)
+	// Security: logs to the firm's SIEM, retention of security events and
+	// the nightly check of the audit trail's seals (secevents.go); in
+	// every edition.
+	o.securityTick(ctx, tenant, now)
 	if o.manual(ctx, tenant) {
 		return 0, nil // Manual edition: none of the firm's jobs run on a timer
 	}

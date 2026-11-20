@@ -125,8 +125,13 @@ type App struct {
 	// BillingHooks, when set, supplies per-client brokerage plans and lot
 	// sizes for a billing run.
 	BillingHooks func(ctx context.Context, tenant, date string) (Pricing, error)
-	runSeq       int64
-	mu           sync.Mutex
+	// Observe, when set, sees every audit event after it is written, so
+	// security monitoring can pick out sign-in failures, malware hits and
+	// the like without each caller knowing about it (ops/secevents.go). It
+	// must be quick for actions it does not care about.
+	Observe func(ctx context.Context, e AuditEvent)
+	runSeq  int64
+	mu      sync.Mutex
 }
 
 // Stores bundles the persistence an App needs.
@@ -163,7 +168,11 @@ func (a *App) Log(ctx context.Context, tenant, actor, action, object string, det
 }
 
 func (a *App) log(ctx context.Context, tenant, actor, action, object string, detail map[string]any) {
-	_ = a.Audit.Log(ctx, AuditEvent{Tenant: tenant, At: a.Now().UTC(), Actor: actor, Action: action, Object: object, Detail: detail})
+	e := AuditEvent{Tenant: tenant, At: a.Now().UTC(), Actor: actor, Action: action, Object: object, Detail: detail}
+	_ = a.Audit.Log(ctx, e)
+	if a.Observe != nil {
+		a.Observe(ctx, e)
+	}
 }
 
 func need(actor string) error {

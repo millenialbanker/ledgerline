@@ -60,6 +60,7 @@ func (s *Server) opsRoutes() {
 	s.rfqRoutes()
 	s.cbricsRoutes()
 	s.payoutHoldRoutes()
+	s.securityRoutes()
 	s.nseUCIRoutes()
 	s.bseUCCRoutes()
 	s.mcxUCCRoutes()

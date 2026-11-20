@@ -67,6 +67,7 @@ Changing missing-file alerts | Risk manager, Compliance officer
 Changing mutual fund settings | Compliance officer
 Changing order-to-trade ratio alerts | Compliance officer
 Changing scrip groups | Ops checker
+Changing security alert and log settings | Compliance officer
 Changing settings | Admin
 Changing the AI inventory | Compliance officer
 Changing the DP tariff | Ops checker, Admin
@@ -124,6 +125,7 @@ Downloading exchange files | Ops maker, Ops checker, Risk manager, Compliance of
 Downloading inspection packs | Compliance officer
 Downloading pay-out hold files | Ops maker, Ops checker, Risk manager
 Downloading periodic files | Ops maker, Ops checker, Compliance officer
+Downloading security logs | Compliance officer
 Downloading stock SIP basket files | Ops maker, Ops checker, Risk manager
 Downloading the BOW funds file | Ops maker, Ops checker, Risk manager
 Downloading the collateral file | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -253,6 +255,7 @@ Recording a stock SIP fill | Ops maker, Ops checker
 Recording a surveillance action | Compliance officer
 Recording a transfer between the firm's bank accounts | Ops maker, Ops checker
 Recording allotments | Ops maker, Ops checker
+Recording and reporting security incidents | Compliance officer
 Recording bounces | Ops maker, Ops checker, Admin
 Recording clearing deposits | Ops checker
 Recording clients' UPI IDs | Ops maker, Ops checker, Branch staff, Authorised person
@@ -301,7 +304,9 @@ Scanning vendor bills | Ops maker, Ops checker
 Scheduling jobs | Admin
 Searching the document archive | Ops maker, Ops checker, Risk manager, Compliance officer
 See full client identifiers | Ops checker, Compliance officer
+Seeing and testing the log export | Compliance officer
 Seeing mail sent to staff | Compliance officer, Admin
+Seeing security events and incidents | Compliance officer
 Seeing the self-inspection | Ops maker, Ops checker, Risk manager, Compliance officer
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
 Sending CBRICS participants | Ops checker

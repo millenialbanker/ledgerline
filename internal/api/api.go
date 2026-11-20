@@ -171,6 +171,16 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 				return
 			}
 		}
+		// A large download (1 MB or more) is a security event; a very large
+		// one opens an incident (ops/secevents.go).
+		if r.Method == http.MethodGet && s.ops != nil {
+			cw := &countingWriter{ResponseWriter: w}
+			h(cw, r.WithContext(ctx))
+			if cw.n >= 1<<20 {
+				s.ops.NoteDownload(ctx, tenant, actor, r.URL.Path, cw.n, clientIP(r))
+			}
+			return
+		}
 		h(w, r.WithContext(ctx))
 	})
 }

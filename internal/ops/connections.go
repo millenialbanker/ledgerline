@@ -107,7 +107,7 @@ var ConnProviders = []ConnProvider{
 
 // pemField: a key or certificate pasted in PEM, which may be a long chain.
 func pemField(k string) bool {
-	return k == "private_key" || k == "nse_public_key" || k == "certificate" || k == "bank_certificate"
+	return k == "private_key" || k == "nse_public_key" || k == "certificate" || k == "bank_certificate" || k == "ca_certificate"
 }
 
 func connProvider(id string) (ConnProvider, bool) {
@@ -351,6 +351,11 @@ func (o *Ops) SaveConnection(ctx context.Context, tenant, actor, id string, valu
 			return ConnectionView{}, err
 		}
 	}
+	if id == connSIEMSyslog || id == connSIEMHTTPS {
+		if err := checkSIEMConn(nc); err != nil {
+			return ConnectionView{}, err
+		}
+	}
 	if err := docs.Upsert(ctx, o.Docs, tenant, cConn, id, nc, actor); err != nil {
 		return ConnectionView{}, err
 	}
@@ -435,6 +440,8 @@ func (o *Ops) TestConnection(ctx context.Context, tenant, actor, id string) (Con
 		status, problem = o.hdfcPayTest(ctx, tenant)
 	case id == connCBRICS: // the login, then logout
 		status, problem = o.cbricsTest(ctx, tenant)
+	case id == connSIEMSyslog || id == connSIEMHTTPS: // one test line to the SIEM
+		status, problem = o.siemTest(ctx, tenant, actor, c)
 	case p.Test == "https" && c.Values["url"] != "":
 		status, problem = o.checkAddress(ctx, c.Values["url"])
 	case id == connVerify && verifyBases[c.Values["provider"]][0] != "":

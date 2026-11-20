@@ -432,6 +432,7 @@ func New(a *app.App) *Ops {
 	o := &Ops{App: a, Docs: a.Docs, Now: time.Now}
 	a.Adjust = o.applyCCM
 	a.BillingHooks = o.billingHooks
+	a.Observe = o.observeAudit // security events from the audit trail (secevents.go)
 	a.Ledger.Guard = func(ctx context.Context, e ledger.Entry) error { return o.checkLock(ctx, e.Tenant, e.ValueDate) }
 	return o
 }
@@ -480,10 +481,22 @@ func (o *Ops) PutUser(ctx context.Context, tenant, actor string, u User) error {
 	default:
 		u.Branch, u.Partner = "", ""
 	}
+	prev, perr := o.user(ctx, tenant, u.ID)
 	if err := docs.Upsert(ctx, o.Docs, tenant, cUser, u.ID, u, actor); err != nil {
 		return err
 	}
 	o.log(ctx, tenant, actor, "user.saved", u.ID, map[string]any{"role": u.Role, "active": u.Active})
+	// A new user, a changed role or a deactivation is a security event
+	// (secevents.go); granting Admin can open an incident.
+	switch {
+	case perr != nil:
+		o.log(ctx, tenant, actor, "user.role_changed", u.ID, map[string]any{"from": "", "to": u.Role, "new_user": true})
+	case prev.Role != u.Role:
+		o.log(ctx, tenant, actor, "user.role_changed", u.ID, map[string]any{"from": prev.Role, "to": u.Role})
+	}
+	if perr == nil && prev.Active && !u.Active {
+		o.log(ctx, tenant, actor, "user.deactivated", u.ID, nil)
+	}
 	return nil
 }
 
@@ -660,6 +673,9 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 		return err
 	}
 	o.logClearing(ctx, tenant, actor, prev, s)
+	if ch := securitySettingChanges(prev, s); len(ch) > 0 {
+		o.log(ctx, tenant, actor, "settings.security_changed", "settings", map[string]any{"changed": ch}) // names only, never a secret
+	}
 	if prev.SeparateCommodityLedger != s.SeparateCommodityLedger {
 		o.log(ctx, tenant, actor, "settings.separate_commodity_ledger", "settings", map[string]any{"on": s.SeparateCommodityLedger})
 	}
