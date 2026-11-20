@@ -39,6 +39,7 @@ Asking CDSL about eDIS authorisations | Ops maker, Ops checker, Risk manager
 Asking CDSL about early pay-ins | Ops maker, Ops checker, Risk manager
 Asking CDSL about pledges | Ops maker, Ops checker, Risk manager
 Asking clients for WhatsApp consent | Ops checker, Compliance officer
+Asking for a client's authorisation | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Assigning brokerage plans | Ops checker
 Authorising sales and TPIN for clients (eDIS) | Ops maker, Ops checker, Branch staff
 Blocking clients in continuous debit | Risk manager

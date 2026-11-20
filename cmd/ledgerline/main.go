@@ -334,11 +334,12 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	root := http.NewServeMux()
 	root.Handle("/v1/", apiSrv)
 	root.Handle("/healthz", apiSrv)
-	root.Handle("/hooks/", apiSrv)    // payment gateway and WhatsApp webhooks
-	root.Handle("/optin/", apiSrv)    // WhatsApp consent links sent to clients
-	root.Handle("/onboard/", apiSrv)  // online account opening (public API)
-	root.Handle("/provider/", apiSrv) // the software provider's own endpoints
-	root.Handle("/agent/", apiSrv)    // the Ledgerline bot on paired computers
+	root.Handle("/hooks/", apiSrv)        // payment gateway and WhatsApp webhooks
+	root.Handle("/optin/", apiSrv)        // WhatsApp consent links sent to clients
+	root.Handle("/bank-confirm/", apiSrv) // clients' confirmation links for bank account changes
+	root.Handle("/onboard/", apiSrv)      // online account opening (public API)
+	root.Handle("/provider/", apiSrv)     // the software provider's own endpoints
+	root.Handle("/agent/", apiSrv)        // the Ledgerline bot on paired computers
 	root.Handle("/", web.Handler(cfg))
 	srv := &http.Server{
 		Addr: addr, Handler: secure(root),

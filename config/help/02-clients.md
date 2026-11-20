@@ -100,7 +100,7 @@ related: kra-status, contract-notes, client-bank-accounts
 
 1. Open the client and click **Update contact details**, or let the client raise it from their portal.
 2. A **new mobile or email** is confirmed with a code sent to the new number or address before it can be approved.
-3. A **bank account** change needs proof (cancelled cheque or statement) and should be verified by a penny drop. A client can have more than one account: see [[client-bank-accounts|More than one bank account]].
+3. A **bank account** change needs proof (cancelled cheque or statement) and should be verified by a penny drop. When staff raise it, the client must also authorise it: see [[bank-change-authorisation|The client's authorisation of a bank change]]. A client can have more than one account: see [[client-bank-accounts|More than one bank account]].
 4. An **Ops checker** who didn't raise the request approves it on [[changes|Change requests]].
 5. Approved changes apply at once, go into the audit trail, and are in the next KRA upload file.
 
@@ -117,11 +117,34 @@ A client may register more than one bank account. Money is taken only from the c
 
 1. Open the client: **Bank accounts** lists every account (numbers masked) with the **Primary** badge, status and how it was verified.
 2. **Add bank account**: attach the bank proof (cancelled cheque or bank statement in the client's name). With a verification provider connected the account is checked by a penny drop first. If the firm ticks **Settings → Penny drop for every new bank account**, the account is taken only when the penny drop can be done: with no provider connected, or the provider not answering, it is refused until it can.
-3. **Make primary** or **Remove**: attach the client's signed request (a letter or e-signed form). From the portal, the client's own login is the request. The primary account cannot be removed; make another the primary first.
-4. An **Ops checker** who didn't raise it approves it on [[changes|Change requests]]. The account becomes Active (or Inactive), a work item reminds you to send the **UCC modification** to each exchange, and the UCC pages list the client as changed (primary first, then the others as secondary). A primary change also goes to CDSL.
-5. **Receipts and bank statement credits** from any active registered account are matched to the client; from any other account (or a removed one) they are third-party money and are returned.
-6. **Payouts** and running account settlement go to the primary. To pay another registered account, choose it on the payout request and give the reason; a payout to an account removed in the meantime is held back from the batch.
-7. Migrating: load **CLIENT-BANKS** on [[files|Files]] after the client master, one row per account (UCC, Bank, IFSC, Account, Primary Y/N, optional Type, Status, Branch, MICR).
+3. **Make primary** or **Remove**: no proof is needed. The primary account cannot be removed; make another the primary first.
+4. Every bank change you raise needs the **client's authorisation**: send it to the client to confirm (a code and link go to the registered mobile and e-mail), or attach the client's signed letter or e-signed request. See [[bank-change-authorisation|The client's authorisation of a bank change]]. From the portal, the client's own login is the authorisation.
+5. An **Ops checker** who didn't raise it approves it on [[changes|Change requests]]. The account becomes Active (or Inactive), a work item reminds you to send the **UCC modification** to each exchange, and the UCC pages list the client as changed (primary first, then the others as secondary). A primary change also goes to CDSL.
+6. **Receipts and bank statement credits** from any active registered account are matched to the client; from any other account (or a removed one) they are third-party money and are returned.
+7. **Payouts** and running account settlement go to the primary. To pay another registered account, choose it on the payout request and give the reason; a payout to an account removed in the meantime is held back from the batch.
+8. Migrating: load **CLIENT-BANKS** on [[files|Files]] after the client master, one row per account (UCC, Bank, IFSC, Account, Primary Y/N, optional Type, Status, Branch, MICR).
+
+## bank-change-authorisation
+title: The client's authorisation of a bank change
+screen: changes
+roles: Ops maker, Ops checker, Branch staff, Compliance officer
+ask: client confirm bank change; bank change otp; bank change confirmation link; waiting for the client; client did not confirm bank change; bank change expired; client refused bank change; signed letter for bank change; e-signed request bank change; client authorisation letter; resend bank change code; bank change without client consent
+related: client-bank-accounts, change-contact, portal-access
+
+A bank account change you raise (add, replace, make primary, remove) is made only on the client's authority. A change the client makes in the client portal needs nothing more: their login is the authority.
+
+1. When you raise the change, choose how the client authorises it. **Send to the client to confirm**: Ledgerline sends the client's registered mobile (SMS) and registered e-mail what exactly will change, with account numbers masked, the bank and the IFSC. Each message has a 6-digit code and a link.
+2. The request shows **Waiting for the client**. A checker cannot approve it yet.
+3. The client opens the link and presses **Yes, I asked for this change** or **No, I did not ask for it**. Or the client signs in to the portal and enters the code under **Profile**, or refuses there. Only the account holder's own login can enter the code, never a family login. Never ask the client for the code: the messages tell clients that staff never do.
+4. Once the client confirms, the request waits for a checker as usual. The checker sees when the client confirmed, by code or by link, and the masked mobile or e-mail it was sent to. The record stays in the request's **History** and in the client's bank account changes.
+5. If the client refuses, the request closes as **Refused by the client** and the compliance officer gets a work item to find out who asked for it.
+6. If the client does not answer within **Settings → Days to wait for the client's confirmation** (7 by default), the request **expires**. The client is told, and the maker gets a work item. Raise it again if the client still wants it.
+7. **Send again** sends a new code and link; the earlier ones stop working. The request still expires on the same day.
+8. **The letter instead**: attach the client's signed letter or e-signed request as a **Client authorisation** document, when you raise the change or later with **Attach letter**. The checker sees which form was used and can open the letter. A request with neither the client's confirmation nor the letter cannot be approved.
+
+**Settings → Client authorisation of bank changes** chooses what the firm takes: the client's confirmation by code or link, the signed letter or e-sign, or both (the default). A client with no valid registered mobile or e-mail cannot confirm: use the letter. If the client's mobile or e-mail changed in the last 30 days, the checker sees a warning: a contact change followed by a bank change is the usual route of account takeover.
+
+For the link to work, Ledgerline's public address must be set (LEDGERLINE_PUBLIC_URL). The SMS goes through your SMS gateway with its one-time-code DLT template, so register a template that matches this message, and its link, with your gateway.
 
 ## client-demat-accounts
 title: More than one demat account for a client

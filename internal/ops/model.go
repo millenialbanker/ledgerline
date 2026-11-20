@@ -175,6 +175,14 @@ type Settings struct {
 	// checker sees; without the provider, or when it cannot be reached,
 	// the account is not taken (clientbanks.go).
 	BankPennyDrop bool `json:"bank_penny_drop,omitempty"`
+	// BankAuthForms is how a client authorises a bank account change that
+	// staff raise (clientauth.go): "both" (the default when empty),
+	// "confirm" (the client confirms by a code or link sent to the
+	// registered mobile and e-mail) or "letter" (the client's signed letter
+	// or e-signed request). BankAuthDays is how many days such a request
+	// waits for the client's confirmation before it expires (0: 7).
+	BankAuthForms string `json:"bank_auth_forms,omitempty"`
+	BankAuthDays  int64  `json:"bank_auth_days,omitempty"`
 	// MigrationMaxGB is the largest migration package (.llmig) the firm may
 	// upload, in GB (0: 100 GB). See migration.go.
 	MigrationMaxGB int64 `json:"migration_max_gb,omitempty"`
@@ -637,6 +645,9 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	}
 	if s.MaxClientBanks < 0 || s.MaxClientBanks > maxUCCBankSlots {
 		return invalid("bank accounts per client must be 1 to %d (no exchange's UCC record holds more), or 0 for the default", maxUCCBankSlots)
+	}
+	if err := checkBankAuthSettings(&s); err != nil {
+		return err
 	}
 	if err := o.checkSegLedger(ctx, tenant, &s); err != nil {
 		return err
