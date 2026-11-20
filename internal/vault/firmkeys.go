@@ -817,3 +817,21 @@ func (v *Vault) SetFirmKeyCache(ctx context.Context, tenant string, minutes int,
 	st.rec, st.loaded, st.checked = &rec, true, v.now()
 	return v.statusLocked(st, tenant), nil
 }
+
+// VerifyFirmKeyProvider unwraps the firm's stored roots with p and changes
+// nothing: a check that new connection details still reach the firm's key.
+func (v *Vault) VerifyFirmKeyProvider(ctx context.Context, tenant string, p KeyProvider) error {
+	_, store, err := v.lockedState(tenant)
+	if err != nil {
+		return err
+	}
+	rec, _, err := v.readRecord(ctx, store, tenant)
+	if err != nil {
+		return err
+	}
+	roots, err := unwrapRoots(ctx, p, tenant, rec)
+	for _, k := range roots {
+		clear(k)
+	}
+	return err
+}

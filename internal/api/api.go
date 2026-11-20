@@ -27,6 +27,7 @@ import (
 	"ledgerline/internal/ledger"
 	"ledgerline/internal/money"
 	"ledgerline/internal/ops"
+	"ledgerline/internal/vault"
 )
 
 const (
@@ -133,6 +134,10 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 			}
 		} else {
 			t, st, _, err := s.sessionAuth(r)
+			if errors.Is(err, vault.ErrKeyUnavailable) {
+				fail(w, err, nil)
+				return
+			}
 			if err != nil {
 				writeErr(w, http.StatusUnauthorized, "signed_out", "Sign in to continue.", nil)
 				return
@@ -222,6 +227,10 @@ func fail(w http.ResponseWriter, err error, details any) {
 		writeErr(w, 409, "invalid_state", err.Error(), details)
 	case errors.Is(err, ingest.ErrRejected):
 		writeErr(w, 422, "file_rejected", err.Error(), details)
+	case errors.Is(err, vault.ErrKeyUnavailable):
+		// The firm holds its own key and has withheld it, or it cannot be
+		// reached: a clear message, without the key service's details.
+		writeErr(w, 503, "firm_key_unavailable", "Your firm's encryption key is not available (revoked or unreachable). Ledgerline cannot show or change the firm's data until the key is available again. Your Admin can check the key in the firm's AWS account or key service.", details)
 	case errors.Is(err, ingest.ErrScanUnavailable):
 		writeErr(w, 503, "scanner_unavailable", err.Error(), details)
 	case errors.Is(err, ops.ErrForbidden):

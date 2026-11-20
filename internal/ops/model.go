@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"ledgerline/internal/backup"
+	"net/http"
 	"regexp"
 	"sort"
 	"strings"
@@ -425,6 +426,9 @@ type Ops struct {
 	SignAgentWait     time.Duration
 	SignAgentPollWait time.Duration
 	signWake          waker
+	// FirmKeyClient calls firms' own keys (AWS KMS, a firm's key service;
+	// firmkey.go); nil uses a plain HTTPS client. Tests point it at fakes.
+	FirmKeyClient *http.Client
 }
 
 // New builds Ops and installs the client-code-modification hook on the app.
@@ -433,6 +437,7 @@ func New(a *app.App) *Ops {
 	a.Adjust = o.applyCCM
 	a.BillingHooks = o.billingHooks
 	a.Ledger.Guard = func(ctx context.Context, e ledger.Entry) error { return o.checkLock(ctx, e.Tenant, e.ValueDate) }
+	o.installFirmKeys()
 	return o
 }
 

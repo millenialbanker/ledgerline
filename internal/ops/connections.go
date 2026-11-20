@@ -107,7 +107,7 @@ var ConnProviders = []ConnProvider{
 
 // pemField: a key or certificate pasted in PEM, which may be a long chain.
 func pemField(k string) bool {
-	return k == "private_key" || k == "nse_public_key" || k == "certificate" || k == "bank_certificate"
+	return k == "private_key" || k == "nse_public_key" || k == "certificate" || k == "bank_certificate" || k == "server_ca"
 }
 
 func connProvider(id string) (ConnProvider, bool) {
@@ -351,6 +351,14 @@ func (o *Ops) SaveConnection(ctx context.Context, tenant, actor, id string, valu
 			return ConnectionView{}, err
 		}
 	}
+	if isFirmKeyConn(id) {
+		if err := checkFirmKeyConn(&nc); err != nil {
+			return ConnectionView{}, err
+		}
+		if err := o.checkFirmKeyInUse(ctx, tenant, &nc, false); err != nil {
+			return ConnectionView{}, err
+		}
+	}
 	if err := docs.Upsert(ctx, o.Docs, tenant, cConn, id, nc, actor); err != nil {
 		return ConnectionView{}, err
 	}
@@ -385,6 +393,11 @@ func (o *Ops) RemoveConnection(ctx context.Context, tenant, actor, id string) er
 	}
 	if _, ok := connProvider(id); !ok {
 		return ErrNotFound
+	}
+	if isFirmKeyConn(id) {
+		if err := o.checkFirmKeyInUse(ctx, tenant, &Connection{Provider: id}, true); err != nil {
+			return err
+		}
 	}
 	// The store keeps no deleted rows: overwrite with nothing.
 	if err := docs.Upsert(ctx, o.Docs, tenant, cConn, id, Connection{Provider: id, Status: "Not set", UpdatedAt: o.now().Format(time.RFC3339), UpdatedBy: actor}, actor); err != nil {
@@ -435,6 +448,8 @@ func (o *Ops) TestConnection(ctx context.Context, tenant, actor, id string) (Con
 		status, problem = o.hdfcPayTest(ctx, tenant)
 	case id == connCBRICS: // the login, then logout
 		status, problem = o.cbricsTest(ctx, tenant)
+	case isFirmKeyConn(id): // a test key wrapped and unwrapped (firmkey.go)
+		status, problem = o.firmKeyConnTest(ctx, tenant, id)
 	case p.Test == "https" && c.Values["url"] != "":
 		status, problem = o.checkAddress(ctx, c.Values["url"])
 	case id == connVerify && verifyBases[c.Values["provider"]][0] != "":
