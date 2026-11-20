@@ -59,7 +59,9 @@ related: change-brokerage, client-rates, trading-channels
 3. then a matching channel;
 4. then a matching exchange.
 
-So "NIFTY options" beats "index options online", which beats "index options", which beats "options". A product with no line uses the charge schedule. **Brokerage preview** (on the page, or on the client's page) shows for each of a client's orders on a day the line that priced it.
+So "NIFTY options" beats "index options online", which beats "index options", which beats "options". A product with no line uses the charge schedule.
+
+**Auction trades:** the auction rate always wins, even when the scrip or its scrip group has a special rate on the client's plan or in the client's own rates. If the client's plan has no auction line, the auction line of the next plan (their group's or the firm default) applies. An auction line for the scrip, then one for its group, still beats a general auction line. To let special scrip and group rates win over the auction rate instead, change **Auction trades** under **Channels**. **Brokerage preview** (on the page, or on the client's page) shows for each of a client's orders on a day the line that priced it.
 
 **At expiry:** brokerage on futures expiry, exercise, assignment and physical delivery is charged only where the plan has a line for that case; for stock derivatives a physical delivery line wins over the expiry, exercise or assignment line. It is posted when derivatives are settled. A % rate applies to the settlement value (settlement price, or the underlying's price for options, times the quantity), or to the strike with "contract rate".
 
@@ -76,7 +78,7 @@ related: brokerage-plans, change-brokerage
 2. Add only the lines that differ from the client's plan. For example, options at ₹15 per lot online.
 3. Choose the effective date and save.
 
-The client's own lines win over their plan for the orders they fit. At equal detail, the client's line wins; a more detailed plan line (for a case, a channel or an exchange) still applies where the client has no line that detailed. To end them, open **Client rates**, remove every line and save with the date they end.
+The client's own lines replace only the plan lines they match, line by line. They never replace the whole plan for the segment: the plan's other lines (another product, channel or exchange) still apply. At equal detail, the client's line wins; a more detailed plan line (for a case, a channel or an exchange) still applies where the client has no line that detailed. For example, a client line for options at ₹15 a lot replaces the plan's options line, but the plan's online options line still prices online orders. To end them, open **Client rates**, remove every line and save with the date they end.
 
 ## trading-channels
 title: Set up trading channels
@@ -93,7 +95,9 @@ Each trade gets its channel from the terminal (CTCL) ID in the exchange trade fi
 
 **Cash-market intraday:** choose how intraday trades are told apart.
 - **From the trade file's product** (the default): trades marked MIS are intraday.
-- **By square-off:** the quantity a client both bought and sold in a scrip on one exchange and settlement the same day is intraday, taken from the earliest buys and sells; the rest is delivery. A trade can be split, part intraday and part delivery. Statutory charges follow the same split.
+- **By square-off:** the quantity a client both bought and sold in a scrip on one exchange and settlement the same day is intraday, taken from the earliest buys and sells by trade time; the rest is delivery. A buy on NSE and a sell on BSE, or a buy and a sell in different settlements, are not squared off against each other. A trade can be split, part intraday and part delivery. Statutory charges follow the same split.
+
+**Auction trades:** choose whether the auction rate always wins (the default), or whether a special rate for the scrip or its scrip group wins over a general auction rate.
 
 ## scrip-groups
 title: Price a list of scrips separately (scrip groups)

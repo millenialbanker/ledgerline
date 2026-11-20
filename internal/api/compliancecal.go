@@ -14,6 +14,7 @@ func (s *Server) complianceCalendarRoutes(R func(string, http.HandlerFunc, bool)
 	R("PUT /v1/compliance/profile", s.saveCompProfile, true)
 	R("GET /v1/duties/sheet", s.dutySheet, false)
 	R("POST /v1/duties/{id}/events", s.dutyEvent, true)
+	R("POST /v1/duties/{id}/applies", s.dutyApplies, true)
 	R("GET /v1/holding-api/bse", s.bseHoldingView, false)
 	R("POST /v1/holding-api/bse", s.bseHoldingUploaded, true)
 }
@@ -58,6 +59,23 @@ func (s *Server) dutyEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.RecordDutyEvent(r.Context(), tenant(r), actor(r), b.On, r.PathValue("id"), b.DutyEventReq)
+	ok(w, v, err)
+}
+
+// dutyApplies records the compliance officer's decision that a duty does
+// not apply to the firm (with the reason), or takes it back.
+func (s *Server) dutyApplies(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		ops.DutyAppliesReq
+		On string `json:"on"` // the business date (today)
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if _, okd := dateParam(w, b.On, "on", false); !okd {
+		return
+	}
+	v, err := s.ops.SetDutyApplies(r.Context(), tenant(r), actor(r), b.On, r.PathValue("id"), b.DutyAppliesReq)
 	ok(w, v, err)
 }
 

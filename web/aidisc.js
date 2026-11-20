@@ -145,7 +145,7 @@ function edDetails(d) {
       ${can ? '<div class="fld"><label>&nbsp;</label><button class="btn pri" data-act="edDeploy">Save deployment</button></div>' : ''}</div></div></div>
     <div class="panel"><div class="hd"><h3>Details for the forms</h3></div><div class="bd"><div class="form">
       <div class="fld"><label for="ed-cat">Category of intermediary</label><input class="in" id="ed-cat" value="${esc(p.category)}" ${dis}></div>
-      <div class="fld"><label for="ed-cyc">AI &amp; ML report filed</label><select class="in" id="ed-cyc" ${dis}>${[['half-yearly', 'Half-yearly (members trading through algorithms)'], ['yearly', 'Yearly (other members)'], ['quarterly', 'Quarterly (as in the 2019 circular)']].map(([k, l]) => `<option value="${k}" ${p.aiml_cycle === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="fld"><label for="ed-cyc">AI &amp; ML report filed</label><select class="in" id="ed-cyc" ${dis}>${[['', 'From the firm profile (algo trading: half-yearly; no algo: yearly)'], ['half-yearly', 'Half-yearly (members trading through algorithms)'], ['yearly', 'Yearly (other members)'], ['quarterly', 'Quarterly (as in the 2019 circular)']].map(([k, l]) => `<option value="${k}" ${(p.aiml_cycle_choice ?? p.aiml_cycle) === k ? 'selected' : ''}>${l}</option>`).join('')}</select>${p.aiml_cycle_why ? `<div class="dim small">Now ${esc(p.aiml_cycle)}: ${esc(p.aiml_cycle_why)}</div>` : ''}</div>
       <div class="fld"><label for="ed-isn">Information security contact</label><input class="in" id="ed-isn" value="${esc(p.infosec_name)}" ${dis}></div>
       <div class="fld"><label for="ed-isd">Designation</label><input class="in" id="ed-isd" value="${esc(p.infosec_designation)}" ${dis}></div>
       <div class="fld"><label for="ed-ise">Email</label><input class="in" id="ed-ise" value="${esc(p.infosec_email)}" ${dis}></div>
@@ -167,7 +167,8 @@ async function edClip(text) {
   catch (e) { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); toast('Copied'); } catch (x) { toast('Copy failed: select the text and copy it', true); } t.remove(); }
 }
 function edProfileValue(over) {
-  const p = { ...C.exdisc.profile };
+  // The saved choice, not the cycle worked out from the firm profile.
+  const p = { ...C.exdisc.profile, aiml_cycle: C.exdisc.profile.aiml_cycle_choice ?? C.exdisc.profile.aiml_cycle };
   if ($('ed-cat')) Object.assign(p, { category: $('ed-cat').value.trim(), aiml_cycle: $('ed-cyc').value, infosec_name: $('ed-isn').value.trim(), infosec_designation: $('ed-isd').value.trim(), infosec_email: $('ed-ise').value.trim(), infosec_phone: $('ed-isp').value.trim(),
     exchanges: [...document.querySelectorAll('[data-edex]')].filter(x => x.checked).map(x => x.dataset.edex), saas_grc: $('ed-grc').checked, grc_tool: $('ed-grct').value.trim() });
   return Object.assign(p, over || {});

@@ -25,7 +25,8 @@ import (
 //     the client list.
 //
 // The rest is answered by the compliance officer or an Admin in Settings →
-// Firm profile: NSDL participant, algo trading, other SEBI registrations
+// Firm profile: NSDL participant, algo trading, internet or mobile trading,
+// AI or ML tools used outside Ledgerline, other SEBI registrations
 // (portfolio manager, investment adviser …) and the firm's category under
 // SEBI's cyber security and cyber resilience framework (CSCRF:
 // SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113 of 20 August 2024; the
@@ -48,10 +49,14 @@ type FirmProfile struct {
 	CDSL     string `json:"cdsl"`     // a CDSL depository participant
 	NSDL     string `json:"nsdl"`     // an NSDL depository participant
 	Algo     string `json:"algo"`     // algorithmic trading: the firm's own, or clients' through its systems
-	IBT      string `json:"ibt"`      // internet-based trading: clients trade through the firm's website or app
+	IBT      string `json:"ibt"`      // internet or mobile trading (IBT or STWT): clients trade through the firm's website or app
 	NRI      string `json:"nri"`      // NRI clients
 	AP       string `json:"ap"`       // authorised persons
 	Branches string `json:"branches"` // branch offices
+	// OtherAI: the firm uses AI or ML tools outside Ledgerline. "no" lets
+	// the AI & ML report say there is nothing to report besides
+	// Ledgerline's own features.
+	OtherAI string `json:"other_ai,omitempty"`
 	// Registrations are the firm's other SEBI registrations (FirmRegistrations).
 	Registrations []string `json:"registrations"`
 	OtherReg      string   `json:"other_registration,omitempty"`
@@ -124,9 +129,14 @@ type firmFacts struct {
 	NRI     tri
 	AP      tri
 	Branch  tri
-	Regs    map[string]bool
-	CSCRF   string
-	Assumed bool // no member codes in Settings: NSE, BSE and MCX assumed
+	OtherAI tri // AI or ML tools outside Ledgerline
+	// RASMonthly: some clients are settled monthly. No when the compliance
+	// profile says every client is settled quarterly and no client record
+	// says monthly (read only when the clients are counted).
+	RASMonthly tri
+	Regs       map[string]bool
+	CSCRF      string
+	Assumed    bool // no member codes in Settings: NSE, BSE and MCX assumed
 }
 
 func (f firmFacts) dp() tri {
@@ -249,7 +259,19 @@ func (o *Ops) firmProfileFactsOpt(ctx context.Context, tenant string, clients bo
 	f.MTF = triOf(cp.MTF)
 	facts = append(facts, FirmFact{Key: "mtf", Label: "Margin trading facility (MTF)", Value: map[bool]string{true: "Yes", false: "No"}[cp.MTF], Known: true, From: "Compliance profile (also on Circulars & calendar → RAS dates & profile)", Edit: true})
 	f.Algo = yn("algo", "Algorithmic trading (the firm's own, or clients' through its systems)", p.Algo, triUnknown, "nothing in Ledgerline says")
-	f.IBT = yn("ibt", "Internet-based trading (clients trade through the firm's website or app)", p.IBT, triUnknown, "nothing in Ledgerline says")
+	f.IBT = yn("ibt", "Internet or mobile trading (clients trade through the firm's website or app: IBT or STWT)", p.IBT, triUnknown, "nothing in Ledgerline says")
+	tools, _ := docs.List[AISystem](ctx, o.Docs, tenant, cAITool, "")
+	inUse := 0
+	for _, t := range tools {
+		if t.Active {
+			inUse++
+		}
+	}
+	aiFound, aiFrom := triUnknown, "no tools added to the AI inventory"
+	if inUse > 0 {
+		aiFound, aiFrom = triYes, fmt.Sprintf("AI inventory: %d tool(s) the firm added", inUse)
+	}
+	f.OtherAI = yn("other_ai", "AI or ML tools used outside Ledgerline", p.OtherAI, aiFound, aiFrom)
 
 	var cl map[string]Client
 	if clients {
@@ -269,6 +291,32 @@ func (o *Ops) firmProfileFactsOpt(ctx context.Context, tenant string, clients bo
 		nriFound, nriFrom = triOf(nri > 0), fmt.Sprintf("Your clients: %d NRI", nri)
 	}
 	f.NRI = yn("nri", "NRI clients", p.NRI, nriFound, nriFrom)
+
+	// Running account settlement: each client's choice, or every client
+	// quarterly as the compliance profile says. Monthly duties then apply
+	// only if a client record still says monthly.
+	monthly := 0
+	for _, c := range cl {
+		if c.Status != "Closed" && c.RAS == RASKindMonthly {
+			monthly++
+		}
+	}
+	ras := FirmFact{Key: "ras", Label: "Running account settlement", Known: true, From: "Compliance profile (Circulars & calendar → RAS dates & profile)"}
+	switch {
+	case cp.RASClients == RASClientsQuarterly && monthly > 0:
+		f.RASMonthly, ras.Value = triYes, fmt.Sprintf("All clients quarterly, but %d client record(s) say monthly", monthly)
+	case cp.RASClients == RASClientsQuarterly:
+		f.RASMonthly, ras.Value = triNo, "All clients quarterly"
+	default:
+		f.RASMonthly, ras.Value = triYes, "Each client's choice of monthly or quarterly"
+		if clients {
+			ras.Value += fmt.Sprintf(" (%d monthly now)", monthly)
+		}
+	}
+	if day := cp.RASDay; day != "" {
+		ras.Value += ", settled on the " + strings.ToUpper(day[:1]) + day[1:] + " of each date"
+	}
+	facts = append(facts, ras)
 
 	ps, _ := docs.List[Partner](ctx, o.Docs, tenant, cPartner, "")
 	aps := 0
@@ -325,7 +373,9 @@ func (o *Ops) FirmProfileFor(ctx context.Context, tenant, actor string) (FirmPro
 		case "algo":
 			v.Questions = append(v.Questions, "Does the firm run or offer algorithmic trading?")
 		case "ibt":
-			v.Questions = append(v.Questions, "Do clients trade through the firm's website or app (internet-based trading)?")
+			v.Questions = append(v.Questions, "Do clients trade through the firm's website or app (internet or mobile trading)?")
+		case "other_ai":
+			v.Questions = append(v.Questions, "Does the firm use any AI or ML tools outside Ledgerline?")
 		case "cscrf":
 			v.Questions = append(v.Questions, "What is the firm's category under SEBI's cyber security and cyber resilience framework (CSCRF)?")
 		case "nri":
@@ -344,7 +394,7 @@ func (o *Ops) SaveFirmProfile(ctx context.Context, tenant, actor string, p FirmP
 	if err := o.require(ctx, tenant, actor, "Changing the firm profile", RoleCompliance); err != nil {
 		return FirmProfileView{}, err
 	}
-	for _, x := range []struct{ name, v string }{{"CDSL participant", p.CDSL}, {"NSDL participant", p.NSDL}, {"algo trading", p.Algo}, {"internet-based trading", p.IBT}, {"NRI clients", p.NRI}, {"authorised persons", p.AP}, {"branch offices", p.Branches}} {
+	for _, x := range []struct{ name, v string }{{"CDSL participant", p.CDSL}, {"NSDL participant", p.NSDL}, {"algo trading", p.Algo}, {"internet-based trading", p.IBT}, {"NRI clients", p.NRI}, {"authorised persons", p.AP}, {"branch offices", p.Branches}, {"AI tools outside Ledgerline", p.OtherAI}} {
 		if x.v != "" && x.v != AnswerYes && x.v != AnswerNo {
 			return FirmProfileView{}, invalid("%s is yes, no, or left to what Ledgerline knows", x.name)
 		}
@@ -371,7 +421,7 @@ func (o *Ops) SaveFirmProfile(ctx context.Context, tenant, actor string, p FirmP
 	if err := docs.Upsert(ctx, o.Docs, tenant, cFirmProfile, "main", p, actor); err != nil {
 		return FirmProfileView{}, err
 	}
-	o.log(ctx, tenant, actor, "firm.profile", "main", map[string]any{"cdsl": p.CDSL, "nsdl": p.NSDL, "algo": p.Algo, "ibt": p.IBT, "nri": p.NRI, "ap": p.AP, "branches": p.Branches, "registrations": p.Registrations, "other": p.OtherReg, "cscrf": p.CSCRF})
+	o.log(ctx, tenant, actor, "firm.profile", "main", map[string]any{"cdsl": p.CDSL, "nsdl": p.NSDL, "algo": p.Algo, "ibt": p.IBT, "nri": p.NRI, "ap": p.AP, "branches": p.Branches, "other_ai": p.OtherAI, "registrations": p.Registrations, "other": p.OtherReg, "cscrf": p.CSCRF})
 	if cp := o.CompProfile(ctx, tenant); mtf != nil && *mtf != cp.MTF {
 		cp.MTF, cp.By, cp.At = *mtf, actor, p.At
 		if err := docs.Upsert(ctx, o.Docs, tenant, cCompProfile, "main", cp, actor); err != nil {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -497,7 +498,17 @@ func (bb *brokerageBook) scopesFor(seg string) []string {
 // The card that prices it is the first candidate with a line for the
 // order. The client's own lines (overrides) are then checked alongside the
 // card's, most specific line first; at equal specificity the client's own
-// line wins.
+// line wins. So a client's own line replaces only the card line it matches,
+// never the whole card.
+//
+// Auction trades: unless the firm chose otherwise (BrokerageSetup.
+// AuctionRate), an auction line wins over every line without the auction
+// case, even a line for the scrip or its group on the client's card or in
+// their own lines. The auction lines are looked for first, on their own,
+// card by card in the usual order; among them a line for the scrip still
+// beats one for its group, which beats a general auction line. Only when no
+// card and no client line has an auction line is the trade priced like any
+// other.
 func (bb *brokerageBook) rule(ucc string, q charges.RateQuery) (charges.BrokerageRule, string, bool) {
 	a, ok := bb.match(ucc, q)
 	return a.Rule, a.Plan, ok
@@ -505,6 +516,19 @@ func (bb *brokerageBook) rule(ucc string, q charges.RateQuery) (charges.Brokerag
 
 // match is rule with the key of the line that applied.
 func (bb *brokerageBook) match(ucc string, q charges.RateQuery) (billing.Applied, bool) {
+	if !q.Strict && bb.setup.AuctionRate == "" && slices.Contains(q.Cases, charges.CaseAuction) {
+		aq := q
+		aq.Cases, aq.Strict = []string{charges.CaseAuction}, true
+		if a, ok := bb.matchLines(ucc, aq); ok {
+			return a, true
+		}
+	}
+	return bb.matchLines(ucc, q)
+}
+
+// matchLines finds the card for an order and the line that prices it,
+// checking the client's own lines alongside the card's (see rule).
+func (bb *brokerageBook) matchLines(ucc string, q charges.RateQuery) (billing.Applied, bool) {
 	ov, hasOv := bb.overrides[ucc]
 	var card *candidate
 	var lines map[string]charges.BrokerageRule
@@ -663,9 +687,22 @@ type BrokerageSetup struct {
 	// quantity a client bought and sold in a scrip the same day, as most
 	// back offices do; see billing.SplitSquareOff).
 	IntradayBy string `json:"intraday_by,omitempty"`
-	By         string `json:"by,omitempty"`
-	At         string `json:"at,omitempty"`
+	// AuctionRate decides how auction trades are priced. Empty (the
+	// default, "always") means an auction line wins over any line without
+	// the auction case, even one for the scrip or its scrip group; a line
+	// for the scrip with the auction case still beats a general auction
+	// line. "scrip" keeps the general order of lines instead, where a line
+	// for the scrip or its group beats an auction line for no scrip.
+	AuctionRate string `json:"auction_rate,omitempty"`
+	By          string `json:"by,omitempty"`
+	At          string `json:"at,omitempty"`
 }
+
+// How auction trades are priced.
+const (
+	AuctionRateAlways = "always"
+	AuctionRateScrip  = "scrip"
+)
 
 // How cash-market trades are told apart as intraday.
 const (
@@ -759,11 +796,18 @@ func (o *Ops) saveBrokerageSetup(ctx context.Context, tenant, actor string, s Br
 	default:
 		return s, invalid("intraday by %q: use product (the trade file's product) or squareoff", s.IntradayBy)
 	}
+	switch s.AuctionRate = strings.ToLower(strings.TrimSpace(s.AuctionRate)); s.AuctionRate {
+	case "", AuctionRateAlways:
+		s.AuctionRate = ""
+	case AuctionRateScrip:
+	default:
+		return s, invalid("auction rate %q: use always (the auction line wins) or scrip (a line for the scrip or its group wins)", s.AuctionRate)
+	}
 	s.By, s.At = actor, o.now().Format("2006-01-02 15:04")
 	if err := docs.Upsert(ctx, o.Docs, tenant, cBrokSetup, "setup", s, actor); err != nil {
 		return s, err
 	}
-	o.log(ctx, tenant, actor, "brokerage.setup", "setup", map[string]any{"channels": len(s.Channels), "terminals": len(s.Terminals)})
+	o.log(ctx, tenant, actor, "brokerage.setup", "setup", map[string]any{"channels": len(s.Channels), "terminals": len(s.Terminals), "intraday_by": s.IntradayBy, "auction_rate": s.AuctionRate})
 	o.brokFillInDone(ctx, tenant, actor, pkg.FillTerminalChannels)
 	return s, nil
 }

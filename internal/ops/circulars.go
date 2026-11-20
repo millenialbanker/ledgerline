@@ -682,6 +682,11 @@ type Duty struct {
 	Custom     bool            `json:"custom,omitempty"`
 	Events     []DutyEvent     `json:"events,omitempty"`
 	Extensions []DutyExtension `json:"extensions,omitempty"`
+	// NotApplicable: the compliance officer decided the duty does not
+	// apply to this firm (SetDutyApplies); NAHistory keeps every such
+	// decision and when it was taken back.
+	NotApplicable *DutyNA  `json:"not_applicable,omitempty"`
+	NAHistory     []DutyNA `json:"na_history,omitempty"`
 	// Worked out when listed: whether it applies to the firm, the latest
 	// result of the self-inspection test that checks it, and where it
 	// stands in words.
@@ -891,13 +896,15 @@ func (o *Ops) Duties(ctx context.Context, tenant, date string) ([]Duty, error) {
 	var facts firmFacts
 	var checks map[string]DutyCheck
 	if len(catByID) > 0 {
-		nri := false
+		// Clients are counted only when a duty depends on them (NRI
+		// clients, clients settled monthly).
+		count := false
 		for _, d := range cat.Duties {
 			for _, n := range d.Applies {
-				nri = nri || strings.Contains(n, "nri")
+				count = count || strings.Contains(n, "nri") || strings.Contains(n, "ras:")
 			}
 		}
-		facts, _ = o.firmProfileFactsOpt(ctx, tenant, nri)
+		facts, _ = o.firmProfileFactsOpt(ctx, tenant, count)
 		checks = o.siLatest(ctx, tenant, date)
 	}
 	for i := range obs {
@@ -907,6 +914,13 @@ func (o *Ops) Duties(ctx context.Context, tenant, date string) ([]Duty, error) {
 		}
 		if d, ok := catByID[x.ID]; ok {
 			d.overlay(x)
+		}
+		if x.NotApplicable != nil {
+			// The compliance officer's decision for this firm.
+			a := naApplicability(*x.NotApplicable)
+			x.Applicability = &a
+			x.NextDue, x.Period, x.DueAt, x.Overdue = "", "", "", false
+			continue
 		}
 		if len(x.Applies) > 0 {
 			a := dutyApplies(x.Applies, facts)
@@ -1063,6 +1077,9 @@ func (o *Ops) DoneDutyFor(ctx context.Context, tenant, actor, date, id string, r
 		}
 		return *x, nil
 	}
+	if x.NotApplicable != nil {
+		return *x, fmt.Errorf("%w: this is marked not applicable to the firm (%s); mark it as applying first", ErrState, x.NotApplicable.Reason)
+	}
 	if x.Applicability != nil && x.Applicability.Verdict == ApplyNo {
 		return *x, fmt.Errorf("%w: this doesn't apply to the firm (%s); change the firm profile if that is wrong", ErrState, x.Applicability.Reason)
 	}
@@ -1156,6 +1173,8 @@ func (o *Ops) SaveDuty(ctx context.Context, tenant, actor string, x Duty) (Duty,
 	if err == nil {
 		x.Done, x.Shared, x.Events = old.Done, old.Shared, old.Events
 	}
+	// Whether it applies is decided with SetDutyApplies, not here.
+	x.NotApplicable, x.NAHistory = old.NotApplicable, old.NAHistory
 	// A default or catalogue duty changed by the compliance officer keeps
 	// their version of the title, rule, owner and evidence.
 	cat, _ := dutyCatalogue()

@@ -77,10 +77,27 @@ type ComplianceProfile struct {
 	AuditorEmpanelled bool   `json:"auditor_empanelled"`
 	AuditorRef        string `json:"auditor_ref,omitempty"`
 	// MTF: the firm is approved for margin trading.
-	MTF bool   `json:"mtf"`
-	By  string `json:"by,omitempty"`
-	At  string `json:"at,omitempty"`
+	MTF bool `json:"mtf"`
+	// RASDay: the day of each exchanges' date the firm settles on, for
+	// every settlement in the calendar ("friday" or "saturday"); "" means
+	// as chosen on each line (the Friday unless the line says otherwise).
+	RASDay string `json:"ras_day,omitempty"`
+	// RASClients: "quarterly" when every client is settled quarterly (the
+	// firm's practice); "" when each client's own choice decides. With
+	// every client quarterly, the monthly settlement duty does not apply
+	// unless a client record says monthly. Clients idle for 30 days are
+	// still settled on the monthly dates (ras.go).
+	RASClients string `json:"ras_clients,omitempty"`
+	By         string `json:"by,omitempty"`
+	At         string `json:"at,omitempty"`
 }
+
+// The firm's settlement day and how clients are settled.
+const (
+	RASDayFriday        = "friday"
+	RASDaySaturday      = "saturday"
+	RASClientsQuarterly = "quarterly"
+)
 
 // rasSourceFY2627 names where the seeded calendar comes from.
 const rasSourceFY2627 = "Exchanges' joint annual calendar for FY 2026-27 (January 2026, e.g. MSE/INSP/18499/2026 of 21 January 2026), under SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197"
@@ -148,6 +165,22 @@ func (o *Ops) SaveCompProfile(ctx context.Context, tenant, actor string, p Compl
 	if err := o.require(ctx, tenant, actor, "Changing the compliance calendar", RoleCompliance); err != nil {
 		return p, err
 	}
+	p.RASDay, p.RASClients = strings.ToLower(strings.TrimSpace(p.RASDay)), strings.ToLower(strings.TrimSpace(p.RASClients))
+	want := time.Weekday(-1)
+	switch p.RASDay {
+	case "":
+	case RASDayFriday:
+		want = time.Friday
+	case RASDaySaturday:
+		want = time.Saturday
+	default:
+		return p, invalid("the firm settles on the friday or the saturday of each date, or as each line says (got %q)", p.RASDay)
+	}
+	switch p.RASClients {
+	case "", RASClientsQuarterly:
+	default:
+		return p, invalid("clients are settled by their own choice, or all quarterly (got %q)", p.RASClients)
+	}
 	seen := map[string]bool{}
 	for i := range p.RAS {
 		r := &p.RAS[i]
@@ -192,6 +225,13 @@ func (o *Ops) SaveCompProfile(ctx context.Context, tenant, actor string, p Compl
 		if r.RunOn == "" {
 			r.RunOn = ds[0]
 		}
+		// The firm's day for every settlement, where the exchanges' date
+		// has that day; a line with only the other day keeps it.
+		for _, d := range ds {
+			if t, _ := time.Parse("2006-01-02", d); t.Weekday() == want {
+				r.RunOn = d
+			}
+		}
 		if !contains(ds, r.RunOn) {
 			return p, invalid("%s %s: the firm settles on one of the calendar's dates (%s)", r.Kind, r.Period, strings.Join(ds, " or "))
 		}
@@ -212,7 +252,7 @@ func (o *Ops) SaveCompProfile(ctx context.Context, tenant, actor string, p Compl
 	if err := docs.Upsert(ctx, o.Docs, tenant, cCompProfile, "main", p, actor); err != nil {
 		return p, err
 	}
-	o.log(ctx, tenant, actor, "compliance.profile", "main", map[string]any{"ras_dates": len(p.RAS), "sys_audit": p.SysAudit, "auditor_empanelled": p.AuditorEmpanelled, "mtf": p.MTF})
+	o.log(ctx, tenant, actor, "compliance.profile", "main", map[string]any{"ras_dates": len(p.RAS), "sys_audit": p.SysAudit, "auditor_empanelled": p.AuditorEmpanelled, "mtf": p.MTF, "ras_day": p.RASDay, "ras_clients": p.RASClients})
 	date := o.businessDate(ctx, tenant)
 	o.syncRASSettings(ctx, tenant, actor, date)
 	_, _ = o.Duties(ctx, tenant, date) // the calendar follows the profile
@@ -405,6 +445,27 @@ func (o *Ops) CompProfileFor(ctx context.Context, tenant, actor, date string) (C
 	}
 	if p.SysAudit != SysAuditNone && !p.AuditorEmpanelled {
 		v.Warnings = append(v.Warnings, "Record the system auditor as empanelled by NSE: NSE accepts system audit reports only from an auditor on its empanelled list (NSE/INSP/69631, NSE/INSP/73850).")
+	}
+	// The cycle against the firm profile's answer on algo trading: Type III
+	// (algo) members are audited half-yearly (NSE/INSP/73850, Annexure A).
+	switch algo := o.firmProfile(ctx, tenant).Algo; {
+	case algo == AnswerNo && p.SysAudit == SysAuditHalfYearly:
+		v.Warnings = append(v.Warnings, "The firm profile says the firm does not run or offer algo trading, but the system audit cycle is half-yearly, the cycle for algo (Type III) members (NSE/INSP/73850): check the cycle.")
+	case algo == AnswerYes && p.SysAudit != SysAuditHalfYearly:
+		v.Warnings = append(v.Warnings, "The firm profile says the firm runs or offers algo trading: algo (Type III) members have the system audit half-yearly (NSE/INSP/73850). Check the cycle.")
+	}
+	if p.RASClients == RASClientsQuarterly {
+		cl, _ := o.ClientMap(ctx, tenant)
+		var monthly []string
+		for _, c := range cl {
+			if c.Status != "Closed" && c.RAS == RASKindMonthly {
+				monthly = append(monthly, c.UCC)
+			}
+		}
+		if len(monthly) > 0 {
+			sort.Strings(monthly)
+			v.Warnings = append(v.Warnings, fmt.Sprintf("The profile says every client is settled quarterly, but %d client record(s) say monthly (%s): they are still settled monthly. Change those clients' running account choice, or the profile.", len(monthly), strings.Join(firstN(monthly, 5), ", ")))
+		}
 	}
 	return v, nil
 }

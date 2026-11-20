@@ -116,6 +116,7 @@ Deciding RFQ deal amendments | Ops checker
 Deciding a pledge request | Ops maker, Ops checker, Risk manager
 Deciding a reported death | Compliance officer
 Deciding whether a circular applies | Compliance officer
+Deciding whether a compliance duty applies | Compliance officer
 Discarding scanned bills | Ops maker, Ops checker
 Downloading BOW upload files | Ops maker, Ops checker, Risk manager
 Downloading Finspot block and client files | Ops maker, Ops checker, Risk manager

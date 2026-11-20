@@ -57,9 +57,14 @@ type DisclosureProfile struct {
 	InfoSecDesignation string `json:"infosec_designation"`
 	InfoSecEmail       string `json:"infosec_email"`
 	InfoSecPhone       string `json:"infosec_phone"`
-	// AIMLCycle: half-yearly (members trading through algorithms, the
-	// default), yearly (other members) or quarterly (the 2019 circular).
-	AIMLCycle string `json:"aiml_cycle"`
+	// AIMLCycle: half-yearly (members trading through algorithms), yearly
+	// (other members) or quarterly (the 2019 circular). Left empty, it
+	// follows the firm profile's answer on algo trading (half-yearly while
+	// it is not known); AIMLCycleChoice is what was saved ("" for that) and
+	// AIMLCycleWhy says where the cycle came from.
+	AIMLCycle       string `json:"aiml_cycle"`
+	AIMLCycleChoice string `json:"aiml_cycle_choice"`
+	AIMLCycleWhy    string `json:"aiml_cycle_why,omitempty"`
 	// SingleFiling was the choice to file the AI & ML report at NSE only.
 	// It is now always so for a member of NSE and other exchanges (see
 	// discExchanges); the field is kept for stored profiles.
@@ -142,20 +147,23 @@ type DiscExchange struct {
 
 // DisclosureView is a report ready to file.
 type DisclosureView struct {
-	Kind       string            `json:"kind"`
-	Title      string            `json:"title"`
-	Basis      string            `json:"basis"`
-	Period     DiscPeriod        `json:"period"`
-	Periods    []DiscPeriod      `json:"periods"`
-	Answer     string            `json:"answer"` // Yes or No: the form's first question
-	Fields     []DisclosureField `json:"fields"`
-	Systems    []string          `json:"systems"`
-	Notes      []string          `json:"notes"`
-	Exchanges  []DiscExchange    `json:"exchanges"`
-	Locked     bool              `json:"locked"`
-	Status     string            `json:"status"` // Due, Overdue, Upcoming, Submitted, Partly submitted
-	Profile    DisclosureProfile `json:"profile"`
-	Deployment DeploymentInfo    `json:"deployment"`
+	Kind    string       `json:"kind"`
+	Title   string       `json:"title"`
+	Basis   string       `json:"basis"`
+	Period  DiscPeriod   `json:"period"`
+	Periods []DiscPeriod `json:"periods"`
+	Answer  string       `json:"answer"` // Yes or No: the form's first question
+	// OnlyLedgerline: the AI & ML report has nothing to report besides
+	// Ledgerline's own features (the firm uses no AI tools outside it).
+	OnlyLedgerline bool              `json:"only_ledgerline,omitempty"`
+	Fields         []DisclosureField `json:"fields"`
+	Systems        []string          `json:"systems"`
+	Notes          []string          `json:"notes"`
+	Exchanges      []DiscExchange    `json:"exchanges"`
+	Locked         bool              `json:"locked"`
+	Status         string            `json:"status"` // Due, Overdue, Upcoming, Submitted, Partly submitted
+	Profile        DisclosureProfile `json:"profile"`
+	Deployment     DeploymentInfo    `json:"deployment"`
 }
 
 // DeploymentInfo is where Ledgerline runs for this firm.
@@ -209,8 +217,16 @@ func (o *Ops) discProfile(ctx context.Context, tenant string) DisclosureProfile 
 	if p.Category == "" {
 		p.Category = "Stock broker"
 	}
+	p.AIMLCycleChoice, p.AIMLCycleWhy = p.AIMLCycle, "Chosen under Details for the forms"
 	if p.AIMLCycle == "" {
-		p.AIMLCycle = "half-yearly"
+		switch o.firmProfile(ctx, tenant).Algo {
+		case AnswerNo:
+			p.AIMLCycle, p.AIMLCycleWhy = "yearly", "The firm profile says the firm does not run or offer algo trading: yearly"
+		case AnswerYes:
+			p.AIMLCycle, p.AIMLCycleWhy = "half-yearly", "The firm profile says the firm runs or offers algo trading: half-yearly"
+		default:
+			p.AIMLCycle, p.AIMLCycleWhy = "half-yearly", "Half-yearly until the firm profile says whether the firm runs or offers algo trading"
+		}
 	}
 	if p.Exchanges == nil {
 		p.Exchanges = []string{}
@@ -252,6 +268,7 @@ func (o *Ops) SaveDisclosureProfile(ctx context.Context, tenant, actor string, p
 		}
 		r.Key = fmt.Sprintf("other-%d", i+1)
 	}
+	p.AIMLCycleChoice, p.AIMLCycleWhy = "", "" // worked out when read
 	p.By, p.At = actor, o.now().Format(time.RFC3339)
 	if err := docs.Upsert(ctx, o.Docs, tenant, cDiscProfile, "main", p, actor); err != nil {
 		return p, err
@@ -586,6 +603,26 @@ func (o *Ops) buildAIML(ctx context.Context, tenant string, set Settings, prof D
 	sys, notes := o.aiSystemsDuring(ctx, tenant, v.Period.From, v.Period.To)
 	v.Notes = append(v.Notes, notes...)
 	anyAI := len(sys) > 0
+	// AI tools outside Ledgerline: the firm profile's answer, checked
+	// against the tools in the AI inventory.
+	fp, firmTools := o.firmProfile(ctx, tenant), 0
+	for _, s := range sys {
+		if s.Source == "firm" {
+			firmTools++
+		}
+	}
+	switch {
+	case fp.OtherAI == AnswerNo && firmTools > 0:
+		v.Notes = append(v.Notes, fmt.Sprintf("The firm profile says the firm uses no AI tools outside Ledgerline, but the AI inventory has %d tool(s) of the firm's in use in the period: correct the profile or the inventory before filing.", firmTools))
+	case fp.OtherAI == AnswerNo && anyAI:
+		v.OnlyLedgerline = true
+		v.Notes = append(v.Notes, "The firm uses no AI or ML tools outside Ledgerline (firm profile, answered by "+firstOf(fp.By, "the compliance officer")+"): there is nothing to report besides Ledgerline's own features listed here.")
+	case fp.OtherAI == AnswerNo:
+		v.OnlyLedgerline = true
+		v.Notes = append(v.Notes, "The firm uses no AI or ML tools outside Ledgerline (firm profile, answered by "+firstOf(fp.By, "the compliance officer")+"), and no Ledgerline AI feature was in use in the period.")
+	case fp.OtherAI == "" && firmTools == 0:
+		v.Notes = append(v.Notes, "Say in Settings → Firm profile whether the firm uses any AI or ML tools outside Ledgerline; until then only Ledgerline's own features and the tools in the AI inventory are reported.")
+	}
 	b.add("any", "AI & ML systems", "Does the firm use any system that falls under these categories: natural language processing (including chatbots and sentiment analysis), neural networks, supervised or unsupervised machine learning (decision trees, random forest, gradient boosting), statistical heuristics, systems tuned by feedback, knowledge-base systems?", "yn", discYN(anyAI), "")
 	v.Answer = map[bool]string{true: "Yes", false: "No"}[anyAI]
 	if !anyAI {
