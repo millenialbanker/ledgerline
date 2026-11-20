@@ -2,6 +2,7 @@ package ops
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"ledgerline/internal/vault"
@@ -18,6 +19,7 @@ type SecurityStatus struct {
 	KeySource   string            `json:"key_source"`
 	KeyVersion  int               `json:"key_version"`
 	KeyVersions []int             `json:"key_versions"`
+	FirmKey     bool              `json:"firm_key"` // the firm holds its own key (firmkey.go)
 	Covers      []string          `json:"covers"`
 	InClear     []string          `json:"in_clear"`
 	Audit       *vault.AuditCheck `json:"audit,omitempty"`
@@ -48,6 +50,25 @@ func (o *Ops) Security(ctx context.Context, tenant, actor string, verify bool) (
 	if kr, ok := k.(*vault.Keyring); ok {
 		s.KeyVersions = kr.Versions()
 	}
+	if fk, err := va.V.FirmKey(ctx, tenant); err == nil && fk.Own {
+		name := "its own key"
+		if p, ok := connProvider(fk.Conn); ok {
+			name = strings.TrimPrefix(p.Name, "Firm's own encryption key: ")
+		}
+		s.FirmKey, s.KeyVersion, s.KeyVersions = true, fk.Current, []int{}
+		s.KeySource = fmt.Sprintf("The firm's own key (%s), root version %d. Records saved before the firm moved stay under Ledgerline's key until they are next saved, and are served only while the firm's key is available.", name, fk.Current)
+		for i, l := range s.Residency {
+			if l.What != "Encryption keys" {
+				continue
+			}
+			s.Residency[i].Where, s.Residency[i].Status, s.Residency[i].Note = "The firm's own key: "+name, "check", "Keep the firm's key service in India."
+			for _, r := range fk.Roots {
+				if reg, _, err := vault.ParseKMSKeyARN(r.KeyID); err == nil && r.Version == fk.Current {
+					s.Residency[i].Where, s.Residency[i].Status, s.Residency[i].Note = "The firm's own AWS KMS key, "+reg, "india", "Ledgerline accepts KMS keys in Mumbai (ap-south-1) or Hyderabad (ap-south-2) only."
+				}
+			}
+		}
+	}
 	s.Covers = []string{
 		"Client master: name, PAN, date of birth, mobile, email, address, bank account, nominee",
 		"Online applications, change requests, KYC and PMLA records",
@@ -58,7 +79,7 @@ func (o *Ops) Security(ctx context.Context, tenant, actor string, verify bool) (
 	s.InClear = []string{
 		"Identifiers the database indexes: client code (UCC), record and file IDs, dates",
 		"Ledger postings (account codes and amounts) and trade records, which the database checks for balance and duplicates",
-		"Audit trail entries (sealed against change, not encrypted, so auditors can read them)",
+		"Audit trail entries (sealed against change with Ledgerline's audit key, not encrypted, so auditors can read them)",
 	}
 	if verify {
 		r, err := va.VerifyAudit(ctx, tenant)

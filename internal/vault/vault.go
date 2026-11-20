@@ -8,8 +8,51 @@
 // with HKDF-SHA256 from a master key, so one firm's data cannot be read with
 // another firm's key. Master keys are versioned: new writes use the current
 // version and older versions stay available for reading, so keys can be
-// rotated without rewriting history. The Keys interface is where a cloud key
-// service (AWS KMS in Mumbai, or a firm's own key) plugs in later.
+// rotated without rewriting history.
+//
+// # Keys the firm holds (envelope encryption)
+//
+// SEBI's cloud framework keeps "ownership of data, logs and encryption keys"
+// with the regulated entity. A firm can therefore hold its own key
+// (firmkeys.go): AWS KMS in the firm's own AWS account (awskms.go), or a key
+// service the firm runs itself (remotekey.go). The design:
+//
+//   - The firm has a root key: 32 random bytes made by Ledgerline. It is
+//     stored only wrapped (encrypted) by the firm's key, in the firm's key
+//     record. Ledgerline unwraps it on first use, keeps it in memory for a
+//     bounded time (the cache window, 15 minutes by default) and then asks
+//     the firm's key again. A revoked or disabled key therefore stops
+//     Ledgerline within one cache window.
+//   - The firm's data keys are derived from the root with HKDF, as server
+//     keys are derived from a master key. Root keys are versioned too; root
+//     version n is written into ciphertexts as key version
+//     FirmVersionBase+n, a range server master keys never use. So a
+//     ciphertext's header tells which kind of key it needs, and nothing has
+//     to be rewritten when a firm moves to its own key or rotates it.
+//   - Moving a firm: Ledgerline makes root version 1, has the firm's key
+//     wrap it (and unwrap it again, as a check) and stores the wrapped root.
+//     From then on every new write is under the firm's root. Records written
+//     before the move stay under the server key version they were written
+//     with and stay readable, but only while the firm's key is available: a
+//     firm on its own key is never served, not even its older records, while
+//     its key is refused. (Those older records could still be opened with
+//     Ledgerline's master key until they are next saved; that is the cost of
+//     not rewriting history.)
+//   - Rotation makes a new root version for new writes and re-wraps every
+//     older root under the firm's current key, so history stays readable
+//     and an old KMS key can be retired once rotation has finished.
+//   - Nothing falls back to Ledgerline's master key. While the firm's key is
+//     refused or cannot be reached, every read and write of the firm's data
+//     fails with ErrKeyUnavailable.
+//
+// A few records stay under Ledgerline's own key even for such a firm,
+// because they are needed to reach the firm's key or to tell the firm it is
+// gone: the key record itself (wrapped roots, useless without the firm's
+// key), the connection holding the credentials for the firm's key, and the
+// work item raised when the key is refused (see ServerKeyed). The audit
+// trail is not encrypted (auditors read it); its seals stay under
+// Ledgerline's audit keys so refusals can still be recorded, and the chain
+// checked, while the firm's key is withheld.
 //
 // The stores below sit between the application and the database. The
 // database only ever sees ciphertext for document bodies and file contents;
@@ -77,8 +120,8 @@ func NewKeyring(masters map[int][]byte, current int, source string) (*Keyring, e
 		return nil, errors.New("vault: no master keys")
 	}
 	for v, k := range masters {
-		if v <= 0 {
-			return nil, fmt.Errorf("vault: key version %d must be positive", v)
+		if v <= 0 || v >= FirmVersionBase {
+			return nil, fmt.Errorf("vault: key version %d must be from 1 to %d", v, FirmVersionBase-1)
 		}
 		if len(k) != 32 {
 			return nil, fmt.Errorf("vault: master key version %d must be 32 bytes, got %d", v, len(k))
@@ -168,37 +211,67 @@ type Vault struct {
 	mu    sync.Mutex
 	aeads map[string]cipher.AEAD
 	macs  map[string][]byte
+	fk    *firmKeys // firms that hold their own key (firmkeys.go)
 }
 
 // New returns a Vault over keys.
 func New(keys Keys) *Vault {
-	return &Vault{keys: keys, aeads: map[string]cipher.AEAD{}, macs: map[string][]byte{}}
+	return &Vault{keys: keys, aeads: map[string]cipher.AEAD{}, macs: map[string][]byte{}, fk: newFirmKeys()}
 }
 
 // Keys returns the key source.
 func (v *Vault) Keys() Keys { return v.keys }
 
-func (v *Vault) aead(tenant string, version int) (cipher.AEAD, error) {
-	ck := tenant + "\x00" + strconv.Itoa(version)
+// serverAEAD is the cipher for a tenant key derived from a server master
+// key: purpose "data" for the firm's records and files, "boot" for the few
+// records kept under Ledgerline's key (see ServerKeyed).
+func (v *Vault) serverAEAD(tenant, purpose string, version int) (cipher.AEAD, error) {
+	ck := purpose + "\x00" + tenant + "\x00" + strconv.Itoa(version)
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if a, ok := v.aeads[ck]; ok {
 		return a, nil
 	}
-	k, err := v.keys.Key(tenant, "data", version)
+	k, err := v.keys.Key(tenant, purpose, version)
 	if err != nil {
 		return nil, err
 	}
-	b, err := aes.NewCipher(k)
-	if err != nil {
-		return nil, err
-	}
-	a, err := cipher.NewGCM(b)
+	a, err := newGCM(k)
 	if err != nil {
 		return nil, err
 	}
 	v.aeads[ck] = a
 	return a, nil
+}
+
+func newGCM(k []byte) (cipher.AEAD, error) {
+	b, err := aes.NewCipher(k)
+	if err != nil {
+		return nil, err
+	}
+	return cipher.NewGCM(b)
+}
+
+// writeAEAD is the cipher and key version for a new write: the firm's
+// current root when it holds its own key, else the server's current key.
+func (v *Vault) writeAEAD(tenant string) (cipher.AEAD, int, error) {
+	if a, ver, managed, err := v.firmAEAD(tenant, 0, true); managed || err != nil {
+		return a, ver, err
+	}
+	ver := v.keys.Current()
+	a, err := v.serverAEAD(tenant, "data", ver)
+	return a, ver, err
+}
+
+// readAEAD is the cipher for a stored key version.
+func (v *Vault) readAEAD(tenant string, ver int) (cipher.AEAD, error) {
+	if a, _, managed, err := v.firmAEAD(tenant, ver, false); managed || err != nil {
+		return a, err
+	}
+	if ver >= FirmVersionBase {
+		return nil, fmt.Errorf("vault: key version %d belongs to a firm's own key, and this firm is not on its own key", ver)
+	}
+	return v.serverAEAD(tenant, "data", ver)
 }
 
 // magic marks encrypted binary content: "LLV1", key version (4 bytes),
@@ -208,11 +281,24 @@ var magic = []byte("LLV1")
 // Seal encrypts pt for tenant, bound to aad (the record's identity, so a
 // ciphertext cannot be moved to another record).
 func (v *Vault) Seal(tenant string, aad, pt []byte) ([]byte, error) {
-	ver := v.keys.Current()
-	a, err := v.aead(tenant, ver)
+	a, ver, err := v.writeAEAD(tenant)
 	if err != nil {
 		return nil, err
 	}
+	return seal(a, ver, aad, pt)
+}
+
+// sealServer seals under a server key for purpose (see ServerKeyed).
+func (v *Vault) sealServer(tenant, purpose string, aad, pt []byte) ([]byte, error) {
+	ver := v.keys.Current()
+	a, err := v.serverAEAD(tenant, purpose, ver)
+	if err != nil {
+		return nil, err
+	}
+	return seal(a, ver, aad, pt)
+}
+
+func seal(a cipher.AEAD, ver int, aad, pt []byte) ([]byte, error) {
 	out := make([]byte, 0, len(magic)+4+a.NonceSize()+len(pt)+a.Overhead())
 	out = append(out, magic...)
 	out = binary.BigEndian.AppendUint32(out, uint32(ver))
@@ -233,10 +319,30 @@ func (v *Vault) Open(tenant string, aad, b []byte) ([]byte, error) {
 		return nil, ErrUnencrypted
 	}
 	ver := int(binary.BigEndian.Uint32(b[len(magic):]))
-	a, err := v.aead(tenant, ver)
+	a, err := v.readAEAD(tenant, ver)
+	if errors.Is(err, ErrKeyUnavailable) {
+		return nil, err // the firm's key is refused: say so, not "altered data"
+	}
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrDecrypt, err)
 	}
+	return open(a, aad, b)
+}
+
+// openServer opens a record sealed by sealServer.
+func (v *Vault) openServer(tenant, purpose string, aad, b []byte) ([]byte, error) {
+	if !Sealed(b) {
+		return nil, ErrUnencrypted
+	}
+	ver := int(binary.BigEndian.Uint32(b[len(magic):]))
+	a, err := v.serverAEAD(tenant, purpose, ver)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrDecrypt, err)
+	}
+	return open(a, aad, b)
+}
+
+func open(a cipher.AEAD, aad, b []byte) ([]byte, error) {
 	rest := b[len(magic)+4:]
 	if len(rest) < a.NonceSize()+a.Overhead() {
 		return nil, ErrDecrypt
@@ -293,7 +399,12 @@ func (v *Vault) CheckMAC(tenant string, msg []byte, mac string) bool {
 // Protect wraps a set of stores so document bodies and file contents are
 // encrypted and the audit trail is sealed. Ledger, trade and break stores
 // hold identifiers and amounts only and pass through.
+//
+// The vault also reads each firm's key record from these documents, to know
+// whether the firm holds its own key; the first store a vault protects is
+// the one it reads them from.
 func Protect(s app.Stores, v *Vault) app.Stores {
+	v.bindStore(s.Docs)
 	s.Docs = &Docs{Inner: s.Docs, V: v}
 	s.Raw = &Raw{Inner: s.Raw, V: v}
 	s.Audit = &Audit{Inner: s.Audit, V: v}
@@ -330,7 +441,15 @@ func (d *Docs) open(tenant string, x docs.Doc) (docs.Doc, error) {
 	if err != nil {
 		return docs.Doc{}, fmt.Errorf("%s/%s: %w", x.Collection, x.ID, ErrDecrypt)
 	}
-	pt, err := d.V.Open(tenant, docAAD(tenant, x.Collection, x.ID), ct[:n])
+	var pt []byte
+	if serverKeyed(x.Collection, x.ID) {
+		pt, err = d.V.openServer(tenant, "boot", docAAD(tenant, x.Collection, x.ID), ct[:n])
+	} else {
+		pt, err = d.V.Open(tenant, docAAD(tenant, x.Collection, x.ID), ct[:n])
+	}
+	if errors.Is(err, ErrKeyUnavailable) {
+		return docs.Doc{}, err
+	}
 	if err != nil {
 		return docs.Doc{}, fmt.Errorf("%s/%s: %w", x.Collection, x.ID, err)
 	}
@@ -369,7 +488,13 @@ func (d *Docs) List(ctx context.Context, tenant, coll, prefix string) ([]docs.Do
 }
 
 func (d *Docs) Put(ctx context.Context, tenant, coll, id string, body json.RawMessage, expect int64, upsert bool, actor string) (docs.Doc, error) {
-	ct, err := d.V.Seal(tenant, docAAD(tenant, coll, id), body)
+	var ct []byte
+	var err error
+	if serverKeyed(coll, id) {
+		ct, err = d.V.sealServer(tenant, "boot", docAAD(tenant, coll, id), body)
+	} else {
+		ct, err = d.V.Seal(tenant, docAAD(tenant, coll, id), body)
+	}
 	if err != nil {
 		return docs.Doc{}, err
 	}
@@ -422,6 +547,9 @@ func (r *Raw) Get(ctx context.Context, tenant, id string) (ingest.RawFile, error
 		f.Tenant = tenant
 	}
 	pt, err := r.V.Open(tenant, rawAAD(f), f.Content)
+	if errors.Is(err, ErrKeyUnavailable) {
+		return ingest.RawFile{}, err
+	}
 	if err != nil {
 		return ingest.RawFile{}, fmt.Errorf("file %s: %w", id, err)
 	}

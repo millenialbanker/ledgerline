@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"ledgerline/internal/docs"
+	"ledgerline/internal/vault"
 )
 
 // ---- sign-in: passwords, two-factor codes and sessions ----
@@ -247,6 +248,9 @@ func (o *Ops) Login(ctx context.Context, tenant, userID, pw, otp, ip, agent stri
 	now := o.now()
 	u, uerr := o.user(ctx, tenant, userID)
 	c, _, cerr := o.cred(ctx, tenant, userID)
+	if e := errors.Join(uerr, cerr); errors.Is(e, vault.ErrKeyUnavailable) {
+		return "", AuthState{}, vault.ErrKeyUnavailable // the firm's own key is withheld: say so, not "wrong password"
+	}
 	if uerr != nil || cerr != nil || c.Hash == "" {
 		checkPassword("pbkdf2-sha256$600000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", pw) // same work either way
 		o.log(ctx, tenant, userID, "auth.login_failed", userID, map[string]any{"reason": "unknown user", "ip": ip})
@@ -348,6 +352,9 @@ func (o *Ops) SessionUser(ctx context.Context, tenant, tok string) (AuthState, e
 	}
 	id := tokenID(tok)
 	s, ver, err := docs.Get[Session](ctx, o.Docs, tenant, cSession, id)
+	if errors.Is(err, vault.ErrKeyUnavailable) {
+		return AuthState{}, err
+	}
 	if err != nil {
 		return AuthState{}, ErrSessionEnded
 	}

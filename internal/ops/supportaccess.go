@@ -604,7 +604,7 @@ func (o *Ops) RequestSupportAccess(ctx context.Context, operator string, in Supp
 		o.securityEvent(ctx, tenant, "support_access.approved", "info", supportOutageActor, r.ID, map[string]any{"rule": "outage"})
 		o.raiseWork(ctx, tenant, "support_access", r.ID, "Ledgerline support is in under the outage rule ("+r.ID+")",
 			what+" It was let in at once under your standing read-only rule for outages. End it on Admin → Support access if you did not expect it.", "", approver, "supportaccess", now.Format("2006-01-02"))
-		o.mailSupportAccess(ctx, tenant, set, fmt.Sprintf("[%s] Ledgerline support is in under your outage rule (%s)", set.Firm, r.ID), what+"\n\nIt was let in at once under your standing read-only rule for outages, until "+fmtIST(r.Expires)+". End it at any time on Admin → Support access in Ledgerline.", r.ID)
+		o.mailSupportAccess(ctx, tenant, set, fmt.Sprintf("[%s] Ledgerline support is in under your outage rule (%s)", set.Firm, r.ID), what+"\n\nIt was let in at once under your standing read-only rule for outages, until "+supportTimeIST(r.Expires)+". End it at any time on Admin → Support access in Ledgerline.", r.ID)
 		return r, nil
 	}
 	o.raiseWork(ctx, tenant, "support_access", r.ID, "Approve or refuse Ledgerline support access ("+r.ID+")", what+" Approve or refuse it on Admin → Support access.", "", approver, "supportaccess", now.Format("2006-01-02"))
@@ -612,7 +612,7 @@ func (o *Ops) RequestSupportAccess(ctx context.Context, operator string, in Supp
 	return r, nil
 }
 
-func fmtIST(ts string) string {
+func supportTimeIST(ts string) string {
 	if t, err := time.Parse(time.RFC3339, ts); err == nil {
 		return t.In(ist).Format("02 Jan 2006 15:04") + " IST"
 	}
@@ -714,7 +714,7 @@ func (o *Ops) decide(ctx context.Context, tenant, actor, id string, approve bool
 		if r.AskedAreas != nil || r.AskedWrite || r.AskedHours > 0 {
 			detail["narrowed"] = true
 		}
-		o.closeWork(ctx, tenant, actor, "support_access", r.ID, "approved until "+fmtIST(r.Expires))
+		o.closeWork(ctx, tenant, actor, "support_access", r.ID, "approved until "+supportTimeIST(r.Expires))
 	} else {
 		o.closeWork(ctx, tenant, actor, "support_access", r.ID, "refused")
 	}
