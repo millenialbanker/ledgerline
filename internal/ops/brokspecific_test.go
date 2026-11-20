@@ -96,7 +96,7 @@ func TestSpecificBasketRates(t *testing.T) {
 	ctx := t.Context()
 	d := money.MustDec
 	type R = charges.BrokerageRule
-	if _, err := o.SaveScripGroup(ctx, T, "farhan.khan", ScripGroup{Name: "SL00000217", Members: []GroupMember{{Scrip: "INE245A01021", From: "2026-04-01"}}}); err != nil {
+	if _, err := o.SaveScripGroup(ctx, T, "farhan.khan", ScripGroup{Name: "GRP00001", Members: []GroupMember{{Scrip: "INE245A01021", From: "2026-04-01"}}}); err != nil {
 		t.Fatal(err)
 	}
 	basket := map[string]R{
@@ -110,8 +110,8 @@ func TestSpecificBasketRates(t *testing.T) {
 		"FO-OPT|NSE|*|stock":                     {Mode: charges.PlanPct, Pct: d("0.40"), MinPerLot: d("30")},
 		"FO-OPT|NSE|online|index":                {Mode: charges.PlanPct, Pct: d("0.20"), MinPerLot: d("40")},
 		"FO-OPT|NSE|online|stock":                {Mode: charges.PlanPct, Pct: d("0.20"), MinPerLot: d("20")},
-		"CM-DEL|*|*|*|group:SL00000217":          {Mode: charges.PlanPct, Pct: d("0.002")},
-		"CM-INTRA|*|*|*|group:SL00000217":        {Mode: charges.PlanPct, Pct: d("0.002")},
+		"CM-DEL|*|*|*|group:GRP00001":            {Mode: charges.PlanPct, Pct: d("0.002")},
+		"CM-INTRA|*|*|*|group:GRP00001":          {Mode: charges.PlanPct, Pct: d("0.002")},
 		"FO-OPT|*|*|*|group:NOPE":                {Mode: charges.PlanZero},
 		"CM-DEL|NSE|online|*|scrip:INE002A01018": {Mode: charges.PlanPct, Pct: d("0.01")},
 	}
@@ -140,7 +140,7 @@ func TestSpecificBasketRates(t *testing.T) {
 			x.Settlement = "A"
 			return x
 		}(),
-		// SB2 buys 100 TATAPOWER (in group SL00000217 by ISIN) at 400: 0.002% = ₹0.80.
+		// SB2 buys 100 TATAPOWER (in group GRP00001 by ISIN) at 400: 0.002% = ₹0.80.
 		eq("105", "O5", "SB2", "TATAPOWER", "B", 100, "400", "90001"),
 		// SB2 online buys 10 RELIANCE: the scrip's own line (by ISIN), 0.01%.
 		eq("106", "O6", "SB2", "RELIANCE", "B", 10, "1000", "90001"),
@@ -156,12 +156,12 @@ func TestSpecificBasketRates(t *testing.T) {
 	wantBrok(t, orderOf(t, out, "O1", "CM-DEL"), "80", "CM-DEL|NSE|*|*")        // 40 × 1,000 × 0.2%
 	wantBrok(t, orderOf(t, out, "O3", ""), "10", "CM-DEL|NSE|online|*")
 	wantBrok(t, orderOf(t, out, "O4", ""), "0.60", "CM-DEL|NSE|*|auction")
-	wantBrok(t, orderOf(t, out, "O5", ""), "0.80", "CM-DEL|*|*|*|group:SL00000217")
+	wantBrok(t, orderOf(t, out, "O5", ""), "0.80", "CM-DEL|*|*|*|group:GRP00001")
 	wantBrok(t, orderOf(t, out, "O6", ""), "1", "CM-DEL|NSE|online|*|scrip:INE002A01018")
 	wantBrok(t, orderOf(t, out, "F1", ""), "120", "FO-OPT|NSE|*|index")
 	wantBrok(t, orderOf(t, out, "F2", ""), "20", "FO-OPT|NSE|online|stock")
 	wantBrok(t, orderOf(t, out, "F3", ""), "60", "FO-OPT|NSE|online|index")
-	if x := orderOf(t, out, "O5", ""); x.Plan != "Basket 1" || !strings.Contains(x.LineName, "group SL00000217") || x.Channel != "online" {
+	if x := orderOf(t, out, "O5", ""); x.Plan != "Basket 1" || !strings.Contains(x.LineName, "group GRP00001") || x.Channel != "online" {
 		t.Errorf("rule shown %+v", x)
 	}
 	// The split trade's brokerage adds up across its two parts (12 + 80).
@@ -179,7 +179,7 @@ func TestSpecificBasketRates(t *testing.T) {
 	wantBrok(t, orderOf(t, out, "O1", ""), "200", "CM-DEL|NSE|*|*")
 	// Preview and quote say which line applies.
 	q, ok, err := o.QuoteLine(ctx, T, "SB2", "TATAPOWER", charges.RateQuery{Bucket: charges.CMDelivery, Exchange: "NSE", Channel: "online"}, bkDay)
-	if err != nil || !ok || q.Line != "CM-DEL|*|*|*|group:SL00000217" {
+	if err != nil || !ok || q.Line != "CM-DEL|*|*|*|group:GRP00001" {
 		t.Errorf("quote %+v %v %v", q, ok, err)
 	}
 	q, _, _ = o.QuoteLine(ctx, T, "SB2", "INFY", charges.RateQuery{Bucket: charges.FOOpt, Exchange: "NSE", Channel: "online"}, bkDay)
@@ -334,7 +334,7 @@ func TestSpecificImport(t *testing.T) {
 	load := func(src, csv string) (ingest.Result, error) {
 		return o.LoadFile(ctx, T, "farhan.khan", src, bkDay, strings.ToLower(src)+".csv", []byte(csv))
 	}
-	groups := "Group,Scrip,From,To,Note\nETF,NIFTYBEES,2026-04-01,,Exchange traded funds\nETF,GOLDBEES,2026-04-01,,\nSL00000217,INE245A01021,2026-04-01,2026-12-31,\n"
+	groups := "Group,Scrip,From,To,Note\nETF,NIFTYBEES,2026-04-01,,Exchange traded funds\nETF,GOLDBEES,2026-04-01,,\nGRP00001,INE245A01021,2026-04-01,2026-12-31,\n"
 	if res, err := load("SCRIP-GROUPS", groups+"bad group!,X,,,\nETF,GOLDBEES,2026-13-01,,\n"); !errors.Is(err, ingest.ErrRejected) || len(res.Errors) != 2 || res.Errors[0].Line != 5 || res.Errors[1].Line != 6 {
 		t.Fatalf("bad groups: %v %+v", err, res.Errors)
 	}
@@ -346,7 +346,7 @@ func TestSpecificImport(t *testing.T) {
 	}
 	head := "Card,Name,From,Product,Exchange,Channel,Case,Scrip,Group,Underlying,Mode,Pct,PerLot,MinPerShare,MinPerLot,MinPerNote,Basis\n"
 	good := "B1,Basket 1,2026-04-01,CM-DEL,NSE,,,,,,pct,0.20,,0.02,,,\n" +
-		"B1,Basket 1,2026-04-01,CM-DEL,,,,,SL00000217,,pct,0.002,,,,,\n" +
+		"B1,Basket 1,2026-04-01,CM-DEL,,,,,GRP00001,,pct,0.002,,,,,\n" +
 		"B1,Basket 1,2026-04-01,CM-DEL,,online,,RELIANCE,,,pct,0.08,,,,10,market\n" +
 		"B1,Basket 1,2026-04-01,FO-OPT,NSE,online,index,,,,pct,0.20,,,40,,\n" +
 		"B1,Basket 1,2026-04-01,FO-OPT,,,,,,NIFTY,per_lot,,10,,,,\n"
@@ -389,7 +389,7 @@ func TestSpecificImport(t *testing.T) {
 	}
 	r := p.Versions[0].Rules
 	if len(r) != 5 || r["CM-DEL|*|online|*|scrip:RELIANCE"].Basis != charges.BasisMarket || r["CM-DEL|*|online|*|scrip:RELIANCE"].MinPerNote.Cmp(money.MustDec("10")) != 0 ||
-		r["FO-OPT|*|*|*|und:NIFTY"].Mode != charges.PlanPerLot || r["CM-DEL|*|*|*|group:SL00000217"].Pct.Cmp(money.MustDec("0.002")) != 0 {
+		r["FO-OPT|*|*|*|und:NIFTY"].Mode != charges.PlanPerLot || r["CM-DEL|*|*|*|group:GRP00001"].Pct.Cmp(money.MustDec("0.002")) != 0 {
 		t.Fatalf("card lines %+v", r)
 	}
 	if res, err := load("BROKERAGE-CLIENTS", "UCC,Card,From\nSI1,B1,2026-04-01\n"); err != nil || res.Added != 1 {
