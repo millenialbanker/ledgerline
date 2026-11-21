@@ -1027,6 +1027,13 @@ func (o *Ops) SendSalaryHDFC(ctx context.Context, tenant, actor, month string) (
 	if err := o.require(ctx, tenant, actor, "Sending salary to the bank", RolePayroll, RoleHR); err != nil {
 		return SalarySend{}, err
 	}
+	r, _, err := docs.Get[PayRun](ctx, o.Docs, tenant, cPayRun, month)
+	if err != nil {
+		return SalarySend{}, err
+	}
+	if r.Status != "Approved" {
+		return SalarySend{}, fmt.Errorf("%w: the payroll is %s; salary is sent once it is approved", ErrState, strings.ToLower(r.Status))
+	}
 	x, err := o.hdfcPay(ctx, tenant)
 	if err != nil {
 		return SalarySend{}, err
@@ -1037,13 +1044,6 @@ func (o *Ops) SendSalaryHDFC(ctx context.Context, tenant, actor, month string) (
 	}
 	if client == x.client {
 		return SalarySend{}, invalid("the salary client code must be the firm's own account, not the client payout client code")
-	}
-	r, _, err := docs.Get[PayRun](ctx, o.Docs, tenant, cPayRun, month)
-	if err != nil {
-		return SalarySend{}, err
-	}
-	if r.Status != "Approved" {
-		return SalarySend{}, fmt.Errorf("%w: the payroll is %s; salary is sent once it is approved", ErrState, strings.ToLower(r.Status))
 	}
 	if r.MadeBy == actor {
 		return SalarySend{}, fmt.Errorf("%w: someone other than the payroll's maker sends the salary", ErrForbidden)

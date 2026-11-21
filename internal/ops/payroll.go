@@ -1171,12 +1171,10 @@ func (o *Ops) payLine(ctx context.Context, tenant string, pc payCtx, e Employee)
 		ps = e.JoinedOn
 	}
 	if s0, ok := o.structureOn(ctx, tenant, e.Code, ps); ok {
-		var full money.Amount
-		for _, c := range s0.Components {
-			if c.ESIWage {
-				full += c.Amount
-			}
-		}
+		// ESI "wages" are all remuneration (ESI Act s.2(22)): eligibility
+		// is on the whole monthly pay; the contribution on the components
+		// marked for ESI.
+		full := s0.gross()
 		limit := st.ESIThreshold
 		if e.Disabled {
 			limit = st.ESIDisabled

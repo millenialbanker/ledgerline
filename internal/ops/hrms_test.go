@@ -84,8 +84,8 @@ func TestModuleSwitchAndControl(t *testing.T) {
 	if err := o.applyModule(ctx, T, ModPayroll, true); err != nil {
 		t.Fatal(err)
 	}
-	if m := o.Modules(ctx, T); m.On(ModPayroll) {
-		t.Fatal("payroll on without HRMS")
+	if m := o.Modules(ctx, T); !m.On(ModPayroll) || !m.HRMS {
+		t.Fatalf("payroll on did not bring HRMS: %+v", m)
 	}
 	if err := o.applyModule(ctx, T, ModHRMS, true); err != nil {
 		t.Fatal(err)
@@ -495,6 +495,7 @@ func TestPhonePunchDeviceBindingAndOffice(t *testing.T) {
 	if _, err := o.PunchAttendance(ctx, T, "priya.nair", in); err == nil {
 		t.Fatal("punch 300 m away accepted")
 	}
+	r.at("2026-05-04 18:40")
 	in.IP, in.HasLoc = "10.20.4.5", false
 	in.Kind = "out"
 	if _, err := o.PunchAttendance(ctx, T, "priya.nair", in); err != nil {

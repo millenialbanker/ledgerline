@@ -121,6 +121,12 @@ func (o *Ops) startJoining(ctx context.Context, tenant, actor string, e Employee
 	add("bgcheck", "Background check", RoleHR, false, "")
 	add("coc", "Code of conduct signed (upload it to the employee's documents)", RoleHR, false, "")
 	add("trading", "Own trading accounts declared and holdings declared on joining", RoleCompliance, false, "")
+	if o.ModuleOn(ctx, tenant, ModPayroll) {
+		// Payroll needs these before the first month's run: without a
+		// structure the person is left out of the run; without the UAN or
+		// ESIC number the PF and ESI returns cannot carry them.
+		add("payroll", "Salary structure, salary bank account, PF (UAN) and ESI enrolment", RolePayroll, false, "")
+	}
 	o.saveList(ctx, tenant, actor, c)
 	o.log(ctx, tenant, actor, "hr.joining.started", e.Code, map[string]any{"items": len(c.Items)})
 }
