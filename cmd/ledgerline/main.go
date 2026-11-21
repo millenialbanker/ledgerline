@@ -226,6 +226,17 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 	} else if !dev {
 		log.Warn("migration uploads go to a temporary folder: set LEDGERLINE_WORK_DIR to a folder with room for the packages")
 	}
+	// Archive storage: where archived periods' packages go (Admin → Data &
+	// exit → Archive). A separate, cheaper disk, or object storage mounted
+	// as a folder (for example with s3fs, gcsfuse or rclone mount); packages
+	// are encrypted with the firms' keys before they are written. Unset, they
+	// go to a folder in the work folder and the archive screen warns.
+	if dir := os.Getenv("LEDGERLINE_ARCHIVE_DIR"); dir != "" {
+		o.ArchiveDir = dir
+		log.Info("archived periods go to archive storage", "dir", dir)
+	} else if !dev {
+		log.Warn("archive storage is not set: set LEDGERLINE_ARCHIVE_DIR to a separate disk or mounted object storage before archiving periods")
+	}
 	// Exchange holidays: NSE's lists are fetched from its API (BSE follows
 	// them); MCX's come from its circular. LEDGERLINE_HOLIDAY_FETCH=off
 	// stops fetching; LEDGERLINE_NSE_URL points at a gateway or mirror.

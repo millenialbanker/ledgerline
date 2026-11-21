@@ -39,6 +39,7 @@ var snapTables = []struct{ name, order string }{
 	{"audit_log", "id"},
 	{"doc", "coll, id"},
 	{"doc_history", "seq"},
+	{"archive_period", "id"}, // the records of archived periods (0005)
 }
 
 func (s *Store) Backend() string { return "postgres" }

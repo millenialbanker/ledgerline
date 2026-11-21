@@ -216,6 +216,48 @@ func (m *Mem) ImportTenant(tenant string, ds []Doc) error {
 	return nil
 }
 
+// RemoveDocs takes the listed documents (collection|id) out and returns
+// them with their versions. Only app.MemSnapshot's period archive calls it.
+func (m *Mem) RemoveDocs(tenant string, refs map[string]bool) []Doc {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []Doc
+	for r := range refs {
+		c, id, ok := strings.Cut(r, "|")
+		if !ok {
+			continue
+		}
+		k := key(tenant, c, id)
+		if d, ok := m.docs[k]; ok {
+			out = append(out, d)
+			delete(m.docs, k)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Collection != out[j].Collection {
+			return out[i].Collection < out[j].Collection
+		}
+		return out[i].ID < out[j].ID
+	})
+	return out
+}
+
+// PutDocs puts documents back with their versions (a restored archive).
+// None may be there yet.
+func (m *Mem) PutDocs(tenant string, ds []Doc) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, d := range ds {
+		if _, ok := m.docs[key(tenant, d.Collection, d.ID)]; ok {
+			return fmt.Errorf("docs: %s/%s is already stored", d.Collection, d.ID)
+		}
+	}
+	for _, d := range ds {
+		m.docs[key(tenant, d.Collection, d.ID)] = d
+	}
+	return nil
+}
+
 // PurgeTenant removes every document of a tenant and returns how many were
 // removed. It exists only for app.MemSnapshot.PurgeTenant, which deletes a
 // firm that has closed its account through the approved exit flow; nothing

@@ -20,8 +20,10 @@ Approving a margin penalty pass-through | Ops checker, Risk manager, Compliance 
 Approving a migration load | Ops checker
 Approving a move between MCX and equity | Ops checker, Risk manager
 Approving a receipt | Ops checker
+Approving a restore | Compliance officer
 Approving a transfer between the firm's bank accounts | Ops checker
 Approving allocation | Ops checker, Risk manager
+Approving an archive | Compliance officer
 Approving an override | Ops checker, Risk manager
 Approving client changes | Ops checker
 Approving closing the firm's account | Compliance officer
@@ -37,12 +39,15 @@ Approving reactivation | Ops checker, Compliance officer
 Approving the USB token signer's certificate | Compliance officer
 Approving unpledges | Ops checker, Risk manager
 Approving vouchers | Ops checker
+Archiving a period | Compliance officer
 Asking CDSL about eDIS authorisations | Ops maker, Ops checker, Risk manager
 Asking CDSL about early pay-ins | Ops maker, Ops checker, Risk manager
 Asking CDSL about pledges | Ops maker, Ops checker, Risk manager
 Asking clients for WhatsApp consent | Ops checker, Compliance officer
 Asking for a client's authorisation | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
+Asking to archive a period | Admin
 Asking to close the firm's account | Admin
+Asking to restore an archive | Admin
 Assigning brokerage plans | Ops checker
 Authorising sales and TPIN for clients (eDIS) | Ops maker, Ops checker, Branch staff
 Blocking clients in continuous debit | Risk manager
@@ -80,6 +85,7 @@ Changing the DP tariff | Ops checker, Admin
 Changing the MTF policy | Risk manager, Admin
 Changing the RA and IA reporting settings | Compliance officer
 Changing the account type | Ops checker
+Changing the archive rules | Admin
 Changing the chart of accounts | Ops checker
 Changing the compliance calendar | Compliance officer
 Changing the cooling-off period | Admin
@@ -395,6 +401,7 @@ Viewing Ledgerline support access | Compliance officer
 Viewing MCX UCC registrations | Ops maker, Ops checker, Compliance officer
 Viewing RFQ deals | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing an issue's demand | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing archives | Compliance officer
 Viewing backups | Ops checker, Compliance officer
 Viewing clients BSE does not permit to trade | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing connections | Compliance officer, Admin

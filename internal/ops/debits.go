@@ -772,5 +772,10 @@ func (o *Ops) checkLock(ctx context.Context, tenant, date string) error {
 	if l := set.lockedUpTo(o.now().Format("2006-01-02")); l != "" && date <= l {
 		return fmt.Errorf("%w: the books are locked up to %s; ask an admin to unlock the period", ErrState, l)
 	}
+	// Nothing is posted into an archived period (or one being archived):
+	// its entries are in the archive, carried forward as opening balances.
+	if p, ok := o.archivedOn(ctx, tenant, date); ok {
+		return fmt.Errorf("%w: %w: an entry dated %s cannot be posted: %s", ErrState, ErrArchived, date, archivedNote(p))
+	}
 	return nil
 }

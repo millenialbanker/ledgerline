@@ -275,6 +275,9 @@ func fail(w http.ResponseWriter, err error, details any) {
 		writeErr(w, 409, "conflict", err.Error(), details)
 	case errors.Is(err, ledger.ErrNotFound), errors.Is(err, app.ErrNotFound):
 		writeErr(w, 404, "not_found", err.Error(), details)
+	case errors.Is(err, ops.ErrArchived):
+		// in an archived period: the message says when and how to restore
+		writeErr(w, 409, "archived", strings.TrimPrefix(strings.TrimPrefix(err.Error(), app.ErrState.Error()+": "), ops.ErrArchived.Error()+": "), details)
 	case errors.Is(err, app.ErrState):
 		writeErr(w, 409, "invalid_state", err.Error(), details)
 	case errors.Is(err, ingest.ErrRejected):
@@ -388,6 +391,13 @@ func (s *Server) trades(w http.ResponseWriter, r *http.Request) {
 	if origin != "" && origin != ingest.FromExchange && origin != ingest.FromOMS {
 		writeErr(w, 400, "bad_origin", "origin must be EXCHANGE or OMS", nil)
 		return
+	}
+	if s.ops != nil {
+		// a day in an archived period: its trades are in the archive
+		if err := s.ops.ArchivedOverlap(r.Context(), tenant(r), d, d, ""); err != nil {
+			fail(w, err, nil)
+			return
+		}
 	}
 	evs, err := s.app.Trades.List(r.Context(), tenant(r), origin, d)
 	if err != nil {
@@ -632,6 +642,14 @@ func (s *Server) trialBalance(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if s.ops != nil && d != "" {
+		// as of a day inside an archived period the books hold only what
+		// was kept live; the period's last day and later are exact
+		if p := s.ops.ArchivedOverlap(r.Context(), tenant(r), d, d, ""); p != nil && !s.ops.ArchivedPeriodEnd(r.Context(), tenant(r), d) {
+			fail(w, p, nil)
+			return
+		}
+	}
 	tb, err := s.app.Ledger.TrialBalance(r.Context(), tenant(r), d)
 	if err != nil {
 		fail(w, err, nil)
@@ -700,6 +718,13 @@ func (s *Server) statement(w http.ResponseWriter, r *http.Request) {
 			st, err = s.ops.StaffStatement(r.Context(), tenant(r), u, from, to)
 		}
 	} else {
+		if s.ops != nil && from != "" {
+			// an account's lines in an archived period are in the archive
+			if err := s.ops.ArchivedOverlap(r.Context(), tenant(r), from, to, ""); err != nil {
+				fail(w, err, nil)
+				return
+			}
+		}
 		st, err = s.app.Ledger.Statement(r.Context(), tenant(r), acct, from, to)
 	}
 	if err != nil {

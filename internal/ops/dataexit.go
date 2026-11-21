@@ -456,6 +456,13 @@ func (o *Ops) PurgeFirm(ctx context.Context, tenant, actor, id, confirm string) 
 			notes = append(notes, "The firm's work folder could not be deleted: "+err.Error())
 		}
 	}
+	// Its archived periods' packages went into the final export; they go
+	// now with the rest (archive.go).
+	if d, err := o.archiveFolder(tenant); err == nil {
+		if err := os.RemoveAll(d); err != nil {
+			notes = append(notes, "The firm's archive packages could not be deleted: "+err.Error())
+		}
+	}
 	if o.Backups != nil && reTenantDir.MatchString(tenant) {
 		_ = os.Remove(filepath.Join(o.Backups.Path, tenant)) // the firm's backup folder, now empty
 	}

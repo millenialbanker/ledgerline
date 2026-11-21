@@ -119,6 +119,7 @@ type App struct {
 	Snap     Snapshotter
 	Exits    ExitStore
 	Purge    Purger
+	Periods  PeriodStore
 	Schedule charges.Schedule
 	Now      func() time.Time
 	// Adjust, when set, rewrites exchange trades before recon and billing,
@@ -151,14 +152,17 @@ type Stores struct {
 	// exit was approved. Nil: exits are not available on this storage.
 	Exits ExitStore
 	Purge Purger
+	// Periods archives past periods to archive storage and restores them
+	// (archive.go). Nil: archiving is not available on this storage.
+	Periods PeriodStore
 }
 
 // MemoryStores returns in-memory implementations of every store.
 func MemoryStores() Stores {
 	l, r, t, b, a, d := ledger.NewMemStore(), ingest.NewMemRawStore(), ingest.NewMemTradeStore(), NewMemBreakStore(), NewMemAuditStore(), docs.NewMem()
 	x := NewMemExitStore()
-	snap := &MemSnapshot{Ledger: l, Raw: r, Trades: t, Breaks: b, Audit: a, Docs: d, Exits: x}
-	return Stores{Ledger: l, Raw: r, Trades: t, Breaks: b, Audit: a, Docs: d, Snap: snap, Exits: x, Purge: snap}
+	snap := &MemSnapshot{Ledger: l, Raw: r, Trades: t, Breaks: b, Audit: a, Docs: d, Exits: x, Archives: NewMemArchiveStore()}
+	return Stores{Ledger: l, Raw: r, Trades: t, Breaks: b, Audit: a, Docs: d, Snap: snap, Exits: x, Purge: snap, Periods: snap}
 }
 
 // New builds an App.
@@ -166,7 +170,7 @@ func New(s Stores, reg *ingest.Registry, sched charges.Schedule) *App {
 	return &App{
 		Ledger: ledger.New(s.Ledger),
 		Ingest: &ingest.Service{Raw: s.Raw, Trades: s.Trades, Registry: reg},
-		Trades: s.Trades, Breaks: s.Breaks, Audit: s.Audit, Docs: s.Docs, Snap: s.Snap, Exits: s.Exits, Purge: s.Purge, Schedule: sched, Now: time.Now,
+		Trades: s.Trades, Breaks: s.Breaks, Audit: s.Audit, Docs: s.Docs, Snap: s.Snap, Exits: s.Exits, Purge: s.Purge, Periods: s.Periods, Schedule: sched, Now: time.Now,
 	}
 }
 

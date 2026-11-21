@@ -63,6 +63,8 @@ type ArchiveDoc struct {
 	DeletedBy    string    `json:"deleted_by,omitempty"`
 	DeletedAt    string    `json:"deleted_at,omitempty"`
 	DeleteReason string    `json:"delete_reason,omitempty"`
+	// Archived names the archive its file was moved to (archive.go).
+	Archived string `json:"archived,omitempty"`
 }
 
 type arcFY struct {
