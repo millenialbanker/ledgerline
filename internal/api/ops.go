@@ -83,6 +83,7 @@ func (s *Server) opsRoutes() {
 	s.circularCardRoutes()
 	s.uiLayoutRoutes()
 	s.firmKeyRoutes()
+	s.firmPracticeRoutes()
 	R("GET /v1/me", s.me, false)
 	R("GET /v1/users", s.users, false)
 	R("PUT /v1/users/{id}", s.putUser, true)
@@ -482,8 +483,24 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		fail(w, err, nil)
 		return
 	}
+	old := set
 	if !decode(w, r, &set) {
 		return
+	}
+	forms := func(x string) string {
+		if x = strings.ToLower(strings.TrimSpace(x)); x != "" {
+			return x
+		}
+		return ops.BankAuthBoth
+	}
+	for _, g := range []struct {
+		what    string
+		changed bool
+	}{{"Keeping MCX money as its own balance", old.MCXMoneyApart != set.MCXMoneyApart}, {"How clients authorise bank changes", forms(old.BankAuthForms) != forms(set.BankAuthForms)}} {
+		if err := practiceGuard(g.what, g.changed); err != nil {
+			fail(w, err, nil)
+			return
+		}
 	}
 	ok(w, set, s.ops.SaveSettings(r.Context(), tenant(r), actor(r), set))
 }
@@ -1626,6 +1643,18 @@ func (s *Server) saveBrokerageSetup(w http.ResponseWriter, r *http.Request) {
 	var in ops.BrokerageSetup
 	if !decode(w, r, &in) {
 		return
+	}
+	auction := func(x string) string {
+		if x = strings.ToLower(strings.TrimSpace(x)); x == ops.AuctionRateAlways {
+			return ""
+		}
+		return x
+	}
+	if cur, err := s.ops.BrokerageSetup(r.Context(), tenant(r)); err == nil {
+		if err := practiceGuard("How auction trades are billed", auction(cur.AuctionRate) != auction(in.AuctionRate)); err != nil {
+			fail(w, err, nil)
+			return
+		}
 	}
 	v, err := s.ops.SaveBrokerageSetup(r.Context(), tenant(r), actor(r), in)
 	ok(w, v, err)

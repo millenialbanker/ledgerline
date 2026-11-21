@@ -572,7 +572,7 @@ func (o *Ops) finspotLimits(ctx context.Context, tenant, date string) (finspotCf
 			continue
 		}
 		l := finspotLimit{ID: id, Margin: funds[r.UCC], NotionalCash: r.CashEqColl}
-		if r.Blocked || len(cs[r.UCC].OpenSegments()) == 0 {
+		if r.Blocked || len(cs[r.UCC].OpenSegments()) == 0 || set.KYCPendingBlock && kycPendingWhy(cs[r.UCC]) != "" {
 			l.Margin, l.NotionalCash = money.Min(l.Margin, money.Dec{}), money.Dec{}
 		}
 		out[r.UCC] = l

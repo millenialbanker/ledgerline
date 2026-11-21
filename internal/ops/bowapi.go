@@ -706,6 +706,7 @@ func (o *Ops) bowLimits(ctx context.Context, tenant, date string) (map[string]BO
 		return nil, err
 	}
 	zero := money.Dec{}
+	set, _ := o.Settings(ctx, tenant)
 	out := make(map[string]BOWLimit, len(cs))
 	for u, c := range cs {
 		l := BOWLimit{Securities: money.Max(eq[u], zero), Commodities: money.Max(com[u], zero)}
@@ -726,6 +727,8 @@ func (o *Ops) bowLimits(ctx context.Context, tenant, date string) (map[string]BO
 			l = BOWLimit{Why: "blocked" + firstOf(map[bool]string{true: ": " + c.BlockedReason}[c.BlockedReason != ""], "")}
 		case c.Inactive:
 			l = BOWLimit{Why: "inactive (no trades for the inactivity period)"}
+		case set.KYCPendingBlock && kycPendingWhy(c) != "":
+			l = BOWLimit{Why: kycPendingWhy(c)}
 		case !equityOpen && !comOpen:
 			l = BOWLimit{Why: "no segment open"}
 		default:

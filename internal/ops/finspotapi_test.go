@@ -229,6 +229,10 @@ func (f *fakeNoren) handler(w http.ResponseWriter, r *http.Request) {
 		}
 		ok()
 	case "Limits":
+		if f.limits[act] == nil && !f.exists[act] && f.hold[act] == nil && f.t1[act] == nil && f.blocked[act] == "" {
+			no("Invalid Input : Invalid Account " + act) // made up: the document does not say
+			return
+		}
 		l := f.limits[act]
 		say(map[string]string{"stat": "Ok", "actid": act, "cash": l["cash"], "brkcollamt": l["brkcollamt"], "payin": "0.00", "payout": "0.00", "marginused": "0.00"})
 	case "Holdings":
