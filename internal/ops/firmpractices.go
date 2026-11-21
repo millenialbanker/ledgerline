@@ -596,9 +596,10 @@ func (o *Ops) FirmPractices(ctx context.Context, tenant, actor string) (FirmPrac
 		return FirmPracticesView{}, err
 	}
 	v := FirmPracticesView{Total: len(practiceDefs)}
-	r, _ := o.RoleOf(ctx, tenant, actor)
-	v.CanAnswer = r == RoleAdmin && !IsSupportActor(actor)
-	v.CanApprove = (r == RoleAdmin || r == RoleCompliance) && !IsSupportActor(actor)
+	// The same checks as answering and deciding, so a role the firm made
+	// or edited (roles.go) gets the buttons its screens allow.
+	v.CanAnswer = !IsSupportActor(actor) && o.require(ctx, tenant, actor, "Answering firm practices", RoleAdmin) == nil
+	v.CanApprove = !IsSupportActor(actor) && o.require(ctx, tenant, actor, "Approving firm practices", RoleCompliance, RoleAdmin) == nil
 	for i, d := range practiceDefs {
 		fp := o.firmPractice(ctx, tenant, d.ID)
 		st := o.practiceNow(ctx, tenant, d, fp)

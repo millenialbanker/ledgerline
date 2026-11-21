@@ -185,6 +185,12 @@ var builtinWork = map[string]struct{ do, approve string }{
 // persons reach (each filters to their own clients).
 var scopedScreens = strings.Fields("chat boards rpa yearend insights clients statements notes money debits rms partners prepaid changes helpdesk crm ipo")
 
+// complianceOnly are the screens the console shows, besides the Admin,
+// only to the compliance officer (Firm practices: the Admin answers and
+// Compliance approves; Support access: Compliance approves a session), so
+// the other templates do not have them either.
+var complianceOnly = map[string]bool{"practices": true, "supportaccess": true}
+
 // editableBuiltin reports a built-in role a firm may edit: not Admin
 // (which always has everything) and not the client portal's.
 func editableBuiltin(name string) bool { return contains(Roles, name) && name != RoleAdmin }
@@ -225,6 +231,9 @@ func BuiltinRole(name string) (RoleDef, bool) {
 		}
 	}
 	for _, x := range view {
+		if complianceOnly[x.Key] && name != RoleCompliance && name != RoleAdmin {
+			continue // the console never showed these to the other roles
+		}
 		d.Screens[x.Key] = Power{View: true}
 	}
 	if name == RoleAdmin {

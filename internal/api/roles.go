@@ -88,7 +88,7 @@ var routeScreens = map[string]string{
 	"connections": "connections", "backups": "backups", "data-exit": "dataexit", "data-exports": "dataexit",
 	"settings": "settings", "firm-profile": "settings", "signing": "settings",
 	"users": "users settings", "roles": "roles", "role-changes": "roles", "support-access": "supportaccess", "ui/policy": "layout",
-	"firm-practices": "practices", "go-live": "practices dashboard settings", "finspot-logins": "clients live",
+	"firm-practices": "practices", "go-live": "practices", "finspot-logins": "clients live",
 }
 
 // commonRoutes are open to every staff login whatever their roles: who

@@ -39,6 +39,8 @@ On [[roles|Roles]], click **New role**, or **Edit** or **Copy** on a role. The e
 
 Where you keep a tick the starting role had, the new role does there what that role does today. A tick you add gives every action of that kind on the screen. Actions only an Admin may take stay with Admin, except on the Admin section's screens. Some stay with Admin whatever the role: users and roles (a role may only look at those screens), sign-in resets, full data exports, closing the account and deleting the firm's data, the firm's encryption keys and Ledgerline support access settings.
 
+Of the built-in roles, only the Compliance officer (and Admin) has [[practices|Firm practices]] and Support access, as before. Give a role **Approve** on Firm practices to let its holders approve a change to a firm practice; answering the questions needs **Do** there.
+
 A role limited to a branch or an authorised person reaches only the client-level screens (clients, receipts and payouts, debtors, RMS, CRM and the like), each showing only those clients.
 
 **Reset to default** puts an edited built-in role back as shipped. **Retire** takes a role the firm made out of use; nobody may hold it then. Both need a second Admin, like any change.

@@ -444,7 +444,9 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	if role != ops.RoleClient && s.ops.CanSeeSupportAccess(r.Context(), tenant(r), actor(r)) {
+	// Asked as from the Support access screen, so a role the firm made with
+	// that screen is answered by its screens (ops/roles.go).
+	if role != ops.RoleClient && s.ops.CanSeeSupportAccess(ops.WithAreas(r.Context(), []string{"supportaccess"}), tenant(r), actor(r)) {
 		me["support_access"] = true // Admin → Security → Support access
 	}
 	if set.SeparateCommodityLedger && role != ops.RoleClient {

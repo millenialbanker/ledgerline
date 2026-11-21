@@ -149,7 +149,9 @@ function viewAllowed(k) {
   if (edition() === 'manual' && k === 'autopilot') return false;
   if (role() === 'Authorised person' && k === 'rpa') return false; // automations are for the firm's own staff
   if (k === 'supportaccess' && !S.me?.support_access) return false; // the Admin, Compliance and the firm's chosen approver
-  if (k === 'practices' && !has('Compliance officer')) return false; // Firm practices: the Admin answers, Compliance approves
+  // Firm practices: the Admin answers, Compliance approves; with roles the
+  // firm made or edited, those whose screens include it.
+  if (k === 'practices' && !(S.me?.access ? S.me.access.admin || !!S.me.access.screens?.practices?.view : has('Compliance officer'))) return false;
   return true;
 }
 // groupTabs: the group's tabs this user may open.

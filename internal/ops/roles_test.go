@@ -471,3 +471,53 @@ func TestRoleSummary(t *testing.T) {
 		}
 	}
 }
+
+// Firm practices in the catalogue: the templates show it to the
+// compliance officer only (as the console always has), and a role the
+// firm made with Approve on it sees the questions and approves a change,
+// but cannot answer one (Do) nor approve a change it was not given.
+func TestFirmPracticesRoles(t *testing.T) {
+	o, ctx := rolesSetup(t)
+	for _, n := range Roles {
+		b, _ := BuiltinRole(n)
+		want := n == RoleCompliance || n == RoleAdmin
+		if b.Screens["practices"].View != want || b.Screens["supportaccess"].View != want {
+			t.Errorf("%s: practices %+v, support access %+v", n, b.Screens["practices"], b.Screens["supportaccess"])
+		}
+	}
+	c, err := o.ProposeRole(ctx, T, "admin", RoleDef{Name: "Practices approver", Screens: map[string]Power{"practices": {Approve: true}}})
+	approveRole(t, o, ctx, c, err)
+	c, err = o.ProposeUserRoles(ctx, T, "admin", "neha.brok", []string{"Practices approver"}, "", "")
+	approveRole(t, o, ctx, c, err)
+	fp := on(ctx, "practices")
+	v, err := o.FirmPractices(fp, T, "neha.brok")
+	if err != nil || v.CanAnswer || !v.CanApprove {
+		t.Fatalf("approver's view: %v %v %v", err, v.CanAnswer, v.CanApprove)
+	}
+	if _, err := o.SetFirmPractice(fp, T, "neha.brok", "mcx-apart", PracticeAnswer{Option: "on"}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("answered without Do: %v", err)
+	}
+	fpAnswer(t, o, ctx, "mcx-apart", "on", nil)
+	if _, err := o.DecideFirmPractice(on(ctx, "settings"), T, "neha.brok", "mcx-apart", true, ""); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("approved from another screen: %v", err)
+	}
+	if _, err := o.DecideFirmPractice(fp, T, "neha.brok", "mcx-apart", true, ""); err != nil {
+		t.Fatalf("approver approves: %v", err)
+	}
+	if s, _ := o.Settings(ctx, T); !s.MCXMoneyApart {
+		t.Fatal("not applied")
+	}
+	// An Ops maker copy never had the screen.
+	mk, _ := BuiltinRole(RoleMaker)
+	mk.Name, mk.BuiltIn = "Maker copy", false
+	c, err = o.ProposeRole(ctx, T, "admin", mk)
+	approveRole(t, o, ctx, c, err)
+	c, err = o.ProposeUserRoles(ctx, T, "admin", "ravi.pay", []string{"Maker copy"}, "", "")
+	approveRole(t, o, ctx, c, err)
+	if _, err := o.FirmPractices(fp, T, "ravi.pay"); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("maker copy sees firm practices: %v", err)
+	}
+	if a, _ := o.Access(ctx, T, "ravi.pay"); a.Allows([]string{"practices"}, false) {
+		t.Fatal("maker copy's screens include firm practices")
+	}
+}
