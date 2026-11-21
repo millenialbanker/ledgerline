@@ -34,6 +34,7 @@ var (
 	_ ingest.TradeStore = tradeStoreAdapter{}
 	_ app.BreakStore    = breakStoreAdapter{}
 	_ app.AuditStore    = auditStoreAdapter{}
+	_ app.AuditWindow   = auditStoreAdapter{}
 )
 
 // Open connects and pings.
@@ -145,6 +146,11 @@ WHERE tenant_id = $1::text AND id = $2::text AND status = 'OPEN'`,
 	"audit_last_hash":     `SELECT coalesce((SELECT hash FROM ll.audit_log WHERE tenant_id = $1::text AND hash IS NOT NULL ORDER BY id DESC LIMIT 1), '')`,
 	"insert_audit_sealed": `INSERT INTO ll.audit_log (tenant_id, at, actor, action, object, detail, prev_hash, hash) VALUES ($1::text, $2::timestamptz, $3::text, $4::text, $5::text, $6::jsonb, $7::text, $8::text)`,
 	"scan_audit":          `SELECT id, at, actor, action, object, coalesce(detail::text, ''), coalesce(prev_hash, ''), coalesce(hash, '') FROM ll.audit_log WHERE tenant_id = $1::text AND id > $2::bigint ORDER BY id LIMIT $3::int`,
+	// window_audit reads a time span newest first (the activity feed's
+	// week). Sealed appends take the tenant's lock before inserting, so a
+	// tenant's ids rise in time order and paging by id matches paging by
+	// time; the (tenant_id, id) index serves the walk back from $4.
+	"window_audit": `SELECT id, at, actor, action, object, coalesce(detail::text, ''), coalesce(prev_hash, ''), coalesce(hash, '') FROM ll.audit_log WHERE tenant_id = $1::text AND at >= $2::timestamptz AND at < $3::timestamptz AND ($4::bigint = 0 OR id < $4::bigint) ORDER BY id DESC LIMIT $5::int`,
 }
 
 // ---- ledger.Store ----
@@ -556,6 +562,31 @@ func (s *Store) ScanAudit(ctx context.Context, tenant string, after int64, limit
 	return out, err
 }
 
+// WindowAudit returns entries with from <= at < to (and id < before when
+// before is above zero), newest first.
+func (s *Store) WindowAudit(ctx context.Context, tenant string, from, to time.Time, before int64, limit int) ([]app.AuditEvent, error) {
+	if limit <= 0 || limit > 5000 {
+		limit = 5000
+	}
+	out := []app.AuditEvent{}
+	err := s.tx(ctx, tenant, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, Q["window_audit"], tenant, from.UTC(), to.UTC(), before, limit)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			e, err := scanAudit(rows, tenant)
+			if err != nil {
+				return err
+			}
+			out = append(out, e)
+		}
+		return rows.Err()
+	})
+	return out, err
+}
+
 func (s *Store) ListAudit(ctx context.Context, tenant string, limit int) ([]app.AuditEvent, error) {
 	if limit <= 0 || limit > 10000 {
 		limit = 10000
@@ -591,6 +622,10 @@ func (a auditStoreAdapter) Scan(ctx context.Context, tenant string, after int64,
 		limit = 5000
 	}
 	return a.Store.ScanAudit(ctx, tenant, after, limit)
+}
+
+func (a auditStoreAdapter) Window(ctx context.Context, tenant string, from, to time.Time, before int64, limit int) ([]app.AuditEvent, error) {
+	return a.Store.WindowAudit(ctx, tenant, from, to, before, limit)
 }
 
 func (a auditStoreAdapter) List(ctx context.Context, tenant string, limit int) ([]app.AuditEvent, error) {

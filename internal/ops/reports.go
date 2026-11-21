@@ -487,6 +487,8 @@ type Dashboard struct {
 	BreaksByType  []LabelValue `json:"breaks_by_type"`
 	Sides         []LabelValue `json:"sides"` // Buy, Sell
 	ClientsTraded int          `json:"clients_traded"`
+	// StepsPending are the steps not done on earlier days (stepremind.go).
+	StepsPending []StepItem `json:"steps_pending"`
 }
 
 // ClientStat is one client in a dashboard top-list.
@@ -512,6 +514,7 @@ type LabelValue struct {
 // Dashboard aggregates the day.
 func (o *Ops) Dashboard(ctx context.Context, tenant, date string) (Dashboard, error) {
 	d := Dashboard{Date: date, Recon: map[string]int{}, Risk: map[string]int{}, Notes: map[string]int{}, Settlement: map[string]int{}, Bank: map[string]int{}, Alerts: map[string]int{}, Warnings: []string{}, Extra: map[string]string{}}
+	d.StepsPending = o.StepsPendingEarlier(ctx, tenant, date)
 	ex, err := o.exchangeTrades(ctx, tenant, date)
 	if err != nil {
 		return d, err
