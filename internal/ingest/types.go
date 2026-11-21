@@ -272,6 +272,91 @@ func (m *MemTradeStore) ImportTenant(tenant string, evs []TradeEvent) error {
 	return nil
 }
 
+// RemoveFiles takes the listed files out and returns them. Only
+// app.MemSnapshot's period archive calls it.
+func (m *MemRawStore) RemoveFiles(tenant string, ids map[string]bool) []RawFile {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []RawFile
+	for id := range ids {
+		k := tenant + "|" + id
+		if f, ok := m.files[k]; ok {
+			out = append(out, f)
+			delete(m.files, k)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+// PutFiles puts files back with their IDs (a restored archive). None may
+// be there yet.
+func (m *MemRawStore) PutFiles(tenant string, fs []RawFile) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, f := range fs {
+		if f.Tenant != tenant {
+			return fmt.Errorf("ingest: file %s belongs to %s", f.ID, f.Tenant)
+		}
+		if _, ok := m.files[tenant+"|"+f.ID]; ok {
+			return fmt.Errorf("ingest: file %s is already stored", f.ID)
+		}
+	}
+	for _, f := range fs {
+		m.files[tenant+"|"+f.ID] = f
+		if f.PriorID == "" {
+			if _, ok := m.bySum[f.Tenant+"|"+f.Source+"|"+f.SHA256]; !ok {
+				m.bySum[f.Tenant+"|"+f.Source+"|"+f.SHA256] = f.ID
+			}
+		}
+	}
+	return nil
+}
+
+// TradeRef is how a stored trade is named across stores:
+// origin|exchange|segment|trade_date|trade_no.
+func (t TradeEvent) TradeRef() string { return string(t.Origin) + "|" + t.Key() }
+
+// RemoveTrades takes the listed trades (by TradeRef) out and returns them.
+// Only app.MemSnapshot's period archive calls it.
+func (m *MemTradeStore) RemoveTrades(tenant string, refs map[string]bool) []TradeEvent {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []TradeEvent
+	keep := make([]string, 0, len(m.order))
+	for _, k := range m.order {
+		e := m.events[k]
+		if e.Tenant == tenant && refs[e.TradeRef()] {
+			out = append(out, e)
+			delete(m.events, k)
+			continue
+		}
+		keep = append(keep, k)
+	}
+	m.order = keep
+	return out
+}
+
+// PutTrades puts trades back (a restored archive). None may be there yet.
+func (m *MemTradeStore) PutTrades(tenant string, evs []TradeEvent) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, e := range evs {
+		if e.Tenant != tenant {
+			return fmt.Errorf("ingest: trade %s belongs to %s", e.TradeNo, e.Tenant)
+		}
+		if _, ok := m.events[e.Tenant+"|"+string(e.Origin)+"|"+e.Key()]; ok {
+			return fmt.Errorf("ingest: trade %s is already stored", e.TradeRef())
+		}
+	}
+	for _, e := range evs {
+		k := e.Tenant + "|" + string(e.Origin) + "|" + e.Key()
+		m.events[k] = e
+		m.order = append(m.order, k)
+	}
+	return nil
+}
+
 // PurgeTenant removes every file of a tenant and returns how many were
 // removed. Only app.MemSnapshot.PurgeTenant calls it, for a firm that has
 // closed its account through the approved exit flow.

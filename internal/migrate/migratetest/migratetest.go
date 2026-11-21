@@ -248,6 +248,13 @@ func (m *Mapper) History(ctx context.Context, q migrate.Querier, k migrate.Kind,
 	return nil
 }
 
+// Prepare implements migrate.Preparer (a history package reads the newest
+// company database first, writing nothing).
+func (m *Mapper) Prepare(ctx context.Context, q migrate.Querier, k migrate.Kind, plan migrate.Plan, p migrate.Progress) error {
+	m.call("Prepare " + k.FY)
+	return nil
+}
+
 // DocData is the made-up content of a document: not compressible, so
 // package sizes follow document sizes.
 func DocData(id string, size int) []byte {

@@ -53,8 +53,11 @@ type MemSnapshot struct {
 	Audit  *MemAuditStore
 	Docs   *docs.Mem
 	// Exits holds the operator's exit records, which PurgeTenant checks.
-	Exits   *MemExitStore
-	purgeMu sync.Mutex
+	Exits *MemExitStore
+	// Archives holds the records of archived periods (archive.go).
+	Archives *MemArchiveStore
+	arcOnce  sync.Once
+	purgeMu  sync.Mutex
 }
 
 func (m *MemSnapshot) Backend() string { return "memory" }
@@ -97,6 +100,11 @@ func (m *MemSnapshot) Snapshot(_ context.Context, tenant string, emit func(Recor
 			return err
 		}
 	}
+	for _, r := range m.archives().list(tenant) {
+		if err := put("archive_period", r); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -112,6 +120,7 @@ func (m *MemSnapshot) Restore(_ context.Context, tenant string, next func() (Rec
 		ents   []ledger.Entry
 		audit  []AuditEvent
 		ds     []docs.Doc
+		arcs   []ArchiveRecord
 		n      = map[string]int{}
 	)
 	for {
@@ -149,6 +158,10 @@ func (m *MemSnapshot) Restore(_ context.Context, tenant string, next func() (Rec
 			var x docs.Doc
 			derr = json.Unmarshal(r.Row, &x)
 			ds = append(ds, x)
+		case "archive_period":
+			var x ArchiveRecord
+			derr = json.Unmarshal(r.Row, &x)
+			arcs = append(arcs, x)
 		default:
 			return nil, fmt.Errorf("restore: table %q is not part of an in-memory backup", r.Table)
 		}
@@ -163,5 +176,14 @@ func (m *MemSnapshot) Restore(_ context.Context, tenant string, next func() (Rec
 			return nil, err
 		}
 	}
+	// archive records come back as they were (no state checks: a restore)
+	st := m.archives()
+	st.mu.Lock()
+	for _, r := range arcs {
+		if r.Tenant == tenant {
+			st.m[r.Tenant+"|"+r.ID] = r
+		}
+	}
+	st.mu.Unlock()
 	return n, nil
 }

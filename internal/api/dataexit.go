@@ -28,12 +28,93 @@ func (s *Server) dataExitRoutes() {
 	R("POST /v1/data-exports/{id}/decide", s.dataExportDecide, true)
 	R("POST /v1/data-exports/{id}/link", s.dataExportLink, true)
 	R("GET /v1/data-exports/{id}/download", s.dataExportDownload, false)
+	// Archiving past periods (internal/ops/archive.go).
+	R("GET /v1/period-archives", s.archiveScreen, false)
+	R("POST /v1/period-archives/settings", s.archiveSettings, true)
+	R("POST /v1/period-archives/preview", s.archivePreview, true)
+	R("POST /v1/period-archives", s.archiveRequest, true)
+	R("POST /v1/period-archives/{id}/decide", s.archiveDecide, true)
+	R("POST /v1/period-archives/{id}/restore", s.archiveRestore, true)
+	R("POST /v1/period-archives/{id}/restore/decide", s.archiveRestoreDecide, true)
+	R("POST /v1/period-archives/{id}/again", s.archiveAgain, true)
 	// The certificate after the data is gone: no sign-in (the firm's users
 	// are deleted), only the secret link the firm was given.
 	s.mux.HandleFunc("GET /exit-certificate/{tenant}/{id}", s.exitCertificate)
 	// The operator's record of exits, and a certificate issued again.
 	s.mux.HandleFunc("GET /provider/exits", s.provider(s.providerExits))
 	s.mux.HandleFunc("GET /provider/exits/{tenant}/{id}/certificate", s.provider(s.providerExitCertificate))
+}
+
+func (s *Server) archiveScreen(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.ArchiveScreen(r.Context(), tenant(r), actor(r))
+	ok(w, v, err)
+}
+
+func (s *Server) archiveSettings(w http.ResponseWriter, r *http.Request) {
+	var b ops.ArchiveSettings
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SetArchiveSettings(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) archivePreview(w http.ResponseWriter, r *http.Request) {
+	var b ops.ArchiveAsk
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.PreviewArchive(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) archiveRequest(w http.ResponseWriter, r *http.Request) {
+	var b ops.ArchiveAsk
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.RequestArchive(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) archiveDecide(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Approve bool   `json:"approve"`
+		Note    string `json:"note"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.DecideArchive(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Approve, b.Note)
+	ok(w, v, err)
+}
+
+func (s *Server) archiveRestore(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Reason string `json:"reason"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.RequestRestore(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Reason)
+	ok(w, v, err)
+}
+
+func (s *Server) archiveRestoreDecide(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Approve bool   `json:"approve"`
+		Note    string `json:"note"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.DecideRestore(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Approve, b.Note)
+	ok(w, v, err)
+}
+
+func (s *Server) archiveAgain(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.ArchiveAgain(r.Context(), tenant(r), actor(r), r.PathValue("id"))
+	ok(w, v, err)
 }
 
 func (s *Server) dataExit(w http.ResponseWriter, r *http.Request) {

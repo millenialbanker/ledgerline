@@ -19,6 +19,44 @@ import (
 	"ledgerline/internal/vault"
 )
 
+// TestPeriodArchiveRoutes: the archive screen, a preview, the current year
+// refused, and an entry posted into an archived day answered 409 "archived".
+func TestPeriodArchiveRoutes(t *testing.T) {
+	ops.PasswordIterations = 1000
+	reg, _ := ingest.LoadDir("../../config/adapters")
+	f, _ := os.Open("../../config/charges/sample-schedule.json")
+	defer f.Close()
+	sched, _ := charges.LoadSchedule(f)
+	a := app.New(vault.Protect(app.MemoryStores(), vault.New(vault.Ephemeral())), reg, sched)
+	o := ops.New(a)
+	now := time.Date(2026, 11, 20, 11, 0, 0, 0, time.UTC)
+	o.Now = func() time.Time { return now }
+	o.WorkDir, o.ArchiveDir, o.ArchiveSync = t.TempDir(), t.TempDir(), true
+	ctx := context.Background()
+	if err := o.SeedDev(ctx, "demo"); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(New(a, o, map[string]string{key: "demo"}, slog.New(slog.NewTextHandler(io.Discard, nil)), true))
+	t.Cleanup(srv.Close)
+	if c := ipoCall(t, srv, "GET", "/v1/period-archives", "priya.nair", nil, nil); c != 403 {
+		t.Fatalf("an ops maker saw the archives: %d", c)
+	}
+	var v ops.ArchiveView
+	if c := ipoCall(t, srv, "GET", "/v1/period-archives", "vikram.shah", nil, &v); c != 200 || v.CurrentFY != "2026-27" || len(v.Years) == 0 {
+		t.Fatalf("screen %d %+v", c, v)
+	}
+	var p ops.ArchivePreview
+	if c := ipoCall(t, srv, "POST", "/v1/period-archives/preview", "admin", map[string]any{"fys": []string{"2026-27"}}, &p); c != 200 || len(p.Blockers) == 0 {
+		t.Fatalf("current year preview %d %+v", c, p)
+	}
+	if c := ipoCall(t, srv, "POST", "/v1/period-archives", "admin", map[string]any{"fys": []string{"2026-27"}}, nil); c != 409 {
+		t.Fatalf("current year requested: %d", c)
+	}
+	if c := ipoCall(t, srv, "POST", "/v1/period-archives/settings", "admin", map[string]any{"retain_years": 5}, nil); c != 422 {
+		t.Fatalf("retention below the rules accepted: %d", c)
+	}
+}
+
 func TestDataExitRoutes(t *testing.T) {
 	ops.PasswordIterations = 1000
 	reg, _ := ingest.LoadDir("../../config/adapters")

@@ -192,6 +192,8 @@ func (m *MemSnapshot) PurgeTenant(ctx context.Context, tenant, exitID string, no
 	n["journal_entry"], n["posting"] = m.Ledger.PurgeTenant(tenant)
 	n["audit_log"] = m.Audit.PurgeTenant(tenant)
 	n["doc"] = m.Docs.PurgeTenant(tenant)
+	arcs := m.archives().list(tenant)
+	n["archive_period"] = m.archives().purge(tenant)
 	out, err := finish(n)
 	if err == nil {
 		if out.Tenant != tenant || out.ID != exitID || out.State != ExitPurged {
@@ -208,6 +210,9 @@ func (m *MemSnapshot) PurgeTenant(ctx context.Context, tenant, exitID string, no
 		_ = m.Ledger.ImportTenant(tenant, ents)
 		_ = m.Audit.ImportTenant(tenant, audit)
 		_ = m.Docs.ImportTenant(tenant, ds)
+		for _, a := range arcs {
+			_ = m.archives().save(a)
+		}
 		return ExitRecord{}, err
 	}
 	return out, nil

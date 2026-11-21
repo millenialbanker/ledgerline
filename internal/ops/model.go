@@ -492,6 +492,15 @@ type Ops struct {
 	BackupCopiesDays int
 	closedMu         sync.Mutex
 	closed           map[string]bool // firms purged after closing their account (dataexit.go)
+	// ArchiveDir is archive storage (LEDGERLINE_ARCHIVE_DIR): a separate,
+	// cheaper disk or object storage mounted as a folder, where archived
+	// periods' packages go (archive.go). Empty: a folder in the work
+	// folder, which the archive screen warns about. ArchiveSync archives
+	// and restores before replying (tests).
+	ArchiveDir  string
+	ArchiveSync bool
+	arcMu       sync.Mutex
+	arcRunning  map[string]bool
 }
 
 // New builds Ops and installs the client-code-modification hook on the app.
@@ -505,6 +514,10 @@ func New(a *app.App) *Ops {
 	a.BillingHooks = o.billingHooks
 	a.Observe = o.observeAudit // security events from the audit trail (secevents.go)
 	a.Ledger.Guard = func(ctx context.Context, e ledger.Entry) error { return o.checkLock(ctx, e.Tenant, e.ValueDate) }
+	// a stored file moved to an archive says so (archive.go)
+	if a.Ingest != nil && a.Ingest.Raw != nil {
+		a.Ingest.Raw = arcRaw{RawStore: a.Ingest.Raw, o: o}
+	}
 	o.installFirmKeys()
 	return o
 }

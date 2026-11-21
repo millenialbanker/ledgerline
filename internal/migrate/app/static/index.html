@@ -93,17 +93,21 @@
       <div class="field"><span>Firms</span><div class="firms" id="firms"></div></div>
       <div class="two">
         <div>
-          <label class="field"><span>Years of history</span>
-            <select id="years"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option selected>8</option></select>
-            <span class="dim small">Counting back from the newest year. Ledgerline keeps them read-only.</span></label>
+          <div class="field"><span>What the package is for</span>
+            <label class="check"><input type="radio" name="scope" value="go-live" checked><span>Go-live: the masters, balances and holdings, with the history of the current financial year (<b id="cur-fy"></b>)</span></label>
+            <label class="check"><input type="radio" name="scope" value="history"><span>History package: earlier years only, for a firm already live on Ledgerline</span></label></div>
+          <div class="field"><span id="fys-label">Earlier years to add</span><div class="firms" id="fys"></div>
+            <span class="dim small" id="fys-help"></span></div>
           <div class="field"><span>Archived documents</span>
-            <label class="check"><input type="checkbox" id="docs" checked><span>Include the contract notes and statements SharePro mailed (from its mail archives)</span></label></div>
+            <label class="check"><input type="checkbox" id="docs" checked><span>Include the contract notes and statements SharePro mailed (from its mail archives) for the years in the package</span></label></div>
+          <div id="golive-only">
           <div class="field"><span>Dormant clients</span>
             <label class="check"><input type="radio" name="dormant" value="inactive" checked><span>Migrate them as inactive</span></label>
             <label class="check"><input type="radio" name="dormant" value="skip"><span>Leave them out</span></label></div>
           <div class="field"><span>Clients' own interest rates</span>
             <label class="check"><input type="radio" name="interest" value="keep" checked><span>Keep them</span></label>
             <label class="check"><input type="radio" name="interest" value="firm"><span>Move everyone to the firm's rate</span></label></div>
+          </div>
         </div>
         <div>
           <label class="field"><span>Where to save the package</span>

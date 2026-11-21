@@ -336,10 +336,44 @@ function enterChoose() {
   const firms = S.firms || [];
   fill('firms', firms.length ? firms.map((f) => el('label', { class: 'check' }, el('input', { type: 'checkbox', value: f.code, checked: true }), el('span', {}, el('b', {}, f.code), ' ', f.name)))
     : el('p', { class: 'dim' }, 'Every firm in the newest company database.'));
-  $('years').value = String(S.years || 8);
+  const sc = document.querySelector('input[name=scope][value="' + (S.scope === 'history' ? 'history' : 'go-live') + '"]');
+  if (sc) sc.checked = true;
+  renderYears();
   if (!$('out').value) $('out').value = S.out || '';
   checkOut();
 }
+
+// The years: a go-live package always holds the current financial year
+// (the newest company database's); earlier years may be ticked to come
+// with it. A history package holds only the earlier years ticked.
+function scopeNow() {
+  const r = document.querySelector('input[name=scope]:checked');
+  return r ? r.value : 'go-live';
+}
+
+function renderYears() {
+  const scope = scopeNow(), avail = S.available || [], newest = avail[0] || '';
+  const ticked = new Set(S.fys || []);
+  $('cur-fy').textContent = newest || S.current_fy || '';
+  const earlier = avail.filter((y) => scope === 'history' ? y < (S.current_fy || '9999') : y !== newest);
+  $('fys-label').textContent = scope === 'history' ? 'Years in the history package' : 'Earlier years to add (optional)';
+  $('fys-help').textContent = scope === 'history'
+    ? 'Ledgerline loads them as read-only history and never posts them to the live ledger. The current financial year comes with the go-live package, not here.'
+    : 'Normally none: go live with the current year, then bring earlier years later in a history package. Ledgerline keeps them read-only.';
+  fill('fys', earlier.length ? earlier.map((y) => el('label', { class: 'check' }, el('input', { type: 'checkbox', value: y, checked: ticked.has(y), onchange: chooseYears }), el('span', {}, y)))
+    : el('p', { class: 'dim' }, scope === 'history' ? 'No earlier year was found: drop the company backups of the years to bring across.' : 'No earlier year was found.'));
+  show('golive-only', scope !== 'history');
+}
+
+function chosenYears() {
+  return Array.from(document.querySelectorAll('#fys input:checked'), (i) => i.value);
+}
+
+const chooseYears = act(() => {
+  const scope = scopeNow(), fys = chosenYears();
+  if (scope === 'history' && !fys.length) { show('golive-only', false); return Promise.resolve(); }
+  return call('/api/choose', { scope, fys });
+});
 
 function renderChoose() {}
 
@@ -376,7 +410,15 @@ function setupChoose() {
   };
   $('pp1').addEventListener('input', upd);
   $('pp-show').onchange = (e) => { for (const id of ['pp1', 'pp2']) $(id).type = e.target.checked ? 'text' : 'password'; };
-  $('years').onchange = act(() => call('/api/years', { years: Number($('years').value) }));
+  for (const r of document.querySelectorAll('input[name=scope]')) {
+    r.onchange = () => {
+      // a different kind of package starts with no earlier years ticked
+      for (const i of document.querySelectorAll('#fys input')) i.checked = false;
+      S.fys = [];
+      renderYears();
+      if (scopeNow() === 'go-live') chooseYears();
+    };
+  }
   $('choose-back').onclick = act(() => call('/api/go', { screen: 'found' }));
   $('start').onclick = act(async () => {
     show('choose-err', false);
@@ -385,7 +427,8 @@ function setupChoose() {
     if (all && !firms.length) throw new Error('Tick at least one firm.');
     const body = {
       firms: firms.length === all ? [] : firms,
-      years: Number($('years').value),
+      scope: scopeNow(),
+      fys: chosenYears(),
       documents: $('docs').checked,
       dormant: document.querySelector('input[name=dormant]:checked').value,
       interest: document.querySelector('input[name=interest]:checked').value,

@@ -20,6 +20,7 @@ Moving a firm is done once, at go-live, in five steps.
 - What the old system's backup does not say (for SharePro: the firm-wide DP tariff, and pledge charges it has no rates for) is listed in the tool's report and on the package as **To fill in on Ledgerline after loading**. After the load the Ops checker gets a to-do for each, and DP billing waits until they are filled in on the DP desk.
 - Ledgerline refuses to load into a firm that already has its own ledger entries (it looks live), unless you confirm **This firm is not live yet**.
 - A package is loaded once. Loading it again is refused unless the earlier load was undone.
+- The go-live package normally holds the **current financial year only**. Earlier years come later in a history package (see *Bring earlier years later with a history package*), loaded into the live firm as read-only history.
 - The passphrase is typed each time the package is opened. It is never stored or written to any log.
 
 ## migrate-check
@@ -95,7 +96,7 @@ roles: Ops maker, Ops checker, Compliance officer, Branch staff
 ask: old ledger before ledgerline; previous year ledger from sharepro; earlier years history; old bills; old contract notes register; old dp transactions; year end holdings old system; migrated history; client statement for 2024-25; export old year history csv
 related: migrate-firm, old-documents-archive
 
-A migration brings the earlier years of the old system as **read-only history**, labelled "Migrated from <system> — read only".
+A migration brings the old system's years as **read-only history**, labelled "Migrated from <system> — read only": the current year with the go-live package, and earlier years with a history package when you load one.
 
 1. Open the client and scroll to **Before Ledgerline**. Choose the financial year.
 2. **Ledger** shows the year's statement with the opening balance and a running balance; **Bills**, **Trades**, **Contract notes register**, **Receipts and payments**, **DP transactions**, **DP bills** and **Year-end holdings** show what the old system had. **Archive** lists the client's old documents.

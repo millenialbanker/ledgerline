@@ -42,9 +42,10 @@ jobs:
           LEDGERLINE_TEST_BACKUP_TENANT: ci_backup
           LEDGERLINE_TEST_EXIT_TENANT: ci_exit
           LEDGERLINE_TEST_EXIT_OTHER: ci_exit_other
+          LEDGERLINE_TEST_ARCHIVE_TENANT: ci_archive
           LEDGERLINE_TEST_RESTORE_DB: postgres://ll_owner:ll_owner@localhost:5432/ledgerline_restore?sslmode=disable
         run: |
-          psql -d ledgerline_test -c "CREATE ROLE ll_it LOGIN PASSWORD 'll_it' IN ROLE ledgerline_app; INSERT INTO ll.tenant (id, name) VALUES ('ci', 'CI tenant'), ('ci_ops', 'CI operations tenant'), ('ci_week', 'CI week tenant'), ('ci_backup', 'CI backup tenant'), ('ci_exit', 'CI exit tenant'), ('ci_exit_other', 'CI exit other tenant');"
+          psql -d ledgerline_test -c "CREATE ROLE ll_it LOGIN PASSWORD 'll_it' IN ROLE ledgerline_app; INSERT INTO ll.tenant (id, name) VALUES ('ci', 'CI tenant'), ('ci_ops', 'CI operations tenant'), ('ci_week', 'CI week tenant'), ('ci_backup', 'CI backup tenant'), ('ci_exit', 'CI exit tenant'), ('ci_exit_other', 'CI exit other tenant'), ('ci_archive', 'CI archive tenant');"
           # An empty database to restore into, owned by a role that is not a superuser.
           psql -d postgres -c "CREATE ROLE ll_owner LOGIN PASSWORD 'll_owner'" -c "CREATE DATABASE ledgerline_restore"
           for m in db/migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -d ledgerline_restore -f "$m"; done

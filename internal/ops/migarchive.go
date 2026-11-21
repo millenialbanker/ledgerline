@@ -63,6 +63,8 @@ type ArchiveDoc struct {
 	DeletedBy    string    `json:"deleted_by,omitempty"`
 	DeletedAt    string    `json:"deleted_at,omitempty"`
 	DeleteReason string    `json:"delete_reason,omitempty"`
+	// Archived names the archive its file was moved to (archive.go).
+	Archived string `json:"archived,omitempty"`
 }
 
 type arcFY struct {
@@ -477,6 +479,10 @@ func (o *Ops) DeleteArchived(ctx context.Context, tenant, actor, ucc, id, reason
 			return fmt.Errorf("%w: no such document", ErrNotFound)
 		case d.LegalHold:
 			return fmt.Errorf("%w: the document is on legal hold (%s); it cannot be deleted", ErrState, d.HoldReason)
+		case d.Archived != "":
+			// The file is in an archived period's package, which is kept
+			// whole for the archive's retention (archive.go).
+			return fmt.Errorf("%w: the document is in archive %s; restore the archive to delete it", ErrState, d.Archived)
 		case today < d.RetainUntil:
 			return fmt.Errorf("%w: the document must be kept until %s; it cannot be deleted before then", ErrState, d.RetainUntil)
 		}

@@ -120,7 +120,20 @@ func Run(ctx context.Context, o Options) (res *Result, err error) {
 	// as-of date while the screen may be showing the caller's survey.
 	sv := *o.Survey
 	sv.Firms = append(sv.Firms[:0:0], o.Survey.Firms...)
+	sv.Found = append(sv.Found[:0:0], o.Survey.Found...)
 	o.Survey = &sv
+	// Which years: the plan's scope and years when it gives them (they are
+	// applied to the run's copy of the survey), else the survey's choice.
+	if o.Plan.Scope != "" && (o.Plan.Scope != sv.Scope || len(o.Plan.FYs) > 0) {
+		if err := sv.Choose(ctx, o.Plan.Scope, o.Plan.FYs); err != nil {
+			return nil, err
+		}
+	}
+	o.Plan.Scope = sv.Scope
+	if o.Plan.Scope == "" {
+		o.Plan.Scope = pkg.ScopeGoLive
+	}
+	o.Plan.FYs = sv.ChosenFYs()
 	if o.Now == nil {
 		o.Now = time.Now
 	}
@@ -133,8 +146,8 @@ func Run(ctx context.Context, o Options) (res *Result, err error) {
 	if o.StepWait == 0 {
 		o.StepWait = 30 * time.Second
 	}
-	if o.Plan.Years == 0 {
-		o.Plan.Years = 8
+	if o.Plan.IsHistory() && len(o.Plan.FYs) == 0 {
+		return nil, errors.New("no earlier year to put in the history package: drop the company backups of the years chosen")
 	}
 	if len([]rune(o.Passphrase)) < MinPassphrase {
 		return nil, fmt.Errorf("the passphrase must be at least %d characters", MinPassphrase)
@@ -183,20 +196,34 @@ func Run(ctx context.Context, o Options) (res *Result, err error) {
 		return nil, err
 	}
 
-	// go-live files: fatal on failure
-	r.step("Reading the go-live data from " + newest.DB.Original)
-	if err := r.mapperStep(ctx, "Go-live data", newest, func(w *pkg.Writer) error {
-		return o.Survey.Mapper.Current(ctx, newest.Q, newest.Kind, o.Plan, w, r.prog)
-	}); err != nil {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
+	if o.Plan.IsHistory() {
+		// A history package has no go-live files; the Mapper may still
+		// need the newest company database to tie history to clients.
+		if pr, ok := o.Survey.Mapper.(migrate.Preparer); ok {
+			r.step("Reading the client codes from " + newest.DB.Original)
+			if err := pr.Prepare(ctx, newest.Q, newest.Kind, o.Plan, r.prog); err != nil {
+				if ctx.Err() != nil {
+					return nil, ctx.Err()
+				}
+				return nil, fmt.Errorf("could not read the firms and client codes from %s: %w", newest.DB.Original, err)
+			}
 		}
-		return nil, fmt.Errorf("could not read the go-live data (masters and balances) from %s: %w", newest.DB.Original, err)
+	} else {
+		// go-live files: fatal on failure
+		r.step("Reading the go-live data from " + newest.DB.Original)
+		if err := r.mapperStep(ctx, "Go-live data", newest, func(w *pkg.Writer) error {
+			return o.Survey.Mapper.Current(ctx, newest.Q, newest.Kind, o.Plan, w, r.prog)
+		}); err != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			return nil, fmt.Errorf("could not read the go-live data (masters and balances) from %s: %w", newest.DB.Original, err)
+		}
 	}
 
 	used := o.Survey.Used()
 	for _, f := range used {
-		if f.Kind.Role != "company" {
+		if f.Kind.Role != "company" || !o.Plan.Wants(f.Kind.FY) {
 			continue
 		}
 		if err := ctx.Err(); err != nil {
@@ -216,7 +243,7 @@ func Run(ctx context.Context, o Options) (res *Result, err error) {
 	}
 	if o.Plan.Documents {
 		for _, f := range used {
-			if f.Kind.Role != "mail" {
+			if f.Kind.Role != "mail" || !o.Plan.Wants(f.Kind.FY) {
 				continue
 			}
 			if err := ctx.Err(); err != nil {
@@ -271,6 +298,7 @@ func (r *runner) newPart() (*part, error) {
 	m := w.Manifest()
 	m.Source = pkg.Source{System: r.o.Survey.Mapper.Name(), Server: r.o.Server, Backups: append(r.o.Survey.Backups(), r.o.Extra...)}
 	m.Firms = r.firms()
+	m.Scope, m.Years = r.o.Plan.Scope, append([]string(nil), r.o.Plan.FYs...)
 	p := &part{index: n, tmp: tmp, f: f, cw: cw, w: w, fys: map[string]bool{}}
 	r.parts = append(r.parts, p)
 	if n > 1 {
@@ -573,6 +601,9 @@ func (r *runner) finish() (*Result, error) {
 		if of > 1 {
 			if p.index == 1 {
 				note = "Masters, balances and history"
+				if r.o.Plan.IsHistory() {
+					note = "History"
+				}
 				if p.docs > 0 {
 					note += "; documents " + fyRange(p.fys)
 				}

@@ -18,9 +18,14 @@
 // LLMIG_7Z_PASSWORD (for protected .7z files). --server docker starts SQL
 // Server Express in Docker. plan.json:
 //
-//	{"firms": [], "years": 8, "documents": true, "dormant": "inactive",
+//	{"firms": [], "scope": "go-live", "fys": [], "documents": true, "dormant": "inactive",
 //	 "out": "/path/to/folder", "max_part_gb": 4, "keep": false,
 //	 "live": ["NC2627", "shadmin"], "developer": false}
+//
+// "scope" is "go-live" (the default: the current financial year, plus any
+// earlier years listed in "fys") or "history" (a history package of the
+// earlier years in "fys", for a firm already live). The older "years": N
+// (without "scope") counts N years back from the newest.
 //
 // Nothing is sent over the network except to the SQL Server on this
 // computer (and, with Docker, Microsoft's image download). No telemetry,
@@ -181,9 +186,13 @@ func runHeadless(s *app.Session, server, planFile string, files []string, logw i
 		return err
 	}
 	var p plan
-	p.Years, p.Documents, p.Dormant = 8, true, "inactive"
+	p.Documents, p.Dormant = true, "inactive"
 	if err := json.Unmarshal(b, &p); err != nil {
 		return fmt.Errorf("%s: %w", planFile, err)
+	}
+	if p.Scope == "" && p.Years == 0 {
+		// the default: go live with the current financial year only
+		p.Scope = "go-live"
 	}
 	p.Passphrase = os.Getenv("LLMIG_PASSPHRASE")
 	p.Passphrase2 = p.Passphrase

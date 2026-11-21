@@ -59,3 +59,63 @@ Ledgerline then deletes every record of the firm in one go: documents, their his
 You get the **destruction certificate** at once: what was deleted (counts by kind), when, who asked and approved, the final export's manifest hash, and the date by which copies of backups held elsewhere age out. It is signed like your other documents and emailed to the compliance email in Settings. Keep the link it gives: the certificate can be downloaded again from it without signing in. Ledgerline's provider keeps only a record of the exit and the certificate.
 
 If the firm signs with a USB token signer, the certificate cannot be signed with it: switch to a certificate file or signing service before deleting, or keep the certificate's SHA-256.
+
+Archived periods are deleted too: their packages go into the final export first (archives/<id>.zip), then they are deleted from archive storage with the rest of the firm's data.
+
+## archive-period
+title: Archive closed years to lower storage costs
+screen: dataexit
+roles: Admin, Compliance officer
+ask: archive old years; archive a financial year; move old data to archive; reduce storage cost; database too big; free up space; archive period; archive custom period; cold storage; archive trades and ledger; archive old files; what can be archived; archive preview; storage saving
+related: archive-restore, archived-period-notice, full-data-export
+
+Open [[dataexit|Data & exit]] and the **Archive** tab. An Admin chooses what to move out of the live data:
+
+1. **The period**: whole financial years (one after another), or a first and last date. The current financial year can never be archived.
+2. **What to archive**: stored exchange and clearing files, contract notes and other documents, trade events, ledger entries, document history (earlier versions of records) and migrated history. Leave any of them unticked to keep them live.
+3. Click **Preview**. It shows, for each kind, the rows and bytes it would free, and the estimated saving a month at the storage prices under **Archive rules**. Nothing changes yet.
+4. Click **Ask to archive**. A second person, the compliance officer or another Admin, approves it.
+
+Ledgerline then writes the period to an **archive package** on archive storage (encrypted with the firm's keys and signed like the full export), reads it back and checks every file and every row, and only then removes the rows from the live data. The period's ledger entries are replaced by **opening balances carried forward** on the period's last day, so every balance, statement and report after it stays exactly the same; Ledgerline checks this before it finishes.
+
+What stays live:
+
+- The audit trail, always.
+- Nothing is archived while a reconciliation break, a payout or a pledge request of the period is open, or while closing the account is in progress.
+- The rows of clients with an unpaid debit, open pledges or an open complaint stay live; so do migrated documents on legal hold, KYC documents, vendor bills and evidence files.
+- Migrated history from the old system is stored by year, not by client, so a year inside the period is archived whole (the kept clients' live ledger is not part of it). The preview says so.
+
+Archive packages are kept at least as long as **Keep archives** says (8 years by default, the record-keeping rules for brokers) and cannot be deleted before then.
+
+If the server restarts while an archive is being written, nothing is removed: the archive shows **Failed** and the person who approved it clicks **Start again**. A migrated document inside an archive cannot be deleted until the archive is restored.
+
+## archive-restore
+title: Restore an archived period
+screen: dataexit
+roles: Admin, Compliance officer
+ask: restore archive; unarchive; bring back archived year; see archived data; restore old period; archived on restore it; inspection needs archived year; archive again; re-archive
+related: archive-period, archived-period-notice
+
+On [[dataexit|Data & exit]] → **Archive**, find the archive and click **Restore…** (Admin). Give the reason; a second person approves it.
+
+Ledgerline reads the package back from archive storage and checks its signature and every file again. It puts every row back exactly as it was (the same entry numbers, files with the same bytes), removes the opening balances that stood in for the period, and checks that every balance is unchanged. If the package is missing or damaged, nothing changes and the period stays archived.
+
+A restore cannot be asked for or approved while closing the account is in progress. An archive or restore already approved finishes before the final export is built, so the export holds each period once. If the server restarts during a restore, nothing changes, the period stays archived and an Admin asks again.
+
+The whole archive comes back. When you are done, click **Archive again** to move the same period out again (a second person approves, as before).
+
+## archived-period-notice
+title: "Archived on … restore it to see it"
+screen: dataexit
+roles: Ops maker, Ops checker, Compliance officer, Admin
+ask: archived on; restore it to see it; statement says archived; why can't I see old ledger; old file archived; cannot post entry archived period; trial balance archived; old trades missing; client statement starts later; opening balances carried forward
+related: archive-period, archive-restore
+
+A screen or report that reaches into an **archived period** says when it was archived and that it must be restored to be seen, instead of showing figures that would be incomplete.
+
+- A client statement from the beginning starts the day after the archived period. Its opening balance includes the archived years, so the balance is right.
+- A statement, trade list or trial balance for dates inside the archived period says it is archived. The trial balance on the period's last day and later is exact.
+- A file or migrated year that was archived says which archive holds it.
+- Nothing can be posted with a date inside an archived period.
+
+To see the period again, ask an Admin to restore it on [[dataexit|Data & exit]] → **Archive**.

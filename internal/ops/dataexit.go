@@ -296,6 +296,11 @@ func (o *Ops) exitTick(ctx context.Context, tenant string, now time.Time) bool {
 			return true
 		}
 	}
+	// An archive or restore approved before the exit was asked for
+	// finishes first (archive.go), so the export has the period once.
+	if id := o.archiveBusy(ctx, tenant); id != "" {
+		return true
+	}
 	at := o.now()
 	x := DataExport{ID: newExportID(at), State: DXBuilding, Final: true, Exit: r.ID, RequestedBy: r.RequestedBy, RequestedAt: at.Format(time.RFC3339),
 		ApprovedBy: r.ApprovedBy, ApprovedAt: r.ApprovedAt.In(ist).Format(time.RFC3339), Reason: "Final export before closing the account (" + r.ID + ")"}
@@ -454,6 +459,13 @@ func (o *Ops) PurgeFirm(ctx context.Context, tenant, actor, id, confirm string) 
 	if d, err := o.firmWorkDir(tenant); err == nil {
 		if err := os.RemoveAll(d); err != nil {
 			notes = append(notes, "The firm's work folder could not be deleted: "+err.Error())
+		}
+	}
+	// Its archived periods' packages went into the final export; they go
+	// now with the rest (archive.go).
+	if d, err := o.archiveFolder(tenant); err == nil {
+		if err := os.RemoveAll(d); err != nil {
+			notes = append(notes, "The firm's archive packages could not be deleted: "+err.Error())
 		}
 	}
 	if o.Backups != nil && reTenantDir.MatchString(tenant) {

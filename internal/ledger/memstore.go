@@ -121,6 +121,70 @@ func (m *MemStore) ImportTenant(tenant string, es []Entry) error {
 	return nil
 }
 
+// reindex rebuilds a tenant's key and id indexes; m.mu is held.
+func (m *MemStore) reindex(tenant string) {
+	for k := range m.byKey {
+		if len(k) > len(tenant) && k[:len(tenant)+1] == tenant+"|" {
+			delete(m.byKey, k)
+		}
+	}
+	for k := range m.byID {
+		if len(k) > len(tenant) && k[:len(tenant)+1] == tenant+"|" {
+			delete(m.byID, k)
+		}
+	}
+	for i, e := range m.entries[tenant] {
+		m.byKey[tenant+"|"+e.Key] = i
+		m.byID[tenant+"|"+e.ID] = i
+	}
+}
+
+// RemoveEntries takes the listed entries out of a tenant's journal and
+// returns them. Only app.MemSnapshot's period archive calls it, for an
+// archive approved by a second person whose package was verified.
+func (m *MemStore) RemoveEntries(tenant string, ids map[string]bool) []Entry {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []Entry
+	keep := m.entries[tenant][:0:0]
+	for _, e := range m.entries[tenant] {
+		if ids[e.ID] {
+			out = append(out, clone(e))
+			continue
+		}
+		keep = append(keep, e)
+	}
+	m.entries[tenant] = keep
+	m.reindex(tenant)
+	return out
+}
+
+// PutEntries puts entries back into a tenant's journal with their IDs,
+// sequence numbers and keys (a restored archive). None may be there yet.
+func (m *MemStore) PutEntries(tenant string, es []Entry) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, e := range es {
+		if e.Tenant != tenant {
+			return fmt.Errorf("ledger: entry %s belongs to %s", e.ID, e.Tenant)
+		}
+		if _, ok := m.byID[tenant+"|"+e.ID]; ok {
+			return fmt.Errorf("ledger: entry %s is already in the journal", e.ID)
+		}
+		if _, ok := m.byKey[tenant+"|"+e.Key]; ok {
+			return fmt.Errorf("ledger: key %q is already used", e.Key)
+		}
+	}
+	for _, e := range es {
+		m.entries[tenant] = append(m.entries[tenant], clone(e))
+		if e.Seq > m.seq {
+			m.seq = e.Seq
+		}
+	}
+	m.reindex(tenant)
+	return nil
+}
+
 // PurgeTenant removes every entry of a tenant and returns how many entries
 // and postings were removed. Only app.MemSnapshot.PurgeTenant calls it, for
 // a firm that has closed its account through the approved exit flow.

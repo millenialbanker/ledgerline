@@ -14,8 +14,8 @@ The **Ledgerline migration tool** runs at your office, on your own computer. It 
 1. Download the tool for Windows or the Mac and start it. A page opens in your browser (only this computer can open it).
 2. The tool finds SQL Server on the computer. The best place to run it is the **SharePro server** itself.
 3. **Drop your backups**: the latest SharePro backup and the archives of up to 8 earlier years (.7z, .zip or .bak, or whole folders of them). The next article says where SharePro keeps them.
-4. **What we found** lists every database: the company years (named like NC2627 for 2026-27), the mail archives (NCMAIL2627) and the admin database (shadmin). Years beyond the range you choose are shown as skipped. If the newest backup is more than 2 days old, take a fresh backup in SharePro first.
-5. **Choose** the firms, the years of history (1 to 8), whether to include archived documents, what to do with dormant clients, whether clients' own interest rates come across or everyone moves to the firm's rate, where to save, and a passphrase.
+4. **What we found** lists every database: the company years (named like NC2627 for 2026-27), the mail archives (NCMAIL2627) and the admin database (shadmin). Years not in the package are shown as skipped, with the reason. If the newest backup is more than 2 days old, take a fresh backup in SharePro first.
+5. **Choose** the firms and what the package is for. For go-live choose **Go-live**: it holds the masters, balances and holdings and the history of the **current financial year only**. You may tick earlier years to add, but the usual way is to go live with the current year and bring earlier years later in a history package (see *Bring earlier years later with a history package*). Then choose whether to include archived documents, what to do with dormant clients, whether clients' own interest rates come across or everyone moves to the firm's rate, where to save, and a passphrase.
 6. When the package is ready, the tool shows the checks Ledgerline will verify and any issues with what to do. A printable **report** is saved beside the package.
 7. In Ledgerline, open [[migrate|Files → Migration from old system]] and upload the package. Ledgerline asks for the passphrase and recalculates every check (trial balance, client balances, holdings) before anything goes live.
 
@@ -37,6 +37,25 @@ SharePro's backup job (**SQLBackupAndFTP**) usually writes one **.7z** file per 
 - On the SharePro server itself you can skip the files: choose **Use databases already on this server** and tick the databases. They are read in place and not changed.
 - A .7z with a password (set in SQLBackupAndFTP) is fine: the tool asks for it. RAR files must be unpacked with WinRAR or 7-Zip first.
 - SQL Server Express holds at most 10 GB per database. A bigger backup must be read on the SharePro server, whose SQL Server can restore it.
+
+## migration-history-package
+title: Bring earlier years later with a history package
+screen: files
+roles: Admin, Ops checker
+ask: history package; migrate earlier years later; bring old years later; load previous years after go live; current year only migration; only current financial year; add old financial years; earlier years history later; second migration package; load history into a live firm; years already loaded
+related: migration-tool, migrate-firm, before-ledgerline, old-documents-archive
+
+Go live with the **current financial year only**, then bring the earlier years across when you are ready. That keeps the go-live package small and the go-live day short.
+
+1. In the migration tool, drop the backups of the earlier years you want (for example NC2425 and NC2324, with their mail archives) and also the newest company backup: the tool reads it only to know which client each account belongs to.
+2. On **Choose**, pick **History package** and tick the years. The current financial year cannot be ticked: it came with the go-live package.
+3. Make the package with a passphrase, and upload it on [[migrate|Files → Migration from old system]]. Check it as usual.
+4. **Propose load**. If a year is already in Ledgerline (from the go-live package or an earlier history package), Ledgerline refuses until you tick **Load these years again**; each year then shows the newer copy, and its documents are added beside the ones there.
+5. A second person approves it with the passphrase.
+
+A history package loads only read-only history and archived documents. It never posts to the live ledger, never changes balances, clients or holdings, and never touches the current year. It can be undone (by two people) at any time, even after the firm has posted new entries.
+
+A year that falls in an archived period (Admin → Data & exit → Archive) is refused: restore that archive first, load the history, then archive the period again.
 
 ## migration-passphrase
 title: The migration package's passphrase

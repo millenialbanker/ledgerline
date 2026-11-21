@@ -944,6 +944,13 @@ func (o *Ops) writeExportArchive(ctx context.Context, tenant string, x DataExpor
 			m.Audit.SealKeys = true
 		}
 	}
+	// Archived periods are the firm's data too: each archive package goes
+	// in as archives/<id>.zip, a signed ZIP of its own (archivepkg.go).
+	if n, err := o.exportArchives(ctx, tenant, ew); err != nil {
+		return builtExport{}, err
+	} else if n > 0 {
+		m.Tables["archive_package"] = n
+	}
 	readme := exportReadme(set, m, x)
 	if _, err := ew.file("README.txt", "readme", []byte(readme), 0); err != nil {
 		return builtExport{}, err
@@ -1032,6 +1039,10 @@ func exportReadme(set Settings, m dataexport.Manifest, x DataExport) string {
 	w("                          of the entry before it (prev).")
 	if m.Audit.SealKeys {
 		w("audit/seal-keys.json      The keys the seals are made with (final export only).")
+	}
+	if n := m.Tables["archive_package"]; n > 0 {
+		w("archives/<id>.zip         The %d archived periods, each an archive package as kept in archive storage:", n)
+		w("                          the period's rows as stored, with its own signed manifest and README.txt.")
 	}
 	w("manifest.json             Every file above with its size and SHA-256, the counts, the time and the")
 	w("                          Ledgerline version.")

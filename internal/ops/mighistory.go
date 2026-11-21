@@ -54,6 +54,18 @@ type HistMeta struct {
 	Buckets  int       `json:"buckets"`
 	LoadedAt time.Time `json:"loaded_at"`
 	Removed  bool      `json:"removed,omitempty"`
+	// Archived names the archive its rows were moved to (archive.go).
+	Archived string `json:"archived,omitempty"`
+}
+
+// histArchived is the error for a year whose history is in an archive.
+func (o *Ops) histArchived(ctx context.Context, tenant string, hm HistMeta) error {
+	for _, p := range o.arcIndex(ctx, tenant).Periods {
+		if p.ID == hm.Archived {
+			return archivedErr(p)
+		}
+	}
+	return fmt.Errorf("%w: %w: the %s history was archived (archive %s); restore it on Admin → Data & exit → Archive to see it", ErrState, ErrArchived, hm.FY, hm.Archived)
 }
 
 type histChunk struct {
@@ -253,6 +265,9 @@ func (o *Ops) histMeta(ctx context.Context, tenant, fy, kind string) (HistMeta, 
 // histRows returns one client's rows of a history file, in file order.
 func (o *Ops) histRows(ctx context.Context, tenant string, hm HistMeta, ucc string) ([][]string, error) {
 	ucc = strings.ToUpper(strings.TrimSpace(ucc))
+	if hm.Archived != "" {
+		return nil, o.histArchived(ctx, tenant, hm)
+	}
 	sh, _, err := docs.GetOr(ctx, o.Docs, tenant, cHistShard, fmt.Sprintf("%s|%03d", hm.ID, histBucket(ucc, max(hm.Buckets, 1))), histShard{})
 	if err != nil {
 		return nil, err
@@ -575,6 +590,9 @@ func (o *Ops) ExportHistory(ctx context.Context, tenant, actor, fy, kind string,
 	hm, ok := o.histMeta(ctx, tenant, fy, strings.ToUpper(kind))
 	if !ok {
 		return fmt.Errorf("%w: no %s history for %s", ErrNotFound, strings.ToLower(kind), fy)
+	}
+	if hm.Archived != "" {
+		return o.histArchived(ctx, tenant, hm)
 	}
 	cw := csv.NewWriter(w)
 	cw.Write([]string{HistoryLabel(hm.System) + " · " + firstOf(histTitles[hm.Kind], hm.Kind) + " " + hm.FY})

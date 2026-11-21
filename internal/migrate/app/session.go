@@ -744,8 +744,14 @@ func (s *Session) classify(ctx context.Context, p progress) error {
 	s.mu.Lock()
 	ins := s.inputs()
 	years := 8
+	// The years chosen: by default a go-live package of the current
+	// financial year only (earlier years come later in a history package).
+	scope, fys := pkg.ScopeGoLive, []string(nil)
 	if s.survey != nil {
 		years = s.survey.Years
+		if s.survey.Scope != "" {
+			scope, fys = s.survey.Scope, s.survey.FYs
+		}
 	}
 	s.mu.Unlock()
 	if len(ins) == 0 {
@@ -754,6 +760,12 @@ func (s *Session) classify(ctx context.Context, p progress) error {
 	sv, err := run.Classify(ctx, s.Mapper, ins, years, s.Now())
 	if err != nil {
 		return err
+	}
+	if err := sv.Choose(ctx, scope, fys); err != nil {
+		// years chosen earlier that this survey cannot hold: back to the default
+		if err := sv.Choose(ctx, pkg.ScopeGoLive, nil); err != nil {
+			return err
+		}
 	}
 	s.mu.Lock()
 	s.survey = sv
@@ -823,7 +835,23 @@ func (s *Session) SetYears(ctx context.Context, n int) error {
 	if s.survey == nil {
 		return errors.New("nothing found yet")
 	}
+	s.survey.Scope, s.survey.FYs = "", nil
 	return s.survey.SetYears(ctx, n)
+}
+
+// ChooseYears sets what the package is for: a go-live package (the
+// current financial year, plus any earlier years in fys) or a history
+// package of the earlier years in fys.
+func (s *Session) ChooseYears(ctx context.Context, scope string, fys []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.job != nil && s.job.Running {
+		return errBusy
+	}
+	if s.survey == nil {
+		return errors.New("nothing found yet")
+	}
+	return s.survey.Choose(ctx, scope, fys)
 }
 
 // Go moves between the screens the user may choose (found, choose).
@@ -844,7 +872,13 @@ func (s *Session) Go(screen string) error {
 
 // Choice is what the user chose on "Choose".
 type Choice struct {
-	Firms       []string `json:"firms"`
+	Firms []string `json:"firms"`
+	// Scope is "go-live" (the current financial year, plus any earlier
+	// years in FYs) or "history" (a history package of the years in FYs,
+	// for a firm already live on Ledgerline). Empty: Years counts back from
+	// the newest year (the older choice).
+	Scope       string   `json:"scope"`
+	FYs         []string `json:"fys"`
 	Years       int      `json:"years"`
 	Documents   bool     `json:"documents"`
 	Dormant     string   `json:"dormant"`
@@ -864,8 +898,18 @@ func (s *Session) Validate(c Choice) error {
 	if c.Passphrase != c.Passphrase2 {
 		return errors.New("the two passphrases are not the same")
 	}
-	if c.Years < 1 || c.Years > 8 {
-		return errors.New("choose between 1 and 8 years of history")
+	switch c.Scope {
+	case "":
+		if c.Years < 1 || c.Years > 8 {
+			return errors.New("choose between 1 and 8 years of history")
+		}
+	case pkg.ScopeGoLive:
+	case pkg.ScopeHistory:
+		if len(c.FYs) == 0 {
+			return errors.New("tick the earlier financial years to put in the history package")
+		}
+	default:
+		return errors.New("choose a go-live package or a history package")
 	}
 	if c.Interest != "" && c.Interest != "keep" && c.Interest != "firm" {
 		return errors.New("choose what to do with clients' own interest rates")
@@ -914,7 +958,13 @@ func (s *Session) Start(c Choice) error {
 		s.mu.Unlock()
 		return errors.New("nothing found yet")
 	}
-	if sv.Years != c.Years {
+	if c.Scope != "" {
+		if err := sv.Choose(context.Background(), c.Scope, c.FYs); err != nil {
+			s.mu.Unlock()
+			return err
+		}
+	} else if sv.Scope != "" || sv.Years != c.Years {
+		sv.Scope, sv.FYs = "", nil
 		sv.SetYears(context.Background(), c.Years)
 	}
 	if sv.Newest() == nil {
@@ -932,7 +982,7 @@ func (s *Session) Start(c Choice) error {
 	maxPart := int64(c.MaxPartGB * (1 << 30))
 	opts := run.Options{
 		Survey:     sv,
-		Plan:       migrate.Plan{Firms: c.Firms, Years: c.Years, Documents: c.Documents, DormantMode: dormant, ClientInterest: interest},
+		Plan:       migrate.Plan{Firms: c.Firms, Scope: sv.Scope, FYs: sv.ChosenFYs(), Years: c.Years, Documents: c.Documents, DormantMode: dormant, ClientInterest: interest},
 		Server:     s.end.String(),
 		Out:        strings.TrimSpace(c.Out),
 		Work:       s.Work,

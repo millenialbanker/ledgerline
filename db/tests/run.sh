@@ -15,6 +15,7 @@ for m in db/migrations/*.sql; do
   psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$m"
 done
 psql -v ON_ERROR_STOP=1 -d "$DB" -f db/tests/0001_core_test.sql
+psql -v ON_ERROR_STOP=1 -d "$DB" -f db/tests/0005_archive_test.sql
 tmp=$(mktemp -d)
 LL_DUMP_SQL="$tmp/prepared.sql" go test ./internal/pgstore -run TestDumpPrepared -count=1 >/dev/null
 grep -v -e '^BEGIN;' -e '^ROLLBACK;' -e '^SET ROLE' -e 'set_config' "$tmp/prepared.sql" > "$tmp/prep.sql"

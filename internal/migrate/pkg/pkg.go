@@ -96,11 +96,32 @@ const (
 	DocOther        = "Other"
 )
 
+// Package scopes: what a package is for.
+const (
+	// ScopeGoLive is the package a firm goes live with: the go-live files
+	// (masters, opening balances, holdings) and the history and documents
+	// of the years chosen, by default the current financial year only.
+	// Packages made before scopes existed have no scope and are go-live
+	// packages.
+	ScopeGoLive = "go-live"
+	// ScopeHistory is a history package, made later for earlier years:
+	// only their read-only history and archived documents, no go-live
+	// files. It is loaded into a firm that is already live and never posts
+	// to its ledger.
+	ScopeHistory = "history"
+)
+
 // Manifest describes a package.
 type Manifest struct {
 	Format  int       `json:"format"`
 	Created time.Time `json:"created"`
 	Tool    string    `json:"tool"`
+	// Scope is ScopeGoLive or ScopeHistory (empty: a go-live package made
+	// before scopes existed).
+	Scope string `json:"scope,omitempty"`
+	// Years are the financial years ("2026-27") whose history and
+	// documents the package was made to hold.
+	Years   []string  `json:"years,omitempty"`
 	Part    *Part     `json:"part,omitempty"`
 	Source  Source    `json:"source"`
 	Firms   []Firm    `json:"firms"`
@@ -112,6 +133,9 @@ type Manifest struct {
 	// fills in on Ledgerline after the load.
 	FillIn []FillIn `json:"fill_in,omitempty"`
 }
+
+// IsHistory says whether the manifest is of a history package.
+func (m Manifest) IsHistory() bool { return m.Scope == ScopeHistory }
 
 // Part says which part of a split package this is.
 type Part struct {

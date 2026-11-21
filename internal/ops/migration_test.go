@@ -77,6 +77,9 @@ type mspec struct {
 	bigB     int // extra ledger lines for TB002
 	tbDebitX string
 	fillIn   []pkg.FillIn
+	scope    string   // pkg.ScopeHistory for a history package
+	years    []string // the manifest's years
+	extraFY  string   // one more year of ledger history (e.g. the current year)
 }
 
 func writeCSV(t *testing.T, w *pkg.Writer, firm, src string, rows [][]string) {
@@ -102,6 +105,12 @@ func mkPkg(t *testing.T, s mspec) []byte {
 	}
 	m := w.Manifest()
 	m.Part = s.part
+	m.Scope, m.Years = s.scope, s.years
+	if s.extraFY != "" {
+		h, _ := w.History("01", s.extraFY, pkg.HistoryLedger, pkg.HistoryColumns[pkg.HistoryLedger])
+		h.Write([]string{s.extraFY[:4] + "-05-02", "BILL", "X1", "CLIENT:TA001", "Test Client A", "TA001", "CM", "Bill", "10.00", "", "", "", "LED:X"})
+		h.Close()
+	}
 	m.Source = pkg.Source{System: "SharePro", Backups: []pkg.Backup{{Database: "TEST2627", Role: "company", FY: "2026-27", Used: true}}}
 	m.Firms = []pkg.Firm{{Code: "01", Name: "Test Broking", Years: []string{"2024-25", "2025-26", "2026-27"}, AsOf: mAsOf}, {Code: "02", Name: "Other Test Firm"}}
 	if s.masters {
@@ -656,6 +665,95 @@ func TestMigUndoAndLiveGuard(t *testing.T) {
 	}
 	if idx, _ := o.ClientHistory(ctx, MT, "chk.one", "TA001", false); len(idx.Years) != 2 || idx.Archived != 2 {
 		t.Fatalf("history after reload %+v", idx)
+	}
+}
+
+// TestMigHistoryPackage goes live with the current year only, then loads a
+// history package of two earlier years into the live firm: approved by a
+// second person with the passphrase, read-only, nothing posted to the
+// ledger; years already loaded are refused unless confirmed; the current
+// year and go-live files are refused in a history package.
+func TestMigHistoryPackage(t *testing.T) {
+	o, ctx := migSetup(t)
+	o.Now = func() time.Time { return time.Date(2026, 11, 20, 11, 0, 0, 0, ist) }
+	live := checked(t, o, ctx, mkPkg(t, mspec{masters: true, scope: pkg.ScopeGoLive, years: []string{"2026-27"}, checks: goodChecks("2501.00", "")}), "golive.llmig")
+	m, err := o.ProposeMigration(ctx, MT, "adm.one", MigProposal{Package: live.ID, Firm: "01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m, err = o.DecideMigration(ctx, MT, "chk.one", m.ID, true, mPass, ""); err != nil || m.Status != MigLoaded {
+		t.Fatalf("go-live %v %s %s", err, m.Status, m.Error)
+	}
+	// the firm is live: its own entries after go-live
+	if _, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: MT, Key: "live-1", ValueDate: "2026-11-02", Narration: "made-up receipt", Source: ledger.SourceRef{Kind: "MANUAL", ID: "1"},
+		Postings: []ledger.Posting{{Account: "BANK:TESTBANK", Debit: money.MustAmount("100.00")}, {Account: "CLIENT:TA001", Credit: money.MustAmount("100.00")}}, CreatedBy: "adm.two"}); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := o.App.Ledger.Store.List(ctx, MT, ledger.Filter{})
+	balBefore, _ := o.App.Ledger.Balances(ctx, MT, "")
+
+	// go-live files in a history package are refused
+	bad := checked(t, o, ctx, mkPkg(t, mspec{masters: true, history: true, scope: pkg.ScopeHistory, years: []string{"2024-25", "2025-26"}}), "bad.llmig")
+	if _, err := o.ProposeMigration(ctx, MT, "adm.one", MigProposal{Package: bad.ID, Firm: "01"}); err == nil || !strings.Contains(err.Error(), "go-live file") {
+		t.Fatalf("masters in a history package: %v", err)
+	}
+	// the current year in a history package is refused
+	cur := checked(t, o, ctx, mkPkg(t, mspec{history: true, extraFY: "2026-27", scope: pkg.ScopeHistory, years: []string{"2024-25", "2025-26", "2026-27"}}), "cur.llmig")
+	if _, err := o.ProposeMigration(ctx, MT, "adm.one", MigProposal{Package: cur.ID, Firm: "01"}); err == nil || !strings.Contains(err.Error(), "current financial year") {
+		t.Fatalf("current year in a history package: %v", err)
+	}
+
+	hp := checked(t, o, ctx, mkPkg(t, mspec{history: true, docs: true, scope: pkg.ScopeHistory, years: []string{"2024-25", "2025-26"}}), "history.llmig")
+	h, err := o.ProposeMigration(ctx, MT, "adm.one", MigProposal{Package: hp.ID, Firm: "01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !h.History || strings.Join(h.Years, ",") != "2024-25,2025-26" || h.AsOf != "" || len(h.Overlap) != 0 {
+		t.Fatalf("history proposal %+v", h)
+	}
+	if _, err := o.DecideMigration(ctx, MT, "adm.one", h.ID, true, mPass, ""); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("own proposal approved: %v", err)
+	}
+	if _, err := o.DecideMigration(ctx, MT, "chk.one", h.ID, true, "the wrong passphrase", ""); err == nil {
+		t.Fatal("wrong passphrase accepted")
+	}
+	if h, err = o.DecideMigration(ctx, MT, "chk.one", h.ID, true, mPass, ""); err != nil || h.Status != MigLoaded {
+		t.Fatalf("history load %v %s %s", err, h.Status, h.Error)
+	}
+	after, _ := o.App.Ledger.Store.List(ctx, MT, ledger.Filter{})
+	balAfter, _ := o.App.Ledger.Balances(ctx, MT, "")
+	if len(after) != len(before) || fmt.Sprint(balAfter) != fmt.Sprint(balBefore) || len(h.Entries) != 0 {
+		t.Fatalf("a history load touched the ledger: %d -> %d entries", len(before), len(after))
+	}
+	if idx, _ := o.ClientHistory(ctx, MT, "chk.one", "TA001", false); len(idx.Years) != 2 || idx.Archived != 2 {
+		t.Fatalf("history index %+v", idx)
+	}
+
+	// the same years again: refused unless confirmed
+	again := checked(t, o, ctx, mkPkg(t, mspec{history: true, scope: pkg.ScopeHistory, years: []string{"2024-25", "2025-26"}, bigB: 1}), "again.llmig")
+	if _, err := o.ProposeMigration(ctx, MT, "adm.one", MigProposal{Package: again.ID, Firm: "01"}); err == nil || !strings.Contains(err.Error(), "already loaded") {
+		t.Fatalf("overlap not refused: %v", err)
+	}
+	h2, err := o.ProposeMigration(ctx, MT, "adm.one", MigProposal{Package: again.ID, Firm: "01", Overlap: true})
+	if err != nil || strings.Join(h2.Overlap, ",") != "2024-25,2025-26" {
+		t.Fatalf("confirmed overlap %v %+v", err, h2.Overlap)
+	}
+	if h2, err = o.DecideMigration(ctx, MT, "adm.two", h2.ID, true, mPass, ""); err != nil || h2.Status != MigLoaded {
+		t.Fatalf("second history load %v %s", err, h2.Status)
+	}
+
+	// a history load can be undone although the firm has posted since
+	if _, err := o.ProposeUndo(ctx, MT, "adm.one", h2.ID, "loaded twice by mistake"); err != nil {
+		t.Fatal(err)
+	}
+	if h2, err = o.DecideUndo(ctx, MT, "chk.one", h2.ID, true, ""); err != nil || h2.Status != MigUndone {
+		t.Fatalf("undo %v %s", err, h2.Status)
+	}
+	if idx, _ := o.ClientHistory(ctx, MT, "chk.one", "TA001", false); len(idx.Years) != 2 {
+		t.Fatalf("the first history load went with the undo: %+v", idx)
+	}
+	if bal, _ := o.App.Ledger.Balances(ctx, MT, ""); fmt.Sprint(bal) != fmt.Sprint(balBefore) {
+		t.Fatal("the undo touched the ledger")
 	}
 }
 

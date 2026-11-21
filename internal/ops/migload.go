@@ -56,15 +56,23 @@ const (
 
 // Migration is one proposed (and perhaps loaded) migration of a firm.
 type Migration struct {
-	ID           string    `json:"id"`
-	Key          string    `json:"key"`
-	Packages     []string  `json:"packages"` // part 1 first
-	System       string    `json:"system"`
-	Firm         string    `json:"firm"`
-	FirmName     string    `json:"firm_name"`
-	AsOf         string    `json:"as_of"`
-	Files        []string  `json:"files"`
-	NotLive      bool      `json:"not_live,omitempty"` // "this firm is not live yet" was confirmed
+	ID       string   `json:"id"`
+	Key      string   `json:"key"`
+	Packages []string `json:"packages"` // part 1 first
+	System   string   `json:"system"`
+	Firm     string   `json:"firm"`
+	FirmName string   `json:"firm_name"`
+	AsOf     string   `json:"as_of"`
+	Files    []string `json:"files"`
+	NotLive  bool     `json:"not_live,omitempty"` // "this firm is not live yet" was confirmed
+	// History is set for a history package: earlier years' read-only
+	// history and documents loaded into a firm that is already live. It
+	// posts nothing to the ledger and loads no go-live file. Years are the
+	// years it holds; Overlap the years already loaded by another
+	// migration, which the maker confirmed loading again.
+	History      bool      `json:"history,omitempty"`
+	Years        []string  `json:"years,omitempty"`
+	Overlap      []string  `json:"overlap,omitempty"`
 	Status       string    `json:"status"`
 	ProposedBy   string    `json:"proposed_by"`
 	ProposedAt   time.Time `json:"proposed_at"`
@@ -127,6 +135,89 @@ type MigProposal struct {
 	AsOf    string   `json:"as_of"`
 	NotLive bool     `json:"not_live"`
 	Note    string   `json:"note"`
+	// Overlap confirms loading a history package although some of its
+	// years are already loaded (from the go-live package or an earlier
+	// history package); without it such a proposal is refused.
+	Overlap bool `json:"overlap"`
+}
+
+// MigYearsLoaded lists, for each financial year, the migrations whose
+// read-only history or archived documents of that year are in force.
+func (o *Ops) migYearsLoaded(ctx context.Context, tenant string) (map[string][]string, error) {
+	out := map[string][]string{}
+	add := func(fy, mig string) {
+		if fy != "" && !contains(out[fy], mig) {
+			out[fy] = append(out[fy], mig)
+		}
+	}
+	hs, err := o.histMetas(ctx, tenant)
+	if err != nil {
+		return nil, err
+	}
+	for _, h := range hs {
+		add(h.FY, h.Mig)
+	}
+	fs, err := docs.List[arcFY](ctx, o.Docs, tenant, cArcFY, "")
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range fs {
+		if !f.Removed && f.Count > 0 {
+			add(f.FY, f.Mig)
+		}
+	}
+	return out, nil
+}
+
+// migHistoryYears checks a history package's years before a load: none
+// may be the current financial year or later (that year comes with the
+// go-live package and the live ledger), and years already loaded are
+// refused unless the maker confirmed loading them again. It returns the
+// years and the overlapping ones.
+func (o *Ops) migHistoryYears(ctx context.Context, tenant string, parts []MigPackage, firm string, confirm bool) ([]string, []string, error) {
+	years := map[string]bool{}
+	for _, p := range parts {
+		for _, y := range p.Manifest.Years {
+			years[y] = true
+		}
+		for _, f := range p.Manifest.Files {
+			if f.Firm == firm && f.FY != "" && (f.Kind == pkg.KindHistory || f.Kind == pkg.KindDocuments) {
+				years[f.FY] = true
+			}
+		}
+	}
+	ys := sortedKeys(years)
+	cur, _, _ := fyOf(o.now().Format("2006-01-02"))
+	for _, y := range ys {
+		if y >= cur {
+			return nil, nil, invalid("the history package holds %s, which is the current financial year (or later); a history package is for earlier years only. The current year comes with the go-live package", y)
+		}
+		// A year in an archived period (archive.go): its history would
+		// sit beside the archived copy and come back twice on a restore.
+		if len(y) >= 7 {
+			_, s, e := fyOf(y[:4] + "-06-01")
+			for _, p := range o.arcIndex(ctx, tenant).Periods {
+				if s <= p.To && e >= p.From {
+					return nil, nil, fmt.Errorf("%w: the history package holds %s, which is in archived period %s (archive %s); restore that archive first under Admin → Data & exit → Archive", ErrState, y, p.Label, p.ID)
+				}
+			}
+		}
+	}
+	loaded, err := o.migYearsLoaded(ctx, tenant)
+	if err != nil {
+		return nil, nil, err
+	}
+	var overlap []string
+	for _, y := range ys {
+		if len(loaded[y]) > 0 {
+			overlap = append(overlap, y)
+		}
+	}
+	if len(overlap) > 0 && !confirm {
+		return ys, overlap, fmt.Errorf("%w: %s already loaded (migration %s). Loading it again shows the newer copy of each year's history and adds its documents beside the ones there; tick \"Load these years again\" to go ahead", ErrState,
+			strings.Join(overlap, ", ")+map[bool]string{true: " are", false: " is"}[len(overlap) > 1], strings.Join(loaded[overlap[0]], ", "))
+	}
+	return ys, overlap, nil
 }
 
 func stepRank(k string) int {
@@ -273,8 +364,12 @@ func (o *Ops) ProposeMigration(ctx context.Context, tenant, actor string, in Mig
 	if f.Code == "" {
 		return Migration{}, invalid("choose one of the package's firms")
 	}
+	history := man.IsHistory()
 	asOf := firstOf(strings.TrimSpace(in.AsOf), f.AsOf)
-	if !ledger.ValidDate(asOf) {
+	if history {
+		// A history package has no balances: nothing is as of a date.
+		asOf = ""
+	} else if !ledger.ValidDate(asOf) {
 		return Migration{}, invalid("give the date the balances are as of (YYYY-MM-DD)")
 	}
 	// Every file of the firm in every part, and the ones with errors.
@@ -320,18 +415,36 @@ func (o *Ops) ProposeMigration(ctx context.Context, tenant, actor string, in Mig
 	if len(problems) > 0 {
 		return Migration{}, invalid("the dry run found errors in %s; correct them and make the package again, or untick those files", strings.Join(problems, ", "))
 	}
-	if err := o.migGuardLive(ctx, tenant, in.NotLive); err != nil {
+	var years, overlap []string
+	if history {
+		// Read-only history for a live firm: never a go-live file, never a
+		// year of the live books, and years already loaded only when the
+		// maker confirms.
+		for _, p := range files {
+			if avail[p].Kind == pkg.KindMaster {
+				return Migration{}, invalid("%s is a go-live file, but this is a history package; a history package holds only earlier years' history and documents", p)
+			}
+		}
+		if years, overlap, err = o.migHistoryYears(ctx, tenant, parts, firm, in.Overlap); err != nil {
+			return Migration{}, err
+		}
+	} else if err := o.migGuardLive(ctx, tenant, in.NotLive); err != nil {
 		return Migration{}, err
 	}
 	var rb [2]byte
 	rand.Read(rb[:])
 	m := Migration{ID: "M-" + o.now().Format("20060102-150405") + "-" + hex.EncodeToString(rb[:]), Key: key, System: man.Source.System, Firm: firm, FirmName: f.Name, AsOf: asOf, Files: files,
-		NotLive: in.NotLive, Status: MigProposed, ProposedBy: actor, ProposedAt: o.now(), Note: strings.TrimSpace(in.Note), Steps: []MigStep{}}
+		NotLive: in.NotLive && !history, History: history, Years: years, Overlap: overlap, Status: MigProposed, ProposedBy: actor, ProposedAt: o.now(), Note: strings.TrimSpace(in.Note), Steps: []MigStep{}}
 	for _, p := range parts {
 		m.Packages = append(m.Packages, p.ID)
 	}
 	if _, err := docs.Put(ctx, o.Docs, tenant, cMig, m.ID, m, 0, actor); err != nil {
 		return m, err
+	}
+	if history {
+		o.log(ctx, tenant, actor, "migration.history.proposed", m.ID, map[string]any{"key": key, "firm": firm, "years": years, "overlap": overlap, "files": len(files)})
+		o.raiseWork(ctx, tenant, "migration", m.ID, "Approve loading the history of "+firstOf(f.Name, firm), fmt.Sprintf("%s proposed loading the read-only history of %s from %s (%d files). Nothing is posted to the ledger. A second person approves it on Files → Migration.", actor, strings.Join(years, ", "), m.System, len(files)), "", RoleChecker, "migrate", "")
+		return m, nil
 	}
 	o.log(ctx, tenant, actor, "migration.proposed", m.ID, map[string]any{"key": key, "firm": firm, "as_of": asOf, "files": len(files), "not_live": in.NotLive})
 	o.raiseWork(ctx, tenant, "migration", m.ID, "Approve the migration of "+firstOf(f.Name, firm), fmt.Sprintf("%s proposed loading %d files from %s as of %s. A second person approves it on Files → Migration.", actor, len(files), m.System, asOf), "", RoleChecker, "migrate", asOf)
@@ -421,11 +534,23 @@ func (o *Ops) DecideMigration(ctx context.Context, tenant, actor, id string, app
 	if err := o.migAlreadyLoaded(ctx, tenant, m.Key); err != nil {
 		return m, err
 	}
-	if err := o.migGuardLive(ctx, tenant, m.NotLive); err != nil {
-		return m, err
-	}
 	parts, err := o.migParts(ctx, tenant, m.Packages[0])
 	if err != nil {
+		return m, err
+	}
+	if m.History {
+		// The years are checked again: another load may have brought one
+		// of them in since the proposal.
+		_, ov, err := o.migHistoryYears(ctx, tenant, parts, m.Firm, true)
+		if err != nil {
+			return m, err
+		}
+		for _, y := range ov {
+			if !contains(m.Overlap, y) {
+				return m, fmt.Errorf("%w: %s was loaded by another migration after this proposal; reject it and propose again, confirming the years already loaded", ErrState, y)
+			}
+		}
+	} else if err := o.migGuardLive(ctx, tenant, m.NotLive); err != nil {
 		return m, err
 	}
 	for _, p := range parts {
@@ -546,6 +671,11 @@ func (o *Ops) runLoad(ctx context.Context, tenant, actor, id, passphrase string)
 		}
 		switch st.Kind {
 		case StepMaster:
+			if m.History {
+				// a history package never loads a go-live file
+				fail(i, fmt.Errorf("%w: a history package cannot load go-live files", ErrState))
+				return
+			}
 			data, err := r.ReadAll(st.Path, 2<<30)
 			if err != nil {
 				fail(i, err)
@@ -603,6 +733,12 @@ func (o *Ops) runLoad(ctx context.Context, tenant, actor, id, passphrase string)
 		}
 	}
 	m.Status, m.FinishedAt, m.Error = MigLoaded, o.now(), ""
+	if m.History {
+		// Read-only history: no balances to reconcile and nothing to fill in.
+		o.saveMig(ctx, tenant, actor, &m)
+		o.log(ctx, tenant, actor, "migration.history.loaded", id, map[string]any{"firm": m.Firm, "years": m.Years, "steps": len(m.Steps), "documents": m.Docs})
+		return
+	}
 	if rc, err := o.reconcile(ctx, tenant, actor, &m); err == nil {
 		m.Recon = rc
 	}
@@ -645,6 +781,11 @@ func (o *Ops) migUndoAllowed(ctx context.Context, tenant string, m Migration) er
 	n, err := o.migForeign(ctx, tenant, m.BaseSeq)
 	if err != nil {
 		return err
+	}
+	if m.History {
+		// A history load posted nothing, so the live books do not stop
+		// it being taken out again.
+		n = 0
 	}
 	if n > 0 {
 		return fmt.Errorf("%w: %s ledger entries have been posted since the migration; it can no longer be undone. Correct the balances with journal entries instead", ErrState, groupIN(int64(n)))

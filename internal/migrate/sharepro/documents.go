@@ -105,12 +105,38 @@ func (m *Mapper) Documents(ctx context.Context, q migrate.Querier, k migrate.Kin
 	if newestFY == "" {
 		newestFY = fyOf(time.Now())
 	}
-	years := plan.Years
-	if years <= 0 {
-		years = 8
-	}
-	if lo := fyStart(newestFY).AddDate(-(years - 1), 0, 0); lo.After(from) {
-		from = lo
+	if len(plan.FYs) > 0 {
+		// The years chosen: an archive of one year not chosen is not read;
+		// one spanning years is read from the first year chosen to the end
+		// of the last (each document's own year is checked again in read).
+		if k.FY != "" && !plan.Wants(k.FY) {
+			rep.infof("Documents", k.FY, "out-of-range", "Mail archive %s is not one of the years chosen; not read", k.FY)
+			return nil
+		}
+		lo, hi := fyStart(plan.FYs[0]), fyEnd(plan.FYs[0])
+		for _, f := range plan.FYs[1:] {
+			if t := fyStart(f); !t.IsZero() && t.Before(lo) {
+				lo = t
+			}
+			if t := fyEnd(f); t.After(hi) {
+				hi = t
+			}
+		}
+		if !lo.IsZero() && lo.After(from) {
+			from = lo
+		}
+		if !hi.IsZero() && hi.AddDate(0, 0, 1).Before(to) {
+			to = hi.AddDate(0, 0, 1)
+		}
+		dm.plan = plan
+	} else {
+		years := plan.Years
+		if years <= 0 {
+			years = 8
+		}
+		if lo := fyStart(newestFY).AddDate(-(years - 1), 0, 0); lo.After(from) {
+			from = lo
+		}
 	}
 	if !from.Before(to) {
 		rep.infof("Documents", k.FY, "out-of-range", "Mail archive %s is outside the years chosen; not read", k.FY)
@@ -177,6 +203,7 @@ type docRun struct {
 	tag, from, to   string
 	n, big, dpNoUCC int
 	internal        int
+	plan            migrate.Plan // the years chosen (an empty plan wants every year)
 }
 
 // read archives the attachments of one mail table. seen holds the
@@ -265,6 +292,10 @@ func (dm *docRun) read(ctx context.Context, mt, fam string, seen map[string]bool
 		meta := pkg.DocMeta{ID: fmt.Sprintf("%s-%s-%s-%s", dm.tag, fam, str(r, "slno"), str(r, "attnumber")), UCC: ucc, Type: typ,
 			Date: dt, FY: firstNonEmpty(dm.k.FY, fyOf(dt), "unknown"), Subject: str(r, "subject"), To: str(r, "sentto"),
 			Signed: signed || (format == "pdf" && flag(r, "mailsigned")), Format: format, SourceRef: ref}
+		if !dm.plan.Wants(meta.FY) {
+			// an archive spanning years: this document's year was not chosen
+			return nil
+		}
 		if !dt.IsZero() {
 			meta.RetainUntil = dt.AddDate(8, 0, 0)
 		}

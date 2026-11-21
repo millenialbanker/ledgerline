@@ -519,6 +519,13 @@ func (o *Ops) clientLedgersView(ctx context.Context, tenant, ucc, date string) (
 // commodity ledger, the equity, commodity and awaiting ledgers merged with
 // one running balance and no internal transfers.
 func (o *Ops) clientStatement(ctx context.Context, tenant, ucc, from, to string) (ledger.Statement, error) {
+	// An archived period: a statement from the beginning starts after it
+	// (its opening balance carries the archived years); one that asks for
+	// archived dates says so (archive.go).
+	from, err := o.arcFrom(ctx, tenant, ucc, from, to)
+	if err != nil {
+		return ledger.Statement{}, err
+	}
 	if !o.sepCom(ctx, tenant) {
 		return o.App.Ledger.Statement(ctx, tenant, ledger.ClientAccount(ucc), from, to)
 	}
@@ -568,6 +575,10 @@ func (o *Ops) StaffStatement(ctx context.Context, tenant, ucc, from, to string) 
 // staffStatement is the client drawer's statement: every line of every
 // ledger, each marked with its ledger, when the ledgers are separate.
 func (o *Ops) staffStatement(ctx context.Context, tenant, ucc, from, to string) (ledger.Statement, error) {
+	from, err := o.arcFrom(ctx, tenant, ucc, from, to)
+	if err != nil {
+		return ledger.Statement{}, err
+	}
 	if !o.sepCom(ctx, tenant) {
 		return o.App.Ledger.Statement(ctx, tenant, ledger.ClientAccount(ucc), from, to)
 	}

@@ -167,9 +167,37 @@ func (m *Mapper) Current(ctx context.Context, q migrate.Querier, k migrate.Kind,
 	}
 	asOf = time.Date(asOf.Year(), asOf.Month(), asOf.Day(), 0, 0, 0, 0, time.UTC)
 	p.Step("Client master")
-	cm, err := loadCommon(ctx, d, s)
+	cm, all, assigned, err := m.owners(ctx, d, s, firms)
 	if err != nil {
 		return err
+	}
+	primary := firms[0].Code
+	for _, f := range firms {
+		rep := newReport(f.Code, k.FY)
+		for _, n := range f.Notes {
+			rep.infof("Firm", f.Code, "firm-note", "%s", n)
+		}
+		for _, mc := range cm.missing {
+			rep.infof("Schema", mc, "missing-col", "Column %s is not in this SharePro database; the field is left empty", mc)
+		}
+		setAsOf(w, f, asOf)
+		c := &cur{m: m, d: d, s: s, k: k, plan: plan, w: w, p: p, f: f, cm: cm, rep: rep, asOf: asOf, primary: f.Code == primary, home: f.Code == all[0].Code, mine: assigned[f.Code]}
+		err := c.run(ctx)
+		rep.flush(w, p)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// owners reads the newest company database's clients and DP accounts and
+// records, for the history and document steps, which client each DP
+// account belongs to and which firm each client and DP account is in.
+func (m *Mapper) owners(ctx context.Context, d db, s *schema, firms []firmInfo) (*common, []firmInfo, map[string]map[string]bool, error) {
+	cm, err := loadCommon(ctx, d, s)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	// DP account -> client (trading or DP-only), for DP mails and history
 	bo := map[string]string{}
@@ -182,7 +210,6 @@ func (m *Mapper) Current(ctx context.Context, q migrate.Querier, k migrate.Kind,
 	m.mu.Lock()
 	m.boUCC = bo
 	m.mu.Unlock()
-	primary := firms[0].Code
 	// clients are assigned over every firm SharePro has, not only the
 	// chosen ones, so a chosen firm never takes another firm's clients
 	m.mu.Lock()
@@ -210,23 +237,32 @@ func (m *Mapper) Current(ctx context.Context, q migrate.Querier, k migrate.Kind,
 	m.mu.Lock()
 	m.clientFirm, m.boFirm = cf, bf
 	m.mu.Unlock()
-	for _, f := range firms {
-		rep := newReport(f.Code, k.FY)
-		for _, n := range f.Notes {
-			rep.infof("Firm", f.Code, "firm-note", "%s", n)
-		}
-		for _, mc := range cm.missing {
-			rep.infof("Schema", mc, "missing-col", "Column %s is not in this SharePro database; the field is left empty", mc)
-		}
-		setAsOf(w, f, asOf)
-		c := &cur{m: m, d: d, s: s, k: k, plan: plan, w: w, p: p, f: f, cm: cm, rep: rep, asOf: asOf, primary: f.Code == primary, home: f.Code == all[0].Code, mine: assigned[f.Code]}
-		err := c.run(ctx)
-		rep.flush(w, p)
-		if err != nil {
-			return err
-		}
+	return cm, all, assigned, nil
+}
+
+// Prepare implements migrate.Preparer: for a history package it reads the
+// newest company database's clients and DP accounts (as Current does,
+// without writing the go-live files), so the history and documents of
+// earlier years are tied to the same clients.
+func (m *Mapper) Prepare(ctx context.Context, q migrate.Querier, k migrate.Kind, plan migrate.Plan, p migrate.Progress) error {
+	if p == nil {
+		p = migrate.NopProgress{}
 	}
-	return nil
+	d := db{q}
+	s, err := loadSchema(ctx, d)
+	if err != nil {
+		return err
+	}
+	if !isCompany(s) {
+		return fmt.Errorf("sharepro: %s is not a company database", q.Database())
+	}
+	firms := m.firmsFor(ctx, d, s, plan)
+	if len(firms) == 0 {
+		return errNoFirm
+	}
+	p.Step("Client codes")
+	_, _, _, err = m.owners(ctx, d, s, firms)
+	return err
 }
 
 func setAsOf(w *pkg.Writer, f firmInfo, asOf time.Time) {

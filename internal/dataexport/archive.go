@@ -93,6 +93,20 @@ type Manifest struct {
 	Audit             AuditSummary   `json:"audit"`
 	Signature         SignatureInfo  `json:"signature"`
 	Files             []FileEntry    `json:"files"`
+	// Period is set on an archive package of a past period.
+	Period *PeriodInfo `json:"period,omitempty"`
+}
+
+// PeriodInfo describes the period an archive package holds.
+type PeriodInfo struct {
+	ArchiveID   string         `json:"archive_id"`
+	From        string         `json:"from"`
+	To          string         `json:"to"`
+	Kinds       []string       `json:"kinds"`
+	Rows        map[string]int `json:"rows"` // per table
+	RetainUntil string         `json:"retain_until"`
+	Clients     int            `json:"clients"`
+	Backend     string         `json:"backend"`
 }
 
 // Archive writes the ZIP as a stream: each file is written once, in
@@ -209,7 +223,10 @@ func (a *Archive) Finish(m Manifest, sigInfo SignatureInfo, signer func([]byte) 
 	if err := a.end(); err != nil {
 		return nil, err
 	}
-	m.Format, m.Kind, m.Files, m.Signature = Format, Kind, a.Files(), sigInfo
+	if m.Kind != PeriodKind {
+		m.Kind = Kind
+	}
+	m.Format, m.Files, m.Signature = Format, a.Files(), sigInfo
 	b, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return nil, err
@@ -256,6 +273,16 @@ type Verified struct {
 // archive signed with another key fails. A CMS signature is checked
 // cryptographically; whether its certificate is trusted is for the reader.
 func Verify(r io.ReaderAt, size int64, wantKey string) (Verified, error) {
+	return VerifyKind(r, size, wantKey, Kind)
+}
+
+// PeriodKind marks an archive package of a past period (ops/archive.go):
+// the same ZIP, manifest and signature as a full export, holding one
+// period's rows.
+const PeriodKind = "ledgerline-period-archive"
+
+// VerifyKind is Verify for an archive whose manifest says it is of kind.
+func VerifyKind(r io.ReaderAt, size int64, wantKey, kind string) (Verified, error) {
 	zr, err := zip.NewReader(r, size)
 	if err != nil {
 		return Verified{}, fmt.Errorf("not a ZIP file: %w", err)
@@ -287,7 +314,10 @@ func Verify(r io.ReaderAt, size int64, wantKey string) (Verified, error) {
 	if err := json.Unmarshal(mb, &m); err != nil {
 		return Verified{}, fmt.Errorf("manifest.json: %w", err)
 	}
-	if m.Kind != Kind || m.Format != Format {
+	if m.Kind != kind || m.Format != Format {
+		if kind == PeriodKind {
+			return Verified{}, errors.New("not a Ledgerline archive package")
+		}
 		return Verified{}, errors.New("not a Ledgerline full export")
 	}
 	out := Verified{Manifest: m, ManifestSHA256: ManifestSHA256(mb)}
