@@ -472,7 +472,11 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 		src = "Branch"
 	case RoleMaker, RoleChecker, RoleAdmin, RoleCompliance:
 	default:
-		return ChangeRequest{}, fmt.Errorf("%w: %s cannot request client changes", ErrForbidden, role)
+		// A role the firm made or edited asks as its screens allow
+		// (roles.go); the other built-in roles cannot.
+		if contains(Roles, role) || o.require(ctx, tenant, actor, "Requesting client changes", RoleMaker, RoleChecker, RoleCompliance) != nil {
+			return ChangeRequest{}, fmt.Errorf("%w: %s cannot request client changes", ErrForbidden, role)
+		}
 	}
 	c, err := o.Client(ctx, tenant, ucc)
 	if err != nil {

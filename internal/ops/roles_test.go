@@ -156,6 +156,33 @@ func TestCustomRoleScreens(t *testing.T) {
 	}
 }
 
+// Admin-level screens can be given, with what stays with Admin regardless:
+// users and roles, the firm's data, its keys.
+func TestAdminLevelRole(t *testing.T) {
+	o, ctx := rolesSetup(t)
+	c, err := o.ProposeRole(ctx, T, "admin", RoleDef{Name: "Systems", Screens: map[string]Power{"settings": {Do: true}, "dataexit": {Do: true}, "users": {Do: true, Approve: true}, "roles": {Do: true}}})
+	approveRole(t, o, ctx, c, err)
+	if d, _ := o.roleDef(ctx, T, "Systems"); d.Screens["users"].Do || d.Screens["roles"].Do || !d.Screens["users"].View {
+		t.Fatalf("users and roles are look-only: %+v", d.Screens)
+	}
+	c, err = o.ProposeUserRoles(ctx, T, "admin", "ravi.pay", []string{"Systems"}, "", "")
+	approveRole(t, o, ctx, c, err)
+	if err := o.require(on(ctx, "settings"), T, "ravi.pay", "Changing settings", RoleAdmin); err != nil {
+		t.Fatalf("an Admin-level screen given: %v", err)
+	}
+	for _, x := range []struct{ area, what string }{{"users", "Adding users"}, {"users", "Managing users"}, {"dataexit", "Deleting the firm's data"}, {"settings", "Rotating the firm's encryption key"}} {
+		if err := o.require(on(ctx, x.area), T, "ravi.pay", x.what, RoleAdmin); !errors.Is(err, ErrForbidden) {
+			t.Errorf("%s: %v", x.what, err)
+		}
+	}
+	if _, err := o.ProposeRole(ctx, T, "ravi.pay", RoleDef{Name: "Mine", Screens: map[string]Power{"crm": {Do: true}}}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("a non-Admin proposes a role: %v", err)
+	}
+	if err := o.require(on(ctx, "settings"), T, "ravi.pay", "see full client identifiers", RoleChecker, RoleCompliance); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("reveal without the limit: %v", err)
+	}
+}
+
 // An edited built-in role keeps its powers where it was not changed, and
 // loses them where a tick was taken away.
 func TestEditedBuiltinRole(t *testing.T) {

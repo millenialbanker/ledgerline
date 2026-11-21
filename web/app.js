@@ -47,7 +47,7 @@ const role = () => S.me?.role || '';
 // has: whether to offer what needs one of these built-in roles. Someone
 // holding a role the firm made or edited (S.me.access, roles.js) is asked
 // of the screen they are on. The server checks every action again.
-const has = (...roles) => S.me?.access?.custom ? rlHas(roles) : role() === 'Admin' || roles.includes(role());
+const has = (...roles) => S.me?.access ? rlHas(roles) : role() === 'Admin' || roles.includes(role());
 
 /* ============================== API ============================== */
 class ApiError extends Error { constructor(status, body) { super(body?.error?.message || ('HTTP ' + status)); this.status = status; this.code = body?.error?.code; this.details = body?.error?.details; } }
@@ -209,7 +209,7 @@ async function render(opts = {}) {
   try {
     C[view] = await V[view].load();
     if (seq !== renderSeq) return;
-    p.innerHTML = (typeof supportBanner === 'function' ? supportBanner() : '') + rlPreviewBanner() + groupBar(view) + V[view].html(C[view]);
+    p.innerHTML = (typeof supportBanner === 'function' ? supportBanner() : '') + (typeof rlPreviewBanner === 'function' ? rlPreviewBanner() : '') + groupBar(view) + V[view].html(C[view]);
     bindPage();
     showNotices();
   } catch (e) {
@@ -1783,7 +1783,7 @@ P['ap-t'] = d => {
   if (UI.apTab === 'log') return tbl([['When'], ['For'], ['Automation'], ['Mode'], ['Done', 'r'], ['Queued', 'r'], ['Result']], d.runs.filter(r => r.policy).map(r => `<tr><td class="n">${esc(r.at.slice(5, 16).replace('T', ' '))}</td><td class="n">${fmtDate(r.date)}</td><td>${esc((d.policies.find(p => p.id === r.policy) || {}).name || r.policy)}</td><td>${esc(r.mode)}</td><td class="r">${r.done}</td><td class="r">${r.queued}</td><td class="wrap small">${r.error ? `<span class="neg">${esc(r.error)}</span>` : esc(r.note || '')}</td></tr>`), { tall: true, empty: 'Nothing has run yet.' });
   if (UI.apTab === 'human') return tbl([['Stays with people'], ['Why']], d.human_only.map(h => `<tr><td><b>${esc(h.process)}</b></td><td class="wrap">${esc(h.why)}</td></tr>`)) + '<div class="pad"><span class="dim small">For these the system still prepares everything it can (evidence, documents, suggested decision) and the item appears in the work queue.</span></div>';
   const role = S.me?.role, mine = UI.apMine;
-  const ws = d.work.filter(w => mine === 'closed' ? w.status !== 'Open' : w.status === 'Open' && (mine === 'all' || !w.role || w.role === role || role === 'Admin'));
+  const ws = d.work.filter(w => mine === 'closed' ? w.status !== 'Open' : w.status === 'Open' && (mine === 'all' || !w.role || w.role === role || role === 'Admin' || (S.me?.access?.bases || []).includes(w.role)));
   const st = { Done: 'good', Dismissed: 'nt', Cleared: 'nt', Open: 'warn' };
   return tbl([['Item'], ['For'], ['Due'], ['Status'], ['']], ws.map(w => `<tr><td style="max-width:560px"><b>${esc(w.title)}</b>${w.ucc ? ` <button class="linkish mono" data-act="client" data-id="${w.ucc}">${w.ucc}</button>` : ''}<div class="dim small wrap">${esc(w.detail)}</div><div class="dim small">${esc((d.policies.find(p => p.id === w.process) || {}).name || w.process)} · ${fmtDate(w.date)}</div></td><td class="small">${esc(w.role || 'Anyone')}</td><td class="n ${w.overdue ? 'neg' : ''}">${esc(w.due)}${w.overdue ? '<div class="small">overdue</div>' : ''}</td><td>${pill(w.status, st[w.status])}${w.closed_by ? `<div class="dim small">${esc(w.closed_by)}${w.note ? ': ' + esc(w.note) : ''}</div>` : ''}</td>
     <td>${w.status === 'Open' ? `${w.proposed ? `<button class="btn sm pri" data-act="wDo" data-id="${w.id}">${esc(w.proposed.label)}</button>` : ''}<button class="btn sm" data-act="wOpen" data-id="${w.id}">Open</button><button class="btn sm" data-act="wDismiss" data-id="${w.id}">Done elsewhere</button>` : ''}</td></tr>`), { tall: true, empty: mine === 'closed' ? 'Nothing closed yet.' : 'Nothing waiting. Everything else ran by itself.' });

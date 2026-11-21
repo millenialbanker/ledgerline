@@ -291,6 +291,7 @@ Releasing payouts | Ops checker
 Removing the signing certificate | Admin
 Reporting impersonation cases | Compliance officer
 Reporting short allocation | Ops maker, Ops checker, Risk manager
+Requesting client changes | Ops maker, Ops checker, Compliance officer
 Requesting reactivation | Ops maker, Ops checker
 Resetting passwords | Admin
 Resetting the BSE UCC API password | Admin

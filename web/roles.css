@@ -15,3 +15,4 @@
 .rl-assign{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 14px;margin-bottom:12px}
 .rl-pv{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
 @media (max-width:640px){.rl-row{grid-template-columns:1fr repeat(3,44px);padding:5px 6px}.rl-tab .rl-l{padding-left:20px}}
+.rl-acts{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:300px;margin-left:auto}

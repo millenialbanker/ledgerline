@@ -119,8 +119,18 @@ const (
 // role's "may reveal full numbers" limit decides it.
 const whatRevealIDs = "See full client identifiers"
 
+// normWhat is a check's text with a capital letter, as the permission list
+// (config/help/permissions.md) writes it; a few checks start lower-case.
+func normWhat(what string) string {
+	if what == "" {
+		return what
+	}
+	return strings.ToUpper(what[:1]) + what[1:]
+}
+
 // actionKind sorts a permission check by what it guards.
 func actionKind(what string, roles []string) string {
+	what = normWhat(what)
 	for _, p := range []string{"Viewing", "View ", "Seeing", "Looking at", "Searching", "Downloading"} {
 		if strings.HasPrefix(what, p) {
 			return kindView
@@ -415,7 +425,7 @@ func (a Access) Limits() RoleLimits {
 		case l.PayoutLimit == "" || x.PayoutLimit == "":
 			l.PayoutLimit = ""
 		default:
-			if a, _ := money.ParseAmount(x.PayoutLimit); a > mustAmt(l.PayoutLimit) {
+			if mustAmt(x.PayoutLimit) > mustAmt(l.PayoutLimit) {
 				l.PayoutLimit = x.PayoutLimit
 			}
 		}
@@ -545,7 +555,11 @@ func (o *Ops) Access(ctx context.Context, tenant, actor string) (Access, error) 
 			d, ok := o.roleDef(ctx, tenant, r)
 			switch {
 			case !ok:
-				// A role that was retired gives nothing.
+				// A role that was retired (or never existed) gives nothing,
+				// and the person sees no screens for it.
+				if r != "" {
+					a.Defs = append(a.Defs, RoleDef{Name: r, Screens: map[string]Power{}})
+				}
 			case d.BuiltIn && !d.Edited:
 				a.Legacy = append(a.Legacy, r)
 			default:
@@ -557,9 +571,27 @@ func (o *Ops) Access(ctx context.Context, tenant, actor string) (Access, error) 
 	return Access{}, fmt.Errorf("%w: %q is not a user of this firm", ErrForbidden, actor)
 }
 
+// adminAlways are the checks no role but Admin passes, whatever screens it
+// has: who may sign in and as what, and the firm's data and keys as a
+// whole. Without this a role with Do on the Users screen could make
+// itself Admin.
+var adminAlways = map[string]bool{
+	"Adding users": true, "Managing users": true, "Resetting passwords": true, "Resetting two-factor sign-in": true,
+	"Deleting the firm's data": true, "Asking to close the firm's account": true, "Starting a full data export": true, "Downloading a full data export": true,
+	"Moving the firm onto its own encryption key": true, "Rotating the firm's encryption key": true, "Changing how long the firm's keys stay in memory": true,
+	"Changing Ledgerline support access settings": true,
+}
+
+// adminScreens are the screens on which a role may only look: changing
+// users and roles always needs an Admin, with a second Admin's approval.
+var adminScreens = map[string]bool{"users": true, "roles": true}
+
 // permits decides a permission check for the roles the firm edited or made
 // (see the package comment above for the rules).
 func (a Access) permits(what string, roles []string, areas []string) bool {
+	if what = normWhat(what); adminAlways[what] {
+		return false
+	}
 	kind := actionKind(what, roles)
 	adminOnly := len(roles) == 0 || (len(roles) == 1 && roles[0] == RoleAdmin)
 	for _, d := range a.Defs {
@@ -580,7 +612,7 @@ func (a Access) permits(what string, roles []string, areas []string) bool {
 			continue
 		}
 		for _, k := range areas {
-			if !d.Screens[k].has(kind) {
+			if !d.Screens[k].has(kind) || adminScreens[k] && kind != kindView {
 				continue
 			}
 			if legacy {
@@ -653,6 +685,9 @@ func checkRole(d *RoleDef) error {
 		}
 		if p.Do || p.Approve {
 			p.View = true
+		}
+		if adminScreens[k] {
+			p.Do, p.Approve = false, false // users and roles: only an Admin changes them
 		}
 		if p.View {
 			out[k] = p
@@ -781,7 +816,7 @@ func RoleWarnings(d RoleDef) []string {
 		out = append(out, "Both Do and Approve on "+strings.Join(both, ", ")+". Maker-checker still applies: nobody can approve an item they entered themselves, so someone else must approve their work.")
 	}
 	if len(admin) > 0 {
-		out = append(out, "Admin-level screens: "+strings.Join(admin, ", ")+". Changes there affect the whole firm's system (connections, users, security, data and exit). Users and roles themselves can still be changed only by an Admin, with a second Admin's approval.")
+		out = append(out, "Admin-level screens: "+strings.Join(admin, ", ")+". Changes there affect the whole firm's system (connections, users, security, data and exit). Some things stay with Admin whatever the role: users and roles, sign-in resets, full data exports, closing the account and deleting the firm's data, the firm's encryption keys and Ledgerline support access settings.")
 	}
 	if len(d.Screens) == 0 {
 		out = append(out, "The role has no screens: its holders would see nothing.")
