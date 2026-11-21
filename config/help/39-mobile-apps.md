@@ -11,7 +11,7 @@ related: staff-app-using, mobile-lost-phone, push-notifications-fcm
 
 The staff app puts approvals, the day's progress, alerts, the work queue, a client look-up and Ask Ledgy on staff phones (iPhone and Android). It is off until an Admin switches it on.
 
-On [[staffapp|Staff app]] (Admin → Mobile apps):
+On [[staffapp|Staff app]] (Admin → Settings):
 
 1. Tick **The staff app is on**.
 2. Choose who may use it: **everyone with a role** (for example Ops checker), **everyone of a branch** (branch staff of that branch), and **named people**. Admin is not let in unless you tick the role or the person. Clients never use the staff app; they have the client app.
@@ -56,7 +56,7 @@ The client app is your firm's app for its investors, published under **your own 
 
 In the app clients see their balance, holdings and the day's profit or loss on open positions, ledger, contract notes and statements as signed PDFs they can save or share, how to add money (your SEBI-validated UPI IDs and QR code), payout requests, IPOs, mutual funds, pledges and sale authorisations (CDSL TPIN), profile change requests (email, mobile, address), the help desk, notifications and family accounts.
 
-On [[clientapp|Client app]] (Admin → Mobile apps):
+On [[clientapp|Client app]] (Admin → Settings):
 
 - **The app**: switch it on, give it a **name** (as under the icon), the **colours** and the **logo** (PNG or JPEG, at most 150 KB).
 - **Shown under About us**: what an Indian broker's app must show. The SEBI registration as stock broker and the exchange member codes come from Settings; add the DP registration, registered office, support and **grievance** contacts, the compliance officer, and links to your **investor charter** and **risk disclosures**. SEBI **SCORES** and the **SMART ODR** portal are always linked.

@@ -1,5 +1,5 @@
 'use strict';
-/* Ledgerline console: Admin → Mobile apps. "Staff app" (screen staffapp):
+/* Ledgerline console: Admin → Settings → Staff app and Client app. "Staff app" (screen staffapp):
    who may use the staff app, the set-up QR code, push notifications and
    the firm's registered staff phones. "Client app" (screen clientapp): on
    or off, the app's name, colours and logo, and the firm's details the app

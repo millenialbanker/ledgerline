@@ -123,7 +123,7 @@ Ledgerline itself can publish its own copy with its own server in
    - *Admin → Connections → Push notifications (Firebase Cloud Messaging)*:
      paste the service account key (Firebase → *Project settings → Service
      accounts → Generate new private key*, the whole JSON file).
-   - *Admin → Mobile apps → Staff app*: switch it on, choose the roles, people
+   - *Admin → Settings → Staff app*: switch it on, choose the roles, people
      or branches, and show the QR code to each person.
 8. **Try it.** On the phone: install, scan the QR code with the camera, sign in
    with password and two-factor code, choose *Use Face ID / fingerprint*, allow

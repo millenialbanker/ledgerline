@@ -37,7 +37,7 @@ the client portal's calls); this folder is the native shell (Capacitor 7) and
 
 The name, colours and logo shown inside the app, and the *About us* details
 (DP registration, registered office, grievance officer, investor charter and
-risk disclosure links), are set in Ledgerline on *Admin → Mobile apps →
+risk disclosure links), are set in Ledgerline on *Admin → Settings →
 Client app*; the SEBI registration and member codes come from *Settings*.
 
 ## Accounts the broker needs
@@ -101,7 +101,7 @@ Client app*; the SEBI registration and member codes come from *Settings*.
      Signing.
 7. **Turn it on in Ledgerline** (the server on https, `LEDGERLINE_PUBLIC_URL`
    set): *Admin → Connections → Push notifications (Firebase Cloud
-   Messaging)* with the Firebase service account key; *Admin → Mobile apps →
+   Messaging)* with the Firebase service account key; *Admin → Settings →
    Client app*: name, colours, logo, the *About us* details, and switch it on.
    Clients sign in with their portal login (staff give it from the client's
    page → *Portal access*).
