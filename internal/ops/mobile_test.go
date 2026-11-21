@@ -150,14 +150,14 @@ func TestMobileDevicesAndUnlock(t *testing.T) {
 	if _, err := o.SessionUser(ctx, T, btok); err != nil {
 		t.Fatalf("browser session: %v", err)
 	}
-	ds, _ := o.Devices(ctx, T, "farhan.khan", "")
+	ds, _ := o.MobileDevices(ctx, T, "farhan.khan", "")
 	if len(ds) != 1 || ds[0].ID != d.ID {
 		t.Fatalf("own devices %+v", ds)
 	}
-	if _, err := o.Devices(ctx, T, "farhan.khan", AppStaff); !errors.Is(err, ErrForbidden) {
+	if _, err := o.MobileDevices(ctx, T, "farhan.khan", AppStaff); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("checker listed everyone's phones: %v", err)
 	}
-	if all, err := o.Devices(ctx, T, "admin", AppStaff); err != nil || len(all) != 1 || all[0].UserName != "Farhan Khan" {
+	if all, err := o.MobileDevices(ctx, T, "admin", AppStaff); err != nil || len(all) != 1 || all[0].UserName != "Farhan Khan" {
 		t.Fatalf("admin list %+v %v", all, err)
 	}
 	// Revoking: not by another user; by Admin with a reason.

@@ -114,6 +114,7 @@ a.ph-row{text-decoration:none}
 .m-q{align-self:flex-end;max-width:86%;padding:10px 12px;border-radius:14px 14px 4px 14px;background:var(--accent);color:var(--accent-ink);font-size:14.5px}
 .m-a{max-width:94%;padding:10px 14px;border-radius:14px 14px 14px 4px;background:var(--panel);border:1px solid var(--line);font-size:14.5px;line-height:1.5}
 .m-a p{margin:0 0 8px}.m-a p:last-child{margin:0}
-.m-askf{display:flex;gap:8px;position:sticky;bottom:calc(70px + env(safe-area-inset-bottom,0px))}
+.m-askf{display:flex;gap:8px;position:sticky;bottom:calc(64px + env(safe-area-inset-bottom,0px));background:var(--bg);padding:10px 0 8px;margin-top:8px;box-shadow:0 -10px 12px -6px var(--bg)}
 .m-askf .in{flex:1;min-height:46px;font-size:16px;border-radius:12px}
 .m-askf .btn{min-height:46px;border-radius:12px}
+.m-body .ph-facts dd.m-plain{font-family:inherit}

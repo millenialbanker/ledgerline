@@ -175,7 +175,7 @@ func (s *Server) mobileRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) mobileDevices(w http.ResponseWriter, r *http.Request) {
-	v, err := s.ops.Devices(r.Context(), tenant(r), actor(r), r.URL.Query().Get("all"))
+	v, err := s.ops.MobileDevices(r.Context(), tenant(r), actor(r), r.URL.Query().Get("all"))
 	this := ""
 	if _, _, tok, e := s.sessionAuth(r); e == nil {
 		this = s.ops.SessionDevice(r.Context(), tenant(r), tok)

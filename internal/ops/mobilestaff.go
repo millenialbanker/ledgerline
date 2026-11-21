@@ -603,14 +603,14 @@ func (o *Ops) StaffAlerts(ctx context.Context, tenant, actor, date string) ([]Mo
 type MobileClient struct {
 	UCC        string   `json:"ucc"`
 	Name       string   `json:"name"`
-	PAN        string   `json:"pan"` // masked
+	PAN        string   `json:"pan"`              // masked
+	Mobile     string   `json:"mobile,omitempty"` // masked: the last four digits
+	Email      string   `json:"email,omitempty"`  // masked: the first two letters and the domain
 	Status     string   `json:"status"`
 	RiskStatus string   `json:"risk_status,omitempty"`
 	Funds      string   `json:"funds"`
 	Branch     string   `json:"branch,omitempty"`
 	Partner    string   `json:"partner,omitempty"`
-	Mobile     string   `json:"mobile,omitempty"`
-	Email      string   `json:"email,omitempty"`
 	Segments   []string `json:"segments,omitempty"`
 	Blocked    bool     `json:"blocked,omitempty"`
 }
@@ -646,9 +646,11 @@ func (o *Ops) StaffClients(ctx context.Context, tenant, actor, date, q string) (
 		if !strings.Contains(strings.ToLower(c.UCC+" "+c.Name+" "+c.PAN), q) {
 			continue
 		}
+		// Masked as on the desktop (PAN), and on a phone the mobile number
+		// and email too: a screen on a phone is seen by more eyes.
 		p := c.Public()
 		out = append(out, MobileClient{UCC: p.UCC, Name: p.Name, PAN: p.PAN, Status: p.Status, RiskStatus: risk[p.UCC], Funds: "₹" + formatINR(funds[p.UCC].Dec()),
-			Branch: p.Branch, Partner: p.Partner, Mobile: p.Mobile, Email: p.Email, Segments: p.Segments, Blocked: p.Blocked})
+			Branch: p.Branch, Partner: p.Partner, Mobile: maskMobile(p.Mobile), Email: maskEmail(p.Email), Segments: p.Segments, Blocked: p.Blocked})
 		if len(out) >= 30 {
 			break
 		}

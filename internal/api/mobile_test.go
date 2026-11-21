@@ -155,6 +155,9 @@ func TestStaffAppScoping(t *testing.T) {
 	if c := ipoCall(t, srv, "GET", "/v1/m/clients?date=2026-10-16&q="+in.PAN, "meera.iyer", nil, &raw); c != 200 || !strings.Contains(string(raw), in.UCC) || strings.Contains(string(raw), in.PAN) || !strings.Contains(string(raw), "XXXX") {
 		t.Fatalf("look-up by PAN: %d %s", c, raw)
 	}
+	if (in.Mobile != "" && strings.Contains(string(raw), in.Mobile)) || (in.Email != "" && strings.Contains(string(raw), in.Email)) {
+		t.Fatalf("look-up shows the full mobile or email: %s", raw)
+	}
 	// Not on the list, or a client login: no staff app.
 	if c := ipoCall(t, srv, "GET", "/v1/m/home", "anita.rao", nil, nil); c != 403 {
 		t.Fatalf("risk manager not on the list: %d", c)

@@ -1,7 +1,7 @@
 // Screenshots of the staff app (/m/) and the client app (/app/) at phone
 // sizes, against a development server on BASE that seed.sh has prepared.
-// The HRMS attendance endpoints (GET /v1/hr/attendance/me, POST
-// /v1/hr/attendance/punch) are faked here: the HRMS branch builds them.
+// The HRMS endpoints (GET /v1/hr/me, POST /v1/hr/attendance/punch) are
+// faked here to their contract on branch hrms, which builds them.
 // The pages and scripts are served from this checkout (no rebuild needed).
 // Run as seed.sh says; prints "no page errors" when all is well.
 const { chromium, devices } = require(process.env.PLAYWRIGHT || 'playwright');
@@ -40,14 +40,21 @@ async function signIn(page, user, pw) {
   // ---------- staff app, iPhone, a checker ----------
   {
     const { ctx, page } = await phone(browser, 'iPhone 13');
-    let punches = 0;
-    await page.route('**/v1/hr/attendance/me', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ on: true, policy: { selfie: 'optional', modes: ['office', 'home', 'field'] }, today: punches > 1 ? { in: '2026-11-20T09:41:00+05:30', mode: 'field' } : {} }) }));
+    // The HRMS module, faked to its contract on branch hrms: GET /v1/hr/me
+    // (the person's own records) and POST /v1/hr/attendance/punch.
+    let punches = 0, last = null;
+    const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+    await page.route('**/v1/hr/me*', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ linked: true, attendance: { employee: 'E0007', policy: { id: 'std', name: 'Standard', modes: ['office', 'home', 'field', 'onduty'] },
+      days: [{ date: today, kind: 'working', status: last ? 'Present' : '', in: last ? '09:41' : '', mode: last ? last.mode : '', punches: last ? [{ at: '2026-11-20T04:11:00Z', kind: 'in', mode: last.mode }] : [] }] } }) }));
     await page.route('**/v1/hr/attendance/punch', async r => {
       punches++;
       const b = JSON.parse(r.request().postData());
-      if (!['in', 'out'].includes(b.kind) || !['office', 'home', 'field'].includes(b.mode) || typeof b.lat !== 'number') errors.push('bad punch body ' + r.request().postData());
-      if (b.mode === 'office') return r.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ error: { code: 'outside_radius', message: 'You are 2.4 km from the Bengaluru branch.' } }) });
-      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'accepted', at: '2026-11-20T09:41:00+05:30', kind: b.kind, mode: b.mode }) });
+      const known = ['kind', 'mode', 'note', 'has_location', 'lat', 'lng', 'device_id', 'biometric_unlocked', 'selfie'];
+      if (!['in', 'out'].includes(b.kind) || !['office', 'home', 'field'].includes(b.mode) || b.has_location !== true || typeof b.lat !== 'number' || Object.keys(b).some(k => !known.includes(k))) errors.push('bad punch body ' + r.request().postData());
+      if (b.mode === 'office') return r.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: { code: 'forbidden', message: 'not permitted for this role: an office punch is accepted only on the office network or at the office (within its radius); you are not' } }) });
+      if (b.mode === 'field' && !b.note) return r.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ error: { code: 'invalid', message: 'a field punch needs your location and a note (whom you are visiting)' } }) });
+      last = b;
+      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ employee: 'E0007', name: 'Farhan Khan', at: '2026-11-20T04:11:00Z', kind: b.kind, mode: b.mode, status: 'Present' }) });
     });
     await page.goto(`${BASE}/m/?firm=demo`);
     await page.waitForSelector('#m-login');
@@ -75,9 +82,12 @@ async function signIn(page, user, pw) {
     await page.click('#m-hr [data-go=attendance]'); await page.waitForSelector('[data-act=punch]'); await wait(300);
     await shot(page, 'staff-12-checkin-iphone');
     await page.click('[data-act=punch]'); await page.waitForSelector('#m-hrerr .m-err'); await shot(page, 'staff-13-checkin-refused-iphone');
-    await page.click('[data-act=hrMode][data-id=field]'); await wait(300); await page.click('[data-act=punch]'); await page.waitForSelector('.m-ok'); await wait(300);
+    await page.click('[data-act=hrMode][data-id=field]'); await wait(300); await page.fill('#m-hrnote', 'Client visit, Koramangala'); await page.click('[data-act=punch]'); await page.waitForSelector('.m-ok'); await wait(300);
     await shot(page, 'staff-14-checkin-accepted-iphone');
     if (punches !== 2) errors.push('punches ' + punches);
+    await tab(page, 'approvals'); await page.waitForSelector('#m-hr'); await wait(300);
+    if (!/Check out/.test(await page.textContent('#m-hr'))) errors.push('bar does not offer check-out after a check-in');
+    await shot(page, 'staff-14b-checked-in-bar-iphone');
     await page.click('[data-act=lockNow]'); await page.waitForSelector('#m-login'); await shot(page, 'staff-15-locked-iphone');
     await ctx.close();
   }

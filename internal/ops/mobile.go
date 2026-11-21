@@ -538,9 +538,9 @@ func (o *Ops) devicesOf(ctx context.Context, tenant, user string) ([]MobileDevic
 	return out, nil
 }
 
-// Devices lists phones: the user's own; with all set, an Admin sees every
+// MobileDevices lists phones: the user's own; with all set, an Admin sees every
 // staff phone (all = "staff") or one person's (all = a user ID).
-func (o *Ops) Devices(ctx context.Context, tenant, actor, all string) ([]DeviceView, error) {
+func (o *Ops) MobileDevices(ctx context.Context, tenant, actor, all string) ([]DeviceView, error) {
 	if all != "" {
 		if err := o.require(ctx, tenant, actor, "Viewing the firm's registered phones", RoleAdmin); err != nil {
 			return nil, err

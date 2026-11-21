@@ -39,7 +39,7 @@ The staff app has five tabs:
 - **Clients**: find a client by name, UCC or PAN among the clients you may see. PAN and bank account numbers are masked.
 - **More**: surveillance alerts (compliance officer and Admin), **Ask Ledgy**, **My phones**, sign out.
 
-**Attendance.** When your firm has the HRMS module on, the Approvals tab starts with **Check in** (or **Check out**). Choose **Office**, **Home** or **Field**, add a selfie if your firm asks, and confirm with your face or fingerprint. Your location goes with the punch only, never in between. If it is refused the app says why: not on the office network, outside the branch's area, home not allowed today, or a new phone that HR must approve first.
+**Attendance.** When your firm has the HRMS module on and HR has linked your login to your employee record, the Approvals tab starts with **Check in** (or **Check out**). Choose **Office**, **Home** or **Field** (for Field, say whom or where you are visiting), add a selfie if you like, and confirm with your face or fingerprint. Your location goes with the check-in or check-out only, never in between. The HRMS module decides, and if it refuses the app says why: not on the office network or at the office, working from home not allowed today, or a new phone that HR must approve first (attendance is taken from one registered phone per person).
 
 **Notifications** say only what kind of thing is waiting ("3 approvals are waiting for you", "1 step of today is overdue"), never a client's name, code or amount. Tap one and unlock the app to see the details.
 

@@ -80,7 +80,7 @@ MS.screens = {
   },
   clients: {
     html: () => `<div class="ph-pg"><h1>Clients</h1><label class="ph-search">${svg('clients', 18)}<input class="in" id="m-q" placeholder="Name, UCC or PAN" value="${esc(ST.q)}" autocomplete="off" spellcheck="false" aria-label="Find a client"></label><div id="m-cl">${clientRows()}</div>
-      <p class="dim small">You see the clients you would see on the desktop. PAN and bank account numbers are masked.</p></div>`,
+      <p class="dim small">You see the clients you would see on the desktop. PAN, mobile number and email are masked.</p></div>`,
     after: () => { const q = $('m-q'); q.oninput = () => { ST.q = q.value; clearTimeout(ST.t); ST.t = setTimeout(findClients, 300); }; if (!ST.q) q.focus(); },
   },
   client: {
@@ -145,54 +145,74 @@ Object.assign(ACT, {
 });
 
 /* ---------- attendance check-in (the HRMS module) ----------
-   Shown only when the firm has the HRMS module on: GET /v1/hr/attendance/me
-   answers 404 when it is off. A punch is POST /v1/hr/attendance/punch with
-   { kind: in|out, mode: office|home|field, lat?, lng?, accuracy?, selfie? }
-   (selfie: a JPEG data URL from the front camera). The HRMS server decides:
-   office network, branch radius, home days, and one registered phone per
-   employee (the session of an app unlock names the phone). Inside the app
-   every punch first asks for the face or fingerprint. */
+   Shown only when the firm has the HRMS module on and the person's login is
+   linked to an employee: GET /v1/hr/me (the person's own HR records)
+   answers 404 when the module is off. A punch is POST
+   /v1/hr/attendance/punch (branch hrms, internal/ops/hrtime.go PunchReq):
+     { kind: in|out, mode: office|home|field, has_location, lat, lng,
+       device_id, biometric_unlocked, selfie (base64 JPEG), note }
+   and answers { at, kind, mode, site, status } or an error that says why it
+   was refused (not on the office network or at the office, home not
+   allowed today, a field punch without a note, not the registered phone).
+   The HRMS server decides; this page only asks. Inside the app every punch
+   first asks for the face or fingerprint, and device_id is the phone's
+   install ID (Capacitor Device.getId), so HR can hold one phone per person. */
 async function hrDetect() {
+  let me = null;
   try {
-    const r = await fetch('/v1/hr/attendance/me', { headers: { 'X-Requested-With': 'ledgerline' }, credentials: 'same-origin' });
-    ST.hr = r.ok ? await r.json() : null;
-  } catch (e) { ST.hr = null; }
-  if (ST.hr && String(MS.route || 'approvals').split(':')[0] === 'approvals' && !MS.locked && $('m-hr') === null) refresh();
+    const r = await fetch('/v1/hr/me', { headers: { 'X-Requested-With': 'ledgerline' }, credentials: 'same-origin' });
+    me = r.ok ? await r.json() : null;
+  } catch (e) { me = null; }
+  const was = !!ST.hr;
+  ST.hr = me && me.linked ? hrState(me.attendance || {}) : null;
+  if (!!ST.hr !== was && !MS.locked && String(MS.route || 'approvals').split(':')[0] === 'approvals') refresh();
+  return ST.hr;
+}
+// The day as the HRMS module keeps it: in and out times (IST), the mode,
+// and whether the last punch was an in.
+function hrState(a) {
+  const day = (a.days || []).find(d => d.date === todayIST()) || {}, ps = day.punches || [];
+  return { modes: (a.policy || {}).modes || [], policy: a.policy || {}, today: { in: day.in || '', out: day.out || '', mode: day.mode || '', status: day.status || '', last: ps.length ? ps[ps.length - 1].kind : '' } };
 }
 const HR_MODES = [['office', 'Office'], ['home', 'Home'], ['field', 'Field']];
-const hrIn = () => !!(ST.hr?.today?.in && !ST.hr?.today?.out);
-const hrTime = t => t ? esc(String(t).replace('T', ' ').slice(11, 16)) : '';
+const hrIn = () => ST.hr?.today?.last === 'in';
+const istHM = t => { const d = new Date(t); return isNaN(d) ? '' : new Date(d.getTime() + 330 * 60000).toISOString().slice(11, 16); };
+const modeName = m => (HR_MODES.find(x => x[0] === m) || [m, m])[1];
 function hrBar() {
   if (!ST.hr) return '';
-  const t = ST.hr.today || {};
-  return `<div class="m-hr" id="m-hr"><span><b>${hrIn() ? 'Checked in' : t.out ? 'Checked out' : 'Not checked in'}</b><small>${t.in ? 'in ' + hrTime(t.in) + (t.mode ? ' · ' + esc(t.mode) : '') : 'Attendance'}${t.out ? ' · out ' + hrTime(t.out) : ''}</small></span>
+  const t = ST.hr.today;
+  return `<div class="m-hr" id="m-hr"><span><b>${hrIn() ? 'Checked in' : t.out ? 'Checked out' : 'Not checked in'}</b><small>${t.in ? 'in ' + esc(t.in) + (t.mode ? ' · ' + esc(modeName(t.mode)) : '') : 'Attendance'}${t.out && !hrIn() ? ' · out ' + esc(t.out) : ''}</small></span>
     <button class="btn ${hrIn() ? '' : 'pri'}" data-go="attendance">${hrIn() ? 'Check out' : 'Check in'}</button></div>`;
 }
 function attendanceScreen() {
   return {
     tab: 'approvals', back: 'approvals',
-    load: async () => { await hrDetect(); return ST.hr; },
+    load: () => hrDetect(),
     html: hr => {
-      if (!hr) return '<div class="ph-pg"><h1>Attendance</h1><div class="ph-empty">Attendance is not switched on for your firm.</div></div>';
-      const p = hr.policy || {}, modes = HR_MODES.filter(([k]) => !p.modes || p.modes.includes(k)), kind = hrIn() ? 'out' : 'in', sel = ST.hrMode || (hr.today?.mode && modes.some(m => m[0] === hr.today.mode) ? hr.today.mode : modes[0]?.[0]);
-      const selfie = p.selfie === 'required' || p.selfie === 'optional' || p.selfie === true;
-      return `<div class="ph-pg"><h1>${kind === 'in' ? 'Check in' : 'Check out'}</h1><p class="dim">${fmtDate(MS.day())}${hr.today?.in ? ' · in at ' + hrTime(hr.today.in) : ''}</p>
-        ${ST.hrResult ? ST.hrResult : ''}
-        <div class="ph-seg m-seg3" role="radiogroup" aria-label="Where you work today">${modes.map(([k, l]) => `<button role="radio" aria-checked="${sel === k}" class="${sel === k ? 'on' : ''}" data-act="hrMode" data-id="${k}">${l}</button>`).join('')}</div>
-        <p class="dim small">${esc({ office: 'At your office or branch. The office network or the branch’s location confirms it.', home: 'Working from home, on the days your firm allows.', field: 'Out on work: meetings, client visits, the exchange.' }[sel] || '')}</p>
-        ${selfie ? `<label class="btn m-wide">${svg('face', 18)} ${p.selfie === 'required' ? 'Take a selfie (your firm asks for one)' : 'Take a selfie (optional)'}<input id="m-selfie" type="file" accept="image/*" capture="user" hidden></label><img id="m-selfie-pre" class="m-selfie" alt="Your selfie" hidden>` : ''}
-        <label class="m-check"><input type="checkbox" id="m-loc" checked> Send my location with this ${kind === 'in' ? 'check-in' : 'check-out'}</label>
+      if (!hr) return '<div class="ph-pg"><h1>Attendance</h1><div class="ph-empty">Attendance is not switched on for you. Your HR team links your login to your employee record.</div></div>';
+      const modes = HR_MODES.filter(([k]) => !hr.modes.length || hr.modes.includes(k)), kind = hrIn() ? 'out' : 'in';
+      const sel = modes.some(m => m[0] === ST.hrMode) ? ST.hrMode : modes.some(m => m[0] === hr.today.mode) ? hr.today.mode : modes[0]?.[0];
+      const selfieReq = hr.policy.selfie === 'required';
+      return `<div class="ph-pg"><h1>${kind === 'in' ? 'Check in' : 'Check out'}</h1><p class="dim">${fmtDate(todayIST())}${hr.today.in ? ' · in at ' + esc(hr.today.in) : ''}${hr.today.status ? ' · ' + esc(hr.today.status) : ''}</p>
+        ${ST.hrResult || ''}
+        ${modes.length ? `<div class="ph-seg m-seg3" role="radiogroup" aria-label="Where you work today">${modes.map(([k, l]) => `<button role="radio" aria-checked="${sel === k}" class="${sel === k ? 'on' : ''}" data-act="hrMode" data-id="${k}">${l}</button>`).join('')}</div>
+        <p class="dim small">${esc({ office: 'At your office or branch. The office network or the office’s location confirms it.', home: 'Working from home, on the days your work policy allows.', field: 'Out on work: meetings, client visits, the exchange. Say where.' }[sel] || '')}</p>` : '<div class="m-warn">Your work policy allows no check-in from the phone. Ask HR.</div>'}
+        <label class="m-f">${sel === 'field' ? 'Whom or where you are visiting' : 'Note (optional)'}<input class="in" id="m-hrnote" maxlength="300" value="${esc(ST.hrNote || '')}" ${sel === 'field' ? 'required' : ''}></label>
+        <label class="btn m-wide">${svg('face', 18)} ${selfieReq ? 'Take a selfie (your firm asks for one)' : 'Add a selfie (optional)'}<input id="m-selfie" type="file" accept="image/jpeg,image/png,image/*" capture="user" hidden></label><img id="m-selfie-pre" class="m-selfie" alt="Your selfie" ${ST.selfie ? `src="${ST.selfie}"` : 'hidden'}>
+        <label class="m-check"><input type="checkbox" id="m-loc" ${ST.hrNoLoc ? '' : 'checked'}> Send my location with this ${kind === 'in' ? 'check-in' : 'check-out'}</label>
         <div id="m-hrerr"></div>
-        <button class="btn pri ph-btn" data-act="punch" data-id="${kind}">${MS.native ? svg('face', 18) + ' ' : ''}${kind === 'in' ? 'Check in' : 'Check out'}</button>
-        <p class="dim small">${MS.native ? 'You confirm with your face or fingerprint. ' : ''}Attendance is recorded from your registered phone only. Your location is sent only with a check-in or check-out, never in between.</p></div>`;
+        <button class="btn pri ph-btn" data-act="punch" data-id="${kind}" ${modes.length ? '' : 'disabled'}>${MS.native ? svg('face', 18) + ' ' : ''}${kind === 'in' ? 'Check in' : 'Check out'}</button>
+        <p class="dim small">${MS.native ? 'You confirm each check-in and check-out with your face or fingerprint. ' : ''}Attendance from a phone is taken from your registered phone only. Your location is sent only with a check-in or check-out, never in between.</p></div>`;
     },
     after: () => {
-      const f = $('m-selfie'); if (!f) return;
-      f.onchange = async () => { ST.selfie = f.files[0] ? await shrink(f.files[0]) : ''; const im = $('m-selfie-pre'); im.hidden = !ST.selfie; if (ST.selfie) im.src = ST.selfie; };
+      const f = $('m-selfie'), n = $('m-hrnote'), l = $('m-loc');
+      if (n) n.oninput = () => { ST.hrNote = n.value; };
+      if (l) l.onchange = () => { ST.hrNoLoc = !l.checked; };
+      if (f) f.onchange = async () => { try { ST.selfie = f.files[0] ? await shrink(f.files[0]) : ''; } catch (e) { ST.selfie = ''; $('m-hrerr').innerHTML = errBox(e); } const im = $('m-selfie-pre'); im.hidden = !ST.selfie; if (ST.selfie) im.src = ST.selfie; };
     },
   };
 }
-// A selfie, made small: a 480 px JPEG.
+// A selfie, made small: a 480 px JPEG data URL.
 function shrink(file) {
   return new Promise((res, rej) => {
     const u = URL.createObjectURL(file), im = new Image();
@@ -204,41 +224,41 @@ function shrink(file) {
 function where() {
   return new Promise(res => {
     if (!navigator.geolocation) { res(null); return; }
-    navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: Math.round(p.coords.accuracy) }), () => res(null), { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+    navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lng: p.coords.longitude }), () => res(null), { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
   });
 }
-// The HRMS server's reasons, in words for the person.
-const HR_WHY = {
-  off_network: 'You are not on the office network. Connect to the office Wi-Fi, or choose Field or Home.',
-  not_on_office_network: 'You are not on the office network. Connect to the office Wi-Fi, or choose Field or Home.',
-  outside_radius: 'You are outside your branch’s area. Check in when you reach the office, or choose Field.',
-  outside_branch_radius: 'You are outside your branch’s area. Check in when you reach the office, or choose Field.',
-  home_not_allowed: 'Working from home is not allowed for you today.',
-  device_pending: 'This is a new phone for attendance: HR must approve it first. Your old phone still works.',
-  new_device: 'This is a new phone for attendance: HR must approve it first. Your old phone still works.',
-  selfie_required: 'Your firm asks for a selfie with this check-in.',
-  location_required: 'Your firm needs your location for this: allow location for the app.',
-};
+// The phone's install ID: stable while the app stays installed.
+async function installID() {
+  const D = plug('Device');
+  try { const r = D ? await D.getId() : null; return r?.identifier || MS.device?.id || ''; } catch (e) { return MS.device?.id || ''; }
+}
 async function punch(kind) {
   const err = $('m-hrerr'); err.innerHTML = '';
-  const p = ST.hr?.policy || {}, mode = document.querySelector('[data-act="hrMode"].on')?.dataset.id || 'office';
-  if (p.selfie === 'required' && !ST.selfie) { err.innerHTML = errBox(HR_WHY.selfie_required); return; }
-  // In the app, the face or fingerprint right before each punch.
-  if (MS.native && MS.device) {
-    try { await Shell.readSecret(kind === 'in' ? 'Check in' : 'Check out'); } catch (e) { err.innerHTML = errBox('Not confirmed: try again with your face or fingerprint.'); return; }
-  } else if (MS.native) { err.innerHTML = errBox('Set up fingerprint or face unlock on this phone first (sign out, sign in with your password and choose to use it).'); return; }
+  const mode = document.querySelector('[data-act="hrMode"].on')?.dataset.id || 'office', note = ($('m-hrnote')?.value || '').trim();
+  if (mode === 'field' && !note) { err.innerHTML = errBox('Say whom or where you are visiting.'); return; }
+  if (ST.hr?.policy?.selfie === 'required' && !ST.selfie) { err.innerHTML = errBox('Your firm asks for a selfie with this check-in.'); return; }
+  const body = { kind, mode, note };
+  // In the app: the face or fingerprint right before each punch, and the
+  // phone's install ID.
+  if (MS.native) {
+    if (!MS.device) { err.innerHTML = errBox('Set up fingerprint or face unlock on this phone first: sign out, sign in with your password and choose to use it.'); return; }
+    try { await Shell.readSecret(kind === 'in' ? 'Check in' : 'Check out'); } catch (e) { err.innerHTML = errBox('Not confirmed. Try again with your face or fingerprint.'); return; }
+    body.device_id = await installID(); body.biometric_unlocked = true;
+  }
   const loc = $('m-loc')?.checked ? await where() : null;
-  const body = { kind, mode, ...(loc || {}), ...(ST.selfie ? { selfie: ST.selfie } : {}) };
+  if (loc) Object.assign(body, { has_location: true, lat: loc.lat, lng: loc.lng });
+  if (ST.selfie) body.selfie = ST.selfie.split(',')[1];
+  const bt = document.querySelector('[data-act="punch"]'); if (bt) bt.disabled = true;
   try {
     const r = await post('/v1/hr/attendance/punch', body);
-    if (r && r.status && r.status !== 'accepted') throw Object.assign(new Error(r.message || r.reason || 'Refused'), { code: r.reason || r.code });
-    ST.selfie = ''; ST.hrMode = '';
-    ST.hrResult = `<div class="m-ok" role="status"><b>${kind === 'in' ? 'Checked in' : 'Checked out'} at ${hrTime(r?.at) || new Date(Date.now() + 330 * 60000).toISOString().slice(11, 16)}</b> · ${esc(HR_MODES.find(m => m[0] === mode)?.[1] || mode)}${loc ? '' : ' · no location sent'}</div>`;
-    await hrDetect(); go('attendance', { keep: true });
+    ST.selfie = ''; ST.hrMode = ''; ST.hrNote = '';
+    ST.hrResult = `<div class="m-ok" role="status"><b>${kind === 'in' ? 'Checked in' : 'Checked out'} at ${esc(istHM(r?.at) || istHM(new Date()))}</b> · ${esc(modeName(r?.mode || mode))}${r?.site ? ' · ' + esc(r.site) : ''}${loc ? '' : ' · no location sent'}${r?.status ? `<br><small>Today: ${esc(r.status)}</small>` : ''}</div>`;
+    await hrDetect(); homeCounts(); go('attendance', { keep: true });
   } catch (e) {
+    if (bt) bt.disabled = false;
     if (e.status === 401) return;
     ST.hrResult = '';
-    err.innerHTML = `<div class="m-err" role="alert"><b>${kind === 'in' ? 'Check-in' : 'Check-out'} refused.</b> ${esc(HR_WHY[e.code] || e.message)}</div>`;
+    err.innerHTML = `<div class="m-err" role="alert"><b>${kind === 'in' ? 'Check-in' : 'Check-out'} refused.</b> ${esc(String(e.message || e).replace(/^(not permitted for this role|invalid|invalid state): /i, '').replace(/^./, c => c.toUpperCase()))}${loc || !$('m-loc')?.checked ? '' : '<br><small>Your location could not be read: allow location for the app and try again.</small>'}</div>`;
   }
 }
 Object.assign(ACT, {

@@ -95,7 +95,7 @@ MS.screens = {
       ${f.upi_ids ? `<section class="ph-glance"><h2>Pay by UPI</h2>${f.upi_qr ? `<img class="m-qr" src="${esc(f.upi_qr)}" alt="SEBI-validated UPI QR code of ${esc(f.name)}">` : ''}${f.upi_ids.split(',').map(id => `<p class="mono m-upi"><b>${esc(id)}</b> <button class="linkish small" data-act="copy" data-id="${esc(id)}">Copy</button></p>`).join('')}
         <p class="dim small">Check that the ID ends in @valid with our bank’s name and shows the green thumbs-up (SEBI Check) in your UPI app. Do not pay to any other UPI ID in our name.</p></section>` : ''}
       ${f.upi_dp_ids ? `<section class="ph-glance"><h2>DP charges</h2><p class="small">Pay your demat account’s bills to our depository participant’s ID:</p>${f.upi_dp_ids.split(',').map(id => `<p class="mono"><b>${esc(id)}</b></p>`).join('')}</section>` : ''}
-      <section class="ph-glance"><h2>Or transfer by NEFT, RTGS or IMPS</h2><dl>${row('Account name', esc(f.name) + ' – Client Account')}${row('Account', esc(f.payin_account || 'on your welcome letter'), 'mono')}${row('Reference', esc(v.account.ucc), 'mono')}</dl></section>
+      <section class="ph-glance"><h2>Or transfer by NEFT, RTGS or IMPS</h2><dl>${row('Account name', esc(f.name) + ' – Client Account', 'm-plain')}${row('Account', esc(f.payin_account || 'on your welcome letter'), 'mono')}${row('Reference', esc(v.account.ucc), 'mono')}</dl></section>
       <p class="dim small">Credits are matched to your account from our bank statement. Cheques are credited once cleared.</p></div>`; },
   },
   documents: {

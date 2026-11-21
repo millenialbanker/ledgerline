@@ -217,6 +217,12 @@ type PushMsg struct {
 //
 //	o.PushToStaff(ctx, tenant, []string{"farhan.khan"}, ops.PushStepOverdue)
 //
+// Step reminders (branch step-reminders: Ops.StepEvents, StepEvent) were
+// not on main when this was written. Once they are, the hook is one line
+// where the server builds its Ops (cmd/ledgerline), or in New:
+//
+//	o.StepEvents = func(ctx context.Context, e StepEvent) { o.PushToStaff(ctx, e.Tenant, e.Users, PushStepOverdue) }
+//
 // It sends nothing that a template does not say, so the caller cannot put
 // client data in a push.
 func (o *Ops) PushToStaff(ctx context.Context, tenant string, users []string, kind string) error {
