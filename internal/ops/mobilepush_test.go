@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // fakeFCM is Google's token endpoint and FCM's send endpoint, made up:
@@ -302,4 +303,41 @@ func TestPushSenderAndPayload(t *testing.T) {
 	if _, err := o.TestPush(ctx, T, "anita.rao"); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("test push without a phone: %v", err)
 	}
+}
+
+// TestStepOverduePush: a step reminder (step reminders' Ops.StepEvents,
+// which New points at PushStepEvent) becomes one "N steps of today are
+// overdue" push on the owner's phone (the firm's own step and the built-in
+// steps of the role, batched); step names and texts stay out of the push.
+func TestStepOverduePush(t *testing.T) {
+	o, ctx := newOps(t)
+	if o.StepEvents == nil {
+		t.Fatal("New did not hook the staff app's push to the step reminders")
+	}
+	now, _ := time.ParseInLocation("2006-01-02 15:04", stepFri+" 09:50", ist)
+	o.Now = func() time.Time { return now }
+	f := newFakeFCM(t)
+	o.FCMClient, o.FCMBase = f.srv.Client(), f.srv.URL
+	if _, err := o.SaveConnection(ctx, T, "admin", connFCM, nil, map[string]string{"service_account": f.serviceAccount()}); err != nil {
+		t.Fatal(err)
+	}
+	staffOn(t, o, ctx, MobileSettings{StaffRoles: []string{RoleChecker}})
+	if _, _, err := o.RegisterDevice(ctx, T, "farhan.khan", signIn(t, o, ctx, "farhan.khan", DevPassword), DeviceReq{App: AppStaff, Platform: "ios", PushToken: pushTok}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.SaveStepSettings(ctx, T, "admin", StepSettings{Custom: []StepDef{{Name: "Count the cash of BH1001 Secret Name", Due: "10:00", Role: "farhan.khan"}}}); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(11 * time.Minute)
+	if _, err := o.RunStepReminders(ctx, T, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.SendPushes(ctx, T); err != nil {
+		t.Fatal(err)
+	}
+	sent := f.take()
+	if len(sent) != 1 || sent[0].Message.Notification["title"] != "Step overdue" || !regexp.MustCompile(`^(1 step of today is|\d+ steps of today are) overdue\.$`).MatchString(sent[0].Message.Notification["body"]) || sent[0].Message.Data["route"] != "today" {
+		t.Fatalf("step push %+v", sent)
+	}
+	noClientData(t, sent[0], "BH1001", "Secret Name", "cash")
 }

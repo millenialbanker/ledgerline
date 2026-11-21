@@ -284,6 +284,10 @@ func TestQuestions(t *testing.T) {
 		{"investment adviser complaints table on the home page", "", "raia-complaints-tables"},
 		{"report impersonation to bse every month", "", "impersonation-register"},
 		{"fake app using the firm's name", "", "impersonation-register"},
+		// The activity feed.
+		{"what happened this morning before I signed in", "", "activity-feed"},
+		{"who approved the payout batch today", "", "activity-feed"},
+		{"can branch staff see the activity feed", "", "activity-feed-who-sees"},
 	}
 	fails := 0
 	for _, c := range cases {

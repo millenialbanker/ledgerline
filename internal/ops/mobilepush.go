@@ -217,11 +217,8 @@ type PushMsg struct {
 //
 //	o.PushToStaff(ctx, tenant, []string{"farhan.khan"}, ops.PushStepOverdue)
 //
-// Step reminders (branch step-reminders: Ops.StepEvents, StepEvent) were
-// not on main when this was written. Once they are, the hook is one line
-// where the server builds its Ops (cmd/ledgerline), or in New:
-//
-//	o.StepEvents = func(ctx context.Context, e StepEvent) { o.PushToStaff(ctx, e.Tenant, e.Users, PushStepOverdue) }
+// Step reminders and escalations reach it through PushStepEvent, which New
+// sets as Ops.StepEvents.
 //
 // It sends nothing that a template does not say, so the caller cannot put
 // client data in a push.
@@ -239,6 +236,17 @@ func (o *Ops) PushToStaff(ctx context.Context, tenant string, users []string, ki
 		}
 	}
 	return nil
+}
+
+// PushStepEvent is the step reminders' hook (Ops.StepEvents, stepremind.go):
+// a reminder (a step not done by its time) or an escalation becomes "1 step
+// of today is overdue" on the phones of the people told. The step's name,
+// its text and any client in its exceptions stay out of the push.
+func (o *Ops) PushStepEvent(ctx context.Context, e StepEvent) {
+	if e.Kind != "reminder" && e.Kind != "escalation" {
+		return
+	}
+	o.PushToStaff(ctx, e.Tenant, e.Users, PushStepOverdue)
 }
 
 // queuePush adds to the person's pending push of this kind, or starts one,

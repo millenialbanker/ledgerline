@@ -383,6 +383,10 @@ func (o *Ops) CloseWorkItem(ctx context.Context, tenant, actor, id string, doPro
 		return w, err
 	}
 	o.log(ctx, tenant, actor, "work."+strings.ToLower(status), id, map[string]any{"process": w.Process, "note": note})
+	if status == "Dismissed" && (w.Process == wStep || w.Process == wStepEsc) {
+		// A step reminder closed with a note: the step was done by hand.
+		o.stepWorkDismissed(ctx, tenant, actor, strings.TrimPrefix(w.Key, w.Process+":"), note)
+	}
 	return w, nil
 }
 

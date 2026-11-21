@@ -117,7 +117,7 @@ function eodStatus(e) {
 // the screen opens with a tab for each of its parts. Every screen keeps its
 // own name (links, help articles and bookmarks to it still work).
 const GROUPS = {
-  automation: ['Automation', [['autopilot', 'Autopilot & work queue'], ['jobs', 'Scheduled jobs'], ['rpa', 'Browser automations']]],
+  automation: ['Automation', [['autopilot', 'Autopilot & work queue'], ['steps', 'Steps & reminders'], ['jobs', 'Scheduled jobs'], ['rpa', 'Browser automations']]],
   calendar: ['Calendar & circulars', [['periodic', 'Periodic work'], ['circulars', 'Circulars & duties']]],
   filesg: ['Files', [['xfiles', 'Exchange files'], ['ccdata', 'Clearing data'], ['files', 'Other uploads & migration'], ['migrate', 'Migration from old system']]],
   clientsg: ['Clients & onboarding', [['clients', 'Clients'], ['apps', 'Online applications'], ['changes', 'Change requests'], ['uccapi', 'Exchange UCC'], ['mnrl', 'Revoked mobiles']]],
@@ -2858,6 +2858,7 @@ V.settings = {
       <p class="dim full" style="margin:0;font-size:12.5px">${s.separate_commodity_ledger ? 'The separate commodity ledger is on: map the MCX account to Commodity under “Money paid into these firm bank accounts” above instead; that already keeps its money out of Finspot.' : 'The client keeps one ledger and sees one ledger. Money paid into these accounts (e-CMS, bank statement, gateway, receipts entered by hand), with MCX profits less MCX losses and charges, is MCX money: never in Finspot’s RMS line, NSE Clearing allocation and margin reporting, SEGMON or equity risk; it is in the MCX allocation and MCX margin reporting. Payouts of MCX money are made from the first account. Risk moves money between MCX and equity on RMS or the client drawer.'}</p>
     </div></div></div>
     ${typeof firmKeyPanel === 'function' ? firmKeyPanel(d.fk) : ''}
+    ${typeof stepSettingsPanel === 'function' ? stepSettingsPanel() : ''}
     <div class="panel"><div class="hd"><h3>Sign-in security</h3></div><div class="bd"><div class="form">
       <div class="fld"><label for="st-2fa">Two-factor sign-in</label><select class="in" id="st-2fa" ${admin ? '' : 'disabled'}><option value="required" ${s.two_factor !== 'optional' ? 'selected' : ''}>Required for every user</option><option value="optional" ${s.two_factor === 'optional' ? 'selected' : ''}>Optional</option></select></div>
       <div class="fld"><label for="st-idle">Sign out after inactivity (minutes)</label><input class="in" id="st-idle" type="number" min="5" max="240" value="${s.session_idle_minutes || 30}" ${admin ? '' : 'disabled'}></div>

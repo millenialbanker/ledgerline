@@ -94,4 +94,16 @@ func TestIntegrationSampleDay(t *testing.T) {
 	if err != nil || len(got.Postings) != 2 || got.Fingerprint() != e.Fingerprint() {
 		t.Fatalf("reload %+v %v", got, err)
 	}
+	// The activity feed's read: this run's entries, newest first, by
+	// tenant and time, and the page before the newest.
+	aw := st.AuditStore().(app.AuditWindow)
+	now := time.Now()
+	win, err := aw.Window(ctx, tenant, now.Add(-time.Hour), now.Add(time.Minute), 0, 3)
+	if err != nil || len(win) != 3 || win[0].Seq <= win[1].Seq || win[0].Action != "journal.posted" {
+		t.Fatalf("window %+v %v", win, err)
+	}
+	older, err := aw.Window(ctx, tenant, now.Add(-time.Hour), now.Add(time.Minute), win[0].Seq, 1)
+	if err != nil || len(older) != 1 || older[0].Seq != win[1].Seq {
+		t.Fatalf("window before %d: %+v %v", win[0].Seq, older, err)
+	}
 }

@@ -382,6 +382,9 @@ type Ops struct {
 	// AIOff switches every AI call off on this server, for every firm
 	// (LEDGERLINE_AI_OFF=1; see aicontrol.go). Firms have their own switch.
 	AIOff bool
+	// StepEvents, when set, hears every step reminder and escalation
+	// (stepremind.go): the hook point for a push to the staff mobile app.
+	StepEvents func(ctx context.Context, e StepEvent)
 	// EditionOf is each firm's edition (manual, autopilot or full), set by
 	// the provider; DefaultEdition applies to firms not listed.
 	// Residency is where the server says it is hosted (see residency.go).
@@ -467,6 +470,10 @@ type Ops struct {
 // New builds Ops and installs the client-code-modification hook on the app.
 func New(a *app.App) *Ops {
 	o := &Ops{App: a, Docs: a.Docs, Now: time.Now}
+	// Step reminders and escalations push "step overdue" to the staff app
+	// (mobilepush.go). A server that adds another channel calls
+	// o.PushStepEvent from its own hook too.
+	o.StepEvents = o.PushStepEvent
 	a.Adjust = o.applyCCM
 	a.BillingHooks = o.billingHooks
 	a.Observe = o.observeAudit // security events from the audit trail (secevents.go)
