@@ -131,6 +131,8 @@ var SecKinds = map[string]SecKind{
 	"incident.provider_notice":         {"security", SevHigh, "Incident notice from Ledgerline"},
 	"platform.incident":                {"security", SevHigh, "Platform incident declared"},
 	"platform.incident_update":         {"security", SevMedium, "Platform incident updated"},
+	"mobile.rooted_device":             {"security", SevMedium, "Phone that looks rooted or jailbroken registered"},
+	"mobile.unlock_failed":             {"security", SevMedium, "Phone revoked after wrong unlock attempts"},
 }
 
 // SecurityEvent records one event in the firm's security stream, runs the

@@ -474,6 +474,12 @@ type Ops struct {
 	// FirmKeyClient calls firms' own keys (AWS KMS, a firm's key service;
 	// firmkey.go); nil uses a plain HTTPS client. Tests point it at fakes.
 	FirmKeyClient *http.Client
+	// FCMClient and FCMBase send push notifications (mobilepush.go): nil
+	// and "" use a plain HTTPS client and fcm.googleapis.com. Tests point
+	// them at a fake. fcmTok keeps each firm's OAuth access token.
+	FCMClient *http.Client
+	FCMBase   string
+	fcmTok    sync.Map
 	// ExportSync builds full data exports before replying (tests);
 	// otherwise they build in the background (dataexport.go).
 	ExportSync bool
@@ -491,6 +497,10 @@ type Ops struct {
 // New builds Ops and installs the client-code-modification hook on the app.
 func New(a *app.App) *Ops {
 	o := &Ops{App: a, Docs: a.Docs, Now: time.Now}
+	// Step reminders and escalations push "step overdue" to the staff app
+	// (mobilepush.go). A server that adds another channel calls
+	// o.PushStepEvent from its own hook too.
+	o.StepEvents = o.PushStepEvent
 	a.Adjust = o.applyCCM
 	a.BillingHooks = o.billingHooks
 	a.Observe = o.observeAudit // security events from the audit trail (secevents.go)

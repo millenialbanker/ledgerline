@@ -1,0 +1,15 @@
+{
+  "appName": "Ledgerline Staff",
+  "appId": "com.example.ledgerline.staff",
+  "version": "1.0.0",
+  "build": 1,
+  "scheme": "ledgerline-staff",
+  "allowedHosts": ["*.example.com"],
+  "themeColor": "#2C47A3",
+  "pinning": {
+    "enabled": false,
+    "host": "",
+    "spkiSha256": [],
+    "expires": ""
+  }
+}

@@ -258,6 +258,9 @@ func (o *Ops) notify(ctx context.Context, tenant, actor, event, ucc string, data
 	if _, err := o.sendEvent(ctx, tenant, actor, event, ucc, data, ""); err != nil {
 		o.log(ctx, tenant, actor, "message.error", event, map[string]any{"ucc": ucc, "error": err.Error()})
 	}
+	// The client app's push says only that there is something to see; data
+	// is not passed on (mobilepush.go).
+	o.pushClientEvent(ctx, tenant, event, ucc)
 }
 
 func (o *Ops) sendEvent(ctx context.Context, tenant, actor, event, ucc string, data map[string]string, only string) ([]Message, error) {

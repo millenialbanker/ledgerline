@@ -185,11 +185,12 @@ var builtinWork = map[string]struct{ do, approve string }{
 // persons reach (each filters to their own clients).
 var scopedScreens = strings.Fields("chat boards rpa yearend insights clients statements notes money debits rms partners prepaid changes helpdesk crm ipo")
 
-// complianceOnly are the screens the console shows, besides the Admin,
-// only to the compliance officer (Firm practices: the Admin answers and
-// Compliance approves; Support access: Compliance approves a session), so
-// the other templates do not have them either.
-var complianceOnly = map[string]bool{"practices": true, "supportaccess": true}
+// complianceOnly are the screens only the Admin and the compliance officer
+// open (Firm practices: the Admin answers and Compliance approves; Support
+// access: Compliance approves a session; Staff app and Client app: the
+// Admin changes them, Compliance may look), so the other templates do not
+// have them.
+var complianceOnly = map[string]bool{"practices": true, "supportaccess": true, "staffapp": true, "clientapp": true}
 
 // editableBuiltin reports a built-in role a firm may edit: not Admin
 // (which always has everything) and not the client portal's.

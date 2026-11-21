@@ -1,0 +1,23 @@
+{
+  "appName": "Demo Invest",
+  "appId": "in.example.demoinvest",
+  "version": "1.0.0",
+  "build": 1,
+  "serverUrl": "https://backoffice.example.in",
+  "firm": "demo",
+  "scheme": "demoinvest",
+  "colors": {
+    "primary": "#1f4fd1",
+    "background": "#ffffff"
+  },
+  "icon": "assets/icon.png",
+  "splash": "assets/splash.png",
+  "privacyPolicyUrl": "https://www.example.in/privacy",
+  "supportEmail": "support@example.in",
+  "allowNavigation": ["web.cdslindia.com", "*.cdslindia.com", "*.cdsl.co.in"],
+  "pinning": {
+    "enabled": false,
+    "spkiSha256": [],
+    "expires": ""
+  }
+}

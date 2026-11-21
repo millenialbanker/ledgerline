@@ -149,9 +149,11 @@ function viewAllowed(k) {
   if (edition() === 'manual' && k === 'autopilot') return false;
   if (role() === 'Authorised person' && k === 'rpa') return false; // automations are for the firm's own staff
   if (k === 'supportaccess' && !S.me?.support_access) return false; // the Admin, Compliance and the firm's chosen approver
-  // Firm practices: the Admin answers, Compliance approves; with roles the
-  // firm made or edited, those whose screens include it.
-  if (k === 'practices' && !(S.me?.access ? S.me.access.admin || !!S.me.access.screens?.practices?.view : has('Compliance officer'))) return false;
+  // Firm practices (the Admin answers, Compliance approves), Staff app and
+  // Client app (the Admin changes them, Compliance looks): the Admin and
+  // the compliance officer; with roles the firm made or edited, those
+  // whose screens include them.
+  if (['practices', 'staffapp', 'clientapp'].includes(k) && !(S.me?.access ? S.me.access.admin || !!S.me.access.screens?.[k]?.view : has('Compliance officer'))) return false;
   return true;
 }
 // groupTabs: the group's tabs this user may open.

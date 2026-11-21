@@ -521,3 +521,37 @@ func TestFirmPracticesRoles(t *testing.T) {
 		t.Fatal("maker copy's screens include firm practices")
 	}
 }
+
+// The staff app follows the roles: a copy of the Ops checker kept to
+// Receipts & payouts sees and closes the checker's items of that screen
+// only, and is on the app's list by the roles it holds.
+func TestStaffAppFollowsRoles(t *testing.T) {
+	o, ctx := rolesSetup(t)
+	ck, _ := BuiltinRole(RoleChecker)
+	d := RoleDef{Name: "Payout checker", Template: RoleChecker, Screens: map[string]Power{"money": ck.Screens["money"], "autopilot": {View: true}}, Limits: ck.Limits}
+	c, err := o.ProposeRole(ctx, T, "admin", d)
+	approveRole(t, o, ctx, c, err)
+	c, err = o.ProposeUserRoles(ctx, T, "admin", "neha.brok", []string{"Payout checker"}, "", "")
+	approveRole(t, o, ctx, c, err)
+	staffOn(t, o, ctx, MobileSettings{StaffRoles: []string{"Payout checker"}})
+	o.raiseWork(ctx, T, "test", "money-1", "Check a payout batch", "made up", "", RoleChecker, "money", D)
+	o.raiseWork(ctx, T, "test", "bill-1", "Check a billing run", "made up", "", RoleChecker, "billing", D)
+	ws, err := o.StaffWork(ctx, T, "neha.brok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ws) != 1 || ws[0].ID != "W-test-money-1" {
+		t.Fatalf("staff app work: %+v", ws)
+	}
+	if _, err := o.StaffDecide(ctx, T, "neha.brok", "W-test-bill-1", "close", "done"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("closed an item of a screen the role lacks: %v", err)
+	}
+	if _, err := o.StaffDecide(ctx, T, "neha.brok", "W-test-money-1", "close", "done"); err != nil {
+		t.Fatalf("close on the item's screen: %v", err)
+	}
+	// The Ops checker still sees both on the app (when on the list).
+	staffOn(t, o, ctx, MobileSettings{StaffRoles: []string{RoleChecker}})
+	if ws, _ := o.StaffWork(ctx, T, "farhan.khan"); len(ws) == 0 {
+		t.Fatal("ops checker sees nothing")
+	}
+}

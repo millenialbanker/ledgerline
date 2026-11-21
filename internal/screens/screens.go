@@ -66,7 +66,7 @@ var Nav = []Section{
 	{Name: "Business", Items: []Item{s("insights", "Client insights"), s("crm", "Leads & CRM"),
 		g("partnersg", "Branches & partners", s("partners", "Branches & partners"), s("dealers", "Dealers & terminals"))}},
 	{Name: "Admin", Admin: true, Items: []Item{s("connections", "Connections"), s("backups", "Backups"), s("dataexit", "Data & exit"),
-		g("settingsg", "Settings", s("settings", "Settings"), s("practices", "Firm practices")),
+		g("settingsg", "Settings", s("settings", "Settings"), s("practices", "Firm practices"), s("staffapp", "Staff app"), s("clientapp", "Client app")),
 		g("usersg", "Users & roles", s("users", "Users"), s("roles", "Roles")),
 		g("securityg", "Security", s("supportaccess", "Support access")),
 		s("layout", "Screen layout")}},

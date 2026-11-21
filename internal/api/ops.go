@@ -58,6 +58,7 @@ func (s *Server) opsRoutes() {
 	s.stepRoutes()
 	s.stockSIPRoutes()
 	s.mfRoutes()
+	s.mobileRoutes()
 	s.ipoRoutes()
 	s.rfqRoutes()
 	s.cbricsRoutes()

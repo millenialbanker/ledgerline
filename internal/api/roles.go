@@ -89,6 +89,11 @@ var routeScreens = map[string]string{
 	"settings": "settings", "firm-profile": "settings", "signing": "settings",
 	"users": "users settings", "roles": "roles", "role-changes": "roles", "support-access": "supportaccess", "ui/policy": "layout",
 	"firm-practices": "practices", "go-live": "practices", "finspot-logins": "clients live",
+	"mobile/settings": "staffapp clientapp", "mobile/staff-qr": "staffapp", "mobile/test-push": "staffapp",
+	// The staff app (/m/): the desktop screen each view mirrors. Its home
+	// and approvals list only the items of screens the roles include, and
+	// an approval is decided as from the item's screen (ops/mobilestaff.go).
+	"m/work": "autopilot", "m/day": "dashboard", "m/alerts": "dashboard autopilot surv", "m/clients": "clients",
 }
 
 // commonRoutes are open to every staff login whatever their roles: who
@@ -98,7 +103,12 @@ var commonRoutes = map[string]bool{"me": true, "auth": true, "ledgy": true, "not
 	"file-types": true, "tags": true, "market": true, "dev": true,
 	// The activity feed sits beside every screen; it shows only lines
 	// about the screens the person's roles include (ops/activity.go).
-	"activity": true}
+	"activity": true,
+	// The person's own phones and the pushes sent to them; the firm's
+	// phones as a whole need an Admin (ops/mobile.go).
+	"mobile/devices": true, "mobile/notifications": true,
+	// The staff app's home and approvals: filtered by the person's roles.
+	"m/home": true, "m/approvals": true}
 
 // screensFor returns the screens a route serves (common: open to all
 // staff; nil and false: not mapped, which a gated login cannot use).

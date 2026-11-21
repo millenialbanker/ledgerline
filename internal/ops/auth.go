@@ -84,6 +84,10 @@ type Session struct {
 	// Support is the support access (supportaccess.go) a Ledgerline
 	// support session was opened under; empty for the firm's own users.
 	Support string `json:"support,omitempty"`
+	// Device is the registered phone (mobile.go) a staff or client app
+	// session belongs to: it ends after the app's short idle time and when
+	// the phone is revoked.
+	Device string `json:"device,omitempty"`
 }
 
 // AuthState tells the console what the signed-in user still has to do.
@@ -375,6 +379,15 @@ func (o *Ops) SessionUser(ctx context.Context, tenant, tok string) (AuthState, e
 	if idle <= 0 {
 		idle = 30 * time.Minute
 	}
+	if s.Device != "" {
+		// A phone's session: the app's idle time-out, and only while the
+		// phone is not revoked (mobile.go).
+		d, ok := o.mobileSessionIdle(ctx, tenant, s.Device)
+		if !ok {
+			return AuthState{}, ErrSessionEnded
+		}
+		idle = d
+	}
 	exp, _ := time.Parse(time.RFC3339, s.Expires)
 	seen, _ := time.Parse(time.RFC3339, s.LastSeen)
 	c, _, cerr := o.cred(ctx, tenant, s.User)
@@ -382,7 +395,8 @@ func (o *Ops) SessionUser(ctx context.Context, tenant, tok string) (AuthState, e
 	if s.Revoked || now.After(exp) || now.Sub(seen) > idle || cerr != nil || uerr != nil || c.Epoch != s.Epoch || !u.Active {
 		return AuthState{}, ErrSessionEnded
 	}
-	if now.Sub(seen) > 5*time.Minute {
+	// A phone's idle time is minutes, so its last activity is kept closer.
+	if now.Sub(seen) > 5*time.Minute || (s.Device != "" && now.Sub(seen) > 20*time.Second) {
 		s.LastSeen = now.Format(time.RFC3339)
 		docs.Put(ctx, o.Docs, tenant, cSession, id, s, ver, s.User) // best effort; a race just means another request touched it
 	}

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'">
+<title>Set up the staff app</title>
+<link rel="stylesheet" href="setup.css">
+</head>
+<body>
+<main class="card">
+  <div class="mark" aria-hidden="true"><i></i><i></i><i></i></div>
+  <h1>Set up the staff app</h1>
+  <p id="intro">Scan the code on <b>Settings → Staff app</b> in Ledgerline with your phone’s camera, or type the server address and firm code your Admin gave you.</p>
+  <form id="f">
+    <label>Server address<input id="url" type="url" inputmode="url" autocapitalize="none" spellcheck="false" placeholder="https://backoffice.yourfirm.in" required></label>
+    <label>Firm code<input id="firm" autocapitalize="none" spellcheck="false" required></label>
+    <p id="err" class="err" role="alert" hidden></p>
+    <button type="submit">Continue</button>
+  </form>
+  <p class="small">The app connects only to servers on https that this build allows. It never holds your password: you sign in on the next screen.</p>
+</main>
+<script src="config.js"></script>
+<script src="setup.js"></script>
+</body>
+</html>
