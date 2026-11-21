@@ -8,7 +8,10 @@ Activating a client | Ops checker
 Adding client documents | Ops maker, Ops checker, Compliance officer, Branch staff
 Adding inspection documents | Compliance officer
 Adding or changing dealers and terminals | Ops maker, Compliance officer
+Adding or changing employees | HR manager
+Adding staff documents | HR manager
 Adding users | Admin
+Adjusting leave balances | HR manager
 Advancing onboarding | Ops maker, Ops checker
 Allocating collateral | Ops maker, Ops checker, Risk manager
 Allocating money to a ledger | Ops maker, Ops checker, Risk manager
@@ -17,9 +20,11 @@ Applying corporate actions | Ops checker
 Applying pay-out holds | Ops checker, Risk manager
 Applying the BSDA review | Ops checker
 Approving a full data export | Compliance officer
+Approving a leaver | HR manager
 Approving a margin penalty pass-through | Ops checker, Risk manager, Compliance officer
 Approving a migration load | Ops checker
 Approving a move between MCX and equity | Ops checker, Risk manager
+Approving a new phone for attendance | HR manager
 Approving a receipt | Ops checker
 Approving a transfer between the firm's bank accounts | Ops checker
 Approving allocation | Ops checker, Risk manager
@@ -36,7 +41,9 @@ Approving pledge invocations | Compliance officer
 Approving pledges to lenders | Ops checker
 Approving re-pledges | Ops checker, Risk manager
 Approving reactivation | Ops checker, Compliance officer
+Approving salary advances and loans | HR manager, Payroll
 Approving the USB token signer's certificate | Compliance officer
+Approving the payroll | HR manager, Payroll
 Approving unpledges | Ops checker, Risk manager
 Approving vouchers | Ops checker
 Asking CDSL about eDIS authorisations | Ops maker, Ops checker, Risk manager
@@ -55,6 +62,7 @@ Cancelling closing the firm's account | Compliance officer
 Changing AI masking | Admin
 Changing CDSL account details | Ops maker, Ops checker
 Changing CDSL pledge settings | Risk manager, Compliance officer
+Changing HR policies | Compliance officer, HR manager
 Changing Ledgerline support access settings | Admin
 Changing a DP account's tariff plan | Ops checker, Admin
 Changing a segment's status | Ops checker, Compliance officer
@@ -74,9 +82,11 @@ Changing inspection pack templates | Compliance officer
 Changing missing-file alerts | Risk manager, Compliance officer
 Changing mutual fund settings | Compliance officer
 Changing order-to-trade ratio alerts | Compliance officer
+Changing payroll settings | Payroll
 Changing scrip groups | Ops checker
 Changing security alert and log settings | Compliance officer
 Changing settings | Admin
+Changing statutory payroll tables | Payroll
 Changing the AI inventory | Compliance officer
 Changing the DP tariff | Ops checker, Admin
 Changing the MTF policy | Risk manager, Admin
@@ -113,6 +123,8 @@ Closing MTF positions | Ops checker, Risk manager
 Closing a deceased client's UCCs | Ops checker, Compliance officer
 Closing out a short delivery | Ops checker
 Closing the day | Ops checker
+Closing the leave year | HR manager
+Completing HR checklist items (or the item's own role) | HR manager
 Confirming allocation | Ops checker, Risk manager
 Confirming payouts | Ops maker, Ops checker
 Connecting the USB token signer | Admin
@@ -127,6 +139,7 @@ DP requests | Ops maker, Ops checker, Compliance officer, Branch staff
 Deciding RFQ deal amendments | Ops checker
 Deciding a pledge request | Ops maker, Ops checker, Risk manager
 Deciding a reported death | Compliance officer
+Deciding pre-clearance of staff trades | Compliance officer
 Deciding whether a circular applies | Compliance officer
 Deciding whether a compliance duty applies | Compliance officer
 Deleting the firm's data | Admin
@@ -145,6 +158,7 @@ Downloading the collateral file | Ops maker, Ops checker, Risk manager, Complian
 Editing exchange UCC details | Ops maker, Ops checker
 Editing exchange disclosures | Compliance officer
 Editing message templates | Ops checker, Compliance officer
+Emailing payslips | Payroll
 Entering ASBA bank codes | Ops checker, Admin
 Entering a payout request | Ops maker, Ops checker, Branch staff, Authorised person
 Entering broker funds | Risk manager
@@ -153,6 +167,7 @@ Entering delivery instructions | Ops maker, Ops checker, Branch staff
 Entering early pay-ins | Ops maker, Ops checker
 Entering margin pledge requests | Ops maker, Ops checker, Risk manager
 Entering outside trades | Ops maker, Ops checker, Branch staff
+Entering payroll inputs | Payroll
 Entering pledges to lenders | Ops maker, Ops checker
 Entering unpledge requests | Ops maker, Ops checker, Risk manager
 Entering vouchers | Ops maker, Ops checker
@@ -174,6 +189,7 @@ Generating contract notes | Ops maker, Ops checker
 Generating reports | Ops maker, Ops checker, Risk manager, Compliance officer
 Giving clients portal access | Ops checker, Admin
 Giving notice before invoking CUSPA securities | Ops maker, Ops checker, Risk manager
+Giving salary advances and loans | Payroll
 Holding or deleting archived documents | Compliance officer
 Identifying a bank credit | Ops checker
 Importing dealers and terminals | Ops maker, Compliance officer
@@ -182,8 +198,12 @@ Invoking unpaid CUSPA securities for sale | Ops checker, Risk manager
 Issuing DIS books | Ops maker, Ops checker
 Joining a firm-wide board | Ops maker, Ops checker, Risk manager, Compliance officer
 Keeping CBRICS participants | Ops maker, Ops checker
+Keeping payroll records for others | Payroll
+Keeping the own-trading register for others | Compliance officer, HR manager
+Linking employees to logins | HR manager
 Loading DP accounts | Ops checker
 Loading MF files | Ops maker, Ops checker
+Loading attendance files | HR manager
 Loading brokerage rates | Ops checker
 Loading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
 Loading exchange holidays | Ops maker, Ops checker, Compliance officer
@@ -196,11 +216,14 @@ MTF enrolment | Ops checker, Risk manager
 MTF margin calls | Ops checker, Risk manager
 Making BSE dealer files | Ops maker, Compliance officer
 Making KRA upload files | Ops maker, Ops checker, Compliance officer
+Making full and final settlements | Payroll
 Making inspection packs | Compliance officer
+Making payroll files | HR manager, Payroll
 Making the AP client reporting file | Ops maker, Ops checker, Compliance officer
 Making the HDFC Bank API key | Admin
 Making the NSE Clearing key | Admin
 Making the UCC-wise settlement report | Ops maker, Ops checker, Compliance officer
+Making the payroll | Payroll
 Managing SIPs | Ops maker, Ops checker
 Managing branches | Ops checker, Admin
 Managing message channels and desks | Admin
@@ -264,6 +287,7 @@ Recording WhatsApp consent | Ops maker, Ops checker, Compliance officer, Branch 
 Recording a Finspot login | Ops maker, Ops checker, Risk manager
 Recording a bounce | Ops maker, Ops checker, Admin
 Recording a deceased client's steps | Ops maker, Ops checker, Compliance officer
+Recording a leaver | HR manager
 Recording a physical dispatch | Ops maker, Ops checker, Admin
 Recording a receipt | Ops maker, Ops checker, Branch staff
 Recording a stock SIP fill | Ops maker, Ops checker
@@ -271,6 +295,7 @@ Recording a surveillance action | Compliance officer
 Recording a transfer between the firm's bank accounts | Ops maker, Ops checker
 Recording allotments | Ops maker, Ops checker
 Recording and reporting security incidents | Compliance officer
+Recording approved dealing locations | Compliance officer
 Recording bounces | Ops maker, Ops checker, Admin
 Recording clearing deposits | Ops checker
 Recording clients' UPI IDs | Ops maker, Ops checker, Branch staff, Authorised person
@@ -278,6 +303,8 @@ Recording complaints | Ops maker, Ops checker, Compliance officer, Branch staff,
 Recording impersonation cases | Ops maker, Ops checker, Compliance officer
 Recording re-KYC | Ops maker, Ops checker, Compliance officer
 Recording recovery of a legacy debt | Ops maker, Ops checker, Risk manager, Compliance officer
+Recording salary paid | HR manager, Payroll
+Recording staff certificates | Compliance officer, HR manager
 Recording the AP client count reconciliation | Ops maker, Ops checker, Compliance officer
 Recording the AP client reporting upload | Ops maker, Ops checker, Compliance officer
 Recording the BSDA choice | Ops maker, Ops checker
@@ -287,6 +314,7 @@ Recording the holding statement sent to BSE | Ops maker, Ops checker, Compliance
 Recording the sale of invoked CUSPA securities | Ops maker, Ops checker, Risk manager
 Referring an alert to the exchange | Compliance officer
 Registering a stock SIP for a client | Ops maker, Ops checker
+Registering attendance kiosks | HR manager
 Registering clients on MF platforms | Ops maker, Ops checker
 Rejecting an application | Ops checker, Compliance officer
 Releasing CUSPA securities before the client has paid | Ops checker, Risk manager
@@ -321,9 +349,18 @@ Scheduling jobs | Admin
 Searching the document archive | Ops maker, Ops checker, Risk manager, Compliance officer
 See full client identifiers | Ops checker, Compliance officer
 Seeing and testing the log export | Compliance officer
+Seeing full staff identifiers | HR manager, Payroll
+Seeing key managerial personnel and designated persons | Compliance officer, HR manager
+Seeing leavers | Compliance officer, HR manager
 Seeing mail sent to staff | Compliance officer, Admin
+Seeing other people's pay | HR manager, Payroll
+Seeing payroll | HR manager, Payroll
+Seeing registered phones and kiosks | HR manager
 Seeing security events and incidents | Compliance officer
+Seeing staff documents | HR manager
+Seeing the own-trading register | Compliance officer, HR manager
 Seeing the self-inspection | Ops maker, Ops checker, Risk manager, Compliance officer
+Seeing the staff certificate register | Compliance officer, HR manager
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
 Sending CBRICS participants | Ops checker
 Sending IPO bids to the exchange | Ops maker, Ops checker
@@ -340,6 +377,7 @@ Sending documents | Ops maker, Ops checker
 Sending early pay-ins | Ops checker
 Sending legacy debt reminders | Ops maker, Ops checker, Risk manager, Compliance officer
 Sending payouts to the bank | Ops maker, Ops checker
+Sending salary to the bank | HR manager, Payroll
 Sending statements | Ops maker, Ops checker
 Sending stock SIP orders to the OMS | Ops maker, Ops checker, Risk manager
 Sending the DIS master to CDSL | Ops maker, Ops checker
@@ -347,6 +385,7 @@ Sending year-end packs | Ops maker, Ops checker, Compliance officer
 Setting CDSL account defaults | Ops checker
 Setting a client's default ledger | Ops checker, Risk manager
 Setting client risk | Compliance officer
+Setting salary structures | HR manager, Payroll
 Setting the AI answer log retention | Compliance officer
 Setting the USB token signer's certificate | Admin
 Setting the deployment for exchange disclosures | Compliance officer
@@ -368,6 +407,7 @@ Starting a full data export | Admin
 Submitting the holding statement to NSE | Ops maker, Ops checker, Compliance officer
 Switching AI off or on | Compliance officer
 Switching board email for the firm | Admin
+Switching modules on or off | Admin
 Switching the autopilot schedule | Admin
 Taking a backup | Admin
 Taking the AP mappings as reported | Compliance officer
@@ -377,6 +417,7 @@ Testing templates | Ops checker, Compliance officer
 The kill switch | Risk manager
 Transferring between a client's ledgers | Ops maker, Ops checker, Risk manager
 Undoing a migration | Admin
+Unlocking kiosk PINs | HR manager
 Unmarking a legacy debt | Ops checker, Compliance officer
 Updating KYC details | Ops maker, Ops checker
 Updating MF profiles | Ops maker, Ops checker, Compliance officer
@@ -386,6 +427,7 @@ Uploading stock SIP scrip lists | Risk manager, Compliance officer
 Upstreaming funds | Ops checker
 Using automations | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Verifying delivery instructions | Ops checker
+Verifying tax proofs | Payroll
 View data protection | Compliance officer
 Viewing AI controls | Compliance officer
 Viewing AI usage | Compliance officer
