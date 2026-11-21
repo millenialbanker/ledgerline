@@ -176,7 +176,7 @@ var builtinWork = map[string]struct{ do, approve string }{
 	RoleCompliance: {do: "dashboard boards chat autopilot jobs rpa periodic circulars xfiles files clients apps changes uccapi mnrl statements dispatch messages yearend archive " +
 		"margin legacy clientmoney reports exdisc aictl kyc helpdesk nri surv inactive deceased selfinspect inspack audit incidents logexport " +
 		"ipo mfsettings mfcomm mforders stocksip dp cdslreq edis insights partners dealers backups settings supportaccess",
-		approve: "apps changes margin legacy inactive kyc circulars cdslpledge reports dataexit deceased"},
+		approve: "apps changes margin legacy inactive kyc circulars cdslpledge reports dataexit deceased practices"},
 	RoleBranch: {do: "boards chat rpa clients money rms prepaid changes helpdesk crm ipo insights"},
 	RoleAP:     {do: "boards chat clients money rms changes helpdesk crm ipo insights"},
 }

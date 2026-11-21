@@ -47,7 +47,7 @@ P['fn-t'] = d => {
   const q = UI.fnQ.trim().toLowerCase();
   const rows = f.rows.filter(r => (UI.fnF === 'All' || (UI.fnF === 'Differs' ? r.differs : r.last.status === 'Failed')) && (!q || (r.ucc + ' ' + r.name).toLowerCase().includes(q)));
   return tbl([['Client'], ['Finspot account'], ['Cash now', 'r'], ['Notional now', 'r'], ['Last pushed', 'r'], ['Holdings sent', 'r'], ['Status'], ['']], rows.map(r => `<tr>
-    <td><button class="linkish mono" data-act="client" data-id="${r.ucc}">${r.ucc}</button> ${esc(r.name)}${r.limit.why ? `<div class="dim small">${esc(r.limit.why)}</div>` : ''}</td>
+    <td><button class="linkish mono" data-act="client" data-id="${r.ucc}">${r.ucc}</button> ${esc(r.name)}${r.limit.why ? `<div class="dim small">${esc(r.limit.why)}</div>` : ''}<div class="dim small">${r.login ? 'Finspot login: ' + esc(r.login) : 'No Finspot login known'}</div></td>
     <td class="mono small">${esc(r.limit.act_id)}</td>
     <td class="r">${inr(r.limit.cash)}</td><td class="r">${inr(r.limit.notional)}</td>
     <td class="r small">${r.last.status ? `${inr(r.last.cash)} / ${inr(r.last.notional)}<div class="dim">${fnStamp(r.last.at)}</div>` : '<span class="dim">never</span>'}</td>

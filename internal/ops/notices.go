@@ -181,5 +181,7 @@ func (o *Ops) setupChecklist(ctx context.Context, tenant string, set Settings) [
 	} else {
 		add("compliance_email", "Compliance officer email", true, "")
 	}
-	return out
+	// The firm's operating practices (Settings → Firm practices): each
+	// question until all are answered, and any answered Other.
+	return append(out, o.practiceChecklist(ctx, tenant)...)
 }

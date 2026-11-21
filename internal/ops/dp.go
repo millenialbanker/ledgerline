@@ -320,6 +320,12 @@ func (o *Ops) SaveDPTariff(ctx context.Context, tenant, actor string, t DPTariff
 	if err := o.require(ctx, tenant, actor, "Changing the DP tariff", RoleAdmin, RoleChecker); err != nil {
 		return t, err
 	}
+	return o.saveDPTariff(ctx, tenant, actor, t)
+}
+
+// saveDPTariff checks and stores the tariff for a caller that has already
+// checked the actor (SaveDPTariff, and an approved firm practice).
+func (o *Ops) saveDPTariff(ctx context.Context, tenant, actor string, t DPTariff) (DPTariff, error) {
 	if t.DepositoryShare > t.DebitCharge {
 		return t, invalid("the depository's share cannot be more than the debit charge")
 	}
