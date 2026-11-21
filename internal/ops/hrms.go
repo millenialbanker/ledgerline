@@ -318,8 +318,16 @@ type HRPolicy struct {
 	SelfieDays    int              `json:"selfie_days"`   // punch photos kept this many days (default 90)
 	DeactivateAt  string           `json:"deactivate_at"` // a leaver's login is switched off at this time on the last day (default 18:30)
 	AbsentIsLOP   bool             `json:"absent_is_lop"` // a working day with no attendance and no leave is loss of pay (off: only marked absences)
-	UpdatedBy     string           `json:"updated_by,omitempty"`
-	UpdatedAt     string           `json:"updated_at,omitempty"`
+	// DealersHomeFree lifts the rule that a dealer (duties on exchange
+	// terminals) checks in from home only when the firm has recorded that
+	// person's home as an exchange-approved dealing location. Off by
+	// default. A firm switches it on only where its dealers never deal
+	// from home (for example the terminal is not reachable outside the
+	// office) or the exchange has given a general permission; dealing from
+	// a location the exchange has not approved needs its permission.
+	DealersHomeFree bool   `json:"dealers_home_free"`
+	UpdatedBy       string `json:"updated_by,omitempty"`
+	UpdatedAt       string `json:"updated_at,omitempty"`
 }
 
 // DefaultHRPolicy is the starting policy.

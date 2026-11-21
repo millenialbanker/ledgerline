@@ -184,7 +184,7 @@ related: phone-checkin, leave-requests
 Work policies are set on [[hrpolicy|HR policies]]: the ways of working allowed (office, home, field, on duty), office days required a week or a month, and fixed home days or “any N” home days a week. A policy applies to its departments unless a person has their own.
 
 - A home check-in is accepted on an allowed home day, or on a day the manager approved (**Ask to work from home** in My HR).
-- **Dealers** (people on exchange terminals) cannot check in from home unless the compliance officer has recorded their home as an exchange-approved dealing location, with the exchange’s reference, on their record. Dealing from a location the exchange has not approved needs the exchange’s permission.
+- **Dealers** (people on exchange terminals) cannot check in from home unless the compliance officer has recorded their home as an exchange-approved dealing location, with the exchange’s reference, on their record. Dealing from a location the exchange has not approved needs the exchange’s permission. A firm whose dealers never deal from home (or that has the exchange’s general permission) can lift the rule on HR policies.
 - [[attendance|Attendance]] shows each person’s office and home days against their policy for the month. **Send exceptions to managers** raises a work item for each manager about the people below the policy.
 
 ## leave-requests

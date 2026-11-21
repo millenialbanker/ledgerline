@@ -571,6 +571,20 @@ func TestHybridHomeRulesAndDealer(t *testing.T) {
 	if _, err := o.RequestWFH(ctx, T, "priya.nair", "2026-05-19", "x"); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("dealer WFH request: %v", err)
 	}
+	// The rule is the firm's: with it lifted the dealer may work from home
+	// on a home day; it is on again below.
+	p := o.hrPolicy(ctx, T)
+	p.DealersHomeFree = true
+	if _, err := o.SaveHRPolicy(ctx, T, "hema.hr", p); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.RequestWFH(ctx, T, "priya.nair", "2026-05-19", "x"); err != nil {
+		t.Fatalf("dealer WFH with the rule lifted: %v", err)
+	}
+	p.DealersHomeFree = false
+	if _, err := o.SaveHRPolicy(ctx, T, "hema.hr", p); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := o.SetHomeDealing(ctx, T, "hema.hr", e.Code, HomeDealing{Approved: true, Ref: "NSE/TEST/1", Date: "2026-05-14"}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("HR recorded an exchange approval: %v", err)
 	}

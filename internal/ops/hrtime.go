@@ -384,7 +384,7 @@ func (o *Ops) addPunch(ctx context.Context, tenant, actor string, e Employee, da
 
 // homeAllowed applies the work policy and the dealer rule to a home day.
 func (o *Ops) homeAllowed(ctx context.Context, tenant string, p HRPolicy, wp WorkPolicy, e Employee, day string) error {
-	if e.dealer() && !e.HomeDealing.Approved {
+	if dealerHomeBlocked(p, e) {
 		// Dealing on an exchange terminal from a location the exchange
 		// has not approved needs the exchange's permission: the firm
 		// records an approved home location before a dealer works from home.
@@ -413,6 +413,16 @@ func (o *Ops) homeAllowed(ctx context.Context, tenant string, p HRPolicy, wp Wor
 		return fmt.Errorf("%w: your policy allows %d home day(s) a week and you have used them; ask your manager for a work-from-home day", ErrForbidden, wp.AnyHomePerWeek)
 	}
 	return fmt.Errorf("%w: your work policy does not allow working from home today; ask your manager for a work-from-home day", ErrForbidden)
+}
+
+// dealerHomeBlocked: the person deals on exchange terminals, their home is
+// not recorded as an exchange-approved dealing location, and the firm keeps
+// the rule (HRPolicy.DealersHomeFree off, the default). The exchanges let
+// a member's approved users trade only from locations the exchange has
+// approved for the terminal (CTCL/terminal location rules); dealing from
+// anywhere else needs the exchange's permission first.
+func dealerHomeBlocked(p HRPolicy, e Employee) bool {
+	return e.dealer() && !e.HomeDealing.Approved && !p.DealersHomeFree
 }
 
 // weekOf is the Monday-to-Sunday week of a day.
@@ -1090,7 +1100,7 @@ func (o *Ops) RequestWFH(ctx context.Context, tenant, actor, day, reason string)
 	if strings.TrimSpace(reason) == "" {
 		return WFHRequest{}, invalid("give a reason")
 	}
-	if e.dealer() && !e.HomeDealing.Approved {
+	if dealerHomeBlocked(o.hrPolicy(ctx, tenant), e) {
 		return WFHRequest{}, fmt.Errorf("%w: you deal on exchange terminals and your home is not recorded as an exchange-approved dealing location; ask compliance", ErrForbidden)
 	}
 	w := WFHRequest{ID: e.Code + "|" + day, Employee: e.Code, Name: e.Name, Date: day, Reason: trim(reason, 300), Status: "Pending", At: o.now().Format(time.RFC3339)}
