@@ -1,0 +1,16 @@
+# Made by npm install, npx cap add and scripts/configure.mjs; secrets.
+# (shared/ios and shared/android are sources: keep them.)
+node_modules/
+/staff/ios/
+/staff/android/
+/client/ios/
+/client/android/
+/staff/capacitor.config.json
+/client/capacitor.config.json
+/client/www/index.html
+/staff/firebase/
+/client/firebase/
+*.jks
+*.keystore
+*.p8
+*.mobileprovision

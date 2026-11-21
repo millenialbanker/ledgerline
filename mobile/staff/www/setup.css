@@ -1,0 +1,16 @@
+:root{--bg:#F2F3EF;--panel:#fff;--ink:#16201B;--ink2:#525D57;--line:#DADDD5;--accent:#2C47A3;--bad:#B0281F;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#0F1412;--panel:#161D19;--ink:#E5EBE7;--ink2:#A3AEA8;--line:#28322D;--accent:#8FA4F2;--bad:#F0796E}}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+body{display:flex;align-items:center;justify-content:center;padding:max(24px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom))}
+.card{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:24px 20px;display:flex;flex-direction:column;gap:12px}
+.mark{width:44px;height:44px;border-radius:11px;background:var(--accent);display:grid;grid-template-rows:repeat(3,1fr);gap:4px;padding:11px 10px}
+.mark i{display:block;background:#fff;border-radius:1px}.mark i:nth-child(2){width:70%}.mark i:nth-child(3){width:45%}
+h1{margin:0;font-size:24px}
+p{margin:0;color:var(--ink2)}
+form{display:flex;flex-direction:column;gap:12px}
+label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:var(--ink2)}
+input{min-height:48px;border:1px solid var(--line);border-radius:12px;padding:0 12px;font:inherit;font-size:16px;background:var(--panel);color:var(--ink)}
+button{min-height:48px;border:0;border-radius:12px;background:var(--accent);color:#fff;font:inherit;font-weight:600;font-size:16px}
+.err{color:var(--bad);font-weight:600}
+.small{font-size:13px}

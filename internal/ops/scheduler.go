@@ -269,6 +269,9 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	// Ledgerline support access whose hours ran out, or that nobody
 	// decided on, is closed in every edition (supportaccess.go).
 	o.supportAccessTick(ctx, tenant, now)
+	// Pushes to the staff and client apps waiting in the outbox
+	// (mobilepush.go), in every edition.
+	o.pushTick(ctx, tenant)
 	if err := o.holidayTick(ctx, tenant, now); err != nil {
 		return 0, fmt.Errorf("exchange holidays: %w", err)
 	}

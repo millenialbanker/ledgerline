@@ -107,7 +107,7 @@ var ConnProviders = []ConnProvider{
 
 // pemField: a key or certificate pasted in PEM, which may be a long chain.
 func pemField(k string) bool {
-	return k == "private_key" || k == "nse_public_key" || k == "certificate" || k == "bank_certificate" || k == "ca_certificate" || k == "server_ca"
+	return k == "private_key" || k == "nse_public_key" || k == "certificate" || k == "bank_certificate" || k == "ca_certificate" || k == "server_ca" || k == "service_account"
 }
 
 func connProvider(id string) (ConnProvider, bool) {
@@ -338,6 +338,11 @@ func (o *Ops) SaveConnection(ctx context.Context, tenant, actor, id string, valu
 	}
 	if id == connFinspotAPI {
 		if err := checkFinspotAPIConn(nc); err != nil {
+			return ConnectionView{}, err
+		}
+	}
+	if id == connFCM {
+		if err := checkFCMConn(nc); err != nil {
 			return ConnectionView{}, err
 		}
 	}

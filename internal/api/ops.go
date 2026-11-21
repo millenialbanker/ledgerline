@@ -57,6 +57,7 @@ func (s *Server) opsRoutes() {
 	s.periodicRoutes()
 	s.stockSIPRoutes()
 	s.mfRoutes()
+	s.mobileRoutes()
 	s.ipoRoutes()
 	s.rfqRoutes()
 	s.cbricsRoutes()

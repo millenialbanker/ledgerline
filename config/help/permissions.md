@@ -87,6 +87,7 @@ Changing the demise list's cut-off | Ops checker, Compliance officer
 Changing the firm profile | Compliance officer
 Changing the firm's UPI collection IDs | Compliance officer
 Changing the firm's bank accounts | Compliance officer
+Changing the mobile app settings | Admin
 Changing the self-inspection schedule | Compliance officer
 Changing vendors | Ops maker, Ops checker
 Chasing missing daily files | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -301,6 +302,7 @@ Restricting client data | Compliance officer, Admin
 Returning a bank credit | Ops maker, Ops checker
 Reviewing BSDA eligibility | Ops maker, Ops checker
 Reviewing Ledgy's unanswered questions | Compliance officer
+Revoking another person's phone | Admin
 Rotating the firm's encryption key | Admin
 Running a sample day | Admin
 Running account settlement | Ops checker
@@ -420,8 +422,10 @@ Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance
 Viewing the firm profile | Compliance officer
 Viewing the firm's bank accounts | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the firm's encryption keys | Compliance officer
+Viewing the firm's registered phones | Admin
 Viewing the impersonation register | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the migration | Ops checker, Compliance officer
+Viewing the mobile app settings | Compliance officer, Admin
 Viewing the signing certificate | Ops checker, Compliance officer, Admin
 Viewing the surveillance report | Ops checker, Compliance officer
 Viewing vendor bills | Ops maker, Ops checker, Compliance officer

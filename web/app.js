@@ -133,6 +133,7 @@ const GROUPS = {
   regg: ['Regulatory reports', [['reports', 'Regulatory reports'], ['exdisc', 'Exchange disclosures'], ['aictl', 'AI controls']]],
   secg: ['Security', [['incidents', 'Incidents'], ['logexport', 'Log export']]],
   securityg: ['Security', [['supportaccess', 'Support access']]],
+  mobileg: ['Mobile apps', [['staffapp', 'Staff app'], ['clientapp', 'Client app']]],
 };
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard'], ['boards', 'Boards'], ['chat', 'Team messages'], ['@automation'], ['@calendar']]],
@@ -143,7 +144,7 @@ const NAV = [
   ['Investments', [['ipo', 'IPO & public issues'], ['rfq', 'Bonds (RFQ deals)'], ['cbrics', 'Corporate bonds (CBRICS)'], ['@mfg'], ['stocksip', 'Stock SIPs']]],
   ['Depository', [['@dpg']]],
   ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['@partnersg']]],
-  ['Admin', [['connections', 'Connections'], ['backups', 'Backups'], ['dataexit', 'Data & exit'], ['settings', 'Settings'], ['@securityg'], ['layout', 'Screen layout']]]];
+  ['Admin', [['connections', 'Connections'], ['backups', 'Backups'], ['dataexit', 'Data & exit'], ['settings', 'Settings'], ['@mobileg'], ['@securityg'], ['layout', 'Screen layout']]]];
 // Every staff screen with its name, groups opened up.
 const NAV_VIEWS = NAV.flatMap(g => g[1].flatMap(([k, l]) => k[0] === '@' ? GROUPS[k.slice(1)][1] : [[k, l]]));
 const groupOf = v => Object.keys(GROUPS).find(g => GROUPS[g][1].some(([k]) => k === v));

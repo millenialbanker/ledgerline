@@ -67,6 +67,7 @@ func (o *Ops) raiseAlert(ctx context.Context, tenant, actor string, a Alert, ded
 		return false
 	}
 	o.log(ctx, tenant, actor, "alert.raised", id, map[string]any{"type": a.Type, "ucc": a.UCC, "severity": a.Severity})
+	o.pushNewAlert(ctx, tenant) // the staff app: "1 new alert needs review", nothing more
 	return true
 }
 

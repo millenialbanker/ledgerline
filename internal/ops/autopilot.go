@@ -301,6 +301,7 @@ func (r *runCtx) queue(key, title, detail, ucc, role, view, due string, p *Propo
 	w = WorkItem{ID: id, Key: k, Process: r.process, Title: title, Detail: detail, UCC: ucc, Role: role, View: view, Date: r.date, Due: due, Status: "Open", Proposed: p, Created: firstOf(w.Created, now)}
 	if docs.Upsert(r.ctx, r.o.Docs, r.tenant, cWorkItem, id, w, SystemActor) == nil && isNew {
 		r.o.ledgyNotifyWork(r.ctx, r.tenant, w) // Ledgy tells the people who should act
+		r.o.pushNewWork(r.ctx, r.tenant, w)     // and the staff app, without client data (mobilepush.go)
 	}
 }
 
