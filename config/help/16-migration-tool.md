@@ -55,6 +55,8 @@ Go live with the **current financial year only**, then bring the earlier years a
 
 A history package loads only read-only history and archived documents. It never posts to the live ledger, never changes balances, clients or holdings, and never touches the current year. It can be undone (by two people) at any time, even after the firm has posted new entries.
 
+A year that falls in an archived period (Admin → Data & exit → Archive) is refused: restore that archive first, load the history, then archive the period again.
+
 ## migration-passphrase
 title: The migration package's passphrase
 screen: files

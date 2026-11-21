@@ -587,6 +587,7 @@ func (o *Ops) archiveSelection(ctx context.Context, tenant, from, to string, kin
 	if err != nil {
 		return sel, nil, err
 	}
+	notedHist := false
 	for _, h := range hs {
 		if len(h.FY) < 7 || h.Archived != "" {
 			continue
@@ -599,6 +600,12 @@ func (o *Ops) archiveSelection(ctx context.Context, tenant, from, to string, kin
 		}
 		for b := 0; b < h.Buckets; b++ {
 			sel.MigratedDocs[cHistShard+"|"+fmt.Sprintf("%s|%03d", h.ID, b)] = true
+		}
+		if len(c.Exclude) > 0 && !notedHist {
+			// The old system's history is read-only and stored by year,
+			// not by client; the kept clients' live ledger is not in it.
+			notes = append(notes, "Migrated history goes by whole year, so the kept clients' history from the old system is archived with the rest")
+			notedHist = true
 		}
 	}
 	// Migrated documents dated in the period (or of a year inside it).
@@ -862,24 +869,92 @@ func (o *Ops) archiveRunning(tenant, key string) bool {
 	return o.arcRunning[tenant+"|"+key]
 }
 
+// archiveFailed marks an archive that could not be finished as Failed and
+// takes its period out of the live index (it takes entries again). The
+// removal is one transaction that also marks the record Archived, so an
+// archive that is not Archived removed nothing.
+func (o *Ops) archiveFailed(ctx context.Context, tenant, id string, err error) {
+	r, gerr := o.archiveRecord(ctx, tenant, id)
+	if gerr != nil || (r.State != app.ArcApproved && r.State != app.ArcVerified) {
+		return
+	}
+	r.State, r.Error = app.ArcFailed, err.Error()
+	_ = o.App.Periods.SaveArchive(ctx, r)
+	_ = o.arcIndexPut(ctx, tenant, arcPeriod{ID: id})
+	o.log(ctx, tenant, SystemActor, "archive.failed", id, map[string]any{"error": err.Error()})
+	o.raiseWork(ctx, tenant, "archive", id+":failed:"+o.now().Format("20060102150405"), "Archiving "+r.Label+" failed",
+		"Archive "+id+" could not be finished: "+err.Error()+". Nothing was removed from the live data. Put the cause right and start it again under Admin → Data & exit → Archive.", "", RoleAdmin, "dataexit", "")
+}
+
+// restoreFailed puts a restore that could not be finished back to
+// Archived. The restore is one transaction that also marks the record
+// Restored, so a restore that is not Restored changed nothing.
+func (o *Ops) restoreFailed(ctx context.Context, tenant, id string, err error) {
+	r, gerr := o.archiveRecord(ctx, tenant, id)
+	if gerr != nil || r.State != app.ArcRestoreApproved {
+		return
+	}
+	r.State, r.Error = app.ArcArchived, "restore: "+err.Error()
+	_ = o.App.Periods.SaveArchive(ctx, r)
+	o.log(ctx, tenant, SystemActor, "archive.restore.failed", id, map[string]any{"error": err.Error()})
+	o.raiseWork(ctx, tenant, "archive", id+":restorefail:"+o.now().Format("20060102150405"), "Restoring "+r.Label+" failed",
+		"Archive "+id+" could not be restored: "+err.Error()+". The period stays archived; nothing changed in the live data.", "", RoleAdmin, "dataexit", "")
+}
+
+// arcStuckAfter is how long an approved archive or restore may sit with no
+// job running before the tick takes it as stopped by a server restart
+// (the job starts the moment it is approved).
+const arcStuckAfter = 10 * time.Minute
+
+// archiveTick puts right an archive or a restore that a server restart
+// stopped in the middle: nothing was removed or restored (each is one
+// transaction), so the archive is marked Failed (the approver starts it
+// again) and a restore goes back to Archived (an Admin asks again).
+func (o *Ops) archiveTick(ctx context.Context, tenant string, now time.Time) {
+	if o.App.Periods == nil {
+		return
+	}
+	rs, err := o.App.Periods.ListArchives(ctx, tenant)
+	if err != nil {
+		return
+	}
+	for _, r := range rs {
+		switch {
+		case (r.State == app.ArcApproved || r.State == app.ArcVerified) && now.Sub(r.ApprovedAt) > arcStuckAfter && !o.archiveRunning(tenant, "archive:"+r.ID):
+			o.archiveFailed(ctx, tenant, r.ID, errors.New("the server stopped while the archive was being written; nothing was removed"))
+		case r.State == app.ArcRestoreApproved && now.Sub(r.RestoreApprovedAt) > arcStuckAfter && !o.archiveRunning(tenant, "restore:"+r.ID):
+			o.restoreFailed(ctx, tenant, r.ID, errors.New("the server stopped while the period was being restored; nothing was restored"))
+		}
+	}
+}
+
+// archiveBusy names an archive or restore that is approved and not yet
+// finished. A firm's final export waits for it, so the export holds either
+// the period's live rows or its finished package, never half of each.
+func (o *Ops) archiveBusy(ctx context.Context, tenant string) string {
+	if o.App.Periods == nil {
+		return ""
+	}
+	rs, err := o.App.Periods.ListArchives(ctx, tenant)
+	if err != nil {
+		return "the archives could not be read"
+	}
+	for _, r := range rs {
+		switch r.State {
+		case app.ArcApproved, app.ArcVerified, app.ArcRestoreApproved:
+			return r.ID
+		}
+	}
+	return ""
+}
+
 // runArchive writes, verifies and only then removes an approved period.
 func (o *Ops) runArchive(ctx context.Context, tenant, id string) {
 	r, err := o.archiveRecord(ctx, tenant, id)
 	if err != nil || r.State != app.ArcApproved {
 		return
 	}
-	fail := func(err error) {
-		cur, gerr := o.archiveRecord(ctx, tenant, id)
-		if gerr == nil {
-			r = cur
-		}
-		r.State, r.Error = app.ArcFailed, err.Error()
-		_ = o.App.Periods.SaveArchive(ctx, r)
-		_ = o.arcIndexPut(ctx, tenant, arcPeriod{ID: id})
-		o.log(ctx, tenant, SystemActor, "archive.failed", id, map[string]any{"error": err.Error()})
-		o.raiseWork(ctx, tenant, "archive", id+":failed:"+o.now().Format("20060102150405"), "Archiving "+r.Label+" failed",
-			"Archive "+id+" could not be finished: "+err.Error()+". Nothing was removed from the live data. Put the cause right and start it again under Admin → Data & exit → Archive.", "", RoleAdmin, "dataexit", "")
-	}
+	fail := func(err error) { o.archiveFailed(ctx, tenant, id, err) }
 	defer func() {
 		if p := recover(); p != nil {
 			fail(fmt.Errorf("archiving stopped unexpectedly: %v", p))
@@ -1031,6 +1106,11 @@ func (o *Ops) DecideRestore(ctx context.Context, tenant, actor, id string, appro
 		o.log(ctx, tenant, actor, "archive.restore.rejected", id, map[string]any{"note": note})
 		return r, nil
 	}
+	if x, err := o.openExit(ctx, tenant); err != nil {
+		return r, err
+	} else if x != nil {
+		return r, fmt.Errorf("%w: closing the account is in progress (%s); nothing is restored while it is", ErrState, x.ID)
+	}
 	r.State, r.RestoreApprovedBy, r.RestoreApprovedAt = app.ArcRestoreApproved, actor, o.now().UTC()
 	if err := o.App.Periods.SaveArchive(ctx, r); err != nil {
 		return r, err
@@ -1046,17 +1126,7 @@ func (o *Ops) runRestore(ctx context.Context, tenant, id string) {
 	if err != nil || r.State != app.ArcRestoreApproved {
 		return
 	}
-	fail := func(err error) {
-		cur, gerr := o.archiveRecord(ctx, tenant, id)
-		if gerr == nil {
-			r = cur
-		}
-		r.State, r.Error = app.ArcArchived, "restore: "+err.Error()
-		_ = o.App.Periods.SaveArchive(ctx, r)
-		o.log(ctx, tenant, SystemActor, "archive.restore.failed", id, map[string]any{"error": err.Error()})
-		o.raiseWork(ctx, tenant, "archive", id+":restorefail:"+o.now().Format("20060102150405"), "Restoring "+r.Label+" failed",
-			"Archive "+id+" could not be restored: "+err.Error()+". The period stays archived; nothing changed in the live data.", "", RoleAdmin, "dataexit", "")
-	}
+	fail := func(err error) { o.restoreFailed(ctx, tenant, id, err) }
 	defer func() {
 		if p := recover(); p != nil {
 			fail(fmt.Errorf("the restore stopped unexpectedly: %v", p))

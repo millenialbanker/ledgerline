@@ -83,8 +83,11 @@ What stays live:
 - The audit trail, always.
 - Nothing is archived while a reconciliation break, a payout or a pledge request of the period is open, or while closing the account is in progress.
 - The rows of clients with an unpaid debit, open pledges or an open complaint stay live; so do migrated documents on legal hold, KYC documents, vendor bills and evidence files.
+- Migrated history from the old system is stored by year, not by client, so a year inside the period is archived whole (the kept clients' live ledger is not part of it). The preview says so.
 
 Archive packages are kept at least as long as **Keep archives** says (8 years by default, the record-keeping rules for brokers) and cannot be deleted before then.
+
+If the server restarts while an archive is being written, nothing is removed: the archive shows **Failed** and the person who approved it clicks **Start again**. A migrated document inside an archive cannot be deleted until the archive is restored.
 
 ## archive-restore
 title: Restore an archived period
@@ -96,6 +99,8 @@ related: archive-period, archived-period-notice
 On [[dataexit|Data & exit]] → **Archive**, find the archive and click **Restore…** (Admin). Give the reason; a second person approves it.
 
 Ledgerline reads the package back from archive storage and checks its signature and every file again. It puts every row back exactly as it was (the same entry numbers, files with the same bytes), removes the opening balances that stood in for the period, and checks that every balance is unchanged. If the package is missing or damaged, nothing changes and the period stays archived.
+
+A restore cannot be asked for or approved while closing the account is in progress. An archive or restore already approved finishes before the final export is built, so the export holds each period once. If the server restarts during a restore, nothing changes, the period stays archived and an Admin asks again.
 
 The whole archive comes back. When you are done, click **Archive again** to move the same period out again (a second person approves, as before).
 

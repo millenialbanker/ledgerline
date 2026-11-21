@@ -296,6 +296,11 @@ func (o *Ops) exitTick(ctx context.Context, tenant string, now time.Time) bool {
 			return true
 		}
 	}
+	// An archive or restore approved before the exit was asked for
+	// finishes first (archive.go), so the export has the period once.
+	if id := o.archiveBusy(ctx, tenant); id != "" {
+		return true
+	}
 	at := o.now()
 	x := DataExport{ID: newExportID(at), State: DXBuilding, Final: true, Exit: r.ID, RequestedBy: r.RequestedBy, RequestedAt: at.Format(time.RFC3339),
 		ApprovedBy: r.ApprovedBy, ApprovedAt: r.ApprovedAt.In(ist).Format(time.RFC3339), Reason: "Final export before closing the account (" + r.ID + ")"}

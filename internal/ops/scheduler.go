@@ -251,7 +251,12 @@ func (o *Ops) Jobs(ctx context.Context, tenant string) ([]Job, []JobRun, error) 
 // Tick runs every active job that is due at now and has not run today.
 func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, error) {
 	// A firm closing its account: once purged nothing runs; once the
-	// cooling-off has ended only the final export does (dataexit.go).
+	// cooling-off has ended only the final export does (dataexit.go). An
+	// archive or restore stopped by a restart is put right first, since
+	// the final export waits for it (archive.go).
+	if !o.FirmClosed(tenant) {
+		o.archiveTick(ctx, tenant, now)
+	}
 	if o.exitTick(ctx, tenant, now) {
 		return 0, nil
 	}

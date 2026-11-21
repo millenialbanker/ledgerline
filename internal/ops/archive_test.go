@@ -15,9 +15,12 @@ import (
 
 	"ledgerline/internal/app"
 	"ledgerline/internal/dataexport"
+	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
 	"ledgerline/internal/ledger"
+	"ledgerline/internal/migrate/pkg"
 	"ledgerline/internal/money"
+	"ledgerline/internal/recon"
 )
 
 // Made-up firm, clients and figures only.
@@ -418,5 +421,243 @@ func TestSelectEntriesAndCarry(t *testing.T) {
 	}
 	if sum != 0 {
 		t.Fatalf("the balancing account nets to %s", sum)
+	}
+}
+
+// TestArchiveOpenItems: open breaks, pending payouts and pledge requests of
+// the period, and an exit in progress, stop an archive; clients with an
+// open complaint or open pledges, and documents on legal hold, stay live;
+// the audit trail still verifies after the archive.
+func TestArchiveOpenItems(t *testing.T) {
+	o, ctx, ids := arcFirm(t)
+	ask := ArchiveAsk{FYs: []string{"2024-25"}}
+	blockers := func(want ...string) {
+		t.Helper()
+		p, err := o.PreviewArchive(ctx, MT, "adm.one", ask)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := strings.Join(p.Blockers, " ")
+		for _, w := range want {
+			if !strings.Contains(got, w) {
+				t.Fatalf("blockers %q lack %q", got, w)
+			}
+		}
+		if len(want) == 0 && got != "" {
+			t.Fatalf("unexpected blockers %q", got)
+		}
+	}
+	at := time.Date(2024, 10, 1, 18, 0, 0, 0, ist)
+	if err := o.App.Breaks.SaveRun(ctx, MT, "RUN-1", recon.Result{Date: "2024-10-01", Breaks: []recon.Break{{ID: "BRK-1", Type: recon.MissingInOMS, Exchange: "NSE", Segment: "CM", TradeDate: "2024-10-01", TradeNo: "T9", UCC: "TB002"}}}, at); err != nil {
+		t.Fatal(err)
+	}
+	put := func(c, id string, v any) {
+		if err := docs.Upsert(ctx, o.Docs, MT, c, id, v, "adm.one"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	put(cPayout, "PO-1", PayoutRequest{ID: "PO-1", Date: "2024-10-01", UCC: "TB002", Status: "Requested", Amount: money.MustAmount("10.00")})
+	put(cPledge, "PL-1", PledgeRequest{ID: "PL-1", UCC: "TB002", Time: "2024-10-01T10:00:00", Status: "Pending", Qty: 1})
+	blockers("reconciliation breaks", "payout requests", "pledge requests")
+	if _, err := o.RequestArchive(ctx, MT, "adm.one", ask); !errors.Is(err, ErrState) {
+		t.Fatalf("archived with open items: %v", err)
+	}
+	bs, _ := o.App.Breaks.List(ctx, MT, "", app.BreakOpen)
+	for _, b := range bs {
+		if _, err := o.App.Breaks.Resolve(ctx, MT, b.ID, "chk.one", "made-up resolution", at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	put(cPayout, "PO-1", PayoutRequest{ID: "PO-1", Date: "2024-10-01", UCC: "TB002", Status: "Paid", Amount: money.MustAmount("10.00")})
+	put(cPledge, "PL-1", PledgeRequest{ID: "PL-1", UCC: "TB002", Time: "2024-10-01T10:00:00", Status: "Rejected", Qty: 1})
+	blockers()
+
+	// an exit in progress stops it, and an archive asked before it cannot
+	// be approved while it is
+	r, err := o.RequestArchive(ctx, MT, "adm.one", ask)
+	if err != nil {
+		t.Fatal(err)
+	}
+	x, err := o.RequestExit(ctx, MT, "adm.two", MT, "made-up")
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockers("Closing the account")
+	if _, err := o.DecideArchive(ctx, MT, "comp.one", r.ID, true, ""); !errors.Is(err, ErrState) {
+		t.Fatalf("approved during an exit: %v", err)
+	}
+	if _, err := o.CancelExit(ctx, MT, "comp.one", x.ID, "made-up"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.DecideArchive(ctx, MT, "comp.one", r.ID, false, "asked again below"); err != nil {
+		t.Fatal(err)
+	}
+
+	// a document on legal hold stays live
+	if _, err := o.SetArchiveHold(ctx, MT, "comp.one", "TB002", "CN-2", true, "made-up arbitration matter"); err != nil {
+		t.Fatal(err)
+	}
+	if p, err := o.PreviewArchive(ctx, MT, "adm.one", ArchiveAsk{FYs: []string{"2025-26"}}); err != nil || !strings.Contains(strings.Join(p.Kept, ";"), "legal hold") {
+		t.Fatalf("legal hold: %v %+v", err, p.Kept)
+	}
+
+	// an open complaint (TB002) and open pledges (TC003) keep the clients'
+	// rows live
+	put(cTicket, "TK-1", Ticket{ID: "TK-1", Kind: KindComplaint, UCC: "TB002", Status: "Open", OpenedOn: "2026-11-01"})
+	put(cPledge, "PL-2", PledgeRequest{ID: "PL-2", UCC: "TC003", Time: "2026-10-01T10:00:00", Status: "Accepted", Qty: 1})
+	p, err := o.PreviewArchive(ctx, MT, "adm.one", ask)
+	kept := strings.Join(p.Kept, ";")
+	if err != nil || !strings.Contains(kept, "open complaint") || !strings.Contains(kept, "open pledges") || !strings.Contains(kept, "whole year") {
+		t.Fatalf("kept %v %q", err, kept)
+	}
+	before := readBooks(t, o, ctx)
+	if r, err = o.RequestArchive(ctx, MT, "adm.one", ask); err != nil {
+		t.Fatal(err)
+	}
+	if r, err = o.DecideArchive(ctx, MT, "comp.one", r.ID, true, ""); err != nil || r.State != app.ArcArchived {
+		t.Fatalf("archive %v %s %s", err, r.State, r.Error)
+	}
+	for _, k := range []string{"e1", "e2", "e3", "e4", "e5"} {
+		if _, err := o.App.Ledger.Store.Get(ctx, MT, ids[k]); err != nil {
+			t.Fatalf("%s of a kept client was archived: %v", k, err)
+		}
+	}
+	if _, err := o.App.Ingest.Raw.Get(ctx, MT, ids["F1"]); err != nil {
+		t.Fatalf("the file of a kept client's trade was archived: %v", err)
+	}
+	if _, err := o.App.Ingest.Raw.Get(ctx, MT, ids["F3"]); !errors.Is(err, ErrArchived) {
+		t.Fatalf("the price file stayed live: %v", err)
+	}
+	if after := readBooks(t, o, ctx); after != before {
+		t.Fatalf("books changed:\n%+v\n%+v", before, after)
+	}
+	// the audit trail is not archived and its seals still verify
+	s, err := o.Security(ctx, MT, "comp.one", true)
+	if err != nil || s.Audit == nil || !s.Audit.OK || s.Audit.Sealed == 0 {
+		t.Fatalf("audit trail after archiving: %v %+v", err, s.Audit)
+	}
+}
+
+// TestArchiveInterrupted: an archive or restore a server restart stopped
+// is put right by the tick, with nothing removed or restored; a firm's
+// final export waits while one is under way, then carries the archive
+// package, which the exit deletes; a history package may not load a year
+// that is archived.
+func TestArchiveInterrupted(t *testing.T) {
+	o, ctx, ids := arcFirm(t)
+	now := o.now()
+	r, err := o.RequestArchive(ctx, MT, "adm.one", ArchiveAsk{FYs: []string{"2024-25"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// approved, but the server stopped before the job ran
+	r.State, r.ApprovedBy, r.ApprovedRole, r.ApprovedAt = app.ArcApproved, "comp.one", RoleCompliance, now.UTC()
+	if err := o.App.Periods.SaveArchive(ctx, r); err != nil {
+		t.Fatal(err)
+	}
+	if o.archiveBusy(ctx, MT) != r.ID {
+		t.Fatal("an approved archive is not busy")
+	}
+	o.archiveTick(ctx, MT, now.Add(time.Minute))
+	if g, _ := o.archiveRecord(ctx, MT, r.ID); g.State != app.ArcApproved {
+		t.Fatalf("a just-approved archive was failed: %s", g.State)
+	}
+	o.archiveTick(ctx, MT, now.Add(arcStuckAfter+time.Minute))
+	if g, _ := o.archiveRecord(ctx, MT, r.ID); g.State != app.ArcFailed || !strings.Contains(g.Error, "server stopped") {
+		t.Fatalf("a stopped archive: %s %q", g.State, g.Error)
+	}
+	if _, err := o.App.Ledger.Store.Get(ctx, MT, ids["e1"]); err != nil || len(o.arcIndex(ctx, MT).Periods) != 0 {
+		t.Fatalf("a stopped archive removed rows or closed the period: %v", err)
+	}
+	// the approver starts it again
+	if r, err = o.DecideArchive(ctx, MT, "comp.one", r.ID, true, ""); err != nil || r.State != app.ArcArchived {
+		t.Fatalf("started again %v %s %s", err, r.State, r.Error)
+	}
+
+	// a history package with an archived year is refused
+	hp := checked(t, o, ctx, mkPkg(t, mspec{history: true, scope: pkg.ScopeHistory, years: []string{"2024-25"}}), "history.llmig")
+	if _, err := o.ProposeMigration(ctx, MT, "adm.one", MigProposal{Package: hp.ID, Firm: "01", Overlap: true}); err == nil || !strings.Contains(err.Error(), "archived period") {
+		t.Fatalf("history into an archived year: %v", err)
+	}
+
+	// a restore approved, then the server stopped
+	if r, err = o.RequestRestore(ctx, MT, "adm.one", r.ID, "made-up inspection"); err != nil {
+		t.Fatal(err)
+	}
+	r.State, r.RestoreApprovedBy, r.RestoreApprovedAt = app.ArcRestoreApproved, "comp.one", now.UTC()
+	if err := o.App.Periods.SaveArchive(ctx, r); err != nil {
+		t.Fatal(err)
+	}
+	// the firm's final export waits for it
+	x, err := o.RequestExit(ctx, MT, "adm.one", MT, "made-up")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if x, err = o.DecideExit(ctx, MT, "adm.two", x.ID, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	later := x.CoolingOffEnds.Add(time.Hour)
+	if !o.exitTick(ctx, MT, later) {
+		t.Fatal("the exit tick ran other work after the cooling-off")
+	}
+	if g, _ := o.exitRecord(ctx, MT, x.ID); g.ExportID != "" {
+		t.Fatal("the final export started while a restore was under way")
+	}
+	o.archiveTick(ctx, MT, later)
+	if g, _ := o.archiveRecord(ctx, MT, r.ID); g.State != app.ArcArchived || !strings.Contains(g.Error, "restore") {
+		t.Fatalf("a stopped restore: %s %q", g.State, g.Error)
+	}
+	if _, err := o.App.Ledger.Store.Get(ctx, MT, ids["e1"]); err == nil {
+		t.Fatal("a stopped restore brought rows back")
+	}
+	if o.archiveBusy(ctx, MT) != "" {
+		t.Fatal("still busy")
+	}
+	// while the exit is open, a restore is neither asked for nor approved
+	if _, err := o.RequestRestore(ctx, MT, "adm.one", r.ID, "made-up"); !errors.Is(err, ErrState) {
+		t.Fatalf("restore asked during an exit: %v", err)
+	}
+
+	// the final export carries the archive package; the exit then deletes
+	// the package and the archive records with the rest
+	o.ExportSync = true
+	o.Now = func() time.Time { return later.Add(time.Minute) }
+	if !o.exitTick(ctx, MT, o.now()) {
+		t.Fatal("no final export")
+	}
+	ex, _ := o.exitRecord(ctx, MT, x.ID)
+	fx, _, err := docs.Get[DataExport](ctx, o.Docs, MT, cDataExport, ex.ExportID)
+	if err != nil || fx.State != DXReady {
+		t.Fatalf("final export %v %+v", err, fx)
+	}
+	l, err := o.DataExportLink(ctx, MT, "adm.one", fx.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, rc, err := o.OpenDataExport(ctx, MT, "adm.one", fx.ID, l.URL[strings.Index(l.URL, "?t=")+3:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fb bytes.Buffer
+	_, err = fb.ReadFrom(rc)
+	rc.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner, err := dataexport.ReadFile(bytes.NewReader(fb.Bytes()), int64(fb.Len()), "archives/"+r.ID+".zip")
+	if err != nil {
+		t.Fatalf("the final export lacks the archive: %v", err)
+	}
+	if _, err := dataexport.VerifyKind(bytes.NewReader(inner), int64(len(inner)), r.PublicKey, dataexport.PeriodKind); err != nil {
+		t.Fatalf("the exported archive does not verify: %v", err)
+	}
+	if _, err := o.PurgeFirm(ctx, MT, "adm.one", x.ID, MT); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(o.ArchiveDir, MT)); !os.IsNotExist(err) {
+		t.Fatalf("the archive packages outlived the exit: %v", err)
+	}
+	if rs, err := o.App.Periods.ListArchives(ctx, MT); err != nil || len(rs) != 0 {
+		t.Fatalf("archive records outlived the exit: %v %d", err, len(rs))
 	}
 }

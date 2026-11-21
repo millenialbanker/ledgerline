@@ -192,6 +192,16 @@ func (o *Ops) migHistoryYears(ctx context.Context, tenant string, parts []MigPac
 		if y >= cur {
 			return nil, nil, invalid("the history package holds %s, which is the current financial year (or later); a history package is for earlier years only. The current year comes with the go-live package", y)
 		}
+		// A year in an archived period (archive.go): its history would
+		// sit beside the archived copy and come back twice on a restore.
+		if len(y) >= 7 {
+			_, s, e := fyOf(y[:4] + "-06-01")
+			for _, p := range o.arcIndex(ctx, tenant).Periods {
+				if s <= p.To && e >= p.From {
+					return nil, nil, fmt.Errorf("%w: the history package holds %s, which is in archived period %s (archive %s); restore that archive first under Admin → Data & exit → Archive", ErrState, y, p.Label, p.ID)
+				}
+			}
+		}
 	}
 	loaded, err := o.migYearsLoaded(ctx, tenant)
 	if err != nil {
