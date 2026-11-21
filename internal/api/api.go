@@ -787,6 +787,8 @@ var scopedRoutes = map[string]bool{
 	"POST /v1/rms/overrides": true, "GET /v1/branches": true,
 	"GET /v1/year-end": true, "GET /v1/year-end/{fy}/{ucc}/document": true,
 	"GET /v1/whatsapp/consents": true, "POST /v1/clients/{ucc}/whatsapp-consent": true,
+	// The activity feed shows them only their own office's entries.
+	"GET /v1/activity": true, "PUT /v1/activity/state": true,
 }
 
 // clientRoutes are the routes open to a client's portal login, each

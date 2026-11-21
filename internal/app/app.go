@@ -79,6 +79,14 @@ type ChainedAudit interface {
 	Scan(ctx context.Context, tenant string, after int64, limit int) ([]AuditEvent, error)
 }
 
+// AuditWindow is implemented by audit stores that can read the entries of
+// a time span newest first, by tenant and time (the activity feed reads
+// the week this way). It returns entries with from <= At < to and, when
+// before is above zero, Seq < before, newest first, at most limit.
+type AuditWindow interface {
+	Window(ctx context.Context, tenant string, from, to time.Time, before int64, limit int) ([]AuditEvent, error)
+}
+
 // AuditCanonical is the exact byte string an entry's Hash covers. Time is
 // UTC to the microsecond (what PostgreSQL keeps) and the detail is
 // normalised (sorted keys, numbers as JSON numbers), so the same bytes are
@@ -635,6 +643,24 @@ func (s *MemAuditStore) Scan(_ context.Context, tenant string, after int64, limi
 				break
 			}
 		}
+	}
+	return out, nil
+}
+
+// Window returns a tenant's entries in [from, to) newest first (see
+// AuditWindow). The memory store is for development and tests, whose
+// clocks may run backwards, so it looks at every entry rather than
+// stopping at the first older one.
+func (s *MemAuditStore) Window(_ context.Context, tenant string, from, to time.Time, before int64, limit int) ([]AuditEvent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := []AuditEvent{}
+	for i := len(s.ev) - 1; i >= 0 && (limit <= 0 || len(out) < limit); i-- {
+		e := s.ev[i]
+		if e.Tenant != tenant || (before > 0 && e.Seq >= before) || e.At.Before(from) || !e.At.Before(to) {
+			continue
+		}
+		out = append(out, e)
 	}
 	return out, nil
 }

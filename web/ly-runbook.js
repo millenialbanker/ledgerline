@@ -40,11 +40,19 @@ function rbToday() {
   const st = rbSteps();
   if (!st) return '<div class="rb-loading"><p class="loading">Loading the day…</p></div>';
   const cur = lyStepOf(S.view)?.id;
-  return rbProgress(st) + `<div class="rb-steps">${LY_SESS.map(([k, name, time]) => {
+  return rbProgress(st) + rbPending() + `<div class="rb-steps">${LY_SESS.map(([k, name, time]) => {
     const ss = st.filter(s => s.s === k); if (!ss.length) return '';
     return `<section class="rb-sess" aria-label="${esc(name)}"><div class="rb-sh"><b>${esc(name)}</b><span>${esc(time)}</span></div>${ss.map(s => rbStepRow(s, s.id === cur)).join('')}</section>`;
   }).join('')}</div>
   <p class="rb-foot">Every screen that isn’t a daily step is under <button class="linkish" data-act="rbTab" data-id="all">All</button>${uiE().command_bar ? ' and in the search bar' : ''}.</p>`;
+}
+// rbPending: steps not done on earlier days (Steps & reminders), above
+// the day's steps until each is done, done by hand or skipped.
+function rbPending() {
+  const p = LY.d?.steps_pending || [];
+  if (!p.length || !viewAllowed('steps')) return '';
+  return `<section class="rb-sess rb-pend" aria-label="Pending from earlier days"><div class="rb-sh"><b>Pending from earlier days</b><span>${p.length}</span></div>${p.slice(0, 6).map(s =>
+    `<button class="rb-step needs" data-act="stPendingGo" title="${esc(s.name)}"><span class="rb-n">!</span><span class="rb-txt"><span class="rb-name">${esc(s.name)}</span><span class="rb-note">${esc(fmtDate(s.date))} · due ${esc((s.due || '').slice(11))} · ${esc(s.owner_name || s.owner)}</span></span></button>`).join('')}${p.length > 6 ? `<button class="linkish small" data-act="stPendingGo">and ${p.length - 6} more</button>` : ''}</section>`;
 }
 function rbLinks(vs) {
   return `<div class="rb-links">${vs.filter(([v]) => viewAllowed(v)).map(([v, about]) => `<button class="rb-link ${S.view === v ? 'on' : ''}" data-act="go" data-id="${v}"><b>${esc(rbViewName(v))}</b><span>${esc(about)}</span></button>`).join('')}</div>`;

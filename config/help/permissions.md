@@ -82,6 +82,7 @@ Changing order-to-trade ratio alerts | Compliance officer
 Changing scrip groups | Ops checker
 Changing security alert and log settings | Compliance officer
 Changing settings | Admin
+Changing step due times and owners | Admin
 Changing the AI inventory | Compliance officer
 Changing the DP tariff | Ops checker, Admin
 Changing the MTF policy | Risk manager, Admin
@@ -109,6 +110,7 @@ Checking a backup | Ops checker, Compliance officer
 Checking a migration package | Admin
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
 Checking payouts with the bank | Ops maker, Ops checker
+Checking steps for reminders | Ops checker, Risk manager, Compliance officer
 Checking the digital signature | Compliance officer
 Choosing CBRICS settlement accounts | Ops maker, Ops checker
 Choosing the eIPO products the firm offers | Ops checker
@@ -424,6 +426,7 @@ Viewing nominations | Ops maker, Ops checker, Compliance officer
 Viewing order-to-trade ratios | Risk manager, Compliance officer
 Viewing revoked mobile numbers | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing step reminders | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the AI answer log | Compliance officer
 Viewing the AP client reporting | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
