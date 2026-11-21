@@ -341,7 +341,7 @@ func (o *Ops) finspotHoldingRows(ctx context.Context, tenant, date string, t1 bo
 		cashEq := o.cashEquivalentISINs(ctx, tenant, pl)
 		for k, l := range lines {
 			qty[k] = l.Demat + l.CUSPA
-			if l.Pledged > 0 && !cashEq[l.ISIN] && finspotBlockWhy(cs[l.UCC]) == "" {
+			if l.Pledged > 0 && !cashEq[l.ISIN] && set.frontEndBlockWhy(cs[l.UCC]) == "" {
 				pledged[k] = min(l.Pledged, max(l.Demat, 0))
 			}
 		}
@@ -575,6 +575,35 @@ func finspotBlockWhy(c Client) string {
 	return ""
 }
 
+// frontEndBlockWhy is finspotBlockWhy with the firm's practice on KYC:
+// with Settings.KYCPendingBlock, a client whose KYC status at the KRA (as
+// last loaded) is pending is blocked too ("" = may take new positions).
+func (s Settings) frontEndBlockWhy(c Client) string {
+	if w := finspotBlockWhy(c); w != "" {
+		return w
+	}
+	if s.KYCPendingBlock {
+		return kycPendingWhy(c)
+	}
+	return ""
+}
+
+// kycPendingWhy says why a client's KYC holds back trading ("" = it does
+// not): the KRA status as loaded into Ledgerline (KRA status uploads) is on
+// hold, rejected, pending or incomplete. An empty status (never loaded)
+// and one still being processed by the KRA do not block: Ledgerline does
+// not fetch statuses from the KRA every day, and a status it does not have
+// is not taken as a problem.
+func kycPendingWhy(c Client) string {
+	st := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(c.KRAStatus), "-", " "))
+	for _, w := range []string{"hold", "reject", "pending", "incomplete"} {
+		if strings.Contains(st, w) {
+			return "KYC " + strings.ToLower(strings.TrimSpace(c.KRAStatus)) + " at the KRA"
+		}
+	}
+	return ""
+}
+
 // FinspotBlockFile is the block / unblock upload: a block line for every
 // client blocked now (so the full list is re-sent and a day-only block is
 // set again), and an unblock line for every client an earlier file blocked
@@ -662,11 +691,12 @@ func (o *Ops) finspotBlockPlan(ctx context.Context, tenant, date string) ([]fins
 	for _, x := range sent {
 		onFinspot[x.UCC] = true
 	}
+	set, _ := o.Settings(ctx, tenant)
 	var items []finspotBlockItem
 	var changed []FinspotBlockState
 	for _, u := range sortedKeys(cs) {
 		c := cs[u]
-		why := finspotBlockWhy(c)
+		why := set.frontEndBlockWhy(c)
 		was, known := st[u]
 		if c.Status != "Active" && !known && !onFinspot[u] {
 			continue // never on Finspot

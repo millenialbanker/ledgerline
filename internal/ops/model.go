@@ -296,6 +296,21 @@ type Settings struct {
 	// penalty is ever passed to a client; from this date + 7 days it may
 	// be (penaltypass.go).
 	RiskPolicyClauseSentOn string `json:"risk_policy_clause_sent_on,omitempty"`
+	// KYCPendingBlock blocks, on the trading front ends, clients whose KYC
+	// status at the KRA (as last loaded into Ledgerline) is on hold,
+	// rejected, pending or incomplete, as well as inactive accounts, and
+	// lifts the block when the status is cleared (kycPendingWhy). Off (the
+	// default): only accounts flagged Inactive, blocked or not active are
+	// blocked. Ledgerline does not fetch KYC statuses from the KRA every
+	// day: the block uses the status already loaded.
+	KYCPendingBlock bool `json:"kyc_pending_block,omitempty"`
+	// FinspotLogins is who creates a client's user ID on Finspot
+	// (finspotlogin.go): "console" (staff, in Finspot's admin console),
+	// "ledgerline" (Ledgerline, by API, or its upload file without the API)
+	// or "both" (either: Ledgerline creates one when staff ask, and
+	// recognises those made in the console). Empty: as the Finspot API
+	// connection's client logins switch says (On: ledgerline, else console).
+	FinspotLogins string `json:"finspot_logins,omitempty"`
 	// From approved exchange holiday calendars (holidays.go), filled in
 	// when settings are loaded; never saved with them.
 	exTrading    map[string]string
@@ -603,6 +618,13 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 			return fmt.Errorf("%w: Ledgerline support cannot change two-factor sign-in or session time-out", ErrForbidden)
 		}
 	}
+	return o.saveSettings(ctx, tenant, actor, s)
+}
+
+// saveSettings checks and stores settings for a caller that has already
+// checked the actor: SaveSettings, and a firm practice applied when its
+// second approver approves (firmpractices.go).
+func (o *Ops) saveSettings(ctx context.Context, tenant, actor string, s Settings) error {
 	for _, p := range []string{s.FirmPAN, s.ClearingMemberPAN} {
 		if p != "" && !rePAN.MatchString(p) {
 			return invalid("PAN %s must be 5 letters, 4 digits, 1 letter", p)
@@ -705,6 +727,11 @@ func (o *Ops) SaveSettings(ctx context.Context, tenant, actor string, s Settings
 	}
 	if err := checkBankAuthSettings(&s); err != nil {
 		return err
+	}
+	switch s.FinspotLogins = strings.ToLower(strings.TrimSpace(s.FinspotLogins)); s.FinspotLogins {
+	case "", FinspotLoginsConsole, FinspotLoginsLedgerline, FinspotLoginsBoth:
+	default:
+		return invalid("Finspot client logins are made in the console, by Ledgerline, or both")
 	}
 	if err := o.checkSegLedger(ctx, tenant, &s); err != nil {
 		return err

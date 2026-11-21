@@ -1045,10 +1045,11 @@ func (o *Ops) finspotAPILimits(ctx context.Context, tenant, date string) (map[st
 		return nil, err
 	}
 	cs, _ := o.tradingClientMap(ctx, tenant)
+	set, _ := o.Settings(ctx, tenant)
 	out := make(map[string]FinspotAPILimit, len(lims))
 	for u, l := range lims {
 		x := FinspotAPILimit{ActID: l.ID, Cash: eq[u], Notional: l.NotionalCash}
-		if why := finspotBlockWhy(cs[u]); why != "" || len(cs[u].OpenSegments()) == 0 {
+		if why := set.frontEndBlockWhy(cs[u]); why != "" || len(cs[u].OpenSegments()) == 0 {
 			x.Cash, x.Notional, x.Why = money.Min(x.Cash, money.Dec{}), money.Dec{}, firstOf(why, "No segment active")
 		}
 		out[u] = x
@@ -1583,6 +1584,13 @@ func (p *fnPush) clients() (FinspotAPIPart, error) {
 	for _, x := range byFile {
 		onFinspot[x.UCC] = true
 	}
+	// Who creates logins (Settings → Firm practices, finspotlogin.go): a
+	// client with a login made in the console is changed, never created
+	// again; a new client waits for the console, or for someone to click
+	// Create Finspot login when the firm does both.
+	mode := p.o.finspotLoginMode(p.ctx, p.tenant)
+	logins := p.o.finspotLoginRecords(p.ctx, p.tenant)
+	waiting := 0
 	var plans []fnClientPlan
 	for _, u := range sortedKeys(p.cs) {
 		c := p.cs[u]
@@ -1599,12 +1607,25 @@ func (p *fnPush) clients() (FinspotAPIPart, error) {
 			res.Skipped++
 			continue
 		}
-		pl.New = !known && !onFinspot[u]
+		pl.New = !known && !onFinspot[u] && !logins[u].Has
+		if pl.New && (mode == FinspotLoginsConsole || mode == FinspotLoginsBoth && !logins[u].Requested) {
+			waiting++
+			continue
+		}
 		plans = append(plans, pl)
+	}
+	if waiting > 0 {
+		res.Skipped += waiting
+		res.Note = fmt.Sprintf("%d new client(s) have no Finspot login yet: they are made in Finspot's admin console", waiting)
+		if mode == FinspotLoginsBoth {
+			res.Note += ", or by Create Finspot login on the client"
+		}
 	}
 	res.Lines = len(plans)
 	errs := make([]string, len(plans))
 	done := make([]bool, len(plans))
+	created := make([]bool, len(plans))
+	found := make([]bool, len(plans))
 	stop := p.c.parallel(len(plans), func(i int) error {
 		pl := plans[i]
 		if pl.problem != "" {
@@ -1615,9 +1636,14 @@ func (p *fnPush) clients() (FinspotAPIPart, error) {
 		var err error
 		if pl.New {
 			_, err = p.c.req("AddInvestorClient", pl.UCC, "add client login "+act+" (no password)", pl.add, fnSrcUID|fnBrokerID)
-			if err != nil && strings.Contains(strings.ToLower(err.Error()), "exist") {
+			switch {
+			case err != nil && strings.Contains(strings.ToLower(err.Error()), "exist"):
+				// Made in Finspot's admin console: changed, never added twice.
 				err = nil
 				pl.New = false
+				found[i] = true
+			case err == nil:
+				created[i] = true
 			}
 		}
 		if err == nil && !pl.New {
@@ -1653,6 +1679,13 @@ func (p *fnPush) clients() (FinspotAPIPart, error) {
 			res.Pushed++
 			_ = docs.Upsert(p.ctx, p.o.Docs, p.tenant, cFNSent, "client|"+pl.UCC, finspotSentState{Kind: "client", UCC: pl.UCC, Hash: pl.hash, On: p.date}, p.actor)
 			_ = docs.Upsert(p.ctx, p.o.Docs, p.tenant, cFNSent, "problem|"+pl.UCC, finspotSentState{Kind: "problem", UCC: pl.UCC, On: p.date}, p.actor)
+		}
+		switch {
+		case !done[i] || errs[i] != "":
+		case created[i]:
+			p.o.noteFinspotLogin(p.ctx, p.tenant, p.actor, pl.UCC, FinspotLoginByAPI, "")
+		case found[i]:
+			p.o.noteFinspotLogin(p.ctx, p.tenant, p.actor, pl.UCC, FinspotLoginFound, "AddInvestorClient: the client exists on Finspot; its details were changed instead")
 		}
 	}
 	return res, stop
@@ -1805,6 +1838,9 @@ type FinspotAPIRow struct {
 	T1       int              `json:"t1"`
 	Queued   bool             `json:"queued,omitempty"`
 	Differs  bool             `json:"differs,omitempty"` // the limit differs from the last push
+	// Login is how Ledgerline knows the client has a Finspot login ("":
+	// not known; finspotlogin.go).
+	Login string `json:"login,omitempty"`
 }
 
 // FinspotAPIView is the Finspot API panel on Live RMS.
@@ -1826,6 +1862,9 @@ type FinspotAPIView struct {
 	Rows     []FinspotAPIRow   `json:"rows"`
 	Runs     []FinspotAPIRun   `json:"runs"` // latest first, without calls
 	Notes    []string          `json:"notes,omitempty"`
+	// LoginMode is who creates clients' Finspot logins (Settings → Firm
+	// practices): console, ledgerline or both.
+	LoginMode string `json:"login_mode"`
 }
 
 // FinspotAPIPanel is the panel: each client's limit now and last push, the
@@ -1889,10 +1928,12 @@ func (o *Ops) FinspotAPIPanel(ctx context.Context, tenant, actor, date string) (
 	for _, h := range hs {
 		holds[h.UCC] = h
 	}
+	v.LoginMode = o.finspotLoginMode(ctx, tenant)
+	logins := o.finspotLoginsKnown(ctx, tenant)
 	for _, u := range sortedKeys(lims) {
 		l, s := lims[u], states[u]
 		h := holds[u]
-		r := FinspotAPIRow{UCC: u, Name: cs[u].Name, Limit: l, Last: s, Holdings: len(h.Hold), HoldOn: h.HoldOn, T1: len(h.T1), Queued: queued[u]}
+		r := FinspotAPIRow{UCC: u, Name: cs[u].Name, Limit: l, Last: s, Holdings: len(h.Hold), HoldOn: h.HoldOn, T1: len(h.T1), Queued: queued[u], Login: logins[u].How}
 		r.Differs = !fnLimitSame(s, fileLines, u, date, l)
 		v.Rows = append(v.Rows, r)
 	}
