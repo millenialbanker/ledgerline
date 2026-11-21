@@ -720,5 +720,7 @@ func (o *Ops) Dashboard(ctx context.Context, tenant, date string) (Dashboard, er
 		}
 	}
 	d.Extra["holidays_pending"] = fmt.Sprint(pending)
+	// Firm practices not answered yet, for the go-live reminder.
+	d.Extra["practices_open"] = fmt.Sprint(o.practicesOpen(ctx, tenant))
 	return d, nil
 }

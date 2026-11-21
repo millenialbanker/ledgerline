@@ -12,6 +12,7 @@ Adding users | Admin
 Advancing onboarding | Ops maker, Ops checker
 Allocating collateral | Ops maker, Ops checker, Risk manager
 Allocating money to a ledger | Ops maker, Ops checker, Risk manager
+Answering firm practices | Admin
 Applying corporate actions | Ops checker
 Applying pay-out holds | Ops checker, Risk manager
 Applying the BSDA review | Ops checker
@@ -26,6 +27,7 @@ Approving an override | Ops checker, Risk manager
 Approving client changes | Ops checker
 Approving closing the firm's account | Compliance officer
 Approving exchange holidays | Ops checker, Compliance officer
+Approving firm practices | Compliance officer, Admin
 Approving legacy debts | Ops checker, Compliance officer
 Approving margin pledges sent to CDSL | Ops checker, Risk manager
 Approving pay-out holds | Risk manager
@@ -97,6 +99,7 @@ Checking PAN status at BSE | Ops maker, Ops checker
 Checking PAN status at the exchange | Ops maker, Ops checker, Compliance officer
 Checking UCC status at MCX | Ops maker, Ops checker, Compliance officer
 Checking UPI blocks with NSE Clearing | Ops maker, Ops checker, Risk manager
+Checking a Finspot login | Ops maker, Ops checker, Risk manager
 Checking a backup | Ops checker, Compliance officer
 Checking a migration package | Admin
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
@@ -116,6 +119,7 @@ Confirming payouts | Ops maker, Ops checker
 Connecting the USB token signer | Admin
 Corporate actions | Ops maker, Ops checker
 Correcting a bill | Ops checker
+Creating a Finspot login | Ops maker, Risk manager
 Creating a client | Ops maker, Ops checker
 Creating a limit override | Ops maker, Risk manager, Branch staff, Authorised person
 Crediting dividends | Ops checker
@@ -258,6 +262,7 @@ Recording MTF pledges | Ops maker, Ops checker, Risk manager
 Recording N-MASS changes | Ops checker, Risk manager
 Recording RFQ deal settlement | Ops maker, Ops checker
 Recording WhatsApp consent | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
+Recording a Finspot login | Ops maker, Ops checker, Risk manager
 Recording a bounce | Ops maker, Ops checker, Admin
 Recording a deceased client's steps | Ops maker, Ops checker, Compliance officer
 Recording a physical dispatch | Ops maker, Ops checker, Admin
@@ -392,6 +397,7 @@ Viewing CDSL API transactions | Ops maker, Ops checker, Risk manager, Compliance
 Viewing CDSL demat account counts | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing CDSL freezes | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing CDSL requests | Ops maker, Ops checker, Compliance officer
+Viewing Finspot logins | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing Finspot pushes | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing Ledgerline support access | Compliance officer
 Viewing MCX UCC registrations | Ops maker, Ops checker, Compliance officer
@@ -406,6 +412,7 @@ Viewing deceased clients | Ops maker, Ops checker, Risk manager, Compliance offi
 Viewing eDIS authorisations | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing exchange UCC registrations | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing exchange disclosures | Compliance officer
+Viewing firm practices | Compliance officer, Admin
 Viewing inspection packs | Compliance officer
 Viewing margin penalty evidence | Ops checker, Risk manager, Compliance officer
 Viewing nominations | Ops maker, Ops checker, Compliance officer
@@ -423,6 +430,7 @@ Viewing the firm profile | Compliance officer
 Viewing the firm's bank accounts | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the firm's encryption keys | Compliance officer
 Viewing the firm's registered phones | Admin
+Viewing the go-live checklist | Compliance officer, Admin
 Viewing the impersonation register | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the migration | Ops checker, Compliance officer
 Viewing the mobile app settings | Compliance officer, Admin
