@@ -133,6 +133,7 @@ const GROUPS = {
   regg: ['Regulatory reports', [['reports', 'Regulatory reports'], ['exdisc', 'Exchange disclosures'], ['aictl', 'AI controls']]],
   secg: ['Security', [['incidents', 'Incidents'], ['logexport', 'Log export']]],
   securityg: ['Security', [['supportaccess', 'Support access']]],
+  settingsg: ['Settings', [['settings', 'Settings'], ['practices', 'Firm practices']]],
 };
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard'], ['boards', 'Boards'], ['chat', 'Team messages'], ['@automation'], ['@calendar']]],
@@ -143,7 +144,7 @@ const NAV = [
   ['Investments', [['ipo', 'IPO & public issues'], ['rfq', 'Bonds (RFQ deals)'], ['cbrics', 'Corporate bonds (CBRICS)'], ['@mfg'], ['stocksip', 'Stock SIPs']]],
   ['Depository', [['@dpg']]],
   ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['@partnersg']]],
-  ['Admin', [['connections', 'Connections'], ['backups', 'Backups'], ['dataexit', 'Data & exit'], ['settings', 'Settings'], ['@securityg'], ['layout', 'Screen layout']]]];
+  ['Admin', [['connections', 'Connections'], ['backups', 'Backups'], ['dataexit', 'Data & exit'], ['@settingsg'], ['@securityg'], ['layout', 'Screen layout']]]];
 // Every staff screen with its name, groups opened up.
 const NAV_VIEWS = NAV.flatMap(g => g[1].flatMap(([k, l]) => k[0] === '@' ? GROUPS[k.slice(1)][1] : [[k, l]]));
 const groupOf = v => Object.keys(GROUPS).find(g => GROUPS[g][1].some(([k]) => k === v));
@@ -169,6 +170,7 @@ function viewAllowed(k) {
   if (edition() === 'manual' && k === 'autopilot') return false;
   if (role() === 'Authorised person' && k === 'rpa') return false; // automations are for the firm's own staff
   if (k === 'supportaccess' && !S.me?.support_access) return false; // the Admin, Compliance and the firm's chosen approver
+  if (k === 'practices' && !has('Compliance officer')) return false; // Firm practices: the Admin answers, Compliance approves
   return true;
 }
 // groupTabs: the group's tabs this user may open.
@@ -2004,6 +2006,7 @@ async function clientDrawer(ucc) {
     <div><small class="dim">WhatsApp</small><div>${waConsentLine(c)}${has('Ops maker', 'Ops checker', 'Compliance officer', 'Branch staff', 'Authorised person') ? ` <button class="btn sm" data-act="waConsent" data-id="${c.ucc}" data-on="${c.whatsapp ? 0 : 1}">${c.whatsapp ? 'Record opt-out' : 'Record consent'}</button>` : ''}</div></div>
     ${bp && !c.dp_only ? `<div><small class="dim">Brokerage plan</small><div><b>${esc(bp.plan.plan_name)}</b> <span class="dim">· ${esc(bp.plan.source)}${bp.plan.from ? ' since ' + fmtDate(bp.plan.from) : ''}</span>${(bp.plan.segments || []).map(x => ` <span class="tag">${esc(scopeLabel(x.scope))}: ${esc(x.plan_name)}</span>`).join('')}${bp.plan.override ? ' <span class="tag">own rates</span>' : ''} <button class="linkish" data-act="go" data-id="brokerage">Plans</button></div><div class="dim small">${['CM-DEL', 'CM-INTRA', 'FO-FUT', 'FO-OPT'].map(k => `${{ 'CM-DEL': 'Delivery', 'CM-INTRA': 'Intraday', 'FO-FUT': 'Futures', 'FO-OPT': 'Options' }[k]}: ${esc(bp.rates[k] || '—')}`).join(' · ')}</div></div>` : ''}</div>
     <div id="cl-int"></div>
+    <div id="cl-fsl"></div>
     ${r ? `<div class="kv"><div><small>Ledger</small><b class="mono ${sgn(r.funds)}">${inr(r.funds, 2)}</b></div><div><small>UPI blocked</small><b class="mono">${inr(r.upi)}</b></div><div><small>Collateral (usable)</small><b class="mono">${inr(r.collateral_usable)}</b></div><div><small>Margin required</small><b class="mono">${inr(r.required)}</b></div><div><small>Free</small><b class="mono ${sgn(r.free)}">${inr(r.free)}</b></div><div><small>OMS limit</small><b class="mono">${inr(r.limit)}</b></div></div>` : '<div class="note">Not active yet. Limits and the ledger start at activation.</div>'}
     ${d.ledgers ? ledgersBlock(c, d.ledgers, r) : ''}
     ${d.earmark ? earmarkBlock(c, d.earmark, r) : ''}
@@ -2031,6 +2034,7 @@ async function clientDrawer(ucc) {
   if (typeof migClient360 === 'function') migClient360(c.ucc); // Before Ledgerline: migrated history and archive (migrate.js)
   clientTermsLine(c.ucc);
   clientBankLog(c.ucc);
+  if (!scopedUser() && !c.dp_only && typeof clientFinspotLogin === 'function') clientFinspotLogin(c.ucc); // practices.js
 }
 // The client's bank account change log, with each request's authorisation
 // (the client's confirmation, the letter or the portal request).
@@ -2427,7 +2431,7 @@ function bkSetupModal() {
     <div class="fld full"><label for="bs-t">Terminal rules, one per line: terminal = channel</label><textarea class="in mono" id="bs-t" rows="6" placeholder="1234567*=online">${esc(s.terminals.map(t => t.terminal + ' = ' + t.channel).join('\n'))}</textarea></div>
     <div class="fld"><label for="bs-auc">Auction settlement types</label><input class="in" id="bs-auc" value="${esc(s.auction_settlements.join(', '))}"></div><div class="fld"><label for="bs-idx">More index underlyings</label><input class="in" id="bs-idx" value="${esc(s.index_underlyings.join(', '))}" placeholder="NIFTY, BANKNIFTY, SENSEX and others are built in"></div>
     <div class="fld full"><label for="bs-intra">Cash-market intraday</label><select class="in" id="bs-intra"><option value="" ${s.intraday_by ? '' : 'selected'}>From the trade file’s product (MIS)</option><option value="squareoff" ${s.intraday_by === 'squareoff' ? 'selected' : ''}>By square-off: what a client bought and sold in a scrip the same day</option></select></div>
-    <div class="fld full"><label for="bs-aucr">Auction trades</label><select class="in" id="bs-aucr"><option value="" ${s.auction_rate ? '' : 'selected'}>The auction rate always wins, even over a special rate for the scrip or its group</option><option value="scrip" ${s.auction_rate === 'scrip' ? 'selected' : ''}>A special rate for the scrip or its group wins over the auction rate</option></select></div></div>
+    <div class="fld full"><label for="bs-aucr">Auction trades</label><select class="in" id="bs-aucr" disabled><option value="" ${s.auction_rate ? '' : 'selected'}>The auction rate always wins, even over a special rate for the scrip or its group</option><option value="scrip" ${s.auction_rate === 'scrip' ? 'selected' : ''}>A special rate for the scrip or its group wins over the auction rate</option></select><div class="dim small">A firm practice: change it in <button type="button" class="linkish" data-act="go" data-id="practices">Settings → Firm practices</button>, where a second person approves it.</div></div></div>
     <div id="bs-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Save</button></div></form>`);
   const list = v => v.split(',').map(x => x.trim()).filter(Boolean);
   $('bsf').onsubmit = async e => {
@@ -2808,7 +2812,7 @@ V.settings = {
       <div class="fld"><label for="st-pda">Client bank account payouts are made from</label><input class="in mono" id="st-pda" value="${esc(s.payout_debit_account || '')}" ${admin ? '' : 'disabled'}></div>
       <div class="fld"><label for="st-mcb">Maximum bank accounts per client</label><input class="in" id="st-mcb" type="number" min="0" max="5" value="${s.max_client_banks || ''}" placeholder="Default: 3 with MCX, otherwise 5" ${admin ? '' : 'disabled'}><div class="dim small">Active registered accounts a client may have. Empty uses the fewest bank slots in the UCC record of the exchanges you trade on (BSE 5, NSE 5, MCX 3), so every account can be reported to every exchange.</div></div>
       <div class="fld"><label class="check"><input type="checkbox" id="st-bpd" ${s.bank_penny_drop ? 'checked' : ''} ${admin ? '' : 'disabled'}> Penny drop for every new bank account</label><div class="dim small">A new or replaced client bank account needs a penny drop (Connections → Bank account and PAN checks) as well as the cancelled cheque or bank statement. Without it, the account is not taken.</div></div>
-      <div class="fld"><label for="st-baf">Client authorisation of bank changes raised by staff</label><select class="in" id="st-baf" ${admin ? '' : 'disabled'}>${[['both', 'Client confirmation by code or link, or a signed letter or e-sign'], ['confirm', 'Client confirmation by code or link only'], ['letter', 'Signed letter or e-sign only']].map(([k, l]) => `<option value="${k}" ${(s.bank_auth_forms || 'both') === k ? 'selected' : ''}>${l}</option>`).join('')}</select><div class="dim small">A bank change staff raise is sent to the client’s registered mobile and e-mail to confirm, or carries the client’s signed letter. A checker approves it only then. Changes the client makes in the portal need neither.</div></div>
+      <div class="fld"><label for="st-baf">Client authorisation of bank changes raised by staff</label><select class="in" id="st-baf" disabled>${[['both', 'Client confirmation by code or link, or a signed letter or e-sign'], ['confirm', 'Client confirmation by code or link only'], ['letter', 'Signed letter or e-sign only']].map(([k, l]) => `<option value="${k}" ${(s.bank_auth_forms || 'both') === k ? 'selected' : ''}>${l}</option>`).join('')}</select><div class="dim small">A bank change staff raise is sent to the client’s registered mobile and e-mail to confirm, or carries the client’s signed letter. A checker approves it only then. Changes the client makes in the portal need neither. A firm practice: change it in <button type="button" class="linkish" data-act="go" data-id="practices">Settings → Firm practices</button>, where a second person approves it.</div></div>
       <div class="fld"><label for="st-bad">Days to wait for the client’s confirmation</label><input class="in" id="st-bad" type="number" min="0" max="30" value="${s.bank_auth_days || ''}" placeholder="Default: 7" ${admin ? '' : 'disabled'}><div class="dim small">An unconfirmed request then expires; the client and the maker are told.</div></div>
       <div class="fld"><label for="st-mig">Largest migration package (GB)</label><input class="in" id="st-mig" type="number" min="0" max="2000" value="${s.migration_max_gb || ''}" placeholder="Default: 100" ${admin ? '' : 'disabled'}><div class="dim small">The biggest .llmig file the firm may upload on Files → Migration from old system. The server needs free disk for about twice this while a package is checked or loaded.</div></div>
       <div class="fld full"><b>HDFC Bank ENet payout file</b><span class="dim small"> · one line per payment, 28 fields, CRLF; checks must pass before a file is produced</span></div>
@@ -2849,7 +2853,7 @@ V.settings = {
       <p class="dim full" style="margin:0;font-size:12.5px">Money in goes to a ledger by the first instruction that applies: the bank account it was paid into, a word in the narration, the client's own default (client drawer). Otherwise it waits on [RMS → Money awaiting allocation] for Risk to choose, and is in neither front end's limit until then.</p>
     </div></div></div>
     <div class="panel"><div class="hd"><h3>MCX money in one ledger</h3><small>One ledger per client, with money for MCX kept out of equity limits</small></div><div class="bd"><div class="form">
-      <label class="check full"><input type="checkbox" id="st-mcxapart" ${s.mcx_money_apart ? 'checked' : ''} ${admin && !s.separate_commodity_ledger ? '' : 'disabled'}> Keep each client's MCX money as a separate balance in the one ledger, with one bank account for all exchanges (no MCX-only account needed). Risk moves money between equity and MCX money (a second person approves); MCX payouts go from the usual payout account in the same file or bank batch as equity payouts.</label>
+      <label class="check full"><input type="checkbox" id="st-mcxapart" ${s.mcx_money_apart ? 'checked' : ''} disabled> Keep each client's MCX money as a separate balance in the one ledger, with one bank account for all exchanges (no MCX-only account needed). Risk moves money between equity and MCX money (a second person approves); MCX payouts go from the usual payout account in the same file or bank batch as equity payouts. <span class="dim">A firm practice: change it in <button type="button" class="linkish" data-act="go" data-id="practices">Settings → Firm practices</button>, where a second person approves it.</span></label>
       <div class="fld full"><label for="st-mcxacc">MCX only: funds received in these firm bank accounts count for MCX only (one account number per line)</label><textarea class="in mono" id="st-mcxacc" rows="2" placeholder="00321234560277" ${admin && !s.separate_commodity_ledger ? '' : 'disabled'}>${esc((s.mcx_only_bank_accounts || []).join('\n'))}</textarea></div>
       <p class="dim full" style="margin:0;font-size:12.5px">${s.separate_commodity_ledger ? 'The separate commodity ledger is on: map the MCX account to Commodity under “Money paid into these firm bank accounts” above instead; that already keeps its money out of Finspot.' : 'The client keeps one ledger and sees one ledger. Money paid into these accounts (e-CMS, bank statement, gateway, receipts entered by hand), with MCX profits less MCX losses and charges, is MCX money: never in Finspot’s RMS line, NSE Clearing allocation and margin reporting, SEGMON or equity risk; it is in the MCX allocation and MCX margin reporting. Payouts of MCX money are made from the first account. Risk moves money between MCX and equity on RMS or the client drawer.'}</p>
     </div></div></div>
