@@ -4,7 +4,9 @@ package pgstore
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"testing"
@@ -40,7 +42,9 @@ func TestIntegrationPurge(t *testing.T) {
 		if _, err := ds.Put(ctx, x, "client", "C"+key, json.RawMessage(`{"ucc":"C1"}`), 0, true, "t"); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := st.Put(ctx, ingest.RawFile{Tenant: x, Source: "X", Name: "f.txt", SHA256: key, Content: []byte("x")}); err != nil {
+		body := []byte("exit test " + x + " " + key)
+		sum := sha256.Sum256(body)
+		if _, err := st.Put(ctx, ingest.RawFile{Tenant: x, Source: "X", Name: "f.txt", SHA256: hex.EncodeToString(sum[:]), Content: body}); err != nil {
 			t.Fatal(err)
 		}
 		if _, _, err := st.Append(ctx, ledger.Entry{Tenant: x, Key: "k" + key, ValueDate: "2026-11-20", Narration: "n", CreatedBy: "t", Source: ledger.SourceRef{Kind: "T", ID: "1"},
