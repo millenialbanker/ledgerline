@@ -77,8 +77,8 @@ func TestArticlesAreConsistent(t *testing.T) {
 // and requires config/help/permissions.md to say the same. Run with
 // LL_UPDATE_HELP=1 to rewrite the file.
 func TestPermissionsMatchCode(t *testing.T) {
-	roleNames := map[string]string{"RoleMaker": "Ops maker", "RoleChecker": "Ops checker", "RoleRisk": "Risk manager", "RoleCompliance": "Compliance officer", "RoleAdmin": "Admin", "RoleBranch": "Branch staff", "RoleAP": "Authorised person"}
-	order := []string{"Ops maker", "Ops checker", "Risk manager", "Compliance officer", "Branch staff", "Authorised person", "Admin"}
+	roleNames := map[string]string{"RoleMaker": "Ops maker", "RoleChecker": "Ops checker", "RoleRisk": "Risk manager", "RoleCompliance": "Compliance officer", "RoleAdmin": "Admin", "RoleBranch": "Branch staff", "RoleAP": "Authorised person", "RoleHR": "HR manager", "RolePayroll": "Payroll"}
+	order := []string{"Ops maker", "Ops checker", "Risk manager", "Compliance officer", "Branch staff", "Authorised person", "HR manager", "Payroll", "Admin"}
 	re := regexp.MustCompile(`o\.require\(ctx, tenant, actor, "([^"]+)"((?:, Role[A-Za-z]+)*)\)`)
 	files, _ := filepath.Glob("../ops/*.go")
 	want := map[string]map[string]bool{}

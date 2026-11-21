@@ -122,7 +122,7 @@ func (s *Server) closedPath(p string) bool {
 	if s.ops == nil {
 		return false
 	}
-	for _, pre := range []string{"/hooks/", "/optin/", "/bank-confirm/", "/onboard/", "/agent/v1/"} {
+	for _, pre := range []string{"/hooks/", "/optin/", "/bank-confirm/", "/onboard/", "/agent/v1/", "/kiosk-api/"} {
 		if rest, ok := strings.CutPrefix(p, pre); ok {
 			t, _, _ := strings.Cut(rest, "/")
 			return s.ops.FirmClosed(t)

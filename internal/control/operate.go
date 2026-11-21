@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -230,6 +231,34 @@ func (c *Control) SetFirmEdition(ctx context.Context, by, firm, edition string) 
 	x, err := c.queueCommand(ctx, by, f, Command{Kind: "edition", Edition: edition})
 	if err == nil {
 		c.log(ctx, by, "firm.edition", firm, f.Latest.Edition+" → "+edition)
+	}
+	return x, err
+}
+
+// ---- priced modules ----
+
+// SetFirmModule switches a priced module (hrms, payroll) on or off for a
+// firm, as a command applied at the firm's next report, the way an edition
+// is changed. A module is billed for every month it was on at a report.
+// Payroll needs HRMS: switching payroll on switches HRMS on at the firm,
+// and HRMS off switches payroll off.
+func (c *Control) SetFirmModule(ctx context.Context, by, firm, module string, on bool) (CommandRec, error) {
+	if err := c.need(ctx, by, RoleBilling); err != nil {
+		return CommandRec{}, err
+	}
+	if ModuleNames[module] == "" {
+		return CommandRec{}, invalid("module must be hrms or payroll")
+	}
+	f, _, err := docs.Get[Firm](ctx, c.Docs, T, cFirm, firm)
+	if err != nil {
+		return CommandRec{}, ErrNotFound
+	}
+	if slices.Contains(f.Latest.Modules, module) == on {
+		return CommandRec{}, invalid("%s is already %s for the firm", ModuleNames[module], map[bool]string{true: "on", false: "off"}[on])
+	}
+	x, err := c.queueCommand(ctx, by, f, Command{Kind: "module", Module: module, On: on})
+	if err == nil {
+		c.log(ctx, by, "firm.module", firm, ModuleNames[module]+map[bool]string{true: " on", false: " off"}[on])
 	}
 	return x, err
 }

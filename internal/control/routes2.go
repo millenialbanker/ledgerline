@@ -34,6 +34,15 @@ func (s *Server) extraRoutes(A func(string, func(http.ResponseWriter, *http.Requ
 			out(w)(s.C.SetFirmEdition(r.Context(), by, r.PathValue("id"), b.Edition))
 		}
 	})
+	A("POST /api/firms/{id}/module", func(w http.ResponseWriter, r *http.Request, by string) {
+		var b struct {
+			Module string
+			On     bool
+		}
+		if decode(w, r, &b, 4096) {
+			out(w)(s.C.SetFirmModule(r.Context(), by, r.PathValue("id"), b.Module, b.On))
+		}
+	})
 	A("GET /api/receivables", func(w http.ResponseWriter, r *http.Request, by string) {
 		rows, tot, err := s.C.Receivables(r.Context(), by)
 		if err != nil {

@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -55,6 +56,12 @@ func (c *Control) lines(ctx context.Context, cu Customer, month string, set Sett
 		}
 		if fee > 0 {
 			out = append(out, InvoiceLine{Desc: fmt.Sprintf("Ledgerline %s edition, %s — %s", firstOf(editionName[ed], ed), monthName(month), name), SAC: p.SAC, Qty: 1, Rate: fee, Amount: fee, Kind: "edition", Firm: f.ID})
+		}
+		for _, m := range Modules {
+			if !slices.Contains(u.Modules, m) || p.Modules[m] <= 0 {
+				continue
+			}
+			out = append(out, InvoiceLine{Desc: fmt.Sprintf("Ledgerline %s module, %s — %s", ModuleNames[m], monthName(month), name), SAC: p.SAC, Qty: 1, Rate: p.Modules[m], Amount: p.Modules[m], Kind: "module", Firm: f.ID})
 		}
 		included := p.IncludedUsers
 		if cu.IncludedUsers > 0 {

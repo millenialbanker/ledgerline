@@ -77,6 +77,9 @@ func init() {
 			{Key: "mode", Label: "Environment", Options: []string{"Production", "UAT"}},
 			{Key: "url", Label: "Gateway address (leave empty for the bank's own)", Optional: true, Placeholder: hdfcapi.ProdBase},
 			{Key: "client_code", Label: "CBX client code for client payouts"},
+			// The firm's own account (salary and other firm payments),
+			// never the client payout account (payrun.go).
+			{Key: "salary_client_code", Label: "CBX client code for the firm's own payments (salary); leave empty to pay salary by file", Optional: true},
 			{Key: "group_id", Label: "CBX domain ID (group ID)"},
 			{Key: "maker_id", Label: "CBX user ID of the API maker"},
 			{Key: "scope", Label: "Scope (from the bank's developer portal)"},

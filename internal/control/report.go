@@ -33,12 +33,15 @@ type InstallInfo struct {
 
 // FirmReport is one firm (broker) on the installation.
 type FirmReport struct {
-	Tenant     string `json:"tenant"`
-	Firm       string `json:"firm"`
-	SEBIReg    string `json:"sebi_reg"`
-	Edition    string `json:"edition"` // manual, autopilot, full
-	Month      string `json:"month"`   // YYYY-MM the monthly counts are for
-	BusinessDt string `json:"business_date"`
+	Tenant  string `json:"tenant"`
+	Firm    string `json:"firm"`
+	SEBIReg string `json:"sebi_reg"`
+	Edition string `json:"edition"` // manual, autopilot, full
+	// Modules are the separately priced modules the firm has switched on
+	// (hrms, payroll), billed like the edition.
+	Modules    []string `json:"modules,omitempty"`
+	Month      string   `json:"month"` // YYYY-MM the monthly counts are for
+	BusinessDt string   `json:"business_date"`
 
 	Users        []UserInfo     `json:"users"`
 	StaffActive  int            `json:"staff_active"` // active staff logins (not clients)
@@ -144,7 +147,7 @@ type TicketUpdate struct {
 
 // Command is something Control asks the installation to do: ai_credit
 // (top up), notice (show a notice in Ledgerline), notice_withdraw, edition
-// (change the firm's edition).
+// (change the firm's edition), module (switch a priced module on or off).
 type Command struct {
 	ID     string `json:"id"`
 	Kind   string `json:"kind"`
@@ -155,7 +158,16 @@ type Command struct {
 	Notice *Notice `json:"notice,omitempty"`
 	// Edition change.
 	Edition string `json:"edition,omitempty"`
+	// Module switch: Module is hrms or payroll, On whether it is on.
+	Module string `json:"module,omitempty"`
+	On     bool   `json:"on,omitempty"`
 }
+
+// Modules are the separately priced modules a firm can have.
+var Modules = []string{"hrms", "payroll"}
+
+// ModuleNames are their display names.
+var ModuleNames = map[string]string{"hrms": "HRMS (people)", "payroll": "Payroll"}
 
 // Notice is a message from the provider shown in Ledgerline as a banner:
 // planned maintenance, a release, a payment reminder.

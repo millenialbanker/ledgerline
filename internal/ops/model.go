@@ -61,10 +61,15 @@ const (
 	RoleRisk       = "Risk manager"
 	RoleCompliance = "Compliance officer"
 	RoleAdmin      = "Admin"
+	// HR and payroll roles (hrms.go, payroll.go): the HR manager keeps
+	// the employee master, joiners and leavers, attendance and leave; the
+	// Payroll role runs payroll. Both only matter with the HRMS module on.
+	RoleHR      = "HR manager"
+	RolePayroll = "Payroll"
 )
 
 // Roles lists every role in display order.
-var Roles = []string{RoleMaker, RoleChecker, RoleRisk, RoleCompliance, RoleAdmin, RoleBranch, RoleAP}
+var Roles = []string{RoleMaker, RoleChecker, RoleRisk, RoleCompliance, RoleAdmin, RoleBranch, RoleAP, RoleHR, RolePayroll}
 
 var (
 	ErrInvalid   = errors.New("invalid")
