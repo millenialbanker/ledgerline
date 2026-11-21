@@ -658,12 +658,12 @@ func (o *Ops) ClientScope(ctx context.Context, tenant, actor string) func(ucc st
 		}
 		return func(ucc string) bool { return own[strings.ToUpper(ucc)] }
 	}
-	scoped := u.Role == RoleBranch || u.Role == RoleAP
+	scoped := u.scope() != ""
 	if !scoped && (!private || u.Role == RoleAdmin || u.Role == RoleCompliance) {
 		return nil
 	}
 	offices := map[string]bool{}
-	if u.Role == RoleBranch && u.Branch != "" {
+	if u.scope() == RoleBranch && u.Branch != "" {
 		bs, _ := o.Branches(ctx, tenant)
 		offices[u.Branch] = true
 		for _, c := range branchTree(bs)[u.Branch] {
@@ -671,7 +671,7 @@ func (o *Ops) ClientScope(ctx context.Context, tenant, actor string) func(ucc st
 		}
 	}
 	partners := map[string]bool{}
-	if u.Role == RoleAP {
+	if u.scope() == RoleAP {
 		ps, _ := docs.List[Partner](ctx, o.Docs, tenant, cPartner, "")
 		kids := map[string][]string{}
 		for _, p := range ps {
@@ -705,7 +705,7 @@ func (o *Ops) ClientScope(ctx context.Context, tenant, actor string) func(ucc st
 				return false
 			}
 		}
-		switch u.Role {
+		switch u.scope() {
 		case RoleBranch:
 			return c.Branch != "" && offices[c.Branch]
 		case RoleAP:

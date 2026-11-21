@@ -1,0 +1,17 @@
+/* Users & roles (roles.js). */
+.rl-steps{margin-bottom:14px}
+.rl-tree{max-height:min(56vh,560px);overflow:auto;border:1px solid var(--line);border-radius:8px}
+.rl-row{display:grid;grid-template-columns:1fr repeat(3,64px);align-items:center;gap:4px;padding:5px 10px;border-bottom:1px solid var(--line);font-size:13px}
+.rl-row:last-child{border-bottom:0}
+.rl-head{position:sticky;top:0;z-index:1;background:var(--sunk);font-size:12px;color:var(--ink3);font-weight:600}
+.rl-sec{background:var(--sunk);font-weight:600}
+.rl-grp .rl-l{padding-left:14px;font-weight:600}
+.rl-scr .rl-l{padding-left:14px}
+.rl-tab .rl-l{padding-left:30px;color:var(--ink2)}
+.rl-cb{display:flex;justify-content:center}
+.rl-cb input{width:16px;height:16px;margin:0;cursor:pointer}
+.rl-sum{margin:0 0 10px;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:13.5px}
+.rl-radio{display:flex;gap:14px;flex-wrap:wrap}
+.rl-assign{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 14px;margin-bottom:12px}
+.rl-pv{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+@media (max-width:640px){.rl-row{grid-template-columns:1fr repeat(3,44px);padding:5px 6px}.rl-tab .rl-l{padding-left:20px}}

@@ -1609,7 +1609,7 @@ func (o *Ops) bsSeer(ctx context.Context, tenant, actor string) (bsSeer, error) 
 	if err != nil {
 		return bsSeer{}, err
 	}
-	return bsSeer{scope: o.ClientScope(ctx, tenant, actor), head: u.Role != RoleBranch && u.Role != RoleAP}, nil
+	return bsSeer{scope: o.ClientScope(ctx, tenant, actor), head: u.scope() == ""}, nil
 }
 
 func (o *Ops) bsEnvNow(ctx context.Context, tenant string) *bsEnv {

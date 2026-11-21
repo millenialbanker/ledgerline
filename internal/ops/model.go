@@ -89,6 +89,33 @@ type User struct {
 	Partner string `json:"partner,omitempty"`
 	// Clients are the accounts a client portal login covers (own first).
 	Clients []string `json:"clients,omitempty"`
+	// MoreRoles are roles held besides Role; what the person may do is
+	// the union of them all (roles.go).
+	MoreRoles []string `json:"more_roles,omitempty"`
+}
+
+// customRoles reports roles given on the Roles screen: more than one, or
+// one that is not built in.
+func (u User) customRoles() bool {
+	return len(u.MoreRoles) > 0 || (u.Role != RoleClient && !contains(Roles, u.Role))
+}
+
+// Scope is how far the person's client list reaches: RoleBranch, RoleAP,
+// or "" for every client. Branch staff and authorised persons, and people
+// given roles on the Roles screen limited to a branch or an AP (who keep
+// a branch or a partner code only then).
+func (u User) Scope() string { return u.scope() }
+
+// scope is Scope, for this package.
+func (u User) scope() string {
+	own := u.customRoles()
+	switch {
+	case u.Role == RoleBranch || own && u.Branch != "":
+		return RoleBranch
+	case u.Role == RoleAP || own && u.Partner != "":
+		return RoleAP
+	}
+	return ""
 }
 
 // Settings are per-tenant rules and calendar.
@@ -480,20 +507,31 @@ func (o *Ops) PutUser(ctx context.Context, tenant, actor string, u User) error {
 	if strings.TrimSpace(u.Name) == "" {
 		return invalid("user name is required")
 	}
+	prev, perr := o.user(ctx, tenant, u.ID)
+	u.MoreRoles = nil // given only with a second Admin's approval (roles.go)
 	ok := u.Role == RoleClient && len(u.Clients) > 0
 	for _, r := range Roles {
 		ok = ok || r == u.Role
 	}
-	if !ok {
+	switch {
+	case perr == nil && prev.customRoles():
+		// Someone whose roles were given on Users & roles → Roles keeps
+		// them; only their name and whether they are active change here.
+		if u.Role != prev.Role {
+			return invalid("%s's roles are changed on Users & roles → Roles, with a second Admin's approval", u.ID)
+		}
+		u.MoreRoles, u.Branch, u.Partner = prev.MoreRoles, prev.Branch, prev.Partner
+	case !ok:
+		if d, _, err := docs.Get[RoleDef](ctx, o.Docs, tenant, cRole, u.Role); err == nil && !d.Retired {
+			return invalid("%s is a role the firm made: give it on Users & roles → Roles, where a second Admin approves it", u.Role)
+		}
 		return invalid("unknown role %q", u.Role)
-	}
-	switch u.Role {
-	case RoleBranch:
+	case u.Role == RoleBranch:
 		if u.Branch == "" {
 			return invalid("branch staff need a branch")
 		}
 		u.Partner = ""
-	case RoleAP:
+	case u.Role == RoleAP:
 		if u.Partner == "" {
 			return invalid("an authorised person's login needs the partner code")
 		}
@@ -501,7 +539,6 @@ func (o *Ops) PutUser(ctx context.Context, tenant, actor string, u User) error {
 	default:
 		u.Branch, u.Partner = "", ""
 	}
-	prev, perr := o.user(ctx, tenant, u.ID)
 	if err := docs.Upsert(ctx, o.Docs, tenant, cUser, u.ID, u, actor); err != nil {
 		return err
 	}
@@ -525,48 +562,55 @@ var validID = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{1,62}$`)
 // RoleOf returns the user's role, or an error when users are configured and
 // the actor is not one of them. With no users configured every actor is
 // treated as Admin (single-user setups).
+//
+// A Ledgerline support session counts only while the firm's approval is
+// open (supportaccess.go), and never as "every actor is Admin". Someone
+// holding Admin among several roles is Admin. Someone holding a role the
+// firm made or edited (roles.go) gets that role's name, or Branch staff or
+// Authorised person when the role reaches only a branch's or an AP's
+// clients, so the client filters and the client-level screens apply.
 func (o *Ops) RoleOf(ctx context.Context, tenant, actor string) (string, error) {
-	if actor == SystemActor {
-		return RoleAdmin, nil
-	}
-	if IsSupportActor(actor) {
-		// A Ledgerline support session: only while the firm's approval
-		// is open (supportaccess.go), and never "every actor is Admin".
-		return o.supportRole(ctx, tenant, actor)
-	}
-	us, err := o.Users(ctx, tenant)
+	a, err := o.Access(ctx, tenant, actor)
 	if err != nil {
 		return "", err
 	}
-	if len(us) == 0 {
+	if a.Admin {
 		return RoleAdmin, nil
 	}
-	for _, u := range us {
-		if u.ID == actor {
-			if !u.Active {
-				return "", fmt.Errorf("%w: user %s is deactivated", ErrForbidden, actor)
-			}
-			return u.Role, nil
+	if len(a.Defs) > 0 {
+		switch a.Limits().Scope {
+		case ScopeBranch:
+			return RoleBranch, nil
+		case ScopeAP:
+			return RoleAP, nil
 		}
 	}
-	return "", fmt.Errorf("%w: %q is not a user of this firm", ErrForbidden, actor)
+	return a.Name, nil
 }
 
-// require checks the actor holds one of the roles (Admin always passes).
+// require checks the actor may do what: an unedited built-in role by name,
+// as listed (Admin always passes); a role the firm edited or made by its
+// screen permissions for the screen the request came from (roles.go).
 func (o *Ops) require(ctx context.Context, tenant, actor, what string, roles ...string) error {
-	r, err := o.RoleOf(ctx, tenant, actor)
+	a, err := o.Access(ctx, tenant, actor)
 	if err != nil {
 		return err
 	}
-	if r == RoleAdmin {
+	if a.Preview && actionKind(what, roles) != kindView {
+		return fmt.Errorf("%w: this is a preview of the %s role; nothing can be changed", ErrForbidden, a.Name)
+	}
+	if a.Admin {
 		return nil
 	}
-	for _, x := range roles {
-		if r == x {
+	for _, r := range a.Legacy {
+		if contains(roles, r) {
 			return nil
 		}
 	}
-	return fmt.Errorf("%w: %s needs %s (you are %s)", ErrForbidden, what, strings.Join(roles, " or "), r)
+	if a.permits(what, roles, areasFrom(ctx)) {
+		return nil
+	}
+	return fmt.Errorf("%w: %s needs %s (you are %s)", ErrForbidden, what, strings.Join(roles, " or "), a.Name)
 }
 
 // Settings returns the tenant settings.

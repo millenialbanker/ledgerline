@@ -148,16 +148,16 @@ type chatRead struct {
 // chatSide is where a person sits: "ho", "branch:<code>" or "ap:<code>"
 // ("" for clients and incomplete logins, who have no messages).
 func chatSide(u User) string {
-	switch u.Role {
-	case RoleBranch:
+	switch {
+	case u.scope() == RoleBranch:
 		if u.Branch != "" {
 			return "branch:" + u.Branch
 		}
-	case RoleAP:
+	case u.scope() == RoleAP:
 		if u.Partner != "" {
 			return "ap:" + u.Partner
 		}
-	case RoleClient, "":
+	case u.Role == RoleClient || u.Role == "":
 	default:
 		return chatSideHO
 	}

@@ -238,12 +238,12 @@ The AP earns their share on the client's brokerage from then on; earlier months 
 
 ## ap-login
 title: Give an AP or branch staff a login
-screen: settings
+screen: users
 roles: Admin
 ask: ap login; branch login; give ap access; sub broker login; branch user; partner login; ap cannot see clients
 related: add-user, add-ap
 
-1. Open [[settings|Settings]] and click **Add user**.
+1. Open [[users|Users]] and click **Add user**.
 2. Role **Authorised person** with their partner code, or **Branch staff** with their branch.
 3. Give them the one-time password through a separate channel. They must set a password and two-factor sign-in.
 

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"ledgerline"
+	"ledgerline/internal/screens"
 )
 
 func kb(t *testing.T) *KB {
@@ -32,9 +33,14 @@ func consoleViews(t *testing.T) map[string]bool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	nav := string(b)[strings.Index(string(b), "const GROUPS = {"):]
-	nav = nav[:strings.Index(nav, "const clientUser")]
+	// Staff screens come from the catalogue the console is served
+	// (internal/screens); the portal's are in app.js.
 	out := map[string]bool{}
+	for _, x := range screens.All() {
+		out[x.Key] = true
+	}
+	nav := string(b)[strings.Index(string(b), "const PORTAL_NAV = "):]
+	nav = nav[:strings.Index(nav, "const clientUser")]
 	for _, m := range regexp.MustCompile(`\['([a-z]+)', '`).FindAllStringSubmatch(nav, -1) {
 		out[m[1]] = true
 	}
@@ -137,6 +143,13 @@ func TestQuestions(t *testing.T) {
 		// The examples from the brief.
 		{"how to change the brokerage", "", "change-brokerage"},
 		{"how do I add an AP", "", "add-ap"},
+		// Editable roles.
+		{"how do I make my own role", "", "roles-overview"},
+		{"give crm to some people and brokerage settings to one person", "", "roles-overview"},
+		{"set a payout approval limit for a role", "", "role-editor"},
+		{"who approves a role change", "", "role-approval"},
+		{"preview what a role sees", "", "role-preview"},
+		{"give a user two roles", "", "give-roles"},
 		{"how to deal with ucc mismatch", "", "break-ucc-mismatch"},
 		{"ucc mismatch break in recon", "recon", "break-ucc-mismatch"},
 		// Brokerage.

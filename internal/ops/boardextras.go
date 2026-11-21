@@ -376,7 +376,7 @@ func (o *Ops) UseBoardTemplate(ctx context.Context, tenant, actor, id string, in
 	if vis != "firm" && vis != "private" {
 		return Board{}, invalid("a board is firm-wide or private")
 	}
-	if u.Role == RoleBranch || u.Role == RoleAP {
+	if u.scope() != "" {
 		vis = "private" // branch and partner staff keep their boards private
 	}
 	name := strings.TrimSpace(in.Name)

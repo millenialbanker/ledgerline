@@ -434,7 +434,7 @@ func boardRole(b Board, u User) string {
 	if b.Kind == BoardInbox { // a person's own Inbox (boardplanner.go): no one else, admins included
 		return inboxRole(b, u)
 	}
-	if b.Kind == BoardLedgerline && (u.Role == RoleBranch || u.Role == RoleAP) {
+	if b.Kind == BoardLedgerline && u.scope() != "" {
 		return "" // Ledgerline boards hold head-office records
 	}
 	for _, m := range b.Members {
@@ -445,7 +445,7 @@ func boardRole(b Board, u User) string {
 	if u.Role == RoleAdmin {
 		return BoardAdmin
 	}
-	if b.Visibility == "firm" && u.Role != RoleBranch && u.Role != RoleAP {
+	if b.Visibility == "firm" && u.scope() == "" {
 		if b.Kind == BoardLedgerline {
 			return BoardMember
 		}
@@ -671,7 +671,7 @@ func (o *Ops) CreateBoard(ctx context.Context, tenant, actor string, in BoardInp
 	if vis != "firm" && vis != "private" {
 		return Board{}, invalid("a board is firm-wide or private")
 	}
-	if u.Role == RoleBranch || u.Role == RoleAP {
+	if u.scope() != "" {
 		vis = "private" // branch and partner staff see only their own boards
 	}
 	now := o.now().Format(time.RFC3339)

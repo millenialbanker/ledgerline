@@ -83,7 +83,7 @@ related: migrate-firm, reset-password
 
 Some things are never brought across, whatever the old system holds:
 
-- **Passwords** of every kind: staff logins, client web and trading passwords, PINs. Users get new logins in Ledgerline ([[settings|Settings → Users]]); clients are given portal access afresh.
+- **Passwords** of every kind: staff logins, client web and trading passwords, PINs. Users get new logins in Ledgerline ([[users|Users & roles → Users]]); clients are given portal access afresh.
 - **Full Aadhaar numbers.** Only the last four digits are kept, as everywhere in Ledgerline.
 
 The package lists every field left out on purpose, why, and how many records had it, under **Left out on purpose** on [[migrate|the package]].

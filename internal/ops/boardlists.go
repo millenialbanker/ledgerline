@@ -106,7 +106,7 @@ func boardCanJoin(b Board, v boardViewer) error {
 		return fmt.Errorf("%w: this board's admins add its members", ErrForbidden)
 	case b.Closed:
 		return fmt.Errorf("%w: the board is closed", ErrState)
-	case boardSystem(v.user.ID) || v.user.Role == RoleBranch || v.user.Role == RoleAP:
+	case boardSystem(v.user.ID) || v.user.scope() != "":
 		return fmt.Errorf("%w: only head-office staff join firm-wide boards", ErrForbidden)
 	case v.board == BoardAdmin:
 		return invalid("you are already an admin of this board")

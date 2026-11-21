@@ -85,12 +85,12 @@ func (o *Ops) leadAccess(ctx context.Context, tenant, actor string) (User, func(
 		}
 		u = User{ID: actor, Role: role}
 	}
-	switch u.Role {
-	case RoleClient, RoleRisk:
+	switch {
+	case u.Role == RoleClient || u.Role == RoleRisk:
 		return u, nil, fmt.Errorf("%w: leads are not available to %s logins", ErrForbidden, u.Role)
-	case RoleBranch:
+	case u.scope() == RoleBranch:
 		return u, func(l Lead) bool { return l.Branch == u.Branch || l.Owner == u.ID }, nil
-	case RoleAP:
+	case u.scope() == RoleAP:
 		return u, func(l Lead) bool { return l.Partner == u.Partner || l.Owner == u.ID }, nil
 	}
 	return u, func(Lead) bool { return true }, nil
@@ -152,10 +152,10 @@ func (o *Ops) SaveLead(ctx context.Context, tenant, actor string, l Lead) (Lead,
 		if l.Owner == "" {
 			l.Owner = actor
 		}
-		if u.Role == RoleBranch {
+		if u.scope() == RoleBranch {
 			l.Branch = u.Branch
 		}
-		if u.Role == RoleAP {
+		if u.scope() == RoleAP {
 			l.Partner, l.Owner = u.Partner, actor
 		}
 		l.Notes = []LeadNote{{At: now.Format(time.RFC3339), By: actor, Kind: "Stage", Text: "Lead created from " + l.Source}}
@@ -170,10 +170,10 @@ func (o *Ops) SaveLead(ctx context.Context, tenant, actor string, l Lead) (Lead,
 			return ErrNotFound
 		}
 		x.Name, x.Email, x.City, x.Source, x.Interest, x.ReferredBy = l.Name, l.Email, l.City, l.Source, l.Interest, l.ReferredBy
-		if l.Owner != "" && u.Role != RoleAP {
+		if l.Owner != "" && u.scope() != RoleAP {
 			x.Owner = l.Owner
 		}
-		if l.Branch != "" && u.Role != RoleBranch && u.Role != RoleAP {
+		if l.Branch != "" && u.scope() == "" {
 			x.Branch = l.Branch
 		}
 		if l.Next != "" {

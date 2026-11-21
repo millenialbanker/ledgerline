@@ -44,12 +44,16 @@ function kpi(l, v, sub, k) { return `<div class="kpi ${k || ''}"><small>${l}</sm
 function segBtns(key, opts, part) { return `<div class="seg">${opts.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<button class="${UI[key] === v ? 'on' : ''}" data-act="ui" data-k="${key}" data-v="${esc(v)}" ${part ? `data-part="${part}"` : ''}>${l}</button>`; }).join('')}</div>`; }
 function bar(u, warn) { const k = u >= 1 ? 'bad' : u >= (warn || .8) ? 'warn' : 'good'; return `<div class="bar ${k}" title="${pct(u)}"><i style="width:${Math.min(100, u * 100).toFixed(1)}%"></i></div>`; }
 const role = () => S.me?.role || '';
-const has = (...roles) => role() === 'Admin' || roles.includes(role());
+// has: whether to offer what needs one of these built-in roles. Someone
+// holding a role the firm made or edited (S.me.access, roles.js) is asked
+// of the screen they are on. The server checks every action again.
+const has = (...roles) => S.me?.access?.custom ? rlHas(roles) : role() === 'Admin' || roles.includes(role());
 
 /* ============================== API ============================== */
 class ApiError extends Error { constructor(status, body) { super(body?.error?.message || ('HTTP ' + status)); this.status = status; this.code = body?.error?.code; this.details = body?.error?.details; } }
 async function api(method, path, body, raw) {
   const h = { 'X-Requested-With': 'ledgerline' };
+  if (S.preview) h['X-Preview'] = '1'; // "Preview as this role" (roles.js)
   let b;
   if (raw) b = body; else if (body !== undefined) { b = JSON.stringify(body); h['Content-Type'] = 'application/json'; }
   const res = await fetch(path, { method, headers: h, body: b });
@@ -73,7 +77,7 @@ function errHTML(e) {
 }
 async function download(path, name) {
   try {
-    const res = await fetch(path, { headers: { 'X-Requested-With': 'ledgerline' } });
+    const res = await fetch(path, { headers: { 'X-Requested-With': 'ledgerline', ...(S.preview ? { 'X-Preview': '1' } : {}) } });
     if (!res.ok) { let m = 'Download failed'; try { m = (await res.json()).error.message; } catch (e) {} toast(m); return; }
     name = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || name || 'download';
     const blob = await res.blob(); const url = URL.createObjectURL(blob);
@@ -86,7 +90,7 @@ async function download(path, name) {
 async function openBlob(path) {
   const w = window.open('', '_blank');
   try {
-    const res = await fetch(path, { headers: { 'X-Requested-With': 'ledgerline' } });
+    const res = await fetch(path, { headers: { 'X-Requested-With': 'ledgerline', ...(S.preview ? { 'X-Preview': '1' } : {}) } });
     if (!res.ok) throw new Error('Could not open the document');
     const url = URL.createObjectURL(await res.blob());
     if (w) w.location = url; else location.href = url;
@@ -95,7 +99,7 @@ async function openBlob(path) {
 async function openDoc(path) {
   const w = window.open('', '_blank');
   try {
-    const res = await fetch(path, { headers: { 'X-Requested-With': 'ledgerline' } });
+    const res = await fetch(path, { headers: { 'X-Requested-With': 'ledgerline', ...(S.preview ? { 'X-Preview': '1' } : {}) } });
     const html = await res.text();
     if (!res.ok) throw new Error('Could not open the document');
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
@@ -114,38 +118,13 @@ function eodStatus(e) {
 
 /* ============================== shell ============================== */
 // Screens that do one job are grouped: the sidebar shows the group once and
-// the screen opens with a tab for each of its parts. Every screen keeps its
-// own name (links, help articles and bookmarks to it still work).
-const GROUPS = {
-  automation: ['Automation', [['autopilot', 'Autopilot & work queue'], ['jobs', 'Scheduled jobs'], ['rpa', 'Browser automations']]],
-  calendar: ['Calendar & circulars', [['periodic', 'Periodic work'], ['circulars', 'Circulars & duties']]],
-  filesg: ['Files', [['xfiles', 'Exchange files'], ['ccdata', 'Clearing data'], ['files', 'Other uploads & migration'], ['migrate', 'Migration from old system']]],
-  clientsg: ['Clients & onboarding', [['clients', 'Clients'], ['apps', 'Online applications'], ['changes', 'Change requests'], ['uccapi', 'Exchange UCC'], ['mnrl', 'Revoked mobiles']]],
-  docsg: ['Client documents', [['statements', 'Client reports'], ['dispatch', 'Dispatch register'], ['messages', 'Client messages'], ['yearend', 'Year-end packs'], ['archive', 'Old documents archive']]],
-  riskg: ['RMS & margin', [['rms', 'RMS & limits'], ['live', 'Live (intraday)'], ['margin', 'Margin reporting'], ['payouthold', 'Pay-out holds']]],
-  collg: ['Collateral', [['collateral', 'Client collateral & pledge'], ['cdslpledge', 'Pledges (CDSL)'], ['cdslepi', 'Early pay-in'], ['allocation', 'Clearing allocation'], ['deposits', 'Clearing deposits']]],
-  moneyg: ['Receipts & payouts', [['money', 'Receipts & payouts'], ['bank', 'Bank reconciliation'], ['ras', 'Running account'], ['clientmoney', 'Client money reconciliation']]],
-  debtg: ['Debtors', [['debits', 'Debtors & interest'], ['legacy', 'Legacy debts']]],
-  mfg: ['Mutual funds', [['mforders', 'MF orders'], ['mfsips', 'SIPs'], ['mfmandates', 'MF mandates'], ['mfunits', 'MF units'], ['mfcomm', 'MF commission'], ['mfsettings', 'MF settings']]],
-  brokg: ['Brokerage & charges', [['brokerage', 'Brokerage plans'], ['charges', 'Charges calculator'], ['prepaid', 'Prepaid schemes']]],
-  partnersg: ['Branches & partners', [['partners', 'Branches & partners'], ['dealers', 'Dealers & terminals']]],
-  dpg: ['Depository', [['dp', 'Demat accounts & DIS'], ['cdslreq', 'CDSL requests'], ['edis', 'eDIS authorisations'], ['cdsltxn', 'Transactions (API)']]],
-  regg: ['Regulatory reports', [['reports', 'Regulatory reports'], ['exdisc', 'Exchange disclosures'], ['aictl', 'AI controls']]],
-  secg: ['Security', [['incidents', 'Incidents'], ['logexport', 'Log export']]],
-  securityg: ['Security', [['supportaccess', 'Support access']]],
-};
-const NAV = [
-  ['Overview', [['dashboard', 'Dashboard'], ['boards', 'Boards'], ['chat', 'Team messages'], ['@automation'], ['@calendar']]],
-  ['Operations', [['@filesg'], ['recon', 'Trade reconciliation'], ['billing', 'Billing'], ['settlement', 'Settlement'], ['notes', 'Contract notes'], ['@clientsg'], ['corp', 'Corporate actions'], ['@docsg']]],
-  ['Risk', [['@riskg'], ['@collg'], ['@debtg'], ['mtf', 'Margin trading (MTF)']]],
-  ['Accounts', [['ledger', 'Ledger'], ['@moneyg'], ['books', 'Firm accounts & GST'], ['@brokg']]],
-  ['Compliance', [['@regg'], ['kyc', 'KYC & PMLA'], ['helpdesk', 'Investor complaints'], ['nri', 'NRI (PIS)'], ['surv', 'Surveillance & AML'], ['inactive', 'Inactive accounts'], ['deceased', 'Deceased clients'], ['selfinspect', 'Self-inspection'], ['inspack', 'Inspection packs'], ['audit', 'Audit trail'], ['@secg']]],
-  ['Investments', [['ipo', 'IPO & public issues'], ['rfq', 'Bonds (RFQ deals)'], ['cbrics', 'Corporate bonds (CBRICS)'], ['@mfg'], ['stocksip', 'Stock SIPs']]],
-  ['Depository', [['@dpg']]],
-  ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['@partnersg']]],
-  ['Admin', [['connections', 'Connections'], ['backups', 'Backups'], ['dataexit', 'Data & exit'], ['settings', 'Settings'], ['@securityg'], ['layout', 'Screen layout']]]];
+// the screen opens with a tab for each of its parts. GROUPS and NAV come from
+// /screens.js, which the server makes from internal/screens: the same list
+// the role editor shows and the server checks permissions against.
 // Every staff screen with its name, groups opened up.
 const NAV_VIEWS = NAV.flatMap(g => g[1].flatMap(([k, l]) => k[0] === '@' ? GROUPS[k.slice(1)][1] : [[k, l]]));
+// The screens of the catalogue (layouts add views of their own to NAV_VIEWS).
+const SCREEN_KEYS = new Set(NAV_VIEWS.map(v => v[0]));
 const groupOf = v => Object.keys(GROUPS).find(g => GROUPS[g][1].some(([k]) => k === v));
 const PORTAL_NAV = [['My account', [['portal', 'Overview'], ['pnotes', 'Contract notes'], ['pdocs', 'Signed statements'], ['statements', 'Reports & statements'], ['pinsights', 'Tax & insights'], ['pfunds', 'Funds & payouts'], ['pipo', 'IPOs & public issues'], ['pmf', 'Mutual funds'], ['psip', 'Stock SIPs'], ['pedis', 'Authorise sale (CDSL TPIN)'], ['ppledge', 'Pledge shares'], ['pprofile', 'Profile & documents'], ['pold', 'Earlier years'], ['phelp', 'Help desk'], ['pext', 'Trades elsewhere']]]];
 const PORTAL_VIEWS = PORTAL_NAV[0][1].map(v => v[0]);
@@ -165,6 +144,7 @@ function editionNote(d) {
 }
 // viewAllowed: whether this user sees a screen at all.
 function viewAllowed(k) {
+  if (S.me?.access?.custom && !rlSees(k)) return false; // a role the firm made or edited (roles.js)
   if (scopedUser() && !SCOPED_VIEWS.includes(k)) return false;
   if (edition() === 'manual' && k === 'autopilot') return false;
   if (role() === 'Authorised person' && k === 'rpa') return false; // automations are for the firm's own staff
@@ -196,7 +176,7 @@ function renderTop() {
   $('top').innerHTML = `<div class="tdate"><small>Trade date</small><div class="dnav"><button class="btn sm" data-act="prevDay" aria-label="Previous trading day">‹</button><input class="in mono" type="date" id="date" value="${esc(S.date)}" aria-label="Trade date" style="height:30px"><button class="btn sm" data-act="nextDay" aria-label="Next trading day">›</button></div></div>
   <div class="chips">${d?.extra?.pay_in ? `<span class="chip">Pay-in <b>${fmtDate(d.extra.pay_in)}</b></span>` : ''}${S.me ? `<span class="chip">EOD <b>${eodStatus(d?.eod)}</b></span>` : ''}</div>
   ${clientUser() ? '<div style="flex:1"></div>' : `<div class="srch"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="gsearch" placeholder="Find client by name, UCC or PAN  ( / )" autocomplete="off" value="${esc(UI.search)}"><div class="res" id="gres" hidden></div></div>`}
-  ${S.me ? `<div class="umenu"><button class="ubtn" data-act="umenu" aria-haspopup="menu"><span class="av">${esc(initials(meUser()?.name || S.me.actor))}</span><span><b>${esc(meUser()?.name || S.me.actor)}</b><small>${esc(S.me.role)}</small></span><span class="dim">▾</span></button><div class="umenu-pop" id="umenu" hidden role="menu">
+  ${S.me ? `<div class="umenu"><button class="ubtn" data-act="umenu" aria-haspopup="menu"><span class="av">${esc(initials(meUser()?.name || S.me.actor))}</span><span><b>${esc(meUser()?.name || S.me.actor)}</b><small>${esc(S.me.role_name || S.me.role)}${S.preview ? ' · preview' : ''}</small></span><span class="dim">▾</span></button><div class="umenu-pop" id="umenu" hidden role="menu">
     <button data-act="pwChange" role="menuitem">Change password</button>
     ${clientUser() ? '' : '<button data-act="spMenu" role="menuitem">Contact support</button>'}
     <button data-act="totp" role="menuitem">Two-factor sign-in${S.me.auth?.totp_enabled ? ' · <span class="pos">On</span>' : ' · Off'}</button>
@@ -219,6 +199,7 @@ async function render(opts = {}) {
   if (clientUser() && !PORTAL_VIEWS.includes(S.view)) S.view = 'portal';
   else if (!clientUser() && PORTAL_VIEWS.includes(S.view) && S.view !== 'statements') S.view = 'dashboard';
   if (scopedUser() && !SCOPED_VIEWS.includes(S.view)) S.view = 'clients';
+  if (!clientUser() && SCREEN_KEYS.has(S.view) && !viewAllowed(S.view)) S.view = NAV_VIEWS.find(([k]) => SCREEN_KEYS.has(k) && viewAllowed(k))?.[0] || 'dashboard';
   if (typeof supportStartView === 'function') supportStartView();
   persist();
   try { history.replaceState(null, '', '#' + S.view); } catch (e) {}
@@ -228,7 +209,7 @@ async function render(opts = {}) {
   try {
     C[view] = await V[view].load();
     if (seq !== renderSeq) return;
-    p.innerHTML = (typeof supportBanner === 'function' ? supportBanner() : '') + groupBar(view) + V[view].html(C[view]);
+    p.innerHTML = (typeof supportBanner === 'function' ? supportBanner() : '') + rlPreviewBanner() + groupBar(view) + V[view].html(C[view]);
     bindPage();
     showNotices();
   } catch (e) {
@@ -2761,10 +2742,10 @@ function clearingValues() {
   return { clearing_for: cf, clearing_member_names: nm };
 }
 V.settings = {
-  load: async () => { const [s, users, ai, alloc, upi, hdfc, fp] = await Promise.all([get('/v1/settings'), get('/v1/users'), has('Compliance officer') ? get(`/v1/ai/usage?month=${UI.aiMonth || ''}`).catch(() => null) : null, get(`/v1/allocation?date=${S.date}`).catch(() => null), get('/v1/settings/upi-collect').catch(() => null), get(`/v1/payouts/hdfc-seq?date=${S.date}`).catch(() => null), has('Compliance officer') ? get('/v1/firm-profile').catch(() => null) : null]); return { ...s, users, ai, alloc, upi, hdfc, fp }; },
+  load: async () => { const [s, ai, alloc, upi, hdfc, fp] = await Promise.all([get('/v1/settings'), has('Compliance officer') ? get(`/v1/ai/usage?month=${UI.aiMonth || ''}`).catch(() => null) : null, get(`/v1/allocation?date=${S.date}`).catch(() => null), get('/v1/settings/upi-collect').catch(() => null), get(`/v1/payouts/hdfc-seq?date=${S.date}`).catch(() => null), has('Compliance officer') ? get('/v1/firm-profile').catch(() => null) : null]); return { ...s, ai, alloc, upi, hdfc, fp }; },
   html: d => {
     const s = d.settings, sc = d.schedule, admin = has('Admin');
-    return ph('Settings', admin ? 'Firm details, risk thresholds, calendar and users. Changes apply to new calculations; posted entries are never rewritten.' : 'Only an Admin can change settings.', admin ? '<button class="btn pri" data-act="saveSettings">Save settings</button>' : '') +
+    return ph('Settings', admin ? 'Firm details, risk thresholds and calendar. Users and their roles are on Users & roles. Changes apply to new calculations; posted entries are never rewritten.' : 'Only an Admin can change settings.', admin ? '<button class="btn pri" data-act="saveSettings">Save settings</button>' : '') +
     `<div class="grid g2"><div class="panel"><div class="hd"><h3>Firm</h3></div><div class="bd"><div class="form">
       <div class="fld full"><label for="st-firm">Firm name</label><input class="in" id="st-firm" value="${esc(s.firm)}" ${admin ? '' : 'disabled'}></div>
       <div class="fld"><label for="st-sebi">SEBI registration</label><input class="in" id="st-sebi" value="${esc(s.sebi_reg)}" ${admin ? '' : 'disabled'}></div>
@@ -2871,9 +2852,6 @@ V.settings = {
       <p class="dim" style="margin:6px 0 0;font-size:12.5px">${S.me?.circular_ai ? 'With this on, the text of a circular (public, but masked like any other text) is sent to the AI provider, which proposes what the firm must do. Nothing becomes a task until the compliance officer accepts each obligation: the firm is responsible for AI output. Whether a circular applies is decided by Ledgerline’s rules and the compliance officer, never by the model. Without it, circulars get Ledgerline’s rule-based actions.' : 'Not available: no AI provider is connected on this server, or the server runs in India-only mode. Circulars get Ledgerline’s rule-based actions.'}</p>
     </div></div>
     ${d.ai ? aiUsageHTML(d.ai) : ''}
-    <div class="panel"><div class="hd"><h3>Users and roles</h3>${admin ? '<button class="btn sm pri" data-act="addUser">Add user</button>' : '<small>Maker-checker: the person who creates an override, application or entry cannot approve it</small>'}</div>${tbl([['User'], ['Role'], ['Sign-in'], ['Last sign-in'], ['Status'], ['']], d.users.map(u => `<tr><td><b style="font-weight:600">${esc(u.name)}</b><div class="mono dim" style="font-size:11.5px">${esc(u.id)}</div></td><td>${admin && u.id !== S.me.actor ? `<select class="in sm" data-urole="${esc(u.id)}">${(S.me.roles || []).map(r => `<option ${r === u.role ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select>` : esc(u.role)}${u.branch ? `<div class="dim small">branch ${esc(u.branch)}</div>` : ''}${u.partner ? `<div class="dim small">partner ${esc(u.partner)}</div>` : ''}</td>
-      <td>${u.has_password ? '' : pill('No password', 'warn') + ' '}${u.totp_enabled ? pill('2FA on', 'good') : pill('2FA off', 'nt')}${u.must_change_password ? ' ' + pill('Temp password', 'warn') : ''}${u.locked ? ' ' + pill('Locked', 'bad') : ''}</td><td class="n dim">${u.last_login ? new Date(u.last_login).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}</td>
-      <td>${u.active ? pill('Active', 'good') : pill('Inactive', 'nt')}</td><td>${admin && u.id !== S.me.actor ? `<div class="split"><button class="btn sm" data-act="resetPw" data-id="${esc(u.id)}">Reset password</button>${u.totp_enabled ? `<button class="btn sm" data-act="reset2fa" data-id="${esc(u.id)}">Reset 2FA</button>` : ''}<button class="btn sm ${u.active ? 'bad' : ''}" data-act="toggleUser" data-id="${esc(u.id)}">${u.active ? 'Deactivate' : 'Activate'}</button></div>` : ''}</td></tr>`))}</div>
     <div class="panel"><div class="hd"><h3>Charge rate schedule</h3><small>${esc(sc.version)}${sc.sample ? ' · ' + pill('Sample rates', 'warn') : ''}</small></div>${sc.sample ? `<div class="bd" style="padding-bottom:0"><div class="note warn">${esc(sc.note)}</div></div>` : ''}${tbl([['Product'], ['Exchange'], ['From'], ['Brokerage'], ['STT buy %', 'r'], ['STT sell %', 'r'], ['Txn %', 'r'], ['Stamp buy %', 'r']], sc.rules.map(r => `<tr><td class="n">${r.bucket}</td><td>${r.exchange}</td><td class="n">${r.effective_from}</td><td>${r.brokerage_mode === 'none' ? 'Nil' : r.brokerage_mode === 'flat' ? '₹' + r.brokerage_flat + ' per order' : r.brokerage_mode === 'pct' ? r.brokerage_pct + '%' : `lower of ₹${r.brokerage_flat} or ${r.brokerage_pct}%`}</td><td class="r">${r.stt_buy_pct}</td><td class="r">${r.stt_sell_pct}</td><td class="r">${r.txn_pct}</td><td class="r">${r.stamp_buy_pct}</td></tr>`))}<div class="bd"><span class="dim" style="font-size:12px">GST ${sc.gst_pct}% · SEBI fee ${sc.sebi_fee_pct}% · The schedule is a versioned file on the server (config/charges); a new circular means a new version with an effective date.</span></div></div>`;
   }
 };
@@ -3208,7 +3186,7 @@ const A = {
     'Add user', async () => { const r = await post('/v1/users', { id: $('nu-id').value.trim(), name: $('nu-name').value.trim(), role: $('nu-role').value, branch: $('nu-br').value.trim(), partner: $('nu-pt').value.trim().toUpperCase() }); showTempPw(r.user, r.temp_password, 'created'); }),
   resetPw: id => confirmModal('Reset password · ' + id, 'Gives a new one-time password and signs them out everywhere.', '', 'Reset password', async () => { const r = await post(`/v1/users/${encodeURIComponent(id)}/reset-password`); showTempPw(id, r.temp_password, 'reset'); }, true),
   reset2fa: id => confirmModal('Reset two-factor · ' + id, 'For a lost phone. Signs them out; they set it up again at next sign-in.', '', 'Reset 2FA', () => act(() => post(`/v1/users/${encodeURIComponent(id)}/reset-2fa`), 'Two-factor sign-in reset'), true),
-  toggleUser: id => { const u = C.settings.users.find(x => x.id === id); act(() => api('PUT', `/v1/users/${encodeURIComponent(id)}`, { id, name: u.name, role: u.role, active: !u.active }), u.active ? id + ' deactivated' : id + ' activated'); },
+  toggleUser: id => { const u = C.users.users.find(x => x.id === id); act(() => api('PUT', `/v1/users/${encodeURIComponent(id)}`, { id, name: u.name, role: u.role, active: !u.active }), u.active ? id + ' deactivated' : id + ' activated'); },
   crKind: id => { crSync(); UI.cr.kind = id; { const df = (C.statements?.defs || []).find(x => x.kind === id)?.default; if (df) UI.cr.preset = df; } UI.crRes = null; UI.crErr = null; $('page').innerHTML = groupBar('statements') + V.statements.html(C.statements); bindPage(); },
   crPreset: id => { crSync(); UI.cr.preset = id; $('page').innerHTML = groupBar('statements') + V.statements.html(C.statements); bindPage(); },
   crRun: () => { crSync(); crRun(); },
@@ -3500,7 +3478,7 @@ document.addEventListener('submit', async e => {
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.id === 'date' && el.value) { S.date = el.value; C.billResult = null; render(); return; }
-  if (el.dataset.urole) { const id = el.dataset.urole, u = C.settings.users.find(x => x.id === id), role = el.value;
+  if (el.dataset.urole) { const id = el.dataset.urole, u = C.users.users.find(x => x.id === id), role = el.value;
     let branch = u.branch || '', partner = u.partner || '';
     if (role === 'Branch staff' && !branch) branch = (prompt('Branch for ' + id) || '').trim();
     if (role === 'Authorised person' && !partner) partner = (prompt('Partner code for ' + id) || '').trim().toUpperCase();

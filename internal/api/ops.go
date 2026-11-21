@@ -83,6 +83,7 @@ func (s *Server) opsRoutes() {
 	s.circularCardRoutes()
 	s.uiLayoutRoutes()
 	s.firmKeyRoutes()
+	s.roleRoutes()
 	R("GET /v1/me", s.me, false)
 	R("GET /v1/users", s.users, false)
 	R("PUT /v1/users/{id}", s.putUser, true)
@@ -431,6 +432,17 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		us = mine
 	}
 	me := map[string]any{"auth": auth, "tenant": tenant(r), "actor": actor(r), "role": role, "users": us, "roles": ops.Roles, "firm": set.Firm, "dev": s.dev, "member_codes": set.MemberCodes, "holidays": set.TradingHolidays(), "sample_rates": s.app.Schedule.Sample, "schedule": s.app.Schedule.Version, "ledgy_ai": s.ops.LedgyAI != nil, "bill_ai": s.ops.BillAIAvailable(), "circular_ai": s.ops.CircularAIAvailable(), "edition": s.ops.EditionStatus(r.Context(), tenant(r)), "ui": s.ops.EffectiveUI(r.Context(), tenant(r), actor(r))}
+	if a := actor(r); a != "" {
+		if acc, err := s.ops.Access(r.Context(), tenant(r), a); err == nil {
+			me["role_name"] = acc.Name // the main role's own name (role is Branch staff for a role limited to a branch)
+			if len(acc.Defs) > 0 || acc.Preview {
+				me["access"] = accessView(acc) // roles the firm made or edited, or an Admin's preview
+			}
+			if acc.Preview {
+				me["preview"] = acc.Name
+			}
+		}
+	}
 	if role != ops.RoleClient && s.ops.CanSeeSupportAccess(r.Context(), tenant(r), actor(r)) {
 		me["support_access"] = true // Admin → Security → Support access
 	}
@@ -2494,7 +2506,7 @@ func (s *Server) partners(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := s.ops.Partners(r.Context(), tenant(r), d)
 	if err == nil {
-		if u, uerr := s.ops.UserByID(r.Context(), tenant(r), actor(r)); uerr == nil && (u.Role == ops.RoleAP || u.Role == ops.RoleBranch) {
+		if u, uerr := s.ops.UserByID(r.Context(), tenant(r), actor(r)); uerr == nil && u.Scope() != "" {
 			out := v[:0]
 			keep := map[string]bool{u.Partner: true}
 			for changed := true; changed; {
@@ -2506,7 +2518,7 @@ func (s *Server) partners(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			for _, p := range v {
-				if (u.Role == ops.RoleAP && keep[p.Code]) || (u.Role == ops.RoleBranch && p.Branch == u.Branch) {
+				if (u.Scope() == ops.RoleAP && keep[p.Code]) || (u.Scope() == ops.RoleBranch && p.Branch == u.Branch) {
 					out = append(out, p)
 				}
 			}

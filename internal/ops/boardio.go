@@ -1373,7 +1373,7 @@ type BoardCollectionView struct {
 	CanDelete bool     `json:"can_delete"`
 }
 
-func headOffice(u User) bool { return u.Role != RoleBranch && u.Role != RoleAP && u.Role != RoleClient }
+func headOffice(u User) bool { return u.scope() == "" && u.Role != RoleClient }
 
 func (o *Ops) collUser(ctx context.Context, tenant, actor string) (User, error) {
 	u, err := o.boardUser(ctx, tenant, actor)

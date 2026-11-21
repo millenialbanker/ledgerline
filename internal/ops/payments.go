@@ -686,6 +686,11 @@ func (o *Ops) DecidePayout(ctx context.Context, tenant, actor, date, id string, 
 	}
 	status := "Rejected"
 	if approve {
+		// A role the firm made may approve payouts only up to its limit
+		// (roles.go); the built-in roles have none.
+		if err := o.payoutLimitCheck(ctx, tenant, actor, p.Amount); err != nil {
+			return p, err
+		}
 		if c, err := o.Client(ctx, tenant, p.UCC); err == nil && c.Deceased != nil {
 			return p, fmt.Errorf("%w: %s; reject the request", ErrState, deceasedWhy(c))
 		}

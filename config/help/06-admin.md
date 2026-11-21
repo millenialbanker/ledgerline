@@ -111,12 +111,12 @@ On [[crm|Leads & CRM]]: **New lead**, then **Call**, **Book appointment** and **
 
 ## add-user
 title: Add a user
-screen: settings
+screen: users
 roles: Admin
 ask: add user; new user; create login; new employee; give access; staff login; user roles; change user role
 related: ap-login, reset-password, reset-2fa, permission-denied
 
-1. On [[settings|Settings]], click **Add user**.
+1. On [[users|Users]], click **Add user**.
 2. Enter their ID, name, email and **role**:
    - **Ops maker:** enters work (clients, receipts, vouchers, slips)
    - **Ops checker:** approves others' work, activates clients, closes the day
@@ -130,39 +130,39 @@ Use one login per person and never share logins: the audit trail and maker-check
 
 ## reset-password
 title: Reset a user's password or unlock them
-screen: settings
+screen: users
 roles: Admin
 ask: forgot password; reset my password; change my password; reset password; user locked out; account locked; cannot log in; too many wrong passwords; password expired
 related: reset-2fa, portal-access
 
 - **Your own password:** click your name at the top right → **Change password**.
 - **Locked out after five wrong passwords:** the lock lifts by itself after 15 minutes.
-- **Forgotten password:** an Admin opens [[settings|Settings]] → the user → **Reset password**. A one-time password is shown once; the user must change it at sign-in.
+- **Forgotten password:** an Admin opens [[users|Users]] → the user → **Reset password**. A one-time password is shown once; the user must change it at sign-in.
 
 For a client's portal password, see "give a client portal access".
 
 ## reset-2fa
 title: Reset two-factor sign-in
-screen: settings
+screen: users
 roles: Admin
 ask: lost phone; authenticator app; two factor code not working; reset 2fa; new phone; otp app; totp wrong
 related: reset-password
 
 1. Check the phone's clock is set automatically. Codes fail when the time is off.
-2. If the phone is lost or replaced, an Admin opens [[settings|Settings]] → the user → **Reset two-factor**.
+2. If the phone is lost or replaced, an Admin opens [[users|Users]] → the user → **Reset two-factor**.
 3. At next sign-in the user scans a new QR code with their authenticator app.
 
 ## permission-denied
 title: Fix "needs a different role" (permission errors)
-screen: settings
+screen: users
 roles: Admin
 ask: not permitted; permission denied; needs ops checker; you are ops maker; forbidden; not allowed for this role; cannot approve; access denied; who can approve
-related: add-user
+related: add-user, roles-overview
 
 An error like "**Approving payouts needs Ops checker or Risk manager (you are Ops maker)**" means your role can't do that step. That's deliberate: one person makes, another approves.
 
 1. Ask a colleague with the role named in the message to do it.
-2. If nobody in the firm has that role, an Admin assigns it on [[settings|Settings]].
+2. If nobody in the firm has that role, an Admin gives it on [[users|Users]]. A firm can also make its own roles on [[roles|Roles]]; a change there takes effect when a second Admin approves.
 3. You can't approve your own work even with the right role. A different person must check it.
 
 Ask me "who can approve payouts?" (or anything else) and I'll tell you the roles.

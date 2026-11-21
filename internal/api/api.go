@@ -53,6 +53,9 @@ type Server struct {
 	log  *slog.Logger
 	mux  *http.ServeMux
 	seq  atomic.Int64
+	// patterns are the routes registered through route, for the test that
+	// every one is linked to the screens it serves (roles.go).
+	patterns []string
 
 	loginLimit limiter
 	// The USB token signer's calls: per firm, and failed keys per address.
@@ -149,6 +152,7 @@ func writeClosed(w http.ResponseWriter) {
 }
 
 func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
+	s.patterns = append(s.patterns, pattern)
 	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 		var tenant, actor string
 		var sup *ops.SupportAuth
@@ -195,6 +199,30 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 		ctx := context.WithValue(r.Context(), keyTenant, tenant)
 		ctx = context.WithValue(ctx, keyActor, actor)
 		ctx = ingest.WithActor(ctx, actor) // who stored a file, for the malware scanner's audit entries
+		if s.ops != nil {
+			// "Preview as this role" (Users & roles → Roles): an Admin's
+			// requests run as the role, and nothing can be changed.
+			if r.Header.Get("X-Preview") != "" && actor != "" {
+				if a, err := s.ops.Access(ctx, tenant, actor); err != nil || !a.Admin {
+					writeErr(w, http.StatusForbidden, "forbidden", "Only an Admin can preview a role.", nil)
+					return
+				}
+				d, ok := s.ops.RolePreview(ctx, tenant, actor)
+				if !ok {
+					writeErr(w, http.StatusConflict, "no_preview", "The preview has ended.", nil)
+					return
+				}
+				if mutating {
+					writeErr(w, http.StatusForbidden, "preview_read_only", "This is a preview of the "+d.Name+" role: nothing can be changed. End the preview to work as yourself.", nil)
+					return
+				}
+				ctx = ops.WithPreview(ctx, actor, d)
+			}
+			// The screens the route serves, for the permission checks of
+			// roles the firm made or edited (ops/roles.go).
+			areas, _ := screensFor(pattern)
+			ctx = ops.WithAreas(ctx, areas)
+		}
 		if mutating && s.ops != nil {
 			if _, err := s.ops.RoleOf(ctx, tenant, actor); err != nil {
 				fail(w, err, nil)
@@ -210,6 +238,20 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 			} else if err == nil && role == ops.RoleClient && !clientRoutes[pattern] {
 				writeErr(w, http.StatusForbidden, "forbidden", "This is not available in the client portal.", nil)
 				return
+			}
+		}
+		// Someone holding a role the firm made or edited, or an Admin's
+		// preview: only the screens the roles include (api/roles.go).
+		if s.ops != nil && actor != "" && !strings.HasPrefix(pattern, "POST /v1/auth/") {
+			if acc, err := s.ops.Access(ctx, tenant, actor); err == nil && (acc.Gated() || acc.Preview) {
+				gw := s.gate(w, r, pattern, mutating, acc)
+				if gw == nil {
+					return
+				}
+				w = gw
+				if nb, ok := w.(*noBrokerage); ok {
+					defer nb.done()
+				}
 			}
 		}
 		// A Ledgerline support session: only what the firm approved,

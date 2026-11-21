@@ -97,39 +97,40 @@ type SecKind struct {
 // SecKinds are the kinds of security event. Other code may record any of
 // these with SecurityEvent; the label is what the register shows.
 var SecKinds = map[string]SecKind{
-	"signin.ok":                 {"signin", SevInfo, "Signed in"},
-	"signin.failed":             {"signin", SevLow, "Sign-in failed"},
-	"signin.locked":             {"signin", SevMedium, "User locked after wrong attempts"},
-	"signin.rate_limited":       {"signin", SevMedium, "Too many sign-in attempts from one address"},
-	"signin.logout":             {"signin", SevInfo, "Signed out"},
-	"signin.new_ip":             {"signin", SevLow, "Signed in from a new address"},
-	"signin.outside_ip_rules":   {"security", SevHigh, "Signed in from outside the firm's networks"},
-	"account.created":           {"security", SevLow, "User added"},
-	"account.role_changed":      {"security", SevMedium, "Role changed"},
-	"account.admin_granted":     {"security", SevHigh, "Admin role granted"},
-	"account.deactivated":       {"security", SevLow, "User deactivated"},
-	"account.password_changed":  {"security", SevInfo, "Password changed"},
-	"account.password_reset":    {"security", SevLow, "Password reset by an administrator"},
-	"account.2fa_enabled":       {"security", SevInfo, "Two-factor sign-in set up"},
-	"account.2fa_reset":         {"security", SevMedium, "Two-factor sign-in reset"},
-	"settings.security_changed": {"security", SevMedium, "Security settings changed"},
-	"connection.secret_changed": {"security", SevMedium, "Connection secret changed"},
-	"connection.removed":        {"security", SevLow, "Connection removed"},
-	"data.reveal":               {"security", SevInfo, "Full client identifier seen"},
-	"data.download":             {"security", SevInfo, "Large file downloaded"},
-	"data.large_download":       {"security", SevMedium, "Very large download or export"},
-	"data.logs_downloaded":      {"security", SevLow, "Security logs downloaded"},
-	"audit.seal_failed":         {"security", SevCritical, "Audit trail seal check failed"},
-	"audit.seal_ok":             {"security", SevInfo, "Audit trail seals checked"},
-	"malware.found":             {"security", SevHigh, "Malware found in an upload"},
-	"malware.scanner_down":      {"security", SevMedium, "Malware scanner not answering"},
-	"support.access":            {"security", SevMedium, "Ledgerline support staff access"},
-	"support.access_unapproved": {"security", SevHigh, "Ledgerline support access without the firm's approval"},
-	"logexport.stuck":           {"security", SevMedium, "Log export to the SIEM is stuck"},
-	"logexport.test":            {"security", SevInfo, "Log export test"},
-	"incident.provider_notice":  {"security", SevHigh, "Incident notice from Ledgerline"},
-	"platform.incident":         {"security", SevHigh, "Platform incident declared"},
-	"platform.incident_update":  {"security", SevMedium, "Platform incident updated"},
+	"signin.ok":                        {"signin", SevInfo, "Signed in"},
+	"signin.failed":                    {"signin", SevLow, "Sign-in failed"},
+	"signin.locked":                    {"signin", SevMedium, "User locked after wrong attempts"},
+	"signin.rate_limited":              {"signin", SevMedium, "Too many sign-in attempts from one address"},
+	"signin.logout":                    {"signin", SevInfo, "Signed out"},
+	"signin.new_ip":                    {"signin", SevLow, "Signed in from a new address"},
+	"signin.outside_ip_rules":          {"security", SevHigh, "Signed in from outside the firm's networks"},
+	"account.created":                  {"security", SevLow, "User added"},
+	"account.role_changed":             {"security", SevMedium, "Role changed"},
+	"account.role_permissions_changed": {"security", SevMedium, "Role permissions changed"},
+	"account.admin_granted":            {"security", SevHigh, "Admin role granted"},
+	"account.deactivated":              {"security", SevLow, "User deactivated"},
+	"account.password_changed":         {"security", SevInfo, "Password changed"},
+	"account.password_reset":           {"security", SevLow, "Password reset by an administrator"},
+	"account.2fa_enabled":              {"security", SevInfo, "Two-factor sign-in set up"},
+	"account.2fa_reset":                {"security", SevMedium, "Two-factor sign-in reset"},
+	"settings.security_changed":        {"security", SevMedium, "Security settings changed"},
+	"connection.secret_changed":        {"security", SevMedium, "Connection secret changed"},
+	"connection.removed":               {"security", SevLow, "Connection removed"},
+	"data.reveal":                      {"security", SevInfo, "Full client identifier seen"},
+	"data.download":                    {"security", SevInfo, "Large file downloaded"},
+	"data.large_download":              {"security", SevMedium, "Very large download or export"},
+	"data.logs_downloaded":             {"security", SevLow, "Security logs downloaded"},
+	"audit.seal_failed":                {"security", SevCritical, "Audit trail seal check failed"},
+	"audit.seal_ok":                    {"security", SevInfo, "Audit trail seals checked"},
+	"malware.found":                    {"security", SevHigh, "Malware found in an upload"},
+	"malware.scanner_down":             {"security", SevMedium, "Malware scanner not answering"},
+	"support.access":                   {"security", SevMedium, "Ledgerline support staff access"},
+	"support.access_unapproved":        {"security", SevHigh, "Ledgerline support access without the firm's approval"},
+	"logexport.stuck":                  {"security", SevMedium, "Log export to the SIEM is stuck"},
+	"logexport.test":                   {"security", SevInfo, "Log export test"},
+	"incident.provider_notice":         {"security", SevHigh, "Incident notice from Ledgerline"},
+	"platform.incident":                {"security", SevHigh, "Platform incident declared"},
+	"platform.incident_update":         {"security", SevMedium, "Platform incident updated"},
 }
 
 // SecurityEvent records one event in the firm's security stream, runs the
@@ -237,6 +238,10 @@ func (o *Ops) observeAudit(ctx context.Context, a app.AuditEvent) {
 		default:
 			e.Kind, e.Message = "account.role_changed", fmt.Sprintf("%s changed the role of %s from %s to %s", a.Actor, a.Object, from, to)
 		}
+	case "role.changed":
+		// A role's permissions changed (roles.go), after a second Admin approved.
+		e.Kind, e.Message = "account.role_permissions_changed", fmt.Sprintf("%s approved a change to the %s role proposed by %s", a.Actor, a.Object, str("proposed_by"))
+		e.Detail = map[string]any{"change": str("change")}
 	case "settings.security_changed", "security.settings.saved":
 		e.Kind, e.Message = "settings.security_changed", a.Actor+" changed security settings"
 		e.Detail = map[string]any{"changed": a.Detail["changed"]}
