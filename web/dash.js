@@ -28,6 +28,8 @@ function dashAttention(d) {
   if (+d.extra.inactive_due) att.push(['warn', 'inactive', `${d.extra.inactive_due} account${+d.extra.inactive_due > 1 ? 's' : ''} due to be flagged inactive`, 'No activity for 24 months: flag in the UCC database']);
   if (+d.extra.reactivation_pending) att.push(['acc', 'inactive', `${d.extra.reactivation_pending} reactivation request${+d.extra.reactivation_pending > 1 ? 's' : ''} awaiting checker`, 'IPV and KRA checks recorded']);
   if (d.reports_due) att.push(['acc', 'reports', `${d.reports_due} daily report${d.reports_due > 1 ? 's' : ''} not uploaded`, 'Generate, validate and upload']);
+  const pend = d.steps_pending || [];
+  if (pend.length) att.unshift([pend.some(s => s.state === 'escalated') ? 'bad' : 'warn', 'steps', `${pend.length} step${pend.length > 1 ? 's' : ''} pending from earlier days`, pend.slice(0, 3).map(s => s.name).join(' · ') + (pend.length > 3 ? ' …' : '')]);
   if (d.extra.backup_problem) att.unshift(['bad', 'backups', 'Backups need attention', d.extra.backup_problem]);
   if (+d.extra.holidays_pending) att.push(['acc', 'circulars:hol', `Exchange holiday list waiting for approval`, 'Fetched from the exchanges or uploaded; check it and approve so settlement dates follow it']);
   else if (d.extra.holiday_warning) att.push(['warn', 'circulars:hol', 'Exchange holiday calendar', d.extra.holiday_warning]);
@@ -123,6 +125,10 @@ const DW = {
       return `<div class="dw-kv"><span>Client bank accounts</span><b>${cmp(f.client_bank)}</b><span>With clearing corporation</span><b>${cmp(f.with_cc)}</b><span>Owed to clients</span><b>${cmp(f.client_credits)}</b><span>Cover</span><b class="${f.ok ? 'pos' : 'neg'}">${num(f.cover).toFixed(2)}×</b></div>`; } },
   bank: { t: 'Bank receipts', about: 'Client bank credits by status; third-party and unidentified ones need attention.', w: 4, h: 4, mw: 3, mh: 2, go: 'bank',
     body: d => dRows(Object.entries(d.bank).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, v, k === 'Third-party' || k === 'Unidentified' ? 'var(--warn)' : 'var(--good)']), 'bank') || dEmpty('No bank credits') },
+  pending: { t: 'Pending from earlier days', about: 'Steps not done on earlier days: each stays until it is done, done by hand or skipped with a reason.', w: 4, h: 4, mw: 3, mh: 2, go: 'steps',
+    sub: d => (d.steps_pending || []).length + ' steps',
+    body: d => { const p = d.steps_pending || [];
+      return p.length ? `<div class="att">${p.map(s => `<button data-act="stPendingGo"><i class="${s.state === 'escalated' ? 'bad' : 'warn'}"></i><div><b>${esc(s.name)}</b><span>${esc(fmtDate(s.date))} · due ${esc((s.due || '').slice(11))} · ${esc(s.owner_name || s.owner)}</span></div><span class="dim">›</span></button>`).join('')}</div>` : dEmpty('Nothing pending from earlier days'); }, flush: true },
   work: { t: 'Work queue', about: 'Items Autopilot left for people, and how many are overdue.', w: 4, h: 2, mw: 2, mh: 2, go: 'autopilot', needs: () => edition() !== 'manual',
     kpi: d => ['Work queue', nf(+d.extra.work_open || 0), (+d.extra.work_overdue || 0) + ' overdue', +d.extra.work_overdue ? 'bad' : +d.extra.work_open ? 'warn' : 'good'] },
 };
@@ -189,7 +195,9 @@ V.dashboard = {
     return d;
   },
   html: d => {
-    if (!d.trades && !d.oms_fills) return ph('Operations dashboard', `${esc(S.me.firm)} · ${fmtDate(S.date)}`) + emptyDay();
+    const pend = (d.steps_pending || []).length;
+    if (!d.trades && !d.oms_fills) return ph('Operations dashboard', `${esc(S.me.firm)} · ${fmtDate(S.date)}`) +
+      (pend ? `<div class="note warn"><b>${pend} step${pend > 1 ? 's' : ''} pending from earlier days.</b> <button class="linkish" data-act="stPendingGo">See them</button></div>` : '') + emptyDay();
     if (!UI.dashEdit || !DL) DL = dashLayout();
     return dashHead() +
       (UI.dashEdit ? `<div class="note dw-help"><b>Customizing.</b> Drag a widget by its title bar to move it, drag its bottom-right corner to resize it, or use <b>⋯</b>. Changes save as you go.</div>` : '') +

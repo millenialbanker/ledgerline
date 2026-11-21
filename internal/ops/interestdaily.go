@@ -173,6 +173,9 @@ func (o *Ops) PostDailyInterest(ctx context.Context, tenant, actor, upto string)
 		}
 	}
 	run.Clients = len(charged)
+	// How far the run went, for the step reminder and its exemptions
+	// (stepexcept.go), even when no client was charged.
+	o.markDailyInterest(ctx, tenant, actor, upto)
 	if run.Entries > 0 {
 		o.log(ctx, tenant, actor, "interest.daily", upto, map[string]any{"entries": run.Entries, "clients": run.Clients, "interest": run.Interest.String()})
 	}
