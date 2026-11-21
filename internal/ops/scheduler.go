@@ -368,6 +368,9 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	// the nightly check of the audit trail's seals (secevents.go); in
 	// every edition.
 	o.securityTick(ctx, tenant, now)
+	// HRMS (when the firm has the module): leavers' logins on the last
+	// day, certificate reminders, attendance housekeeping, salary batches.
+	o.hrTick(ctx, tenant, now)
 	if o.manual(ctx, tenant) {
 		return 0, nil // Manual edition: none of the firm's jobs run on a timer
 	}

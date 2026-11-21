@@ -163,7 +163,7 @@ func (o *Ops) MobileSettingsFor(ctx context.Context, tenant, actor string) (Mobi
 }
 
 func staffAppRoles() []string {
-	return []string{RoleMaker, RoleChecker, RoleRisk, RoleCompliance, RoleBranch, RoleAP, RoleAdmin}
+	return []string{RoleMaker, RoleChecker, RoleRisk, RoleCompliance, RoleBranch, RoleAP, RoleHR, RolePayroll, RoleAdmin}
 }
 
 var (

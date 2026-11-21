@@ -61,7 +61,7 @@ func (o *Ops) FirmReport(ctx context.Context, tenant string) (control.FirmReport
 	}
 	ed, _ := o.Edition(ctx, tenant)
 	r := control.FirmReport{Tenant: tenant, Firm: set.Firm, SEBIReg: set.SEBIReg, Edition: ed, Month: month, BusinessDt: o.businessDate(ctx, tenant),
-		Users: []control.UserInfo{}, ClientsByStg: map[string]int{}, Features: map[string]int{}}
+		Users: []control.UserInfo{}, ClientsByStg: map[string]int{}, Features: map[string]int{}, Modules: o.Modules(ctx, tenant).List()}
 
 	// Logins: when each was last active (from their sessions).
 	seen := map[string]string{}
@@ -221,6 +221,8 @@ func (o *Ops) ApplyCommand(ctx context.Context, c control.Command) error {
 		return o.withdrawNotice(ctx, c.Tenant, c.Ref)
 	case "edition":
 		return o.applyEdition(ctx, c.Tenant, c.Edition)
+	case "module":
+		return o.applyModule(ctx, c.Tenant, c.Module, c.On)
 	}
 	return invalid("unknown command %q", c.Kind)
 }

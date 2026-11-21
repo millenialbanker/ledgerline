@@ -65,8 +65,13 @@ var Nav = []Section{
 		g("dpg", "Depository", s("dp", "Demat accounts & DIS"), s("cdslreq", "CDSL requests"), s("edis", "eDIS authorisations"), s("cdsltxn", "Transactions (API)"))}},
 	{Name: "Business", Items: []Item{s("insights", "Client insights"), s("crm", "Leads & CRM"),
 		g("partnersg", "Branches & partners", s("partners", "Branches & partners"), s("dealers", "Dealers & terminals"))}},
+	// The HRMS and Payroll modules: shown only when the firm has them on
+	// (Settings → Modules).
+	{Name: "People", Items: []Item{s("me", "My HR"),
+		g("peopleg", "People", s("people", "Staff"), s("hrlife", "Joiners & leavers"), s("hrcomp", "Certificates & own trading"), s("attendance", "Attendance"), s("leave", "Leave"), s("hrpolicy", "HR policies")),
+		s("payroll", "Payroll")}},
 	{Name: "Admin", Admin: true, Items: []Item{s("connections", "Connections"), s("backups", "Backups"), s("dataexit", "Data & exit"),
-		g("settingsg", "Settings", s("settings", "Settings"), s("practices", "Firm practices"), s("staffapp", "Staff app"), s("clientapp", "Client app")),
+		g("settingsg", "Settings", s("settings", "Settings"), s("practices", "Firm practices"), s("staffapp", "Staff app"), s("clientapp", "Client app"), s("modules", "Modules")),
 		g("usersg", "Users & roles", s("users", "Users"), s("roles", "Roles")),
 		g("securityg", "Security", s("supportaccess", "Support access")),
 		s("layout", "Screen layout")}},

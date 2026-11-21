@@ -154,6 +154,7 @@ function viewAllowed(k) {
   // the compliance officer; with roles the firm made or edited, those
   // whose screens include them.
   if (['practices', 'staffapp', 'clientapp'].includes(k) && !(S.me?.access ? S.me.access.admin || !!S.me.access.screens?.[k]?.view : has('Compliance officer'))) return false;
+  if (typeof hrViewOK === 'function' && !hrViewOK(k)) return false; // HRMS and Payroll modules, Settings → Modules (hrms.js)
   return true;
 }
 // groupTabs: the group's tabs this user may open.

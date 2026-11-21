@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -128,6 +129,11 @@ func (c *Control) Receive(ctx context.Context, in Installation, rep Report, from
 		u.PeakBots = max(u.PeakBots, f.Bots.Computers)
 		if editionRank[f.Edition] > editionRank[u.Edition] {
 			u.Edition = f.Edition
+		}
+		for _, m := range f.Modules {
+			if ModuleNames[m] != "" && !slices.Contains(u.Modules, m) {
+				u.Modules = append(u.Modules, m)
+			}
 		}
 		if err := docs.Upsert(ctx, c.Docs, T, cUsage, uid, u, "install:"+in.ID); err != nil {
 			return ReportReply{}, err

@@ -160,37 +160,49 @@ func actionKind(what string, roles []string) string {
 // Used only for roles a firm edits or copies: an unedited built-in role
 // is checked by name.
 var builtinWork = map[string]struct{ do, approve string }{
-	RoleMaker: {do: "dashboard boards chat autopilot steps rpa periodic circulars xfiles ccdata files recon billing settlement notes clients apps changes uccapi mnrl corp " +
+	RoleMaker: {do: "me dashboard boards chat autopilot steps rpa periodic circulars xfiles ccdata files recon billing settlement notes clients apps changes uccapi mnrl corp " +
 		"statements dispatch messages yearend archive rms live payouthold collateral cdslpledge cdslepi allocation debits legacy mtf ledger money bank clientmoney " +
 		"books prepaid reports kyc helpdesk inactive deceased selfinspect ipo rfq cbrics mforders mfsips mfmandates mfunits stocksip dp cdslreq edis cdsltxn " +
 		"insights crm partners dealers"},
-	RoleChecker: {do: "dashboard boards chat autopilot steps jobs rpa periodic circulars xfiles ccdata files migrate recon billing settlement notes clients apps changes uccapi mnrl corp " +
+	RoleChecker: {do: "me dashboard boards chat autopilot steps jobs rpa periodic circulars xfiles ccdata files migrate recon billing settlement notes clients apps changes uccapi mnrl corp " +
 		"statements dispatch messages yearend archive rms live margin payouthold collateral cdslpledge cdslepi allocation deposits debits legacy mtf ledger money bank ras clientmoney " +
 		"books brokerage charges prepaid reports kyc helpdesk nri surv inactive deceased selfinspect ipo rfq cbrics mforders mfsips mfmandates mfunits mfcomm stocksip dp cdslreq edis cdsltxn " +
 		"insights crm partners dealers backups",
 		approve: "migrate billing settlement clients apps changes corp rms margin payouthold collateral cdslpledge cdslepi allocation deposits legacy mtf money bank ras clientmoney " +
 			"books circulars inactive kyc ipo rfq cbrics dp cdslreq cdsltxn"},
-	RoleRisk: {do: "dashboard boards chat autopilot steps rpa periodic xfiles ccdata recon settlement clients rms live margin payouthold collateral cdslpledge cdslepi allocation " +
+	RoleRisk: {do: "me dashboard boards chat autopilot steps rpa periodic xfiles ccdata recon settlement clients rms live margin payouthold collateral cdslpledge cdslepi allocation " +
 		"debits legacy mtf ledger money reports stocksip ipo rfq cbrics dp edis cdsltxn insights selfinspect",
 		approve: "rms margin payouthold collateral cdslpledge cdslepi allocation mtf settlement money"},
 	RoleCompliance: {do: "dashboard boards chat autopilot steps jobs rpa periodic circulars xfiles files clients apps changes uccapi mnrl statements dispatch messages yearend archive " +
 		"margin legacy clientmoney reports exdisc aictl kyc helpdesk nri surv inactive deceased selfinspect inspack audit incidents logexport " +
-		"ipo mfsettings mfcomm mforders stocksip dp cdslreq edis insights partners dealers backups settings supportaccess dataexit",
-		approve: "apps changes margin legacy inactive kyc circulars cdslpledge reports dataexit deceased practices"},
-	RoleBranch: {do: "boards chat rpa clients money rms prepaid changes helpdesk crm ipo insights"},
-	RoleAP:     {do: "boards chat clients money rms changes helpdesk crm ipo insights"},
+		"ipo mfsettings mfcomm mforders stocksip dp cdslreq edis insights partners dealers backups settings supportaccess dataexit me people hrcomp hrpolicy",
+		approve: "apps changes margin legacy inactive kyc circulars cdslpledge reports dataexit deceased practices hrcomp"},
+	// HRMS and Payroll (hrms.go, payroll.go, payrun.go).
+	RoleHR:      {do: "me people hrlife hrcomp attendance leave hrpolicy payroll", approve: "hrlife attendance payroll"},
+	RolePayroll: {do: "me payroll hrlife", approve: "payroll"},
+	RoleBranch:  {do: "boards chat rpa clients money rms prepaid changes helpdesk crm ipo insights"},
+	RoleAP:      {do: "boards chat clients money rms changes helpdesk crm ipo insights"},
 }
 
 // scopedScreens are the client-level screens branch staff and authorised
 // persons reach (each filters to their own clients).
-var scopedScreens = strings.Fields("chat boards rpa yearend insights clients statements notes money debits rms partners prepaid changes helpdesk crm ipo")
+var scopedScreens = strings.Fields("chat boards rpa yearend insights clients statements notes money debits rms partners prepaid changes helpdesk crm ipo me people attendance leave")
 
-// complianceOnly are the screens only the Admin and the compliance officer
+// viewOnlyFor are the screens that, besides the Admin, only the roles named
 // open (Firm practices: the Admin answers and Compliance approves; Support
 // access: Compliance approves a session; Staff app and Client app: the
 // Admin changes them, Compliance may look), so the other templates do not
 // have them.
-var complianceOnly = map[string]bool{"practices": true, "supportaccess": true, "staffapp": true, "clientapp": true}
+var viewOnlyFor = map[string][]string{
+	"practices": {RoleCompliance}, "supportaccess": {RoleCompliance}, "staffapp": {RoleCompliance}, "clientapp": {RoleCompliance},
+	// Settings → Modules: the Admin only. The People screens the console
+	// shows by role (hrViewOK, web/hrms.js); My HR, Staff, Attendance and
+	// Leave are every staff role's (each sees their own and their team's).
+	"modules": {},
+	"hrcomp":  {RoleHR, RoleCompliance}, "hrpolicy": {RoleHR, RoleCompliance},
+	"hrlife":  {RoleHR, RoleCompliance, RolePayroll},
+	"payroll": {RolePayroll, RoleHR},
+}
 
 // editableBuiltin reports a built-in role a firm may edit: not Admin
 // (which always has everything) and not the client portal's.
@@ -218,6 +230,10 @@ func BuiltinRole(name string) (RoleDef, bool) {
 		d.About = "Branch staff: the branch's own clients on the client-level screens."
 	case RoleAP:
 		d.About = "An authorised person's login: their own and their downline's clients on the client-level screens."
+	case RoleHR:
+		d.About = "The employee master, joiners and leavers, certificates, attendance and leave (with the HRMS module on)."
+	case RolePayroll:
+		d.About = "Runs payroll: salary structures, inputs, the month's run, payslips, loans and tax proofs (with the Payroll module on)."
 	}
 	view := screens.All()
 	if name == RoleBranch || name == RoleAP {
@@ -232,7 +248,7 @@ func BuiltinRole(name string) (RoleDef, bool) {
 		}
 	}
 	for _, x := range view {
-		if complianceOnly[x.Key] && name != RoleCompliance && name != RoleAdmin {
+		if rs, ok := viewOnlyFor[x.Key]; ok && !contains(rs, name) && name != RoleAdmin {
 			continue // the console never showed these to the other roles
 		}
 		d.Screens[x.Key] = Power{View: true}
@@ -590,6 +606,7 @@ var adminAlways = map[string]bool{
 	"Deleting the firm's data": true, "Asking to close the firm's account": true, "Starting a full data export": true, "Downloading a full data export": true,
 	"Moving the firm onto its own encryption key": true, "Rotating the firm's encryption key": true, "Changing how long the firm's keys stay in memory": true,
 	"Changing Ledgerline support access settings": true,
+	"Switching modules on or off":                 true, // priced modules (Settings → Modules)
 }
 
 // adminScreens are the screens on which a role may only look: changing
@@ -640,6 +657,34 @@ func (a Access) permits(what string, roles []string, areas []string) bool {
 }
 
 // ---- checks used by the rest of the package ----
+
+// hrRole is the role the HRMS and Payroll code (hrms.go and the files
+// beside it, which decide whom a person sees by role) goes by: Admin, then
+// the HR manager, Payroll and the compliance officer when the person holds
+// one of them, unedited or as the template of a role the firm edited or
+// made that keeps the screen it works on (People for HR and Compliance,
+// Payroll for Payroll), else their role.
+func (o *Ops) hrRole(ctx context.Context, tenant, actor string) (string, error) {
+	role, err := o.RoleOf(ctx, tenant, actor)
+	if err != nil || role == RoleAdmin || role == RoleClient {
+		return role, err
+	}
+	a, err := o.Access(ctx, tenant, actor)
+	if err != nil {
+		return "", err
+	}
+	for _, r := range []struct{ role, screen string }{{RoleHR, "people"}, {RolePayroll, "payroll"}, {RoleCompliance, "people"}} {
+		if contains(a.Legacy, r.role) {
+			return r.role, nil
+		}
+		for _, d := range a.Defs {
+			if d.Template == r.role && d.Screens[r.screen].View {
+				return r.role, nil
+			}
+		}
+	}
+	return role, nil
+}
 
 // payoutLimitCheck refuses approving a payout above the approver's limit.
 // Unedited built-in roles have no limit, as before.

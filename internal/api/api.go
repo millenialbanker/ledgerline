@@ -125,7 +125,7 @@ func (s *Server) closedPath(p string) bool {
 	if s.ops == nil {
 		return false
 	}
-	for _, pre := range []string{"/hooks/", "/optin/", "/bank-confirm/", "/onboard/", "/agent/v1/"} {
+	for _, pre := range []string{"/hooks/", "/optin/", "/bank-confirm/", "/onboard/", "/agent/v1/", "/kiosk-api/"} {
 		if rest, ok := strings.CutPrefix(p, pre); ok {
 			t, _, _ := strings.Cut(rest, "/")
 			return s.ops.FirmClosed(t)
@@ -244,7 +244,7 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 		// preview: only the screens the roles include (api/roles.go).
 		if s.ops != nil && actor != "" && !strings.HasPrefix(pattern, "POST /v1/auth/") {
 			if acc, err := s.ops.Access(ctx, tenant, actor); err == nil && (acc.Gated() || acc.Preview) {
-				gw := s.gate(w, r, pattern, mutating, acc)
+				gw := s.gate(w, r.WithContext(ctx), pattern, mutating, acc)
 				if gw == nil {
 					return
 				}

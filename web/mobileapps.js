@@ -6,7 +6,7 @@
    shows (SEBI registration, grievance contacts, investor charter). Loaded
    after app.js. The apps themselves are /m/ and /app/ (mshell.js). */
 
-const MA_ROLES_ORDER = ['Ops maker', 'Ops checker', 'Risk manager', 'Compliance officer', 'Branch staff', 'Authorised person', 'Admin'];
+const MA_ROLES_ORDER = ['Ops maker', 'Ops checker', 'Risk manager', 'Compliance officer', 'Branch staff', 'Authorised person', 'HR manager', 'Payroll', 'Admin'];
 const maWhen = t => t ? esc(fmtTS(t)) : '—';
 async function maLoad() {
   const [s, qr, conn] = await Promise.all([get('/v1/mobile/settings'), has() ? get('/v1/mobile/staff-qr').catch(() => null) : null, get('/v1/connections').catch(() => null)]);

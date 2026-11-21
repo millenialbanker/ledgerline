@@ -93,6 +93,23 @@ var routeScreens = map[string]string{
 	// The staff app (/m/): the desktop screen each view mirrors. Its home
 	// and approvals list only the items of screens the roles include, and
 	// an approval is decided as from the item's screen (ops/mobilestaff.go).
+	// HRMS and Payroll (api/hrms.go). "open" routes are every staff
+	// login's own records and their team's (the server limits the data);
+	// their screens still decide what a role the firm made may do there.
+	"modules": "open modules", "PUT modules": "modules",
+	"hr/me": "open me", "hr/staff": "open people", "POST hr/staff": "people", "PUT hr/staff/{code}": "people",
+	"hr/staff/{code}/reveal": "people", "hr/staff/{code}/user": "people", "hr/staff/{code}/home-dealing": "people hrcomp",
+	"hr/staff/{code}/documents": "people", "hr/staff/{code}/certs": "hrcomp people", "hr/staff/{code}/leaving": "hrlife people",
+	"hr/staff/{code}/device": "attendance", "hr/staff/{code}/pin": "attendance", "hr/staff/{code}/leave-adjust": "leave",
+	"hr/staff/{code}/attendance": "open attendance people", "hr/staff/{code}/balances": "open leave people",
+	"hr/org": "open people", "hr/policy": "open hrpolicy", "PUT hr/policy": "hrpolicy",
+	"hr/checklists": "hrlife", "hr/leavers": "hrlife", "hr/certificates": "hrcomp", "hr/kmp": "hrcomp people",
+	"hr/own-trading": "open hrcomp me", "hr/own-trading/pre-clearance/{id}": "hrcomp",
+	"hr/attendance": "open attendance me", "hr/attendance/import": "attendance", "hr/photos": "open attendance",
+	"hr/wfh": "open attendance me", "hr/devices": "attendance", "hr/kiosks": "attendance",
+	"hr/leave": "open leave me", "hr/leave-year": "leave", "hr/team": "open people leave attendance", "hr/on-leave": "open leave",
+	"payroll": "payroll", "payroll/runs/{month}/payslips": "open payroll me", "payroll/form130": "open payroll me",
+	"payroll/claims": "open payroll me", "payroll/tax-declarations": "open payroll me", "payroll/tax-declarations/verify": "payroll",
 	"m/work": "autopilot", "m/day": "dashboard", "m/alerts": "dashboard autopilot surv", "m/clients": "clients",
 }
 
@@ -111,7 +128,9 @@ var commonRoutes = map[string]bool{"me": true, "auth": true, "ledgy": true, "not
 	"m/home": true, "m/approvals": true}
 
 // screensFor returns the screens a route serves (common: open to all
-// staff; nil and false: not mapped, which a gated login cannot use).
+// staff, with the screens, when it has them, still given to the
+// permission checks; nil and false: not mapped, which a gated login
+// cannot use).
 func screensFor(pattern string) (areas []string, common bool) {
 	method, path, _ := strings.Cut(pattern, " ")
 	path = strings.TrimPrefix(path, "/v1/")
@@ -119,10 +138,14 @@ func screensFor(pattern string) (areas []string, common bool) {
 		if commonRoutes[p] {
 			return nil, true
 		}
-		if v, ok := routeScreens[method+" "+p]; ok {
-			return strings.Fields(v), false
+		v, ok := routeScreens[method+" "+p]
+		if !ok {
+			v, ok = routeScreens[p]
 		}
-		if v, ok := routeScreens[p]; ok {
+		if ok {
+			if rest, open := strings.CutPrefix(v, "open "); open {
+				return strings.Fields(rest), true
+			}
 			return strings.Fields(v), false
 		}
 		i := strings.LastIndexAny(p, "/")
@@ -142,6 +165,14 @@ func (s *Server) gate(w http.ResponseWriter, r *http.Request, pattern string, mu
 	areas, common := screensFor(pattern)
 	if common {
 		return w
+	}
+	if strings.HasPrefix(pattern, "GET /v1/hr/") || strings.HasPrefix(pattern, "POST /v1/hr/") || strings.HasPrefix(pattern, "PUT /v1/hr/") || strings.Contains(pattern, " /v1/payroll") {
+		// With the module off its routes answer 404 for everyone, as
+		// before roles (ops.ErrModuleOff).
+		m := s.ops.Modules(r.Context(), tenant(r))
+		if !m.On(ops.ModHRMS) || (strings.Contains(pattern, " /v1/payroll") && !m.On(ops.ModPayroll)) {
+			return w
+		}
 	}
 	if areas == nil {
 		writeErr(w, 403, "forbidden", "This part of Ledgerline is not yet linked to a screen, so roles the firm made cannot use it. Ask an Admin.", nil)

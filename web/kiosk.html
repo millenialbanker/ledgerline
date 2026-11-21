@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Attendance kiosk</title>
+<link rel="stylesheet" href="/kiosk.css">
+</head>
+<body>
+<main class="wrap">
+  <header class="head"><div class="mark"><i></i><i></i><i></i></div><div><b>Attendance</b><small id="clock"></small></div></header>
+  <section class="card" id="card"><p class="dim">Loading…</p></section>
+  <video id="cam" class="cam" autoplay playsinline muted hidden></video>
+  <canvas id="snap" hidden></canvas>
+  <p class="foot dim small" id="foot">Your photo is kept for your manager to review and deleted after the firm's set days. It is not used to recognise faces.</p>
+</main>
+<script src="/kiosk.js"></script>
+</body>
+</html>

@@ -116,6 +116,9 @@ type UsageMonth struct {
 	PeakStaff int        `json:"peak_staff"`
 	PeakBots  int        `json:"peak_bots"`
 	Edition   string     `json:"edition"` // the highest edition used in the month
+	// Modules are the priced modules (hrms, payroll) on at any report in
+	// the month: a module used for part of a month is billed for it.
+	Modules []string `json:"modules,omitempty"`
 }
 
 // Customer is who is billed: a broker, with one or more firms.
@@ -164,7 +167,10 @@ type Slab struct {
 
 // PriceBook is what the provider charges.
 type PriceBook struct {
-	Edition       map[string]money.Amount `json:"edition"` // monthly fee per firm: manual, autopilot, full
+	Edition map[string]money.Amount `json:"edition"` // monthly fee per firm: manual, autopilot, full
+	// Modules is the monthly fee per firm for each priced module (hrms,
+	// payroll); a module without a price is not billed.
+	Modules       map[string]money.Amount `json:"modules,omitempty"`
 	Slabs         []Slab                  `json:"slabs"`
 	IncludedUsers int                     `json:"included_users"` // staff logins included per firm
 	ExtraUser     money.Amount            `json:"extra_user"`
@@ -215,6 +221,7 @@ func defaultSettings() Settings {
 		Vendor: Vendor{Name: "Ledgerline", Prefix: "LL", DueDays: 15, SupportH: "9:00–19:00 IST, trading days"},
 		Prices: PriceBook{
 			Edition:       map[string]money.Amount{"manual": money.MustAmount("15000"), "autopilot": money.MustAmount("35000"), "full": money.MustAmount("60000")},
+			Modules:       map[string]money.Amount{"hrms": money.MustAmount("5000"), "payroll": money.MustAmount("7500")},
 			Slabs:         []Slab{{UpTo: 500, Rate: 0}, {UpTo: 5000, Rate: money.MustAmount("10")}, {UpTo: 25000, Rate: money.MustAmount("6")}, {UpTo: 0, Rate: money.MustAmount("3")}},
 			IncludedUsers: 10, ExtraUser: money.MustAmount("750"), BotComputer: money.MustAmount("2000"), KYC: money.MustAmount("25"),
 			SetupFee: money.MustAmount("50000"), GSTPct: "18", SAC: "997331",
@@ -229,7 +236,7 @@ type InvoiceLine struct {
 	Qty    int          `json:"qty"`
 	Rate   money.Amount `json:"rate"`
 	Amount money.Amount `json:"amount"`
-	Kind   string       `json:"kind"` // edition, clients, users, bots, kyc, ai, setup, other
+	Kind   string       `json:"kind"` // edition, module, clients, users, bots, kyc, ai, setup, other
 	Firm   string       `json:"firm,omitempty"`
 }
 
@@ -475,6 +482,14 @@ func (c *Control) SaveSettings(ctx context.Context, by string, s Settings) (Sett
 	for _, e := range []string{"manual", "autopilot", "full"} {
 		if s.Prices.Edition[e] < 0 {
 			return s, invalid("the %s fee can't be negative", e)
+		}
+	}
+	for m, a := range s.Prices.Modules {
+		if ModuleNames[m] == "" {
+			return s, invalid("unknown module %q", m)
+		}
+		if a < 0 {
+			return s, invalid("the %s module fee can't be negative", ModuleNames[m])
 		}
 	}
 	if _, err := money.ParseDec(s.Prices.GSTPct); err != nil {

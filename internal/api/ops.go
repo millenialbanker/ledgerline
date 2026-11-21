@@ -87,6 +87,7 @@ func (s *Server) opsRoutes() {
 	s.uiLayoutRoutes()
 	s.firmKeyRoutes()
 	s.roleRoutes()
+	s.hrRoutes()
 	s.firmPracticeRoutes()
 	R("GET /v1/me", s.me, false)
 	R("GET /v1/users", s.users, false)
@@ -436,6 +437,11 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		us = mine
 	}
 	me := map[string]any{"auth": auth, "tenant": tenant(r), "actor": actor(r), "role": role, "users": us, "roles": ops.Roles, "firm": set.Firm, "dev": s.dev, "member_codes": set.MemberCodes, "holidays": set.TradingHolidays(), "sample_rates": s.app.Schedule.Sample, "schedule": s.app.Schedule.Version, "ledgy_ai": s.ops.LedgyAI != nil, "bill_ai": s.ops.BillAIAvailable(), "circular_ai": s.ops.CircularAIAvailable(), "edition": s.ops.EditionStatus(r.Context(), tenant(r)), "ui": s.ops.EffectiveUI(r.Context(), tenant(r), actor(r))}
+	if role != ops.RoleClient {
+		// Priced modules the firm has on (Settings → Modules): the People
+		// group shows only with HRMS on.
+		me["modules"] = s.ops.Modules(r.Context(), tenant(r))
+	}
 	if a := actor(r); a != "" {
 		if acc, err := s.ops.Access(r.Context(), tenant(r), a); err == nil {
 			me["role_name"] = acc.Name // the main role's own name (role is Branch staff for a role limited to a branch)

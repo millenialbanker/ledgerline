@@ -17,7 +17,7 @@ A role says, for every screen in the sidebar, whether its holders may:
 
 It also sets four limits: which clients the person reaches (the whole firm, their own branch, or their own authorised person), whether they see brokerage totals, whether they may reveal full PAN, Aadhaar and bank numbers, whether they may download files and exports, and the largest payout they may approve.
 
-The **built-in roles** (Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff, Authorised person, Admin) work exactly as they always have until the firm edits them. Admin always has everything and cannot be edited. You can edit a built-in role (with **Reset to default** to undo it) or **Copy** one into a new role.
+The **built-in roles** (Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff, Authorised person, HR manager, Payroll, Admin) work exactly as they always have until the firm edits them. Admin always has everything and cannot be edited. You can edit a built-in role (with **Reset to default** to undo it) or **Copy** one into a new role.
 
 On [[roles|Roles]] each role has a **Summary** of what it can and cannot do. Every action is checked again by the server, whatever the screen shows: a person without a screen gets "not permitted" from its links too.
 
@@ -39,7 +39,7 @@ On [[roles|Roles]], click **New role**, or **Edit** or **Copy** on a role. The e
 
 Where you keep a tick the starting role had, the new role does there what that role does today. A tick you add gives every action of that kind on the screen. Actions only an Admin may take stay with Admin, except on the Admin section's screens. Some stay with Admin whatever the role: users and roles (a role may only look at those screens), sign-in resets, full data exports, closing the account and deleting the firm's data, the firm's encryption keys and Ledgerline support access settings.
 
-Of the built-in roles, only the Compliance officer (and Admin) has [[practices|Firm practices]], Support access, Staff app and Client app. The Compliance officer only looks at Staff app and Client app. Give a role **Approve** on Firm practices to let its holders approve a change to a firm practice; answering the questions needs **Do** there.
+Of the built-in roles, only the Compliance officer (and Admin) has [[practices|Firm practices]], Support access, Staff app and Client app. The Compliance officer only looks at Staff app and Client app. Settings → Modules is the Admin's alone, and switching a module on or off stays with Admin whatever the role. Every staff role has My HR, Staff, Attendance and Leave, each showing only the person's own records and their team's; Joiners & leavers, Certificates & own trading, HR policies and Payroll go with the HR manager, Payroll and Compliance officer roles, as the People screens have them. With the HRMS module off, the People screens are hidden for every role. Give a role **Approve** on Firm practices to let its holders approve a change to a firm practice; answering the questions needs **Do** there.
 
 A role limited to a branch or an authorised person reaches only the client-level screens (clients, receipts and payouts, debtors, RMS, CRM and the like), each showing only those clients.
 

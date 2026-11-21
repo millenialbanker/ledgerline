@@ -44,7 +44,7 @@ func TestEveryRouteHasScreens(t *testing.T) {
 		}
 	}
 	for k, v := range routeScreens {
-		for _, x := range strings.Fields(v) {
+		for _, x := range strings.Fields(strings.TrimPrefix(v, "open ")) {
 			if _, ok := screens.Get(x); !ok {
 				t.Errorf("routeScreens[%q]: unknown screen %q", k, x)
 			}
@@ -58,6 +58,13 @@ func TestEveryRouteHasScreens(t *testing.T) {
 	}
 	if _, c := screensFor("GET /v1/me/ui"); !c {
 		t.Fatal("me is common")
+	}
+	// Self-service is open, with its screens for the checks.
+	if a, c := screensFor("POST /v1/hr/attendance/punch"); !c || strings.Join(a, " ") != "attendance me" {
+		t.Fatalf("punch: %v %v", a, c)
+	}
+	if a, c := screensFor("POST /v1/hr/attendance/import"); c || strings.Join(a, " ") != "attendance" {
+		t.Fatalf("attendance import: %v %v", a, c)
 	}
 }
 
@@ -259,3 +266,32 @@ func TestRoleLimitsOverAPI(t *testing.T) {
 }
 
 func mustJSON(v any) string { b, _ := json.Marshal(v); return string(b) }
+
+// HRMS with roles the firm made: with the module off its routes answer 404
+// as for everyone; with it on, self-service is open and Payroll needs the
+// screen.
+func TestCustomRoleHRRoutes(t *testing.T) {
+	h := newRolesHarness(t)
+	h.approve("/v1/roles", `{"role":{"name":"CRM desk","screens":{"crm":{"do":true}},"limits":{"scope":"firm"}}}`)
+	h.approve("/v1/users/lata.crm/roles", `{"roles":["CRM desk"]}`)
+	if c, v := h.call("GET", "/v1/payroll", "priya.nair", ""); c != 404 {
+		t.Fatalf("legacy payroll off: %d %v", c, v)
+	}
+	for _, p := range []string{"/v1/hr/me", "/v1/payroll"} {
+		if c, v := h.call("GET", p, "lata.crm", ""); c != 404 {
+			t.Fatalf("%s with the module off: %d %v", p, c, v)
+		}
+	}
+	if c, v := h.call("PUT", "/v1/modules", "admin", `{"hrms":true,"payroll":true}`); c != 200 {
+		t.Fatalf("modules: %d %v", c, v)
+	}
+	if c, v := h.call("GET", "/v1/hr/me", "lata.crm", ""); c != 200 {
+		t.Fatalf("self-service: %d %v", c, v)
+	}
+	if c, v := h.call("GET", "/v1/payroll", "lata.crm", ""); c != 403 {
+		t.Fatalf("payroll without the screen: %d %v", c, v)
+	}
+	if c, v := h.call("PUT", "/v1/modules", "lata.crm", `{"hrms":false}`); c != 403 {
+		t.Fatalf("modules by a role: %d %v", c, v)
+	}
+}
