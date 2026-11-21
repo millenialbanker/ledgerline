@@ -65,7 +65,7 @@ func TestPayrollRunHandWorked(t *testing.T) {
 	}
 	type want struct {
 		gross, empPF, erEPF, erEPS, edli, admin, empESI, erESI, pt, tds, net string
-		lop                                                                 float64
+		lop                                                                  float64
 	}
 	for code, w := range map[string]want{
 		// Ravi: 29 of 30 days. Basic 12,000×29/30 = 11,600; special
