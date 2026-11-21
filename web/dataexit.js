@@ -22,7 +22,7 @@ V.dataexit = {
   // The archive tab's data comes with the screen (archive.js).
   load: async () => {
     const d = await get('/v1/data-exit');
-    try { d.arc = await get('/v1/archive'); } catch (e) { d.arc = null; d.arcErr = e.message; }
+    try { d.arc = await get('/v1/period-archives'); } catch (e) { d.arc = null; d.arcErr = e.message; }
     return d;
   },
   html: d => {
@@ -232,13 +232,13 @@ Object.assign(A, {
   arcMode: id => { UI.arcMode = id; UI.arcPrev = null; render({ keep: true }); },
   arcPreview: async () => {
     const body = arcAskBody();
-    try { UI.arcPrev = await post('/v1/archive/preview', body); UI.arcAsk = body; render({ keep: true }); } catch (e) { toast(e.message, true); }
+    try { UI.arcPrev = await post('/v1/period-archives/preview', body); UI.arcAsk = body; render({ keep: true }); } catch (e) { toast(e.message, true); }
   },
   arcAsk: () => {
     const p = UI.arcPrev, body = UI.arcAsk; if (!p || !body) return;
     confirmModal('Ask to archive ' + p.label, 'The compliance officer or another Admin approves it. Ledgerline then writes the archive package, reads it back and verifies it, and only then removes the rows from the live data.',
       `<p class="small">${nf(p.rows)} rows (${dxBytes(p.bytes)}) of ${fmtDate(p.from)} to ${fmtDate(p.to)}, kept until at least ${fmtDate(p.retain_until)}.</p>`, 'Ask to archive',
-      () => act(() => post('/v1/archive', body), () => { UI.arcPrev = null; return 'Asked: waiting for a second person to approve'; }));
+      () => act(() => post('/v1/period-archives', body), () => { UI.arcPrev = null; return 'Asked: waiting for a second person to approve'; }));
   },
   arcDecide: id => {
     const r = C.dataexit.arc.archives.find(x => x.id === id); if (!r) return;
@@ -246,22 +246,22 @@ Object.assign(A, {
       <p class="small">Ledgerline writes the period’s package to archive storage, reads it back and verifies it, and only then removes the rows from the live data. Ledger entries are replaced by opening balances carried forward, and every later balance is checked to be unchanged.</p>
       <div class="fld"><label for="arc-dn">Note (needed to reject)</label><input class="in" id="arc-dn"></div><div id="arc-derr"></div></div>
       <div class="ft"><button class="btn" id="arc-rej">Reject</button><button class="btn pri" id="arc-ok">${r.state === 'Failed' ? 'Start again' : 'Approve and archive'}</button></div>`);
-    const go = approve => act(() => post(`/v1/archive/${encodeURIComponent(id)}/decide`, { approve, note: $('arc-dn').value.trim() }), approve ? 'Approved: archiving' : 'Rejected').catch(e => { $('arc-derr').innerHTML = errHTML(e); });
+    const go = approve => act(() => post(`/v1/period-archives/${encodeURIComponent(id)}/decide`, { approve, note: $('arc-dn').value.trim() }), approve ? 'Approved: archiving' : 'Rejected').catch(e => { $('arc-derr').innerHTML = errHTML(e); });
     $('arc-ok').onclick = () => go(true); $('arc-rej').onclick = () => go(false);
   },
   arcRestore: id => confirmModal('Restore the archived period', 'Puts the period’s rows back exactly as they were and removes the opening balances that stood in for them. The compliance officer or another Admin approves it.',
     '<div class="fld"><label for="arc-rr">Reason</label><input class="in" id="arc-rr" placeholder="inspection asked for the 2019-20 ledger"></div>', 'Ask to restore',
-    () => act(() => post(`/v1/archive/${encodeURIComponent(id)}/restore`, { reason: $('arc-rr').value.trim() }), 'Asked: waiting for a second person to approve')),
+    () => act(() => post(`/v1/period-archives/${encodeURIComponent(id)}/restore`, { reason: $('arc-rr').value.trim() }), 'Asked: waiting for a second person to approve')),
   arcRestoreDecide: id => {
     const r = C.dataexit.arc.archives.find(x => x.id === id); if (!r) return;
     modal(mhd('Approve restoring ' + esc(r.label), `${esc(r.restore_requested_by)} asked on ${dxWhen(r.restore_requested_at)} · ${esc(r.restore_reason || '')}`) + `<div class="bd">
       <p class="small">The package is verified again, the rows go back with the same ids and bytes, and the balances are checked to be unchanged.</p>
       <div class="fld"><label for="arc-rn">Note (needed to refuse)</label><input class="in" id="arc-rn"></div><div id="arc-rerr"></div></div>
       <div class="ft"><button class="btn" id="arc-rrej">Keep it archived</button><button class="btn pri" id="arc-rok">Approve and restore</button></div>`);
-    const go = approve => act(() => post(`/v1/archive/${encodeURIComponent(id)}/restore/decide`, { approve, note: $('arc-rn').value.trim() }), approve ? 'Approved: restoring' : 'Kept archived').catch(e => { $('arc-rerr').innerHTML = errHTML(e); });
+    const go = approve => act(() => post(`/v1/period-archives/${encodeURIComponent(id)}/restore/decide`, { approve, note: $('arc-rn').value.trim() }), approve ? 'Approved: restoring' : 'Kept archived').catch(e => { $('arc-rerr').innerHTML = errHTML(e); });
     $('arc-rok').onclick = () => go(true); $('arc-rrej').onclick = () => go(false);
   },
   arcAgain: id => confirmModal('Archive the period again', 'Asks to archive the same period and kinds again. A second person approves it as before.', '', 'Ask to archive again',
-    () => act(() => post(`/v1/archive/${encodeURIComponent(id)}/again`, {}), 'Asked: waiting for a second person to approve')),
-  arcRules: () => act(() => post('/v1/archive/settings', { retain_years: +$('arc-ret').value, live_cost_per_gb: +$('arc-live').value, archive_cost_per_gb: +$('arc-store').value }), 'Archive rules saved'),
+    () => act(() => post(`/v1/period-archives/${encodeURIComponent(id)}/again`, {}), 'Asked: waiting for a second person to approve')),
+  arcRules: () => act(() => post('/v1/period-archives/settings', { retain_years: +$('arc-ret').value, live_cost_per_gb: +$('arc-live').value, archive_cost_per_gb: +$('arc-store').value }), 'Archive rules saved'),
 });

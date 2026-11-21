@@ -29,14 +29,14 @@ func (s *Server) dataExitRoutes() {
 	R("POST /v1/data-exports/{id}/link", s.dataExportLink, true)
 	R("GET /v1/data-exports/{id}/download", s.dataExportDownload, false)
 	// Archiving past periods (internal/ops/archive.go).
-	R("GET /v1/archive", s.archiveScreen, false)
-	R("POST /v1/archive/settings", s.archiveSettings, true)
-	R("POST /v1/archive/preview", s.archivePreview, true)
-	R("POST /v1/archive", s.archiveRequest, true)
-	R("POST /v1/archive/{id}/decide", s.archiveDecide, true)
-	R("POST /v1/archive/{id}/restore", s.archiveRestore, true)
-	R("POST /v1/archive/{id}/restore/decide", s.archiveRestoreDecide, true)
-	R("POST /v1/archive/{id}/again", s.archiveAgain, true)
+	R("GET /v1/period-archives", s.archiveScreen, false)
+	R("POST /v1/period-archives/settings", s.archiveSettings, true)
+	R("POST /v1/period-archives/preview", s.archivePreview, true)
+	R("POST /v1/period-archives", s.archiveRequest, true)
+	R("POST /v1/period-archives/{id}/decide", s.archiveDecide, true)
+	R("POST /v1/period-archives/{id}/restore", s.archiveRestore, true)
+	R("POST /v1/period-archives/{id}/restore/decide", s.archiveRestoreDecide, true)
+	R("POST /v1/period-archives/{id}/again", s.archiveAgain, true)
 	// The certificate after the data is gone: no sign-in (the firm's users
 	// are deleted), only the secret link the firm was given.
 	s.mux.HandleFunc("GET /exit-certificate/{tenant}/{id}", s.exitCertificate)
