@@ -160,20 +160,20 @@ func actionKind(what string, roles []string) string {
 // Used only for roles a firm edits or copies: an unedited built-in role
 // is checked by name.
 var builtinWork = map[string]struct{ do, approve string }{
-	RoleMaker: {do: "dashboard boards chat autopilot rpa periodic circulars xfiles ccdata files recon billing settlement notes clients apps changes uccapi mnrl corp " +
+	RoleMaker: {do: "dashboard boards chat autopilot steps rpa periodic circulars xfiles ccdata files recon billing settlement notes clients apps changes uccapi mnrl corp " +
 		"statements dispatch messages yearend archive rms live payouthold collateral cdslpledge cdslepi allocation debits legacy mtf ledger money bank clientmoney " +
 		"books prepaid reports kyc helpdesk inactive deceased selfinspect ipo rfq cbrics mforders mfsips mfmandates mfunits stocksip dp cdslreq edis cdsltxn " +
 		"insights crm partners dealers"},
-	RoleChecker: {do: "dashboard boards chat autopilot jobs rpa periodic circulars xfiles ccdata files migrate recon billing settlement notes clients apps changes uccapi mnrl corp " +
+	RoleChecker: {do: "dashboard boards chat autopilot steps jobs rpa periodic circulars xfiles ccdata files migrate recon billing settlement notes clients apps changes uccapi mnrl corp " +
 		"statements dispatch messages yearend archive rms live margin payouthold collateral cdslpledge cdslepi allocation deposits debits legacy mtf ledger money bank ras clientmoney " +
 		"books brokerage charges prepaid reports kyc helpdesk nri surv inactive deceased selfinspect ipo rfq cbrics mforders mfsips mfmandates mfunits mfcomm stocksip dp cdslreq edis cdsltxn " +
 		"insights crm partners dealers backups",
 		approve: "migrate billing settlement clients apps changes corp rms margin payouthold collateral cdslpledge cdslepi allocation deposits legacy mtf money bank ras clientmoney " +
 			"books circulars inactive kyc ipo rfq cbrics dp cdslreq cdsltxn"},
-	RoleRisk: {do: "dashboard boards chat autopilot rpa periodic xfiles ccdata recon settlement clients rms live margin payouthold collateral cdslpledge cdslepi allocation " +
+	RoleRisk: {do: "dashboard boards chat autopilot steps rpa periodic xfiles ccdata recon settlement clients rms live margin payouthold collateral cdslpledge cdslepi allocation " +
 		"debits legacy mtf ledger money reports stocksip ipo rfq cbrics dp edis cdsltxn insights selfinspect",
 		approve: "rms margin payouthold collateral cdslpledge cdslepi allocation mtf settlement money"},
-	RoleCompliance: {do: "dashboard boards chat autopilot jobs rpa periodic circulars xfiles files clients apps changes uccapi mnrl statements dispatch messages yearend archive " +
+	RoleCompliance: {do: "dashboard boards chat autopilot steps jobs rpa periodic circulars xfiles files clients apps changes uccapi mnrl statements dispatch messages yearend archive " +
 		"margin legacy clientmoney reports exdisc aictl kyc helpdesk nri surv inactive deceased selfinspect inspack audit incidents logexport " +
 		"ipo mfsettings mfcomm mforders stocksip dp cdslreq edis insights partners dealers backups settings supportaccess",
 		approve: "apps changes margin legacy inactive kyc circulars cdslpledge reports dataexit deceased practices"},

@@ -587,6 +587,16 @@ func (a *Audit) List(ctx context.Context, tenant string, limit int) ([]app.Audit
 	return a.Inner.List(ctx, tenant, limit)
 }
 
+// Window reads a time span newest first when the store underneath can
+// (app.AuditWindow); entries are stored in the clear, so nothing to open.
+func (a *Audit) Window(ctx context.Context, tenant string, from, to time.Time, before int64, limit int) ([]app.AuditEvent, error) {
+	w, ok := a.Inner.(app.AuditWindow)
+	if !ok {
+		return nil, errors.New("vault: this audit store cannot read a time window")
+	}
+	return w.Window(ctx, tenant, from, to, before, limit)
+}
+
 // AuditCheck is the result of verifying a tenant's audit trail.
 type AuditCheck struct {
 	OK        bool           `json:"ok"`

@@ -36,7 +36,7 @@ func g(k, l string, tabs ...Item) Item { return Item{Key: k, Label: l, Tabs: tab
 // articles and bookmarks to it still work).
 var Nav = []Section{
 	{Name: "Overview", Items: []Item{s("dashboard", "Dashboard"), s("boards", "Boards"), s("chat", "Team messages"),
-		g("automation", "Automation", s("autopilot", "Autopilot & work queue"), s("jobs", "Scheduled jobs"), s("rpa", "Browser automations")),
+		g("automation", "Automation", s("autopilot", "Autopilot & work queue"), s("steps", "Steps & reminders"), s("jobs", "Scheduled jobs"), s("rpa", "Browser automations")),
 		g("calendar", "Calendar & circulars", s("periodic", "Periodic work"), s("circulars", "Circulars & duties"))}},
 	{Name: "Operations", Items: []Item{
 		g("filesg", "Files", s("xfiles", "Exchange files"), s("ccdata", "Clearing data"), s("files", "Other uploads & migration"), s("migrate", "Migration from old system")),

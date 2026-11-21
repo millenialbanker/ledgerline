@@ -29,7 +29,7 @@ var routeScreens = map[string]string{
 	"boards": "boards", "board-cards": "boards", "board-collections": "boards", "board-files": "boards", "board-imports": "boards",
 	"board-inbox": "boards", "board-notify": "boards", "board-planner": "boards", "board-templates": "boards",
 	"chat":      "chat",
-	"autopilot": "autopilot", "work": "autopilot", "jobs": "jobs", "outbox": "jobs", "rpa": "rpa",
+	"autopilot": "autopilot", "steps": "steps", "work": "autopilot", "jobs": "jobs", "outbox": "jobs", "rpa": "rpa",
 	"periodic": "periodic", "circulars": "circulars", "duties": "circulars", "holidays": "circulars", "inbox": "circulars", "compliance/profile": "circulars kyc",
 	// Operations
 	"exchange-files": "xfiles", "exchange-files-alerts": "xfiles", "exchange-files-checklist": "xfiles", "mcx/sftp": "xfiles", "mcx/contracts": "xfiles",
@@ -92,10 +92,13 @@ var routeScreens = map[string]string{
 }
 
 // commonRoutes are open to every staff login whatever their roles: who
-// they are, their own sign-in and layout, help, notices, and reference
-// lists every screen uses.
+// they are, their own sign-in and layout, help, notices, the activity
+// feed, and reference lists every screen uses.
 var commonRoutes = map[string]bool{"me": true, "auth": true, "ledgy": true, "notices": true, "edition": true, "support": true,
-	"file-types": true, "tags": true, "market": true, "dev": true}
+	"file-types": true, "tags": true, "market": true, "dev": true,
+	// The activity feed sits beside every screen; it shows only lines
+	// about the screens the person's roles include (ops/activity.go).
+	"activity": true}
 
 // screensFor returns the screens a route serves (common: open to all
 // staff; nil and false: not mapped, which a gated login cannot use).

@@ -1,0 +1,52 @@
+/* Activity feed (activity.js): the panel on the right of every screen. */
+.af-tog{gap:6px}
+.af-tog svg{width:15px;height:15px;stroke:currentColor}
+.af-tog.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.af-tog .ct{font-family:var(--f-mono);font-size:11px;padding:0 6px;border-radius:9px;background:var(--bad);color:#fff}
+.af-panel{position:fixed;top:0;right:0;bottom:0;z-index:55;width:min(380px,100vw);display:flex;flex-direction:column;background:var(--panel);border-left:1px solid var(--line2);box-shadow:var(--shadow);padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.af-panel[hidden]{display:none}
+.af-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+.af-head h3{margin:0;font-size:15px}
+.af-head small{color:var(--ink3);font-size:12px}
+.af-x{border:0;background:none;font-size:22px;line-height:1;cursor:pointer;color:var(--ink2);padding:0 4px}
+.af-counts{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--line);background:var(--sunk)}
+.af-counts>small{color:var(--ink3);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:2px}
+.af-cnt{border:1px solid var(--line2);background:var(--panel);border-radius:14px;padding:2px 9px;font-size:12px;cursor:pointer;color:var(--ink2)}
+.af-cnt b{font-family:var(--f-mono);color:var(--ink);margin-left:2px}
+.af-cnt.on{border-color:var(--accent);color:var(--accent)}
+.af-filters{display:flex;flex-direction:column;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line)}
+.af-filters .in{width:100%;min-width:0;font-size:13px;padding:6px 8px}
+.af-sel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.af-only{align-self:flex-start}
+.af-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:0 0 12px}
+.af-day{position:sticky;top:0;z-index:1;margin:0;padding:8px 16px 6px;font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink2);background:var(--panel);border-bottom:1px solid var(--line)}
+.af-list{list-style:none;margin:0;padding:0}
+.af-it{display:grid;grid-template-columns:32px minmax(0,1fr);gap:10px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:10px 16px;cursor:pointer;color:inherit;font:inherit}
+.af-it:hover{background:var(--sunk)}
+.af-it:disabled{cursor:default}
+.af-it:disabled:hover{background:none}
+.af-av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:600}
+.af-av.af-sys{border-radius:8px;background:var(--accent);grid-template-rows:repeat(3,1fr);padding:8px 7px;gap:3px;place-items:stretch}
+.af-av.af-sys i{display:block;background:var(--accent-ink);border-radius:1px}
+.af-body{display:flex;flex-direction:column;gap:2px;min-width:0}
+.af-line{display:flex;align-items:baseline;gap:6px;min-width:0}
+.af-line b{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.af-line time{margin-left:auto;font-family:var(--f-mono);font-size:11.5px;color:var(--ink3);flex:none}
+.af-via{font-size:11.5px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.af-what{font-size:13.5px;line-height:1.4;overflow-wrap:anywhere}
+.af-meta{font-size:11.5px;color:var(--ink3)}
+.af-sec{color:var(--warn)}
+.af-mark{display:flex;align-items:center;gap:8px;padding:8px 16px;color:var(--accent);font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.af-mark::before,.af-mark::after{content:"";flex:1;height:1px;background:var(--accent)}
+.af-empty{padding:24px 16px;color:var(--ink3);text-align:center;margin:0}
+.af-more{padding:12px 16px;text-align:center}
+.af-foot{padding:12px 16px 0;margin:0;font-size:12px;color:var(--ink3)}
+/* Wide screens: the panel sits beside the page instead of over it. */
+@media (min-width:1280px){
+  body.af-open .app{margin-right:380px}
+  body.af-open .lg-fab,body.af-open .lg-panel{right:398px}
+}
+@media (max-width:640px){
+  .af-tog span:not(.ct){display:none}
+  .af-sel{grid-template-columns:minmax(0,1fr)}
+}

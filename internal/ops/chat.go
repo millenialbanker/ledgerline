@@ -1252,7 +1252,26 @@ func (o *Ops) ledgyNotifyWork(ctx context.Context, tenant string, w WorkItem) {
 		}
 		text += "\n" + d
 	}
-	view := firstOf(w.View, "autopilot")
+	o.ledgyPost(ctx, tenant, e, to, text, firstOf(w.View, "autopilot"))
+}
+
+// ledgyTell posts a Ledgy notice to the given users (step reminders,
+// stepremind.go), each in their own Ledgy channel, with a link to a view.
+func (o *Ops) ledgyTell(ctx context.Context, tenant string, users []string, text, view string) {
+	e, err := o.chatEnv(ctx, tenant, LedgyActor)
+	if err != nil {
+		return
+	}
+	var to []string
+	for _, u := range users {
+		if x, ok := e.users[u]; ok && chatSide(x) != "" {
+			to = append(to, u)
+		}
+	}
+	o.ledgyPost(ctx, tenant, e, to, text, view)
+}
+
+func (o *Ops) ledgyPost(ctx context.Context, tenant string, e *chatEnv, to []string, text, view string) {
 	for _, u := range to {
 		id := "L-" + shortHash(u)
 		c, err := o.chatChannel(ctx, tenant, id)
@@ -1269,7 +1288,7 @@ func (o *Ops) ledgyNotifyWork(ctx context.Context, tenant string, w WorkItem) {
 func chatViewName(v string) string {
 	if n, ok := map[string]string{"autopilot": "the work queue", "apps": "Online applications", "clients": "Clients & onboarding", "recon": "Trade reconciliation",
 		"rms": "RMS & limits", "money": "Receipts & payouts", "kyc": "KYC & PMLA", "surv": "Surveillance & AML", "reports": "Regulatory reports",
-		"settlement": "Settlement", "billing": "Billing", "bank": "Bank reconciliation", "notes": "Contract notes", "collateral": "Collateral & pledge"}[v]; ok {
+		"settlement": "Settlement", "billing": "Billing", "bank": "Bank reconciliation", "notes": "Contract notes", "collateral": "Collateral & pledge", "steps": "Steps & reminders"}[v]; ok {
 		return n
 	}
 	return "the screen"
