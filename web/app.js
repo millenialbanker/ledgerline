@@ -133,7 +133,9 @@ const GROUPS = {
   regg: ['Regulatory reports', [['reports', 'Regulatory reports'], ['exdisc', 'Exchange disclosures'], ['aictl', 'AI controls']]],
   secg: ['Security', [['incidents', 'Incidents'], ['logexport', 'Log export']]],
   securityg: ['Security', [['supportaccess', 'Support access']]],
-  settingsg: ['Settings', [['settings', 'Settings'], ['practices', 'Firm practices']]],
+  settingsg: ['Settings', [['settings', 'Settings'], ['practices', 'Firm practices'], ['modules', 'Modules']]],
+  // The HRMS module (hrms.js): shown only when the firm has switched it on.
+  peopleg: ['People', [['people', 'Staff'], ['hrlife', 'Joiners & leavers'], ['hrcomp', 'Certificates & own trading'], ['attendance', 'Attendance'], ['leave', 'Leave'], ['hrpolicy', 'HR policies']]],
 };
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard'], ['boards', 'Boards'], ['chat', 'Team messages'], ['@automation'], ['@calendar']]],
@@ -144,6 +146,7 @@ const NAV = [
   ['Investments', [['ipo', 'IPO & public issues'], ['rfq', 'Bonds (RFQ deals)'], ['cbrics', 'Corporate bonds (CBRICS)'], ['@mfg'], ['stocksip', 'Stock SIPs']]],
   ['Depository', [['@dpg']]],
   ['Business', [['insights', 'Client insights'], ['crm', 'Leads & CRM'], ['@partnersg']]],
+  ['People', [['me', 'My HR'], ['@peopleg'], ['payroll', 'Payroll']]],
   ['Admin', [['connections', 'Connections'], ['backups', 'Backups'], ['dataexit', 'Data & exit'], ['@settingsg'], ['@securityg'], ['layout', 'Screen layout']]]];
 // Every staff screen with its name, groups opened up.
 const NAV_VIEWS = NAV.flatMap(g => g[1].flatMap(([k, l]) => k[0] === '@' ? GROUPS[k.slice(1)][1] : [[k, l]]));
@@ -171,6 +174,7 @@ function viewAllowed(k) {
   if (role() === 'Authorised person' && k === 'rpa') return false; // automations are for the firm's own staff
   if (k === 'supportaccess' && !S.me?.support_access) return false; // the Admin, Compliance and the firm's chosen approver
   if (k === 'practices' && !has('Compliance officer')) return false; // Firm practices: the Admin answers, Compliance approves
+  if (typeof hrViewOK === 'function' && !hrViewOK(k)) return false; // HRMS and Payroll modules, Settings → Modules (hrms.js)
   return true;
 }
 // groupTabs: the group's tabs this user may open.

@@ -33,3 +33,21 @@ func TestConsoleAssetsServed(t *testing.T) {
 		}
 	}
 }
+
+// TestKioskPage: the attendance kiosk page is served with the camera
+// allowed, and its script and stylesheet with it.
+func TestKioskPage(t *testing.T) {
+	h := Handler(Config{})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/kiosk/demo", nil))
+	if rec.Code != 200 || !strings.Contains(rec.Header().Get("Permissions-Policy"), "camera=(self)") || !strings.Contains(rec.Body.String(), "/kiosk.js") {
+		t.Fatalf("kiosk page %d %v", rec.Code, rec.Header())
+	}
+	for _, a := range []string{"/kiosk.js", "/kiosk.css"} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, a, nil))
+		if rec.Code != 200 {
+			t.Errorf("%s: %d", a, rec.Code)
+		}
+	}
+}
