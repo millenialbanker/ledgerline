@@ -60,7 +60,12 @@ func (m *Mapper) History(ctx context.Context, q migrate.Querier, k migrate.Kind,
 	}
 	for _, f := range firms {
 		rep := newReport(f.Code, k.FY)
-		if n := newest(f.Years); n != "" && !yearsBack(k.FY, n, plan.Years) {
+		if len(plan.FYs) > 0 && !plan.Wants(k.FY) {
+			rep.infof("History", k.FY, "out-of-range", "Year %s is not one of the years chosen; not migrated", k.FY)
+			rep.flush(w, p)
+			continue
+		}
+		if n := newest(f.Years); len(plan.FYs) == 0 && n != "" && !yearsBack(k.FY, n, plan.Years) {
 			rep.infof("History", k.FY, "out-of-range", "Year %s is outside the %d years chosen; not migrated", k.FY, max(plan.Years, 8))
 			rep.flush(w, p)
 			continue

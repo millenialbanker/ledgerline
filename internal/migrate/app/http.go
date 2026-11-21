@@ -269,6 +269,16 @@ func (u *UI) Handler() http.Handler {
 		}
 		return nil, s.SetYears(r.Context(), in.Years)
 	})
+	api("POST /api/choose", func(w http.ResponseWriter, r *http.Request) (any, error) {
+		var in struct {
+			Scope string   `json:"scope"`
+			FYs   []string `json:"fys"`
+		}
+		if err := decode(r, &in); err != nil {
+			return nil, err
+		}
+		return nil, s.ChooseYears(r.Context(), in.Scope, in.FYs)
+	})
 	api("POST /api/go", func(w http.ResponseWriter, r *http.Request) (any, error) {
 		var in struct {
 			Screen string `json:"screen"`

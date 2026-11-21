@@ -462,3 +462,86 @@ func TestReportFillIn(t *testing.T) {
 		t.Error("an empty fill-in section")
 	}
 }
+
+// TestRunScopes makes a go-live package of the current financial year only
+// (the default), one with an earlier year added, and a history package of
+// two earlier years made later for a firm already live.
+func TestRunScopes(t *testing.T) {
+	ctx := context.Background()
+	m := &mt.Mapper{}
+	s, err := Classify(ctx, m, office([]string{"01"}, 2, 100), 8, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Choose(ctx, pkg.ScopeGoLive, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(s.ChosenFYs(), ","); got != "2026-27" {
+		t.Fatalf("current year only: %s", got)
+	}
+	for _, f := range s.Found {
+		if f.DB.File == "NC2526.7z" && (f.Use || !strings.Contains(f.Why, "history package")) {
+			t.Errorf("2025-26 at go-live: use %v why %q", f.Use, f.Why)
+		}
+	}
+	if av := s.Available(); len(av) != 10 || av[0] != "2026-27" {
+		t.Errorf("available %v", av)
+	}
+	res, err := Run(ctx, options(t, s, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := open(t, res.Parts[0].Path)
+	if r.Manifest.Scope != pkg.ScopeGoLive || strings.Join(r.Manifest.Years, ",") != "2026-27" || !r.Has("firms/01/master/CLIENT-MASTER.csv") ||
+		!r.Has("firms/01/history/2026-27/LEDGER.csv") || r.Has("firms/01/history/2025-26/LEDGER.csv") {
+		t.Errorf("go-live package: scope %q years %v", r.Manifest.Scope, r.Manifest.Years)
+	}
+
+	// an earlier year ticked too
+	if err := s.Choose(ctx, pkg.ScopeGoLive, []string{"2024-25"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(s.ChosenFYs(), ","); got != "2024-25,2026-27" {
+		t.Fatalf("chosen years: %s", got)
+	}
+
+	// later: a history package of two earlier years
+	m.Called = nil
+	o := options(t, s, 0)
+	o.Plan.Scope, o.Plan.FYs = pkg.ScopeHistory, []string{"2020-21", "2019-20"}
+	res, err = Run(ctx, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r = open(t, res.Parts[0].Path)
+	if !r.Manifest.IsHistory() || strings.Join(r.Manifest.Years, ",") != "2019-20,2020-21" {
+		t.Errorf("history package: scope %q years %v", r.Manifest.Scope, r.Manifest.Years)
+	}
+	for _, f := range r.Manifest.Files {
+		if f.Kind == pkg.KindMaster || (f.FY != "" && f.FY != "2019-20" && f.FY != "2020-21") {
+			t.Errorf("history package holds %s (%s %s)", f.Path, f.Kind, f.FY)
+		}
+	}
+	if !r.Has("firms/01/history/2019-20/LEDGER.csv") || !r.Has("firms/01/history/2020-21/LEDGER.csv") || !r.Has("firms/01/documents/index.csv") {
+		t.Error("history package lacks a year's history or documents")
+	}
+	called := strings.Join(m.Called, ";")
+	if strings.Contains(called, "Current") || !strings.Contains(called, "Prepare 2026-27") || strings.Contains(called, "History 2026-27") {
+		t.Errorf("calls %s", called)
+	}
+	// the survey on the screen keeps its own choice
+	if s.Scope != pkg.ScopeGoLive {
+		t.Errorf("survey scope changed to %q", s.Scope)
+	}
+
+	// the current year never goes in a history package
+	if err := s.Choose(ctx, pkg.ScopeHistory, []string{"2026-27"}); err == nil || !strings.Contains(err.Error(), "current financial year") {
+		t.Errorf("current year in a history package: %v", err)
+	}
+	if err := s.Choose(ctx, pkg.ScopeHistory, nil); err == nil {
+		t.Error("an empty history package")
+	}
+	if CurrentFY(time.Date(2027, 3, 31, 12, 0, 0, 0, time.UTC)) != "2026-27" || CurrentFY(time.Date(2027, 4, 1, 0, 0, 0, 0, time.UTC)) != "2027-28" {
+		t.Error("CurrentFY")
+	}
+}

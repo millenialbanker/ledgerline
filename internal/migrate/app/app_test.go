@@ -425,6 +425,21 @@ func TestWholeFlow(t *testing.T) {
 	if len(st.Firms) != 1 || st.Firms[0].Code != "01" {
 		t.Errorf("firms %+v", st.Firms)
 	}
+	// by default a go-live package of the current year only; a history
+	// package of the earlier year can be chosen instead
+	if st.Scope != "go-live" || strings.Join(st.Chosen, ",") != "2026-27" || strings.Join(st.Available, ",") != "2026-27,2025-26" {
+		t.Errorf("default years: %q %v %v", st.Scope, st.Chosen, st.Available)
+	}
+	if c, out := h.post("/api/choose", map[string]any{"scope": "history", "fys": []string{"2025-26"}}); c != 200 {
+		t.Fatalf("choose: %v", out)
+	}
+	if st = h.state(); st.Scope != "history" || strings.Join(st.Chosen, ",") != "2025-26" {
+		t.Errorf("history years: %q %v", st.Scope, st.Chosen)
+	}
+	if c, _ := h.post("/api/choose", map[string]any{"scope": "sideways"}); c != 400 {
+		t.Error("an unknown scope was accepted")
+	}
+	h.post("/api/choose", map[string]any{"scope": "go-live"})
 	var notZip bool
 	for _, f := range st.Files {
 		if f.Name == "notes.zip" && f.Status == "skipped" {

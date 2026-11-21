@@ -53,21 +53,30 @@ type CheckView struct {
 
 // State is everything the page shows.
 type State struct {
-	Screen    string      `json:"screen"`
-	OS        string      `json:"os"`
-	Arch      string      `json:"arch"`
-	Version   string      `json:"version"`
-	Mapper    string      `json:"mapper"`
-	Work      string      `json:"work"`
-	WorkFree  int64       `json:"work_free"`
-	Out       string      `json:"out"`
-	Server    Server      `json:"server"`
-	Files     []File      `json:"files"`
-	Job       *Job        `json:"job,omitempty"`
-	Found     []FoundRow  `json:"found,omitempty"`
-	Warnings  []string    `json:"warnings,omitempty"`
-	Firms     []pkg.Firm  `json:"firms,omitempty"`
-	Years     int         `json:"years"`
+	Screen   string     `json:"screen"`
+	OS       string     `json:"os"`
+	Arch     string     `json:"arch"`
+	Version  string     `json:"version"`
+	Mapper   string     `json:"mapper"`
+	Work     string     `json:"work"`
+	WorkFree int64      `json:"work_free"`
+	Out      string     `json:"out"`
+	Server   Server     `json:"server"`
+	Files    []File     `json:"files"`
+	Job      *Job       `json:"job,omitempty"`
+	Found    []FoundRow `json:"found,omitempty"`
+	Warnings []string   `json:"warnings,omitempty"`
+	Firms    []pkg.Firm `json:"firms,omitempty"`
+	Years    int        `json:"years"`
+	// Scope is "go-live" or "history" (empty: the older years-back choice);
+	// FYs the earlier years ticked; Chosen every year the package will hold;
+	// Available the company years that can be read, newest first; Current
+	// the financial year today falls in.
+	Scope     string      `json:"scope,omitempty"`
+	FYs       []string    `json:"fys,omitempty"`
+	Chosen    []string    `json:"chosen,omitempty"`
+	Available []string    `json:"available,omitempty"`
+	Current   string      `json:"current_fy"`
 	Live      []LiveRow   `json:"live,omitempty"`
 	Result    *ResultView `json:"result,omitempty"`
 	Passwords []File      `json:"passwords,omitempty"`
@@ -106,8 +115,10 @@ func (s *Session) State() State {
 	for _, d := range s.live {
 		st.Live = append(st.Live, LiveRow{Name: d.Name, Bytes: d.Bytes, Use: s.liveUse[d.Name]})
 	}
+	st.Current = run.CurrentFY(s.Now())
 	if sv := s.survey; sv != nil {
 		st.Years = sv.Years
+		st.Scope, st.FYs, st.Chosen, st.Available = sv.Scope, append([]string(nil), sv.FYs...), sv.ChosenFYs(), sv.Available()
 		st.Warnings = append([]string(nil), sv.Warnings...)
 		st.Firms = sv.Firms
 		for i, f := range sv.Found {
@@ -117,6 +128,9 @@ func (s *Session) State() State {
 			}
 			if row.Note == "" && f.Problem != "" {
 				row.Note = "Could not be read"
+			}
+			if f.Purpose != "" {
+				row.Note += ". " + f.Purpose
 			}
 			if !f.DB.BackupDate.IsZero() {
 				row.Date = f.DB.BackupDate.Format("02 Jan 2006 15:04")
