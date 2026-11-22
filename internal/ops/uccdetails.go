@@ -187,6 +187,14 @@ type uccSources struct {
 	apps    map[string]Application
 }
 
+// app is the client's online application, when there is one.
+func (s uccSources) app(ucc string) *Application {
+	if a, ok := s.apps[ucc]; ok {
+		return &a
+	}
+	return nil
+}
+
 func (o *Ops) uccSources(ctx context.Context, tenant string) uccSources {
 	s := uccSources{details: map[string]UCCDetails{}, apps: map[string]Application{}}
 	ds, _ := docs.List[UCCDetails](ctx, o.Docs, tenant, cUCCDetails, "")

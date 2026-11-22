@@ -171,8 +171,11 @@ func (o *Ops) RASStatement(ctx context.Context, tenant, settleDate, ucc string) 
 	if err != nil {
 		return ClientReport{}, err
 	}
+	// A client settled by retention alone (nothing paid) gets the
+	// statement too: NSE/INSP/73503 (9/2026), Annexure A-B item 28 lists
+	// retention statements not sent at settlement.
 	for _, b := range bs {
-		for _, it := range b.Items {
+		for _, it := range append(append([]RASItem(nil), b.Items...), b.Retained...) {
 			if it.UCC == strings.ToUpper(ucc) {
 				return o.rasStatement(ctx, tenant, b, it)
 			}
@@ -197,10 +200,14 @@ func (o *Ops) rasStatement(ctx context.Context, tenant string, b RASBatch, it RA
 		retained = money.Dec{}
 	}
 	rep.Summary = []SummaryItem{{Label: "Funds held", Value: "₹" + formatINR(credit), Type: ColMoney}, {Label: "Retained", Value: "₹" + formatINR(retained), Type: ColMoney}, {Label: "Paid to your bank", Value: "₹" + formatINR(paid), Type: ColMoney}, {Label: "Preference", Value: firstOf(c.RAS, "Quarterly"), Type: ColText}}
+	paidTo := "Paid to " + it.Bank + " A/c " + MaskAccount(it.Account) + " (" + it.IFSC + ")"
+	if paid.Sign() == 0 && it.Account == "" {
+		paidTo = "Paid to your bank (nothing: the balance was kept for your obligations and margin)"
+	}
 	rep.Sections = []Section{{Title: "Settlement", Columns: []Column{{"item", "Item", ColText}, {"amount", "Amount", ColMoney}}, Rows: [][]string{
 		{"Credit balance as on " + b.AsOf, formatINR(credit)},
 		{"Retained for obligations and margin (as allowed by SEBI)", formatINR(retained)},
-		{"Paid to " + it.Bank + " A/c " + MaskAccount(it.Account) + " (" + it.IFSC + ")", formatINR(paid)},
+		{paidTo, formatINR(paid)},
 	}}}
 	rep.Notes = []string{"Under SEBI's running account rules, funds not needed for your obligations and margin are returned to you at each settlement. If you find a difference, tell the firm within 30 days; you can also raise it with the exchange."}
 	return rep, nil

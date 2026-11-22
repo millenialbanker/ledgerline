@@ -635,7 +635,8 @@ func (o *Ops) SendStatements(ctx context.Context, tenant, actor, kind, period st
 			return res, err
 		}
 		for _, b := range bs {
-			for _, it := range b.Items {
+			// Clients settled by retention alone get the statement too.
+			for _, it := range append(append([]RASItem(nil), b.Items...), b.Retained...) {
 				if o.delivered(ctx, tenant, kind, period, it.UCC) {
 					res.Skipped++
 					continue

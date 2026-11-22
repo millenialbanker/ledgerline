@@ -41,10 +41,10 @@ Each failing test opens one **exception**, which is a card on the Ledgerline boa
 title: The self-inspection's tests and their rules
 screen: selfinspect
 roles: Compliance officer, Admin, Ops maker, Ops checker, Risk manager
-ask: list of self inspection tests; which circular does the test follow; segregation test; client money test; cuspa test; contract notes 24 hours test; complaints 21 days; payouts to registered bank; third party funds test; kyc test; inactive accounts test; ddpi test; alerts 45 days; holding statement test; segmon test; weekly statement test; debarred clients test; ucc test; bsda test; mnrl test; deceased clients test
+ask: list of self inspection tests; which circular does the test follow; ucc fields test; minor trading test; dealer terminals test; margin statement test; segregation test; client money test; cuspa test; contract notes 24 hours test; complaints 21 days; payouts to registered bank; third party funds test; kyc test; inactive accounts test; ddpi test; alerts 45 days; holding statement test; segmon test; weekly statement test; debarred clients test; ucc test; bsda test; mnrl test; deceased clients test
 related: self-inspection, self-inspection-exceptions
 
-Each test reuses the check Ledgerline already makes on its own screen. 23 are real; 1 waits for data.
+Each test reuses the check Ledgerline already makes on its own screen. 40 are real; 1 waits for data. The tests added from the penalty audit are explained in the help article "Penalty risks and how Ledgerline covers them".
 
 - **Client money fully covered** (high): the segregation check; SEBI/HO/MIRSD/MIRSD2/CIR/P/2016/95 of 26 September 2016, para 3.3.1.
 - **Running accounts settled on each client's chosen date** (high): SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197 of 28 December 2023 and the exchanges' joint calendar; idle balances returned on the upcoming monthly settlement date (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/1 of 6 January 2025).
@@ -61,6 +61,11 @@ Each test reuses the check Ledgerline already makes on its own screen. 23 are re
 - **Weekly statement of funds and securities** (medium): NSE/INSP/47227 of 3 February 2021 and NSE/INSP/48431 of 28 May 2021; to confirm that it still applies, since the 2025 investor charter lists monthly statements.
 - **No trades by debarred clients** (high): SEBI's debarment orders as the exchanges circulate them; needs the debarred list loaded with PANs.
 - **Client details match the exchanges' UCC records** (medium): NSE/ISC/73973 of 30 April 2026 and the exchanges' UCC answers.
+- **Client details at the exchanges match Ledgerline** (medium): the exchanges' UCC downloads of the last 45 days and what NSE's UCC API last accepted, field by field (PAN, mobile, e-mail, primary bank account, address); NSE/ISC/73973 and NSE/INSP/73503 items 46 and 47.
+- **Firm's demat accounts tagged and in the holding statement with their type** (high): NSE/INSP/55039 and NSE/INSP/55380.
+- **Trades only from registered terminals, by NISM-certified dealers** (high), **No derivatives or intraday trading in a minor's account** (high), **No trading before KYC is complete and validated** (high), **No mobile or e-mail shared by clients who are not one family** (medium): NSE/INSP/73503 of 27 March 2026 and SEBI/HO/MIRSD/FATF/P/CIR/2023/0144.
+- **Funds paid out within one working day of the client's request** (high): SEBI/MIRSD/SE/Cir-19/2009 of 3 December 2009.
+- **Daily margin statements sent by the next trading day** (medium) and **Statement of each running account settlement sent, retention included** (medium): NSE/INSP/73503 items 24 and 26 to 28; the days allowed are to confirm.
 - **Client mobiles on DoT's revocation list taken up in time** (medium): NSE/ISC/45168 of 29 July 2020, NSE/ISC/47834 of 31 March 2021 and NSE/ISC/72805 of 13 February 2026; the 3 business days and 30 days are the firm's practice (to confirm).
 - **Deceased clients' UCCs closed by the cut-off, with debits blocked** (high): NSE/ISC/77375 of 9 November 2026 and NSE/ISC/76893 of 14 October 2026; SEBI/HO/OIAE/OIAE_IAD-1/P/CIR/2023/0000000163 of 3 October 2023.
 - **BSDA review each quarter** (low), **The day's files received and made** (low) and **No compliance calendar duty overdue** (medium): the firm's own Periodic work, file timetable and calendar.

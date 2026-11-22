@@ -178,8 +178,14 @@ func TestOutgoingExchangeFiles(t *testing.T) {
 	if err != nil || json.Unmarshal(j, &msg) != nil || msg.Version != "1.0" || len(msg.Data.MsgID) != 20 || len(msg.Data.Req) != len(lines) {
 		t.Fatalf("api %s %v", j, err)
 	}
+	// The holding statement: the firm's tagged accounts in the day's CDSL
+	// statement of holding (firmdemats.go).
+	siPut(t, o, ctx, cFirmDematSnap, "cdsl|"+D, FirmDematSnap{Date: D, Accounts: []FirmDematSeen{{BOID: "1208169999000001", ISINs: 1, Qty: "5", Lines: []FirmDematLine{{ISIN: "INE000X01010", Total: "5", Pledged: "0"}}}}})
+	if _, err := o.SaveFirmDemats(ctx, T, "admin", map[string]string{"1208169999000001": "OWN"}, "FIRM01"); err != nil {
+		t.Fatal(err)
+	}
 	name, j, err = o.ExchangeFile(ctx, T, "priya.nair", "holding-statement-api", D, XFileOptions{})
-	if err != nil || !strings.HasPrefix(name, "AAACB1234C_HS_16102026_01") || !bytes.Contains(j, []byte(`"memberPan":"AAACB1234C"`)) {
+	if err != nil || !strings.HasPrefix(name, "AAACB1234C_HS_16102026_01") || !bytes.Contains(j, []byte(`"memberPan":"AAACB1234C"`)) || !bytes.Contains(j, []byte(`"accountType":"OWN"`)) {
 		t.Fatalf("holdings %s %v", name, err)
 	}
 	name, b, err = o.ExchangeFile(ctx, T, "priya.nair", "segmon-client-funds", D, XFileOptions{})

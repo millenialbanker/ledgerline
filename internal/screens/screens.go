@@ -39,7 +39,7 @@ var Nav = []Section{
 		g("automation", "Automation", s("autopilot", "Autopilot & work queue"), s("steps", "Steps & reminders"), s("jobs", "Scheduled jobs"), s("rpa", "Browser automations")),
 		g("calendar", "Calendar & circulars", s("periodic", "Periodic work"), s("circulars", "Circulars & duties"))}},
 	{Name: "Operations", Items: []Item{
-		g("filesg", "Files", s("xfiles", "Exchange files"), s("ccdata", "Clearing data"), s("files", "Other uploads & migration"), s("migrate", "Migration from old system")),
+		g("filesg", "Files", s("xfiles", "Exchange files"), s("ccdata", "Clearing data"), s("files", "Other uploads & migration"), s("migrate", "Migration from old system"), s("parallel", "Parallel run")),
 		s("recon", "Trade reconciliation"), s("billing", "Billing"), s("settlement", "Settlement"), s("notes", "Contract notes"),
 		g("clientsg", "Clients & onboarding", s("clients", "Clients"), s("apps", "Online applications"), s("changes", "Change requests"), s("uccapi", "Exchange UCC"), s("mnrl", "Revoked mobiles")),
 		s("corp", "Corporate actions"),

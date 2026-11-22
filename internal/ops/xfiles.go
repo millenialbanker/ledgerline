@@ -236,6 +236,13 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 		r.Loaded, r.Added, r.Skipped = "Loaded as exchange trades", res.Added, res.DuplicateRows
 		o.replaceProvisional(ctx, tenant, actor, f.Name, rows)
 	case "cdsl-holding":
+		// The firm's own accounts, for the holding statement (firmdemats.go).
+		sohDay, untagged := o.noteFirmDemats(ctx, tenant, actor, f.Name, rows)
+		defer func() {
+			if len(untagged) > 0 {
+				r.Note = strings.TrimSpace(r.Note + fmt.Sprintf(" %d demat accounts of the statement of holding (%s) belong to no client and are not tagged with their holding statement type: tag them in Settings → Firm demat accounts, or the holding statement for %s is not made.", len(untagged), strings.Join(untagged, ", "), fmtDay(sohDay)))
+			}
+		}()
 		csv, n, skipped, err := o.sohToHoldings(ctx, tenant, rows)
 		if err != nil {
 			fail(err)
@@ -709,66 +716,4 @@ func rows0(rows []map[string]string, k, def string) string {
 	return strings.TrimSpace(def)
 }
 
-// holdingStatementFile is the daily client holding report sent to the
-// exchanges through their API.
-func (o *Ops) holdingStatementFile(ctx context.Context, tenant string, s *xfile.Spec, set Settings, date string, vars xfile.Vars) (string, []byte, error) {
-	pan := firmPAN(set)
-	if pan == "" {
-		return "", nil, invalid("set the firm's PAN (or GSTIN) in Settings first")
-	}
-	hs, err := o.Holdings(ctx, tenant, "")
-	if err != nil {
-		return "", nil, err
-	}
-	cs, _ := o.ClientMap(ctx, tenant)
-	sort.SliceStable(hs, func(i, j int) bool {
-		return holdingIDAt(hs[i].UCC, hs[i].ISIN, hs[i].BOID) < holdingIDAt(hs[j].UCC, hs[j].ISIN, hs[j].BOID)
-	})
-	type item struct {
-		RecID           string `json:"recId"`
-		Dmat            string `json:"dmat"`
-		AccountType     string `json:"accountType"`
-		UCC             string `json:"ucc"`
-		ClientName      string `json:"clientName"`
-		PAN             string `json:"pan"`
-		ISIN            string `json:"isin"`
-		SecurityType    string `json:"securityType"`
-		NameOfCommodity string `json:"nameOfCommodity"`
-		UnitType        string `json:"unitType"`
-		TotalPldgQty    string `json:"totalPldgQty"`
-		FreeBalQty      string `json:"freeBalQty"`
-		TotalQty        string `json:"totalQty"`
-	}
-	d, _ := time.Parse("2006-01-02", date)
-	items := []item{}
-	// One item per demat account (the report is by account), with the
-	// quantities to the 3 decimal places the layout has.
-	for _, h := range hs {
-		if h.Qty.Sign() <= 0 {
-			continue
-		}
-		c := cs[h.UCC]
-		if c.DPOnly {
-			continue // not a trading client of the member
-		}
-		q3 := func(q money.Dec) string { return q.Fixed(3) }
-		items = append(items, item{RecID: fmt.Sprint(len(items) + 1), Dmat: holdingBO(c, h), AccountType: "OWN", UCC: h.UCC, ClientName: c.Name, PAN: c.PAN, ISIN: h.ISIN,
-			SecurityType: "EQ", NameOfCommodity: "NA", UnitType: "NA", TotalPldgQty: q3(h.Pledged), FreeBalQty: q3(h.Free()), TotalQty: q3(h.Qty)})
-	}
-	msg := struct {
-		MemberPan      string `json:"memberPan"`
-		FilePeriodDate string `json:"filePeriodDate"`
-		Date           string `json:"date"`
-		HoldingData    []item `json:"holdingData"`
-	}{pan, d.Format("02-01-2006"), d.Format("02-01-2006"), items}
-	b, err := json.Marshal(msg)
-	if err != nil {
-		return "", nil, err
-	}
-	vars["member_pan"] = pan
-	name, err := s.FileName(vars)
-	if err != nil {
-		return "", nil, invalid("%v", err)
-	}
-	return name, b, nil
-}
+// holdingStatementFile (the daily holding statement) is in firmdemats.go.

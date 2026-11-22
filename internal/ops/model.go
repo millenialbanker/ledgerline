@@ -314,6 +314,13 @@ type Settings struct {
 	// made from the first. Not used with the separate commodity ledger
 	// (map the account to Commodity in BankAccountLedgers there).
 	MCXOnlyBankAccounts []string `json:"mcx_only_bank_accounts,omitempty"`
+	// FirmDemats tags each of the firm's own demat accounts (BO ID) with
+	// its account type in the exchanges' holding statement (POOL, CM COLL,
+	// OWN, EPI, CLNT UNPAID…; NSE/INSP/55380). See firmdemats.go.
+	FirmDemats map[string]string `json:"firm_demats,omitempty"`
+	// FirmUCC is the member's own client code, as the holding statement
+	// reports it on each of the firm's accounts.
+	FirmUCC string `json:"firm_ucc,omitempty"`
 	// MCXMoneyApart keeps each client's MCX money as a balance of its own
 	// inside the one ledger (mcxearmark.go) for a firm with one bank
 	// account for all exchanges: no MCX-only account is needed. Money in
@@ -718,6 +725,11 @@ func (o *Ops) saveSettings(ctx context.Context, tenant, actor string, s Settings
 			return invalid("enter NSE Clearing's consumer key and secret in Settings → Connections (NSE Clearing allocation API) before switching sending on")
 		}
 	}
+	fd, err := checkFirmDemats(s.FirmDemats)
+	if err != nil {
+		return err
+	}
+	s.FirmDemats = fd
 	if s.WarnUtilPct < 1 || s.WarnUtilPct > 100 {
 		return invalid("watch threshold must be between 1 and 100")
 	}

@@ -171,9 +171,24 @@ func uccFromRow(r xfile.Row) uccValues {
 		"address": {g("address1"), g("address2"), g("address3"), g("pin")}}
 }
 
-func uccFromClient(c Client, d UCCDetails) uccValues {
+func uccFromClient(c Client, d UCCDetails, app *Application) uccValues {
 	return uccValues{"pan": {c.PAN}, "mobile": {c.Mobile}, "email": {c.Email}, "bank": {c.Bank.Account, c.Bank.IFSC},
-		"address": {d.Address1, d.Address2, d.Address3, d.PIN}}
+		"address": uccAddress(d, app)}
+}
+
+// uccAddress is the correspondence address lines and PIN as the UCC
+// record is made from them (nseuci.go): the client's UCC details, or the
+// online application's address.
+func uccAddress(d UCCDetails, app *Application) []string {
+	lines := [3]string{d.Address1, d.Address2, d.Address3}
+	pin := d.PIN
+	if app != nil {
+		if lines[0] == "" {
+			lines = splitAddress(app.Address)
+		}
+		pin = firstOf(pin, app.PIN)
+	}
+	return []string{lines[0], lines[1], lines[2], pin}
 }
 
 // prints are each field's fingerprint ("" when empty).
@@ -196,8 +211,8 @@ func (v uccValues) tails() map[string]string {
 }
 
 // uccClientPrints are a client's fingerprints as Ledgerline has the client.
-func uccClientPrints(c Client, d UCCDetails) map[string]string {
-	return uccFromClient(c, d).prints()
+func uccClientPrints(c Client, d UCCDetails, app *Application) map[string]string {
+	return uccFromClient(c, d, app).prints()
 }
 
 var reNameDate = regexp.MustCompile(`(\d{8})`)
@@ -355,7 +370,7 @@ func siUCCFields(e *siEnv) (siOut, error) {
 	if accepted > 0 {
 		s.input("NSE UCC API acceptances", e.date)
 	}
-	details := e.o.uccSources(e.ctx, e.tenant).details
+	src := e.o.uccSources(e.ctx, e.tenant)
 	byClient := map[string][]UCCDownloadRec{}
 	for _, r := range fresh {
 		byClient[r.UCC] = append(byClient[r.UCC], r)
@@ -371,7 +386,7 @@ func siUCCFields(e *siEnv) (siOut, error) {
 		if c.Status != "Active" || c.DPOnly {
 			continue
 		}
-		mine := uccClientPrints(c, details[u])
+		mine := uccClientPrints(c, src.details[u], src.app(u))
 		rs := byClient[u]
 		reg, hasReg := regBy[u]
 		if len(rs) == 0 && (!hasReg || len(reg.FieldPrints) == 0) {

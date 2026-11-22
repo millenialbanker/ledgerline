@@ -22,7 +22,9 @@ import (
 
 // ---- NSE holding statement by API ----
 //
-// Every trading member reports each client's demat holdings to NSE daily
+// Every trading member reports the holdings of its own demat accounts
+// (pool, own, client unpaid, collateral…, each with its account type;
+// firmdemats.go) to NSE daily
 // (each day of the week except Sunday, by the next trading day; a day can
 // only be sent once the day before it has been) through NSE's inspection
 // API. From NSE's public circulars NSE/INSP/55039 (28 December 2022) and
@@ -261,14 +263,14 @@ func nseHoldingProblems(items []holdingItem) []string {
 	var out []string
 	seen := map[string]bool{}
 	for _, it := range items {
-		who := it.UCC + " " + it.ISIN
+		who := MaskAccount(it.Dmat) + " " + it.ISIN
 		switch {
 		case it.Dmat == "" || len(it.Dmat) > 16:
-			out = append(out, who+": the demat account is missing on the client's record")
+			out = append(out, who+": the demat account is missing")
 		case it.ClientName == "":
-			out = append(out, who+": the client's name is missing")
+			out = append(out, who+": the name is missing")
 		case !rePAN.MatchString(it.PAN):
-			out = append(out, who+": the client's PAN is missing or not valid ("+MaskPAN(it.PAN)+")")
+			out = append(out, who+": the PAN is missing or not valid ("+MaskPAN(it.PAN)+")")
 		case len(it.ISIN) != 12:
 			out = append(out, who+": the ISIN is not 12 characters")
 		}

@@ -137,6 +137,7 @@ Closing a deceased client's UCCs | Ops checker, Compliance officer
 Closing out a short delivery | Ops checker
 Closing the day | Ops checker
 Closing the leave year | HR manager
+Comparing files in the parallel run | Ops maker, Ops checker, Compliance officer
 Completing HR checklist items (or the item's own role) | HR manager
 Confirming allocation | Ops checker, Risk manager
 Confirming payouts | Ops maker, Ops checker
@@ -225,6 +226,7 @@ Loading files | Ops maker, Ops checker, Risk manager, Compliance officer
 Loading revocation lists | Ops maker, Ops checker, Compliance officer
 Loading the KRAs' demise list | Ops maker, Ops checker, Compliance officer
 Loading the cash-equivalent collateral list | Ops maker, Ops checker, Risk manager
+Loading the exchanges' UCC downloads | Ops maker, Ops checker, Compliance officer
 Looking at NSE's extranet | Ops maker, Ops checker, Risk manager, Compliance officer
 MTF enrolment | Ops checker, Risk manager
 MTF margin calls | Ops checker, Risk manager
@@ -377,7 +379,9 @@ Seeing payroll | HR manager, Payroll
 Seeing registered phones and kiosks | HR manager
 Seeing security events and incidents | Compliance officer
 Seeing staff documents | HR manager
+Seeing the firm's demat accounts | Ops maker, Ops checker, Risk manager, Compliance officer
 Seeing the own-trading register | Compliance officer, HR manager
+Seeing the parallel run | Ops maker, Ops checker, Risk manager, Compliance officer
 Seeing the self-inspection | Ops maker, Ops checker, Risk manager, Compliance officer
 Seeing the staff certificate register | Compliance officer, HR manager
 Selling prepaid schemes | Ops maker, Ops checker, Branch staff
@@ -428,6 +432,7 @@ Switching AI off or on | Compliance officer
 Switching board email for the firm | Admin
 Switching modules on or off | Admin
 Switching the autopilot schedule | Admin
+Tagging the firm's demat accounts | Admin
 Taking a backup | Admin
 Taking the AP mappings as reported | Compliance officer
 Tendering for a client | Ops maker, Ops checker

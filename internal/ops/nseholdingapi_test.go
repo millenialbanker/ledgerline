@@ -13,8 +13,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"ledgerline/internal/docs"
 )
 
 // fakeNSEHolding is NSE's inspection API as NSE/INSP/55380 describes it.
@@ -112,11 +110,24 @@ func TestNSEHoldingAPI(t *testing.T) {
 	if _, err := o.NSEHoldingSubmit(ctx, T, "priya.nair", W); err == nil || !strings.Contains(err.Error(), "Connections") {
 		t.Fatalf("submitted without a connection: %v", err)
 	}
-	for _, c := range []Client{nseUCITestClient("HS001", "ABCPV1234K"), nseUCITestClient("HS002", "ABCPV1235K")} {
-		nseUCIAddClient(t, o, c, false)
+	// The firm's own accounts in the day's CDSL statement of holding
+	// (firmdemats.go): an OWN account and a client collateral account.
+	snap := func(date string, extra ...FirmDematLine) {
+		siPut(t, o, ctx, cFirmDematSnap, "cdsl|"+date, FirmDematSnap{Date: date, Accounts: []FirmDematSeen{
+			{BOID: "1208160000012345", ISINs: 1, Lines: append([]FirmDematLine{{ISIN: "INE000A01011", Total: "100", Pledged: "40"}}, extra...)},
+			{BOID: "1208160000099999", ISINs: 1, Lines: []FirmDematLine{{ISIN: "INE000B01012", Total: "5", Pledged: "0"}}}}})
 	}
-	_ = docs.Upsert(ctx, o.Docs, T, cHolding, holdingID("HS001", "INE000A01011"), Holding{UCC: "HS001", ISIN: "INE000A01011", Symbol: "AAA", Qty: dq(100), Pledged: dq(40)}, "test")
-	_ = docs.Upsert(ctx, o.Docs, T, cHolding, holdingID("HS002", "INE000B01012"), Holding{UCC: "HS002", ISIN: "INE000B01012", Symbol: "BBB", Qty: dq(5)}, "test")
+	for _, d := range []string{W, "2026-10-15", "2026-10-16"} {
+		snap(d)
+	}
+	set, _ := o.Settings(ctx, T)
+	set.Firm, set.FirmPAN = "Test Broking", "AAACB1234C"
+	if err := o.SaveSettings(ctx, T, "admin", set); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.SaveFirmDemats(ctx, T, "admin", map[string]string{"1208160000012345": "OWN", "1208160000099999": "CLNT COLL"}, "FIRM01"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := o.SaveConnection(ctx, T, "admin", connNSEHolding, map[string]string{"member": "90311", "send": "On", "url": srv.URL + "/inspectionapi"},
 		map[string]string{"password": "Hs@Pass12345", "secret_key": base64.StdEncoding.EncodeToString(key)}); err != nil {
 		t.Fatal(err)
@@ -135,20 +146,20 @@ func TestNSEHoldingAPI(t *testing.T) {
 		t.Fatalf("member PAN kept in full: %s", sub.File)
 	}
 	rows := f.uploads[0]["holdingData"].([]any)
-	if r := rows[0].(map[string]any); r["pan"] != "ABCPV1234K" || r["totalPldgQty"] != "40.000" || r["freeBalQty"] != "60.000" || r["dmat"] != "1208160000012345" {
+	if r := rows[0].(map[string]any); r["pan"] != "AAACB1234C" || r["ucc"] != "FIRM01" || r["accountType"] != "OWN" || r["totalPldgQty"] != "40.000" || r["freeBalQty"] != "60.000" || r["dmat"] != "1208160000012345" {
 		t.Fatalf("row %v", r)
 	}
 
 	// A record NSE rejects: the submission is partly accepted and a work item says why.
 	f.reply = `{"hdrCode":["603"],"ackId":"ACK2","hdrStatus":"PARTIAL_SUBMISSION","holdingData":[{"recId":"2","code":["905","917"],"status":"error"}]}`
 	sub, err = o.NSEHoldingSubmit(ctx, T, "priya.nair", W)
-	if err != nil || sub.Status != "Partly accepted" || sub.Seq != 2 || len(sub.Errors) != 1 || sub.Errors[0].UCC != "HS002" || !strings.Contains(sub.Errors[0].Plain, "client PAN is not right (905)") {
+	if err != nil || sub.Status != "Partly accepted" || sub.Seq != 2 || len(sub.Errors) != 1 || sub.Errors[0].UCC != "FIRM01" || !strings.Contains(sub.Errors[0].Plain, "client PAN is not right (905)") {
 		t.Fatalf("%+v %v", sub, err)
 	}
 	ws, _ := o.WorkItems(ctx, T, "Open")
 	found := false
 	for _, w := range ws {
-		found = found || (w.Process == "holding-api" && strings.Contains(w.Detail, "HS002 INE000B01012: the client PAN is not right (905)"))
+		found = found || (w.Process == "holding-api" && strings.Contains(w.Detail, "FIRM01 INE000B01012: the client PAN is not right (905)"))
 	}
 	if !found {
 		t.Fatal("no work item for the rejected record")
@@ -161,16 +172,15 @@ func TestNSEHoldingAPI(t *testing.T) {
 		t.Fatalf("%+v", sub)
 	}
 
-	// A client without a PAN is caught before anything is sent.
-	bad := nseUCITestClient("HS003", "")
-	nseUCIAddClient(t, o, bad, false)
-	_ = docs.Upsert(ctx, o.Docs, T, cHolding, holdingID("HS003", "INE000C01013"), Holding{UCC: "HS003", ISIN: "INE000C01013", Symbol: "CCC", Qty: dq(1)}, "test")
+	// A record that would fail NSE's checks (an ISIN of 11 characters) is
+	// caught before anything is sent.
+	snap(W, FirmDematLine{ISIN: "INE000C0101", Total: "1", Pledged: "0"})
 	n := len(f.uploads)
 	sub, _ = o.NSEHoldingSubmit(ctx, T, "priya.nair", W)
-	if sub.Status != "Not sent" || len(f.uploads) != n || len(sub.Errors) != 1 || !strings.Contains(sub.Errors[0].Plain, "HS003") {
+	if sub.Status != "Not sent" || len(f.uploads) != n || len(sub.Errors) != 1 || !strings.Contains(sub.Errors[0].Plain, "XXXXXXXXXXXX2345 INE000C0101") {
 		t.Fatalf("%+v", sub)
 	}
-	_ = docs.Upsert(ctx, o.Docs, T, cHolding, holdingID("HS003", "INE000C01013"), Holding{UCC: "HS003", ISIN: "INE000C01013", Symbol: "CCC"}, "test") // sold
+	snap(W)
 
 	// The tick: Friday's data waits for Friday's CDSL holding file, then goes once.
 	f.reply = ""

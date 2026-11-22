@@ -1150,6 +1150,7 @@ type NSEUCIResult struct {
 type nseUCIItem struct {
 	c       Client
 	d       UCCDetails
+	app     *Application
 	reg     NSEUCIReg
 	hasReg  bool
 	mapped  nseUCIMapped
@@ -1188,7 +1189,7 @@ func (o *Ops) nseUCIItems(ctx context.Context, tenant, member string, only map[s
 		if a, ok := src.apps[c.UCC]; ok {
 			app = &a
 		}
-		it := nseUCIItem{c: c, d: src.details[c.UCC], reg: reg, hasReg: hasReg}
+		it := nseUCIItem{c: c, d: src.details[c.UCC], app: app, reg: reg, hasReg: hasReg}
 		it.mapped = nseUCIMap(c, src.details[c.UCC], app, set, member, now, reg)
 		for _, r := range it.mapped.Records {
 			if reg.SegHash[r.Seg] != r.Hash {
@@ -1552,7 +1553,7 @@ func (o *Ops) NSEUCISend(ctx context.Context, tenant, actor string, uccs []strin
 			}
 			if reg.Status == nseUCIAccepted && len(segsSent) > 0 {
 				// What NSE now holds, for the self-inspection (uccfields.go).
-				reg.FieldPrints, reg.FieldPrintsAt = uccClientPrints(it.c, it.d), at
+				reg.FieldPrints, reg.FieldPrintsAt = uccClientPrints(it.c, it.d, it.app), at
 			}
 			if len(segsSent) > 0 {
 				res.Sent++
