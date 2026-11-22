@@ -51,7 +51,7 @@ var Nav = []Section{
 		s("mtf", "Margin trading (MTF)")}},
 	{Name: "Accounts", Items: []Item{s("ledger", "Ledger"),
 		g("moneyg", "Receipts & payouts", s("money", "Receipts & payouts"), s("bank", "Bank reconciliation"), s("ras", "Running account"), s("clientmoney", "Client money reconciliation")),
-		s("books", "Firm accounts & GST"),
+		s("books", "Firm accounts & GST"), s("firmsec", "Firm securities"),
 		g("brokg", "Brokerage & charges", s("brokerage", "Brokerage plans"), s("charges", "Charges calculator"), s("prepaid", "Prepaid schemes"))}},
 	{Name: "Compliance", Items: []Item{
 		g("regg", "Regulatory reports", s("reports", "Regulatory reports"), s("exdisc", "Exchange disclosures"), s("aictl", "AI controls")),

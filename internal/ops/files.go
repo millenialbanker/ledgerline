@@ -57,7 +57,7 @@ type masterSrc struct {
 }
 
 func masterSources() []masterSrc {
-	return append(append(append(baseSources(), brokerageSources()...), importSources()...), dpPlanSources()...)
+	return append(append(append(append(baseSources(), brokerageSources()...), importSources()...), dpPlanSources()...), firmSecSources()...)
 }
 
 func baseSources() []masterSrc {
@@ -281,6 +281,8 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		return o.prepareImport(ctx, tenant, actor, source, rows)
 	case "CLIENT-INTEREST":
 		return o.prepareClientInterest(ctx, tenant, actor, rows)
+	case "FIRM-LOTS", "FMV-2018":
+		return o.prepareFirmSec(ctx, tenant, actor, source, date, rows)
 	case "NRI-CAUTION":
 		return o.loadNRICaution(ctx, tenant, actor, date, rows)
 	case "NOMINEES":

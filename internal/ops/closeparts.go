@@ -390,6 +390,16 @@ func (o *Ops) ClosePart(ctx context.Context, tenant, actor, date, part, note str
 	if err := o.partOpenError(ctx, tenant, date, part); err != nil {
 		return st, err
 	}
+	if part == PartEquity {
+		// The firm's own trades are brought into the securities register
+		// once more before the day closes (firmsecregister.go), and the
+		// firm's demat accounts checked (firmsecrecon.go). Neither stops
+		// the close: a failure is a work item.
+		if _, err := o.fsAutoSync(ctx, tenant, date); err != nil {
+			o.raiseWork(ctx, tenant, "firmsec", "sync|"+date, "Firm's own trades not brought into the securities register", err.Error(), "", RoleChecker, "firmsec", date)
+		}
+		o.fsDematCheck(ctx, tenant, date)
+	}
 	next, n, err := o.RollPositions(ctx, tenant, actor, date, part)
 	if err != nil {
 		return st, fmt.Errorf("rolling %s positions forward: %w", strings.ToLower(p.Name), err)

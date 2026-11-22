@@ -943,6 +943,13 @@ func autoBilling(r *runCtx) error {
 		}
 	}
 	r.done += posted
+	// The firm's own trades go into the securities register once their
+	// bills give the charges (firmsecregister.go).
+	if fs, err := r.o.fsAutoSync(r.ctx, r.tenant, r.date); err != nil {
+		r.note("firm securities: %v", err)
+	} else if fs.New+fs.Changed > 0 {
+		r.note("firm securities: %d lines brought in", fs.New+fs.Changed)
+	}
 	r.note("%d bills posted", posted)
 	return nil
 }

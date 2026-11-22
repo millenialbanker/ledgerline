@@ -88,7 +88,7 @@ var routeScreens = map[string]string{
 	"connections": "connections", "backups": "backups", "data-exit": "dataexit", "data-exports": "dataexit", "period-archives": "dataexit",
 	"settings": "settings", "firm-profile": "settings", "signing": "settings",
 	"users": "users settings", "roles": "roles", "role-changes": "roles", "support-access": "supportaccess", "ui/policy": "layout",
-	"firm-practices": "practices", "go-live": "practices", "finspot-logins": "clients live",
+	"firm-practices": "practices", "firm-securities": "firmsec", "go-live": "practices", "finspot-logins": "clients live",
 	"mobile/settings": "staffapp clientapp", "mobile/staff-qr": "staffapp", "mobile/test-push": "staffapp",
 	// The staff app (/m/): the desktop screen each view mirrors. Its home
 	// and approvals list only the items of screens the roles include, and

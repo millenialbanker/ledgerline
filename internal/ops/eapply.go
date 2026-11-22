@@ -163,6 +163,22 @@ var AppDeclarations = map[string]string{
 	"correct": "The information I have given is true and complete.",
 }
 
+// appDeclarations are the declarations of a firm's application: the
+// fixed ones and, when the firm trades on its own account and its
+// practice is to disclose it (firmsecpractices.go), the proprietary
+// trading disclosure.
+func (o *Ops) appDeclarations(ctx context.Context, tenant string) map[string]string {
+	d := o.DisclosureDeclaration(ctx, tenant)
+	if d == "" {
+		return AppDeclarations
+	}
+	out := map[string]string{"prop": d}
+	for k, v := range AppDeclarations {
+		out[k] = v
+	}
+	return out
+}
+
 // ---- providers ----
 
 // KYCProvider runs the checks of an online application.
@@ -269,7 +285,7 @@ type AppConfig struct {
 // ApplyConfig describes the firm for the public page.
 func (o *Ops) ApplyConfig(ctx context.Context, tenant string) AppConfig {
 	set, _ := o.Settings(ctx, tenant)
-	return AppConfig{Firm: set.Firm, SEBIReg: set.SEBIReg, Email: set.ComplianceEmail, Provider: o.kycName(ctx, tenant), Dev: o.DevCodes, Segments: SegmentNames, Declare: AppDeclarations, Steps: AppSteps,
+	return AppConfig{Firm: set.Firm, SEBIReg: set.SEBIReg, Email: set.ComplianceEmail, Provider: o.kycName(ctx, tenant), Dev: o.DevCodes, Segments: SegmentNames, Declare: o.appDeclarations(ctx, tenant), Steps: AppSteps,
 		DocKinds: []string{"PAN card", "Photograph", "Signature", "Income proof", "Bank proof"}, DigiLockerRedirect: isFlow(o.kyc()), AadhaarMethods: o.aadhaarMethods(ctx), FATCA: FATCACodeLists()}
 }
 
@@ -713,9 +729,10 @@ func (o *Ops) AppForm(ctx context.Context, tenant string, a Application) ([]byte
 		segs = append(segs, SegmentNames[s])
 	}
 	decl := []string{}
-	for _, k := range sortedKeys(AppDeclarations) {
+	all := o.appDeclarations(ctx, tenant)
+	for _, k := range sortedKeys(all) {
 		if a.Declarations[k] {
-			decl = append(decl, AppDeclarations[k])
+			decl = append(decl, all[k])
 		}
 	}
 	var b bytes.Buffer
@@ -755,7 +772,7 @@ func (o *Ops) SignApplication(ctx context.Context, tenant, secret string, declar
 	if len(missing) > 0 {
 		return a, nil, invalid("finish these steps first: %s", strings.Join(missing, ", "))
 	}
-	for k := range AppDeclarations {
+	for k := range o.appDeclarations(ctx, tenant) {
 		if !declarations[k] {
 			return a, nil, invalid("accept every declaration to sign")
 		}

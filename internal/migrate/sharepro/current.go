@@ -633,6 +633,11 @@ func (c *cur) run(ctx context.Context) error {
 		}
 	}
 	c.rep.infof("Holding lots", "", "no-lots", "SharePro keeps no purchase lots or average cost for DP holdings; HOLDING-LOTS is not written and DP-HOLDINGS has no AvgCost. Load purchase history from the client's broker statements if needed")
+	// The firm's own stock register: no SharePro table holding the firm's
+	// own lots (acquisition date and cost per lot) has been confirmed
+	// against a backup, so FIRM-LOTS is not written; the firm loads it
+	// from its own stock register (Firm securities, firmsecload.go).
+	c.rep.infof("Firm's own securities", "", "no-firm-lots", "The firm's own holdings lot by lot (FIRM-LOTS) are not read from SharePro: load them from the firm's stock register as at the day before go-live")
 	c.rep.infof("Brokerage", "", "no-scrip-groups", "SharePro has no scrip groups for brokerage (DLGROUP holds client groups); SCRIP-GROUPS is not written")
 	return nil
 }
