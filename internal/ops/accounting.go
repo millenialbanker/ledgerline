@@ -7,6 +7,8 @@ import (
 	"html/template"
 	"sort"
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ledger"
@@ -32,23 +34,29 @@ const (
 	InputSGST = "RECEIVABLE:GST_INPUT:SGST"
 )
 
-// Account is an entry in the chart of accounts.
+// Account is an entry in the chart of accounts. People know it by its
+// name (unique in the firm) and an optional alias; the code is made by
+// Ledgerline (chart.go) and kept inside.
 type Account struct {
 	Code         string       `json:"code"`
 	Name         string       `json:"name"`
-	Group        string       `json:"group"`
+	Alias        string       `json:"alias,omitempty"`
+	Head         string       `json:"head,omitempty"` // head ID; empty: the default head for the code
+	Group        string       `json:"group"`          // the level-2 head's name, as shown
 	Type         string       `json:"type"`
 	Restricted   bool         `json:"restricted"`
 	AllowedUsers []string     `json:"allowed_users"`
 	System       bool         `json:"system"`
+	Status       string       `json:"status,omitempty"` // Active, Pending (made at voucher entry, waiting for a checker), Rejected
+	CreatedBy    string       `json:"created_by,omitempty"`
+	Created      string       `json:"created,omitempty"`
+	Checker      string       `json:"checker,omitempty"`
+	Reason       string       `json:"reason,omitempty"`
 	Balance      money.Amount `json:"balance"` // debit positive, as of the requested date
-}
-
-// Groups by account-code prefix, in balance-sheet order.
-var accountGroups = map[string]string{
-	"BANK": "Bank balances", "CASH": "Cash", "CC": "Clearing corporations", "RECEIVABLE": "Receivables and advances", "ASSET": "Fixed and other assets",
-	"CLIENT": "Clients", "PAYABLE": "Duties, taxes and payables", "AP": "Authorised persons", "LOAN": "Loans and borrowings", "SUSPENSE": "Suspense",
-	"EQUITY": "Capital and reserves", "INCOME": "Income", "EXPENSE": "Expenses",
+	// Worked out when listed.
+	HeadName string `json:"head_name,omitempty"`
+	SubHead  string `json:"sub_head,omitempty"`
+	Level1   string `json:"level1,omitempty"`
 }
 
 var systemNames = map[string]string{
@@ -70,9 +78,16 @@ func accountType(code string) string {
 	return string(t)
 }
 
+// accountGroup is the name of the default head a code is shown under
+// (for records that store it; listings work it out afresh).
 func accountGroup(code string) string {
-	p, _, _ := strings.Cut(code, ":")
-	return accountGroups[p]
+	id := defaultHeadOf(code)
+	for _, d := range defaultHeads {
+		if d.id == id {
+			return d.name
+		}
+	}
+	return ""
 }
 
 // accountMaster returns the saved accounts by code.
@@ -104,45 +119,36 @@ func (o *Ops) AccountVisible(ctx context.Context, tenant, actor string) func(str
 }
 
 // Accounts is the chart of accounts with balances as of a date: every
-// saved account and every account the journal has used, clients folded
-// into one line.
+// saved account, every system account and every account the journal has
+// used, each with its head, and clients folded into one line.
 func (o *Ops) Accounts(ctx context.Context, tenant, actor, asOf string) ([]Account, error) {
 	bal, err := o.App.Ledger.Balances(ctx, tenant, asOf)
 	if err != nil {
 		return nil, err
 	}
 	m := o.accountMaster(ctx, tenant)
-	seen := map[string]bool{}
+	hs := o.heads(ctx, tenant)
 	var out []Account
 	vis := o.AccountVisible(ctx, tenant, actor)
 	var clients money.Amount
 	nClients := 0
 	seenClient := map[string]bool{} // a client's equity, commodity and awaiting ledgers are one client
-	add := func(code string) {
-		if seen[code] {
-			return
+	for _, code := range chartCodes(m, bal) {
+		if !vis(code) {
+			continue
 		}
-		seen[code] = true
 		a, ok := m[code]
 		if !ok {
-			a = Account{Code: code, Name: systemNames[code], System: true}
-			if a.Name == "" {
-				_, q, _ := strings.Cut(code, ":")
-				a.Name = strings.ReplaceAll(strings.Title(strings.ToLower(strings.ReplaceAll(q, "_", " "))), ":", " · ") //nolint:staticcheck
-			}
+			a = Account{Code: code, System: true}
 		}
-		a.Type, a.Group = accountType(code), accountGroup(code)
+		a.Name = accountName(code, m)
+		a = o.decorate(hs, a, m)
+		a.Type = accountType(code)
 		if a.AllowedUsers == nil {
 			a.AllowedUsers = []string{}
 		}
-		if !vis(code) {
-			return
-		}
 		a.Balance = bal[code]
 		out = append(out, a)
-	}
-	for _, code := range sortedKeys(m) {
-		add(code)
 	}
 	for _, code := range sortedKeys(bal) {
 		if u, _, ok := ledger.ClientCode(code); ok {
@@ -151,43 +157,98 @@ func (o *Ops) Accounts(ctx context.Context, tenant, actor, asOf string) ([]Accou
 				seenClient[u] = true
 				nClients++
 			}
-			continue
 		}
-		add(code)
 	}
-	out = append(out, Account{Code: "CLIENT:*", Name: fmt.Sprintf("Client ledgers (%d)", nClients), Group: accountGroups["CLIENT"], Type: string(ledger.Liability), System: true, Balance: clients, AllowedUsers: []string{}})
+	out = append(out, Account{Code: "CLIENT:*", Name: fmt.Sprintf("Client ledgers (%d)", nClients), Group: "Clients", Type: string(ledger.Liability), System: true, Balance: clients, AllowedUsers: []string{}, Status: accountActive, Level1: L1Liabilities})
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Code < out[j].Code })
 	return out, nil
 }
 
-// SaveAccount adds or changes an account in the chart of accounts.
+// SaveAccount adds an account to the chart of accounts, or changes one's
+// name, alias or who may see it. A new account needs only a name and the
+// head it goes under: Ledgerline makes its code. An old-style call with a
+// code still works, so codes the firm used before keep working. Moving
+// an account to another head goes through RequestAccountMove.
 func (o *Ops) SaveAccount(ctx context.Context, tenant, actor string, a Account) (Account, error) {
 	if err := o.require(ctx, tenant, actor, "Changing the chart of accounts", RoleChecker); err != nil {
 		return a, err
 	}
 	a.Code = strings.ToUpper(strings.TrimSpace(a.Code))
-	if _, err := ledger.TypeOf(a.Code); err != nil {
-		return a, invalid("%v; use a prefix such as EXPENSE:, INCOME:, BANK:, CASH:, ASSET:, LOAN:, PAYABLE:, RECEIVABLE: or EQUITY:", err)
-	}
-	if ledger.IsClientAccount(a.Code) || strings.HasPrefix(a.Code, "CC:") {
-		return a, invalid("client and clearing accounts are created by the system")
-	}
-	if strings.TrimSpace(a.Name) == "" {
+	a.Name, a.Alias = strings.Join(strings.Fields(a.Name), " "), strings.Join(strings.Fields(a.Alias), " ")
+	if a.Name == "" {
 		return a, invalid("give the account a name")
 	}
-	a.Type, a.Group, a.System = accountType(a.Code), accountGroup(a.Code), false
+	if utf8.RuneCountInString(a.Alias) > 24 {
+		return a, invalid("keep the alias short (24 letters at most)")
+	}
+	hs := o.heads(ctx, tenant)
+	m := o.accountMaster(ctx, tenant)
+	old, exists := m[a.Code]
+	if a.Code == "" {
+		h, err := hs.headForNew(a.Head)
+		if err != nil {
+			return a, err
+		}
+		if err := checkAccountNames(m, "", a.Name, a.Alias); err != nil {
+			return a, err
+		}
+		code, err := o.newCode(ctx, tenant, actor, h.Prefix, m)
+		if err != nil {
+			return a, err
+		}
+		a.Code, a.Head, a.Status, a.CreatedBy, a.Created = code, h.ID, accountActive, actor, o.now().Format(time.RFC3339)
+	} else {
+		t, err := ledger.TypeOf(a.Code)
+		if err != nil {
+			return a, invalid("%v", err)
+		}
+		if ledger.IsClientAccount(a.Code) || strings.HasPrefix(a.Code, "CC:") && !exists {
+			return a, invalid("client and clearing accounts are created by the system")
+		}
+		if exists && old.Status == accountRejected {
+			return a, invalid("%s was rejected", old.Name)
+		}
+		cur := hs.headOf(a.Code, m)
+		switch {
+		case a.Head == "" || a.Head == cur:
+			a.Head = old.Head
+		case !exists && systemNames[a.Code] == "":
+			// A new account with an old-style code may name its head.
+			h, ok := hs.get(a.Head)
+			if !ok || h.Clients || h.Level1 != level1Of(t) {
+				return a, invalid("choose a head under %s for this account", level1Of(t))
+			}
+		default:
+			return a, invalid("to put an account under another head, ask for a move; a second person approves it")
+		}
+		if err := checkAccountNames(m, a.Code, a.Name, a.Alias); err != nil {
+			return a, err
+		}
+		if exists {
+			a.System, a.Status, a.CreatedBy, a.Created, a.Checker = old.System, old.Status, old.CreatedBy, old.Created, old.Checker
+		} else {
+			a.System, a.Status, a.CreatedBy, a.Created = systemNames[a.Code] != "", accountActive, actor, o.now().Format(time.RFC3339)
+		}
+	}
+	a.Type = accountType(a.Code)
 	if a.AllowedUsers == nil {
 		a.AllowedUsers = []string{}
 	}
 	if a.Restricted && len(a.AllowedUsers) == 0 {
 		a.AllowedUsers = []string{actor}
 	}
-	a.Balance = 0
+	a.Balance, a.HeadName, a.SubHead, a.Level1 = 0, "", "", ""
+	a.Group = accountGroup(a.Code)
+	if h, ok := hs.get(hs.headOf(a.Code, map[string]Account{a.Code: a})); ok {
+		a.Group = h.Name
+	}
 	if err := docs.Upsert(ctx, o.Docs, tenant, cAccount, a.Code, a, actor); err != nil {
 		return a, err
 	}
-	o.log(ctx, tenant, actor, "account.saved", a.Code, map[string]any{"name": a.Name, "restricted": a.Restricted})
-	return a, nil
+	o.indexChanged(tenant)
+	o.log(ctx, tenant, actor, "account.saved", a.Code, map[string]any{"name": a.Name, "alias": a.Alias, "restricted": a.Restricted})
+	m[a.Code] = a
+	return o.decorate(hs, a, m), nil
 }
 
 // VoucherLine is one line of a voucher.
@@ -196,25 +257,31 @@ type VoucherLine struct {
 	Debit   money.Amount `json:"debit"`
 	Credit  money.Amount `json:"credit"`
 	Memo    string       `json:"memo,omitempty"`
+	Name    string       `json:"name,omitempty"` // the account's name, filled in when listed
 }
 
 // Voucher is a payment, receipt, journal or contra entry of the firm.
 type Voucher struct {
-	No        string        `json:"no"`
-	Type      string        `json:"type"` // Payment, Receipt, Journal, Contra
-	Date      string        `json:"date"`
-	Branch    string        `json:"branch,omitempty"`
-	Party     string        `json:"party,omitempty"`
-	Ref       string        `json:"ref,omitempty"` // cheque number or UTR
-	Narration string        `json:"narration"`
-	Lines     []VoucherLine `json:"lines"`
-	Total     money.Amount  `json:"total"`
-	Status    string        `json:"status"` // Pending, Posted, Rejected, Cancelled
-	Maker     string        `json:"maker"`
-	Checker   string        `json:"checker,omitempty"`
-	Entry     string        `json:"entry,omitempty"`
-	Reason    string        `json:"reason,omitempty"`
-	Bill      string        `json:"bill,omitempty"` // vendor bill booked or paid by it
+	No     string `json:"no"`
+	Type   string `json:"type"` // Payment, Receipt, Journal, Contra
+	Date   string `json:"date"`
+	Branch string `json:"branch,omitempty"`
+	Party  string `json:"party,omitempty"`
+	// PartyAccount is the account picked as the party, when one was.
+	PartyAccount string        `json:"party_account,omitempty"`
+	Ref          string        `json:"ref,omitempty"` // cheque number or UTR
+	Narration    string        `json:"narration"`
+	Lines        []VoucherLine `json:"lines"`
+	Total        money.Amount  `json:"total"`
+	Status       string        `json:"status"` // Pending, Posted, Rejected, Cancelled
+	Maker        string        `json:"maker"`
+	Checker      string        `json:"checker,omitempty"`
+	Entry        string        `json:"entry,omitempty"`
+	Reason       string        `json:"reason,omitempty"`
+	Bill         string        `json:"bill,omitempty"` // vendor bill booked or paid by it
+	// NewAccounts are the accounts on a pending voucher that wait for a
+	// checker; approving the voucher approves them. Filled in when listed.
+	NewAccounts []Account `json:"new_accounts,omitempty"`
 }
 
 var voucherSeries = map[string]string{"Payment": "PV", "Receipt": "RV", "Journal": "JV", "Contra": "CV"}
@@ -230,11 +297,31 @@ func (o *Ops) Vouchers(ctx context.Context, tenant, actor string) ([]Voucher, er
 		return nil, err
 	}
 	vis := o.AccountVisible(ctx, tenant, actor)
+	m := o.accountMaster(ctx, tenant)
+	var cs map[string]Client
 	out := []Voucher{}
 	for _, v := range vs {
 		ok := true
-		for _, l := range v.Lines {
+		for i, l := range v.Lines {
 			ok = ok && vis(l.Account)
+			if u, kind, isClient := ledger.ClientCode(l.Account); isClient {
+				if cs == nil {
+					cs, _ = o.ClientMap(ctx, tenant)
+				}
+				n := cs[u].Name
+				if n == "" {
+					n = u
+				}
+				if kind == ledger.LedgerCommodity {
+					n += " · Commodity ledger"
+				}
+				v.Lines[i].Name = n + " (" + u + ")"
+			} else {
+				v.Lines[i].Name = accountName(l.Account, m)
+			}
+			if a, has := m[l.Account]; has && a.Status == accountPending && v.Status == "Pending" {
+				v.NewAccounts = append(v.NewAccounts, a)
+			}
 		}
 		if ok {
 			out = append(out, v)
@@ -274,6 +361,13 @@ func (o *Ops) saveVoucher(ctx context.Context, tenant, actor string, v Voucher) 
 		return v, err
 	}
 	vis := o.AccountVisible(ctx, tenant, actor)
+	master := o.accountMaster(ctx, tenant)
+	v.PartyAccount = strings.ToUpper(strings.TrimSpace(v.PartyAccount))
+	if v.PartyAccount != "" {
+		if _, err := ledger.TypeOf(v.PartyAccount); err != nil {
+			return v, invalid("party: %v", err)
+		}
+	}
 	var dr, cr money.Amount
 	var lines []VoucherLine
 	moneyDr, moneyCr := 0, 0
@@ -290,6 +384,9 @@ func (o *Ops) saveVoucher(ctx context.Context, tenant, actor string, v Voucher) 
 		}
 		if !vis(l.Account) {
 			return v, fmt.Errorf("%w: you cannot post to %s", ErrForbidden, l.Account)
+		}
+		if a, ok := master[l.Account]; ok && a.Status == accountRejected {
+			return v, invalid("line %d: the account %s was rejected by the checker (%s)", i+1, a.Name, a.Reason)
 		}
 		if ledger.IsClientAccount(l.Account) && v.Type != "Journal" {
 			return v, invalid("client money moves through Receipts & payouts; use a journal voucher only for adjustments")
@@ -337,7 +434,10 @@ func (o *Ops) saveVoucher(ctx context.Context, tenant, actor string, v Voucher) 
 		return v, err
 	}
 	v.No = fmt.Sprintf("%s/%s/%05d", series, finYear(v.Date), n)
-	v.Lines, v.Total, v.Status, v.Maker, v.Checker, v.Entry = lines, dr, "Pending", actor, "", ""
+	for i := range lines {
+		lines[i].Name = ""
+	}
+	v.Lines, v.Total, v.Status, v.Maker, v.Checker, v.Entry, v.NewAccounts = lines, dr, "Pending", actor, "", "", nil
 	if _, err := docs.Put(ctx, o.Docs, tenant, cVoucher, strings.ReplaceAll(v.No, "/", "-"), v, 0, actor); err != nil {
 		return v, err
 	}
@@ -348,6 +448,15 @@ func (o *Ops) saveVoucher(ctx context.Context, tenant, actor string, v Voucher) 
 // DecideVoucher posts (approve) or rejects a pending voucher, or cancels a
 // posted one by reversing it.
 func (o *Ops) DecideVoucher(ctx context.Context, tenant, actor, no, action, reason string) (Voucher, error) {
+	return o.DecideVoucherAccounts(ctx, tenant, actor, no, action, reason, nil)
+}
+
+// DecideVoucherAccounts is DecideVoucher where the checker also rejects
+// some of the voucher's new accounts with the voucher (rejectAccounts,
+// with the same reason). Approving a voucher approves the new accounts it
+// uses, in the same step: the checker may not be the person who made
+// them, and a voucher with a rejected account cannot post.
+func (o *Ops) DecideVoucherAccounts(ctx context.Context, tenant, actor, no, action, reason string, rejectAccounts []string) (Voucher, error) {
 	if err := o.require(ctx, tenant, actor, "Approving vouchers", RoleChecker); err != nil {
 		return Voucher{}, err
 	}
@@ -367,6 +476,23 @@ func (o *Ops) DecideVoucher(ctx context.Context, tenant, actor, no, action, reas
 		if v.Maker == actor {
 			return v, fmt.Errorf("%w: the maker of a voucher cannot approve it", ErrForbidden)
 		}
+		m := o.accountMaster(ctx, tenant)
+		var pending []string
+		for _, l := range v.Lines {
+			a, ok := m[l.Account]
+			switch {
+			case !ok:
+			case a.Status == accountRejected:
+				return v, fmt.Errorf("%w: the account %s on this voucher was rejected (%s); reject the voucher and enter it again", ErrState, a.Name, a.Reason)
+			case a.Status == accountPending:
+				if a.CreatedBy == actor {
+					return v, fmt.Errorf("%w: you made the new account %s; another checker approves the voucher", ErrForbidden, a.Name)
+				}
+				if !contains(pending, a.Code) {
+					pending = append(pending, a.Code)
+				}
+			}
+		}
 		ps := make([]ledger.Posting, len(v.Lines))
 		for i, l := range v.Lines {
 			ps[i] = ledger.Posting{Account: l.Account, Debit: l.Debit, Credit: l.Credit, Memo: l.Memo}
@@ -381,12 +507,31 @@ func (o *Ops) DecideVoucher(ctx context.Context, tenant, actor, no, action, reas
 			return v, err
 		}
 		v.Status, v.Checker, v.Entry = "Posted", actor, e.ID
+		for _, code := range pending {
+			if _, err := o.decideAccount(ctx, tenant, actor, code, "approve", ""); err != nil {
+				return v, err
+			}
+		}
+		o.indexChanged(tenant)
 	case "reject":
 		if v.Status != "Pending" {
 			return v, fmt.Errorf("%w: %s is %s", ErrState, no, v.Status)
 		}
 		if strings.TrimSpace(reason) == "" {
 			return v, invalid("give the reason for rejecting")
+		}
+		m := o.accountMaster(ctx, tenant)
+		for _, code := range rejectAccounts {
+			on := false
+			for _, l := range v.Lines {
+				on = on || l.Account == code
+			}
+			if a, ok := m[code]; !on || !ok || a.Status != accountPending {
+				return v, invalid("%s is not a new account on this voucher", code)
+			}
+			if _, err := o.decideAccount(ctx, tenant, actor, code, "reject", reason); err != nil {
+				return v, err
+			}
 		}
 		v.Status, v.Checker, v.Reason = "Rejected", actor, reason
 	case "cancel":
@@ -400,6 +545,7 @@ func (o *Ops) DecideVoucher(ctx context.Context, tenant, actor, no, action, reas
 			return v, err
 		}
 		v.Status, v.Reason = "Cancelled", reason
+		o.indexChanged(tenant)
 	default:
 		return v, invalid("action must be approve, reject or cancel")
 	}
@@ -412,17 +558,23 @@ func (o *Ops) DecideVoucher(ctx context.Context, tenant, actor, no, action, reas
 
 // ---- financial statements ----
 
-// StatementLine is one account line of a financial statement.
+// FinLine is one account line of a financial statement.
 type FinLine struct {
 	Code   string       `json:"code"`
 	Name   string       `json:"name"`
 	Amount money.Amount `json:"amount"` // positive in the section's natural direction
 }
 
-// FinSection is a group of lines.
+// FinSection is a head on a statement: its accounts, its sub-heads and
+// their total. The income and expenses sections are level 1 and list
+// every account in Lines as well as the heads in Heads; on the balance
+// sheet each section is a level-2 head whose Lines are the accounts
+// directly under it.
 type FinSection struct {
+	ID    string       `json:"id,omitempty"`
 	Title string       `json:"title"`
 	Lines []FinLine    `json:"lines"`
+	Heads []FinSection `json:"heads"`
 	Total money.Amount `json:"total"`
 }
 
@@ -445,7 +597,8 @@ type Financials struct {
 
 // Financials builds P&L for from..to and the balance sheet as at to. With
 // a branch, the P&L counts only that branch's income and expenses: client
-// income by the client's branch, vouchers by their branch.
+// income by the client's branch, vouchers by their branch. Both are laid
+// out by heads (chart.go): level 1, level 2, sub-heads, accounts.
 func (o *Ops) Financials(ctx context.Context, tenant, actor, from, to, branch string) (Financials, error) {
 	if !ledger.ValidDate(from) || !ledger.ValidDate(to) || from > to {
 		return Financials{}, invalid("give a period: from on or before to")
@@ -467,18 +620,14 @@ func (o *Ops) Financials(ctx context.Context, tenant, actor, from, to, branch st
 		}
 	}
 	f.Branches = sortedKeys(bset)
-	names := map[string]string{}
-	for _, a := range o.accountMaster(ctx, tenant) {
-		names[a.Code] = a.Name
-	}
+	m := o.accountMaster(ctx, tenant)
+	hs := o.heads(ctx, tenant)
+	extra := map[string]string{"CLIENT:DR": "Clients with debit balances", "CLIENT:CR": "Clients with credit balances", "PROFIT": "Profit and loss account"}
 	name := func(code string) string {
-		if n := names[code]; n != "" {
+		if n := extra[code]; n != "" {
 			return n
 		}
-		if n := systemNames[code]; n != "" {
-			return n
-		}
-		return code
+		return accountName(code, m)
 	}
 	vis := o.AccountVisible(ctx, tenant, actor)
 	es, err := o.App.Ledger.Store.List(ctx, tenant, ledger.Filter{From: from, To: to})
@@ -525,23 +674,94 @@ func (o *Ops) Financials(ctx context.Context, tenant, actor, from, to, branch st
 			}
 		}
 	}
-	section := func(title string, m map[string]money.Amount) FinSection {
-		s := FinSection{Title: title, Lines: []FinLine{}}
+	// lines makes the lines of a set of accounts, restricted ones folded.
+	lines := func(m map[string]money.Amount) ([]FinLine, money.Amount) {
+		out := []FinLine{}
+		var tot, hidden money.Amount
 		for _, k := range sortedKeys(m) {
 			if m[k] == 0 {
 				continue
 			}
 			if !vis(k) {
-				k2 := "Restricted accounts"
-				s.Lines = append(s.Lines, FinLine{Code: "", Name: k2, Amount: m[k]})
+				hidden += m[k]
 			} else {
-				s.Lines = append(s.Lines, FinLine{Code: k, Name: name(k), Amount: m[k]})
+				out = append(out, FinLine{Code: k, Name: name(k), Amount: m[k]})
 			}
-			s.Total += m[k]
+			tot += m[k]
+		}
+		if hidden != 0 {
+			out = append(out, FinLine{Name: "Restricted accounts", Amount: hidden})
+		}
+		return out, tot
+	}
+	// tree lays out amounts by head: byHead[head][code] = amount.
+	var tree func(h *AccountHead, byHead map[string]map[string]money.Amount) FinSection
+	tree = func(h *AccountHead, byHead map[string]map[string]money.Amount) FinSection {
+		s := FinSection{ID: h.ID, Title: h.Name, Heads: []FinSection{}}
+		s.Lines, s.Total = lines(byHead[h.ID])
+		for _, c := range hs.children(h.ID, h.Level1) {
+			cs := tree(c, byHead)
+			if len(cs.Lines) == 0 && len(cs.Heads) == 0 {
+				continue
+			}
+			s.Heads = append(s.Heads, cs)
+			s.Total += cs.Total
 		}
 		return s
 	}
-	f.Income, f.Expenses = section("Income", inc), section("Expenses", exp)
+	// level2 lays out one level-1 head; an account whose head cannot be
+	// found goes in a last "Other" section so totals never drop anything.
+	level2 := func(l1 string, byHead map[string]map[string]money.Amount) []FinSection {
+		out := []FinSection{}
+		placed := map[string]bool{}
+		var mark func(id string)
+		mark = func(id string) {
+			placed[id] = true
+			for _, c := range hs.children(id, l1) {
+				mark(c.ID)
+			}
+		}
+		for _, h := range hs.children("", l1) {
+			mark(h.ID)
+			s := tree(h, byHead)
+			if len(s.Lines) == 0 && len(s.Heads) == 0 {
+				continue
+			}
+			out = append(out, s)
+		}
+		rest := map[string]money.Amount{}
+		for id, am := range byHead {
+			if placed[id] {
+				continue
+			}
+			for k, v := range am {
+				rest[k] += v
+			}
+		}
+		if ls, tot := lines(rest); len(ls) > 0 {
+			out = append(out, FinSection{ID: l1 + "-OTHER", Title: "Other " + strings.ToLower(l1), Lines: ls, Heads: []FinSection{}, Total: tot})
+		}
+		return out
+	}
+	byHead := func(amts map[string]money.Amount) map[string]map[string]money.Amount {
+		out := map[string]map[string]money.Amount{}
+		for k, v := range amts {
+			h := hs.headOf(k, m)
+			if out[h] == nil {
+				out[h] = map[string]money.Amount{}
+			}
+			out[h][k] += v
+		}
+		return out
+	}
+	level1 := func(title string, amts map[string]money.Amount) FinSection {
+		s := FinSection{ID: title, Title: title}
+		s.Lines, s.Total = lines(amts)
+		s.Heads = level2(title, byHead(amts))
+		return s
+	}
+	f.Income, f.Expenses = level1(L1Income, inc), level1(L1Expenditure, exp)
+	f.Expenses.Title = "Expenses"
 	f.Profit = f.Income.Total - f.Expenses.Total
 	if branch != "" {
 		return f, nil // a branch has no balance sheet of its own
@@ -553,6 +773,7 @@ func (o *Ops) Financials(ctx context.Context, tenant, actor, from, to, branch st
 	// Retained profit: all income less expenses up to `to`.
 	var retained money.Amount
 	asset, liab := map[string]map[string]money.Amount{}, map[string]map[string]money.Amount{}
+	owed := map[string]map[string]money.Amount{}
 	put := func(m map[string]map[string]money.Amount, g, k string, v money.Amount) {
 		if m[g] == nil {
 			m[g] = map[string]money.Amount{}
@@ -574,11 +795,11 @@ func (o *Ops) Financials(ctx context.Context, tenant, actor, from, to, branch st
 		case t == ledger.Asset && v < 0:
 			// An asset account in credit (an overdrawn bank, money owed to a
 			// clearing corporation) is a liability at the balance-sheet date.
-			put(liab, accountGroup(k)+" (owed)", k, -v)
+			put(owed, hs.root(hs.headOf(k, m)), k, -v)
 		case t == ledger.Asset:
-			put(asset, accountGroup(k), k, v)
+			put(asset, hs.headOf(k, m), k, v)
 		default:
-			put(liab, accountGroup(k), k, -v)
+			put(liab, hs.headOf(k, m), k, -v)
 		}
 	}
 	for _, v := range clientNet {
@@ -588,25 +809,31 @@ func (o *Ops) Financials(ctx context.Context, tenant, actor, from, to, branch st
 			clientCr += -v
 		}
 	}
-	put(asset, "Clients (sundry debtors)", "CLIENT:DR", clientDr)
-	put(liab, "Clients (credit balances)", "CLIENT:CR", clientCr)
-	put(liab, "Capital and reserves", "PROFIT", retained)
-	names["CLIENT:DR"], names["CLIENT:CR"], names["PROFIT"] = "Clients with debit balances", "Clients with credit balances", "Profit and loss account"
-	build := func(m map[string]map[string]money.Amount) ([]FinSection, money.Amount) {
-		var out []FinSection
-		var tot money.Amount
-		for _, g := range sortedKeys(m) {
-			s := section(g, m[g])
-			if len(s.Lines) == 0 {
-				continue
-			}
-			out = append(out, s)
-			tot += s.Total
+	put(asset, HeadClientsDr, "CLIENT:DR", clientDr)
+	put(liab, HeadClientsCr, "CLIENT:CR", clientCr)
+	put(liab, "L-CAPITAL", "PROFIT", retained)
+	sum := func(ss []FinSection) (t money.Amount) {
+		for _, s := range ss {
+			t += s.Total
 		}
-		return out, tot
+		return t
 	}
-	f.Assets, f.TotalAssets = build(asset)
-	f.Liabilities, f.TotalLiab = build(liab)
+	f.Assets = level2(L1Assets, asset)
+	f.Liabilities = level2(L1Liabilities, liab)
+	for _, id := range hs.order {
+		if am := owed[id]; len(am) > 0 {
+			s := FinSection{ID: id + "-OWED", Title: hs.byID[id].Name + " (owed)", Heads: []FinSection{}}
+			s.Lines, s.Total = lines(am)
+			f.Liabilities = append(f.Liabilities, s)
+			delete(owed, id)
+		}
+	}
+	for id, am := range owed { // a head that is no longer there
+		s := FinSection{ID: id + "-OWED", Title: "Assets in credit (owed)", Heads: []FinSection{}}
+		s.Lines, s.Total = lines(am)
+		f.Liabilities = append(f.Liabilities, s)
+	}
+	f.TotalAssets, f.TotalLiab = sum(f.Assets), sum(f.Liabilities)
 	f.Balanced = f.TotalAssets == f.TotalLiab
 	return f, nil
 }

@@ -211,6 +211,17 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/shortages/{id}/settle", s.settleShortage, true)
 	R("GET /v1/accounts", s.accounts, false)
 	R("POST /v1/accounts", s.saveAccount, true)
+	R("GET /v1/accounts/search", s.searchAccounts, false)
+	R("GET /v1/accounts/trial-balance", s.headTrialBalance, false)
+	R("POST /v1/accounts/new", s.newAccount, true)
+	R("POST /v1/accounts/{code}/decide", s.decideAccount, true)
+	R("POST /v1/accounts/{code}/move", s.moveAccount, true)
+	R("GET /v1/account-moves", s.accountMoves, false)
+	R("POST /v1/account-moves/{id}/{action}", s.decideAccountMove, true)
+	R("GET /v1/account-heads", s.accountHeads, false)
+	R("POST /v1/account-heads", s.saveAccountHead, true)
+	R("POST /v1/account-heads/{id}/remove", s.removeAccountHead, true)
+	R("POST /v1/account-heads/{id}/order", s.orderAccountHead, true)
 	R("GET /v1/vouchers", s.vouchers, false)
 	R("POST /v1/vouchers", s.saveVoucher, true)
 	R("POST /v1/vouchers/{no}/{action}", s.decideVoucher, true)
@@ -2459,6 +2470,131 @@ func (s *Server) saveAccount(w http.ResponseWriter, r *http.Request) {
 	ok(w, v, err)
 }
 
+// searchAccounts serves the account search box: q, date, limit, only
+// (ledger prefixes, comma separated), clients (no or only), side (dr, cr).
+func (s *Server) searchAccounts(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	d, okd := dateParam(w, q.Get("date"), "date", false)
+	if !okd {
+		return
+	}
+	lim, _ := strconv.Atoi(q.Get("limit"))
+	var pre []string
+	if v := q.Get("only"); v != "" {
+		pre = strings.Split(v, ",")
+	}
+	v, err := s.ops.SearchAccounts(r.Context(), tenant(r), actor(r), ops.AccountSearch{Q: q.Get("q"), Date: d, Limit: lim, Prefixes: pre, Clients: q.Get("clients"), Side: q.Get("side")})
+	ok(w, v, err)
+}
+
+func (s *Server) headTrialBalance(w http.ResponseWriter, r *http.Request) {
+	d, okd := dateParam(w, r.URL.Query().Get("as_of"), "as_of", false)
+	if !okd {
+		return
+	}
+	if d != "" {
+		// as of a day inside an archived period the books hold only what
+		// was kept live; the period's last day and later are exact
+		if p := s.ops.ArchivedOverlap(r.Context(), tenant(r), d, d, ""); p != nil && !s.ops.ArchivedPeriodEnd(r.Context(), tenant(r), d) {
+			fail(w, p, nil)
+			return
+		}
+	}
+	v, err := s.ops.TrialBalanceByHeads(r.Context(), tenant(r), actor(r), d)
+	ok(w, v, err)
+}
+
+func (s *Server) newAccount(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Name  string `json:"name"`
+		Head  string `json:"head"`
+		Alias string `json:"alias"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.NewAccount(r.Context(), tenant(r), actor(r), ops.Account{Name: b.Name, Head: b.Head, Alias: b.Alias})
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	writeJSON(w, 201, v)
+}
+
+func (s *Server) decideAccount(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Action string `json:"action"`
+		Reason string `json:"reason"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.DecideAccount(r.Context(), tenant(r), actor(r), r.PathValue("code"), b.Action, b.Reason)
+	ok(w, v, err)
+}
+
+func (s *Server) moveAccount(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Head   string `json:"head"`
+		Reason string `json:"reason"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.RequestAccountMove(r.Context(), tenant(r), actor(r), r.PathValue("code"), b.Head, b.Reason)
+	ok(w, v, err)
+}
+
+func (s *Server) accountMoves(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.AccountMoves(r.Context(), tenant(r))
+	ok(w, v, err)
+}
+
+func (s *Server) decideAccountMove(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Note string `json:"note"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.DecideAccountMove(r.Context(), tenant(r), actor(r), r.PathValue("id"), r.PathValue("action"), b.Note)
+	ok(w, v, err)
+}
+
+func (s *Server) accountHeads(w http.ResponseWriter, r *http.Request) {
+	d, okd := dateParam(w, r.URL.Query().Get("date"), "date", false)
+	if !okd {
+		return
+	}
+	hs, err := s.ops.Heads(r.Context(), tenant(r), d)
+	ok(w, map[string]any{"heads": hs, "level1": ops.Level1Heads, "prefixes": ops.HeadPrefixes()}, err)
+}
+
+func (s *Server) saveAccountHead(w http.ResponseWriter, r *http.Request) {
+	var b ops.AccountHead
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveHead(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) removeAccountHead(w http.ResponseWriter, r *http.Request) {
+	err := s.ops.RemoveHead(r.Context(), tenant(r), actor(r), r.PathValue("id"))
+	ok(w, map[string]bool{"removed": err == nil}, err)
+}
+
+func (s *Server) orderAccountHead(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Dir string `json:"dir"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	err := s.ops.ReorderHead(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Dir)
+	ok(w, map[string]bool{"moved": err == nil}, err)
+}
+
 func (s *Server) vouchers(w http.ResponseWriter, r *http.Request) {
 	v, err := s.ops.Vouchers(r.Context(), tenant(r), actor(r))
 	ok(w, v, err)
@@ -2480,11 +2616,14 @@ func (s *Server) saveVoucher(w http.ResponseWriter, r *http.Request) {
 func (s *Server) decideVoucher(w http.ResponseWriter, r *http.Request) {
 	var b struct {
 		Reason string `json:"reason"`
+		// RejectAccounts are new accounts on the voucher the checker
+		// rejects with it.
+		RejectAccounts []string `json:"reject_accounts"`
 	}
 	if !decode(w, r, &b) {
 		return
 	}
-	v, err := s.ops.DecideVoucher(r.Context(), tenant(r), actor(r), r.PathValue("no"), r.PathValue("action"), b.Reason)
+	v, err := s.ops.DecideVoucherAccounts(r.Context(), tenant(r), actor(r), r.PathValue("no"), r.PathValue("action"), b.Reason, b.RejectAccounts)
 	ok(w, v, err)
 }
 

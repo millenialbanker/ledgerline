@@ -428,6 +428,8 @@ type Ops struct {
 	// boKeyed are the firms whose BO accounts have been re-keyed by BO ID
 	// in this server run (demats.go).
 	boKeyed sync.Map
+	// acctIdx caches each firm's account search index (chart.go).
+	acctIdx sync.Map
 	// HolidaySources fetch exchange holiday lists (holidays.go); none means
 	// lists are uploaded from the circulars only.
 	HolidaySources []HolidaySource

@@ -252,14 +252,14 @@ title: Post a voucher or file GST
 screen: books
 roles: Ops maker, Ops checker
 ask: voucher; journal entry; expense entry; payment voucher; firm accounts; gst return; gstr-1; gstr-3b; profit and loss; balance sheet; chart of accounts
-related: period-locked, vendor-bills
+related: period-locked, vendor-bills, chart-of-accounts, account-search, voucher-keys
 
 On [[books|Firm accounts & GST]]:
 
-1. **New voucher:** payment, receipt, journal or contra, with lines that balance. An Ops checker who didn't make it **Posts** it.
-2. **New account** adds to the chart of accounts. Accounts can be restricted to named users (salaries, for example).
+1. **New voucher:** payment, receipt, journal or contra, with lines that balance. An Ops checker who didn't make it **Posts** it. The keys work as in Tally (see *Voucher entry keys*).
+2. **New account** adds to the chart of accounts: a name and the head it goes under. Accounts can be restricted to named users (salaries, for example).
 3. **GST:** choose the period for GSTR-1 tables and the GSTR-3B summary from everything billed to clients.
-4. **P&L and balance sheet** for the firm or a branch.
+4. **Trial balance, P&L and balance sheet** by heads, for the firm (P&L also for a branch).
 
 ## vendor-bills
 title: Add a vendor or book and pay a vendor bill

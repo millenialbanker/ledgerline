@@ -29,6 +29,7 @@ Approving a receipt | Ops checker
 Approving a restore | Compliance officer
 Approving a transfer between the firm's bank accounts | Ops checker
 Approving allocation | Ops checker, Risk manager
+Approving an account move | Ops checker
 Approving an archive | Compliance officer
 Approving an override | Ops checker, Risk manager
 Approving client changes | Ops checker
@@ -37,6 +38,7 @@ Approving exchange holidays | Ops checker, Compliance officer
 Approving firm practices | Compliance officer, Admin
 Approving legacy debts | Ops checker, Compliance officer
 Approving margin pledges sent to CDSL | Ops checker, Risk manager
+Approving new accounts | Ops checker
 Approving pay-out holds | Risk manager
 Approving payouts | Ops checker, Risk manager
 Approving pledge invocations | Compliance officer
@@ -247,6 +249,7 @@ Marking a report uploaded | Ops checker, Compliance officer
 Matching stock SIP orders to trades | Ops maker, Ops checker, Risk manager
 Month-end postings | Ops checker
 Moving a fee to the firm's account | Ops checker
+Moving an account to another head | Ops maker, Ops checker
 Moving money between MCX and equity | Ops maker, Ops checker, Risk manager
 Moving the firm onto its own encryption key | Admin
 Muting a self-inspection test | Compliance officer
@@ -326,6 +329,7 @@ Registering a stock SIP for a client | Ops maker, Ops checker
 Registering attendance kiosks | HR manager
 Registering clients on MF platforms | Ops maker, Ops checker
 Rejecting an application | Ops checker, Compliance officer
+Rejecting new accounts | Ops checker
 Releasing CUSPA securities before the client has paid | Ops checker, Risk manager
 Releasing CUSPA securities | Ops maker, Ops checker, Risk manager
 Releasing clearing deposits | Ops checker
@@ -357,6 +361,7 @@ Running surveillance rules | Ops checker, Compliance officer
 Running the self-inspection | Compliance officer
 Scanning vendor bills | Ops maker, Ops checker
 Scheduling jobs | Admin
+Searching accounts | Ops maker, Ops checker, Risk manager, Compliance officer
 Searching the document archive | Ops maker, Ops checker, Risk manager, Compliance officer
 See full client identifiers | Ops checker, Compliance officer
 Seeing and testing the log export | Compliance officer

@@ -60,7 +60,7 @@ var routeScreens = map[string]string{
 	"ledger": "ledger", "ledger/statement": "ledger clients statements money debits", "ledger/trial-balance": "ledger books", "funds": "ledger",
 	"receipts": "money", "payouts": "money", "payouts/hdfc-seq": "money settings", "gateway": "money", "upix": "money", "hdfc-pay": "connections",
 	"bank": "bank", "ras": "ras", "money-recon": "clientmoney", "money-transfers": "clientmoney", "firm-banks": "clientmoney settings",
-	"vouchers": "books", "accounts": "books", "financials": "books", "gst": "books", "vendor-bills": "books", "vendors": "books", "bill-scans": "books", "invoices": "books",
+	"vouchers": "books", "accounts": "books", "account-heads": "books", "account-moves": "books", "financials": "books", "gst": "books", "vendor-bills": "books", "vendors": "books", "bill-scans": "books", "invoices": "books",
 	"brokerage": "brokerage", "brokerage/client/{ucc}": "brokerage clients", "prepaid": "prepaid",
 	// Compliance
 	"reports": "reports", "holding-api": "reports", "disclosures": "exdisc", "ai": "aictl", "ai/usage": "aictl settings",

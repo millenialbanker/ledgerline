@@ -303,6 +303,7 @@ func (o *Ops) SaveVendor(ctx context.Context, tenant, actor string, v Vendor) (V
 			Type: accountType(v.Ledger), Group: accountGroup(v.Ledger), System: true, AllowedUsers: []string{}}, actor); err != nil {
 			return v, err
 		}
+		o.indexChanged(tenant)
 	} else {
 		v.Ledger, v.Created, v.By = old.Ledger, old.Created, old.By
 	}
