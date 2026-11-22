@@ -188,9 +188,9 @@ var siTests = []SITest{
 		Fix:    "Decide each alert on Surveillance & AML with the evidence; record the reason for the delay; file an STR where the principal officer decides one is due.",
 		Screen: "surv", ScreenName: "Compliance → Surveillance & AML", Real: true, run: siAlerts},
 	{ID: "holding_statement", Title: "Holding statement sent to the exchange each day", Area: "Compliance", Severity: "high", Owner: RoleCompliance,
-		Source: "NSE/INSP/55039 of 28 Dec 2022; NCL/INSP/60046 of 29 Dec 2023 (T+1, nil declaration); BSE notice 20230113-13; NSE/INSP/70505",
-		Checks: "Each data day of the last week (not Sundays): accepted by NSE's API, or the upload recorded with NSE's acknowledgement (BSE's BEFS for a BSE-only member).",
-		Fix:    "Submit the day on Exchange files (holding statement), oldest first, and record the acknowledgement on Regulatory reports.",
+		Source: "NSE/INSP/55039 of 28 Dec 2022 (daily except Sunday); NSE/INSP/55380 (corrections: the whole day again); NSE/INSP/60046 of 29 Dec 2023 (T+1, one-time NIL Holding declaration, bulk nil report before resuming); BSE notice 20230113-13; NSE/INSP/70505; special session circulars (e.g. Muhurat on a Sunday)",
+		Checks: "Each data day of the last week (not Sundays, except special sessions): accepted by NSE's API, the upload recorded with NSE's acknowledgement (BSE's BEFS for a BSE-only member), or, when nothing was held, covered by the NIL Holding declaration or the bulk nil report.",
+		Fix:    "Submit the day on Exchange files (holding statement), oldest first, and record the acknowledgement on Regulatory reports; for a nil day, make the NIL Holding declaration on NSE's portal and record it on Exchange files.",
 		Screen: "xfiles", ScreenName: "Files → Exchange files", Real: true, run: siHolding},
 	{ID: "segmon", Title: "Client collateral (SEGMON) reported each day", Area: "Compliance", Severity: "high", Owner: RoleChecker,
 		Source:    "SEBI/HO/MRD2_DCAP/CIR/2021/0598 of 20 Jul 2021 (segregation and monitoring of collateral at client level)",
@@ -267,9 +267,9 @@ var siTests = []SITest{
 		Screen:    "helpdesk", ScreenName: "Compliance → Investor complaints", Real: true, run: siImpReports},
 	// From the penalty audit (selfinspect_more.go, firmdemats.go).
 	{ID: "holding_account_types", Title: "Firm's demat accounts tagged and in the holding statement with their type", Area: "Compliance", Severity: "high", Owner: RoleCompliance,
-		Source:    "NSE/INSP/55039 of 28 Dec 2022 and NSE/INSP/55380 (holding statement account types: POOL, CM COLL, OWN, EPI, CLNTBENEMTF, TMCOLL, TMCOLL-MTF, CLNT UNPAID, CLNT COLL, MRGN PLEDGE, MTF PLEDGE, CLNTBENE); NSE/INSP/65693 of 19 Dec 2024 (incorrect holding statements); SEBI adjudication order against Axis Securities of 21 Feb 2025 (holdings left out of the holding statement)",
-		ToConfirm: "Ledgerline's holding statement does not yet report the firm's own accounts with their types (that waits for how the old system reported them): until it does, a tagged account with holdings fails this test.",
-		Checks:    "The demat accounts in CDSL's last statement of holding that belong to no client: each tagged with its holding statement account type; and each tagged account that holds securities reported in the holding statement under its type.",
+		Source:    "NSE/INSP/55039 of 28 Dec 2022 and NSE/INSP/55380 (holding statement account types, as NSE's Inspection master circular NSE/INSP/73976 spells them: POOL, CM COLL, OWN, EPI, CLNTBENE-MTF, TMCOLL, TMCOLL-MTF, CLNT UNPAID, CLNT COLL, MRGN PLEDGE, MTF PLEDGE, CLNTBENE; security types EQ, MF, BOND, DEBT, PREF, IDR, WT, COMM); NSE FAQs on margin collection (Exhibit 17 of the master circular: margin-pledged securities not reported, invoked securities and the POOL, EPI, CUSPA and OWN accounts reported); NSE/INSP/65693 of 19 Dec 2024 (incorrect holding statements); SEBI adjudication order against Axis Securities of 21 Feb 2025 (holdings left out of the holding statement)",
+		ToConfirm: "The API specification (NSE/INSP/55380 Annexure A) prints CLNTBENEMTF where the master circular prints CLNTBENE-MTF: Ledgerline sends the master circular's spelling (ask NSE if an MTF account is rejected with code 902). REIT and InvIT units have no type of their own in NSE's list and go as EQ.",
+		Checks:    "The demat accounts in CDSL's last statement of holding that belong to no client: each tagged with its holding statement account type; each tagged account that holds securities reported under its type; no client's own account tagged as anything but OWN (its pledged balance would be margin collateral, which is not reported); and every ISIN's security type taken from CDSL's ISIN master.",
 		Fix:       "Tag each of the firm's demat accounts in Settings → Firm demat accounts (or link a client's account to the client); report the holdings of tagged accounts in the holding statement.",
 		Screen:    "settings", ScreenName: "Settings → Settings (Firm demat accounts)", Real: true, run: siHoldingTypes},
 	{ID: "dealer_terminals", Title: "Trades only from registered terminals, by NISM-certified dealers", Area: "Operations", Severity: "high", Owner: RoleCompliance,
@@ -1037,7 +1037,7 @@ func siHolding(e *siEnv) (siOut, error) {
 		return s, nil
 	}
 	for d := addDays(e.date, -7); d < e.date; d = addDays(d, 1) {
-		if t, _ := time.Parse("2006-01-02", d); t.Weekday() == time.Sunday || d < since {
+		if d < since || !e.o.isHoldingDay(e.ctx, e.tenant, e.set, d) {
 			continue
 		}
 		s.checked++
@@ -1045,7 +1045,10 @@ func siHolding(e *siEnv) (siOut, error) {
 		subs, _ := docs.List[NSEHoldingSubmission](e.ctx, e.o.Docs, e.tenant, cNSEHSub, d+"|")
 		state := ""
 		for _, x := range subs {
-			if x.Status == "Accepted" || (x.Status == "Partly accepted" && state == "") {
+			switch {
+			case x.Status == "Accepted" || x.Status == hsNilDecl || x.Status == hsNilBulk:
+				state = "Accepted"
+			case (x.Status == "Partly accepted" || x.Status == hsNil) && state == "":
 				state = x.Status
 			}
 		}
@@ -1059,6 +1062,8 @@ func siHolding(e *siEnv) (siOut, error) {
 			s.bad(fmt.Sprintf("Data day %s · not sent to NSE (no accepted submission or recorded upload)", fmtDay(d)))
 		case "Partly accepted":
 			s.bad(fmt.Sprintf("Data day %s · NSE accepted it only in part", fmtDay(d)))
+		case hsNil:
+			s.bad(fmt.Sprintf("Data day %s · nothing held, and NSE's one-time NIL Holding declaration is not recorded", fmtDay(d)))
 		}
 	}
 	if s.checked == 0 {

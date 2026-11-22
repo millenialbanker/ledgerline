@@ -416,6 +416,7 @@ Setting the firm's default dashboard | Admin
 Setting the firm's screen layout | Admin
 Setting the signing certificate | Admin
 Setting the signing service | Admin
+Setting the special session days | Compliance officer, Admin
 Setting up CDSL reports | Ops maker, Ops checker, Compliance officer
 Setting up Ledgerline boards | Admin
 Setting up a stock SIP top-up mandate | Ops maker, Ops checker
