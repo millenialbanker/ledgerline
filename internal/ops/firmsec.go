@@ -233,8 +233,8 @@ func (s FSSettings) needsChecker(typ string) bool {
 	return typ != FSTypeTrade && typ != FSTypeCorp
 }
 
-// pct parses a percentage setting.
-func pctOf(s string, def int64) money.Dec {
+// pctSetting parses a percentage setting.
+func pctSetting(s string, def int64) money.Dec {
 	if d, err := money.ParseDec(strings.TrimSpace(s)); err == nil && d.Sign() >= 0 {
 		return d
 	}

@@ -78,6 +78,7 @@ type defHead struct{ id, level1, name, prefix string }
 var defaultHeads = []defHead{
 	{"A-FIXED", L1Assets, "Fixed assets", "ASSET"},
 	{"A-INVEST", L1Assets, "Investments (FDs, securities)", "ASSET"},
+	{HeadStock, L1Assets, "Stock-in-trade (securities)", "ASSET"},
 	{"A-DEPOSITS", L1Assets, "Deposits with exchanges and clearing corporations", "ASSET"},
 	{"A-OWNBANK", L1Assets, "Own bank accounts", "BANK"},
 	{"A-CLIENTBANK", L1Assets, "Client bank accounts (segregated)", ""},
@@ -93,11 +94,13 @@ var defaultHeads = []defHead{
 	{"L-EXCH", L1Liabilities, "Payable to exchanges, clearing and depository", "PAYABLE"},
 	{"L-OTHER", L1Liabilities, "Provisions and other liabilities", "PAYABLE"},
 	{"L-SUSPENSE", L1Liabilities, "Suspense", "SUSPENSE"},
+	{HeadSales, L1Income, "Sales of securities (stock-in-trade)", "INCOME"},
 	{"I-BROK", L1Income, "Brokerage", "INCOME"},
 	{"I-INT", L1Income, "Interest (delayed payment, MTF, FDs)", "INCOME"},
 	{"I-DP", L1Income, "DP income", "INCOME"},
 	{"I-OPER", L1Income, "Other operating income", "INCOME"},
 	{"I-OTHER", L1Income, "Other income", "INCOME"},
+	{HeadPurch, L1Expenditure, "Purchases of securities (stock-in-trade)", "EXPENSE"},
 	{"E-EXCH", L1Expenditure, "Exchange and clearing charges", "EXPENSE"},
 	{"E-STAFF", L1Expenditure, "Staff costs", "EXPENSE"},
 	{"E-RENT", L1Expenditure, "Rent and office", "EXPENSE"},
@@ -134,6 +137,13 @@ var systemHeads = map[string]string{
 var codePrefixHeads = []struct{ prefix, head string }{
 	{"PAYABLE:EXCH_TXN", "L-EXCH"},
 	{"PAYABLE:TDS", "L-DUTIES"},
+	// The firm's own securities (firmsec.go): one account per portfolio
+	// and kind, under the heads the chart keeps for them.
+	{"ASSET:FSINV_", headInvest},
+	{"ASSET:FSSIT_", HeadStock},
+	{"EXPENSE:FSPUR_", HeadPurch},
+	{"INCOME:FSSAL_", HeadSales},
+	{"EXPENSE:FSCHG_", "E-EXCH"},
 }
 
 var prefixHeads = map[string]string{
