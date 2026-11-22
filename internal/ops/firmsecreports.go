@@ -392,6 +392,12 @@ func (o *Ops) fsScrips(ctx context.Context, tenant string, s FSSettings, port, f
 			continue
 		}
 		a := get(t.ISIN, t.Symbol)
+		if t.Type == FSTypeOpening {
+			// Lots brought in from the old system are the opening stock,
+			// whatever day of the period they were loaded as at.
+			a.oq, a.oa = a.oq.Add(t.Qty), a.oa+res.CostIn
+			continue
+		}
 		a.bq, a.ba, a.bh = a.bq.Add(t.Qty), a.ba+res.CostIn, a.bh.add(res.HeadsIn)
 	}
 	for _, t := range fsLinesIn(ts, port, from, to) {
