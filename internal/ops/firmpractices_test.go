@@ -48,7 +48,7 @@ func fpApprove(t *testing.T, o *Ops, ctx context.Context, id string) PracticeVie
 func TestFirmPracticesMapToSettings(t *testing.T) {
 	o, ctx := setup(t)
 	v, err := o.FirmPractices(ctx, T, "admin")
-	if err != nil || v.Total != 10 || len(v.Questions) != 10 || v.Answered != 0 {
+	if err != nil || v.Total != len(practiceDefs) || len(v.Questions) != len(practiceDefs) || v.Answered != 0 {
 		t.Fatalf("view %d %d %v", v.Total, v.Answered, err)
 	}
 	if _, err := o.FirmPractices(ctx, T, "priya.nair"); !errors.Is(err, ErrForbidden) {
@@ -58,6 +58,9 @@ func TestFirmPracticesMapToSettings(t *testing.T) {
 		"mcx-apart": "off", "bank-auth": BankAuthBoth, "auction-rate": AuctionRateAlways, "dp-pledge": "all", "account-opening": ""}
 	money := map[string]bool{"limit-sharing": true, "mcx-apart": true, "bank-auth": true, "auction-rate": true, "dp-pledge": true}
 	for _, q := range v.Questions {
+		if q.Section == SectionFirmSecurities {
+			continue // firmsec_test.go
+		}
 		if q.Current != want[q.ID] || q.Money != money[q.ID] {
 			t.Errorf("%s: current %q money %v", q.ID, q.Current, q.Money)
 		}
@@ -321,7 +324,9 @@ func TestFirmPracticeApprovalRule(t *testing.T) {
 			n++
 		}
 	}
-	if n != 8 || o.practicesOpen(ctx, T) != 8 {
+	// Eight general questions and where the firm keeps its own securities
+	// (the rest of Firm securities waits for that answer).
+	if n != 9 || o.practicesOpen(ctx, T) != 9 {
 		t.Fatalf("%d open on the checklist, %d open", n, o.practicesOpen(ctx, T))
 	}
 	for _, d := range practiceDefs {

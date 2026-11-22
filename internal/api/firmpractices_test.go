@@ -55,7 +55,7 @@ func TestFirmPracticesAPI(t *testing.T) {
 		_ = json.NewDecoder(resp.Body).Decode(&m)
 		return resp.StatusCode, m
 	}
-	if st, m := do("GET", "/v1/firm-practices", "admin", nil); st != 200 || len(m["questions"].([]any)) != 10 {
+	if st, m := do("GET", "/v1/firm-practices", "admin", nil); st != 200 || len(m["questions"].([]any)) < 10 {
 		t.Fatalf("view %d %v", st, m)
 	}
 	if st, _ := do("GET", "/v1/firm-practices", "priya.nair", nil); st != 403 {

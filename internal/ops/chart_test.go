@@ -44,7 +44,7 @@ func TestDefaultHeadsAndSystemAccounts(t *testing.T) {
 			t.Fatalf("head %+v", h)
 		}
 	}
-	if per[L1Assets] != 9 || per[L1Liabilities] != 8 || per[L1Income] != 5 || per[L1Expenditure] != 10 {
+	if per[L1Assets] != 10 || per[L1Liabilities] != 8 || per[L1Income] != 6 || per[L1Expenditure] != 11 {
 		t.Fatalf("heads per level 1: %v", per)
 	}
 	if byName["Capital and reserves"].Level1 != L1Liabilities {
@@ -334,7 +334,7 @@ func TestSubHeadsOptionalAndCodes(t *testing.T) {
 			t.Fatal("removed head listed")
 		}
 	}
-	if strings.Join(order[:3], "|") != "Exchange and clearing charges|Staff costs|IT and software" {
+	if strings.Join(order[:4], "|") != "Purchases of securities (stock-in-trade)|Exchange and clearing charges|Staff costs|IT and software" {
 		t.Fatalf("order %v", order)
 	}
 }

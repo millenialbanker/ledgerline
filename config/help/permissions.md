@@ -36,6 +36,7 @@ Approving client changes | Ops checker
 Approving closing the firm's account | Compliance officer
 Approving exchange holidays | Ops checker, Compliance officer
 Approving firm practices | Compliance officer, Admin
+Approving firm securities entries | Ops checker
 Approving legacy debts | Ops checker, Compliance officer
 Approving margin pledges sent to CDSL | Ops checker, Risk manager
 Approving new accounts | Ops checker
@@ -83,6 +84,7 @@ Changing client brokerage rates | Ops checker
 Changing client groups | Ops maker, Ops checker
 Changing client interest rates | Ops checker
 Changing connections | Admin
+Changing firm securities settings | Admin
 Changing how long the firm's keys stay in memory | Admin
 Changing inspection pack settings | Compliance officer
 Changing inspection pack templates | Compliance officer
@@ -176,6 +178,7 @@ Entering broker funds | Risk manager
 Entering corporate bond deals | Ops maker, Ops checker
 Entering delivery instructions | Ops maker, Ops checker, Branch staff
 Entering early pay-ins | Ops maker, Ops checker
+Entering firm securities | Ops maker, Ops checker, Risk manager, Compliance officer
 Entering margin pledge requests | Ops maker, Ops checker, Risk manager
 Entering outside trades | Ops maker, Ops checker, Branch staff
 Entering payroll inputs | Payroll
@@ -470,6 +473,7 @@ Viewing eDIS authorisations | Ops maker, Ops checker, Risk manager, Compliance o
 Viewing exchange UCC registrations | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing exchange disclosures | Compliance officer
 Viewing firm practices | Compliance officer, Admin
+Viewing firm securities | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing inspection packs | Compliance officer
 Viewing margin penalty evidence | Ops checker, Risk manager, Compliance officer
 Viewing nominations | Ops maker, Ops checker, Compliance officer
