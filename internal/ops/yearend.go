@@ -134,40 +134,40 @@ func (o *Ops) sttForYear(ctx context.Context, tenant, from, to string, only stri
 
 // YearEndPack is one client's papers for one financial year.
 type YearEndPack struct {
-	UCC       string       `json:"ucc"`
-	Name      string       `json:"name"`
-	PAN       string       `json:"pan"`
-	City      string       `json:"city"`
-	FY        string       `json:"fy"`
-	From      string       `json:"from"`
-	To        string       `json:"to"` // the year's last day, or today while it runs
-	Running   bool         `json:"running"`
-	Firm      string       `json:"firm"`
-	SEBIReg   string       `json:"sebi_reg"`
-	Members   []string     `json:"members"`
-	STT       []STTRow     `json:"stt"`
-	STTTotal  money.Dec    `json:"stt_total"`
-	Exchanges []string     `json:"exchanges"`
-	STCG      money.Dec    `json:"stcg"`
-	LTCG      money.Dec    `json:"ltcg"`
+	UCC       string    `json:"ucc"`
+	Name      string    `json:"name"`
+	PAN       string    `json:"pan"`
+	City      string    `json:"city"`
+	FY        string    `json:"fy"`
+	From      string    `json:"from"`
+	To        string    `json:"to"` // the year's last day, or today while it runs
+	Running   bool      `json:"running"`
+	Firm      string    `json:"firm"`
+	SEBIReg   string    `json:"sebi_reg"`
+	Members   []string  `json:"members"`
+	STT       []STTRow  `json:"stt"`
+	STTTotal  money.Dec `json:"stt_total"`
+	Exchanges []string  `json:"exchanges"`
+	STCG      money.Dec `json:"stcg"`
+	LTCG      money.Dec `json:"ltcg"`
 	// The rest of the capital gains statement (clientcg.go): other short-
 	// and long-term gains, the section 112A exemption and what is taxed,
 	// the rates, and Schedule 112A scrip-wise.
-	STOther    money.Dec `json:"st_other"`
-	LTOther    money.Dec `json:"lt_other"`
-	Exempt112A money.Dec `json:"exempt_112a"`
-	Taxable    money.Dec `json:"taxable_112a"`
-	RateST     string    `json:"rate_st"`
-	RateLT     string    `json:"rate_lt"`
-	Sched112A  Section   `json:"schedule_112a"`
-	NoFMV      int       `json:"no_fmv,omitempty"`
-	Spec      money.Dec    `json:"speculative"`
-	Deriv     money.Dec    `json:"derivatives"` // F&O and other derivative results (MTM and premium)
-	Charges   []ChargeLine `json:"charges"`
-	Closing   money.Dec    `json:"closing"` // ledger balance; + is the client's credit
-	Holdings  money.Dec    `json:"holdings"`
-	Generated string       `json:"generated"`
-	SentAt    string       `json:"sent_at,omitempty"`
+	STOther    money.Dec    `json:"st_other"`
+	LTOther    money.Dec    `json:"lt_other"`
+	Exempt112A money.Dec    `json:"exempt_112a"`
+	Taxable    money.Dec    `json:"taxable_112a"`
+	RateST     string       `json:"rate_st"`
+	RateLT     string       `json:"rate_lt"`
+	Sched112A  Section      `json:"schedule_112a"`
+	NoFMV      int          `json:"no_fmv,omitempty"`
+	Spec       money.Dec    `json:"speculative"`
+	Deriv      money.Dec    `json:"derivatives"` // F&O and other derivative results (MTM and premium)
+	Charges    []ChargeLine `json:"charges"`
+	Closing    money.Dec    `json:"closing"` // ledger balance; + is the client's credit
+	Holdings   money.Dec    `json:"holdings"`
+	Generated  string       `json:"generated"`
+	SentAt     string       `json:"sent_at,omitempty"`
 }
 
 // ChargeLine is one charge head paid in the year.
