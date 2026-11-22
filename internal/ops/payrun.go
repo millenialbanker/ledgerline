@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -645,10 +646,14 @@ func (o *Ops) BankFileCSV(ctx context.Context, tenant, actor, month string) ([]b
 	return csvBytes(rows), nil
 }
 
-// PFECR is the EPFO's ECR 2.0 text file: one line per member, fields
-// separated by #~#: UAN, name, gross wages, EPF wages, EPS wages, EDLI
-// wages, EPF contribution (employee), EPS contribution, EPF-EPS difference
-// (employer), NCP days, refund of advances. Amounts in whole rupees.
+// PFECR is the EPFO's ECR 2.0 text file: one line per member, no header,
+// eleven fields separated by #~#: UAN, name, gross wages, EPF wages, EPS
+// wages, EDLI wages, EPF contribution (employee), EPS contribution, EPF-EPS
+// difference (employer), NCP days, refund of advances. Amounts are whole
+// rupees, no decimals; NCP days are whole days only (EPFO does not accept
+// half days), so a half day of loss of pay is not counted. Source: EPFO,
+// "Introduction ECR 2.0" (epfindia.gov.in, unified portal), checked 22 Nov
+// 2026.
 func (o *Ops) PFECR(ctx context.Context, tenant, actor, month string) ([]byte, error) {
 	r, err := o.approvedRun(ctx, tenant, actor, month, "PF ECR")
 	if err != nil {
@@ -662,15 +667,25 @@ func (o *Ops) PFECR(ctx context.Context, tenant, actor, month string) ([]byte, e
 		if l.UAN == "" {
 			return nil, invalid("%s %s has no UAN: add it before making the ECR", l.Employee, l.Name)
 		}
-		f := []string{l.UAN, strings.ToUpper(l.Name), wholeR(l.Gross - l.Reimburse), wholeR(l.PFWages), wholeR(l.EPSWages), wholeR(l.EDLIWages), wholeR(l.EmpPF), wholeR(l.ErEPS), wholeR(l.ErEPF), fmt.Sprintf("%.0f", l.LOP), "0"}
+		f := []string{l.UAN, strings.ToUpper(l.Name), wholeR(l.Gross - l.Reimburse), wholeR(l.PFWages), wholeR(l.EPSWages), wholeR(l.EDLIWages), wholeR(l.EmpPF), wholeR(l.ErEPS), wholeR(l.ErEPF), fmt.Sprint(int64(math.Floor(l.LOP))), "0"}
 		b.WriteString(strings.Join(f, "#~#") + "\n")
 	}
 	return []byte(b.String()), nil
 }
 
-// ESIFile is the monthly contribution upload in the columns of ESIC's
-// template (IP number, IP name, days paid, total wages, reason code for
-// zero days, last working day); paste it into the portal's Excel template.
+// ESIFile is the monthly contribution upload in the columns of ESIC's MC
+// template: IP number (10 digits), IP name (letters and spaces only), days
+// for which wages were paid (whole days, fractions rounded up), total
+// monthly wages, reason code for zero working days, last working day
+// (dd/mm/yyyy). The reason and last working day are given only when no
+// wages are paid in the month; the last working day only for reasons 2
+// (left service), 3 (retired), 4 (out of coverage), 5 (expired), 6
+// (non-implemented area) and 10 (retrenchment). Someone who leaves part-way
+// through a month is reported with their wages that month, and with 0 days,
+// reason 2 and their last working day the next month, so ESIC removes them.
+// ESIC's portal takes the Excel 97-2003 template (.xls) with every column
+// as text: copy these rows into it. Source: ESIC's MC template and its
+// instructions sheet, checked 22 Nov 2026.
 func (o *Ops) ESIFile(ctx context.Context, tenant, actor, month string) ([]byte, error) {
 	r, err := o.approvedRun(ctx, tenant, actor, month, "ESI file")
 	if err != nil {
@@ -678,20 +693,58 @@ func (o *Ops) ESIFile(ctx context.Context, tenant, actor, month string) ([]byte,
 	}
 	rows := [][]string{{"IP Number (10 Digits)", "IP Name (Only alphabets and space)", "No of Days for which wages paid/payable during the month", "Total Monthly Wages", "Reason Code for Zero workings days", "Last Working Day"}}
 	es, _ := o.employees(ctx, tenant)
+	start, end := month+"-01", payMonthEnd(month)
+	done := map[string]bool{}
 	for _, l := range r.Lines {
-		if l.ESIWages == 0 && l.EmpESI == 0 && l.ErESI == 0 {
+		if l.ESIC == "" || (l.ESIWages == 0 && l.EmpESI == 0 && l.ErESI == 0 && l.PaidDays == 0 && !esiCovered(es, l.Employee)) {
 			continue
 		}
+		done[l.Employee] = true
+		days := int64(math.Ceil(l.PaidDays))
+		wages := wholeR(l.ESIWages)
 		reason, last := "", ""
-		if e, ok := find(es, l.Employee); ok && e.LeftOn != "" && e.LeftOn <= payMonthEnd(month) {
-			reason, last = "2", slashDate(e.LeftOn) // 2: left service
+		if days == 0 || l.ESIWages == 0 {
+			days, wages, reason = 0, "0", "1" // 1: on leave (no wages this month)
+			if e, ok := find(es, l.Employee); ok && e.LeftOn != "" && e.LeftOn <= end {
+				reason, last = "2", slashDate(e.LeftOn) // 2: left service
+			}
 		}
-		if l.PaidDays == 0 && reason == "" {
-			reason = "1" // 1: without pay / on leave
+		rows = append(rows, []string{l.ESIC, esiName(l.Name), fmt.Sprint(days), wages, reason, last})
+	}
+	// People who left last month with wages: 0 days, reason 2 and the last
+	// working day this month, so ESIC takes them off the firm's list.
+	if prev, _, err := docs.Get[PayRun](ctx, o.Docs, tenant, cPayRun, prevMonth(start)); err == nil {
+		for _, l := range prev.Lines {
+			if done[l.Employee] || l.ESIC == "" || l.ESIWages == 0 {
+				continue
+			}
+			e, ok := find(es, l.Employee)
+			if !ok || e.LeftOn == "" || e.LeftOn >= start {
+				continue
+			}
+			rows = append(rows, []string{l.ESIC, esiName(l.Name), "0", "0", "2", slashDate(e.LeftOn)})
 		}
-		rows = append(rows, []string{l.ESIC, strings.ToUpper(l.Name), fmt.Sprintf("%.0f", l.PaidDays), wholeR(l.ESIWages), reason, last})
 	}
 	return csvBytes(rows), nil
+}
+
+// esiCovered reports whether a person is still on the firm's ESI list (has
+// an ESIC number and hasn't left).
+func esiCovered(es []Employee, id string) bool {
+	e, ok := find(es, id)
+	return ok && e.ESIC != "" && e.LeftOn == ""
+}
+
+// esiName is a name as ESIC's template takes it: capital letters and
+// single spaces only (dots, hyphens and the like become spaces).
+func esiName(n string) string {
+	b := strings.Map(func(r rune) rune {
+		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') {
+			return r
+		}
+		return ' '
+	}, n)
+	return strings.ToUpper(strings.Join(strings.Fields(b), " "))
 }
 
 // PTRow is one state's professional tax for a month.

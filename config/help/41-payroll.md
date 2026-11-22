@@ -81,8 +81,8 @@ related: payroll-run, payroll-statutory
 
 From an approved run on [[payroll|Payroll]]:
 
-- **PF ECR**: the text file for the EPFO portal, one line a member (UAN, name, gross, EPF, EPS and EDLI wages, the contributions, days not paid).
-- **ESI contributions**: the monthly file for the ESIC portal.
+- **PF ECR**: the ECR 2.0 text file for the EPFO portal, one line a member with eleven fields separated by #~# (UAN, name, gross, EPF, EPS and EDLI wages, the three contributions, days not paid, refund of advances). Amounts are whole rupees; days not paid are whole days, because EPFO doesn't take half days.
+- **ESI contributions**: the rows for ESIC's monthly contribution template (IP number, name in capitals and spaces, days paid rounded up, wages, reason code, last working day). Copy them into ESIC's own Excel 97-2003 template, with every column as text, and upload that. Someone who leaves part-way through a month is shown with their wages that month, and the next month with 0 days, reason 2 (left service) and their last working day, so ESIC takes them off the firm's list.
 - **Professional tax**: the amounts by state and slab on the run.
 
 On **Tax & returns**: **Form 138** (the quarterly TDS statement for salary that replaced Form 24Q) for each quarter, with **Annexure II** for the year in Q4, and **Form 130 Part B** (which replaced Form 16 Part B) for each person. People download their own Form 130 in My HR.
