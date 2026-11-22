@@ -179,6 +179,12 @@ type NSEUCIReg struct {
 	AadhaarSeeding string            `json:"aadhaar_seeding,omitempty"`
 	TradeStatus    map[string]string `json:"trade_status,omitempty"` // segment: Permitted to trade / Not permitted to trade
 	History        []NSEUCIEvent     `json:"history,omitempty"`
+	// FieldPrints are fingerprints of the client's PAN, mobile, e-mail,
+	// primary bank account and address when NSE last accepted the client
+	// (uccfields.go): the self-inspection reports a client changed since
+	// and not sent again.
+	FieldPrints   map[string]string `json:"field_prints,omitempty"`
+	FieldPrintsAt string            `json:"field_prints_at,omitempty"`
 }
 
 func (r *NSEUCIReg) event(at, what, ref, detail string) {
@@ -1143,6 +1149,7 @@ type NSEUCIResult struct {
 // nseUCIItem is a client's state: the records, what is pending and why.
 type nseUCIItem struct {
 	c       Client
+	d       UCCDetails
 	reg     NSEUCIReg
 	hasReg  bool
 	mapped  nseUCIMapped
@@ -1181,7 +1188,7 @@ func (o *Ops) nseUCIItems(ctx context.Context, tenant, member string, only map[s
 		if a, ok := src.apps[c.UCC]; ok {
 			app = &a
 		}
-		it := nseUCIItem{c: c, reg: reg, hasReg: hasReg}
+		it := nseUCIItem{c: c, d: src.details[c.UCC], reg: reg, hasReg: hasReg}
 		it.mapped = nseUCIMap(c, src.details[c.UCC], app, set, member, now, reg)
 		for _, r := range it.mapped.Records {
 			if reg.SegHash[r.Seg] != r.Hash {
@@ -1542,6 +1549,10 @@ func (o *Ops) NSEUCISend(ctx context.Context, tenant, actor string, uccs []strin
 			}
 			if retry != "" && len(segsSent) > 0 {
 				reg.Reason = strings.TrimPrefix(reg.Reason+"; some segments to be tried again: "+retry, "; ")
+			}
+			if reg.Status == nseUCIAccepted && len(segsSent) > 0 {
+				// What NSE now holds, for the self-inspection (uccfields.go).
+				reg.FieldPrints, reg.FieldPrintsAt = uccClientPrints(it.c, it.d), at
 			}
 			if len(segsSent) > 0 {
 				res.Sent++

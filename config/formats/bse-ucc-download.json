@@ -1,0 +1,198 @@
+{
+ "id": "bse-ucc-download",
+ "title": "UCC download from BSE",
+ "party": "BSE",
+ "direction": "in",
+ "when": "As needed (at least monthly)",
+ "purpose": "The client details as BSE's UCC database holds them, downloaded from the exchange's UCC system. Name the file with bse_ucc_download in it (for example bse_ucc_download_20261120.csv) and drop it on Exchange files. Columns are read by their header names in any order; other columns are ignored. Only the client code is required; a field whose column is not in the file is not compared.",
+ "linked": "Not kept as a file: each client's PAN, mobile, email, primary bank account with IFSC and correspondence address are kept as fingerprints (one-way hashes) with masked tails, and compared with Ledgerline's client details by the self-inspection test 'Client details at the exchanges match Ledgerline' (uccfields.go). A download older than 45 days is ignored.",
+ "names": [
+  "(?i).*bse_ucc_download.*"
+ ],
+ "compress": "none",
+ "format": "headers",
+ "delimiter": "auto",
+ "header": true,
+ "columns": [
+  {
+   "name": "Client Code",
+   "key": "ucc",
+   "type": "str",
+   "required": true,
+   "aliases": [
+    "UCC",
+    "UCC Code",
+    "Client Id",
+    "ClientCode",
+    "Client_Code",
+    "Client Cd",
+    "Unique Client Code",
+    "CLIENT CODE",
+    "ccdCd",
+    "ClntCd",
+    "CL_CODE"
+   ]
+  },
+  {
+   "name": "PAN",
+   "key": "pan",
+   "type": "str",
+   "aliases": [
+    "PAN No",
+    "PAN Number",
+    "Client PAN",
+    "PANNO",
+    "PAN_NO",
+    "ccdPanNo",
+    "PAN of the Client",
+    "Pan No."
+   ]
+  },
+  {
+   "name": "Mobile Number",
+   "key": "mobile",
+   "type": "str",
+   "aliases": [
+    "Mobile",
+    "Mobile No",
+    "Mobile No.",
+    "Mobile number",
+    "MobileNo",
+    "Mobile_No",
+    "ccdMobile",
+    "Client Mobile",
+    "Mobile Number of Client",
+    "Registered Mobile"
+   ]
+  },
+  {
+   "name": "Email",
+   "key": "email",
+   "type": "str",
+   "aliases": [
+    "Email Id",
+    "Email ID",
+    "E-mail",
+    "E-mail Id",
+    "Client Email Id",
+    "Client Email ID",
+    "EmailId",
+    "Email_Id",
+    "ccdEmail",
+    "Email Address",
+    "Registered Email"
+   ]
+  },
+  {
+   "name": "Bank Account No 1",
+   "key": "bank_account",
+   "type": "str",
+   "aliases": [
+    "Bank Account No",
+    "Bank Account Number",
+    "Bank Account Number 1",
+    "Bank A/c No",
+    "Bank Acct No",
+    "ccdBankAcctNo",
+    "Account No 1",
+    "Primary Bank Account No",
+    "BankAccountNo"
+   ]
+  },
+  {
+   "name": "IFSC Code 1",
+   "key": "ifsc",
+   "type": "str",
+   "aliases": [
+    "IFSC",
+    "IFSC Code",
+    "Bank IFSC",
+    "ccdBankIfsc",
+    "IFSC 1",
+    "Bank IFSC Code",
+    "Primary Bank IFSC"
+   ]
+  },
+  {
+   "name": "Correspondence Address line 1",
+   "key": "address1",
+   "type": "str",
+   "aliases": [
+    "Address 1",
+    "Address1",
+    "Address Line 1",
+    "Address line 1",
+    "ccdAddLine1",
+    "Correspondence Address",
+    "Corr Address 1",
+    "Address"
+   ]
+  },
+  {
+   "name": "Correspondence Address line 2",
+   "key": "address2",
+   "type": "str",
+   "aliases": [
+    "Address 2",
+    "Address2",
+    "Address Line 2",
+    "Address line 2",
+    "ccdAddLine2",
+    "Corr Address 2"
+   ]
+  },
+  {
+   "name": "Correspondence Address line 3",
+   "key": "address3",
+   "type": "str",
+   "aliases": [
+    "Address 3",
+    "Address3",
+    "Address Line 3",
+    "Address line 3",
+    "ccdAddLine3",
+    "Corr Address 3"
+   ]
+  },
+  {
+   "name": "Correspondence Address Pin code",
+   "key": "pin",
+   "type": "str",
+   "aliases": [
+    "Pin code",
+    "Pin Code",
+    "PIN",
+    "Pincode",
+    "Pin",
+    "ccdPinCode",
+    "Correspondence Pin",
+    "Corr Pin Code",
+    "Zip Code"
+   ]
+  },
+  {
+   "name": "Segment",
+   "key": "segment",
+   "type": "str",
+   "aliases": [
+    "Segment Indicator",
+    "ccdSegInd",
+    "Seg",
+    "Segment Code"
+   ]
+  },
+  {
+   "name": "Status",
+   "key": "status",
+   "type": "str",
+   "aliases": [
+    "Client Status",
+    "UCC Status",
+    "Trading Status",
+    "ccdCltStatus"
+   ]
+  }
+ ],
+ "confirmed": false,
+ "source": "No published layout: the exchanges' UCC downloads (NSE UCI Online, BSE UCC, MCX UCC) are read by their header names. When a real file's header differs, add its text as an alias here."
+}

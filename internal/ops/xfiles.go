@@ -156,7 +156,7 @@ func (o *Ops) LoadExchangeFile(ctx context.Context, tenant, actor, name string, 
 			out = append(out, r)
 			continue
 		}
-		if xLenient(s.ID, f.Name) {
+		if xLenient(s.ID, f.Name) || isUCCDownload(s.ID) {
 			t.Issues = nil // read by its header names, or by its name only (mcxucc.go)
 		}
 		for _, row := range t.Rows {
@@ -175,6 +175,9 @@ func (o *Ops) LoadExchangeFile(ctx context.Context, tenant, actor, name string, 
 			keep = cdslMaskUID(keep) // Aadhaar is never stored (cdslclient.go)
 		}
 		sum := sha256.Sum256(keep)
+		if isUCCDownload(s.ID) {
+			keep = uccDlStub(f.Name) // only fingerprints are kept (uccfields.go)
+		}
 		rf, err := o.App.Ingest.Raw.Put(ctx, ingest.RawFile{Tenant: tenant, Source: "XFILE-" + strings.ToUpper(s.ID), Name: f.Name, SHA256: hex.EncodeToString(sum[:]), Content: keep})
 		if err != nil {
 			return out, err
@@ -297,6 +300,9 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 		}
 		r.Loaded, r.Added = "Loaded as G-sec and T-bill prices of "+date, n
 	default:
+		if o.loadUCCDownloadXFile(ctx, tenant, actor, s, f, t, r) { // the exchanges' UCC downloads, as fingerprints (uccfields.go)
+			return
+		}
 		if o.loadListXFile(ctx, tenant, actor, s, f, t, r) { // revocation lists and the KRAs' demise list (listfiles.go)
 			return
 		}
