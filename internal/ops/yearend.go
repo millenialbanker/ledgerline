@@ -150,6 +150,17 @@ type YearEndPack struct {
 	Exchanges []string     `json:"exchanges"`
 	STCG      money.Dec    `json:"stcg"`
 	LTCG      money.Dec    `json:"ltcg"`
+	// The rest of the capital gains statement (clientcg.go): other short-
+	// and long-term gains, the section 112A exemption and what is taxed,
+	// the rates, and Schedule 112A scrip-wise.
+	STOther    money.Dec `json:"st_other"`
+	LTOther    money.Dec `json:"lt_other"`
+	Exempt112A money.Dec `json:"exempt_112a"`
+	Taxable    money.Dec `json:"taxable_112a"`
+	RateST     string    `json:"rate_st"`
+	RateLT     string    `json:"rate_lt"`
+	Sched112A  Section   `json:"schedule_112a"`
+	NoFMV      int       `json:"no_fmv,omitempty"`
 	Spec      money.Dec    `json:"speculative"`
 	Deriv     money.Dec    `json:"derivatives"` // F&O and other derivative results (MTM and premium)
 	Charges   []ChargeLine `json:"charges"`
@@ -198,12 +209,14 @@ func (o *Ops) YearEnd(ctx context.Context, tenant, ucc, fy, today string) (YearE
 			p.Exchanges = append(p.Exchanges, l.Exchange)
 		}
 	}
-	_, sales, _, err := o.equityBook(ctx, tenant, c.UCC, p.To)
+	cg, err := o.clientCG(ctx, tenant, c.UCC, from, p.To)
 	if err != nil {
 		return p, err
 	}
-	g := gainsBy(sales, from, p.To)
-	p.STCG, p.LTCG, p.Spec = g[CatSTCG], g[CatLTCG], g[CatSpec]
+	p.STCG, p.LTCG, p.Spec, p.STOther, p.LTOther, p.Taxable, p.NoFMV = cg.STCG111A, cg.LTCG112A, cg.Spec, cg.STOther, cg.LTOther, cg.Taxable, cg.NoFMV
+	p.Exempt112A = money.Min(money.Max(cg.LTCG112A, money.Dec{}), cg.Exempt112A.Dec())
+	p.RateST, p.RateLT = cgRate("111A", p.To), cgRate("112A", p.To)
+	p.Sched112A = cgSchedule112A(cg.Sales)
 	bt, err := o.bills(ctx, tenant, c.UCC, from, p.To)
 	if err != nil {
 		return p, err
@@ -378,6 +391,7 @@ var yearEndTmpl = template.Must(template.New("ye").Funcs(template.FuncMap{
 		return cgRef(kind, from)
 	},
 	"neg": func(d money.Dec) bool { return d.Sign() < 0 },
+	"nz":  func(d money.Dec) bool { return d.Sign() != 0 },
 	"abs": func(d money.Dec) money.Dec { return d.Abs() },
 	"ex": func(ls []STTRow, ex string) []STTRow {
 		var o []STTRow
@@ -417,13 +431,23 @@ tfoot td{font-weight:700;border-top:2px solid #16201B}.small{font-size:11px;colo
 <table><tbody>
 <tr><td>Short-term capital gains on listed shares ({{cg "st" .From}})</td><td class="r">{{inr .STCG}}</td></tr>
 <tr><td>Long-term capital gains on listed shares ({{cg "lt" .From}})</td><td class="r">{{inr .LTCG}}</td></tr>
+<tr><td>&nbsp;&nbsp;of which not taxed (the year's exemption)</td><td class="r">{{inr .Exempt112A}}</td></tr>
+<tr><td>&nbsp;&nbsp;of which taxed at {{.RateLT}}</td><td class="r">{{inr .Taxable}}</td></tr>
+{{if or (nz .STOther) (nz .LTOther)}}<tr><td>Other short-term capital gains (bonds, debt fund units; normal rates)</td><td class="r">{{inr .STOther}}</td></tr>
+<tr><td>Other long-term capital gains (12.5% without indexation)</td><td class="r">{{inr .LTOther}}</td></tr>{{end}}
 <tr><td>Intraday (speculative) result</td><td class="r">{{inr .Spec}}</td></tr>
 <tr><td>Futures and options result (mark-to-market and premium)</td><td class="r">{{inr .Deriv}}</td></tr>
 <tr><td>Securities transaction tax paid</td><td class="r">{{inr .STTTotal}}</td></tr>
 <tr><td>Ledger balance on {{day .To}} ({{if neg .Closing}}owed by you{{else}}in your favour{{end}})</td><td class="r">{{inr (abs .Closing)}}</td></tr>
 <tr><td>Value of holdings with us on {{day .To}}</td><td class="r">{{inr .Holdings}}</td></tr>
 </tbody></table>
-<p class="small">Capital gains are worked first-in first-out over your purchase lots and do not include charges; the stock-wise statement is in the client portal under Reports &amp; statements. Results through other brokers are not included.</p>
+<p class="small">Capital gains are worked first-in first-out over your purchase lots and do not include charges; the stock-wise statement is in the client portal under Reports &amp; statements. Short-term gains on listed shares are taxed at {{.RateST}}; long-term gains at {{.RateLT}} in the year. Shares and equity fund units bought before 1 February 2018 take the higher of their cost and the lower of their value on 31 January 2018 and the sale value as cost.{{if .NoFMV}} {{.NoFMV}} such sales had no value for 31 January 2018 on record and use their actual cost.{{end}} Results through other brokers are not included.</p>
+
+<h2>Schedule 112A (scrip-wise long-term gains)</h2>
+<table><thead><tr>{{range .Sched112A.Columns}}<th>{{.Label}}</th>{{end}}</tr></thead><tbody>
+{{range .Sched112A.Rows}}<tr>{{range .}}<td>{{.}}</td>{{end}}</tr>{{else}}<tr><td colspan="15">{{.Sched112A.Empty}}</td></tr>{{end}}
+</tbody>{{if .Sched112A.Totals}}<tfoot><tr>{{range .Sched112A.Totals}}<td>{{.}}</td>{{end}}</tr></tfoot>{{end}}</table>
+<p class="small">{{.Sched112A.Note}}</p>
 
 <h2>2. Charges paid</h2>
 <table><thead><tr><th>Charge</th><th class="r">Amount (₹)</th></tr></thead><tbody>

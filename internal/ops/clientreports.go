@@ -340,7 +340,7 @@ var ClientReportDefs = []ClientReportDef{
 	{"ledger", "Ledger statement", "Every debit and credit with running balance, opening and closing.", true, true, "fy"},
 	{"holdings", "Holding statement", "Securities held with quantity, pledged quantity, average cost, market value and unrealised P&L.", false, true, ""},
 	{"portfolio", "Portfolio report", "Net worth: ledger, equity holdings at market, open derivatives MTM, collateral, and realised P&L for the period.", true, false, "fy"},
-	{"pnl", "Profit & loss / capital gains", "Realised equity gains lot by lot (speculative, short-term, long-term), derivatives P&L and charges, for tax filing.", true, false, "fy"},
+	{"pnl", "Profit & loss / capital gains", "Realised gains lot by lot (speculative; short- and long-term by section, with 31 January 2018 grandfathering; shares, ETFs, bonds and mutual fund units), the scrip-wise Schedule 112A, derivatives P&L and charges, for tax filing.", true, false, "fy"},
 	{"tradebook", "Trade book", "Every trade across exchanges and segments in the period.", true, true, "month"},
 	{"positions", "Open positions", "Open futures and options with average price, last price, MTM and margin.", false, false, ""},
 	{"funds_securities", "Statement of funds and securities", "The week's (or any period's) funds movement and balance, securities with the broker (margin pledges, unpaid purchases held in CUSPA) and demat holdings.", true, false, "week"},
@@ -840,66 +840,6 @@ func (o *Ops) repPortfolio(ctx context.Context, tenant string, r *ClientReport) 
 }
 
 // ---- P&L / capital gains ----
-
-func (o *Ops) repPnL(ctx context.Context, tenant string, r *ClientReport) error {
-	_, sales, lotsAsOf, err := o.equityBook(ctx, tenant, r.UCC, r.To)
-	if err != nil {
-		return err
-	}
-	bt, err := o.bills(ctx, tenant, r.UCC, r.From, r.To)
-	if err != nil {
-		return err
-	}
-	g := gainsBy(sales, r.From, r.To)
-	lotSec := func(title string, cats ...string) Section {
-		s := Section{Title: title, Columns: []Column{{"sell", "Sell date", ColDate}, {"symbol", "Security", ColText}, {"isin", "ISIN", ColText}, {"qty", "Qty", ColQty}, {"buy", "Buy date", ColDate}, {"bp", "Buy price", ColMoney}, {"sp", "Sell price", ColMoney}, {"cost", "Cost", ColMoney}, {"proc", "Sale value", ColMoney}, {"gain", "Gain / loss", ColMoney}, {"days", "Days held", ColQty}},
-			Empty: "None in this period."}
-		var tc, tp, tg money.Dec
-		for _, x := range sales {
-			if x.Date < r.From || x.Date > r.To || !contains(cats, x.Category) {
-				continue
-			}
-			days := ""
-			if x.BuyDate != "" {
-				days = fmt.Sprint(x.Days)
-			}
-			cost, bp := d2s(x.Cost), d2s(x.BuyPrice)
-			if x.Category == CatUnknown {
-				cost, bp = "", ""
-			}
-			s.Rows = append(s.Rows, []string{x.Date, x.Symbol, x.ISIN, fmtQty(x.Qty), x.BuyDate, bp, d2s(x.SellPrice), cost, d2s(x.Proceeds), d2s(x.Gain), days})
-			tc, tp, tg = tc.Add(x.Cost), tp.Add(x.Proceeds), tg.Add(x.Gain)
-		}
-		if len(s.Rows) > 0 {
-			s.Totals = []string{"Total", "", "", "", "", "", "", d2s(tc), d2s(tp), d2s(tg), ""}
-		}
-		return s
-	}
-	spec := lotSec("Speculative business income (intraday equity)", CatSpec)
-	spec.Columns[4].Label, spec.Columns[5].Label, spec.Columns[6].Label = "Trade date", "Avg buy", "Avg sell"
-	st := lotSec("Short-term capital gains (listed equity held 12 months or less)", CatSTCG)
-	lt := lotSec("Long-term capital gains (listed equity held more than 12 months)", CatLTCG)
-	r.Sections = append(r.Sections, spec, st, lt, bt.derivSection(), bt.chargeSection())
-	if !g[CatUnknown].IsZero() {
-		u := lotSec("Sales without purchase history", CatUnknown)
-		u.Note = "These sales have no recorded purchase. Load the client's purchase lots (HOLDING-LOTS) to compute their gains."
-		r.Sections = append(r.Sections, u)
-	}
-	r.Summary = []SummaryItem{
-		{"Speculative", d2s(g[CatSpec]), ColMoney, tone(g[CatSpec])},
-		{"Short-term capital gain", d2s(g[CatSTCG]), ColMoney, tone(g[CatSTCG])},
-		{"Long-term capital gain", d2s(g[CatLTCG]), ColMoney, tone(g[CatLTCG])},
-		{"Derivatives (non-speculative business)", d2s(bt.derivTotal()), ColMoney, tone(bt.derivTotal())},
-		{"Charges", d2s(bt.chargeTotal()), ColMoney, ""},
-	}
-	r.Notes = append(r.Notes,
-		"Gains are computed first-in first-out on purchase price; brokerage and statutory charges are shown separately (STT is not deductible against capital gains). Same-day buy and sell of a scrip is treated as speculative.",
-		"Long-term = listed equity held more than 12 months. Grandfathering of gains to 31-Jan-2018 is not applied. This statement supports tax filing and is not tax advice; please confirm with your tax adviser.")
-	if lotsAsOf != "" {
-		r.Notes = append(r.Notes, "Purchase history is carried from the lots as at "+fmtDay(lotsAsOf)+".")
-	}
-	return nil
-}
 
 func contains(xs []string, s string) bool {
 	for _, x := range xs {

@@ -118,7 +118,8 @@ type FSSettings struct {
 	Pledges string `json:"pledges"`
 	// Disclosure (c3): add the proprietary trading disclosure to the
 	// account-opening documents.
-	Disclosure bool `json:"disclosure"`
+	Disclosure     bool   `json:"disclosure"`
+	DisclosureText string `json:"disclosure_text,omitempty"`
 	// NetWorth (c4): "cost" (securities at cost) or "book" (as carried).
 	NetWorth string `json:"net_worth"`
 	// Checker (c5): "manual" (a second person approves manual and
@@ -132,11 +133,13 @@ type FSSettings struct {
 	At      string `json:"at,omitempty"`
 }
 
-// DefaultFSSettings are the choices a firm starts with: both portfolios,
-// trades under PRO going to stock-in-trade, FIFO at full cost, AS,
-// everything at cost, intraday apart, a daily demat check.
+// DefaultFSSettings are the choices a firm starts with: no securities of
+// its own until it says where it keeps them (so nothing is posted for a
+// firm that has not answered); then trades under PRO going to
+// stock-in-trade, FIFO at full cost, AS, everything at cost, intraday
+// apart, a daily demat check.
 func DefaultFSSettings() FSSettings {
-	return FSSettings{Portfolios: FSBoth, Demats: "separate", Default: "change", SITCodes: []string{"PRO"}, InvCodes: []string{}, Moves: "journal",
+	return FSSettings{Portfolios: FSNone, Demats: "separate", Default: "change", SITCodes: []string{"PRO"}, InvCodes: []string{}, Moves: "journal",
 		Instruments: "all", InvMethod: "fifo", SITMethod: "fifo", InvCost: "full", Standard: "as", Term: "lot", InvValue: "cost", Corp: "engine",
 		CGRegister: true, Income: "auto", TDSPct: "10", TDSThreshold: "10000", SITSource: "auto", Spec: true, Closing: "cost", SITCharges: "expense",
 		DematCheck: "daily", Pledges: "track", Disclosure: true, NetWorth: "cost", Checker: "manual", Accounts: "kind", Opening: "lots"}

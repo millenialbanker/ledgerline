@@ -274,7 +274,7 @@ func (o *Ops) DecideFirmSecJournal(ctx context.Context, tenant, actor, id string
 	if len(ps) >= 2 {
 		e, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "FSJ:" + j.ID, ValueDate: j.Date, CreatedBy: actor, Source: ledger.SourceRef{Kind: "FIRMSEC", ID: j.ID},
 			Narration: fmt.Sprintf("Stock journal %s · %s %s from %s (at cost) to %s (at market value) · %s", j.ID, j.Qty, j.Symbol, PortfolioName(j.From), PortfolioName(j.To), j.Reason),
-			Postings: ps})
+			Postings:  ps})
 		if err != nil {
 			return j, err
 		}

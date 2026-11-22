@@ -193,19 +193,20 @@ type FSTxn struct {
 	TaxDate  string       `json:"tax_date,omitempty"`
 	TaxValue money.Amount `json:"tax_value,omitempty"`
 	TaxNote  string       `json:"tax_note,omitempty"`
-	// TaxCost and TaxAcq carry an opening lot's tax cost and acquisition
-	// when they differ from the books (blank: the same).
-	Ref      string   `json:"ref,omitempty"`
-	Note     string   `json:"note,omitempty"`
-	Warnings []string `json:"warnings,omitempty"`
-	Status   string   `json:"status"`
-	Maker    string   `json:"maker"`
-	Checker  string   `json:"checker,omitempty"`
-	Reason   string   `json:"reason,omitempty"`
-	Entry    string   `json:"entry,omitempty"`
-	Rev      int      `json:"rev,omitempty"`
-	Hash     string   `json:"hash,omitempty"`
-	Created  string   `json:"created"`
+	// FMV2018 is an opening lot's fair market value per unit on 31
+	// January 2018, from the old system (cgtax.go: grandfathering).
+	FMV2018  money.Dec `json:"fmv_2018,omitempty"`
+	Ref      string    `json:"ref,omitempty"`
+	Note     string    `json:"note,omitempty"`
+	Warnings []string  `json:"warnings,omitempty"`
+	Status   string    `json:"status"`
+	Maker    string    `json:"maker"`
+	Checker  string    `json:"checker,omitempty"`
+	Reason   string    `json:"reason,omitempty"`
+	Entry    string    `json:"entry,omitempty"`
+	Rev      int       `json:"rev,omitempty"`
+	Hash     string    `json:"hash,omitempty"`
+	Created  string    `json:"created"`
 	// Filled in when listed.
 	PortfolioName string `json:"portfolio_name,omitempty"`
 	KindName      string `json:"kind_name,omitempty"`
@@ -1209,9 +1210,9 @@ func (o *Ops) fsSync(ctx context.Context, tenant, actor, date string) (FSSyncRes
 	_, look, _ := o.Market(ctx, tenant, date)
 	type agg struct {
 		code, exch, isin, sym, side, series, company string
-		qty                                        money.Dec
-		val                                        money.Dec
-		n                                          int
+		qty                                          money.Dec
+		val                                          money.Dec
+		n                                            int
 	}
 	groups := map[string]*agg{}
 	for _, t := range trades {

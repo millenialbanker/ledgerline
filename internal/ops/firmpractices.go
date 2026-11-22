@@ -82,6 +82,9 @@ type practiceState struct {
 
 type practiceDef struct {
 	ID, Short, Question, Why string
+	// Section groups the questions on the screen ("" the general ones,
+	// asked first; SectionFirmSecurities and others after).
+	Section string
 	// Note is said under the question (what is and is not built).
 	Note string
 	// Setting names where the behaviour lives, for the screen.
@@ -167,6 +170,8 @@ type PracticeAnswer struct {
 type PracticeView struct {
 	ID       string           `json:"id"`
 	N        int              `json:"n"`
+	Section  string           `json:"section,omitempty"`
+	Applies  bool             `json:"applies"`
 	Short    string           `json:"short"`
 	Question string           `json:"question"`
 	Why      string           `json:"why"`
@@ -603,7 +608,7 @@ func (o *Ops) FirmPractices(ctx context.Context, tenant, actor string) (FirmPrac
 	for i, d := range practiceDefs {
 		fp := o.firmPractice(ctx, tenant, d.ID)
 		st := o.practiceNow(ctx, tenant, d, fp)
-		q := PracticeView{ID: d.ID, N: i + 1, Short: d.Short, Question: d.Question, Why: d.Why, Note: d.Note, Setting: d.Setting, Money: d.Money,
+		q := PracticeView{ID: d.ID, N: i + 1, Section: d.Section, Applies: o.fsPracticeApplies(ctx, tenant, d), Short: d.Short, Question: d.Question, Why: d.Why, Note: d.Note, Setting: d.Setting, Money: d.Money,
 			Fields: d.Fields, Current: st.Option, CurrentNote: st.Note, Values: st.Values, Answered: fp.Answer != "", Answer: fp.Answer, Other: fp.Other,
 			By: fp.By, At: fp.At, Pending: fp.Pending}
 		for _, x := range d.Options {
@@ -859,7 +864,7 @@ func (o *Ops) practiceView(ctx context.Context, tenant, actor, id string) (Pract
 func (o *Ops) practicesOpen(ctx context.Context, tenant string) int {
 	n := 0
 	for _, d := range practiceDefs {
-		if o.firmPractice(ctx, tenant, d.ID).Answer == "" {
+		if o.fsPracticeApplies(ctx, tenant, d) && o.firmPractice(ctx, tenant, d.ID).Answer == "" {
 			n++
 		}
 	}
@@ -873,6 +878,9 @@ func (o *Ops) practiceChecklist(ctx context.Context, tenant string) []control.Se
 	var all, other []control.SetupItem
 	open := 0
 	for _, d := range practiceDefs {
+		if !o.fsPracticeApplies(ctx, tenant, d) {
+			continue // the firm keeps no securities of its own
+		}
 		fp := o.firmPractice(ctx, tenant, d.ID)
 		it := control.SetupItem{Key: "practice_" + d.ID, Label: "Firm practice: " + d.Short, OK: fp.Answer != "" && fp.Answer != PracticeOther}
 		switch {
@@ -892,7 +900,7 @@ func (o *Ops) practiceChecklist(ctx context.Context, tenant string) []control.Se
 	if open > 0 {
 		return all
 	}
-	return append([]control.SetupItem{{Key: "practices", Label: "Firm practices answered", OK: true, Detail: fmt.Sprintf("%d questions", len(practiceDefs))}}, other...)
+	return append([]control.SetupItem{{Key: "practices", Label: "Firm practices answered", OK: true, Detail: fmt.Sprintf("%d questions", len(all))}}, other...)
 }
 
 // GoLiveChecklist is the firm's go-live checklist as Ledgerline Control
