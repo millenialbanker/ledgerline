@@ -6,7 +6,9 @@
    with the firm's own words. Ticking an option switches the behaviour in
    Ledgerline; changes that affect money or client limits wait for the
    compliance officer or another Admin. The go-live checklist sits on top
-   until every question is answered. Also: a client's Finspot login in the
+   until every question is answered. Questions are grouped by section
+   (the general ones first, then Firm securities, firmsecpractices.go).
+   Also: a client's Finspot login in the
    client drawer (finspotlogin.go). Loaded after app.js. */
 
 const FP_ST = { 'Applied': 'good', 'Confirmed (no change)': 'good', 'Approved and applied': 'good', 'Waiting for approval': 'warn', 'Rejected': 'bad', 'Withdrawn': 'nt', 'Other: recorded, needs configuring': 'acc' };
@@ -19,7 +21,8 @@ V.practices = {
     return ph('Firm practices', 'How your firm works, question by question. Ticking an option switches that behaviour on in Ledgerline. Choose Other if your firm works another way: Ledgerline keeps what it does now and asks for it to be configured.') +
       fpChecklist(d) +
       `<div class="note ${left ? 'warn' : ''}">${left ? `<b>${d.answered} of ${d.total} answered.</b> Answer every question before going live.` : `<b>All ${d.total} questions answered.</b> You can change an answer at any time.`} ${pill('Needs a second approver', 'warn')} marks a change that affects money or client limits: the compliance officer or another Admin approves it before it applies.${d.can_answer ? '' : ' Only an Admin answers.'}</div>` +
-      d.questions.map(q => fpQuestion(q, d)).join('');
+      d.questions.map((q, i) => (q.section && q.section !== d.questions[i - 1]?.section ? `<h2 class="fp-sec" id="fp-sec-${esc(q.section.toLowerCase().replace(/\W+/g, '-'))}" style="margin:22px 0 8px">${esc(q.section)}</h2>${q.section === 'Firm securities' ? '<p class="dim small" style="margin:0 0 10px">How the firm keeps its own securities: investments held as lots at cost, stock-in-trade as a purchase and sale book, or both. The register, reports and valuation are on Accounts → Firm securities.</p>' : ''}` : '') +
+        (q.applies === false ? `<div class="panel"><div class="hd"><h3>${q.n}. ${esc(q.question)}</h3><small>${pill('Applies once the firm keeps its own securities', 'nt')}</small></div></div>` : fpQuestion(q, d))).join('');
   }
 };
 

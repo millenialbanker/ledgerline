@@ -29,6 +29,11 @@ async function portal(force) {
   return CA.v;
 }
 const notTrading = v => v.account.dp_only;
+// mcFYs are the financial years a client's tax papers are offered for:
+// the running year and the one before; mcFYRange their first and last
+// day (the last capped at today).
+const mcFYs = () => { const [y, m] = MS.day().split('-').map(Number), s = m >= 4 ? y : y - 1; return [s, s - 1].map(x => `${x}-${String((x + 1) % 100).padStart(2, '0')}`); };
+const mcFYRange = fy => { const y = +fy.slice(0, 4), t = `${y + 1}-03-31`; return [`${y}-04-01`, t < MS.day() ? t : MS.day()]; };
 const docBtn = (path, name, label) => `<button class="btn sm" data-act="share" data-id="${esc(path)}" data-name="${esc(name)}">${esc(label || 'Open or share')}</button>`;
 const PO_ST = { Requested: 'warn', Approved: 'acc', Paid: 'good', Rejected: 'bad', Failed: 'bad', Expired: 'nt', Cancelled: 'nt' };
 const tile = (label, value, sub, cls = '') => `<div class="m-tile"><small>${esc(label)}</small><b class="mono ${cls}">${value}</b>${sub ? `<span>${sub}</span>` : ''}</div>`;
@@ -103,6 +108,7 @@ MS.screens = {
     html: v => `<div class="ph-pg">${acctBar(v)}<h1>Reports</h1>
       <h2 class="m-h2">Contract notes</h2><div class="ph-list">${v.notes.slice(0, 40).map(n => `<div class="ph-cl"><span><b>${fmtDate(n.date)}</b><small class="mono">${esc(n.no)} · ${n.trades} trades · ${inr(n.net, 2)}</small></span><span class="ph-cr">${n.dispatch ? docBtn('/v1/portal/documents/' + n.dispatch, 'ContractNote_' + n.no.replace(/[\/ ]/g, '-') + '.pdf', 'PDF') : '<small class="dim">signed copy soon</small>'}</span></div>`).join('') || empty('No contract notes yet.')}</div>
       <h2 class="m-h2">Statements</h2><div class="ph-list">${v.documents.filter(d => d.kind !== 'CN').slice(0, 40).map(d => `<div class="ph-cl"><span><b>${esc(d.title)}</b><small>${esc(d.ref)} · ${fmtDate(d.date)}</small></span><span class="ph-cr">${d.signed ? docBtn('/v1/portal/documents/' + d.id, d.kind + '_' + d.ref.replace(/[^0-9A-Za-z-]/g, '_') + '.pdf', 'PDF') : ''}</span></div>`).join('') || empty('No statements yet.')}</div>
+      <h2 class="m-h2">Tax</h2><div class="ph-list">${mcFYs().map(fy => { const [f, t] = mcFYRange(fy), u = encodeURIComponent(v.account.ucc); return `<div class="ph-cl"><span><b>Year-end statement ${esc(fy)}</b><small>STT paid, capital gains with the rates, Schedule 112A</small></span><span class="ph-cr">${docBtn('/v1/year-end/' + fy + '/' + u + '/document?date=' + MS.day(), 'YearEnd_' + fy + '.html', 'Open')}</span></div><div class="ph-cl"><span><b>Capital gains ${esc(fy)}</b><small>Lot by lot, grandfathered to 31 Jan 2018; shares, ETFs, bonds and fund units</small></span><span class="ph-cr">${docBtn('/v1/client-reports/pnl?ucc=' + u + '&from=' + f + '&to=' + t + '&format=html', 'CapitalGains_' + fy + '.html', 'Open')}</span></div>`; }).join('')}</div>
       <p class="dim small">PDFs are digitally signed by us. Share saves them to Files, mail or WhatsApp. Earlier years and tax reports are on the website.</p>
       <a class="ph-row" href="/#statements">Reports & statements on the website<span aria-hidden="true">›</span></a></div>`,
   },
