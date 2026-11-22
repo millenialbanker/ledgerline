@@ -158,7 +158,10 @@ func TestSignerFileBackendWithFakeServer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- c.run(ctx) }()
-	waitFor(t, func() bool { return f.count() == 2 })
+	// Wait for the client to finish the batch, not only for the server to
+	// record both results: cancelling while the last result is in flight
+	// makes the client report it as not taken.
+	waitFor(t, func() bool { return f.count() == 2 && strings.Contains(lg.all(), "Signed 2 documents") })
 	cancel()
 	if err := <-done; err != nil {
 		t.Fatal(err)
