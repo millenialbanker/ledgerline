@@ -15,15 +15,17 @@ import (
 
 // ---- the document archive: documents brought from the old system ----
 //
-// Contract notes, statements, DP bills and the rest, up to eight years of
+// Contract notes, statements, DP bills and the rest, up to ten years of
 // them, as the old system sent them. Each document is a stored file (kept
 // encrypted, like every file Ledgerline stores) with an index record under
 // the client: type, date, financial year, subject, whether it was signed,
 // format, size, SHA-256, where it came from, and the date it must be kept
 // until. A firm-wide index per financial year, in chunks, lets staff search
 // about a million documents without reading every record. Documents cannot
-// be deleted before they may be (RetainUntil: from the package, else eight
-// years from the document's date) and not at all while on legal hold.
+// be deleted before they may be (RetainUntil: ten years from the document's
+// date, or the package's date when that is later; a demat account's KYC
+// and account opening documents also for the life of the account and
+// eight years after it closes) and not at all while on legal hold.
 // Every download is in the audit trail. A client sees only their own.
 
 const (
@@ -32,7 +34,10 @@ const (
 	cArcChunk = "migarcc"  // <mig>|<fy>|<n>: arcChunk
 
 	arcChunkRows = 2000
-	arcKeepYears = 8
+	arcKeepYears = ArchiveRetainDefault
+	// archiveDPAccountYears: a demat account's records are kept for the
+	// life of the account and this many years after it closes.
+	archiveDPAccountYears = 8
 )
 
 // ArchiveDoc is one archived document.
@@ -87,20 +92,63 @@ func arcKey(ucc, id string) string {
 	return strings.ToUpper(ucc) + "|" + id
 }
 
-// retainUntil is the package's date, else eight years from the document's
-// date, else from the end of its financial year, else from today.
+// retainUntil is ten years (ArchiveRetainDefault) from the document's
+// date, else from the end of its financial year, else from today; or the
+// package's date when that is later. The old system's date is never
+// allowed to shorten the rule: old back offices often kept eight years,
+// and MCX's bye-law 5.23 asks for ten.
 func retainUntil(d pkg.DocMeta, fy string, today time.Time) string {
-	switch {
-	case !d.RetainUntil.IsZero():
-		return d.RetainUntil.Format("2006-01-02")
-	case !d.Date.IsZero():
-		return d.Date.AddDate(arcKeepYears, 0, 0).Format("2006-01-02")
-	}
+	var rule string
 	var y int
-	if _, err := fmt.Sscanf(fy, "%d-", &y); err == nil && y > 1900 {
-		return fmt.Sprintf("%d-03-31", y+1+arcKeepYears)
+	switch {
+	case !d.Date.IsZero():
+		rule = d.Date.AddDate(arcKeepYears, 0, 0).Format("2006-01-02")
+	case func() bool { _, err := fmt.Sscanf(fy, "%d-", &y); return err == nil && y > 1900 }():
+		rule = fmt.Sprintf("%d-03-31", y+1+arcKeepYears)
+	default:
+		rule = today.AddDate(arcKeepYears, 0, 0).Format("2006-01-02")
 	}
-	return today.AddDate(arcKeepYears, 0, 0).Format("2006-01-02")
+	if !d.RetainUntil.IsZero() {
+		rule = max(rule, d.RetainUntil.Format("2006-01-02"))
+	}
+	return rule
+}
+
+// dpAccountHold says why a client's KYC or account opening document cannot
+// be deleted yet while the client has a demat account at the firm's DP: a
+// demat account's records are kept for its life and eight years after it
+// closes. It is empty when nothing holds the document.
+func (o *Ops) dpAccountHold(ctx context.Context, tenant string, d ArchiveDoc, today string) string {
+	if d.Type != pkg.DocKYC || d.UCC == "" {
+		return ""
+	}
+	closed := ""
+	for _, b := range o.boAccountsOf(ctx, tenant, d.UCC) {
+		if !strings.EqualFold(b.Status, "Closed") {
+			return fmt.Sprintf("demat account %s is open: its records are kept for the life of the account and %d years after it closes", b.BOID, archiveDPAccountYears)
+		}
+		c := firstOf(b.ClosedOn, func() string {
+			if b.CDSL != nil {
+				return b.CDSL.ClosedOn
+			}
+			return ""
+		}())
+		if c == "" {
+			return fmt.Sprintf("demat account %s has no closing date recorded: record it before deleting its records", b.BOID)
+		}
+		closed = max(closed, dayOf(c))
+	}
+	if closed == "" {
+		return ""
+	}
+	t, err := time.Parse("2006-01-02", closed)
+	if err != nil {
+		return ""
+	}
+	if until := t.AddDate(archiveDPAccountYears, 0, 0).Format("2006-01-02"); today < until {
+		return fmt.Sprintf("the demat account closed on %s; its records are kept until %s", fmtDay(closed), fmtDay(until))
+	}
+	return ""
 }
 
 // archiveDocs stores one part's documents for the ticked years, carrying
@@ -473,6 +521,11 @@ func (o *Ops) DeleteArchived(ctx context.Context, tenant, actor, ucc, id, reason
 		return ArchiveDoc{}, invalid("say why the document is deleted")
 	}
 	today := o.now().Format("2006-01-02")
+	if cur, _, err := docs.Get[ArchiveDoc](ctx, o.Docs, tenant, cArc, arcKey(ucc, id)); err == nil && !cur.Removed && !cur.Deleted {
+		if why := o.dpAccountHold(ctx, tenant, cur, today); why != "" {
+			return ArchiveDoc{}, fmt.Errorf("%w: the document cannot be deleted: %s", ErrState, why)
+		}
+	}
 	d, err := docs.Update(ctx, o.Docs, tenant, cArc, arcKey(ucc, id), actor, func(d *ArchiveDoc) error {
 		switch {
 		case d.Removed || d.Deleted:

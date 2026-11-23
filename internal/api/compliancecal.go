@@ -15,6 +15,7 @@ func (s *Server) complianceCalendarRoutes(R func(string, http.HandlerFunc, bool)
 	R("GET /v1/duties/sheet", s.dutySheet, false)
 	R("POST /v1/duties/{id}/events", s.dutyEvent, true)
 	R("POST /v1/duties/{id}/applies", s.dutyApplies, true)
+	R("POST /v1/duties/{id}/cutoff", s.dutyCutoff, true)
 	R("GET /v1/holding-api/bse", s.bseHoldingView, false)
 	R("POST /v1/holding-api/bse", s.bseHoldingUploaded, true)
 }
@@ -167,5 +168,22 @@ func (s *Server) survAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.AddSurvAction(r.Context(), tenant(r), actor(r), b.Quarter, b.Text)
+	ok(w, v, err)
+}
+
+// dutyCutoff records a revised cut-off a regulator notified for one
+// occurrence of a dated duty (an empty due takes it back).
+func (s *Server) dutyCutoff(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		ops.DutyCutoffReq
+		On string `json:"on"` // the business date (today)
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	if _, okd := dateParam(w, b.On, "on", false); !okd {
+		return
+	}
+	v, err := s.ops.SetDutyCutoff(r.Context(), tenant(r), actor(r), b.On, r.PathValue("id"), b.DutyCutoffReq)
 	ok(w, v, err)
 }

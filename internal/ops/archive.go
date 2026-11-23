@@ -85,19 +85,29 @@ const (
 //     rule 3: records of transactions for five years from the
 //     transaction; identity records for five years after the business
 //     relationship ends (longer while an investigation is open).
-//   - SEBI (Stock Brokers) Regulations 1992, regulation 18 with the third
-//     schedule, and the SEBI master circular for stock brokers: books of
-//     account, contract notes and client records for at least five years;
-//     the exchanges' inspection rules and SEBI's circulars on preserving
-//     records have asked for eight years for several of them.
+//   - SEBI (Stock Brokers) Regulations, 2026 (SEBI/LAD-NRO/GN/2026/291),
+//     regulation 16: books of account, records and documents preserved for
+//     at least eight years.
+//   - MCX Bye-laws as amended in April 2026 (MCX/LEGAL/241/2026), bye-law
+//     5.23: books, registers, statements and other records preserved for
+//     at least ten years, or longer if specified.
+//   - Depository accounts: records of a demat account for the life of the
+//     account and eight years after it is closed (the DP's record keeping;
+//     see archiveDPAccountYears in migarchive.go).
 //   - SEBI's cloud framework for regulated entities: records kept with a
 //     cloud provider remain the firm's to preserve for the periods the
 //     regulations set.
 //
-// Eight years from the end of the archived period is the safe default; a
-// firm may set more. Legal holds (records under investigation or in a
-// dispute) are not archived at all.
-const ArchiveRetainDefault = 8
+// Ten years from the end of the archived period is the default for every
+// firm, so one rule covers any exchange's bye-laws. A firm may set more,
+// and a firm that is not an MCX member may go down to SEBI's eight. Legal
+// holds (records under investigation or in a dispute) are not archived at
+// all.
+const (
+	ArchiveRetainDefault = 10
+	ArchiveRetainMin     = 8  // SEBI (Stock Brokers) Regulations, 2026, reg. 16
+	ArchiveRetainMCX     = 10 // MCX bye-law 5.23
+)
 
 // Default storage prices for the saving estimate, in rupees per GB a
 // month: a managed database's disk with its backups and standby copy, and
@@ -117,9 +127,24 @@ type ArchiveSettings struct {
 	ArchiveCostPerGB float64 `json:"archive_cost_per_gb"` // ₹ per GB-month, archive storage
 }
 
-func (s ArchiveSettings) norm() ArchiveSettings {
-	if s.RetainYears < ArchiveRetainDefault {
+// archiveRetainMin is the fewest years the firm may keep archives: ten for
+// an MCX member (or a firm with no member codes yet, assumed to be one),
+// eight otherwise.
+func archiveRetainMin(set Settings) int {
+	exs := memberExchanges(set)
+	if len(exs) == 0 || contains(exs, "MCX") {
+		return ArchiveRetainMCX
+	}
+	return ArchiveRetainMin
+}
+
+// norm fills the defaults: unset is ten years, and never below the floor.
+func (s ArchiveSettings) norm(floor int) ArchiveSettings {
+	if s.RetainYears == 0 {
 		s.RetainYears = ArchiveRetainDefault
+	}
+	if s.RetainYears < floor {
+		s.RetainYears = floor
 	}
 	if s.LiveCostPerGB <= 0 {
 		s.LiveCostPerGB = arcLiveCostDefault
@@ -132,7 +157,8 @@ func (s ArchiveSettings) norm() ArchiveSettings {
 
 func (o *Ops) archiveSettings(ctx context.Context, tenant string) ArchiveSettings {
 	s, _, _ := docs.GetOr(ctx, o.Docs, tenant, cArcSet, "settings", ArchiveSettings{})
-	return s.norm()
+	set, _ := o.Settings(ctx, tenant)
+	return s.norm(archiveRetainMin(set))
 }
 
 // SetArchiveSettings changes the retention years and the storage prices
@@ -141,13 +167,19 @@ func (o *Ops) SetArchiveSettings(ctx context.Context, tenant, actor string, s Ar
 	if err := o.require(ctx, tenant, actor, "Changing the archive rules", RoleAdmin); err != nil {
 		return ArchiveSettings{}, err
 	}
-	if s.RetainYears < ArchiveRetainDefault || s.RetainYears > 50 {
-		return ArchiveSettings{}, invalid("keep archives at least %d years (the record-keeping rules) and at most 50", ArchiveRetainDefault)
+	set, _ := o.Settings(ctx, tenant)
+	floor := archiveRetainMin(set)
+	if s.RetainYears < floor || s.RetainYears > 50 {
+		why := "SEBI (Stock Brokers) Regulations, 2026, regulation 16"
+		if floor == ArchiveRetainMCX {
+			why = "MCX bye-law 5.23 for an MCX member"
+		}
+		return ArchiveSettings{}, invalid("keep archives at least %d years (%s) and at most 50", floor, why)
 	}
 	if s.LiveCostPerGB < 0 || s.ArchiveCostPerGB < 0 || s.LiveCostPerGB > 100000 || s.ArchiveCostPerGB > 100000 {
 		return ArchiveSettings{}, invalid("give the storage prices in rupees per GB a month")
 	}
-	s = s.norm()
+	s = s.norm(floor)
 	if err := docs.Upsert(ctx, o.Docs, tenant, cArcSet, "settings", s, actor); err != nil {
 		return s, err
 	}
@@ -1217,7 +1249,7 @@ func (o *Ops) ArchiveScreen(ctx context.Context, tenant, actor string) (ArchiveV
 	if err := o.require(ctx, tenant, actor, "Viewing archives", RoleCompliance); err != nil {
 		return ArchiveView{}, err
 	}
-	v := ArchiveView{Available: true, Settings: o.archiveSettings(ctx, tenant), Archives: []app.ArchiveRecord{}, Index: o.arcIndex(ctx, tenant).Periods, RetainMin: ArchiveRetainDefault}
+	v := ArchiveView{Available: true, Settings: o.archiveSettings(ctx, tenant), Archives: []app.ArchiveRecord{}, Index: o.arcIndex(ctx, tenant).Periods, RetainMin: o.archiveRetainMinFor(ctx, tenant)}
 	if v.Index == nil {
 		v.Index = []arcPeriod{}
 	}
@@ -1249,4 +1281,9 @@ func (o *Ops) ArchiveScreen(ctx context.Context, tenant, actor string) (ArchiveV
 		}
 	}
 	return v, nil
+}
+
+func (o *Ops) archiveRetainMinFor(ctx context.Context, tenant string) int {
+	set, _ := o.Settings(ctx, tenant)
+	return archiveRetainMin(set)
 }

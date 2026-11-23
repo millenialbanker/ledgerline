@@ -159,7 +159,7 @@ func TestArchivePeriodAndRestore(t *testing.T) {
 	for _, k := range p.Kinds {
 		got[k.Kind] = k.Rows
 	}
-	if len(p.Blockers) != 0 || p.From != "2024-04-01" || p.To != "2025-03-31" || p.RetainUntil != "2033-03-31" ||
+	if len(p.Blockers) != 0 || p.From != "2024-04-01" || p.To != "2025-03-31" || p.RetainUntil != "2035-03-31" ||
 		got[app.ArcLedger] != 2 || got[app.ArcTrades] != 1 || got[app.ArcFiles] != 2 || got[app.ArcDocuments] != 1 || got[app.ArcMigrated] == 0 || got[app.ArcDocHistory] != 0 {
 		t.Fatalf("preview %+v", p)
 	}
