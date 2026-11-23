@@ -11,7 +11,7 @@ related: holding-statement-nil-days, holding-api, self-inspection-tests, penalty
 
 The daily holding statement to the exchanges (NSE/INSP/55039; layout and account types in NSE/INSP/55380) lists the **firm's own demat accounts**: each account and ISIN, with the account's NSE type, the security type and the firm's own client code, PAN and name. It is **not** the clients' holdings in their own accounts.
 
-Each of the firm's accounts has one of NSE's types: **POOL**, **CM COLL**, **OWN**, **EPI**, **CLNTBENE-MTF**, **TMCOLL**, **TMCOLL-MTF**, **CLNT UNPAID**, **CLNT COLL**, **MRGN PLEDGE**, **MTF PLEDGE** or **CLNTBENE**. Settings shows what each type is for.
+Each of the firm's accounts has one of NSE's types: **POOL**, **CM COLL**, **OWN**, **EPI**, **CLNTBENEMTF**, **TMCOLL**, **TMCOLL-MTF**, **CLNT UNPAID**, **CLNT COLL**, **MRGN PLEDGE**, **MTF PLEDGE** or **CLNTBENE**. Settings shows what each type is for.
 
 1. Load CDSL's statement of holding on [[xfiles|Exchange files]] each day. Ledgerline keeps each day's balances of the accounts in it that belong to no client, and of every tagged account. Clients' own accounts are not kept for this.
 2. On [[settings|Settings]], under **Firm demat accounts**, an Admin gives each account its type and sets the firm's own client code. **Take the types from the old system's holding statement** reads the old file's accounts and types only.
@@ -21,7 +21,7 @@ Each of the firm's accounts has one of NSE's types: **POOL**, **CM COLL**, **OWN
 
 **Security type** comes from CDSL's ISIN master: EQ, MF, BOND, DEBT, PREF, IDR, WT or COMM. Load the ISIN master on Exchange files. An ISIN missing from it is sent as MF (mutual fund ISINs), BOND (government securities) or EQ, and a work item asks you to check it. REIT and InvIT units go as EQ: NSE's list has no type for them. A commodity row also carries the commodity's name and unit.
 
-**CLNTBENE-MTF** is spelt as in NSE's Inspection master circular. NSE's API specification prints CLNTBENEMTF. Ledgerline reads either when tagging. If NSE rejects an MTF account with code 902, the work item says so: ask NSE which spelling its API takes.
+**CLNTBENEMTF** is spelt as in NSE's API specification, which NSE's API checks against. NSE's Inspection master circular prints CLNTBENE-MTF. Ledgerline reads either when tagging. If NSE rejects an MTF account with code 902, the work item says so: ask NSE which spelling its API takes.
 
 Before anything is made or sent, Ledgerline checks:
 

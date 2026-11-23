@@ -18,7 +18,7 @@ import (
 // December 2022; layout and account types in NSE/INSP/55380 of 25 January
 // 2023, kept in NSE's Inspection master circular NSE/INSP/73976) is the
 // trading member's own demat accounts: each row one of the firm's accounts
-// × ISIN, with the account's type (POOL, CM COLL, OWN, EPI, CLNTBENE-MTF,
+// × ISIN, with the account's type (POOL, CM COLL, OWN, EPI, CLNTBENEMTF,
 // TMCOLL, TMCOLL-MTF, CLNT UNPAID, CLNT COLL, MRGN PLEDGE, MTF PLEDGE,
 // CLNTBENE) and the member's own client code, PAN and name.
 // It is not the clients' holdings in their own beneficiary accounts. The
@@ -73,9 +73,9 @@ import (
 // margin collateral.
 //
 // Account type spelling: the API specification (NSE/INSP/55380 Annexure A,
-// row 4.3) prints CLNTBENEMTF; NSE's earlier weekly upload format and the
-// Inspection master circular print CLNTBENE-MTF, and Ledgerline uses the
-// master circular's. Both spellings (and the weekly format's TM COLL and
+// row 4.3) prints CLNTBENEMTF, and NSE's API validates against that list, so
+// Ledgerline sends CLNTBENEMTF; NSE's earlier weekly upload format and the
+// Inspection master circular print CLNTBENE-MTF. Both spellings (and the weekly format's TM COLL and
 // TM COLL-MTF) are read as the same type when tagging. NSE answers 902
 // for a type it does not take: the work item then names the other
 // spelling.
@@ -92,28 +92,28 @@ const (
 
 // HSAccountTypes are NSE's holding statement account types (NSE/INSP/55380
 // Annexure A row 4.3, as the Inspection master circular spells them).
-var HSAccountTypes = []string{"POOL", "CM COLL", "OWN", "EPI", "CLNTBENE-MTF", "TMCOLL", "TMCOLL-MTF", "CLNT UNPAID", "CLNT COLL", "MRGN PLEDGE", "MTF PLEDGE", "CLNTBENE"}
+var HSAccountTypes = []string{"POOL", "CM COLL", "OWN", "EPI", "CLNTBENEMTF", "TMCOLL", "TMCOLL-MTF", "CLNT UNPAID", "CLNT COLL", "MRGN PLEDGE", "MTF PLEDGE", "CLNTBENE"}
 
 // hsTypeAliases are other spellings of a type found in NSE's documents and
 // in other systems' files.
-var hsTypeAliases = map[string]string{"CLNTBENEMTF": "CLNTBENE-MTF", "CLNTBENE MTF": "CLNTBENE-MTF", "TM COLL": "TMCOLL", "TM COLL-MTF": "TMCOLL-MTF", "TMCOLL MTF": "TMCOLL-MTF", "CMCOLL": "CM COLL", "CLNTUNPAID": "CLNT UNPAID", "CLNTCOLL": "CLNT COLL"}
+var hsTypeAliases = map[string]string{"CLNTBENE-MTF": "CLNTBENEMTF", "CLNTBENE MTF": "CLNTBENEMTF", "TM COLL": "TMCOLL", "TM COLL-MTF": "TMCOLL-MTF", "TMCOLL MTF": "TMCOLL-MTF", "CMCOLL": "CM COLL", "CLNTUNPAID": "CLNT UNPAID", "CLNTCOLL": "CLNT COLL"}
 
 // HSAccountTypeNotes say what each type is for, on the tagging screen.
 // The FAQ named is NSE's on margin collection (Exhibit 17 of the
 // Inspection master circular).
 var HSAccountTypeNotes = map[string]string{
-	"POOL":         "Pool account: securities received in pay-out or kept for pay-in.",
-	"CM COLL":      "The firm's collateral account for its clearing member or clearing corporation.",
-	"OWN":          "The firm's own (proprietary) securities.",
-	"EPI":          "Early pay-in account.",
-	"CLNTBENE-MTF": "Client beneficiary account for margin trading (MTF).",
-	"TMCOLL":       "Client securities taken as collateral into the firm's account (the old title-transfer accounts).",
-	"TMCOLL-MTF":   "As TMCOLL, for margin trading (MTF).",
-	"CLNT UNPAID":  "Client unpaid securities pledgee account (CUSPA).",
-	"CLNT COLL":    "Client collateral account: what it holds is reported, for example securities from an invoked pledge.",
-	"MRGN PLEDGE":  "Client securities margin pledge account: only securities invoked into it are reported, never the pledges in its favour (NSE FAQ).",
-	"MTF PLEDGE":   "Client securities under margin funding account: only securities invoked into it are reported (NSE FAQ).",
-	"CLNTBENE":     "Client beneficiary account held by the firm.",
+	"POOL":        "Pool account: securities received in pay-out or kept for pay-in.",
+	"CM COLL":     "The firm's collateral account for its clearing member or clearing corporation.",
+	"OWN":         "The firm's own (proprietary) securities.",
+	"EPI":         "Early pay-in account.",
+	"CLNTBENEMTF": "Client beneficiary account for margin trading (MTF).",
+	"TMCOLL":      "Client securities taken as collateral into the firm's account (the old title-transfer accounts).",
+	"TMCOLL-MTF":  "As TMCOLL, for margin trading (MTF).",
+	"CLNT UNPAID": "Client unpaid securities pledgee account (CUSPA).",
+	"CLNT COLL":   "Client collateral account: what it holds is reported, for example securities from an invoked pledge.",
+	"MRGN PLEDGE": "Client securities margin pledge account: only securities invoked into it are reported, never the pledges in its favour (NSE FAQ).",
+	"MTF PLEDGE":  "Client securities under margin funding account: only securities invoked into it are reported (NSE FAQ).",
+	"CLNTBENE":    "Client beneficiary account held by the firm.",
 }
 
 // normHSType is a type in NSE's spelling ("" when empty).

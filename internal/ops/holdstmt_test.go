@@ -29,26 +29,26 @@ func hsFirm(t *testing.T, o *Ops, ctx context.Context, tags map[string]string) {
 	}
 }
 
-// Account types in NSE's spelling (CLNTBENE-MTF; the API specification's
-// CLNTBENEMTF and the weekly format's TM COLL read as the same type);
+// Account types in the API specification's spelling (CLNTBENEMTF; the master
+// circular's CLNTBENE-MTF and the weekly format's TM COLL read as the same type);
 // security types from CDSL's ISIN master; commodities with name and unit;
 // invoked pledges in the margin pledge account reported, a client's own
 // account never; a Saturday made from Friday's balances.
 func TestHoldingStatementTypes(t *testing.T) {
 	o, ctx := newOps(t)
 	const own, mp, mtf, coll, cl = "1208160000012345", "1208160000077777", "1208160000088888", "1208160000066666", "1208160000055555"
-	if _, err := o.SaveFirmDemats(ctx, T, "admin", map[string]string{mtf: "clntbenemtf", coll: "tm coll"}, "FIRM01"); err != nil {
+	if _, err := o.SaveFirmDemats(ctx, T, "admin", map[string]string{mtf: "clntbene-mtf", coll: "tm coll"}, "FIRM01"); err != nil {
 		t.Fatal(err)
 	}
-	if set, _ := o.Settings(ctx, T); set.FirmDemats[mtf] != "CLNTBENE-MTF" || set.FirmDemats[coll] != "TMCOLL" {
+	if set, _ := o.Settings(ctx, T); set.FirmDemats[mtf] != "CLNTBENEMTF" || set.FirmDemats[coll] != "TMCOLL" {
 		t.Fatalf("aliases %v", set.FirmDemats)
 	}
-	if !contains(HSAccountTypes, "CLNTBENE-MTF") || contains(HSAccountTypes, "CLNTBENEMTF") || len(HSAccountTypeNotes) != len(HSAccountTypes) {
+	if !contains(HSAccountTypes, "CLNTBENEMTF") || contains(HSAccountTypes, "CLNTBENE-MTF") || len(HSAccountTypeNotes) != len(HSAccountTypes) {
 		t.Fatalf("types %v", HSAccountTypes)
 	}
-	// The previous system's file in the API specification's spelling.
-	old := `{"holdingData":[{"dmat":"` + mtf + `","accountType":"CLNTBENEMTF"}]}`
-	if _, found, err := o.FirmDematsFromStatement(ctx, T, "admin", "old.json", []byte(old)); err != nil || found[MaskAccount(mtf)] != "CLNTBENE-MTF" {
+	// The previous system's file in the master circular's spelling.
+	old := `{"holdingData":[{"dmat":"` + mtf + `","accountType":"CLNTBENE-MTF"}]}`
+	if _, found, err := o.FirmDematsFromStatement(ctx, T, "admin", "old.json", []byte(old)); err != nil || found[MaskAccount(mtf)] != "CLNTBENEMTF" {
 		t.Fatalf("old file %v %v", found, err)
 	}
 	hsFirm(t, o, ctx, map[string]string{own: "OWN", mp: "MRGN PLEDGE"})

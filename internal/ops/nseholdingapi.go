@@ -546,8 +546,8 @@ func (o *Ops) NSEHoldingSubmit(ctx context.Context, tenant, actor, date string) 
 			}
 			detail += " " + strings.TrimSpace(e.UCC+" "+e.ISIN) + ": " + e.Plain + "."
 		}
-		if hasCode(sub.Errors, "902") && hasType(msg.HoldingData, "CLNTBENE-MTF") {
-			detail += " NSE did not take an account type: Ledgerline writes CLNTBENE-MTF as NSE's Inspection master circular spells it, while the API specification (NSE/INSP/55380) prints CLNTBENEMTF. Ask NSE (DL-IT-API@nse.co.in) which spelling its API takes."
+		if hasCode(sub.Errors, "902") && hasType(msg.HoldingData, "CLNTBENEMTF") {
+			detail += " NSE did not take an account type: Ledgerline writes CLNTBENEMTF as NSE's API specification (NSE/INSP/55380) prints it, while the Inspection master circular spells it CLNTBENE-MTF. Ask NSE (DL-IT-API@nse.co.in) which spelling its API takes."
 		}
 		detail += " Correct the records and submit the whole day again from Exchange files (NSE takes a corrected day only as a whole; each submission gets the next file number); the JSON file can also be uploaded on NSE's portal. If NSE refuses the new file as a repeat (516), delete the earlier file on NSE's member portal (its Delete button) and submit again."
 		o.raiseWork(ctx, tenant, "holding-api", date, "Holding statement for "+fmtDay(date)+": "+sub.Status, detail, "", RoleCompliance, "xfiles", date)

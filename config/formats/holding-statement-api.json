@@ -5,7 +5,7 @@
  "direction": "out",
  "when": "Daily (previous day)",
  "format": "json",
- "purpose": "The trading member's own demat accounts (pool, own, client unpaid, client collateral, invoked margin and MTF pledges, early pay-in…), each account and ISIN with its NSE account type (POOL, CM COLL, OWN, EPI, CLNTBENE-MTF, TMCOLL, TMCOLL-MTF, CLNT UNPAID, CLNT COLL, MRGN PLEDGE, MTF PLEDGE, CLNTBENE), security type (EQ, MF, BOND, DEBT, PREF, IDR, WT, COMM; a commodity also has its name and unit, GMS, KG, QUINTAL, MT, BARRELS, MMBTU, BALES, DRUMS or OTHERS, else NA) and the member's own client code, PAN and name (NSE/INSP/55039, NSE/INSP/55380 Annexure A). Not clients' holdings in their own accounts, and not securities clients pledged as margin (NSE FAQ on margin collection).",
+ "purpose": "The trading member's own demat accounts (pool, own, client unpaid, client collateral, invoked margin and MTF pledges, early pay-in…), each account and ISIN with its NSE account type (POOL, CM COLL, OWN, EPI, CLNTBENEMTF, TMCOLL, TMCOLL-MTF, CLNT UNPAID, CLNT COLL, MRGN PLEDGE, MTF PLEDGE, CLNTBENE), security type (EQ, MF, BOND, DEBT, PREF, IDR, WT, COMM; a commodity also has its name and unit, GMS, KG, QUINTAL, MT, BARRELS, MMBTU, BALES, DRUMS or OTHERS, else NA) and the member's own client code, PAN and name (NSE/INSP/55039, NSE/INSP/55380 Annexure A). Not clients' holdings in their own accounts, and not securities clients pledged as margin (NSE FAQ on margin collection).",
  "names": [
   "[A-Z]{5}\\d{4}[A-Z]_HS_\\d{8}_\\d+\\.json"
  ],
