@@ -70,6 +70,9 @@ var DematStatuses = []string{DematActive, DematInactive, DematClosed}
 type JointHolder struct {
 	Name string `json:"name"`
 	PAN  string `json:"pan,omitempty"`
+	// KRAStatus is the holder's KYC status at the KRA, from the KRA status
+	// file (a holder who is also a client has the client's own status).
+	KRAStatus string `json:"kra_status,omitempty"`
 }
 
 // maxJointHolders: a demat account has at most three holders.

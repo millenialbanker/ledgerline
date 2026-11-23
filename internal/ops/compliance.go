@@ -490,11 +490,38 @@ func (o *Ops) prepareCompliance(ctx context.Context, tenant, actor, source, date
 			for _, c := range cs {
 				byPAN[c.PAN] = c.UCC
 			}
+			// Joint holders of the DP's demat accounts who are not clients
+			// keep their own status on the account (kycgate_cdsl.go: every
+			// holder's KYC is checked for CDSL's reason-27 freeze).
+			joint := map[string][]string{}
+			for _, b := range o.boAccounts(ctx, tenant) {
+				for _, j := range b.JointHolders {
+					if p := strings.ToUpper(strings.TrimSpace(j.PAN)); p != "" {
+						joint[p] = append(joint[p], b.BOID)
+					}
+				}
+			}
 			n, skip := 0, 0
 			for _, s := range ss {
 				u, ok := byPAN[s.pan]
 				if !ok {
-					skip++
+					if len(joint[s.pan]) == 0 {
+						skip++
+						continue
+					}
+					for _, bo := range joint[s.pan] {
+						if b, ok := o.boAccount(ctx, tenant, bo); ok {
+							for i := range b.JointHolders {
+								if strings.EqualFold(strings.TrimSpace(b.JointHolders[i].PAN), s.pan) {
+									b.JointHolders[i].KRAStatus = s.status
+								}
+							}
+							if err := o.putBO(ctx, tenant, actor, b); err != nil {
+								return n, skip, err
+							}
+						}
+					}
+					n++
 					continue
 				}
 				c, err := docs.Update(ctx, o.Docs, tenant, cClient, u, actor, func(x *Client) error {

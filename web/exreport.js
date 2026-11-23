@@ -6,7 +6,7 @@
    member. Loaded after app.js; it takes over the
    Download button of those two rows on the "xfiles" screen. */
 
-const xrPill = s => pill(s, { Accepted: 'good', 'Partly accepted': 'warn', Rejected: 'bad', Failed: 'bad', 'Not sent': 'warn' }[s] || 'nt');
+const xrPill = s => pill(s, { Accepted: 'good', 'Partly accepted': 'warn', Rejected: 'bad', Failed: 'bad', 'Not sent': 'warn', 'Nil holding': 'warn', 'Nil declared': 'good', 'Bulk nil reported': 'good' }[s] || 'nt');
 const xrStamp = t => { const d = new Date(t); return isNaN(d) ? esc(t || '') : d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }); };
 const xrIssue = i => `<li>${i.ucc ? `<b>${esc(i.ucc)}</b>${i.segment ? ' ' + esc(i.segment) : ''}${i.indicator && i.indicator !== 'NA' ? ' · ' + esc(i.indicator) : ''}: ` : ''}${esc(i.message)}${i.column ? ` <span class="dim small">(column ${i.column})</span>` : ''}</li>`;
 
@@ -40,9 +40,16 @@ function xrHoldingHTML(d, v, b) {
   const conn = v.connection === 'Not set' ? `<div class="note">The NSE holding statement API is not set up (Settings → Connections). Download the file and upload it on NSE's portal.</div>`
     : `<div class="small">Connection: ${pill(v.connection, CONN_ST[v.connection] || 'nt')} · automatic submission ${v.auto ? 'on' : 'off'}${v.state.last_ok ? ' · last accepted ' + fmtDate(v.state.last_ok) : ''}${v.problem ? ` · <span class="neg">${esc(v.problem)}</span>` : ''}</div>`;
   const can = has('Ops maker', 'Ops checker', 'Compliance officer');
-  return mhd('Client holding statement', `Holdings for ${fmtDate(d)}, reported to the exchanges daily except Sunday, by the next day.`) + `<div class="bd">${conn}
+  const und = v.nil_undeclared || [], bulk = v.nil_for_bulk || [], ss = v.special_sessions || [];
+  const nil = und.length || bulk.length ? `<div class="note warn small" style="margin-top:10px">
+      ${und.length ? `<div><b>Nothing held on ${und.map(fmtDate).join(', ')}.</b> Make the one-time NIL Holding declaration on NSE's member portal by the next day (Statement upload → Holding Statement Daily → Submit Data → Not Applicable Declaration), then record it here.</div>` : ''}
+      ${bulk.length ? `<div>Nil days since the last statement: ${bulk.map(fmtDate).join(', ')}. When holdings come back, report them all on the portal (Bulk Nil Holding Reporting) and record it here before the next day goes by API.</div>` : ''}
+      ${can ? `<div class="split" style="margin-top:6px">${und.length ? `<button class="btn" data-act="xrNil" data-id="declaration">Record the NIL declaration…</button>` : ''}${bulk.length ? `<button class="btn" data-act="xrNil" data-id="bulk">Record the bulk nil report…</button>` : ''}</div>` : ''}</div>` : '';
+  const sess = `<div class="small" style="margin-top:10px">Sunday special sessions (for example Muhurat trading), when a holding statement is due too: ${ss.length ? ss.map(fmtDate).join(', ') : 'none listed'}${v.can_set_sessions ? ` <button class="btn sm" data-act="xrSessions">Change</button>` : ''}. A Sunday with exchange trades counts by itself.</div>`;
+  return mhd('Client holding statement', `Holdings for ${fmtDate(d)}, reported to the exchanges daily except Sunday (and on Sunday special sessions), by the next day.`) + `<div class="bd">${conn}
+    ${v.data_day === false ? `<div class="note small">${fmtDate(d)} is a Sunday without a special session: no statement is due.</div>` : ''}
     <div class="split" style="margin-top:12px"><button class="btn" data-act="dl" data-id="/v1/exchange-files/holding-statement-api?date=${d}" data-name="holding_${d}.json">Download the file</button>
-      ${can && v.connection !== 'Not set' ? `<button class="btn pri" data-act="xrHoldSubmit" data-id="${d}">Submit to NSE now</button>` : ''}</div>
+      ${can && v.connection !== 'Not set' ? `<button class="btn pri" data-act="xrHoldSubmit" data-id="${d}">Submit to NSE now</button>` : ''}</div>${nil}${sess}
     <h3 style="margin-top:14px">Submissions for ${fmtDate(d)}</h3>
     ${tbl([['File'], ['Records', 'r'], ['Status'], ['NSE'], ['When']], v.submissions.map(s => `<tr><td class="mono small">${esc(s.file)}</td><td class="r">${nf(s.records)}</td><td>${xrPill(s.status)}${s.reason ? `<div class="small wrap">${esc(s.reason)}</div>` : ''}${(s.errors || []).length ? `<ul class="small">${s.errors.slice(0, 8).map(x => `<li>${esc([x.ucc, x.isin].filter(Boolean).join(' '))}${x.ucc ? ': ' : ''}${esc(x.plain)}</li>`).join('')}${s.errors.length > 8 ? `<li>…and ${s.errors.length - 8} more</li>` : ''}</ul>` : ''}</td>
       <td class="small">${s.ack_id ? 'ACK ' + esc(s.ack_id) : ''}${(s.hdr_code || []).length ? `<div class="dim">code ${esc(s.hdr_code.join(', '))}</div>` : ''}</td><td class="small">${xrStamp(s.at)}<div class="dim">${esc(s.by)}</div></td></tr>`), { empty: 'Nothing submitted for this date.' })}${xrBSEHoldingHTML(d, b)}</div>`;
@@ -60,6 +67,7 @@ Object.assign(A, {
       }
       if (id === 'holding-statement-api') {
         const [v, b] = await Promise.all([get(`/v1/holding-api?date=${d}`), get(`/v1/holding-api/bse?date=${d}`).catch(() => null)]);
+        UI.xrHold = v;
         modal(xrHoldingHTML(d, v, b));
         return;
       }
@@ -82,6 +90,21 @@ Object.assign(A, {
   xrBSERec: d => confirmModal('Recorded on BEFS', `The holding statement for ${fmtDate(d)} uploaded on BSE’s BEFS portal.`, '<div class="fld"><label for="xb-a">BEFS acknowledgement or upload reference</label><input class="in mono" id="xb-a"></div>', 'Record', async () => {
     await post('/v1/holding-api/bse', { date: d, ack: $('xb-a').value }); toast('Recorded'); A.xfDl('holding-statement-api');
   }),
+  xrNil: kind => {
+    const d = UI.xfDate || S.date, decl = kind === 'declaration';
+    confirmModal(decl ? 'NIL Holding declaration made' : 'Bulk nil report made',
+      decl ? 'The one-time NIL Holding declaration made on NSE’s member portal. It stands until the next holding statement.' : 'The nil days reported on NSE’s member portal (Bulk Nil Holding Reporting).',
+      `<div class="fld"><label for="xn-d">${decl ? 'The first day with nothing held (YYYY-MM-DD)' : 'The days reported, separated by commas (YYYY-MM-DD)'}</label><input class="in mono" id="xn-d" value="${esc(d)}"></div>
+       <div class="fld"><label for="xn-a">Acknowledgement shown on NSE’s portal</label><input class="in mono" id="xn-a"></div>`, 'Record', async () => {
+        const dates = $('xn-d').value.split(',').map(x => x.trim()).filter(Boolean);
+        await post('/v1/holding-api/nil', { kind, dates, ack: $('xn-a').value }); toast('Recorded'); A.xfDl('holding-statement-api');
+      });
+  },
+  xrSessions: () => confirmModal('Sunday special sessions', 'Sundays on which the exchanges trade (announced by circular, for example Muhurat trading). A holding statement is due for them.',
+    `<div class="fld"><label for="xs-d">Dates, separated by commas (YYYY-MM-DD)</label><input class="in mono" id="xs-d" value="${esc(((UI.xrHold || {}).special_sessions || []).join(', '))}"></div>`, 'Save', async () => {
+      const dates = $('xs-d').value.split(',').map(x => x.trim()).filter(Boolean);
+      await api('PUT', '/v1/holding-api/special-sessions', { dates }); toast('Saved'); A.xfDl('holding-statement-api');
+    }),
   xrHoldSubmit: async d => {
     try {
       toast('Submitting to NSE…');

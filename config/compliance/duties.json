@@ -228,7 +228,7 @@
   {
    "id": "CC-T-SEGMON",
    "group": "Trading",
-   "title": "Upload the daily client-level collateral segregation report (SEGMON) by T+1",
+   "title": "Upload the daily client-level collateral segregation report (SEGMON) by 23:59:59 on T+1",
    "frequency": "Daily",
    "due_text": "Daily, Saturday included; reporting cut-off is 23:59:59 on T+1 (NCL/CMPL/56655, from trade date 15 May 2023), with no changes after the cut-off.",
    "rule": "DAILY",
@@ -288,6 +288,14 @@
      "says": "Report whenever any client collateral is held; collateral at other CCs goes to those CCs; post-cut-off receipts reported as retained with a justification code."
     },
     {
+     "issuer": "NSE Clearing",
+     "no": "NCL/CMPL/61186 (03/2024)",
+     "date": "2024-03-18",
+     "title": "Segregation and Monitoring of Collateral at Client Level, Reporting Format",
+     "url": "https://nsearchives.nseindia.com/content/circulars/CMPL61186.pdf",
+     "says": "Retained clear credit balances reported per reason code RC01-RC09 in column 52 (MTF/Non MTF indicator/Reason Code), amounts in columns 22 and 38 at TM and CM level, columns 4-9 blank; cheques not cleared in 5 settlement days upstreamed on the 6th."
+    },
+    {
      "issuer": "NSE",
      "no": "NSE/INSP/61121 (15/2024)",
      "date": "2024-03-13",
@@ -312,7 +320,8 @@
     "Put early pay-in of funds in column 46 (cash placed with CC), and don't reduce the peak clear balance (column 12) for settlement bills due that day (NCL/CMPL/64088).",
     "Log in to the NCL Member Portal (ims.connect2nsccl.com/NCLMemberPortal) with a sub-user holding the NCL INSPECTION role and upload the report (NCL/CMPL/69872).",
     "Upload by 23:59:59 on T+1; the data can't be changed after the cut-off (NCL/CMPL/56655).",
-    "Report collateral held with other clearing corporations to those CCs; report funds received after cut-off as retained with a justification code (NCL/CMPL/76318, NCL/CMPL/61186)."
+    "Report collateral held with other clearing corporations to those CCs; report funds received after cut-off as retained with a justification code (NCL/CMPL/76318, NCL/CMPL/61186).",
+    "Report money kept back from the clearing corporation on a line per reason code RC01-RC09 (column 52), the amount in column 22, client fields blank; money paid after the cut-off first meets the client's debit and only the rest is RC01 (NCL/CMPL/61186 Annexure 1; NCL/CMPL/76318 FAQ 5). Ledgerline adds these lines: check Client money reconciliation → Retained funds before the upload."
    ],
    "steps_from": "NCL/CMPL/56655; NCL/CMPL/64088; NCL/CMPL/69872 and 70192; NCL/CMPL/76318 FAQ; NSE/INSP/61121",
    "changed": "Deadline is T+1 23:59:59 (was T+1 17:00 before 15 May 2023). Reporting moved to the new NCL Member Portal (mandatory from trade date 22 Sep 2025). Saturday data must also be reported (NSE/INSP/61121). The brief's 'CIR/2021/577' is the RAS circular; SEGMON is SEBI/HO/MRD2_DCAP/CIR/2021/0598 (20 Jul 2021).",

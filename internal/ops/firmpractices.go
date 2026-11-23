@@ -403,19 +403,19 @@ var practiceDefs = []practiceDef{
 		},
 		write: func(o *Ops, ctx context.Context, tenant, actor, opt string, vals map[string]string) error { return nil },
 	},
-	{ID: "kyc-blocks", Short: "Blocks for KYC-pending and inactive clients",
-		Question: "Are clients whose KYC is pending, and inactive clients, blocked on the front ends automatically?",
-		Why:      "A client who may not trade should not depend on someone remembering to block them by hand.",
-		Setting:  "Settings: KYC-pending clients blocked on the front ends",
-		Note:     "Ledgerline does not fetch KYC statuses from the KRA every day yet. With this on, the block uses the KYC status already loaded in Ledgerline (KRA status uploads on KYC & PMLA): on hold, rejected, pending or incomplete. Accounts flagged Inactive are blocked either way.",
-		Options: onOff("Yes: Ledgerline blocks them in the front ends' block file and limits, and lifts the block when it is cleared",
+	{ID: "kyc-blocks", Short: "Trading blocked until the KRA verifies the KYC",
+		Question: "Are clients whose KYC the KRA has not verified, clients on an exchange's KYC list, and inactive clients blocked on the front ends automatically?",
+		Why:      "SEBI does not let a client transact until the KRA has verified the KYC; a client who may not trade should not depend on someone remembering to block them by hand.",
+		Setting:  "Settings: KYC trading gate",
+		Note:     "On is the default. The gate reads the KRA status loaded in Ledgerline (KRA status uploads on KYC & PMLA) and the exchanges' KYC lists (Compliance → KYC trading gate). A status never loaded counts as not verified. Clients onboarded by 31 March 2024 may still close positions; others, and clients an exchange has made Not Permitted to Trade, are blocked for square-off too. Accounts flagged Inactive are blocked either way.",
+		Options: onOff("Yes: Ledgerline blocks them in the front ends' block file and limits, and lifts the block when the KRA verifies the KYC",
 			"No: only accounts flagged Inactive are blocked; KYC-pending clients are blocked by hand"),
 		read: func(o *Ops, ctx context.Context, tenant string) practiceState {
 			set, _ := o.Settings(ctx, tenant)
-			return onOffState(set.KYCPendingBlock, "")
+			return onOffState(!set.KYCBlockOff, "")
 		},
 		write: func(o *Ops, ctx context.Context, tenant, actor, opt string, vals map[string]string) error {
-			return o.practiceSettings(ctx, tenant, actor, func(s *Settings) { s.KYCPendingBlock = opt == "on" })
+			return o.practiceSettings(ctx, tenant, actor, func(s *Settings) { s.KYCBlockOff = opt != "on" })
 		},
 	},
 	{ID: "finspot-logins", Short: "Finspot client logins",

@@ -24,6 +24,7 @@ func (s *Server) clientListRoutes(R func(string, http.HandlerFunc, bool)) {
 	R("POST /v1/deceased/cutoff", s.deceasedCutoff, true)
 	R("GET /v1/deceased/ucc-list", s.deceasedUCCList, false)
 	R("POST /v1/deceased/{id}/steps", s.deceasedStep, true)
+	s.kycGateRoutes(R)
 }
 
 func (s *Server) mnrlView(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +71,8 @@ func (s *Server) deceasedView(w http.ResponseWriter, r *http.Request) {
 	ok(w, v, err)
 }
 
-// deceasedLoad loads <TMcode>_Demise_Clients_by_KRA:
+// deceasedLoad loads <TMcode>_Demise_Clients_by_KRA (or, with
+// ?format=kra-demise-daily, the KRA's daily demise data):
 // ?name=&date=&period=YYYY-MM&cutoff=YYYY-MM-DD&circular=.
 func (s *Server) deceasedLoad(w http.ResponseWriter, r *http.Request) {
 	data, okb := listBody(w, r)
@@ -78,7 +80,7 @@ func (s *Server) deceasedLoad(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	v, err := s.ops.LoadDemiseList(r.Context(), tenant(r), actor(r), ops.DemiseLoadReq{Name: q.Get("name"), Date: q.Get("date"), Period: q.Get("period"), Cutoff: q.Get("cutoff"), Circular: q.Get("circular")}, data)
+	v, err := s.ops.LoadDemiseList(r.Context(), tenant(r), actor(r), ops.DemiseLoadReq{Format: q.Get("format"), Name: q.Get("name"), Date: q.Get("date"), Period: q.Get("period"), Cutoff: q.Get("cutoff"), Circular: q.Get("circular")}, data)
 	ok(w, v, err)
 }
 

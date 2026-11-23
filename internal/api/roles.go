@@ -59,12 +59,13 @@ var routeScreens = map[string]string{
 	// Accounts
 	"ledger": "ledger", "ledger/statement": "ledger clients statements money debits", "ledger/trial-balance": "ledger books", "funds": "ledger",
 	"receipts": "money", "payouts": "money", "payouts/hdfc-seq": "money settings", "gateway": "money", "upix": "money", "hdfc-pay": "connections",
-	"bank": "bank", "ras": "ras", "money-recon": "clientmoney", "money-transfers": "clientmoney", "firm-banks": "clientmoney settings",
+	"bank": "bank", "ras": "ras", "money-recon": "clientmoney", "money-transfers": "clientmoney", "firm-banks": "clientmoney settings deposits",
+	"money-retention": "clientmoney", "money-rules": "clientmoney", "payout-cheques": "money",
 	"vouchers": "books", "accounts": "books", "account-heads": "books", "account-moves": "books", "financials": "books", "gst": "books", "vendor-bills": "books", "vendors": "books", "bill-scans": "books", "invoices": "books",
 	"brokerage": "brokerage", "brokerage/client/{ucc}": "brokerage clients", "prepaid": "prepaid",
 	// Compliance
 	"reports": "reports", "holding-api": "reports", "disclosures": "exdisc", "ai": "aictl", "ai/usage": "aictl settings",
-	"compliance": "kyc", "fatca": "kyc", "nominations": "kyc", "sanctions": "kyc",
+	"compliance": "kyc", "fatca": "kyc", "nominations": "kyc", "sanctions": "kyc", "kyc-gate": "kycgate", "proi": "kycgate",
 	"tickets": "helpdesk", "complaints": "helpdesk", "impersonation": "helpdesk", "raia": "helpdesk",
 	"nri": "nri", "alerts": "surv", "surveillance": "surv", "surveillance-return": "surv", "fingate": "surv",
 	"inactive": "inactive", "deceased": "deceased", "self-inspection": "selfinspect",

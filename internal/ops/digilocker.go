@@ -381,6 +381,9 @@ func (o *Ops) autoActivate(ctx context.Context, tenant string, a Application, uc
 		return false
 	}
 	actor := "system:autopilot"
+	if c, err := o.Client(ctx, tenant, ucc); err != nil || len(o.activationProblems(ctx, tenant, c)) > 0 {
+		return false // left for a checker, who sees what is missing (kycgate.go)
+	}
 	_, err := docs.Update(ctx, o.Docs, tenant, cClient, ucc, actor, func(c *Client) error {
 		if c.Status != "KYC verification" {
 			return fmt.Errorf("%w: client is %s", ErrState, c.Status)

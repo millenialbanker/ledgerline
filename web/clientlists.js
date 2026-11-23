@@ -11,11 +11,16 @@
      list from NSE's ENIT, with the debit block, the death verified or
      found false, the UCC closed on each exchange before the month's
      cut-off, and the transmission information sent.
+   - KYC trading gate ("kycgate", Compliance): clients held back because
+     the KRA has not verified their KYC or an exchange's KYC list has
+     them, the lists, the KRA upload clock, the demat freezes (CDSL
+     reasons 27 and 31) and the PROI onboarding record. Names prefixed kg.
 
-   Server: internal/ops/mnrl.go, deceased.go, listfiles.go;
-   internal/api/clientlists.go. Names are prefixed cl. */
+   Server: internal/ops/mnrl.go, deceased.go, listfiles.go, kycgate.go,
+   kycgate_cdsl.go, proi.go; internal/api/clientlists.go, kycgate.go.
+   Names are prefixed cl. */
 
-Object.assign(UI, { clMF: 'open', clMQ: '', clDF: 'open', clDQ: '' });
+Object.assign(UI, { clMF: 'open', clMQ: '', clDF: 'open', clDQ: '', kgTab: 'clients', kgQ: '' });
 const CL_MST = { New: 'bad', Contacted: 'warn', 'Number updated': 'good', "Not the client's number": 'nt', Reactivated: 'good' };
 const CL_DST = { 'Reported by KRA': 'bad', 'Death verified': 'warn', 'UCCs closed': 'acc', Done: 'good', 'Intimation false': 'nt' };
 const CL_UST = { 'To close': 'bad', 'In the UCC upload': 'acc', Closed: 'good' };
@@ -117,13 +122,14 @@ Object.assign(A, {
   clDLoad: () => {
     const d = C.deceased || {};
     confirmModal('Load the KRAs’ demise list', 'The file &lt;TMcode&gt;_Demise_Clients_by_KRA from ENIT. Debits of every client on it are blocked at once. Take the cut-off from the month’s NSE circular.',
-      `<div class="form"><div class="fld"><label for="cl-dp">PANs reported up to the end of</label><input class="in" type="month" id="cl-dp" value="${esc(d.period || '')}"></div>
+      `<div class="form"><div class="fld full"><label for="cl-dfmt">List</label><select class="in" id="cl-dfmt"><option value="nse-kra-demise">NSE’s monthly list (&lt;TMcode&gt;_Demise_Clients_by_KRA)</option><option value="kra-demise-daily">The KRA’s daily demise data (period and cut-off: the month it is reported in)</option></select></div>
+      <div class="fld"><label for="cl-dp">PANs reported up to the end of</label><input class="in" type="month" id="cl-dp" value="${esc(d.period || '')}"></div>
       <div class="fld"><label for="cl-dc">Close the UCCs before (cut-off)</label><input class="in" type="date" id="cl-dc" value="${esc(d.cutoff || '')}"></div>
       <div class="fld full"><label for="cl-dcirc">The month’s circular</label><input class="in" id="cl-dcirc" value="${esc(d.circular || '')}" placeholder="For example NSE/ISC/77375 of 9 Nov 2026"></div>
       <div class="fld full"><label for="cl-dfile">File</label><input class="in" type="file" id="cl-dfile"></div></div>`,
       'Load', async () => {
         const f = $('cl-dfile').files[0]; if (!f) throw new Error('Choose the file');
-        await act(() => api('POST', `/v1/deceased/lists?name=${encodeURIComponent(f.name)}&date=${encodeURIComponent(S.date)}&period=${encodeURIComponent($('cl-dp').value)}&cutoff=${encodeURIComponent($('cl-dc').value)}&circular=${encodeURIComponent($('cl-dcirc').value)}`, f, true),
+        await act(() => api('POST', `/v1/deceased/lists?format=${encodeURIComponent($('cl-dfmt').value)}&name=${encodeURIComponent(f.name)}&date=${encodeURIComponent(S.date)}&period=${$('cl-dfmt').value === 'kra-demise-daily' ? '' : encodeURIComponent($('cl-dp').value)}&cutoff=${$('cl-dfmt').value === 'kra-demise-daily' ? '' : encodeURIComponent($('cl-dc').value)}&circular=${encodeURIComponent($('cl-dcirc').value)}`, f, true),
           l => `${l.rows} rows: ${l.matched} client${l.matched === 1 ? '' : 's'} matched, debits blocked; close before ${fmtDate(l.cutoff)}`);
       });
   },
@@ -147,5 +153,102 @@ Object.assign(A, {
   clDHist: id => {
     const x = (C.deceased?.cases || []).find(c => c.id === id); if (!x) return;
     modal(mhd(`${esc(x.id)} · ${esc(x.ucc)}`, `${esc(x.file || '')} · reported ${fmtDate(x.reported_on)}`) + `<div class="bd">${(x.held || []).length ? `<div class="note">Held until transmission: ${x.held.map(esc).join(', ')}.</div>` : ''}<ul class="cl-hist">${clHist(x.history)}</ul></div><div class="ft"><button class="btn" data-act="close">Close</button></div>`);
+  },
+});
+
+/* ---------- KYC trading gate ---------- */
+const KG_MODE = { 'No trading': 'bad', 'Exit only': 'warn', 'Gate off': 'nt' };
+V.kycgate = {
+  load: () => get(`/v1/kyc-gate?date=${S.date}`),
+  html: d => {
+    const c = d.counts || {}, dm = (d.demat || {}).counts || {};
+    const gate = d.on ? '<div class="note">The gate is on. A client whose KYC the KRA has not verified (a status never loaded counts as not verified), or who is on an exchange’s KYC list, is blocked on the front ends: the block file, the limits and BOW trading rights. A client onboarded by 31 March 2024 may still close positions; everyone else, and a client the exchange made Not Permitted to Trade, cannot square off either.</div>'
+      : '<div class="note warn"><b>The gate is off.</b> Clients the KRA has not verified are not blocked. SEBI does not let them transact: switch it on in <button class="linkish" data-act="go" data-id="practices">Firm practices</button>. The list below shows who it would block.</div>';
+    return ph('KYC trading gate', 'Who may not trade because of the KYC, and why: the KRA status loaded on KYC &amp; PMLA, and the exchanges’ and CDSL’s monthly KYC lists loaded here. Work each list before the exchange’s date, keep the KRA upload within 3 working days, freeze demat accounts CDSL’s way, and record the onboarding of clients resident outside India.',
+      d.can_load ? '<button class="btn pri" data-act="kgLoad">Load a list</button>' : '') + gate +
+      `<div class="kpis">${kpi('No trading', nf(c['No trading'] || 0), 'square-off blocked too', c['No trading'] ? 'bad' : 'good')}${kpi('Exit only', nf(c['Exit only'] || 0), 'clients since before April 2024', c['Exit only'] ? 'warn' : '')}${kpi('No KRA status', nf(c['No KRA status'] || 0), 'load the KRA status file', c['No KRA status'] ? 'warn' : 'good')}${kpi('KRA uploads late', nf(c['KRA uploads late'] || 0), '3 working days', c['KRA uploads late'] ? 'bad' : 'good')}${kpi('Demat to freeze (27)', nf(dm['To freeze'] || 0), 'a holder not verified', dm['To freeze'] ? 'bad' : 'good')}${kpi('MNRL notices run out', nf(dm['Notices expired'] || 0), 'freeze under 31', dm['Notices expired'] ? 'bad' : 'good')}</div>
+      <div class="panel"><div class="hd">${segBtns('kgTab', [['clients', `Clients held back · ${(d.blocked || []).length}`], ['lists', 'Lists'], ['uploads', 'KRA uploads'], ['demat', 'Demat accounts'], ['proi', `PROI onboarding · ${(d.proi || []).length}`]], 'kg-body')}</div><div id="kg-body">${P['kg-body'](d)}</div></div>`;
+  }
+};
+const kgHold = h => `${pill(h.exchange, h.nptt_from && h.nptt_from <= S.date ? 'bad' : 'warn')} <span class="small">${esc((C.kycgate?.sources || []).find(s => s.id === h.list)?.title || h.list)} · since ${fmtDate(h.since)}${h.nptt_from ? ' · not permitted from ' + fmtDate(h.nptt_from) : ''}${h.remark ? ' · ' + esc(h.remark) : ''}</span>`;
+P['kg-body'] = d => {
+  const t = UI.kgTab;
+  if (t === 'lists') {
+    return `<div class="note small">None of these lists has a published file layout: the columns are read by their header names (PAN, client code, BO ID), so a file whose header the layout does not know is refused with what it lacks. Lists can also be dropped on Exchange files.</div>` +
+      tbl([['List'], ['Where to get it'], ['How often'], ['What to do'], ['Last loaded'], ['']], (d.sources || []).map(s => `<tr><td class="wrap"><b>${esc(s.title)}</b><div class="dim small">${esc(s.basis)}</div></td><td class="small wrap">${esc(s.from)}</td><td class="small">${esc(s.when)}</td><td class="small wrap">${esc(s.action)}</td><td class="n">${s.last ? fmtDate(s.last) : '<span class="dim">never</span>'}</td><td>${d.can_load ? `<button class="btn sm" data-act="kgLoad" data-id="${esc(s.id)}">Load</button>` : ''}</td></tr>`)) +
+      `<h3 class="cc-h">Lists loaded</h3>` + tbl([['List'], ['File'], ['Date'], ['Rows', 'r'], ['On it', 'r'], ['New', 'r'], ['Lifted', 'r'], ['Not clients', 'r'], ['By']], (d.lists || []).map(l => `<tr><td class="mono small">${esc(l.id)}<div>${esc(l.exchange)}</div></td><td class="small wrap mono">${esc(l.file)}${(l.notes || []).length ? `<div class="dim small wrap">${l.notes.map(esc).join('<br>')}</div>` : ''}</td><td class="n">${fmtDate(l.date)}${l.from ? `<div class="dim small">from ${fmtDate(l.from)}</div>` : ''}</td><td class="r">${nf(l.rows)}</td><td class="r ${l.matched ? 'neg' : ''}">${nf(l.matched)}</td><td class="r">${nf(l.new)}</td><td class="r">${nf(l.lifted)}</td><td class="r">${nf(l.not_clients)}</td><td class="small">${esc(l.by)}<div class="dim">${clStamp(l.at)}</div></td></tr>`), { empty: 'No list loaded yet.' });
+  }
+  if (t === 'uploads') {
+    return `<div class="note small">The KYC of a new client, and every change of KYC details, goes to the KRA within 3 working days. Make the file on <button class="linkish" data-act="go" data-id="kyc">KYC &amp; PMLA</button>, upload it at the KRA and mark it uploaded.</div>` +
+      tbl([['Client'], ['What'], ['KYC on'], ['Due at the KRA'], ['Uploaded']], (d.uploads || []).map(u => `<tr><td><button class="linkish mono" data-act="client" data-id="${esc(u.ucc)}">${esc(u.ucc)}</button><div class="small">${esc(u.name)}</div></td><td>${u.kind === 'New' ? 'New account' : 'Changed details'}</td><td class="n">${fmtDate(u.from)}</td><td class="n ${u.late ? 'neg' : ''}">${fmtDate(u.due)}</td><td>${u.uploaded ? (u.uploaded === 'at the KRA' ? pill('At the KRA', 'good') : fmtDate(u.uploaded)) : pill(u.late ? 'Late' : 'Due', u.late ? 'bad' : 'warn')}</td></tr>`), { empty: 'No KYC done or changed in the last 30 days.' });
+  }
+  if (t === 'demat') {
+    const dm = d.demat || {};
+    return `<div class="note small">CDSL freezes for debit and credit, under reason 27, every account where any holder’s KYC is not verified by a KRA. Raise the freeze requests here; a checker approves them on DP requests and the DP desk sets them in CDAS. CDSL’s freeze master (DPE6) then shows them.${d.can_freeze ? ' <button class="btn sm" data-act="kgFreeze">Raise freeze requests (27)</button>' : ''}</div>` +
+      tbl([['Client'], ['Demat account'], ['Holders'], ['Freeze']], (dm.accounts || []).map(a => `<tr><td><button class="linkish mono" data-act="client" data-id="${esc(a.ucc)}">${esc(a.ucc)}</button><div class="small">${esc(a.name)}</div></td><td class="mono">${esc(a.bo_id)}${(a.holds || []).map(h => `<div class="small neg">on CDSL’s list${h.freeze_on ? ', freeze ' + fmtDate(h.freeze_on) : ''}</div>`).join('')}</td><td class="small">${(a.holders || []).map(h => `<div>${esc(h.holder)}: ${esc(h.name)} ${pill(h.kra_status || 'no KRA status', h.verified ? 'good' : 'bad')}</div>`).join('')}</td><td>${a.frozen_27 ? pill('Frozen (27)', 'good') : a.request ? pill('Requested ' + a.request, 'warn') : pill('To freeze', 'bad')}${a.freeze ? `<div class="dim small">CDSL: ${esc(a.freeze)}</div>` : ''}</td></tr>`), { empty: 'Every holder of every CDSL account is verified by a KRA.' }) +
+      `<h3 class="cc-h">Revoked mobiles on CDSL accounts</h3><div class="dim small">A holder whose mobile is on DoT’s revocation list gets a 30-day notice to register a valid mobile; then the account is frozen for debits under reason 31.</div>` +
+      tbl([['Match'], ['Client'], ['Mobile'], ['Notice'], ['What next'], ['']], (dm.notices || []).map(n => `<tr><td class="mono small">${esc(n.match)}</td><td><button class="linkish mono" data-act="client" data-id="${esc(n.ucc)}">${esc(n.ucc)}</button><div class="small">${esc(n.name)} · ${esc(n.holder)}</div><div class="dim small mono">${esc(n.bo_id)}</div></td><td class="mono">${esc(n.mobile)}</td><td class="small">${n.notice_on ? `${fmtDate(n.notice_on)} to <span class="${n.expired ? 'neg' : ''}">${fmtDate(n.expiry)}</span>` : '<span class="dim">not sent</span>'}</td><td class="small wrap">${esc(n.next)}</td><td>${d.can_freeze && !n.notice_on && (n.status === 'New' || n.status === 'Contacted') ? `<button class="btn sm" data-act="kgNotice" data-id="${esc(n.match)}">Notice sent</button>` : ''}${d.can_freeze && n.expired && !n.request ? `<button class="btn sm pri" data-act="kgMFreeze" data-id="${esc(n.match)}">Freeze (31)</button>` : ''}</td></tr>`), { empty: 'No revoked mobile on a CDSL account.' }) +
+      `<h3 class="cc-h">Freezes still under code 21</h3><div class="dim small">Freezes made under code 21 for an invalid mobile are moved to code 31 in CDAS.</div>` +
+      tbl([['Client'], ['Demat account'], ['Freeze'], ['Since']], (dm.code21 || []).map(f => `<tr><td class="mono">${esc(f.ucc)}</td><td class="mono">${esc(f.bo_id)}</td><td class="small">${esc(f.freeze_id)}${f.reason ? ' · ' + esc(f.reason) : ''}</td><td class="n">${fmtDate(f.since)}</td></tr>`), { empty: 'None.' });
+  }
+  if (t === 'proi') {
+    return `<div class="note small">From ${fmtDate(d.proi_from)}, an NRI, OCI cardholder or foreign national is onboarded by SEBI’s PROI process: look up the KRA and CKYCRR before collecting documents, ask for the CKYC identifier, verify the PAN, take the passport (and OCI card) and a document for the overseas address, verify the e-mail by a one-time code, and do the IPV in person or by a compliant video IPV. The client is not activated until it is recorded. While the mobile is not verified, messages go to the e-mail.</div>` +
+      tbl([['Client'], ['Status'], ['Opened'], ['What is missing'], ['']], (d.proi || []).map(r => `<tr><td><button class="linkish mono" data-act="client" data-id="${esc(r.ucc)}">${esc(r.ucc)}</button><div class="small">${esc(r.name)}</div>${r.email_only ? `<div class="dim small">${esc(r.email_only)}</div>` : ''}</td><td>${pill(r.status, r.status === 'Active' ? 'good' : 'acc')}</td><td class="n">${fmtDate(r.kyc_date)}${r.applies ? '' : '<div class="dim small">before the PROI rules</div>'}</td><td class="small wrap">${(r.problems || []).length ? r.problems.map(esc).join('<br>') : (r.applies ? pill('Complete', 'good') : '<span class="dim">—</span>')}</td><td>${d.can_proi ? `<button class="btn sm" data-act="kgPROI" data-id="${esc(r.ucc)}">Record</button>` : ''}</td></tr>`), { empty: 'No client resident outside India.' });
+  }
+  const q = (UI.kgQ || '').trim().toLowerCase();
+  const rows = (d.blocked || []).filter(r => !q || (r.ucc + ' ' + r.name).toLowerCase().includes(q));
+  return `<div class="tools"><input class="in" data-ui="kgQ" data-part="kg-body" placeholder="Filter by client" value="${esc(UI.kgQ)}"></div>` +
+    tbl([['Client'], ['KRA status'], ['Client since'], ['Mode'], ['Why'], ['Open positions', 'r'], ['']], rows.map(r => `<tr><td><button class="linkish mono" data-act="client" data-id="${esc(r.ucc)}">${esc(r.ucc)}</button><div class="small">${esc(r.name)}</div></td><td>${pill(r.kra_status || 'Not loaded', 'warn')}</td><td class="n">${r.kyc_date ? fmtDate(r.kyc_date) : '<span class="dim">—</span>'}</td><td>${pill(r.mode, KG_MODE[r.mode] || 'nt')}</td><td class="small wrap">${(r.holds || []).length ? r.holds.map(kgHold).join('<br>') : esc(r.why)}</td><td class="r">${r.positions ? nf(r.positions) : '—'}${r.mcx && r.positions ? '<div class="small neg">MCX: no square-off; positions run to expiry</div>' : ''}</td><td>${d.can_lift && (r.holds || []).length ? (r.holds || []).map(h => `<button class="btn sm" data-act="kgLift" data-id="${esc(r.ucc)}" data-l="${esc(h.list)}">Lift ${esc(h.exchange)}</button>`).join('') : ''}</td></tr>`), { tall: true, empty: (d.blocked || []).length ? 'Nothing matches the filter.' : 'No client is held back by the KYC rules.' });
+};
+Object.assign(A, {
+  kgLoad: id => {
+    const ss = (C.kycgate?.sources || []), cur = id || ss[0]?.id;
+    confirmModal('Load a KYC list', 'Choose the list and its file (CSV, text or Excel, zipped is fine). The columns are found by their header names. A client on the list is held back until the KRA verifies the KYC and a later list leaves the client out.',
+      `<div class="form"><div class="fld full"><label for="kg-l">List</label><select class="in" id="kg-l">${ss.map(s => `<option value="${esc(s.id)}" ${s.id === cur ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}</select></div>
+      <div class="fld"><label for="kg-d">The list’s date</label><input class="in" type="date" id="kg-d" value="${esc(S.date)}" max="${esc(S.date)}"></div>
+      <div class="fld"><label for="kg-f">Not permitted to trade from / CDSL freezes from (if the circular gives it)</label><input class="in" type="date" id="kg-f"></div>
+      <div class="fld full"><label for="kg-c">The circular</label><input class="in" id="kg-c" placeholder="For example NSE/ISC/77375 of 9 Nov 2026"></div>
+      <div class="fld full"><label for="kg-file">File</label><input class="in" type="file" id="kg-file"></div></div>`,
+      'Load', async () => {
+        const f = $('kg-file').files[0]; if (!f) throw new Error('Choose the file');
+        await act(() => api('POST', `/v1/kyc-gate/lists?list=${encodeURIComponent($('kg-l').value)}&name=${encodeURIComponent(f.name)}&date=${encodeURIComponent($('kg-d').value)}&from=${encodeURIComponent($('kg-f').value)}&circular=${encodeURIComponent($('kg-c').value)}`, f, true),
+          l => `${l.rows} rows: ${l.matched} client${l.matched === 1 ? '' : 's'} on it, ${l.lifted} lifted`);
+      });
+  },
+  kgLift: (ucc, el) => {
+    confirmModal(`Lift the hold · ${esc(ucc)}`, 'Only once the KRA shows the KYC as Registered or Validated (load the KRA status first). The exchange reinstates the client the next day.',
+      '<div class="fld"><label for="kg-n">What was checked</label><input class="in" id="kg-n"></div>', 'Lift',
+      () => act(() => post(`/v1/kyc-gate/clients/${encodeURIComponent(ucc)}/lift`, { list: el.dataset.l, note: $('kg-n').value }), c => `${c.ucc}: hold lifted`));
+  },
+  kgFreeze: () => confirmModal('Raise freeze requests (CDSL reason 27)', 'One DP request for each CDSL account with a holder not verified by a KRA, not already frozen or requested: freeze for debit and credit under reason 27. A checker approves each on DP requests.', '', 'Raise',
+    () => act(() => post('/v1/kyc-gate/freezes', {}), r => `${r.raised} freeze request${r.raised === 1 ? '' : 's'} raised`)),
+  kgNotice: id => confirmModal(`30-day notice · ${esc(id)}`, 'Record the notice sent to register a valid mobile, saying the account will be frozen for debits. It runs 30 days.',
+    `<div class="form"><div class="fld"><label for="kg-no">Sent on</label><input class="in" type="date" id="kg-no" value="${esc(S.date)}" max="${esc(S.date)}"></div><div class="fld full"><label for="kg-nn">How it was sent, and its reference</label><input class="in" id="kg-nn"></div></div>`, 'Record',
+    () => act(() => post(`/v1/kyc-gate/mnrl/${encodeURIComponent(id)}/notice`, { on: $('kg-no').value, note: $('kg-nn').value }), m => `${m.id}: notice runs to ${fmtDate(m.notice_expiry)}`)),
+  kgMFreeze: id => confirmModal(`Freeze for debits (31) · ${esc(id)}`, 'The notice ran out and the mobile is still on the revocation list: a DP request to freeze the account for debits under reason 31. A checker approves it.', '', 'Raise',
+    () => act(() => post(`/v1/kyc-gate/mnrl/${encodeURIComponent(id)}/freeze`, {}), r => `${r.id} raised`)),
+  kgPROI: ucc => {
+    const r = (C.kycgate?.proi || []).find(x => x.ucc === ucc) || {}, p = r.record || {}, v = p.vipv || {};
+    const dt = (id, l, val) => `<div class="fld"><label for="${id}">${l}</label><input class="in" type="date" id="${id}" value="${esc(val || '')}"></div>`;
+    const tx = (id, l, val, full) => `<div class="fld ${full ? 'full' : ''}"><label for="${id}">${l}</label><input class="in" id="${id}" value="${esc(val || '')}"></div>`;
+    const cb = (id, l, on) => `<label class="chk"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}> ${l}</label>`;
+    confirmModal(`PROI onboarding · ${esc(ucc)}`, 'What was done for this client resident outside India. Masked numbers are kept as recorded unless typed again.',
+      `<div class="form"><div class="fld"><label for="kp-cat">Category</label><select class="in" id="kp-cat">${['NRI', 'OCI', 'Foreign national'].map(x => `<option ${x === p.category ? 'selected' : ''}>${x}</option>`).join('')}</select></div>${tx('kp-cty', 'Country of residence (2 letters)', p.country)}
+      ${dt('kp-kra', 'KRA looked up on', p.kra_lookup_on)}${dt('kp-ck', 'CKYCRR looked up on', p.ckyc_lookup_on)}${tx('kp-ckg', 'CKYC identifier given (14 digits, or None)', p.ckyc_given)}${dt('kp-docs', 'Documents collected on', p.docs_on)}${dt('kp-pan', 'PAN verified with the Income Tax database on', p.pan_verified_on)}
+      ${tx('kp-pp', 'Passport number', p.passport_no)}${dt('kp-ppx', 'Passport expiry', p.passport_expiry)}${tx('kp-oci', 'OCI card (for an OCI)', p.oci_card)}${tx('kp-addr', 'Overseas address', p.overseas_address, true)}${tx('kp-ovd', 'Document proving the overseas address', p.overseas_ovd, true)}
+      <div class="fld full">${cb('kp-ev', 'E-mail verified by a one-time code', p.email_verified)} ${cb('kp-mv', 'Mobile verified', p.mobile_verified)}</div>
+      <div class="fld"><label for="kp-ipv">In-person verification</label><select class="in" id="kp-ipv"><option value=""></option>${['Physical', 'Video (VIPV)'].map(x => `<option ${x === p.ipv ? 'selected' : ''}>${x}</option>`).join('')}</select></div>${tx('kp-off', 'Official (name, employee code)', p.ipv_official)}<div class="fld"><label for="kp-at">Date and time</label><input class="in" type="datetime-local" id="kp-at" value="${esc((p.ipv_at || '').slice(0, 16))}"></div>
+      <div class="fld full"><b class="small">Video IPV</b><div>${cb('kv-con', 'Consent recorded', v.consent)} ${cb('kv-ra', 'Random actions', v.random_actions)} ${cb('kv-vpn', 'VPN / proxy blocked', v.vpn_blocked)} ${cb('kv-fatf', 'FATF-compliant country', v.fatf_compliant)} ${cb('kv-live', 'Liveness', v.liveness)} ${cb('kv-face', 'Face match with the OVD', v.face_match)} ${cb('kv-enc', 'End-to-end encrypted', v.encrypted)} ${cb('kv-offp', 'Authorised official present', v.official_present)}</div></div>
+      ${tx('kv-geo', 'Live GPS geo-tag', v.geo_tag)}${tx('kv-ip', 'Client IP country (2 letters)', v.ip_country)}${tx('kv-aud', 'Concurrent audit by', v.audited_by)}${dt('kv-audon', 'Audited on', v.audited_on)}
+      <div class="fld"><label for="kp-tr">Translations of documents not in English</label><select class="in" id="kp-tr"><option value=""></option>${['Not needed', 'Attested translations taken'].map(x => `<option ${x === p.translations ? 'selected' : ''}>${x}</option>`).join('')}</select></div></div>`,
+      'Save', () => {
+        const ck = id => $(id).checked, val = id => $(id).value.trim();
+        const ipv = val('kp-ipv');
+        return act(() => post(`/v1/proi/${encodeURIComponent(ucc)}`, { category: val('kp-cat'), country: val('kp-cty'), kra_lookup_on: val('kp-kra'), ckyc_lookup_on: val('kp-ck'), ckyc_given: val('kp-ckg'), docs_on: val('kp-docs'), pan_verified_on: val('kp-pan'),
+          passport_no: val('kp-pp'), passport_expiry: val('kp-ppx'), oci_card: val('kp-oci'), overseas_address: val('kp-addr'), overseas_ovd: val('kp-ovd'), email_verified: ck('kp-ev'), mobile_verified: ck('kp-mv'),
+          ipv, ipv_official: val('kp-off'), ipv_at: val('kp-at'), translations: val('kp-tr'),
+          vipv: ipv === 'Video (VIPV)' ? { consent: ck('kv-con'), random_actions: ck('kv-ra'), vpn_blocked: ck('kv-vpn'), fatf_compliant: ck('kv-fatf'), liveness: ck('kv-live'), face_match: ck('kv-face'), encrypted: ck('kv-enc'), official_present: ck('kv-offp'),
+            geo_tag: val('kv-geo'), ip_country: val('kv-ip').toUpperCase(), audited_by: val('kv-aud'), audited_on: val('kv-audon') } : null }), c => `${c.ucc}: PROI record saved`);
+      });
   },
 });

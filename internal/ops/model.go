@@ -321,6 +321,10 @@ type Settings struct {
 	// FirmUCC is the member's own client code, as the holding statement
 	// reports it on each of the firm's accounts.
 	FirmUCC string `json:"firm_ucc,omitempty"`
+	// SpecialSessions are days the exchanges trade on a Sunday (a Muhurat
+	// or other special session, announced by circular): the holding
+	// statement is due for them too (nseholdingapi.go).
+	SpecialSessions []string `json:"special_sessions,omitempty"`
 	// MCXMoneyApart keeps each client's MCX money as a balance of its own
 	// inside the one ledger (mcxearmark.go) for a firm with one bank
 	// account for all exchanges: no MCX-only account is needed. Money in
@@ -335,14 +339,19 @@ type Settings struct {
 	// penalty is ever passed to a client; from this date + 7 days it may
 	// be (penaltypass.go).
 	RiskPolicyClauseSentOn string `json:"risk_policy_clause_sent_on,omitempty"`
-	// KYCPendingBlock blocks, on the trading front ends, clients whose KYC
-	// status at the KRA (as last loaded into Ledgerline) is on hold,
-	// rejected, pending or incomplete, as well as inactive accounts, and
-	// lifts the block when the status is cleared (kycPendingWhy). Off (the
-	// default): only accounts flagged Inactive, blocked or not active are
-	// blocked. Ledgerline does not fetch KYC statuses from the KRA every
-	// day: the block uses the status already loaded.
-	KYCPendingBlock bool `json:"kyc_pending_block,omitempty"`
+	// KYCBlockOff switches the KYC trading gate off (kycgate.go). With the
+	// gate on (the default), a client whose KYC the KRA has not verified
+	// (status not Registered or Validated, including a status never
+	// loaded) or who is on an exchange's KYC list is blocked on the
+	// trading front ends: fresh orders only for a client onboarded by 31
+	// March 2024 (exit allowed, SEBI's FAQ on the KRA validation
+	// circular), everything for others and for a client the exchange has
+	// made Not Permitted to Trade. The block lifts when the KRA status is
+	// loaded as Registered or Validated and no list holds the client.
+	// Accounts flagged Inactive, blocked or not active are blocked either
+	// way. Switching it off needs the firm's own reason: SEBI does not let
+	// an unverified client transact.
+	KYCBlockOff bool `json:"kyc_block_off,omitempty"`
 	// FinspotLogins is who creates a client's user ID on Finspot
 	// (finspotlogin.go): "console" (staff, in Finspot's admin console),
 	// "ledgerline" (Ledgerline, by API, or its upload file without the API)
@@ -730,6 +739,11 @@ func (o *Ops) saveSettings(ctx context.Context, tenant, actor string, s Settings
 		return err
 	}
 	s.FirmDemats = fd
+	ss, err := checkSpecialSessions(s.SpecialSessions)
+	if err != nil {
+		return err
+	}
+	s.SpecialSessions = ss
 	if s.WarnUtilPct < 1 || s.WarnUtilPct > 100 {
 		return invalid("watch threshold must be between 1 and 100")
 	}

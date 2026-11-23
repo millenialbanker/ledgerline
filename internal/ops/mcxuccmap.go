@@ -114,6 +114,9 @@ type mcxUCCSources struct {
 	cities  *MCXStateCityMaster // nil: not loaded
 	mobiles map[string][]string
 	emails  map[string][]string
+	// kycOff: the KYC gate is off (Settings.KYCBlockOff); otherwise a
+	// client whose KYC the KRA has not verified is sent inactive.
+	kycOff bool
 }
 
 // mcxDate is DDMMYYYY.
@@ -555,9 +558,16 @@ func mcxUCCMap(c Client, src mcxUCCSources, last map[string]string, fileDate str
 		if c.InactiveSince != "" {
 			v[mxRemarks] += " since " + fmtDay(c.InactiveSince)
 		}
+	case !src.kycOff && c.Status == "Active" && !kraVerified(c.KRAStatus):
+		// MCX/S&I/176/2026 para 2: an existing UCC whose attributes the KRA
+		// has not verified is inactive at MCX until they are (kycgate.go).
+		// A blank status (never loaded) counts as not verified.
+		v[mxStatus], v[mxRemarks] = "2", "KYC attributes not verified by the KRA"
 	}
 	if v[mxStatus] == "1" {
 		switch {
+		case last != nil && last["status"] == "2" && last["kyc"] == "1":
+			v[mxRemarks] = "KYC verified by the KRA"
 		case last != nil && last["status"] == "2" && c.ReactivatedOn != "":
 			v[mxRemarks] = "Reactivated on " + fmtDay(c.ReactivatedOn)
 		case last != nil && last["status"] == "2":
@@ -585,7 +595,7 @@ func mcxUCCMap(c Client, src mcxUCCSources, last map[string]string, fileDate str
 			}
 		}
 	}
-	return mcxUCCRecord{Values: v, Problems: dedupe(probs), Summary: map[string]string{"status": v[mxStatus]}, Warnings: warns}
+	return mcxUCCRecord{Values: v, Problems: dedupe(probs), Summary: mcxSummary(v), Warnings: warns}
 }
 
 // stateCity is the State-City code of a state and city from MCX's master.
@@ -706,4 +716,15 @@ func MCXUCCError(code string) string {
 		return "MCX error " + code + ": " + t
 	}
 	return "MCX error " + code + " (not in MCX's list of UCC error codes)"
+}
+
+// mcxSummary is what MCX holds that a later record is judged against: the
+// status, and whether it is inactive for KYC (so the next active record
+// says the KYC was verified).
+func mcxSummary(v map[string]string) map[string]string {
+	m := map[string]string{"status": v[mxStatus]}
+	if v[mxStatus] == "2" && v[mxRemarks] == "KYC attributes not verified by the KRA" {
+		m["kyc"] = "1"
+	}
+	return m
 }

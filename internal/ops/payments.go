@@ -477,6 +477,10 @@ type PayoutRequest struct {
 	ToAccount string `json:"to_account,omitempty"`
 	ToIFSC    string `json:"to_ifsc,omitempty"`
 	ToReason  string `json:"to_reason,omitempty"`
+	// SettledOn is the day the money reached the client when it is not the
+	// batch's day: for a cheque issued after the electronic transfer
+	// failed, the day it cleared (payoutcheque.go).
+	SettledOn string `json:"settled_on,omitempty"`
 }
 
 // Withdrawable explains how much a client can take out today.

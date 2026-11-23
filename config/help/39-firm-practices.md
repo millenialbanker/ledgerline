@@ -22,7 +22,7 @@ Only an Admin answers. The compliance officer can see the page and approve chang
 The questions:
 
 - **Equity limit on two front ends.** Today each front end gets the client's whole money. A primary front end, and a one-click move of the unused part, are not available yet.
-- **Blocks for KYC-pending and inactive clients.** With Yes, clients whose KYC is on hold, rejected, pending or incomplete at the KRA are blocked on the front ends (block file, limits) until it is cleared. Ledgerline does not fetch KYC statuses from the KRA every day yet: it uses the status already loaded (KRA status uploads on [[kyc|KYC & PMLA]]). Accounts flagged Inactive are blocked either way.
+- **Trading blocked until the KRA verifies the KYC.** On by default. With Yes, clients whose KYC the KRA has not verified (a status never loaded included) and clients on an exchange's KYC list are blocked on the front ends (block file, limits, BOW trading rights) until the KRA verifies it; clients onboarded by 31 March 2024 may still close positions. See [[kycgate|KYC trading gate]]. Accounts flagged Inactive are blocked either way.
 - **Finspot client logins.** In Finspot's admin console, from Ledgerline, or both. See the Finspot logins article.
 - **Margin baskets by API** each morning. Needs Finspot by API in Connections. The basket files stay as the fallback.
 - **CUSPA and pledge instructions by the depository's API.** Built for CDSL; needs CDSL APIs (DP) in Connections. Lines that cannot go by API stay on the day's list.

@@ -62,6 +62,11 @@ const (
 	cDemiseCase = "demisecase" // key: DC-nnnnnn
 
 	DemiseListNSE = "nse-kra-demise"
+	// DemiseListKRA is the KRAs' daily demise data (NSE/ISC/75724: the
+	// KRAs share it daily; MCX/S&I/522/2026 para 2), read like NSE's
+	// monthly list: debits blocked at once, the UCCs closed on every
+	// exchange, against the cycle of the month it is reported in.
+	DemiseListKRA = "kra-demise-daily"
 
 	DemiseReported = "Reported by KRA"
 	DemiseVerified = "Death verified"
@@ -347,6 +352,9 @@ func (o *Ops) demiseWork(ctx context.Context, tenant, actor string, d DemiseCase
 // DemiseLoadReq is the KRAs' demise list as loaded on the screen, with the
 // month's cut-off from NSE's circular.
 type DemiseLoadReq struct {
+	// Format: nse-kra-demise (NSE's monthly list, the default) or
+	// kra-demise-daily (the KRA's daily demise data).
+	Format   string `json:"format"`
 	Name     string `json:"name"`
 	Date     string `json:"date"`     // the day it is loaded for (empty: today)
 	Period   string `json:"period"`   // YYYY-MM: PANs reported up to the end of it (empty: the month before Date)
@@ -360,16 +368,24 @@ func (o *Ops) LoadDemiseList(ctx context.Context, tenant, actor string, req Demi
 	if err := o.require(ctx, tenant, actor, "Loading the KRAs' demise list", RoleCompliance, RoleChecker, RoleMaker); err != nil {
 		return DemiseList{}, err
 	}
-	lf, err := o.openListFile(ctx, tenant, DemiseListNSE, req.Name, req.Date, data)
+	format := firstOf(req.Format, DemiseListNSE)
+	if format != DemiseListNSE && format != DemiseListKRA {
+		return DemiseList{}, invalid("the list is %s (NSE's monthly list) or %s (the KRA's daily data)", DemiseListNSE, DemiseListKRA)
+	}
+	lf, err := o.openListFile(ctx, tenant, format, req.Name, req.Date, data)
 	if err != nil {
 		return DemiseList{}, err
 	}
-	l, err := o.applyDemiseFile(ctx, tenant, actor, lf, req.Period, req.Cutoff, req.Circular)
+	period := req.Period
+	if format == DemiseListKRA && period == "" {
+		period = lf.date[:7] // reported this month: the next NSE cycle's
+	}
+	l, err := o.applyDemiseFile(ctx, tenant, actor, lf, period, req.Cutoff, req.Circular)
 	if err != nil {
 		return l, err
 	}
-	o.log(ctx, tenant, actor, "xfile.received", lf.name, map[string]any{"format": DemiseListNSE, "rows": l.Rows, "problems": l.Issues, "file": lf.fileID, "loaded": "Deceased clients"})
-	o.noteDailyFile(ctx, tenant, actor, DemiseListNSE, lf.name, "")
+	o.log(ctx, tenant, actor, "xfile.received", lf.name, map[string]any{"format": format, "rows": l.Rows, "problems": l.Issues, "file": lf.fileID, "loaded": "Deceased clients"})
+	o.noteDailyFile(ctx, tenant, actor, format, lf.name, "")
 	return l, nil
 }
 
@@ -501,7 +517,9 @@ func (o *Ops) applyDemiseFile(ctx context.Context, tenant, actor string, lf *lis
 		return l, err
 	}
 	o.log(ctx, tenant, actor, "deceased.list.loaded", l.ID, map[string]any{"file": l.File, "period": period, "cutoff": cutoff, "rows": l.Rows, "matched": l.Matched, "again": l.Again, "not_clients": l.NotClients})
-	o.closeWork(ctx, tenant, actor, "periodic", "kra_demise:"+period, "loaded "+l.ID) // asked for by Periodic work
+	if lf.spec == nil || lf.spec.ID != DemiseListKRA {
+		o.closeWork(ctx, tenant, actor, "periodic", "kra_demise:"+period, "loaded "+l.ID) // asked for by Periodic work
+	}
 	return l, nil
 }
 

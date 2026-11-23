@@ -351,6 +351,9 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	// Sanctions: all clients screened again on the firm's interval, and
 	// cases past their 24 hours chased (sanctions.go); in every edition.
 	o.sanctionsTick(ctx, tenant, now)
+	// The KYC trading gate: KRA uploads due or late, expired MNRL notices
+	// on CDSL accounts, and list work items to close (kycgate.go).
+	o.kycGateTick(ctx, tenant, now)
 	// Bank account changes staff raised that the client did not confirm
 	// in time expire (clientauth.go).
 	o.bankAuthTick(ctx, tenant, now)
