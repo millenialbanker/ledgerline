@@ -80,6 +80,32 @@ type SecVaR struct {
 	Haircut money.Dec `json:"haircut"`
 }
 
+// ApprovedSecs is NSE Clearing's list of securities approved as
+// collateral on a day (APPSEC_COLLVAL), with each one's haircut.
+// NSE/INSP/66840 (para 2) accepts only liquid, actively traded securities
+// as client collateral; Ledgerline reads that as the clearing
+// corporation's approved list (the master circular's rule on approved
+// securities, gap register SEBI-SB2-0010, was not re-read here).
+type ApprovedSecs struct {
+	ID      string               `json:"id"`
+	Haircut map[string]money.Dec `json:"haircut"`
+}
+
+const cApprovedSec = "approvedsec" // date: ApprovedSecs
+
+// approvedForMargin says whether an ISIN may be taken as a margin pledge
+// on date: on NSE Clearing's approved list as last loaded (within 10 days),
+// or a government security. ok is false when no list is loaded: nothing is
+// refused then.
+func (o *Ops) approvedForMargin(ctx context.Context, tenant, isin, date string) (approved bool, asOf string, ok bool) {
+	a, found := latestDoc[ApprovedSecs](ctx, o, tenant, cApprovedSec, date)
+	if !found || a.ID < addDays(date, -10) {
+		return true, "", false
+	}
+	_, in := a.Haircut[strings.ToUpper(isin)]
+	return in || isGovtISIN(isin), a.ID, true
+}
+
 // SecVaRs is one day's margin rates by ISIN.
 type SecVaRs struct {
 	ID    string            `json:"id"`
@@ -285,6 +311,34 @@ func (o *Ops) loadCCFile(ctx context.Context, tenant, actor string, s *xfile.Spe
 			o.mergeVaR(ctx, tenant, actor, day, rates)
 		}
 		r.Loaded, r.Added = "Loaded as closing prices of "+day+" (values holdings and collateral without an exchange price)", len(px.Prices)
+	case "ncl-approved-securities":
+		if !need() {
+			return true
+		}
+		a := ApprovedSecs{ID: date, Haircut: map[string]money.Dec{}}
+		rates := map[string]SecVaR{}
+		for _, row := range rows {
+			isin := strings.ToUpper(strings.TrimSpace(row.Get("ISIN")))
+			if len(isin) != 12 || !strings.HasPrefix(isin, "IN") {
+				continue // the header, or a line without an ISIN
+			}
+			h := decOr0(row.Get("Haircut"))
+			a.Haircut[isin] = h
+			if h.Sign() > 0 {
+				rates[isin] = SecVaR{Haircut: h}
+			}
+		}
+		if len(a.Haircut) == 0 {
+			fail(fmt.Errorf("no securities with an ISIN in the file"))
+			return true
+		}
+		if err := docs.Upsert(ctx, o.Docs, tenant, cApprovedSec, date, a, actor); err != nil {
+			fail(err)
+			return true
+		}
+		o.indexDate(ctx, tenant, cApprovedSec, date, actor)
+		o.mergeVaR(ctx, tenant, actor, date, rates)
+		r.Loaded, r.Added = "Loaded as NSE Clearing's approved securities of "+date+" (margin pledges are taken only in these; their haircuts value collateral)", len(a.Haircut)
 	case "ncl-var":
 		if !need() {
 			return true

@@ -294,6 +294,15 @@ func (o *Ops) SettleAction(ctx context.Context, tenant, actor, date, key, action
 		if err := o.unpledgeAcross(ctx, tenant, actor, cl, ob.ISIN, ob.Symbol, unpledge); err != nil {
 			return *ob, err
 		}
+		// At the depository this is a pledge release for early pay-in
+		// (PR-EP), never more than the clearing corporation's sale
+		// obligation; the shares stay blocked for that pay-in in the
+		// client's account (NSE/INSP/68373 para 4; CDSL Operating
+		// Instructions 8.6.7-8.6.10). CDSL's API handbook here has no PR-EP
+		// call, so it is given on CDSL's system.
+		o.raiseWork(ctx, tenant, "settlement", "prep:"+date+":"+key, fmt.Sprintf("Release %d %s of %s for early pay-in (PR-EP)", unpledge, ob.Symbol, ob.UCC),
+			fmt.Sprintf("%s sold %d %s on %s; %d of them are pledged to the firm as margin. Give a pledge release for early pay-in (PR-EP) on CDSL's system for %d, no more than the sale obligation, so they are blocked for the pay-in in the client's account. A client who may not trade (frozen code): invoke for early pay-in (IV-EP) through the clearing member instead.", ob.UCC, -ob.NetQty, ob.Symbol, fmtDay(date), unpledge, unpledge),
+			ob.UCC, RoleChecker, "settlement", date)
 		if err := o.debitAcross(ctx, tenant, actor, cl, ob.ISIN, ob.Symbol, need); err != nil {
 			return *ob, err
 		}

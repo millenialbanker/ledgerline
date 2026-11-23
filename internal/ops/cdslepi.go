@@ -60,6 +60,13 @@ type EPIRecord struct {
 	ErrMsg    string `json:"err_msg,omitempty"`
 	LastAsk   string `json:"last_inquiry,omitempty"`
 	Reason    string `json:"reason,omitempty"`
+	// Tender is the tender offer (buy-back, open offer, delisting) the
+	// early pay-in is for, and TMID the trading member code it carries
+	// (CDSL/OPS/DP/SETTL/2026/815, from 28 Nov 2026); Warn says the
+	// cut-off was near when it was entered.
+	Tender string `json:"tender,omitempty"`
+	TMID   string `json:"tm_id,omitempty"`
+	Warn   string `json:"warn,omitempty"`
 }
 
 // EPIInput is one early pay-in to enter.
@@ -72,6 +79,11 @@ type EPIInput struct {
 	SettID   string `json:"sett_id"`
 	Flag     string `json:"flag"`
 	DISNo    string `json:"dis_no"`
+	// Tender: the ID of the tender offer (IPO screen) the shares are paid
+	// in for; TMID the trading member code (default the CDSL settings' TM/CP
+	// ID, else the firm's member code on the exchange).
+	Tender string `json:"tender,omitempty"`
+	TMID   string `json:"tm_id,omitempty"`
 }
 
 func (o *Ops) epiAll(ctx context.Context, tenant, prefix string) []EPIRecord {
@@ -245,11 +257,15 @@ func (o *Ops) EnterEPI(ctx context.Context, tenant, actor string, in []EPIInput)
 		if len(x.DISNo) > 16 {
 			return out, invalid("the DIS number is at most 16 characters")
 		}
+		tender, tmid, warn, err := o.epiTender(ctx, tenant, cfg, x, now)
+		if err != nil {
+			return out, err
+		}
 		n, err := o.next(ctx, tenant, "cdslepi", actor)
 		if err != nil {
 			return out, err
 		}
-		r := EPIRecord{ID: fmt.Sprintf("%s|%s|%s|%d", x.Date, x.UCC, x.ISIN, n), Date: x.Date, UCC: x.UCC, Name: c.Name, BOID: bo.BOID, ISIN: x.ISIN, Symbol: firstOf(h.Symbol, x.ISIN),
+		r := EPIRecord{Tender: tender, TMID: tmid, Warn: warn, ID: fmt.Sprintf("%s|%s|%s|%d", x.Date, x.UCC, x.ISIN, n), Date: x.Date, UCC: x.UCC, Name: c.Name, BOID: bo.BOID, ISIN: x.ISIN, Symbol: firstOf(h.Symbol, x.ISIN),
 			Qty: x.Qty, Exchange: x.Exchange, SettID: x.SettID, Flag: x.Flag, DISNo: strings.TrimSpace(x.DISNo), Status: "Pending", Maker: actor, At: now.Format(time.RFC3339)}
 		if _, err := docs.Put(ctx, o.Docs, tenant, cEPI, r.ID, r, 0, actor); err != nil {
 			return out, err
@@ -261,6 +277,66 @@ func (o *Ops) EnterEPI(ctx context.Context, tenant, actor string, in []EPIInput)
 		o.raiseWork(ctx, tenant, "cdslepi", out[0].Date, "Send early pay-ins to CDSL", fmt.Sprintf("%d early pay-ins entered for %s. Check and send.", len(out), out[0].Date), "", RoleChecker, "cdslepi", out[0].Date)
 	}
 	return out, nil
+}
+
+// ---- tender offers (CDSL/OPS/DP/SETTL/2026/815, from 28 Nov 2026) ----
+//
+// An early pay-in for a tender offer (buy-back, takeover, delisting) under
+// the clearing corporations' interoperability carries the trading member's
+// code (TMID). CDSL earmarks the balance 10 minutes before the early
+// pay-in cut-off and rejects or closes instructions not processed by then.
+// Ledgerline takes the cut-off as the offer's bidding close for the day
+// (the last day's close time on the offer's last day): it refuses a tender
+// early pay-in after it and warns within the last 10 minutes. The TMID is
+// sent in the setup's tmcpid (CDSL API Handbook §5.9.6), the field that
+// carries the TM/CP code; the safe reading until CDSL's mock confirms it.
+
+const (
+	epiTenderTMIDFrom = "2026-11-28"
+	epiEarmarkMinutes = 10
+)
+
+// epiTender checks a tender early pay-in: the offer, its TMID and the
+// cut-off. It returns the offer, the TMID and a warning.
+func (o *Ops) epiTender(ctx context.Context, tenant string, cfg CDSLPledgeConfig, x EPIInput, now time.Time) (string, string, string, error) {
+	id := strings.TrimSpace(x.Tender)
+	if id == "" {
+		return "", "", "", nil
+	}
+	iss, err := o.IPOIssueByID(ctx, tenant, id)
+	if err != nil || iss.Type != IssueTender {
+		return "", "", "", invalid("%s is not a tender offer on the IPO screen", id)
+	}
+	set, _ := o.Settings(ctx, tenant)
+	tmid := strings.ToUpper(strings.TrimSpace(firstOf(x.TMID, firstOf(cfg.EPITMCPID, set.MemberCodes[x.Exchange]))))
+	if tmid == "" && x.Date >= epiTenderTMIDFrom {
+		return "", "", "", invalid("give the trading member code (TMID) for the tender-offer early pay-in (CDSL communiqué DP2026-815)")
+	}
+	if len(tmid) > 12 || !cplReAlnum.MatchString(tmid) {
+		return "", "", "", invalid("the TMID is at most 12 letters or digits")
+	}
+	day := now.In(ist).Format("2006-01-02")
+	if iss.Close != "" && day > iss.Close {
+		return "", "", "", invalid("the tender offer %s closed on %s", iss.Name, fmtDay(iss.Close))
+	}
+	cut := iss.DayClose
+	if day == iss.Close || cut == "" {
+		cut = firstOf(iss.CloseTime, iss.DayClose)
+	}
+	if len(cut) < 5 {
+		return id, tmid, "The offer's bidding close time is not on record: check the early pay-in cut-off on CDSL's notice; CDSL earmarks the balance 10 minutes before it.", nil
+	}
+	cutAt, err := time.ParseInLocation("2006-01-02 15:04", day+" "+cut[:5], ist)
+	if err != nil {
+		return id, tmid, "", nil
+	}
+	switch left := cutAt.Sub(now); {
+	case left <= 0:
+		return "", "", "", invalid("the early pay-in cut-off for %s today (%s) has passed: CDSL rejects or closes it", iss.Name, cut[:5])
+	case left <= epiEarmarkMinutes*time.Minute:
+		return id, tmid, fmt.Sprintf("Entered %d minute(s) before the %s cut-off: CDSL earmarks the balance %d minutes before it, so send it now or it may be rejected.", int(left.Minutes()), cut[:5], epiEarmarkMinutes), nil
+	}
+	return id, tmid, "", nil
 }
 
 // EPIExchange is the exchange early pay-ins default to.
@@ -384,7 +460,7 @@ func (o *Ops) DecideEPI(ctx context.Context, tenant, actor string, ids []string,
 	var groups [][]EPIRecord
 	at := map[string]int{}
 	for _, r := range rs {
-		k := r.BOID + "|" + r.SettID + "|" + r.Flag + "|" + r.DISNo
+		k := r.BOID + "|" + r.SettID + "|" + r.Flag + "|" + r.DISNo + "|" + r.Tender + "|" + r.TMID
 		i, ok := at[k]
 		if !ok || len(groups[i]) == 10 {
 			i = len(groups)
@@ -425,7 +501,7 @@ func (o *Ops) epiSend(ctx context.Context, tenant, actor string, cc cplConn, cfg
 		r0 := g[0]
 		b := cplEPIBO{ReqSeqNo: boSeq, BOID: r0.BOID, SettID: r0.SettID, CM_ID: truncate(cfg.EPICMID, 8), EPBOID: cfg.EPIBOID, ElecTxn: r0.Flag, DISNo: r0.DISNo,
 			MakerID: truncate(r0.Maker, 12), CheckerID: truncate(actor, 12), EntityID: cfg.EPIEntity, UCCID: truncate(r0.UCC, 11), ExID: cfg.EPIExID, SegmentID: cfg.EPISegment,
-			CMID: cfg.EPICMID, TMCPID: cfg.EPITMCPID}
+			CMID: cfg.EPICMID, TMCPID: firstOf(r0.TMID, cfg.EPITMCPID)}
 		if r0.Flag == "D" {
 			b.POAID = cfg.DDPIPOAID
 		}

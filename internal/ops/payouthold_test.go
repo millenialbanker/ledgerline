@@ -214,7 +214,7 @@ func TestPayoutHoldAutomatic(t *testing.T) {
 	o.SaveConnection(ctx, T, "admin", connFinspot, map[string]string{"account_suffix": "-ABC"}, nil)
 	_, b, _ = o.PayoutHoldFile(ctx, T, "anita.rao", phP, "oms-release")
 	lines = strings.Split(strings.TrimSpace(string(b)), "\r\n")
-	if len(lines) != 2 || !strings.HasPrefix(lines[1], "AL1-ABC||||") || !strings.HasSuffix(lines[1], "||||||||"+bod.NotionalCash.Add(money.MustDec("1000")).Fixed(2)) {
+	if len(lines) != 2 || !strings.HasPrefix(lines[1], "AL1-ABC||||") || !strings.HasSuffix(lines[1], "||||||||"+bod.NotionalCash.Add(money.MustDec("900")).Fixed(2)) { // 10 x 100 less the 10% floor for a G-sec without a CC haircut
 		t.Fatalf("oms release file with suffix %q", b)
 	}
 }

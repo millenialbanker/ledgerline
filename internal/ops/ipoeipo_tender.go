@@ -146,7 +146,7 @@ func (o *Ops) tenderSentWork(ctx context.Context, tenant string, iss IPOIssue, n
 	today := now.In(ist).Format("2006-01-02")
 	if len(demat) > 0 {
 		o.raiseWork(ctx, tenant, "ipo", "tender-block-"+iss.ID+"-"+today, fmt.Sprintf("%s: confirm the shares of %d demat tender(s) were blocked", iss.Name, len(demat)),
-			"The exchange's process blocks (or takes as early pay-in) the shares tendered from each client's demat account. Check the clearing corporation's or depository's report: a tender whose shares were not blocked is not considered.\n"+strings.Join(demat, "\n"), "", RoleMaker, "ipo", today)
+			"The exchange's process blocks (or takes as early pay-in) the shares tendered from each client's demat account. Check the clearing corporation's or depository's report: a tender whose shares were not blocked is not considered. An early pay-in for the offer through CDSL (Early pay-in, with the offer chosen) carries the trading member code (TMID) and must reach CDSL more than 10 minutes before the cut-off, when CDSL earmarks the balance (CDSL communiqué DP2026-815).\n"+strings.Join(demat, "\n"), "", RoleMaker, "ipo", today)
 	}
 	if len(phys) > 0 {
 		o.raiseWork(ctx, tenant, "ipo", "tender-physical-"+iss.ID+"-"+today, fmt.Sprintf("%s: send %d physical tender(s) to the registrar", iss.Name, len(phys)),
