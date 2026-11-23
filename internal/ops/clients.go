@@ -282,6 +282,12 @@ func (c Client) Validate() error {
 	if c.UCC != "" && !reUCC.MatchString(c.UCC) {
 		add("ucc", "UCC is 3 to 10 letters or digits")
 	}
+	if strings.EqualFold(c.UCC, SuspenseUCC) {
+		// The back-office code for unidentified receipts in SEGMON; never
+		// a client, in the exchanges' UCC database or the front end
+		// (NCL/CMPL/64088).
+		add("ucc", "SUSPE1234N is kept for unidentified receipts in the client collateral report: give the client another code")
+	}
 	if len(c.Name) < 3 {
 		add("name", "Enter the full name as per PAN")
 	}

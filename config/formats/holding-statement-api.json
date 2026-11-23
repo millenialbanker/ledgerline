@@ -5,7 +5,7 @@
  "direction": "out",
  "when": "Daily (previous day)",
  "format": "json",
- "purpose": "The trading member's own demat accounts (pool, own, client unpaid, client collateral, margin and MTF pledge, early pay-in…), each account and ISIN with its NSE account type and the member's own client code, PAN and name (NSE/INSP/55039, NSE/INSP/55380). Not clients' holdings in their own accounts.",
+ "purpose": "The trading member's own demat accounts (pool, own, client unpaid, client collateral, invoked margin and MTF pledges, early pay-in…), each account and ISIN with its NSE account type (POOL, CM COLL, OWN, EPI, CLNTBENEMTF, TMCOLL, TMCOLL-MTF, CLNT UNPAID, CLNT COLL, MRGN PLEDGE, MTF PLEDGE, CLNTBENE), security type (EQ, MF, BOND, DEBT, PREF, IDR, WT, COMM; a commodity also has its name and unit, GMS, KG, QUINTAL, MT, BARRELS, MMBTU, BALES, DRUMS or OTHERS, else NA) and the member's own client code, PAN and name (NSE/INSP/55039, NSE/INSP/55380 Annexure A). Not clients' holdings in their own accounts, and not securities clients pledged as margin (NSE FAQ on margin collection).",
  "names": [
   "[A-Z]{5}\\d{4}[A-Z]_HS_\\d{8}_\\d+\\.json"
  ],
@@ -33,7 +33,7 @@
   ]
  },
  "confirmed": true,
- "linked": "Written from the day's CDSL statement of holding, for the firm's demat accounts tagged in Settings → Firm demat accounts; not made while an account of no client is untagged (firmdemats.go)",
+ "linked": "Written from the day's balances of the firm's demat accounts (kept by day from CDSL's statement of holding; a Saturday, holiday or Sunday session takes the latest since the last trading day), for the accounts tagged in Settings → Firm demat accounts; security types from CDSL's ISIN master; not made while an account of no client is untagged (firmdemats.go)",
  "source": "Keys of the file",
  "compress": "none",
  "delimiter": ",",

@@ -168,7 +168,7 @@ func TestMoneyReconStatement(t *testing.T) {
 	if _, err := o.RecordFirmTransfer(ctx, T, "priya.nair", FirmTransfer{Date: D, Purpose: "payout", From: "CC", To: sett.ID, Amount: 100, Ref: "X"}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("a pay-out with no segment: %v", err)
 	}
-	rel := moneyXfer(t, o, FirmTransfer{Date: D, Purpose: "release", From: "CC", To: dsc.ID, Amount: b.Total, Ref: "UTRRELMADEUP1"})
+	rel := moneyXfer(t, o, FirmTransfer{Date: D, Purpose: "release", From: "CC", To: dsc.ID, Withdraw: "withdrawal", Amount: b.Total, Ref: "UTRRELMADEUP1"})
 	if rel.Status != "Posted" || rel.Entry == "" {
 		t.Fatalf("release %+v", rel)
 	}
@@ -268,7 +268,7 @@ func TestMoneyReconSignOff(t *testing.T) {
 		t.Fatalf("a maker signed: %v", err)
 	}
 	// The records change: it is prepared again before it is signed.
-	moneyXfer(t, o, FirmTransfer{Date: D, Purpose: "release", From: "CC", To: dsc.ID, Amount: 1000_00, Ref: "UTRRELMADEUP2"})
+	moneyXfer(t, o, FirmTransfer{Date: D, Purpose: "release", From: "CC", To: dsc.ID, Withdraw: "withdrawal", Amount: 1000_00, Ref: "UTRRELMADEUP2"})
 	if v, _ := o.MoneyReconFor(ctx, T, "farhan.khan", D); !v.Changed || v.CanSign {
 		t.Fatalf("change not seen %+v", v)
 	}
@@ -347,7 +347,7 @@ func TestMoneyReconSignOff(t *testing.T) {
 		}
 	}
 	// Money left in the DSCNBA on a day that is not a settlement day.
-	moneyXfer(t, o, FirmTransfer{Date: "2026-10-20", Purpose: "release", From: "CC", To: dsc.ID, Amount: 500_00, Ref: "UTRRELMADEUP3"})
+	moneyXfer(t, o, FirmTransfer{Date: "2026-10-20", Purpose: "release", From: "CC", To: dsc.ID, Withdraw: "regulatory", Amount: 500_00, Ref: "UTRRELMADEUP3"})
 	v, _ := o.MoneyReconFor(ctx, T, "priya.nair", "2026-10-20")
 	if v.Settlement || moneyHas(v, "dscnba_balance") != 1 {
 		t.Fatalf("DSCNBA balance on the 20th %+v", v.Flags)

@@ -91,7 +91,8 @@ func (o *Ops) bseHoldingStart(ctx context.Context, tenant string) string {
 }
 
 // bseHoldingPending are the data dates up to the day before date (not
-// Sundays, from the start, at most 31 days back) not recorded as uploaded.
+// Sundays unless a special session, from the start, at most 31 days back)
+// not recorded as uploaded.
 func (o *Ops) bseHoldingPending(ctx context.Context, tenant string, set Settings, date string) []string {
 	out := []string{}
 	start := o.bseHoldingStart(ctx, tenant)
@@ -107,7 +108,7 @@ func (o *Ops) bseHoldingPending(ctx context.Context, tenant string, set Settings
 		done[f.Date] = true
 	}
 	for d := start; d < date; d = addDays(d, 1) {
-		if t, _ := time.Parse("2006-01-02", d); t.Weekday() == time.Sunday || done[d] {
+		if done[d] || !o.isHoldingDay(ctx, tenant, set, d) {
 			continue
 		}
 		if ok, _ := bseHoldingApplies(set, d); ok {
@@ -183,9 +184,6 @@ func (o *Ops) BSEHoldingUploaded(ctx context.Context, tenant, actor, date, ack s
 	if !validDate(date) {
 		return BSEHoldingFiling{}, invalid("give the date the holdings are for")
 	}
-	if t, _ := time.Parse("2006-01-02", date); t.Weekday() == time.Sunday {
-		return BSEHoldingFiling{}, invalid("BSE takes no holding statement for a Sunday")
-	}
 	ack = strings.TrimSpace(ack)
 	if ack == "" {
 		return BSEHoldingFiling{}, invalid("enter BEFS's acknowledgement or upload reference")
@@ -197,11 +195,15 @@ func (o *Ops) BSEHoldingUploaded(ctx context.Context, tenant, actor, date, ack s
 	if ok, why := bseHoldingApplies(set, date); !ok {
 		return BSEHoldingFiling{}, fmt.Errorf("%w: %s", ErrState, why)
 	}
+	if !o.isHoldingDay(ctx, tenant, set, date) {
+		return BSEHoldingFiling{}, invalid("BSE takes no holding statement for a Sunday without a special session")
+	}
 	f := BSEHoldingFiling{Date: date, Channel: "BEFS portal", Ack: ack, By: actor, At: o.now().Format(time.RFC3339)}
-	// The file can be made only from the holdings Ledgerline has now: for a
-	// past day it describes what was uploaded, not what is held today.
+	// The file is made from that day's balances of the firm's accounts
+	// (kept by day, firmdemats.go); a day whose statement of holding was
+	// never loaded is recorded without it.
 	if name, j, items, err := o.bseHoldingFile(ctx, tenant, set, date); err == nil {
-		if ps := nseHoldingProblems(items); len(ps) > 0 && date == o.latestHoldingFile(ctx, tenant) {
+		if ps := nseHoldingProblems(items); len(ps) > 0 {
 			return f, invalid("%d record(s) would fail the exchange's checks, for example %s; correct them and upload again", len(ps), ps[0])
 		}
 		f.File, f.Records, f.SHA256 = maskPANs(name), len(items), sha256Hex(j)

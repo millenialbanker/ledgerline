@@ -25,16 +25,19 @@ V.settings = {
 
 function fdPanel(v) {
   if (v.error) return `<div class="panel"><div class="hd"><h3>Firm demat accounts</h3></div><div class="bd">${errHTML({ message: v.error })}</div></div>`;
-  const ed = v.can_edit, opts = t => `<option value="">Not tagged</option>${v.types.map(x => `<option ${x === t ? 'selected' : ''}>${esc(x)}</option>`).join('')}`;
+  const tn = v.type_notes || {};
+  const ed = v.can_edit, opts = t => `<option value="">Not tagged</option>${v.types.map(x => `<option ${x === t ? 'selected' : ''} title="${esc(tn[x] || '')}">${esc(x)}</option>`).join('')}`;
   const rows = v.accounts.map((a, i) => `<tr><td class="mono">${esc(a.masked)}${a.client ? ` <span class="dim small">also on client ${esc(a.client)}</span>` : ''}</td>
     <td>${a.seen ? `${nf(a.isins)} ISINs · ${esc(a.qty)}` : '<span class="dim">not in the last statement of holding</span>'}</td>
-    <td>${ed ? `<select class="in" id="fd-t-${i}" data-bo="${esc(a.boid)}">${opts(a.type)}</select>` : (a.type ? esc(a.type) : pill('Not tagged', 'bad'))}</td></tr>`);
+    <td>${ed ? `<select class="in" id="fd-t-${i}" data-bo="${esc(a.boid)}">${opts(a.type)}</select>` : (a.type ? esc(a.type) : pill('Not tagged', 'bad'))}${a.type && tn[a.type] ? `<div class="dim small">${esc(tn[a.type])}</div>` : ''}</td></tr>`);
   const probs = (v.problems || []).length ? `<div class="note warn"><b>The holding statement${v.date ? ' for ' + fmtDate(v.date) : ''} is not made until this is put right:</b><ul>${v.problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul></div>` : (v.date ? `<div class="note">The holding statement for ${fmtDate(v.date)} can be made from the tagged accounts.</div>` : '');
+  const notes = (v.notes || []).length ? `<div class="note small"><b>Check before it goes:</b><ul>${v.notes.map(p => `<li>${esc(p)}</li>`).join('')}</ul></div>` : '';
+  const legend = `<details class="small" style="margin-top:8px"><summary>What each type is for</summary><ul>${v.types.map(x => `<li><b>${esc(x)}</b>: ${esc(tn[x] || '')}</li>`).join('')}</ul><div class="dim">Securities clients pledge to the firm as margin stay in the clients' accounts and are not reported (NSE's FAQ); what the firm's own accounts hold, including invoked pledges, is.</div></details>`;
   return `<div class="panel"><div class="hd"><h3>Firm demat accounts</h3><small>the daily holding statement reports these accounts with their NSE account type, never clients' own accounts${v.snapshot ? ` · seen in ${esc(v.snapshot)} (${fmtDate(v.date)})` : ''}</small></div><div class="bd">
-    ${probs}
+    ${probs}${notes}
     <div class="form"><div class="fld"><label for="fd-ucc">The firm's own client code (reported on each account)</label><input class="in mono" id="fd-ucc" value="${esc(v.firm_ucc || '')}" ${ed ? '' : 'disabled'}></div></div>
     ${ed ? `<div class="split" style="margin-top:8px"><button class="btn pri" data-act="fdSave">Save tags</button><label class="btn">Take the types from the old system's holding statement<input type="file" id="fd-file" accept=".json,application/json" hidden></label></div>` : '<p class="dim small">Only an Admin tags the accounts.</p>'}
-    </div>${tbl([['Account'], ['Last statement of holding'], ['Holding statement type']], rows, { empty: 'No account yet: load CDSL’s statement of holding on Exchange files.' })}</div>`;
+    ${legend}</div>${tbl([['Account'], ['Last statement of holding'], ['Holding statement type']], rows, { empty: 'No account yet: load CDSL’s statement of holding on Exchange files.' })}</div>`;
 }
 
 Object.assign(A, {

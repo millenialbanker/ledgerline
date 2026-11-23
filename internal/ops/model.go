@@ -321,6 +321,10 @@ type Settings struct {
 	// FirmUCC is the member's own client code, as the holding statement
 	// reports it on each of the firm's accounts.
 	FirmUCC string `json:"firm_ucc,omitempty"`
+	// SpecialSessions are days the exchanges trade on a Sunday (a Muhurat
+	// or other special session, announced by circular): the holding
+	// statement is due for them too (nseholdingapi.go).
+	SpecialSessions []string `json:"special_sessions,omitempty"`
 	// MCXMoneyApart keeps each client's MCX money as a balance of its own
 	// inside the one ledger (mcxearmark.go) for a firm with one bank
 	// account for all exchanges: no MCX-only account is needed. Money in
@@ -735,6 +739,11 @@ func (o *Ops) saveSettings(ctx context.Context, tenant, actor string, s Settings
 		return err
 	}
 	s.FirmDemats = fd
+	ss, err := checkSpecialSessions(s.SpecialSessions)
+	if err != nil {
+		return err
+	}
+	s.SpecialSessions = ss
 	if s.WarnUtilPct < 1 || s.WarnUtilPct > 100 {
 		return invalid("watch threshold must be between 1 and 100")
 	}

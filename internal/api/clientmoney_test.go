@@ -128,11 +128,14 @@ func TestClientMoneyRoutes(t *testing.T) {
 		t.Fatalf("transfers %d %+v", c, xf)
 	}
 	var x ops.FirmTransfer
-	rel := map[string]any{"date": day, "purpose": "release", "from": "CC", "to": b.ID, "amount": "1000", "ref": "UTRRELMADEUP9"}
+	rel := map[string]any{"date": day, "purpose": "release", "from": "CC", "to": b.ID, "amount": "1000", "ref": "UTRRELMADEUP9", "withdraw": "withdrawal"}
+	if c := ipoCall(t, srv, "POST", "/v1/money-transfers", "priya.nair", map[string]any{"date": day, "purpose": "release", "from": "CC", "to": b.ID, "amount": "1000", "ref": "UTRRELMADEUP7"}, nil); c != 422 {
+		t.Fatalf("funds taken back with no reason: %d", c)
+	}
 	if c := ipoCall(t, srv, "POST", "/v1/money-transfers", "priya.nair", rel, &x); c != 200 || x.Status != "Pending" {
 		t.Fatalf("record %d %+v", c, x)
 	}
-	if c := ipoCall(t, srv, "POST", "/v1/money-transfers", "priya.nair", map[string]any{"date": day, "purpose": "release", "from": "CC", "to": b.ID, "amount": "0", "ref": "UTRRELMADEUP8"}, nil); c != 422 {
+	if c := ipoCall(t, srv, "POST", "/v1/money-transfers", "priya.nair", map[string]any{"date": day, "purpose": "release", "from": "CC", "to": b.ID, "amount": "0", "ref": "UTRRELMADEUP8", "withdraw": "withdrawal"}, nil); c != 422 {
 		t.Fatalf("a nil amount: %d", c)
 	}
 	if c := ipoCall(t, srv, "POST", "/v1/money-transfers/"+x.ID+"/decide", "priya.nair", map[string]any{"approve": true}, nil); c != 403 {
@@ -140,6 +143,39 @@ func TestClientMoneyRoutes(t *testing.T) {
 	}
 	if c := ipoCall(t, srv, "POST", "/v1/money-transfers/"+x.ID+"/decide", "farhan.khan", map[string]any{"approve": true}, &x); c != 200 || x.Status != "Posted" || x.Entry == "" {
 		t.Fatalf("approve %d %+v", c, x)
+	}
+
+	// Money kept back, by reason: the cut-off set by the compliance
+	// officer, a reason recorded by a maker.
+	if c := ipoCall(t, srv, "POST", "/v1/money-rules", "priya.nair", map[string]string{"funds_cutoff": "18:00"}, nil); c != 403 {
+		t.Fatalf("a maker set the cut-off: %d", c)
+	}
+	if c := ipoCall(t, srv, "POST", "/v1/money-rules", "vikram.shah", map[string]string{"funds_cutoff": "6pm"}, nil); c != 422 {
+		t.Fatalf("a bad cut-off: %d", c)
+	}
+	if c := ipoCall(t, srv, "POST", "/v1/money-rules", "vikram.shah", map[string]string{"funds_cutoff": "18:00"}, nil); c != 200 {
+		t.Fatalf("cut-off %d", c)
+	}
+	var rt ops.RetentionEntry
+	if c := ipoCall(t, srv, "POST", "/v1/money-retention", "priya.nair", map[string]any{"date": day, "code": "RC06", "amount": "250", "ref": "OFS-REFUND-1"}, &rt); c != 200 || rt.ID == "" {
+		t.Fatalf("retention %d %+v", c, rt)
+	}
+	var kept struct {
+		Report ops.RetentionReport `json:"report"`
+		Rules  ops.MoneyRules      `json:"rules"`
+	}
+	if c := ipoCall(t, srv, "GET", "/v1/money-retention?date="+day, "anita.rao", nil, &kept); c != 200 || kept.Rules.FundsCutoff != "18:00" || len(kept.Report.Entries) != 1 {
+		t.Fatalf("retained funds %d %+v", c, kept)
+	}
+	if c := ipoCall(t, srv, "POST", "/v1/money-retention/"+rt.ID+"/withdraw", "priya.nair", map[string]string{"reason": "entered twice"}, &rt); c != 200 || rt.Status != "Withdrawn" {
+		t.Fatalf("withdraw %d %+v", c, rt)
+	}
+	var qs []ops.PayoutCheque
+	if c := ipoCall(t, srv, "GET", "/v1/payout-cheques", "priya.nair", nil, &qs); c != 200 || len(qs) != 0 {
+		t.Fatalf("cheques %d %+v", c, qs)
+	}
+	if c := ipoCall(t, srv, "POST", "/v1/payout-cheques", "farhan.khan", map[string]string{"request": "PO-999999", "cheque_no": "1", "date": day}, nil); c != 404 {
+		t.Fatalf("a cheque for no request: %d", c)
 	}
 
 	// The day's statement: prepared by a maker, signed off by a checker.

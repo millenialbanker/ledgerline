@@ -341,7 +341,7 @@ title: Client funds and collateral report (SEGMON): check, download, response
 screen: xfiles
 roles: Ops maker, Ops checker, Risk manager, Compliance officer
 ask: segmon; segmon check; client funds report; 65 column file; peak ledger balance; peak clear balance; credit in lieu of epi; cash placed with ncl; mtf indicator; non mtf; uncleared receipts; settlement amount column; segmon error file; segmon response; segmon rejected; segregation and monitoring of collateral
-related: exchange-files, client-collateral, holding-api
+related: exchange-files, client-collateral, holding-api, retained-funds
 
 On [[xfiles|Exchange files]], under **Sent**, choose the date and **Download** on *Client funds and collateral report*. Ledgerline first runs the **SEGMON check** and shows its errors and warnings; the file is made only when there are no errors.
 
@@ -354,6 +354,9 @@ What Ledgerline reports for each client (one line per segment with an allocation
 - **MTF**: a client with margin trading has a second cash-segment line marked **MTF** with the margin trading ledger; the client's cash margin on open MTF positions is in **Cash collateral for MTF positions** and in the **NON MTF** line's balances, not in the MTF line.
 - **Settlement amount**: funds paid out in the running account settlement, in the file of the working day after the settlement date.
 - Bank guarantees, fixed deposits, commodities and other collateral are zero: clients do not give them to the firm in Ledgerline.
+- **Offer-for-sale margin** with NSE Clearing at the end of the day is the client's cash placed with NSE Clearing (column 46), and is in the client's balances (NCL/CMPL/64088).
+- **Unidentified receipts** are on a line of their own under **SUSPE1234N**, with the firm's PAN as the client PAN.
+- **Money kept back** from the clearing corporation is on a line per reason code (RC01 to RC09) with the client fields blank; see *Client money kept back*.
 
 The check stops the file for: a missing or malformed PAN (firm, clearing member or client; shown masked), a client twice for the same segment and indicator, collateral received not equal to retained plus placed (or placed with the clearing member not equal to retained by it plus placed with NSE Clearing), a peak below the clear balance, totals that do not agree with the client ledgers or the day's allocation, and a client with a balance left out. It warns when cash allocated is more than the client's clear credit.
 
@@ -364,18 +367,19 @@ title: Holding statement to NSE by API (and BSE)
 screen: xfiles
 roles: Ops maker, Ops checker, Compliance officer
 ask: holding statement api; submit holding statement; nse holding statement; bse holding statement; befs holding statement; bank balance submission; holding statement rejected; inspection api; daily holding statement; hs file; holding statement error code; 805 error; submit earlier day first
-related: exchange-files, connections
+related: exchange-files, connections, holding-statement-firm-accounts, holding-statement-nil-days
 
-NSE takes each client's demat holdings every day except Sunday, by API (NSE circulars NSE/INSP/55039 and NSE/INSP/55380). A day is accepted only after the day before it.
+NSE takes the holding statement of the firm's own demat accounts every day except Sunday, by API (NSE circulars NSE/INSP/55039 and NSE/INSP/55380). A day is accepted only after the day before it. Sunday special sessions are due too.
 
 1. **Set up** (Admin): [[connections|Settings → Connections]] → *NSE holding statement API*: the 5-digit member code, the API password and the secret key NSE mailed at registration on its inspection portal (the login ID is ApiUser followed by the member code unless NSE gave another). The secret key changes with every password reset.
 2. **Submit by hand**: on [[xfiles|Exchange files]], under **Sent**, choose the date and **Download** on *Client holding statement*, then **Submit to NSE now**. Ledgerline checks every record first (demat account, name, PAN, ISIN, pledged plus free equals total) and sends nothing while a record would fail; the problems are listed.
-3. **Automatic**: with *Submit the previous day's statement automatically* on, the scheduler sends each day up to yesterday that NSE has not accepted, oldest first, once the CDSL statement of holding for it is loaded. Ledgerline keeps the latest holdings only, so a day whose holdings were already replaced by a later CDSL file is not sent: a work item asks for it to go through NSE's portal.
-4. Every submission is kept with NSE's acknowledgement and codes. A rejected file or record opens a work item with NSE's reason in plain words (for example *the client PAN is not right (905)* or *an earlier day's holding statement has not been submitted yet (805)*). Correct and submit again; each submission gets the next file number.
+3. **Automatic**: with *Submit the previous day's statement automatically* on, the scheduler sends each day up to yesterday that NSE has not accepted, oldest first, once the CDSL statement of holding for it is loaded. Each day's balances are kept, so a past day can always be made again. A day whose CDSL file was never loaded opens a work item to load it (an older file can be loaded after newer ones).
+4. Every submission is kept with NSE's acknowledgement and codes. A rejected file or record opens a work item with NSE's reason in plain words (for example *the client PAN is not right (905)* or *an earlier day's holding statement has not been submitted yet (805)*). Correct and submit the whole day again; each submission gets the next file number.
+5. A day when the firm's accounts hold nothing is not sent by API: make NSE's NIL Holding declaration on the portal and record it (see **Holding statement: nil days, Sunday sessions and correcting a past day**).
 
 **Download the file** stays available for NSE's portal.
 
-**BSE**: BSE also takes the holding statement daily except Sunday, by the next day (BSE notice 20230113-13). From 15 October 2025 a member of both NSE and BSE reports it to NSE only, and NSE shares it with BSE (NSE/INSP/70505), so nothing more is sent. A member of BSE that is not an NSE member downloads the day's file in the same panel, uploads it on BSE's BEFS portal and clicks **Recorded on BEFS** with BEFS's acknowledgement; a day not recorded opens a work item the next morning, and the compliance calendar has the daily duty. BSE's API is not set up: its document (Annexure I of the notice) is given to members and is not public, so ask BSE for it to have the API added.
+**BSE**: BSE also takes the holding statement daily except Sunday (and Sunday special sessions), by the next day (BSE notice 20230113-13). From 15 October 2025 a member of both NSE and BSE reports it to NSE only, and NSE shares it with BSE (NSE/INSP/70505), so nothing more is sent. A member of BSE that is not an NSE member downloads the day's file in the same panel, uploads it on BSE's BEFS portal and clicks **Recorded on BEFS** with BEFS's acknowledgement; a day not recorded opens a work item the next morning, and the compliance calendar has the daily duty. BSE's API is not set up: its document (Annexure I of the notice) is given to members and is not public, so ask BSE for it to have the API added.
 
 The daily bank balance submission named in the same circulars is not sent: NSE stopped it from 30 October 2023 because the banks report balances directly (NSE/INSP/59044). The compliance calendar has a yearly duty to confirm the banks do.
 
