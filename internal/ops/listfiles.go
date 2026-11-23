@@ -22,7 +22,8 @@ import (
 // stopping the whole list.
 
 // listLayouts are the layouts loaded here (mnrl.go, deceased.go, cashequiv.go).
-var listLayouts = map[string]bool{MNRLListNSE: true, MNRLListDoT: true, MNRLListNSDL: true, MNRLListReac: true, DemiseListNSE: true, CashEqListNCL: true}
+// The KYC lists (kycgate.go) add themselves.
+var listLayouts = map[string]bool{MNRLListNSE: true, MNRLListDoT: true, MNRLListNSDL: true, MNRLListReac: true, DemiseListNSE: true, DemiseListKRA: true, CashEqListNCL: true}
 
 func isListLayout(id string) bool { return listLayouts[id] }
 
@@ -121,10 +122,13 @@ func (o *Ops) loadListXFile(ctx context.Context, tenant, actor string, s *xfile.
 	}
 	// The same people may load a list here as on its own screen.
 	var err error
-	switch s.ID {
-	case DemiseListNSE:
+	_, kyc := kycListSourceOf(s.ID)
+	switch {
+	case kyc:
+		err = o.require(ctx, tenant, actor, "Loading KYC lists", RoleCompliance, RoleChecker, RoleMaker)
+	case s.ID == DemiseListNSE || s.ID == DemiseListKRA:
 		err = o.require(ctx, tenant, actor, "Loading the KRAs' demise list", RoleCompliance, RoleChecker, RoleMaker)
-	case CashEqListNCL:
+	case s.ID == CashEqListNCL:
 		err = o.require(ctx, tenant, actor, "Loading the cash-equivalent collateral list", RoleRisk, RoleMaker, RoleChecker)
 	default:
 		err = o.require(ctx, tenant, actor, "Loading revocation lists", RoleMaker, RoleChecker, RoleCompliance)
@@ -144,8 +148,22 @@ func (o *Ops) loadListXFile(ctx context.Context, tenant, actor string, s *xfile.
 		r.Note = l.summary()
 		return true
 	}
-	if s.ID == DemiseListNSE {
-		l, err := o.applyDemiseFile(ctx, tenant, actor, lf, "", "")
+	if kyc {
+		l, err := o.applyKYCList(ctx, tenant, actor, lf, "", "")
+		if err != nil {
+			r.Loaded = "Not loaded: " + strings.TrimPrefix(err.Error(), "invalid: ")
+			return true
+		}
+		r.Loaded, r.Added, r.Skipped = "Loaded on Compliance → KYC trading gate: each client on it is held back on the front ends", l.Matched, l.NotClients
+		r.Note = l.summary()
+		return true
+	}
+	if s.ID == DemiseListNSE || s.ID == DemiseListKRA {
+		period := ""
+		if s.ID == DemiseListKRA {
+			period = lf.date[:7]
+		}
+		l, err := o.applyDemiseFile(ctx, tenant, actor, lf, period, "")
 		if err != nil {
 			r.Loaded = "Not loaded: " + strings.TrimPrefix(err.Error(), "invalid: ")
 			return true

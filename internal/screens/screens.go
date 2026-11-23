@@ -55,7 +55,7 @@ var Nav = []Section{
 		g("brokg", "Brokerage & charges", s("brokerage", "Brokerage plans"), s("charges", "Charges calculator"), s("prepaid", "Prepaid schemes"))}},
 	{Name: "Compliance", Items: []Item{
 		g("regg", "Regulatory reports", s("reports", "Regulatory reports"), s("exdisc", "Exchange disclosures"), s("aictl", "AI controls")),
-		s("kyc", "KYC & PMLA"), s("helpdesk", "Investor complaints"), s("nri", "NRI (PIS)"), s("surv", "Surveillance & AML"), s("inactive", "Inactive accounts"),
+		s("kyc", "KYC & PMLA"), s("kycgate", "KYC trading gate"), s("helpdesk", "Investor complaints"), s("nri", "NRI (PIS)"), s("surv", "Surveillance & AML"), s("inactive", "Inactive accounts"),
 		s("deceased", "Deceased clients"), s("selfinspect", "Self-inspection"), s("inspack", "Inspection packs"), s("audit", "Audit trail"),
 		g("secg", "Security", s("incidents", "Incidents"), s("logexport", "Log export"))}},
 	{Name: "Investments", Items: []Item{s("ipo", "IPO & public issues"), s("rfq", "Bonds (RFQ deals)"), s("cbrics", "Corporate bonds (CBRICS)"),

@@ -16,7 +16,7 @@ func mcxUCCClient(ucc, pan, mobile string, now time.Time) Client {
 	return Client{UCC: ucc, Name: "Asha Ramesh Kulkarni", Type: "Individual", PAN: pan, DOB: "1988-04-12", Mobile: mobile, Email: strings.ToLower(ucc) + "@example.in",
 		City: "Pune", State: "Maharashtra", Status: "UCC upload", Segments: []string{"CM", "COM"}, Income: "10-25 L", RAS: "Quarterly", Risk: "Medium",
 		Bank: BankAccount{Bank: "HDFC Bank, Ltd", IFSC: "HDFC0001234", Account: "50100012345678", Branch: "FC Road"}, Demat: Demat{Depository: "CDSL", ID: "1208160012345678"},
-		Nominee: "Opted out", KYCDate: now.AddDate(0, 0, -3).Format("2006-01-02"), IncomeProof: true, RiskDisclosure: true}
+		Nominee: "Opted out", KYCDate: now.AddDate(0, 0, -3).Format("2006-01-02"), IncomeProof: true, RiskDisclosure: true, KRAStatus: "Validated"}
 }
 
 func mcxDetails(ucc string) UCCDetails {

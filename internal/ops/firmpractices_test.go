@@ -54,7 +54,7 @@ func TestFirmPracticesMapToSettings(t *testing.T) {
 	if _, err := o.FirmPractices(ctx, T, "priya.nair"); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("a maker read firm practices: %v", err)
 	}
-	want := map[string]string{"limit-sharing": "same", "kyc-blocks": "off", "finspot-logins": FinspotLoginsConsole, "finspot-baskets": "off", "cuspa-api": "off",
+	want := map[string]string{"limit-sharing": "same", "kyc-blocks": "on", "finspot-logins": FinspotLoginsConsole, "finspot-baskets": "off", "cuspa-api": "off",
 		"mcx-apart": "off", "bank-auth": BankAuthBoth, "auction-rate": AuctionRateAlways, "dp-pledge": "all", "account-opening": ""}
 	money := map[string]bool{"limit-sharing": true, "mcx-apart": true, "bank-auth": true, "auction-rate": true, "dp-pledge": true}
 	for _, q := range v.Questions {
@@ -78,7 +78,7 @@ func TestFirmPracticesMapToSettings(t *testing.T) {
 
 	// Changed elsewhere: the page shows it (one source of truth).
 	set, _ := o.Settings(ctx, T)
-	set.MCXMoneyApart, set.BankAuthForms, set.KYCPendingBlock = true, BankAuthLetter, true
+	set.MCXMoneyApart, set.BankAuthForms, set.KYCBlockOff = true, BankAuthLetter, true
 	if err := o.SaveSettings(ctx, T, "admin", set); err != nil {
 		t.Fatal(err)
 	}
@@ -87,20 +87,20 @@ func TestFirmPracticesMapToSettings(t *testing.T) {
 	if _, err := o.SaveBrokerageSetup(ctx, T, "farhan.khan", bs); err != nil {
 		t.Fatal(err)
 	}
-	for id, w := range map[string]string{"mcx-apart": "on", "bank-auth": BankAuthLetter, "kyc-blocks": "on", "auction-rate": AuctionRateScrip} {
+	for id, w := range map[string]string{"mcx-apart": "on", "bank-auth": BankAuthLetter, "kyc-blocks": "off", "auction-rate": AuctionRateScrip} {
 		if q := fpQ(t, o, ctx, id); q.Current != w {
 			t.Errorf("%s reads %q, want %q", id, q.Current, w)
 		}
 	}
 
 	// Not money: applied at once.
-	q := fpAnswer(t, o, ctx, "kyc-blocks", "off", nil)
-	if set, _ := o.Settings(ctx, T); set.KYCPendingBlock || q.Current != "off" || !q.Answered || q.History[0].Status != PracticeApplied || q.History[0].Was != "on" {
-		t.Fatalf("kyc off: %+v", q.History)
+	q := fpAnswer(t, o, ctx, "kyc-blocks", "on", nil)
+	if set, _ := o.Settings(ctx, T); set.KYCBlockOff || q.Current != "on" || !q.Answered || q.History[0].Status != PracticeApplied || q.History[0].Was != "off" {
+		t.Fatalf("kyc on: %+v", q.History)
 	}
-	fpAnswer(t, o, ctx, "kyc-blocks", "on", nil)
-	if set, _ := o.Settings(ctx, T); !set.KYCPendingBlock {
-		t.Fatal("kyc blocks not switched on")
+	fpAnswer(t, o, ctx, "kyc-blocks", "off", nil)
+	if set, _ := o.Settings(ctx, T); !set.KYCBlockOff {
+		t.Fatal("kyc gate not switched off")
 	}
 
 	// Money: each waits, then the approval writes the real setting.
@@ -162,59 +162,6 @@ func TestFirmPracticesMapToSettings(t *testing.T) {
 	}
 	if _, err := o.SetFirmPractice(ctx, T, "admin", "account-opening", PracticeAnswer{Option: "own", Values: map[string]string{"colour": "x"}}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("a field the question does not have: %v", err)
-	}
-}
-
-// KYC-pending clients are blocked on the front ends only with the practice
-// on, from the KYC status already loaded.
-func TestKYCPendingBlock(t *testing.T) {
-	o, ctx := setup(t)
-	cs, _ := o.tradingClientMap(ctx, T)
-	var u string
-	for _, k := range sortedKeys(cs) {
-		if finspotBlockWhy(cs[k]) == "" {
-			u = k
-			break
-		}
-	}
-	c, _ := o.Client(ctx, T, u)
-	c.KRAStatus = "On Hold"
-	_ = docs.Upsert(ctx, o.Docs, T, cClient, u, c, "t")
-	lim := func() BOWLimit {
-		ls, err := o.bowLimits(ctx, T, D)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return ls[u]
-	}
-	set, _ := o.Settings(ctx, T)
-	if set.frontEndBlockWhy(c) != "" || strings.Contains(lim().Why, "KYC") {
-		t.Fatal("blocked for KYC with the practice off")
-	}
-	fpAnswer(t, o, ctx, "kyc-blocks", "on", nil)
-	set, _ = o.Settings(ctx, T)
-	if w := set.frontEndBlockWhy(c); !strings.Contains(w, "KYC on hold") || !strings.Contains(lim().Why, "KYC") || lim().Securities.Sign() != 0 {
-		t.Fatalf("not blocked: %q %+v", w, lim())
-	}
-	finspotMu.Lock()
-	items, _, err := o.finspotBlockPlan(ctx, T, D)
-	finspotMu.Unlock()
-	found := false
-	for _, it := range items {
-		found = found || it.UCC == u && it.Block
-	}
-	if err != nil || !found {
-		t.Fatalf("not in the block file: %v", err)
-	}
-	for _, s := range []string{"", "Validated", "Registered", "Under Process"} {
-		if kycPendingWhy(Client{KRAStatus: s}) != "" {
-			t.Errorf("%q blocks", s)
-		}
-	}
-	for _, s := range []string{"Rejected", "KYC Pending", "Incomplete", "on-hold"} {
-		if kycPendingWhy(Client{KRAStatus: s}) == "" {
-			t.Errorf("%q does not block", s)
-		}
 	}
 }
 

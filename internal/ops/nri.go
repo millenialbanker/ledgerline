@@ -80,9 +80,11 @@ func (o *Ops) SetNRI(ctx context.Context, tenant, actor string, d NRIDetails) (N
 	if err := docs.Upsert(ctx, o.Docs, tenant, cNRI, c.UCC, d, actor); err != nil {
 		return d, err
 	}
-	if c.Type != "NRI" {
+	if c.Type != "NRI" || c.NRIAccount != d.Account {
+		// The account type sets the NSE UCC category: 11 NRE, 37 NRO
+		// (nseuci.go); a change goes to NSE as a UCC modification.
 		if _, err := docs.Update(ctx, o.Docs, tenant, cClient, c.UCC, actor, func(x *Client) error {
-			x.Type = "NRI"
+			x.Type, x.NRIAccount = "NRI", d.Account
 			if !contains(x.CSC, "NRI") {
 				x.CSC = append(x.CSC, "NRI")
 			}

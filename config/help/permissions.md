@@ -215,8 +215,10 @@ Joining a firm-wide board | Ops maker, Ops checker, Risk manager, Compliance off
 Keeping CBRICS participants | Ops maker, Ops checker
 Keeping payroll records for others | Payroll
 Keeping the own-trading register for others | Compliance officer, HR manager
+Lifting KYC holds | Compliance officer
 Linking employees to logins | HR manager
 Loading DP accounts | Ops checker
+Loading KYC lists | Ops maker, Ops checker, Compliance officer
 Loading MF files | Ops maker, Ops checker
 Loading attendance files | HR manager
 Loading brokerage rates | Ops checker
@@ -283,6 +285,7 @@ Proposing legacy debts | Ops maker, Ops checker, Risk manager, Compliance office
 Pushing limits to BOW | Risk manager
 Pushing to Finspot | Risk manager
 Raising CDSL requests | Ops maker, Ops checker
+Raising KYC freeze requests | Ops maker, Ops checker, Compliance officer
 Raising pledge invocations | Risk manager
 Raising stock SIP top-up debits | Ops maker, Ops checker
 Re-pledging clients' collateral | Ops maker, Risk manager
@@ -299,6 +302,7 @@ Recording MF allotments | Ops maker, Ops checker
 Recording MF mandates | Ops maker, Ops checker
 Recording MTF pledges | Ops maker, Ops checker, Risk manager
 Recording N-MASS changes | Ops checker, Risk manager
+Recording PROI onboarding | Ops maker, Ops checker, Compliance officer
 Recording RFQ deal settlement | Ops maker, Ops checker
 Recording WhatsApp consent | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Recording a Finspot login | Ops maker, Ops checker, Risk manager
@@ -489,6 +493,7 @@ Viewing step reminders | Ops maker, Ops checker, Risk manager, Compliance office
 Viewing the AI answer log | Compliance officer
 Viewing the AP client reporting | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
+Viewing the KYC trading gate | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the UCC-wise settlement reports | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the client money reconciliation | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the compliance calendar | Ops maker, Ops checker, Risk manager, Compliance officer

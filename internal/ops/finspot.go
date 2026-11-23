@@ -341,7 +341,7 @@ func (o *Ops) finspotHoldingRows(ctx context.Context, tenant, date string, t1 bo
 		cashEq := o.cashEquivalentISINs(ctx, tenant, pl)
 		for k, l := range lines {
 			qty[k] = l.Demat + l.CUSPA
-			if l.Pledged > 0 && !cashEq[l.ISIN] && set.frontEndBlockWhy(cs[l.UCC]) == "" {
+			if l.Pledged > 0 && !cashEq[l.ISIN] && set.frontEndBlockWhy(cs[l.UCC], date) == "" {
 				pledged[k] = min(l.Pledged, max(l.Demat, 0))
 			}
 		}
@@ -558,6 +558,9 @@ type FinspotBlockState struct {
 	Blocked bool   `json:"blocked"`
 	Reason  string `json:"reason,omitempty"`
 	On      string `json:"on"` // date of the file that last changed it
+	// All: square-off was blocked too (BlockType ALL, the KYC gate's
+	// "no trading"); otherwise fresh orders only (NON-SQROFF).
+	All bool `json:"all,omitempty"`
 }
 
 // finspotBlockWhy says why a client may not take new positions ("" = may).
@@ -571,35 +574,6 @@ func finspotBlockWhy(c Client) string {
 		return firstOf(c.BlockedReason, "Blocked")
 	case len(c.OpenSegments()) == 0:
 		return "No segment active"
-	}
-	return ""
-}
-
-// frontEndBlockWhy is finspotBlockWhy with the firm's practice on KYC:
-// with Settings.KYCPendingBlock, a client whose KYC status at the KRA (as
-// last loaded) is pending is blocked too ("" = may take new positions).
-func (s Settings) frontEndBlockWhy(c Client) string {
-	if w := finspotBlockWhy(c); w != "" {
-		return w
-	}
-	if s.KYCPendingBlock {
-		return kycPendingWhy(c)
-	}
-	return ""
-}
-
-// kycPendingWhy says why a client's KYC holds back trading ("" = it does
-// not): the KRA status as loaded into Ledgerline (KRA status uploads) is on
-// hold, rejected, pending or incomplete. An empty status (never loaded)
-// and one still being processed by the KRA do not block: Ledgerline does
-// not fetch statuses from the KRA every day, and a status it does not have
-// is not taken as a problem.
-func kycPendingWhy(c Client) string {
-	st := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(c.KRAStatus), "-", " "))
-	for _, w := range []string{"hold", "reject", "pending", "incomplete"} {
-		if strings.Contains(st, w) {
-			return "KYC " + strings.ToLower(strings.TrimSpace(c.KRAStatus)) + " at the KRA"
-		}
 	}
 	return ""
 }
@@ -634,17 +608,32 @@ func (o *Ops) FinspotBlockFile(ctx context.Context, tenant, actor, date string) 
 		return "", nil, err
 	}
 	var rows []xfile.Row
-	line := func(u, side, product, block, why string) {
-		rows = append(rows, xfile.Row{Fields: 22, Values: map[string]string{"Client": cfg.ID(u), "Side": side, "Products": product, "BlockType": "NON-SQROFF", "Block": block, "Remarks": finspotRemark(why)}})
+	line := func(u, side, product, typ, block, why string) {
+		rows = append(rows, xfile.Row{Fields: 22, Values: map[string]string{"Client": cfg.ID(u), "Side": side, "Products": product, "BlockType": typ, "Block": block, "Remarks": finspotRemark(why)}})
+	}
+	// Fresh orders: MIS and NRML, and CNC buys (a client may still sell
+	// holdings). The KYC gate's "no trading" blocks everything: BlockType
+	// ALL on MIS, NRML and CNC both sides (kycgate.go).
+	lines := func(u string, all bool, block, why string) {
+		if all {
+			line(u, "", "MIS", "ALL", block, why)
+			line(u, "", "NRML", "ALL", block, why)
+			line(u, "", "CNC", "ALL", block, why)
+			return
+		}
+		line(u, "", "MIS", "NON-SQROFF", block, why)
+		line(u, "", "NRML", "NON-SQROFF", block, why)
+		line(u, "B", "CNC", "NON-SQROFF", block, why)
 	}
 	for _, it := range items {
-		block, why := "N", "Block lifted"
-		if it.Block {
-			block, why = "Y", it.Why
+		if it.Lift {
+			lines(it.UCC, it.WasAll, "N", "Block lifted") // the other kind of block, set before
 		}
-		line(it.UCC, "", "MIS", block, why)
-		line(it.UCC, "", "NRML", block, why)
-		line(it.UCC, "B", "CNC", block, why)
+		if it.Block {
+			lines(it.UCC, it.All, "Y", it.Why)
+			continue
+		}
+		lines(it.UCC, it.WasAll, "N", "Block lifted")
 	}
 	b, err := s.Write(rows)
 	if err != nil {
@@ -666,6 +655,10 @@ func (o *Ops) FinspotBlockFile(ctx context.Context, tenant, actor, date string) 
 type finspotBlockItem struct {
 	UCC, Why       string
 	Block, Changed bool
+	// All: block square-off too; WasAll: the block Finspot was last told
+	// of did; Lift: that earlier block is of the other kind and is lifted
+	// first.
+	All, WasAll, Lift bool
 }
 
 // finspotBlockPlan is the block list for a date, as FinspotBlockFile
@@ -696,7 +689,8 @@ func (o *Ops) finspotBlockPlan(ctx context.Context, tenant, date string) ([]fins
 	var changed []FinspotBlockState
 	for _, u := range sortedKeys(cs) {
 		c := cs[u]
-		why := set.frontEndBlockWhy(c)
+		fb := set.frontEndBlock(c, date)
+		why := fb.Why
 		was, known := st[u]
 		if c.Status != "Active" && !known && !onFinspot[u] {
 			continue // never on Finspot
@@ -706,16 +700,16 @@ func (o *Ops) finspotBlockPlan(ctx context.Context, tenant, date string) ([]fins
 		}
 		switch {
 		case why != "":
-			ch := !was.Blocked || was.Reason != why
-			items = append(items, finspotBlockItem{UCC: u, Why: why, Block: true, Changed: ch})
+			ch := !was.Blocked || was.Reason != why || was.All != fb.All
+			items = append(items, finspotBlockItem{UCC: u, Why: why, Block: true, Changed: ch, All: fb.All, WasAll: was.All, Lift: was.Blocked && was.All != fb.All})
 			if ch {
-				changed = append(changed, FinspotBlockState{UCC: u, Blocked: true, Reason: why, On: date})
+				changed = append(changed, FinspotBlockState{UCC: u, Blocked: true, Reason: why, On: date, All: fb.All})
 			}
 		case known && was.Blocked:
-			items = append(items, finspotBlockItem{UCC: u, Changed: true})
-			changed = append(changed, FinspotBlockState{UCC: u, Blocked: false, On: date})
+			items = append(items, finspotBlockItem{UCC: u, Changed: true, WasAll: was.All})
+			changed = append(changed, FinspotBlockState{UCC: u, Blocked: false, On: date, All: was.All})
 		case known && was.On == date:
-			items = append(items, finspotBlockItem{UCC: u}) // unblocked earlier today: sent again
+			items = append(items, finspotBlockItem{UCC: u, WasAll: was.All}) // unblocked earlier today: sent again
 		}
 	}
 	return items, changed, nil

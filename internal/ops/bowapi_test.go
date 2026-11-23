@@ -555,9 +555,9 @@ func TestBOWLimitsBasis(t *testing.T) {
 	// Finspot's column 5.
 	o, ctx := newOps(t)
 	for _, c := range []Client{
-		{UCC: "ON01", Name: "One", Status: "Active", Segments: []string{"CM", "COM"}},
-		{UCC: "ON02", Name: "Two", Status: "Active", Segments: []string{"CM"}},
-		{UCC: "ON03", Name: "Three", Status: "Active", Segments: []string{"CM"}, Inactive: true},
+		{UCC: "ON01", Name: "One", Status: "Active", KRAStatus: "Validated", Segments: []string{"CM", "COM"}},
+		{UCC: "ON02", Name: "Two", Status: "Active", KRAStatus: "Validated", Segments: []string{"CM"}},
+		{UCC: "ON03", Name: "Three", Status: "Active", KRAStatus: "Validated", Segments: []string{"CM"}, Inactive: true},
 	} {
 		if err := docs.Upsert(ctx, o.Docs, T, cClient, c.UCC, c, "t"); err != nil {
 			t.Fatal(err)

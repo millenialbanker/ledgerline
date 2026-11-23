@@ -185,6 +185,17 @@ type Client struct {
 	// Deceased: the KRA reported the client as deceased; debits (payouts,
 	// demat debits, orders) are blocked until transmission (deceased.go).
 	Deceased *DeceasedFlag `json:"deceased,omitempty"`
+	// KYCHolds: the client is on an exchange's or CDSL's KYC list (not
+	// validated by the KRA, not permitted to trade, KYC on hold); the KYC
+	// trading gate holds the client back while any trading list does
+	// (kycgate.go).
+	KYCHolds []KYCHold `json:"kyc_holds,omitempty"`
+	// PROI is the onboarding record of an individual resident outside
+	// India (NRI, OCI, foreign national), required from 3 Dec 2026
+	// (proi.go); NRIAccount is the NRI's account type (NRE or NRO, from
+	// NRI (PIS)), which sets the NSE UCC category (11 or 37).
+	PROI       *PROIKYC `json:"proi,omitempty"`
+	NRIAccount string   `json:"nri_account,omitempty"`
 }
 
 var (
@@ -287,7 +298,14 @@ func (c Client) Validate() error {
 	default:
 		add("type", "Type must be Individual, HUF, Corporate or NRI")
 	}
-	if !reMobile.MatchString(c.Mobile) {
+	switch {
+	case reMobile.MatchString(c.Mobile):
+	case c.Type == "NRI" && reIntlMobile.MatchString(c.Mobile):
+		// A client resident outside India may give an international
+		// mobile (SEBI's PROI KYC circular, para 5.5.7; proi.go).
+	case c.Type == "NRI":
+		add("mobile", "Enter a 10-digit Indian mobile number, or an international one with + and the country code")
+	default:
 		add("mobile", "Enter a 10-digit Indian mobile number")
 	}
 	if !reEmail.MatchString(c.Email) {
@@ -480,6 +498,12 @@ func (o *Ops) AdvanceStage(ctx context.Context, tenant, actor, ucc string) (Clie
 		if c.CreatedBy == actor {
 			return Client{}, fmt.Errorf("%w: the person who created the application cannot activate it", ErrForbidden)
 		}
+		// The CDD must be complete before the account relationship starts
+		// (kycgate.go); the KRA's verification is waited for by the KYC
+		// gate on the front ends.
+		if p := o.activationProblems(ctx, tenant, c); len(p) > 0 {
+			return Client{}, fmt.Errorf("%w: %s cannot be activated: %s", ErrState, c.UCC, strings.Join(p, "; "))
+		}
 	} else if err := o.require(ctx, tenant, actor, "Advancing onboarding", RoleMaker, RoleChecker); err != nil {
 		return Client{}, err
 	}
@@ -548,5 +572,6 @@ func (c Client) Public() Client {
 		c.MNRL = fs
 	}
 	c.FATCA = c.FATCA.masked()
+	c.PROI = c.PROI.masked()
 	return c
 }

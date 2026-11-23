@@ -657,15 +657,22 @@ func (o *Ops) bowTradingRights(ctx context.Context, tenant string) (bowBuilt, er
 	if err != nil {
 		return b, err
 	}
+	today := o.now().In(ist).Format("2006-01-02")
 	for _, u := range sortedKeys(cs) {
 		c := cs[u]
 		active := c.Status == "Active"
+		// The KYC gate's "no trading" (square-off barred too) takes the
+		// trading rights away; an exit-only client keeps them with a zero
+		// limit (bowLimits), so positions can be closed (kycgate.go).
+		kyc := set.kycGate(c, today)
 		var rows []xfile.Row
 		for _, sg := range segs {
 			perm, why := bowAllow, ""
 			switch {
 			case !active:
 				why = "client " + strings.ToLower(firstOf(c.Status, "not active"))
+			case kyc.All && kyc.Why != "":
+				why = kyc.Why
 			case !contains(c.Segments, sg.Segment):
 				why = "segment not registered"
 			case !c.SegmentOpen(sg.Segment):

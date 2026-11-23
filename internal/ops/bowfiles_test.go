@@ -71,7 +71,7 @@ func TestBOWFundFilePaise(t *testing.T) {
 	o, ctx := newOps(t)
 	o.Now = func() time.Time { return time.Date(2026, 10, 16, 8, 13, 39, 0, ist) }
 	for _, u := range []string{"PA01", "PA02", "PA03", "PA04"} {
-		if err := docs.Upsert(ctx, o.Docs, T, cClient, u, Client{UCC: u, Name: u, Status: "Active", Segments: []string{"CM"}}, "t"); err != nil {
+		if err := docs.Upsert(ctx, o.Docs, T, cClient, u, Client{UCC: u, Name: u, Status: "Active", KRAStatus: "Validated", Segments: []string{"CM"}}, "t"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -130,11 +130,11 @@ func TestBOWFundFile(t *testing.T) {
 	}
 	o.Now = func() time.Time { return time.Date(2026, 10, 16, 8, 13, 39, 0, ist) }
 	for _, c := range []Client{
-		{UCC: "ON01", Name: "One", Status: "Active", Segments: []string{"CM", "COM"}},
-		{UCC: "ON02", Name: "Two", Status: "Active", Segments: []string{"CM"}},
-		{UCC: "ON03", Name: "Three", Status: "Active", Segments: []string{"CM"}, Inactive: true},
-		{UCC: "ON04", Name: "Four", Status: "Active", Segments: []string{"CM"}, Blocked: true, BlockedReason: "Debit"},
-		{UCC: "ON05", Name: "Five", Status: "Active", Segments: []string{"CM"}},
+		{UCC: "ON01", Name: "One", Status: "Active", KRAStatus: "Validated", Segments: []string{"CM", "COM"}},
+		{UCC: "ON02", Name: "Two", Status: "Active", KRAStatus: "Validated", Segments: []string{"CM"}},
+		{UCC: "ON03", Name: "Three", Status: "Active", KRAStatus: "Validated", Segments: []string{"CM"}, Inactive: true},
+		{UCC: "ON04", Name: "Four", Status: "Active", KRAStatus: "Validated", Segments: []string{"CM"}, Blocked: true, BlockedReason: "Debit"},
+		{UCC: "ON05", Name: "Five", Status: "Active", KRAStatus: "Validated", Segments: []string{"CM"}},
 	} {
 		if err := docs.Upsert(ctx, o.Docs, T, cClient, c.UCC, c, "t"); err != nil {
 			t.Fatal(err)
