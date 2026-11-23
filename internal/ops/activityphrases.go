@@ -169,6 +169,7 @@ var activityModules = map[string]actModule{
 	"pmla":           {AreaCompliance, "kyc", "PMLA", false},
 	"fatca":          {AreaCompliance, "kyc", "FATCA/CRS", false},
 	"debarred":       {AreaCompliance, "kyc", "debarred list", false},
+	"sanctions":      {AreaCompliance, "kyc", "sanctions screening", false},
 	"alert":          {AreaCompliance, "surv", "surveillance alert", false},
 	"surveillance":   {AreaCompliance, "surv", "surveillance", false},
 	"otr":            {AreaCompliance, "surv", "order-to-trade ratio", false},

@@ -93,6 +93,10 @@ type BOAccount struct {
 	// worked out when the account is read for a client (boFor), never
 	// stored, so finding the intimation false lifts it.
 	HolderDeceased string `json:"-"`
+	// Sanctioned: a sanctions case holds the client (sanctions.go), so
+	// nothing leaves the account while the DP's freeze request is
+	// approved and applied at CDSL. Not stored, like HolderDeceased.
+	Sanctioned string `json:"-"`
 }
 
 // BOCDSL is the account as CDSL's client master (CLN_MSTR) shows it.
@@ -163,7 +167,7 @@ func (b BOAccount) freezeFor() string {
 		add(firstOf(b.Freeze, "Both"))
 	}
 	add(b.CDSLFreeze)
-	if b.HolderDeceased != "" {
+	if b.HolderDeceased != "" || b.Sanctioned != "" {
 		add("Debit")
 	}
 	switch {
@@ -195,6 +199,9 @@ func (b BOAccount) freezeWhy() string {
 	}
 	if b.HolderDeceased != "" {
 		why = append(why, b.HolderDeceased)
+	}
+	if b.Sanctioned != "" {
+		why = append(why, b.Sanctioned)
 	}
 	return firstOf(strings.Join(why, "; "), "frozen")
 }

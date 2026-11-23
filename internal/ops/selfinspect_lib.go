@@ -966,7 +966,8 @@ func siDebarred(e *siEnv) (siOut, error) {
 	}
 	withPAN := list[:0]
 	for _, d := range list {
-		if d.PAN != "" {
+		// The exchanges' defaulting clients are not debarred (sanctions.go).
+		if d.PAN != "" && listTypeOf(d) != ListDefaulters && d.Delisted == "" {
 			withPAN = append(withPAN, d)
 		}
 	}

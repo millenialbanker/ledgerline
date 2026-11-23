@@ -38,6 +38,7 @@ func (s *Server) exchangeReportingRoutes() {
 	s.apComplaintsRoutes(R)
 	s.clientMoneyRoutes(R)
 	s.fatcaRoutes(R)
+	s.sanctionsRoutes(R)
 }
 
 func (s *Server) segmonCheck(w http.ResponseWriter, r *http.Request) {
