@@ -24,10 +24,11 @@ import (
 // Periodic updation of KYC follows the risk: every 2 years for High, 8 for
 // Medium and 10 for Low.
 //
-// SEBI and exchange debarment orders, and the UN Security Council sanctions
-// lists, are loaded as files. A client whose PAN matches is blocked at once
-// and an alert raised; a name-only match is raised for review. Onboarding a
-// matching PAN is refused.
+// SEBI and exchange debarment orders are loaded as files. A client whose
+// PAN matches is blocked at once and an alert raised; a name-only match is
+// raised for review. Onboarding a matching PAN is refused. The UN Security
+// Council, UAPA and WMD lists are screened by name as well, with cases,
+// holds and the report register (sanctions.go).
 //
 // KRA and CKYC: the upload file lists new and changed clients; status files
 // from the KRA and CKYC numbers from CERSAI are loaded back.
@@ -53,6 +54,22 @@ type Debarred struct {
 	OrderNo   string `json:"order_no"`
 	OrderDate string `json:"order_date"`
 	Till      string `json:"till,omitempty"` // empty: until further orders
+	// The list it is on (sanctions.go: UNSC, UAPA, WMD, SEBI, Exchange,
+	// Defaulters; empty for entries loaded before list types, read from
+	// the regulator), and for a sanctions list the UN regime (UN_LIST_TYPE:
+	// Al-Qaida, Taliban, DPRK …), the list's reference, whether it is an
+	// individual or an entity, the aliases, dates or years of birth and
+	// nationalities, the list version it came from and, once it is no
+	// longer on the list, the date it was found delisted.
+	List        string   `json:"list,omitempty"`
+	Regime      string   `json:"regime,omitempty"`
+	Ref         string   `json:"ref,omitempty"`
+	Kind        string   `json:"kind,omitempty"`
+	Aliases     []string `json:"aliases,omitempty"`
+	DOB         []string `json:"dob,omitempty"`
+	Nationality []string `json:"nationality,omitempty"`
+	Version     string   `json:"version,omitempty"`
+	Delisted    string   `json:"delisted,omitempty"`
 }
 
 // ClientDoc is a scanned document held for a client.
@@ -134,6 +151,7 @@ type PMLARow struct {
 	KRAStatus  string    `json:"kra_status"`
 	CKYC       string    `json:"ckyc"`
 	Debarred   []string  `json:"debarred"`
+	Sanctions  []string  `json:"sanctions"` // sanctions cases not cleared
 	Blocked    bool      `json:"blocked"`
 	Review     bool      `json:"review"` // rules point to a higher category
 }
@@ -167,7 +185,9 @@ func normName(s string) string {
 func debarredMatches(c Client, list []Debarred, date string) (byPAN, byName []Debarred) {
 	nn := normName(c.Name)
 	for _, d := range list {
-		if d.Till != "" && d.Till < date {
+		// The sanctions lists and the defaulting clients are screened by
+		// sanctions.go, with cases (PMLARow.Sanctions).
+		if t := listTypeOf(d); (d.Till != "" && d.Till < date) || d.Delisted != "" || t == ListDefaulters || isSanctionsList(t) {
 			continue
 		}
 		switch {
@@ -191,6 +211,15 @@ func (o *Ops) PMLA(ctx context.Context, tenant, date string) (PMLAView, error) {
 	v.Lists = list
 	if v.Lists == nil {
 		v.Lists = []Debarred{}
+	}
+	sanc := map[string][]string{}
+	confirmed := map[string]bool{}
+	ks, _ := docs.List[SanctionsCase](ctx, o.Docs, tenant, cSanctionsCase, "")
+	for _, k := range ks {
+		if k.UCC != "" && k.barsAccount() {
+			sanc[k.UCC] = append(sanc[k.UCC], fmt.Sprintf("%s %s %s (%s, %s)", k.ID, k.List, k.Ref, k.Role, strings.ToLower(k.Status)))
+			confirmed[k.UCC] = confirmed[k.UCC] || ((k.Status == SCConfirmed || k.Status == SCReported) && k.List != ListDefaulters)
+		}
 	}
 	alerts, _ := o.Alerts(ctx, tenant)
 	str := map[string]bool{}
@@ -225,7 +254,8 @@ func (o *Ops) PMLA(ctx context.Context, tenant, date string) (PMLAView, error) {
 		if r.Debarred == nil {
 			r.Debarred = []string{}
 		}
-		r.Suggested, r.Why = suggestedRisk(c, len(byPAN) > 0, str[u], turnover[u])
+		r.Sanctions = append([]string{}, sanc[u]...)
+		r.Suggested, r.Why = suggestedRisk(c, len(byPAN) > 0 || confirmed[u], str[u], turnover[u])
 		if r.Why == nil {
 			r.Why = []string{}
 		}
@@ -252,7 +282,7 @@ func (o *Ops) PMLA(ctx context.Context, tenant, date string) (PMLAView, error) {
 			v.Counts["Risk to review"]++
 		}
 		v.Counts["Re-KYC "+r.ReKYCState]++
-		if len(hits) > 0 {
+		if len(hits) > 0 || len(r.Sanctions) > 0 {
 			v.Counts["List matches"]++
 		}
 		if c.KRAStatus != "Validated" && c.KRAStatus != "Registered" {
@@ -308,12 +338,20 @@ func (o *Ops) RecordReKYC(ctx context.Context, tenant, actor, ucc, date, mode st
 	return c, err
 }
 
-// screenDebarred checks every active client against the lists, blocking PAN
-// matches and raising alerts. It runs when a list is loaded.
+// screenDebarred checks every active client against the debarment lists,
+// blocking PAN matches and raising alerts. It runs when a list is loaded.
+// The sanctions lists (UNSC, UAPA, WMD) and the defaulting clients are
+// screened by sanctions.go, which opens cases instead.
 func (o *Ops) screenDebarred(ctx context.Context, tenant, actor, date string) (blocked, review int, err error) {
-	list, err := docs.List[Debarred](ctx, o.Docs, tenant, cDebarred, "")
+	all, err := docs.List[Debarred](ctx, o.Docs, tenant, cDebarred, "")
 	if err != nil {
 		return 0, 0, err
+	}
+	var list []Debarred
+	for _, d := range all {
+		if t := listTypeOf(d); !isSanctionsList(t) && t != ListDefaulters {
+			list = append(list, d)
+		}
 	}
 	cs, err := o.Clients(ctx, tenant)
 	if err != nil {
@@ -350,11 +388,13 @@ func (o *Ops) screenDebarred(ctx context.Context, tenant, actor, date string) (b
 	return blocked, review, nil
 }
 
-// IsDebarredPAN reports whether a PAN is on a list in force.
+// IsDebarredPAN reports whether a PAN is on a list in force. The
+// exchanges' defaulting clients are not a debarment: a match is a case for
+// Compliance (sanctions.go), not a refusal.
 func (o *Ops) IsDebarredPAN(ctx context.Context, tenant, pan, date string) (Debarred, bool) {
 	list, _ := docs.List[Debarred](ctx, o.Docs, tenant, cDebarred, "")
 	for _, d := range list {
-		if d.PAN != "" && strings.EqualFold(d.PAN, pan) && (d.Till == "" || d.Till >= date) {
+		if d.PAN != "" && strings.EqualFold(d.PAN, pan) && (d.Till == "" || d.Till >= date) && d.Delisted == "" && listTypeOf(d) != ListDefaulters {
 			return d, true
 		}
 	}
@@ -370,10 +410,18 @@ func (o *Ops) prepareCompliance(ctx context.Context, tenant, actor, source, date
 	switch source {
 	case "DEBARRED-LIST":
 		var ds []Debarred
+		sanctions := false
 		for _, r := range rows {
-			d := Debarred{PAN: strings.ToUpper(r.get("PAN")), Name: r.get("Name"), Regulator: strings.ToUpper(r.get("Regulator")), OrderNo: r.get("OrderNo"), OrderDate: r.get("OrderDate"), Till: r.get("Till")}
+			d := Debarred{PAN: strings.ToUpper(r.get("PAN")), Name: r.get("Name"), Regulator: strings.ToUpper(r.get("Regulator")), OrderNo: r.get("OrderNo"), OrderDate: r.get("OrderDate"), Till: r.get("Till"),
+				List: r.get("List"), Regime: r.get("Regime"), Aliases: splitMulti(r.get("Aliases")), DOB: splitMulti(r.get("DOB")), Nationality: splitMulti(r.get("Nationality"))}
 			if d.Name == "" {
 				bad(r.line, "Name", "is required")
+			}
+			if d.List != "" && !validListType(d.List) {
+				bad(r.line, "List", "must be one of %s", strings.Join(listTypeIDs(), ", "))
+			}
+			if isSanctionsList(listTypeOf(d)) {
+				d.Ref, sanctions = d.OrderNo, true
 			}
 			if d.PAN != "" && !rePAN.MatchString(d.PAN) {
 				bad(r.line, "PAN", "is not a valid PAN")
@@ -402,6 +450,22 @@ func (o *Ops) prepareCompliance(ctx context.Context, tenant, actor, source, date
 			}
 			b, rv, err := o.screenDebarred(ctx, tenant, actor, o.fileDate(date))
 			o.log(ctx, tenant, actor, "debarred.screened", "", map[string]any{"blocked": b, "to_review": rv})
+			if err == nil && sanctions {
+				// Sanctions entries in this file: the list's version is
+				// the file's date, and every client is screened by name
+				// too (sanctions.go).
+				per := map[string]int{}
+				for _, d := range ds {
+					if t := listTypeOf(d); isSanctionsList(t) {
+						per[t]++
+					}
+				}
+				for _, t := range sortedKeys(per) {
+					v := SanctionsListVersion{ID: t + "-" + o.now().Format("20060102T150405.000"), List: t, Version: o.fileDate(date), File: "DEBARRED-LIST", Format: "CSV (DEBARRED-LIST)", Entries: per[t], Added: per[t], LoadedAt: o.now().Format(time.RFC3339), By: actor}
+					_ = docs.Upsert(ctx, o.Docs, tenant, cSanctionsList, v.ID, v, actor)
+				}
+				_, err = o.runSanctionsScreening(ctx, tenant, actor, "list load: DEBARRED-LIST")
+			}
 			return n, dup, err
 		}, errs
 	case "KRA-STATUS":

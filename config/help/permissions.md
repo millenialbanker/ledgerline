@@ -154,6 +154,7 @@ Deciding RFQ deal amendments | Ops checker
 Deciding a pledge request | Ops maker, Ops checker, Risk manager
 Deciding a reported death | Compliance officer
 Deciding pre-clearance of staff trades | Compliance officer
+Deciding sanctions cases | Compliance officer
 Deciding whether a circular applies | Compliance officer
 Deciding whether a compliance duty applies | Compliance officer
 Deleting the firm's data | Admin
@@ -224,6 +225,7 @@ Loading exchange files | Ops maker, Ops checker, Risk manager, Compliance office
 Loading exchange holidays | Ops maker, Ops checker, Compliance officer
 Loading files | Ops maker, Ops checker, Risk manager, Compliance officer
 Loading revocation lists | Ops maker, Ops checker, Compliance officer
+Loading sanctions and debarment lists | Ops maker, Ops checker, Compliance officer
 Loading the KRAs' demise list | Ops maker, Ops checker, Compliance officer
 Loading the cash-equivalent collateral list | Ops maker, Ops checker, Risk manager
 Loading the exchanges' UCC downloads | Ops maker, Ops checker, Compliance officer
@@ -293,6 +295,7 @@ Reading trades from NSE Clearing's NCMS | Ops maker, Ops checker, Risk manager
 Reconciling a migration | Ops checker, Compliance officer
 Recording CDSL results | Ops checker, Risk manager
 Recording DP responses | Ops maker, Ops checker
+Recording FATF statements | Compliance officer
 Recording IPO bid status | Ops maker, Ops checker
 Recording IPO compensation | Ops checker, Compliance officer
 Recording MF allotments | Ops maker, Ops checker
@@ -317,6 +320,7 @@ Recording bounces | Ops maker, Ops checker, Admin
 Recording clearing deposits | Ops checker
 Recording clients' UPI IDs | Ops maker, Ops checker, Branch staff, Authorised person
 Recording complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
+Recording enhanced due diligence | Compliance officer
 Recording impersonation cases | Ops maker, Ops checker, Compliance officer
 Recording re-KYC | Ops maker, Ops checker, Compliance officer
 Recording recovery of a legacy debt | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -361,6 +365,7 @@ Running automations | Ops checker, Admin
 Running jobs | Ops checker, Admin
 Running periodic work | Ops maker, Ops checker
 Running prepaid adjustments | Ops checker
+Running sanctions screening | Compliance officer
 Running stock SIP instalments | Ops maker, Ops checker, Risk manager
 Running surveillance rules | Ops checker, Compliance officer
 Running the self-inspection | Compliance officer
@@ -409,6 +414,7 @@ Setting CDSL account defaults | Ops checker
 Setting a client's default ledger | Ops checker, Risk manager
 Setting client risk | Compliance officer
 Setting salary structures | HR manager, Payroll
+Setting sanctions screening | Compliance officer
 Setting the AI answer log retention | Compliance officer
 Setting the USB token signer's certificate | Admin
 Setting the deployment for exchange disclosures | Compliance officer
@@ -484,6 +490,7 @@ Viewing margin penalty evidence | Ops checker, Risk manager, Compliance officer
 Viewing nominations | Ops maker, Ops checker, Compliance officer
 Viewing order-to-trade ratios | Risk manager, Compliance officer
 Viewing revoked mobile numbers | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing sanctions screening | Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing step reminders | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the AI answer log | Compliance officer

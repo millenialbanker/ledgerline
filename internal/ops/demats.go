@@ -577,6 +577,9 @@ func (o *Ops) boFor(ctx context.Context, tenant string, c Client, boid string) B
 		// (deceased.go): every debit checks the freeze.
 		b.HolderDeceased = "the holder is reported deceased by the KRA (" + c.Deceased.Case + ")"
 	}
+	if c.Sanctions != nil {
+		b.Sanctioned = "held by sanctions case " + c.Sanctions.Case
+	}
 	return b
 }
 

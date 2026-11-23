@@ -376,6 +376,10 @@ func (o *Ops) autoActivate(ctx context.Context, tenant string, a Application, uc
 	if mode != ModeAuto || len(a.blockers()) > 0 {
 		return false
 	}
+	// A possible sanctions match waits for Compliance (sanctions.go).
+	if o.sanctionsGate(ctx, tenant, ucc) != nil {
+		return false
+	}
 	actor := "system:autopilot"
 	_, err := docs.Update(ctx, o.Docs, tenant, cClient, ucc, actor, func(c *Client) error {
 		if c.Status != "KYC verification" {

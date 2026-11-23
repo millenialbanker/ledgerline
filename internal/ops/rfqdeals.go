@@ -1217,6 +1217,9 @@ func (o *Ops) RFQSend(ctx context.Context, tenant, actor, id string) (RFQDeal, e
 		if db, hit := o.IsDebarredPAN(ctx, tenant, cl.PAN, today); hit {
 			return fail("checking the debarred list", invalid("%s is on the firm's debarred list (%s %s)", a.UCC, firstOf(db.Regulator, "regulator"), firstOf(db.OrderNo, "order")))
 		}
+		if err := sanctionsStop(cl); err != nil {
+			return fail("checking sanctions cases", err)
+		}
 		var ls []struct{ PAN, Name, EndDate string }
 		if err := rfqCall(ctx, c.cfg, http.MethodPost, "/rest/v1/debar/all", map[string]any{"pan": cl.PAN, "filtFromDate": rfqOutDate(today), "filtToDate": rfqOutDate(today)}, &ls); err != nil {
 			return fail("checking NSE's debarred clients", err)

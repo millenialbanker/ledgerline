@@ -998,6 +998,8 @@ func (o *Ops) mfReady(ctx context.Context, tenant, ucc, platform string) (MFSett
 		return set, c, MFProfile{}, mfConn{}, invalid("%s is not an active client", c.UCC)
 	case c.Blocked && strings.HasPrefix(c.BlockedReason, "Debarred"):
 		return set, c, MFProfile{}, mfConn{}, invalid("%s is blocked: %s", c.UCC, c.BlockedReason)
+	case c.Sanctions != nil:
+		return set, c, MFProfile{}, mfConn{}, sanctionsStop(c)
 	case c.Deceased != nil:
 		return set, c, MFProfile{}, mfConn{}, invalid("%s", deceasedWhy(c))
 	case mfKYCBlocked(c.KRAStatus):

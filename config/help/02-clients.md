@@ -258,15 +258,16 @@ A client can't be reactivated, and shouldn't trade new segments, unless the KRA 
 title: Set client risk, re-KYC and screening
 screen: kyc
 roles: Compliance officer
-ask: pmla risk; high risk client; set risk category; re-kyc due; periodic kyc; debarred client; sanctions list; sebi debarred; client matched debarred list
+ask: pmla risk; high risk client; set risk category; re-kyc due; periodic kyc; debarred client; sebi debarred; client matched debarred list
 check: client
-related: kra-status, surveillance
+related: kra-status, surveillance, sanctions-screening
 
 On [[kyc|KYC & PMLA]]:
 
 - **Risk category:** Ledgerline suggests one from the rules (turnover against income, special categories, debarment); a compliance officer confirms with **Set risk**.
 - **Periodic KYC:** due every 2 years for High risk, 8 for Medium, 10 for Low. When done, click **Record re-KYC**. Clients due within 30 days are reminded automatically.
-- **Screening:** load SEBI and exchange debarment orders and UN sanctions lists on [[files|Files]]. A **PAN match blocks the client at once**; a name-only match is raised for review.
+- **Debarments:** load SEBI and exchange debarment orders on [[files|Files]]. A **PAN match blocks the client at once**; a name-only match is raised for review.
+- **Sanctions:** the UN Security Council, UAPA and WMD lists are loaded and screened on the **Sanctions** tab, by PAN and by name, with cases to verify and report within 24 hours (see *Screen clients against the UNSC, UAPA and WMD sanctions lists*).
 
 ## reveal-pan
 title: See a client's full PAN or bank account number

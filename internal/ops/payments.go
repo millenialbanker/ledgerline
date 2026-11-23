@@ -553,6 +553,9 @@ func (o *Ops) Withdrawable(ctx context.Context, tenant, date, ucc string) (Withd
 	if c, err := o.Client(ctx, tenant, ucc); err == nil && c.Deceased != nil {
 		// Nothing is paid out until transmission (deceased.go).
 		w.Blocked, w.BlockedWhy, w.Note = true, "reported deceased", deceasedWhy(c)
+	} else if err == nil && c.Sanctions != nil {
+		// Funds of a person held by a sanctions case stay (sanctions.go).
+		w.Blocked, w.BlockedWhy, w.Note = true, "sanctions case "+c.Sanctions.Case, "Held by sanctions case "+c.Sanctions.Case+": no payout until Compliance decides it"
 	}
 	if w.Blocked || w.Available < 0 {
 		w.Available = 0
