@@ -68,6 +68,9 @@ func TestSIHoldingAccountTypes(t *testing.T) {
 	if _, err := o.SaveFirmDemats(ctx, T, "admin", map[string]string{pool: "POOLS"}, "FIRM01"); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("unknown type saved: %v", err)
 	}
+	// Security types come from CDSL's ISIN master.
+	siPut(t, o, ctx, cSecRef, "INE000X01010", SecRef{ISIN: "INE000X01010", Type: "EQTY"})
+	siPut(t, o, ctx, cSecRef, "INE000Y01010", SecRef{ISIN: "INE000Y01010", Type: "WRRNT"})
 	v, err := o.SaveFirmDemats(ctx, T, "admin", map[string]string{pool: "pool", own: "OWN", "12345": ""}, "firm01")
 	if err != nil || v.FirmUCC != "FIRM01" || len(v.Accounts) != 2 || v.Accounts[0].Type != "POOL" || v.Accounts[0].ISINs != 2 || v.Accounts[0].Qty != "42.5" || len(v.Problems) != 0 || len(v.Types) != 12 {
 		t.Fatalf("saved %+v %v", v, err)
@@ -91,7 +94,7 @@ func TestSIHoldingAccountTypes(t *testing.T) {
 			t.Fatalf("row %+v", r)
 		}
 	}
-	if r := msg.HoldingData[1]; r.ISIN != "INE000Y01010" || r.TotalQty != "2.500" || r.TotalPldgQty != "1.000" || r.FreeBalQty != "1.500" {
+	if r := msg.HoldingData[1]; r.ISIN != "INE000Y01010" || r.TotalQty != "2.500" || r.TotalPldgQty != "1.000" || r.FreeBalQty != "1.500" || r.SecurityType != "WT" || msg.HoldingData[0].SecurityType != "EQ" {
 		t.Fatalf("quantities %+v", r)
 	}
 	if bytes.Contains(j, []byte(c.Demat.ID)) || bytes.Contains(j, []byte(c.PAN)) {

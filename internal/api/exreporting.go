@@ -29,6 +29,8 @@ func (s *Server) exchangeReportingRoutes() {
 	R("GET /v1/segmon/responses", s.segmonResponses, false)
 	R("GET /v1/holding-api", s.holdingAPIView, false)
 	R("POST /v1/holding-api/submit", s.holdingAPISubmit, true)
+	R("POST /v1/holding-api/nil", s.holdingAPINil, true)
+	R("PUT /v1/holding-api/special-sessions", s.holdingAPISessions, true)
 	s.complianceCalendarRoutes(R)
 	s.clientListRoutes(R)
 	s.surveillanceReturnRoutes(R)
@@ -72,5 +74,32 @@ func (s *Server) holdingAPISubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.NSEHoldingSubmit(r.Context(), tenant(r), actor(r), b.Date)
+	ok(w, v, err)
+}
+
+// holdingAPINil records NSE's NIL Holding declaration or bulk nil report
+// made on NSE's member portal, with its acknowledgement.
+func (s *Server) holdingAPINil(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Kind  string   `json:"kind"`
+		Dates []string `json:"dates"`
+		Ack   string   `json:"ack"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.NSEHoldingNil(r.Context(), tenant(r), actor(r), b.Kind, b.Dates, b.Ack)
+	ok(w, v, err)
+}
+
+// holdingAPISessions sets the Sunday special session days.
+func (s *Server) holdingAPISessions(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Dates []string `json:"dates"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SetSpecialSessions(r.Context(), tenant(r), actor(r), b.Dates)
 	ok(w, v, err)
 }
