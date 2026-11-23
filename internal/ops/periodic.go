@@ -674,19 +674,36 @@ func (o *Ops) runPeriodic(ctx context.Context, tenant, actor string, t PeriodicT
 		}
 		s, _ := lib.Get("ncl-cuspa-mtf-payout")
 		set, _ := o.Settings(ctx, tenant)
-		name, content, err := o.cuspaMTFFile(ctx, tenant, s, set, period, map[string]string{"date": period, "seq": "1"})
-		if errors.Is(err, ErrState) {
+		// One file per settlement (normal and trade-for-trade): the flags
+		// are per settlement number and not carried forward.
+		var files []PeriodicFile
+		var names []string
+		for _, typ := range cuspaSettTypes {
+			name, content, err := o.cuspaMTFFile(ctx, tenant, s, set, period, map[string]string{"date": period, "seq": "1", "sett_type": typ})
+			if errors.Is(err, ErrState) {
+				continue
+			}
+			if err != nil {
+				return "", nil, err
+			}
+			f, err := o.keepFile(ctx, tenant, name, content)
+			if err != nil {
+				return "", nil, err
+			}
+			files, names = append(files, f), append(names, name)
+		}
+		if len(files) == 0 {
 			return "Nothing to report: no unpaid or MTF purchases", nil, nil
 		}
-		if err != nil {
-			return "", nil, err
+		sd := set.NextSettlementDay(period)
+		late := ""
+		if now := o.now().In(ist); now.Format("2006-01-02") > sd || (now.Format("2006-01-02") == sd && now.Format("15:04") >= cuspaMTFCutoff) {
+			late = " NSE Clearing's cut-off (" + cuspaMTFCutoff + " on " + fmtDay(sd) + ") has passed: ask NSE Clearing how to report, or the shares are paid out free to the clients."
 		}
-		f, err := o.keepFile(ctx, tenant, name, content)
-		if err != nil {
-			return "", nil, err
-		}
-		o.raiseWork(ctx, tenant, "periodic", "cuspamtf:"+period, "Upload "+name+" to NSE Clearing", "The CUSPA and MTF pay-out reporting file for trades of "+fmtDay(period)+" is on Periodic work; upload it before the pay-out.", "", RoleMaker, "periodic", date)
-		return fmt.Sprintf("%s written", name), []PeriodicFile{f}, nil
+		o.raiseWork(ctx, tenant, "periodic", "cuspamtf:"+period, "Upload "+strings.Join(names, ", ")+" to NSE Clearing by "+cuspaMTFCutoff,
+			"The CUSPA and MTF pay-out flags for trades of "+fmtDay(period)+" are on Periodic work, one file per settlement. Upload them on NMASS in the window NSE Clearing gives (the trade day's afternoon and evening, or the settlement morning) and by "+cuspaMTFCutoff+" on "+fmtDay(sd)+" at the latest. Clients trading with UPI blocks and the firm's own code are not flagged; each settlement is flagged on its own (nothing carries forward)."+late,
+			"", RoleMaker, "periodic", date)
+		return strings.Join(names, ", ") + " written", files, nil
 	case "bsda_review":
 		if r, _, err := docs.Get[BSDAReview](ctx, o.Docs, tenant, cBSDAReview, period); err == nil && r.Status == "Applied" {
 			return fmt.Sprintf("%d accounts changed", len(r.Lines)), []PeriodicFile{{r.FileID, r.FileName}}, nil

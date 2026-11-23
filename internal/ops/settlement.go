@@ -67,6 +67,14 @@ type CUSPAItem struct {
 	// (cuspacdsl.go); CDSL is how the last one went there.
 	PSN  string `json:"psn,omitempty"`
 	CDSL string `json:"cdsl,omitempty"`
+	// IntimatedAt is when the client was told of the pledge (debit,
+	// obligation, shares, the right to sell; cuspa_more.go); Intimation how
+	// the last attempt went.
+	IntimatedAt string `json:"intimated_at,omitempty"`
+	Intimation  string `json:"intimation,omitempty"`
+	// Extensions are the requests to the depository to extend the pledge
+	// (from 3 January 2027), the latest last.
+	Extensions []CUSPAExtension `json:"extensions,omitempty"`
 }
 
 // Settlement is the settlement page for a trade date.
@@ -311,6 +319,12 @@ func (o *Ops) SettleAction(ctx context.Context, tenant, actor, date, key, action
 		it.Events = []CUSPAEvent{o.cuspaEvent(date, "Pledged", ob.NetQty, actor, "unpaid purchase, pay-out "+st.PayIn)}
 		if _, err := docs.Put(ctx, o.Docs, tenant, cCUSPA, it.ID, it, 0, actor); err != nil {
 			return *ob, err
+		}
+		// The client is told at once (debit, obligation, shares, the right
+		// to sell); the daily review retries what did not go.
+		if _, failed := o.cuspaIntimate(ctx, tenant, actor, date, []string{it.ID}); failed[it.UCC] != "" {
+			o.raiseWork(ctx, tenant, "cuspa", it.UCC+":intimate", "Tell "+it.UCC+" that unpaid shares are pledged to the CUSPA",
+				"The intimation after the pledge "+failed[it.UCC]+". Tell the client by email or SMS by the start of the next trading day and keep the record.", it.UCC, RoleChecker, "settlement", date)
 		}
 		status = "Held in CUSPA"
 	case "payout":

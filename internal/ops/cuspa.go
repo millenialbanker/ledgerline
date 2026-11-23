@@ -145,6 +145,12 @@ func (it CUSPAItem) dates(set Settings, date string) cuspaDates {
 	pay := set.cuspaPayDays()
 	d := cuspaDates{PayOut: po, PayBy: addTradingDays(set, po, pay), InvokeFrom: addTradingDays(set, po, min(pay+1, cuspaInvokeDays)),
 		LastInvoke: addTradingDays(set, po, cuspaInvokeDays), AutoRelease: addTradingDays(set, po, cuspaAutoDays)}
+	// An extension (cuspa_more.go) moves the last day to invoke to its last
+	// trading day; the depository releases at the end of the next one.
+	if n := len(it.Extensions); n > 0 && it.Extensions[n-1].Until > d.LastInvoke {
+		d.LastInvoke = it.Extensions[n-1].Until
+		d.AutoRelease = set.NextBusinessDay(d.LastInvoke)
+	}
 	if date > po {
 		d.Day = businessDaysBetween(set, po, date)
 	}
@@ -233,7 +239,7 @@ func (o *Ops) cuspaBook(ctx context.Context, tenant, date string) (cuspaBook, er
 // date the line is valued at its purchase cost.
 func (b cuspaBook) price(it CUSPAItem) (px, haircut money.Dec, atCost bool) {
 	if i, ok := b.look.ByISIN(it.ISIN); ok && i.LTP.Sign() > 0 {
-		return i.LTP, i.HaircutPct, false
+		return i.LTP, pledgeHaircut(i), false // the margin-pledge haircut, with its floors (collhaircut.go)
 	}
 	return it.costOf(1), money.Dec{}, true
 }
@@ -359,11 +365,11 @@ func (b cuspaBook) row(it CUSPAItem, releaseQty int64) CUSPARow {
 	r.PledgeValue = b.pledgeValue(it).MulInt(it.Qty)
 	owes := b.owes(it.UCC)
 	switch {
-	case it.Qty > 0 && d.Day > cuspaAutoDays:
+	case it.Qty > 0 && b.date > d.AutoRelease:
 		r.Bucket, r.Next = "auto", "Released by the depository at the end of "+fmtDay(d.AutoRelease)+"; the daily review records it."
-	case it.Qty > 0 && d.Day == cuspaAutoDays:
+	case it.Qty > 0 && b.date == d.AutoRelease:
 		r.Bucket, r.Next = "auto", "The depository releases it at the end of today."
-	case it.Qty > 0 && d.Day == cuspaInvokeDays:
+	case it.Qty > 0 && b.date == d.LastInvoke:
 		r.Bucket = "last"
 	case it.Qty > 0 && b.date > d.PayBy:
 		r.Bucket = "overdue"
@@ -381,9 +387,12 @@ func (b cuspaBook) row(it CUSPAItem, releaseQty int64) CUSPARow {
 		if releaseQty > 0 {
 			r.Can = append(r.Can, "release_excess")
 		}
-		inWindow := d.Day <= cuspaInvokeDays
+		inWindow := b.date <= d.LastInvoke
 		if owes && inWindow {
 			r.Can = append(r.Can, "notice")
+		}
+		if owes && b.date == d.LastInvoke && b.date >= cuspaExtFrom {
+			r.Can = append(r.Can, "extend")
 		}
 		if owes && inWindow && it.noticed() && b.date >= d.InvokeFrom {
 			r.Can = append(r.Can, "invoke")
@@ -392,6 +401,8 @@ func (b cuspaBook) row(it CUSPAItem, releaseQty int64) CUSPARow {
 			switch {
 			case !owes:
 				r.Next = "Paid: release to the client."
+			case b.date == d.LastInvoke && b.date >= cuspaExtFrom && it.noticed():
+				r.Next = "Last day: invoke and sell today, or, if the shares cannot be sold (lower circuit, suspension), ask the depository for an extension by 6 PM."
 			case b.date < d.PayBy:
 				r.Next = "Client to pay by " + fmtDay(d.PayBy) + "."
 			case !it.noticed():
@@ -482,6 +493,9 @@ type CUSPABulkReq struct {
 	IDs     []string `json:"ids"`
 	Preview bool     `json:"preview,omitempty"`
 	Note    string   `json:"note,omitempty"`
+	// Code is the depository's reason code of an extension (CUSPA01 to
+	// CUSPA06); Note then says why in words.
+	Code string `json:"code,omitempty"`
 }
 
 // CUSPALine is what an action does, or would do, to one line.
@@ -516,6 +530,9 @@ type CUSPABulkResult struct {
 //   - invoke: from the end of the payment period to the 5th trading day
 //     after pay-out, after notice, and only as much as covers the debit.
 //   - sold: records the sale of the invoked shares.
+//   - extend: records the request to the depository for a one-week
+//     extension of the pledge (from 3 January 2027; cuspa_more.go) and
+//     tells the client.
 func (o *Ops) CUSPABulk(ctx context.Context, tenant, actor string, req CUSPABulkReq) (CUSPABulkResult, error) {
 	if !validDate(req.Date) {
 		return CUSPABulkResult{}, invalid("give a date (YYYY-MM-DD)")
@@ -540,8 +557,15 @@ func (o *Ops) CUSPABulk(ctx context.Context, tenant, actor string, req CUSPABulk
 		if err := o.require(ctx, tenant, actor, "Recording the sale of invoked CUSPA securities", RoleMaker, RoleChecker, RoleRisk); err != nil {
 			return CUSPABulkResult{}, err
 		}
+	case "extend":
+		if err := o.require(ctx, tenant, actor, "Asking for an extension of CUSPA pledges", RoleChecker, RoleRisk); err != nil {
+			return CUSPABulkResult{}, err
+		}
+		if err := cuspaExtCheckReq(req); err != nil {
+			return CUSPABulkResult{}, err
+		}
 	default:
-		return CUSPABulkResult{}, invalid("unknown CUSPA action %q: release, release_excess, notice, invoke or sold", req.Action)
+		return CUSPABulkResult{}, invalid("unknown CUSPA action %q: release, release_excess, notice, invoke, sold or extend", req.Action)
 	}
 	b, err := o.cuspaBook(ctx, tenant, req.Date)
 	if err != nil {
@@ -607,7 +631,7 @@ func (o *Ops) CUSPABulk(ctx context.Context, tenant, actor string, req CUSPABulk
 				skip(it, "nothing held ("+it.Status+")")
 			case !b.owes(it.UCC):
 				skip(it, "the client's ledger is not in debit")
-			case d.Day > cuspaInvokeDays:
+			case req.Date > d.LastInvoke:
 				skip(it, "past the last day to invoke ("+fmtDay(d.LastInvoke)+")")
 			default:
 				plan[it.ID] = it.Qty
@@ -650,10 +674,21 @@ func (o *Ops) CUSPABulk(ctx context.Context, tenant, actor string, req CUSPABulk
 			}
 			plan[it.ID] = it.unsold()
 		}
+	case "extend":
+		for _, it := range chosen {
+			if why := o.cuspaExtWhyNot(b, it, req.Date); why != "" {
+				skip(it, why)
+				continue
+			}
+			plan[it.ID] = it.Qty
+		}
 	}
 	var noticed map[string]cuspaNotice
 	if req.Action == "notice" && !req.Preview {
 		noticed = o.cuspaNotify(ctx, tenant, actor, b, chosen, plan)
+	}
+	if req.Action == "extend" && !req.Preview {
+		return o.cuspaExtend(ctx, tenant, actor, b, req, chosen, plan, res)
 	}
 	cl := map[string]Client{}
 	for _, it := range chosen {
@@ -878,13 +913,13 @@ func (o *Ops) cuspaReview(ctx context.Context, tenant, actor, date string) (stri
 	}
 	rc := &runCtx{o: o, ctx: ctx, tenant: tenant, date: date, process: "cuspa", keys: map[string]bool{}}
 	for _, it := range b.items {
-		if d := it.dates(b.set, date); it.Qty > 0 && d.Day > cuspaAutoDays {
+		if d := it.dates(b.set, date); it.Qty > 0 && date > d.AutoRelease {
 			if o.cuspaRelease(ctx, tenant, SystemActor, date, client(it.UCC), it, it.Qty, CUSPAAutoReleased, "released by the depository at the end of "+fmtDay(d.AutoRelease)) == nil {
 				auto++
 				if b.owes(it.UCC) {
 					owing++
 					rc.queue(it.ID+":auto", fmt.Sprintf("Unpaid %s of %s released by the depository", it.Symbol, it.UCC),
-						fmt.Sprintf("%d %s bought on %s were neither released nor invoked by the 5th trading day after pay-out, so the depository released them to the client at the end of %s. The ledger is still in debit by ₹%s: recover it as for any debit.", it.Qty, it.Symbol, fmtDay(it.Date), fmtDay(d.AutoRelease), b.funds[it.UCC].Dec().Neg().Fixed(2)),
+						fmt.Sprintf("%d %s bought on %s were neither released nor invoked by the last day to invoke, so the depository released them to the client at the end of %s. The ledger is still in debit by ₹%s: recover it as for any debit.", it.Qty, it.Symbol, fmtDay(it.Date), fmtDay(d.AutoRelease), b.funds[it.UCC].Dec().Neg().Fixed(2)),
 						it.UCC, RoleRisk, "settlement", "", nil)
 				}
 			}
@@ -929,7 +964,7 @@ func (o *Ops) cuspaReview(ctx context.Context, tenant, actor, date string) (stri
 		switch {
 		case it.unsold() > 0:
 			sell[it.UCC] = append(sell[it.UCC], it.ID)
-		case it.Qty <= 0 || !b.owes(it.UCC) || d.Day > cuspaInvokeDays || date < d.PayBy:
+		case it.Qty <= 0 || !b.owes(it.UCC) || date > d.LastInvoke || date < d.PayBy:
 			continue
 		case !it.noticed():
 			notice[it.UCC] = append(notice[it.UCC], it.ID)
@@ -968,6 +1003,7 @@ func (o *Ops) cuspaReview(ctx context.Context, tenant, actor, date string) (stri
 				u, RoleRisk, "settlement", "", nil)
 		}
 	}
+	more := o.cuspaReviewMore(ctx, tenant, date, b, rc)
 	rc.clearStale()
 	held := 0
 	for _, it := range b.items {
@@ -979,8 +1015,11 @@ func (o *Ops) cuspaReview(ctx context.Context, tenant, actor, date string) (stri
 	if byAPI > 0 {
 		api = fmt.Sprintf(" (%d by CDSL's pledge API)", byAPI)
 	}
-	return fmt.Sprintf("%d held; %d released over the limit%s; %d released by the depository (%d still owing); %d sale(s) found; %d to notice, %d to invoke, %d to sell",
-		held, released, api, auto, owing, sold, len(notice), len(invoke), len(sell)), nil, nil
+	if more != "" {
+		more = "; " + more
+	}
+	return fmt.Sprintf("%d held; %d released over the limit%s; %d released by the depository (%d still owing); %d sale(s) found; %d to notice, %d to invoke, %d to sell%s",
+		held, released, api, auto, owing, sold, len(notice), len(invoke), len(sell), more), nil, nil
 }
 
 // cuspaLastCDSL says the line's last release or invocation on date went
@@ -1124,12 +1163,15 @@ func (o *Ops) CUSPAFile(ctx context.Context, tenant, date, kind string) (string,
 		for _, it := range b.items {
 			c := b.clients[it.UCC]
 			for _, e := range it.Events {
-				if e.Date != date || (e.What != "Released" && e.What != "Invoked") {
+				if e.Date != date || (e.What != "Released" && e.What != "Invoked" && e.What != "Extended") {
 					continue
 				}
 				action := "Release (unpledge)"
-				if e.What == "Invoked" {
+				switch e.What {
+				case "Invoked":
 					action = "Invoke"
+				case "Extended":
+					action = "Extend (by 6 PM)"
 				}
 				rows = append(rows, []string{action, it.ID, it.UCC, csvSafe(c.Name), payoutDemat(c).ID, it.ISIN, it.Symbol, fmt.Sprint(e.Qty), csvSafe(e.Note), e.By, it.PSN, csvSafe(e.CDSL)})
 			}

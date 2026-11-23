@@ -134,12 +134,12 @@ func TestFinspotC101Example(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	for _, h := range []Holding{{UCC: "C101", ISIN: gsec, Symbol: "TESTGS", Qty: dq(1000), Pledged: dq(1000)}, // 1,00,000
+	for _, h := range []Holding{{UCC: "C101", ISIN: gsec, Symbol: "TESTGS", Qty: dq(1000), Pledged: dq(1000)}, // 1,00,000 less the 10% floor for a G-sec without a CC haircut = 90,000
 		{UCC: "C101", ISIN: fund, Symbol: "TESTLIQ", Qty: dq(60), Pledged: dq(50)},        // 50 x 1000 x 90% = 45,000 ...
 		{UCC: "C101", ISIN: share, Symbol: "TESTSHR", Qty: dq(1200), Pledged: dq(1000)}} { // 1000 x 500 x 95% = 4,75,000
 		docs.Upsert(ctx, o.Docs, T, cHolding, holdingID(h.UCC, h.ISIN), h, "test")
 	}
-	// ... and 50 more fund units' worth: 1,00,000 + 50,000 = 1,50,000 cash equivalent.
+	// ... and 50 more fund units' worth: 90,000 + 50,000 = 1,40,000 cash equivalent.
 	docs.Update(ctx, o.Docs, T, cMarket, D, "test", func(m *Market) error {
 		for i := range m.Instruments {
 			if m.Instruments[i].ISIN == fund {
@@ -154,7 +154,7 @@ func TestFinspotC101Example(t *testing.T) {
 	}
 	rv, _ := o.Risk(ctx, T, D)
 	for _, r := range rv.Rows {
-		if r.UCC == "C101" && (r.CashEqColl.Cmp(mustDec("150000")) != 0 || r.NonCashColl.Cmp(mustDec("475000")) != 0 || r.Collateral.Cmp(mustDec("625000")) != 0 || r.Funds.Cmp(mustDec("-20000")) != 0) {
+		if r.UCC == "C101" && (r.CashEqColl.Cmp(mustDec("140000")) != 0 || r.NonCashColl.Cmp(mustDec("475000")) != 0 || r.Collateral.Cmp(mustDec("615000")) != 0 || r.Funds.Cmp(mustDec("-20000")) != 0) {
 			t.Fatalf("risk row %+v", r)
 		}
 	}
@@ -176,7 +176,7 @@ func TestFinspotC101Example(t *testing.T) {
 		}
 		return got
 	}
-	if l := limitLine(); l != "C101-ABC||||-20000.00||||||||||||no||||||||150000.00" {
+	if l := limitLine(); l != "C101-ABC||||-20000.00||||||||||||no||||||||140000.00" {
 		t.Fatalf("limit line %q", l)
 	}
 	holding := func() map[string]map[string]string {

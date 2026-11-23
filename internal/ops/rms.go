@@ -111,6 +111,7 @@ type riskInput struct {
 	set      Settings
 	clients  map[string]Client
 	look     Lookup
+	prevLook Lookup // the market data as of the previous trading day: collateral is valued at its close
 	carried  []Position
 	trades   []ingest.TradeEvent
 	holdings []Holding
@@ -129,6 +130,7 @@ func (o *Ops) riskInput(ctx context.Context, tenant, date string) (riskInput, er
 	if _, in.look, err = o.Market(ctx, tenant, date); err != nil && !strings.Contains(err.Error(), "market data not loaded") {
 		return in, err
 	}
+	_, in.prevLook, _ = o.Market(ctx, tenant, in.set.PrevBusinessDay(date))
 	if in.carried, err = o.carried(ctx, tenant, date); err != nil {
 		return in, err
 	}
@@ -289,15 +291,16 @@ func (c collSplit) Total() money.Dec { return c.CashEq.Add(c.NonCash) }
 // into cash-equivalent and non-cash securities. A margin pledge in
 // Ledgerline carries no segment (Holding.Pledged is one quantity), so this
 // is the client's whole margin collateral, not the part given to one
-// segment.
+// segment. Each security is valued at the previous trading day's close
+// less the day's haircut, with the floors of NSE/INSP/66840
+// (collhaircut.go).
 func (in riskInput) collateral() map[string]collSplit {
 	out := map[string]collSplit{}
 	for _, h := range in.holdings {
 		if h.Pledged.Sign() <= 0 {
 			continue
 		}
-		if i, ok := in.look.ByISIN(h.ISIN); ok {
-			v := i.LTP.Mul(h.Pledged).Pct(money.DecInt(100).Sub(i.HaircutPct))
+		if v, ok := pledgeValueOf(in.look, in.prevLook, h.ISIN, h.Pledged); ok {
 			c := out[h.UCC]
 			if in.cashEq[h.ISIN] {
 				c.CashEq = c.CashEq.Add(v)
@@ -733,6 +736,9 @@ type MarginRow struct {
 	// plus UPI blocks); Collateral the pledged securities used, after haircut.
 	Funds      money.Dec `json:"funds"`
 	Collateral money.Dec `json:"collateral"`
+	// CUSPA is the unpaid securities in the CUSPA counted in Collateral,
+	// when the firm counts them (Settings.CUSPAMarginCount).
+	CUSPA money.Dec `json:"cuspa,omitempty"`
 	// PassStatus is set when the penalty is proposed to be, or was, passed
 	// to the client (Waiting for approval, Posted, Rejected), with the
 	// reason and its reference.
@@ -786,6 +792,18 @@ func (o *Ops) Margins(ctx context.Context, tenant, date string) (MarginReport, e
 		}
 	}
 	coll := in.collateral()
+	cuspaColl := map[string]money.Dec{}
+	if in.set.CUSPAMarginCount {
+		// Unpaid securities in the CUSPA count as margin collected, as
+		// non-cash collateral; they never give exposure (the front-end
+		// limits and holdings leave them out as collateral).
+		cuspaColl = o.cuspaMarginValue(ctx, tenant, in, date)
+		for u, v := range cuspaColl {
+			c := coll[u]
+			c.NonCash = c.NonCash.Add(v)
+			coll[u] = c
+		}
+	}
 	eod, _ := in.positions("")
 	rep := MarginReport{Date: date, Snapshots: in.set.SnapshotTimes, Rows: []MarginRow{}, HedgeBreakBar: in.set.hedgeBreakBar(date), ClauseSentOn: in.set.RiskPolicyClauseSentOn}
 	type snap struct {
@@ -830,7 +848,7 @@ func (o *Ops) Margins(ctx context.Context, tenant, date string) (MarginReport, e
 			eqColl := cash.Add(money.Min(coll[u].Total(), cash))
 			return money.Max(s.eq.Sub(eqColl), money.Dec{}).Add(money.Max(s.com.Sub(comCash), money.Dec{}))
 		}
-		row := MarginRow{UCC: u, Name: c.Name, PAN: MaskPAN(c.PAN), Collected: collected, Funds: cash.Add(comCash), Collateral: money.Min(coll[u].Total(), cash)}
+		row := MarginRow{UCC: u, Name: c.Name, PAN: MaskPAN(c.PAN), Collected: collected, Funds: cash.Add(comCash), Collateral: money.Min(coll[u].Total(), cash), CUSPA: cuspaColl[u]}
 		for _, p := range eod[u] {
 			row.EOD = row.EOD.Add(p.Margin)
 		}
