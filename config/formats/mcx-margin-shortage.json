@@ -1,0 +1,114 @@
+{
+ "id": "mcx-margin-shortage",
+ "title": "Margin shortage file to member (MCXCCL, MCX_MARGINSHORTAGE)",
+ "party": "MCXCCL",
+ "direction": "in",
+ "when": "Next morning",
+ "purpose": "Each client's margins, the margin collected as reported, the shortfalls (peak, intraday and end-of-day short allocation) and the penalty levied for the trade date.",
+ "names": [
+  "MCX_MARGINSHORTAGE_\\d{8}_?\\.E\\d{2}"
+ ],
+ "crlf": false,
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "trailing_empty": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as the margin shortfall and penalty MCXCCL worked out per client: shown on Clearing data, used as the levied penalty when no NCMR or UDiFF penalty file is loaded (passed to a client only through the pass-through rules)",
+ "source": "MCXCCL File Formats, version 1, section 1.17 (Margin Shortage File to Member): MCX_MARGINSHORTAGE_<YYYYMMDD>_.Enn on the trading member's FTP folder, no column title row",
+ "columns": [
+  {
+   "name": "Date",
+   "type": "str",
+   "note": "DDMMMYYYY"
+  },
+  {
+   "name": "TM/CP ID",
+   "type": "str"
+  },
+  {
+   "name": "Client ID",
+   "type": "str",
+   "note": "blank for ITCM/PCM; *OWN* for the firm's own positions"
+  },
+  {
+   "name": "Initial Margin",
+   "type": "dec"
+  },
+  {
+   "name": "Other Margin",
+   "type": "dec"
+  },
+  {
+   "name": "MTM",
+   "type": "dec"
+  },
+  {
+   "name": "Amount of Shortfall of Margins",
+   "type": "dec",
+   "note": "shortfall for the levy of penalty (option 1, 2 or 3 of the file description)"
+  },
+  {
+   "name": "Penalty Levied",
+   "type": "dec"
+  },
+  {
+   "name": "MTM Collected",
+   "type": "dec"
+  },
+  {
+   "name": "Initial Margin Collected",
+   "type": "dec"
+  },
+  {
+   "name": "Other Margin Collected",
+   "type": "dec"
+  },
+  {
+   "name": "Peak Margin Threshold %",
+   "type": "dec"
+  },
+  {
+   "name": "Peak Margin",
+   "type": "dec"
+  },
+  {
+   "name": "Peak Margin Collected",
+   "type": "dec"
+  },
+  {
+   "name": "Peak Margin Shortfall",
+   "type": "dec"
+  },
+  {
+   "name": "Intra-day Short Allocation",
+   "type": "dec"
+  },
+  {
+   "name": "EOD Short Allocation",
+   "type": "dec"
+  },
+  {
+   "name": "Intra-day Short Allocation Reported",
+   "type": "dec"
+  },
+  {
+   "name": "Reserved",
+   "type": "str"
+  },
+  {
+   "name": "Intra-day Allocation Shortfall",
+   "type": "dec"
+  },
+  {
+   "name": "EOD Short Allocation Reported",
+   "type": "dec"
+  },
+  {
+   "name": "EOD Allocation Shortfall",
+   "type": "dec"
+  }
+ ]
+}

@@ -65,6 +65,7 @@ func (s *Server) opsRoutes() {
 	s.rfqRoutes()
 	s.cbricsRoutes()
 	s.payoutHoldRoutes()
+	s.settleRoutes()
 	s.activityRoutes()
 	s.securityRoutes()
 	s.nseUCIRoutes()
@@ -2442,14 +2443,11 @@ func (s *Server) shortages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) settleShortage(w http.ResponseWriter, r *http.Request) {
-	var b struct {
-		Date  string    `json:"date"`
-		Price money.Dec `json:"price"`
-	}
+	var b ops.ShortageClose // date, price; received and auction_price for shares bought in the auction
 	if !decode(w, r, &b) {
 		return
 	}
-	v, err := s.ops.SettleShortage(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Date, b.Price)
+	v, err := s.ops.SettleShortageWith(r.Context(), tenant(r), actor(r), r.PathValue("id"), b)
 	ok(w, v, err)
 }
 

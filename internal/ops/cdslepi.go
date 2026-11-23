@@ -346,6 +346,9 @@ func (o *Ops) DecideEPI(ctx context.Context, tenant, actor string, ids []string,
 		if r.Status != "Pending" {
 			return nil, fmt.Errorf("%w: %s is %s", ErrState, id, r.Status)
 		}
+		if accept && r.Date < o.now().In(ist).Format("2006-01-02") {
+			return nil, fmt.Errorf("%w: %s is for trade date %s: an early pay-in is good for its trade day only (settlecheck.go)", ErrState, id, r.Date)
+		}
 		if r.Maker == actor {
 			return nil, fmt.Errorf("%w: a different person sends the early pay-ins (maker and checker)", ErrForbidden)
 		}
@@ -707,46 +710,22 @@ func (o *Ops) EarlyPayins(ctx context.Context, tenant, date string) (EPIView, er
 	if v.Settlements == nil {
 		v.Settlements = []string{}
 	}
-	// The day's delivery sells, net of buys, per client and scrip.
-	trades, err := o.App.ExchangeTrades(ctx, tenant, date)
+	// The day's delivery sells, net of buys, per client and ISIN, netted as
+	// the clearing corporation nets them (settlement.go): a client who sold
+	// on BSE and bought the same shares on NSE, both cleared at NSE
+	// Clearing, has nothing to pay in early.
+	st, err := o.Obligations(ctx, tenant, date)
 	if err != nil {
 		return v, nil
 	}
-	_, look, _ := o.Market(ctx, tenant, date)
-	type k struct{ ucc, ex, sym string }
-	net := map[k]int64{}
-	for _, t := range trades {
-		if t.Segment != "CM" {
-			continue
-		}
-		key := k{t.UCC, t.Exchange, strings.Split(t.Instrument(), "|")[0]}
-		if t.Side == "S" && t.Product == "CNC" {
-			net[key] += t.Qty
-		} else if t.Side == "B" {
-			net[key] -= t.Qty
-		}
-	}
 	cs, _ := o.ClientMap(ctx, tenant)
-	keys := make([]k, 0, len(net))
-	for x, q := range net {
-		if q > 0 {
-			keys = append(keys, x)
-		}
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		if keys[i].ucc != keys[j].ucc {
-			return keys[i].ucc < keys[j].ucc
-		}
-		return keys[i].sym < keys[j].sym
-	})
-	for _, x := range keys {
-		i, ok := look.Get(x.ex, "CM", x.sym)
-		if !ok || i.ISIN == "" {
+	for _, ob := range st.Obligations {
+		if ob.NetQty >= 0 || strings.HasPrefix(ob.ISIN, "UNKNOWN:") {
 			continue
 		}
-		c := cs[x.ucc]
-		_, free := o.cplFree(ctx, tenant, x.ucc, i.ISIN, "")
-		v.Sells = append(v.Sells, EPISell{UCC: x.ucc, Name: c.Name, Exchange: x.ex, ISIN: i.ISIN, Symbol: x.sym, Sold: net[x], Entered: entered[x.ucc+"|"+i.ISIN], Free: max(free, 0), DDPI: o.bo(ctx, tenant, c).DDPI})
+		c := cs[ob.UCC]
+		_, free := o.cplFree(ctx, tenant, ob.UCC, ob.ISIN, "")
+		v.Sells = append(v.Sells, EPISell{UCC: ob.UCC, Name: c.Name, Exchange: ob.Exchange, ISIN: ob.ISIN, Symbol: ob.Symbol, Sold: -ob.NetQty, Entered: entered[ob.UCC+"|"+ob.ISIN], Free: max(free, 0), DDPI: o.bo(ctx, tenant, c).DDPI})
 	}
 	return v, nil
 }
