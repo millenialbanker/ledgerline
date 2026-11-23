@@ -19,7 +19,8 @@ func bowUploadSetup(t *testing.T, vals map[string]string) (*Ops, string) {
 		{UCC: "BW01", Name: "Meera Kulkarni", Status: "Active", Email: "meera@x.example", Mobile: "9800000001", PAN: "AAAPA1111A", Partner: "AP01", Segments: []string{"CM", "FO"}, KRAStatus: "Validated",
 			Bank:  BankAccount{Bank: "HDFC Bank", IFSC: "HDFC0001234", Account: "50100011112222", Branch: "Fort"},
 			Banks: []BankAccount{{Bank: "Axis Bank", IFSC: "UTIB0000123", Account: "91902033334444", Status: BankInactive}, {Bank: "HDFC Bank", IFSC: "HDFC0001234", Account: "50100011112222", Branch: "Fort", Primary: true, Status: BankActive}}},
-		{UCC: "BW02", Name: "Ravi", Status: "Active", Email: "ravi@x.example", Mobile: "9800000002", PAN: "AAAPA2222B", Segments: []string{"CM", "COM"}, Tags: []string{"OFFLINE"}, KRAStatus: "On hold",
+		{UCC: "BW02", Name: "Ravi", Status: "Active", Email: "ravi@x.example", Mobile: "9800000002", PAN: "AAAPA2222B", Segments: []string{"CM", "COM"}, Tags: []string{"OFFLINE"}, KRAStatus: "On hold", KYCDate: "2023-05-02", // a client since before April 2024: KYC on hold, may still close positions (kycgate.go)
+
 			SegStatus: map[string]SegmentState{"COM": {Status: SegSuspended}}, Bank: BankAccount{Bank: "SBI", IFSC: "SBIN0000001", Account: "12345"}},
 		{UCC: "BW03", Name: "No Email", Status: "Active", Mobile: "9800000003", PAN: "AAAPA3333C", Segments: []string{"CM"}},
 		{UCC: "BW04", Name: "Closed Client", Status: "Closed", Email: "c@x.example", Mobile: "9800000004", PAN: "AAAPA4444D", Segments: []string{"CM"}},

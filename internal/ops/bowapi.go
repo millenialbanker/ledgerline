@@ -727,8 +727,8 @@ func (o *Ops) bowLimits(ctx context.Context, tenant, date string) (map[string]BO
 			l = BOWLimit{Why: "blocked" + firstOf(map[bool]string{true: ": " + c.BlockedReason}[c.BlockedReason != ""], "")}
 		case c.Inactive:
 			l = BOWLimit{Why: "inactive (no trades for the inactivity period)"}
-		case set.KYCPendingBlock && kycPendingWhy(c) != "":
-			l = BOWLimit{Why: kycPendingWhy(c)}
+		case set.kycGate(c, date).Why != "":
+			l = BOWLimit{Why: set.kycGate(c, date).Why}
 		case !equityOpen && !comOpen:
 			l = BOWLimit{Why: "no segment open"}
 		default:

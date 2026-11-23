@@ -29,8 +29,8 @@ func sepSetup(t *testing.T) (*Ops, context.Context) {
 	t.Helper()
 	o, ctx := newOps(t)
 	for _, c := range []Client{
-		{UCC: "AB01", Name: "Asha Rao", Status: "Active", Email: "a@x.example", Segments: []string{"CM", "FO", "COM"}, Bank: BankAccount{Bank: "HDFC Bank", IFSC: "HDFC0001234", Account: "50100011112222"}},
-		{UCC: "AB02", Name: "Vikram Shah", Status: "Active", Email: "v@x.example", Segments: []string{"CM", "COM"}, Bank: BankAccount{Bank: "Axis Bank", IFSC: "UTIB0000123", Account: "91902033334444"}},
+		{UCC: "AB01", Name: "Asha Rao", Status: "Active", KRAStatus: "Validated", Email: "a@x.example", Segments: []string{"CM", "FO", "COM"}, Bank: BankAccount{Bank: "HDFC Bank", IFSC: "HDFC0001234", Account: "50100011112222"}},
+		{UCC: "AB02", Name: "Vikram Shah", Status: "Active", KRAStatus: "Validated", Email: "v@x.example", Segments: []string{"CM", "COM"}, Bank: BankAccount{Bank: "Axis Bank", IFSC: "UTIB0000123", Account: "91902033334444"}},
 	} {
 		if err := docs.Upsert(ctx, o.Docs, T, cClient, c.UCC, c, "t"); err != nil {
 			t.Fatal(err)

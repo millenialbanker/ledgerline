@@ -283,7 +283,7 @@ title: Record clearing deposits and base capital
 screen: deposits
 roles: Ops checker
 ask: clearing deposit; fd lien; bank guarantee; base minimum capital; bmc; collateral with clearing corporation; deposit expiring; 50 percent cash
-related: upstream
+related: upstream, client-fdr
 
 On [[deposits|Clearing deposits]], **Record a deposit** for each item with the clearing corporation: cash, FD lien-marked, bank guarantee or securities, with value, haircut and maturity.
 

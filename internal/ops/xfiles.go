@@ -237,7 +237,18 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 		o.replaceProvisional(ctx, tenant, actor, f.Name, rows)
 	case "cdsl-holding":
 		// The firm's own accounts, for the holding statement (firmdemats.go).
+		prevSOH := o.latestFirmSnapDate(ctx, tenant)
 		sohDay, untagged := o.noteFirmDemats(ctx, tenant, actor, f.Name, rows)
+		if prevSOH != "" && sohDay < prevSOH {
+			// An older day's file, loaded to make or correct that day's
+			// holding statement (NSE takes a corrected day as a whole): the
+			// clients' holdings already loaded are later and stay.
+			r.Loaded = "Kept for the holding statement of " + fmtDay(sohDay) + " only: the statement of holding of " + fmtDay(prevSOH) + " is already loaded, so clients' holdings are not replaced"
+			if len(untagged) > 0 {
+				r.Note = strings.TrimSpace(r.Note + fmt.Sprintf(" %d demat accounts of the statement of holding (%s) belong to no client and are not tagged with their holding statement type: tag them in Settings → Firm demat accounts, or the holding statement for %s is not made.", len(untagged), strings.Join(untagged, ", "), fmtDay(sohDay)))
+			}
+			return
+		}
 		defer func() {
 			if len(untagged) > 0 {
 				r.Note = strings.TrimSpace(r.Note + fmt.Sprintf(" %d demat accounts of the statement of holding (%s) belong to no client and are not tagged with their holding statement type: tag them in Settings → Firm demat accounts, or the holding statement for %s is not made.", len(untagged), strings.Join(untagged, ", "), fmtDay(sohDay)))

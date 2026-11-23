@@ -252,7 +252,7 @@ func (o *Ops) loadMCXStateCity(ctx context.Context, tenant, actor, name string, 
 // ---- the clients ----
 
 func (o *Ops) mcxUCCLoadSources(ctx context.Context, tenant string, set Settings, cs []Client) mcxUCCSources {
-	s := mcxUCCSources{bse: o.bseUCCLoadSources(ctx, tenant, set), ucc: o.uccSources(ctx, tenant), mobiles: map[string][]string{}, emails: map[string][]string{}}
+	s := mcxUCCSources{bse: o.bseUCCLoadSources(ctx, tenant, set), ucc: o.uccSources(ctx, tenant), mobiles: map[string][]string{}, emails: map[string][]string{}, kycOff: set.KYCBlockOff}
 	if m, _, err := docs.Get[MCXStateCityMaster](ctx, o.Docs, tenant, cMCXStateCity, "master"); err == nil {
 		s.cities = &m
 	}

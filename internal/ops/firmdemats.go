@@ -16,10 +16,11 @@ import (
 //
 // The daily holding statement to the exchanges (NSE/INSP/55039 of 28
 // December 2022; layout and account types in NSE/INSP/55380 of 25 January
-// 2023) is the trading member's own demat accounts: each row one of the
-// firm's accounts × ISIN, with the account's type (POOL, CM COLL, OWN, EPI,
-// CLNTBENEMTF, TMCOLL, TMCOLL-MTF, CLNT UNPAID, CLNT COLL, MRGN PLEDGE,
-// MTF PLEDGE, CLNTBENE) and the member's own client code, PAN and name.
+// 2023, kept in NSE's Inspection master circular NSE/INSP/73976) is the
+// trading member's own demat accounts: each row one of the firm's accounts
+// × ISIN, with the account's type (POOL, CM COLL, OWN, EPI, CLNTBENEMTF,
+// TMCOLL, TMCOLL-MTF, CLNT UNPAID, CLNT COLL, MRGN PLEDGE, MTF PLEDGE,
+// CLNTBENE) and the member's own client code, PAN and name.
 // It is not the clients' holdings in their own beneficiary accounts. The
 // pilot firm's previous system sent exactly that: its own and client
 // collateral accounts, nothing from clients' accounts. (Ledgerline's
@@ -54,6 +55,34 @@ import (
 //     file and raises a work item for the compliance officer; nothing is
 //     dropped silently.
 //   - The self-inspection test holding_account_types runs the same check.
+//
+// Margin pledges (NSE's FAQs on margin collection, 31 July 2020 Q28-29 and
+// the clarification of 31 August 2020, now Exhibit 17 of the Inspection
+// master circular): securities pledged by clients as margin are not
+// reported in the holding statement; securities lying in the member's own
+// accounts (POOL, EPI, CUSPA, OWN) and securities whose pledge was invoked
+// are. An invoked pledge moves the securities into the member's client
+// securities margin pledge account (MRGN PLEDGE) or client securities
+// under margin funding account (MTF PLEDGE), so those accounts are
+// reported for what they hold. The statement is written only from the
+// balances held in the firm's own accounts: what clients pledged to the
+// firm stays in the clients' accounts (their pledged balance) and the
+// pledge register, and neither is ever read here. A tagged account that
+// the client records also name is a client's own account; anything but
+// OWN on it blocks the statement, as its pledged balance would be client
+// margin collateral.
+//
+// Account type spelling: the API specification (NSE/INSP/55380 Annexure A,
+// row 4.3) prints CLNTBENEMTF, and NSE's API validates against that list, so
+// Ledgerline sends CLNTBENEMTF; NSE's earlier weekly upload format and the
+// Inspection master circular print CLNTBENE-MTF. Both spellings (and the weekly format's TM COLL and
+// TM COLL-MTF) are read as the same type when tagging. NSE answers 902
+// for a type it does not take: the work item then names the other
+// spelling.
+//
+// Security type (row 4.8: EQ, MF, BOND, DEBT, PREF, IDR, WT, COMM) comes
+// from CDSL's ISIN master (FinInstrmTp); commodities add the commodity's
+// name and unit (rows 4.9 and 4.10).
 
 const (
 	cFirmDematSnap = "firmdematsnap" // key: cdsl (the latest) and cdsl|YYYY-MM-DD
@@ -61,8 +90,40 @@ const (
 	wHolding = "holding-api" // work queue process of the holding statement
 )
 
-// HSAccountTypes are NSE's holding statement account types (NSE/INSP/55380).
+// HSAccountTypes are NSE's holding statement account types (NSE/INSP/55380
+// Annexure A row 4.3, as the Inspection master circular spells them).
 var HSAccountTypes = []string{"POOL", "CM COLL", "OWN", "EPI", "CLNTBENEMTF", "TMCOLL", "TMCOLL-MTF", "CLNT UNPAID", "CLNT COLL", "MRGN PLEDGE", "MTF PLEDGE", "CLNTBENE"}
+
+// hsTypeAliases are other spellings of a type found in NSE's documents and
+// in other systems' files.
+var hsTypeAliases = map[string]string{"CLNTBENE-MTF": "CLNTBENEMTF", "CLNTBENE MTF": "CLNTBENEMTF", "TM COLL": "TMCOLL", "TM COLL-MTF": "TMCOLL-MTF", "TMCOLL MTF": "TMCOLL-MTF", "CMCOLL": "CM COLL", "CLNTUNPAID": "CLNT UNPAID", "CLNTCOLL": "CLNT COLL"}
+
+// HSAccountTypeNotes say what each type is for, on the tagging screen.
+// The FAQ named is NSE's on margin collection (Exhibit 17 of the
+// Inspection master circular).
+var HSAccountTypeNotes = map[string]string{
+	"POOL":        "Pool account: securities received in pay-out or kept for pay-in.",
+	"CM COLL":     "The firm's collateral account for its clearing member or clearing corporation.",
+	"OWN":         "The firm's own (proprietary) securities.",
+	"EPI":         "Early pay-in account.",
+	"CLNTBENEMTF": "Client beneficiary account for margin trading (MTF).",
+	"TMCOLL":      "Client securities taken as collateral into the firm's account (the old title-transfer accounts).",
+	"TMCOLL-MTF":  "As TMCOLL, for margin trading (MTF).",
+	"CLNT UNPAID": "Client unpaid securities pledgee account (CUSPA).",
+	"CLNT COLL":   "Client collateral account: what it holds is reported, for example securities from an invoked pledge.",
+	"MRGN PLEDGE": "Client securities margin pledge account: only securities invoked into it are reported, never the pledges in its favour (NSE FAQ).",
+	"MTF PLEDGE":  "Client securities under margin funding account: only securities invoked into it are reported (NSE FAQ).",
+	"CLNTBENE":    "Client beneficiary account held by the firm.",
+}
+
+// normHSType is a type in NSE's spelling ("" when empty).
+func normHSType(v string) string {
+	v = strings.ToUpper(strings.Join(strings.Fields(v), " "))
+	if a, ok := hsTypeAliases[v]; ok {
+		return a
+	}
+	return v
+}
 
 // FirmDematLine is one ISIN's balance in one of the firm's accounts.
 type FirmDematLine struct {
@@ -98,7 +159,7 @@ func checkFirmDemats(m map[string]string) (map[string]string, error) {
 	out := map[string]string{}
 	for k, v := range m {
 		id := normDematID(k)
-		v = strings.ToUpper(strings.Join(strings.Fields(v), " "))
+		v = normHSType(v)
 		if v == "" {
 			continue // untagged
 		}
@@ -193,6 +254,13 @@ func (o *Ops) noteFirmDemats(ctx context.Context, tenant, actor, name string, ro
 	return date, untagged
 }
 
+// latestFirmSnapDate is the date of the latest statement of holding loaded
+// ("" when none).
+func (o *Ops) latestFirmSnapDate(ctx context.Context, tenant string) string {
+	s, _, _ := docs.GetOr(ctx, o.Docs, tenant, cFirmDematSnap, "cdsl", FirmDematSnap{})
+	return s.Date
+}
+
 // ---- writing and checking the statement ----
 
 // hsItem is one row of the holding statement (holding-statement-api).
@@ -212,16 +280,108 @@ type hsItem struct {
 	TotalQty        string `json:"totalQty"`
 }
 
-// hsSecurityType is the security type of an ISIN. The previous system's
-// file was read for its accounts and types only, so its values here are
-// to confirm; EQ (what Ledgerline always sent) for every ISIN until then.
-func hsSecurityType(isin string) string { return "EQ" }
+// cdslHSType maps CDSL's security type (ISIN master FinInstrmTp) to the
+// holding statement's (NSE/INSP/55380 Annexure A row 4.8). Units of REITs
+// and InvITs are listed and settled as equity on the exchanges and have no
+// type of their own in NSE's list: they go as EQ (to confirm with NSE).
+// AIF, SIF and collective investment scheme units go as MF (units of a
+// fund).
+var cdslHSType = map[string]string{
+	"EQTY": "EQ", "PROSH": "EQ", "REEQT": "EQ", "INVIT": "EQ", "REIT": "EQ", "REINT": "EQ",
+	"PRSH": "PREF", "PPRSH": "PREF", "CPRSH": "PREF", "CCPRS": "PREF", "REPRF": "PREF",
+	"UNITS": "MF", "MUNIT": "MF", "OEMFT": "MF", "CEMF": "MF", "CEAIF": "MF", "CEAF2": "MF", "CEAF3": "MF", "OEAIF": "MF",
+	"CIS": "MF", "OPSIF": "MF", "CLSIF": "MF", "IFSIF": "MF", "SIF": "MF",
+	"WRRNT": "WT",
+	"IDR":   "IDR",
+	"DEBTR": "DEBT", "PTCSI": "DEBT", "PYTC": "DEBT", "CP": "DEBT", "COD": "DEBT", "PRMNT": "DEBT", "SECRT": "DEBT", "REDBT": "DEBT", "ZCZPI": "DEBT", "PSSCH": "DEBT",
+	"ZCB": "BOND", "TB": "BOND", "BOCSG": "BOND", "GSEC": "BOND", "CMNGB": "BOND", "SGB": "BOND", "RBIRB": "BOND", "REGRB": "BOND", "BOND": "BOND",
+	"DDBON": "BOND", "FLTRB": "BOND", "MNCPB": "BOND",
+	"COMDT": "COMM", "COMBN": "COMM", "EGR": "COMM",
+}
+
+// hsUnitWords find a commodity's unit (row 4.10) in its name.
+var hsUnitWords = []struct{ word, unit string }{
+	{"GRAM", "GMS"}, {"GMS", "GMS"}, {"KG", "KG"}, {"QUINTAL", "QUINTAL"}, {"QTL", "QUINTAL"}, {"TONNE", "MT"}, {" MT", "MT"},
+	{"BARREL", "BARRELS"}, {"MMBTU", "MMBTU"}, {"BALE", "BALES"}, {"DRUM", "DRUMS"},
+}
+
+// hsSecurity is an ISIN's security type in the holding statement, with a
+// commodity's name and unit ("NA" for securities), and a note when it is
+// not from CDSL's ISIN master.
+func (o *Ops) hsSecurity(ctx context.Context, tenant, isin string) (typ, commodity, unit, note string) {
+	ref, _, _ := docs.Get[SecRef](ctx, o.Docs, tenant, cSecRef, isin)
+	typ = cdslHSType[strings.ToUpper(strings.TrimSpace(ref.Type))]
+	if typ == "" {
+		switch {
+		case strings.HasPrefix(isin, "INF"): // mutual fund units
+			typ = "MF"
+		case len(isin) > 2 && isin[2] >= '0' && isin[2] <= '9', govtSeries[strings.ToUpper(ref.Series)], strings.EqualFold(ref.Series, "GB"):
+			typ = "BOND" // government securities and sovereign gold bonds
+		default:
+			typ = "EQ"
+		}
+		why := "not in CDSL's ISIN master"
+		if ref.Type != "" {
+			why = "CDSL type " + ref.Type + " has no holding statement type"
+		}
+		note = fmt.Sprintf("%s is reported as %s (%s): load CDSL's ISIN master on Exchange files", isin, typ, why)
+	}
+	if typ != "COMM" {
+		return typ, "NA", "NA", note
+	}
+	commodity = strings.TrimSpace(firstOf(firstOf(ref.Name, ref.Symbol), isin))
+	if len(commodity) > 100 {
+		commodity = commodity[:100]
+	}
+	name := " " + strings.ToUpper(commodity)
+	if strings.ToUpper(ref.Type) == "EGR" { // electronic gold receipts are in grams
+		unit = "GMS"
+	}
+	for _, w := range hsUnitWords {
+		if unit == "" && strings.Contains(name, w.word) {
+			unit = w.unit
+		}
+	}
+	if unit == "" {
+		unit = "OTHERS"
+		note = strings.TrimSpace(note + " " + isin + " (" + commodity + ") is a commodity whose unit is not in its name: reported with unit OTHERS")
+	}
+	return typ, commodity, unit, note
+}
+
+// holdingSnap is the firm-account balances a data day's statement is made
+// from: that day's CDSL statement of holding. A day with no settlement (a
+// Saturday, a holiday, a Sunday special session) moves nothing in the
+// demat accounts, so without a file of its own it takes the latest one
+// since the trading day before it. want is the file that is needed when
+// none is found.
+func (o *Ops) holdingSnap(ctx context.Context, tenant string, set Settings, date string) (snap FirmDematSnap, want string, ok bool) {
+	if s, _, err := docs.Get[FirmDematSnap](ctx, o.Docs, tenant, cFirmDematSnap, "cdsl|"+date); err == nil {
+		return s, date, true
+	}
+	if set.IsBusinessDay(date) {
+		return FirmDematSnap{}, date, false
+	}
+	prev := set.PrevBusinessDay(date)
+	for d := addDays(date, -1); d >= prev && d != ""; d = addDays(d, -1) {
+		if s, _, err := docs.Get[FirmDematSnap](ctx, o.Docs, tenant, cFirmDematSnap, "cdsl|"+d); err == nil {
+			return s, d, true
+		}
+	}
+	return FirmDematSnap{}, prev, false
+}
+
+// hsClientAcctOK are the types a tagged account that the client records
+// also name may have: the firm's own account opened as a client (for its
+// proprietary trades). Any other type on a client's account (collateral,
+// pledge, MTF…) would report the client's own holding and pledged balance.
+var hsClientAcctOK = map[string]bool{"OWN": true}
 
 // firmHoldingStatement works out the day's statement from the firm's
 // tagged accounts in that day's CDSL statement of holding, with what stops
-// it being sent.
-func (o *Ops) firmHoldingStatement(ctx context.Context, tenant string, set Settings, date string) ([]hsItem, []string) {
-	var probs []string
+// it being sent and notes that do not.
+func (o *Ops) firmHoldingStatement(ctx context.Context, tenant string, set Settings, date string) ([]hsItem, []string, []string) {
+	var probs, notes []string
 	pan := firmPAN(set)
 	if pan == "" {
 		probs = append(probs, "the firm's PAN is not set (Settings)")
@@ -232,17 +392,18 @@ func (o *Ops) firmHoldingStatement(ctx context.Context, tenant string, set Setti
 	if strings.TrimSpace(set.Firm) == "" {
 		probs = append(probs, "the firm's name is not set (Settings)")
 	}
-	snap, _, err := docs.Get[FirmDematSnap](ctx, o.Docs, tenant, cFirmDematSnap, "cdsl|"+date)
-	if err != nil {
-		probs = append(probs, fmt.Sprintf("CDSL's statement of holding for %s is not loaded (Exchange files): the firm's balances come from it", fmtDay(date)))
-		return []hsItem{}, probs
+	snap, want, ok := o.holdingSnap(ctx, tenant, set, date)
+	if !ok {
+		probs = append(probs, fmt.Sprintf("CDSL's statement of holding for %s is not loaded (Exchange files): the firm's balances come from it", fmtDay(want)))
+		return []hsItem{}, probs, notes
 	}
 	seen := map[string]bool{}
 	items := []hsItem{}
-	want := map[string]money.Dec{}
+	want2 := map[string]money.Dec{}
+	sec := map[string][3]string{}
 	for _, a := range snap.Accounts {
 		seen[a.BOID] = true
-		t := set.FirmDemats[a.BOID]
+		t := normHSType(set.FirmDemats[a.BOID])
 		if t == "" && a.ISINs == 0 {
 			continue // holds nothing: nothing to leave out (the self-inspection still asks for its tag)
 		}
@@ -250,14 +411,29 @@ func (o *Ops) firmHoldingStatement(ctx context.Context, tenant string, set Setti
 			probs = append(probs, fmt.Sprintf("demat account %s is in the statement of holding, belongs to no client and is not tagged with its holding statement type (%d ISINs held)", MaskAccount(a.BOID), a.ISINs))
 			continue
 		}
+		if a.Client != "" && !hsClientAcctOK[t] {
+			// A client's own account: its pledged balance is the client's
+			// margin pledge, which NSE's FAQ says is not reported.
+			probs = append(probs, fmt.Sprintf("demat account %s is tagged %s but is client %s's own account: a client's account is not reported, and its pledged balance is margin collateral, which NSE does not take in the holding statement (untag it, or correct the client's demat accounts)", MaskAccount(a.BOID), t, a.Client))
+			continue
+		}
 		for _, l := range a.Lines {
 			tot, pl := decOr0(l.Total), decOr0(l.Pledged)
 			if tot.Sign() <= 0 {
 				continue
 			}
-			want[a.BOID+"|"+l.ISIN] = tot
+			want2[a.BOID+"|"+l.ISIN] = tot
+			st, ok := sec[l.ISIN]
+			if !ok {
+				typ, comm, unit, note := o.hsSecurity(ctx, tenant, l.ISIN)
+				st = [3]string{typ, comm, unit}
+				sec[l.ISIN] = st
+				if note != "" {
+					notes = append(notes, note)
+				}
+			}
 			items = append(items, hsItem{RecID: fmt.Sprint(len(items) + 1), Dmat: a.BOID, AccountType: t, UCC: strings.ToUpper(strings.TrimSpace(set.FirmUCC)), ClientName: set.Firm, PAN: pan,
-				ISIN: l.ISIN, SecurityType: hsSecurityType(l.ISIN), NameOfCommodity: "NA", UnitType: "NA", TotalPldgQty: pl.Fixed(3), FreeBalQty: tot.Sub(pl).Fixed(3), TotalQty: tot.Fixed(3)})
+				ISIN: l.ISIN, SecurityType: st[0], NameOfCommodity: st[1], UnitType: st[2], TotalPldgQty: pl.Fixed(3), FreeBalQty: tot.Sub(pl).Fixed(3), TotalQty: tot.Fixed(3)})
 		}
 	}
 	for _, bo := range sortedKeys(set.FirmDemats) {
@@ -272,13 +448,13 @@ func (o *Ops) firmHoldingStatement(ctx context.Context, tenant string, set Setti
 		k := it.Dmat + "|" + it.ISIN
 		got[k] = got[k].Add(decOr0(it.TotalQty))
 	}
-	for _, k := range sortedKeys(want) {
-		if got[k].Cmp(want[k]) != 0 {
+	for _, k := range sortedKeys(want2) {
+		if got[k].Cmp(want2[k]) != 0 {
 			bo, isin, _ := strings.Cut(k, "|")
-			probs = append(probs, fmt.Sprintf("demat account %s, %s: the statement has %s, the statement of holding %s", MaskAccount(bo), isin, fmtQty(got[k]), fmtQty(want[k])))
+			probs = append(probs, fmt.Sprintf("demat account %s, %s: the statement has %s, the statement of holding %s", MaskAccount(bo), isin, fmtQty(got[k]), fmtQty(want2[k])))
 		}
 	}
-	return items, probs
+	return items, probs, notes
 }
 
 // holdingStatementFile is the daily holding statement for the exchanges'
@@ -286,13 +462,19 @@ func (o *Ops) firmHoldingStatement(ctx context.Context, tenant string, set Setti
 // tagged demat accounts, never clients' accounts. It is refused, with a
 // work item for the compliance officer, while the check finds a problem.
 func (o *Ops) holdingStatementFile(ctx context.Context, tenant string, s *xfile.Spec, set Settings, date string, vars xfile.Vars) (string, []byte, error) {
-	items, probs := o.firmHoldingStatement(ctx, tenant, set, date)
+	items, probs, notes := o.firmHoldingStatement(ctx, tenant, set, date)
 	if len(probs) > 0 {
 		o.raiseWork(ctx, tenant, wHolding, "blocked-"+date, "Holding statement for "+fmtDay(date)+" not made",
 			"The holding statement is not made or sent until this is put right: "+strings.Join(probs, "; ")+".", "", RoleCompliance, "xfiles", date)
 		return "", nil, fmt.Errorf("%w: the holding statement for %s is not made: %s", ErrState, fmtDay(date), strings.Join(probs, "; "))
 	}
 	o.closeWork(ctx, tenant, SystemActor, wHolding, "blocked-"+date, "the holding statement could be made")
+	if len(notes) > 0 {
+		o.raiseWork(ctx, tenant, wHolding, "sectype-"+date, "Holding statement for "+fmtDay(date)+": security types to check",
+			"The statement is made, but check these before it goes: "+strings.Join(notes, "; ")+".", "", RoleCompliance, "xfiles", date)
+	} else {
+		o.closeWork(ctx, tenant, SystemActor, wHolding, "sectype-"+date, "every security type is from CDSL's ISIN master")
+	}
 	d, _ := time.Parse("2006-01-02", date)
 	pan := firmPAN(set)
 	msg := struct {
@@ -328,13 +510,15 @@ type FirmDematRow struct {
 
 // FirmDematsView is the firm's demat accounts with their tags.
 type FirmDematsView struct {
-	Types    []string       `json:"types"`
-	Accounts []FirmDematRow `json:"accounts"`
-	FirmUCC  string         `json:"firm_ucc"`
-	Snapshot string         `json:"snapshot,omitempty"` // the statement of holding they were seen in
-	Date     string         `json:"date,omitempty"`
-	Problems []string       `json:"problems"` // what stops the latest day's statement
-	CanEdit  bool           `json:"can_edit"`
+	Types     []string          `json:"types"`
+	Accounts  []FirmDematRow    `json:"accounts"`
+	FirmUCC   string            `json:"firm_ucc"`
+	Snapshot  string            `json:"snapshot,omitempty"` // the statement of holding they were seen in
+	Date      string            `json:"date,omitempty"`
+	Problems  []string          `json:"problems"` // what stops the latest day's statement
+	Notes     []string          `json:"notes"`    // what to check in it (security types)
+	TypeNotes map[string]string `json:"type_notes"`
+	CanEdit   bool              `json:"can_edit"`
 }
 
 // FirmDemats lists the firm's tagged demat accounts and those seen in the
@@ -348,7 +532,7 @@ func (o *Ops) FirmDemats(ctx context.Context, tenant, actor string) (FirmDematsV
 		return FirmDematsView{}, err
 	}
 	a, _ := o.Access(ctx, tenant, actor)
-	v := FirmDematsView{Types: HSAccountTypes, Accounts: []FirmDematRow{}, FirmUCC: set.FirmUCC, Problems: []string{}, CanEdit: a.Admin}
+	v := FirmDematsView{Types: HSAccountTypes, TypeNotes: HSAccountTypeNotes, Accounts: []FirmDematRow{}, FirmUCC: set.FirmUCC, Problems: []string{}, Notes: []string{}, CanEdit: a.Admin}
 	snap, _, _ := docs.GetOr(ctx, o.Docs, tenant, cFirmDematSnap, "cdsl", FirmDematSnap{})
 	v.Snapshot, v.Date = snap.File, snap.Date
 	by := map[string]*FirmDematRow{}
@@ -361,15 +545,18 @@ func (o *Ops) FirmDemats(ctx context.Context, tenant, actor string) (FirmDematsV
 			r = &FirmDematRow{BOID: bo, Masked: MaskAccount(bo), Qty: "0"}
 			by[bo] = r
 		}
-		r.Type = t
+		r.Type = normHSType(t)
 	}
 	for _, k := range sortedKeys(by) {
 		v.Accounts = append(v.Accounts, *by[k])
 	}
 	if snap.Date != "" {
-		_, v.Problems = o.firmHoldingStatement(ctx, tenant, set, snap.Date)
+		_, v.Problems, v.Notes = o.firmHoldingStatement(ctx, tenant, set, snap.Date)
 		if v.Problems == nil {
 			v.Problems = []string{}
+		}
+		if v.Notes == nil {
+			v.Notes = []string{}
 		}
 	}
 	return v, nil
@@ -426,7 +613,7 @@ func (o *Ops) FirmDematsFromStatement(ctx context.Context, tenant, actor, name s
 	}
 	found := map[string]string{}
 	for _, h := range msg.HoldingData {
-		bo, t := normDematID(h.Dmat), strings.ToUpper(strings.Join(strings.Fields(h.AccountType), " "))
+		bo, t := normDematID(h.Dmat), normHSType(h.AccountType)
 		if bo == "" || t == "" {
 			continue
 		}
@@ -475,8 +662,8 @@ func siHoldingTypes(e *siEnv) (siOut, error) {
 	var s siOut
 	s.input("CDSL statement of holding", snap.Date)
 	s.checked = len(snap.Accounts) + len(e.set.FirmDemats)
-	_, probs := e.o.firmHoldingStatement(e.ctx, e.tenant, e.set, snap.Date)
-	for _, p := range probs {
+	_, probs, notes := e.o.firmHoldingStatement(e.ctx, e.tenant, e.set, snap.Date)
+	for _, p := range append(probs, notes...) {
 		s.bad(strings.ToUpper(p[:1]) + p[1:])
 	}
 	for _, a := range snap.Accounts {
@@ -490,6 +677,6 @@ func siHoldingTypes(e *siEnv) (siOut, error) {
 			tagged++
 		}
 	}
-	s.summary = fmt.Sprintf("The statement of holding of %s: %d of the firm's accounts in it (%d tagged), %d tags in Settings; %d problems stop the holding statement.", fmtDay(snap.Date), len(snap.Accounts), tagged, len(e.set.FirmDemats), s.found)
+	s.summary = fmt.Sprintf("The statement of holding of %s: %d of the firm's accounts in it (%d tagged), %d tags in Settings; %d problems stop the holding statement, %d security types to check.", fmtDay(snap.Date), len(snap.Accounts), tagged, len(e.set.FirmDemats), len(probs), len(notes))
 	return s, nil
 }

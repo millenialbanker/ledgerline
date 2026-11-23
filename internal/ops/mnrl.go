@@ -168,22 +168,28 @@ type MNRLMatch struct {
 	Mobile     string `json:"mobile"` // 10 digits
 	// OnRecord: the number was the one on Ledgerline's record when it was
 	// found (an NSDL list may give the depository's record instead).
-	OnRecord  bool        `json:"on_record"`
-	Source    string      `json:"source"` // NSE, DoT, NSDL
-	Format    string      `json:"format"`
-	List      string      `json:"list"`
-	ListDate  string      `json:"list_date"`
-	File      string      `json:"file,omitempty"`
-	Revoked   string      `json:"revoked,omitempty"` // the date of disconnection, as the list gives it
-	Reason    string      `json:"reason,omitempty"`  // DoT's reason, when given
-	Status    string      `json:"status"`
-	Opened    string      `json:"opened"` // YYYY-MM-DD
-	Due       string      `json:"due"`    // to take up with the client by
-	Closed    string      `json:"closed,omitempty"`
-	NewMobile string      `json:"new_mobile,omitempty"` // masked
-	Change    string      `json:"change,omitempty"`     // the change request that updated it
-	Seen      []string    `json:"seen,omitempty"`       // later lists that had it again
-	History   []MNRLEvent `json:"history"`
+	OnRecord  bool     `json:"on_record"`
+	Source    string   `json:"source"` // NSE, DoT, NSDL
+	Format    string   `json:"format"`
+	List      string   `json:"list"`
+	ListDate  string   `json:"list_date"`
+	File      string   `json:"file,omitempty"`
+	Revoked   string   `json:"revoked,omitempty"` // the date of disconnection, as the list gives it
+	Reason    string   `json:"reason,omitempty"`  // DoT's reason, when given
+	Status    string   `json:"status"`
+	Opened    string   `json:"opened"` // YYYY-MM-DD
+	Due       string   `json:"due"`    // to take up with the client by
+	Closed    string   `json:"closed,omitempty"`
+	NewMobile string   `json:"new_mobile,omitempty"` // masked
+	Change    string   `json:"change,omitempty"`     // the change request that updated it
+	Seen      []string `json:"seen,omitempty"`       // later lists that had it again
+	// For a CDSL account (CDSL/OPS/DP/POLCY/2025/618, kycgate_cdsl.go):
+	// the 30-day notice to register a valid mobile, when it expires, and
+	// the debit-freeze request (reason 31) raised after it.
+	NoticeOn      string      `json:"notice_on,omitempty"`
+	NoticeExpiry  string      `json:"notice_expiry,omitempty"`
+	FreezeRequest string      `json:"freeze_request,omitempty"`
+	History       []MNRLEvent `json:"history"`
 }
 
 // mnrlHold is a number whose SMS and WhatsApp are held, with the open

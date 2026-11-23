@@ -29,6 +29,14 @@ func (s *Server) clientMoneyRoutes(R func(string, http.HandlerFunc, bool)) {
 	R("POST /v1/money-recon/{date}/return", s.moneyReconReturn, true)
 	R("GET /v1/money-recon/{date}/file", s.moneyReconFile, false)
 	R("GET /v1/money-recon/{date}/document", s.moneyReconDoc, false)
+	R("GET /v1/money-retention", s.moneyRetention, false)
+	R("POST /v1/money-retention", s.recordRetention, true)
+	R("POST /v1/money-retention/{id}/withdraw", s.withdrawRetention, true)
+	R("POST /v1/money-rules", s.saveMoneyRules, true)
+	R("GET /v1/payout-cheques", s.payoutCheques, false)
+	R("POST /v1/payout-cheques", s.issuePayoutCheque, true)
+	R("POST /v1/payout-cheques/{id}/clear", s.clearPayoutCheque, true)
+	R("POST /v1/payout-cheques/{id}/cancel", s.cancelPayoutCheque, true)
 }
 
 // ---- the UCC-wise settlement report ----
@@ -99,24 +107,25 @@ func (s *Server) saveFirmBank(w http.ResponseWriter, r *http.Request) {
 func (s *Server) moneyTransfers(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	v, err := s.ops.FirmTransfers(r.Context(), tenant(r), actor(r), q.Get("from"), q.Get("to"))
-	ok(w, map[string]any{"transfers": v, "purposes": ops.MoneyPurposes}, err)
+	ok(w, map[string]any{"transfers": v, "purposes": ops.MoneyPurposes, "withdraw_reasons": ops.WithdrawReasons}, err)
 }
 
 func (s *Server) recordMoneyTransfer(w http.ResponseWriter, r *http.Request) {
 	var b struct {
-		Date    string       `json:"date"`
-		Purpose string       `json:"purpose"`
-		From    string       `json:"from"`
-		To      string       `json:"to"`
-		Segment string       `json:"segment"`
-		Amount  money.Amount `json:"amount"`
-		Ref     string       `json:"ref"`
-		Note    string       `json:"note"`
+		Date     string       `json:"date"`
+		Purpose  string       `json:"purpose"`
+		From     string       `json:"from"`
+		To       string       `json:"to"`
+		Segment  string       `json:"segment"`
+		Withdraw string       `json:"withdraw"`
+		Amount   money.Amount `json:"amount"`
+		Ref      string       `json:"ref"`
+		Note     string       `json:"note"`
 	}
 	if !decode(w, r, &b) {
 		return
 	}
-	v, err := s.ops.RecordFirmTransfer(r.Context(), tenant(r), actor(r), ops.FirmTransfer{Date: b.Date, Purpose: b.Purpose, From: b.From, To: b.To, Segment: b.Segment, Amount: b.Amount, Ref: b.Ref, Note: b.Note})
+	v, err := s.ops.RecordFirmTransfer(r.Context(), tenant(r), actor(r), ops.FirmTransfer{Date: b.Date, Purpose: b.Purpose, From: b.From, To: b.To, Segment: b.Segment, Withdraw: b.Withdraw, Amount: b.Amount, Ref: b.Ref, Note: b.Note})
 	ok(w, v, err)
 }
 
@@ -193,4 +202,91 @@ func (s *Server) moneyReconDoc(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
 	w.Write(b)
+}
+
+// ---- client money kept back, by reason (clientretention.go) ----
+
+func (s *Server) moneyRetention(w http.ResponseWriter, r *http.Request) {
+	d, okd := qdate(w, r)
+	if !okd {
+		return
+	}
+	v, err := s.ops.RetentionFor(r.Context(), tenant(r), actor(r), d)
+	if err != nil {
+		fail(w, err, nil)
+		return
+	}
+	ok(w, map[string]any{"report": v, "rules": s.ops.MoneyRulesFor(r.Context(), tenant(r))}, nil)
+}
+
+func (s *Server) recordRetention(w http.ResponseWriter, r *http.Request) {
+	var b ops.RetentionEntry
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.RecordRetention(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) withdrawRetention(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Reason string `json:"reason"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.WithdrawRetention(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Reason)
+	ok(w, v, err)
+}
+
+func (s *Server) saveMoneyRules(w http.ResponseWriter, r *http.Request) {
+	var b ops.MoneyRules
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveMoneyRules(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+// ---- cheques to clients when the electronic transfer failed (payoutcheque.go) ----
+
+func (s *Server) payoutCheques(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.PayoutCheques(r.Context(), tenant(r), actor(r))
+	ok(w, v, err)
+}
+
+func (s *Server) issuePayoutCheque(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Request  string `json:"request"`
+		ChequeNo string `json:"cheque_no"`
+		Date     string `json:"date"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.IssuePayoutCheque(r.Context(), tenant(r), actor(r), b.Request, b.ChequeNo, b.Date)
+	ok(w, v, err)
+}
+
+func (s *Server) clearPayoutCheque(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string `json:"date"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.ClearPayoutCheque(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Date)
+	ok(w, v, err)
+}
+
+func (s *Server) cancelPayoutCheque(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date   string `json:"date"`
+		Reason string `json:"reason"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.CancelPayoutCheque(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Date, b.Reason)
+	ok(w, v, err)
 }

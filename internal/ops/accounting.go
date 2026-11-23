@@ -429,6 +429,9 @@ func (o *Ops) saveVoucher(ctx context.Context, tenant, actor string, v Voucher) 
 			return v, invalid("money cannot be taken out of the client bank account by a voucher; use Receipts & payouts or upstreaming")
 		}
 	}
+	if err := clientJournalRule(lines); err != nil {
+		return v, err
+	}
 	n, err := o.next(ctx, tenant, "voucher-"+series+"-"+finYear(v.Date), actor)
 	if err != nil {
 		return v, err
@@ -1191,4 +1194,43 @@ func setOff(out, itc GSTLine) (pay, left GSTLine) {
 	use(&left.SGST, &pay.SGST)
 	use(&left.SGST, &pay.IGST)
 	return pay, left
+}
+
+// clientJournalRule keeps journal vouchers on client ledgers to what they
+// may do. A running account is settled only by an actual payment to the
+// client's bank account, and journal entries are used only to levy or
+// reverse charges (SEBI master circular SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/
+// 2025/90, para 48.3); no inter-client adjustment is made in settling
+// accounts (para 23.1.1(j); NSE/INSP/53820, note d). So a journal that
+// touches a client's ledger may touch only that client's ledgers (a move
+// between its own equity and commodity ledgers, segledger.go) and income,
+// expense and statutory or exchange payable accounts: never another
+// client's ledger, a bank, cash, suspense, the clearing corporation or any
+// other party's account.
+func clientJournalRule(lines []VoucherLine) error {
+	client := ""
+	var others []string
+	for _, l := range lines {
+		if u, _, ok := ledger.ClientCode(l.Account); ok {
+			if client != "" && u != client {
+				return invalid("a journal voucher cannot move money from one client's ledger to another's (%s and %s): no inter-client adjustment is allowed (SEBI master circular 2025/90, para 23.1.1(j))", client, u)
+			}
+			client = u
+			continue
+		}
+		others = append(others, l.Account)
+	}
+	if client == "" {
+		return nil
+	}
+	for _, a := range others {
+		t, _ := ledger.TypeOf(a)
+		switch {
+		case t == ledger.Income || t == ledger.Expense:
+		case strings.HasPrefix(a, "PAYABLE:") && a != PayableOFSMargin && a != PayableEIPOFunds:
+		default:
+			return invalid("a journal voucher on a client's ledger may only levy or reverse charges (income, expense, statutory or exchange dues); %s is not one. A client is paid only by a payout to the registered bank account, never by a journal (SEBI master circular 2025/90, para 48.3)", a)
+		}
+	}
+	return nil
 }

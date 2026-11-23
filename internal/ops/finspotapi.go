@@ -1049,7 +1049,7 @@ func (o *Ops) finspotAPILimits(ctx context.Context, tenant, date string) (map[st
 	out := make(map[string]FinspotAPILimit, len(lims))
 	for u, l := range lims {
 		x := FinspotAPILimit{ActID: l.ID, Cash: eq[u], Notional: l.NotionalCash}
-		if why := set.frontEndBlockWhy(cs[u]); why != "" || len(cs[u].OpenSegments()) == 0 {
+		if why := set.frontEndBlockWhy(cs[u], date); why != "" || len(cs[u].OpenSegments()) == 0 {
 			x.Cash, x.Notional, x.Why = money.Min(x.Cash, money.Dec{}), money.Dec{}, firstOf(why, "No segment active")
 		}
 		out[u] = x
@@ -1396,15 +1396,32 @@ func (p *fnPush) blocks() (FinspotAPIPart, error) {
 	stop := p.c.parallel(len(todo), func(i int) error {
 		it := todo[i]
 		act := p.cfg.ID(it.UCC)
-		name, jd, sum := "UnBlockAcct", map[string]any{"actid": act}, "unblock "+act
+		// With freeze mode a block of fresh orders is FreezeAccount, and
+		// the KYC gate's "no trading" (square-off too) is BlockAcct. A
+		// block of the other kind set before is undone first.
+		undo := func(all bool) (string, string) {
+			if freeze && !all {
+				return "DeFreezeAccount", "allow fresh orders " + act
+			}
+			return "UnBlockAcct", "unblock " + act
+		}
+		name, sum := undo(it.WasAll)
+		jd := map[string]any{"actid": act}
 		switch {
-		case it.Block && freeze:
+		case it.Block && freeze && !it.All:
 			name, sum = "FreezeAccount", "block fresh orders "+act+": "+it.Why
 			jd["type"] = "2"
 		case it.Block:
 			name, sum = "BlockAcct", "block "+act+": "+it.Why
-		case freeze:
-			name, sum = "DeFreezeAccount", "allow fresh orders "+act
+		}
+		if it.Block && it.Lift && freeze {
+			un, usum := undo(it.WasAll)
+			if _, err := p.c.req(un, it.UCC, usum, map[string]any{"actid": act}, 0); err != nil {
+				var stp *fnStop
+				if errors.As(err, &stp) {
+					return err
+				}
+			}
 		}
 		_, err := p.c.req(name, it.UCC, sum, jd, 0)
 		var stp *fnStop
