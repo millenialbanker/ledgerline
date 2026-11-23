@@ -218,6 +218,9 @@ func (o *Ops) ipoClientErr(ctx context.Context, tenant string, c Client, cat IPO
 	if d, hit := o.IsDebarredPAN(ctx, tenant, c.PAN, date); hit {
 		return fmt.Errorf("%w: %s's PAN is debarred from the securities market (%s order %s)", ErrForbidden, c.UCC, d.Regulator, d.OrderNo)
 	}
+	if err := sanctionsStop(c); err != nil {
+		return err
+	}
 	if _, _, _, err := splitDemat(dm); err != nil {
 		return err
 	}

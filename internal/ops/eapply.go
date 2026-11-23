@@ -525,8 +525,12 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 				return a, &ValidationError{[]FieldError{{"pan", "An account with this PAN already exists. Please contact us."}}}
 			}
 		}
-		if _, hit := o.IsDebarredPAN(ctx, tenant, d.PAN, now[:10]); hit {
+		if db, hit := o.IsDebarredPAN(ctx, tenant, d.PAN, now[:10]); hit {
 			o.log(ctx, tenant, "applicant", "eapply.debarred", a.ID, nil)
+			if isSanctionsList(listTypeOf(db)) {
+				// A designated person sought an account (sanctions.go).
+				o.screenApplicant(ctx, tenant, "applicant", d.Name, d.PAN, d.DOB)
+			}
 			return a, &ValidationError{[]FieldError{{"pan", "We cannot open an account for this PAN. Please contact us."}}}
 		}
 		a.PAN, a.Name, a.DOB, a.Gender, a.Father, a.Marital = d.PAN, d.Name, d.DOB, d.Gender, strings.TrimSpace(d.Father), d.Marital

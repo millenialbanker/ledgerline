@@ -185,6 +185,10 @@ type Client struct {
 	// Deceased: the KRA reported the client as deceased; debits (payouts,
 	// demat debits, orders) are blocked until transmission (deceased.go).
 	Deceased *DeceasedFlag `json:"deceased,omitempty"`
+	// Sanctions: a sanctions case holds the client (sanctions.go): a
+	// possible match being verified, or a confirmed designated person.
+	// Trading, payouts, demat debits and other transactions are stopped.
+	Sanctions *SanctionsFlag `json:"sanctions,omitempty"`
 	// KYCHolds: the client is on an exchange's or CDSL's KYC list (not
 	// validated by the KRA, not permitted to trade, KYC on hold); the KYC
 	// trading gate holds the client back while any trading list does
@@ -435,6 +439,11 @@ func (o *Ops) createApplication(ctx context.Context, tenant, actor string, c Cli
 	}
 	if d, hit := o.IsDebarredPAN(ctx, tenant, c.PAN, o.now().Format("2006-01-02")); hit {
 		o.log(ctx, tenant, actor, "onboarding.debarred", c.PAN, map[string]any{"order": d.OrderNo, "regulator": d.Regulator})
+		if isSanctionsList(listTypeOf(d)) {
+			// A designated person sought an account: a case to report
+			// (sanctions.go).
+			o.screenApplicant(ctx, tenant, actor, c.Name, c.PAN, c.DOB)
+		}
 		return Client{}, &ValidationError{[]FieldError{{"pan", "This PAN is debarred from the securities market (" + d.Regulator + " order " + d.OrderNo + "); the account cannot be opened"}}}
 	}
 	// The FATCA/CRS self-certification is part of the account opening
@@ -469,6 +478,12 @@ func (o *Ops) createApplication(ctx context.Context, tenant, actor string, c Cli
 		return Client{}, err
 	}
 	o.log(ctx, tenant, actor, "client.application.created", c.UCC, map[string]any{"pan": MaskPAN(c.PAN), "segments": c.Segments, "dp_only": c.DPOnly})
+	// Screened against the UNSC, UAPA and WMD lists (and the exchanges'
+	// defaulting clients) before it can be activated (sanctions.go).
+	o.screenNewClient(ctx, tenant, actor, c)
+	if x, err := o.Client(ctx, tenant, c.UCC); err == nil {
+		c = x
+	}
 	// A new client of an AP, for the weekly report of clients mapped to APs.
 	o.recordAPChange(ctx, tenant, actor, c, "", c.Partner, APViaOpening, true)
 	return c, nil
@@ -496,6 +511,13 @@ func (o *Ops) AdvanceStage(ctx context.Context, tenant, actor, ucc string) (Clie
 	next := Stages[i+1]
 	if next == "UCC upload" && c.DPOnly {
 		next = "Active" // no trading account, so nothing goes to the exchanges' UCC (dponly.go)
+	}
+	if next == "Active" || next == "UCC upload" {
+		// No account for a designated person: an open sanctions case stops
+		// the client going to the exchanges or being activated.
+		if err := o.sanctionsGate(ctx, tenant, c.UCC); err != nil {
+			return Client{}, err
+		}
 	}
 	if next == "Active" {
 		if err := o.require(ctx, tenant, actor, "Activating a client", RoleChecker); err != nil {

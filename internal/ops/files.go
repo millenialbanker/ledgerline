@@ -79,7 +79,7 @@ func baseSources() []masterSrc {
 		{"IPO-ALLOTMENT", "IPO allotment results from the registrar", []string{"ApplicationNo", "AllottedLots"}, false, "After allotment"},
 		{"MF-ORDERS", "Mutual fund orders from the exchange platform", []string{"OrderNo", "UCC", "Scheme", "Type", "Amount", "Platform", "Status"}, false, "Daily"},
 		{"CIRCULARS", "Circulars from SEBI, the exchanges, clearing corporations and depositories (Date YYYY-MM-DD or DD-Mon-YYYY); optional columns Department, URL, Text. Each is triaged into areas, priority and actions", []string{"Source", "Ref", "Date", "Subject"}, false, "Daily"},
-		{"DEBARRED-LIST", "SEBI / exchange debarment orders and UN sanctions lists; PAN matches are blocked, name matches raised for review", []string{"PAN", "Name", "Regulator", "OrderNo", "OrderDate", "Till"}, false, "On every new order"},
+		{"DEBARRED-LIST", "SEBI / exchange debarment orders and sanctions lists; PAN matches are blocked, name matches raised for review. The UN Security Council's consolidated list may be loaded as the UN's XML file. Optional columns: List (UNSC, UAPA, WMD, SEBI, Exchange or Defaulters; from the Regulator when blank), Regime (the UN sanctions regime, e.g. Al-Qaida or DPRK), Aliases, DOB (YYYY-MM-DD or YYYY) and Nationality (several separated by ;). Entries of the UNSC, UAPA and WMD lists are screened by name with aliases and open sanctions cases (KYC & PMLA → Sanctions)", []string{"PAN", "Name", "Regulator", "OrderNo", "OrderDate", "Till"}, false, "On every new order"},
 		{"KRA-STATUS", "KYC status from the KRA (Registered, Validated, On hold, Rejected). Optional column FATCA: Y when the client's FATCA/CRS self-certification is on record at the KRA, N when it is not (the Remarks say why)", []string{"PAN", "Status", "Remarks"}, false, "Daily"},
 		{"FATCA-CRS", "Clients' FATCA/CRS self-certifications held by the previous system or on paper, for clients who have none in Ledgerline (a client who has one keeps it: change it by change request). OtherThanIndia is Y or N (tax resident of India only); DeclaredOn is the date of the self-certification. Optional columns: PlaceOfBirth, CountryOfBirth, Nationality (ISO 3166 codes or English names), USPerson (Y or N), Country1-4 with TIN1-4, NoTINReason1-4 (A, B or C) and TINCountry1-4, SelfCertValid (Y or N), AccountStatus (CRS1201 new, CRS1202 pre-existing; from the account opening date when blank), AccountType (CRS1102 custodial when blank), Mode, AtKRA (Y when the previous system already uploaded it to the KRA). A row that repeats the UCC with CPName adds a controlling person: CPType (CRS801 to CRS813), CPPAN, CPDOB, CPCountryOfBirth, CPNationality, CPOtherThanIndia, CPCountry1, CPTIN1, CPNoTINReason1, CPSelfCertValid", []string{"UCC", "OtherThanIndia", "DeclaredOn"}, false, "Once at go-live"},
 		{"CKYC-NUMBERS", "CKYC identifiers downloaded from CERSAI", []string{"PAN", "CKYCNumber"}, false, "On response"},
@@ -129,6 +129,14 @@ func (o *Ops) LoadFile(ctx context.Context, tenant, actor, source, date, name st
 		return ingest.Result{}, err
 	}
 	res := ingest.Result{File: rf, Adapter: source + "@1.0", Errors: []ingest.ParseError{}}
+	if source == "DEBARRED-LIST" && looksXML(data) {
+		// The UN Security Council's consolidated list as the UN publishes
+		// it (XML) loads as the UNSC list (sanctions.go).
+		l, err := o.LoadSanctionsList(ctx, tenant, actor, ListUNSC, "", name, data)
+		res.Adapter, res.Parsed, res.Added = "UN-XML", l.Version.Entries, l.Version.Added
+		res.DuplicateRows = l.Version.Entries - l.Version.Added
+		return res, err
+	}
 	parsed, apply, errs, warns := o.checkRows(ctx, tenant, actor, spec, date, data, false)
 	res.Errors, res.Warnings = append(res.Errors, errs...), warns
 	logDetail := map[string]any{"source": source, "name": name, "parsed": parsed, "row_errors": len(res.Errors)}
