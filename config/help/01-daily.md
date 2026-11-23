@@ -341,7 +341,7 @@ title: Client funds and collateral report (SEGMON): check, download, response
 screen: xfiles
 roles: Ops maker, Ops checker, Risk manager, Compliance officer
 ask: segmon; segmon check; client funds report; 65 column file; peak ledger balance; peak clear balance; credit in lieu of epi; cash placed with ncl; mtf indicator; non mtf; uncleared receipts; settlement amount column; segmon error file; segmon response; segmon rejected; segregation and monitoring of collateral
-related: exchange-files, client-collateral, holding-api
+related: exchange-files, client-collateral, holding-api, retained-funds
 
 On [[xfiles|Exchange files]], under **Sent**, choose the date and **Download** on *Client funds and collateral report*. Ledgerline first runs the **SEGMON check** and shows its errors and warnings; the file is made only when there are no errors.
 
@@ -354,6 +354,9 @@ What Ledgerline reports for each client (one line per segment with an allocation
 - **MTF**: a client with margin trading has a second cash-segment line marked **MTF** with the margin trading ledger; the client's cash margin on open MTF positions is in **Cash collateral for MTF positions** and in the **NON MTF** line's balances, not in the MTF line.
 - **Settlement amount**: funds paid out in the running account settlement, in the file of the working day after the settlement date.
 - Bank guarantees, fixed deposits, commodities and other collateral are zero: clients do not give them to the firm in Ledgerline.
+- **Offer-for-sale margin** with NSE Clearing at the end of the day is the client's cash placed with NSE Clearing (column 46), and is in the client's balances (NCL/CMPL/64088).
+- **Unidentified receipts** are on a line of their own under **SUSPE1234N**, with the firm's PAN as the client PAN.
+- **Money kept back** from the clearing corporation is on a line per reason code (RC01 to RC09) with the client fields blank; see *Client money kept back*.
 
 The check stops the file for: a missing or malformed PAN (firm, clearing member or client; shown masked), a client twice for the same segment and indicator, collateral received not equal to retained plus placed (or placed with the clearing member not equal to retained by it plus placed with NSE Clearing), a peak below the clear balance, totals that do not agree with the client ledgers or the day's allocation, and a client with a balance left out. It warns when cash allocated is more than the client's clear credit.
 

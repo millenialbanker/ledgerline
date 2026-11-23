@@ -154,6 +154,40 @@ var MoneyPurposes = []MoneyPurpose{
 	{"own_in", "Own funds into a client money account", mvFromOwn, []string{BankOwn}, clientKinds, false, "Client bank debited, own bank credited"},
 }
 
+// WithdrawReason is a purpose for which client funds may be taken back
+// from the clearing corporation, and the kind of account they go to.
+type WithdrawReason struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	To   string `json:"to"`
+}
+
+// WithdrawReasons are the only purposes for which client funds may be
+// withdrawn from the clearing corporation (SEBI/HO/MIRSD/MIRSD-PoD-1/P/CIR/
+// 2023/84 of 8 June 2023, para 3.C.IX, forwarded by NSE/INSP/57041): (a)
+// to (f) are the client's dues, met through the settlement account, from
+// where brokerage and charges go to the own account as usual; (g) and (h)
+// are paid to clients, so they come back only to the DSCNBA.
+var WithdrawReasons = []WithdrawReason{
+	{"unpaid", "(a) The client's unpaid securities or MTF obligation", BankSettlement},
+	{"losses", "(b) Losses on selling the client's unpaid securities", BankSettlement},
+	{"penalties", "(c) Penalties", BankSettlement},
+	{"statutory", "(d) Statutory levies: STT, stamp duty, SEBI turnover fee", BankSettlement},
+	{"brokerage", "(e) Brokerage, exchange transaction charges included", BankSettlement},
+	{"charges", "(f) Other charges, such as DP charges", BankSettlement},
+	{"regulatory", "(g) Amounts due to clients by regulation, such as running account settlement", BankDSCNBA},
+	{"withdrawal", "(h) Clients' withdrawal requests", BankDSCNBA},
+}
+
+func withdrawReason(id string) (WithdrawReason, bool) {
+	for _, r := range WithdrawReasons {
+		if r.ID == id {
+			return r, true
+		}
+	}
+	return WithdrawReason{}, false
+}
+
 func moneyPurpose(id string) (MoneyPurpose, bool) {
 	for _, p := range MoneyPurposes {
 		if p.ID == id {
@@ -166,12 +200,15 @@ func moneyPurpose(id string) (MoneyPurpose, bool) {
 // FirmTransfer is money moved between the firm's accounts, as a maker
 // recorded it and a checker approved it.
 type FirmTransfer struct {
-	ID        string       `json:"id"`
-	Date      string       `json:"date"`
-	Purpose   string       `json:"purpose"`
-	From      string       `json:"from"` // a register account (FB-01), or CC for the clearing corporation
-	To        string       `json:"to"`
-	Segment   string       `json:"segment,omitempty"` // NSE-CM …, for a pay-in or pay-out
+	ID      string `json:"id"`
+	Date    string `json:"date"`
+	Purpose string `json:"purpose"`
+	From    string `json:"from"` // a register account (FB-01), or CC for the clearing corporation
+	To      string `json:"to"`
+	Segment string `json:"segment,omitempty"` // NSE-CM …, for a pay-in or pay-out
+	// Withdraw is why client funds were taken back from the clearing
+	// corporation (WithdrawReasons), for a release.
+	Withdraw  string       `json:"withdraw,omitempty"`
 	Amount    money.Amount `json:"amount"`
 	Ref       string       `json:"ref"` // the bank's reference (UTR)
 	Note      string       `json:"note,omitempty"`
@@ -241,6 +278,18 @@ func (o *Ops) RecordFirmTransfer(ctx context.Context, tenant, actor string, t Fi
 		return t, invalid("the amount must be above zero")
 	case t.Ref == "":
 		return t, invalid("give the bank's reference (UTR) of the transfer")
+	}
+	t.Withdraw = strings.TrimSpace(t.Withdraw)
+	if t.Purpose == "release" {
+		w, ok := withdrawReason(t.Withdraw)
+		switch {
+		case !ok:
+			return t, invalid("say why the funds were taken back from the clearing corporation: client funds may be withdrawn only for the purposes SEBI lists (SEBI/HO/MIRSD/MIRSD-PoD-1/P/CIR/2023/84, para 3.C.IX)")
+		case tk != w.To:
+			return t, invalid("funds withdrawn for %s come back to a %s, not a %s", strings.ToLower(strings.TrimSpace(w.Name[3:])), w.To, tk)
+		}
+	} else {
+		t.Withdraw = ""
 	}
 	if p.Segment {
 		if _, ok := clearingSeg(t.Segment); !ok {
@@ -722,6 +771,9 @@ func (m *moneyCtx) transferMove(t FirmTransfer, entry string) MoneyMove {
 	if t.Segment != "" {
 		mv.Purpose += " (" + t.Segment + ")"
 	}
+	if w, ok := withdrawReason(t.Withdraw); ok {
+		mv.Purpose += ": " + w.Name
+	}
 	return mv
 }
 
@@ -952,8 +1004,80 @@ func (o *Ops) buildMoneyRecon(ctx context.Context, tenant, date string) (MoneyRe
 		r.Accounts = append(r.Accounts, a)
 	}
 	o.moneyFlags(m, &r)
+	o.moneyNilFlags(ctx, tenant, &r)
 	r.Hash = moneyHash(r)
 	return r, nil
+}
+
+// moneyNilFlags flags client money accounts that end the day with money
+// no stipulated reason keeps there. Client funds are upstreamed every day
+// and none kept overnight (SEBI/HO/MIRSD/MIRSD-PoD-1/P/CIR/2023/84 para 3,
+// NSE/INSP/57041): what the USCNBA and settlement accounts hold at the end
+// of the day is nil but for money received after the cut-off, FDRs and
+// MFOS in transit, OFS refunds and a bank's failure; the DSCNBA's is nil
+// but for payouts in the bank's hands, uncleared cheques and running
+// account settlement days (NCL/CMPL/61186; NSE/INSP/73976 Exhibit 29).
+// The DSCNBA's own flag (moneyFlags) stays for the settlement-day rule.
+func (o *Ops) moneyNilFlags(ctx context.Context, tenant string, r *MoneyRecon) {
+	if r.Register == 0 {
+		return
+	}
+	var rr *RetentionReport
+	kept := map[string]money.Dec{}
+	for _, a := range r.Accounts {
+		if a.Kind != BankUSCNBA && a.Kind != BankSettlement && a.Kind != BankDSCNBA {
+			continue
+		}
+		bal := a.Closing.Dec()
+		if a.Statement != "" {
+			if sb, err := money.ParseDec(a.Statement); err == nil {
+				bal = sb
+			}
+		}
+		if bal.Sign() <= 0 {
+			continue
+		}
+		if rr == nil {
+			x, err := o.retentionReport(ctx, tenant, r.Date, nil, nil)
+			if err != nil {
+				return
+			}
+			rr = &x
+		}
+		group := a.Kind
+		if group == BankSettlement {
+			group = BankUSCNBA
+		}
+		kept[group] = kept[group].Add(bal)
+	}
+	// A DSCNBA balance the stipulated reasons explain (payouts with the
+	// bank, uncleared cheques) is not a balance left over.
+	if bal := kept[BankDSCNBA]; bal.Sign() > 0 && bal.Cmp(rr.justifiedIn(BankDSCNBA)) <= 0 {
+		fs := r.Flags[:0]
+		for _, f := range r.Flags {
+			if f.Kind != "dscnba_balance" || !strings.Contains(f.Text, "not a running account settlement day") {
+				fs = append(fs, f)
+			}
+		}
+		r.Flags = fs
+	}
+	for _, k := range []string{BankUSCNBA, BankDSCNBA} {
+		bal := kept[k]
+		if bal.Sign() <= 0 {
+			continue
+		}
+		ok := rr.justifiedIn(k)
+		over := bal.Sub(ok)
+		if over.Round(money.UnitPaisa) <= 0 {
+			continue
+		}
+		what := "The USCNBA and settlement accounts end"
+		if k == BankDSCNBA {
+			continue // moneyFlags' dscnba_balance flag says it (below)
+		}
+		r.Flags = append(r.Flags, MoneyFlag{Kind: "not_upstreamed", Text: fmt.Sprintf("%s the day with ₹%s; the stipulated reasons recorded for the day explain ₹%s, so ₹%s was not upstreamed", what, formatINR(bal), formatINR(ok), formatINR(over)),
+			Rule: "Client funds are upstreamed to the clearing corporation every day; money is kept only for NSE Clearing's stipulated reasons RC01 to RC08, reported in SEGMON (SEBI/HO/MIRSD/MIRSD-PoD-1/P/CIR/2023/84 para 3; NCL/CMPL/61186)", Amount: over.Round(money.UnitPaisa)})
+	}
 }
 
 func indexOf(xs []string, x string) int {

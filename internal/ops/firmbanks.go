@@ -85,8 +85,37 @@ type FirmBank struct {
 	// MCX-COM …; empty is all of them.
 	Serves []string `json:"serves"`
 	// Reported: reported to the exchanges as a client bank account under
-	// enhanced supervision (a DSCNBA must be, to pay clients from it).
+	// enhanced supervision (a DSCNBA must be, to pay clients from it). It
+	// is set by itself once ReportedOn has every exchange the firm trades
+	// on; an account ticked before the dates were kept stays ticked.
 	Reported bool `json:"reported,omitempty"`
+	// OpenedOn is the day the bank opened the account. A new account is
+	// reported to each exchange within 7 working days of opening, and a
+	// closed one within 7 working days of closing (SEBI master circular
+	// 2025/90 para 15.4.3 as amended by SEBI HO/38/11/(1)2026-MIRSD-POD/I/
+	// 7656/2026 of 23 March 2026, NSE/INSP/73436; NSE inspection master
+	// circular NSE/INSP/73976 item 8.2). ReportedOn and ClosureReportedOn
+	// are the days it was reported, by exchange (NSE, BSE, MCX …).
+	OpenedOn          string            `json:"opened_on,omitempty"`
+	ReportedOn        map[string]string `json:"reported_on,omitempty"`
+	ClosureReportedOn map[string]string `json:"closure_reported_on,omitempty"`
+	// UndertakingOn is the day the bank's undertaking addendum for the
+	// account (the exchange's authority to obtain its statements) was
+	// submitted: within 7 working days of opening a client bank account
+	// (NSE/INSP/77149, circular 52/2026, Annexure A).
+	UndertakingOn string `json:"undertaking_on,omitempty"`
+	// UPIID is the firm's validated @valid UPI ID linked to the account:
+	// every account whose number is given to investors for payment is
+	// linked to one, so it can be verified through SEBI Check
+	// (NSE/COMP/75700, circular 73/2026). A USCNBA always is such an
+	// account; InvestorFacing marks any other.
+	UPIID          string `json:"upi_id,omitempty"`
+	InvestorFacing bool   `json:"investor_facing,omitempty"`
+	// Overdraft: an overdraft, cash credit or loan-against-securities
+	// account. Its balance is never client money and is left out of the
+	// client funds check (NSE/INSP/73976 Exhibit 34); a USCNBA, DSCNBA or
+	// settlement account cannot be one.
+	Overdraft bool `json:"overdraft,omitempty"`
 	// Opening is the balance on OpeningOn, the day before Ledgerline's
 	// records of the account start; the reconciliation's book balances run
 	// from it.
@@ -211,6 +240,10 @@ type FirmBankView struct {
 	CCs      map[string]string    `json:"ccs"`
 	Warnings []string             `json:"warnings"`
 	CanEdit  bool                 `json:"can_edit"`
+	// Exchanges are those each account is reported to; Reports what is
+	// still to report or record, with its due date (firmbankrules.go).
+	Exchanges []string         `json:"exchanges"`
+	Reports   []BankReportItem `json:"reports"`
 }
 
 // FirmBanks is the register with what Settings name and what is missing.
@@ -229,6 +262,14 @@ func (o *Ops) FirmBanks(ctx context.Context, tenant, actor string) (FirmBankView
 	}
 	v.Suggest = o.firmBankSuggestions(ctx, tenant, set, bs)
 	v.CanEdit = o.require(ctx, tenant, actor, "Changing the firm's bank accounts", RoleCompliance) == nil
+	v.Exchanges, v.Reports = o.reportingExchanges(ctx, tenant), []BankReportItem{}
+	for _, b := range bs {
+		for _, it := range bankReportItems(set, v.Exchanges, b) {
+			if it.Done == "" {
+				v.Reports = append(v.Reports, it)
+			}
+		}
+	}
 	has := map[string]int{}
 	for _, b := range bs {
 		if b.Active {
@@ -246,6 +287,7 @@ func (o *Ops) FirmBanks(ctx context.Context, tenant, actor string) (FirmBankView
 				v.Warnings = append(v.Warnings, fmt.Sprintf("%s is not marked as reported to the exchanges: clients may be paid only from an account reported under enhanced supervision (NSE/INSP/56148).", b.Label()))
 			}
 		}
+		v.Warnings = append(v.Warnings, o.firmBankProblems(ctx, tenant, set, bs, o.now().In(ist).Format("2006-01-02"))...)
 	}
 	if has[BankUSCNBA]+has[BankDSCNBA] > 30 {
 		v.Warnings = append(v.Warnings, "More than 30 USCNBA and DSCNBA accounts: NSE allows at most 30 together (NSE/INSP/57959, FAQ 23).")
@@ -356,6 +398,37 @@ func (o *Ops) SaveFirmBank(ctx context.Context, tenant, actor string, req FirmBa
 		return b, invalid("the opening balance date is YYYY-MM-DD")
 	case b.ClosedOn != "" && !validDate(b.ClosedOn):
 		return b, invalid("the closing date is YYYY-MM-DD")
+	case b.OpenedOn != "" && !validDate(b.OpenedOn):
+		return b, invalid("the date the account was opened is YYYY-MM-DD")
+	case b.UndertakingOn != "" && !validDate(b.UndertakingOn):
+		return b, invalid("the date the bank undertaking was submitted is YYYY-MM-DD")
+	case b.Overdraft && clientMoneyKind(b.Kind):
+		return b, invalid("a %s holds client money: it cannot be an overdraft, cash credit or loan-against-securities account", b.Kind)
+	}
+	if b.Kind == BankCC {
+		b.OpenedOn, b.ReportedOn, b.ClosureReportedOn, b.UndertakingOn, b.UPIID, b.InvestorFacing = "", nil, nil, "", "", false
+	}
+	if why, hard := bankNameCheck(o.firmSettings(ctx, tenant), b); hard {
+		return b, invalid("%s", why)
+	}
+	b.UPIID = normVPA(b.UPIID)
+	if b.UPIID != "" && !reValidUPI.MatchString(b.UPIID) {
+		return b, invalid("%s is not a validated UPI ID: the username, the category (.brk for broking money) and @valid with the bank's name, like abc.brk@validhdfc", b.UPIID)
+	}
+	for _, m := range []map[string]string{b.ReportedOn, b.ClosureReportedOn} {
+		for x, d := range m {
+			if d != "" && !validDate(d) {
+				return b, invalid("the date the account was reported to %s is YYYY-MM-DD", x)
+			}
+		}
+	}
+	b.ReportedOn, b.ClosureReportedOn = cleanDateMap(b.ReportedOn), cleanDateMap(b.ClosureReportedOn)
+	if exs := o.reportingExchanges(ctx, tenant); len(exs) > 0 && b.Kind != BankCC {
+		all := true
+		for _, x := range exs {
+			all = all && b.ReportedOn[x] != ""
+		}
+		b.Reported = b.Reported || all
 	}
 	if b.Kind != BankCC {
 		b.CC = ""
@@ -401,7 +474,8 @@ func (o *Ops) SaveFirmBank(ctx context.Context, tenant, actor string, req FirmBa
 	if err := docs.Upsert(ctx, o.Docs, tenant, cFirmBank, b.ID, b, actor); err != nil {
 		return b, err
 	}
-	o.log(ctx, tenant, actor, "firmbank.saved", b.ID, map[string]any{"kind": b.Kind, "bank": b.Bank, "account": MaskAccount(b.Account), "serves": b.Serves, "active": b.Active, "reported": b.Reported})
+	o.log(ctx, tenant, actor, "firmbank.saved", b.ID, map[string]any{"kind": b.Kind, "bank": b.Bank, "account": MaskAccount(b.Account), "serves": b.Serves, "active": b.Active, "reported": b.Reported,
+		"opened_on": b.OpenedOn, "reported_on": b.ReportedOn, "closure_reported_on": b.ClosureReportedOn, "undertaking_on": b.UndertakingOn, "upi_id": b.UPIID, "overdraft": b.Overdraft})
 	return b.Public(), nil
 }
 

@@ -94,7 +94,7 @@ const (
 var siTests = []SITest{
 	{ID: "funds_segregation", Title: "Client money fully covered", Area: "Money", Severity: "high", Owner: RoleChecker,
 		Source: "SEBI/HO/MIRSD/MIRSD2/CIR/P/2016/95 of 26 Sep 2016 (enhanced supervision), para 3.3.1",
-		Checks: "The segregation check (bank.go Funds): the client bank account and money with the clearing corporation, less unmatched credits, against the clients' credit balances, netting each client's ledgers.",
+		Checks: "The segregation check (bank.go Funds): the client bank account and money with the clearing corporation, less unmatched credits, against the clients' credit balances, netting each client's ledgers. With the firm's bank accounts named, the client bank accounts count only as far as the stipulated reasons for keeping money explain them, and no client account may be an overdraft or loan account (NSE/INSP/73976, Exhibit 34).",
 		Fix:    "Reconcile the client bank account and the clearing corporation balance; bring in the shortfall from the firm's own funds; find any client money used for the firm or another client.",
 		Screen: "ledger", ScreenName: "Accounts → Ledger", Real: true, run: siFunds},
 	{ID: "ras_settlement", Title: "Running accounts settled on each client's chosen date", Area: "Money", Severity: "high", Owner: RoleChecker,
@@ -296,9 +296,9 @@ var siTests = []SITest{
 		Fix:       "Get each client's own mobile and e-mail (change request), or record the family declaration on the client's UCC details.",
 		Screen:    "clients", ScreenName: "Clients & onboarding → Clients", Real: true, run: siSharedContacts},
 	{ID: "payout_one_day", Title: "Funds paid out within one working day of the client's request", Area: "Money", Severity: "high", Owner: RoleChecker,
-		Source:    "SEBI/MIRSD/SE/Cir-19/2009 of 3 Dec 2009 (funds paid to the client within one working day); NSE/INSP/73503 (9/2026), Annexure A-B items 23 and 13 (client funds not settled; evidence of payout requests)",
+		Source:    "SEBI/MIRSD/SE/Cir-19/2009 of 3 Dec 2009 (funds paid to the client within one working day); SEBI master circular SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90, para 97.4 (withdrawal requests processed by the next settlement day at the latest) and paras 15.10.1.4-15.10.1.6 (a cheque only when the electronic transfer fails; its date of credit is the settlement date); NSE/INSP/73503 (9/2026), Annexure A-B items 23 and 13 (client funds not settled; evidence of payout requests)",
 		ToConfirm: "The circular sets one working day from the pay-out; Ledgerline applies it to each payout request from the day it is made.",
-		Checks:    "Payout requests of the last 30 days (not rejected or cancelled): paid in a batch by the next working day.",
+		Checks:    "Payout requests of the last 30 days (not rejected or cancelled): paid in a batch by the next working day; a transfer that failed is not paid, and a cheque counts from the day it was credited.",
 		Fix:       "Pay the request on Receipts & payouts, or reject it with the reason (insufficient free balance) and tell the client.",
 		Screen:    "money", ScreenName: "Receipts & payouts", Real: true, run: siPayoutOneDay},
 	{ID: "margin_statements", Title: "Daily margin statements sent by the next trading day", Area: "Clients", Severity: "medium", Owner: RoleMaker,
@@ -335,6 +335,30 @@ func siFunds(e *siEnv) (siOut, error) {
 		formatINR(held), formatINR(f.ClientBank), formatINR(f.WithCC), formatINR(f.Suspense), formatINR(f.ClientCredits), f.Cover)
 	if !f.OK {
 		s.bad(fmt.Sprintf("Short by ₹%s on %s", formatINR(f.ClientCredits.Sub(held)), fmtDay(e.date)))
+		return s, nil
+	}
+	// With the firm's bank accounts named, the exchange's daily check (NSE/
+	// INSP/73976 Exhibit 34) counts the client bank accounts only as far as
+	// the stipulated reasons for keeping money there explain them, never an
+	// overdraft or loan account, nor client-fund FDRs the firm still holds.
+	if reg := e.o.firmBanks(e.ctx, e.tenant); len(reg) > 0 {
+		s.input("Retained funds by reason", e.date)
+		rr, err := e.o.retentionReport(e.ctx, e.tenant, e.date, nil, nil)
+		if err != nil {
+			return s, err
+		}
+		for _, b := range reg {
+			if b.Overdraft && clientMoneyKind(b.Kind) {
+				s.bad(b.Label() + ": an overdraft or loan account is not client money and is left out of the check")
+			}
+		}
+		ok := rr.justifiedIn(BankUSCNBA).Add(rr.justifiedIn(BankDSCNBA)).Sub(rr.byCode("RC02")).Sub(rr.byCode("RC03"))
+		bank := money.Min(money.Max(f.ClientBank.Sub(f.Suspense), money.Dec{}), money.Max(ok, money.Dec{}))
+		g := bank.Add(f.WithCC)
+		s.summary += fmt.Sprintf(" Counting the client bank accounts only as far as the stipulated reasons explain them (₹%s of ₹%s): ₹%s held.", formatINR(bank), formatINR(f.ClientBank.Sub(f.Suspense)), formatINR(g))
+		if g.Cmp(f.ClientCredits) < 0 {
+			s.bad(fmt.Sprintf("Short by ₹%s on %s once money kept in the client bank accounts without a stipulated reason is left out", formatINR(f.ClientCredits.Sub(g)), fmtDay(e.date)))
+		}
 	}
 	return s, nil
 }

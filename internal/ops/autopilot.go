@@ -105,6 +105,7 @@ var AutoDefs = []AutoDef{
 	{"compliance", "Compliance", "Circulars and compliance calendar", "Queues circular actions and calendar obligations due within seven days for their owners, and new circulars for review.", "bod", ModeAuto, "", ModeAuto, nil, 15},
 	{"deposits", "Accounts", "Clearing deposits", "Queues fixed deposits and bank guarantees with the clearing corporations that mature or expire within 30 days, deposits without a lien, and any clearing corporation below its base capital or with less than half in cash equivalents.", "bod", ModeAuto, "", ModeAuto, nil, 10},
 	{"ras", "Money", "Running account settlement", "On the settlement dates, settles running accounts and sends the payouts.", "eod", ModeAuto, "", ModeAuto, nil, 60},
+	{"client_money", "Money", "Client money rules", "Queues the firm's bank accounts to report to the exchanges (opening or closure, within 7 working days) and their bank undertakings, investor-facing accounts without an @valid UPI ID, and cheques to clients not cleared within five settlement days, whose funds are upstreamed on the sixth.", "bod", ModeAuto, "", ModeAuto, nil, 10},
 }
 
 // HumanOnly lists what stays with people, and why.
@@ -468,7 +469,7 @@ func init() {
 		"inactive": autoInactive, "service": autoService, "leads": autoLeads, "day_close": autoDayClose, "commodity_close": autoCommodityClose, "monthly": autoMonthly, "ras": autoRAS, "interest_daily": autoInterestDaily,
 		"ins_tax_harvest": autoTaxHarvest, "ins_buyback": autoBuyBack, "ins_fo_expiry": autoFOExpiry, "ins_advance_tax": autoAdvanceTax,
 		"ins_corp_action": autoCorpAction, "ins_idle_funds": autoIdleFunds, "ins_pledge_margin": autoPledgeMargin, "ins_dormant": autoDormant,
-		"ins_outcomes": autoInsightOutcomes, "compliance": autoCompliance, "deposits": autoDeposits,
+		"ins_outcomes": autoInsightOutcomes, "compliance": autoCompliance, "deposits": autoDeposits, "client_money": autoClientMoney,
 	}
 }
 

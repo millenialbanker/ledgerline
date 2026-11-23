@@ -352,7 +352,14 @@ func siPayoutOneDay(e *siEnv) (siOut, error) {
 		}
 		due := e.set.NextBusinessDay(p.Date)
 		s.checked++
-		switch on := paidOn[p.Batch]; {
+		on := paidOn[p.Batch]
+		switch {
+		case p.SettledOn != "":
+			on = p.SettledOn // a cheque: the day it was credited (payoutcheque.go)
+		case p.Status == "Failed" || p.Status == "Cheque issued":
+			on = "" // the transfer failed: not paid yet
+		}
+		switch {
 		case on != "" && on > due:
 			s.bad(fmt.Sprintf("Payout %s · %s · ₹%s asked on %s, paid on %s (due by %s)", p.ID, siClient(p.UCC), formatINR(p.Amount.Dec()), fmtDay(p.Date), fmtDay(on), fmtDay(due)))
 		case on == "" && due < e.date && p.Status != "Paid":
