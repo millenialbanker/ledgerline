@@ -94,7 +94,7 @@ const (
 var siTests = []SITest{
 	{ID: "funds_segregation", Title: "Client money fully covered", Area: "Money", Severity: "high", Owner: RoleChecker,
 		Source: "SEBI/HO/MIRSD/MIRSD2/CIR/P/2016/95 of 26 Sep 2016 (enhanced supervision), para 3.3.1",
-		Checks: "The segregation check (bank.go Funds): the client bank account and money with the clearing corporation, less unmatched credits, against the clients' credit balances, netting each client's ledgers.",
+		Checks: "The segregation check (bank.go Funds): the client bank account and money with the clearing corporation, less unmatched credits, against the clients' credit balances, netting each client's ledgers. With the firm's bank accounts named, the client bank accounts count only as far as the stipulated reasons for keeping money explain them, and no client account may be an overdraft or loan account (NSE/INSP/73976, Exhibit 34).",
 		Fix:    "Reconcile the client bank account and the clearing corporation balance; bring in the shortfall from the firm's own funds; find any client money used for the firm or another client.",
 		Screen: "ledger", ScreenName: "Accounts → Ledger", Real: true, run: siFunds},
 	{ID: "ras_settlement", Title: "Running accounts settled on each client's chosen date", Area: "Money", Severity: "high", Owner: RoleChecker,
@@ -188,9 +188,9 @@ var siTests = []SITest{
 		Fix:    "Decide each alert on Surveillance & AML with the evidence; record the reason for the delay; file an STR where the principal officer decides one is due.",
 		Screen: "surv", ScreenName: "Compliance → Surveillance & AML", Real: true, run: siAlerts},
 	{ID: "holding_statement", Title: "Holding statement sent to the exchange each day", Area: "Compliance", Severity: "high", Owner: RoleCompliance,
-		Source: "NSE/INSP/55039 of 28 Dec 2022; NCL/INSP/60046 of 29 Dec 2023 (T+1, nil declaration); BSE notice 20230113-13; NSE/INSP/70505",
-		Checks: "Each data day of the last week (not Sundays): accepted by NSE's API, or the upload recorded with NSE's acknowledgement (BSE's BEFS for a BSE-only member).",
-		Fix:    "Submit the day on Exchange files (holding statement), oldest first, and record the acknowledgement on Regulatory reports.",
+		Source: "NSE/INSP/55039 of 28 Dec 2022 (daily except Sunday); NSE/INSP/55380 (corrections: the whole day again); NSE/INSP/60046 of 29 Dec 2023 (T+1, one-time NIL Holding declaration, bulk nil report before resuming); BSE notice 20230113-13; NSE/INSP/70505; special session circulars (e.g. Muhurat on a Sunday)",
+		Checks: "Each data day of the last week (not Sundays, except special sessions): accepted by NSE's API, the upload recorded with NSE's acknowledgement (BSE's BEFS for a BSE-only member), or, when nothing was held, covered by the NIL Holding declaration or the bulk nil report.",
+		Fix:    "Submit the day on Exchange files (holding statement), oldest first, and record the acknowledgement on Regulatory reports; for a nil day, make the NIL Holding declaration on NSE's portal and record it on Exchange files.",
 		Screen: "xfiles", ScreenName: "Files → Exchange files", Real: true, run: siHolding},
 	{ID: "segmon", Title: "Client collateral (SEGMON) reported each day", Area: "Compliance", Severity: "high", Owner: RoleChecker,
 		Source:    "SEBI/HO/MRD2_DCAP/CIR/2021/0598 of 20 Jul 2021 (segregation and monitoring of collateral at client level)",
@@ -267,9 +267,9 @@ var siTests = []SITest{
 		Screen:    "helpdesk", ScreenName: "Compliance → Investor complaints", Real: true, run: siImpReports},
 	// From the penalty audit (selfinspect_more.go, firmdemats.go).
 	{ID: "holding_account_types", Title: "Firm's demat accounts tagged and in the holding statement with their type", Area: "Compliance", Severity: "high", Owner: RoleCompliance,
-		Source:    "NSE/INSP/55039 of 28 Dec 2022 and NSE/INSP/55380 (holding statement account types: POOL, CM COLL, OWN, EPI, CLNTBENEMTF, TMCOLL, TMCOLL-MTF, CLNT UNPAID, CLNT COLL, MRGN PLEDGE, MTF PLEDGE, CLNTBENE); NSE/INSP/65693 of 19 Dec 2024 (incorrect holding statements); SEBI adjudication order against Axis Securities of 21 Feb 2025 (holdings left out of the holding statement)",
-		ToConfirm: "Ledgerline's holding statement does not yet report the firm's own accounts with their types (that waits for how the old system reported them): until it does, a tagged account with holdings fails this test.",
-		Checks:    "The demat accounts in CDSL's last statement of holding that belong to no client: each tagged with its holding statement account type; and each tagged account that holds securities reported in the holding statement under its type.",
+		Source:    "NSE/INSP/55039 of 28 Dec 2022 and NSE/INSP/55380 (holding statement account types, as the API specification NSE/INSP/55380 Annexure A spells them: POOL, CM COLL, OWN, EPI, CLNTBENEMTF, TMCOLL, TMCOLL-MTF, CLNT UNPAID, CLNT COLL, MRGN PLEDGE, MTF PLEDGE, CLNTBENE; security types EQ, MF, BOND, DEBT, PREF, IDR, WT, COMM); NSE FAQs on margin collection (Exhibit 17 of the master circular: margin-pledged securities not reported, invoked securities and the POOL, EPI, CUSPA and OWN accounts reported); NSE/INSP/65693 of 19 Dec 2024 (incorrect holding statements); SEBI adjudication order against Axis Securities of 21 Feb 2025 (holdings left out of the holding statement)",
+		ToConfirm: "The API specification (NSE/INSP/55380 Annexure A) prints CLNTBENEMTF where the master circular prints CLNTBENE-MTF: Ledgerline sends the API specification's spelling, which the API validates against (ask NSE if an MTF account is rejected with code 902). REIT and InvIT units have no type of their own in NSE's list and go as EQ.",
+		Checks:    "The demat accounts in CDSL's last statement of holding that belong to no client: each tagged with its holding statement account type; each tagged account that holds securities reported under its type; no client's own account tagged as anything but OWN (its pledged balance would be margin collateral, which is not reported); and every ISIN's security type taken from CDSL's ISIN master.",
 		Fix:       "Tag each of the firm's demat accounts in Settings → Firm demat accounts (or link a client's account to the client); report the holdings of tagged accounts in the holding statement.",
 		Screen:    "settings", ScreenName: "Settings → Settings (Firm demat accounts)", Real: true, run: siHoldingTypes},
 	{ID: "dealer_terminals", Title: "Trades only from registered terminals, by NISM-certified dealers", Area: "Operations", Severity: "high", Owner: RoleCompliance,
@@ -296,9 +296,9 @@ var siTests = []SITest{
 		Fix:       "Get each client's own mobile and e-mail (change request), or record the family declaration on the client's UCC details.",
 		Screen:    "clients", ScreenName: "Clients & onboarding → Clients", Real: true, run: siSharedContacts},
 	{ID: "payout_one_day", Title: "Funds paid out within one working day of the client's request", Area: "Money", Severity: "high", Owner: RoleChecker,
-		Source:    "SEBI/MIRSD/SE/Cir-19/2009 of 3 Dec 2009 (funds paid to the client within one working day); NSE/INSP/73503 (9/2026), Annexure A-B items 23 and 13 (client funds not settled; evidence of payout requests)",
+		Source:    "SEBI/MIRSD/SE/Cir-19/2009 of 3 Dec 2009 (funds paid to the client within one working day); SEBI master circular SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90, para 97.4 (withdrawal requests processed by the next settlement day at the latest) and paras 15.10.1.4-15.10.1.6 (a cheque only when the electronic transfer fails; its date of credit is the settlement date); NSE/INSP/73503 (9/2026), Annexure A-B items 23 and 13 (client funds not settled; evidence of payout requests)",
 		ToConfirm: "The circular sets one working day from the pay-out; Ledgerline applies it to each payout request from the day it is made.",
-		Checks:    "Payout requests of the last 30 days (not rejected or cancelled): paid in a batch by the next working day.",
+		Checks:    "Payout requests of the last 30 days (not rejected or cancelled): paid in a batch by the next working day; a transfer that failed is not paid, and a cheque counts from the day it was credited.",
 		Fix:       "Pay the request on Receipts & payouts, or reject it with the reason (insufficient free balance) and tell the client.",
 		Screen:    "money", ScreenName: "Receipts & payouts", Real: true, run: siPayoutOneDay},
 	{ID: "margin_statements", Title: "Daily margin statements sent by the next trading day", Area: "Clients", Severity: "medium", Owner: RoleMaker,
@@ -359,6 +359,30 @@ func siFunds(e *siEnv) (siOut, error) {
 		formatINR(held), formatINR(f.ClientBank), formatINR(f.WithCC), formatINR(f.Suspense), formatINR(f.ClientCredits), f.Cover)
 	if !f.OK {
 		s.bad(fmt.Sprintf("Short by ₹%s on %s", formatINR(f.ClientCredits.Sub(held)), fmtDay(e.date)))
+		return s, nil
+	}
+	// With the firm's bank accounts named, the exchange's daily check (NSE/
+	// INSP/73976 Exhibit 34) counts the client bank accounts only as far as
+	// the stipulated reasons for keeping money there explain them, never an
+	// overdraft or loan account, nor client-fund FDRs the firm still holds.
+	if reg := e.o.firmBanks(e.ctx, e.tenant); len(reg) > 0 {
+		s.input("Retained funds by reason", e.date)
+		rr, err := e.o.retentionReport(e.ctx, e.tenant, e.date, nil, nil)
+		if err != nil {
+			return s, err
+		}
+		for _, b := range reg {
+			if b.Overdraft && clientMoneyKind(b.Kind) {
+				s.bad(b.Label() + ": an overdraft or loan account is not client money and is left out of the check")
+			}
+		}
+		ok := rr.justifiedIn(BankUSCNBA).Add(rr.justifiedIn(BankDSCNBA)).Sub(rr.byCode("RC02")).Sub(rr.byCode("RC03"))
+		bank := money.Min(money.Max(f.ClientBank.Sub(f.Suspense), money.Dec{}), money.Max(ok, money.Dec{}))
+		g := bank.Add(f.WithCC)
+		s.summary += fmt.Sprintf(" Counting the client bank accounts only as far as the stipulated reasons explain them (₹%s of ₹%s): ₹%s held.", formatINR(bank), formatINR(f.ClientBank.Sub(f.Suspense)), formatINR(g))
+		if g.Cmp(f.ClientCredits) < 0 {
+			s.bad(fmt.Sprintf("Short by ₹%s on %s once money kept in the client bank accounts without a stipulated reason is left out", formatINR(f.ClientCredits.Sub(g)), fmtDay(e.date)))
+		}
 	}
 	return s, nil
 }
@@ -1061,7 +1085,7 @@ func siHolding(e *siEnv) (siOut, error) {
 		return s, nil
 	}
 	for d := addDays(e.date, -7); d < e.date; d = addDays(d, 1) {
-		if t, _ := time.Parse("2006-01-02", d); t.Weekday() == time.Sunday || d < since {
+		if d < since || !e.o.isHoldingDay(e.ctx, e.tenant, e.set, d) {
 			continue
 		}
 		s.checked++
@@ -1069,7 +1093,10 @@ func siHolding(e *siEnv) (siOut, error) {
 		subs, _ := docs.List[NSEHoldingSubmission](e.ctx, e.o.Docs, e.tenant, cNSEHSub, d+"|")
 		state := ""
 		for _, x := range subs {
-			if x.Status == "Accepted" || (x.Status == "Partly accepted" && state == "") {
+			switch {
+			case x.Status == "Accepted" || x.Status == hsNilDecl || x.Status == hsNilBulk:
+				state = "Accepted"
+			case (x.Status == "Partly accepted" || x.Status == hsNil) && state == "":
 				state = x.Status
 			}
 		}
@@ -1083,6 +1110,8 @@ func siHolding(e *siEnv) (siOut, error) {
 			s.bad(fmt.Sprintf("Data day %s · not sent to NSE (no accepted submission or recorded upload)", fmtDay(d)))
 		case "Partly accepted":
 			s.bad(fmt.Sprintf("Data day %s · NSE accepted it only in part", fmtDay(d)))
+		case hsNil:
+			s.bad(fmt.Sprintf("Data day %s · nothing held, and NSE's one-time NIL Holding declaration is not recorded", fmtDay(d)))
 		}
 	}
 	if s.checked == 0 {

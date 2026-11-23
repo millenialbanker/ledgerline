@@ -97,6 +97,8 @@ func (o *Ops) matchCredit(ctx context.Context, tenant, actor string, t BankTxn, 
 	}
 	// Paid through the firm's validated UPI handle: its own collection.
 	o.tagUPI(ctx, tenant, &t)
+	// Paid by bank transfer into an account with no @valid UPI ID linked.
+	o.flagNoValidUPI(ctx, tenant, t)
 	var byAcct *Client
 	for i := range clients {
 		// Any active registered account of the client (clientbanks.go).

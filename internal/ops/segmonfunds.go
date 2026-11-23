@@ -40,11 +40,24 @@ import (
 //	      the client paid in early through CDSL that day (sale value, else
 //	      closing price).
 //	22/26 retained by the trading member: what was received and not placed.
+//	      Why it was kept is reported on lines of their own, one per reason
+//	      code (clientretention.go): column 52 has the code, column 22 the
+//	      amount for all clients together, columns 4 to 9 are blank
+//	      (NCL/CMPL/61186 of 18 March 2024, Annexure 1).
 //	30/34 placed with the clearing member: retained with it (38/42, nil in
 //	      Ledgerline) plus placed with NSE Clearing.
 //	46/50 placed with NSE Clearing: the client's end-of-day allocation to the
 //	      segment (cash; non-cash re-pledged), the same split as the
-//	      allocation file and CC01.
+//	      allocation file and CC01. Funds paid in early that are with NSE
+//	      Clearing at the end of the day are cash placed with it too, not
+//	      retained (NCL/CMPL/64088 of 23 September 2024, query 1): in
+//	      Ledgerline that is a client's offer-for-sale margin, taken from
+//	      the ledger when the bid is placed and paid through NSE Clearing
+//	      (ipoofs.go); it is added back to the client's balances, as the
+//	      circular's example does, and to column 46. Ledgerline bills a
+//	      day's trades on the trade date, so money a client pays in early
+//	      for the day's own purchases has already left the clear balance
+//	      and is in neither column.
 //	52    "NON MTF" for the client's own ledger in the cash segment, "MTF"
 //	      for the margin trading ledger, "NA" in other segments
 //	      (NSE/INSP/57639 items 5 and 6).
@@ -54,6 +67,17 @@ import (
 //	      settlement, reported in the file of the working day after the
 //	      settlement date (NSE/INSP/57639 item 10; NSE/INSP/53115).
 //	65    cash collateral for MTF positions, on the NON MTF row.
+//
+// Unidentified receipts parked in the bank suspense account (bank.go) are
+// reported on a line of their own under the back-office code SUSPE1234N,
+// with the member's PAN as the client PAN (NCL/CMPL/64088, first part).
+// The code is never a client: it is not in the exchanges' UCC database or
+// any front-end file, and a client with that code is an error. The money
+// is upstreamed with the day's client money but cannot be allocated to a
+// client at NSE Clearing, so it is reported as placed with the clearing
+// member and retained by it (columns 30 and 38); NSE Clearing's circular
+// does not say which columns, and this is the reading that keeps its
+// "received = retained + placed" rule and the allocation file in step.
 //
 // Bank guarantees and fixed deposits are never taken from clients (client
 // funds may not be used for BGs) and the firm's own deposits are not client
@@ -134,6 +158,9 @@ type SegmonTotals struct {
 	EPI          money.Dec `json:"epi"`
 	Settlement   money.Dec `json:"settlement"`
 	MTFCash      money.Dec `json:"mtf_cash"`
+	OFS          money.Dec `json:"ofs"`      // OFS margin with NSE Clearing, in column 46
+	Suspense     money.Dec `json:"suspense"` // the SUSPE1234N line's balance
+	Retained     money.Dec `json:"retained"` // the reason lines' column 22
 }
 
 // SegmonCheck is the result of the pre-upload check.
@@ -145,7 +172,10 @@ type SegmonCheck struct {
 	Errors   []SegmonIssue `json:"errors"`
 	Warnings []SegmonIssue `json:"warnings"`
 	Totals   SegmonTotals  `json:"totals"`
-	OK       bool          `json:"ok"` // no errors: the file can be made
+	// Retention is the money kept back by reason, one reason line each
+	// (clientretention.go).
+	Retention []RetentionTotal `json:"retention"`
+	OK        bool             `json:"ok"` // no errors: the file can be made
 }
 
 // segBal is one ledger account's day: balance, clear balance and peak clear
@@ -267,10 +297,19 @@ func (o *Ops) segmonBalances(ctx context.Context, tenant, date string) (map[stri
 	return out, nil
 }
 
+// SuspenseUCC is the back-office code for unidentified client money
+// (NCL/CMPL/64088).
+const SuspenseUCC = "SUSPE1234N"
+
 // segmonClient is everything reported for one client.
 type segmonClient struct {
-	ucc, pan         string
-	bal              segBal // client ledger (NON MTF), before the MTF cash
+	ucc, pan string
+	suspense bool   // the SUSPE1234N line
+	bal      segBal // client ledger (NON MTF), before the MTF cash
+	// late is what the client paid after the firm's cut-off that day; held
+	// what payout holds took from its allocation (clientretention.go); ofs
+	// its offer-for-sale margin with NSE Clearing at the end of the day.
+	late, held, ofs  money.Dec
 	mtf              *segBal
 	mtfCash          money.Dec
 	secs, gsec       money.Dec // pledged, after haircut
@@ -281,9 +320,11 @@ type segmonClient struct {
 	mtfBook, mtfOpen bool
 }
 
-// segmonRow is one line of the file, by column number.
+// segmonRow is one line of the file, by column number. A reason line
+// (reason set) carries one retention code's amount and no client.
 type segmonRow struct {
 	ucc, seg, ind string
+	reason        string
 	v             map[int]money.Dec
 	s             map[int]string
 }
@@ -408,8 +449,36 @@ func (o *Ops) segmonData(ctx context.Context, tenant, date string) (map[string]*
 		c.mtfOpen = true
 		c.mtfCash = c.mtfCash.Add(p.Cost.Dec().Pct(p.MarginPct).Round(money.UnitPaisa).Dec())
 	}
+	// Money paid after the cut-off, payout holds and OFS margin with NSE
+	// Clearing (clientretention.go, ipoofs.go).
+	for u, a := range o.lateReceipts(ctx, tenant, date) {
+		if c := all[u]; c != nil {
+			c.late = a
+		}
+	}
+	for u, segs := range o.payoutHeld(ctx, tenant, date) {
+		if c := all[u]; c != nil {
+			for _, v := range segs {
+				c.held = c.held.Add(v)
+			}
+		}
+	}
+	for u, a := range o.ofsMarginHeld(ctx, tenant, date) {
+		if a.Sign() > 0 && !dpOnly[u] {
+			get(u).ofs = a
+		}
+	}
+	// Unidentified receipts: the SUSPE1234N line, on the member's PAN.
+	if sb, err := o.suspenseClientMoney(ctx, tenant, date); err == nil && (sb.A.Sign() != 0 || sb.Peak.Sign() != 0) {
+		all[SuspenseUCC] = &segmonClient{ucc: SuspenseUCC, pan: firmPAN(set), suspense: true, bal: sb, alloc: map[string]AllocationRow{}}
+	}
 	var uccs []string
 	for u, c := range all {
+		if c.suspense {
+			c.segs = []string{"CM"}
+			uccs = append(uccs, u)
+			continue
+		}
 		c.secs, c.gsec = paise(c.secs), paise(c.gsec)
 		// The allocation is made from the unrounded value; rounding both to
 		// the paisa must not leave more placed than received.
@@ -429,13 +498,13 @@ func (o *Ops) segmonData(ctx context.Context, tenant, date string) (map[string]*
 			c.mtfCash = money.Max(money.Min(c.mtfCash, c.bal.B.Add(c.mtfCash)), money.Dec{})
 		}
 		active := cs[u].Status == "Active"
-		if !active && c.bal.A.Sign() == 0 && c.bal.Peak.Sign() == 0 && len(c.alloc) == 0 && c.secs.Sign() == 0 && c.gsec.Sign() == 0 && !c.mtfBook && c.epi.Sign() == 0 && c.settle.Sign() == 0 {
+		if !active && c.bal.A.Sign() == 0 && c.bal.Peak.Sign() == 0 && len(c.alloc) == 0 && c.secs.Sign() == 0 && c.gsec.Sign() == 0 && !c.mtfBook && c.epi.Sign() == 0 && c.settle.Sign() == 0 && c.ofs.Sign() == 0 {
 			continue
 		}
 		for s := range c.alloc {
 			c.segs = append(c.segs, s)
 		}
-		if (c.epi.Sign() != 0 || c.mtfBook || len(c.segs) == 0) && !contains(c.segs, "CM") {
+		if (c.epi.Sign() != 0 || c.ofs.Sign() != 0 || c.mtfBook || len(c.segs) == 0) && !contains(c.segs, "CM") {
 			c.segs = append(c.segs, "CM")
 		}
 		sort.SliceStable(c.segs, func(i, j int) bool { return segRank(c.segs[i]) < segRank(c.segs[j]) })
@@ -452,6 +521,16 @@ func segmonRows(all map[string]*segmonClient, uccs []string) []segmonRow {
 	var out []segmonRow
 	for _, u := range uccs {
 		c := all[u]
+		if c.suspense {
+			// Upstreamed, not allocated to a client: placed with the
+			// clearing member and retained by it.
+			r := segmonRow{ucc: u, seg: "CM", ind: "NON MTF", v: map[int]money.Dec{}, s: map[int]string{}}
+			r.v[sgA], r.v[sgB], r.v[sgPeak] = c.bal.A, c.bal.B, c.bal.Peak
+			cash := money.Max(c.bal.B, money.Dec{})
+			r.v[sgPlCMCash], r.v[sgRetCMCash] = cash, cash
+			out = append(out, r)
+			continue
+		}
 		var placedCash, placedSecs, placedGSec money.Dec
 		nc := map[string][2]money.Dec{} // segment -> securities, G-secs placed
 		for _, s := range c.segs {
@@ -477,16 +556,19 @@ func segmonRows(all map[string]*segmonClient, uccs []string) []segmonRow {
 			r.v[50], r.v[34] = nc[s][0], nc[s][0]
 			r.v[sgGSecNCL], r.v[sgGSecPlCM] = nc[s][1], nc[s][1]
 			if i == 0 {
-				r.v[sgA], r.v[sgB], r.v[sgPeak] = c.bal.A.Add(c.mtfCash), c.bal.B.Add(c.mtfCash), c.bal.Peak.Add(c.mtfCash)
+				// OFS margin with NSE Clearing is the client's money, placed
+				// with it (NCL/CMPL/64088, query 1).
+				r.v[sgA], r.v[sgB], r.v[sgPeak] = c.bal.A.Add(c.mtfCash).Add(c.ofs), c.bal.B.Add(c.mtfCash).Add(c.ofs), c.bal.Peak.Add(c.mtfCash).Add(c.ofs)
 				r.v[sgUncleared] = c.bal.A.Sub(c.bal.B)
 				r.v[sgRecvApprNonCash], r.v[26] = c.secs, c.secs.Sub(placedSecs)
 				r.v[sgGSecRecv], r.v[sgGSecRetTM] = c.gsec, c.gsec.Sub(placedGSec)
-				r.v[sgRetTMCash] = money.Max(money.Max(r.v[sgB], money.Dec{}).Sub(placedCash), money.Dec{})
+				r.v[sgRetTMCash] = money.Max(money.Max(r.v[sgB], money.Dec{}).Sub(placedCash).Sub(c.ofs), money.Dec{})
 				r.v[sgSettle] = c.settle
 			}
 			if s == "CM" {
 				r.v[sgEPI] = c.epi
 				r.v[sgMTFCash] = c.mtfCash
+				r.v[sgNCLCash], r.v[sgPlCMCash] = r.v[sgNCLCash].Add(c.ofs), r.v[sgPlCMCash].Add(c.ofs)
 			}
 			out = append(out, r)
 			if s == "CM" && c.mtfBook {
@@ -547,6 +629,9 @@ func (o *Ops) segmonBuild(ctx context.Context, tenant, date string, seq int) ([]
 		return nil, nil, chk, err
 	}
 	rows := segmonRows(all, uccs)
+	if _, err := o.Client(ctx, tenant, SuspenseUCC); err == nil {
+		errf(SegmonIssue{UCC: SuspenseUCC, Column: sgUCC, Message: "a client has the code SUSPE1234N, the back-office code for unidentified receipts; it must not be a client, in the exchanges' UCC database or in the front end (NCL/CMPL/64088): give the client another code"})
+	}
 	d, _ := time.Parse("2006-01-02", date)
 	var out []xfile.Row
 	seen := map[string]bool{}
@@ -574,6 +659,15 @@ func (o *Ops) segmonBuild(ctx context.Context, tenant, date string, seq int) ([]
 		}
 		if len(r.ucc) == 0 || len(r.ucc) > 10 {
 			errf(is(sgUCC, "the client code must be 1 to 10 characters"))
+		}
+		if c.late.Sign() > 0 && r.seg == "CM" && r.ind != "MTF" {
+			var cash money.Dec
+			for _, a := range c.alloc {
+				cash = cash.Add(a.Cash)
+			}
+			if before := money.Max(c.bal.B.Sub(c.late), money.Dec{}); cash.Cmp(before) > 0 {
+				warn(is(sgNCLCash, "₹%s of the cash allocated to NSE Clearing was paid after the cut-off and could not have been upstreamed that day; it is retained (RC01) until the next day's allocation", formatINR(money.Min(cash.Sub(before), c.late))))
+			}
 		}
 		for _, ch := range segmonChains {
 			v := func(n int) money.Dec { return r.v[n] }
@@ -606,6 +700,10 @@ func (o *Ops) segmonBuild(ctx context.Context, tenant, date string, seq int) ([]
 		m[key(sgAccType)], m[key(sgSegment)], m[key(sgUCC)] = "C", r.seg, r.ucc
 		m[key(sgMTF)], m[key(sgUnclaimed)] = r.ind, "NA"
 		out = append(out, xfile.Row{Values: m})
+		if c.suspense {
+			tot.Suspense = tot.Suspense.Add(r.v[sgA])
+			continue
+		}
 		tot.Ledger = tot.Ledger.Add(r.v[sgA])
 		tot.CashNCL = tot.CashNCL.Add(r.v[sgNCLCash])
 		tot.NonCashNCL = tot.NonCashNCL.Add(r.v[50]).Add(r.v[sgGSecNCL])
@@ -613,6 +711,9 @@ func (o *Ops) segmonBuild(ctx context.Context, tenant, date string, seq int) ([]
 		tot.EPI = tot.EPI.Add(r.v[sgEPI])
 		tot.Settlement = tot.Settlement.Add(r.v[sgSettle])
 		tot.MTFCash = tot.MTFCash.Add(r.v[sgMTFCash])
+		if r.seg == "CM" && r.ind != "MTF" {
+			tot.OFS = tot.OFS.Add(c.ofs)
+		}
 	}
 	// Per client: received = retained + placed; placed with the clearing
 	// member = retained by it + placed with NSE Clearing (SEBI 2021/0598
@@ -642,7 +743,7 @@ func (o *Ops) segmonBuild(ctx context.Context, tenant, date string, seq int) ([]
 			errf(SegmonIssue{UCC: u, Column: sgPlCMCash, Field: s.Columns[sgPlCMCash-1].Name, Message: "cash placed with the clearing member is not what it retained plus placed with NSE Clearing"})
 		}
 		c := all[u]
-		if avail := money.Max(c.bal.B.Add(c.mtfCash), money.Dec{}).Add(c.epi); v[sgNCLCash].Cmp(avail) > 0 {
+		if avail := money.Max(c.bal.B.Add(c.mtfCash), money.Dec{}).Add(c.epi).Add(c.ofs); v[sgNCLCash].Cmp(avail) > 0 {
 			warn(SegmonIssue{UCC: u, Column: sgNCLCash, Field: s.Columns[sgNCLCash-1].Name, Message: fmt.Sprintf("cash allocated to NSE Clearing (%s) is more than the client's clear credit and early pay-in credit (%s); the allocation may not exceed what the client gave", v[sgNCLCash].Fixed(2), avail.Fixed(2))})
 		}
 		if c.bal.A.Sub(c.bal.B).Sign() > 0 && v[sgUncleared].Sign() == 0 {
@@ -665,8 +766,8 @@ func (o *Ops) segmonBuild(ctx context.Context, tenant, date string, seq int) ([]
 			}
 		}
 	}
-	if tot.Ledger.Cmp(tot.Books) != 0 {
-		errf(SegmonIssue{Column: sgA, Field: s.Columns[sgA-1].Name, Message: fmt.Sprintf("the ledger balances in the file add up to %s, the client and MTF ledgers to %s", tot.Ledger.Fixed(2), tot.Books.Fixed(2))})
+	if tot.Ledger.Cmp(tot.Books.Add(tot.OFS)) != 0 {
+		errf(SegmonIssue{Column: sgA, Field: s.Columns[sgA-1].Name, Message: fmt.Sprintf("the ledger balances in the file add up to %s, the client and MTF ledgers to %s (with OFS margin held, %s)", tot.Ledger.Fixed(2), tot.Books.Fixed(2), tot.OFS.Fixed(2))})
 	}
 	if al, err := o.Allocation(ctx, tenant, date); err == nil {
 		for _, a := range al {
@@ -675,8 +776,8 @@ func (o *Ops) segmonBuild(ctx context.Context, tenant, date string, seq int) ([]
 			}
 		}
 	}
-	if tot.CashNCL.Cmp(tot.Allocated) != 0 {
-		errf(SegmonIssue{Column: sgNCLCash, Field: s.Columns[sgNCLCash-1].Name, Message: fmt.Sprintf("cash placed with NSE Clearing adds up to %s; the day's allocation is %s", tot.CashNCL.Fixed(2), tot.Allocated.Fixed(2))})
+	if tot.CashNCL.Cmp(tot.Allocated.Add(tot.OFS)) != 0 {
+		errf(SegmonIssue{Column: sgNCLCash, Field: s.Columns[sgNCLCash-1].Name, Message: fmt.Sprintf("cash placed with NSE Clearing adds up to %s; the day's allocation is %s and OFS margin with it %s", tot.CashNCL.Fixed(2), tot.Allocated.Fixed(2), tot.OFS.Fixed(2))})
 	}
 	if tot.NonCashNCL.Cmp(tot.AllocNonCash) != 0 {
 		errf(SegmonIssue{Column: 50, Field: s.Columns[49].Name, Message: fmt.Sprintf("securities placed with NSE Clearing add up to %s; the day's allocation is %s", tot.NonCashNCL.Fixed(2), tot.AllocNonCash.Fixed(2))})
@@ -697,7 +798,39 @@ func (o *Ops) segmonBuild(ctx context.Context, tenant, date string, seq int) ([]
 			}
 		}
 	}
-	chk.Rows, chk.Clients, chk.OK = len(out), len(uccs), len(chk.Errors) == 0
+	// Money kept back, by reason: a line per reason code with the client
+	// fields blank (NCL/CMPL/61186, Annexure 1, instructions 2-6).
+	rr, err := o.retentionReport(ctx, tenant, date, all, rows)
+	if err != nil {
+		return nil, nil, chk, err
+	}
+	chk.Retention = rr.Codes
+	for _, w := range rr.Warnings {
+		warn(SegmonIssue{Column: sgMTF, Field: s.Columns[sgMTF-1].Name, Message: w})
+	}
+	for _, rc := range rr.Codes {
+		m := map[string]string{}
+		for _, col := range s.Columns {
+			m[col.Key] = "NA"
+			if col.Type == "dec" {
+				m[col.Key] = "0.00"
+			}
+		}
+		m[key(sgDate)] = d.Format("02-01-2006")
+		m[key(sgCMPAN)], m[key(sgTMPAN)] = cmPAN, pan
+		for n := sgCPCode; n <= sgUCC; n++ {
+			m[key(n)] = ""
+		}
+		m[key(sgMTF)] = rc.Code
+		m[key(sgRetTMCash)] = rc.Amount.Fixed(2)
+		out = append(out, xfile.Row{Values: m})
+		tot.Retained = tot.Retained.Add(rc.Amount)
+	}
+	clients := len(uccs)
+	if all[SuspenseUCC] != nil && contains(uccs, SuspenseUCC) {
+		clients--
+	}
+	chk.Rows, chk.Clients, chk.OK = len(out), clients, len(chk.Errors) == 0
 	name, err := s.FileName(xfile.Vars{"date": date, "seq": fmt.Sprint(seq), "member_pan": pan})
 	if err == nil {
 		chk.File = name

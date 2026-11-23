@@ -117,7 +117,7 @@ func TestNSEHoldingAPI(t *testing.T) {
 			{BOID: "1208160000012345", ISINs: 1, Lines: append([]FirmDematLine{{ISIN: "INE000A01011", Total: "100", Pledged: "40"}}, extra...)},
 			{BOID: "1208160000099999", ISINs: 1, Lines: []FirmDematLine{{ISIN: "INE000B01012", Total: "5", Pledged: "0"}}}}})
 	}
-	for _, d := range []string{W, "2026-10-15", "2026-10-16"} {
+	for _, d := range []string{W, "2026-10-15"} {
 		snap(d)
 	}
 	set, _ := o.Settings(ctx, T)
@@ -188,6 +188,7 @@ func TestNSEHoldingAPI(t *testing.T) {
 	if v, _ := o.NSEHolding(ctx, T, "priya.nair", "2026-10-16"); len(v.Submissions) != 0 { // nothing: the file is not loaded
 		t.Fatalf("tick sent before the holding file: %d", len(v.Submissions))
 	}
+	snap("2026-10-16")
 	o.noteDailyFile(ctx, T, "priya.nair", "cdsl-holding", "SOH_16102026.txt", "2026-10-16")
 	o.nseHoldingTick(ctx, T, now) // within 30 minutes of the last tick: nothing
 	now = now.Add(31 * time.Minute)

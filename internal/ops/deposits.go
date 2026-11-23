@@ -55,6 +55,67 @@ type Deposit struct {
 	Released   string    `json:"released,omitempty"`
 	DaysLeft   int       `json:"days_left"`
 	Alert      string    `json:"alert,omitempty"`
+	// ClientFunds: a fixed deposit made from clients' money to upstream it
+	// (SEBI master circular 2025/90 paras 97.5-97.6, from SEBI/HO/MIRSD/
+	// MIRSD-PoD-1/P/CIR/2023/84 para 3.A): made only from the USCNBA
+	// (FundedFrom, a register account), with a bank the clearing
+	// corporation accepts, for at most one year and one day, principal
+	// protected and pre-terminable on demand, lien-marked to the clearing
+	// corporation, and never used for any funded or non-funded bank
+	// facility (BankFacility). DepositedOn is the day the clearing
+	// corporation took it; until then it is in transit (RC02).
+	ClientFunds        bool   `json:"client_funds,omitempty"`
+	FundedFrom         string `json:"funded_from,omitempty"`
+	PrincipalProtected bool   `json:"principal_protected,omitempty"`
+	PreTerminable      bool   `json:"pre_terminable,omitempty"`
+	BankFacility       bool   `json:"bank_facility,omitempty"`
+	DepositedOn        string `json:"deposited_on,omitempty"`
+}
+
+// clientFDRMaxExpiry is the latest maturity of a client-fund FDR: its tenor is at most one year and one
+// day (SEBI master circular 2025/90, para 97.5).
+func clientFDRMaxExpiry(issued string) string {
+	t, err := time.Parse("2006-01-02", issued)
+	if err != nil {
+		return ""
+	}
+	return t.AddDate(1, 0, 1).Format("2006-01-02")
+}
+
+// clientFDRProblems says what is wrong with a client-fund FDR against
+// paras 97.5-97.6 (nil when nothing).
+func clientFDRProblems(d Deposit, reg []FirmBank) []string {
+	if !d.ClientFunds {
+		return nil
+	}
+	var out []string
+	if d.Kind != "Fixed deposit" {
+		out = append(out, "client money is upstreamed as cash, a fixed deposit or MFOS units: a "+strings.ToLower(d.Kind)+" cannot be made from it")
+	}
+	if b, ok := firmBankByID(reg, d.FundedFrom); !ok || b.Kind != BankUSCNBA {
+		out = append(out, "a client-fund FDR is made only from the USCNBA: choose the USCNBA it was funded from")
+	}
+	if d.Issued == "" {
+		out = append(out, "give the day the FDR was made")
+	} else if max := clientFDRMaxExpiry(d.Issued); d.Expiry == "" || d.Expiry > max {
+		out = append(out, fmt.Sprintf("its tenor may not exceed one year and one day: it must mature by %s", fmtDay(max)))
+	}
+	if !d.PrincipalProtected || !d.PreTerminable {
+		out = append(out, "it must be principal protected and pre-terminable on demand")
+	}
+	if !d.Lien {
+		out = append(out, "it must be lien-marked to the clearing corporation")
+	}
+	if d.BankFacility {
+		out = append(out, "it may not be used for any funded or non-funded bank facility")
+	}
+	return out
+}
+
+// inTransitOn says whether a client-fund FDR was lien-marked to the
+// clearing corporation and not yet deposited with it on date (RC02).
+func (d Deposit) inTransitOn(date string) bool {
+	return d.ClientFunds && d.Kind == "Fixed deposit" && d.Lien && d.Status == "Active" && d.Issued != "" && d.Issued <= date && (d.DepositedOn == "" || d.DepositedOn > date)
 }
 
 // DepositRequirement is what one clearing corporation asks for.
@@ -103,6 +164,15 @@ func (o *Ops) SaveDeposit(ctx context.Context, tenant, actor string, d Deposit) 
 	if d.Issued != "" && !ledger.ValidDate(d.Issued) {
 		return d, invalid("issue date must be YYYY-MM-DD")
 	}
+	if d.DepositedOn != "" && !ledger.ValidDate(d.DepositedOn) {
+		return d, invalid("the day the clearing corporation took it must be YYYY-MM-DD")
+	}
+	if !d.ClientFunds {
+		d.FundedFrom, d.PrincipalProtected, d.PreTerminable, d.BankFacility, d.DepositedOn = "", false, false, false, ""
+	}
+	if ps := clientFDRProblems(d, o.firmBanks(ctx, tenant)); len(ps) > 0 {
+		return d, invalid("a fixed deposit of client money: %s (SEBI master circular 2025/90, paras 97.5-97.6)", strings.Join(ps, "; "))
+	}
 	d.Segment = firstOf(strings.ToUpper(d.Segment), "ALL")
 	d.Purpose = firstOf(d.Purpose, "Additional collateral")
 	if d.ID == "" {
@@ -122,7 +192,7 @@ func (o *Ops) SaveDeposit(ctx context.Context, tenant, actor string, d Deposit) 
 	if err := docs.Upsert(ctx, o.Docs, tenant, cDeposit, d.ID, d, actor); err != nil {
 		return d, err
 	}
-	o.log(ctx, tenant, actor, "ccdeposit.saved", d.ID, map[string]any{"cc": d.CC, "kind": d.Kind, "amount": d.Amount.String(), "expiry": d.Expiry})
+	o.log(ctx, tenant, actor, "ccdeposit.saved", d.ID, map[string]any{"cc": d.CC, "kind": d.Kind, "amount": d.Amount.String(), "expiry": d.Expiry, "client_funds": d.ClientFunds, "funded_from": d.FundedFrom})
 	return d, nil
 }
 
@@ -159,6 +229,7 @@ func (o *Ops) Deposits(ctx context.Context, tenant, date string) (DepositView, e
 		return v, err
 	}
 	set, _ := o.Settings(ctx, tenant)
+	reg := o.firmBanks(ctx, tenant)
 	by := map[string]*DepositRequirement{}
 	for _, cc := range ClearingCorps {
 		by[cc] = &DepositRequirement{CC: cc}
@@ -179,8 +250,15 @@ func (o *Ops) Deposits(ctx context.Context, tenant, date string) (DepositView, e
 		if d.Status == "Active" && !d.Lien && d.Kind == "Fixed deposit" {
 			d.Alert = strings.TrimPrefix(d.Alert+"; lien not yet marked to the clearing corporation", "; ")
 		}
+		if d.Status == "Active" {
+			if ps := clientFDRProblems(d, reg); len(ps) > 0 {
+				d.Alert = strings.TrimPrefix(d.Alert+"; client-fund FDR: "+strings.Join(ps, "; "), "; ")
+			}
+		}
 		v.Deposits = append(v.Deposits, d)
-		if d.Status != "Active" || (d.Expiry != "" && d.DaysLeft < 0) {
+		// A client-fund FDR is clients' money upstreamed, not the firm's
+		// collateral against its base capital.
+		if d.Status != "Active" || (d.Expiry != "" && d.DaysLeft < 0) || d.ClientFunds {
 			continue
 		}
 		r := by[d.CC]

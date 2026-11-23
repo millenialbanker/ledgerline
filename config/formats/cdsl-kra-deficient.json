@@ -1,0 +1,82 @@
+{
+ "id": "cdsl-kra-deficient",
+ "title": "BOs with KRA-deficient KYC (CDSL, DP-wise)",
+ "party": "CDSL",
+ "direction": "in",
+ "when": "Each cycle (the DP's billing folder)",
+ "purpose": "CDSL's DP-wise list of BOs whose KYC is not validated by a KRA, put in the DP's billing folder each cycle, with CDSL's freeze date in the communiqué. None of the exchanges' or the depository's circulars gives the file's columns: they are read by their header names, which this layout lists (add a header text here when the file's differs). The file is matched by PAN, then the client code or the BO ID.",
+ "linked": "Matched with the DP's CDSL accounts (BO ID, then each holder's PAN) on Compliance → KYC trading gate (Demat accounts).",
+ "names": [
+  "[A-Za-z0-9_]*KRA.*(Deficien|Non[-_]?Valid|Not[-_]?Valid).*"
+ ],
+ "compress": "none",
+ "format": "headers",
+ "delimiter": "auto",
+ "header": false,
+ "columns": [
+  {
+   "name": "BO ID",
+   "key": "boid",
+   "type": "str",
+   "aliases": [
+    "BOID",
+    "BO Id",
+    "Beneficiary Account",
+    "Beneficiary ID",
+    "Demat Account",
+    "Client ID (BO)",
+    "DP Client ID"
+   ],
+   "pattern": "[0-9]{16}"
+  },
+  {
+   "name": "PAN",
+   "key": "pan",
+   "type": "str",
+   "pattern": "[A-Za-z]{5}[0-9]{4}[A-Za-z]",
+   "aliases": [
+    "PAN No",
+    "PAN Number",
+    "Client PAN",
+    "PANNO",
+    "PAN_NO",
+    "Investor PAN",
+    "PAN of Client",
+    "First Holder PAN",
+    "Holder PAN"
+   ]
+  },
+  {
+   "name": "Client Name",
+   "key": "name",
+   "type": "str",
+   "aliases": [
+    "Name",
+    "Investor Name",
+    "Name of the Client",
+    "BO Name",
+    "Holder Name"
+   ]
+  },
+  {
+   "name": "KRA Status",
+   "key": "status",
+   "type": "str",
+   "aliases": [
+    "Status",
+    "KYC Status",
+    "Primary KYC Status",
+    "KRA KYC Status",
+    "Reason",
+    "Remarks",
+    "Remark"
+   ]
+  }
+ ],
+ "no_header": [
+  "boid",
+  "pan"
+ ],
+ "confirmed": false,
+ "source": "CDSL/OPS/DP/POLCY/2026/325 and the monthly KRA-validation series; CDSL/OPS/DP/POLCY/2026/234 and 2026/770. The columns are not published: read by header names."
+}

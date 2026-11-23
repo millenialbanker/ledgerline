@@ -33,7 +33,7 @@ title: Name the firm's bank accounts (USCNBA, DSCNBA, settlement, own)
 screen: clientmoney
 roles: Compliance officer
 ask: firm bank accounts register; uscnba; dscnba; up streaming client nodal bank account; down streaming client nodal bank account; nodal bank account of the broker; settlement bank account with the clearing corporation; proprietary bank account of the firm; which of our bank accounts is the uscnba; clearing corporation account we upstream to; account reported under enhanced supervision
-related: client-money-recon, ras-ucc-report, upstream
+related: client-money-recon, ras-ucc-report, upstream, firm-bank-reporting
 
 Since upstreaming began, clients' money is received only in an **Up Streaming Client Nodal Bank Account (USCNBA)**, and clients are paid only from a **Down Streaming Client Nodal Bank Account (DSCNBA)**. A **settlement account** is held for settlement with the clearing corporation, and every other account counts as the firm's **own** account (SEBI master circular SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90 of 17 June 2025, para 15.3).
 
@@ -47,6 +47,8 @@ On [[clientmoney|Client money reconciliation]] → **Firm bank accounts**, the c
 
 Accounts already named in Settings (the payout account, MCX-only accounts, the bank connection) are offered under *Named in Settings*; **Add** takes the full number from there. Numbers are shown masked. When an account is closed, give the date it closed instead of removing it.
 
+Each account also carries its name check, the day it was opened, the days it was reported to each exchange, the bank undertaking, its @valid UPI ID and whether it is an overdraft account: see *Report the firm's bank accounts*.
+
 The register is used by the daily [[clientmoney|client money reconciliation]], which checks that receipts arrive only in a USCNBA, payments leave only from a DSCNBA, and nothing is left in the DSCNBA at the end of the day; and by the UCC-wise settlement report, which needs the DSCNBA each client was paid from. NSE allows at most 30 USCNBA and DSCNBA accounts together (NSE/INSP/57959, FAQ 23).
 
 ## client-money-recon
@@ -54,7 +56,7 @@ title: Prepare and sign off the daily client money reconciliation
 screen: clientmoney
 roles: Ops maker, Ops checker, Compliance officer
 ask: client money reconciliation; daily reconciliation statement of client funds; transfers between client and own account; client account to own account transfer; uscnba dscnba reconciliation; daily statement of funds transferred; brokerage transferred to own account; dscnba balance at end of day; money moved from uscnba to dscnba; record a transfer between the firm's accounts; funds back from the clearing corporation; sign off the money reconciliation
-related: firm-bank-accounts, upstream, unknown-credit, ras-ucc-report
+related: firm-bank-accounts, upstream, unknown-credit, ras-ucc-report, retained-funds
 
 SEBI lets money move from the client account to the firm's own account only for brokerage, statutory dues and other charges debited to clients, or a client's debit the firm met, and asks for a **daily reconciliation statement** of the funds transferred (master circular 2025/90, para 15.4.4.2). The exchanges ask for it in inspections (NSE/INSP/55904 of 9 March 2023). No format is prescribed: this is Ledgerline's.
 
@@ -72,7 +74,8 @@ It gives totals by kind, the charges debited to clients that back the transfers 
 - money taken to the own account beyond the brokerage, charges and statutory dues debited to clients (and own funds put in);
 - money received outside a USCNBA, or paid to a client from outside a DSCNBA;
 - money moved from a USCNBA straight to a DSCNBA (NSE/INSP/57959, FAQ 21);
-- a balance left in the DSCNBA at the end of a day that is not a running account settlement day (NSE/INSP/58146, FAQ 1).
+- a balance left in the DSCNBA at the end of a day that is not a running account settlement day (NSE/INSP/58146, FAQ 1), unless payouts with the bank or uncleared cheques explain it;
+- money left in the USCNBA or settlement account at the end of the day beyond what the stipulated reasons recorded for the day explain (*Retained funds*): it was not upstreamed.
 
 **Transfers** between the firm's accounts that Ledgerline would not otherwise know of are recorded on the **Transfers** tab: why the money moved, from, to, amount and the bank's reference. An Ops checker approves each one, and approving posts it in the ledger where the accounts differ there. Upstreaming can still be recorded with **Upstream funds to CC** on [[ledger|Ledger]].
 

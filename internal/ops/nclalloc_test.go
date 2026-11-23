@@ -86,7 +86,7 @@ func allocSetup(t *testing.T) (*Ops, context.Context, *fakeNCL) {
 	// depend on when the tests run.
 	o.Now = func() time.Time { return time.Date(2026, 10, 16, 11, 0, 0, 0, ist) }
 	for _, u := range []string{"AL1", "AL2", "AL3"} {
-		docs.Upsert(ctx, o.Docs, T, cClient, u, Client{UCC: u, Name: "Client " + u, Status: "Active", Email: u + "@x.example"}, "t")
+		docs.Upsert(ctx, o.Docs, T, cClient, u, Client{UCC: u, Name: "Client " + u, Status: "Active", KRAStatus: "Validated", Email: u + "@x.example"}, "t")
 	}
 	set, _ := o.Settings(ctx, T)
 	set.AllocAPILive, set.AllocAutoPush = true, true

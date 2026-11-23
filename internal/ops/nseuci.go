@@ -280,15 +280,20 @@ func nseUCIStateOf(s string) (string, bool) {
 
 // Category groups (TDD field rules).
 var (
-	nseUCIIndividual = map[string]bool{"1": true, "11": true, "18": true, "25": true, "26": true, "27": true, "31": true, "36": true}
+	nseUCIIndividual = map[string]bool{"1": true, "11": true, "37": true, "18": true, "25": true, "26": true, "27": true, "31": true, "36": true}
 	// Ledgerline sends these categories; the others need fields (FPI
 	// registration, custodians, SLB) it does not keep.
-	nseUCISupported = map[string]string{"1": "individual", "2": "partnership firm or LLP", "3": "HUF", "4": "company", "5": "trust or society", "11": "NRI"}
+	nseUCISupported = map[string]string{"1": "individual", "2": "partnership firm or LLP", "3": "HUF", "4": "company", "5": "trust or society", "11": "NRI (NRE)", "37": "NRI (NRO)"}
 )
 
 func nseUCICategory(c Client, d UCCDetails) string {
 	if d.Category != "" {
 		return d.Category
+	}
+	if c.Type == "NRI" && strings.EqualFold(c.NRIAccount, "NRO") {
+		// NRO account holders are category 37; 11 is NRE only from 22 Nov
+		// 2025 (NSE/ISC/71043, circular 41/2025).
+		return "37"
 	}
 	return map[string]string{"Individual": "1", "NRI": "11", "HUF": "3", "Corporate": "4"}[c.Type]
 }
@@ -1176,10 +1181,20 @@ func (o *Ops) nseUCIItems(ctx context.Context, tenant, member string, only map[s
 	set, _ := o.Settings(ctx, tenant)
 	src := o.uccSources(ctx, tenant)
 	now := o.now()
+	// NRIs registered before the account type was kept on the client:
+	// NRE or NRO from NRI (PIS), for the category (11 or 37).
+	nris, _ := docs.List[NRIDetails](ctx, o.Docs, tenant, cNRI, "")
+	nriAcct := map[string]string{}
+	for _, d := range nris {
+		nriAcct[d.UCC] = d.Account
+	}
 	var out []nseUCIItem
 	for _, c := range cs {
 		if only != nil && !only[c.UCC] {
 			continue
+		}
+		if c.Type == "NRI" && c.NRIAccount == "" {
+			c.NRIAccount = nriAcct[c.UCC]
 		}
 		reg, hasReg := byUCC[c.UCC]
 		if !nseUCIInScope(c, hasReg) {

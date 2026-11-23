@@ -301,7 +301,25 @@ func (o *Ops) deliver(ctx context.Context, tenant, actor string, t Template, c C
 		if strings.HasSuffix(c.Email, ".invalid") || !reEmail.MatchString(c.Email) {
 			m.Status, m.Note = "Bounced", "mailbox does not accept mail"
 		}
-	case ChSMS:
+	case ChSMS, ChWhatsApp:
+		if why := proiEmailOnly(c); why != "" {
+			// A PROI client's unverified (or international) mobile: the
+			// message goes to the verified e-mail (proi.go).
+			m.Channel, m.To, m.Note = ChEmail, c.Email, why
+			if strings.HasSuffix(c.Email, ".invalid") || !reEmail.MatchString(c.Email) {
+				m.Status, m.Note = "Bounced", "mailbox does not accept mail"
+			}
+			break
+		}
+		if t.Channel == ChWhatsApp {
+			m.To = c.Mobile
+			if id, held := o.mnrlHeld(ctx, tenant, c.Mobile); held {
+				m.Status, m.Note = "Held", mnrlHeldNote(id)
+			} else if !c.WhatsApp {
+				m.Status, m.Note = "Not opted in", "client has not opted in to WhatsApp"
+			}
+			break
+		}
 		m.To = c.Mobile
 		if !reMobile.MatchString(c.Mobile) {
 			m.Status, m.Note = "Failed", "no valid mobile number"
@@ -314,13 +332,6 @@ func (o *Ops) deliver(ctx context.Context, tenant, actor string, t Template, c C
 		} else if c.DND && t.Category == "Promotional" {
 			m.Status, m.Note = "Failed", "number is on the do-not-disturb register"
 		}
-	case ChWhatsApp:
-		m.To = c.Mobile
-		if id, held := o.mnrlHeld(ctx, tenant, c.Mobile); held {
-			m.Status, m.Note = "Held", mnrlHeldNote(id)
-		} else if !c.WhatsApp {
-			m.Status, m.Note = "Not opted in", "client has not opted in to WhatsApp"
-		}
 	}
 	n, err := o.next(ctx, tenant, "message", actor)
 	if err != nil {
@@ -328,7 +339,7 @@ func (o *Ops) deliver(ctx context.Context, tenant, actor string, t Template, c C
 	}
 	m.ID = fmt.Sprintf("MSG-%07d", n)
 	waName := ""
-	if t.Channel == ChWhatsApp && t.WAName != "" {
+	if m.Channel == ChWhatsApp && t.WAName != "" {
 		waName, m.Params = t.WAName, waParams(t.Body, vars)
 	}
 	o.transmit(ctx, tenant, &m, waName, m.Params)

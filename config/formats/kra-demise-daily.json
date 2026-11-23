@@ -1,0 +1,107 @@
+{
+ "id": "kra-demise-daily",
+ "title": "Investors reported deceased (KRA, daily)",
+ "party": "KRA",
+ "direction": "in",
+ "when": "Daily",
+ "purpose": "The KRA's daily demise data: PANs of investors whose death was reported through the KRA. Matched like NSE's monthly demise list: debits blocked at once, UCCs closed on every exchange. None of the exchanges' or the depository's circulars gives the file's columns: they are read by their header names, which this layout lists (add a header text here when the file's differs). The file is matched by PAN, then the client code.",
+ "linked": "Loaded on Compliance → Deceased clients: debits blocked for each client matched.",
+ "names": [
+  "KRA_?Demise_?Data.*",
+  "[A-Za-z0-9]*_?Daily_?Demise.*"
+ ],
+ "compress": "none",
+ "format": "headers",
+ "delimiter": "auto",
+ "header": false,
+ "columns": [
+  {
+   "name": "PAN",
+   "key": "pan",
+   "type": "str",
+   "pattern": "[A-Za-z]{5}[0-9]{4}[A-Za-z]",
+   "aliases": [
+    "PAN No",
+    "PAN Number",
+    "Client PAN",
+    "PANNO",
+    "PAN_NO",
+    "Investor PAN",
+    "PAN of Client",
+    "First Holder PAN",
+    "Holder PAN"
+   ],
+   "required": true
+  },
+  {
+   "name": "Client Code",
+   "key": "ucc",
+   "type": "str",
+   "aliases": [
+    "UCC",
+    "UCC Code",
+    "Client Code (UCC)",
+    "ClientCode",
+    "Client_Cd",
+    "Client Cd",
+    "Unique Client Code",
+    "Client ID"
+   ]
+  },
+  {
+   "name": "Client Name",
+   "key": "name",
+   "type": "str",
+   "aliases": [
+    "Name",
+    "Investor Name",
+    "Name of the Client",
+    "BO Name",
+    "Holder Name"
+   ]
+  },
+  {
+   "name": "KRA",
+   "key": "kra",
+   "type": "str",
+   "aliases": [
+    "KRA Name",
+    "Reporting KRA"
+   ]
+  },
+  {
+   "name": "KRA Status",
+   "key": "status",
+   "type": "str",
+   "aliases": [
+    "Status",
+    "KYC Status",
+    "Primary KYC Status",
+    "KRA KYC Status",
+    "Reason",
+    "Remarks",
+    "Remark"
+   ]
+  },
+  {
+   "name": "Date",
+   "key": "date",
+   "type": "str",
+   "aliases": [
+    "Demise Date",
+    "Date of Demise",
+    "Reported On",
+    "Reported Date",
+    "Date of Reporting",
+    "KRA Date",
+    "Modification Date"
+   ]
+  }
+ ],
+ "no_header": [
+  "pan",
+  "ucc"
+ ],
+ "confirmed": false,
+ "source": "NSE/ISC/75724 (circular 37/2026: the KRAs share demise data daily); MCX/S&I/522/2026 para 2; SEBI/HO/OIAE/OIAE_IAD-1/P/CIR/2023/0000000163. The columns are not published: read by header names."
+}

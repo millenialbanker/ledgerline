@@ -1,0 +1,93 @@
+{
+ "id": "mcx-kyc-hold",
+ "title": "Clients with KYC on hold (MCX, by e-mail)",
+ "party": "MCX",
+ "direction": "in",
+ "when": "Monthly (sent by e-mail)",
+ "purpose": "MCX's monthly list of the firm's clients whose KYC is on hold at the KRA: no fresh trades and no square-off on MCX until the KRA marks the KYC compliant (trading resumes T+1); open positions are monitored. None of the exchanges' or the depository's circulars gives the file's columns: they are read by their header names, which this layout lists (add a header text here when the file's differs). The file is matched by PAN, then the client code.",
+ "linked": "Matched with the clients on Compliance → KYC trading gate: each client on it is held back on the front ends until the KRA verifies the KYC and a later list no longer has the client.",
+ "names": [
+  "[A-Za-z0-9_ ]*KYC[_ ]?On[_ ]?Hold.*"
+ ],
+ "compress": "none",
+ "format": "headers",
+ "delimiter": "auto",
+ "header": false,
+ "columns": [
+  {
+   "name": "PAN",
+   "key": "pan",
+   "type": "str",
+   "pattern": "[A-Za-z]{5}[0-9]{4}[A-Za-z]",
+   "aliases": [
+    "PAN No",
+    "PAN Number",
+    "Client PAN",
+    "PANNO",
+    "PAN_NO",
+    "Investor PAN",
+    "PAN of Client",
+    "First Holder PAN",
+    "Holder PAN"
+   ]
+  },
+  {
+   "name": "Client Code",
+   "key": "ucc",
+   "type": "str",
+   "aliases": [
+    "UCC",
+    "UCC Code",
+    "Client Code (UCC)",
+    "ClientCode",
+    "Client_Cd",
+    "Client Cd",
+    "Unique Client Code",
+    "Client ID"
+   ]
+  },
+  {
+   "name": "Client Name",
+   "key": "name",
+   "type": "str",
+   "aliases": [
+    "Name",
+    "Investor Name",
+    "Name of the Client",
+    "BO Name",
+    "Holder Name"
+   ]
+  },
+  {
+   "name": "KRA Status",
+   "key": "status",
+   "type": "str",
+   "aliases": [
+    "Status",
+    "KYC Status",
+    "Primary KYC Status",
+    "KRA KYC Status",
+    "Reason",
+    "Remarks",
+    "Remark"
+   ]
+  },
+  {
+   "name": "Member Code",
+   "key": "member",
+   "type": "str",
+   "aliases": [
+    "TM Code",
+    "TMCode",
+    "Trading Member Code",
+    "Member ID"
+   ]
+  }
+ ],
+ "no_header": [
+  "pan",
+  "ucc"
+ ],
+ "confirmed": false,
+ "source": "MCX/S&I/522/2026 paras 4-5 (monthly series; earlier MCX/S&I/464/2026). The columns are not published: read by header names."
+}

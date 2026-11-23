@@ -53,7 +53,7 @@ related: deceased-clients-steps, revoked-mobiles, ucc-api
 
 [[deceased|Deceased clients]] (Compliance) works NSE's monthly list of the firm's clients the KRAs report as deceased: the file **<TMcode>_Demise_Clients_by_KRA** on NSE's member portal (enit.nseindia.com > ENIT > Log > Downloads). Each month's NSE circular gives the cut-off: the UCCs of the PANs reported up to the end of the previous month are marked Closed, after due diligence, before it. From the cut-off those PANs are not permitted to trade and cannot even square off (NSE/ISC/77375 of 9 November 2026: PANs reported up to 31 October 2026, cut-off 21 November 2026; NSE/ISC/76893 of 14 October 2026 for the cycle before).
 
-**Load the month's list** with the cut-off from the circular (the screen suggests it). Clients are matched by PAN across every client, and by client code when the file has one. The file has no published layout: its columns are found by their header names, and a plain list of PANs is read too.
+**Load the month's list** with the cut-off from the circular (the screen suggests it). The KRAs also share demise data daily (NSE/ISC/75724; MCX/S&I/522/2026): load the KRA's daily file the same way, choosing **The KRA's daily demise data**; it is matched and blocked the same way, against the cycle of the month it is reported in. Clients are matched by PAN across every client, and by client code when the file has one. The file has no published layout: its columns are found by their header names, and a plain list of PANs is read too.
 
 For each client matched, **debits are blocked at once** until transmission (SEBI/HO/OIAE/OIAE_IAD-1/P/CIR/2023/0000000163 of 3 October 2023; NSE/ISC/75724 of 13 August 2026):
 

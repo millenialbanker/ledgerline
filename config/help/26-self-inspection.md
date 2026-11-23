@@ -41,12 +41,12 @@ Each failing test opens one **exception**, which is a card on the Ledgerline boa
 title: The self-inspection's tests and their rules
 screen: selfinspect
 roles: Compliance officer, Admin, Ops maker, Ops checker, Risk manager
-ask: list of self inspection tests; which circular does the test follow; ucc fields test; minor trading test; dealer terminals test; margin statement test; segregation test; client money test; cuspa test; contract notes 24 hours test; complaints 21 days; payouts to registered bank; third party funds test; kyc test; inactive accounts test; ddpi test; alerts 45 days; holding statement test; segmon test; weekly statement test; debarred clients test; ucc test; bsda test; mnrl test; deceased clients test
+ask: list of self inspection tests; which circular does the test follow; ucc fields test; minor trading test; dealer terminals test; margin statement test; segregation test; client money test; cuspa test; contract notes 24 hours test; complaints 21 days; payouts to registered bank; third party funds test; kyc test; inactive accounts test; ddpi test; alerts 45 days; holding statement test; segmon test; weekly statement test; debarred clients test; ucc test; bsda test; mnrl test; deceased clients test; firm bank register test; client money nil test; client fdr test; journal between clients test
 related: self-inspection, self-inspection-exceptions
 
-Each test reuses the check Ledgerline already makes on its own screen. 40 are real; 1 waits for data. The tests added from the penalty audit are explained in the help article "Penalty risks and how Ledgerline covers them".
+Each test reuses the check Ledgerline already makes on its own screen. 44 are real; 1 waits for data. The tests added from the penalty audit are explained in the help article "Penalty risks and how Ledgerline covers them".
 
-- **Client money fully covered** (high): the segregation check; SEBI/HO/MIRSD/MIRSD2/CIR/P/2016/95 of 26 September 2016, para 3.3.1.
+- **Client money fully covered** (high): the segregation check; SEBI/HO/MIRSD/MIRSD2/CIR/P/2016/95 of 26 September 2016, para 3.3.1. With the firm's bank accounts named, the client bank accounts count only as far as the stipulated reasons for keeping money explain them (NSE/INSP/73976, Exhibit 34).
 - **Running accounts settled on each client's chosen date** (high): SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197 of 28 December 2023 and the exchanges' joint calendar; idle balances returned on the upcoming monthly settlement date (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/1 of 6 January 2025).
 - **Unpaid securities kept within 2.25 × (margin − ledger)** (medium), **Notice given before invoking** (high), **Nothing kept past the 6th trading day** (medium): SEBI HO/38/11/(9)2026-MIRSD-POD/I/15382/2026 of 3 July 2026 and NSE circular 41/2026 (NSE/INSP/75508) of 31 July 2026.
 - **Margin penalties worked out, and passed to clients only where allowed** (high): NSE/INSP/64315 of 1 October 2024 (dishonoured cheque, or a hedge break disclosed in the risk policy).
@@ -64,7 +64,11 @@ Each test reuses the check Ledgerline already makes on its own screen. 40 are re
 - **Client details at the exchanges match Ledgerline** (medium): the exchanges' UCC downloads of the last 45 days and what NSE's UCC API last accepted, field by field (PAN, mobile, e-mail, primary bank account, address); NSE/ISC/73973 and NSE/INSP/73503 items 46 and 47.
 - **Firm's demat accounts tagged and in the holding statement with their type** (high): NSE/INSP/55039 and NSE/INSP/55380.
 - **Trades only from registered terminals, by NISM-certified dealers** (high), **No derivatives or intraday trading in a minor's account** (high), **No trading before KYC is complete and validated** (high), **No mobile or e-mail shared by clients who are not one family** (medium): NSE/INSP/73503 of 27 March 2026 and SEBI/HO/MIRSD/FATF/P/CIR/2023/0144.
-- **Funds paid out within one working day of the client's request** (high): SEBI/MIRSD/SE/Cir-19/2009 of 3 December 2009.
+- **Funds paid out within one working day of the client's request** (high): SEBI/MIRSD/SE/Cir-19/2009 of 3 December 2009 and SEBI master circular 2025/90, para 97.4; a failed transfer is not paid, and a cheque counts from the day it was credited.
+- **Firm bank accounts named, reported to each exchange and verifiable by clients** (high): SEBI master circular 2025/90, paras 15.3 and 15.4.3 as amended in March 2026; NSE/INSP/73976 item 8.2; NSE/INSP/77149; NSE/COMP/75700.
+- **Client money upstreamed every day; kept back only for the stipulated reasons** (high): SEBI/HO/MIRSD/MIRSD-PoD-1/P/CIR/2023/84; NCL/CMPL/61186 and NCL/CMPL/76318 FAQ 5.
+- **Client-fund FDRs made only from the USCNBA, within SEBI's conditions** (high): SEBI master circular 2025/90, paras 97.5 and 97.6.
+- **No journal used to pay a client or move money between clients** (high): SEBI master circular 2025/90, paras 23.1.1(j) and 48.3.
 - **Daily margin statements sent by the next trading day** (medium) and **Statement of each running account settlement sent, retention included** (medium): NSE/INSP/73503 items 24 and 26 to 28; the days allowed are to confirm.
 - **Client mobiles on DoT's revocation list taken up in time** (medium): NSE/ISC/45168 of 29 July 2020, NSE/ISC/47834 of 31 March 2021 and NSE/ISC/72805 of 13 February 2026; the 3 business days and 30 days are the firm's practice (to confirm).
 - **Deceased clients' UCCs closed by the cut-off, with debits blocked** (high): NSE/ISC/77375 of 9 November 2026 and NSE/ISC/76893 of 14 October 2026; SEBI/HO/OIAE/OIAE_IAD-1/P/CIR/2023/0000000163 of 3 October 2023.

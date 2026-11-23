@@ -37,10 +37,72 @@ type RASRow struct {
 	LastActivity string `json:"last_activity,omitempty"`
 	IdleFrom     string `json:"idle_from,omitempty"`
 	IdleDue      string `json:"idle_due,omitempty"`
+	// What the retention is made of (rasRetention): the margin required
+	// across segments, the pledged securities after haircut, the most the
+	// rules let the firm keep for margin, and the client's T and T-1
+	// pay-in obligations (already debited in the ledger by the bills).
+	Margin     money.Dec `json:"margin"`
+	Collateral money.Dec `json:"collateral"`
+	Cap        money.Dec `json:"cap"`
+	PayIn      money.Dec `json:"pay_in"`
 	// With a separate commodity ledger (segledger.go): the retention kept
 	// in each ledger (its own margin and buffer).
 	retEq, retCom money.Dec
 	sep           bool
+}
+
+// rasCap is the most a firm may keep for margin at a settlement (NSE/INSP/
+// 53820, FAQ 5): 50% of the end-of-day margin in cash, plus what is left
+// of 225% of the margin after that cash and the client's pledged
+// securities after haircut. The client's pay-in obligations come on top
+// (SEBI master circular 2025/90, para 48.2: funds pay-in obligations of T
+// and T-1); Ledgerline bills every trade on its trade date, so those are
+// already out of the ledger credit the settlement pays from.
+func rasCap(margin, collateral money.Dec) money.Dec {
+	if margin.Sign() <= 0 {
+		return money.Dec{}
+	}
+	half := margin.Pct(money.DecInt(50))
+	rest := money.Max(margin.Pct(money.DecInt(225)).Sub(half).Sub(money.Max(collateral, money.Dec{})), money.Dec{})
+	return half.Add(rest)
+}
+
+// rasRetention is what a settlement keeps for margin: the firm's buffer
+// over the margin required (at most 100%, below the 125% SEBI allows on
+// top of the margin), never above rasCap.
+func rasRetention(margin, collateral money.Dec, bufferPct int64) (keep, capped money.Dec) {
+	capped = rasCap(margin, collateral).CeilRupee()
+	keep = money.Min(margin.Pct(money.DecInt(100+bufferPct)).CeilRupee(), capped)
+	return money.Max(keep, money.Dec{}), capped
+}
+
+// rasPayIn is each client's funds pay-in obligation of the trade dates T
+// and T-1 before asOf: the net debit of the day's bills, for the
+// settlement statement.
+func (o *Ops) rasPayIn(ctx context.Context, tenant string, set Settings, asOf string) map[string]money.Dec {
+	out := map[string]money.Dec{}
+	days := map[string]bool{asOf: true, set.PrevBusinessDay(asOf): true}
+	es, err := o.App.Ledger.Store.List(ctx, tenant, ledger.Filter{To: asOf})
+	if err != nil {
+		return out
+	}
+	net := map[string]money.Dec{}
+	for _, e := range es {
+		if e.Source.Kind != "BILL" || !days[e.ValueDate] {
+			continue
+		}
+		for _, p := range e.Postings {
+			if u, _, ok := ledger.ClientCode(p.Account); ok {
+				net[u] = net[u].Add((p.Debit - p.Credit).Dec())
+			}
+		}
+	}
+	for u, v := range net {
+		if v.Sign() > 0 {
+			out[u] = v
+		}
+	}
+	return out
 }
 
 // rasIdleDays is the rule's period without a transaction: 30 calendar days.
@@ -208,6 +270,7 @@ func (o *Ops) RAS(ctx context.Context, tenant, asOf string) (RASView, error) {
 		idleDays = set.InactiveDays
 	}
 	funds := o.lastFundsIn(ctx, tenant, asOf)
+	payIn := o.rasPayIn(ctx, tenant, set, asOf)
 	prof := o.CompProfile(ctx, tenant)
 	for _, r := range risk.Rows {
 		// The client as a whole: with a separate commodity ledger, every
@@ -238,11 +301,18 @@ func (o *Ops) RAS(ctx context.Context, tenant, asOf string) (RASView, error) {
 			row.Idle30, row.Inactive = true, true
 			row.IdleFrom = addDays(row.LastActivity, int(idleDays))
 		}
-		row.Retention = required.Pct(money.DecInt(100 + set.RASBufferPct)).CeilRupee()
+		row.Margin, row.Collateral, row.PayIn = required, r.Collateral, payIn[r.UCC]
+		row.Retention, row.Cap = rasRetention(required, r.Collateral, set.RASBufferPct)
 		if r.Ledgers != nil {
 			row.sep = true
 			row.retEq = r.Required.Pct(money.DecInt(100 + set.RASBufferPct)).CeilRupee()
 			row.retCom = r.Ledgers.CommodityRequired.Pct(money.DecInt(100 + set.RASBufferPct)).CeilRupee()
+			// Capped: the pledged securities are equity collateral, so the
+			// equity ledger keeps less first.
+			if over := row.retEq.Add(row.retCom).Sub(row.Retention); over.Sign() > 0 {
+				cut := money.Min(over, row.retEq)
+				row.retEq, row.retCom = row.retEq.Sub(cut), money.Max(row.retCom.Sub(over.Sub(cut)), money.Dec{})
+			}
 		}
 		row.Payout = money.Max(row.Credit.Sub(row.Retention), money.Dec{})
 		// No trade or receipt on record (such as a migrated balance): the

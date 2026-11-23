@@ -1,0 +1,93 @@
+{
+ "id": "nse-kyc-nptt",
+ "title": "PANs not permitted to trade for KYC (NSE ENIT NPTT file)",
+ "party": "NSE",
+ "direction": "in",
+ "when": "Monthly cycle (ENIT > Log > Downloads)",
+ "purpose": "The cycle's NPTT file on NSE's member portal: PANs flagged KYC non-compliant (demise included) by the KRAs' data, which cannot trade or square off from the cycle's date until the KRA marks them compliant (reinstated T+1). None of the exchanges' or the depository's circulars gives the file's columns: they are read by their header names, which this layout lists (add a header text here when the file's differs). The file is matched by PAN, then the client code.",
+ "linked": "Matched with the clients on Compliance → KYC trading gate: each client on it is held back on the front ends until the KRA verifies the KYC and a later list no longer has the client.",
+ "names": [
+  "[A-Za-z0-9]*_?NPTT.*"
+ ],
+ "compress": "none",
+ "format": "headers",
+ "delimiter": "auto",
+ "header": false,
+ "columns": [
+  {
+   "name": "PAN",
+   "key": "pan",
+   "type": "str",
+   "pattern": "[A-Za-z]{5}[0-9]{4}[A-Za-z]",
+   "aliases": [
+    "PAN No",
+    "PAN Number",
+    "Client PAN",
+    "PANNO",
+    "PAN_NO",
+    "Investor PAN",
+    "PAN of Client",
+    "First Holder PAN",
+    "Holder PAN"
+   ]
+  },
+  {
+   "name": "Client Code",
+   "key": "ucc",
+   "type": "str",
+   "aliases": [
+    "UCC",
+    "UCC Code",
+    "Client Code (UCC)",
+    "ClientCode",
+    "Client_Cd",
+    "Client Cd",
+    "Unique Client Code",
+    "Client ID"
+   ]
+  },
+  {
+   "name": "Client Name",
+   "key": "name",
+   "type": "str",
+   "aliases": [
+    "Name",
+    "Investor Name",
+    "Name of the Client",
+    "BO Name",
+    "Holder Name"
+   ]
+  },
+  {
+   "name": "KRA Status",
+   "key": "status",
+   "type": "str",
+   "aliases": [
+    "Status",
+    "KYC Status",
+    "Primary KYC Status",
+    "KRA KYC Status",
+    "Reason",
+    "Remarks",
+    "Remark"
+   ]
+  },
+  {
+   "name": "Member Code",
+   "key": "member",
+   "type": "str",
+   "aliases": [
+    "TM Code",
+    "TMCode",
+    "Trading Member Code",
+    "Member ID"
+   ]
+  }
+ ],
+ "no_header": [
+  "pan",
+  "ucc"
+ ],
+ "confirmed": false,
+ "source": "NSE/ISC/77375 (circular 50/2026), final para. The columns are not published: read by header names."
+}

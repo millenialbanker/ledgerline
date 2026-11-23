@@ -356,6 +356,27 @@ func TestSelfInspectTests(t *testing.T) {
 			t.Fatalf("days %d found %d (%v)", s.checked, s.found, s.examples)
 		}
 		siPut(t, o, ctx, cNSEHSub, "2026-10-16|1", NSEHoldingSubmission{ID: "2026-10-16|1", Date: "2026-10-16", Seq: 1, Status: "Accepted", Errors: []NSEHoldingError{}})
+		// A nil day without the NIL Holding declaration is not sent.
+		siPut(t, o, ctx, cNSEHSub, "2026-10-17|NIL", NSEHoldingSubmission{ID: "2026-10-17|NIL", Date: "2026-10-17", Status: hsNil, Errors: []NSEHoldingError{}})
+		if s := siOne(t, o, ctx, "holding_statement", "2026-10-19"); s.found != 1 || !strings.Contains(strings.Join(s.examples, " "), "NIL Holding declaration is not recorded") {
+			t.Fatalf("nil day %v", s.examples)
+		}
+		siPut(t, o, ctx, cNSEHSub, "2026-10-17|NIL", NSEHoldingSubmission{ID: "2026-10-17|NIL", Date: "2026-10-17", Status: hsNilDecl, Errors: []NSEHoldingError{}})
+		siWant(t, siOne(t, o, ctx, "holding_statement", "2026-10-19"), SIPass, "accepted by API, and nil declared")
+		// A Sunday special session is a data day.
+		set, _ := o.Settings(ctx, T)
+		set.SpecialSessions = []string{"2026-10-18"}
+		if err := o.SaveSettings(ctx, T, "admin", set); err != nil {
+			t.Fatal(err)
+		}
+		if s := siOne(t, o, ctx, "holding_statement", "2026-10-19"); s.checked != 3 || s.found != 1 {
+			t.Fatalf("special session %d %d %v", s.checked, s.found, s.examples)
+		}
+		set.SpecialSessions = nil
+		if err := o.SaveSettings(ctx, T, "admin", set); err != nil {
+			t.Fatal(err)
+		}
+		siPut(t, o, ctx, cNSEHSub, "2026-10-17|NIL", NSEHoldingSubmission{ID: "2026-10-17|NIL", Date: "2026-10-17", Status: "Superseded", Errors: []NSEHoldingError{}})
 		siPut(t, o, ctx, cReport, "2026-10-17|holdings", ReportStatus{Date: "2026-10-17", Status: "Uploaded", Ack: "ACK-T1"})
 		siWant(t, siOne(t, o, ctx, "holding_statement", "2026-10-19"), SIPass, "accepted by API, and uploaded with an acknowledgement")
 	})
