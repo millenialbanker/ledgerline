@@ -406,6 +406,7 @@ Releasing clearing deposits | Ops checker
 Releasing payouts | Ops checker
 Removing the signing certificate | Admin
 Reporting impersonation cases | Compliance officer
+Reporting short allocation to ICCL | Ops maker, Ops checker, Risk manager
 Reporting short allocation | Ops maker, Ops checker, Risk manager
 Requesting client changes | Ops maker, Ops checker, Compliance officer
 Requesting reactivation | Ops maker, Ops checker
@@ -454,6 +455,7 @@ Seeing registered phones and kiosks | HR manager
 Seeing security events and incidents | Compliance officer
 Seeing staff controls | Compliance officer, HR manager
 Seeing staff documents | HR manager
+Seeing the BSE Clearing (ICCL) day | Ops maker, Ops checker, Risk manager, Compliance officer
 Seeing the UPSI sharing record | Compliance officer
 Seeing the alert download log | Ops checker, Compliance officer
 Seeing the firm's demat accounts | Ops maker, Ops checker, Risk manager, Compliance officer

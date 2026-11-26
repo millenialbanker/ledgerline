@@ -111,7 +111,7 @@ var supportAreaPaths = map[string][]string{
 	"exchange_files": {"/v1/files", "/v1/exchange-files", "/v1/exchange-files-alerts", "/v1/exchange-files-checklist", "/v1/file-types",
 		"/v1/adapters", "/v1/trades", "/v1/recon", "/v1/settlement", "/v1/clearing-data", "/v1/history-files", "/v1/nse-extranet", "/v1/bse",
 		"/v1/mcx", "/v1/mcx-moves", "/v1/ncl-feeds", "/v1/notis", "/v1/external-trades", "/v1/eod", "/v1/shortages", "/v1/allocation",
-		"/v1/collateral-file", "/v1/sample"},
+		"/v1/collateral-file", "/v1/sample", "/v1/iccl"},
 	"settings": {"/v1/settings", "/v1/connections", "/v1/jobs", "/v1/holidays", "/v1/edition", "/v1/users", "/v1/backups", "/v1/firm-profile",
 		"/v1/ui", "/v1/security", "/v1/compliance/profile"},
 }

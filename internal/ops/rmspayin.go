@@ -68,13 +68,16 @@ func (o *Ops) payInCutoffTick(ctx context.Context, tenant string, now time.Time)
 // the given time of day; it returns how many it raised.
 func (o *Ops) RaisePayInReminders(ctx context.Context, tenant string, set Settings, lim RiskLimitConfig, today, hm string) int {
 	n := 0
-	if hm < lim.FundsPayInBy || hm < lim.SecuritiesPayInBy {
+	// Each clearing corporation has its own cut-offs (ICCL's are BSECL's,
+	// icclsettle.go); reminders run until the last of them.
+	lastFunds, lastAuction := lim.latestCutoff()
+	if hm < lastFunds {
 		td := set.PrevBusinessDay(today)
 		if set.NextSettlementDay(td) == today {
 			n += o.raisePayIn(ctx, tenant, lim, td, today, hm)
 		}
 	}
-	if hm < lim.AuctionPayInBy && o.auctionHeld(ctx, tenant, set.PrevBusinessDay(today)) {
+	if hm < lastAuction && o.auctionHeld(ctx, tenant, set.PrevBusinessDay(today)) {
 		n += o.raiseAuctionPayIn(ctx, tenant, lim, set.PrevBusinessDay(today), today)
 	}
 	if hm >= "16:00" && o.auctionHeld(ctx, tenant, today) {
@@ -118,17 +121,25 @@ func (o *Ops) raisePayIn(ctx context.Context, tenant string, lim RiskLimitConfig
 	}
 	n := 0
 	for _, k := range sortedKeys(by) {
-		c, name := by[k], ClearingCorpNames[k]
-		if net := c.in.Sub(c.out); net.Sign() > 0 && hm < lim.FundsPayInBy {
-			o.raisePayInWork(ctx, tenant, "funds|"+k+"|"+payIn, fmt.Sprintf("Funds pay-in to %s: ₹%s clear by %s", name, formatINR(net), lim.FundsPayInBy),
+		c, name, cut := by[k], ClearingCorpNames[k], lim.cutoffs(k)
+		extra := ""
+		if k == "ICCL" {
+			extra = " ICCL takes it from the CM settlement account with its empanelled clearing bank."
+		}
+		if net := c.in.Sub(c.out); net.Sign() > 0 && hm < cut.Funds {
+			o.raisePayInWork(ctx, tenant, "funds|"+k+"|"+payIn, fmt.Sprintf("Funds pay-in to %s: ₹%s clear by %s", name, formatINR(net), cut.Funds),
 				fmt.Sprintf("The net cash market pay-in of the trades of %s is ₹%s (purchases ₹%s less sales ₹%s), due in the settlement account by %s on %s. Fund the settlement account and record the transfer on Client money; a late pay-in is a funds shortage at the clearing corporation.",
-					fmtDay(td), formatINR(net), formatINR(c.in), formatINR(c.out), lim.FundsPayInBy, fmtDay(payIn)), RoleChecker, payIn, payIn+" "+lim.FundsPayInBy)
+					fmtDay(td), formatINR(net), formatINR(c.in), formatINR(c.out), cut.Funds, fmtDay(payIn))+extra, RoleChecker, payIn, payIn+" "+cut.Funds)
 			n++
 		}
-		if c.sells > 0 && hm < lim.SecuritiesPayInBy {
-			o.raisePayInWork(ctx, tenant, "securities|"+k+"|"+payIn, fmt.Sprintf("Securities pay-in to %s: %d deliveries by %s", name, c.sells, lim.SecuritiesPayInBy),
+		if c.sells > 0 && hm < cut.Securities {
+			gross := ""
+			if k == "ICCL" {
+				gross = icclPayInNote(st.Obligations) // icclsettle.go
+			}
+			o.raisePayInWork(ctx, tenant, "securities|"+k+"|"+payIn, fmt.Sprintf("Securities pay-in to %s: %d deliveries by %s", name, c.sells, cut.Securities),
 				fmt.Sprintf("%d client sales of the trades of %s in %d securities are to be delivered: the pay-in instructions must reach the depository by %s on %s, with the client code, member and ISIN matching the obligation. Run the pay-in on Settlement; a short delivery goes to auction.",
-					c.sells, fmtDay(td), len(c.isins), lim.SecuritiesPayInBy, fmtDay(payIn)), RoleMaker, payIn, payIn+" "+lim.SecuritiesPayInBy)
+					c.sells, fmtDay(td), len(c.isins), cut.Securities, fmtDay(payIn))+gross, RoleMaker, payIn, payIn+" "+cut.Securities)
 			n++
 		}
 	}
@@ -154,6 +165,14 @@ func (o *Ops) auctionHeld(ctx context.Context, tenant, date string) bool {
 func (o *Ops) raiseAuctionPayIn(ctx context.Context, tenant string, lim RiskLimitConfig, auction, payIn string) int {
 	if payIn == "" {
 		return 0
+	}
+	if on, _ := o.icclSelf(ctx, tenant); on {
+		// ICCL's auction pay-in has its own cut-off and an earlier one for
+		// the securities instructions (icclsettle.go).
+		cut := lim.cutoffs("ICCL")
+		o.raisePayInWork(ctx, tenant, "auction|ICCL|"+payIn, fmt.Sprintf("ICCL auction pay-in by %s on %s", cut.Auction, fmtDay(payIn)),
+			fmt.Sprintf("ICCL's auction of %s settles on %s: securities instructions by %s and funds by %s from the CM settlement and pool accounts. See Settlement → Short deliveries.",
+				fmtDay(auction), fmtDay(payIn), cut.AuctionInstr, cut.Auction), RoleChecker, payIn, payIn+" "+cut.AuctionInstr)
 	}
 	o.raisePayInWork(ctx, tenant, "auction|"+payIn, fmt.Sprintf("Auction pay-in by %s on %s", lim.AuctionPayInBy, fmtDay(payIn)),
 		fmt.Sprintf("The clearing corporation's auction of %s settles on %s by %s: keep the funds for the auction or close-out in the settlement account, and deliver any securities due, by then. See Settlement → Short deliveries.",

@@ -407,6 +407,8 @@ func (o *Ops) loadCCFile(ctx context.Context, tenant, actor string, s *xfile.Spe
 	case "cdsl-dormant-txn", "cdsl-high-value", "cdsl-bo-modification":
 		n, dup := o.loadCDSLReport(ctx, tenant, actor, s, rows)
 		r.Loaded, r.Added, r.Skipped = "Raised as alerts for review on Compliance → Alerts", n, dup
+	case "iccl-short-allocation", "iccl-allocation-diff":
+		o.loadICCLFile(ctx, tenant, actor, s, f, rows, r) // iccl.go
 	case "cdsl-transactions":
 		n, skipped, err := o.loadCDSLTxns(ctx, tenant, actor, rows)
 		if err != nil {
