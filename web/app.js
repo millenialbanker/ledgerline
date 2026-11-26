@@ -1223,10 +1223,11 @@ const nomState = c => (c.nominees || []).length > NOM_MAX ? NOM_OVER : (c.nomine
 const nomSummary = c => (c.nominees || []).length ? c.nominees.map(n => `${esc(n.name)} <span class="dim">(${esc(n.relation)}, ${esc(n.share)}%)</span>`).join(', ') : esc(c.nominee) + (c.nominee_name ? ' · ' + esc(c.nominee_name) + ' <span class="dim">(details missing)</span>' : '');
 const CHG_FIELDS = { Email: [['email', 'New email', 'email']], Mobile: [['mobile', 'New mobile', 'tel']], Address: [['city', 'City'], ['state', 'State']], 'Bank account': [['bank', 'Bank name'], ['ifsc', 'IFSC'], ['account', 'Account number']], Nomination: [] };
 function changeModal(kind, ucc, staff) {
-  const f = CHG_FIELDS[kind], proof = { 'Bank account': 'Bank proof', Address: 'Address proof' }[kind];
+  // Staff change an e-mail only on the client's signed letter (SEBI MC 23.2.1; internal/ops/onboardkit.go).
+  const f = CHG_FIELDS[kind], proof = { 'Bank account': 'Bank proof', Address: 'Address proof', ...(staff ? { Email: 'Client authorisation' } : {}) }[kind];
   modal(mhd('Change ' + kind.toLowerCase(), `${ucc} · checked by head office before it takes effect`) + `<form class="bd" id="chf"><div class="form">${f.map(([k, l, t]) => `<div class="fld"><label for="ch-${k}">${l}</label><input class="in" id="ch-${k}" type="${t || 'text'}" required></div>`).join('')}
     ${kind === 'Nomination' ? nomChangeFields(staff) : ''}
-    ${proof ? `<div class="fld full"><label for="ch-doc">${proof} (${kind === 'Bank account' ? 'cancelled cheque or bank statement' : 'Aadhaar, passport, utility bill'}) · PDF, JPEG or PNG</label><input class="in" type="file" id="ch-doc" accept="application/pdf,image/jpeg,image/png" required></div>` : ''}</div>
+    ${proof ? `<div class="fld full"><label for="ch-doc">${kind === 'Email' ? 'The client’s signed letter asking for the change' : `${proof} (${kind === 'Bank account' ? 'cancelled cheque or bank statement' : 'Aadhaar, passport, utility bill'})`} · PDF, JPEG or PNG</label><input class="in" type="file" id="ch-doc" accept="application/pdf,image/jpeg,image/png" required></div>` : ''}</div>
     <div id="ch-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Submit request</button></div></form>`);
   nomBind();
   if ($('ch-nominee')) $('ch-nominee').onchange = e => { const inn = e.target.value === 'Opted in'; $('ch-noms').hidden = !inn; $('ch-optout').hidden = inn; $('ch-stmtf').hidden = !inn; $('ch-jointf').hidden = !inn; };

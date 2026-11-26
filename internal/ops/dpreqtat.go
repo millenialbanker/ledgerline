@@ -142,6 +142,28 @@ func (o *Ops) RecordDPStep(ctx context.Context, tenant, actor, id, step, on, ref
 				return fmt.Errorf("%w: %s is %s", ErrState, id, strings.ToLower(x.Status))
 			}
 		}
+		if x.Kind == "Transmission" {
+			// SEBI HO/38/13/11(14)2026-MIRSD-POD/I/17111/2026 Annexure
+			// 6.1.3-6.1.4: every missing or deficient document told at once;
+			// a later request only with the reason in writing; the claimant
+			// told when the documents are complete.
+			switch step {
+			case "deficiency":
+				if strings.TrimSpace(note) == "" {
+					return invalid("list every missing or deficient document in the note: the claimant is told of all of them at once")
+				}
+				if prev, ok := x.Steps["deficiency"]; ok {
+					if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(note)), "reason:") {
+						return invalid("documents were already asked for on %s: a further request needs its reason in writing (start the note with \"Reason:\")", fmtDay(prev.On))
+					}
+					note = strings.TrimSpace(note) + " (earlier request of " + fmtDay(prev.On) + ": " + prev.Note + ")"
+				}
+			case "docs_complete":
+				if strings.TrimSpace(ref) == "" {
+					return invalid("give the reference of the message telling the claimant the documents are complete")
+				}
+			}
+		}
 		x.step(step, on, actor, strings.TrimSpace(ref))
 		if n := strings.TrimSpace(note); n != "" {
 			s := x.Steps[step]

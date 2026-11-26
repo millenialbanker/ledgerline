@@ -405,6 +405,7 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/surveillance/run", s.runRules, true)
 	s.dpSurvRoutes(R)
 	s.dpCtlRoutes(R)
+	s.notesXRoutes(R)
 	R("GET /v1/ipo", s.ipo, false)
 	R("GET /v1/mf", s.mf, false)
 	R("GET /v1/ccm", s.ccm, false)

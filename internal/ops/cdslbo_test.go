@@ -287,7 +287,12 @@ func TestCDSLModifyFromChangeRequest(t *testing.T) {
 	f := newFakeCDSL(t, o, cdslFamBO)
 	c := cdslTestClient(t, o, ctx, "ABCPM5555M", "Meera Joshi", "1201090000004444")
 	o.cdslBOTick(ctx, T, time.Now()) // the API is first seen on now
-	ch, err := o.RequestChange(ctx, T, "priya.nair", c.UCC, "Email", map[string]string{"email": "meera.new@example.test"}, "")
+	// Staff change an e-mail on the client's signed letter (onboardkit.go).
+	letter, err := o.AddClientDoc(ctx, T, "priya.nair", c.UCC, "Other", "E-mail change letter.pdf", []byte("%PDF-1.4 test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, err := o.RequestChange(ctx, T, "priya.nair", c.UCC, "Email", map[string]string{"email": "meera.new@example.test"}, letter.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

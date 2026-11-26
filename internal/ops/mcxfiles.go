@@ -186,6 +186,9 @@ type MCXContract struct {
 	GenDen         money.Dec `json:"general_denominator"`
 	Currency       string    `json:"currency,omitempty"`
 	Month          string    `json:"product_month,omitempty"`
+	// LastTrade is the last trading date (Product End Date Time), which
+	// MCX revises when a holiday falls on it (MCX/CTCL/256/2026 para 2.6).
+	LastTrade string `json:"last_trading_date,omitempty"`
 }
 
 // Key matches the market data's and trades' instrument key.
@@ -247,7 +250,8 @@ func (o *Ops) loadMCXProducts(ctx context.Context, tenant, actor, name string, r
 			Description: strings.TrimSpace(r.Get("Product Description")), QuoteUnit: strings.TrimSpace(r.Get("Quotation Unit")), Tick: dec(r, "Price Tick"),
 			DeliveryUnit: strings.TrimSpace(r.Get("Delivery Unit")), DeliveryWeight: dec(r, "Delivery Weight"), Settlement: mcxSettlement[strings.TrimSpace(r.Get("Delivery Mode"))],
 			PriceNum: dec(r, "Price Numerator"), PriceDen: dec(r, "Price Denominator"), GenNum: dec(r, "General Numerator"), GenDen: dec(r, "General Denominator"),
-			Currency: strings.TrimSpace(r.Get("Currency Code")), Month: strings.TrimSpace(r.Get("Product Month"))}
+			Currency: strings.TrimSpace(r.Get("Currency Code")), Month: strings.TrimSpace(r.Get("Product Month")),
+			LastTrade: anyDate(r.Get("Product End Date Time"))}
 		if typ != "FUT" {
 			c.Strike = strikeKey(r.Get("Strike Price"))
 			if c.Strike == "" {
