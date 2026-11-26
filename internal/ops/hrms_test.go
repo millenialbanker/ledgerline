@@ -346,22 +346,22 @@ func TestOwnTradingPreClearance(t *testing.T) {
 	if _, err := o.SaveHRPolicy(ctx, T, "vikram.shah", p); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := o.RequestPreClearance(ctx, T, "priya.nair", PreClearance{Account: a.ID, Security: "RESTRICTCO", Side: "Buy", Qty: 10}); err == nil {
+	if _, err := o.RequestPreClearance(ctx, T, "priya.nair", PreClearance{Account: a.ID, Security: "RESTRICTCO", Side: "Buy", Qty: 10, NoUPSI: true}); err == nil {
 		t.Fatal("restricted security pre-cleared")
 	}
-	pc, err := o.RequestPreClearance(ctx, T, "priya.nair", PreClearance{Account: a.ID, Security: "TESTCO", Side: "Buy", Qty: 100, Value: 2000000_00})
+	pc, err := o.RequestPreClearance(ctx, T, "priya.nair", PreClearance{Account: a.ID, Security: "TESTCO", Side: "Buy", Qty: 100, Value: 2000000_00, NoUPSI: true})
 	if err != nil || !pc.Needed {
 		t.Fatalf("request %+v %v", pc, err)
 	}
 	if _, err := o.DecidePreClearance(ctx, T, "priya.nair", pc.ID, true, ""); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("self approval: %v", err)
 	}
-	if pc, err = o.DecidePreClearance(ctx, T, "vikram.shah", pc.ID, true, ""); err != nil || pc.ValidTill != "2026-05-11" {
+	if pc, err = o.DecidePreClearance(ctx, T, "vikram.shah", pc.ID, true, ""); err != nil || pc.ValidTill != "2026-05-12" {
 		t.Fatalf("approve %+v %v", pc, err)
 	}
 	// An opposite trade within the contra period is flagged.
 	r.at("2026-06-01 10:00")
-	pc2, err := o.RequestPreClearance(ctx, T, "priya.nair", PreClearance{Account: a.ID, Security: "TESTCO", Side: "Sell", Qty: 100})
+	pc2, err := o.RequestPreClearance(ctx, T, "priya.nair", PreClearance{Account: a.ID, Security: "TESTCO", Side: "Sell", Qty: 100, NoUPSI: true})
 	if err != nil || len(pc2.Warnings) != 1 || !strings.Contains(pc2.Warnings[0], "Contra") {
 		t.Fatalf("contra %+v %v", pc2, err)
 	}

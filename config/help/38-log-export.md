@@ -33,7 +33,7 @@ roles: Compliance officer, Admin
 ask: log retention; keep logs 180 days; cert-in log retention; how long are logs kept; sign-in log retention; delete old logs; logs in india; retention period
 related: log-export-siem, data-in-india, audit-seals
 
-CERT-In's directions of 28 April 2022 ask for logs to be kept for 180 days, in India. Ledgerline keeps security events and sign-in records for 365 days unless the firm sets another period. The period can't be set below 180 days.
+CERT-In's directions of 28 April 2022 ask for logs to be kept for 180 days, in India. Ledgerline keeps security events and sign-in records for 730 days (two years, as CSCRF PR.AA.S9 asks for user access logs of critical systems) unless the firm sets another period. The period can't be set below 180 days, and below 730 the Incidents screen warns.
 
 Set it under [[incidents|Incidents]] → **Rules and contacts**. The current period is stated on [[logexport|Log export]].
 

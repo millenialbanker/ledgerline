@@ -238,7 +238,7 @@ func TestQuestions(t *testing.T) {
 		{"file an STR", "", "fingate-str"}, {"close a surveillance alert", "", "surveillance"},
 		{"SCORES complaint", "", "complaints"},
 		{"add a new user", "", "add-user"},
-		{"user locked out", "", "reset-password"},
+		{"user locked out", "", "signin-lock-unlock"},
 		{"lost phone authenticator", "", "reset-2fa"},
 		{"Approving payouts needs Ops checker or Risk manager (you are Ops maker)", "", "permission-denied"},
 		{"whatsapp messages not going to client", "", "whatsapp-consent"},

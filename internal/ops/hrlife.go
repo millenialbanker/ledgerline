@@ -21,6 +21,8 @@ func (o *Ops) hrTick(ctx context.Context, tenant string, now time.Time) {
 	o.leaverTick(ctx, tenant, now)
 	o.hrCertTick(ctx, tenant, now)
 	o.annualDeclTick(ctx, tenant, now)
+	o.pitTick(ctx, tenant, now)
+	o.staffControlsTick(ctx, tenant, now)
 	o.attendanceTick(ctx, tenant, now)
 	if o.ModuleOn(ctx, tenant, ModPayroll) {
 		o.salaryBankTick(ctx, tenant, now)

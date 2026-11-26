@@ -139,6 +139,16 @@ type Client struct {
 	NoInsights bool `json:"no_insights,omitempty"`
 	// WAConsent records the client's WhatsApp choice: when, how and by whom.
 	WAConsent *WAConsent `json:"wa_consent,omitempty"`
+	// DataConsent is the consent to collecting sensitive personal data
+	// (bank, photograph, signature) recorded on the branch path;
+	// KYCSource is where the KYC record came from (CKYC records may be
+	// used only to verify identity and address); ErasedOn and ErasedRef
+	// mark a closed client whose personal data was erased once the
+	// retention period ended (dataprivacy.go).
+	DataConsent *DataConsent `json:"data_consent,omitempty"`
+	KYCSource   string       `json:"kyc_source,omitempty"`
+	ErasedOn    string       `json:"erased_on,omitempty"`
+	ErasedRef   string       `json:"erased_ref,omitempty"`
 	// Nominees (up to 3 from 1 Sep 2026; see nominees.go) with each one's
 	// share and optional identity; NominationOn is when the choice
 	// (nominate or opt out) was made and NominationMode how it was
@@ -467,6 +477,18 @@ func (o *Ops) createApplication(ctx context.Context, tenant, actor string, c Cli
 	c.KYCDate = o.now().Format("2006-01-02")
 	c.CreatedBy = actor
 	c.UPIBlock, c.Blocked, c.LastTrade = 0, false, ""
+	// The consent to collecting sensitive personal data (IT Rules 2011,
+	// rule 5; dataprivacy.go): the e-signed application online; on the
+	// branch path, the signed form's reference when staff give it.
+	if strings.HasPrefix(actor, "applicant:") {
+		c.DataConsent = &DataConsent{At: o.now().Format(time.RFC3339), Source: "e-Sign", Ref: "online application", By: actor}
+	} else if c.DataConsent != nil {
+		if strings.TrimSpace(c.DataConsent.Ref) == "" {
+			return Client{}, &ValidationError{[]FieldError{{"data_consent", "Give the form number of the signed consent"}}}
+		}
+		c.DataConsent = &DataConsent{At: o.now().Format(time.RFC3339), Source: "Signed form", Ref: trim(strings.TrimSpace(c.DataConsent.Ref), 80), By: actor}
+	}
+	c.ErasedOn, c.ErasedRef = "", ""
 	c.WAConsent = nil
 	if c.WhatsApp {
 		c.setConsent(true, o.now().Format(time.RFC3339), SrcOnboarding, actor, "application "+c.UCC)

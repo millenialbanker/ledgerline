@@ -133,6 +133,8 @@ var SecKinds = map[string]SecKind{
 	"platform.incident_update":         {"security", SevMedium, "Platform incident updated"},
 	"mobile.rooted_device":             {"security", SevMedium, "Phone that looks rooted or jailbroken registered"},
 	"mobile.unlock_failed":             {"security", SevMedium, "Phone revoked after wrong unlock attempts"},
+	"client.fraud_reported":            {"security", SevHigh, "Client reported a fraudulent transaction"},
+	"signin.unlocked":                  {"signin", SevLow, "Locked sign-in unlocked"},
 }
 
 // SecurityEvent records one event in the firm's security stream, runs the
@@ -208,9 +210,11 @@ func (o *Ops) observeAudit(ctx context.Context, a app.AuditEvent) {
 		e.Detail = map[string]any{"reason": str("reason")}
 		o.SecurityEvent(ctx, a.Tenant, e)
 		if locked, _ := a.Detail["locked"].(bool); locked {
-			o.SecurityEvent(ctx, a.Tenant, SecEvent{Kind: "signin.locked", Actor: a.Actor, Subject: a.Object, IP: e.IP, Message: a.Object + " locked for 15 minutes after repeated wrong passwords"})
+			o.SecurityEvent(ctx, a.Tenant, SecEvent{Kind: "signin.locked", Actor: a.Actor, Subject: a.Object, IP: e.IP, Message: a.Object + " locked after repeated wrong passwords"})
 		}
 		return
+	case "user.unlocked":
+		e.Kind, e.Message = "signin.unlocked", fmt.Sprintf("%s's locked sign-in was unlocked (%s)", a.Object, firstOf(str("how"), "out of band"))
 	case "auth.logout":
 		e.Kind, e.Message = "signin.logout", a.Object+" signed out"
 	case "auth.password_changed":
@@ -405,10 +409,24 @@ type SecuritySettings struct {
 	// refused. Empty: no check.
 	AllowedNetworks []string `json:"allowed_networks"`
 	// RetentionDays: how long security events and sign-in records are
-	// kept: at least 180 (CERT-In), 365 by default.
-	RetentionDays int    `json:"retention_days"`
-	UpdatedAt     string `json:"updated_at,omitempty"`
-	UpdatedBy     string `json:"updated_by,omitempty"`
+	// kept: at least 180 (CERT-In), 730 by default (CSCRF PR.AA.S9: two years).
+	RetentionDays int `json:"retention_days"`
+	// Sign-in rules (authlock.go): TimedUnlock lets a locked sign-in open
+	// again by itself after 15 minutes instead of needing an out-of-band
+	// unlock (CSCRF Annexure-G 5-7 asks for out-of-band); PasswordDays is
+	// how long a password lasts (90 by default, NSE/INSP/73850 Annex D),
+	// NoPasswordExpiry turns expiry off; PasswordHistory is how many past
+	// passwords may not be reused (6 by default).
+	TimedUnlock      bool `json:"timed_unlock,omitempty"`
+	PasswordDays     int  `json:"password_days,omitempty"`
+	NoPasswordExpiry bool `json:"no_password_expiry,omitempty"`
+	PasswordHistory  int  `json:"password_history,omitempty"`
+	// InvestigateHours is how soon an open incident must be taken on
+	// (owner or Investigating), by severity (incfollow.go); empty: the
+	// defaults.
+	InvestigateHours map[string]int `json:"investigate_hours,omitempty"`
+	UpdatedAt        string         `json:"updated_at,omitempty"`
+	UpdatedBy        string         `json:"updated_by,omitempty"`
 }
 
 // MinRetentionDays is CERT-In's minimum for logs (direction (iv)).
@@ -425,7 +443,7 @@ func (s SecuritySettings) withDefaults() SecuritySettings {
 	def(&s.FailedIPN, 10)
 	def(&s.FailedIPMinutes, 15)
 	def(&s.LargeDownloadMB, 50)
-	def(&s.RetentionDays, 365)
+	def(&s.RetentionDays, 730)
 	if s.RetentionDays < MinRetentionDays {
 		s.RetentionDays = MinRetentionDays
 	}
@@ -465,6 +483,7 @@ func (o *Ops) SaveSecuritySettings(ctx context.Context, tenant, actor string, s 
 		rng(s.FailedUserN, 2, 100, "wrong sign-ins for one user"), rng(s.FailedUserMinutes, 1, 1440, "the minutes for one user"),
 		rng(s.FailedIPN, 2, 1000, "wrong sign-ins from one address"), rng(s.FailedIPMinutes, 1, 1440, "the minutes for one address"),
 		rng(s.LargeDownloadMB, 1, 100000, "the large download size (MB)"),
+		rng(s.PasswordDays, 30, 365, "the days a password lasts"), rng(s.PasswordHistory, 1, 12, "the past passwords not to reuse"),
 	} {
 		if c != nil {
 			return SecuritySettings{}, c
@@ -505,7 +524,8 @@ func (o *Ops) SaveSecuritySettings(ctx context.Context, tenant, actor string, s 
 	}
 	s = s.withDefaults()
 	o.log(ctx, tenant, actor, "security.settings.saved", "security", map[string]any{"changed": []string{"alert and log settings"}, "contacts": len(s.Contacts), "retention_days": s.RetentionDays,
-		"failed_user": fmt.Sprintf("%d in %d min", s.FailedUserN, s.FailedUserMinutes), "failed_ip": fmt.Sprintf("%d in %d min", s.FailedIPN, s.FailedIPMinutes), "large_download_mb": s.LargeDownloadMB, "networks": len(s.AllowedNetworks), "admin_alert": !s.NoAdminAlert})
+		"failed_user": fmt.Sprintf("%d in %d min", s.FailedUserN, s.FailedUserMinutes), "failed_ip": fmt.Sprintf("%d in %d min", s.FailedIPN, s.FailedIPMinutes), "large_download_mb": s.LargeDownloadMB, "networks": len(s.AllowedNetworks), "admin_alert": !s.NoAdminAlert,
+		"timed_unlock": s.TimedUnlock, "password_days": s.passwordDays(), "password_history": s.passwordHistory()})
 	return s, nil
 }
 
@@ -552,6 +572,7 @@ func SecRules(s SecuritySettings) []SecRule {
 		{"download", "Very large download", fmt.Sprintf("One download or export of %d MB or more.", s.LargeDownloadMB), SevMedium, true},
 		{"outside-ip", "Sign-in from outside the firm's networks", nets, SevHigh, len(s.AllowedNetworks) > 0},
 		{"support", "Support access without approval", "Ledgerline support staff open the firm's data without the firm's approval.", SevHigh, true},
+		{"fraud-report", "Client reports a fraudulent transaction", "A client reports, from the portal or the app, a trade, payout, demat debit, pledge, sign-in or change they did not make.", SevHigh, true},
 	}
 }
 
@@ -588,6 +609,9 @@ func (o *Ops) secDetect(ctx context.Context, tenant string, e *SecEvent, now tim
 		rule, key, sev, title = "download", e.Actor, SevMedium, "Very large download by "+firstOf(e.Actor, "someone")
 	case "signin.outside_ip_rules":
 		rule, key, sev, title = "outside-ip", e.Subject+"|"+e.IP, SevHigh, e.Subject+" signed in from "+e.IP+", outside the firm's networks"
+	case "client.fraud_reported":
+		rep, _ := e.Detail["report"].(string)
+		rule, key, sev, title = "fraud-report", firstOf(rep, e.Subject), SevHigh, e.Message
 	case "support.access_unapproved":
 		rule, key, sev, title = "support", e.Actor, SevHigh, "Ledgerline support access without the firm's approval ("+firstOf(e.Actor, "support")+")"
 	}
@@ -694,11 +718,14 @@ type secState struct {
 // night after 02:00 IST (an incident at once if one fails).
 func (o *Ops) securityTick(ctx context.Context, tenant string, now time.Time) {
 	o.logExportTick(ctx, tenant, now)
+	o.incidentFollowTick(ctx, tenant, now)
 	now = now.In(ist)
 	st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cSecState, "main", secState{})
 	today := now.Format("2006-01-02")
 	changed := false
 	if st.LastPurge != today {
+		o.erasureTick(ctx, tenant, now)
+		o.resilienceTick(ctx, tenant, now)
 		st.PurgedThrough = o.purgeSecEvents(ctx, tenant, st.PurgedThrough, now)
 		st.LastPurge, changed = today, true
 	}
