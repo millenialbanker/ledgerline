@@ -572,6 +572,8 @@ func finspotBlockWhy(c Client) string {
 		return "Inactive account"
 	case c.Blocked:
 		return firstOf(c.BlockedReason, "Blocked")
+	case c.TradeFrozen != "":
+		return "Frozen at the client's request"
 	case len(c.OpenSegments()) == 0:
 		return "No segment active"
 	}
