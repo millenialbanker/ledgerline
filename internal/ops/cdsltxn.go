@@ -462,6 +462,14 @@ func (o *Ops) cdxDISRows(ctx context.Context, tenant string, x cdslConn, ds []DI
 			default:
 				v["CntrBnfclOwnrId"] = d.ToBO
 				v["TrdRsnCd"] = cdxReasonCodes[d.Reason]
+				if d.Reason == "Transmission" {
+					// A slip can only be the nominee passing shares on to
+					// the legal heirs (the holder's own transmission is a DP
+					// request): CDSL's code TLH, which CDSL reports to CBDT
+					// as not a transfer (SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/
+					// 130, paras 4 and 6; the layout's TrdRsnCd codes).
+					v["TrdRsnCd"] = "TLH"
+				}
 				if d.Consideration > 0 {
 					v["Cnsdrtn"] = d.Consideration.String()
 				}

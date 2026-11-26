@@ -436,6 +436,10 @@ type BORow struct {
 	// Plan is the account's DP tariff plan on the date ("": the firm's
 	// tariff).
 	Plan string `json:"plan,omitempty"`
+	// NoAMC: on CDSL's latest list of accounts "to be closed" (holding
+	// only illiquid, suspended or delisted securities): no maintenance
+	// charge (dpmisc.go).
+	NoAMC bool `json:"no_amc,omitempty"`
 }
 
 // DPView is the DP desk.
@@ -492,6 +496,7 @@ func (o *Ops) DP(ctx context.Context, tenant, date string) (DPView, error) {
 	}
 	hs, _ := o.Holdings(ctx, tenant, "")
 	_, look, _ := o.Market(ctx, tenant, date)
+	tbc := o.dpToBeClosed(ctx, tenant)
 	type agg struct {
 		n   int
 		val money.Dec
@@ -554,6 +559,10 @@ func (o *Ops) DP(ctx context.Context, tenant, date string) (DPView, error) {
 					}
 				}
 				v.Counts["On a tariff plan"]++
+			}
+			if tbc[normDematID(b.BOID)] {
+				r.AMC, r.NoAMC = 0, true // on CDSL's "to be closed" list (dpmisc.go)
+				v.Counts["To be closed (no AMC)"]++
 			}
 			v.Counts[b.Status]++
 			if b.BSDA {
@@ -723,6 +732,15 @@ type DIS struct {
 	Checker       string       `json:"checker,omitempty"`
 	Note          string       `json:"note,omitempty"`
 	Batch         string       `json:"batch,omitempty"`
+	// SetupOn is the day the slip was set up (entered); a slip is set up
+	// the day it is received or the next, and one set up more than 2 days
+	// after receipt carries the reason (DelayReason; CDSL communiqués
+	// DP2025-543 and DP2025-641, bye-law 7.2.1; dpmisc.go). StampEst is
+	// the stamp duty CDSL collects on the consideration (0.015%).
+	SetupOn     string       `json:"setup_on,omitempty"`
+	DelayDays   int          `json:"delay_days,omitempty"`
+	DelayReason string       `json:"delay_reason,omitempty"`
+	StampEst    money.Amount `json:"stamp_estimate,omitempty"`
 }
 
 // HighValueDIS needs the client's confirmation on record (₹5 lakh).
@@ -867,16 +885,25 @@ func (o *Ops) EnterDIS(ctx context.Context, tenant, actor string, d DIS) (DIS, e
 	if d.Kind == "Inter-depository" && len(d.ToBO) != 16 && !strings.HasPrefix(d.ToBO, "IN") {
 		return d, invalid("give the target DP ID and client ID at the other depository")
 	}
+	if d.Kind != "On-market" && d.Reason == "" && o.receivedByTransmission(ctx, tenant, c.UCC) {
+		// A nominee passing shares on to the legal heirs: reported to CBDT
+		// as TLH, not a transfer (dpmisc.go).
+		d.Reason = "Transmission"
+	}
 	if d.Kind != "On-market" && !contains(OffMarketReasons, d.Reason) {
 		return d, invalid("choose the reason for the transfer")
 	}
 	if d.Reason == "Sale (off-market)" && d.Consideration <= 0 {
 		return d, invalid("an off-market sale needs the consideration")
 	}
+	if d.Reason == "Others" && strings.TrimSpace(d.Note) == "" {
+		return d, invalid("for reason Others, say what the transfer is for and whether anything is paid for it (the consideration decides the stamp duty)")
+	}
 	today := o.now().Format("2006-01-02")
 	if d.Received == "" {
 		d.Received = today
 	}
+	dpDISSetup(&d, today)
 	if !ledger.ValidDate(d.ExecDate) || d.ExecDate < d.Received {
 		return d, invalid("execution date must be on or after the date the slip was received")
 	}
@@ -917,7 +944,8 @@ func (o *Ops) EnterDIS(ctx context.Context, tenant, actor string, d DIS) (DIS, e
 		return d, err
 	}
 	_, _ = docs.Update(ctx, o.Docs, tenant, cDISBook, book.ID, actor, func(x *DISBook) error { x.Used = append(x.Used, d.Slip); return nil })
-	o.log(ctx, tenant, actor, "dis.entered", d.ID, map[string]any{"ucc": c.UCC, "slip": d.Slip, "value": d.Value.String()})
+	o.log(ctx, tenant, actor, "dis.entered", d.ID, map[string]any{"ucc": c.UCC, "slip": d.Slip, "value": d.Value.String(), "delay_days": d.DelayDays})
+	o.disDelayWork(ctx, tenant, d)
 	return d, nil
 }
 

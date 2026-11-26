@@ -527,6 +527,9 @@ func (o *Ops) loadCDSLTxns(ctx context.Context, tenant, actor string, rows []xfi
 		q, err := money.ParseDec(r.Get("Qty"))
 		// Stamp duty paid through the DP on a transfer, for the DP bill
 		// (dpstamp.go).
+		if ok {
+			o.cdslStampOverdue(ctx, tenant, r, ucc) // stamp duty not funded (dpmisc.go)
+		}
 		if sd, has := dpStampOf(r); has && ok {
 			o.dpStampSeen(ctx, tenant, actor, DPStamp{ID: strings.TrimSpace(r.Get("TxnID")), UCC: ucc, BOID: bo, ISIN: strings.ToUpper(r.Get("ISIN")),
 				Date: firstOf(anyDate(r.Get("ExecDt")), anyDate(r.Get("BizDt"))), Amount: sd, Debit: cd == "DBT" || (err == nil && q.Sign() < 0)})

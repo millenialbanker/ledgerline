@@ -859,25 +859,39 @@ type GSTLine struct {
 	CGST    money.Amount `json:"cgst"`
 	SGST    money.Amount `json:"sgst"`
 	Total   money.Amount `json:"total"` // taxable + tax
+	// A credit or debit note (gstnotes.go): the invoice it changes.
+	Orig     string `json:"original_invoice,omitempty"`
+	OrigDate string `json:"original_date,omitempty"`
+	Reason   string `json:"reason,omitempty"`
+	Key      string `json:"key,omitempty"`
 }
 
 // GSTReturn is the GST register for a period with GSTR-1 and GSTR-3B
 // summaries.
 type GSTReturn struct {
-	From         string        `json:"from"`
-	To           string        `json:"to"`
-	FirmGSTIN    string        `json:"firm_gstin"`
-	FirmState    string        `json:"firm_state"`
-	Lines        []GSTLine     `json:"lines"`
-	B2B          []GSTLine     `json:"b2b"`
-	B2CS         []GSTLine     `json:"b2cs"` // by place of supply and rate
-	HSN          []GSTLine     `json:"hsn"`  // by SAC
-	Docs         []GSTDocRange `json:"docs"`
-	Out          GSTLine       `json:"outward"`       // 3.1(a)
-	ITC          GSTLine       `json:"itc"`           // 4(A)(5)
-	Payable      GSTLine       `json:"payable"`       // tax to pay in cash after set-off
-	CarryForward GSTLine       `json:"carry_forward"` // credit left over
-	Warnings     []string      `json:"warnings"`
+	From      string        `json:"from"`
+	To        string        `json:"to"`
+	FirmGSTIN string        `json:"firm_gstin"`
+	FirmState string        `json:"firm_state"`
+	Lines     []GSTLine     `json:"lines"`
+	B2B       []GSTLine     `json:"b2b"`
+	B2CS      []GSTLine     `json:"b2cs"` // by place of supply and rate
+	HSN       []GSTLine     `json:"hsn"`  // by SAC
+	Docs      []GSTDocRange `json:"docs"`
+	// Notes are the period's credit and debit notes for bills corrected
+	// after their month's GSTR-1 was due (gstnotes.go); CDNR those to
+	// clients with a GSTIN (GSTR-1 table 9B). Those to others are netted
+	// into B2CS.
+	Notes []GSTLine `json:"notes"`
+	CDNR  []GSTLine `json:"cdnr"`
+	// RCM is the inward supplies liable to reverse charge (GSTR-3B 3.1(d)):
+	// tax paid in cash, never from credit.
+	RCM          GSTLine  `json:"rcm"`
+	Out          GSTLine  `json:"outward"`       // 3.1(a)
+	ITC          GSTLine  `json:"itc"`           // 4(A)(5)
+	Payable      GSTLine  `json:"payable"`       // tax to pay in cash after set-off
+	CarryForward GSTLine  `json:"carry_forward"` // credit left over
+	Warnings     []string `json:"warnings"`
 }
 
 // GSTDocRange summarises a document series for GSTR-1 table 13.
@@ -934,8 +948,14 @@ func (o *Ops) GST(ctx context.Context, tenant, from, to string) (GSTReturn, erro
 	}
 	type acc struct{ taxable, gst money.Amount }
 	notes := map[string]*acc{} // date|ucc
+	// Bills corrected after their month's GSTR-1 was due stay as filed;
+	// the correction is a credit or debit note of its own period.
+	late := gstLateAdjustments(all, byID)
 	for _, e := range all {
 		if e.ValueDate < from || e.ValueDate > to {
+			continue
+		}
+		if _, adj := late[e.ID]; adj {
 			continue
 		}
 		src := e
@@ -1013,6 +1033,7 @@ func (o *Ops) GST(ctx context.Context, tenant, from, to string) (GSTReturn, erro
 		l.IGST, l.CGST, l.SGST = splitGST(iv.GST, inter)
 		r.Lines = append(r.Lines, l)
 	}
+	r.Notes, r.CDNR = o.gstNoteLines(ctx, tenant, from, to, late, all, cs, rate, pos, &r.Warnings)
 	sort.SliceStable(r.Lines, func(i, j int) bool {
 		if r.Lines[i].Date != r.Lines[j].Date {
 			return r.Lines[i].Date < r.Lines[j].Date
@@ -1063,6 +1084,22 @@ func (o *Ops) GST(ctx context.Context, tenant, from, to string) (GSTReturn, erro
 			x.To = l.Invoice
 		}
 	}
+	// Notes change the period's outward tax; those to clients without a
+	// GSTIN are netted into B2CS by place of supply and rate.
+	for _, n := range r.Notes {
+		sg := n
+		if n.Kind == "Credit note" {
+			sg = GSTLine{Taxable: -n.Taxable, IGST: -n.IGST, CGST: -n.CGST, SGST: -n.SGST, Total: -n.Total, POS: n.POS, Rate: n.Rate}
+		}
+		addTo(&r.Out, sg)
+		if n.GSTIN == "" {
+			k := n.POS + "|" + n.Rate.String()
+			if b2cs[k] == nil {
+				b2cs[k] = &GSTLine{POS: n.POS, Rate: n.Rate, Kind: "B2CS"}
+			}
+			addTo(b2cs[k], sg)
+		}
+	}
 	if r.B2B == nil {
 		r.B2B = []GSTLine{}
 	}
@@ -1074,6 +1111,24 @@ func (o *Ops) GST(ctx context.Context, tenant, from, to string) (GSTReturn, erro
 	}
 	for _, k := range sortedKeys(series) {
 		r.Docs = append(r.Docs, *series[k])
+	}
+	// Credit and debit notes issued are documents of table 13 too.
+	ns := map[string]*GSTDocRange{}
+	for _, n := range r.Notes {
+		i := strings.LastIndex(n.Invoice, "/")
+		if i < 0 {
+			continue
+		}
+		k := n.Invoice[:i]
+		if ns[k] == nil {
+			ns[k] = &GSTDocRange{Series: k, From: n.Invoice, To: n.Invoice}
+		}
+		x := ns[k]
+		x.Count++
+		x.From, x.To = min(x.From, n.Invoice), max(x.To, n.Invoice)
+	}
+	for _, k := range sortedKeys(ns) {
+		r.Docs = append(r.Docs, *ns[k])
 	}
 	if r.B2CS == nil {
 		r.B2CS = []GSTLine{}
@@ -1100,6 +1155,22 @@ func (o *Ops) GST(ctx context.Context, tenant, from, to string) (GSTReturn, erro
 		}
 	}
 	r.Payable, r.CarryForward = setOff(r.Out, r.ITC)
+	// Reverse charge on vendor bills (vendors.go): paid in cash on top.
+	if bills, err := o.vendorBills(ctx, tenant); err == nil {
+		for _, b := range bills {
+			if !b.RCM || b.BillDate < from || b.BillDate > to || b.Status == BillRejected || b.Status == BillCancelled {
+				continue
+			}
+			r.RCM.Taxable += b.Taxable
+			r.RCM.IGST += b.IGST
+			r.RCM.CGST += b.CGST
+			r.RCM.SGST += b.SGST
+			r.RCM.Total += b.Taxable + b.gst()
+		}
+	}
+	r.Payable.IGST += r.RCM.IGST
+	r.Payable.CGST += r.RCM.CGST
+	r.Payable.SGST += r.RCM.SGST
 	return r, nil
 }
 
@@ -1126,13 +1197,29 @@ func (o *Ops) GSTR1CSV(ctx context.Context, tenant, from, to, table string) ([]b
 		for _, l := range r.HSN {
 			rows = append(rows, []string{l.SAC, "Stock broking services", "NA", "0", l.Total.String(), l.Taxable.String(), l.IGST.String(), l.CGST.String(), l.SGST.String(), l.Rate.String()})
 		}
+	case "cdnr":
+		rows = [][]string{{"GSTIN/UIN of Recipient", "Receiver Name", "Note Number", "Note Date", "Note Type", "Place Of Supply", "Reverse Charge", "Note Supply Type", "Note Value", "Applicable % of Tax Rate", "Rate", "Taxable Value", "Cess Amount"}}
+		for _, l := range r.CDNR {
+			t := "C"
+			if l.Kind == "Debit note" {
+				t = "D"
+			}
+			rows = append(rows, []string{l.GSTIN, l.Name, l.Invoice, l.Date, t, l.POS, "N", "Regular B2B", l.Total.String(), "", l.Rate.String(), l.Taxable.String(), "0"})
+		}
 	case "docs":
 		rows = [][]string{{"Nature of Document", "Sr. No. From", "Sr. No. To", "Total Number", "Cancelled"}}
 		for _, d := range r.Docs {
-			rows = append(rows, []string{"Invoices for outward supply", d.From, d.To, fmt.Sprint(d.Count), "0"})
+			nature := "Invoices for outward supply"
+			switch {
+			case strings.HasPrefix(d.Series, "CRN/"):
+				nature = "Credit Note"
+			case strings.HasPrefix(d.Series, "DBN/"):
+				nature = "Debit Note"
+			}
+			rows = append(rows, []string{nature, d.From, d.To, fmt.Sprint(d.Count), "0"})
 		}
 	default:
-		return nil, invalid("table must be b2b, b2cs, hsn or docs")
+		return nil, invalid("table must be b2b, b2cs, cdnr, hsn or docs")
 	}
 	return CSV(rows), nil
 }

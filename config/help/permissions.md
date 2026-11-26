@@ -213,12 +213,14 @@ Generating reports | Ops maker, Ops checker, Risk manager, Compliance officer
 Giving clients portal access | Ops checker, Admin
 Giving notice before invoking CUSPA securities | Ops maker, Ops checker, Risk manager
 Giving salary advances and loans | Payroll
+Holding AP payouts | Ops checker, Compliance officer
 Holding or deleting archived documents | Compliance officer
 Identifying a bank credit | Ops checker
 Importing dealers and terminals | Ops maker, Compliance officer
 Invoking pledges | Risk manager
 Invoking unpaid CUSPA securities for sale | Ops checker, Risk manager
 Issuing DIS books | Ops maker, Ops checker
+Issuing GST credit notes | Ops checker, Compliance officer
 Joining a firm-wide board | Ops maker, Ops checker, Risk manager, Compliance officer
 Keeping CBRICS participants | Ops maker, Ops checker
 Keeping payroll records for others | Payroll
@@ -226,6 +228,7 @@ Keeping the own-trading register for others | Compliance officer, HR manager
 Lifting KYC holds | Compliance officer
 Linking employees to logins | HR manager
 Loading DP accounts | Ops checker
+Loading GSTR-2B | Ops checker, Compliance officer
 Loading KYC lists | Ops maker, Ops checker, Compliance officer
 Loading MF files | Ops maker, Ops checker
 Loading attendance files | HR manager
@@ -271,6 +274,8 @@ Moving money between MCX and equity | Ops maker, Ops checker, Risk manager
 Moving the firm onto its own encryption key | Admin
 Muting a self-inspection test | Compliance officer
 NRI registration | Ops checker, Compliance officer
+Notifying branch clients | Ops checker, Compliance officer
+Notifying clients of proprietary trading | Compliance officer
 Opening a person's Inbox (read-only, with a reason) | Compliance officer
 Opening a trading account | Ops maker, Ops checker
 Passing a margin penalty to a client | Risk manager, Compliance officer
@@ -335,6 +340,7 @@ Recording and reporting security incidents | Compliance officer
 Recording approved dealing locations | Compliance officer
 Recording bounces | Ops maker, Ops checker, Admin
 Recording clearing deposits | Ops checker
+Recording client master lists | Ops checker, Compliance officer
 Recording client money kept back | Ops maker, Ops checker, Compliance officer
 Recording clients' UPI IDs | Ops maker, Ops checker, Branch staff, Authorised person
 Recording complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
@@ -343,6 +349,7 @@ Recording impersonation cases | Ops maker, Ops checker, Compliance officer
 Recording pledge undertakings | Ops maker, Ops checker, Risk manager, Compliance officer
 Recording re-KYC | Ops maker, Ops checker, Compliance officer
 Recording recovery of a legacy debt | Ops maker, Ops checker, Risk manager, Compliance officer
+Recording rights and obligations | Ops maker, Ops checker, Compliance officer
 Recording salary paid | HR manager, Payroll
 Recording staff certificates | Compliance officer, HR manager
 Recording the AP client count reconciliation | Ops maker, Ops checker, Compliance officer
@@ -353,6 +360,7 @@ Recording the funds pay-out | Ops checker, Risk manager
 Recording the holding statement sent to BSE | Ops maker, Ops checker, Compliance officer
 Recording the policy on unpaid securities | Compliance officer
 Recording the sale of invoked CUSPA securities | Ops maker, Ops checker, Risk manager
+Recording website updates | Compliance officer
 Referring an alert to the exchange | Compliance officer
 Registering a stock SIP for a client | Ops maker, Ops checker
 Registering attendance kiosks | HR manager
@@ -503,9 +511,11 @@ Viewing an issue's demand | Ops maker, Ops checker, Risk manager, Compliance off
 Viewing archives | Compliance officer
 Viewing backups | Ops checker, Compliance officer
 Viewing clients BSE does not permit to trade | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing compliance registers | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing connections | Compliance officer, Admin
 Viewing data export and account closing | Compliance officer
 Viewing dealers and terminals | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing dealers | Ops checker, Risk manager, Compliance officer
 Viewing deceased clients | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing eDIS authorisations | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing exchange UCC registrations | Ops maker, Ops checker, Risk manager, Compliance officer

@@ -414,21 +414,24 @@ func (o *Ops) AssignClient(ctx context.Context, tenant, actor, ucc, branch, part
 
 // APPayout is an authorised person's share for a period.
 type APPayout struct {
-	ID        string          `json:"id"`
-	Partner   string          `json:"partner"`
-	Name      string          `json:"name"`
-	From      string          `json:"from"`
-	To        string          `json:"to"`
-	Brokerage money.Amount    `json:"brokerage"`
-	SharePct  money.Dec       `json:"share_pct"`
-	Share     money.Amount    `json:"share"`
-	GST       money.Amount    `json:"gst"`
-	TDS       money.Amount    `json:"tds"`
-	Withheld  money.Amount    `json:"withheld"` // held back against clients' overdue debits
-	Payable   money.Amount    `json:"payable"`  // share + GST − TDS − withheld
-	Status    string          `json:"status"`   // Computed, Posted
-	Entry     string          `json:"entry,omitempty"`
-	Clients   []APClientShare `json:"clients"`
+	ID        string       `json:"id"`
+	Partner   string       `json:"partner"`
+	Name      string       `json:"name"`
+	From      string       `json:"from"`
+	To        string       `json:"to"`
+	Brokerage money.Amount `json:"brokerage"`
+	SharePct  money.Dec    `json:"share_pct"`
+	Share     money.Amount `json:"share"`
+	GST       money.Amount `json:"gst"`
+	TDS       money.Amount `json:"tds"`
+	Withheld  money.Amount `json:"withheld"` // held back against clients' overdue debits
+	// Held says why the whole payout is withheld: a hold on the AP for
+	// irregularities or unresolved complaints (apweb.go).
+	Held    string          `json:"held,omitempty"`
+	Payable money.Amount    `json:"payable"` // share + GST − TDS − withheld
+	Status  string          `json:"status"`  // Computed, Posted
+	Entry   string          `json:"entry,omitempty"`
+	Clients []APClientShare `json:"clients"`
 }
 
 // APClientShare is one client's contribution to an AP payout.
@@ -468,6 +471,7 @@ func (o *Ops) APPayouts(ctx context.Context, tenant, from, to string) ([]APPayou
 	for _, r := range deb.Rows {
 		dmap[r.UCC] = r
 	}
+	held := o.apStatuses(ctx, tenant)
 	var out []APPayout
 	for _, p := range ps {
 		if p.Kind != "Authorised person" {
@@ -503,6 +507,7 @@ func (o *Ops) APPayouts(ctx context.Context, tenant, from, to string) ([]APPayou
 		net := a.Share + a.GST - a.TDS
 		a.Withheld = min(max(net, 0), owed)
 		a.Payable = net - a.Withheld
+		apHoldPayout(&a, held[p.Code])
 		out = append(out, a)
 	}
 	return out, nil

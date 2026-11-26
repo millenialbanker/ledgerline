@@ -9,6 +9,7 @@ import (
 
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ledger"
+	"ledgerline/internal/money"
 )
 
 // ---- investor complaints and service requests ----
@@ -192,6 +193,14 @@ type Ticket struct {
 	// Contact is how to reach a complainant who is not a client (a research
 	// or advisory subscriber, or someone the impersonator deceived).
 	Contact string `json:"contact,omitempty"`
+	// Exchange is the exchange that forwarded a complaint (source "Stock
+	// exchanges"), and ExchangeDue the day the exchange wants the
+	// redressal uploaded on its portal (BSE's master circular on investor
+	// grievances, paras 2.4-2.7); Claim is the amount the complainant
+	// claims, for the check of complaints against net worth (grievnw.go).
+	Exchange    string       `json:"exchange,omitempty"`
+	ExchangeDue string       `json:"exchange_due,omitempty"`
+	Claim       money.Amount `json:"claim,omitempty"`
 }
 
 func ticketTAT(kind string) int {
@@ -217,6 +226,7 @@ func (o *Ops) OpenTicket(ctx context.Context, tenant, actor string, t Ticket, te
 		}
 		t.Source, t.Ref, t.OpenedOn = "Directly from investors", "", today
 		t.Impersonation, t.ImpCase, t.Contact = false, "", ""
+		t.Exchange, t.ExchangeDue, t.Claim = "", "", 0
 	} else if err := o.require(ctx, tenant, actor, "Recording complaints", RoleMaker, RoleChecker, RoleCompliance, RoleBranch, RoleAP); err != nil {
 		return t, err
 	}

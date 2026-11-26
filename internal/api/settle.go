@@ -97,11 +97,12 @@ func (s *Server) requestClosure(w http.ResponseWriter, r *http.Request) {
 		Received string `json:"received"`
 		Source   string `json:"source"`
 		Note     string `json:"note"`
+		From     string `json:"from_email"`
 	}
 	if !decode(w, r, &b) {
 		return
 	}
-	v, err := s.ops.RequestClosure(r.Context(), tenant(r), actor(r), b.UCC, b.Received, b.Source, b.Note)
+	v, err := s.ops.RequestClosureFrom(r.Context(), tenant(r), actor(r), b.UCC, b.Received, b.Source, b.Note, b.From)
 	ok(w, v, err)
 }
 

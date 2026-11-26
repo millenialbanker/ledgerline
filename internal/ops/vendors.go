@@ -86,7 +86,7 @@ func tdsRate(section, pan string) string {
 		return ""
 	}
 	if pan == "" {
-		return "20"
+		return noPANRate(section) // 5% for purchases of goods (taxgst.go)
 	}
 	if section == "194C" && len(pan) == 10 && (pan[3] == 'P' || pan[3] == 'H') {
 		return "1"
@@ -680,7 +680,11 @@ func (o *Ops) SaveVendorBill(ctx context.Context, tenant, actor string, b Vendor
 	if v.TDSSection != "" && b.TDSSection == "" {
 		b.Warnings = append(b.Warnings, "The vendor's payments usually fall under "+tdsRef(v.TDSSection, b.BillDate)+" but no TDS was deducted: check the threshold or the lower-deduction certificate.")
 	}
-	if b.TDSSection != "" && b.TDS > 0 {
+	// A certificate, a declaration, the PAN's status or the goods
+	// threshold sets the TDS instead (taxgst.go).
+	extra := o.vendorTDSWarnings(ctx, tenant, v, b, all)
+	b.Warnings = append(b.Warnings, extra...)
+	if b.TDSSection != "" && b.TDS > 0 && !o.vendorTDSOverride(ctx, tenant, v, b) {
 		rate := v.TDSRate
 		if rate == "" || b.TDSSection != v.TDSSection {
 			rate = tdsRate(b.TDSSection, v.PAN)

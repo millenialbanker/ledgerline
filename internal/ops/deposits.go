@@ -30,6 +30,9 @@ var DepositKinds = []string{"Cash", "Fixed deposit", "Bank guarantee", "Governme
 
 var cashLike = map[string]bool{"Cash": true, "Fixed deposit": true, "Bank guarantee": true}
 
+// DepositBMC is the purpose of a deposit kept as base minimum capital.
+const DepositBMC = "Base minimum capital"
+
 // ClearingCorps are the clearing corporations.
 var ClearingCorps = []string{"NSE Clearing", "ICCL", "MCXCCL", "NCCL"}
 
@@ -127,6 +130,12 @@ type DepositRequirement struct {
 	CashPct  float64   `json:"cash_pct"`
 	Short    money.Dec `json:"short"` // below BMC
 	Expiring money.Dec `json:"expiring_30d"`
+	// BMCHeld is the value of the deposits kept as base minimum capital
+	// and BMCCash the cash and cash equivalents among them: at least half
+	// (SEBI CIR/MRD/DRMNP/36/2012, para 3(g)).
+	BMCHeld    money.Dec `json:"bmc_held"`
+	BMCCash    money.Dec `json:"bmc_cash"`
+	BMCCashPct float64   `json:"bmc_cash_pct"`
 }
 
 // DepositView is the register.
@@ -269,6 +278,12 @@ func (o *Ops) Deposits(ctx context.Context, tenant, date string) (DepositView, e
 		if d.Expiry != "" && d.DaysLeft <= 30 {
 			r.Expiring = r.Expiring.Add(d.Value)
 		}
+		if d.Purpose == DepositBMC {
+			r.BMCHeld = r.BMCHeld.Add(d.Value)
+			if cashLike[d.Kind] {
+				r.BMCCash = r.BMCCash.Add(d.Value)
+			}
+		}
 		v.Total = v.Total.Add(d.Value)
 	}
 	for _, cc := range ClearingCorps {
@@ -279,6 +294,10 @@ func (o *Ops) Deposits(ctx context.Context, tenant, date string) (DepositView, e
 		}
 		if r.BMC.Cmp(r.Value) > 0 {
 			r.Short = r.BMC.Sub(r.Value)
+		}
+		if r.BMCHeld.Sign() > 0 {
+			f, _ := r.BMCCash.Quo(r.BMCHeld)
+			r.BMCCashPct = f.Float64() * 100
 		}
 		if r.Value.Sign() > 0 || r.BMC.Sign() > 0 {
 			v.ByCC = append(v.ByCC, *r)
@@ -323,6 +342,9 @@ func autoDeposits(r *runCtx) error {
 	for _, c := range v.ByCC {
 		if c.Short.Sign() > 0 {
 			r.queue(c.CC+"|bmc", fmt.Sprintf("%s: collateral ₹%s below base minimum capital ₹%s", c.CC, formatINR(c.Value), formatINR(c.BMC)), "Deposit the shortfall before the clearing corporation reduces the limit.", "", RoleChecker, "deposits", r.date+" 12:00", nil)
+		}
+		if c.BMCHeld.Sign() > 0 && c.BMCCashPct < 50 {
+			r.queue(c.CC+"|bmccash", fmt.Sprintf("%s: only %.0f%% of the base minimum capital deposit is cash or cash equivalents", c.CC, c.BMCCashPct), "At least half of the base minimum capital is kept in cash and cash equivalents (SEBI CIR/MRD/DRMNP/36/2012, para 3(g)); replace securities with cash, a fixed deposit or a bank guarantee.", "", RoleChecker, "deposits", r.date+" 12:00", nil)
 		}
 		if c.Value.Sign() > 0 && c.CashPct < 50 {
 			r.queue(c.CC+"|cash", fmt.Sprintf("%s: only %.0f%% of collateral is cash or cash equivalents", c.CC, c.CashPct), "At least half must be cash, fixed deposits or bank guarantees; the rest counts only up to that.", "", RoleChecker, "deposits", r.date+" 12:00", nil)

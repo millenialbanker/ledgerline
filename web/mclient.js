@@ -53,6 +53,7 @@ MS.screens = {
         <div class="m-quick"><button class="btn pri" data-go="addmoney">Add money</button><button class="btn" data-go="funds">Withdraw</button><button class="btn" data-go="documents">Contract notes</button></div>
         ${v.notes.length ? `<section class="ph-glance"><h2>Latest contract notes</h2><dl>${v.notes.slice(0, 3).map(n => row(`${fmtDate(n.date)} <span class="dim mono small">${esc(n.no)}</span>`, `<span class="mono ${sgn(n.net)}">${inr(n.net, 2)}</span>`)).join('')}</dl></section>` : ''}
         ${v.payouts.filter(p => p.status === 'Requested' || p.status === 'Approved').map(p => `<div class="ph-card info"><span class="ph-k">Payout ${esc(p.id)}<span>${pill(p.status, PO_ST[p.status])}</span></span><b class="mono">${inr(p.amount, 2)}</b></div>`).join('')}
+        <div class="ph-list">${[[MS.cfg?.scores_url, 'Complain to SEBI on SCORES'], [MS.cfg?.odr_url, 'Online dispute resolution (SMART ODR)']].filter(x => x[0]).map(([u, l]) => `<a class="ph-row" href="${esc(u)}" target="_blank" rel="noopener">${esc(l)}<span aria-hidden="true">↗</span></a>`).join('')}</div>
       </div>`;
     },
   },

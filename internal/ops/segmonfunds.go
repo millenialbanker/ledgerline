@@ -193,7 +193,7 @@ func (o *Ops) segmonBalances(ctx context.Context, tenant, date string) (map[stri
 	}
 	chq := map[string]Receipt{} // receipt entry -> cheque
 	for _, r := range rs {
-		if r.Mode == "Cheque" && r.Entry != "" && (r.Status == "Uncleared" || r.ClearedOn != "") {
+		if physicalMode(r.Mode) && r.Entry != "" && (r.Status == "Uncleared" || r.ClearedOn != "") {
 			chq[r.Entry] = r
 		}
 	}

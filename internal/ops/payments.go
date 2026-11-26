@@ -43,27 +43,49 @@ const (
 )
 
 // ReceiptModes are the ways money may come in. Cash is not accepted.
-var ReceiptModes = []string{"Cheque", "NEFT", "RTGS", "IMPS", "UPI", "Gateway"}
+var ReceiptModes = []string{"Cheque", "NEFT", "RTGS", "IMPS", "UPI", "Gateway", ModeDD}
+
+// ModeDD is a pre-funded instrument: a demand draft, pay order or
+// banker's cheque. NSE/INSP/73976 item 4.3: such instruments of ₹50,000
+// or more for a client in a day are accepted only with the issuing bank's
+// certificate of the name and number of the account debited; that account
+// must be the client's own.
+const ModeDD = "DD / pay order"
+
+// ddCertFrom is the day's total of a client's pre-funded instruments from
+// which the bank's certificate is needed.
+var ddCertFrom = money.MustAmount("50000")
+
+// physicalMode: a physical instrument, credited only once it is realised
+// (cleared); its date of realisation is the settlement date (SEBI master
+// circular for stock brokers 2025/90, para 48.5).
+func physicalMode(m string) bool { return m == "Cheque" || m == ModeDD }
 
 // Receipt is money received from a client outside the bank statement match.
 type Receipt struct {
-	ID          string       `json:"id"`
-	Date        string       `json:"date"`
-	UCC         string       `json:"ucc"`
-	Name        string       `json:"name"`
-	Mode        string       `json:"mode"`
-	Ref         string       `json:"ref"` // cheque number, UTR or gateway payment id
-	DraweeBank  string       `json:"drawee_bank,omitempty"`
-	FromAccount string       `json:"from_account,omitempty"` // client's account or VPA
-	Amount      money.Amount `json:"amount"`
-	Branch      string       `json:"branch,omitempty"`
-	Status      string       `json:"status"` // Pending, Rejected, Uncleared, Credited, Bounced
-	Maker       string       `json:"maker"`
-	Checker     string       `json:"checker,omitempty"`
-	Entry       string       `json:"entry,omitempty"`
-	ClearedOn   string       `json:"cleared_on,omitempty"`
-	Note        string       `json:"note,omitempty"`
-	Settled     string       `json:"settled,omitempty"` // gateway settlement reference
+	ID         string `json:"id"`
+	Date       string `json:"date"`
+	UCC        string `json:"ucc"`
+	Name       string `json:"name"`
+	Mode       string `json:"mode"`
+	Ref        string `json:"ref"` // cheque number, UTR or gateway payment id
+	DraweeBank string `json:"drawee_bank,omitempty"`
+	// BankCertName and BankCertAccount are the account holder's name and
+	// account number the issuing bank certified for a demand draft or pay
+	// order (ModeDD); BankCertRef the certificate's reference.
+	BankCertName    string       `json:"bank_cert_name,omitempty"`
+	BankCertAccount string       `json:"bank_cert_account,omitempty"`
+	BankCertRef     string       `json:"bank_cert_ref,omitempty"`
+	FromAccount     string       `json:"from_account,omitempty"` // client's account or VPA
+	Amount          money.Amount `json:"amount"`
+	Branch          string       `json:"branch,omitempty"`
+	Status          string       `json:"status"` // Pending, Rejected, Uncleared, Credited, Bounced
+	Maker           string       `json:"maker"`
+	Checker         string       `json:"checker,omitempty"`
+	Entry           string       `json:"entry,omitempty"`
+	ClearedOn       string       `json:"cleared_on,omitempty"`
+	Note            string       `json:"note,omitempty"`
+	Settled         string       `json:"settled,omitempty"` // gateway settlement reference
 	// Ledger is the client ledger the receipt is for, with a separate
 	// commodity ledger (segledger.go): "" (equity), COM, or UNALLOC for
 	// money that waits for Risk to allocate it.
@@ -116,7 +138,7 @@ func (o *Ops) RecordReceipt(ctx context.Context, tenant, actor string, r Receipt
 	}
 	switch {
 	case !ok:
-		return r, invalid("mode must be Cheque, NEFT, RTGS, IMPS or UPI (cash is not accepted)")
+		return r, invalid("mode must be Cheque, %s, NEFT, RTGS, IMPS or UPI (cash is not accepted)", ModeDD)
 	case r.Amount <= 0:
 		return r, invalid("amount must be above zero")
 	case strings.TrimSpace(r.Ref) == "":
@@ -136,6 +158,22 @@ func (o *Ops) RecordReceipt(ctx context.Context, tenant, actor string, r Receipt
 		r.Earmark = EarmarkMCX
 	}
 	r.FromAccount = strings.TrimSpace(r.FromAccount)
+	r.BankCertName, r.BankCertAccount, r.BankCertRef = strings.TrimSpace(r.BankCertName), strings.ReplaceAll(strings.TrimSpace(r.BankCertAccount), " ", ""), strings.TrimSpace(r.BankCertRef)
+	if r.Mode == ModeDD {
+		day := r.Amount
+		prior, _ := docs.List[Receipt](ctx, o.Docs, tenant, cReceipt, "")
+		for _, x := range prior {
+			if x.UCC == r.UCC && x.Mode == ModeDD && x.Date == r.Date && x.Status != "Rejected" {
+				day += x.Amount
+			}
+		}
+		if day >= ddCertFrom && (r.BankCertName == "" || r.BankCertAccount == "") {
+			return r, invalid("demand drafts and pay orders of ₹50,000 or more in a day need the issuing bank's certificate of the account holder's name and the account debited (NSE/INSP/73976 item 4.3): enter both")
+		}
+		if r.BankCertAccount != "" {
+			r.FromAccount = r.BankCertAccount
+		}
+	}
 	if r.Mode != "UPI" {
 		if r.FromAccount == "" {
 			r.FromAccount = primaryBank(c).Account
@@ -200,7 +238,7 @@ func (o *Ops) DecideReceipt(ctx context.Context, tenant, actor, id string, appro
 			return r, err
 		}
 		entry, status = e.ID, "Credited"
-		if r.Mode == "Cheque" {
+		if physicalMode(r.Mode) {
 			status = "Uncleared"
 		}
 	}

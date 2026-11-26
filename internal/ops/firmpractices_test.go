@@ -271,9 +271,10 @@ func TestFirmPracticeApprovalRule(t *testing.T) {
 			n++
 		}
 	}
-	// Eight general questions and where the firm keeps its own securities
-	// (the rest of Firm securities waits for that answer).
-	if n != 9 || o.practicesOpen(ctx, T) != 9 {
+	// Eight general questions, where the firm keeps its own securities
+	// (the rest of Firm securities waits for that answer) and the tax,
+	// partners and DP questions (compregs.go).
+	if want := 9 + len(tcPracticeDefs); n != want || o.practicesOpen(ctx, T) != want {
 		t.Fatalf("%d open on the checklist, %d open", n, o.practicesOpen(ctx, T))
 	}
 	for _, d := range practiceDefs {

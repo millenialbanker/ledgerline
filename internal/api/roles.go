@@ -68,7 +68,7 @@ var routeScreens = map[string]string{
 	"compliance": "kyc", "fatca": "kyc", "nominations": "kyc", "sanctions": "kyc", "kyc-gate": "kycgate", "proi": "kycgate",
 	"tickets": "helpdesk", "complaints": "helpdesk", "impersonation": "helpdesk", "raia": "helpdesk",
 	"nri": "nri", "alerts": "surv", "surveillance": "surv", "surveillance-return": "surv", "fingate": "surv",
-	"inactive": "inactive", "deceased": "deceased", "self-inspection": "selfinspect",
+	"inactive": "inactive", "deceased": "deceased", "self-inspection": "selfinspect", "compregs": "compregs",
 	"inspection-packs": "inspack", "inspection-docs": "inspack", "inspection-templates": "inspack",
 	"security": "incidents", "security/incidents": "incidents", "security/events": "incidents",
 	"security/log-export": "logexport", "security/logs": "logexport", "security/settings": "logexport incidents", "security/keys": "settings",

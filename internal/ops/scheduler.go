@@ -343,6 +343,9 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.nseHoldingTick(ctx, tenant, now)
 	// Dealers: NISM certificate expiry and open terminals of dealers who left.
 	o.dealersTick(ctx, tenant, now)
+	// Tax, website, DP and complaint registers: their daily reminders
+	// (dpmisc.go).
+	o.gapMiscTick(ctx, tenant, now)
 	// Expected exchange and clearing files still missing after their time.
 	o.dailyFileAlertTick(ctx, tenant, now)
 	// Steps not done by their due time: reminders, escalations and the

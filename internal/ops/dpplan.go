@@ -732,6 +732,9 @@ func dpPlanBill(p DPPlan, v DPPlanVersion, t DPTariff, free map[string]string, r
 	if corporate {
 		corp = v.CorporateAMCYear
 	}
+	if r.NoAMC {
+		amc, corp = 0, 0 // on CDSL's "to be closed" list (dpmisc.go)
+	}
 	paid := ""
 	switch p.AMCBilling {
 	case AMCYearly:

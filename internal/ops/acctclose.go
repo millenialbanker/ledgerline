@@ -41,8 +41,10 @@ type AccountClosure struct {
 	Name     string `json:"name"`
 	Received string `json:"received"` // date the request was received
 	Due      string `json:"due"`      // 3 working days later
-	Source   string `json:"source"`   // Client, Branch, Online
-	Note     string `json:"note,omitempty"`
+	Source   string `json:"source"`   // Client, Branch, Online, Registered e-mail (ClosureSources)
+	// FromEmail is the address an e-mailed request came from.
+	FromEmail string `json:"from_email,omitempty"`
+	Note      string `json:"note,omitempty"`
 	// Status: Open (being worked), Waiting for client (a debit balance,
 	// open positions or a blocking order to clear first), Closed,
 	// Rejected.
@@ -126,8 +128,31 @@ func (o *Ops) closureBooks(ctx context.Context, tenant, ucc, date string) closur
 // RequestClosure records a closure request: the client is blocked from
 // trading at once, acknowledged, and the 3-working-day clock starts.
 func (o *Ops) RequestClosure(ctx context.Context, tenant, actor, ucc, received, source, note string) (AccountClosure, error) {
+	return o.RequestClosureFrom(ctx, tenant, actor, ucc, received, source, note, "")
+}
+
+// ClosureSources are the ways a closure request may come (NSE/INSP/73976
+// item 1.15(iii)): signed and given in person or by post ("Client",
+// "Branch", "Head office"), online through the firm's portal or app with two-factor
+// authentication ("Online"), or from the client's registered e-mail.
+// A request by SMS or a messaging app is not accepted.
+var ClosureSources = []string{"Client", "Branch", "Head office", "Online", ClosureByEmail}
+
+// ClosureByEmail is a request from the client's registered e-mail.
+const ClosureByEmail = "Registered e-mail"
+
+// RequestClosureFrom is RequestClosure with the address an e-mailed
+// request came from, which must be the client's registered e-mail.
+func (o *Ops) RequestClosureFrom(ctx context.Context, tenant, actor, ucc, received, source, note, fromEmail string) (AccountClosure, error) {
 	if err := o.require(ctx, tenant, actor, "Recording an account closure request", RoleMaker, RoleChecker, RoleCompliance); err != nil {
 		return AccountClosure{}, err
+	}
+	source = firstOf(strings.TrimSpace(source), "Client")
+	if l := strings.ToLower(source); strings.Contains(l, "sms") || strings.Contains(l, "whatsapp") || strings.Contains(l, "telegram") || strings.Contains(l, "messag") {
+		return AccountClosure{}, invalid("a closure request by SMS or a messaging app is not accepted: ask the client to use the portal or app, write from the registered e-mail, or sign a request (NSE/INSP/73976 item 1.15(iii))")
+	}
+	if !contains(ClosureSources, source) {
+		return AccountClosure{}, invalid("the request comes signed (Client or Branch), Online (portal or app with two-factor login) or from the %s", strings.ToLower(ClosureByEmail))
 	}
 	ucc = strings.ToUpper(strings.TrimSpace(ucc))
 	if received == "" {
@@ -140,6 +165,9 @@ func (o *Ops) RequestClosure(ctx context.Context, tenant, actor, ucc, received, 
 	if err != nil {
 		return AccountClosure{}, err
 	}
+	if source == ClosureByEmail && (strings.TrimSpace(fromEmail) == "" || !strings.EqualFold(strings.TrimSpace(fromEmail), strings.TrimSpace(c.Email))) {
+		return AccountClosure{}, invalid("an e-mailed closure request is accepted only from the client's registered e-mail address")
+	}
 	xs, _ := docs.List[AccountClosure](ctx, o.Docs, tenant, cClosure, "")
 	for _, x := range xs {
 		if x.UCC == ucc && (x.Status == "Open" || x.Status == "Waiting for client") {
@@ -151,7 +179,7 @@ func (o *Ops) RequestClosure(ctx context.Context, tenant, actor, ucc, received, 
 	if err != nil {
 		return AccountClosure{}, err
 	}
-	x := AccountClosure{ID: fmt.Sprintf("CL-%05d", n), UCC: ucc, Name: c.Name, Received: received, Due: closureDue(set, received), Source: firstOf(strings.TrimSpace(source), "Client"),
+	x := AccountClosure{ID: fmt.Sprintf("CL-%05d", n), UCC: ucc, Name: c.Name, Received: received, Due: closureDue(set, received), Source: source, FromEmail: strings.ToLower(strings.TrimSpace(fromEmail)),
 		Note: strings.TrimSpace(note), Status: "Open", Holds: []string{}, By: actor}
 	if _, err := docs.Put(ctx, o.Docs, tenant, cClosure, x.ID, x, 0, actor); err != nil {
 		return x, err
