@@ -246,6 +246,22 @@ func (o *Ops) raiseInternalShortage(ctx context.Context, tenant, date string) {
 	if err != nil || len(v.Rows) == 0 || v.Fund.Sign() <= 0 {
 		return
 	}
+	// ICCL's internal shortages have their own item (icclsettle.go); the
+	// NSE Clearing item covers the rest.
+	if icclEst := o.raiseICCLInternalShortage(ctx, tenant, v); icclEst.Sign() > 0 {
+		var rest []InternalShortRow
+		for _, r := range v.Rows {
+			if r.Clearing != "ICCL" {
+				rest = append(rest, r)
+			}
+		}
+		if !v.NCLLoaded {
+			v.Fund = v.Fund.Sub(icclEst)
+		}
+		if v.Rows = rest; len(rest) == 0 || v.Fund.Sign() <= 0 {
+			return
+		}
+	}
 	var what []string
 	for _, r := range v.Rows {
 		q := r.Internal

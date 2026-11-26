@@ -32,7 +32,7 @@ var routeScreens = map[string]string{
 	"autopilot": "autopilot", "steps": "steps", "work": "autopilot", "jobs": "jobs", "outbox": "jobs", "rpa": "rpa",
 	"periodic": "periodic", "circulars": "circulars", "duties": "circulars", "holidays": "circulars", "inbox": "circulars", "compliance/profile": "circulars kyc",
 	// Operations
-	"parallel": "parallel", "firm-demats": "settings xfiles selfinspect", "exchange-files": "xfiles", "exchange-files-alerts": "xfiles", "exchange-files-checklist": "xfiles", "mcx/sftp": "xfiles", "mcx/contracts": "xfiles",
+	"parallel": "parallel", "firm-demats": "settings xfiles selfinspect", "exchange-files": "xfiles", "iccl": "xfiles", "iccl/short-reasons": "xfiles", "exchange-files-alerts": "xfiles", "exchange-files-checklist": "xfiles", "mcx/sftp": "xfiles", "mcx/contracts": "xfiles",
 	"bse/sftp": "xfiles", "ccil": "xfiles", "nse-extranet": "xfiles", "notis": "xfiles",
 	"clearing-data": "ccdata", "ncl-feeds": "ccdata", "ncms": "ccdata", "ncl-margins": "ccdata margin rms", "ncl-margins/key": "connections",
 	"files": "files", "sample": "files", "adapters": "files", "audit": "audit files",

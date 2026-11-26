@@ -317,6 +317,7 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	// (rmspayin.go, rmslimits.go): work items only.
 	o.payInCutoffTick(ctx, tenant, now)
 	o.riskLimitsTick(ctx, tenant, now)
+	o.icclTick(ctx, tenant, now) // iccl.go: only for a firm that clears at ICCL
 	// Trades from NSE's trade API, for live risk, when the firm switched
 	// fetching on in Connections.
 	o.notisTick(ctx, tenant, now)

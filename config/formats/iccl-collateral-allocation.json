@@ -1,0 +1,65 @@
+{
+ "id": "iccl-collateral-allocation",
+ "title": "Client-wise cash collateral allocation to ICCL (ICCLCOLL)",
+ "party": "ICCL",
+ "direction": "out",
+ "when": "BOD and EOD",
+ "purpose": "Cash and cash-equivalent collateral allocated at BSE Clearing to each client and to the firm's own account, never more than the client gave and not below what was reported as collected.",
+ "names": [
+  "(?i)ICCLCOLL_.*\\.csv"
+ ],
+ "template": "ICCLCOLL_{member}_{date:02012006}_{seq:2}.csv",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "crlf": false,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "Trade Date",
+   "type": "date",
+   "layout": "02-01-2006"
+  },
+  {
+   "name": "Segment",
+   "type": "str"
+  },
+  {
+   "name": "CM Code",
+   "type": "str"
+  },
+  {
+   "name": "TM Code",
+   "type": "str"
+  },
+  {
+   "name": "CP Code",
+   "type": "str"
+  },
+  {
+   "name": "Client Code",
+   "type": "str"
+  },
+  {
+   "name": "Account Type",
+   "type": "str",
+   "note": "C client, P own (proprietary)"
+  },
+  {
+   "name": "Amount",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Action",
+   "type": "str",
+   "note": "U set the allocation to the amount"
+  }
+ ],
+ "confirmed": false,
+ "confirm": true,
+ "notice": "ICCL Cash Segment master circular para 5.20-5.26",
+ "source": "ICCL Cash Segment master circular para 5.20-5.26 (from SEBI's cash market master circular para 5.20): client-wise allocation of cash and cash-equivalent collateral by the ICCLCOLL file or API; each client's allocation not more than the collateral received from that client, and not below what was reported as collected. No ICCL API specification is in Ledgerline, so only the file is written. Fields follow those NSE Clearing's allocation file carries (date, segment, CM, TM, CP, client, account type, amount, action). Built from the notice's description, not from a published file layout: ICCL has not published this file's column layout. The broker must confirm the field order, names and file name against ICCL's file description (member extranet) before the first upload."
+}

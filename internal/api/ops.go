@@ -56,6 +56,7 @@ func (s *Server) opsRoutes() {
 	s.xfileRoutes()
 	s.parallelRoutes()
 	s.firmDematRoutes()
+	s.icclRoutes()
 	s.periodicRoutes()
 	s.stepRoutes()
 	s.stockSIPRoutes()
