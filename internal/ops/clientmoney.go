@@ -220,6 +220,10 @@ type FirmTransfer struct {
 	CheckedAt string       `json:"checked_at,omitempty"`
 	Entry     string       `json:"entry,omitempty"`
 	Reason    string       `json:"reason,omitempty"`
+	// Split is how a pay-in or pay-out was shared across the clearing
+	// accounts of the exchanges one clearing corporation clears, worked
+	// out when it is approved (rmspayin.go); empty: all on Segment.
+	Split []CCSplit `json:"split,omitempty"`
 }
 
 // moneyEnd is one end of a transfer: its kind and its name.
@@ -334,10 +338,24 @@ func (t FirmTransfer) postings() []ledger.Posting {
 	case "upstream":
 		return []ledger.Posting{{Account: ledger.CCCollateral, Debit: a, Memo: memo}, {Account: ledger.BankClient, Credit: a, Memo: memo}}
 	case "payin":
+		if len(t.Split) > 0 {
+			ps := []ledger.Posting{}
+			for _, x := range t.Split {
+				ps = append(ps, ledger.Posting{Account: x.Account, Debit: x.Amount, Memo: memo})
+			}
+			return append(ps, ledger.Posting{Account: ledger.BankClient, Credit: a, Memo: memo})
+		}
 		return []ledger.Posting{{Account: seg(), Debit: a, Memo: memo}, {Account: ledger.BankClient, Credit: a, Memo: memo}}
 	case "release":
 		return []ledger.Posting{{Account: ledger.BankClient, Debit: a, Memo: memo}, {Account: ledger.CCCollateral, Credit: a, Memo: memo}}
 	case "payout":
+		if len(t.Split) > 0 {
+			ps := []ledger.Posting{{Account: ledger.BankClient, Debit: a, Memo: memo}}
+			for _, x := range t.Split {
+				ps = append(ps, ledger.Posting{Account: x.Account, Credit: x.Amount, Memo: memo})
+			}
+			return ps
+		}
 		return []ledger.Posting{{Account: ledger.BankClient, Debit: a, Memo: memo}, {Account: seg(), Credit: a, Memo: memo}}
 	case "brokerage", "statutory", "recovery":
 		return []ledger.Posting{{Account: ledger.BankOwn, Debit: a, Memo: memo}, {Account: ledger.BankClient, Credit: a, Memo: memo}}
@@ -364,7 +382,12 @@ func (o *Ops) DecideFirmTransfer(ctx context.Context, tenant, actor, id string, 
 		return t, fmt.Errorf("%w: the maker of a transfer cannot approve it", ErrForbidden)
 	}
 	status, entry := "Rejected", ""
+	var split []CCSplit
 	if approve {
+		// One clearing corporation's pay-in or pay-out shared across the
+		// exchanges it clears, so one debit clears the books (rmspayin.go).
+		split = o.ccSplit(ctx, tenant, t)
+		t.Split = split
 		p, _ := moneyPurpose(t.Purpose)
 		if ps := t.postings(); len(ps) > 0 {
 			e, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "XFR:" + t.ID, ValueDate: t.Date, CreatedBy: actor,
@@ -381,6 +404,7 @@ func (o *Ops) DecideFirmTransfer(ctx context.Context, tenant, actor, id string, 
 	}
 	t, err = docs.Update(ctx, o.Docs, tenant, cFirmXfer, id, actor, func(x *FirmTransfer) error {
 		x.Status, x.Checker, x.CheckedAt, x.Entry, x.Reason = status, actor, o.now().Format(time.RFC3339), entry, clip(strings.TrimSpace(reason), 300)
+		x.Split = split
 		return nil
 	})
 	if err == nil {

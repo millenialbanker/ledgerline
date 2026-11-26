@@ -57,7 +57,7 @@ type masterSrc struct {
 }
 
 func masterSources() []masterSrc {
-	return append(append(append(append(baseSources(), brokerageSources()...), importSources()...), dpPlanSources()...), firmSecSources()...)
+	return append(append(append(append(append(baseSources(), brokerageSources()...), importSources()...), dpPlanSources()...), firmSecSources()...), rmsLimitSources()...)
 }
 
 func baseSources() []masterSrc {
@@ -293,6 +293,8 @@ func (o *Ops) prepare(ctx context.Context, tenant, actor, source, date string, r
 		return o.prepareFirmSec(ctx, tenant, actor, source, date, rows)
 	case "NRI-CAUTION":
 		return o.loadNRICaution(ctx, tenant, actor, date, rows)
+	case "POSITION-LIMITS", "FO-BAN", "SURV-MEASURES":
+		return o.prepareRMSLimits(ctx, tenant, actor, source, date, rows)
 	case "NOMINEES":
 		return o.prepareNominees(ctx, tenant, actor, rows)
 	case "FATCA-CRS":
