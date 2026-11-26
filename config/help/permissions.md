@@ -117,6 +117,7 @@ Changing the client money rules | Compliance officer
 Changing the compliance calendar | Compliance officer
 Changing the cooling-off period | Admin
 Changing the demise list's cut-off | Ops checker, Compliance officer
+Changing the firm modules | Compliance officer
 Changing the firm profile | Compliance officer
 Changing the firm's UPI collection IDs | Compliance officer
 Changing the firm's bank accounts | Compliance officer
@@ -409,6 +410,7 @@ Releasing clearing deposits | Ops checker
 Releasing payouts | Ops checker
 Removing the signing certificate | Admin
 Reporting impersonation cases | Compliance officer
+Reporting short allocation to ICCL | Ops maker, Ops checker, Risk manager
 Reporting short allocation | Ops maker, Ops checker, Risk manager
 Reporting technical glitches | Compliance officer
 Requesting client changes | Ops maker, Ops checker, Compliance officer
@@ -459,6 +461,7 @@ Seeing security events and incidents | Compliance officer
 Seeing staff controls | Compliance officer, HR manager
 Seeing staff documents | HR manager
 Seeing technical glitches | Risk manager, Compliance officer
+Seeing the BSE Clearing (ICCL) day | Ops maker, Ops checker, Risk manager, Compliance officer
 Seeing the UPSI sharing record | Compliance officer
 Seeing the alert download log | Ops checker, Compliance officer
 Seeing the firm's demat accounts | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -596,6 +599,7 @@ Viewing the client money reconciliation | Ops maker, Ops checker, Risk manager, 
 Viewing the collateral register | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the compliance calendar | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
+Viewing the firm modules | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 Viewing the firm profile | Compliance officer
 Viewing the firm's bank accounts | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the firm's encryption keys | Compliance officer

@@ -1,0 +1,104 @@
+{
+ "id": "iccl-allocation-diff",
+ "title": "Allocation and segregation reporting mismatch (ICCL / BSECL, ALLOCATIONDIFF)",
+ "party": "ICCL",
+ "direction": "in",
+ "when": "Next morning",
+ "purpose": "Clients whose actual collateral allocation at BSE Clearing differs from the client-level segregation reporting, for the member to correct the allocation or the reporting.",
+ "names": [
+  "(?i).*ALLOCATIONDIFF.*"
+ ],
+ "compress": "none",
+ "format": "headers",
+ "delimiter": "auto",
+ "header": true,
+ "columns": [
+  {
+   "name": "Trade Date",
+   "type": "str",
+   "key": "date",
+   "aliases": [
+    "TradeDate",
+    "Trade_Date",
+    "Date",
+    "TradDt",
+    "Business Date"
+   ]
+  },
+  {
+   "name": "Segment",
+   "type": "str",
+   "key": "segment",
+   "aliases": [
+    "Sgmt",
+    "Seg"
+   ]
+  },
+  {
+   "name": "TM Code",
+   "type": "str",
+   "key": "tm",
+   "aliases": [
+    "Trading Member Code",
+    "TM_Code",
+    "TMCode",
+    "Member Code"
+   ]
+  },
+  {
+   "name": "Client Code",
+   "type": "str",
+   "key": "ucc",
+   "aliases": [
+    "UCC",
+    "ClientCode",
+    "Client Code",
+    "Client_Code",
+    "Client Id",
+    "ClntId",
+    "Unique Client Code",
+    "Client/CP Code",
+    "ClientCpCode"
+   ],
+   "required": true
+  },
+  {
+   "name": "Allocated",
+   "type": "dec",
+   "key": "allocated",
+   "aliases": [
+    "Actual Allocation",
+    "Allocation",
+    "Allocated Amount",
+    "Collateral Allocated"
+   ]
+  },
+  {
+   "name": "Reported",
+   "type": "dec",
+   "key": "reported",
+   "aliases": [
+    "Reported Amount",
+    "Segregation Reporting",
+    "Reported Collateral",
+    "Collateral Reported"
+   ]
+  },
+  {
+   "name": "Difference",
+   "type": "dec",
+   "key": "diff",
+   "aliases": [
+    "Diff",
+    "Difference Amount",
+    "Mismatch",
+    "Mismatch Amount"
+   ]
+  }
+ ],
+ "confirmed": false,
+ "confirm": true,
+ "notice": "ICCL notice 20250221-5",
+ "source": "ICCL Equity Derivatives master circular para 2.3 (ICCL notice 20250221-5), alert report for mismatch between actual allocation and segregation reporting (ALLOCATIONDIFF). Built from the notice's description, not from a published file layout: ICCL has not published this file's column layout. The broker must confirm the field order, names and file name against ICCL's file description (member extranet) before the first upload. Read by header names; when a real file's header differs, add its text as an alias here.",
+ "linked": "Loaded on Exchange files → BSE Clearing (ICCL): each mismatch becomes a work item to correct the allocation or the reporting."
+}

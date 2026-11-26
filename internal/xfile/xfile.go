@@ -125,9 +125,15 @@ type Spec struct {
 	JSONShape  any      `json:"json_shape,omitempty"`
 	Confirmed  bool     `json:"confirmed"` // every column's meaning is from the published spec or the file's own header
 	Linked     string   `json:"linked"`    // what Ledgerline does with it ("" = layout known, not used yet)
-	Source     string   `json:"source,omitempty"`
-	nameRx     []*regexp.Regexp
-	notRx      []*regexp.Regexp
+	// Confirm marks a layout built from a circular's description because
+	// the clearing corporation or exchange has not published the file's
+	// own layout (ICCL's files): the broker confirms it against the real
+	// file before relying on it. Notice names the circular it follows.
+	Confirm bool   `json:"confirm,omitempty"`
+	Notice  string `json:"notice,omitempty"`
+	Source  string `json:"source,omitempty"`
+	nameRx  []*regexp.Regexp
+	notRx   []*regexp.Regexp
 }
 
 // Library is the set of known layouts.

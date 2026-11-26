@@ -1,0 +1,40 @@
+{
+ "id": "iccl-short-allocation-reporting",
+ "title": "Short allocation reasons to ICCL (SHORTALLOCATION_CM upload)",
+ "party": "ICCL",
+ "direction": "out",
+ "when": "T+1",
+ "purpose": "ICCL's own short allocation rows, unaltered, each with a reason code (01-08) and the collateral available for it; one line per reason.",
+ "names": [
+  "(?i).*SHORTALLOCATION_CM.*UPLD.*\\.csv"
+ ],
+ "template": "SHORTALLOCATION_CM_UPLD_{member}_{date:02012006}.csv",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "crlf": false,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "ICCL row as received",
+   "type": "str",
+   "note": "every column of ICCL's file in its own order, unaltered"
+  },
+  {
+   "name": "Reason Code",
+   "type": "str",
+   "note": "01-08"
+  },
+  {
+   "name": "Collateral Available",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  }
+ ],
+ "confirmed": false,
+ "confirm": true,
+ "notice": "ICCL notice 20250603-44",
+ "source": "ICCL notice 20250603-44 points 1-3: the member keeps ICCL's data as sent and adds the reason code and the new Collateral Available column; several reasons may be given for one record, ICCL sums the amounts; the latest upload of a record replaces the earlier. The two added columns' header names are to confirm. Built from the notice's description, not from a published file layout: ICCL has not published this file's column layout. The broker must confirm the field order, names and file name against ICCL's file description (member extranet) before the first upload."
+}

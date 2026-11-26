@@ -177,7 +177,9 @@ func TestMissingFilesFollowClearingChoice(t *testing.T) {
 		t.Fatalf("%+v %v", run, err)
 	}
 	for _, it := range run.Alerted {
-		if it.Party == "NCL" || it.Party == "ICCL" { // NCL not chosen; ICCL files are checked by hand
+		// NCL not chosen; ICCL's files checked by hand are never chased (the
+		// ones Ledgerline writes or reads, iccl.go, may be).
+		if it.Party == "NCL" || (it.Party == "ICCL" && it.Format == "") {
 			t.Fatalf("chased %s (%s)", it.ID, it.Party)
 		}
 	}

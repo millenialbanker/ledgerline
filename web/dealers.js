@@ -132,7 +132,7 @@ function dlForm(x) {
       ${sel(`dlt-ex-${i}`, 'Exchange', t.exchange, d.exchanges.map(e => [e, e]))}${f(`dlt-id-${i}`, 'Terminal / user ID (pattern allowed: 333*)', t.terminal_id, 'class="in mono"')}
       <div class="fld"><label>Segments</label><div>${d.segments.map(s => `<label class="chk" style="display:inline-flex;margin-right:8px"><input type="checkbox" data-dlseg="${i}" value="${s}" ${(t.segments || []).includes(s) ? 'checked' : ''}> ${s}</label>`).join('')}</div></div>
       ${f(`dlt-loc-${i}`, 'Location ID', t.location_id)}${f(`dlt-ctcl-${i}`, 'CTCL ID', t.ctcl_id)}
-      <div class="fld"><label>Algo</label><label class="chk"><input type="checkbox" id="dlt-algo-${i}" ${t.algo ? 'checked' : ''}> Algo terminal</label></div>
+      <div class="fld" ${typeof fmPart !== 'function' || fmPart('dealers.algo') || t.algo ? '' : 'hidden'}><label>Algo</label><label class="chk"><input type="checkbox" id="dlt-algo-${i}" ${t.algo ? 'checked' : ''}> Algo terminal</label></div>
       ${sel(`dlt-ac-${i}`, 'BSE order type code (14th digit)', t.algo_code, [['', 'From the algo flag'], ...Object.entries(d.algo_codes).map(([k, l]) => [k, k + ' · ' + l])])}${f(`dlt-cm-${i}`, 'Connection mode (code)', t.connection_mode)}${f(`dlt-br-${i}`, 'BSE TWS / branch ID', t.branch_id)}
       ${f(`dlt-vn-${i}`, 'CTCL vendor code', t.vendor)}${f(`dlt-tid-${i}`, 'Exchange-allotted trading ID', t.trading_id)}${f(`dlt-rec-${i}`, 'BSE record ID (for changes)', t.exchange_record_id)}
       ${f(`dlt-from-${i}`, 'Active from', t.active_from, 'type="date"')}${f(`dlt-to-${i}`, 'Closed on (blank while in use)', t.closed_on, 'type="date"')}

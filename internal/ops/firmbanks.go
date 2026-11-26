@@ -291,6 +291,11 @@ func (o *Ops) FirmBanks(ctx context.Context, tenant, actor string) (FirmBankView
 	}
 	if has[BankUSCNBA]+has[BankDSCNBA] > 30 {
 		v.Warnings = append(v.Warnings, "More than 30 USCNBA and DSCNBA accounts: NSE allows at most 30 together (NSE/INSP/57959, FAQ 23).")
+	} else if on, _ := o.icclSelf(ctx, tenant); on && has[BankUSCNBA]+has[BankDSCNBA]+has[BankSettlement] > 30 {
+		// BSECL's limit counts settlement accounts too, across every
+		// segment and clearing corporation (ICCL Member Inspection master
+		// circular para 3.5, BSE 20200602-33).
+		v.Warnings = append(v.Warnings, fmt.Sprintf("%d client and settlement accounts (USCNBA, DSCNBA and settlement accounts): ICCL allows at most 30 accounts named Client Account or Settlement Account across all segments and clearing corporations (ICCL inspection master circular para 3.5).", has[BankUSCNBA]+has[BankDSCNBA]+has[BankSettlement]))
 	}
 	return v, nil
 }

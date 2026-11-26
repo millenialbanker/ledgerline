@@ -49,6 +49,8 @@ type XFormat struct {
 	Purpose   string `json:"purpose"`
 	Linked    string `json:"linked"`
 	Confirmed bool   `json:"confirmed"`
+	Confirm   bool   `json:"confirm,omitempty"` // built from a notice's description: to confirm against the real file
+	Notice    string `json:"notice,omitempty"`
 	Fields    int    `json:"fields"`
 	Writes    bool   `json:"writes"`               // Ledgerline can produce it
 	WrittenOn string `json:"written_on,omitempty"` // the screen that writes it, when not Exchange files
@@ -88,7 +90,7 @@ func (o *Ops) ExchangeFormats() ([]XFormat, error) {
 			ex = s.Names[0]
 		}
 		out = append(out, XFormat{ID: s.ID, Title: s.Title, Party: s.Party, Direction: s.Direction, When: s.When, Purpose: s.Purpose, Linked: s.Linked,
-			Confirmed: s.Confirmed, Fields: n, Writes: xWriters[s.ID] || xWrittenOn[s.ID] != "", WrittenOn: xWrittenOn[s.ID], Example: ex})
+			Confirmed: s.Confirmed, Confirm: s.Confirm, Notice: s.Notice, Fields: n, Writes: xWriters[s.ID] || xWrittenOn[s.ID] != "", WrittenOn: xWrittenOn[s.ID], Example: ex})
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Direction != out[j].Direction {
@@ -583,6 +585,8 @@ func (o *Ops) ExchangeFile(ctx context.Context, tenant, actor, id, date string, 
 		name, content, err = o.shortAllocationFile(ctx, tenant, s, date, vars)
 	case "ncl-shortage-reporting":
 		name, content, err = o.shortageReportingFile(ctx, tenant, s, date, vars)
+	case "iccl-margin-reporting", "iccl-collateral-segregation", "iccl-short-allocation-reporting", "iccl-collateral-allocation", "iccl-early-payin-securities", "iccl-early-payin-funds":
+		name, content, err = o.icclFile(ctx, tenant, actor, s, set, date, vars) // iccl.go
 	case "cdsl-txn-upload":
 		name, content, err = o.disMasterFile(ctx, tenant, s, set, date, vars)
 	case "bse-ucc":

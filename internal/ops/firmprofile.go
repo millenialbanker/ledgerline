@@ -137,6 +137,25 @@ type firmFacts struct {
 	Regs       map[string]bool
 	CSCRF      string
 	Assumed    bool // no member codes in Settings: NSE, BSE and MCX assumed
+
+	// From Settings → Firm modules (firmmodules.go).
+	XSeg       map[string]bool   // exchange segment key ("NSE-CM") → traded
+	Role       map[string]string // exchange segment key → SegTM, SegSelf or SegPCM
+	PCM        tri               // clears for other trading members or custodial participants
+	CMChange   tri               // changed clearing member in the last 30 days
+	CMChangeOn string
+	Sw         map[string]tri    // FirmSwitches by ID
+	SwFrom     map[string]string // where each switch's answer comes from
+	Const      string            // constitution
+	Count      fmCount           // Ledgerline's latest count of clients
+	Mods       FirmModules
+	// The client numbers the rules use (the firm's figure, else the count).
+	Registered, Active, IBTClients, Volume clientNumber
+	CSCRFCounted                           string // the category the numbers give
+	CSCRFSure                              bool   // and they are complete
+	CSCRFFrom                              string // "counted" when CSCRF came from the numbers
+	QSB, QSBEx, Specified                  tri
+	QSBExUntil                             string
 }
 
 func (f firmFacts) dp() tri {
@@ -196,26 +215,47 @@ func (o *Ops) firmProfileFacts(ctx context.Context, tenant string) (firmFacts, [
 // count NRI clients (the compliance calendar reads it often and needs that
 // only for a duty about NRI clients).
 func (o *Ops) firmProfileFactsOpt(ctx context.Context, tenant string, clients bool) (firmFacts, []FirmFact) {
-	set, _ := o.Settings(ctx, tenant)
-	p := o.firmProfile(ctx, tenant)
-	cp := o.CompProfile(ctx, tenant)
-	f := firmFacts{Member: map[string]bool{}, Seg: map[string]bool{}, SelfAt: map[string]bool{}, ViaCM: map[string]string{}, Regs: map[string]bool{}, CSCRF: p.CSCRF}
+	return o.firmProfileFactsWith(ctx, tenant, clients, nil)
+}
+
+// firmProfileFactsWith reads the profile, with st (when given) in place of
+// the saved settings, profiles and firm modules: the Firm modules preview
+// of what a change would switch on and off.
+func (o *Ops) firmProfileFactsWith(ctx context.Context, tenant string, clients bool, st *modulesState) (firmFacts, []FirmFact) {
+	var set Settings
+	var p FirmProfile
+	var cp ComplianceProfile
+	var mods FirmModules
+	if st != nil {
+		set, p, cp, mods = st.set, st.prof, st.comp, st.mods
+	} else {
+		set, _ = o.Settings(ctx, tenant)
+		p = o.firmProfile(ctx, tenant)
+		cp = o.CompProfile(ctx, tenant)
+		mods = o.firmModules(ctx, tenant)
+	}
+	f := firmFacts{Member: map[string]bool{}, Seg: map[string]bool{}, SelfAt: map[string]bool{}, ViaCM: map[string]string{}, Regs: map[string]bool{}, CSCRF: p.CSCRF, XSeg: map[string]bool{}, Role: map[string]string{}}
 	var facts []FirmFact
 
 	// Exchanges, segments and clearing, from Settings.
 	f.Assumed = len(memberExchanges(set)) == 0
 	var segs, self, via []string
 	for _, s := range set.activeSegments() {
-		f.Member[s.Exchange], f.Seg[s.Segment] = true, true
+		f.Member[s.Exchange], f.Seg[s.Segment], f.XSeg[s.Key] = true, true, true
 		name := s.Exchange + " " + s.Segment
 		segs = append(segs, name)
 		switch ct := set.ClearedThrough(s.Key); {
 		case strings.HasPrefix(ct, "CM:"):
 			cm := firstOf(strings.TrimSpace(set.ClearingMemberNames[s.Key]), "clearing member "+ct[3:])
-			f.ViaCM[s.Default] = cm
+			cc := s.Default
+			if cc == ClearNone {
+				cc = s.Allowed[0]
+			}
+			f.ViaCM[cc] = cm
+			f.Role[s.Key] = SegTM
 			via = append(via, name+" through "+cm)
 		default:
-			f.SelfAt[ct] = true
+			f.SelfAt[ct], f.Role[s.Key] = true, SegSelf
 			self = append(self, name+" at "+firstOf(ClearingCorpNames[ct], ct))
 		}
 	}
@@ -353,6 +393,11 @@ func (o *Ops) firmProfileFactsOpt(ctx context.Context, tenant string, clients bo
 		cat.Value = "Not known"
 	}
 	facts = append(facts, cat)
+	ci := len(facts) - 1
+	o.moduleFacts(ctx, tenant, &f, &facts, set, p, mods)
+	if f.CSCRFFrom == "counted" {
+		facts[ci].Value, facts[ci].Known, facts[ci].From = cscrfName(f.CSCRF), true, "Worked out from the client numbers (Settings → Firm modules)"
+	}
 	return f, facts
 }
 

@@ -1,0 +1,71 @@
+{
+ "id": "iccl-collateral-segregation",
+ "title": "Client-level collateral segregation report to ICCL",
+ "party": "ICCL",
+ "direction": "out",
+ "when": "T+1",
+ "purpose": "Each client's collateral held at BSE Clearing only (not NSE Clearing's), segment-wise: cash allocated, cash equivalents, non-cash after haircut, total and margin. Clients with nil balance who traded in the last 12 months are included.",
+ "names": [
+  "(?i)ICCL_CSEG_.*\\.csv"
+ ],
+ "template": "ICCL_CSEG_{member}_{date:02012006}.csv",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "crlf": false,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "Trade Date",
+   "type": "date",
+   "layout": "02-01-2006"
+  },
+  {
+   "name": "Segment",
+   "type": "str"
+  },
+  {
+   "name": "TM Code",
+   "type": "str"
+  },
+  {
+   "name": "Client Code",
+   "type": "str"
+  },
+  {
+   "name": "Cash Allocated",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Cash Equivalent Value",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Non Cash Value",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Total Value",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Margin",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  }
+ ],
+ "confirmed": false,
+ "confirm": true,
+ "notice": "ICCL notice 20250502-5",
+ "source": "ICCL notice 20250502-5 (table item 2) and ICCL Member Inspection master circular para 6.1-6.2: the daily client-level collateral segregation report covers collateral held at BSECL only (not aggregated with another clearing corporation), includes nil-balance clients who traded in the last 12 months, with no late upload or modification after the cut-off. Columns follow the SEBI segregation and monitoring fields NSE Clearing's CC01 carries (cash allocated, cash equivalents re-pledged, non-cash re-pledged, total, margins), with the segment and trade date. Built from the notice's description, not from a published file layout: ICCL has not published this file's column layout. The broker must confirm the field order, names and file name against ICCL's file description (member extranet) before the first upload."
+}

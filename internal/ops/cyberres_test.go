@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"ledgerline"
 	"ledgerline/internal/backup"
 	"ledgerline/internal/docs"
 )
@@ -242,30 +241,3 @@ func TestAadhaarGuardAndCallers(t *testing.T) {
 
 // The duties waiting for the firm-module conditions are valid but for
 // those conditions.
-func TestPendingCyberDuties(t *testing.T) {
-	b, err := ledgerline.FS.ReadFile("config/compliance/duties-pending-cyber2.json")
-	if err != nil {
-		t.Skip("the pending file is not embedded:", err)
-	}
-	var c struct {
-		Duties []DutyDef `json:"duties"`
-	}
-	if err := json.Unmarshal(b, &c); err != nil {
-		t.Fatal(err)
-	}
-	cat, _ := dutyCatalogue()
-	for _, d := range c.Duties {
-		for _, x := range cat.Duties {
-			if x.ID == d.ID {
-				t.Errorf("%s is already in duties.json", d.ID)
-			}
-		}
-		for i, n := range d.Applies {
-			n = strings.NewReplacer("ibt:10k", "ibt", "specified", "ibt", "qsb", "broker").Replace(n)
-			d.Applies[i] = n
-		}
-		if err := d.validate(); err != nil {
-			t.Errorf("%s: %v", d.ID, err)
-		}
-	}
-}

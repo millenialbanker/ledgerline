@@ -76,6 +76,11 @@ var periodicApplies = map[string][]string{
 	"ap_client_count":    {"broker", "ap"},
 	"raia_impersonation": {"ra|ia"},
 	"dp_impersonation":   {"dp"},
+	// Depository work, off for a firm that is no DP (Settings → Firm modules).
+	"dp_statements": {"dp"},
+	"dis_master":    {"dp"},
+	"bsda_review":   {"dp"},
+	"mnrl_demat":    {"dp"},
 }
 
 // periodicApplicability says whether a task applies to the firm (nil: to
@@ -428,7 +433,7 @@ func (o *Ops) RunPeriodic(ctx context.Context, tenant, actor, id, period, date s
 		return PeriodicRun{}, fmt.Errorf("%w: periodic task %q", ErrNotFound, id)
 	}
 	if a := o.periodicApplicability(ctx, tenant, id); a != nil && a.Verdict == ApplyNo {
-		return PeriodicRun{}, fmt.Errorf("%w: %s doesn't apply to the firm: %s (Settings → Firm profile)", ErrState, t.Name, a.Reason)
+		return PeriodicRun{}, fmt.Errorf("%w: %s doesn't apply to the firm: %s (Settings → Firm modules)", ErrState, t.Name, a.Reason)
 	}
 	if actor != SystemActor {
 		if err := o.require(ctx, tenant, actor, "Running periodic work", RoleMaker, RoleChecker); err != nil {
