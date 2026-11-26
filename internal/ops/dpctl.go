@@ -561,6 +561,7 @@ func (o *Ops) dpControlsDaily(ctx context.Context, tenant, day string) {
 		}
 	}
 	o.minorsTurning18(ctx, tenant, day)
+	o.dpB6Daily(ctx, tenant, day) // round-6 DP controls (dpb6.go)
 }
 
 // minorsTurning18 raises a work item for each of the DP's accounts opened

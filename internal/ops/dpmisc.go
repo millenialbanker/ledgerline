@@ -188,10 +188,10 @@ func (o *Ops) SendROKit(ctx context.Context, tenant, actor, ucc string) (CompRec
 		return CompRecord{}, invalid("enter the link to the Rights and Obligations document on the firm's website first (Settings → Firm practices → Rights and Obligations to demat clients)")
 	}
 	today := o.now().Format("2006-01-02")
-	d, err := o.sendLetter(ctx, tenant, actor, today, strings.ToUpper(ucc), "RO-"+strings.ToUpper(ucc), "Rights and Obligations of a demat account holder", []string{
+	d, err := o.sendLetter(ctx, tenant, actor, today, strings.ToUpper(ucc), "RO-"+strings.ToUpper(ucc), "Rights and Obligations of a demat account holder", append([]string{
 		"Thank you for opening your demat account with us. The document setting out your rights and obligations and ours as your depository participant is on our website: " + url + ".",
 		"Please read it and keep it. If you would like a printed copy, write to us and we will send one.",
-	})
+	}, o.roJointLines(ctx, tenant, strings.ToUpper(ucc))...))
 	if err != nil {
 		return CompRecord{}, err
 	}

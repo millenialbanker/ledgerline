@@ -1473,7 +1473,9 @@ func (o *Ops) RaiseDPRequest(ctx context.Context, tenant, actor string, r DPRequ
 			return r, invalid("give the freeze type (Debit, Credit or Both) and the reason")
 		}
 	case "Unfreeze":
-		if b.Status != "Frozen" {
+		// A freeze CDSL shows (CDSLFreeze, e.g. reason 27 set by CDSL) is
+		// lifted by a DP request too (dpb6.go, DP-0305).
+		if b.Status != "Frozen" && b.CDSLFreeze == "" {
 			return r, fmt.Errorf("%w: the account is not frozen", ErrState)
 		}
 	case "Transmission":

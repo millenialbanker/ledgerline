@@ -21,6 +21,8 @@ Answering firm practices | Admin
 Applying corporate actions | Ops checker
 Applying pay-out holds | Ops checker, Risk manager
 Applying the BSDA review | Ops checker
+Approving AMC refunds | Ops checker
+Approving PoA and DDPI checks | Ops checker, Compliance officer
 Approving a full data export | Compliance officer
 Approving a leaver | HR manager
 Approving a margin penalty pass-through | Ops checker, Risk manager, Compliance officer
@@ -71,7 +73,9 @@ Authorising sales and TPIN for clients (eDIS) | Ops maker, Ops checker, Branch s
 Blocking clients in continuous debit | Risk manager
 Booking vendor bills | Ops maker, Ops checker
 Buy-back offers | Ops maker, Ops checker
+CDSL KYC deficiency cases | Ops maker, Ops checker, Compliance officer
 Cancelling a payout bank file | Ops checker
+Cancelling blocked clients' orders | Ops maker, Ops checker, Risk manager
 Cancelling closing the firm's account | Compliance officer
 Changing AI masking | Admin
 Changing CDSL account details | Ops maker, Ops checker
@@ -105,6 +109,7 @@ Changing security alert and log settings | Compliance officer
 Changing settings | Admin
 Changing statutory payroll tables | Payroll
 Changing step due times and owners | Admin
+Changing surveillance thresholds | Compliance officer
 Changing the AI inventory | Compliance officer
 Changing the DP tariff | Ops checker, Admin
 Changing the MTF policy | Risk manager, Admin
@@ -128,6 +133,7 @@ Checking CDSL demat account counts | Ops maker, Ops checker, Compliance officer
 Checking Finspot | Risk manager
 Checking PAN status at BSE | Ops maker, Ops checker
 Checking PAN status at the exchange | Ops maker, Ops checker, Compliance officer
+Checking PoA and DDPI documents | Ops maker, Ops checker, Compliance officer
 Checking UCC status at MCX | Ops maker, Ops checker, Compliance officer
 Checking UPI blocks with NSE Clearing | Ops maker, Ops checker, Risk manager
 Checking a Finspot login | Ops maker, Ops checker, Risk manager
@@ -135,6 +141,7 @@ Checking a backup | Ops checker, Compliance officer
 Checking a migration package | Admin
 Checking alert closures | Compliance officer
 Checking an account closure | Ops maker, Ops checker, Compliance officer
+Checking blocked clients' order cancellations | Ops checker, Risk manager
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
 Checking payouts with the bank | Ops maker, Ops checker
 Checking steps for reminders | Ops checker, Risk manager, Compliance officer
@@ -167,6 +174,7 @@ Creating a limit override | Ops maker, Risk manager, Branch staff, Authorised pe
 Crediting dividends | Ops checker
 DP billing | Ops checker
 DP requests | Ops maker, Ops checker, Compliance officer, Branch staff
+Deciding OTP transfer-cum-closure requests | Ops checker
 Deciding RFQ deal amendments | Ops checker
 Deciding a pledge request | Ops maker, Ops checker, Risk manager
 Deciding a reported death | Compliance officer
@@ -255,6 +263,7 @@ Loading exchange holidays | Ops maker, Ops checker, Compliance officer
 Loading files | Ops maker, Ops checker, Risk manager, Compliance officer
 Loading revocation lists | Ops maker, Ops checker, Compliance officer
 Loading sanctions and debarment lists | Ops maker, Ops checker, Compliance officer
+Loading shares outstanding | Ops checker, Compliance officer
 Loading surveillance alerts | Ops checker, Compliance officer
 Loading the KRAs' demise list | Ops maker, Ops checker, Compliance officer
 Loading the cash-equivalent collateral list | Ops maker, Ops checker, Risk manager
@@ -293,6 +302,7 @@ Muting a self-inspection test | Compliance officer
 NRI registration | Ops checker, Compliance officer
 Notifying branch clients | Ops checker, Compliance officer
 Notifying clients of proprietary trading | Compliance officer
+OTP transfer-cum-closure requests | Ops maker, Ops checker
 Opening a person's Inbox (read-only, with a reason) | Compliance officer
 Opening a trading account | Ops maker, Ops checker
 Passing a margin penalty to a client | Risk manager, Compliance officer
@@ -342,9 +352,12 @@ Recording WhatsApp consent | Ops maker, Ops checker, Compliance officer, Branch 
 Recording a Finspot login | Ops maker, Ops checker, Risk manager
 Recording a bounce | Ops maker, Ops checker, Admin
 Recording a client's consent | Ops maker, Ops checker, Branch staff
+Recording a death certificate check | Ops checker, Compliance officer
+Recording a death intimation | Ops maker, Ops checker, Compliance officer
 Recording a deceased client's steps | Ops maker, Ops checker, Compliance officer
 Recording a leaver | HR manager
 Recording a lock-in | Ops maker, Ops checker, Risk manager
+Recording a nomination declaration | Ops maker, Ops checker
 Recording a physical dispatch | Ops maker, Ops checker, Admin
 Recording a receipt | Ops maker, Ops checker, Branch staff
 Recording a returned document | Ops maker, Ops checker, Admin
@@ -544,6 +557,7 @@ Viewing CDSL API transactions | Ops maker, Ops checker, Risk manager, Compliance
 Viewing CDSL demat account counts | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing CDSL freezes | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing CDSL requests | Ops maker, Ops checker, Compliance officer
+Viewing DP controls | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing Finspot logins | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing Finspot pushes | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing Ledgerline support access | Compliance officer
@@ -552,6 +566,7 @@ Viewing RFQ deals | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing an issue's demand | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing archives | Compliance officer
 Viewing backups | Ops checker, Compliance officer
+Viewing blocked clients' order cancellations | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing client code modifications | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing clients BSE does not permit to trade | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing clients' trading freeze requests | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
@@ -577,6 +592,7 @@ Viewing revoked mobile numbers | Ops maker, Ops checker, Risk manager, Complianc
 Viewing sanctions screening | Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing step reminders | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing surveillance alerts | Ops checker, Risk manager, Compliance officer
 Viewing the AI answer log | Compliance officer
 Viewing the AP client reporting | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the DP controls | Ops maker, Ops checker, Compliance officer, Branch staff
