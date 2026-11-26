@@ -399,6 +399,7 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/fingate/upload", s.fingateUpload, false)
 	R("GET /v1/fingate/upload.zip", s.fingateUploadZip, false)
 	R("POST /v1/surveillance/run", s.runRules, true)
+	s.dpSurvRoutes(R)
 	R("GET /v1/ipo", s.ipo, false)
 	R("GET /v1/mf", s.mf, false)
 	R("GET /v1/ccm", s.ccm, false)
@@ -1445,7 +1446,14 @@ func (s *Server) runRules(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	n, err := s.ops.RunRules(r.Context(), tenant(r), actor(r), b.Date)
-	ok(w, map[string]int{"raised": n}, err)
+	if err != nil {
+		ok(w, nil, err)
+		return
+	}
+	// The DP's own rules, mule accounts, staff and connected-client
+	// trades (ops/dpsurv.go).
+	m, err := s.ops.RunDPRules(r.Context(), tenant(r), actor(r), b.Date)
+	ok(w, map[string]int{"raised": n + m, "trading": n, "dp": m}, err)
 }
 
 func (s *Server) ipo(w http.ResponseWriter, r *http.Request) {

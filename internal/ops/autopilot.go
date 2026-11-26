@@ -1133,6 +1133,12 @@ func autoSurveillance(r *runCtx) error {
 		return err
 	}
 	r.done += n
+	// The DP's own rules, mule accounts, staff and connected-client trades
+	// (dpsurv.go), and the case work's clocks (survcase.go).
+	if m, err := r.o.RunDPRules(r.ctx, r.tenant, SystemActor, r.date); err == nil {
+		r.done += m
+	}
+	r.o.survClocks(r.ctx, r.tenant, r.date)
 	als, _ := r.o.Alerts(r.ctx, r.tenant)
 	cs, _ := r.o.ClientMap(r.ctx, r.tenant)
 	pm, _ := r.o.PMLA(r.ctx, r.tenant, r.date)
@@ -1150,8 +1156,10 @@ func autoSurveillance(r *runCtx) error {
 		}
 		c := cs[a.UCC]
 		ev := fmt.Sprintf("%s. Evidence: income %s, turnover this FY ₹%s, risk %s, %d alert(s) on this client, KRA %s.", a.Detail, firstOf(c.Income, "not declared"), formatINR(turn[a.UCC]), firstOf(c.Risk, "—"), count[a.UCC], firstOf(c.KRAStatus, "not loaded"))
-		due := addDays(firstOf(a.Date, r.date), 30)
-		if a.Severity == "High" {
+		// The alert's own due date (45 days, 60 for CDSL's half-yearly
+		// alerts); a high one is looked at within 7 days.
+		due := firstOf(alertDueOf(a), addDays(firstOf(a.Date, r.date), alertDisposeDays))
+		if a.Severity == "High" && addDays(firstOf(a.Date, r.date), 7) < due {
 			due = addDays(firstOf(a.Date, r.date), 7)
 		}
 		r.queue(a.ID, a.Severity+" alert · "+a.Type, ev, a.UCC, RoleCompliance, "surv", due+" 18:00", nil)

@@ -112,13 +112,14 @@ roles: Ops maker, Ops checker, Risk manager, Compliance officer
 ask: old contract note; contract note from old back office; archived documents; document archive search; legal hold document; delete old documents; how long are documents kept; retention of contract notes; who downloaded a document; old statements from sharepro
 related: before-ledgerline, migrate-firm, dispatch-register
 
-The archive holds the documents the old system sent (contract notes, statements, DP bills, margin statements), up to eight years of them, as they were sent.
+The archive holds the documents the old system sent (contract notes, statements, DP bills, margin statements), up to ten years of them, as they were sent.
 
 1. Open [[archive|Client documents → Old documents archive]]. Search by client, type, dates and whether the document was signed.
 2. **Download** opens the document. Every download is recorded in the [[audit|audit trail]]: who, when, which document.
 3. A client's documents are also on the client screen (Before Ledgerline → Archive), and the client sees their own in the portal.
 
-- Each document is kept **until its retention date**: the date in the package, or eight years from the document's date. It cannot be deleted before then.
+- Each document is kept **until its retention date**: ten years from the document's date, or the date in the package if that is later. It cannot be deleted before then.
+- A KYC or account opening document of a client with a demat account at your DP is also kept for the life of the account and 8 years after it closes. It cannot be deleted while the account is open.
 - A Compliance officer can put a document on **legal hold** (give the matter or order); while on hold it cannot be deleted at all.
 - After the retention date a Compliance officer may delete it, with a reason; it is then not shown or served to anyone.
 

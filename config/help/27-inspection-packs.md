@@ -11,7 +11,7 @@ related: inspection-pack-templates, inspection-pack-sample, inspection-pack-priv
 
 When the data request arrives, the compliance officer makes the pack on [[inspack|Inspection packs]]:
 
-1. **New pack**, then choose the inspection: one of the standard templates (joint inspection of the broker and DP, exchange, depository, SEBI, half-yearly internal audit) or the firm's own.
+1. **New pack**, then choose the inspection: one of the standard templates (joint inspection of the broker and DP, exchange, depository, SEBI, half-yearly internal audit, system audit) or the firm's own.
 2. **Period**: name the inspection as it should appear on every file, the request's reference, and the dates. The buttons fill in the half-year, financial year, quarter or month just ended.
 3. **Sample**: N clients at random (the seed is recorded so the same clients can be drawn again), the client codes the inspector named, or no sample.
 4. **Review items**: change a title, its period (the inspection period, as at its end, or the current version), the Ledgerline report that produces it, or take it off; **Add an item** for anything else. Each item says whether Ledgerline can produce it now, or why not, and which ones are **to confirm** against the request.
@@ -25,7 +25,7 @@ Some records are not in Ledgerline (order logs and voice recordings are kept by 
 title: Inspection pack templates and where their items come from
 screen: inspack
 roles: Compliance officer, Admin
-ask: inspection template; joint inspection; joint inspection by exchanges and depositories; lead exchange inspection; data request list; what does the exchange ask for in inspection; internal audit checklist; change the inspection template; add item to inspection pack; save our own template; to confirm in inspection pack; which items are to confirm
+ask: inspection template; system audit pack; back office software criteria; annexure vii; joint inspection; joint inspection by exchanges and depositories; lead exchange inspection; data request list; what does the exchange ask for in inspection; internal audit checklist; change the inspection template; add item to inspection pack; save our own template; to confirm in inspection pack; which items are to confirm
 related: inspection-packs, inspection-pack-sample
 
 Five standard templates are a starting list, checked against public documents in November 2026. Compare each with the actual request and change the items before building.
@@ -35,6 +35,7 @@ Five standard templates are a starting list, checked against public documents in
 - **Depository inspection of the DP (CDSL or NSDL)**: the areas of NSDL/POLICY/2025/0139 (10 October 2025) and CDSL/AUDIT/DP/POLCY/2026/693 (6 October 2026) on internal and concurrent audit: account opening, DIS, POA and DDPI, pledges, closures and freezes, grievances.
 - **SEBI inspection**: SEBI (Stock Brokers) Regulations, 2026 (SEBI/LAD-NRO/GN/2026/291, 7 January 2026) let SEBI inspect alone or jointly with the exchanges, clearing corporations and depositories, and records are kept for eight years. SEBI's data request comes with its letter and is not published, so most items are **to confirm**.
 - **Half-yearly internal audit (stock broker)**: SEBI/HO/MIRSD/MIRSD2/CIR/P/2016/95 and NSE's half-yearly internal audit circular (ref. 47/2026, half year ended 30 September 2026, by an NSE-empanelled auditor, due 30 November 2026). NSE's sampling annexures (III and IIIA) were not read in full: the sample size is **to confirm**.
+- **System audit: back-office software criteria (stock broker)**: NSE's testing criteria for back-office software (Master Circular for Membership Compliance NSE/COMP/73981, Exhibit 33 Annexure VII). The criteria map lists each criterion (user rights, user and journal audit logs, no parallel client ledgers, the T-2 lock of back-dated entries, standard-format client ledger, trial balance, register of securities, bank book and UCC master), how Ledgerline meets it, where the auditor sees it and where it stands for your firm today. The bank book in NSE's prescribed layout is not built yet and shows as a gap. The criteria are read from a summary: check them against Annexure VII.
 
 Cyber security items follow SEBI's CSCRF (SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113, 20 August 2024); DDPI SEBI/HO/MIRSD/DoP/P/CIR/2022/44 (4 April 2022). Each item shows its source on the **Templates** tab.
 

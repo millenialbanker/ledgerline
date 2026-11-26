@@ -258,7 +258,7 @@ Each day builds on the one before: open positions, holdings and balances carry f
 title: Fix "the books are locked"
 screen: settings
 roles: Admin
-ask: books are locked; period locked; locked up to; cannot post to old date; unlock period; back dated entry refused
+ask: books are locked; period locked; locked up to; cannot post to old date; unlock period; back dated entry refused; t-2 lock; lock back dated entries; automatic lock; annexure vii back office criteria
 related: correct-bill
 
 The books are locked up to a date so closed months can't change. An entry dated in a locked period is refused.
@@ -267,6 +267,8 @@ The books are locked up to a date so closed months can't change. An entry dated 
 2. If it must be back-dated, an **Admin** changes **Books locked up to** (Settings → Period locking) on [[settings|Settings]], posts it, and locks again.
 
 Every lock and unlock is in the audit trail. **Also lock automatically** in Settings (Period locking) keeps the lock a set number of business days behind today, so you don't have to remember.
+
+NSE's testing criteria for back-office software ask for a system lock of back-dated entries beyond T-2. Set **Also lock automatically** to **3** (or fewer): an entry dated before T-2 is then refused. The nightly self-inspection test *Back-dated entries beyond T-2 locked by the system* fails while the automatic lock is off or set higher.
 
 ## exchange-files
 title: Load or download exchange, clearing and depository files

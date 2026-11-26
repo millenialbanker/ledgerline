@@ -344,9 +344,19 @@ func dutyLookback(rule string) int {
 	return 120
 }
 
+// isTradingDay: a weekday that is not a holiday, or a special session day
+// (a Muhurat, Saturday or holiday session listed in Settings, set on the
+// holding statement panel), so a duty
+// for each trade date is expected for the special session too.
 func isTradingDay(set Settings, d string) bool {
 	t, err := time.Parse("2006-01-02", d)
-	if err != nil || t.Weekday() == time.Saturday || t.Weekday() == time.Sunday {
+	if err != nil {
+		return false
+	}
+	if contains(set.SpecialSessions, d) {
+		return true
+	}
+	if t.Weekday() == time.Saturday || t.Weekday() == time.Sunday {
 		return false
 	}
 	h, _ := set.IsHoliday(d)
@@ -870,14 +880,22 @@ func dueDuty(set Settings, prof ComplianceProfile, x *Duty, date string) {
 			from = x.Since
 		}
 		done := map[string]bool{}
+		// A duty that was one-time and is now recurring (the regulator
+		// made it periodic): the one-time filing counts for the
+		// occurrences due on or before the day it was done.
+		onceBy := ""
 		for _, r := range x.Done {
 			done[r.Period] = true
+			if r.Period == "once" && !reOnce.MatchString(x.Rule) {
+				onceBy = max(onceBy, firstOf(r.Due, dayOf(r.At)))
+			}
 		}
 		for _, oc := range dutyOccurrences(set, prof, x.Rule, from, addDays(date, 400), 400) {
-			if !done[oc.Period] {
-				x.NextDue, x.Period = extendedDue(x.Extensions, oc), oc.Period
-				break
+			if done[oc.Period] || (onceBy != "" && oc.Due != "" && oc.Due <= onceBy) {
+				continue
 			}
+			x.NextDue, x.Period = x.dueOf(oc), oc.Period
+			break
 		}
 		// A one-time duty whose deadline passed before the firm's calendar
 		// had it: Ledgerline can't know whether it was done, so it asks for
@@ -919,6 +937,18 @@ func dutyStatus(x Duty, date string) string {
 		return "Due this week"
 	}
 	return "Upcoming"
+}
+
+// dueOf is an occurrence's due date for the firm: a revised cut-off the
+// firm recorded for it (earlier or later), else any extension in the
+// catalogue.
+func (x Duty) dueOf(oc dutyOcc) string {
+	for _, r := range x.Revised {
+		if r.Period == oc.Period {
+			return r.Due
+		}
+	}
+	return extendedDue(x.Extensions, oc)
 }
 
 // extendedDue is an occurrence's due date after any extension.
@@ -1019,6 +1049,92 @@ func (o *Ops) RecordDutyEvent(ctx context.Context, tenant, actor, date, id strin
 	return saved, nil
 }
 
+// ---- a revised cut-off for one occurrence ----
+
+// DutyCutoffReq records a revised due date a regulator notified for one
+// occurrence of a dated duty: NSE Clearing's cut-off for a special
+// session's margin reporting (NCL/CMPT/70409 para 4), a deadline moved for
+// a holiday. Period is the occurrence as the calendar names it (the trade
+// date for a duty due each trading day, the month for a monthly one, the
+// date for a dated one).
+type DutyCutoffReq struct {
+	Period string `json:"period"`
+	Due    string `json:"due"`
+	By     string `json:"by"` // the notice or circular
+}
+
+// SetDutyCutoff records (or replaces) a revised cut-off for one occurrence;
+// an empty Due takes it back. The calendar then dates that occurrence by
+// it, earlier or later than the usual rule.
+func (o *Ops) SetDutyCutoff(ctx context.Context, tenant, actor, date, id string, req DutyCutoffReq) (Duty, error) {
+	if !validDate(date) {
+		date = o.businessDate(ctx, tenant)
+	}
+	obs, err := o.Duties(ctx, tenant, date)
+	if err != nil {
+		return Duty{}, err
+	}
+	var x *Duty
+	for i := range obs {
+		if obs[i].ID == id {
+			x = &obs[i]
+		}
+	}
+	if x == nil {
+		return Duty{}, ErrNotFound
+	}
+	if err := o.require(ctx, tenant, actor, x.Title, x.Role, RoleCompliance); err != nil {
+		return Duty{}, err
+	}
+	switch {
+	case x.Rule == "EVENT":
+		return Duty{}, invalid("%s is dated from each event: record the event with the date the notice gives", x.Title)
+	case x.Rule == "ASNEEDED", x.Rule == "AUTO", reOnce.MatchString(x.Rule), x.Rule == "RASM", x.Rule == "RASQ":
+		return Duty{}, invalid("%s has no dated occurrences to revise", x.Title)
+	}
+	period := strings.TrimSpace(req.Period)
+	if period == "" || len(period) > 40 {
+		return Duty{}, invalid("give the occurrence as the calendar names it (a trade date, a month YYYY-MM or a date)")
+	}
+	by := clip(strings.TrimSpace(req.By), 200)
+	if req.Due != "" {
+		if !validDate(req.Due) {
+			return Duty{}, invalid("the revised due date is YYYY-MM-DD")
+		}
+		if validDate(period) && req.Due < period {
+			return Duty{}, invalid("the revised due date must be on or after %s", fmtDay(period))
+		}
+		if by == "" {
+			return Duty{}, invalid("name the notice or circular that sets the revised cut-off")
+		}
+	}
+	_, err = docs.Update(ctx, o.Docs, tenant, cObligation, id, actor, func(y *Duty) error {
+		var keep []DutyExtension
+		for _, r := range y.Revised {
+			if r.Period != period {
+				keep = append(keep, r)
+			}
+		}
+		if req.Due != "" {
+			keep = append(keep, DutyExtension{Period: period, Due: req.Due, By: by})
+		}
+		sort.Slice(keep, func(i, j int) bool { return keep[i].Period < keep[j].Period })
+		y.Revised = keep
+		return nil
+	})
+	if err != nil {
+		return Duty{}, err
+	}
+	o.log(ctx, tenant, actor, "obligation.cutoff", id, map[string]any{"period": period, "due": req.Due, "by": by})
+	ds, _ := o.Duties(ctx, tenant, date)
+	for _, d := range ds {
+		if d.ID == id {
+			return d, nil
+		}
+	}
+	return Duty{}, ErrNotFound
+}
+
 // ---- the month's compliance sheet ----
 
 // DutySheetRow is one duty in the month's sheet.
@@ -1110,7 +1226,7 @@ func (o *Ops) DutySheetFor(ctx context.Context, tenant, actor, month, date strin
 			} else {
 				for _, x := range occ {
 					if x.Due != "" {
-						r.Dues = append(r.Dues, extendedDue(d.Extensions, x))
+						r.Dues = append(r.Dues, d.dueOf(x))
 					}
 				}
 				if len(occ) == 1 && occ[0].Due == "" {

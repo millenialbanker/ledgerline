@@ -6,6 +6,7 @@ Accepting a self-inspection risk | Compliance officer
 Accepting obligations from circulars | Compliance officer
 Activating a client | Ops checker
 Adding client documents | Ops maker, Ops checker, Compliance officer, Branch staff
+Adding documents to an alert | Ops checker, Compliance officer
 Adding inspection documents | Compliance officer
 Adding or changing dealers and terminals | Ops maker, Compliance officer
 Adding or changing employees | HR manager
@@ -125,6 +126,7 @@ Checking UPI blocks with NSE Clearing | Ops maker, Ops checker, Risk manager
 Checking a Finspot login | Ops maker, Ops checker, Risk manager
 Checking a backup | Ops checker, Compliance officer
 Checking a migration package | Admin
+Checking alert closures | Compliance officer
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
 Checking payouts with the bank | Ops maker, Ops checker
 Checking steps for reminders | Ops checker, Risk manager, Compliance officer
@@ -230,6 +232,7 @@ Loading exchange holidays | Ops maker, Ops checker, Compliance officer
 Loading files | Ops maker, Ops checker, Risk manager, Compliance officer
 Loading revocation lists | Ops maker, Ops checker, Compliance officer
 Loading sanctions and debarment lists | Ops maker, Ops checker, Compliance officer
+Loading surveillance alerts | Ops checker, Compliance officer
 Loading the KRAs' demise list | Ops maker, Ops checker, Compliance officer
 Loading the cash-equivalent collateral list | Ops maker, Ops checker, Risk manager
 Loading the exchanges' UCC downloads | Ops maker, Ops checker, Compliance officer
@@ -320,6 +323,9 @@ Recording a stock SIP fill | Ops maker, Ops checker
 Recording a surveillance action | Compliance officer
 Recording a transfer between the firm's bank accounts | Ops maker, Ops checker
 Recording allotments | Ops maker, Ops checker
+Recording an adverse observation | Compliance officer
+Recording an adverse report | Compliance officer
+Recording an alert download | Ops checker, Compliance officer
 Recording and reporting security incidents | Compliance officer
 Recording approved dealing locations | Compliance officer
 Recording bounces | Ops maker, Ops checker, Admin
@@ -383,7 +389,9 @@ Scheduling jobs | Admin
 Searching accounts | Ops maker, Ops checker, Risk manager, Compliance officer
 Searching the document archive | Ops maker, Ops checker, Risk manager, Compliance officer
 See full client identifiers | Ops checker, Compliance officer
+Seeing an alert's documents | Ops checker, Compliance officer
 Seeing and testing the log export | Compliance officer
+Seeing connected clients | Ops checker, Compliance officer
 Seeing full staff identifiers | HR manager, Payroll
 Seeing key managerial personnel and designated persons | Compliance officer, HR manager
 Seeing leavers | Compliance officer, HR manager
@@ -393,6 +401,7 @@ Seeing payroll | HR manager, Payroll
 Seeing registered phones and kiosks | HR manager
 Seeing security events and incidents | Compliance officer
 Seeing staff documents | HR manager
+Seeing the alert download log | Ops checker, Compliance officer
 Seeing the firm's demat accounts | Ops maker, Ops checker, Risk manager, Compliance officer
 Seeing the own-trading register | Compliance officer, HR manager
 Seeing the parallel run | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -425,6 +434,7 @@ Setting a client's default ledger | Ops checker, Risk manager
 Setting client risk | Compliance officer
 Setting salary structures | HR manager, Payroll
 Setting sanctions screening | Compliance officer
+Setting surveillance thresholds | Compliance officer
 Setting the AI answer log retention | Compliance officer
 Setting the USB token signer's certificate | Admin
 Setting the deployment for exchange disclosures | Compliance officer
@@ -527,6 +537,7 @@ Viewing vendor bills | Ops maker, Ops checker, Compliance officer
 Viewing vendors | Ops maker, Ops checker, Compliance officer
 Withdrawing a stock SIP basket file | Ops maker, Ops checker, Risk manager
 Working a self-inspection exception | Ops maker, Ops checker, Risk manager, Compliance officer
+Working an alert's checklist | Ops checker, Compliance officer
 Working client insights | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Working complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Working out MF commission | Ops checker, Compliance officer

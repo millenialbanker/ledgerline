@@ -109,11 +109,11 @@ title: Work a surveillance or AML alert
 screen: surv
 roles: Compliance officer
 ask: surveillance alert; aml alert; suspicious transaction; file str; close alert; exchange alert; turnover more than income; fiu
-related: kyc-pmla, kill-switch, surveillance-return, fingate-str
+related: kyc-pmla, kill-switch, surveillance-return, fingate-str, dp-surveillance-rules, alert-checklist, cdsl-alert-files
 
 On [[surv|Surveillance & AML]]:
 
-1. Exchange alerts and internal rules (turnover against income, third-party funds, frequent client code changes, dormant accounts) land in one queue. **Run internal rules** to scan again.
+1. Exchange alerts, CDSL's and MCX's alerts and the internal rules (turnover against income, third-party funds, frequent client code changes, dormant accounts, and the DP's own rules) land in one queue. **Run internal rules** to scan again. Each alert shows its due date. CDSL, DP and MCX alerts are worked with their checklist under **Work** (see *Work an alert: the checklist, documents and due date*).
 2. **Review**: look at the client's trades, funds and history; get the client's explanation if needed.
 3. **Close** with a written rationale, or **File STR** if it's suspicious: the Principal Officer's decision, with the grounds. The STR is then due on FIU-IND's FINGate within 7 working days (see *File an STR on FINGate 2.0*).
 
