@@ -151,21 +151,29 @@ type Employee struct {
 	Dealer         string           `json:"dealer,omitempty"` // dealers register (dealers.go)
 	KMP            string           `json:"kmp,omitempty"`    // key managerial personnel: the position, e.g. Principal officer
 	Designated     bool             `json:"designated"`       // designated person under the insider trading code
-	State          string           `json:"state,omitempty"`  // state of work, for professional tax
-	Shift          string           `json:"shift,omitempty"`
-	WorkPolicy     string           `json:"work_policy,omitempty"` // hybrid work policy (hrtime.go)
-	DeviceID       string           `json:"device_id,omitempty"`   // biometric device user ID (CSV upload)
-	HomeDealing    HomeDealing      `json:"home_dealing"`
-	TaxRegime      string           `json:"tax_regime,omitempty"` // new (default) or old
-	NoPF           bool             `json:"no_pf,omitempty"`      // not a PF member (e.g. excluded employee)
-	PFFullWages    bool             `json:"pf_full_wages,omitempty"`
-	EPSMember      bool             `json:"eps_member"`
-	Disabled       bool             `json:"disabled,omitempty"` // person with disability (ESI threshold)
-	Notes          string           `json:"notes,omitempty"`
-	CreatedBy      string           `json:"created_by,omitempty"`
-	CreatedAt      string           `json:"created_at,omitempty"`
-	UpdatedBy      string           `json:"updated_by,omitempty"`
-	UpdatedAt      string           `json:"updated_at,omitempty"`
+	// DesignatedFor: the ground of the designation under the board's
+	// criteria (role, access to UPSI, seniority, support staff with UPSI
+	// access); pit.go.
+	DesignatedFor string `json:"designated_for,omitempty"`
+	// Staff controls (staffctl.go): the AML-sensitive position check and
+	// the DP compliance officer's eligibility.
+	AMLCheck    *AMLCheck      `json:"aml_check,omitempty"`
+	COEligible  *COEligibility `json:"co_eligibility,omitempty"`
+	State       string         `json:"state,omitempty"` // state of work, for professional tax
+	Shift       string         `json:"shift,omitempty"`
+	WorkPolicy  string         `json:"work_policy,omitempty"` // hybrid work policy (hrtime.go)
+	DeviceID    string         `json:"device_id,omitempty"`   // biometric device user ID (CSV upload)
+	HomeDealing HomeDealing    `json:"home_dealing"`
+	TaxRegime   string         `json:"tax_regime,omitempty"` // new (default) or old
+	NoPF        bool           `json:"no_pf,omitempty"`      // not a PF member (e.g. excluded employee)
+	PFFullWages bool           `json:"pf_full_wages,omitempty"`
+	EPSMember   bool           `json:"eps_member"`
+	Disabled    bool           `json:"disabled,omitempty"` // person with disability (ESI threshold)
+	Notes       string         `json:"notes,omitempty"`
+	CreatedBy   string         `json:"created_by,omitempty"`
+	CreatedAt   string         `json:"created_at,omitempty"`
+	UpdatedBy   string         `json:"updated_by,omitempty"`
+	UpdatedAt   string         `json:"updated_at,omitempty"`
 }
 
 func (e Employee) dealer() bool {
@@ -240,11 +248,17 @@ type OwnTradingPolicy struct {
 	PreClearAbove     int64    `json:"pre_clear_above"`      // ₹ value of a trade above which pre-clearance is needed (0: every trade)
 	PreClearValidDays int      `json:"pre_clear_valid_days"` // days a pre-clearance stays valid (Schedule C: 7 trading days)
 	ContraDays        int      `json:"contra_days"`          // no opposite trade within this many days (Schedule C: 6 months)
+	ContraDaysMF      int      `json:"contra_days_mf"`       // the same for mutual fund units (Schedule C cl. 8: 2 months; default 60)
 	RelativesCovered  bool     `json:"relatives_covered"`    // immediate relatives' accounts are declared and covered
 	OutsideAllowed    bool     `json:"outside_allowed"`      // accounts with other brokers allowed when declared
 	AnnualDueMonth    int      `json:"annual_due_month"`     // the annual holdings declaration is due by the end of this month (default 4: April)
 	Restricted        []string `json:"restricted"`           // securities (ISIN or symbol) on the restricted list: pre-clearance refused
 	Basis             string   `json:"basis"`
+	// Designated persons (reg. 9(4)): the criteria the board set with the
+	// compliance officer (role, access to UPSI, seniority) and the board's
+	// approval of them (pit.go).
+	DesignationCriteria string         `json:"designation_criteria,omitempty"`
+	BoardApproval       *BoardApproval `json:"board_approval,omitempty"`
 }
 
 // LeaveType is a kind of leave with its rules.
@@ -325,9 +339,12 @@ type HRPolicy struct {
 	// from home (for example the terminal is not reachable outside the
 	// office) or the exchange has given a general permission; dealing from
 	// a location the exchange has not approved needs its permission.
-	DealersHomeFree bool   `json:"dealers_home_free"`
-	UpdatedBy       string `json:"updated_by,omitempty"`
-	UpdatedAt       string `json:"updated_at,omitempty"`
+	DealersHomeFree bool `json:"dealers_home_free"`
+	// AMLSensitive are the duties the firm treats as sensitive to money
+	// laundering (staffctl.go); empty: the defaults.
+	AMLSensitive []string `json:"aml_sensitive,omitempty"`
+	UpdatedBy    string   `json:"updated_by,omitempty"`
+	UpdatedAt    string   `json:"updated_at,omitempty"`
 }
 
 // DefaultHRPolicy is the starting policy.
@@ -335,7 +352,7 @@ func DefaultHRPolicy() HRPolicy {
 	return HRPolicy{
 		CertRules:    append([]CertRule{}, DefaultCertRules...),
 		ReminderDays: []int{60, 30, 7},
-		OwnTrading: OwnTradingPolicy{Applies: "designated", PreClearAbove: 1000000, PreClearValidDays: 7, ContraDays: 180, RelativesCovered: true, OutsideAllowed: true, AnnualDueMonth: 4, Restricted: []string{},
+		OwnTrading: OwnTradingPolicy{Applies: "designated", PreClearAbove: 1000000, PreClearValidDays: 7, ContraDays: 180, ContraDaysMF: 60, RelativesCovered: true, OutsideAllowed: true, AnnualDueMonth: 4, Restricted: []string{},
 			Basis: "SEBI (Prohibition of Insider Trading) Regulations 2015, reg. 9(1) and Schedule C; the firm's code of conduct"},
 		LeaveTypes: []LeaveType{
 			{Code: "CL", Name: "Casual leave", Paid: true, Annual: "8", MaxBalance: "8"},
@@ -404,6 +421,14 @@ func (o *Ops) SaveHRPolicy(ctx context.Context, tenant, actor string, p HRPolicy
 	}
 	if err := o.require(ctx, tenant, actor, "Changing HR policies", RoleHR, RoleCompliance); err != nil {
 		return p, err
+	}
+	// The board's approval of the designated-person criteria is recorded
+	// by its own step (pit.go); a policy save keeps it, and changing the
+	// criteria needs a fresh approval.
+	old := o.hrPolicy(ctx, tenant).OwnTrading
+	p.OwnTrading.BoardApproval = old.BoardApproval
+	if strings.TrimSpace(p.OwnTrading.DesignationCriteria) != strings.TrimSpace(old.DesignationCriteria) {
+		p.OwnTrading.BoardApproval = nil
 	}
 	for i, r := range p.CertRules {
 		if strings.TrimSpace(r.Duty) == "" || strings.TrimSpace(r.Cert) == "" {

@@ -48,7 +48,7 @@ var IncidentStatuses = []string{IncOpen, IncInvestigating, IncReported, IncClose
 
 // ReportTo and ReportHow are the choices for the report step.
 var (
-	ReportTo  = []string{"CERT-In", "SEBI", "Exchange", "Depository", "Other"}
+	ReportTo  = []string{"CERT-In", "SEBI", "Exchange", "Depository", "Data Protection Board", "Other"}
 	ReportHow = []string{"Email", "Portal", "Phone", "Letter", "Other"}
 )
 
@@ -69,6 +69,10 @@ type IncidentReport struct {
 	Note      string `json:"note,omitempty"`
 	By        string `json:"by"`
 	Recorded  string `json:"recorded"`
+	// Stage is the follow-up report this is (incfollow.go): initial,
+	// sebi-portal, same-day, interim, mitigation, rca, vapt, forensic,
+	// dpb-intimation, dpb-report. Empty: the initial report.
+	Stage string `json:"stage,omitempty"`
 }
 
 // IncidentAlert is the alert sent when the incident opened.
@@ -108,6 +112,13 @@ type Incident struct {
 	UpdatedBy      string   `json:"updated_by"`
 	ClosedAt       string   `json:"closed_at,omitempty"`
 	ClosedBy       string   `json:"closed_by,omitempty"`
+	// Follow-ups (incfollow.go): a personal data breach under the DPDP
+	// Act, a declared disaster, stages the firm judged not needed (stage
+	// → why) and the notices sent to affected clients.
+	PersonalData  bool              `json:"personal_data,omitempty"`
+	Disaster      *DisasterDecl     `json:"disaster,omitempty"`
+	NotNeeded     map[string]string `json:"not_needed,omitempty"`
+	BreachNotices []BreachNotice    `json:"breach_notices,omitempty"`
 }
 
 // CertInClock is the 6-hour reporting clock of an incident, in IST.
@@ -171,6 +182,11 @@ func minutesText(m int) string {
 type IncidentView struct {
 	Incident
 	Clock CertInClock `json:"clock"`
+	// FollowUps are the reports due after the first one, with their
+	// dates; Investigate is the time to take the incident on
+	// (incfollow.go).
+	FollowUps   []FollowUp     `json:"follow_ups"`
+	Investigate InvestigateSLA `json:"investigate"`
 }
 
 func (o *Ops) incidentView(in Incident) IncidentView {
@@ -193,7 +209,9 @@ func (o *Ops) incidentView(in Incident) IncidentView {
 	if in.Events == nil {
 		in.Events = []string{}
 	}
-	return IncidentView{Incident: in, Clock: certInClock(t, o.now(), rep, in.Status == IncClosed)}
+	v := IncidentView{Incident: in, Clock: certInClock(t, o.now(), rep, in.Status == IncClosed)}
+	v.FollowUps, v.Investigate = o.followUps(in, t, triUnknown), o.investigateSLA(in, t, nil)
+	return v
 }
 
 // raiseIncident opens an incident for a rule match, or adds the event to
@@ -314,7 +332,12 @@ type IncidentsScreen struct {
 	ReportTo  []string           `json:"report_to"`
 	ReportHow []string           `json:"report_how"`
 	Retention string             `json:"retention"`
-	Now       string             `json:"now"`
+	// RetentionWarn: shorter than CSCRF's two years (incfollow.go).
+	RetentionWarn string          `json:"retention_warn,omitempty"`
+	Stages        []FollowUpStage `json:"stages"`
+	SLA           map[string]int  `json:"investigate_hours"`
+	Late          int             `json:"late_follow_ups"`
+	Now           string          `json:"now"`
 }
 
 // Incidents is the register, newest first. Compliance and Admin.
@@ -328,14 +351,20 @@ func (o *Ops) Incidents(ctx context.Context, tenant, actor string) (IncidentsScr
 	}
 	set := o.SecuritySettings(ctx, tenant)
 	sc := IncidentsScreen{Incidents: []IncidentView{}, Settings: set, Contacts: o.alertContacts(ctx, tenant), Rules: SecRules(set), Kinds: SecKinds,
-		Statuses: IncidentStatuses, ReportTo: ReportTo, ReportHow: ReportHow, Retention: retentionLine(set), Now: o.now().Format(time.RFC3339)}
+		Statuses: IncidentStatuses, ReportTo: ReportTo, ReportHow: ReportHow, Retention: retentionLine(set), RetentionWarn: retentionWarn(set), Stages: FollowUpStages, SLA: set.investigateHours(), Now: o.now().Format(time.RFC3339)}
+	env := o.incEnv(ctx, tenant)
 	for _, x := range xs {
-		v := o.incidentView(x)
+		v := env.view(o, x)
 		if x.Status != IncClosed {
 			sc.Open++
 		}
 		if v.Clock.Overdue {
 			sc.Overdue++
+		}
+		for _, f := range v.FollowUps {
+			if f.Overdue {
+				sc.Late++
+			}
 		}
 		sc.Incidents = append(sc.Incidents, v)
 	}
@@ -368,7 +397,7 @@ func (o *Ops) IncidentByID(ctx context.Context, tenant, actor, id string) (Incid
 	if err != nil {
 		return IncidentDetail{}, err
 	}
-	d := IncidentDetail{IncidentView: o.incidentView(in), EventList: []SecEvent{}}
+	d := IncidentDetail{IncidentView: o.incEnv(ctx, tenant).view(o, in), EventList: []SecEvent{}}
 	for _, eid := range in.Events {
 		if e, _, err := docs.Get[SecEvent](ctx, o.Docs, tenant, cSecEvent, eid); err == nil {
 			d.EventList = append(d.EventList, e)
@@ -424,7 +453,7 @@ func (o *Ops) RecordIncident(ctx context.Context, tenant, actor string, in Recor
 	}
 	o.log(ctx, tenant, actor, "security.incident.recorded", x.ID, map[string]any{"severity": x.Severity, "title": x.Title})
 	o.alertIncident(ctx, tenant, &x, x.Description)
-	return o.incidentView(x), nil
+	return o.incEnv(ctx, tenant).view(o, x), nil
 }
 
 func parseISTTime(s string) (time.Time, error) {
@@ -502,7 +531,7 @@ func (o *Ops) UpdateIncident(ctx context.Context, tenant, actor, id, status, not
 		_ = docs.Upsert(ctx, o.Docs, tenant, cSecOpen, in.Rule+"|"+in.Key, secOpen{Incident: in.ID}, actor) // reopened: joins again
 	}
 	o.log(ctx, tenant, actor, "security.incident.updated", in.ID, map[string]any{"status": in.Status, "note": trim(note, 200)})
-	return o.incidentView(in), nil
+	return o.incEnv(ctx, tenant).view(o, in), nil
 }
 
 // incidentDone ends the dedupe link and closes the work items.
@@ -530,6 +559,9 @@ func (o *Ops) ReportIncident(ctx context.Context, tenant, actor, id string, r In
 	}
 	if !contains(ReportHow, r.How) {
 		return IncidentView{}, invalid("choose how it was reported")
+	}
+	if r.Stage != "" && followUpStage(r.Stage).ID == "" {
+		return IncidentView{}, invalid("unknown report stage %q", r.Stage)
 	}
 	now := o.now()
 	at := now
@@ -574,7 +606,7 @@ func (o *Ops) ReportIncident(ctx context.Context, tenant, actor, id string, r In
 		return IncidentView{}, err
 	}
 	o.log(ctx, tenant, actor, "security.incident.reported", in.ID, map[string]any{"to": r.To, "how": r.How, "at": r.At, "reference": r.Reference})
-	return o.incidentView(in), nil
+	return o.incEnv(ctx, tenant).view(o, in), nil
 }
 
 func mustTime(s string) time.Time {

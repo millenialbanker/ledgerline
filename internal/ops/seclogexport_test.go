@@ -166,7 +166,7 @@ func TestSyslogTLSExport(t *testing.T) {
 		t.Fatalf("logs: %v %v", logs, kinds)
 	}
 	sc, err := o.LogExport(ctx, T, "vikram.shah")
-	if err != nil || sc.Dests[0].Status != "Delivering" || sc.Dests[0].State.Delivered != int64(len(msgs)) || sc.Dests[0].Pending != 0 || !strings.Contains(sc.Retention, "365 days") {
+	if err != nil || sc.Dests[0].Status != "Delivering" || sc.Dests[0].State.Delivered != int64(len(msgs)) || sc.Dests[0].Pending != 0 || !strings.Contains(sc.Retention, "730 days") {
 		t.Fatalf("screen: %+v %v", sc.Dests[0], err)
 	}
 	*clock = clock.Add(time.Minute)

@@ -285,7 +285,7 @@ func TestRetentionMinimum(t *testing.T) {
 	if _, err := o.SaveSecuritySettings(ctx, T, "vikram.shah", SecuritySettings{RetentionDays: 90}); err == nil || !strings.Contains(err.Error(), "180") {
 		t.Fatalf("90 days accepted: %v", err)
 	}
-	if s, err := o.SaveSecuritySettings(ctx, T, "vikram.shah", SecuritySettings{}); err != nil || s.RetentionDays != 365 {
+	if s, err := o.SaveSecuritySettings(ctx, T, "vikram.shah", SecuritySettings{}); err != nil || s.RetentionDays != 730 {
 		t.Fatalf("default: %+v %v", s, err)
 	}
 	if s, err := o.SaveSecuritySettings(ctx, T, "vikram.shah", SecuritySettings{RetentionDays: 180}); err != nil || s.RetentionDays != 180 {

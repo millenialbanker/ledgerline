@@ -405,6 +405,20 @@ type PreClearance struct {
 	DecidedBy string       `json:"decided_by,omitempty"`
 	Note      string       `json:"note,omitempty"`
 	At        string       `json:"at"`
+	// MFUnits: units of a mutual fund (the contra period is the code's
+	// MF period, Schedule C cl. 8: two months).
+	MFUnits bool `json:"mf_units,omitempty"`
+	// NoUPSI is the applicant's declaration that they hold no unpublished
+	// price sensitive information (Schedule C cl. 6), with its words.
+	NoUPSI     bool   `json:"no_upsi"`
+	NoUPSIText string `json:"no_upsi_text,omitempty"`
+	// Contra: an opposite trade within the contra period; approving it
+	// needs the compliance officer's written relaxation (Schedule C cl. 8).
+	Contra        bool   `json:"contra,omitempty"`
+	ContraRelaxed string `json:"contra_relaxed,omitempty"`
+	// Report is what was done with the pre-clearance (pit.go): traded,
+	// or decided not to trade (Schedule C cl. 9).
+	Report *PreClearReport `json:"report,omitempty"`
 }
 
 // selfOrRole lets a person act on their own records, or the roles given.
@@ -537,6 +551,10 @@ func (o *Ops) RequestPreClearance(ctx context.Context, tenant, actor string, r P
 	if r.Security == "" || r.Qty <= 0 || (r.Side != "Buy" && r.Side != "Sell") {
 		return r, invalid("give the security, Buy or Sell and a quantity")
 	}
+	if !r.NoUPSI {
+		return r, invalid("declare that you hold no unpublished price sensitive information (the code needs it with every request)")
+	}
+	r.NoUPSIText = NoUPSIDeclaration
 	if a, _, err := docs.Get[StaffAccount](ctx, o.Docs, tenant, cTradeAcct, r.Account); err != nil || a.Employee != e.Code || a.ClosedOn != "" {
 		return r, invalid("choose one of your declared accounts (declare the account first)")
 	}
@@ -546,12 +564,25 @@ func (o *Ops) RequestPreClearance(ctx context.Context, tenant, actor string, r P
 		}
 	}
 	r.Warnings = []string{}
-	if p.ContraDays > 0 {
+	if days := p.contraDays(r.MFUnits); days > 0 {
 		ps, _ := docs.List[PreClearance](ctx, o.Docs, tenant, cPreClear, "")
-		from := o.now().AddDate(0, 0, -p.ContraDays).Format("2006-01-02")
+		from := o.now().AddDate(0, 0, -days).Format("2006-01-02")
 		for _, x := range ps {
-			if x.Employee == e.Code && x.Status == "Approved" && x.Side != r.Side && (x.Security == r.Security || x.ISIN != "" && x.ISIN == r.ISIN) && x.At[:10] >= from {
-				r.Warnings = append(r.Warnings, fmt.Sprintf("Contra trade: a %s of %s was pre-cleared on %s, within %d days", strings.ToLower(x.Side), x.Security, fmtDay(x.At[:10]), p.ContraDays))
+			if x.Employee != e.Code || x.Status != "Approved" || x.Side == r.Side || !(x.Security == r.Security || x.ISIN != "" && x.ISIN == r.ISIN) {
+				continue
+			}
+			// The trade itself (from the post-trade report) when known;
+			// a pre-clearance not traded on is no prior trade.
+			on := x.At[:10]
+			if x.Report != nil {
+				if !x.Report.Traded {
+					continue
+				}
+				on = x.Report.TradeDate
+			}
+			if on >= from {
+				r.Contra = true
+				r.Warnings = append(r.Warnings, fmt.Sprintf("Contra trade: a %s of %s on %s, within %d days. It can be approved only with the compliance officer's written relaxation.", strings.ToLower(x.Side), x.Security, fmtDay(on), days))
 			}
 		}
 	}
@@ -580,6 +611,7 @@ func (o *Ops) DecidePreClearance(ctx context.Context, tenant, actor, id string, 
 		return PreClearance{}, err
 	}
 	p := o.hrPolicy(ctx, tenant).OwnTrading
+	set, _ := o.Settings(ctx, tenant)
 	me, _ := o.employeeOf(ctx, tenant, actor)
 	r, err := docs.Update(ctx, o.Docs, tenant, cPreClear, id, actor, func(r *PreClearance) error {
 		if r.Status != "Pending" {
@@ -591,9 +623,15 @@ func (o *Ops) DecidePreClearance(ctx context.Context, tenant, actor, id string, 
 		if !approve && strings.TrimSpace(note) == "" {
 			return invalid("give the reason for rejecting")
 		}
+		if approve && r.Contra {
+			if len(strings.TrimSpace(note)) < 10 {
+				return invalid("this is a contra trade: approve it only with a written relaxation in the note (why, under the code)")
+			}
+			r.ContraRelaxed = trim(strings.TrimSpace(note), 300)
+		}
 		r.Status, r.DecidedBy, r.Note = map[bool]string{true: "Approved", false: "Rejected"}[approve], actor, trim(note, 300)
 		if approve {
-			r.ValidTill = o.now().AddDate(0, 0, p.PreClearValidDays).Format("2006-01-02")
+			r.ValidTill = preClearValidTill(set, o.today(), p.PreClearValidDays)
 		}
 		return nil
 	})
@@ -601,7 +639,7 @@ func (o *Ops) DecidePreClearance(ctx context.Context, tenant, actor, id string, 
 		return r, err
 	}
 	o.closeWork(ctx, tenant, actor, wHR, "preclear:"+r.ID, strings.ToLower(r.Status))
-	o.log(ctx, tenant, actor, "hr.preclear."+strings.ToLower(r.Status), r.ID, map[string]any{"employee": r.Employee, "note": r.Note})
+	o.log(ctx, tenant, actor, "hr.preclear."+strings.ToLower(r.Status), r.ID, map[string]any{"employee": r.Employee, "note": r.Note, "valid_till": r.ValidTill, "contra_relaxed": r.ContraRelaxed != ""})
 	return r, nil
 }
 
@@ -612,6 +650,14 @@ type OwnTradingView struct {
 	PreClear     []PreClearance   `json:"pre_clearances"`
 	Policy       OwnTradingPolicy `json:"policy"`
 	Missing      []string         `json:"missing_annual"` // people without this year's annual declaration (register only)
+	// The insider trading code's other records (pit.go).
+	Disclosures   []PITDisclosure `json:"disclosures"`
+	MissingDiscl  []string        `json:"missing_disclosures"` // designated persons without this year's relatives disclosure
+	NoBasis       []string        `json:"designated_without_basis"`
+	NoReport      []string        `json:"pre_clearances_without_report"`
+	UPSI          []UPSIShare     `json:"upsi_register,omitempty"` // compliance only
+	NoUPSIText    string          `json:"no_upsi_text"`
+	DesignatedFor []string        `json:"designation_grounds"`
 }
 
 // OwnTrading returns the register (compliance, HR) or, with self, the
@@ -662,6 +708,7 @@ func (o *Ops) OwnTrading(ctx context.Context, tenant, actor string, self bool) (
 			}
 		}
 	}
+	o.pitView(ctx, tenant, actor, only, &v)
 	return v, nil
 }
 
@@ -688,6 +735,6 @@ func (o *Ops) annualDeclTick(ctx context.Context, tenant string, now time.Time) 
 			continue
 		}
 		o.raiseWork(ctx, tenant, wHR, e.Code+":annual-decl:"+fy, fmt.Sprintf("Annual holdings declaration %s due from %s (%s)", fy, e.Name, e.Code),
-			fmt.Sprintf("Due by the end of %s under the firm's code (%s).", now.Month(), p.Basis), "", RoleCompliance, "people", now.Format("2006-01-02"))
+			fmt.Sprintf("Due by the end of %s under the firm's code (%s). A designated person also gives the yearly disclosure of immediate relatives and persons with a material financial relationship (Schedule C cl. 12).", now.Month(), p.Basis), "", RoleCompliance, "people", now.Format("2006-01-02"))
 	}
 }

@@ -182,6 +182,12 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 				writeErr(w, http.StatusForbidden, "setup_required", "Finish setting up your sign-in (new password or two-factor authentication) first.", st)
 				return
 			}
+			// A client signing in to the portal or the app accepts the firm's
+			// terms and privacy notice first (CSCRF PR.AT.S3; ops/dataprivacy.go).
+			if s.ops != nil && !termsFree[pattern] && !strings.HasPrefix(pattern, "POST /v1/auth/") && s.ops.TermsDue(r.Context(), t, st.User) {
+				writeErr(w, http.StatusForbidden, "terms_required", "Read and accept the terms and privacy notice first.", nil)
+				return
+			}
 			if mutating && r.Header.Get(csrfHeader) != csrfValue {
 				writeErr(w, http.StatusForbidden, "csrf", "Missing the "+csrfHeader+" header.", nil)
 				return

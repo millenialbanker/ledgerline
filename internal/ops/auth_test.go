@@ -47,9 +47,17 @@ func TestSignIn(t *testing.T) {
 	if _, _, err := o.Login(ctx, T, "farhan.khan", DevPassword, "", "", ""); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("expected lockout, got %v", err)
 	}
+	// The lock does not end by itself: it needs an out-of-band unlock
+	// (authlock.go), by an Admin who says how they confirmed the person.
 	now = now.Add(16 * time.Minute)
+	if _, _, err := o.Login(ctx, T, "farhan.khan", DevPassword, "", "", ""); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("lock ended by itself: %v", err)
+	}
+	if err := o.UnlockUser(ctx, T, "admin", "farhan.khan", "called his registered mobile"); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := o.Login(ctx, T, "farhan.khan", DevPassword, "", "", ""); err != nil {
-		t.Fatalf("after lockout: %v", err)
+		t.Fatalf("after unlock: %v", err)
 	}
 
 	// Admin creates a user: temporary password, must change, then 2FA.

@@ -67,6 +67,7 @@ func (s *Server) opsRoutes() {
 	s.payoutHoldRoutes()
 	s.settleRoutes()
 	s.compRegRoutes()
+	s.cyberRoutes()
 	s.rmsLimitRoutes()
 	s.activityRoutes()
 	s.securityRoutes()
@@ -459,6 +460,9 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		us = mine
 	}
 	me := map[string]any{"auth": auth, "tenant": tenant(r), "actor": actor(r), "role": role, "users": us, "roles": ops.Roles, "firm": set.Firm, "dev": s.dev, "member_codes": set.MemberCodes, "holidays": set.TradingHolidays(), "sample_rates": s.app.Schedule.Sample, "schedule": s.app.Schedule.Version, "ledgy_ai": s.ops.LedgyAI != nil, "bill_ai": s.ops.BillAIAvailable(), "circular_ai": s.ops.CircularAIAvailable(), "edition": s.ops.EditionStatus(r.Context(), tenant(r)), "ui": s.ops.EffectiveUI(r.Context(), tenant(r), actor(r))}
+	if role == ops.RoleClient {
+		me["terms_due"] = s.ops.TermsDue(r.Context(), tenant(r), actor(r))
+	}
 	if role != ops.RoleClient {
 		// Priced modules the firm has on (Settings → Modules): the People
 		// group shows only with HRMS on.
@@ -2973,6 +2977,12 @@ func (s *Server) addClientDoc(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) clientDocFile(w http.ResponseWriter, r *http.Request) {
 	if !s.canSee(w, r, r.PathValue("ucc")) {
+		return
+	}
+	// A KYC record from the CKYC registry is opened only for the purposes
+	// the PML Rules allow (rule 9(1-F)); the purpose is recorded.
+	if err := s.ops.CheckKYCDocUse(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), r.PathValue("id"), r.URL.Query().Get("purpose")); err != nil {
+		fail(w, err, map[string]any{"purposes": ops.CKYCPurposes})
 		return
 	}
 	d, b, err := s.ops.ClientDocFile(r.Context(), tenant(r), actor(r), r.PathValue("ucc"), r.PathValue("id"))

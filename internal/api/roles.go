@@ -72,6 +72,10 @@ var routeScreens = map[string]string{
 	"inactive": "inactive", "deceased": "deceased", "self-inspection": "selfinspect", "compregs": "compregs",
 	"inspection-packs": "inspack", "inspection-docs": "inspack", "inspection-templates": "inspack",
 	"security": "incidents", "security/incidents": "incidents", "security/events": "incidents",
+	"security/cyber": "cyber", "security/drills": "cyber", "security/vendors": "cyber", "security/sbom": "cyber", "security/privileged-review": "cyber",
+	"privacy": "cyber", "fraud-reports": "cyber incidents", "clients/{ucc}/kyc-source": "kyc clients", "clients/{ucc}/data-consent": "clients",
+	"hr/staff-controls": "hrcomp", "hr/staff/{code}/aml-check": "hrcomp people", "hr/staff/{code}/co-eligibility": "hrcomp people", "hr/staff/{code}/designated": "hrcomp",
+	"hr/own-trading/board-approval": "hrcomp", "hr/own-trading/upsi": "hrcomp",
 	"security/log-export": "logexport", "security/logs": "logexport", "security/settings": "logexport incidents", "security/keys": "settings",
 	// Investments
 	"ipo": "ipo", "rfq": "rfq", "cbrics": "cbrics", "stock-sips": "stocksip",

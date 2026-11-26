@@ -30,8 +30,9 @@ import (
 // 32-byte token held in an HttpOnly cookie; only its SHA-256 is stored.
 // Sessions end after a period of inactivity, after 12 hours regardless, on
 // sign-out, and for every session of a user when an admin resets their
-// password or two-factor setup. Five wrong passwords lock the user for 15
-// minutes. Every sign-in, failure and change is in the audit trail.
+// password or two-factor setup. Five wrong passwords lock the user until
+// unlocked out of band (or for 15 minutes, if the firm chose that;
+// authlock.go). Every sign-in, failure and change is in the audit trail.
 
 // PasswordIterations is the PBKDF2 work factor for new hashes. Tests lower it.
 var PasswordIterations = 600000
@@ -66,9 +67,15 @@ type Credential struct {
 	TOTPLastStep int64  `json:"totp_last_step,omitempty"`
 	Failed       int    `json:"failed"`
 	LockedUntil  string `json:"locked_until,omitempty"`
-	Epoch        int    `json:"epoch"` // bumped to end every session
-	LastLogin    string `json:"last_login,omitempty"`
-	ChangedAt    string `json:"changed_at,omitempty"`
+	// Locked: locked until unlocked out of band (authlock.go).
+	Locked   bool   `json:"locked,omitempty"`
+	LockedAt string `json:"locked_at,omitempty"`
+	// History holds the hashes of earlier passwords, newest first, so a
+	// new one cannot repeat them (authlock.go).
+	History   []string `json:"history,omitempty"`
+	Epoch     int      `json:"epoch"` // bumped to end every session
+	LastLogin string   `json:"last_login,omitempty"`
+	ChangedAt string   `json:"changed_at,omitempty"`
 }
 
 // Session is a signed-in browser.
@@ -92,10 +99,13 @@ type Session struct {
 
 // AuthState tells the console what the signed-in user still has to do.
 type AuthState struct {
-	User              string `json:"user"`
-	MustChange        bool   `json:"must_change_password"`
-	TOTPSetupRequired bool   `json:"totp_setup_required"`
-	TOTPEnabled       bool   `json:"totp_enabled"`
+	User       string `json:"user"`
+	MustChange bool   `json:"must_change_password"`
+	// PasswordExpired: the password is older than the firm's limit
+	// (authlock.go), so it must be changed.
+	PasswordExpired   bool `json:"password_expired,omitempty"`
+	TOTPSetupRequired bool `json:"totp_setup_required"`
+	TOTPEnabled       bool `json:"totp_enabled"`
 	// Support is set for a Ledgerline support session: what the firm let
 	// it do, for the banner and for the checks on every request.
 	Support *SupportAuth `json:"support,omitempty"`
@@ -239,7 +249,15 @@ func (o *Ops) SetPassword(ctx context.Context, tenant, actor, user, pw string, m
 		return err
 	}
 	_, err = upd(ctx, o.Docs, tenant, cCred, user, actor, &Credential{User: user}, func(c *Credential) error {
-		c.User, c.Hash, c.MustChange, c.Failed, c.LockedUntil, c.ChangedAt = user, h, mustChange, 0, "", o.now().Format(time.RFC3339)
+		if c.Hash != "" && !c.MustChange {
+			// The password the person chose goes into the history; a
+			// one-time password from an admin does not.
+			c.History = append([]string{c.Hash}, c.History...)
+			if len(c.History) > 12 {
+				c.History = c.History[:12]
+			}
+		}
+		c.User, c.Hash, c.MustChange, c.Failed, c.LockedUntil, c.Locked, c.LockedAt, c.ChangedAt = user, h, mustChange, 0, "", false, "", o.now().Format(time.RFC3339)
 		return nil
 	})
 	return err
@@ -260,21 +278,12 @@ func (o *Ops) Login(ctx context.Context, tenant, userID, pw, otp, ip, agent stri
 		o.log(ctx, tenant, userID, "auth.login_failed", userID, map[string]any{"reason": "unknown user", "ip": ip})
 		return "", AuthState{}, ErrAuth
 	}
-	if c.LockedUntil != "" {
-		if t, err := time.Parse(time.RFC3339, c.LockedUntil); err == nil && now.Before(t) {
-			o.log(ctx, tenant, userID, "auth.login_failed", userID, map[string]any{"reason": "locked", "ip": ip})
-			return "", AuthState{}, fmt.Errorf("%w: too many wrong attempts; try again after %s", ErrForbidden, t.In(ist).Format("15:04"))
-		}
+	if l, until := c.lockState(now); l {
+		o.log(ctx, tenant, userID, "auth.login_failed", userID, map[string]any{"reason": "locked", "ip": ip})
+		return "", AuthState{}, lockedError(until)
 	}
 	if !checkPassword(c.Hash, pw) {
-		var locked bool
-		upd(ctx, o.Docs, tenant, cCred, userID, userID, nil, func(x *Credential) error {
-			x.Failed++
-			if x.Failed >= maxFailures {
-				x.LockedUntil, x.Failed, locked = now.Add(lockFor).Format(time.RFC3339), 0, true
-			}
-			return nil
-		})
+		locked := o.failSignIn(ctx, tenant, userID, now)
 		o.log(ctx, tenant, userID, "auth.login_failed", userID, map[string]any{"reason": "password", "ip": ip, "locked": locked})
 		return "", AuthState{}, ErrAuth
 	}
@@ -288,20 +297,14 @@ func (o *Ops) Login(ctx context.Context, tenant, userID, pw, otp, ip, agent stri
 		}
 		step, ok := verifyTOTP(c.TOTPSecret, otp, now, c.TOTPLastStep)
 		if !ok {
-			upd(ctx, o.Docs, tenant, cCred, userID, userID, nil, func(x *Credential) error {
-				x.Failed++
-				if x.Failed >= maxFailures {
-					x.LockedUntil, x.Failed = now.Add(lockFor).Format(time.RFC3339), 0
-				}
-				return nil
-			})
+			o.failSignIn(ctx, tenant, userID, now)
 			o.log(ctx, tenant, userID, "auth.login_failed", userID, map[string]any{"reason": "two-factor code", "ip": ip})
 			return "", AuthState{}, fmt.Errorf("%w: that code is wrong or already used", ErrAuth)
 		}
 		c.TOTPLastStep = step
 	}
 	_, err := upd(ctx, o.Docs, tenant, cCred, userID, userID, nil, func(x *Credential) error {
-		x.Failed, x.LockedUntil, x.LastLogin = 0, "", now.Format(time.RFC3339)
+		x.Failed, x.LockedUntil, x.Locked, x.LockedAt, x.LastLogin = 0, "", false, "", now.Format(time.RFC3339)
 		if c.TOTPLastStep > x.TOTPLastStep {
 			x.TOTPLastStep = c.TOTPLastStep
 		}
@@ -345,7 +348,7 @@ func (o *Ops) authState(ctx context.Context, tenant, user string) (AuthState, er
 	if err != nil {
 		return AuthState{}, err
 	}
-	return AuthState{User: user, MustChange: c.MustChange, TOTPEnabled: c.TOTPEnabled, TOTPSetupRequired: set.Require2FA() && !c.TOTPEnabled}, nil
+	return AuthState{User: user, MustChange: c.MustChange || o.passwordExpired(ctx, tenant, c), PasswordExpired: o.passwordExpired(ctx, tenant, c), TOTPEnabled: c.TOTPEnabled, TOTPSetupRequired: set.Require2FA() && !c.TOTPEnabled}, nil
 }
 
 // SessionUser resolves a session token to its user, ending it if it has
@@ -400,7 +403,8 @@ func (o *Ops) SessionUser(ctx context.Context, tenant, tok string) (AuthState, e
 		s.LastSeen = now.Format(time.RFC3339)
 		docs.Put(ctx, o.Docs, tenant, cSession, id, s, ver, s.User) // best effort; a race just means another request touched it
 	}
-	return AuthState{User: s.User, MustChange: c.MustChange, TOTPEnabled: c.TOTPEnabled, TOTPSetupRequired: set.Require2FA() && !c.TOTPEnabled}, nil
+	exp2 := o.passwordExpired(ctx, tenant, c)
+	return AuthState{User: s.User, MustChange: c.MustChange || exp2, PasswordExpired: exp2, TOTPEnabled: c.TOTPEnabled, TOTPSetupRequired: set.Require2FA() && !c.TOTPEnabled}, nil
 }
 
 // Logout ends a session.
@@ -434,6 +438,9 @@ func (o *Ops) ChangePassword(ctx context.Context, tenant, user, current, next st
 	}
 	if err := CheckPasswordPolicy(user, next); err != nil {
 		return err
+	}
+	if o.reusedPassword(ctx, tenant, c, next) {
+		return invalid("choose a password you have not used for your last %d passwords", o.SecuritySettings(ctx, tenant).passwordHistory())
 	}
 	if err := o.SetPassword(ctx, tenant, user, user, next, false); err != nil {
 		return err
@@ -510,9 +517,7 @@ func (o *Ops) UserViews(ctx context.Context, tenant string) ([]UserView, error) 
 		v := UserView{User: u}
 		if c, _, err := o.cred(ctx, tenant, u.ID); err == nil {
 			v.HasPassword, v.TOTPEnabled, v.MustChange, v.LastLogin = c.Hash != "", c.TOTPEnabled, c.MustChange, c.LastLogin
-			if t, err := time.Parse(time.RFC3339, c.LockedUntil); err == nil && now.Before(t) {
-				v.Locked = true
-			}
+			v.Locked, _ = c.lockState(now)
 		}
 		out = append(out, v)
 	}

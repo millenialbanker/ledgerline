@@ -215,12 +215,22 @@ async function signedIn(fresh) {
   }
   if (a.must_change_password) { setupPassword(); return; }
   if (a.totp_setup_required) { setupTOTP(); return; }
+  if (MS.me.terms_due) { await acceptTerms(); return; }
   // The app may refuse the person (the staff app's list): say why before
   // registering a phone that would not work.
   const why = MS.access ? await MS.access() : '';
   if (why) { MS.locked = true; shellOnly(gate(`<p class="m-msg">${esc(why)}</p><button class="btn m-wide" data-act="signOut">Sign out</button>`)); return; }
   if (fresh && MS.native && !MS.device) { await offerDevice(); return; }
   ready();
+}
+// A client accepts the firm's terms and privacy notice at the first
+// sign-in and after each change (ops/dataprivacy.go).
+async function acceptTerms() {
+  let t; try { t = await get('/v1/portal/terms'); } catch (e) { shellOnly(gate(errBox(e))); return; }
+  shellOnly(gate(`<form id="m-terms"><p class="m-msg">Please read the terms of use and the privacy notice, and accept them to go on.</p>
+    <div class="m-msg" style="white-space:pre-wrap;max-height:30vh;overflow:auto">${esc(t.terms)}</div><div class="m-msg" style="white-space:pre-wrap;max-height:30vh;overflow:auto">${esc(t.notice)}</div>
+    <label class="m-f"><input type="checkbox" name="ok" required> I have read and accept them</label><div id="m-lerr"></div><button class="btn pri m-wide">Accept and continue</button><button class="btn m-wide" type="button" data-act="signOut">Sign out</button></form>`));
+  $('m-terms').onsubmit = async e => { e.preventDefault(); try { await post('/v1/portal/terms', { terms_version: t.terms_version, notice_version: t.notice_version }); await signedIn(true); } catch (err) { $('m-lerr').innerHTML = errBox(err); } };
 }
 function setupPassword() {
   shellOnly(gate(`<form id="m-pw"><p class="m-msg">Choose your own password before you go on: at least 12 characters, not your user ID.</p>

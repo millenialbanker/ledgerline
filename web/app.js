@@ -62,6 +62,7 @@ async function api(method, path, body, raw) {
   if (ct.includes('json')) { try { data = await res.json(); } catch (e) {} } else data = await res.text();
   if (res.status === 401 && !path.startsWith('/v1/auth/login')) { showLogin(S.me ? 'Your session has ended. Sign in again.' : ''); throw new ApiError(401, data); }
   if (res.status === 403 && data?.error?.code === 'setup_required') { finishSetup(data.error.details || {}); throw new ApiError(403, data); }
+  if (res.status === 403 && data?.error?.code === 'terms_required' && typeof termsModal === 'function') { termsModal(); throw new ApiError(403, data); }
   if (!res.ok && res.status !== 207) throw new ApiError(res.status, data);
   return data;
 }
@@ -91,7 +92,12 @@ async function openBlob(path) {
   const w = window.open('', '_blank');
   try {
     const res = await fetch(path, { headers: { 'X-Requested-With': 'ledgerline', ...(S.preview ? { 'X-Preview': '1' } : {}) } });
-    if (!res.ok) throw new Error('Could not open the document');
+    if (!res.ok) {
+      // A KYC record from CKYC opens only for an allowed purpose (cyber.js).
+      const b = await res.json().catch(() => null);
+      if (b?.error?.details?.purposes && typeof cyPurpose === 'function') { if (w) w.close(); cyPurpose(path, b.error.details.purposes); return; }
+      throw new Error(b?.error?.message || 'Could not open the document');
+    }
     const url = URL.createObjectURL(await res.blob());
     if (w) w.location = url; else location.href = url;
   } catch (e) { if (w) w.close(); toast(e.message, true); }
@@ -126,7 +132,7 @@ const NAV_VIEWS = NAV.flatMap(g => g[1].flatMap(([k, l]) => k[0] === '@' ? GROUP
 // The screens of the catalogue (layouts add views of their own to NAV_VIEWS).
 const SCREEN_KEYS = new Set(NAV_VIEWS.map(v => v[0]));
 const groupOf = v => Object.keys(GROUPS).find(g => GROUPS[g][1].some(([k]) => k === v));
-const PORTAL_NAV = [['My account', [['portal', 'Overview'], ['pnotes', 'Contract notes'], ['pdocs', 'Signed statements'], ['statements', 'Reports & statements'], ['pinsights', 'Tax & insights'], ['pfunds', 'Funds & payouts'], ['pipo', 'IPOs & public issues'], ['pmf', 'Mutual funds'], ['psip', 'Stock SIPs'], ['pedis', 'Authorise sale (CDSL TPIN)'], ['ppledge', 'Pledge shares'], ['pprofile', 'Profile & documents'], ['pold', 'Earlier years'], ['phelp', 'Help desk'], ['pext', 'Trades elsewhere']]]];
+const PORTAL_NAV = [['My account', [['portal', 'Overview'], ['pnotes', 'Contract notes'], ['pdocs', 'Signed statements'], ['statements', 'Reports & statements'], ['pinsights', 'Tax & insights'], ['pfunds', 'Funds & payouts'], ['pipo', 'IPOs & public issues'], ['pmf', 'Mutual funds'], ['psip', 'Stock SIPs'], ['pedis', 'Authorise sale (CDSL TPIN)'], ['ppledge', 'Pledge shares'], ['pprofile', 'Profile & documents'], ['pprivacy', 'My data & security'], ['pold', 'Earlier years'], ['phelp', 'Help desk'], ['pext', 'Trades elsewhere']]]];
 const PORTAL_VIEWS = PORTAL_NAV[0][1].map(v => v[0]);
 // A client of the DP only has no trading account: these screens are not shown.
 const PORTAL_TRADING = new Set(['pnotes', 'pipo', 'pmf', 'psip', 'pedis', 'ppledge']);
@@ -220,7 +226,7 @@ async function render(opts = {}) {
     showNotices();
   } catch (e) {
     if (seq !== renderSeq) return;
-    if (e.status === 401 || e.code === 'setup_required') return;
+    if (e.status === 401 || e.code === 'setup_required' || e.code === 'terms_required') return;
     p.innerHTML = ph('Something went wrong', '') + errHTML(e);
   }
   refreshCounts();
@@ -262,7 +268,7 @@ function loginHTML(err) {
       ${L.otp ? '<button class="btn wide" type="button" data-act="loginBack">Use a different user</button>' : ''}
     </form>
     ${dev ? `<div class="devlogin"><div class="dim">Development server · every user's password is <span class="mono">${esc(CFG.dev_password)}</span></div><div class="devusers">${CFG.dev_users.map(u => `<button class="btn sm" data-act="devLogin" data-id="${esc(u.id)}">${esc(u.name)}<span class="dim"> · ${esc(u.role)}</span></button>`).join('')}</div></div>` : ''}
-    <p class="dim small">Five wrong attempts lock the user for 15 minutes. Sessions end after ${'30'} minutes without activity.</p>
+    <p class="dim small">Five wrong attempts lock the sign-in until it is unlocked: <button type="button" class="linkish" data-act="unlockAsk">get an unlock code by e-mail</button>, or ask your administrator (clients: call the firm). Sessions end after ${'30'} minutes without activity.</p>
   </div></div>`;
 }
 let loginPw = '';
@@ -2019,7 +2025,7 @@ async function clientDrawer(ucc) {
       ${has('Ops maker', 'Ops checker', 'Compliance officer', 'Branch staff') ? `<div class="tools" style="margin-top:8px"><select class="in sm" id="doc-kind">${['PAN card', 'Address proof', 'Photograph', 'Signature', 'Bank proof', 'Income proof', 'KYC form', 'Account opening agreement', 'DDPI / POA', 'Nomination form', 'IPV / VIPV record', 'Other'].map(k => `<option>${k}</option>`).join('')}</select><input type="file" id="doc-file" accept="application/pdf,image/jpeg,image/png" class="in sm"><button class="btn sm" data-act="addDoc" data-id="${c.ucc}">Add document</button><span class="dim small">PDF, JPEG or PNG, up to 5 MB</span></div>` : ''}</div>
     <div id="mig-360"></div>
     ${d.alerts.length ? `<div>${h3('Surveillance alerts')}${d.alerts.map(a => `<div class="note ${a.severity === 'High' ? 'bad' : 'warn'}" style="margin-bottom:6px"><b>${esc(a.type)}</b> · ${esc(a.status)}<br>${esc(a.detail)}</div>`).join('')}</div>` : ''}
-  </div><div class="ft"><button class="btn" data-act="crFor" data-id="${c.ucc}">Statements &amp; reports</button><button class="btn" data-act="openLedger" data-id="${c.ucc}">Full ledger</button>${c.status === 'Active' && has('Ops checker') ? `<button class="btn" data-act="portalAccess" data-id="${c.ucc}">Portal access</button>` : ''}${c.status === 'Active' && has('Risk manager') ? `<button class="btn ${c.blocked ? '' : 'bad'}" data-act="kill" data-id="${c.ucc}" data-b="${c.blocked ? 0 : 1}">${c.blocked ? 'Unblock' : 'Kill switch'}</button>` : ''}<button class="btn pri" data-act="close">Done</button></div>`, c.ucc);
+  </div><div class="ft"><button class="btn" data-act="crFor" data-id="${c.ucc}">Statements &amp; reports</button><button class="btn" data-act="openLedger" data-id="${c.ucc}">Full ledger</button>${c.status === 'Active' && has('Ops checker') ? `<button class="btn" data-act="portalAccess" data-id="${c.ucc}">Portal access</button>` : ''}${has('Ops maker', 'Ops checker', 'Compliance officer', 'Branch staff') ? `<button class="btn" data-act="cyClientData" data-id="${c.ucc}">Consent & KYC source</button>` : ''}${c.status === 'Active' && has('Risk manager') ? `<button class="btn ${c.blocked ? '' : 'bad'}" data-act="kill" data-id="${c.ucc}" data-b="${c.blocked ? 0 : 1}">${c.blocked ? 'Unblock' : 'Kill switch'}</button>` : ''}<button class="btn pri" data-act="close">Done</button></div>`, c.ucc);
   // CDSL's active demat count (cdslreq.js) and BSE's not-permitted reasons
   // (uccapi.js) are head-office checks; branch and AP logins can't call them.
   if (!scopedUser() && c.demat?.depository === 'CDSL' && c.demat.id && typeof cdslDematCheck === 'function') cdslDematCheck(c.ucc);
