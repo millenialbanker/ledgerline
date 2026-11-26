@@ -412,6 +412,15 @@ var cdxReasonCodes = map[string]string{
 	"Transmission": "6", "Implementation of government order": "7", "Margin to clearing member": "8", "Others": "9",
 }
 
+// cdxTrdRsnCodes are the TXN_UPLD trade reason codes (CHAR(3), CDSL's
+// standard values in config/formats/cdsl-txn-upload.json) for each DIS
+// reason; cdxReasonCodes stay the eDIS API's numeric codes. CDSL's list has
+// no code for margin to a clearing member, so it goes as DFT (to confirm).
+var cdxTrdRsnCodes = map[string]string{
+	"Sale (off-market)": "OSP", "Gift": "GFT", "Transfer to own account": "TOA", "Transfer to family member": "TFM", "Donation": "DON",
+	"Transmission": "TLH", "Implementation of government order": "GRO", "Margin to clearing member": "DFT", "Others": "DFT",
+}
+
 // cdxExchangeIDs are CDSL's exchange IDs (§5.11.7: BSE 11, NSE 12).
 var cdxExchangeIDs = map[string]string{"BSE": "11", "NSE": "12"}
 
@@ -461,15 +470,14 @@ func (o *Ops) cdxDISRows(ctx context.Context, tenant string, x cdslConn, ds []DI
 				v["CntrCMBPId"], v["SctiesSttlmTxId"], v["Xchg"] = d.ToBO, d.Settlement, cdxExchangeIDs[d.Exchange]
 			default:
 				v["CntrBnfclOwnrId"] = d.ToBO
-				v["TrdRsnCd"] = cdxReasonCodes[d.Reason]
-				if d.Reason == "Transmission" {
-					// A slip can only be the nominee passing shares on to
-					// the legal heirs (the holder's own transmission is a DP
-					// request): CDSL's code TLH, which CDSL reports to CBDT
-					// as not a transfer (SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/
-					// 130, paras 4 and 6; the layout's TrdRsnCd codes).
-					v["TrdRsnCd"] = "TLH"
-				}
+				// TXN_UPLD's TrdRsnCd is CDSL's CHAR(3) trade reason code
+				// (layout cdsl-txn-upload, CDSL's standard values), not the
+				// eDIS API's numeric codes. A Transmission slip can only be
+				// the nominee passing shares on to the legal heirs (the
+				// holder's own transmission is a DP request): TLH, which CDSL
+				// reports to CBDT as not a transfer (SEBI/HO/MIRSD/MIRSD-PoD/
+				// P/CIR/2025/130, paras 4 and 6).
+				v["TrdRsnCd"] = cdxTrdRsnCodes[d.Reason]
 				if d.Consideration > 0 {
 					v["Cnsdrtn"] = d.Consideration.String()
 				}
