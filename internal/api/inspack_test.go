@@ -35,7 +35,7 @@ func TestInspectionPackRoutes(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	var v ops.PacksScreen
-	if c := ipoCall(t, srv, "GET", "/v1/inspection-packs", "vikram.shah", nil, &v); c != 200 || len(v.Templates) != 5 || len(v.Sections) < 25 || v.Settings.KeepDays != 30 {
+	if c := ipoCall(t, srv, "GET", "/v1/inspection-packs", "vikram.shah", nil, &v); c != 200 || len(v.Templates) != 6 || len(v.Sections) < 25 || v.Settings.KeepDays != 30 {
 		t.Fatalf("screen %d %d templates %d sections", c, len(v.Templates), len(v.Sections))
 	}
 	if why := v.Ready["self_inspection|"]; why != "" {
