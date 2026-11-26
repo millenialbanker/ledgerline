@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"ledgerline/internal/app"
 )
@@ -176,4 +177,21 @@ func (s *Store) Restore(ctx context.Context, tenant string, next func() (app.Rec
 		return nil, err
 	}
 	return n, nil
+}
+
+// WALArchive says whether the database archives its write-ahead log
+// continuously (archive_mode) and when it last archived, from
+// pg_stat_archiver. Ledgerline only reports it (ops/backuprpo.go); the
+// operator sets it up and restores from it.
+func (s *Store) WALArchive(ctx context.Context) (bool, time.Time, int64, error) {
+	var mode string
+	if err := s.DB.QueryRowContext(ctx, `SELECT setting FROM pg_settings WHERE name = 'archive_mode'`).Scan(&mode); err != nil {
+		return false, time.Time{}, 0, err
+	}
+	var last sql.NullTime
+	var failed int64
+	if err := s.DB.QueryRowContext(ctx, `SELECT last_archived_time, failed_count FROM pg_stat_archiver`).Scan(&last, &failed); err != nil {
+		return mode == "on" || mode == "always", time.Time{}, 0, nil
+	}
+	return mode == "on" || mode == "always", last.Time, failed, nil
 }

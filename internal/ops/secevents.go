@@ -719,6 +719,7 @@ type secState struct {
 func (o *Ops) securityTick(ctx context.Context, tenant string, now time.Time) {
 	o.logExportTick(ctx, tenant, now)
 	o.incidentFollowTick(ctx, tenant, now)
+	o.cyberResTick(ctx, tenant, now) // glitches, intraday backups, capacity (cyberres.go)
 	now = now.In(ist)
 	st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cSecState, "main", secState{})
 	today := now.Format("2006-01-02")

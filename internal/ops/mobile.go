@@ -69,9 +69,13 @@ type MobileSettings struct {
 	LockSeconds int `json:"lock_seconds"`
 	ReauthDays  int `json:"reauth_days"`
 	// Client is the client app's on/off switch and brand.
-	Client    ClientAppBrand `json:"client"`
-	UpdatedAt string         `json:"updated_at,omitempty"`
-	UpdatedBy string         `json:"updated_by,omitempty"`
+	Client ClientAppBrand `json:"client"`
+	// RootedPolicy is what the apps do on a phone that looks rooted or
+	// jailbroken (CSCRF PR.AA.S16): "warn" (the default) shows a warning
+	// and records a security event; "refuse" does not register the phone.
+	RootedPolicy string `json:"rooted_policy,omitempty"`
+	UpdatedAt    string `json:"updated_at,omitempty"`
+	UpdatedBy    string `json:"updated_by,omitempty"`
 }
 
 // ClientAppBrand is how the client app looks and what it shows about the
@@ -234,6 +238,9 @@ func (o *Ops) SaveMobileSettings(ctx context.Context, tenant, actor string, m Mo
 	}
 	if m.IdleMinutes == 0 {
 		m.IdleMinutes = mobileIdleDefault
+	}
+	if m.RootedPolicy != "" && m.RootedPolicy != "warn" && m.RootedPolicy != "refuse" {
+		return MobileSettingsView{}, invalid("on a rooted or jailbroken phone the apps warn or refuse")
 	}
 	if m.IdleMinutes < 1 || m.IdleMinutes > 30 {
 		return MobileSettingsView{}, invalid("the app's idle time-out is 1 to 30 minutes")
@@ -472,6 +479,10 @@ func (o *Ops) RegisterDevice(ctx context.Context, tenant, actor, tok string, req
 	req.Model, req.AppVersion = cleanLine(req.Model, 60), cleanLine(req.AppVersion, 20)
 	if req.PushToken != "" && !rePushToken.MatchString(req.PushToken) {
 		return DeviceView{}, "", invalid("the push token is not one the phone's push service gives")
+	}
+	if req.Rooted && o.mobileSettings(ctx, tenant).RootedPolicy == "refuse" {
+		o.SecurityEvent(ctx, tenant, SecEvent{Kind: "mobile.rooted_device", Actor: actor, Subject: actor, Message: fmt.Sprintf("%s tried to register a phone that looks rooted or jailbroken (%s, %s); refused by the firm's setting", actor, req.Platform, req.Name)})
+		return DeviceView{}, "", fmt.Errorf("%w: this phone looks rooted or jailbroken, and the firm does not allow the app on such phones", ErrForbidden)
 	}
 	// The session: the user's own, from a password sign-in, recent.
 	sid := tokenID(tok)
@@ -753,6 +764,8 @@ type MobileAppCfg struct {
 	// Dispute Resolution portal (SEBI circular of 31 July 2023).
 	ScoresURL string `json:"scores_url,omitempty"`
 	ODRURL    string `json:"odr_url,omitempty"`
+	// RootedPolicy: warn or refuse on a rooted or jailbroken phone.
+	RootedPolicy string `json:"rooted_policy"`
 }
 
 // MobileDate is the date the apps show when they name none: today, or the
@@ -768,7 +781,7 @@ func (o *Ops) MobileAppConfig(ctx context.Context, tenant, app string) (MobileAp
 		return MobileAppCfg{}, err
 	}
 	m := o.mobileSettings(ctx, tenant)
-	v := MobileAppCfg{Firm: set.Firm, Tenant: tenant, App: app, IdleMinutes: m.IdleMinutes, LockSeconds: m.LockSeconds, ReauthDays: m.ReauthDays, Date: o.businessDate(ctx, tenant)}
+	v := MobileAppCfg{Firm: set.Firm, Tenant: tenant, App: app, IdleMinutes: m.IdleMinutes, LockSeconds: m.LockSeconds, ReauthDays: m.ReauthDays, Date: o.businessDate(ctx, tenant), RootedPolicy: firstOf(m.RootedPolicy, "warn")}
 	if app == AppClient {
 		b := m.Client
 		if b.AppName == "" {

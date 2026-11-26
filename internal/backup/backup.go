@@ -65,6 +65,9 @@ const (
 	Quarterly = "quarterly"
 	Yearly    = "yearly"
 	Manual    = "manual"
+	// Intraday backups are taken every few minutes during the working day
+	// (ops/backuprpo.go); each counts on its own, not one per day.
+	Intraday = "intraday"
 )
 
 // Manifest describes a backup.
@@ -584,6 +587,7 @@ type Keep struct {
 	Quarterly int `json:"quarterly"`
 	Yearly    int `json:"yearly"`
 	Manual    int `json:"manual"`
+	Intraday  int `json:"intraday,omitempty"`
 }
 
 // Of returns the count for a tier.
@@ -599,6 +603,8 @@ func (k Keep) Of(t string) int {
 		return k.Yearly
 	case Manual:
 		return k.Manual
+	case Intraday:
+		return k.Intraday
 	}
 	return 0
 }
@@ -626,6 +632,9 @@ func Prune(es []Entry, k Keep) (drop []Entry) {
 		if e.Has(Manual) && len(e.Tiers) == 1 {
 			kind = "manual"
 		}
+		if e.Has(Intraday) && len(e.Tiers) == 1 {
+			kind = "intraday|" + e.ID // each counts on its own
+		}
 		key := e.Date + "|" + e.Part + "|" + kind
 		if !good(e) {
 			continue
@@ -636,16 +645,20 @@ func Prune(es []Entry, k Keep) (drop []Entry) {
 		}
 		newestOfDay[key] = true
 	}
-	for _, t := range []string{Daily, Weekly, Quarterly, Yearly, Manual} {
+	for _, t := range []string{Daily, Weekly, Quarterly, Yearly, Manual, Intraday} {
 		days := map[string]bool{}
 		for _, e := range sorted {
 			if !good(e) || superseded[e.ID] || !e.Has(t) {
 				continue
 			}
-			if !days[e.Date] && len(days) >= k.Of(t) {
+			slot := e.Date
+			if t == Intraday {
+				slot = e.ID
+			}
+			if !days[slot] && len(days) >= k.Of(t) {
 				continue
 			}
-			days[e.Date] = true
+			days[slot] = true
 			keep[e.ID] = true
 		}
 	}

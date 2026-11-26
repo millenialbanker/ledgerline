@@ -87,7 +87,7 @@ type ClientDoc struct {
 }
 
 // DocKinds are the document kinds held for clients.
-var DocKinds = []string{"PAN card", "Address proof", "Photograph", "Signature", "Bank proof", "Income proof", "KYC form", "Account opening agreement", "DDPI / POA", "Demat proof", "Nomination form", DocFATCA, "IPV / VIPV record", DocClientAuth, "Other"}
+var DocKinds = []string{"PAN card", "Address proof", "Photograph", "Signature", "Bank proof", "Income proof", "KYC form", "Account opening agreement", "DDPI / POA", "Demat proof", "Nomination form", DocFATCA, "IPV / VIPV record", DocClientAuth, DocAadhaarMasked, "Other"}
 
 func reKYCYears(risk string) int {
 	switch risk {
@@ -742,6 +742,9 @@ func (o *Ops) AddClientDoc(ctx context.Context, tenant, actor, ucc, kind, name s
 	ct := http.DetectContentType(data)
 	if _, ok := docTypes[ct]; !ok {
 		return ClientDoc{}, invalid("only PDF, JPEG and PNG files are accepted (this looks like %s)", ct)
+	}
+	if err := aadhaarGuard(data); err != nil { // masked Aadhaar only (aadhaarguard.go)
+		return ClientDoc{}, err
 	}
 	sum := sha256.Sum256(data)
 	rf, err := o.App.Ingest.Raw.Put(ctx, ingest.RawFile{Tenant: tenant, Source: "CLIENT-DOC", Name: name, SHA256: hex.EncodeToString(sum[:]), Content: data})

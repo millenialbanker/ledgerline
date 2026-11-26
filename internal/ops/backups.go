@@ -34,7 +34,7 @@ const (
 
 // DefaultBackupKeep is how many backups each tier keeps unless the firm
 // changes it.
-var DefaultBackupKeep = backup.Keep{Daily: 30, Weekly: 13, Quarterly: 12, Yearly: 10, Manual: 10}
+var DefaultBackupKeep = backup.Keep{Daily: 30, Weekly: 13, Quarterly: 12, Yearly: 10, Manual: 10, Intraday: 16}
 
 // backupKeep returns the firm's counts, defaults filling any unset.
 func (s Settings) backupKeep() backup.Keep {
@@ -54,6 +54,9 @@ func (s Settings) backupKeep() backup.Keep {
 	}
 	if k.Manual == 0 {
 		k.Manual = d.Manual
+	}
+	if k.Intraday == 0 {
+		k.Intraday = d.Intraday
 	}
 	return k
 }
@@ -168,11 +171,11 @@ func (o *Ops) RunBackup(ctx context.Context, tenant, actor, date, part, trigger 
 	defer func() { o.bkMu.Lock(); delete(o.bkRunning, tenant); o.bkMu.Unlock() }()
 
 	set, _ := o.Settings(ctx, tenant)
-	start := o.now()
+	start, began := o.now(), time.Now() // the wall clock times the backup, whatever o.Now says
 	run := BackupRun{Date: date, Part: part, Tiers: tiers, Trigger: trigger, By: actor, Started: start.Format(time.RFC3339), Status: "Succeeded"}
 	m := backup.Manifest{ID: backup.NewID(date, start), Tenant: tenant, Firm: set.Firm, Date: date, Part: part, Tiers: tiers, Trigger: trigger, By: actor}
 	e, err := o.Backups.Create(ctx, o.App.Snap, o.Sealer, m, start)
-	run.Backup, run.Millis, run.Size, run.Rows = m.ID, time.Since(start).Milliseconds(), e.Size, e.Total
+	run.Backup, run.Millis, run.Size, run.Rows = m.ID, time.Since(began).Milliseconds(), e.Size, e.Total
 	if err != nil {
 		run.Status, run.Error = "Failed", err.Error()
 	} else if es, lerr := o.Backups.List(tenant); lerr == nil {
@@ -188,9 +191,11 @@ func (o *Ops) RunBackup(ctx context.Context, tenant, actor, date, part, trigger 
 		run.ID = fmt.Sprintf("BR-%06d", n)
 		_ = docs.Upsert(ctx, o.Docs, tenant, cBackupRun, run.ID, run, SystemActor)
 	}
-	if !contains(tiers, backup.Manual) || len(tiers) > 1 {
+	// An intraday backup says nothing about the day's close backup.
+	intraday := len(tiers) == 1 && tiers[0] == backup.Intraday
+	if !intraday && (!contains(tiers, backup.Manual) || len(tiers) > 1) {
 		o.markBackupDay(ctx, tenant, date+"|"+part, run, closed)
-	} else if err == nil {
+	} else if err == nil && !intraday {
 		// A good manual backup shows the cause of earlier failures is
 		// fixed: clear them so the schedule tries again.
 		_, _ = docs.Update(ctx, o.Docs, tenant, cBackupState, "main", SystemActor, func(x *backupState) error {

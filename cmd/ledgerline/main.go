@@ -213,6 +213,19 @@ func run(log *slog.Logger, addr, adapterDir, schedulePath string, dev bool) erro
 		}
 		o.BackupCopiesDays = n
 	}
+	// Test environments: "<test firm code>:<firm code>" pairs. Each test
+	// code needs its own API key entry; it is not production (sample data
+	// loads there; the firm's Cyber controls screen prepares it).
+	if v := strings.TrimSpace(os.Getenv("LEDGERLINE_SANDBOX_TENANTS")); v != "" {
+		o.Sandboxes = map[string]string{}
+		for _, p := range strings.Split(v, ",") {
+			sb, prod, ok := strings.Cut(strings.TrimSpace(p), ":")
+			if !ok || sb == "" || prod == "" || sb == prod {
+				return fmt.Errorf("LEDGERLINE_SANDBOX_TENANTS entries are <test firm code>:<firm code> (got %q)", p)
+			}
+			o.Sandboxes[sb] = prod
+		}
+	}
 	// Firms whose data was deleted when they closed their account are
 	// refused from the first request.
 	if err := o.LoadClosedFirms(ctx); err != nil {

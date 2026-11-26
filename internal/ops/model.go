@@ -549,6 +549,13 @@ type Ops struct {
 	ArchiveSync bool
 	arcMu       sync.Mutex
 	arcRunning  map[string]bool
+	// Sandboxes maps each non-production (test) firm code to the firm it
+	// is the test environment of (LEDGERLINE_SANDBOX_TENANTS; sandbox.go).
+	Sandboxes map[string]string
+	// capMu and capLive hold the request counts of the current quarter
+	// hour, per firm, for capacity monitoring (capacity.go).
+	capMu   sync.Mutex
+	capLive map[string]*capWindow
 }
 
 // New builds Ops and installs the client-code-modification hook on the app.

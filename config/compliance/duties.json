@@ -10581,6 +10581,169 @@
     "detail": "No API; a form or upload on the portal."
    },
    "changed": "The gap report reads an annual fee as well as the block fee; the yearly due date was not in its extract, so this is kept as an as-required duty until it is confirmed."
+  },
+  {
+   "id": "CC-T-GLITCH-INTIMATE",
+   "group": "Trading",
+   "title": "Technical glitch: tell the exchanges (NSE within 1 hour) and clients within 2 hours",
+   "frequency": "On event",
+   "due_text": "Within 2 hours of a technical glitch (5 contiguous minutes or more of login, orders or margin/funds view failing in trading hours): intimate the exchanges and tell clients through the website and SMS, e-mail or app pop-ups. An NSE member intimates NSE within 1 hour (common submission). Applies to brokers under SEBI's technical glitch framework (online trading with more than 10,000 registered clients, or named by an exchange).",
+   "rule": "EVENT",
+   "applies": [
+    "broker",
+    "ibt"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "The exchanges (NSE member portal for NSE); clients by website, SMS, e-mail or app",
+   "evidence": "The glitch register entry with the times of the intimations and the client notices",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "HO/38/44/12(1)2026-MIRSD-TPD1",
+     "title": "Review of technical glitches framework for stock brokers",
+     "says": "Para 5.1-5.2 definition and exclusions; para 7.1-7.2 intimation to exchanges and clients within 2 hours. Gap report rows: CYBER-0289, CYBER-0290, SEBI-NEW-0021, SEBI-SB2-0143, SEBI-SB2-0145, NSE-0240."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/TECH/015/2026",
+     "title": "Annexure-1: joint exchange guidelines on technical glitches",
+     "says": "Annex-1 para 1.1-1.2 and 4.1-4.2. Gap report rows: MCX-0116, MCX-0117."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/70505",
+     "date": "2025-09-29",
+     "title": "Technology based sharing mechanisms of common submissions among Exchanges",
+     "says": "Annexure A items 3-4: glitches reported to NSE only, intimation within 1 hour. Gap report rows: NSE-0037."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "detail": "No API: the exchanges' common portal."
+   },
+   "event_within": "2h",
+   "ledgerline": {
+    "screen": "glitches",
+    "screen_name": "Technical glitches",
+    "what": "Ledgerline's glitch register runs this clock and drafts the report"
+   },
+   "changed": "Kept on ibt until the firm modules (ibt:10k|specified) are merged; it is an event duty, so nothing is chased until a glitch is recorded."
+  },
+  {
+   "id": "CC-T-GLITCH-PRELIM",
+   "group": "Trading",
+   "title": "Technical glitch: Preliminary Incident Report (Annexure B) by T+1",
+   "frequency": "On event",
+   "due_text": "By the next trading day after the glitch (T+1; if T+1 is a holiday, the next trading day), on the Samuhik Prativedan Manch portal in the exchanges' format.",
+   "rule": "EVENT",
+   "applies": [
+    "broker",
+    "ibt"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "Samuhik Prativedan Manch (exchanges' common reporting portal)",
+   "evidence": "The portal acknowledgement and the report filed",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "HO/38/44/12(1)2026-MIRSD-TPD1",
+     "title": "Review of technical glitches framework for stock brokers",
+     "says": "Para 7.3. Gap report rows: CYBER-0291, SEBI-NEW-0022, SEBI-SB2-0146."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/TECH/015/2026",
+     "title": "Annexure-1: joint exchange guidelines on technical glitches",
+     "says": "Annex-1 para 4.3. Gap report rows: MCX-0118."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "detail": "No API: the exchanges' common portal."
+   },
+   "event_within": "1wd",
+   "ledgerline": {
+    "screen": "glitches",
+    "screen_name": "Technical glitches",
+    "what": "Ledgerline's glitch register runs this clock and drafts the report"
+   }
+  },
+  {
+   "id": "CC-T-GLITCH-RCA",
+   "group": "Trading",
+   "title": "Technical glitch: Root Cause Analysis (Annexure C) within 14 working days",
+   "frequency": "On event",
+   "due_text": "Within 14 working days of the glitch, on the Samuhik Prativedan Manch portal in the exchanges' format.",
+   "rule": "EVENT",
+   "applies": [
+    "broker",
+    "ibt"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "Samuhik Prativedan Manch (exchanges' common reporting portal)",
+   "evidence": "The RCA as filed, with the portal reference",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "HO/38/44/12(1)2026-MIRSD-TPD1",
+     "title": "Review of technical glitches framework for stock brokers",
+     "says": "Para 7.4-7.5. Gap report rows: CYBER-0292, SEBI-NEW-0022, SEBI-SB2-0146."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/TECH/015/2026",
+     "title": "Annexure-1: joint exchange guidelines on technical glitches",
+     "says": "Annex-1 para 4.4-4.5. Gap report rows: MCX-0119."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "detail": "No API: the exchanges' common portal."
+   },
+   "event_within": "14wd",
+   "ledgerline": {
+    "screen": "glitches",
+    "screen_name": "Technical glitches",
+    "what": "Ledgerline's glitch register runs this clock and drafts the report"
+   }
+  },
+  {
+   "id": "CC-T-GLITCH-EXEMPTION",
+   "group": "Trading",
+   "title": "Technical glitch: keep the evidence to claim MCX's exemption from the financial disincentive",
+   "frequency": "As required",
+   "due_text": "When claiming the exemption for a minor or app-only glitch: audit-based evidence that the unique clients affected stayed below 2% of the quarter's average unique clients or 2,000 (Ledgerline takes the lower).",
+   "rule": "ASNEEDED",
+   "applies": [
+    "broker",
+    "ibt",
+    "member:MCX"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "MCX, with the RCA",
+   "evidence": "The count of unique clients affected, the quarter's average and the logs it rests on",
+   "refs": [
+    {
+     "issuer": "MCX",
+     "no": "MCX/TECH/015/2026",
+     "title": "Annexure-1: joint exchange guidelines on technical glitches",
+     "says": "Exemption from the financial disincentive for minor or app-only glitches. Gap report rows: MCX-0120."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "ledgerline": {
+    "screen": "glitches",
+    "screen_name": "Technical glitches",
+    "what": "Ledgerline's glitch register runs this clock and drafts the report"
+   },
+   "changed": "The row Ledgerline was given is cut after 'or 2,000'; the lower of the two limits is the safe reading. Confirm with MCX."
   }
  ]
 }

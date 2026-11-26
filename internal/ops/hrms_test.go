@@ -187,10 +187,10 @@ func TestJoinMoveLeaveWithApproval(t *testing.T) {
 	o, ctx := r.o, r.ctx
 	e := r.add(t, Employee{Name: "Lalit Test", JoinedOn: "2026-05-04", Duties: []string{"Dealer (equity derivatives)"}})
 	cs, _ := o.Checklists(ctx, T, "hema.hr", false)
-	if len(cs) != 1 || cs[0].Kind != "join" || len(cs[0].Items) != 8 {
+	if len(cs) != 1 || cs[0].Kind != "join" || len(cs[0].Items) != 9 { // with the confidentiality agreement (CSCRF GV.RR.S5)
 		t.Fatalf("joining checklist %+v", cs)
 	}
-	if len(workOpen(o, ctx, e.Code+":join:")) != 8 {
+	if len(workOpen(o, ctx, e.Code+":join:")) != 9 {
 		t.Fatalf("joining work items %d", len(workOpen(o, ctx, e.Code+":join:")))
 	}
 	if _, err := o.LinkUser(ctx, T, "hema.hr", e.Code, "dev.dealer"); err != nil {

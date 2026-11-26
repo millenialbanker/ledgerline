@@ -291,6 +291,12 @@ func (o *Ops) Login(ctx context.Context, tenant, userID, pw, otp, ip, agent stri
 		o.log(ctx, tenant, userID, "auth.login_failed", userID, map[string]any{"reason": "deactivated", "ip": ip})
 		return "", AuthState{}, fmt.Errorf("%w: this user is deactivated; ask your administrator", ErrForbidden)
 	}
+	// A new login waits for its signed confidentiality agreement when the
+	// firm asks for that (cyberset.go; CSCRF GV.RR.S5).
+	if o.agreementHeld(ctx, tenant, userID) {
+		o.log(ctx, tenant, userID, "auth.login_failed", userID, map[string]any{"reason": "confidentiality agreement not recorded", "ip": ip})
+		return "", AuthState{}, fmt.Errorf("%w: your confidentiality agreement is not recorded yet; ask your administrator or HR", ErrForbidden)
+	}
 	if c.TOTPEnabled {
 		if strings.TrimSpace(otp) == "" {
 			return "", AuthState{}, ErrOTPRequired
@@ -546,6 +552,7 @@ func (o *Ops) CreateUser(ctx context.Context, tenant, actor string, u User) (str
 		return "", err
 	}
 	o.log(ctx, tenant, actor, "user.created", u.ID, map[string]any{"role": u.Role})
+	o.agreementOnCreate(ctx, tenant, actor, u)
 	return pw, nil
 }
 

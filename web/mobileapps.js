@@ -28,7 +28,8 @@ V.staffapp = {
         <div class="fld full"><label>And these people</label><div class="tools">${staff.map(u => `<label class="check"><input type="checkbox" class="ma-user" value="${esc(u.id)}" ${s.staff_users.includes(u.id) ? 'checked' : ''} ${dis}> ${esc(u.name)} <span class="dim small">${esc(u.role)}</span></label>`).join('')}</div></div>
         <div class="fld"><label for="ma-idle">Lock after (minutes without use)</label><input class="in sm" id="ma-idle" type="number" min="1" max="30" value="${s.idle_minutes}" ${dis}></div>
         <div class="fld"><label for="ma-lock">Ask for the fingerprint again after (seconds in the background)</label><input class="in sm" id="ma-lock" type="number" min="0" max="600" value="${s.lock_seconds}" ${dis}></div>
-        <div class="fld"><label for="ma-re">Ask for the password again every (days)</label><input class="in sm" id="ma-re" type="number" min="1" max="90" value="${s.reauth_days}" ${dis}></div></div>
+        <div class="fld"><label for="ma-re">Ask for the password again every (days)</label><input class="in sm" id="ma-re" type="number" min="1" max="90" value="${s.reauth_days}" ${dis}></div>
+        <div class="fld"><label for="ma-root">On a phone that looks rooted or jailbroken (both apps)</label><select class="in sm" id="ma-root" ${dis}><option value="warn" ${s.rooted_policy !== 'refuse' ? 'selected' : ''}>Warn and record it</option><option value="refuse" ${s.rooted_policy === 'refuse' ? 'selected' : ''}>Refuse the phone</option></select></div></div>
         <p class="dim small">These times apply to the client app too. Admin is not let in by default: tick the role or the person.</p>
         ${ed ? '<button class="btn pri" data-act="maSaveStaff">Save</button>' : '<p class="dim small">Only an Admin changes these.</p>'}</div></div>
       <div class="panel"><div class="hd"><h3>Set up a phone</h3></div><div class="bd">${s.qr ? `<div class="split" style="align-items:flex-start;gap:16px"><img src="${esc(s.qr.qr)}" alt="QR code that sets up the staff app for ${esc(s.qr.firm)}" style="width:168px;height:auto;border:1px solid var(--line);border-radius:8px;background:#fff">
@@ -65,12 +66,12 @@ V.clientapp = {
 };
 
 function maCollect() {
-  const s = C.staffapp || C.clientapp, m = { staff_on: s.staff_on, staff_users: s.staff_users, staff_roles: s.staff_roles, staff_branches: s.staff_branches, idle_minutes: s.idle_minutes, lock_seconds: s.lock_seconds, reauth_days: s.reauth_days, client: { ...(s.client || {}) } };
+  const s = C.staffapp || C.clientapp, m = { staff_on: s.staff_on, staff_users: s.staff_users, staff_roles: s.staff_roles, staff_branches: s.staff_branches, idle_minutes: s.idle_minutes, lock_seconds: s.lock_seconds, reauth_days: s.reauth_days, rooted_policy: s.rooted_policy || 'warn', client: { ...(s.client || {}) } };
   return m;
 }
 const maVals = cls => [...document.querySelectorAll('.' + cls)].filter(i => i.checked).map(i => i.value);
 Object.assign(A, {
-  maSaveStaff: () => { const m = maCollect(); Object.assign(m, { staff_on: $('ma-on').checked, staff_roles: maVals('ma-role'), staff_users: maVals('ma-user'), staff_branches: maVals('ma-br'), idle_minutes: parseInt($('ma-idle').value, 10) || 5, lock_seconds: parseInt($('ma-lock').value, 10) || 0, reauth_days: parseInt($('ma-re').value, 10) || 30 });
+  maSaveStaff: () => { const m = maCollect(); Object.assign(m, { staff_on: $('ma-on').checked, staff_roles: maVals('ma-role'), staff_users: maVals('ma-user'), staff_branches: maVals('ma-br'), idle_minutes: parseInt($('ma-idle').value, 10) || 5, lock_seconds: parseInt($('ma-lock').value, 10) || 0, reauth_days: parseInt($('ma-re').value, 10) || 30, rooted_policy: $('ma-root').value });
     act(() => api('PUT', '/v1/mobile/settings', m), 'Staff app settings saved').catch(() => {}); },
   maSaveClient: async () => {
     const m = maCollect(), v = id => $('ca-' + id).value.trim(), f = $('ca-logo').files[0];

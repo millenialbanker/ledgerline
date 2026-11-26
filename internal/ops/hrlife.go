@@ -122,6 +122,10 @@ func (o *Ops) startJoining(ctx context.Context, tenant, actor string, e Employee
 	}
 	add("bgcheck", "Background check", RoleHR, false, "")
 	add("coc", "Code of conduct signed (upload it to the employee's documents)", RoleHR, false, "")
+	// CSCRF GV.RR.S5: system access only after a confidentiality and
+	// integrity agreement is signed (cyberset.go holds the login until then
+	// when the firm asks for that).
+	add("nda", "Confidentiality and integrity agreement signed (before system access)", RoleHR, false, "")
 	add("trading", "Own trading accounts declared and holdings declared on joining", RoleCompliance, false, "")
 	if o.ModuleOn(ctx, tenant, ModPayroll) {
 		// Payroll needs these before the first month's run: without a
@@ -269,6 +273,9 @@ func (o *Ops) DoCheckItem(ctx context.Context, tenant, actor, id, key string, na
 		}
 		it.Done, it.NA, it.By, it.At, it.Note = !na, na, actor, o.now().Format(time.RFC3339), trim(note, 300)
 		o.saveList(ctx, tenant, actor, c)
+		if key == "nda" && !na && c.Kind == "join" {
+			o.agreementFromChecklist(ctx, tenant, actor, c.Employee, note)
+		}
 		o.log(ctx, tenant, actor, "hr.checklist.item", c.ID, map[string]any{"item": key, "na": na})
 		c, _, err = docs.Get[HRChecklist](ctx, o.Docs, tenant, cHRList, id)
 		return c, err

@@ -171,10 +171,10 @@ var builtinWork = map[string]struct{ do, approve string }{
 		approve: "migrate billing settlement clients apps changes corp rms margin payouthold collateral cdslpledge cdslepi allocation deposits legacy mtf money bank ras clientmoney " +
 			"books firmsec circulars inactive kyc ipo rfq cbrics dp cdslreq cdsltxn"},
 	RoleRisk: {do: "me dashboard boards chat autopilot steps rpa periodic xfiles ccdata recon settlement clients rms live margin payouthold collateral cdslpledge cdslepi allocation " +
-		"debits legacy mtf ledger money reports stocksip ipo rfq cbrics dp edis cdsltxn insights selfinspect firmsec kycgate",
+		"debits legacy mtf ledger money reports stocksip ipo rfq cbrics dp edis cdsltxn insights selfinspect firmsec kycgate glitches",
 		approve: "rms margin payouthold collateral cdslpledge cdslepi allocation mtf settlement money"},
 	RoleCompliance: {do: "dashboard boards chat autopilot steps jobs rpa periodic circulars xfiles files clients apps changes uccapi mnrl statements dispatch messages yearend archive " +
-		"margin legacy clientmoney firmsec reports exdisc aictl kyc kycgate helpdesk nri surv inactive deceased selfinspect inspack audit incidents logexport " +
+		"margin legacy clientmoney firmsec reports exdisc aictl kyc kycgate helpdesk nri surv inactive deceased selfinspect inspack audit incidents glitches logexport " +
 		"ipo mfsettings mfcomm mforders stocksip dp cdslreq edis insights partners dealers backups settings supportaccess dataexit me people hrcomp hrpolicy",
 		approve: "apps changes margin legacy inactive kyc circulars cdslpledge reports dataexit deceased practices hrcomp"},
 	// HRMS and Payroll (hrms.go, payroll.go, payrun.go).

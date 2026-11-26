@@ -15,7 +15,7 @@
 const cyDT = id => `<input class="in" type="datetime-local" id="${id}">`;
 
 V.cyber = {
-  load: () => get('/v1/security/cyber'),
+  load: async () => { const d = await get('/v1/security/cyber'); try { d.res = await get('/v1/security/resilience'); } catch (e) { d.res = null; } return d; },
   html: d => {
     const can = has('Compliance officer');
     const drill = d.drills[0];
@@ -31,13 +31,14 @@ V.cyber = {
         ${kpi('Due for erasure', nf(dueEr.length), 'closed, retention over', dueEr.length ? 'warn' : 'good')}</div>
       <div class="note small">Sign-in: ${d.sign_in.out_of_band_unlock ? 'a locked sign-in needs an out-of-band unlock' : '<b>the timed lock is on</b> (CSCRF asks for an out-of-band unlock)'}, ${nf(d.sign_in.lock_after)} wrong tries lock it, ${esc(d.sign_in.rate_limit)}; passwords ${d.sign_in.password_days ? `last ${nf(d.sign_in.password_days)} days` : 'never expire'}, the last ${nf(d.sign_in.password_history)} cannot be reused. Change these on <button class="linkish" data-act="go" data-id="incidents">Incidents</button> → Rules and contacts.${d.retention_warn ? ' ' + esc(d.retention_warn) : ''}</div>
       <div class="note small">${esc(d.ntp.line)}</div><div class="note small ${d.glitch.over && d.glitch.ibt !== 'no' ? 'warn' : ''}"><b>Technical glitch framework.</b> ${esc(d.glitch.line)}</div>
-      <div class="panel"><div class="hd">${segBtns('cyTab', [['drills', 'Restore drills'], ['vendors', 'Vendors & exit plans'], ['review', 'Admin activity review'], ['fraud', 'Fraud reports'], ['data', 'Data requests & erasure'], ['terms', 'Portal terms & notice']])}</div>${cyTab(d, can)}</div>`;
+      <div class="panel"><div class="hd">${segBtns('cyTab', [['drills', 'Restore drills'], ['vendors', 'Vendors & exit plans'], ['review', 'Admin activity review'], ['fraud', 'Fraud reports'], ['data', 'Data requests & erasure'], ['terms', 'Portal terms & notice'], ['recovery', 'Recovery point'], ['capacity', 'Capacity'], ['evidence', 'Ledgerline evidence'], ['access', 'Access & inspection']])}</div>${cyTab(d, can)}</div>`;
   }
 };
 UI.cyTab = UI.cyTab || 'drills';
 
 function cyTab(d, can) {
   switch (UI.cyTab) {
+    case 'recovery': case 'capacity': case 'evidence': case 'access': return cyResTab(d, can); // resilience.js
     case 'vendors': return `<div class="bd">${can ? '<button class="btn pri" data-act="cyVendor" data-id="">Add a vendor</button>' : ''}</div>` + tbl([['Vendor'], ['Service'], ['Exit plan'], ['Reviewed'], ['']], d.vendors.map(v => `<tr><td><b>${esc(v.name)}</b>${v.critical ? ' ' + pill('Critical', 'acc') : ''}</td><td>${esc(v.service)}</td>
       <td class="wrap small">${(v.gaps || []).length ? v.gaps.map(g => `<div class="neg">${esc(g)}</div>`).join('') : pill('Complete', 'good')}${v.escrow ? '<div class="dim">source code in escrow</div>' : ''}</td><td class="n">${v.reviewed_on ? fmtDate(v.reviewed_on) : '—'}</td>
       <td>${can ? `<button class="btn sm" data-act="cyVendor" data-id="${esc(v.id)}">Edit</button>` : ''}</td></tr>`), { empty: 'No vendors.' });

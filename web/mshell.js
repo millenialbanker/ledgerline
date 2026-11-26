@@ -366,6 +366,9 @@ MS.start = async function () {
   if (!MS.cfg.on) { shellOnly(gate(`<p class="m-msg">${MS.app === 'client' ? 'The app is not available yet. Use the website for now.' : 'The staff app is switched off for this firm. An Admin switches it on in Settings → Staff app.'}</p>`)); return; }
   if (MS.native) {
     MS.rooted = !!(await Shell.integrity()).rooted;
+    // The firm may refuse rooted or jailbroken phones (Settings → Client
+    // app / Staff app; the server refuses to register them too).
+    if (MS.rooted && MS.cfg.rooted_policy === 'refuse') { shellOnly(gate('<p class="m-msg">The firm does not allow the app on a phone that looks rooted or jailbroken. Use a phone that is not, or the website.</p>')); return; }
     MS.device = await Shell.pref('device').catch(() => null);
     nativeHooks();
   }

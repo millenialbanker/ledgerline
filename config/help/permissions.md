@@ -92,6 +92,7 @@ Changing client brokerage rates | Ops checker
 Changing client groups | Ops maker, Ops checker
 Changing client interest rates | Ops checker
 Changing connections | Admin
+Changing cyber resilience settings | Compliance officer
 Changing firm securities settings | Admin
 Changing how long the firm's keys stay in memory | Admin
 Changing inspection pack settings | Compliance officer
@@ -179,6 +180,7 @@ Designating persons under the insider trading code | Compliance officer
 Discarding scanned bills | Ops maker, Ops checker
 Downloading BOW upload files | Ops maker, Ops checker, Risk manager
 Downloading Finspot block and client files | Ops maker, Ops checker, Risk manager
+Downloading Ledgerline's evidence pack | Compliance officer
 Downloading Ledgerline's software bill of materials | Compliance officer
 Downloading a full data export | Admin
 Downloading exchange files | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -310,6 +312,7 @@ Prepaid schemes | Ops checker, Admin
 Preparing STRs for FINGate | Compliance officer
 Preparing margin penalties | Ops checker, Risk manager, Compliance officer
 Preparing the client money reconciliation | Ops maker, Ops checker
+Preparing the test environment | Admin
 Producing the payout bank file | Ops maker, Ops checker
 Proposing RFQ deal confirmations | Ops maker, Ops checker
 Proposing a migration load | Admin
@@ -365,8 +368,10 @@ Recording client master lists | Ops checker, Compliance officer
 Recording client money kept back | Ops maker, Ops checker, Compliance officer
 Recording clients' UPI IDs | Ops maker, Ops checker, Branch staff, Authorised person
 Recording complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
+Recording confidentiality agreements | Compliance officer, HR manager
 Recording enhanced due diligence | Compliance officer
 Recording impersonation cases | Ops maker, Ops checker, Compliance officer
+Recording inspections | Compliance officer
 Recording onboarding details | Ops maker, Ops checker, Compliance officer
 Recording pledge undertakings | Ops maker, Ops checker, Risk manager, Compliance officer
 Recording re-KYC | Ops maker, Ops checker, Compliance officer
@@ -376,6 +381,7 @@ Recording rights and obligations | Ops maker, Ops checker, Compliance officer
 Recording salary paid | HR manager, Payroll
 Recording staff certificates | Compliance officer, HR manager
 Recording staff checks | Compliance officer, HR manager
+Recording technical glitches | Risk manager, Compliance officer
 Recording the AP client count reconciliation | Ops maker, Ops checker, Compliance officer
 Recording the AP client reporting upload | Ops maker, Ops checker, Compliance officer
 Recording the BSDA choice | Ops maker, Ops checker
@@ -404,6 +410,7 @@ Releasing payouts | Ops checker
 Removing the signing certificate | Admin
 Reporting impersonation cases | Compliance officer
 Reporting short allocation | Ops maker, Ops checker, Risk manager
+Reporting technical glitches | Compliance officer
 Requesting client changes | Ops maker, Ops checker, Compliance officer
 Requesting reactivation | Ops maker, Ops checker
 Resetting passwords | Admin
@@ -451,6 +458,7 @@ Seeing registered phones and kiosks | HR manager
 Seeing security events and incidents | Compliance officer
 Seeing staff controls | Compliance officer, HR manager
 Seeing staff documents | HR manager
+Seeing technical glitches | Risk manager, Compliance officer
 Seeing the UPSI sharing record | Compliance officer
 Seeing the alert download log | Ops checker, Compliance officer
 Seeing the firm's demat accounts | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -518,6 +526,7 @@ Switching the autopilot schedule | Admin
 Tagging the firm's demat accounts | Admin
 Taking a backup | Admin
 Taking the AP mappings as reported | Compliance officer
+Telling clients about a technical glitch | Compliance officer
 Tendering for a client | Ops maker, Ops checker
 Testing connections | Admin
 Testing templates | Ops checker, Compliance officer

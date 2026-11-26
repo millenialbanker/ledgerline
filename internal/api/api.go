@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -58,6 +59,10 @@ type Server struct {
 	patterns []string
 
 	loginLimit limiter
+	// guards and keyLimits: each firm's API caller rules and the per-key
+	// limiters (cyberguard.go).
+	guards    sync.Map
+	keyLimits sync.Map
 	// The USB token signer's calls: per firm, and failed keys per address.
 	signLimit limiter
 	signBad   limiter
@@ -115,6 +120,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeClosed(rw)
 		return
 	}
+	if !s.hookCallerOK(rw, r) {
+		return
+	}
 	s.mux.ServeHTTP(rw, r.WithContext(context.WithValue(r.Context(), keyReqID, id)))
 }
 
@@ -168,6 +176,9 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 				writeErr(w, http.StatusBadRequest, "bad_actor", "X-Actor must be a user ID.", nil)
 				return
 			}
+			if !s.apiCallerOK(w, r, t) {
+				return
+			}
 		} else {
 			t, st, _, err := s.sessionAuth(r)
 			if errors.Is(err, vault.ErrKeyUnavailable) {
@@ -197,6 +208,12 @@ func (s *Server) route(pattern string, h http.HandlerFunc, mutating bool) {
 		if s.ops != nil && s.ops.FirmClosed(tenant) {
 			writeClosed(w)
 			return
+		}
+		// Load and answer times for capacity monitoring (ops/capacity.go).
+		if s.ops != nil {
+			sw, began := &statusWriter{ResponseWriter: w, status: 200}, time.Now()
+			w = sw
+			defer func() { s.ops.NoteRequest(tenant, time.Since(began), sw.status) }()
 		}
 		if mutating && actor == "" {
 			writeErr(w, http.StatusBadRequest, "actor_required", "Set the X-Actor header to the user making this change; it is recorded in the audit log.", nil)

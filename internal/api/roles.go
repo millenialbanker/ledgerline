@@ -73,6 +73,7 @@ var routeScreens = map[string]string{
 	"inspection-packs": "inspack", "inspection-docs": "inspack", "inspection-templates": "inspack",
 	"security": "incidents", "security/incidents": "incidents", "security/events": "incidents",
 	"security/cyber": "cyber", "security/drills": "cyber", "security/vendors": "cyber", "security/sbom": "cyber", "security/privileged-review": "cyber",
+	"security/glitches": "glitches", "security/resilience": "cyber", "security/agreements": "cyber", "security/inspections": "cyber", "security/sandbox": "cyber", "security/evidence-pack": "cyber",
 	"privacy": "cyber", "fraud-reports": "cyber incidents", "clients/{ucc}/kyc-source": "kyc clients", "clients/{ucc}/data-consent": "clients",
 	"hr/staff-controls": "hrcomp", "hr/staff/{code}/aml-check": "hrcomp people", "hr/staff/{code}/co-eligibility": "hrcomp people", "hr/staff/{code}/designated": "hrcomp",
 	"hr/own-trading/board-approval": "hrcomp", "hr/own-trading/upsi": "hrcomp",
