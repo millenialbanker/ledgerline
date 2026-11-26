@@ -222,7 +222,7 @@ func DefaultPackTemplates() []PackTemplate {
 		}
 		joint.Items = append(joint.Items, it)
 	}
-	return []PackTemplate{number(exchange), number(depository), number(sebi), number(audit), number(joint)}
+	return []PackTemplate{number(exchange), number(depository), number(sebi), number(audit), number(joint), number(sysAuditTemplate())}
 }
 
 // ---- sections ----

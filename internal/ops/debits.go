@@ -488,6 +488,14 @@ type DebitRow struct {
 	BlockedBy  string         `json:"blocked_by,omitempty"`
 	Action     string         `json:"action"`           // Block, Unblock or ""
 	Legacy     bool           `json:"legacy,omitempty"` // an open legacy debt: kept out of the totals and reminders, still blocked
+	// PayInDays is the trading days since the pay-in of the oldest debit
+	// still unpaid (its posting day's settlement); past 5 the client may
+	// take no further exposure whatever the firm's own limit (SEBI master
+	// circular 2025/90 para 15.4.4.4, "T+1+5"). CUSPASale says unpaid
+	// securities of the client are being sold (NSE/INSP/73976 Exhibit 26
+	// Q19: no fresh buying while they are).
+	PayInDays int    `json:"pay_in_days,omitempty"`
+	BlockWhy  string `json:"block_why,omitempty"`
 	// InterestRate is the interest the client pays on the date: "24% p.a."
 	// or the client's own terms; OwnInterest marks their own terms.
 	InterestRate string `json:"interest_rate,omitempty"`
@@ -568,6 +576,7 @@ func (o *Ops) Debits(ctx context.Context, tenant, date string) (DebitView, error
 		}
 	}
 	legacy := o.legacyOpen(ctx, tenant)
+	selling := cuspaSelling(o, ctx, tenant, set, date)
 	ib, err := o.interestBook(ctx, tenant)
 	if err != nil {
 		return v, err
@@ -639,6 +648,10 @@ func (o *Ops) Debits(ctx context.Context, tenant, date string) (DebitView, error
 				}
 				credit += cr
 			}
+			if len(lots) > 0 {
+				// The oldest unpaid debit's pay-in is its day's settlement.
+				r.PayInDays = businessDaysBetween(set, set.NextSettlementDay(set.PrevBusinessDay(addDays(lots[0].d, 1))), date)
+			}
 			for _, l := range lots {
 				age := daysBetween(l.d, date)
 				for b, bk := range AgeBuckets {
@@ -667,7 +680,15 @@ func (o *Ops) Debits(ctx context.Context, tenant, date string) (DebitView, error
 		r.Accrued = accrued[u]
 		v.Accrued += r.Accrued
 		switch {
-		case r.Debit > 0 && r.Days >= v.BlockDays && !c.Blocked && c.Status == "Active":
+		case r.Debit > 0 && r.Days >= v.BlockDays:
+			r.BlockWhy = fmt.Sprintf("in debit %d days (the firm's limit %d)", r.Days, v.BlockDays)
+		case r.Debit > 0 && r.PayInDays > debitPayInDays:
+			r.BlockWhy = fmt.Sprintf("debit unpaid %d trading days after its pay-in (more than %d)", r.PayInDays, debitPayInDays)
+		case r.Debit > 0 && selling[u]:
+			r.BlockWhy = "unpaid securities being sold"
+		}
+		switch {
+		case r.BlockWhy != "" && !c.Blocked && c.Status == "Active":
 			r.Action = "Block"
 			v.ToBlock++
 		case r.Debit == 0 && blockedByUs:
@@ -705,7 +726,7 @@ func (o *Ops) ApplyDebitBlocks(ctx context.Context, tenant, actor, date string) 
 	for _, r := range v.Rows {
 		switch r.Action {
 		case "Block":
-			reason := fmt.Sprintf("%s since %s (%d days, ₹%s)", debitReason, r.Since, r.Days, r.Debit)
+			reason := fmt.Sprintf("%s since %s (%d days, ₹%s; %s)", debitReason, r.Since, r.Days, r.Debit, r.BlockWhy)
 			if _, err := docs.Update(ctx, o.Docs, tenant, cClient, r.UCC, actor, func(c *Client) error {
 				c.Blocked, c.BlockedReason = true, reason
 				return nil
@@ -753,6 +774,30 @@ func (o *Ops) DebitBlockFile(ctx context.Context, tenant, date string) ([]byte, 
 		}
 	}
 	return CSV(rows), nil
+}
+
+// debitPayInDays: a client whose debit from not paying is still unpaid
+// more than this many trading days after its pay-in gets no further
+// exposure (SEBI master circular 2025/90 para 15.4.4.4), except under MTF
+// (the MTF ledger is not in these debits).
+const debitPayInDays = 5
+
+// cuspaSelling is the clients whose unpaid securities are being sold on
+// date: CUSPA shares invoked and not all sold, or held after notice past
+// the payment period.
+func cuspaSelling(o *Ops, ctx context.Context, tenant string, set Settings, date string) map[string]bool {
+	out := map[string]bool{}
+	items, _ := docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
+	for _, it := range items {
+		if it.Date > date {
+			continue
+		}
+		d := it.dates(set, date)
+		if (it.unsold() > 0 && it.InvokedOn != "" && it.InvokedOn <= date) || (it.Qty > 0 && it.noticed() && date > d.PayBy && date <= d.LastInvoke) {
+			out[it.UCC] = true
+		}
+	}
+	return out
 }
 
 func divInt(d money.Dec, n int64) money.Dec {

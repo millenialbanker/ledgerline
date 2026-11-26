@@ -188,23 +188,27 @@ On [[settlement|Settlement]]:
 title: Unpaid securities (CUSPA): ageing, release, notice and sale
 screen: settlement
 roles: Ops maker, Ops checker, Risk manager
-ask: cuspa; unpaid securities; client unpaid securities pledgee account; release cuspa; release unpaid shares; sell unpaid shares; invoke cuspa; cuspa ageing; 2.25 times; cuspa limit; auto release by depository; notice before sale of unpaid shares; how many days to pay for shares; cuspa sell list; early pay-in cuspa; cuspa psn; release cuspa through cdsl api; cuspa unpledge api
-related: settlement, periodic-work
+ask: cuspa; unpaid securities; client unpaid securities pledgee account; release cuspa; release unpaid shares; sell unpaid shares; invoke cuspa; cuspa ageing; 2.25 times; cuspa limit; auto release by depository; notice before sale of unpaid shares; how many days to pay for shares; cuspa sell list; early pay-in cuspa; cuspa psn; release cuspa through cdsl api; cuspa unpledge api; cuspa intimation; client told of cuspa pledge
+related: settlement, periodic-work, cuspa-policy, cuspa-extension, cuspa-margin
 
 Since 31 October 2026 (SEBI's CUSPA framework; NSE circulars 35/2026 and 41/2026) shares a client has not paid for are paid out to the client's demat account and pledged to the firm's CUSPA. Counting the pay-out day as day 0:
 
+0. **The client is told at once.** When a line is made (**To CUSPA**) the client is emailed and texted (template **cuspa.pledged**): the debit in the ledger, the funds obligation, the shares pledged and the firm's right to sell them if the client does not pay. The daily review sends any that did not go, before the market opens, so the client has it by the start of the next trading day. The self-inspection test **cuspa_intimation** checks it.
 1. **The client pays by day N**, the firm's period: Settings → Risk and settlement, **days to pay after pay-out**, 1 to 5 (5 when not set).
 2. **Every day the value kept may be at most 2.25 × (margin − ledger balance).** The value is the price less haircut, as for a margin pledge (purchase cost when there is no price); the ledger balance counts every ledger except MTF, a debit as negative; the margin is the end-of-day margin in all segments. What is over is released by the next trading day, oldest pledge first; everything is released once the ledger covers the margin.
 3. **Notice before sale.** The client is emailed and texted (template **cuspa.notice** on Client messages) with the amount due, the pay-by date and when the shares may be sold. It is recorded on the line.
 4. **Invoke up to day 5**, after the payment period and the notice, only as much as covers the debit. The invoked shares are blocked for early pay-in: sell them under the client's code (the firm's own code if the account is frozen). The contract note carries a remark and the proceeds go to the client's ledger.
-5. **Day 6:** what is neither released nor invoked is released by the depository at the end of the day.
+5. **Day 6:** what is neither released nor invoked is released by the depository at the end of the day. From 3 January 2027 the last day can be extended by up to a week when the shares cannot be sold (see **Extending a CUSPA pledge**).
+6. **A client who cannot trade** (account not active, inactive, no segment, or blocked for a reason other than a debit): the invoked shares are sold under the firm's own code and paid in the same day as the invocation; the daily review puts this in the work queue.
+7. **No buying while unpaid shares are sold.** A client whose invoked shares are waiting for sale, or who was given notice after the payment period, is blocked for buying on [[debits|Debtors & interest]] (Apply blocks).
 
 On [[settlement|Settlement]] → **Unpaid securities**:
 
 - **Lines** shows every CUSPA line with its pay-out day, age (day 0 to 6), pay-by date, last day to invoke, pledge value, the client's ledger and what to do next. Filter by stage (in period, pay by today, unpaid, last day to invoke, depository releases, to sell, over the limit, closed), search by client, scrip or line, filter by client group and sort by any column. Click a line for its history.
-- **Select lines** and use the bar: **Release** (the whole quantity; before the client has paid, a checker or risk manager), **Release excess** (only what is over the limit), **Send notice**, **Invoke** (checker or risk manager) and **Mark sold**. Each shows first what it will do, line by line, and why a line is left out.
+- **Select lines** and use the bar: **Release** (the whole quantity; before the client has paid, a checker or risk manager), **Release excess** (only what is over the limit), **Send notice**, **Invoke** (checker or risk manager), **Mark sold** and **Extend** (checker or risk manager, last day only). Each shows first what it will do, line by line, and why a line is left out.
 - **Clients' limit** shows each client's ledger balance, margin, pledge value, limit and excess.
-- **Sell list** is the invoked shares to sell; **Depository list** is the day's releases and invocations to give on the depository's system.
+- **Sell list** is the invoked shares to sell; **Depository list** is the day's releases, invocations and extension requests to give on the depository's system.
+- **Policy** opens the firm's written policy on unpaid securities (see **The policy on unpaid securities**).
 
 **Through CDSL's pledge API.** CDSL's transaction export (loaded on [[xfiles|Exchange files]] or fetched by SFTP) shows the depository's automatic pledge of each unpaid purchase to the CUSPA; its pledge number (PSN) goes on the client's CUSPA line. With **Normal pledge, unpledge and confiscate** switched on in Connections → CDSL APIs (DP), a release of a line with a PSN goes to CDSL at once as an unpledge, and an invocation as an invocation (confiscation) with its value, whether it was done on this screen or by the daily review. CDSL's answer shows on the line, in its history and in the **Sent by CDSL API** column of the depository list; give only the other lines on CDSL's system. One CDSL refuses goes to the work queue to be given by hand. Before relying on it, confirm in CDSL's mock environment that these APIs take the automatic CUSPA pledges.
 
@@ -254,7 +258,7 @@ Each day builds on the one before: open positions, holdings and balances carry f
 title: Fix "the books are locked"
 screen: settings
 roles: Admin
-ask: books are locked; period locked; locked up to; cannot post to old date; unlock period; back dated entry refused
+ask: books are locked; period locked; locked up to; cannot post to old date; unlock period; back dated entry refused; t-2 lock; lock back dated entries; automatic lock; annexure vii back office criteria
 related: correct-bill
 
 The books are locked up to a date so closed months can't change. An entry dated in a locked period is refused.
@@ -263,6 +267,8 @@ The books are locked up to a date so closed months can't change. An entry dated 
 2. If it must be back-dated, an **Admin** changes **Books locked up to** (Settings → Period locking) on [[settings|Settings]], posts it, and locks again.
 
 Every lock and unlock is in the audit trail. **Also lock automatically** in Settings (Period locking) keeps the lock a set number of business days behind today, so you don't have to remember.
+
+NSE's testing criteria for back-office software ask for a system lock of back-dated entries beyond T-2. Set **Also lock automatically** to **3** (or fewer): an entry dated before T-2 is then refused. The nightly self-inspection test *Back-dated entries beyond T-2 locked by the system* fails while the automatic lock is off or set higher.
 
 ## exchange-files
 title: Load or download exchange, clearing and depository files

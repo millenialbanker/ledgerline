@@ -682,6 +682,11 @@ type Duty struct {
 	Custom     bool            `json:"custom,omitempty"`
 	Events     []DutyEvent     `json:"events,omitempty"`
 	Extensions []DutyExtension `json:"extensions,omitempty"`
+	// Revised: cut-offs the firm recorded for single occurrences from a
+	// regulator's notice (a special session's margin reporting date, a
+	// holiday's revised deadline); kept per firm, never replaced by the
+	// catalogue (SetDutyCutoff).
+	Revised []DutyExtension `json:"revised,omitempty"`
 	// NotApplicable: the compliance officer decided the duty does not
 	// apply to this firm (SetDutyApplies); NAHistory keeps every such
 	// decision and when it was taken back.
@@ -719,7 +724,7 @@ func DefaultDuties() []Duty {
 	shared := func(d Duty) Duty { d.Shared = true; return d }
 	return []Duty{
 		ob("OB-COMPLAINTS", "Publish the monthly investor complaints disclosure on the website", "SEBI (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/22)", "Monthly", "D07", RoleCompliance, "Screenshot or link of the published table (Periodic work builds the table)"),
-		ob("OB-CTR", "Cash transaction report to FIU-IND (or nil confirmation per firm policy)", "PMLA rules", "Monthly", "D15", RoleCompliance, "FINnet acknowledgement"),
+		ob("OB-CTR", "File the cash transaction report (CTR) with FIU-IND by the 15th for a month with reportable cash transactions", "PMLA rules (SEBI AML master circular para 74: no NIL report)", "Monthly", "D15", RoleCompliance, "FINGate batch ID for a month with a CTR; otherwise a file note that there was nothing to report (no NIL report to FIU-IND)"),
 		withTask(ob("OB-RAS", "Running account settlement: clients who chose quarterly settlement", "SEBI / exchanges' joint RAS calendar (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197)", "Quarterly", "RASQ", RoleChecker, "Settlement run and statements sent"), "ras"),
 		withTask(ob("OB-RAS-M", "Running account settlement: clients who chose monthly settlement", "SEBI / exchanges' joint RAS calendar (SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197)", "Monthly", "RASM", RoleChecker, "Settlement run and statements sent"), "ras"),
 		ob("OB-INTAUDIT", "Half-yearly internal audit report", "Exchanges", "Half-yearly", "05-15,11-15", RoleCompliance, "Audit report and exchange acknowledgement"),

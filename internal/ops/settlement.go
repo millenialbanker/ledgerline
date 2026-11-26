@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"ledgerline/internal/docs"
+	"ledgerline/internal/ingest"
 	"ledgerline/internal/ledger"
 	"ledgerline/internal/money"
 )
@@ -30,6 +31,17 @@ type Obligation struct {
 	// FromCUSPA is the part of a sale delivered from the client's invoked
 	// CUSPA shares, blocked for early pay-in (cuspa.go).
 	FromCUSPA int64 `json:"from_cuspa,omitempty"`
+	// Clearing is the clearing corporation the obligation settles at
+	// (Settings → Cleared through), or the exchange when another clearing
+	// member clears it.
+	Clearing string `json:"clearing,omitempty"`
+	// Exchanges lists the exchanges netted into the obligation when there
+	// is more than one: trades of exchanges cleared at the same clearing
+	// corporation net per client and ISIN, as the clearing corporation
+	// nets them (BSE trades cleared at NSE Clearing under
+	// interoperability). Exchange is then the exchange of the larger side
+	// in the direction of the net (where most of a net sale was sold).
+	Exchanges []string `json:"exchanges,omitempty"`
 }
 
 type settleState struct {
@@ -69,6 +81,14 @@ type CUSPAItem struct {
 	// (cuspacdsl.go); CDSL is how the last one went there.
 	PSN  string `json:"psn,omitempty"`
 	CDSL string `json:"cdsl,omitempty"`
+	// IntimatedAt is when the client was told of the pledge (debit,
+	// obligation, shares, the right to sell; cuspa_more.go); Intimation how
+	// the last attempt went.
+	IntimatedAt string `json:"intimated_at,omitempty"`
+	Intimation  string `json:"intimation,omitempty"`
+	// Extensions are the requests to the depository to extend the pledge
+	// (from 3 January 2027), the latest last.
+	Extensions []CUSPAExtension `json:"extensions,omitempty"`
 }
 
 // Settlement is the settlement page for a trade date.
@@ -130,31 +150,9 @@ func (o *Ops) Obligations(ctx context.Context, tenant, date string) (Settlement,
 	for i, d := range stDocs {
 		state[strings.TrimPrefix(d.ID, date+"|")] = states[i]
 	}
-	g := map[string]*Obligation{}
-	for _, t := range trades {
-		if t.Segment != "CM" || t.Product == "MIS" {
-			continue
-		}
-		isin := ""
-		if i, ok := look.ForTrade(t); ok {
-			isin = i.ISIN
-		}
-		if isin == "" {
-			isin = "UNKNOWN:" + t.Symbol
-		}
-		k := t.UCC + "|" + t.Exchange + "|" + isin
-		ob := g[k]
-		if ob == nil {
-			ob = &Obligation{Key: k, UCC: t.UCC, Name: clients[t.UCC].Name, Exchange: t.Exchange, ISIN: isin, Symbol: t.Symbol}
-			g[k] = ob
-		}
-		if t.Side == "B" {
-			ob.BuyQty += t.Qty
-			ob.Funds = ob.Funds.Sub(t.Value())
-		} else {
-			ob.SellQty += t.Qty
-			ob.Funds = ob.Funds.Add(t.Value())
-		}
+	g, err := o.nettedObligations(ctx, tenant, set, trades, look, clients)
+	if err != nil {
+		return Settlement{}, err
 	}
 	// Equity obligations are funded from the equity ledger (a separate
 	// commodity ledger's money is not used without a transfer).
@@ -166,7 +164,6 @@ func (o *Ops) Obligations(ctx context.Context, tenant, date string) (Settlement,
 	var payIn, payOut money.Dec
 	for _, k := range sortedKeys(g) {
 		ob := g[k]
-		ob.NetQty = ob.BuyQty - ob.SellQty
 		h := hold[holdingID(ob.UCC, ob.ISIN)]
 		ob.Holding, ob.Free = wholeUnits(h.Qty), free[holdingID(ob.UCC, ob.ISIN)]
 		switch {
@@ -288,6 +285,15 @@ func (o *Ops) SettleAction(ctx context.Context, tenant, actor, date, key, action
 		if err := o.unpledgeAcross(ctx, tenant, actor, cl, ob.ISIN, ob.Symbol, unpledge); err != nil {
 			return *ob, err
 		}
+		// At the depository this is a pledge release for early pay-in
+		// (PR-EP), never more than the clearing corporation's sale
+		// obligation; the shares stay blocked for that pay-in in the
+		// client's account (NSE/INSP/68373 para 4; CDSL Operating
+		// Instructions 8.6.7-8.6.10). CDSL's API handbook here has no PR-EP
+		// call, so it is given on CDSL's system.
+		o.raiseWork(ctx, tenant, "settlement", "prep:"+date+":"+key, fmt.Sprintf("Release %d %s of %s for early pay-in (PR-EP)", unpledge, ob.Symbol, ob.UCC),
+			fmt.Sprintf("%s sold %d %s on %s; %d of them are pledged to the firm as margin. Give a pledge release for early pay-in (PR-EP) on CDSL's system for %d, no more than the sale obligation, so they are blocked for the pay-in in the client's account. A client who may not trade (frozen code): invoke for early pay-in (IV-EP) through the clearing member instead.", ob.UCC, -ob.NetQty, ob.Symbol, fmtDay(date), unpledge, unpledge),
+			ob.UCC, RoleChecker, "settlement", date)
 		if err := o.debitAcross(ctx, tenant, actor, cl, ob.ISIN, ob.Symbol, need); err != nil {
 			return *ob, err
 		}
@@ -313,6 +319,12 @@ func (o *Ops) SettleAction(ctx context.Context, tenant, actor, date, key, action
 		it.Events = []CUSPAEvent{o.cuspaEvent(date, "Pledged", ob.NetQty, actor, "unpaid purchase, pay-out "+st.PayIn)}
 		if _, err := docs.Put(ctx, o.Docs, tenant, cCUSPA, it.ID, it, 0, actor); err != nil {
 			return *ob, err
+		}
+		// The client is told at once (debit, obligation, shares, the right
+		// to sell); the daily review retries what did not go.
+		if _, failed := o.cuspaIntimate(ctx, tenant, actor, date, []string{it.ID}); failed[it.UCC] != "" {
+			o.raiseWork(ctx, tenant, "cuspa", it.UCC+":intimate", "Tell "+it.UCC+" that unpaid shares are pledged to the CUSPA",
+				"The intimation after the pledge "+failed[it.UCC]+". Tell the client by email or SMS by the start of the next trading day and keep the record.", it.UCC, RoleChecker, "settlement", date)
 		}
 		status = "Held in CUSPA"
 	case "payout":
@@ -367,6 +379,109 @@ func (o *Ops) ReleaseCUSPA(ctx context.Context, tenant, actor, id string) (CUSPA
 	}
 	it, _, err := docs.Get[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, id)
 	return it, err
+}
+
+// nettingGroup is what an exchange's cash market trades net with: the
+// clearing corporation that clears the exchange's cash segment (Settings →
+// Cleared through), so trades of two exchanges cleared at one clearing
+// corporation net together (SEBI's interoperability framework; NSE
+// Clearing's interoperability FAQ, netting Q1-Q2: obligations of trades on
+// either exchange are netted per client and security). A segment cleared
+// by another clearing member, or not traded, nets on its own exchange: the
+// safe reading, since Ledgerline cannot know how the other member nets.
+func (s Settings) nettingGroup(exch string) string {
+	th := s.ClearedThrough(exch + "-CM")
+	if th == "" || th == ClearNone || strings.HasPrefix(th, "CM:") {
+		return exch
+	}
+	return th
+}
+
+// nettedObligations groups the day's delivery trades (cash market, not
+// intraday) into one obligation per client, netting group and ISIN. A
+// group with one exchange keeps the key UCC|EXCH|ISIN (as before netting
+// across exchanges); a group netted across exchanges is keyed
+// UCC|<clearing corporation>|ISIN.
+func (o *Ops) nettedObligations(ctx context.Context, tenant string, set Settings, trades []ingest.TradeEvent, look Lookup, clients map[string]Client) (map[string]*Obligation, error) {
+	type leg struct{ buy, sell int64 }
+	type grp struct {
+		ob   *Obligation
+		legs map[string]*leg
+	}
+	gs := map[string]*grp{}
+	for _, t := range trades {
+		if t.Segment != "CM" || t.Product == "MIS" {
+			continue
+		}
+		isin := ""
+		if i, ok := look.ForTrade(t); ok {
+			isin = i.ISIN
+		}
+		if isin == "" {
+			isin = "UNKNOWN:" + t.Symbol
+		}
+		ng := set.nettingGroup(t.Exchange)
+		k := t.UCC + "|" + ng + "|" + isin
+		x := gs[k]
+		if x == nil {
+			x = &grp{ob: &Obligation{UCC: t.UCC, Name: clients[t.UCC].Name, Exchange: t.Exchange, ISIN: isin, Symbol: t.Symbol, Clearing: ng}, legs: map[string]*leg{}}
+			gs[k] = x
+		}
+		l := x.legs[t.Exchange]
+		if l == nil {
+			l = &leg{}
+			x.legs[t.Exchange] = l
+		}
+		ob := x.ob
+		if t.Side == "B" {
+			ob.BuyQty += t.Qty
+			l.buy += t.Qty
+			ob.Funds = ob.Funds.Sub(t.Value())
+		} else {
+			ob.SellQty += t.Qty
+			l.sell += t.Qty
+			ob.Funds = ob.Funds.Add(t.Value())
+		}
+		if t.Exchange == "NSE" {
+			ob.Symbol = t.Symbol // NSE's symbol, when NSE trades are netted in
+		}
+	}
+	out := map[string]*Obligation{}
+	for _, x := range gs {
+		ob := x.ob
+		ob.NetQty = ob.BuyQty - ob.SellQty
+		exs := sortedKeys(x.legs)
+		if len(exs) == 1 {
+			ob.Exchange = exs[0]
+			ob.Key = ob.UCC + "|" + ob.Exchange + "|" + ob.ISIN
+			out[ob.Key] = ob
+			continue
+		}
+		// The exchange of the larger side in the direction of the net.
+		best, most := exs[0], int64(-1)
+		for _, e := range exs {
+			q := x.legs[e].buy
+			if ob.NetQty < 0 {
+				q = x.legs[e].sell
+			}
+			if q > most {
+				best, most = e, q
+			}
+		}
+		ob.Exchange, ob.Exchanges = best, exs
+		ob.Key = ob.UCC + "|" + ob.Clearing + "|" + ob.ISIN
+		out[ob.Key] = ob
+	}
+	return out, nil
+}
+
+// sameNetting says whether two obligations settle together at one
+// clearing corporation (or on one exchange).
+func sameNetting(a, b Obligation) bool {
+	if a.Clearing != "" && b.Clearing != "" {
+		return a.Clearing == b.Clearing
+	}
+	return a.Exchange == b.Exchange
 }
 
 func ledgerFilterDate(date string) ledger.Filter { return ledger.Filter{From: date, To: date} }

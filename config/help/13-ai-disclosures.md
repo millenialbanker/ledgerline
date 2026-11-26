@@ -92,6 +92,7 @@ SEBI's circular of 4 January 2019 (SEBI/HO/MIRSD/DOS2/CIR/P/2019/10) asks broker
 - Each AI system in use at any time in the period gets an entry, answered from the AI inventory: Ledgy does not initiate or route orders, manage portfolios, give advice (it answers staff questions about operations) or detect attacks; it is implemented by the vendor (Ledgerline) using the connected provider's model; its controls and safeguards are the kill switch, masking, the answer log and no autonomous actions.
 - If AI was off for the whole period, the answer is **No** (no system falls under these categories).
 - A member of NSE and other exchanges files it once, with NSE, which shares it with BSE, MCX and the others (NSE/INSP/69184, Phase I item 40): the calendar has one duty, **File with NSE (shared with the other exchanges)**.
+- **A firm that is also a DP** files the same report with the depository (CDSL Audit Web, NSDL e-PASS), a NIL report when nothing is used. SEBI's circular sets it quarterly, within 15 days of the quarter's end; the calendar has the duty *Send the depository the DP's AI & ML systems report*. Use the answers on this screen. If CDSL takes it only once a year, mark the other quarters done with "not due".
 
 ## saas-report
 title: The SaaS use report

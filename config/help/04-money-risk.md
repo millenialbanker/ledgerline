@@ -182,13 +182,13 @@ SEBI requires unused client funds to be returned monthly or quarterly, as each c
 title: Handle clients in debit and interest
 screen: debits
 roles: Risk manager, Ops checker
-ask: client in debit; debit balance; interest on debit; dpc; delayed payment charges; daily interest; interest on interest; compound interest; debit block; debit ageing; recover dues; client owes money
+ask: client in debit; debit balance; t+1+5; debit after five days of pay-in; interest on debit; dpc; delayed payment charges; daily interest; interest on interest; compound interest; debit block; debit ageing; recover dues; client owes money
 related: client-cant-trade, margin-shortfall
 
 On [[debits|Debtors & interest]]:
 
 - **Ageing:** how long each client has been in debit.
-- **Debit block:** after the days set in Settings, buying is blocked until they pay. Autopilot does this before the market opens; download the **Block / unblock file** for the trading system if it isn't connected.
+- **Debit block:** after the days set in Settings, buying is blocked until they pay. Two rules block sooner, whatever the Settings say: a debit still unpaid more than 5 trading days after its pay-in (SEBI's "T+1+5" rule; the **Block why** column says so), and a client whose unpaid shares in the CUSPA are being sold. The self-inspection test **debit_day5_block** checks both. Autopilot does this before the market opens; download the **Block / unblock file** for the trading system if it isn't connected.
 - **Interest (delayed payment charges):** charged on each day's debit from the pay-in date, at the Settings rate after the grace days. Settings → Debit balances and interest → **Interest posting** decides how:
   - **Monthly** (the default): simple interest, posted with the month-end postings (a checker approves), with a GST invoice.
   - **Daily**: posted every day from the start date you set, on that day's debit including the interest and GST already posted, so interest earns interest from the second day. Autopilot posts it at the end of each day (weekends with the next run), or use **Post daily interest** on the Interest tab. Month end issues each client one tax invoice for the month.
@@ -415,13 +415,14 @@ On [[margin|Margin reporting]]:
 title: Accept a margin pledge
 screen: collateral
 roles: Ops maker, Ops checker, Risk manager
-ask: pledge request; accept pledge; margin pledge; repledge; collateral; pledge shares for margin; unpledge
+ask: pledge request; accept pledge; margin pledge; repledge; collateral; pledge shares for margin; unpledge; haircut; collateral valuation; t-1 closing price; g-sec haircut 10%; mutual fund haircut; approved securities list
 related: margin-shortfall, mtf
 
 On [[collateral|Collateral & pledge]], pledge requests from the depository appear for decision.
 
 1. **Accept** or **Reject**. Autopilot accepts requests from active, unblocked clients in securities with a haircut.
-2. The value after haircut (from the day's market data) counts as collateral.
+2. The value after haircut counts as collateral. Each security is valued at the **previous trading day's close** less the day's haircut, and the haircut is never less than the day's VaR margin; a G-sec or T-bill with no haircut from the clearing corporation takes 10%, and units of a mutual fund not listed on an exchange take at least 10% of the NAV (NSE/INSP/66840). The same value is used in RMS, margin reporting, SEGMON and the front-end limits.
+3. Once NSE Clearing's approved securities file (APPSEC_COLLVAL) is loaded on [[xfiles|Exchange files]], a margin pledge request for a security not on it is refused (G-secs excepted).
 
 Securities stay in the client's demat; they're only pledged.
 

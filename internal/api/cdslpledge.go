@@ -43,6 +43,7 @@ func (s *Server) cdslPledgeRoutes() {
 	R("POST /v1/cdsl-pledges/invocations/{id}/decide", s.cplInvocationDecide, true)
 	R("POST /v1/cdsl-pledges/invocations/{id}/invoke", s.cplInvokeNow, true)
 	R("POST /v1/cdsl-pledges/resolve/{id}", s.cplResolve, true)
+	R("POST /v1/cdsl-pledges/undertaking", s.cplUndertaking, true)
 	R("GET /v1/cdsl-epi", s.epiScreen, false)
 	R("POST /v1/cdsl-epi", s.epiEnter, true)
 	R("POST /v1/cdsl-epi/decide", s.epiDecide, true)
@@ -327,4 +328,16 @@ func (s *Server) epiHook(w http.ResponseWriter, r *http.Request) {
 	}
 	n, err := s.ops.CDSLEPIHook(r.Context(), r.PathValue("tenant"), body)
 	ok(w, map[string]int{"applied": n}, err)
+}
+
+func (s *Server) cplUndertaking(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Kind string `json:"kind"` // CF (invocation) or NP (pledge to a lender)
+		ID   string `json:"id"`
+		Ref  string `json:"ref"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	ok(w, map[string]bool{"ok": true}, s.ops.RecordPledgeUndertaking(r.Context(), tenant(r), actor(r), b.Kind, b.ID, b.Ref))
 }

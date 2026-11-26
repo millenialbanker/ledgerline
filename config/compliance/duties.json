@@ -9,7 +9,7 @@
    "group": "Trading",
    "title": "Report client-wise margin collected (EOD and peak) to each clearing corporation by T+5",
    "frequency": "Daily",
-   "due_text": "TMs/CMs report the margin collected from each client (EOD and peak) for each trade day; files must be in by the end of T+5 trading days (the 'sign-off date'). Master circular para 40.1.8: 'report to the Stock Exchange on T+5 day the actual short-collection/non-collection of all margins'.",
+   "due_text": "TMs/CMs report the margin collected from each client (EOD and peak) for each trade day; files must be in by the end of T+5 trading days (the 'sign-off date'). Master circular para 40.1.8: 'report to the Stock Exchange on T+5 day the actual short-collection/non-collection of all margins'. For a special session (Muhurat, a Saturday or holiday session) NSE Clearing notifies a revised cut-off: list the session day in the holding statement panel on Exchange files so it is expected, and record the notified date on the duty (Revised cut-off) so the calendar chases that date.",
    "rule": "TDAY+5",
    "applies": [
     "broker"
@@ -65,6 +65,12 @@
      "title": "Introduction of API facility in NMASS - Margins (commodity derivatives)",
      "url": "https://rhnvrm.github.io/stock-market-circulars/circulars/nse/2026/nse-2026-01-30-63464f8fe0307d57-introduction-of-api-facility-in-nmass-margins-co",
      "says": "NSE Clearing's margins API returns CM/TM/client margins and positions; it is download-only, with no upload of margin collected (mirror: rhnvrm)."
+    },
+    {
+     "issuer": "NSE Clearing",
+     "no": "NCL/CMPT/70409",
+     "title": "Muhurat trading: timings and reporting (Circular 0301/2025)",
+     "says": "Para 4: client margin reporting for the special session's trade date follows the revised cut-off NSE Clearing notifies, not the normal T+5."
     }
    ],
    "how": "upload",
@@ -90,7 +96,7 @@
     "Repeat per segment (CM, F&O, CD, commodity) and per clearing corporation (NSE Clearing, ICCL, MCXCCL); collateral with each CC is reported to that CC.",
     "Pass a short-collection penalty to a client only where NSE/INSP/64315 allows it (dishonoured cheque, disclosed hedge break)."
    ],
-   "changed": "The calendar's 'Within T+5 days' still holds: it means T+5 trading days (sign-off date), per CC schedules. Since the peak-margin framework (SEBI 2020/127), the report has both EOD and peak margin collected. Filing is with each clearing corporation, not with the exchanges; margin reporting is not one of NSE's common submissions (NSE/INSP/69184, 70505).",
+   "changed": "The calendar's 'Within T+5 days' still holds: it means T+5 trading days (sign-off date), per CC schedules. Since the peak-margin framework (SEBI 2020/127), the report has both EOD and peak margin collected. Filing is with each clearing corporation, not with the exchanges; margin reporting is not one of NSE's common submissions (NSE/INSP/69184, 70505). Revised cut-offs for special sessions and holidays (NCL/CMPT/70409 para 4) are now recorded per trade date with Revised cut-off.",
    "ledgerline": {
     "screen": "margin",
     "screen_name": "RMS & margin → Margin reporting",
@@ -1583,7 +1589,7 @@
    "group": "Trading",
    "title": "Tell the depositories (and any exchange that requires it) about STRs filed with FIU-IND",
    "frequency": "Monthly",
-   "due_text": "Depositories: CDSL by the 10th of the next month (STRs filed, if any, plus the number filed by the main DP); NSDL via e-PASS. Exchanges NSE/MSE/MCX/NCDEX: no monthly STR intimation circular was found; the calendar's 'within 7th' is unconfirmed.",
+   "due_text": "Depositories: CDSL by the 7th of the next month (STRs filed, if any, plus the number filed by the main DP; CDSL Master Circular for DPs para 19.1 item 11); NSDL via e-PASS. Exchanges NSE/MSE/MCX/NCDEX: no monthly STR intimation circular was found.",
    "rule": "D07",
    "applies": [
     "broker"
@@ -1635,11 +1641,11 @@
     "T22"
    ],
    "practice": [
-    "Where the firm is also a DP, file the month's STR information and count with CDSL by the 10th and with NSDL on e-PASS (see D03).",
+    "Where the firm is also a DP, file the month's STR information and count with CDSL by the 7th and with NSDL on e-PASS (see D03).",
     "For each exchange, keep a file note of any instruction received; give the STR count in NSE's half-yearly RBS data.",
     "Share only the count or reference the form asks for; STR contents stay confidential."
    ],
-   "changed": "No NSE, MSE, MCX or NCDEX circular requiring a monthly STR intimation was found. NSE asks for the STR count only half-yearly in RBS (NSE/INSP/70591). The CDSL deadline is the 10th, not the 7th. The depository part duplicates D03 for a broker that is also a DP."
+   "changed": "No NSE, MSE, MCX or NCDEX circular requiring a monthly STR intimation was found. NSE asks for the STR count only half-yearly in RBS (NSE/INSP/70591). The CDSL deadline is the 7th (CDSL Master Circular for DPs, March 2026, para 19.1 item 11). The depository part duplicates D03 for a broker that is also a DP."
   },
   {
    "id": "OB-COMPLAINTS",
@@ -1700,11 +1706,52 @@
    "practice": [
     "Submit the BSE monthly complaints data within 7 days of month end, as notice 20230406-15 prescribes."
    ],
-   "changed": "Use the 2025 Annexure B format: it has a SCORES 2.0 row, pending split under/over 3 months, and monthly and annual trends. No NSE, MCX or NCDEX monthly complaint submission was found; only BSE's notice 20230406-15. Not checked whether the NSE common-submission circulars cover the BSE item.",
+   "changed": "Use the 2025 Annexure B format: it has a SCORES 2.0 row, pending split under/over 3 months, and monthly and annual trends. MCX also takes a monthly complaints report on its IGRS portal within 7 days, NIL included: that is CC-T-MCX-COMPLAINTS. No NSE or NCDEX monthly complaint submission was found. Not checked whether the NSE common-submission circulars cover the BSE item.",
    "ledgerline": {
     "screen": "helpdesk",
     "screen_name": "Compliance → Investor complaints",
     "what": "Periodic work builds the month's complaints table (Investor complaints disclosure); publishing it on the website is this duty."
+   }
+  },
+  {
+   "id": "CC-T-MCX-COMPLAINTS",
+   "group": "Trading",
+   "title": "File last month's investor complaints report (NIL included) with MCX on the IGRS portal within 7 days",
+   "frequency": "Monthly",
+   "due_text": "Within 7 days of the end of each month, on MCX's investor grievance (IGRS) portal; a NIL submission when no complaint was received or pending.",
+   "rule": "D07",
+   "applies": [
+    "broker",
+    "member:MCX"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "MCX investor grievance redressal system (IGRS) on the MCX member portal",
+   "evidence": "The month's IGRS submission (or NIL submission) with MCX's acknowledgement; the complaints register it was built from",
+   "refs": [
+    {
+     "issuer": "MCX",
+     "no": "MCX/ISD/243/2026",
+     "title": "Master Circular - ISD (Investor Grievances and Arbitration), version 4",
+     "url": "https://www.mcxindia.com/circulars",
+     "says": "Members report the month's investor complaints on MCX's IGRS portal within 7 days of the month end, with a NIL submission when there are none (gap register rows MCX-0093 and MCX-0094; the paragraph and the circular's date are to confirm against the master circular)."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "MCX IGRS portal",
+    "detail": "Form on MCX's member portal; no API found.",
+    "url": "https://www.mcxindia.com/circulars"
+   },
+   "practice": [
+    "After month end take the month's complaints from Investor complaints (the same figures as the website table).",
+    "File them, or a NIL submission, on MCX's IGRS portal by the 7th and keep the acknowledgement."
+   ],
+   "changed": "New: the catalogue said no MCX monthly complaint filing existed; it does (MCX-0093/0094).",
+   "ledgerline": {
+    "screen": "helpdesk",
+    "screen_name": "Compliance → Investor complaints",
+    "what": "Investor complaints holds the register and builds the month's table the MCX report is filed from."
    }
   },
   {
@@ -1792,6 +1839,49 @@
     "screen_name": "Compliance → Surveillance & AML",
     "what": "Alerts closed as STR filed are recorded in Surveillance & AML; reports are filed on FIU-IND's FINGate 2.0."
    }
+  },
+  {
+   "id": "OB-CTR",
+   "group": "Trading",
+   "title": "File the cash transaction report (CTR) with FIU-IND by the 15th for a month with reportable cash transactions",
+   "frequency": "Monthly",
+   "due_text": "By the 15th of the succeeding month, for cash transactions of more than Rs 10 lakh (or integrally connected series of cash transactions within a month above it). No NIL report is filed with FIU-IND: in a month with nothing to report, record that in the firm's own file and file nothing.",
+   "rule": "D15",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "FIU-IND FINGate 2.0 (fingate.gov.in)",
+   "evidence": "FINGate Batch ID and Report IDs for a month with a CTR; for any other month, the Principal Officer's file note that there was nothing to report (not sent to FIU-IND)",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSDSECFATF/P/CIR/2024/78",
+     "date": "2024-06-06",
+     "title": "Master Circular: AML/CFT obligations under PMLA 2002",
+     "url": "https://nsdl.co.in/downloadables/pdf/2024-0077-_Policy-SEBI_Master_Circular_on_Guidelines_on_AML_Standards_and_CFT_Obligations_of_Securities_Market_Intermediaries_under_the_PMLA_2002_and_Rules_frame.pdf",
+     "says": "Para 74: CTRs by the 15th of the succeeding month; no NIL reports to be sent to FIU-IND (74(vi))."
+    },
+    {
+     "issuer": "FIU-IND",
+     "no": "PML (Maintenance of Records) Rules, 2005, rules 3 and 8",
+     "title": "Prevention of Money-laundering (Maintenance of Records) Rules, 2005",
+     "says": "Rule 3(1)(A)-(B): cash transactions above Rs 10 lakh, and integrally connected cash transactions above it in a month; rule 8: furnished to the Director, FIU-IND, by the 15th of the succeeding month."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "available",
+    "name": "FIU-IND FINGate 2.0 report submission API",
+    "detail": "See CC-T-FIU-FILINGS; Ledgerline files STRs through FINGate, CTRs are filed on the portal.",
+    "url": "https://fiuindia.gov.in/pdfs/quicklinks/User_Manual_FINGate_Reports.pdf"
+   },
+   "practice": [
+    "After month end check receipts and payments for cash transactions; a broker normally takes no cash from clients, so most months have nothing to report.",
+    "If there is a reportable transaction, file the CTR on FINGate 2.0 by the 15th and record the batch ID.",
+    "If not, mark the month done with a note that there was nothing to report. Do not send FIU-IND a NIL report."
+   ],
+   "changed": "Reworded: the earlier title offered a 'nil confirmation per firm policy'. SEBI's AML master circular para 74(vi) says no NIL reports are sent to FIU-IND."
   },
   {
    "id": "CC-T-FINGATE-CHECK",
@@ -2657,11 +2747,61 @@
     "Close non-compliances and file the auditor-certified ATR on the Internal Audit tab by 31 Jan / 31 Jul."
    ],
    "steps_from": "NSE internal audit circular for HY to 30 Sep 2025 (rhnvrm mirror, 3 Oct 2025) and ref. 47/2026 (TeamLease summary); NSE/INSP/69247; NSE/INSP/71579; SEBI 2016/95 s.4.2",
-   "changed": "Due 30 Nov / 31 May, plus a newer ATR stage by 31 Jan / 31 Jul (NSE/INSP/71579, from HY Sep 2025). Only exchange-empanelled auditors (NSE-empanelled for NSE, BSE-empanelled for BSE). Not a common submission: file with each exchange. Penalties now under NSE/INSP/73792.",
+   "changed": "Due 30 Nov / 31 May, plus a newer ATR stage by 31 Jan / 31 Jul (NSE/INSP/71579, from HY Sep 2025). Only exchange-empanelled auditors (NSE-empanelled for NSE, BSE-empanelled for BSE). Not a common submission: file with each exchange. Penalties now under NSE/INSP/73792. MCX's filing with its margin-penalty undertaking is CC-T-MCX-INTAUDIT.",
    "ledgerline": {
     "screen": "inspack",
     "screen_name": "Compliance → Inspection packs",
     "what": "Make the half-yearly internal audit pack for the auditor (Inspection packs), with the self-inspection results."
+   }
+  },
+  {
+   "id": "CC-T-MCX-INTAUDIT",
+   "group": "Trading",
+   "title": "MCX: file the half-yearly internal audit report with the signed margin-penalty undertaking on the Enhanced Supervision portal",
+   "frequency": "Half-yearly",
+   "due_text": "With each half-yearly internal audit report to MCX (within two months of the half year: 30 Nov and 31 May), the digitally signed undertaking of the proprietor, a partner or a designated director that the clearing corporation's penalties for short or non-collection of upfront margin are not passed on to clients (MCX/COMP/559/2026).",
+   "rule": "05-31,11-30",
+   "applies": [
+    "broker",
+    "member:MCX"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "MCX Enhanced Supervision portal (internal audit report and undertaking)",
+   "evidence": "MCX's acknowledgement of the report, the digitally signed undertaking, and the auditor's report",
+   "refs": [
+    {
+     "issuer": "MCX",
+     "no": "MCX/COMP/559/2026",
+     "title": "Internal audit of members (citing MCX/INSP/372/2022 and MCX/INSP/662/2024)",
+     "url": "https://www.mcxindia.com/circulars",
+     "says": "With each half-yearly internal audit report, submit on the Enhanced Supervision portal a digitally signed undertaking that clearing corporation penalties for short or non-collection of upfront margin are not passed on to clients (gap register row MCX-N0002; date to confirm)."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSD2/CIR/P/2016/95",
+     "date": "2016-09-26",
+     "title": "Enhanced Supervision of Stock Brokers / Depository Participants",
+     "url": "https://taxguru.in/sebi/enhanced-supervision-of-stock-brokersdepository-participants.html",
+     "says": "s.4: the half-yearly internal audit report is filed with each exchange within two months of the half year."
+    }
+   ],
+   "how": "auditor",
+   "api": {
+    "status": "portal",
+    "name": "MCX Enhanced Supervision portal",
+    "detail": "No API; the report and the undertaking are uploaded on the portal.",
+    "url": "https://www.mcxindia.com/circulars"
+   },
+   "practice": [
+    "Have an MCX-acceptable internal auditor audit the half year (the same audit as OB-INTAUDIT when the auditor covers MCX).",
+    "Sign the margin-penalty undertaking digitally (proprietor, partner or designated director) and upload it with the report on the Enhanced Supervision portal.",
+    "Check the nightly self-inspection margin_penalties before signing: it lists penalties passed to clients."
+   ],
+   "changed": "New (MCX-N0002): MCX's filing and its undertaking were only a step inside OB-INTAUDIT.",
+   "ledgerline": {
+    "screen": "inspack",
+    "screen_name": "Compliance → Inspection packs",
+    "what": "The internal audit pack holds the records for the auditor; the self-inspection margin_penalties shows whether any margin penalty reached a client."
    }
   },
   {
@@ -3091,6 +3231,44 @@
    ],
    "steps_from": "NSE/INSP/76769 (process steps, Annexure A) and NSE/INSP/73850 section 4; ENIT > NEW-TRADE > Trade > System Audit > System Audit Help File",
    "changed": "The calendar shows only 30 Nov. Type III is half-yearly with two report dates (30 Nov for April-September, 30 Jun for October-March), plus plan (5 Nov / 5 Jun) and ATR (28 Feb / 30 Sep) milestones. Only NSE-empanelled system auditors (NSE/INSP/69631)."
+  },
+  {
+   "id": "CC-T-BO-SOFTWARE-CRITERIA",
+   "group": "Trading",
+   "title": "Show the system auditor that the back-office software meets NSE's testing criteria (Annexure VII)",
+   "frequency": "Yearly",
+   "due_text": "With each system audit: the auditor checks the back-office software against NSE's criteria (Master Circular for Membership Compliance, Exhibit 33 Annexure VII): user rights and privileges, user and journal audit logs, no parallel client ledgers, back-dated entries locked beyond T-2, and the client ledger, trial balance, register of securities, bank book and UCC master in the standard formats. Dated with the preliminary audit report.",
+   "rule": "SYSPRELIM",
+   "applies": [
+    "broker",
+    "member:NSE"
+   ],
+   "role": "Admin",
+   "filed_with": "The system auditor (part of the system audit report on NSE ENIT)",
+   "evidence": "The criteria pack from Inspection packs (each criterion, how it is met, the setting or report that shows it) and the auditor's sign-off",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/COMP/73981",
+     "title": "Master Circular for Membership Compliance Department, Exhibit 33 Annexure VII",
+     "says": "Testing criteria for back-office software: user rights/privilege validation, user and JV audit logs, no parallel client ledgers, system lock of back-dated entries beyond T-2, standard-format client ledger, trial balance, register of securities, bank book and UCC master (as the gap register row NSE-N0015 lists them)."
+    }
+   ],
+   "how": "auditor",
+   "api": {
+    "status": "none",
+    "detail": "The auditor's work; nothing is submitted separately."
+   },
+   "practice": [
+    "Before the audit, check Self-inspection → backdated_lock passes (automatic lock of entries older than T-2).",
+    "Build the 'Back-office software criteria' pack on Inspection packs and give it to the auditor with the audit trail exports."
+   ],
+   "changed": "New (NSE-N0015).",
+   "ledgerline": {
+    "screen": "inspack",
+    "screen_name": "Compliance → Inspection packs",
+    "what": "The system audit pack maps each criterion to the setting or report that shows it; the nightly self-inspection checks the automatic T-2 lock."
+   }
   },
   {
    "id": "CC-T-CYBER-AUDIT-HALF",
@@ -3752,8 +3930,8 @@
    "group": "Trading",
    "title": "Report associate and subsidiary entities to NSE",
    "frequency": "Half-yearly",
-   "due_text": "Half-yearly under the RBS framework: first submission (position as on 31 Mar 2026) on or before 15 Nov 2026; any addition, deletion or change within 30 calendar days of the change.",
-   "rule": "ONCE:2026-11-15",
+   "due_text": "Half-yearly under the RBS framework. First submission (position as on 31 Mar 2026) by 15 Nov 2026 (NSE/COMP/76906). NSE has not yet set the dates for later half years: Ledgerline dates them 15 May (position as on 30 Sep) and 15 Nov (position as on 31 Mar), the same interval as the first; follow NSE's circular for each half year when it comes. A change in between is its own duty, CC-T-ASSOCIATE-CHANGES (within 30 days).",
+   "rule": "05-15,11-15",
    "applies": [
     "broker",
     "member:NSE"
@@ -3787,11 +3965,51 @@
     "Answer Yes/No for associate entities and for subsidiary entities; if both are No, click Submit.",
     "For each entity enter name, relationship, jurisdiction (Indian/IFSC/Overseas), PAN or 'PANNOTAPPL', registration no. (optional), regulator, sector and status.",
     "Use Add More / Remove as needed, then Submit.",
-    "For a later change, repeat with 'Changes as on' and the date of the change, within 30 days.",
     "Check it under Associate and Subsidiary MIS > Search > Detail Report (Excel)."
    ],
    "steps_from": "NSE/COMP/76906 (14 Oct 2026) submission and MIS steps",
-   "changed": "Circular found: NSE/COMP/76906 (14 Oct 2026). It is a common submission (file with NSE only). The first filing covers the position as on 31 Mar 2026; NSE has not yet set the later half-yearly due dates, and changes must be reported within 30 days, so this is also an event item."
+   "changed": "Circular found: NSE/COMP/76906 (14 Oct 2026). It is a common submission (file with NSE only). It is now dated every half year instead of once; a filing recorded against the one-time date still counts for 15 Nov 2026. Changes within 30 days are dated from the event (CC-T-ASSOCIATE-CHANGES)."
+  },
+  {
+   "id": "CC-T-ASSOCIATE-CHANGES",
+   "group": "Trading",
+   "title": "Report a change in associate or subsidiary entities to NSE within 30 days",
+   "frequency": "On event",
+   "due_text": "Any addition, deletion or change in associate or subsidiary entities: within 30 calendar days of the change (NSE/COMP/76906).",
+   "rule": "EVENT",
+   "event_within": "30d",
+   "applies": [
+    "broker",
+    "member:NSE"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "NSE ENIT > ENIT-NEW-Compliance > Compliance > Associate and Subsidiary > Associate and Subsidiary Submission ('Changes as on')",
+   "evidence": "ENIT submission for the change and the MIS 'Detail Report' export; the board or shareholding record of the change",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/COMP/76906",
+     "date": "2026-10-14",
+     "title": "Half-Yearly Submission of details of Associate/Subsidiary Entities",
+     "url": "https://nsearchives.nseindia.com/content/circulars/COMP76906.pdf",
+     "says": "Any addition, deletion or change in associates or subsidiaries is reported within 30 calendar days; members of other exchanges file with NSE only."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "NSE ENIT Associate and Subsidiary module",
+    "detail": "No API; web form.",
+    "url": "https://enit.nseindia.com/MemberPortal/"
+   },
+   "steps": [
+    "Open ENIT > ENIT-NEW-Compliance > Compliance > Associate and Subsidiary > Associate and Subsidiary Submission.",
+    "Choose 'Changes as on' and enter the date of the change.",
+    "Add, remove or correct the entity (name, relationship, jurisdiction, PAN or 'PANNOTAPPL', regulator, sector, status) and Submit within 30 days.",
+    "Check it under Associate and Subsidiary MIS > Search > Detail Report (Excel)."
+   ],
+   "steps_from": "NSE/COMP/76906 (14 Oct 2026) submission and MIS steps",
+   "changed": "New: the 30-day change report, split from CC-T-ASSOCIATE-ENTITIES so it is dated from the change."
   },
   {
    "id": "CC-T-ACCESSIBILITY-FIXES",
@@ -4111,10 +4329,10 @@
   {
    "id": "CC-D-STR-INTIMATION",
    "group": "DP",
-   "title": "Report STRs filed with FIU-IND to CDSL by the 10th and the STR count to NSDL on e-PASS",
+   "title": "Report STRs filed with FIU-IND to CDSL by the 7th and the STR count to NSDL on e-PASS",
    "frequency": "Monthly",
-   "due_text": "CDSL: by the 10th of the succeeding month (e.g. 10 May for April), both the information on STRs filed with FIU-IND, if any, and the number of STRs filed (main DP). NSDL: number of STRs filed, through e-PASS (NSDL/POLICY/2023/0153); the calendar's 'within 7th' was not confirmed.",
-   "rule": "D10",
+   "due_text": "CDSL: by the 7th of the succeeding month, the information on STRs filed with FIU-IND, if any, and the number filed (main DP) (CDSL Master Circular for DPs, CDSL/OPS/DP/POLCY/2026/257, para 19.1 item 11). CDSL's 2026-27 FAQ still says the 10th; the master circular's 7th is earlier and is followed. NSDL: number of STRs filed, through e-PASS (NSDL/POLICY/2023/0153).",
+   "rule": "D07",
    "applies": [
     "dp"
    ],
@@ -4122,6 +4340,13 @@
    "filed_with": "CDSL online mandatory submissions (auditweb.cdslindia.com); NSDL e-PASS",
    "evidence": "CDSL and NSDL submission acknowledgements for each month, including NIL months",
    "refs": [
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/OPS/DP/POLCY/2026/257",
+     "title": "CDSL Master Circular for Depository Participants (March 2026)",
+     "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx",
+     "says": "Para 19.1 (periodic submissions by DPs), item 11: information on STRs filed with FIU-IND, by the 7th of the following month."
+    },
     {
      "issuer": "CDSL",
      "no": "Demat CDSL Way II – Audit & Compliance FAQs 2026-27",
@@ -4166,10 +4391,10 @@
    ],
    "practice": [
     "After month end the Principal Officer counts STRs filed with FIU-IND (FINGate batch/report IDs).",
-    "Submit the count to CDSL online by the 10th, as NIL when none (as the calendar says), and the count to NSDL on e-PASS.",
-    "Do not send STR contents or client identities unless the form asks; keep the acknowledgement."
+    "Submit the information and the count to CDSL online by the 7th, and the count to NSDL on e-PASS.",
+    "Do not send STR contents or client identities unless the form asks; keep the acknowledgement. Nothing about STRs goes to the client."
    ],
-   "changed": "The CDSL deadline (10th) is confirmed. The CDSL FAQ does not say 'including NIL'. The NSDL day (calendar: 7th) and NIL requirement were not confirmed."
+   "changed": "Due date moved from the 10th to the 7th: the CDSL Master Circular for DPs (March 2026) para 19.1 item 11 sets the 7th; the FAQ's 10th is older. Whether CDSL wants a NIL entry is not stated in what was read; the NSDL day was not confirmed."
   },
   {
    "id": "CC-D-COMPLAINTS-DISCLOSURE",
@@ -4707,9 +4932,9 @@
   {
    "id": "CC-D-INTERNAL-ALERTS",
    "group": "DP",
-   "title": "Keep the monthly file of DP surveillance alerts (own and depository) and close them on time",
+   "title": "Work DP surveillance alerts (own and CDSL) within 45 days and report adverse findings to CDSL within 7 days",
    "frequency": "Monthly",
-   "due_text": "Dispose of each CDSL and own DP alert within 45 days of its generation (60 days for CDSL's half-yearly multiple-account alerts); identify adverse observations on the DP's own analysis within two months of the transaction and report each on CDSL's surveillance system within 7 days; file the quarterly status of alerts within 15 days of the quarter's end (CDSL DP2026-521)",
+   "due_text": "Dispose of each CDSL and own DP alert within 45 days of its generation (60 days for CDSL's half-yearly multiple-account alerts); identify adverse observations on the DP's own analysis within two months of the transaction and report each on CDSL's surveillance system within 7 days; file the quarterly status of alerts within 15 days of the quarter's end, its own duty CC-D-SURV-QUARTERLY (CDSL DP2026-521)",
    "rule": "D10",
    "applies": [
     "dp"
@@ -4720,7 +4945,7 @@
    "refs": [
     {
      "issuer": "CDSL",
-     "no": "DP2026-521",
+     "no": "CDSL/DP/SURV/2026/521",
      "date": "2026-07-31",
      "title": "Comprehensive Surveillance Framework for Depository Participants",
      "url": "https://www.cdslindia.com/eservices/Publications/Communique",
@@ -4732,7 +4957,7 @@
      "date": "2026-04-06",
      "title": "Surveillance obligation of Depository Participant - penalty provision",
      "url": "https://www.cdslindia.com/eservices/Publications/Communique",
-     "says": "Penalties for DP surveillance-obligation lapses; text not opened here."
+     "says": "Penalties for lapses in DP surveillance obligations (missed 45/60-day disposal, late adverse reports, late or missing quarterly reports); text not opened here."
     },
     {
      "issuer": "CDSL",
@@ -4740,7 +4965,7 @@
      "date": "2025-05-12",
      "title": "Surveillance obligation of DPs",
      "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx",
-     "says": "Earlier consolidated DP surveillance obligation; text not opened here."
+     "says": "Earlier consolidated DP surveillance obligation; superseded by CDSL/DP/SURV/2026/521."
     },
     {
      "issuer": "CDSL",
@@ -4782,6 +5007,55 @@
     "screen_name": "Compliance → Surveillance & AML",
     "what": "Surveillance & AML loads CDSL's surveillance and FIU alerts with a download log, raises the DP's own alerts, keeps each alert's due date (45 or 60 days), checklist, documents and adverse report, and the quarterly status for CDSL. The nightly self-inspection flags alerts past their due date, adverse observations not reported in 7 days, CDSL lists not downloaded and unchecked samples.",
     "check": "alerts_45"
+   }
+  },
+  {
+   "id": "CC-D-SURV-QUARTERLY",
+   "group": "DP",
+   "title": "Send CDSL the quarterly DP surveillance report (NIL included) within 15 days of the quarter",
+   "frequency": "Quarterly",
+   "due_text": "Within 15 days of each quarter end (15 Jan, 15 Apr, 15 Jul, 15 Oct), a NIL report included when there was nothing to report (CDSL/DP/SURV/2026/521).",
+   "rule": "01-15,04-15,07-15,10-15",
+   "applies": [
+    "cdsl"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "CDSL (online quarterly surveillance report, format of DP2024-552 as revised by CDSL/DP/SURV/2026/521)",
+   "evidence": "The quarter's report as filed (alerts brought forward, generated, disposed of, pending with reasons, adverse observations reported) and CDSL's acknowledgement; NIL reports too",
+   "refs": [
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/DP/SURV/2026/521",
+     "date": "2026-07-31",
+     "title": "Comprehensive Surveillance Framework for Depository Participants",
+     "url": "https://www.cdslindia.com/eservices/Publications/Communique",
+     "says": "DPs generate their own alerts on CDSL's themes and work CDSL's alerts; each alert is reviewed and disposed of within 45 days of generation (60 days for the half-yearly multiple-account alerts); adverse observations are reported to CDSL within 7 days; the quarterly surveillance report is due within 15 days of the quarter end, NIL included. Read from the gap register (rows DP-0301, CDSL-N0001-N0005) and a TeamLease summary; CDSL's page links the text."
+    },
+    {
+     "issuer": "CDSL",
+     "no": "DP2024-552",
+     "date": "2024-09-20",
+     "title": "Surveillance obligation DP & step to submit quarterly report in new format",
+     "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx",
+     "says": "The quarterly report's format and the steps to submit it; text not opened here."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "CDSL online submission",
+    "detail": "Form submission on CDSL's portal; no API found.",
+    "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx"
+   },
+   "practice": [
+    "After the quarter, count the DP alerts brought forward, generated (own and CDSL's), disposed of and pending, with reasons for any pending beyond 45 (or 60) days.",
+    "File the report on CDSL's portal within 15 days of the quarter end; file NIL when there were no alerts."
+   ],
+   "changed": "New: split out of CC-D-INTERNAL-ALERTS so the 15-day quarterly deadline is dated on the calendar (CDSL/DP/SURV/2026/521).",
+   "ledgerline": {
+    "screen": "surv",
+    "screen_name": "Compliance → Surveillance & AML",
+    "what": "Surveillance & AML holds the alerts and their decisions the quarterly counts come from."
    }
   },
   {
@@ -5276,6 +5550,47 @@
     "screen": "inspack",
     "screen_name": "Compliance → Inspection packs",
     "what": "Make the depository internal audit pack for the auditor (Inspection packs)."
+   }
+  },
+  {
+   "id": "CC-D-RISK-ASSESSMENT",
+   "group": "DP",
+   "title": "Submit CDSL's supervisory risk assessment template (main DP and live branches) every half year",
+   "frequency": "Half-yearly",
+   "due_text": "Every half year, online through web-CDAS, for the main DP and each live branch (CDSL Master Circular for DPs, para 19.1 item 8 and para 10.8). The day was not stated in what was read: Ledgerline dates it at the end of each half year (31 Mar, 30 Sep), the earliest it could be due; follow the date CDSL gives for each cycle.",
+   "rule": "03-31,09-30",
+   "applies": [
+    "cdsl"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "CDSL web-CDAS (supervisory risk assessment template)",
+   "evidence": "The template as submitted for the main DP and each live branch, with the figures behind each answer, and the web-CDAS acknowledgement",
+   "refs": [
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/OPS/DP/POLCY/2026/257",
+     "title": "CDSL Master Circular for Depository Participants (March 2026)",
+     "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx",
+     "says": "Para 19.1 item 8 and para 10.8: the Supervisory Risk Assessment Template, for the main DP and live branches, submitted online through web-CDAS every half year."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "CDSL web-CDAS",
+    "detail": "Form on web-CDAS; no API found.",
+    "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx"
+   },
+   "practice": [
+    "Before the cycle, download the template from web-CDAS and list the live branches.",
+    "Fill each answer from Ledgerline's records (BO accounts by status and category, DIS and off-market volumes, pledges, complaints, alerts, audit findings) and keep the export behind each figure.",
+    "Submit for the main DP and every live branch; keep the acknowledgement."
+   ],
+   "changed": "New (CDSL-N0036). The template's fields were not available here, so Ledgerline does not prefill it yet; the inspection pack for the depository holds the records the answers come from.",
+   "ledgerline": {
+    "screen": "inspack",
+    "screen_name": "Compliance → Inspection packs",
+    "what": "The depository inspection pack exports the BO accounts, DIS, transactions, requests and complaints the template's answers are taken from."
    }
   },
   {
@@ -6023,6 +6338,60 @@
    ],
    "steps_from": "CDSL/OPS/DP/POLCY/2025/27 (10 Jan 2025), Annexure A; CERT-In Directions No. 20(3)/2022-CERT-In",
    "changed": "CDSL also wants a quarterly cyber incident report within 15 days of each quarter, nil included (2025/27; 2026/685, Q2 FY27 due 15 Oct 2026). CDSL's 2025 communiqué cites SEBI's 2022 circular (SEBI/HO/MIRSD/TPD/P/CIR/2022/93) for the 6 hours; CSCRF (20 Aug 2024) now governs and adds reporting through SEBI's incident reporting portal."
+  },
+  {
+   "id": "CC-D-AIML-REPORT",
+   "group": "DP",
+   "title": "Send the depository the DP's AI & ML systems report (NIL included) within 15 days of each quarter",
+   "frequency": "Quarterly",
+   "due_text": "SEBI's circular SEBI/HO/MIRSD/DOS2/CIR/P/2019/10 para 6: the report on AI and ML applications and systems is submitted to the depository within 15 days of the end of each quarter, a NIL report when none is used. The exchanges have since moved the broker's report to half-yearly or yearly; no such change for DPs was read, so Ledgerline keeps the quarterly dates. The gap register (DP-0344) records a CDSL communique (CDSL/IS/DP/POLCY/2026/381) asking for it on CDSL Audit Web each year: confirm CDSL's current periodicity and mark the quarters it does not take as not due.",
+   "rule": "01-15,04-15,07-15,10-15",
+   "applies": [
+    "dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "CDSL Audit Web (DP's AI/ML report); NSDL e-PASS",
+   "evidence": "The report as filed (Annexure A answers, or NIL) and the depository's acknowledgement",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/DOS2/CIR/P/2019/10",
+     "date": "2019-01-04",
+     "title": "Reporting for Artificial Intelligence (AI) and Machine Learning (ML) applications and systems offered and used by market intermediaries",
+     "says": "Paras 3-5 and Annexure A: report AI/ML systems offered or used; para 6: stock brokers to the exchanges and DPs to the depositories within 15 days of the end of each quarter."
+    },
+    {
+     "issuer": "NSDL",
+     "no": "NSDL/POLICY/2023/0142",
+     "title": "Submission of AI and ML applications and systems usage report by all Participants",
+     "url": "https://nsdl.co.in/downloadables/pdf/2023-0142-Policy-Submission_of_Artificial_Intelligence_and_Machine_Learning_applications_and_systems_usage_report_by_all_Participants.pdf",
+     "says": "NSDL's instruction to Participants for the same report; text not opened here."
+    },
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/IS/DP/POLCY/2026/381",
+     "title": "AI/ML applications and systems report by DPs (as the gap register records it)",
+     "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx",
+     "says": "Recorded in the gap register (DP-0344) as a yearly submission on CDSL Audit Web, NIL included; text not opened here."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "CDSL Audit Web / NSDL e-PASS",
+    "detail": "Form submissions; no API found.",
+    "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx"
+   },
+   "practice": [
+    "Take the answers from Exchange disclosures (AI & ML tab): the same AI inventory answers the exchange report uses.",
+    "File them on the depository's portal, or a NIL report when no AI or ML system was used, and keep the acknowledgement."
+   ],
+   "changed": "New (CYBER-0300): the broker's report to the exchanges was on the calendar, the DP's to the depository was not.",
+   "ledgerline": {
+    "screen": "exdisc",
+    "screen_name": "Compliance → Exchange disclosures",
+    "what": "Exchange disclosures builds the AI & ML answers from the AI inventory; file the same answers with the depository."
+   }
   },
   {
    "id": "CC-D-MNRL",
@@ -8090,6 +8459,72 @@
     "screen_name": "Compliance → KYC & PMLA → Sanctions",
     "what": "KYC & PMLA → Sanctions → Record a FATF statement: every client linked to a listed jurisdiction (nationality, birth, tax residence, controlling persons) gets an EDD item, all clients are screened again, and this event is recorded."
    }
+  },
+  {
+   "id": "CC-T-CLOSING-AUCTION",
+   "group": "Trading",
+   "title": "Get ready for NSE's Closing Auction Session in the cash market (from 7 Dec 2026)",
+   "frequency": "One time",
+   "due_text": "Before the Closing Auction Session (CAS) starts on 7 December 2026 for cash-market stocks with derivatives: take NSE's revised security master and contract files, set the trading front end's session times and order types (market and limit orders only in CAS), test in NSE's mock sessions, and tell clients that the day's closing price of these stocks is the auction price.",
+   "rule": "ONCE:2026-12-07",
+   "applies": [
+    "broker"
+   ],
+   "role": "Ops checker",
+   "filed_with": "Nothing to file: readiness of the trading front end and the back office",
+   "evidence": "Revised security master loaded, front-end vendor's confirmation of the CAS release and session times, mock session results, client communication",
+   "steps": [
+    "Read NSE's latest CAS circulars for the session times and the phase's securities: they have been revised since the first circular, so use the latest.",
+    "Load NSE's revised security master on Exchange files once it carries the CAS fields (NSE/CMTR/73845), and confirm the trading front end (Finspot, BOW) takes it.",
+    "Get the front-end vendor's confirmation that CAS orders, the 3% band around the reference price and the order types allowed are handled; take part in NSE's mock sessions.",
+    "Check the next morning's bhavcopy and margins after the first CAS day: closing prices of CAS stocks are the auction price, which values holdings, collateral and the settlement price for shortages."
+   ],
+   "ledgerline": {
+    "screen": "xfiles",
+    "screen_name": "Files → Exchange files",
+    "what": "Ledgerline reads the day's closing price from the bhavcopy, so CAS prices flow into valuations, margins and the settlement price of internal shortages without change; the security master's new fields are kept as loaded. The session itself is the trading front end's."
+   },
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/CMTR/72394",
+     "date": "2026-01-19",
+     "title": "Introduction of Closing Auction Session in Equity Cash Segment and modification in Pre-Open Auction Session",
+     "url": "https://nsearchives.nseindia.com/content/circulars/CMTR72394.pdf",
+     "says": "Introduces CAS for cash-market stocks with derivatives (phase 1), as listed on NSE's CAS page."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/CMTR/73362",
+     "date": "2026-03-18",
+     "title": "Operational guidelines and SOP for Closing Auction Session",
+     "url": "https://nsearchives.nseindia.com/content/circulars/CMTR73362.pdf",
+     "says": "Operational guidelines and standard operating procedure (subject line as listed on NSE's CAS page; not read in full)."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/CMTR/73845",
+     "date": "2026-04-22",
+     "title": "Changes in security master files on account of Closing Auction Session",
+     "url": "https://nsearchives.nseindia.com/content/circulars/CMTR73845.pdf",
+     "says": "Security master file changes for CAS (subject line as listed on NSE's CAS page; field details not read)."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/CMTR/74466",
+     "date": "2026-05-29",
+     "title": "Trading modalities of Closing Auction Session in Equity Cash segment",
+     "url": "https://nsearchives.nseindia.com/content/circulars/CMTR74466.pdf",
+     "says": "CAS trading modalities (subject line as listed on NSE's CAS page). Two further NSE circulars of 6 Nov 2026, reported in the press, set the start on 7 Dec 2026 and revised session times; their numbers are to be confirmed."
+    }
+   ],
+   "changed": "Added 23 Nov 2026 (gap NSE2-N0022): start date from the press reports of NSE's circulars of 6 Nov 2026, to confirm against the circulars themselves; session times are left to the latest circular because NSE's CAS page and the November reports differ.",
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Nothing is filed. The session runs in the exchange and the trading front end; the back office takes the revised security master and the bhavcopy."
+   },
+   "steps_from": "NSE/CMTR/73845 and NSE/CMTR/74466 (as listed on NSE's CAS page; the steps are the firm's readiness checklist)"
   }
  ]
 }

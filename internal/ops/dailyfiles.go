@@ -228,6 +228,10 @@ var DailyFiles = []DailyFile{
 	{ID: "ncl-var", Title: "NSE Clearing VaR file", Format: "ncl-var", Party: "NCL", Segments: []string{"CM"}, Direction: "in", At: "08:30"},
 	{ID: "ncl-haircut", Title: "NSE Clearing haircuts (approved securities)", Format: "ncl-cb-haircut", Party: "NCL", Segments: []string{"CM", "FO", "CD"}, Direction: "in", At: "08:30"},
 	{ID: "ncl-mg13", Title: "NSE Clearing client margin file (MG13)", Format: "ncl-span-client", Party: "NCL", Segments: all3, Direction: "in", At: "20:00"},
+	{ID: "ncl-sa01", Title: "NSE Clearing intraday short allocation (SA01, each snapshot)", Format: "ncl-sa01", Party: "NCL", Segments: all3, Direction: "in", At: "17:00", Intraday: true},
+	{ID: "ncl-sa03", Title: "NSE Clearing intraday short allocation for trading members' clients (SA03)", Format: "ncl-sa03", Party: "NCL", Segments: all3, Direction: "in", At: "17:00", Intraday: true},
+	{ID: "ncl-intshort", Title: "NSE Clearing internal shortages to auction (CM_SA_S)", Format: "ncl-internal-shortage", Party: "NCL", Segments: []string{"CM"}, Direction: "in", At: "10:30", Intraday: true},
+	{ID: "ncl-epif", Title: "NSE Clearing early pay-in of funds allocation (CEPF)", Format: "ncl-epif-allocation", Party: "NCL", Segments: []string{"CM"}, Direction: "in", At: "20:00", Intraday: true},
 	{ID: "ncl-sa04", Title: "NSE Clearing short allocation (SA04)", Format: "ncl-short-allocation", Party: "NCL", Segments: all3, Direction: "in", At: "20:00"},
 	{ID: "ncl-nmass", Title: "NSE Clearing N-MASS collateral", Format: "ncl-nmass-cm", Party: "NCL", Segments: []string{"CM"}, Direction: "in", At: "20:00"},
 	{ID: "ncl-nmass-fo", Title: "NSE Clearing N-MASS collateral (F&O)", Format: "ncl-nmass-fo", Party: "NCL", Segments: []string{"FO", "CD"}, Direction: "in", At: "20:00"},
@@ -276,6 +280,7 @@ var DailyFiles = []DailyFile{
 	{ID: "mcx-intrasar", Title: "MCXCCL intraday short allocation (INTRASAR)", Format: "mcx-intraday-short-allocation", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "09:00", NextDay: true, TMLevel: true},
 	{ID: "mcx-mrg", Title: "Margin reporting file to MCXCCL", Format: "mcx-margin-reporting", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "out", At: "12:00", NextDay: true, TMLevel: true},
 	{ID: "mcx-ncmr", Title: "MCXCCL margin shortfall and penalty (NCMR)", Format: "mcx-ncmr", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "20:00", NextDay: true, TMLevel: true},
+	{ID: "mcx-mrgshort", Title: "MCXCCL margin shortage file (MCX_MARGINSHORTAGE)", Format: "mcx-margin-shortage", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "09:00", NextDay: true, TMLevel: true},
 	{ID: "mcx-penalty", Title: "MCXCCL penalty file (UDiFF)", Format: "mcxccl-penalty", Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "20:00", NextDay: true, TMLevel: true},
 	// CDSL, for a firm that is a CDSL DP (listed when the CDSL connection
 	// has a DP ID or a CDSL member code is set; cdslDPFirm).

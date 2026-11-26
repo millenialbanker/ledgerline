@@ -166,7 +166,7 @@ func TestInspectionPackTemplates(t *testing.T) {
 		t.Fatalf("edit %v %+v", err, saved)
 	}
 	all, _ := o.PackTemplates(ctx, T)
-	if len(all) != 6 || all[5].ID != "TPL-0001" {
+	if len(all) != 7 || all[6].ID != "TPL-0001" {
 		t.Fatalf("templates %d", len(all))
 	}
 	if err := o.DeletePackTemplate(ctx, T, packCO, "std-sebi"); !errors.Is(err, ErrInvalid) {
@@ -175,7 +175,7 @@ func TestInspectionPackTemplates(t *testing.T) {
 	if err := o.DeletePackTemplate(ctx, T, packCO, "TPL-0001"); err != nil {
 		t.Fatal(err)
 	}
-	if all, _ = o.PackTemplates(ctx, T); len(all) != 5 {
+	if all, _ = o.PackTemplates(ctx, T); len(all) != 6 {
 		t.Fatalf("deleted template still listed")
 	}
 	if _, err := o.packTemplate(ctx, T, "TPL-0001"); !errors.Is(err, ErrNotFound) {

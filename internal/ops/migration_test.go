@@ -162,7 +162,7 @@ func mkPkg(t *testing.T, s mspec) []byte {
 		d := time.Date(2025, 5, 2, 0, 0, 0, 0, time.UTC)
 		for _, x := range []pkg.DocMeta{{ID: "CN-1", UCC: "TA001", Type: pkg.DocContractNote, Date: d, FY: "2025-26", Signed: true, Format: "pdf"},
 			{ID: "CN-2", UCC: "TB002", Type: pkg.DocContractNote, Date: d, FY: "2025-26", Signed: true, Format: "pdf"},
-			{ID: "ST-OLD", UCC: "TA001", Type: pkg.DocStatement, Date: time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC), FY: "2024-25", Format: "pdf", RetainUntil: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)}} {
+			{ID: "ST-OLD", UCC: "TA001", Type: pkg.DocStatement, Date: time.Date(2015, 6, 1, 0, 0, 0, 0, time.UTC), FY: "2024-25", Format: "pdf", RetainUntil: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)}} {
 			if err := w.AddDocument("01", x, []byte("%PDF-1.4 made-up document "+x.ID)); err != nil {
 				t.Fatal(err)
 			}
@@ -533,7 +533,7 @@ func TestMigLoadReconcileHistoryArchiveUndo(t *testing.T) {
 		t.Fatalf("downloads audited: %v", downloads)
 	}
 	// Retention and legal hold.
-	if _, err := o.DeleteArchived(ctx, MT, "comp.one", "TA001", "CN-1", "tidy up"); err == nil || !strings.Contains(err.Error(), "kept until 2033-05-02") {
+	if _, err := o.DeleteArchived(ctx, MT, "comp.one", "TA001", "CN-1", "tidy up"); err == nil || !strings.Contains(err.Error(), "kept until 2035-05-02") {
 		t.Fatalf("deleted before RetainUntil: %v", err)
 	}
 	if _, err := o.DeleteArchived(ctx, MT, "chk.one", "TA001", "ST-OLD", "tidy up"); !errors.Is(err, ErrForbidden) {
