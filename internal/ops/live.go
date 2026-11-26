@@ -106,6 +106,11 @@ type LiveRow struct {
 	Blocked    bool       `json:"blocked"`
 	Short      []string   `json:"short_delivery"`
 	Trades     int        `json:"trades"`
+	// EPIRule is set from the firm's effective date (RMS → Position limits
+	// → Settings) when the client squared off a sale backed by early
+	// pay-in, or took a new cash position, without the required margin
+	// available (SEBI HO/(320)2026-MRD-POD2/I/24141/2026).
+	EPIRule string `json:"epi_rule,omitempty"`
 	// Ledgers is set with a separate commodity ledger (segledger.go):
 	// the row above is then the equity ledger against NSE and BSE
 	// positions, and this the commodity ledger against MCX.
@@ -268,9 +273,16 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 	// Shares CDSL accepted for early pay-in are delivered: a sale they
 	// cover is not a short delivery. Holdings are the morning's, so they
 	// may still include those shares; the larger of the two counts.
-	for k, q := range o.epiCovered(ctx, tenant, date) {
+	epi := o.epiCovered(ctx, tenant, date)
+	for k, q := range epi {
 		held[k] = max(held[k], q)
 	}
+	epiSold := map[string][]string{} // ucc -> symbols sold with early pay-in
+	for _, k := range sortedKeys(epi) {
+		u, sym, _ := strings.Cut(k, "|")
+		epiSold[u] = append(epiSold[u], sym)
+	}
+	epiRule := date >= in.lim.EPIMarginFrom
 	exMargin, exAt, _ := o.NCLMClientMargins(ctx, tenant, date)
 	if exMargin == nil {
 		exMargin = map[string]money.Dec{}
@@ -385,6 +397,34 @@ func (o *Ops) LiveRisk(ctx context.Context, tenant, date, until string) (LiveVie
 				h = h.Add(v)
 			}
 			r.PayoutHold, r.Free = &h, r.Free.Sub(h)
+		}
+		if epiRule && len(epiSold[u]) > 0 && r.Free.Round(money.UnitPaisa) < 0 {
+			// The client's buys today: a buy of a symbol sold with early
+			// pay-in squares that sale off; any other buy is a new position.
+			var sq, fresh []string
+			for _, l := range cmLegs[u] {
+				sym := strings.Split(l.key, "|")[0]
+				switch {
+				case l.bq == 0:
+				case contains(epiSold[u], sym):
+					sq = append(sq, sym)
+				default:
+					fresh = append(fresh, sym)
+				}
+			}
+			if len(sq)+len(fresh) > 0 {
+				sort.Strings(sq)
+				sort.Strings(fresh)
+				var what []string
+				if len(sq) > 0 {
+					what = append(what, "squared off early pay-in sales in "+strings.Join(sq, ", "))
+				}
+				if len(fresh) > 0 {
+					what = append(what, "took new cash positions in "+strings.Join(fresh, ", "))
+				}
+				r.EPIRule = fmt.Sprintf("%s %s with ₹%s of required margin not available. From %s such a trade needs the margin actually with the firm; the clearing corporation blocks the resulting position. Block further buys until the margin comes in.",
+					u, strings.Join(what, " and "), formatINR(r.Free.Neg()), fmtDay(in.lim.EPIMarginFrom))
+			}
 		}
 		switch {
 		case r.Free.Round(money.UnitPaisa) < 0 && (r.Margin.Sign() > 0 || r.MTM.Sign() < 0 || r.Auction.Sign() > 0):

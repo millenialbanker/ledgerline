@@ -366,11 +366,11 @@ func TestStatementsSent(t *testing.T) {
 	if err != nil || len(dp.Errors) > 0 {
 		t.Fatalf("dp %+v %v", dp, err)
 	}
-	wk, err := o.SendStatements(ctx, T, "priya.nair", DocFundsSec, lastFriday(addDays(D, 3)))
+	wk, err := o.SendStatements(ctx, T, "priya.nair", DocFundsSec, lastSaturday(addDays(D, 3)))
 	if err != nil || wk.Sent == 0 || len(wk.Errors) > 0 {
 		t.Fatalf("weekly %+v %v", wk, err)
 	}
-	if wk2, _ := o.SendStatements(ctx, T, "priya.nair", DocFundsSec, lastFriday(addDays(D, 3))); wk2.Sent != 0 || wk2.Skipped < wk.Sent {
+	if wk2, _ := o.SendStatements(ctx, T, "priya.nair", DocFundsSec, lastSaturday(addDays(D, 3))); wk2.Sent != 0 || wk2.Skipped < wk.Sent {
 		t.Fatalf("weekly again %+v", wk2)
 	}
 	t.Logf("margin %+v ledger %+v dp %+v weekly %+v", r, l, dp, wk)

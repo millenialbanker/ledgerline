@@ -199,9 +199,9 @@ var siTests = []SITest{
 		Fix:       "Make and upload the files on Exchange files; correct the rejected records and send them again.",
 		Screen:    "xfiles", ScreenName: "Files → Exchange files", Real: true, run: siSEGMON},
 	{ID: "weekly_statement", Title: "Weekly statement of funds and securities sent", Area: "Clients", Severity: "medium", Owner: RoleMaker,
-		Source:    "NSE/INSP/47227 of 3 Feb 2021; NSE/INSP/48431 (29/2021) of 28 May 2021: within the next four trading days",
-		ToConfirm: "The 2025 investor charter lists monthly statements of accounts: confirm the weekly statement still applies.",
-		Checks:    "The last two weeks whose four trading days have passed: the statements sent.",
+		Source:    "NSE/INSP/73976 (Inspection master circular), item 4.5: the week Monday to Saturday, sent within the next four trading days; NSE/INSP/53820 FAQ 9",
+		ToConfirm: "Coverage is checked for active clients who traded in the 12 months to the week (the FAQ 9 exemption); others with a balance are sent the statement but not counted here.",
+		Checks:    "The last two weeks (Monday to Saturday) whose four trading days have passed: the statements sent, and to every active client who traded in the last 12 months, zero balances included.",
 		Fix:       "Send the week's statements on Periodic work (or Dispatch register).",
 		Screen:    "periodic", ScreenName: "Calendar & circulars → Periodic work", Real: true, run: siWeekly},
 	{ID: "debarred_trades", Title: "No trades by debarred clients", Area: "Compliance", Severity: "high", Owner: RoleCompliance,
@@ -1181,28 +1181,47 @@ func siWeekly(e *siEnv) (siOut, error) {
 	t, _ := periodicTask("funds_securities")
 	var s siOut
 	ds, _ := docs.List[Dispatch](e.ctx, e.o.Docs, e.tenant, cDispatch, "")
-	sent := map[string]bool{}
+	sent := map[string]map[string]bool{}
 	for _, d := range ds {
-		if d.Kind == DocFundsSec {
-			sent[d.Date] = true
+		if d.Kind == DocFundsSec && d.Status != "Failed" && d.Status != "Held" {
+			if sent[d.Date] == nil {
+				sent[d.Date] = map[string]bool{}
+			}
+			sent[d.Date][d.UCC] = true
 		}
 	}
-	fri := lastFriday(e.date)
+	cs, _ := e.o.Clients(e.ctx, e.tenant)
+	// The week runs Monday to Saturday (NSE/INSP/73976, item 4.5).
+	sat := lastSaturday(e.date)
 	for k := 0; k < 6 && s.checked < 2; k++ {
-		due := addTradingDays(e.set, fri, 4)
-		if due < e.date && fri >= since {
+		due := addTradingDays(e.set, sat, 4)
+		if due < e.date && sat >= since {
 			s.checked++
-			s.input("Weekly statements", fri)
-			if done, _ := e.o.periodicDone(e.ctx, e.tenant, t, fri, e.date); !done && !sent[fri] {
-				s.bad(fmt.Sprintf("Week %s to %s · not sent (due by %s)", fmtDay(addDays(fri, -6)), fmtDay(fri), fmtDay(due)))
+			s.input("Weekly statements", sat)
+			done, _ := e.o.periodicDone(e.ctx, e.tenant, t, sat, e.date)
+			switch {
+			case len(sent[sat]) == 0 && !done:
+				s.bad(fmt.Sprintf("Week %s to %s · not sent (due by %s)", fmtDay(addDays(sat, -5)), fmtDay(sat), fmtDay(due)))
+			case len(sent[sat]) > 0:
+				// Every active client, zero balances included.
+				var missed []string
+				for _, c := range cs {
+					if c.Status == "Active" && fsRecentTrader(c, sat) && !sent[sat][c.UCC] {
+						missed = append(missed, c.UCC)
+					}
+				}
+				if len(missed) > 0 {
+					s.found += len(missed) - 1
+					s.bad(fmt.Sprintf("Week %s to %s · %d active clients not sent the statement: %s", fmtDay(addDays(sat, -5)), fmtDay(sat), len(missed), siList(missed, 8)))
+				}
 			}
 		}
-		fri = addDays(fri, -7)
+		sat = addDays(sat, -7)
 	}
 	if s.checked == 0 {
 		return siSkip("Nothing to check yet: no week since the first trade has passed its four trading days.", s.inputs...)
 	}
-	s.summary = fmt.Sprintf("%d weeks checked; %d not sent.", s.checked, s.found)
+	s.summary = fmt.Sprintf("%d weeks checked; %d problems.", s.checked, s.found)
 	return s, nil
 }
 

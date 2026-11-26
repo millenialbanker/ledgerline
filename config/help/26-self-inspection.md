@@ -61,7 +61,10 @@ Each test reuses the check Ledgerline already makes on its own screen. All are r
 - **Alerts decided within 45 days** (high): NSE/SURV/48818 of 1 July 2021, kept in NSE/SURV/74008 of 30 April 2026.
 - **Holding statement sent each day** (high): NSE/INSP/55039 of 28 December 2022; NCL/INSP/60046 of 29 December 2023 (T+1).
 - **Client collateral (SEGMON) reported each day** (high): SEBI/HO/MRD2_DCAP/CIR/2021/0598 of 20 July 2021.
-- **Weekly statement of funds and securities** (medium): NSE/INSP/47227 of 3 February 2021 and NSE/INSP/48431 of 28 May 2021; to confirm that it still applies, since the 2025 investor charter lists monthly statements.
+- **Weekly statement of funds and securities** (medium): NSE/INSP/73976 (Inspection master circular) item 4.5, the week Monday to Saturday sent within four trading days, to every active client who traded in the last 12 months (NSE/INSP/53820 FAQ 9).
+- **Annual global statement sent within 30 days of the year's end** (medium): NSE/INSP/73976 item 4.17 and Exhibit 30; SEBI master circular 2025/90, para 23.9.
+- **Referral rewards paid only to registered authorised persons** (high): NSE/INSP/73976 item 4.21; MCX/INSP/255/2026 para 9.9(a).
+- **Clients told of SCORES and SMART ODR when a complaint stays unresolved** (medium): SEBI master circular 2025/90, Annex 37; NSE/ISC/73908, Part A 7.2.
 - **No trades by debarred clients** (high): SEBI's debarment orders as the exchanges circulate them; needs the debarred list loaded with PANs.
 - **Client details match the exchanges' UCC records** (medium): NSE/ISC/73973 of 30 April 2026 and the exchanges' UCC answers.
 - **Client details at the exchanges match Ledgerline** (medium): the exchanges' UCC downloads of the last 45 days and what NSE's UCC API last accepted, field by field (PAN, mobile, e-mail, primary bank account, address); NSE/ISC/73973 and NSE/INSP/73503 items 46 and 47.

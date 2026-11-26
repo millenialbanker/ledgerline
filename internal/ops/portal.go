@@ -619,6 +619,10 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 		return r, err
 	}
 	o.log(ctx, tenant, actor, "change.requested", r.ID, map[string]any{"ucc": ucc, "kind": kind, "source": src})
+	if kind == "Nomination" {
+		what := map[string]string{"Opted in": "nomination received", "Opted out": "opt-out declaration received"}[r.New["nominee"]]
+		o.nominationAck(ctx, tenant, actor, ucc, firstOf(what, "request received"), r.ID, "")
+	}
 	if len(bankSends) > 0 {
 		dev := o.sendBankAuth(ctx, tenant, actor, c, r, bankSends)
 		if x, _, err := docs.Get[ChangeRequest](ctx, o.Docs, tenant, cChange, r.ID); err == nil {
@@ -763,6 +767,11 @@ func (o *Ops) DecideChange(ctx context.Context, tenant, actor, id string, approv
 		o.log(ctx, tenant, actor, "change."+strings.ToLower(r.Status), id, map[string]any{"ucc": r.UCC, "kind": r.Kind, "reason": reason})
 		if approve && r.Kind == "Mobile" {
 			o.mnrlSync(ctx, tenant, actor) // a number on DoT's revocation list replaced (mnrl.go)
+		}
+		if approve && r.Kind == "Nomination" {
+			if c, err := o.Client(ctx, tenant, r.UCC); err == nil {
+				_, _ = o.registerNomination(ctx, tenant, actor, c, r.Old["nominee"], r.ID)
+			}
 		}
 		o.notify(ctx, tenant, actor, "change."+strings.ToLower(r.Status), r.UCC, map[string]string{"kind": r.Kind, "id": r.ID, "reason": reason})
 	}

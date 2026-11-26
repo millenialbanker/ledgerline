@@ -317,7 +317,7 @@ func TestCDSLBOFilesInTheFlow(t *testing.T) {
 	if err != nil || !strings.HasPrefix(name, "06010900.") || len(z) == 0 {
 		t.Fatalf("signature: %s %v", name, err)
 	}
-	dpr, err := o.RaiseDPRequest(ctx, T, "priya.nair", DPRequest{Kind: "Closure", UCC: n.UCC, Detail: map[string]string{"transfer_to": "1304140000000352"}})
+	dpr, err := o.RaiseDPRequest(ctx, T, "priya.nair", DPRequest{Kind: "Closure", UCC: n.UCC, Detail: map[string]string{"transfer_to": "1304140000000352", "target_pan": n.PAN}})
 	if err != nil {
 		t.Fatal(err)
 	}

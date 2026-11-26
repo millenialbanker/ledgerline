@@ -396,6 +396,17 @@ func (o *Ops) ConnectedGroups(ctx context.Context, tenant, actor string) ([]Conn
 	if err := o.require(ctx, tenant, actor, "Seeing connected clients", RoleCompliance, RoleChecker); err != nil {
 		return nil, err
 	}
+	return o.connectedGroupsAs(ctx, tenant, actor)
+}
+
+// connectedGroupsSys is ConnectedGroups for Ledgerline's own checks (the
+// split of positions across connected clients' codes, rmslimits.go).
+func (o *Ops) connectedGroupsSys(ctx context.Context, tenant string) []ConnectedGroup {
+	gs, _ := o.connectedGroupsAs(ctx, tenant, SystemActor)
+	return gs
+}
+
+func (o *Ops) connectedGroupsAs(ctx context.Context, tenant, actor string) ([]ConnectedGroup, error) {
 	cs, err := o.ClientMap(ctx, tenant)
 	if err != nil {
 		return nil, err
