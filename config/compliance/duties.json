@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updated": "2026-11-23",
+ "updated": "2026-11-26",
  "source": "A broker's compliance calendar for November 2026 (Trading, DP and RA & IA sheets; PMS left out), each item checked against the circulars in force on 17 November 2026.",
  "note": "Each duty: the circulars that set it, the steps a circular lists (else the usual practice), how it is done and whether by API, and what in Ledgerline does or checks it.",
  "duties": [
@@ -9,7 +9,7 @@
    "group": "Trading",
    "title": "Report client-wise margin collected (EOD and peak) to each clearing corporation by T+5",
    "frequency": "Daily",
-   "due_text": "TMs/CMs report the margin collected from each client (EOD and peak) for each trade day; files must be in by the end of T+5 trading days (the 'sign-off date'). Master circular para 40.1.8: 'report to the Stock Exchange on T+5 day the actual short-collection/non-collection of all margins'.",
+   "due_text": "TMs/CMs report the margin collected from each client (EOD and peak) for each trade day; files must be in by the end of T+5 trading days (the 'sign-off date'). Master circular para 40.1.8: 'report to the Stock Exchange on T+5 day the actual short-collection/non-collection of all margins'. For a special session (Muhurat, a Saturday or holiday session) NSE Clearing notifies a revised cut-off: list the session day in the holding statement panel on Exchange files so it is expected, and record the notified date on the duty (Revised cut-off) so the calendar chases that date.",
    "rule": "TDAY+5",
    "applies": [
     "broker"
@@ -65,6 +65,12 @@
      "title": "Introduction of API facility in NMASS - Margins (commodity derivatives)",
      "url": "https://rhnvrm.github.io/stock-market-circulars/circulars/nse/2026/nse-2026-01-30-63464f8fe0307d57-introduction-of-api-facility-in-nmass-margins-co",
      "says": "NSE Clearing's margins API returns CM/TM/client margins and positions; it is download-only, with no upload of margin collected (mirror: rhnvrm)."
+    },
+    {
+     "issuer": "NSE Clearing",
+     "no": "NCL/CMPT/70409",
+     "title": "Muhurat trading: timings and reporting (Circular 0301/2025)",
+     "says": "Para 4: client margin reporting for the special session's trade date follows the revised cut-off NSE Clearing notifies, not the normal T+5."
     }
    ],
    "how": "upload",
@@ -90,7 +96,7 @@
     "Repeat per segment (CM, F&O, CD, commodity) and per clearing corporation (NSE Clearing, ICCL, MCXCCL); collateral with each CC is reported to that CC.",
     "Pass a short-collection penalty to a client only where NSE/INSP/64315 allows it (dishonoured cheque, disclosed hedge break)."
    ],
-   "changed": "The calendar's 'Within T+5 days' still holds: it means T+5 trading days (sign-off date), per CC schedules. Since the peak-margin framework (SEBI 2020/127), the report has both EOD and peak margin collected. Filing is with each clearing corporation, not with the exchanges; margin reporting is not one of NSE's common submissions (NSE/INSP/69184, 70505).",
+   "changed": "The calendar's 'Within T+5 days' still holds: it means T+5 trading days (sign-off date), per CC schedules. Since the peak-margin framework (SEBI 2020/127), the report has both EOD and peak margin collected. Filing is with each clearing corporation, not with the exchanges; margin reporting is not one of NSE's common submissions (NSE/INSP/69184, 70505). Revised cut-offs for special sessions and holidays (NCL/CMPT/70409 para 4) are now recorded per trade date with Revised cut-off.",
    "ledgerline": {
     "screen": "margin",
     "screen_name": "RMS & margin → Margin reporting",
@@ -623,6 +629,11 @@
      "title": "Operation of Trading Terminals",
      "url": "https://teamleaseregtech.com/updates/article/27606/bse-notified-regarding-the-operation-of-trading-terminals/",
      "says": "Dealer registration module: record each dealer's relationship; submit deactivation within 24 hours when a user leaves. Mirror: TeamLease RegTech summary."
+    },
+    {
+     "issuer": "BSE",
+     "no": "BSE notice 20260210-26",
+     "says": "Register every TWS/ETI/BOLT PLUS terminal location correctly with BSE before any order is placed from it; check BSE's daily LC/UNLC extranet files for unregistered locations. Gap report rows: BSE1-N0020."
     }
    ],
    "how": "ledgerline",
@@ -648,7 +659,10 @@
     "screen": "dealers",
     "screen_name": "Branches & partners → Dealers & terminals",
     "what": "Dealers & terminals keeps each dealer's NISM certificate and its validity, and makes the exchanges' NISM upload files."
-   }
+   },
+   "practice": [
+    "BSE members: check the day's LC/UNLC extranet file for terminals at unregistered locations and register them before further orders."
+   ]
   },
   {
    "id": "CC-T-UPSTREAMING",
@@ -1237,6 +1251,11 @@
      "title": "Maintenance of evidence of requests for pay-out received from the clients",
      "url": "https://nsearchives.nseindia.com/content/circulars/INSP65698.pdf",
      "says": "No part/periodic payments outside RAS except on the client's request, with evidence of the request kept."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/MCXCCL/363/2026",
+     "says": "MCXCCL/C&S/139/2026: where MCX trades clear through another clearing member, coordinate with it so collateral needed for the running account settlement is released by MCXCCL on the settlement day (requests up to 7 days before). Gap report rows: MCX-0132."
     }
    ],
    "how": "ledgerline",
@@ -1250,7 +1269,8 @@
    "practice": [
     "On the RAS date, for monthly-preference clients, retain only what para 48.2 allows (outstanding pay-in obligations and margin with the allowed buffer, net of pledged securities) and pay the rest.",
     "Pay by electronic transfer to the client's registered bank account; settlement counts only when the money reaches it (para 48.3).",
-    "Then send the SMS/email (T17), the statement with retention (T18) and the UCC-wise report (T19)."
+    "Then send the SMS/email (T17), the statement with retention (T18) and the UCC-wise report (T19).",
+    "MCX cleared through another clearing member: ask it, up to 7 days before, to have MCXCCL release the collateral the settlement needs."
    ],
    "changed": "'First Friday and Saturday of the month' is outdated: since SEBI 2023/197 (Jan 2024) the dates are set in the exchanges' joint annual calendar and are not always the first Friday (FY 2026-27: 17 Apr, 15 May, 16 Oct 2026). The calendar should read the dates from NSE/INSP/72413.",
    "ledgerline": {
@@ -1628,7 +1648,7 @@
    "group": "Trading",
    "title": "Tell the depositories (and any exchange that requires it) about STRs filed with FIU-IND",
    "frequency": "Monthly",
-   "due_text": "Depositories: CDSL by the 10th of the next month (STRs filed, if any, plus the number filed by the main DP); NSDL via e-PASS. Exchanges NSE/MSE/MCX/NCDEX: no monthly STR intimation circular was found; the calendar's 'within 7th' is unconfirmed.",
+   "due_text": "Depositories: CDSL by the 7th of the next month (STRs filed, if any, plus the number filed by the main DP; CDSL Master Circular for DPs para 19.1 item 11); NSDL via e-PASS. Exchanges NSE/MSE/MCX/NCDEX: no monthly STR intimation circular was found.",
    "rule": "D07",
    "applies": [
     "broker"
@@ -1680,11 +1700,11 @@
     "T22"
    ],
    "practice": [
-    "Where the firm is also a DP, file the month's STR information and count with CDSL by the 10th and with NSDL on e-PASS (see D03).",
+    "Where the firm is also a DP, file the month's STR information and count with CDSL by the 7th and with NSDL on e-PASS (see D03).",
     "For each exchange, keep a file note of any instruction received; give the STR count in NSE's half-yearly RBS data.",
     "Share only the count or reference the form asks for; STR contents stay confidential."
    ],
-   "changed": "No NSE, MSE, MCX or NCDEX circular requiring a monthly STR intimation was found. NSE asks for the STR count only half-yearly in RBS (NSE/INSP/70591). The CDSL deadline is the 10th, not the 7th. The depository part duplicates D03 for a broker that is also a DP."
+   "changed": "No NSE, MSE, MCX or NCDEX circular requiring a monthly STR intimation was found. NSE asks for the STR count only half-yearly in RBS (NSE/INSP/70591). The CDSL deadline is the 7th (CDSL Master Circular for DPs, March 2026, para 19.1 item 11). The depository part duplicates D03 for a broker that is also a DP."
   },
   {
    "id": "OB-COMPLAINTS",
@@ -1723,6 +1743,11 @@
      "title": "Integration of investor complaints (as listed in BSE's due-dates table)",
      "url": "https://bseindia.com/downloads1/Due_Dates_Compliance_Reporting.pdf",
      "says": "BSE lists 'Integration of investor complaints' as a monthly Investor Services item due within seven days of the subsequent month."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI (Intermediaries) Regulations, 2008",
+     "says": "Upload quarterly statistics of grievances received, resolved and pending beyond three months on SEBI's portal (to confirm which portal and whether the monthly website disclosure meets it). Gap report rows: SEBI-NEW-0172."
     }
    ],
    "how": "ledgerline",
@@ -1745,11 +1770,52 @@
    "practice": [
     "Submit the BSE monthly complaints data within 7 days of month end, as notice 20230406-15 prescribes."
    ],
-   "changed": "Use the 2025 Annexure B format: it has a SCORES 2.0 row, pending split under/over 3 months, and monthly and annual trends. No NSE, MCX or NCDEX monthly complaint submission was found; only BSE's notice 20230406-15. Not checked whether the NSE common-submission circulars cover the BSE item.",
+   "changed": "Use the 2025 Annexure B format: it has a SCORES 2.0 row, pending split under/over 3 months, and monthly and annual trends. MCX also takes a monthly complaints report on its IGRS portal within 7 days, NIL included: that is CC-T-MCX-COMPLAINTS. No NSE or NCDEX monthly complaint submission was found. Not checked whether the NSE common-submission circulars cover the BSE item.",
    "ledgerline": {
     "screen": "helpdesk",
     "screen_name": "Compliance → Investor complaints",
     "what": "Periodic work builds the month's complaints table (Investor complaints disclosure); publishing it on the website is this duty."
+   }
+  },
+  {
+   "id": "CC-T-MCX-COMPLAINTS",
+   "group": "Trading",
+   "title": "File last month's investor complaints report (NIL included) with MCX on the IGRS portal within 7 days",
+   "frequency": "Monthly",
+   "due_text": "Within 7 days of the end of each month, on MCX's investor grievance (IGRS) portal; a NIL submission when no complaint was received or pending.",
+   "rule": "D07",
+   "applies": [
+    "broker",
+    "member:MCX"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "MCX investor grievance redressal system (IGRS) on the MCX member portal",
+   "evidence": "The month's IGRS submission (or NIL submission) with MCX's acknowledgement; the complaints register it was built from",
+   "refs": [
+    {
+     "issuer": "MCX",
+     "no": "MCX/ISD/243/2026",
+     "title": "Master Circular - ISD (Investor Grievances and Arbitration), version 4",
+     "url": "https://www.mcxindia.com/circulars",
+     "says": "Members report the month's investor complaints on MCX's IGRS portal within 7 days of the month end, with a NIL submission when there are none (gap register rows MCX-0093 and MCX-0094; the paragraph and the circular's date are to confirm against the master circular)."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "MCX IGRS portal",
+    "detail": "Form on MCX's member portal; no API found.",
+    "url": "https://www.mcxindia.com/circulars"
+   },
+   "practice": [
+    "After month end take the month's complaints from Investor complaints (the same figures as the website table).",
+    "File them, or a NIL submission, on MCX's IGRS portal by the 7th and keep the acknowledgement."
+   ],
+   "changed": "New: the catalogue said no MCX monthly complaint filing existed; it does (MCX-0093/0094).",
+   "ledgerline": {
+    "screen": "helpdesk",
+    "screen_name": "Compliance → Investor complaints",
+    "what": "Investor complaints holds the register and builds the month's table the MCX report is filed from."
    }
   },
   {
@@ -1837,6 +1903,49 @@
     "screen_name": "Compliance → Surveillance & AML",
     "what": "Alerts closed as STR filed are recorded in Surveillance & AML; reports are filed on FIU-IND's FINGate 2.0."
    }
+  },
+  {
+   "id": "OB-CTR",
+   "group": "Trading",
+   "title": "File the cash transaction report (CTR) with FIU-IND by the 15th for a month with reportable cash transactions",
+   "frequency": "Monthly",
+   "due_text": "By the 15th of the succeeding month, for cash transactions of more than Rs 10 lakh (or integrally connected series of cash transactions within a month above it). No NIL report is filed with FIU-IND: in a month with nothing to report, record that in the firm's own file and file nothing.",
+   "rule": "D15",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "FIU-IND FINGate 2.0 (fingate.gov.in)",
+   "evidence": "FINGate Batch ID and Report IDs for a month with a CTR; for any other month, the Principal Officer's file note that there was nothing to report (not sent to FIU-IND)",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSDSECFATF/P/CIR/2024/78",
+     "date": "2024-06-06",
+     "title": "Master Circular: AML/CFT obligations under PMLA 2002",
+     "url": "https://nsdl.co.in/downloadables/pdf/2024-0077-_Policy-SEBI_Master_Circular_on_Guidelines_on_AML_Standards_and_CFT_Obligations_of_Securities_Market_Intermediaries_under_the_PMLA_2002_and_Rules_frame.pdf",
+     "says": "Para 74: CTRs by the 15th of the succeeding month; no NIL reports to be sent to FIU-IND (74(vi))."
+    },
+    {
+     "issuer": "FIU-IND",
+     "no": "PML (Maintenance of Records) Rules, 2005, rules 3 and 8",
+     "title": "Prevention of Money-laundering (Maintenance of Records) Rules, 2005",
+     "says": "Rule 3(1)(A)-(B): cash transactions above Rs 10 lakh, and integrally connected cash transactions above it in a month; rule 8: furnished to the Director, FIU-IND, by the 15th of the succeeding month."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "available",
+    "name": "FIU-IND FINGate 2.0 report submission API",
+    "detail": "See CC-T-FIU-FILINGS; Ledgerline files STRs through FINGate, CTRs are filed on the portal.",
+    "url": "https://fiuindia.gov.in/pdfs/quicklinks/User_Manual_FINGate_Reports.pdf"
+   },
+   "practice": [
+    "After month end check receipts and payments for cash transactions; a broker normally takes no cash from clients, so most months have nothing to report.",
+    "If there is a reportable transaction, file the CTR on FINGate 2.0 by the 15th and record the batch ID.",
+    "If not, mark the month done with a note that there was nothing to report. Do not send FIU-IND a NIL report."
+   ],
+   "changed": "Reworded: the earlier title offered a 'nil confirmation per firm policy'. SEBI's AML master circular para 74(vi) says no NIL reports are sent to FIU-IND."
   },
   {
    "id": "CC-T-FINGATE-CHECK",
@@ -2072,6 +2181,11 @@
      "title": "Market Access through Authorised Persons",
      "url": "https://archives.nseindia.com/content/circulars/COMP56947.pdf",
      "says": "Earlier tiered frequency from FY 2024-25 (top 50% yearly, next 30% in 18 months, rest in 2 years); deactivate AP terminals idle for 6 months."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/COMP/63628",
+     "says": "Enhanced due diligence on each AP at onboarding and ongoing: in-person verification or site visit, PAN validation, background check, review of all AP demat and bank statements, continuous screening. Gap report rows: NSE-0061."
     }
    ],
    "how": "firm",
@@ -2098,7 +2212,10 @@
     "screen": "partners",
     "screen_name": "Branches & partners",
     "what": "Branches & partners lists the branches and authorised persons to inspect; keep each inspection report."
-   }
+   },
+   "practice": [
+    "AP due diligence (NSE/COMP/63628): site visit, PAN, background check and the AP's demat and bank statements at onboarding, and screened again at each inspection."
+   ]
   },
   {
    "id": "CC-T-INTERNAL-ALERTS",
@@ -2152,6 +2269,11 @@
      "title": "Master Circular - Surveillance & Investigation",
      "url": "https://www.msei.in/SX-Content/Circulars/2025/April/Circular-17109.pdf",
      "says": "MSE's version: quarterly surveillance obligation report within 15 days via inspectionos.msei.in, NIL report, Rs 10,000/20,000 a day penalties."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/S&I/251/2026",
+     "says": "Para 16 A: group connected clients (multiple or common accounts) by MCX's clubbing criteria (MCX/S&I/300/2017) and inform MCX of each group with names, PANs and relationships as groups are identified; review MRS's list of clients whose e-mail or mobile changed more than twice in a month and close each case on MRS with documents (MCX/S&I/273/2026). Gap report rows: MCX-N0009, MCX-N0008."
     }
    ],
    "how": "ledgerline",
@@ -2179,7 +2301,10 @@
     "screen_name": "Compliance → Surveillance & AML",
     "what": "Surveillance & AML keeps the firm's own alerts and the exchanges' alerts with each decision; the nightly self-inspection flags any older than 45 days.",
     "check": "alerts_45"
-   }
+   },
+   "practice": [
+    "MCX members: inform MCX of each group of connected clients found, and close MRS's e-mail/mobile change cases with documents."
+   ]
   },
   {
    "id": "CC-T-DIVIDEND-PASS-ON",
@@ -2583,6 +2708,11 @@
      "title": "Rationalisation of penalties / actions for non-compliance (Annexure 1.2: periodic submissions)",
      "url": "https://nsearchives.nseindia.com/content/circulars/INSP73792.pdf",
      "says": "Penalty schedule for late periodic submissions (Rs 1,500-5,000/day, client registration stop after 21 days, disablement after 28 days; 50% escalation on repeat). PDF did not load here; terms taken from NSE/INSP/76664 and 73795, which cite it."
+    },
+    {
+     "issuer": "BSE",
+     "no": "BSE Master Circular (Member Oversight)",
+     "says": "Submit yearly the Enhanced Supervision Financial Indicators data on BEFS (Risk Based Supervision > Financial Indicators Entry); the date is set by BSE's notice. Gap report rows: BSE1-N0015."
     }
    ],
    "how": "upload",
@@ -2608,7 +2738,10 @@
     "screen": "books",
     "screen_name": "Accounts → Firm accounts & GST",
     "what": "The figures come from Firm accounts and the client and trading data in Ledgerline."
-   }
+   },
+   "practice": [
+    "BSE members: once a year also enter the Financial Indicators on BEFS (Risk Based Supervision > Financial Indicators Entry) on the date BSE's notice gives."
+   ]
   },
   {
    "id": "OB-INTAUDIT",
@@ -2679,6 +2812,11 @@
      "title": "Rationalisation of penalties / actions for non-compliance (Annexure 1.2: periodic submissions)",
      "url": "https://nsearchives.nseindia.com/content/circulars/INSP73792.pdf",
      "says": "Penalty schedule for late periodic submissions (Rs 1,500-5,000/day, client registration stop after 21 days, disablement after 28 days; 50% escalation on repeat). PDF did not load here; terms taken from NSE/INSP/76664 and 73795, which cite it."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90",
+     "says": "On appointing an internal auditor: a declaration of no interest or relationship with the broker, with identity, PAN, registration number and any regulatory action; rotation: an individual at most one term of 5 consecutive years, a firm two terms, then 5 years' cooling off; no firm sharing a partner with the outgoing one. Gap report rows: SEBI-SB1-0032, SEBI-SB1-0033."
     }
    ],
    "how": "auditor",
@@ -2702,11 +2840,64 @@
     "Close non-compliances and file the auditor-certified ATR on the Internal Audit tab by 31 Jan / 31 Jul."
    ],
    "steps_from": "NSE internal audit circular for HY to 30 Sep 2025 (rhnvrm mirror, 3 Oct 2025) and ref. 47/2026 (TeamLease summary); NSE/INSP/69247; NSE/INSP/71579; SEBI 2016/95 s.4.2",
-   "changed": "Due 30 Nov / 31 May, plus a newer ATR stage by 31 Jan / 31 Jul (NSE/INSP/71579, from HY Sep 2025). Only exchange-empanelled auditors (NSE-empanelled for NSE, BSE-empanelled for BSE). Not a common submission: file with each exchange. Penalties now under NSE/INSP/73792.",
+   "changed": "Due 30 Nov / 31 May, plus a newer ATR stage by 31 Jan / 31 Jul (NSE/INSP/71579, from HY Sep 2025). Only exchange-empanelled auditors (NSE-empanelled for NSE, BSE-empanelled for BSE). Not a common submission: file with each exchange. Penalties now under NSE/INSP/73792. MCX's filing with its margin-penalty undertaking is CC-T-MCX-INTAUDIT.",
    "ledgerline": {
     "screen": "inspack",
     "screen_name": "Compliance → Inspection packs",
     "what": "Make the half-yearly internal audit pack for the auditor (Inspection packs), with the self-inspection results."
+   },
+   "practice": [
+    "At each appointment: take the auditor's independence declaration and check the rotation limits (5-year term, cooling off)."
+   ]
+  },
+  {
+   "id": "CC-T-MCX-INTAUDIT",
+   "group": "Trading",
+   "title": "MCX: file the half-yearly internal audit report with the signed margin-penalty undertaking on the Enhanced Supervision portal",
+   "frequency": "Half-yearly",
+   "due_text": "With each half-yearly internal audit report to MCX (within two months of the half year: 30 Nov and 31 May), the digitally signed undertaking of the proprietor, a partner or a designated director that the clearing corporation's penalties for short or non-collection of upfront margin are not passed on to clients (MCX/COMP/559/2026).",
+   "rule": "05-31,11-30",
+   "applies": [
+    "broker",
+    "member:MCX"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "MCX Enhanced Supervision portal (internal audit report and undertaking)",
+   "evidence": "MCX's acknowledgement of the report, the digitally signed undertaking, and the auditor's report",
+   "refs": [
+    {
+     "issuer": "MCX",
+     "no": "MCX/COMP/559/2026",
+     "title": "Internal audit of members (citing MCX/INSP/372/2022 and MCX/INSP/662/2024)",
+     "url": "https://www.mcxindia.com/circulars",
+     "says": "With each half-yearly internal audit report, submit on the Enhanced Supervision portal a digitally signed undertaking that clearing corporation penalties for short or non-collection of upfront margin are not passed on to clients (gap register row MCX-N0002; date to confirm)."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSD2/CIR/P/2016/95",
+     "date": "2016-09-26",
+     "title": "Enhanced Supervision of Stock Brokers / Depository Participants",
+     "url": "https://taxguru.in/sebi/enhanced-supervision-of-stock-brokersdepository-participants.html",
+     "says": "s.4: the half-yearly internal audit report is filed with each exchange within two months of the half year."
+    }
+   ],
+   "how": "auditor",
+   "api": {
+    "status": "portal",
+    "name": "MCX Enhanced Supervision portal",
+    "detail": "No API; the report and the undertaking are uploaded on the portal.",
+    "url": "https://www.mcxindia.com/circulars"
+   },
+   "practice": [
+    "Have an MCX-acceptable internal auditor audit the half year (the same audit as OB-INTAUDIT when the auditor covers MCX).",
+    "Sign the margin-penalty undertaking digitally (proprietor, partner or designated director) and upload it with the report on the Enhanced Supervision portal.",
+    "Check the nightly self-inspection margin_penalties before signing: it lists penalties passed to clients."
+   ],
+   "changed": "New (MCX-N0002): MCX's filing and its undertaking were only a step inside OB-INTAUDIT.",
+   "ledgerline": {
+    "screen": "inspack",
+    "screen_name": "Compliance → Inspection packs",
+    "what": "The internal audit pack holds the records for the auditor; the self-inspection margin_penalties shows whether any margin penalty reached a client."
    }
   },
   {
@@ -2975,6 +3166,11 @@
      "title": "Reminder for submission of Action Taken Report pertaining to System Audit (Type - III) of Trading Members",
      "url": "https://nsearchives.nseindia.com/content/circulars/INSP73289.pdf",
      "says": "ATR path ENIT > NEW-TRADE > Trade > System Audit > System Audit Help File > ATR; auditor marks each item Compliant / Non-Compliant."
+    },
+    {
+     "issuer": "BSE",
+     "no": "BSE notices 20260422-34 and 20260511-23",
+     "says": "BSE system audit by a BSE-empanelled auditor (ToR II yearly or two-yearly, ToR III half-yearly; yearly for a DP); the member registers the auditor and plan; for the period to 31 Mar 2026: plan 5 Jun, preliminary report 30 Jun. Gap report rows: NCL-BSE-0102."
     }
    ],
    "how": "auditor",
@@ -2997,7 +3193,10 @@
     "Do not trade an Algo ID with reported non-compliance before the rectified ATR is submitted."
    ],
    "steps_from": "NSE/INSP/76769 (process steps, Annexure A) and NSE/INSP/73850 section 4; ENIT > NEW-TRADE > Trade > System Audit > System Audit Help File",
-   "changed": "The calendar shows only 30 Nov. Type III is half-yearly with two report dates (30 Nov for April-September, 30 Jun for October-March), plus plan (5 Nov / 5 Jun) and ATR (28 Feb / 30 Sep) milestones. Only NSE-empanelled system auditors (NSE/INSP/69631)."
+   "changed": "The calendar shows only 30 Nov. Type III is half-yearly with two report dates (30 Nov for April-September, 30 Jun for October-March), plus plan (5 Nov / 5 Jun) and ATR (28 Feb / 30 Sep) milestones. Only NSE-empanelled system auditors (NSE/INSP/69631).",
+   "practice": [
+    "BSE members: register the BSE-empanelled auditor and the plan on BEFS and file BSE's reports, unless BSE takes the NSE submission as common."
+   ]
   },
   {
    "id": "OB-SYSAUDIT-PLAN",
@@ -3136,6 +3335,44 @@
    ],
    "steps_from": "NSE/INSP/76769 (process steps, Annexure A) and NSE/INSP/73850 section 4; ENIT > NEW-TRADE > Trade > System Audit > System Audit Help File",
    "changed": "The calendar shows only 30 Nov. Type III is half-yearly with two report dates (30 Nov for April-September, 30 Jun for October-March), plus plan (5 Nov / 5 Jun) and ATR (28 Feb / 30 Sep) milestones. Only NSE-empanelled system auditors (NSE/INSP/69631)."
+  },
+  {
+   "id": "CC-T-BO-SOFTWARE-CRITERIA",
+   "group": "Trading",
+   "title": "Show the system auditor that the back-office software meets NSE's testing criteria (Annexure VII)",
+   "frequency": "Yearly",
+   "due_text": "With each system audit: the auditor checks the back-office software against NSE's criteria (Master Circular for Membership Compliance, Exhibit 33 Annexure VII): user rights and privileges, user and journal audit logs, no parallel client ledgers, back-dated entries locked beyond T-2, and the client ledger, trial balance, register of securities, bank book and UCC master in the standard formats. Dated with the preliminary audit report.",
+   "rule": "SYSPRELIM",
+   "applies": [
+    "broker",
+    "member:NSE"
+   ],
+   "role": "Admin",
+   "filed_with": "The system auditor (part of the system audit report on NSE ENIT)",
+   "evidence": "The criteria pack from Inspection packs (each criterion, how it is met, the setting or report that shows it) and the auditor's sign-off",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/COMP/73981",
+     "title": "Master Circular for Membership Compliance Department, Exhibit 33 Annexure VII",
+     "says": "Testing criteria for back-office software: user rights/privilege validation, user and JV audit logs, no parallel client ledgers, system lock of back-dated entries beyond T-2, standard-format client ledger, trial balance, register of securities, bank book and UCC master (as the gap register row NSE-N0015 lists them)."
+    }
+   ],
+   "how": "auditor",
+   "api": {
+    "status": "none",
+    "detail": "The auditor's work; nothing is submitted separately."
+   },
+   "practice": [
+    "Before the audit, check Self-inspection → backdated_lock passes (automatic lock of entries older than T-2).",
+    "Build the 'Back-office software criteria' pack on Inspection packs and give it to the auditor with the audit trail exports."
+   ],
+   "changed": "New (NSE-N0015).",
+   "ledgerline": {
+    "screen": "inspack",
+    "screen_name": "Compliance → Inspection packs",
+    "what": "The system audit pack maps each criterion to the setting or report that shows it; the nightly self-inspection checks the automatic T-2 lock."
+   }
   },
   {
    "id": "CC-T-CYBER-AUDIT-HALF",
@@ -3797,8 +4034,8 @@
    "group": "Trading",
    "title": "Report associate and subsidiary entities to NSE",
    "frequency": "Half-yearly",
-   "due_text": "Half-yearly under the RBS framework: first submission (position as on 31 Mar 2026) on or before 15 Nov 2026; any addition, deletion or change within 30 calendar days of the change.",
-   "rule": "ONCE:2026-11-15",
+   "due_text": "Half-yearly under the RBS framework. First submission (position as on 31 Mar 2026) by 15 Nov 2026 (NSE/COMP/76906). NSE has not yet set the dates for later half years: Ledgerline dates them 15 May (position as on 30 Sep) and 15 Nov (position as on 31 Mar), the same interval as the first; follow NSE's circular for each half year when it comes. A change in between is its own duty, CC-T-ASSOCIATE-CHANGES (within 30 days).",
+   "rule": "05-15,11-15",
    "applies": [
     "broker",
     "member:NSE"
@@ -3832,11 +4069,51 @@
     "Answer Yes/No for associate entities and for subsidiary entities; if both are No, click Submit.",
     "For each entity enter name, relationship, jurisdiction (Indian/IFSC/Overseas), PAN or 'PANNOTAPPL', registration no. (optional), regulator, sector and status.",
     "Use Add More / Remove as needed, then Submit.",
-    "For a later change, repeat with 'Changes as on' and the date of the change, within 30 days.",
     "Check it under Associate and Subsidiary MIS > Search > Detail Report (Excel)."
    ],
    "steps_from": "NSE/COMP/76906 (14 Oct 2026) submission and MIS steps",
-   "changed": "Circular found: NSE/COMP/76906 (14 Oct 2026). It is a common submission (file with NSE only). The first filing covers the position as on 31 Mar 2026; NSE has not yet set the later half-yearly due dates, and changes must be reported within 30 days, so this is also an event item."
+   "changed": "Circular found: NSE/COMP/76906 (14 Oct 2026). It is a common submission (file with NSE only). It is now dated every half year instead of once; a filing recorded against the one-time date still counts for 15 Nov 2026. Changes within 30 days are dated from the event (CC-T-ASSOCIATE-CHANGES)."
+  },
+  {
+   "id": "CC-T-ASSOCIATE-CHANGES",
+   "group": "Trading",
+   "title": "Report a change in associate or subsidiary entities to NSE within 30 days",
+   "frequency": "On event",
+   "due_text": "Any addition, deletion or change in associate or subsidiary entities: within 30 calendar days of the change (NSE/COMP/76906).",
+   "rule": "EVENT",
+   "event_within": "30d",
+   "applies": [
+    "broker",
+    "member:NSE"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "NSE ENIT > ENIT-NEW-Compliance > Compliance > Associate and Subsidiary > Associate and Subsidiary Submission ('Changes as on')",
+   "evidence": "ENIT submission for the change and the MIS 'Detail Report' export; the board or shareholding record of the change",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/COMP/76906",
+     "date": "2026-10-14",
+     "title": "Half-Yearly Submission of details of Associate/Subsidiary Entities",
+     "url": "https://nsearchives.nseindia.com/content/circulars/COMP76906.pdf",
+     "says": "Any addition, deletion or change in associates or subsidiaries is reported within 30 calendar days; members of other exchanges file with NSE only."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "NSE ENIT Associate and Subsidiary module",
+    "detail": "No API; web form.",
+    "url": "https://enit.nseindia.com/MemberPortal/"
+   },
+   "steps": [
+    "Open ENIT > ENIT-NEW-Compliance > Compliance > Associate and Subsidiary > Associate and Subsidiary Submission.",
+    "Choose 'Changes as on' and enter the date of the change.",
+    "Add, remove or correct the entity (name, relationship, jurisdiction, PAN or 'PANNOTAPPL', regulator, sector, status) and Submit within 30 days.",
+    "Check it under Associate and Subsidiary MIS > Search > Detail Report (Excel)."
+   ],
+   "steps_from": "NSE/COMP/76906 (14 Oct 2026) submission and MIS steps",
+   "changed": "New: the 30-day change report, split from CC-T-ASSOCIATE-ENTITIES so it is dated from the change."
   },
   {
    "id": "CC-T-ACCESSIBILITY-FIXES",
@@ -4156,10 +4433,10 @@
   {
    "id": "CC-D-STR-INTIMATION",
    "group": "DP",
-   "title": "Report STRs filed with FIU-IND to CDSL by the 10th and the STR count to NSDL on e-PASS",
+   "title": "Report STRs filed with FIU-IND to CDSL by the 7th and the STR count to NSDL on e-PASS",
    "frequency": "Monthly",
-   "due_text": "CDSL: by the 10th of the succeeding month (e.g. 10 May for April), both the information on STRs filed with FIU-IND, if any, and the number of STRs filed (main DP). NSDL: number of STRs filed, through e-PASS (NSDL/POLICY/2023/0153); the calendar's 'within 7th' was not confirmed.",
-   "rule": "D10",
+   "due_text": "CDSL: by the 7th of the succeeding month, the information on STRs filed with FIU-IND, if any, and the number filed (main DP) (CDSL Master Circular for DPs, CDSL/OPS/DP/POLCY/2026/257, para 19.1 item 11). CDSL's 2026-27 FAQ still says the 10th; the master circular's 7th is earlier and is followed. NSDL: number of STRs filed, through e-PASS (NSDL/POLICY/2023/0153).",
+   "rule": "D07",
    "applies": [
     "dp"
    ],
@@ -4167,6 +4444,13 @@
    "filed_with": "CDSL online mandatory submissions (auditweb.cdslindia.com); NSDL e-PASS",
    "evidence": "CDSL and NSDL submission acknowledgements for each month, including NIL months",
    "refs": [
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/OPS/DP/POLCY/2026/257",
+     "title": "CDSL Master Circular for Depository Participants (March 2026)",
+     "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx",
+     "says": "Para 19.1 (periodic submissions by DPs), item 11: information on STRs filed with FIU-IND, by the 7th of the following month."
+    },
     {
      "issuer": "CDSL",
      "no": "Demat CDSL Way II – Audit & Compliance FAQs 2026-27",
@@ -4211,10 +4495,10 @@
    ],
    "practice": [
     "After month end the Principal Officer counts STRs filed with FIU-IND (FINGate batch/report IDs).",
-    "Submit the count to CDSL online by the 10th, as NIL when none (as the calendar says), and the count to NSDL on e-PASS.",
-    "Do not send STR contents or client identities unless the form asks; keep the acknowledgement."
+    "Submit the information and the count to CDSL online by the 7th, and the count to NSDL on e-PASS.",
+    "Do not send STR contents or client identities unless the form asks; keep the acknowledgement. Nothing about STRs goes to the client."
    ],
-   "changed": "The CDSL deadline (10th) is confirmed. The CDSL FAQ does not say 'including NIL'. The NSDL day (calendar: 7th) and NIL requirement were not confirmed."
+   "changed": "Due date moved from the 10th to the 7th: the CDSL Master Circular for DPs (March 2026) para 19.1 item 11 sets the 7th; the FAQ's 10th is older. Whether CDSL wants a NIL entry is not stated in what was read; the NSDL day was not confirmed."
   },
   {
    "id": "CC-D-COMPLAINTS-DISCLOSURE",
@@ -4245,6 +4529,11 @@
      "title": "Investor Charter for Depositories and Depository Participants",
      "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx",
      "says": "Revised the charter for ODR and SCORES 2.0; forwarded by CDSL DP2024-289 (30 May 2024) and NSDL/POLICY/2024/0089 (25 Jun 2024)."
+    },
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/OPS/DP/POLCY/2026/257",
+     "says": "A DP grievance escalation matrix on the website's Contact Us page (homepage link) with distinct, valid, human-answered numbers and working hours for each level, quoted in communications. Gap report rows: CDSL-N0027."
     }
    ],
    "how": "ledgerline",
@@ -4257,7 +4546,8 @@
    ],
    "practice": [
     "Build the month's DP complaints table in the Annexure 22 format from the DP complaints register (sources: direct, SCORES, depository, others).",
-    "Publish it by the 7th next to the investor charter and keep a dated screenshot."
+    "Publish it by the 7th next to the investor charter and keep a dated screenshot.",
+    "With the month's complaints data, check the website's escalation matrix (numbers answered, hours, homepage link)."
    ],
    "ledgerline": {
     "screen": "helpdesk",
@@ -4349,6 +4639,16 @@
      "title": "Master Circular for Participants (forthcoming compliance table)",
      "url": "https://nsdl.com/nsdl/circulars/2025-0056-Policy-Master_Circular_for_Participants_(DPs).pdf",
      "says": "Investor grievance report monthly by the 10th of the following month via e-PASS (paras 22 and 28; e-PASS route since NSDL/POLICY/2015/0096)."
+    },
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/OPS/DP/POLCY/2026/257",
+     "says": "CDSL master circular for DPs: monitor CDSL's online investor-grievance module daily, upload replies to BO grievances there and resolve within the stipulated time (21 days, as SCORES). Gap report rows: CDSL-N0025."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI (Depositories and Participants) Regulations, 2018",
+     "says": "The compliance officer reports quarterly on non-compliance and investor grievance redressal in the manner specified (as read by the gap report; to confirm whether a separate SEBI filing exists beyond the depository's grievance report). Gap report rows: GAP-0054."
     }
    ],
    "how": "portal",
@@ -4373,7 +4673,10 @@
     "screen": "helpdesk",
     "screen_name": "Compliance → Investor complaints",
     "what": "The month's DP complaints are in Investor complaints."
-   }
+   },
+   "practice": [
+    "Check CDSL's online grievance module each working day and upload each reply there."
+   ]
   },
   {
    "id": "CC-D-WEBSITE-URL",
@@ -4728,6 +5031,21 @@
      "title": "Internal and Concurrent Audit of Depository Operations (TeamLease summary)",
      "url": "https://teamleaseregtech.com/updates/article/60204/nsdl-issued-a-circular-regarding-internal-and-concurrent-audit-of-depo",
      "says": "Revised format for Apr-Sep 2026; risk-prone areas reviewed by the next working day, or within a week for large volumes."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MRD/MRD-PoD-1/P/CIR/2024/168",
+     "says": "Depositories master circular: no pre-signed delivery instruction slips with blank columns. Gap report rows: DP-0029."
+    },
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/OPS/DP/POLCY/2026/522",
+     "says": "Complete both maker and checker steps of each transmission request the same day and tag inter- and intra-depository transmissions with reason codes (TS surviving holder, TL legal heir and the others listed). Gap report rows: DP-0310."
+    },
+    {
+     "issuer": "CDSL",
+     "no": "DP2025-829",
+     "says": "Inter-depository transfers: no IDT DIS with an execution date on a 2026 trading holiday; no IDTs are exchanged and no penalty for non-movement of pay-in on those days. Gap report rows: DP-0360."
     }
    ],
    "how": "auditor",
@@ -4740,7 +5058,8 @@
    ],
    "practice": [
     "Appoint a CA, CS or CMA in practice with at least one NISM Series VI (DOCE) certified person, under CDSL's current checklist",
-    "Each month, collect the auditor's report by the 10th, close the exceptions and keep both for the half-yearly IAR"
+    "Each month, collect the auditor's report by the 10th, close the exceptions and keep both for the half-yearly IAR",
+    "The concurrent auditor checks DIS accepted (none pre-signed with blank columns), transmissions (maker and checker the same day, reason codes TS/TL) and inter-depository instructions (no execution date on a trading holiday)."
    ],
    "changed": "The monthly report is the auditor's report to the DP, not a monthly filing with CDSL or NSDL; the depository gets the concurrent audit report half-yearly with the internal audit (CDSL FAQ item 2; NSDL/POLICY/2025/0139 point 5). CDSL's revised IAR/CAR format applies from the half year ended 30 Sep 2026 (2026/693); NSDL's from Apr-Sep 2026 (2026/0152).",
    "ledgerline": {
@@ -4752,9 +5071,9 @@
   {
    "id": "CC-D-INTERNAL-ALERTS",
    "group": "DP",
-   "title": "Keep the monthly file of DP surveillance alerts (own and depository) and close them on time",
+   "title": "Work DP surveillance alerts (own and CDSL) within 45 days and report adverse findings to CDSL within 7 days",
    "frequency": "Monthly",
-   "due_text": "Dispose of each CDSL and own DP alert within 45 days of its generation (60 days for CDSL's half-yearly multiple-account alerts); identify adverse observations on the DP's own analysis within two months of the transaction and report each on CDSL's surveillance system within 7 days; file the quarterly status of alerts within 15 days of the quarter's end (CDSL DP2026-521)",
+   "due_text": "Dispose of each CDSL and own DP alert within 45 days of its generation (60 days for CDSL's half-yearly multiple-account alerts); identify adverse observations on the DP's own analysis within two months of the transaction and report each on CDSL's surveillance system within 7 days; file the quarterly status of alerts within 15 days of the quarter's end, its own duty CC-D-SURV-QUARTERLY (CDSL DP2026-521)",
    "rule": "D10",
    "applies": [
     "dp"
@@ -4765,7 +5084,7 @@
    "refs": [
     {
      "issuer": "CDSL",
-     "no": "DP2026-521",
+     "no": "CDSL/DP/SURV/2026/521",
      "date": "2026-07-31",
      "title": "Comprehensive Surveillance Framework for Depository Participants",
      "url": "https://www.cdslindia.com/eservices/Publications/Communique",
@@ -4777,7 +5096,7 @@
      "date": "2026-04-06",
      "title": "Surveillance obligation of Depository Participant - penalty provision",
      "url": "https://www.cdslindia.com/eservices/Publications/Communique",
-     "says": "Penalties for DP surveillance-obligation lapses; text not opened here."
+     "says": "Penalties for lapses in DP surveillance obligations (missed 45/60-day disposal, late adverse reports, late or missing quarterly reports); text not opened here."
     },
     {
      "issuer": "CDSL",
@@ -4785,7 +5104,7 @@
      "date": "2025-05-12",
      "title": "Surveillance obligation of DPs",
      "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx",
-     "says": "Earlier consolidated DP surveillance obligation; text not opened here."
+     "says": "Earlier consolidated DP surveillance obligation; superseded by CDSL/DP/SURV/2026/521."
     },
     {
      "issuer": "CDSL",
@@ -4802,6 +5121,11 @@
      "title": "Facility for bulk upload for responding to surveillance alerts",
      "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx",
      "says": "Bulk upload to respond to CDSL surveillance alerts; text not opened here."
+    },
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/DP/SURV/2026/521",
+     "says": "The compliance officer sample-checks the quality of alert closures, ensures DP-end alerts are generated and their parameters refined, validates SOP adherence and documents it (also after 2 consecutive NIL quarters). Gap report rows: CDSL-N0004."
     }
    ],
    "how": "ledgerline",
@@ -4827,6 +5151,60 @@
     "screen_name": "Compliance → Surveillance & AML",
     "what": "Surveillance & AML loads CDSL's surveillance and FIU alerts with a download log, raises the DP's own alerts, keeps each alert's due date (45 or 60 days), checklist, documents and adverse report, and the quarterly status for CDSL. The nightly self-inspection flags alerts past their due date, adverse observations not reported in 7 days, CDSL lists not downloaded and unchecked samples.",
     "check": "alerts_45"
+   }
+  },
+  {
+   "id": "CC-D-SURV-QUARTERLY",
+   "group": "DP",
+   "title": "Send CDSL the quarterly DP surveillance report (NIL included) within 15 days of the quarter",
+   "frequency": "Quarterly",
+   "due_text": "Within 15 days of each quarter end (15 Jan, 15 Apr, 15 Jul, 15 Oct), a NIL report included when there was nothing to report (CDSL/DP/SURV/2026/521).",
+   "rule": "01-15,04-15,07-15,10-15",
+   "applies": [
+    "cdsl"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "CDSL (online quarterly surveillance report, format of DP2024-552 as revised by CDSL/DP/SURV/2026/521)",
+   "evidence": "The quarter's report as filed (alerts brought forward, generated, disposed of, pending with reasons, adverse observations reported) and CDSL's acknowledgement; NIL reports too",
+   "refs": [
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/DP/SURV/2026/521",
+     "date": "2026-07-31",
+     "title": "Comprehensive Surveillance Framework for Depository Participants",
+     "url": "https://www.cdslindia.com/eservices/Publications/Communique",
+     "says": "DPs generate their own alerts on CDSL's themes and work CDSL's alerts; each alert is reviewed and disposed of within 45 days of generation (60 days for the half-yearly multiple-account alerts); adverse observations are reported to CDSL within 7 days; the quarterly surveillance report is due within 15 days of the quarter end, NIL included. Read from the gap register (rows DP-0301, CDSL-N0001-N0005) and a TeamLease summary; CDSL's page links the text."
+    },
+    {
+     "issuer": "CDSL",
+     "no": "DP2024-552",
+     "date": "2024-09-20",
+     "title": "Surveillance obligation DP & step to submit quarterly report in new format",
+     "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx",
+     "says": "The quarterly report's format and the steps to submit it; text not opened here."
+    },
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/DP/SURV/2026/521",
+     "says": "Penalties: a late quarterly alert status costs Rs 1,000 an instance plus Rs 500 a fortnight (doubled for consecutive quarters; Member Committee after that); alert responses within 45/60 days. Gap report rows: CDSL-N0006."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "CDSL online submission",
+    "detail": "Form submission on CDSL's portal; no API found.",
+    "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx"
+   },
+   "practice": [
+    "After the quarter, count the DP alerts brought forward, generated (own and CDSL's), disposed of and pending, with reasons for any pending beyond 45 (or 60) days.",
+    "File the report on CDSL's portal within 15 days of the quarter end; file NIL when there were no alerts."
+   ],
+   "changed": "New: split out of CC-D-INTERNAL-ALERTS so the 15-day quarterly deadline is dated on the calendar (CDSL/DP/SURV/2026/521).",
+   "ledgerline": {
+    "screen": "surv",
+    "screen_name": "Compliance → Surveillance & AML",
+    "what": "Surveillance & AML holds the alerts and their decisions the quarterly counts come from."
    }
   },
   {
@@ -5321,6 +5699,47 @@
     "screen": "inspack",
     "screen_name": "Compliance → Inspection packs",
     "what": "Make the depository internal audit pack for the auditor (Inspection packs)."
+   }
+  },
+  {
+   "id": "CC-D-RISK-ASSESSMENT",
+   "group": "DP",
+   "title": "Submit CDSL's supervisory risk assessment template (main DP and live branches) every half year",
+   "frequency": "Half-yearly",
+   "due_text": "Every half year, online through web-CDAS, for the main DP and each live branch (CDSL Master Circular for DPs, para 19.1 item 8 and para 10.8). The day was not stated in what was read: Ledgerline dates it at the end of each half year (31 Mar, 30 Sep), the earliest it could be due; follow the date CDSL gives for each cycle.",
+   "rule": "03-31,09-30",
+   "applies": [
+    "cdsl"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "CDSL web-CDAS (supervisory risk assessment template)",
+   "evidence": "The template as submitted for the main DP and each live branch, with the figures behind each answer, and the web-CDAS acknowledgement",
+   "refs": [
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/OPS/DP/POLCY/2026/257",
+     "title": "CDSL Master Circular for Depository Participants (March 2026)",
+     "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx",
+     "says": "Para 19.1 item 8 and para 10.8: the Supervisory Risk Assessment Template, for the main DP and live branches, submitted online through web-CDAS every half year."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "CDSL web-CDAS",
+    "detail": "Form on web-CDAS; no API found.",
+    "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx"
+   },
+   "practice": [
+    "Before the cycle, download the template from web-CDAS and list the live branches.",
+    "Fill each answer from Ledgerline's records (BO accounts by status and category, DIS and off-market volumes, pledges, complaints, alerts, audit findings) and keep the export behind each figure.",
+    "Submit for the main DP and every live branch; keep the acknowledgement."
+   ],
+   "changed": "New (CDSL-N0036). The template's fields were not available here, so Ledgerline does not prefill it yet; the inspection pack for the depository holds the records the answers come from.",
+   "ledgerline": {
+    "screen": "inspack",
+    "screen_name": "Compliance → Inspection packs",
+    "what": "The depository inspection pack exports the BO accounts, DIS, transactions, requests and complaints the template's answers are taken from."
    }
   },
   {
@@ -5962,6 +6381,11 @@
      "title": "SOP for handling cyber security incidents",
      "url": "https://nsdl.com/nsdl/circulars/2026-0001-Policy-SOP_for_handling_cyber_security_incidents.pdf",
      "says": "Under CSCRF, Participants report all cyber security incidents to NSDL at dpincidents@nsdl.com; SOP in the annexure."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113",
+     "says": "CSCRF incident handling: contain and mitigate (new vulnerabilities mitigated or documented as accepted risks); receive, analyse and respond, preserving logs, traffic and forensic images soundly; RCA and impact analysis, forensics and compromise assessment by a CERT-In empanelled auditor; regular progress reports to SEBI; classify Low/Medium/High/Critical per Table 35 (any disruption of operations High or Critical), reviewed by the IT Committee or Board; forensic audit report for every High or Critical incident with fix timelines and closure. Gap report rows: CYBER-0126, CYBER-0128, CYBER-0129, CYBER-0133, CYBER-0154, CYBER-0157."
     }
    ],
    "how": "portal",
@@ -5984,7 +6408,10 @@
     "Report to CERT-In within 6 hours as its directions require, and to NCIIPC if the system is a protected system"
    ],
    "steps_from": "CDSL/OPS/DP/POLCY/2025/27 (10 Jan 2025), Annexure A; CERT-In Directions No. 20(3)/2022-CERT-In",
-   "changed": "CDSL also wants a quarterly cyber incident report within 15 days of each quarter, nil included (2025/27; 2026/685, Q2 FY27 due 15 Oct 2026). CDSL's 2025 communiqué cites SEBI's 2022 circular (SEBI/HO/MIRSD/TPD/P/CIR/2022/93) for the 6 hours; CSCRF (20 Aug 2024) now governs and adds reporting through SEBI's incident reporting portal."
+   "changed": "CDSL also wants a quarterly cyber incident report within 15 days of each quarter, nil included (2025/27; 2026/685, Q2 FY27 due 15 Oct 2026). CDSL's 2025 communiqué cites SEBI's 2022 circular (SEBI/HO/MIRSD/TPD/P/CIR/2022/93) for the 6 hours; CSCRF (20 Aug 2024) now governs and adds reporting through SEBI's incident reporting portal.",
+   "practice": [
+    "Classify each incident (Table 35), preserve the evidence, send SEBI progress reports, and for a High or Critical incident get the forensic audit report and file its closure."
+   ]
   },
   {
    "id": "CC-D-CYBER-INCIDENT-QTR",
@@ -6068,6 +6495,60 @@
    ],
    "steps_from": "CDSL/OPS/DP/POLCY/2025/27 (10 Jan 2025), Annexure A; CERT-In Directions No. 20(3)/2022-CERT-In",
    "changed": "CDSL also wants a quarterly cyber incident report within 15 days of each quarter, nil included (2025/27; 2026/685, Q2 FY27 due 15 Oct 2026). CDSL's 2025 communiqué cites SEBI's 2022 circular (SEBI/HO/MIRSD/TPD/P/CIR/2022/93) for the 6 hours; CSCRF (20 Aug 2024) now governs and adds reporting through SEBI's incident reporting portal."
+  },
+  {
+   "id": "CC-D-AIML-REPORT",
+   "group": "DP",
+   "title": "Send the depository the DP's AI & ML systems report (NIL included) within 15 days of each quarter",
+   "frequency": "Quarterly",
+   "due_text": "SEBI's circular SEBI/HO/MIRSD/DOS2/CIR/P/2019/10 para 6: the report on AI and ML applications and systems is submitted to the depository within 15 days of the end of each quarter, a NIL report when none is used. The exchanges have since moved the broker's report to half-yearly or yearly; no such change for DPs was read, so Ledgerline keeps the quarterly dates. The gap register (DP-0344) records a CDSL communique (CDSL/IS/DP/POLCY/2026/381) asking for it on CDSL Audit Web each year: confirm CDSL's current periodicity and mark the quarters it does not take as not due.",
+   "rule": "01-15,04-15,07-15,10-15",
+   "applies": [
+    "dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "CDSL Audit Web (DP's AI/ML report); NSDL e-PASS",
+   "evidence": "The report as filed (Annexure A answers, or NIL) and the depository's acknowledgement",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/DOS2/CIR/P/2019/10",
+     "date": "2019-01-04",
+     "title": "Reporting for Artificial Intelligence (AI) and Machine Learning (ML) applications and systems offered and used by market intermediaries",
+     "says": "Paras 3-5 and Annexure A: report AI/ML systems offered or used; para 6: stock brokers to the exchanges and DPs to the depositories within 15 days of the end of each quarter."
+    },
+    {
+     "issuer": "NSDL",
+     "no": "NSDL/POLICY/2023/0142",
+     "title": "Submission of AI and ML applications and systems usage report by all Participants",
+     "url": "https://nsdl.co.in/downloadables/pdf/2023-0142-Policy-Submission_of_Artificial_Intelligence_and_Machine_Learning_applications_and_systems_usage_report_by_all_Participants.pdf",
+     "says": "NSDL's instruction to Participants for the same report; text not opened here."
+    },
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/IS/DP/POLCY/2026/381",
+     "title": "AI/ML applications and systems report by DPs (as the gap register records it)",
+     "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx",
+     "says": "Recorded in the gap register (DP-0344) as a yearly submission on CDSL Audit Web, NIL included; text not opened here."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "CDSL Audit Web / NSDL e-PASS",
+    "detail": "Form submissions; no API found.",
+    "url": "https://www.cdslindia.com/Publications/DP-COMMUNIQUES-INDEX.aspx"
+   },
+   "practice": [
+    "Take the answers from Exchange disclosures (AI & ML tab): the same AI inventory answers the exchange report uses.",
+    "File them on the depository's portal, or a NIL report when no AI or ML system was used, and keep the acknowledgement."
+   ],
+   "changed": "New (CYBER-0300): the broker's report to the exchanges was on the calendar, the DP's to the depository was not.",
+   "ledgerline": {
+    "screen": "exdisc",
+    "screen_name": "Compliance → Exchange disclosures",
+    "what": "Exchange disclosures builds the AI & ML answers from the AI inventory; file the same answers with the depository."
+   }
   },
   {
    "id": "CC-D-MNRL",
@@ -7252,6 +7733,11 @@
      "title": "Form 61B notices to potential RFIs: what to do",
      "url": "https://www.setindiabiz.com/blog/form-61b-potential-rfi-notice",
      "says": "Practice: NIL statement is mandatory for an RFI with no reportable accounts; ITDREIN via the Principal Officer; statement signed with the Designated Director's DSC; penalties under old s.271FA/271FAA. [not an official source]"
+    },
+    {
+     "issuer": "CBDT",
+     "no": "Income-tax Rules, 2026",
+     "says": "Register on the income-tax reporting portal (ITDREIN), designate a Designated Director and Principal Officer for FATCA/CRS reporting, keep the details current. Gap report rows: LAW-0048."
     }
    ],
    "how": "portal",
@@ -7267,7 +7753,8 @@
    "practice": [
     "Decide once, with the CA, whether the legal entity is a reporting financial institution; as a broker/DP it usually is (custodial institution), whatever its RA/IA registration.",
     "If it is: keep the ITDREIN current, prepare the statement in the reporting utility, sign with the Designated Director's DSC and upload by 31 May; file NIL if there are no reportable accounts.",
-    "An individual or proprietor RA/IA cannot be a reporting financial institution, and an advice-only RA/IA entity is a non-reporting financial institution."
+    "An individual or proprietor RA/IA cannot be a reporting financial institution, and an advice-only RA/IA entity is a non-reporting financial institution.",
+    "Before the first filing: the ITDREIN registration with the Designated Director and Principal Officer; update it on any change."
    ],
    "changed": "Form 61B is replaced by Form 166 from 1 Apr 2026 (Income-tax Act 2025 s.508; IT Rules 2026 rules 238–240); the next statement (calendar year 2026) is due 31 May 2027. This is an entity-level duty of a reporting financial institution: for this firm it arises from broking/DP (custodial institution), not from the RA/IA registration, which alone is non-reporting. Move it to the Trading/DP sheet and keep it here only as a cross-reference.",
    "ledgerline": {
@@ -8120,6 +8607,11 @@
      "title": "Master Circular: AML/CFT obligations under PMLA 2002",
      "url": "https://nsdl.co.in/downloadables/pdf/2024-0077-_Policy-SEBI_Master_Circular_on_Guidelines_on_AML_Standards_and_CFT_Obligations_of_Securities_Market_Intermediaries_under_the_PMLA_2002_and_Rules_frame.pdf",
      "says": "Paras 71-72: consider the FATF statements SEBI circulates and the risks of deficient jurisdictions, without barring legitimate trade; 18(iii)(f): clients from such jurisdictions are clients of special category with EDD; para 42: countermeasures."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/75505",
+     "says": "Circular 42/2026: after each FATF plenary statement submit per-jurisdiction applicability, action taken and client data (Excel template) on ENIT New Compliance > FATF > Member Submission by the date in NSE's circular (June 2026 plenary: 21 Aug 2026). Gap report rows: NSE-0249."
     }
    ],
    "how": "ledgerline",
@@ -8134,7 +8626,1961 @@
     "screen": "kyc",
     "screen_name": "Compliance → KYC & PMLA → Sanctions",
     "what": "KYC & PMLA → Sanctions → Record a FATF statement: every client linked to a listed jurisdiction (nationality, birth, tax residence, controlling persons) gets an EDD item, all clients are screened again, and this event is recorded."
+   },
+   "practice": [
+    "NSE members: file the submission on ENIT (New Compliance > FATF > Member Submission) by NSE's date; record that date on the event."
+   ]
+  },
+  {
+   "id": "CC-T-CLOSING-AUCTION",
+   "group": "Trading",
+   "title": "Get ready for NSE's Closing Auction Session in the cash market (from 7 Dec 2026)",
+   "frequency": "One time",
+   "due_text": "Before the Closing Auction Session (CAS) starts on 7 December 2026 for cash-market stocks with derivatives: take NSE's revised security master and contract files, set the trading front end's session times and order types (market and limit orders only in CAS), test in NSE's mock sessions, and tell clients that the day's closing price of these stocks is the auction price.",
+   "rule": "ONCE:2026-12-07",
+   "applies": [
+    "broker"
+   ],
+   "role": "Ops checker",
+   "filed_with": "Nothing to file: readiness of the trading front end and the back office",
+   "evidence": "Revised security master loaded, front-end vendor's confirmation of the CAS release and session times, mock session results, client communication",
+   "steps": [
+    "Read NSE's latest CAS circulars for the session times and the phase's securities: they have been revised since the first circular, so use the latest.",
+    "Load NSE's revised security master on Exchange files once it carries the CAS fields (NSE/CMTR/73845), and confirm the trading front end (Finspot, BOW) takes it.",
+    "Get the front-end vendor's confirmation that CAS orders, the 3% band around the reference price and the order types allowed are handled; take part in NSE's mock sessions.",
+    "Check the next morning's bhavcopy and margins after the first CAS day: closing prices of CAS stocks are the auction price, which values holdings, collateral and the settlement price for shortages."
+   ],
+   "ledgerline": {
+    "screen": "xfiles",
+    "screen_name": "Files → Exchange files",
+    "what": "Ledgerline reads the day's closing price from the bhavcopy, so CAS prices flow into valuations, margins and the settlement price of internal shortages without change; the security master's new fields are kept as loaded. The session itself is the trading front end's."
+   },
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/CMTR/72394",
+     "date": "2026-01-19",
+     "title": "Introduction of Closing Auction Session in Equity Cash Segment and modification in Pre-Open Auction Session",
+     "url": "https://nsearchives.nseindia.com/content/circulars/CMTR72394.pdf",
+     "says": "Introduces CAS for cash-market stocks with derivatives (phase 1), as listed on NSE's CAS page."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/CMTR/73362",
+     "date": "2026-03-18",
+     "title": "Operational guidelines and SOP for Closing Auction Session",
+     "url": "https://nsearchives.nseindia.com/content/circulars/CMTR73362.pdf",
+     "says": "Operational guidelines and standard operating procedure (subject line as listed on NSE's CAS page; not read in full)."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/CMTR/73845",
+     "date": "2026-04-22",
+     "title": "Changes in security master files on account of Closing Auction Session",
+     "url": "https://nsearchives.nseindia.com/content/circulars/CMTR73845.pdf",
+     "says": "Security master file changes for CAS (subject line as listed on NSE's CAS page; field details not read)."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/CMTR/74466",
+     "date": "2026-05-29",
+     "title": "Trading modalities of Closing Auction Session in Equity Cash segment",
+     "url": "https://nsearchives.nseindia.com/content/circulars/CMTR74466.pdf",
+     "says": "CAS trading modalities (subject line as listed on NSE's CAS page). Two further NSE circulars of 6 Nov 2026, reported in the press, set the start on 7 Dec 2026 and revised session times; their numbers are to be confirmed."
+    }
+   ],
+   "changed": "Added 23 Nov 2026 (gap NSE2-N0022): start date from the press reports of NSE's circulars of 6 Nov 2026, to confirm against the circulars themselves; session times are left to the latest circular because NSE's CAS page and the November reports differ.",
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Nothing is filed. The session runs in the exchange and the trading front end; the back office takes the revised security master and the bhavcopy."
+   },
+   "steps_from": "NSE/CMTR/73845 and NSE/CMTR/74466 (as listed on NSE's CAS page; the steps are the firm's readiness checklist)"
+  },
+  {
+   "id": "CC-T-AP-ACTION-ATR",
+   "group": "Trading",
+   "title": "Act on each quarter's AP inspection findings and file the action taken report with each exchange",
+   "frequency": "Quarterly",
+   "due_text": "For the findings of each quarter's AP and branch inspections: NSE wants the disciplinary action within 2 months of the quarter's end and the ATR with closure status within 3 months (from the Jul-Sep 2026 quarter; NSE/COMP/75878). BSE wants the action within one month after the quarter's AP report was due and the ATR on BEFS by 30 Sep (Apr-Jun), 31 Dec (Jul-Sep), 31 Mar (Oct-Dec) and 30 Jun (Jan-Mar); a termination within 7 days. MCX wants the ATR within 3 months of the quarter's end. Ledgerline dates it 3 months after each quarter.",
+   "rule": "03-31,06-30,09-30,12-31",
+   "applies": [
+    "broker",
+    "ap|branch"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "NSE ENIT (AP inspection ATR); BSE BEFS (ATR on AP inspection non-compliances); MCX member portal",
+   "evidence": "Each finding with the action taken (category, warning, withheld dues, termination, client notice, police complaint where needed), the date of each action, the ATR acknowledgement from each exchange",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/COMP/75878",
+     "says": "Circular 80/2026: disciplinary action on AP inspection findings within 2 months of quarter end and an ATR with closure status within 3 months, from the Jul-Sep 2026 quarter; terminations sooner. From the firm's compliance gap report of November 2026 (appendix section 8); the circular's text was read there, not re-read here. Gap report rows: NSE-0074."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/70751",
+     "date": "2025-10-10",
+     "title": "List of violations and Disciplinary Action on Authorised Person observed during Inspection",
+     "url": "https://nsearchives.nseindia.com/web/sites/default/files/inline-files/COMP70751.pdf",
+     "says": "Circular 87/2025: at least the indicative action for each AP violation (Category A: terminate, inform clients, withhold dues, public notice, police complaint for items 2, 4 and 5; B and C: warning or advisory). Gap report rows: NSE-0073."
+    },
+    {
+     "issuer": "BSE",
+     "no": "BSE notice 20261116-20",
+     "says": "Continuing 20260821-26: ATR on BEFS for each quarter's AP inspection non-compliances, Q1 by 30 Sep, Q2 by 31 Dec, Q3 by 31 Mar, Q4 by 30 Jun. Gap report rows: BSE1-N0005."
+    },
+    {
+     "issuer": "BSE",
+     "no": "BSE notices 20260821-26 and 20251010-71",
+     "says": "BSE-prescribed disciplinary action (Annexure A categories) within one month after the quarter's AP report due date; where termination is prescribed, within 7 days. Gap report rows: BSE1-N0004."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/COMP/480/2026",
+     "says": "ATR with closure status of AP inspection observations within 3 months from the quarter's end (Apr-Jun by 30 Sep). Gap report rows: MCX-0042."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "NSE ENIT, BSE BEFS and the MCX member portal",
+    "detail": "No API; a form or upload on the portal."
+   },
+   "practice": [
+    "Keep one register of inspection findings per AP and branch, with the category each falls under in NSE's and BSE's lists.",
+    "Decide the action within the exchanges' windows (BSE's is the shortest) and record it on the finding.",
+    "File the ATR with each exchange the AP is registered with; for a termination, withhold dues and tell the AP's clients at once."
+   ],
+   "ledgerline": {
+    "screen": "partners",
+    "screen_name": "Branches & partners",
+    "what": "Branches & partners holds the authorised persons and their registrations; the inspection findings and actions are kept with the inspection reports."
    }
+  },
+  {
+   "id": "CC-T-AP-MISCONDUCT",
+   "group": "Trading",
+   "title": "Report an AP offering assured returns or unauthorised schemes to NSE within one working day, then act",
+   "frequency": "On event",
+   "due_text": "On finding (including on social media) that an authorised person offers assured returns, runs unauthorised schemes or loans, or mis-sells: report it to NSE within 1 working day of the observation, inspect or investigate the AP promptly and act (withdraw approval, withhold dues, alert investors, police complaint), keeping evidence of every step.",
+   "rule": "EVENT",
+   "event_within": "1wd",
+   "applies": [
+    "broker",
+    "ap"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "NSE (as NSE/COMP/63628 directs); police complaint where needed",
+   "evidence": "The observation (screenshot, link, date); NSE intimation; the inspection or investigation report; the action taken and its evidence (withdrawal letter, withheld dues, investor alert, police complaint)",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/COMP/63628",
+     "date": "2024-08-28",
+     "title": "Framework for Supervision of Authorised Persons (APs) & Branches by Members",
+     "url": "https://nsearchives.nseindia.com/content/circulars/COMP63628.pdf",
+     "says": "Circular 56/2024 (framework for supervision of APs and branches): scan social media for AP mis-selling, assured returns, unauthorised schemes or loans; report assured-return or unauthorised-scheme incidents to NSE within 1 working day of observation; inspect or investigate and act; keep documentary evidence. Gap report rows: NSE-0064, NSE-0065."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Intimation to NSE as the circular directs; no API."
+   },
+   "practice": [
+    "Search social media for the firm's APs at least monthly and on any complaint; record each search and what it found.",
+    "Record the case here as an event the day it is observed, so the next working day's deadline shows."
+   ]
+  },
+  {
+   "id": "CC-T-SURV-QUARTERLY",
+   "group": "Trading",
+   "title": "File the quarterly status of surveillance alerts with each exchange (NIL included) within 15 days",
+   "frequency": "Quarterly",
+   "due_text": "Within 15 calendar days of each quarter's end, with each exchange the firm traded on: Format I (alert counts), Format II (alerts referred to the exchange) and Format III (major actions), NIL where there is nothing. MCX: the status of MCX transactional alerts (opening, received, closed, pending) on the MCX MRS portal within 15 days of the quarter's last trading day; advice and penalties follow from day 16.",
+   "rule": "01-15,04-15,07-15,10-15",
+   "applies": [
+    "broker"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "NSE Member Surveillance Dashboard; BSE BEFS; MCX MRS portal",
+   "evidence": "The quarter's Formats I-III as filed with each exchange; the acknowledgements; the alert register the counts come from",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/SURV/74008",
+     "date": "2026-04-30",
+     "title": "Surveillance and Investigation Consolidated Circular",
+     "url": "https://nsearchives.nseindia.com/content/circulars/SURV74008.pdf",
+     "says": "Consolidated surveillance circular: quarterly status of alerts within 15 days of the quarter's end (NIL if none) on the Member Surveillance Dashboard, in Formats I-III (NSE/SURV/48818 and 49765)."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/S&I/273/2026",
+     "says": "With MCX/S&I/251/2026 para 16(F): quarterly status of MCX transactional alerts (opening, received, closed, pending) on MRS within 15 days of the last trading day of each quarter; advice from day 16-20, then penalties. Gap report rows: MCX-N0006."
+    }
+   ],
+   "how": "upload",
+   "api": {
+    "status": "portal",
+    "name": "Each exchange's surveillance portal",
+    "detail": "No API; the counts are entered or uploaded on each portal."
+   },
+   "changed": "The calendar had the DP's quarterly report to CDSL (CC-D-SURV-QUARTERLY) but not the trading member's to the exchanges; Ledgerline already builds the report.",
+   "ledgerline": {
+    "check": "alerts_45",
+    "screen": "surv",
+    "screen_name": "Compliance → Surveillance & AML",
+    "what": "Surveillance & AML builds the quarter's surveillance report (Formats I-III) from the alerts, their decisions, the alerts referred to the exchange and the major actions recorded."
+   }
+  },
+  {
+   "id": "CC-T-CYBER-INCIDENT-QTR",
+   "group": "Trading",
+   "title": "File the quarterly cyber incident report with the exchanges (nil included) within 15 days",
+   "frequency": "Quarterly",
+   "due_text": "By 15 January, April, July and October: the quarter's cyber incident report, or a nil submission, entered by the designated officer on NSE ENIT (NEW-TRADE > Trade > Incident Report > Quarterly Report Submission). NSE shares it with MCX for NSE members; MCX's member portal stays open until the 15th for others. Late filing on NSE: Rs 1,500 a day for days 1-7 and Rs 2,500 a day for days 8-21 (non-QRE), then a bar on new registrations after 21 days and disablement after 28; repeats cost 50% more.",
+   "rule": "01-15,04-15,07-15,10-15",
+   "applies": [
+    "broker"
+   ],
+   "role": "Admin",
+   "filed_with": "NSE ENIT: NEW-TRADE > Trade > Incident Report > Quarterly Report Submission ('Nil Submission' where none); MCX member portal for members not reporting through NSE",
+   "evidence": "The quarter's submission or nil declaration with its acknowledgement; the incident register for the quarter",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/76673",
+     "says": "Circular 45/2026: quarterly cyber incident report (or nil) on ENIT within 15 days of quarter end, entered by the designated officer; late fees Rs 1,500 a day (days 1-7) and Rs 2,500 a day (days 8-21) for non-QREs, registration bar after 21 days, disablement after 28; repeat +50%. Gap report rows: CYBER-0281, CYBER-0284."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/72118",
+     "says": "Circular 01/2026: the ENIT path (NEW-TRADE > Trade > Incident Report > Quarterly Report Submission) and the 'Nil Submission' tick, through a designated officer. Gap report rows: NSE-0131."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/TECH/554/2026",
+     "says": "Quarterly report of cyber incidents occurred or not (nil included) on the member portal, open until the 15th of the month after the quarter; NSE members submit through NSE, which shares it with MCX. Gap report rows: MCX-0033."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "NSE ENIT Incident Report",
+    "detail": "No API; a form or upload on the portal.",
+    "url": "https://enit.nseindia.com/MemberPortal/"
+   },
+   "steps": [
+    "Log in to ENIT as the designated officer.",
+    "Open NEW-TRADE > Trade > Incident Report > Quarterly Report Submission.",
+    "Enter each incident of the quarter, or tick 'Nil Submission' when there was none, and submit by the 15th."
+   ],
+   "steps_from": "NSE/INSP/72118 and NSE/INSP/76673",
+   "changed": "The calendar had the DP's quarterly report to CDSL (CC-D-CYBER-INCIDENT-QTR) but not the trading member's to the exchanges.",
+   "ledgerline": {
+    "screen": "incidents",
+    "screen_name": "Security → Incidents",
+    "what": "The incident register in Security → Incidents gives the quarter's incidents, or shows there were none."
+   }
+  },
+  {
+   "id": "CC-T-CSCRF-CATEGORY",
+   "group": "Trading",
+   "title": "Work out the firm's CSCRF category for the year and have the board approve it",
+   "frequency": "Yearly",
+   "due_text": "At the start of each financial year, on the previous year's data: the category as a stock broker on two independent parameters (registered clients: self-certification over 1,000 up to 10,000, small up to 1 lakh, mid up to 10 lakh, qualified above; and annual client trading volume), and as a DP, taking the higher category across all SEBI registrations. It holds for the whole year, is approved by the Board, Designated Director, partners or proprietor (or technical committee), and the cyber auditor or reporting authority validates it. No day is set; Ledgerline dates it 30 April.",
+   "rule": "04-30",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "Kept by the firm; declared in the cyber audit or self-certification and to each exchange and depository as they ask",
+   "evidence": "The working (registered clients, trading volume, each registration's category), the board or Designated Director's approval with date, the category recorded in the firm profile",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2025/60",
+     "says": "Category determined at the start of each FY on the previous FY's data and held for the year; broker categories on registered clients (self-certification >1,000-10,000; small >10,000-1 lakh; mid >1-10 lakh; qualified >10 lakh) and annual client trading volume, independently. Gap report rows: CYBER-0164, CYBER-0165."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113",
+     "date": "2024-08-20",
+     "title": "Cybersecurity and Cyber Resilience Framework (CSCRF) for SEBI Regulated Entities",
+     "says": "CSCRF: determine the category as a stock broker and as a DP, applying the higher one where registered in several capacities. Gap report rows: CYBER-0004."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/76768",
+     "says": "Circular 48/2026: self-categorise under CSCRF considering other SEBI registrations, approved each FY by the Board, Designated Director, proprietor or partner; the auditor verifies it. Gap report rows: CYBER-0234."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/TECH/570/2026",
+     "says": "Self-categorise under CSCRF considering all SEBI registrations; reviewed and approved by the Board, Designated Director or technical committee each FY. Gap report rows: MCX-0027."
+    },
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/AUD/DP/POLCY/2026/765",
+     "says": "Self-categorise the DP under CSCRF (covering all SEBI registrations held) each FY with Board or Designated Director approval; the cyber auditor verifies it. Gap report rows: CDSL-N0013."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "practice": [
+    "Count registered clients and the year's client trading volume from Ledgerline as on 31 March.",
+    "Take the higher of the broker and DP categories; minute the approval and update the firm profile the same day."
+   ],
+   "ledgerline": {
+    "screen": "settings",
+    "screen_name": "Settings → Firm profile",
+    "what": "The firm profile holds the CSCRF category, which decides which cyber duties of this calendar apply."
+   }
+  },
+  {
+   "id": "CC-T-CSCRF-ACCESS-REVIEW",
+   "group": "Trading",
+   "title": "Review user access rights, unused tokens and privileged activity every half year",
+   "frequency": "Half-yearly",
+   "due_text": "Every half year for self-certification, small and mid-size REs (quarterly for qualified REs): review and document the access rights of every application, server, database, network device and SaaS tool, dormant and over-privileged accounts, unused tokens and privileged users' activity, with maker-checker on grants and revocations, against a central access matrix. No day is set; Ledgerline dates it at the end of each half year (30 September and 31 March).",
+   "rule": "03-31,09-30",
+   "applies": [
+    "broker|dp",
+    "cscrf:mid,small,self"
+   ],
+   "role": "Admin",
+   "filed_with": "Kept by the firm",
+   "evidence": "The access review (who has what, accounts removed or reduced, privileged activity reviewed), signed by the reviewer and approver; the access matrix as it stood",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113",
+     "date": "2024-08-20",
+     "title": "Cybersecurity and Cyber Resilience Framework (CSCRF) for SEBI Regulated Entities",
+     "says": "CSCRF: review user access rights, unused tokens and privileged users' activities (quarterly for qualified REs, half-yearly for others); periodically review and document access rights and dormant or over-privileged accounts with maker-checker for grants and revocations (s.4.1). Gap report rows: CYBER-0010, CYBER-0068."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/76991",
+     "says": "Circular 51/2026: keep a centralised access matrix across applications, infrastructure and SaaS tools; MFA on internal applications; stop storing login passwords. Gap report rows: CYBER-0327."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "practice": [
+    "Export the users of each system, mark each kept, reduced or removed, and have a second person approve the changes."
+   ],
+   "ledgerline": {
+    "screen": "users",
+    "screen_name": "Admin → Users & roles → Users",
+    "what": "Ledgerline's own users, roles and their changes (audit trail) are one input; the review covers every system."
+   }
+  },
+  {
+   "id": "CC-T-CSCRF-ACCESS-REVIEW-QTR",
+   "group": "Trading",
+   "title": "Review user access rights, unused tokens and privileged activity each quarter (qualified REs)",
+   "frequency": "Quarterly",
+   "due_text": "Each quarter for qualified REs: review and document the access rights of every application, server, database, network device and SaaS tool, dormant and over-privileged accounts, unused tokens and privileged users' activity, with maker-checker on grants and revocations, against a central access matrix. No day is set; Ledgerline dates it at the end of each quarter.",
+   "rule": "03-31,06-30,09-30,12-31",
+   "applies": [
+    "broker|dp",
+    "cscrf:qualified"
+   ],
+   "role": "Admin",
+   "filed_with": "Kept by the firm",
+   "evidence": "The access review (who has what, accounts removed or reduced, privileged activity reviewed), signed by the reviewer and approver; the access matrix as it stood",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113",
+     "date": "2024-08-20",
+     "title": "Cybersecurity and Cyber Resilience Framework (CSCRF) for SEBI Regulated Entities",
+     "says": "CSCRF: review user access rights, unused tokens and privileged users' activities (quarterly for qualified REs, half-yearly for others); periodically review and document access rights and dormant or over-privileged accounts with maker-checker for grants and revocations (s.4.1). Gap report rows: CYBER-0010, CYBER-0068."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/76991",
+     "says": "Circular 51/2026: keep a centralised access matrix across applications, infrastructure and SaaS tools; MFA on internal applications; stop storing login passwords. Gap report rows: CYBER-0327."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "practice": [
+    "Export the users of each system, mark each kept, reduced or removed, and have a second person approve the changes."
+   ],
+   "ledgerline": {
+    "screen": "users",
+    "screen_name": "Admin → Users & roles → Users",
+    "what": "Ledgerline's own users, roles and their changes (audit trail) are one input; the review covers every system."
+   }
+  },
+  {
+   "id": "CC-T-CSCRF-SOC",
+   "group": "Trading",
+   "title": "Keep every system under a security operations centre (M-SOC or own SOC) and get the yearly SOC efficacy report",
+   "frequency": "Yearly",
+   "due_text": "All the time: every system monitored by a SOC (own or group SOC, NSE's or BSE's Market SOC, or a third-party managed SOC), events watched 24x7 and alerts reviewed daily, low priority included. Self-certification and small REs onboard to the Market SOC unless they run an own or group SOC and report its efficacy. Each year: the SOC functional efficacy report from the SOC provider (Annexure-N method). No day is set; Ledgerline dates the yearly report with the yearly cyber submission, 30 June.",
+   "rule": "06-30",
+   "applies": [
+    "broker|dp",
+    "cscrf:qualified,mid,small,self"
+   ],
+   "role": "Admin",
+   "filed_with": "With the cyber audit or self-certification submission, as the exchange asks",
+   "evidence": "M-SOC onboarding confirmation or the SOC contract; the yearly SOC efficacy report; the daily alert review log; SOAR playbooks tested",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113",
+     "date": "2024-08-20",
+     "title": "Cybersecurity and Cyber Resilience Framework (CSCRF) for SEBI Regulated Entities",
+     "says": "CSCRF: security monitoring of all systems through a SOC (own or group, Market SOC or third-party); small and self-certification REs onboard to M-SOC unless they run own or group SOC and submit efficacy reports; 24x7 monitoring of events across network, endpoints, physical environment, personnel and third parties; yearly SOC functional efficacy report for non-qualified REs (Annexure-N). Gap report rows: CYBER-0002, CYBER-0003, CYBER-0012, CYBER-0113, CYBER-0115."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2025/119",
+     "says": "Small and self-certification REs onboard to M-SOC subject to exclusions; REs using an own SOC submit SOC efficacy reports periodically. Gap report rows: CYBER-0193, SEBI-NEW-0092."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI FAQs on CSCRF and Cloud Framework",
+     "says": "Small and self-certification REs with an own or group SOC may keep it, subject to periodic SOC efficacy reporting; otherwise M-SOC. Gap report rows: CYBER-0185."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "HO/13/19/12(1)2026-ITD-1_CIMGI/10873/2026",
+     "says": "Advisory: monitor systems daily, review all SOC alerts including low priority, use tested SOAR playbooks with SIEM, expedite M-SOC onboarding if not done. Gap report rows: CYBER-0309, SEBI-NEW-0047."
+    }
+   ],
+   "how": "auditor",
+   "api": {
+    "status": "none",
+    "detail": "The SOC provider's report; submitted with the yearly cyber submission."
+   }
+  },
+  {
+   "id": "CC-T-CSCRF-DRILL",
+   "group": "Trading",
+   "title": "Run the yearly live recovery drill of the cyber crisis, BCP and DR plans",
+   "frequency": "Yearly",
+   "due_text": "At least once a year (non-qualified REs), and covering every incident scenario within one audit period: live (not table-top) drills of the response and recovery plans in the board-approved cyber crisis management plan (CERT-In aligned, Annexure-C recovery plans), with RTO 2 hours, RPO 15 minutes and disaster declared within 30 minutes; DR site (if any) at least 250 km from the primary; clients told within 30 minutes of a disruption. No day is set; Ledgerline dates it 31 March.",
+   "rule": "03-31",
+   "applies": [
+    "broker|dp",
+    "cscrf:qualified,mid,small,self"
+   ],
+   "role": "Admin",
+   "filed_with": "Kept by the firm",
+   "evidence": "The drill plan and report (scenarios, times achieved against RTO and RPO, gaps and fixes), the approved CCMP, BCP and DR plans with versions, client communication templates",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113",
+     "date": "2024-08-20",
+     "title": "Cybersecurity and Cyber Resilience Framework (CSCRF) for SEBI Regulated Entities",
+     "says": "CSCRF: board-approved cyber crisis management plan aligned with CERT-In's national CCMP; incident response, BCP and DR plans maintained and tested; scenario-based recovery plans on the Annexure-C template; periodic drills, at least annually for non-qualified REs (s.4.1). Gap report rows: CYBER-0013, CYBER-0104, CYBER-0123, CYBER-0137, CYBER-0142."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI FAQs on CSCRF and Cloud Framework",
+     "says": "Cover all incident scenarios in drills within one audit period with live drills; RTO 2 hours, RPO 15 minutes, disaster declaration within 30 minutes. Gap report rows: CYBER-0186."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/73850",
+     "says": "Circular 20/2026 (system audit ToR): BCP/DR with a DR site (if applicable) at least 250 km from the primary, DR drills, and communication to clients within 30 minutes of a disruption. Gap report rows: CYBER-0274."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "practice": [
+    "Plan the year's scenarios so that each is drilled live at least once in the audit period.",
+    "Time the drill against RTO and RPO and record what fell short and its fix; place the report before the IT Committee."
+   ]
+  },
+  {
+   "id": "CC-T-CSCRF-CONTROLS",
+   "group": "Trading",
+   "title": "Yearly CSCRF controls review: critical systems, asset inventory, patching, hardening and APIs",
+   "frequency": "Yearly",
+   "due_text": "CSCRF applies all the time; once a year the IT Committee (and Board, partners or proprietor where the circular says) reviews and minutes that the standing controls hold: the critical systems list (refined definition, including systems on the same network segment) approved; the asset inventory of devices, URLs, domains, APIs, cloud and interfacing systems current (changes within 3 working days; a spreadsheet is enough for small REs), with EOL/EOS dates and SBOM; patches applied at once (virtual patching where none) and vendors pushed for theirs; vulnerability management plan; hardened baselines, DLP, backups, no admin rights on end-user devices; API inventory with strong authentication, least privilege, rate limits and whitelisting; remote access, MFA and centralised access matrix; clocks synchronised to NIC or NPL NTP; technical glitch policy; the common non-compliances the exchanges list. No day is set; Ledgerline dates it 31 March.",
+   "rule": "03-31",
+   "applies": [
+    "broker|dp",
+    "cscrf:qualified,mid,small,self"
+   ],
+   "role": "Admin",
+   "filed_with": "Kept by the firm",
+   "evidence": "IT Committee minutes of the review; the approved critical systems list; the asset inventory and SBOM; the patch and vulnerability registers; the API inventory; hardening baselines; the NTP configuration",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113",
+     "date": "2024-08-20",
+     "title": "Cybersecurity and Cyber Resilience Framework (CSCRF) for SEBI Regulated Entities",
+     "says": "CSCRF (supersedes the 2018 broker/DP cyber framework): identify and classify critical systems and have the list approved by the Board, partners or proprietor; inventory of devices, digital assets, cloud and interfacing systems updated within 3 working days of a change; DLP, backup and recovery, no admin rights on end-user devices; hardened baselines; scanning of critical software and vendor undertakings; vulnerability management plan; patch management with EOL replacement and virtual patching. Gap report rows: CYBER-0001, CYBER-0023, CYBER-0053, CYBER-0056, CYBER-0094, CYBER-0097, CYBER-0101, CYBER-0105, CYBER-0111."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2025/96",
+     "says": "Full CSCRF compliance by 31 Aug 2025 (extended); compliance continues. Gap report rows: CYBER-0163, SEBI-NEW-0087."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2025/119",
+     "says": "Refined definition of critical systems: any system on the same network segment as a critical system is critical, on premises and in the cloud. Gap report rows: CYBER-0189, SEBI-NEW-0089."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI FAQs on CSCRF and Cloud Framework",
+     "says": "Small REs may keep the asset inventory in a spreadsheet if updated periodically; critical systems list approved by the Board, partners or proprietor, non-critical internet-facing tools classified by risk assessment. Gap report rows: CYBER-0172, CYBER-0173."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "HO/13/19/12(1)2026-ITD-1_CIMGI/10873/2026",
+     "says": "Advisory: patch OS and applications immediately (virtual patching where none), continuous vulnerability assessment, vendors pushed for timely patches with change control; API inventory, strong authentication, least privilege, rate limiting and whitelisted connections; hardening, ZTNA, asset inventory and SBOM updated. Gap report rows: CYBER-0305, CYBER-0308, CYBER-0310, SEBI-NEW-0044, SEBI-NEW-0045, SEBI-NEW-0046."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI (Stock Brokers) Regulations, 2026",
+     "says": "Maintain a robust cyber security and cyber resilience framework as SEBI specifies. Gap report rows: SEBI-NEW-0126."
+    },
+    {
+     "issuer": "CERT-In",
+     "no": "No. 20(3)/2022-CERT-In",
+     "date": "2022-04-28",
+     "title": "Directions under section 70B(6) of the IT Act, 2000",
+     "url": "https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf",
+     "says": "Synchronise the clocks of all ICT systems with NIC or NPL NTP servers (or sources traceable to them). Gap report rows: CYBER-0312."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/73850",
+     "says": "Circular 20/2026 (system audit ToR): asset management framework (repository, reconciliation, approved software list, EOL in the risk register), phishing and malware controls; remote access policy, trusted devices, MFA including VPN, MAC-IP binding, BYOD rules; technical glitch policy with escalation, change and patch management, capacity planning and peak-load monitoring. Gap report rows: CYBER-0277, CYBER-0278, CYBER-0279."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/76991",
+     "says": "Circular 51/2026: classify critical assets by a documented policy and record EOL/EOS and installation dates in the critical asset inventory. Gap report rows: CYBER-0325."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/77149",
+     "says": "Circular 52/2026: critical assets classified in the register; 2FA on critical trading and admin systems, strong passwords, DLP in prevention mode, SOC and firewall coverage with log retention. Gap report rows: NSE-0141."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/TECH/588/2026",
+     "says": "Controls for the common cyber non-compliances observed in revalidation audits and CSK monitoring. Gap report rows: CYBER-0324."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "practice": [
+    "Take the exchanges' lists of common non-compliances (NSE/INSP/76991, NSE/INSP/77149, MCX/TECH/588/2026) as the review's checklist.",
+    "Update the asset inventory within 3 working days of each change through the year; the yearly review confirms it and the critical systems list.",
+    "Minute the review and keep it for the cyber audit or self-certification."
+   ],
+   "changed": "The CSCRF rows of the gap report that are standing controls (no deadline of their own) are gathered here as one yearly review, not daily items; incident handling is on CC-D-CYBER-INCIDENT, the SOC on CC-T-CSCRF-SOC, drills on CC-T-CSCRF-DRILL, access reviews on CC-T-CSCRF-ACCESS-REVIEW, cloud and vendors on CC-T-THIRD-PARTY-REVIEW."
+  },
+  {
+   "id": "CC-T-THIRD-PARTY-REVIEW",
+   "group": "Trading",
+   "title": "Yearly review of cloud providers and IT vendors: due diligence, contracts, SOC 2 reports and exit plan",
+   "frequency": "Yearly",
+   "due_text": "Before onboarding any cloud, SaaS or outsourced IT service, and at least once a year: board-approved cloud governance and risk policy reviewed (named owner, exit and contingency strategy, senior management review); risk-based due diligence of each provider; enforceable, legally vetted contracts (SLAs, subcontractors back to back, records and audit access for the firm and SEBI, data in India, RPO/RTO, insolvency, orderly transfer) with a signed annexure splitting every control between the firm and the provider (no shared ownership; the firm stays solely accountable); TIA-942 Rated-4 facilities for production; HSM or a board-approved alternative for keys; provider performance, uptime, incidents, audits and VAPT monitored; SOC 2 reports obtained and given to the system auditor; SEBI's outsourcing guidelines followed. No day is set; Ledgerline dates it 31 March.",
+   "rule": "03-31",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Admin",
+   "filed_with": "Kept by the firm",
+   "evidence": "The cloud and outsourcing policy with its yearly approval; the vendor register with each due diligence, contract, responsibility annexure, SOC 2 report and SLA review; the exit plan",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD/ITD_VAPT/P/CIR/2023/033",
+     "date": "2023-03-06",
+     "title": "Framework for Adoption of Cloud Services by SEBI Regulated Entities",
+     "says": "Framework for adoption of cloud services (6 Mar 2023): applies to new cloud onboarding at once and existing arrangements within 12 months; board-approved governance and risk model; CSP due diligence before onboarding and periodically; CSP-side controls verified; monitoring of performance, SLAs, incidents, audits and VAPT; back-to-back agreements with subcontractors; explicit responsibility demarcation with no shared ownership; legally vetted contract with audit, access, search and forensic rights; contract coverage (SLAs, data in India, RPO/RTO, insolvency, orderly transfer); BCP aligned with periodic DR drills and an outage contingency plan. Gap report rows: CYBER-0197, CYBER-0201, CYBER-0205, CYBER-0208, CYBER-0211, CYBER-0212, CYBER-0213, CYBER-0223, CYBER-0225, CYBER-0228."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113",
+     "date": "2024-08-20",
+     "title": "Cybersecurity and Cyber Resilience Framework (CSCRF) for SEBI Regulated Entities",
+     "says": "CSCRF: monitor and verify compliance of third parties doing critical activities (background checks, NDAs, cyber compliance), the RE solely accountable for vendor breaches; third parties follow comparable security standards; cloud deployments follow SEBI's cloud framework; outsourced IT and cyber services follow SEBI's outsourcing guidelines of 15 Dec 2011. Gap report rows: CYBER-0048, CYBER-0052, CYBER-0106, CYBER-0158."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2025/60",
+     "says": "A dedicated HSM for cloud for qualified REs; mid, small and self-certification REs may use an alternative on their own board-approved risk assessment. Gap report rows: CYBER-0169."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI FAQs on CSCRF and Cloud Framework",
+     "says": "Hosted services in TIA-942 Rated-4 facilities; Tier-3 only for development and testing without production or customer data. Gap report rows: CYBER-0183."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90",
+     "says": "Master circular for stock brokers: cloud framework applies to every new or proposed deployment; board-approved cloud governance and risk policy reviewed at least yearly with a named owner, exit and contingency strategy; the broker solely accountable, the split with CSP/MSP/SI documented in a signed annexure; SOC 2 reports from third-party and cloud vendors given to the system auditor. Gap report rows: SEBI-SB2-0150, SEBI-SB2-0153, SEBI-SB2-0156, SEBI-SB1-0063."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/66456",
+     "says": "Forwarding SEBI's circular: obtain SOC-II reports from third-party cloud vendors and provide them to the system auditor. Gap report rows: NSE-0179."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI (Stock Brokers) Regulations, 2026",
+     "says": "Comply with the outsourcing guidelines SEBI specifies. Gap report rows: SEBI-NEW-0129."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "practice": [
+    "Keep a vendor register: service, data held, criticality, contract and annexure dates, last due diligence, SOC 2 report period.",
+    "Ask each cloud and SaaS vendor (Ledgerline's host included) for the current SOC 2 report before the system audit.",
+    "Minute the yearly review with the IT Committee; review the cloud policy and exit plan at the same meeting."
+   ]
+  },
+  {
+   "id": "CC-T-CYBER-OFFICERS",
+   "group": "Trading",
+   "title": "Designate the cyber Designated Officer (CISO for qualified REs) and the CERT-In point of contact; tell CERT-In of changes",
+   "frequency": "As required",
+   "due_text": "Keep a senior official or management person designated as the cyber Designated Officer (a dedicated CISO for qualified REs; not part-time; a group CISO may serve group entities) with a time-bound incident reporting procedure, and a point of contact for CERT-In whose details (CERT-In Annexure II) are sent to info@cert-in.org.in and updated on every change. Answer CERT-In's information requests within the time it sets.",
+   "rule": "ASNEEDED",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "CERT-In (info@cert-in.org.in, Annexure II format); the exchanges and depository where their portals hold the officer's details",
+   "evidence": "Board resolution designating the officer; the CERT-In intimation and its acknowledgement; each later update",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113",
+     "date": "2024-08-20",
+     "title": "Cybersecurity and Cyber Resilience Framework (CSCRF) for SEBI Regulated Entities",
+     "says": "CSCRF: a senior official or management person as Designated Officer for cyber risk and incidents with a time-bound incident reporting procedure; FAQs: no part-time CISO, group CISO allowed. Gap report rows: CYBER-0030."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI FAQs on CSCRF and Cloud Framework",
+     "says": "The CISO or Designated Officer is dedicated to one organisation; remote allowed only if dedicated; a group-level CISO may serve group entities. Gap report rows: CYBER-0171."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/76768",
+     "says": "Circular 48/2026: appoint a Designated Officer for cyber (a CISO only for qualified REs). Gap report rows: CYBER-0243."
+    },
+    {
+     "issuer": "CERT-In",
+     "no": "No. 20(3)/2022-CERT-In",
+     "date": "2022-04-28",
+     "title": "Directions under section 70B(6) of the IT Act, 2000",
+     "url": "https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf",
+     "says": "Designate a point of contact to interface with CERT-In, send the details in the prescribed format (Annexure II) and update them on change; comply with CERT-In's information requests within the time set. Gap report rows: CYBER-0314, LAW-0160."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   }
+  },
+  {
+   "id": "CC-T-IBT-CONTROLS",
+   "group": "Trading",
+   "title": "Yearly check of the internet and mobile trading controls: 2FA, IP capture, encryption, sessions and disclosures",
+   "frequency": "Yearly",
+   "due_text": "Standing conditions for internet-based and mobile trading, checked once a year with the front-end vendor: two-factor login with two different factors on every login (biometric allowed on mobile); sessions logged out at end-of-day processing or a set time; the client's IP address (and device identifier) captured on every order; encryption and mutual client-server authentication, SSL owned by the firm, firewalls, password expiry, audit-enabled transaction logs, tamper-proof records; high availability with no single point of failure; alternate order channels when the internet or wireless fails; unique client IDs; KYC and an agreement no weaker than the exchange model before IBT; investor-protection information, the exchange rules link, cautionary pop-ups and brokerage display. No day is set; Ledgerline dates it 31 March.",
+   "rule": "03-31",
+   "applies": [
+    "broker",
+    "ibt"
+   ],
+   "role": "Admin",
+   "filed_with": "Kept by the firm",
+   "evidence": "The front-end vendor's confirmation of each control for the version in use; screenshots of the login, pop-ups and disclosures; a sample of order logs with IP addresses; the alternate-channel procedure",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90",
+     "says": "Master circular for stock brokers, IBT and STWT: encryption and tamper-proof records, backup and alternate order channels, qualified staff and contingency plans; user ID, password with expiry, audit-enabled logs, SSL and firewalls; wireless trading on the same conditions with encryption, unique client IDs and alternates; high availability, end-to-end encryption and mutual authentication; two-factor login with two different factors; KYC, agreement, investor-protection information, exchange-rules link and time-stamped source-labelled data; IP address (and device ID) of every IBT/STWT order. Gap report rows: SEBI-SB2-0076, SEBI-SB2-0077, SEBI-SB2-0081, SEBI-SB2-0084, SEBI-SB2-0088, SEBI-SB2-0089, SEBI-SB2-0091."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113",
+     "date": "2024-08-20",
+     "title": "Cybersecurity and Cyber Resilience Framework (CSCRF) for SEBI Regulated Entities",
+     "says": "CSCRF: at least two-factor authentication for IBT and STWT (biometric allowed on mobile). Gap report rows: CYBER-0150."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/COMP/68635",
+     "says": "Circular 49/2025: 2FA on every client login attempt on web and mobile; active sessions logged out at end-of-day processing or a defined time. Gap report rows: NSE-0190."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/73850",
+     "says": "Circular 20/2026 (system audit ToR): IBT/STWT client IP capture, mutual authentication, SSL ownership, cautionary pop-ups per surveillance circulars, brokerage display. Gap report rows: CYBER-0275."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "ledgerline": {
+    "screen": "connections",
+    "screen_name": "Admin → Connections",
+    "what": "The trading front ends are the vendors'; Ledgerline keeps the client's KYC, agreements and consent records the IBT conditions rely on."
+   }
+  },
+  {
+   "id": "CC-T-PMLA-OFFICERS",
+   "group": "Trading",
+   "title": "Appoint the Principal Officer and Designated Director, register on FINnet 2.0 and tell FIU-IND of any change",
+   "frequency": "As required",
+   "due_text": "Keep a management-level Principal Officer (the central reference point for AML reporting, with access to and reporting to senior management or the Board) and a Designated Director responsible for overall PMLA compliance; communicate the name, designation and address of both to FIU-IND, and any change, promptly. Keep the reporting entity's FINnet 2.0 registration (FIU Reporting Entity ID) and contact details current.",
+   "rule": "ASNEEDED",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "FIU-IND FINnet 2.0 (reporting entity registration and PO/DD details)",
+   "evidence": "Board resolutions appointing the PO and DD; the FIU-IND intimation and FINnet 2.0 profile as updated; each change",
+   "refs": [
+    {
+     "issuer": "FIU-IND",
+     "no": "PML (Maintenance of Records) Rules, 2005",
+     "says": "Rule 7: appoint a Designated Director and a Principal Officer (management level) and communicate the name, designation and address of both to FIU-IND; intimate changes. Gap report rows: LAW-0023."
+    },
+    {
+     "issuer": "FIU-IND",
+     "no": "FINnet 2.0 reporting entity registration",
+     "says": "Register the reporting entity on FINnet 2.0 (FIU Reporting Entity ID) before the first report and keep PO, DD and contact details current. Gap report rows: LAW-0024."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSDSECFATF/P/CIR/2024/78",
+     "date": "2024-06-06",
+     "title": "Master Circular: AML/CFT obligations under PMLA 2002",
+     "says": "Master circular on AML/CFT: a management-level Principal Officer as central reference point reporting to senior management or the Board; his name, designation and address (and changes) to FIU-IND; a Designated Director for overall PMLA compliance, with the same communication. Gap report rows: SEBI-KYCAML-0206, SEBI-KYCAML-0207, SEBI-KYCAML-0208, SEBI-KYCAML-0209."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "FIU-IND FINnet 2.0",
+    "detail": "No API for the reporting entity's profile."
+   },
+   "ledgerline": {
+    "screen": "surv",
+    "screen_name": "Compliance → Surveillance & AML",
+    "what": "FINGate 2.0 filings from Ledgerline go in the Principal Officer's name; keep the connection's details in step with FIU-IND's records."
+   }
+  },
+  {
+   "id": "CC-T-ML-RISK-ASSESSMENT",
+   "group": "Trading",
+   "title": "Carry out the yearly ML/TF risk assessment (and file BSE's internal risk assessment with RBS)",
+   "frequency": "Yearly",
+   "due_text": "Identify, assess and document the firm's money-laundering and terrorist-financing risks by clients, countries, products, transactions and delivery channels; keep it updated (on change, and at least yearly) and give it to SEBI, FIU-IND or the exchanges on request. BSE members upload the AML/CFT Internal Risk Assessment on BEFS ('IRA Submission') with the yearly RBS data, by 31 May, and keep the working data for inspection.",
+   "rule": "05-31",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "Kept by the firm; BSE BEFS 'IRA Submission' for BSE members",
+   "evidence": "The risk assessment with its approval date; the client risk categories it rests on; the BEFS acknowledgement",
+   "refs": [
+    {
+     "issuer": "FIU-IND",
+     "no": "PML (Maintenance of Records) Rules, 2005",
+     "says": "Carry out and document an ML/TF risk assessment (clients, countries, products, channels), keep it updated and make it available to SEBI and FIU-IND on request. Gap report rows: LAW-0040."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSDSECFATF/P/CIR/2024/78",
+     "date": "2024-06-06",
+     "title": "Master Circular: AML/CFT obligations under PMLA 2002",
+     "says": "Identify, assess and document ML/TF risks for clients, countries, products, transactions and delivery channels; keep the assessment updated and provide it to authorities on request. Gap report rows: SEBI-KYCAML-0156."
+    },
+    {
+     "issuer": "BSE",
+     "no": "BSE Master Circular (Member Oversight)",
+     "says": "Submit the AML/CFT Internal Risk Assessment on BEFS ('IRA Submission') with the RBS data, annually (31 May), and preserve the RBS working data for inspection. Gap report rows: NCL-BSE-0112."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "practice": [
+    "Count clients by risk category, country link, product and channel from Ledgerline as on 31 March; record the inherent risk, controls and residual risk for each.",
+    "Have the Designated Director approve it; BSE members upload it with the RBS data."
+   ],
+   "ledgerline": {
+    "screen": "kyc",
+    "screen_name": "Compliance → KYC & PMLA",
+    "what": "Client risk categories, special-category clients and the sanctions and FATF screening records in KYC & PMLA are the assessment's client data."
+   }
+  },
+  {
+   "id": "CC-T-AML-TRAINING",
+   "group": "Trading",
+   "title": "Train staff on AML/CFT each year, by role",
+   "frequency": "Yearly",
+   "due_text": "Ongoing AML/CFT training for staff, tailored for front-line, back-office, compliance, risk and new-client staff. No frequency is set; Ledgerline dates a yearly round on 31 March.",
+   "rule": "03-31",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "Kept by the firm",
+   "evidence": "Training calendar, material, attendance by employee and role, test results",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSDSECFATF/P/CIR/2024/78",
+     "date": "2024-06-06",
+     "title": "Master Circular: AML/CFT obligations under PMLA 2002",
+     "says": "Ongoing employee training programme on AML/CFT procedures, with different focus for front-line, back-office, compliance, risk and new-client staff. Gap report rows: SEBI-KYCAML-0211."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "ledgerline": {
+    "screen": "people",
+    "screen_name": "People → Staff",
+    "what": "Record each employee's training in their staff file."
+   }
+  },
+  {
+   "id": "CC-T-ORDER-EVIDENCE",
+   "group": "Trading",
+   "title": "Check each quarter that every dealer-placed order has the client's order evidence (call recording, e-mail, signed slip)",
+   "frequency": "Quarterly",
+   "due_text": "Every client order executed by a dealer, branch or AP needs prior evidence of the client placing it: a signed physical record, a telephone recording (all telephone orders recorded), an e-mail from the client's registered ID, an internet trading log, an SMS or other prescribed mode; AP locations (new ones too) have voice recording or an equivalent, and APs without terminals cannot place orders for clients. Evidence is kept for at least the arbitration limitation period (3 years), until final resolution of any dispute, and as long as SEBI asks; produced for any disputed trade, with reasons recorded for exceptions. Ledgerline dates a quarterly sample check at each quarter's end.",
+   "rule": "03-31,06-30,09-30,12-31",
+   "applies": [
+    "broker"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "Kept by the firm",
+   "evidence": "The quarter's sample (orders picked, the evidence found for each, gaps and actions); the recording system's retention settings; AP location recording confirmations",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90",
+     "says": "Master circular for stock brokers: execute client trades only after keeping evidence of the order (signed order, telephone recording, e-mail from the authorised ID, internet log, SMS or other); produce it for disputed trades and record reasons for exceptions; record all telephone orders; keep evidence at least for the arbitration limitation period (3 years), until disputes are finally resolved, and as SEBI asks. Gap report rows: SEBI-SB1-0142, SEBI-SB1-0143, SEBI-SB1-0144, SEBI-SB1-0145."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/67132",
+     "says": "Circular 15/2025: execute client trades only with prior evidence of the client's order via a prescribed mode (from 15 May 2025). Gap report rows: NSE-0169."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/ISC/73908",
+     "says": "Master circular for investor grievances: orders only with evidence of the client placing them; all telephone orders recorded; kept until dispute resolution. Gap report rows: NSE-N0055."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/INSP/568/2025",
+     "says": "Execute client orders only after keeping evidence of client placement (signed record, telephone recording, e-mail, internet log, SMS). Gap report rows: MCX-0076."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/INSP/577/2025",
+     "says": "Voice recording or equivalent order-placement recording at AP locations (including new ones); APs without terminals cannot place trades for clients; checked each AP inspection cycle. Gap report rows: MCX-0052."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "practice": [
+    "Pick a sample of each dealer's and each AP's orders from the trade files for the quarter and find the evidence for each.",
+    "Record gaps and the action taken (warning, retraining, AP inspection finding)."
+   ]
+  },
+  {
+   "id": "CC-T-PROHIBITED-ACTIVITIES",
+   "group": "Trading",
+   "title": "Yearly attestation that the firm does none of the barred fund-based activities",
+   "frequency": "Yearly",
+   "due_text": "All the time, and attested once a year by the Designated Director: no borrowing from clients (except clients who are directors, associates or group companies, for working capital); no financing of clients' trades outside MTF or SLB; no lending to clients; no pledging client securities for the firm's borrowing; no corporate guarantees or deposits for others' credit (SCRR rule 8(1)(f)/8(3)(f)); no bank guarantees created out of client funds; no association, money dealings, client referrals or IT/API links with persons giving unauthorised advice or claiming returns. No day is set; Ledgerline dates it 31 March.",
+   "rule": "03-31",
+   "applies": [
+    "broker"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "Kept by the firm",
+   "evidence": "The signed attestation; the internal auditor's half-yearly check of loans, borrowings, guarantees and related-party dealings; the vendor and partner list checked against SEBI's unauthorised entities",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90",
+     "says": "Master circular for stock brokers: no bank guarantees created out of client funds; existing ones were wound down by 30 Sep 2023. Gap report rows: SEBI-SB2-0209."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/74836",
+     "says": "Circular 32/2026: do not finance clients' secondary market trades (except MTF/SLB), borrow from clients (except related director, associate clients for working capital), pledge client securities, or the other barred activities. Gap report rows: NSE-0187."
+    },
+    {
+     "issuer": "NSE Clearing",
+     "no": "NCL/CMPL/74024",
+     "says": "Master circular for clearing members: avoid the fund-based activities SCRR rule 8(1)(f)/8(3)(f) bars (corporate guarantees or deposits for others' credit, lending or borrowing with clients, pledging). Gap report rows: NSE-N0045."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/COMP/361/2026",
+     "says": "Annexure A FAQs 2-5: no borrowing from clients (except directors, associates or group companies for working capital), no financing outside MTF/SLB, no pledging client securities. Gap report rows: MCX-N0026."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI (Intermediaries) Regulations, 2008",
+     "says": "Do not associate directly or indirectly (money transactions, client referrals, IT/API interaction) with persons giving unauthorised advice or making unauthorised return claims. Gap report rows: SEBI-NEW-0175."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "changed": "Standing prohibitions with no deadline: kept as one yearly attestation rather than a daily item.",
+   "ledgerline": {
+    "screen": "books",
+    "screen_name": "Accounts → Firm accounts & GST",
+    "what": "The firm's books show loans, borrowings and guarantees for the attestation."
+   }
+  },
+  {
+   "id": "CC-T-NSE-QTR-DECLARATIONS",
+   "group": "Trading",
+   "title": "File NSE's quarterly declarations (brokerage display, advertisement code, AP and branch supervision, margin) within 30 days",
+   "frequency": "Quarterly",
+   "due_text": "Within 30 days of each quarter's end: the quarterly declarations on display of brokerage and levies, the code of advertisement, supervision of APs and branches, refraining from unauthorised market practices, and margin (as the circular lists).",
+   "rule": "01-30,04-30,07-30,10-30",
+   "applies": [
+    "broker",
+    "member:NSE"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "NSE ENIT (as NSE/INSP/69184 directs)",
+   "evidence": "The quarter's declarations as filed with the acknowledgement",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/69184",
+     "says": "Circular 46/2025: quarterly declarations on display of brokerage and levies, code of advertisement, AP and branch supervision, refraining from unauthorised market practices and margin, within 30 days of quarter end. Gap report rows: NSE-0033."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "NSE ENIT",
+    "detail": "No API; a form or upload on the portal.",
+    "url": "https://enit.nseindia.com/MemberPortal/"
+   }
+  },
+  {
+   "id": "CC-T-INSURANCE",
+   "group": "Trading",
+   "title": "Keep the stock brokers' indemnity insurance in force and file the renewed policy with NSE",
+   "frequency": "Yearly",
+   "due_text": "Keep the mandatory stock brokers' indemnity policy in force and submit the renewed policy's details with the premium receipt on ENIT (Compliance > Insurance > New Insurance), saying whether one policy covers several exchanges: by 31 July for a policy that expires on 31 May, otherwise within one month of expiry. Ledgerline dates it 31 July; record a revised date for a policy on another cycle.",
+   "rule": "07-31",
+   "applies": [
+    "broker",
+    "member:NSE"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "NSE ENIT: Compliance > Insurance > New Insurance",
+   "evidence": "The renewed policy, premium receipt and ENIT acknowledgement",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/COMP/74300",
+     "says": "Circular 47/2026: keep a Stock Brokers Indemnity Policy in force; submit the renewed policy's details with receipt on ENIT (Compliance > Insurance > New Insurance), stating whether one policy covers several exchanges; policies expiring 31 May by 31 July, others within one month of expiry. Gap report rows: NSE-0196."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/70505",
+     "date": "2025-09-29",
+     "title": "Technology based sharing mechanisms of common submissions among Exchanges",
+     "url": "https://nsearchives.nseindia.com/content/circulars/INSP70505.pdf",
+     "says": "Common submissions: proof of the mandatory insurance cover by 31 July where validity ends 31 May, otherwise within one month of expiry. Gap report rows: NSE-0042."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "NSE ENIT Insurance module",
+    "detail": "No API; a form or upload on the portal.",
+    "url": "https://enit.nseindia.com/MemberPortal/"
+   },
+   "steps": [
+    "Renew the policy before it expires.",
+    "On ENIT open Compliance > Insurance > New Insurance and enter the policy, insurer, period, sum insured and whether it covers several exchanges.",
+    "Upload the policy and the premium receipt and submit."
+   ],
+   "steps_from": "NSE/COMP/74300"
+  },
+  {
+   "id": "CC-T-BO-FACILITY",
+   "group": "Trading",
+   "title": "Use only exchange-empanelled back-office software and file its name and version with each exchange before use and on change",
+   "frequency": "On event",
+   "due_text": "Before using a back-office system, and on any change of vendor or version: the vendor (or the in-house software) is empanelled or approved by one or more exchanges, STQC-certified where MCX requires it for COTS; the back-office facility details (vendor, product, version, or in-house) are filed on NSE ENIT (Compliance > BO Facility Details) and the MCX CTCL portal, with the vendor's confirmation letter on baseline requirements and patch levels.",
+   "rule": "EVENT",
+   "event_within": "0",
+   "applies": [
+    "broker"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "NSE ENIT: Compliance > BO Facility Details (each segment); MCX CTCL web portal (integrated.mcxindia.com); BSE as it asks",
+   "evidence": "The vendor's empanelment letters, the vendor confirmation letter, the ENIT and MCX acknowledgements for each version",
+   "refs": [
+    {
+     "issuer": "NSE Clearing",
+     "no": "NCL/CMPL/69042",
+     "says": "Circular 20/2025: onboard only back-office software vendors empanelled or approved by one or more exchanges; in-house back office must likewise be exchange-approved. Gap report rows: NSE-0082, NCL-BSE-0001."
+    },
+    {
+     "issuer": "NSE Clearing",
+     "no": "NCL/CMPL/74024",
+     "says": "Master circular for clearing members: back-office software from a vendor empanelled or approved by any exchange (or approved in-house), per SEBI/HO/MRD/POD-3/P/CIR/2024/162. Gap report rows: NSE-N0053."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/COMP/73981",
+     "says": "Master circular, chapter III item 23: for each segment file back-office facility details on ENIT (Compliance > BO Facility Details), naming the empanelled vendor and version or the in-house software, before use and on change. Gap report rows: NSE-0081."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INVG/76131",
+     "says": "Circular 079/2026: on registering a vendor product (back office included), submit the vendor's confirmation that minimum baseline requirements and security patch levels are met. Gap report rows: NSE-0083."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/TECH/279/2024",
+     "says": "Register the back-office facility (in-house or empanelled vendor) on the CTCL web portal before using any new BO software; vendors conform to the revised criteria. Gap report rows: MCX-0142."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/TECH/501/2026",
+     "says": "Only SaaS, COTS or in-house software certified for application security testing and functional audit; empanelled COTS vendors hold STQC certification (CSCRF PR.IP.S1). Gap report rows: MCX-N0028."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "NSE ENIT BO Facility Details; MCX CTCL portal",
+    "detail": "No API; a form or upload on the portal."
+   },
+   "changed": "Ledgerline itself must be empanelled with an exchange (or approved as the firm's in-house software) for a broker to use it; see CC-T-BO-SOFTWARE-CRITERIA for the yearly system audit check.",
+   "ledgerline": {
+    "screen": "settings",
+    "screen_name": "Admin → Settings",
+    "what": "Ledgerline is the back-office software: file its name and the version shown in Settings with each exchange when it is brought in and after each version the exchanges must know of."
+   }
+  },
+  {
+   "id": "CC-T-MCX-SYSAUDIT",
+   "group": "Trading",
+   "title": "MCX: have the yearly system audit done by an MCX-empanelled auditor and submit the report by 30 June",
+   "frequency": "Yearly",
+   "due_text": "Each year (April-March), for a trading member that is also a DP (Type II) and the others MCX lists: the system audit of the trading software by an auditor empanelled by MCX under MCX/TECH/514/2025 (reports by others are not accepted); after the auditor uploads the Algo MIS, version confirmation, assessment details and visit details, the member adds management comments and submits the SAR on member.mcxindia.com, which is complete only on the member's submission. FY 2025-26: by 30 June 2026. Late or missing submissions draw penalties (MCX/TECH/856/2023, MCX/COMP/213/2026).",
+   "rule": "06-30",
+   "applies": [
+    "broker",
+    "member:MCX"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "MCX member portal (member.mcxindia.com), SAR module",
+   "evidence": "The auditor's appointment and empanelment, the SAR with management comments as submitted, the acknowledgement",
+   "refs": [
+    {
+     "issuer": "MCX",
+     "no": "MCX/TECH/231/2026",
+     "says": "As a TM that is also a DP (Type II): annual system audit (Apr-Mar) of trading software by an empanelled system auditor; SAR on member.mcxindia.com; FY 2025-26 SAR by 30 Jun 2026. Gap report rows: MCX-0019."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/TECH/569/2026",
+     "says": "Appoint only an MCX-empanelled system auditor (MCX/TECH/514/2025 criteria), from the period ending 30 Sep 2025; the member adds management comments and submits the SAR after the auditor's uploads; complete only on the member's submission. Gap report rows: MCX-0011, MCX-0017."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/TECH/856/2023",
+     "says": "With MCX/TECH/231/2026 and MCX/COMP/213/2026: penalties for late or missing SAR and cyber audit submissions; track each due date. Gap report rows: MCX-0023."
+    }
+   ],
+   "how": "auditor",
+   "api": {
+    "status": "portal",
+    "name": "MCX member portal SAR module",
+    "detail": "No API; a form or upload on the portal.",
+    "url": "https://member.mcxindia.com/"
+   },
+   "changed": "NSE's system audit (OB-SYSAUDIT and its plan and ATR) does not cover MCX: MCX takes its own SAR from an MCX-empanelled auditor."
+  },
+  {
+   "id": "CC-T-MCX-SYSAUDIT-ATR",
+   "group": "Trading",
+   "title": "MCX: file the system audit action taken report, validated by the same auditor, by 30 September",
+   "frequency": "Yearly",
+   "due_text": "For every non-compliance in the MCX system audit: a corrective action taken report validated by the same auditor and approved through SCOT/TC; FY 2025-26 by 30 September 2026; a follow-on audit where the auditor says one is needed.",
+   "rule": "09-30",
+   "applies": [
+    "broker",
+    "member:MCX"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "MCX member portal (member.mcxindia.com)",
+   "evidence": "The ATR with the auditor's validation and the acknowledgement; the follow-on audit report if any",
+   "refs": [
+    {
+     "issuer": "MCX",
+     "no": "MCX/TECH/231/2026",
+     "says": "Corrective ATR for each SAR non-compliance, validated by the same auditor, by 30 Sep 2026 for the FY 2025-26 SAR; follow-on audit where the auditor indicates. Gap report rows: MCX-0020."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/TECH/569/2026",
+     "says": "For every non-compliance a corrective ATR validated by the same auditor, approved via SCOT/TC. Gap report rows: MCX-0018."
+    }
+   ],
+   "how": "auditor",
+   "api": {
+    "status": "portal",
+    "name": "MCX member portal",
+    "detail": "No API; a form or upload on the portal.",
+    "url": "https://member.mcxindia.com/"
+   }
+  },
+  {
+   "id": "CC-T-TRADING-SOFTWARE",
+   "group": "Trading",
+   "title": "Before a new trading software or version goes live: exchange mock testing and approval",
+   "frequency": "On event",
+   "due_text": "Before deploying in-house or vendor trading software (CTCL, IBT, WT, DMA, SOR, algo) or any new version or update of approved software: test it in the exchange's mock or simulation environment, take part in the exchange's mock sessions, and get the exchange's approval (MCX through its CTCL portal) before using it in production; retest regularly.",
+   "rule": "EVENT",
+   "event_within": "0",
+   "applies": [
+    "broker"
+   ],
+   "role": "Admin",
+   "filed_with": "Each exchange's CTCL/software approval process",
+   "evidence": "Mock test results, the exchange's approval for each product and version, the vendor's release note",
+   "refs": [
+    {
+     "issuer": "MCX",
+     "no": "MCX/CTCL/192/2026",
+     "says": "Test in-house or empanelled-vendor trading software (CTCL, IBT, WT, DMA, algo) in MCX mock or simulation and get MCX approval before production; approval for each new version or update before use; regular testing. Gap report rows: MCX-0112, MCX-0113."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90",
+     "says": "Master circular for stock brokers: test trading and RMS software (IBT, DMA, STWT, SOR, algo) in the exchange mock or simulated environment before use, and take part in exchange mock trading or simulated sessions. Gap report rows: SEBI-SB2-0106."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "Each exchange's software approval portal",
+    "detail": "No API; a form or upload on the portal."
+   }
+  },
+  {
+   "id": "CC-T-SMS-TEMPLATES",
+   "group": "Trading",
+   "title": "Pre-tag every SMS template's variable fields under TRAI's direction and use 1600 numbers for service calls",
+   "frequency": "One time",
+   "due_text": "Before TRAI's blocker mode starts: review every SMS content template (especially those used in the last 90 days), pre-tag each variable field as TRAI's direction of 18 November 2025 requires, and fix the deficiencies found; use the 1600 series only for service and transactional calls. New templates are tagged when registered.",
+   "rule": "ONCE",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "The firm's DLT platform (the telecom operator's)",
+   "evidence": "The DLT template list with the tags; the 1600 series allotment",
+   "refs": [
+    {
+     "issuer": "MCX",
+     "no": "MCX/TECH/526/2026",
+     "says": "TRAI direction of 18 Nov 2025: review all SMS content templates (especially those used in the last 90 days), pre-tag every variable field and fix deficiencies, within TRAI timelines (before blocker-mode activation). Gap report rows: MCX-0135."
+    },
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/OPS/DP/POLCY/2026/664",
+     "says": "TRAI directions: MNRL checks in risk, authentication and communication workflows; 1600 series only for service and transactional calls; review SMS templates and pre-tag them before blocker mode. Gap report rows: CDSL-N0012."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "The operator's DLT portal",
+    "detail": "No API; a form or upload on the portal."
+   },
+   "changed": "The MNRL part of CDSL's circular is on CC-D-MNRL and CC-T-MNRL.",
+   "ledgerline": {
+    "screen": "messages",
+    "screen_name": "Client documents → Client messages",
+    "what": "Ledgerline's SMS templates carry their DLT template IDs; check each against the tagged template on the DLT portal."
+   }
+  },
+  {
+   "id": "CC-T-INVESTOR-AWARENESS",
+   "group": "Trading",
+   "title": "Show SEBI's investor awareness messages (Project Jagrook) and the F&O risk disclosures on the website and app",
+   "frequency": "Monthly",
+   "due_text": "Display the SEBI-supplied investor awareness messages, word for word, bilingually in Hindi and English, on the website's and trading app's landing pages as scheduled (from 1 Nov 2026 on Mon/Wed/Fri/Sun on the app, alternating with the F&O risk disclosures; until 31 Dec 2026 as extended); and show SEBI's F&O risk disclosure (Annexure-23 loss statistics) on the website and as a login pop-up covering at least half the screen that F&O clients must acknowledge. Ledgerline dates a check at each month's end.",
+   "rule": "MEND",
+   "applies": [
+    "broker"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "Kept by the firm",
+   "evidence": "Dated screenshots of the website and app landing pages and the login pop-up; the message text as SEBI shared it",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "HO/38/24/(15)2026-MIRSD-PODMMC/I/22872/2026",
+     "says": "Project Jagrook: display the SEBI-supplied investor awareness messages on the website and trading app exactly as shared, from 5 Oct 2026; on the website's landing page from 1 Nov 2026; on the app's landing page alternating day by day with the May 2023 F&O risk disclosures. Gap report rows: SEBI-NEW-0001, SEBI-NEW-0002, SEBI-NEW-0003."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/COMP/76720",
+     "says": "Circular 88/2026: from 1 Nov 2026 the bilingual messages on website and app landing pages on Mon/Wed/Fri/Sun and the F&O risk disclosure on the other days; until 31 Dec 2026 (NSE/COMP/77342). Gap report rows: NSE-0203."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/MEM/560/2026",
+     "says": "As extended by MCX/MEM/632/2026: Project Jagrook messages on trading apps and websites, bilingual, per the schedule in para 2(b), until 31 Dec 2026. Gap report rows: MCX-0069."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90",
+     "says": "Master circular for stock brokers: the Annexure-23 F&O risk disclosures on the website and as a login pop-up covering at least 50% of the screen, acknowledged by the client before proceeding. Gap report rows: SEBI-SB1-0205, SEBI-SB2-0058."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "changed": "SEBI may change or extend the messages; check its latest letter each month.",
+   "ledgerline": {
+    "screen": "inspack",
+    "screen_name": "Compliance → Inspection packs",
+    "what": "The website and trading app are outside Ledgerline; keep the month's screenshots in Inspection packs → Documents."
+   }
+  },
+  {
+   "id": "CC-T-CYBERFRAUD-LEA",
+   "group": "Trading",
+   "title": "Act on a cyber-fraud complaint or police request under the I4C SOP (NCRP and CFCFRMS)",
+   "frequency": "On event",
+   "due_text": "On a law enforcement request or a complaint on the National Cybercrime Reporting Portal (NCRP) or CFCFRMS about a client's funds or securities: cooperate at once, hold or restore the flagged funds or securities as the I4C SOP (para 9.6 for stock broking companies) sets out, and keep the record.",
+   "rule": "EVENT",
+   "event_within": "0",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "The requesting law enforcement agency; CFCFRMS",
+   "evidence": "The request, the hold or restoration done with dates, the client communication, the closure",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/COMP/73433",
+     "says": "Forwarding the MHA/I4C SOP on NCRP and CFCFRMS: stock broking companies follow para 9.6, cooperate with LEA requests on cyber-fraud complaints, and hold or restore flagged funds or securities as the SOP says. Gap report rows: NSE-0202, NSE-0242."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "changed": "NSE's circular gives no day count for each step; the SOP's own timelines apply (to confirm against its text)."
+  },
+  {
+   "id": "CC-T-ADVERTISEMENT",
+   "group": "Trading",
+   "title": "Get NSE's approval for an advertisement at least 7 working days before it is issued",
+   "frequency": "On event",
+   "due_text": "For every advertisement, including those of APs and channel partners: apply on ENIT (Advertisement module) with the undertakings at least 7 working days before issue; an approval can be used for 180 days. Record the event the day the advertisement is ready, with the planned issue date's cut-off as the due date.",
+   "rule": "EVENT",
+   "event_within": "0",
+   "applies": [
+    "broker",
+    "member:NSE"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "NSE ENIT Advertisement module",
+   "evidence": "The advertisement, the ENIT application and NSE's approval with its date and validity",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/COMP/73981",
+     "says": "Master circular for membership compliance: prior approval through ENIT's Advertisement module at least 7 working days before issue, with undertakings, for every advertisement including by APs or channel partners; approvals valid 180 days. Gap report rows: NSE-N0011."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "NSE ENIT Advertisement module",
+    "detail": "No API; a form or upload on the portal.",
+    "url": "https://enit.nseindia.com/MemberPortal/"
+   }
+  },
+  {
+   "id": "CC-T-SEBI-INSPECTION-CSR",
+   "group": "Trading",
+   "title": "After a SEBI inspection: correct the findings, file the compliance status report and have the internal auditor certify it",
+   "frequency": "On event",
+   "due_text": "On SEBI's inspection findings (the exchange assigned to monitor them is named): take the corrective actions SEBI directs and submit the Compliance Status Report (Annexure 1, letterhead, signed by the compliance officer) to the assigned exchange within SEBI's timeline; the empanelled internal auditor certifies it (Annexure 2, with UDIN) with the next half-yearly internal audit report. BSE: 1-15 days late is a warning, 16-30 days Rs 2,500 a day. Ledgerline dates it 30 days from the letter; record the letter's own date.",
+   "rule": "EVENT",
+   "event_within": "30d",
+   "applies": [
+    "broker"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "The exchange SEBI assigns (NSE ENIT, BSE BEFS or MCX)",
+   "evidence": "SEBI's findings letter, the corrective action for each, the Compliance Status Report and acknowledgement, the internal auditor's certificate",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/68731",
+     "says": "Circular 43/2025: take corrective actions SEBI directs after its inspection and submit a Compliance Status Report (Annexure 1, letterhead, signed by the compliance officer) to the assigned exchange; the empanelled internal auditor verifies and certifies it (Annexure 2) with the half-yearly IAR; from 1 Jul 2025. Gap report rows: NSE-0176, NSE-0177."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/73630",
+     "says": "Internal audit compliance certificate: the NSE-empanelled internal auditor issues the certificate (with UDIN) listing each SEBI observation needing corrective action and its status, with the half-yearly internal audit. Gap report rows: NSE-0261."
+    },
+    {
+     "issuer": "BSE",
+     "no": "BSE Master Circular (Member Oversight)",
+     "says": "Where SEBI assigns BSE, take the corrective actions and submit the Compliance Status Report (Annexure 1) within SEBI's timelines; 1-15 days late a warning, 16-30 days Rs 2,500 a day. Gap report rows: BSE1-N0018."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/INSP/255/2026",
+     "says": "Master circular on inspection: after a SEBI inspection implement the directed actions and submit the Compliance Status Report to the assigned exchange on time; the internal auditor certifies it with the next IAR. Gap report rows: MCX-N0047."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/COMP/213/2026",
+     "says": "Para 6(iii) with MCX/INSP/322/2025: corrective actions on SEBI inspection findings as MCX monitors them. Gap report rows: MCX-0039."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "The assigned exchange's portal",
+    "detail": "No API; a form or upload on the portal."
+   }
+  },
+  {
+   "id": "CC-T-REGULATOR-LETTERS",
+   "group": "Trading",
+   "title": "Answer a letter of observation, show cause notice or information request by its date, with documents",
+   "frequency": "On event",
+   "due_text": "On a letter of observation, intimation, show cause notice, query or call for records from an exchange, a clearing corporation, a depository or SEBI (inspection data requests and net worth shortfall intimations included): reply within the time it states, completely and accurately, with documentary evidence; silence is treated as non-compliance. SEBI: information, books or documents within 15 days of its notice. NSE inspection data late: Rs 1,000 a day up to 7 days, then Rs 5,000 a day (non-QSB, up to Rs 1 lakh). Ledgerline dates it 15 days from the letter; record the letter's own date.",
+   "rule": "EVENT",
+   "event_within": "15d",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "The issuer of the letter (portal or e-mail as it asks)",
+   "evidence": "The letter, the reply with its documents and the acknowledgement, the dates",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI (Stock Brokers) Regulations, 2026",
+     "says": "File every return or report on time and truthfully, and furnish information, books or documents SEBI calls for within 15 days of its notice. Gap report rows: SEBI-N0001."
+    },
+    {
+     "issuer": "BSE",
+     "no": "BSE notice 20260417-45",
+     "says": "Answer BSE letters of observation and show cause notices within the stated timelines with complete, accurate information and documentary evidence; silence is treated as non-compliance. Gap report rows: BSE1-N0006."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/COMP/213/2026",
+     "says": "Respond to MCX letters or intimations of observation and show cause notices with complete, accurate information and documents within the stated timeline; silence is treated as acceptance. Gap report rows: MCX-0037."
+    },
+    {
+     "issuer": "NSE Clearing",
+     "no": "NCL/CMPL/67927",
+     "says": "Circular 10/2025: respond promptly with documents to NCL net worth shortfall intimations and queries within the stated timelines; complete and accurate information during inspection. Gap report rows: NCL-BSE-0019."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/73792",
+     "says": "Rationalisation of inspection penalties: provide data, records and documents on time (non-QSB Rs 1,000 a day up to 7 days, then Rs 5,000 a day, up to Rs 1 lakh). Gap report rows: NSE-0258."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90",
+     "says": "DP: cooperate with the depository's inspection (records within 45 days), submit RBS and other data and financial statements on time. Gap report rows: SEBI-SB1-0048."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "ledgerline": {
+    "screen": "inspack",
+    "screen_name": "Compliance → Inspection packs",
+    "what": "Inspection packs put together the registers and files an inspection or a query asks for."
+   }
+  },
+  {
+   "id": "CC-T-NCL-PENALTY-REVIEW",
+   "group": "Trading",
+   "title": "Check NSE Clearing's portal for penalties and ask for any review within 7 working days",
+   "frequency": "On event",
+   "due_text": "Check the NCL member portal each trading day for penalties (non-submission, modification or delay, client margin and short allocation, margin violation); a request for review of a penalty is made digitally on the portal within 7 working days of the penalty being made available.",
+   "rule": "EVENT",
+   "event_within": "7wd",
+   "applies": [
+    "broker",
+    "clearing"
+   ],
+   "role": "Risk manager",
+   "filed_with": "NSE Clearing member portal (penalty review request)",
+   "evidence": "The penalty, the review request with its grounds and documents, NCL's decision",
+   "refs": [
+    {
+     "issuer": "NSE Clearing",
+     "no": "NCL/CMPL/74821",
+     "says": "Circular 23/2026: requests for review of NCL penalties (margin violation penalties included) digitally on the member portal within 7 working days of the penalty being made available. Gap report rows: NCL-BSE-0031."
+    },
+    {
+     "issuer": "NSE Clearing",
+     "no": "NCL/CMPL/74024",
+     "says": "Master circular for clearing members: check the NCL portal daily for penalties and raise any review request on the portal within 7 working days. Gap report rows: NSE-N0050."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "NSE Clearing member portal",
+    "detail": "No API; a form or upload on the portal."
+   },
+   "practice": [
+    "Record a penalty here the day it shows on the portal, so the 7 working days count from then."
+   ],
+   "ledgerline": {
+    "check": "margin_penalties",
+    "screen": "margin",
+    "screen_name": "RMS & margin → Margin reporting",
+    "what": "Ledgerline works out margin penalties from NSE Clearing's files and whether each may be passed to the client; compare them with the portal before asking for a review."
+   }
+  },
+  {
+   "id": "CC-T-BSE-CRITICAL-FINDING",
+   "group": "Trading",
+   "title": "Have the internal auditor e-mail BSE within 2 days of a critical non-compliance",
+   "frequency": "On event",
+   "due_text": "Instruct the internal auditor to e-mail BSE (bse.reports@bseindia.com) within 2 days of finding a critical non-compliance: unrecouped client funds or securities shortfall, net worth below the requirement, and the other items BSE lists.",
+   "rule": "EVENT",
+   "event_within": "2d",
+   "applies": [
+    "broker",
+    "member:BSE"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "BSE (bse.reports@bseindia.com), by the internal auditor",
+   "evidence": "The auditor's engagement terms with the instruction; the auditor's e-mail to BSE for each finding",
+   "refs": [
+    {
+     "issuer": "BSE",
+     "no": "BSE notice 20250722-16",
+     "says": "Reiterated in 20260407-22: the internal auditor e-mails BSE within 2 days of any critical non-compliance (unrecouped client funds or securities shortfall, net worth and others listed). Gap report rows: BSE1-N0001."
+    }
+   ],
+   "how": "auditor",
+   "api": {
+    "status": "none",
+    "detail": "The auditor's e-mail to BSE."
+   }
+  },
+  {
+   "id": "CC-T-SEBI-CM-FEE",
+   "group": "Trading",
+   "title": "Pay SEBI's yearly clearing member fee for each segment before 1 June",
+   "frequency": "Yearly",
+   "due_text": "As a self-clearing or clearing member: Rs 50,000 a segment a year, separately from the stock broker fees, through SEBI's payment gateway, before 1 June of each financial year.",
+   "rule": "05-31",
+   "applies": [
+    "broker",
+    "clearing"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "SEBI payment gateway",
+   "evidence": "SEBI's payment receipt for each segment",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI (Stock Brokers) Regulations, 2026",
+     "says": "A self-clearing or clearing member pays the annual SEBI clearing member fee of Rs 50,000 a segment, separately from broker fees, via SEBI's payment gateway, before 1 June of each FY. Gap report rows: SEBI-NEW-0161."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "SEBI payment gateway",
+    "detail": "No API; a form or upload on the portal."
+   },
+   "ledgerline": {
+    "screen": "books",
+    "screen_name": "Accounts → Firm accounts & GST",
+    "what": "Book the fee as a regulatory expense."
+   }
+  },
+  {
+   "id": "CC-T-TDS-DEPOSIT",
+   "group": "Trading",
+   "title": "Deposit the month's TDS by the 7th",
+   "frequency": "Monthly",
+   "due_text": "Tax deducted in a month (salaries, rent, professional fees, brokerage paid to APs, interest) is deposited to the government by challan by the 7th of the next month; March's deductions by 30 April.",
+   "rule": "D07",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Admin",
+   "filed_with": "Income-tax department (challan)",
+   "evidence": "The challans with the month's deduction register",
+   "refs": [
+    {
+     "issuer": "CBDT",
+     "no": "Income-tax Rules, 2026",
+     "says": "Deposit TDS to the government account by challan by the 7th of the following month; March deductions by 30 April. Gap report rows: LAW-0072."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "Income-tax e-filing and TIN portals",
+    "detail": "No API; a form or upload on the portal."
+   },
+   "changed": "Set a revised cut-off for April (March's deductions, due 30 April).",
+   "ledgerline": {
+    "screen": "books",
+    "screen_name": "Accounts → Firm accounts & GST",
+    "what": "The firm's books hold the TDS payable the challan clears."
+   }
+  },
+  {
+   "id": "CC-T-TDS-RETURNS",
+   "group": "Trading",
+   "title": "File the quarterly TDS statements on time",
+   "frequency": "Quarterly",
+   "due_text": "The quarterly TDS statements (salary and non-salary) by 31 July, 31 October, 31 January and 31 May; a late fee of Rs 200 a day (up to the TDS amount) runs for a late statement, and an incorrect statement can draw a penalty.",
+   "rule": "01-31,05-31,07-31,10-31",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Admin",
+   "filed_with": "Income-tax department (TDS statements)",
+   "evidence": "The filed statements with their acknowledgements; Form 16/16A issued",
+   "refs": [
+    {
+     "issuer": "CBDT",
+     "no": "Income-tax Act, 2025",
+     "says": "In force 1 Apr 2026: late fee Rs 200 a day (capped at the TDS amount) for delayed TDS statements; penalty for incorrect statements. Gap report rows: LAW-0075."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "Income-tax TDS statement filing",
+    "detail": "No API; a form or upload on the portal."
+   },
+   "changed": "The statements' form numbers change under the Income-tax Act, 2025; the quarterly dates are as before (to confirm against the 2026 Rules)."
+  },
+  {
+   "id": "CC-T-DPDP-READINESS",
+   "group": "Trading",
+   "title": "Be ready for the Digital Personal Data Protection Act by 13 May 2027",
+   "frequency": "One time",
+   "due_text": "By 13 May 2027 (the DPDP Rules' staggered commencement): map each processing of client personal data to a lawful purpose with consent or a legitimate use under section 7; engage data processors (KRAs, cloud, KYC, SMS and e-mail providers) only under valid contracts, staying responsible for them; put security safeguards and breach notification in place. Penalties reach Rs 250 crore for failed safeguards and Rs 200 crore for breach-notification or children's-data failures.",
+   "rule": "ONCE:2027-05-13",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "Kept by the firm",
+   "evidence": "The processing map, consent notices, processor contracts, the security safeguards and the breach notification procedure",
+   "refs": [
+    {
+     "issuer": "MeitY",
+     "no": "Digital Personal Data Protection Act, 2023 (Act 22 of 2023)",
+     "says": "Lawful purpose with free, specific, informed, unambiguous consent or a legitimate use under s.7; responsibility for processing by data processors under valid contracts; penalties up to Rs 250 crore (security safeguards) and Rs 200 crore (breach notification, children); obligations from 13 May 2027 under the DPDP Rules. Gap report rows: LAW-0125, LAW-0130, LAW-0148."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "ledgerline": {
+    "screen": "connections",
+    "screen_name": "Admin → Connections",
+    "what": "The connections list in Settings is a start for the list of processors that receive client data from Ledgerline."
+   }
+  },
+  {
+   "id": "CC-T-PIT-CODE-REVIEW",
+   "group": "Trading",
+   "title": "Keep the insider trading code of conduct approved and have the audit committee review PIT compliance each year",
+   "frequency": "Yearly",
+   "due_text": "The CEO or MD formulates, and the board approves, a code of conduct to regulate, monitor and report trading by designated persons and their relatives (Schedule C of the PIT Regulations); reviewed on any regulatory change. At least once a financial year the audit committee (or the board) reviews compliance with the PIT Regulations and verifies that the internal controls are adequate and working. Ledgerline dates it 31 March.",
+   "rule": "03-31",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "Kept by the firm",
+   "evidence": "The approved code with its version; the designated persons list; the audit committee or board minutes of the yearly review",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI (Prohibition of Insider Trading) Regulations, 2015",
+     "says": "Reg 9(2): the board or head of an intermediary has the CEO/MD formulate a code of conduct for designated persons and their relatives; reg 9A(4): the audit committee (or analogous body) reviews compliance at least once a financial year and verifies the internal controls. Gap report rows: GAP-0001, GAP-0006."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   },
+   "ledgerline": {
+    "screen": "hrcomp",
+    "screen_name": "People → Certificates & own trading",
+    "what": "Designated persons are among the employees; their own trades are watched in Surveillance & AML (staff trade rules)."
+   }
+  },
+  {
+   "id": "CC-T-PIT-VIOLATION",
+   "group": "Trading",
+   "title": "Report a violation of the insider trading code by a designated person to the stock exchanges",
+   "frequency": "On event",
+   "due_text": "On observing a violation of the PIT Regulations or of the firm's code by a designated person or a relative: inform the stock exchanges where the securities trade promptly, in the Annexure A format (person, PAN, trades, violation, action taken). No day count is set; Ledgerline dates it 7 days from the finding.",
+   "rule": "EVENT",
+   "event_within": "7d",
+   "applies": [
+    "broker|dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "The stock exchanges where the securities trade",
+   "evidence": "The finding, the action taken against the person, the report to each exchange",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI (Prohibition of Insider Trading) Regulations, 2015",
+     "says": "Schedule C: on observing a violation of the regulations or the code, promptly inform the stock exchange(s) where the securities trade in the SEBI-specified form. Gap report rows: GAP-0021."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "HO/43/15/12(3)2025-ISD-POD2/I/11734/2026",
+     "says": "Master circular: report code-of-conduct violations by designated persons or relatives to the stock exchanges in the Annexure A format (person, PAN, trades, violation, action taken). Gap report rows: GAP-0025."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Kept by the firm; produced at inspection or audit."
+   }
+  },
+  {
+   "id": "CC-T-RMS-RULES",
+   "group": "Trading",
+   "title": "Put each new SEBI or exchange risk rule into the trading front end's RMS from its effective date",
+   "frequency": "On event",
+   "due_text": "From the effective date of each list or rule: surveillance measures in RMS (GSM, ESM, LT-ASM, ST-ASM, IBC, ICA stage margins of 50-100%, additional surveillance deposits, trade-for-trade, weekly trading limits); F&O ban period orders only if they reduce the client's or the firm's FutEq OI by the day's end; no calendar-spread margin offset on expiry day for single-stock spreads with the expiring contract; client-level commodity position limits (agri: broad 2%, narrow 1%, sensitive 0.5% of deliverable supply as each exchange notifies) and any excess brought within limits by the next trading day.",
+   "rule": "EVENT",
+   "event_within": "0",
+   "applies": [
+    "broker"
+   ],
+   "role": "Risk manager",
+   "filed_with": "Nothing to file: the RMS configuration of the front end",
+   "evidence": "The front-end vendor's or RMS team's confirmation of each change with its effective date; the day's RMS parameters",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/SURV/74008",
+     "date": "2026-04-30",
+     "title": "Surveillance and Investigation Consolidated Circular",
+     "url": "https://nsearchives.nseindia.com/content/circulars/SURV74008.pdf",
+     "says": "Circular 313/2026: apply exchange surveillance measures in RMS (GSM, ESM, LT-ASM, ST-ASM, IBC, ICA stage margins, additional surveillance deposits, trade-for-trade, weekly trading limits) from each list's effective date. Gap report rows: NSE-0226."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MRD/TPD-1/P/CIR/2025/79",
+     "says": "For a stock in the F&O ban period allow client and proprietary F&O orders only if they reduce the entity's FutEq OI (net delta) by the day's end; block trades creating new positions (from 1 Oct 2025). Gap report rows: GAP-0096."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "HO/47/15/11(2)2025-MRD-TPD1/I/4226/2026",
+     "says": "No calendar-spread margin offset on expiry day for single-stock derivative spreads involving the contract expiring that day; collect full margin and warn clients (from about 5 May 2026). Gap report rows: SEBI-NEW-0061."
+    },
+    {
+     "issuer": "SEBI",
+     "no": "HO/47/16/13(5)2026-MRD-POD1/I/20735/2026",
+     "says": "Revised client-level agri commodity position limits (broad 2%, narrow 1%, sensitive 0.5% of annual deliverable supply) from 9 Sep 2026; a client or proprietary position over the limit brought within it by the next trading day, else the exchange squares off the excess. Gap report rows: SEBI-NEW-0071, SEBI-NEW-0073."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Done in the front end's RMS."
+   },
+   "ledgerline": {
+    "screen": "rms",
+    "screen_name": "RMS & margin → RMS & limits",
+    "what": "Ledgerline's margin and collateral checks run on the clearing corporation's files; the order-level rules are the front end's RMS."
+   }
+  },
+  {
+   "id": "CC-T-EPI-MARGIN",
+   "group": "Trading",
+   "title": "Configure RMS so an EPI-backed sale is squared off or a new position taken only with the client's margin available",
+   "frequency": "One time",
+   "due_text": "From about 22 February 2027 (four months from SEBI's letter of 22 October 2026): a client may square off an early-pay-in-backed sold position, or take a new cash position against it, only if the client's required margins are actually available with the trading member; the clearing corporation blocks any shortfall.",
+   "rule": "ONCE:2027-02-22",
+   "applies": [
+    "broker",
+    "seg:CM"
+   ],
+   "role": "Risk manager",
+   "filed_with": "Nothing to file: the RMS configuration of the front end",
+   "evidence": "The front-end vendor's confirmation of the release and the effective date; a test case",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "HO/(320)2026-MRD-POD2/I/24141/2026",
+     "date": "2026-10-22",
+     "says": "Configure RMS so that a client may square off an EPI-backed sale or take a new position only if the required margins are actually available with the TM; effective four months from 22 Oct 2026 (about 22 Feb 2027); the CC blocks any resulting shortfall. Gap report rows: SEBI-NEW-0027, SEBI-SB1-0218."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Done in the front end's RMS."
+   },
+   "changed": "The effective date is worked out as four months from the letter; confirm it against the exchanges' notice."
+  },
+  {
+   "id": "CC-T-CLIENT-CODE-MODS",
+   "group": "Trading",
+   "title": "Keep one designated ERROR account and record a reason code for each client code modification",
+   "frequency": "On event",
+   "due_text": "Keep a single designated active ERROR account (Rs 10,000 a month if there is none); keep client code modifications to genuine errors under internal controls, and record the reason code for each modification on ENIT the day it is made.",
+   "rule": "EVENT",
+   "event_within": "0",
+   "applies": [
+    "broker",
+    "member:NSE"
+   ],
+   "role": "Ops checker",
+   "filed_with": "NSE ENIT (client code modification reason codes)",
+   "evidence": "The ERROR account's UCC; each modification with its reason code and approver",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/SURV/74008",
+     "date": "2026-04-30",
+     "title": "Surveillance and Investigation Consolidated Circular",
+     "url": "https://nsearchives.nseindia.com/content/circulars/SURV74008.pdf",
+     "says": "Circular 313/2026: a single designated active ERROR account; minimise client code modifications with internal controls; record a reason code for each modification on ENIT; Rs 10,000 a month without an ERROR account. Gap report rows: NSE-0229."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "NSE ENIT",
+    "detail": "No API; a form or upload on the portal."
+   },
+   "changed": "The ENIT path and the exact day the reason code is due were not in the gap report's extract; the same day is the safe reading."
+  },
+  {
+   "id": "CC-T-MATERIAL-CHANGE",
+   "group": "Trading",
+   "title": "Tell SEBI through the exchanges of a material change, and keep each exchange's member profile current",
+   "frequency": "On event",
+   "due_text": "On any material change in the information given for registration (control, designated director, KMP, compliance officer, name, registered office, constitution and the others listed): inform SEBI through the exchange as each exchange specifies (prior approval where the change needs it), and update the member profiles (NSE ENIT, BSE, MCX MMPI: compliance officer and NISM validity, FIU designated director and principal officer, KMPs, branches, associates, authorised signatories). Ledgerline dates it 7 days from the change; record the exchange's own date where it differs.",
+   "rule": "EVENT",
+   "event_within": "7d",
+   "applies": [
+    "broker"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "Each exchange's change module (NSE ENIT, BSE BEFS, MCX MMPI)",
+   "evidence": "The board resolution or document of the change, each exchange's acknowledgement and the updated profile",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI (Stock Brokers) Regulations, 2026",
+     "says": "Inform SEBI through the exchange of any material change in registration information (control, designated director, KMP, compliance officer, name, registered office, constitution). Gap report rows: SEBI-NEW-0112."
+    },
+    {
+     "issuer": "MCX",
+     "no": "MCX/MEM/259/2026",
+     "says": "Para 33: keep the MCX MMPI member profile current (compliance officer and NISM validity, FIU designated director and principal officer, KMPs, branches, associates, authorised signatories) on each change. Gap report rows: MCX-N0022."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "Each exchange's member portal",
+    "detail": "No API; a form or upload on the portal."
+   },
+   "changed": "The DP side has its own change duties (CC-D-CHANGE-*). The 7 days are Ledgerline's default; prior approval changes (control, constitution) must be applied for before they take effect."
+  },
+  {
+   "id": "CC-D-COMPLIANCE-CERT",
+   "group": "DP",
+   "title": "File the DP's half-yearly compliance certificate and NISM Series VI details on CDSL Audit Web",
+   "frequency": "Half-yearly",
+   "due_text": "By 31 January (half year to December) and 31 July (half year to June): the compliance certificate digitally signed by the compliance officer, answering Yes or No to each point (laws and CDSL rules, fit and proper, and the rest), and the details of every DP associated person (other than clerical) holding a valid NISM Series VI certificate and of the compliance officer's NISM certificate. More than 30 days late: CDSL stops new account opening; beyond 60 days the Member Committee takes it up.",
+   "rule": "01-31,07-31",
+   "applies": [
+    "dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "CDSL Audit Web (NSDL participants: the equivalent NSDL submission)",
+   "evidence": "The signed certificate and NISM details as filed, with the acknowledgement",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90",
+     "says": "DP: half-yearly compliance report to the depository by 30 July (half year to 30 June) and 31 January (half year to 31 December). Gap report rows: SEBI-SB1-0046."
+    },
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/AUDIT/DP/POLCY/2026/427",
+     "says": "Half-yearly compliance certificate digitally signed by the compliance officer on CDSL Audit Web, Yes/No for each point, by 31 January and 31 July. Gap report rows: DP-0326."
+    },
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/AUDIT/DP/POLICY/2025/48",
+     "says": "Half-yearly on CDSL Audit Web: details of all DP associated persons (other than clerical) with valid NISM Series VI and the compliance officer's NISM certificate, by 31 January and 31 July. Gap report rows: DP-0325."
+    },
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/OPS/DP/POLCY/2026/257",
+     "says": "CDSL master circular for DPs: more than 30 days late, new account opening is restrained; beyond 60 days, the Member Committee. Gap report rows: CDSL-N0024."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "CDSL Audit Web",
+    "detail": "No API; a form or upload on the portal."
+   },
+   "ledgerline": {
+    "screen": "dealers",
+    "screen_name": "Branches & partners → Dealers & terminals",
+    "what": "NISM certificates and their validity are kept with each person in Dealers & terminals and HR."
+   }
+  },
+  {
+   "id": "CC-D-VAPT",
+   "group": "DP",
+   "title": "Have the DP's yearly VAPT done by a CERT-In empanelled auditor and file the report with CDSL",
+   "frequency": "Yearly",
+   "due_text": "For self-certification, small, mid-size and non-QSB qualified DPs: VAPT each year by a CERT-In empanelled auditor (FY 2025-26: by 30 June 2026) and the report, approved by the IT Committee, on CDSL by 31 July; closure of findings as CDSL sets.",
+   "rule": "07-31",
+   "applies": [
+    "dp",
+    "cscrf:qualified,mid,small,self"
+   ],
+   "role": "Admin",
+   "filed_with": "CDSL Audit Web (VAPT)",
+   "evidence": "The auditor's VAPT report, IT Committee minutes, the CDSL acknowledgement; the revalidation report",
+   "refs": [
+    {
+     "issuer": "CDSL",
+     "no": "CDSL/IS/DP/POLCY/2026/392",
+     "says": "With a later CDSL circular of 2026 (its number is cut off in the gap report): yearly VAPT through a CERT-In empanelled auditor for self-certification, small, mid and non-QSB qualified DPs; the IT-committee-approved report on CDSL; FY 2025-26 VAPT by 30 Jun 2026 and report by 31 Jul 2026. Gap report rows: DP-0345."
+    }
+   ],
+   "how": "auditor",
+   "api": {
+    "status": "portal",
+    "name": "CDSL Audit Web",
+    "detail": "No API; a form or upload on the portal."
+   },
+   "changed": "The broker's VAPT for the exchanges is CC-T-VAPT-REPORT; one VAPT can serve both if its scope covers the DP systems, but each is filed separately."
+  },
+  {
+   "id": "CC-D-SEBI-FEES",
+   "group": "DP",
+   "title": "Pay SEBI's DP fees: the yearly fee and the five-yearly block fee before each block expires",
+   "frequency": "As required",
+   "due_text": "Pay SEBI the fees for each depository participant approval as the Depositories and Participants Regulations' schedule sets, and the registration fee for each block of five years from the sixth year, one month before the current block expires.",
+   "rule": "ASNEEDED",
+   "applies": [
+    "dp"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "SEBI payment gateway",
+   "evidence": "SEBI's receipts; the block dates",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI (Depositories and Participants) Regulations, 2018",
+     "says": "Pay SEBI annual fees for each depository approval, and the block registration fee every five years from the sixth year, one month before each block expires. Gap report rows: GAP-0031."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "SEBI payment gateway",
+    "detail": "No API; a form or upload on the portal."
+   },
+   "changed": "The gap report reads an annual fee as well as the block fee; the yearly due date was not in its extract, so this is kept as an as-required duty until it is confirmed."
   }
  ]
 }

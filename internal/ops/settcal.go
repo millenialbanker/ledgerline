@@ -176,34 +176,77 @@ func (o *Ops) addGSecPrices(ctx context.Context, tenant, date string, l *Lookup)
 }
 
 // ---- CUSPA and MTF delivery pay-out reporting ----
+//
+// NSE Clearing's consolidated circular (NCL/CMPT/73996 items 6.2.1 and
+// 7.7(iii)-(iv); earlier NCL/CMPT/66862 and 67751 Part C): for each
+// settlement, the member flags the clients' purchases that are not to be
+// paid out free: unpaid (T, the trading member's CUSPA; C, the clearing
+// member's) or MTF (M), so NSE Clearing pays them out to the client's
+// demat account with the pledge. The flags are given per settlement
+// number on NMASS, in every settlement type with deliveries (the normal
+// rolling settlement and trade-for-trade), never for clients trading with
+// UPI blocks (their shortfall is handled by the block) nor for the
+// member's own (proprietary) code, and they are not carried forward: each
+// settlement is reported on its own. The upload window closes at 10:00 on
+// the settlement day (cuspaMTFCutoff); NCL/CMPT/70409 also opens one on
+// the trade day's afternoon and evening.
 
-// cuspaMTFFile lists the settlement's purchases that are not to be paid
-// out to clients' demat accounts: unpaid purchases held in CUSPA and MTF
-// purchases kept for the MTF pledge.
+// cuspaMTFCutoff is NSE Clearing's cut-off on the settlement day.
+const cuspaMTFCutoff = "10:00"
+
+// cuspaSettTypes are the settlement types the file is made for, in order.
+var cuspaSettTypes = []string{"NORMAL1", "TFT1"}
+
+// cuspaSettType is the settlement a purchase of the ISIN falls in: the
+// trade-for-trade series (BE, BZ in the security master) settle in TFT1,
+// the rest in the normal rolling settlement. (ITP trades, institutional
+// only, are not expected for clients with unpaid purchases.)
+func (o *Ops) cuspaSettType(ctx context.Context, tenant, isin string) (string, string) {
+	if ref, _, err := docs.Get[SecRef](ctx, o.Docs, tenant, cSecRef, isin); err == nil {
+		if se := strings.ToUpper(strings.TrimSpace(ref.Series)); sipT2TSeries[se] {
+			return "TFT1", se
+		}
+	}
+	return "NORMAL1", "EQ"
+}
+
+// cuspaMTFFile lists one settlement's purchases that are not to be paid
+// out free to clients' demat accounts: unpaid purchases held in CUSPA and
+// MTF purchases kept for the MTF pledge. vars["sett_type"] picks the
+// settlement type (NORMAL1 or TFT1); without it the first type with
+// anything to report is made.
 func (o *Ops) cuspaMTFFile(ctx context.Context, tenant string, s *xfile.Spec, set Settings, date string, vars xfile.Vars) (string, []byte, error) {
 	member := set.MemberCodes["NSE"]
 	if member == "" {
 		return "", nil, invalid("set the firm's NSE member code in Settings")
 	}
 	_, look, _ := o.Market(ctx, tenant, date)
-	series := func(isin, sym string) (string, string) {
-		if i, ok := look.ByISIN(isin); ok && i.Symbol != "" {
-			return i.Symbol, "EQ"
-		}
-		return sym, "EQ"
-	}
-	type key struct{ ucc, isin, flag string }
+	cs, _ := o.ClientMap(ctx, tenant)
+	ub := o.upixBlocked(ctx, tenant)
+	own := map[string]bool{"PRO": true, strings.ToUpper(strings.TrimSpace(set.FirmUCC)): true}
+	type key struct{ typ, ucc, isin, flag string }
 	qty := map[key]int64{}
-	sym := map[key]string{}
+	sym := map[key][2]string{}
 	var order []key
 	// T: kept in the trading member's CUSPA; M: kept for the MTF pledge.
 	add := func(ucc, isin, symbol, flag string, q int64) {
-		k := key{ucc, isin, flag}
+		u := strings.ToUpper(ucc)
+		if own[u] {
+			return // the member's own code: never flagged
+		}
+		if c, ok := cs[ucc]; ok && upiBlock(c, ub).Sign() > 0 {
+			return // UPI-block clients: not flagged (NCL/CMPT/73996 item 7.7)
+		}
+		typ, se := o.cuspaSettType(ctx, tenant, isin)
+		if i, ok := look.ByISIN(isin); ok && i.Symbol != "" {
+			symbol = i.Symbol
+		}
+		k := key{typ, ucc, isin, flag}
 		if _, ok := qty[k]; !ok {
 			order = append(order, k)
 		}
 		qty[k] += q
-		sym[k] = symbol
+		sym[k] = [2]string{symbol, se}
 	}
 	cu, _ := docs.List[CUSPAItem](ctx, o.Docs, tenant, cCUSPA, "")
 	for _, it := range cu {
@@ -217,19 +260,31 @@ func (o *Ops) cuspaMTFFile(ctx context.Context, tenant string, s *xfile.Spec, se
 			add(m.UCC, m.ISIN, m.Symbol, "M", m.Qty)
 		}
 	}
-	if len(order) == 0 {
-		return "", nil, fmt.Errorf("%w: no unpaid (CUSPA) or MTF purchases on %s to report", ErrState, date)
+	want := vars["sett_type"]
+	if want == "" {
+		for _, t := range cuspaSettTypes {
+			for _, k := range order {
+				if k.typ == t && want == "" {
+					want = t
+				}
+			}
+		}
 	}
-	st, ok := o.SettlementFor(ctx, tenant, "CM", "NORMAL1", date)
-	if !ok {
-		return "", nil, invalid("no NSE Clearing settlement is loaded for trades of %s: load the settlement master file first", date)
-	}
-	vars["stype"], vars["settno"] = settlementTypeLetters[st.Type], st.No
 	var rows []xfile.Row
 	for _, k := range order {
-		sy, se := series(k.isin, sym[k])
-		rows = append(rows, xfile.Row{Values: map[string]string{"MemberCode": member, "ClientCode": k.ucc, "Symbol": sy, "Series": se, "Quantity": fmt.Sprint(qty[k]), "CTMFlag": k.flag, "ActionFlag": ""}})
+		if k.typ != want {
+			continue
+		}
+		rows = append(rows, xfile.Row{Values: map[string]string{"MemberCode": member, "ClientCode": k.ucc, "Symbol": sym[k][0], "Series": sym[k][1], "Quantity": fmt.Sprint(qty[k]), "CTMFlag": k.flag, "ActionFlag": ""}})
 	}
+	if len(rows) == 0 {
+		return "", nil, fmt.Errorf("%w: no unpaid (CUSPA) or MTF purchases on %s to report%s", ErrState, date, map[bool]string{true: " in " + want, false: ""}[want != ""])
+	}
+	st, ok := o.SettlementFor(ctx, tenant, "CM", want, date)
+	if !ok {
+		return "", nil, invalid("no NSE Clearing %s settlement is loaded for trades of %s: load the settlement master file first", want, date)
+	}
+	vars["stype"], vars["settno"] = settlementTypeLetters[st.Type], st.No
 	content, err := s.Write(rows)
 	if err != nil {
 		return "", nil, err

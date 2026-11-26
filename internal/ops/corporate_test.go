@@ -35,7 +35,7 @@ func TestShortDeliveries(t *testing.T) {
 		t.Fatal("no suggested close-out price")
 	}
 	st, _ = o.Obligations(ctx, T, D)
-	if b := obl(t, st, "BH1011", "NSE", "BAJFINANCE"); b.Status != "Awaiting close-out" || b.Action != "" {
+	if b := obl(t, st, "BH1011", "NSE", "BAJFINANCE"); b.Status != "Awaiting auction" || b.Action != "" {
 		t.Fatalf("buyer not held: %+v", b)
 	}
 	before, _ := o.clientFunds(ctx, T, "", "")
@@ -61,17 +61,23 @@ func TestShortDeliveries(t *testing.T) {
 	if !strings.HasPrefix(sh.Status, "Settled") {
 		t.Fatal(sh.Status)
 	}
-	// BSE TCS: the firm's buyer is paid out first, so nothing hides the
+	// BSE TCS: the firm's buyers (on either exchange cleared at NSE
+	// Clearing, which nets them) are paid out first, so nothing hides the
 	// shortfall and it goes to the exchange auction.
 	for _, ob := range st.Obligations {
-		if ob.Exchange == "BSE" && ob.Symbol == "TCS" && ob.NetQty > 0 && ob.Action != "" {
+		if ob.Clearing == "NCL" && ob.Symbol == "TCS" && ob.NetQty > 0 && ob.Action != "" {
 			if _, err := o.SettleAction(ctx, T, "priya.nair", D, ob.Key, ob.Action); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
 	st, _ = o.Obligations(ctx, T, D)
-	tcs := obl(t, st, "BH1007", "BSE", "TCS")
+	// BH1007 sold TCS on BSE and bought more on NSE: one net purchase, not
+	// a short delivery (NSE Clearing nets both exchanges).
+	if n := obl(t, st, "BH1007", "NSE", "TCS"); n.NetQty != 20 || len(n.Exchanges) != 2 || n.Status == "Short delivery" {
+		t.Fatalf("BH1007 TCS not netted: %+v", n)
+	}
+	tcs := obl(t, st, "BH1050", "NSE", "TCS")
 	if _, err := o.SettleAction(ctx, T, "priya.nair", D, tcs.Key, "report_short"); err != nil {
 		t.Fatal(err)
 	}

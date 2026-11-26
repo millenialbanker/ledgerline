@@ -103,9 +103,14 @@ function dcModal(id) {
     ${steps}${practice}
     <h3 class="cc-h">Circulars</h3><ul class="dc-refs">${refs || '<li class="dim">None recorded.</li>'}</ul>
     ${events}
+    ${(x.revised || []).length ? `<h3 class="cc-h">Revised cut-offs</h3><ul class="small">${x.revised.map(r => `<li>${esc(r.period)}: due ${fmtDate(r.due)} · ${esc(r.by)}</li>`).join('')}</ul>` : ''}
     <h3 class="cc-h">Done</h3>${hist}
-  </div><div class="ft">${has('Compliance officer') ? x.not_applicable ? `<button class="btn" data-act="dcApplies" data-id="${esc(x.id)}">It applies after all</button>` : `<button class="btn" data-act="dcNotApplies" data-id="${esc(x.id)}">Doesn’t apply to us</button>` : ''}${x.rule === 'EVENT' && dcCan(x) && !na ? `<button class="btn" data-act="dcEvent" data-id="${esc(x.id)}">Record an event</button>` : ''}${canDone ? `<button class="btn pri" data-act="dcDone" data-id="${esc(x.id)}">Mark done</button>` : ''}<button class="btn" data-act="close">Close</button></div>`);
+  </div><div class="ft">${has('Compliance officer') ? x.not_applicable ? `<button class="btn" data-act="dcApplies" data-id="${esc(x.id)}">It applies after all</button>` : `<button class="btn" data-act="dcNotApplies" data-id="${esc(x.id)}">Doesn’t apply to us</button>` : ''}${x.rule === 'EVENT' && dcCan(x) && !na ? `<button class="btn" data-act="dcEvent" data-id="${esc(x.id)}">Record an event</button>` : ''}${dcCutoffOK(x) && dcCan(x) && !na ? `<button class="btn" data-act="dcCutoff" data-id="${esc(x.id)}">Revised cut-off</button>` : ''}${canDone ? `<button class="btn pri" data-act="dcDone" data-id="${esc(x.id)}">Mark done</button>` : ''}<button class="btn" data-act="close">Close</button></div>`);
 }
+
+// dcCutoffOK: a dated duty whose single occurrences can take a revised
+// cut-off from a regulator's notice (not event, one-time or RAS duties).
+const dcCutoffOK = x => !['EVENT', 'ASNEEDED', 'AUTO', 'RASM', 'RASQ'].includes(x.rule) && !/^ONCE/.test(x.rule || '');
 
 /* ---------- the month's sheet ---------- */
 function dcSheetHTML(d) {
@@ -145,6 +150,12 @@ Object.assign(A, {
     confirmModal('Record an event · ' + esc(x.title), `It is due ${esc(x.due_text || '')}; Ledgerline dates it from when it happened${hours ? ' (the hour counts)' : ''} and puts it on the owner’s work queue.`,
       `<div class="form"><div class="fld"><label for="dc-ed">When it happened (or was noticed)</label><input class="in" type="date" id="dc-ed" value="${esc(S.date)}" max="${esc(S.date)}"></div>${hours ? '<div class="fld"><label for="dc-et">Time</label><input class="in" type="time" id="dc-et"></div>' : ''}<div class="fld"><label for="dc-edue">Due by (only if the notice gives a date)</label><input class="in" type="date" id="dc-edue"></div><div class="fld full"><label for="dc-ew">What happened</label><input class="in" id="dc-ew" placeholder="For example: a new director appointed on the board"></div></div>`,
       'Record', () => act(() => post(`/v1/duties/${encodeURIComponent(id)}/events`, { on: S.date, date: $('dc-ed').value, time: $('dc-et')?.value || '', due: $('dc-edue').value || '', what: $('dc-ew').value }), 'Recorded: it is on the work queue'));
+  },
+  dcCutoff: id => {
+    const x = dcDuty(id); if (!x) return;
+    confirmModal('Revised cut-off · ' + esc(x.title), 'Use this when a circular moves the deadline for one occurrence, for example NSE Clearing’s cut-off for a special session’s margin reporting. The calendar then chases the new date for that occurrence only. Leave the date empty to take a revised cut-off back.',
+      `<div class="form"><div class="fld"><label for="dc-cp">Occurrence (the trade date, or the period as the calendar shows it)</label><input class="in" id="dc-cp" value="${esc(x.period || '')}"></div><div class="fld"><label for="dc-cd">New due date</label><input class="in" type="date" id="dc-cd"></div><div class="fld full"><label for="dc-cb">Circular or notice</label><input class="in" id="dc-cb" placeholder="For example: NSE Clearing circular on the Muhurat session"></div></div>`,
+      'Save', () => act(() => post(`/v1/duties/${encodeURIComponent(id)}/cutoff`, { on: S.date, period: $('dc-cp').value, due: $('dc-cd').value, by: $('dc-cb').value }), 'Saved'));
   },
   dcNotApplies: id => {
     const x = dcDuty(id); if (!x) return;

@@ -99,7 +99,8 @@ func TestCUSPAFramework(t *testing.T) {
 	}
 	it := items[0]
 	payOut := set.NextSettlementDay(D)
-	if it.PayOut != payOut || it.Exchange != "NSE" || it.Qty != itc.NetQty || len(it.Events) != 1 {
+	// The client is told of the pledge at once (cuspa_more.go).
+	if it.PayOut != payOut || it.Exchange != "NSE" || it.Qty != itc.NetQty || len(it.Events) != 2 || it.Events[1].What != "Intimated" || it.IntimatedAt == "" {
 		t.Fatalf("line %+v", it)
 	}
 	day := func(n int) string { return addTradingDays(set, payOut, n) }

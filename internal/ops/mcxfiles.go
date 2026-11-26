@@ -58,7 +58,8 @@ var mcxKinds = map[string]string{
 	"mcx-peak-margin-tm": "mcxpeak", "mcx-peak-margin-cm": "mcxpeakcm", "mcx-ncmr": "mcxncmr", "mcxccl-margin": "mcxudmargin",
 	"mcxccl-penalty": "mcxpenalty", "mcx-collateral": "mcxcoll", "mcx-collateral-client": "mcxcollcli", "mcx-web-allocation": "mcxweballoc",
 	"mcx-eod-short-allocation": "mcxeodsar", "mcx-intraday-short-allocation": "mcxintrasar", "mcx-dc-note": "mcxdcnote",
-	"mcx-cp-master": "mcxcp", "mcx-daily-index": "mcxindex", "mcx-orders": "mcxorders", "mcxccl-stamp": "stamp",
+	"mcx-margin-shortage": "mcxmrgshort",
+	"mcx-cp-master":       "mcxcp", "mcx-daily-index": "mcxindex", "mcx-orders": "mcxorders", "mcxccl-stamp": "stamp",
 }
 
 var mcxLoaded = map[string]string{
@@ -73,7 +74,8 @@ var mcxLoaded = map[string]string{
 	"mcxcoll":     "Loaded as the firm's collateral with MCXCCL (Clearing data)", "mcxcollcli": "Loaded as each client's collateral with MCXCCL (Clearing data)",
 	"mcxweballoc": "Loaded as each client's commodity allocation with MCXCCL (Clearing allocation and Clearing data)",
 	"mcxeodsar":   "Loaded as MCXCCL's end-of-day short allocations (Clearing data)", "mcxintrasar": "Loaded as MCXCCL's intraday short allocations (Clearing data)",
-	"mcxdcnote": "Loaded as MCXCCL's debit and credit notes (Clearing data)", "mcxcp": "Loaded as MCX's custodian participant master",
+	"mcxmrgshort": "Loaded as MCXCCL's margin shortage file: each client's shortfalls and the penalty levied (Clearing data; the levied penalty when no NCMR or UDiFF penalty file is loaded)",
+	"mcxdcnote":   "Loaded as MCXCCL's debit and credit notes (Clearing data)", "mcxcp": "Loaded as MCX's custodian participant master",
 	"mcxindex": "Loaded as MCX's index values of the day", "stamp": "Loaded and reconciled with the stamp duty Ledgerline charged on MCX trades (Clearing data)",
 }
 
@@ -127,7 +129,7 @@ func (o *Ops) loadMCXFile(ctx context.Context, tenant, actor string, s *xfile.Sp
 	case "mcxorders":
 		day := o.mcxOTR(ctx, tenant, actor, date, f.Name, rows)
 		r.Loaded = fmt.Sprintf("Loaded as the MCX order log of %s: order-to-trade ratio for %d member, client and terminal lines (one line per order: changes are not separate events in this file)", date, len(day.Lines))
-	case "mcxncmr", "mcxpenalty":
+	case "mcxncmr", "mcxpenalty", "mcxmrgshort":
 		o.queueLeviedPenalties(ctx, tenant, date)
 	}
 	return true
@@ -494,7 +496,9 @@ type mcxLevy struct {
 }
 
 // mcxLevied are the penalties MCXCCL levied for a date: from the NCMR
-// file, else the UDiFF penalty file.
+// file, else the UDiFF penalty file, else the margin shortage file
+// (MCX_MARGINSHORTAGE, MCXCCL file formats §1.17: field 7 the shortfall
+// for the levy of penalty, field 8 the penalty levied).
 func (o *Ops) mcxLevied(ctx context.Context, tenant, date string) map[string]mcxLevy {
 	out := map[string]mcxLevy{}
 	for _, d := range o.ccData(ctx, tenant, "mcxncmr", date, "") {
@@ -520,6 +524,24 @@ func (o *Ops) mcxLevied(ctx context.Context, tenant, date string) map[string]mcx
 			}
 			l := out[u]
 			l.Short, l.Penalty, l.File = l.Short.Add(decOr0(r["DfcitAmt"])), l.Penalty.Add(decOr0(r["PnltyAmt"])), d.File
+			if l.Short.Sign() > 0 {
+				l.Pct, _ = l.Penalty.MulInt(100).Quo(l.Short)
+				l.Pct = l.Pct.Round(money.UnitPaisa).Dec()
+			}
+			out[u] = l
+		}
+	}
+	if len(out) > 0 {
+		return out
+	}
+	for _, d := range o.ccData(ctx, tenant, "mcxmrgshort", date, "") {
+		for _, r := range d.Rows {
+			u := strings.ToUpper(strings.TrimSpace(r["Client ID"]))
+			if u == "" || u == "*OWN*" {
+				continue
+			}
+			l := out[u]
+			l.Short, l.Penalty, l.File = l.Short.Add(decOr0(r["Amount of Shortfall of Margins"])), l.Penalty.Add(decOr0(r["Penalty Levied"])), d.File
 			if l.Short.Sign() > 0 {
 				l.Pct, _ = l.Penalty.MulInt(100).Quo(l.Short)
 				l.Pct = l.Pct.Round(money.UnitPaisa).Dec()
@@ -718,6 +740,21 @@ func (o *Ops) mcxSections(ctx context.Context, tenant, date string, cs map[strin
 		}
 	}
 	out = append(out, sa)
+	// Margin shortage file: each client's shortfalls and penalty.
+	ms := CCSection{ID: "mcx_margin_shortage", Title: "Commodity margin shortfall and penalty (MCX_MARGINSHORTAGE)", About: "MCXCCL's margin shortage file: each client's margins, the margin reported as collected, the peak margin, intraday and end-of-day allocation shortfalls, and the penalty levied. A penalty passes to a client only through the pass-through rules.",
+		Columns: []string{"Client", "Name", "Shortfall for penalty", "Penalty", "Peak shortfall", "Intraday allocation shortfall", "EOD allocation shortfall"}}
+	for _, d := range o.ccData(ctx, tenant, "mcxmrgshort", date, "") {
+		ms.Loaded, ms.File = true, d.File
+		for _, r := range d.Rows {
+			u := strings.ToUpper(strings.TrimSpace(r["Client ID"]))
+			sh := decOr0(r["Amount of Shortfall of Margins"])
+			if sh.Sign() > 0 || decOr0(r["Penalty Levied"]).Sign() > 0 {
+				ms.Diffs++
+			}
+			ms.Rows = append(ms.Rows, []string{firstOf(u, r["TM/CP ID"]), cs[u].Name, sh.Fixed(2), decOr0(r["Penalty Levied"]).Fixed(2), decOr0(r["Peak Margin Shortfall"]).Fixed(2), decOr0(r["Intra-day Allocation Shortfall"]).Fixed(2), decOr0(r["EOD Allocation Shortfall"]).Fixed(2)})
+		}
+	}
+	out = append(out, ms)
 	dn := CCSection{ID: "mcx_dc_notes", Title: "MCXCCL debit and credit notes", About: "Charges MCXCCL debited or credited to the member, with GST. They are the member's: Ledgerline bills clients its own schedule, so they are listed for the accounts, not matched to client charges.",
 		Columns: []string{"Note", "Debit/credit", "Charge", "Contract", "Amount", "GST", "Total"}}
 	for _, d := range o.ccData(ctx, tenant, "mcxdcnote", date, "") {

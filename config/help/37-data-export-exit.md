@@ -85,7 +85,7 @@ What stays live:
 - The rows of clients with an unpaid debit, open pledges or an open complaint stay live; so do migrated documents on legal hold, KYC documents, vendor bills and evidence files.
 - Migrated history from the old system is stored by year, not by client, so a year inside the period is archived whole (the kept clients' live ledger is not part of it). The preview says so.
 
-Archive packages are kept at least as long as **Keep archives** says (8 years by default, the record-keeping rules for brokers) and cannot be deleted before then.
+Archive packages are kept at least as long as **Keep archives** says and cannot be deleted before then. The default is **10 years**. A member of MCX cannot go below 10 (MCX bye-law 5.23); any other firm cannot go below 8 (SEBI Stock Brokers Regulations, 2026, regulation 16).
 
 If the server restarts while an archive is being written, nothing is removed: the archive shows **Failed** and the person who approved it clicks **Start again**. A migrated document inside an archive cannot be deleted until the archive is restored.
 

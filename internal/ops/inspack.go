@@ -114,7 +114,7 @@ type PackItem struct {
 type PackTemplate struct {
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`
-	Kind      string     `json:"kind"` // joint, exchange, depository, sebi, internal_audit, firm
+	Kind      string     `json:"kind"` // joint, exchange, depository, sebi, internal_audit, system_audit, firm
 	Authority string     `json:"authority"`
 	About     string     `json:"about"`
 	Sources   []string   `json:"sources"`
@@ -573,7 +573,7 @@ func (o *Ops) packTemplate(ctx context.Context, tenant, id string) (PackTemplate
 	return t, nil
 }
 
-var packKinds = []string{"joint", "exchange", "depository", "sebi", "internal_audit", "firm"}
+var packKinds = []string{"joint", "exchange", "depository", "sebi", "internal_audit", "system_audit", "firm"}
 
 // checkPackItems checks and numbers a list of items.
 func checkPackItems(items []PackItem) ([]PackItem, error) {

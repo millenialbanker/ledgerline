@@ -80,6 +80,32 @@ type SecVaR struct {
 	Haircut money.Dec `json:"haircut"`
 }
 
+// ApprovedSecs is NSE Clearing's list of securities approved as
+// collateral on a day (APPSEC_COLLVAL), with each one's haircut.
+// NSE/INSP/66840 (para 2) accepts only liquid, actively traded securities
+// as client collateral; Ledgerline reads that as the clearing
+// corporation's approved list (the master circular's rule on approved
+// securities, gap register SEBI-SB2-0010, was not re-read here).
+type ApprovedSecs struct {
+	ID      string               `json:"id"`
+	Haircut map[string]money.Dec `json:"haircut"`
+}
+
+const cApprovedSec = "approvedsec" // date: ApprovedSecs
+
+// approvedForMargin says whether an ISIN may be taken as a margin pledge
+// on date: on NSE Clearing's approved list as last loaded (within 10 days),
+// or a government security. ok is false when no list is loaded: nothing is
+// refused then.
+func (o *Ops) approvedForMargin(ctx context.Context, tenant, isin, date string) (approved bool, asOf string, ok bool) {
+	a, found := latestDoc[ApprovedSecs](ctx, o, tenant, cApprovedSec, date)
+	if !found || a.ID < addDays(date, -10) {
+		return true, "", false
+	}
+	_, in := a.Haircut[strings.ToUpper(isin)]
+	return in || isGovtISIN(isin), a.ID, true
+}
+
 // SecVaRs is one day's margin rates by ISIN.
 type SecVaRs struct {
 	ID    string            `json:"id"`
@@ -285,6 +311,34 @@ func (o *Ops) loadCCFile(ctx context.Context, tenant, actor string, s *xfile.Spe
 			o.mergeVaR(ctx, tenant, actor, day, rates)
 		}
 		r.Loaded, r.Added = "Loaded as closing prices of "+day+" (values holdings and collateral without an exchange price)", len(px.Prices)
+	case "ncl-approved-securities":
+		if !need() {
+			return true
+		}
+		a := ApprovedSecs{ID: date, Haircut: map[string]money.Dec{}}
+		rates := map[string]SecVaR{}
+		for _, row := range rows {
+			isin := strings.ToUpper(strings.TrimSpace(row.Get("ISIN")))
+			if len(isin) != 12 || !strings.HasPrefix(isin, "IN") {
+				continue // the header, or a line without an ISIN
+			}
+			h := decOr0(row.Get("Haircut"))
+			a.Haircut[isin] = h
+			if h.Sign() > 0 {
+				rates[isin] = SecVaR{Haircut: h}
+			}
+		}
+		if len(a.Haircut) == 0 {
+			fail(fmt.Errorf("no securities with an ISIN in the file"))
+			return true
+		}
+		if err := docs.Upsert(ctx, o.Docs, tenant, cApprovedSec, date, a, actor); err != nil {
+			fail(err)
+			return true
+		}
+		o.indexDate(ctx, tenant, cApprovedSec, date, actor)
+		o.mergeVaR(ctx, tenant, actor, date, rates)
+		r.Loaded, r.Added = "Loaded as NSE Clearing's approved securities of "+date+" (margin pledges are taken only in these; their haircuts value collateral)", len(a.Haircut)
 	case "ncl-var":
 		if !need() {
 			return true
@@ -344,6 +398,12 @@ func (o *Ops) loadCCFile(ctx context.Context, tenant, actor string, s *xfile.Spe
 			"directpayout": "Loaded as securities paid out directly to clients (shown on Clearing data)", "repledge": "Loaded and reconciled with clients' pledges on Clearing data",
 			"nclmargin": "Loaded as the clearing corporation's client margins with peak (checked on Clearing data)", "cdslcal": "Loaded as CDSL's settlement calendar", "cdslmembers": "Loaded as CDSL's participant master",
 		}[kind], n
+	case "ncl-internal-shortage", "ncl-internal-shortage-detail":
+		o.loadInternalShortage(ctx, tenant, actor, s, f, rows, r) // nclshortage.go
+	case "ncl-sa01", "ncl-sa02", "ncl-sa03":
+		o.loadIntradaySA(ctx, tenant, actor, s, f, rows, r) // settlecheck.go
+	case "ncl-epif-allocation":
+		o.loadEPIF(ctx, tenant, actor, f, rows, r) // settlecheck.go
 	case "cdsl-dormant-txn", "cdsl-high-value", "cdsl-bo-modification":
 		n, dup := o.loadCDSLReport(ctx, tenant, actor, s, rows)
 		r.Loaded, r.Added, r.Skipped = "Raised as alerts for review on Compliance → Alerts", n, dup
@@ -693,21 +753,39 @@ func (o *Ops) ClearingData(ctx context.Context, tenant, date string) ([]CCSectio
 		}
 	}
 	out = append(out, st)
+	out = append(out, o.settleSections(ctx, tenant, date, cs)...)  // intraday short allocation, EPIF (settlecheck.go)
 	out = append(out, o.bseSections(ctx, tenant, date, cs)...)     // BSE member reports (bseextranet.go)
 	out = append(out, o.mcxSections(ctx, tenant, date, cs, ab)...) // MCX and MCXCCL files (mcxfiles.go)
 
-	// Cash market obligation by security vs the day's trades.
-	ob := CCSection{ID: "obligation", Title: "Cash market obligation", About: "NSE's obligation per security (buy and sell quantity) against the firm's trades of the day in Ledgerline.",
-		Columns: []string{"Security", "Series", "Buy (NSE)", "Buy (Ledgerline)", "Sell (NSE)", "Sell (Ledgerline)", "Difference"}}
+	// Cash market obligation by security vs the day's trades: every trade
+	// NSE Clearing clears for the firm, BSE trades cleared there under
+	// interoperability included (BSECL interoperability FAQ, netting Q1).
+	ob := CCSection{ID: "obligation", Title: "Cash market obligation", About: "NSE Clearing's obligation per security (buy and sell quantity) against the firm's trades of the day in Ledgerline on every exchange whose cash market NSE Clearing clears (BSE too, under interoperability).",
+		Columns: []string{"Security", "Series", "Buy (NSE Clearing)", "Buy (Ledgerline)", "Sell (NSE Clearing)", "Sell (Ledgerline)", "Difference"}}
 	if ds := o.ccData(ctx, tenant, "obligation", date, ""); len(ds) > 0 {
 		ts, _ := o.exchangeTrades(ctx, tenant, date)
+		set, _ := o.Settings(ctx, tenant)
+		_, look, _ := o.Market(ctx, tenant, date)
 		type bs struct{ b, s int64 }
 		mine := map[string]*bs{}
+		// A trade is matched by ISIN where the market data knows it, so a
+		// BSE trade meets NSE's symbol; else by symbol.
+		keyOf := func(exch, sym string) string {
+			if i, ok := look.Get(exch, "CM", sym); ok && i.ISIN != "" {
+				return i.ISIN
+			}
+			return "SYM:" + strings.ToUpper(sym)
+		}
 		for _, t := range ts {
-			if t.Segment != "CM" || t.Exchange != "NSE" {
+			if t.Segment != "CM" || set.ClearedThrough(t.Exchange+"-CM") != "NCL" {
 				continue
 			}
-			k := t.Symbol
+			k := ""
+			if i, ok := look.ForTrade(t); ok && i.ISIN != "" {
+				k = i.ISIN
+			} else {
+				k = "SYM:" + strings.ToUpper(t.Symbol)
+			}
 			if mine[k] == nil {
 				mine[k] = &bs{}
 			}
@@ -717,12 +795,15 @@ func (o *Ops) ClearingData(ctx context.Context, tenant, date string) ([]CCSectio
 				mine[k].s += t.Qty
 			}
 		}
+		seen := map[string]bool{}
 		for _, d := range ds {
 			ob.Loaded, ob.File = true, d.File
 			for _, r := range d.Rows {
 				sym := r["Security Symbol"]
+				k := keyOf("NSE", sym)
+				seen[k] = true
 				b, s := decOr0(r["Daily Buy Volume"]), decOr0(r["Daily Sell Volume"])
-				m := mine[sym]
+				m := mine[k]
 				if m == nil {
 					m = &bs{}
 				}
@@ -732,6 +813,15 @@ func (o *Ops) ClearingData(ctx context.Context, tenant, date string) ([]CCSectio
 				}
 				ob.Rows = append(ob.Rows, []string{sym, r["Security Series"], b.Fixed(0), fmt.Sprint(m.b), s.Fixed(0), fmt.Sprint(m.s), diff.Fixed(0)})
 			}
+		}
+		// Trades in Ledgerline that NSE Clearing's obligation does not carry.
+		for _, k := range sortedKeys(mine) {
+			if seen[k] {
+				continue
+			}
+			m := mine[k]
+			ob.Diffs++
+			ob.Rows = append(ob.Rows, []string{strings.TrimPrefix(k, "SYM:"), "", "0", fmt.Sprint(m.b), "0", fmt.Sprint(m.s), fmt.Sprint(m.b + m.s)})
 		}
 	}
 	out = append(out, ob)
@@ -774,6 +864,7 @@ func (o *Ops) ClearingData(ctx context.Context, tenant, date string) ([]CCSectio
 		}
 	}
 	out = append(out, dp)
+	out = append(out, o.payoutReconSection(ctx, tenant, date, cs)) // payoutrecon.go
 	for i := range out {
 		if out[i].Rows == nil {
 			out[i].Rows = [][]string{}
@@ -954,13 +1045,13 @@ func (o *Ops) shortageReportingFile(ctx context.Context, tenant string, s *xfile
 		if !ok {
 			return "", nil, invalid("load NSE Clearing's settlement master for trades of %s first", x.Date)
 		}
-		d := x.Qty - x.Auction - x.Internal
+		b, c, d := shortageQtys(x) // nclshortage.go
 		recon := "0"
 		if d > 0 {
 			recon = "2"
 		}
 		rows = append(rows, xfile.Row{Record: "#12", Values: map[string]string{"RecordType": "20", "MarketType": "01", "SettlementNo": "M" + st.No, "Ucc": x.UCC, "Isin": x.ISIN, "Symbol": x.Symbol,
-			"TransactionType": "S", "QuantityShortA": fmt.Sprint(x.Qty), "ClearedInAuctionB": fmt.Sprint(x.Auction), "ClearedByCloseOutC": fmt.Sprint(x.Internal), "SettledInternallyD": fmt.Sprint(d), "ReconciliationE": recon}})
+			"TransactionType": "S", "QuantityShortA": fmt.Sprint(x.Qty), "ClearedInAuctionB": fmt.Sprint(b), "ClearedByCloseOutC": fmt.Sprint(c), "SettledInternallyD": fmt.Sprint(d), "ReconciliationE": recon}})
 	}
 	if len(rows) == 1 {
 		return "", nil, fmt.Errorf("%w: no settled shortages with pay-in on %s", ErrState, date)

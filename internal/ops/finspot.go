@@ -367,8 +367,8 @@ func (o *Ops) finspotHoldingRows(ctx context.Context, tenant, date string, t1 bo
 			if px.IsZero() {
 				px = i.LTP
 			}
-			if i.HaircutPct.Sign() > 0 {
-				hc, _ = i.HaircutPct.Quo(money.DecInt(100))
+			if p := pledgeHaircut(i); p.Sign() > 0 { // with the floors of NSE/INSP/66840 (collhaircut.go)
+				hc, _ = p.Quo(money.DecInt(100))
 				hc = money.Min(hc, money.DecInt(1))
 			}
 		}

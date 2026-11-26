@@ -150,12 +150,18 @@ type Settings struct {
 	// CUSPADays: the firm's payment period for unpaid purchases pledged to
 	// CUSPA, in trading days after pay-out: 1 to 5 (SEBI's maximum), 5
 	// when not set (cuspa.go).
-	CUSPADays       int            `json:"cuspa_days,omitempty"`
-	Holidays        []string       `json:"holidays"` // typed in by the firm; exchange calendars add to these
-	SnapshotTimes   []string       `json:"snapshot_times"`
-	IndexNetLimitCr int64          `json:"index_net_limit_cr"`
-	InactiveDays    int64          `json:"inactive_days"`
-	Calendar        []CalendarItem `json:"calendar"`
+	CUSPADays int `json:"cuspa_days,omitempty"`
+	// CUSPAMarginCount counts unpaid securities held in the CUSPA (at the
+	// T-1 close less haircut) as margin collected in the margin reporting
+	// to the clearing corporation. It is optional (SEBI revised MC para
+	// 46.5; NCL-BSE and NSE circulars on CUSPA): no further exposure is
+	// ever given on them, whatever this says.
+	CUSPAMarginCount bool           `json:"cuspa_margin_count,omitempty"`
+	Holidays         []string       `json:"holidays"` // typed in by the firm; exchange calendars add to these
+	SnapshotTimes    []string       `json:"snapshot_times"`
+	IndexNetLimitCr  int64          `json:"index_net_limit_cr"`
+	InactiveDays     int64          `json:"inactive_days"`
+	Calendar         []CalendarItem `json:"calendar"`
 	// TwoFactor is "required" (the default when empty) or "optional".
 	TwoFactor          string `json:"two_factor"`
 	SessionIdleMinutes int64  `json:"session_idle_minutes"`
