@@ -8459,6 +8459,72 @@
     "screen_name": "Compliance → KYC & PMLA → Sanctions",
     "what": "KYC & PMLA → Sanctions → Record a FATF statement: every client linked to a listed jurisdiction (nationality, birth, tax residence, controlling persons) gets an EDD item, all clients are screened again, and this event is recorded."
    }
+  },
+  {
+   "id": "CC-T-CLOSING-AUCTION",
+   "group": "Trading",
+   "title": "Get ready for NSE's Closing Auction Session in the cash market (from 7 Dec 2026)",
+   "frequency": "One time",
+   "due_text": "Before the Closing Auction Session (CAS) starts on 7 December 2026 for cash-market stocks with derivatives: take NSE's revised security master and contract files, set the trading front end's session times and order types (market and limit orders only in CAS), test in NSE's mock sessions, and tell clients that the day's closing price of these stocks is the auction price.",
+   "rule": "ONCE:2026-12-07",
+   "applies": [
+    "broker"
+   ],
+   "role": "Ops checker",
+   "filed_with": "Nothing to file: readiness of the trading front end and the back office",
+   "evidence": "Revised security master loaded, front-end vendor's confirmation of the CAS release and session times, mock session results, client communication",
+   "steps": [
+    "Read NSE's latest CAS circulars for the session times and the phase's securities: they have been revised since the first circular, so use the latest.",
+    "Load NSE's revised security master on Exchange files once it carries the CAS fields (NSE/CMTR/73845), and confirm the trading front end (Finspot, BOW) takes it.",
+    "Get the front-end vendor's confirmation that CAS orders, the 3% band around the reference price and the order types allowed are handled; take part in NSE's mock sessions.",
+    "Check the next morning's bhavcopy and margins after the first CAS day: closing prices of CAS stocks are the auction price, which values holdings, collateral and the settlement price for shortages."
+   ],
+   "ledgerline": {
+    "screen": "xfiles",
+    "screen_name": "Files → Exchange files",
+    "what": "Ledgerline reads the day's closing price from the bhavcopy, so CAS prices flow into valuations, margins and the settlement price of internal shortages without change; the security master's new fields are kept as loaded. The session itself is the trading front end's."
+   },
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/CMTR/72394",
+     "date": "2026-01-19",
+     "title": "Introduction of Closing Auction Session in Equity Cash Segment and modification in Pre-Open Auction Session",
+     "url": "https://nsearchives.nseindia.com/content/circulars/CMTR72394.pdf",
+     "says": "Introduces CAS for cash-market stocks with derivatives (phase 1), as listed on NSE's CAS page."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/CMTR/73362",
+     "date": "2026-03-18",
+     "title": "Operational guidelines and SOP for Closing Auction Session",
+     "url": "https://nsearchives.nseindia.com/content/circulars/CMTR73362.pdf",
+     "says": "Operational guidelines and standard operating procedure (subject line as listed on NSE's CAS page; not read in full)."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/CMTR/73845",
+     "date": "2026-04-22",
+     "title": "Changes in security master files on account of Closing Auction Session",
+     "url": "https://nsearchives.nseindia.com/content/circulars/CMTR73845.pdf",
+     "says": "Security master file changes for CAS (subject line as listed on NSE's CAS page; field details not read)."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/CMTR/74466",
+     "date": "2026-05-29",
+     "title": "Trading modalities of Closing Auction Session in Equity Cash segment",
+     "url": "https://nsearchives.nseindia.com/content/circulars/CMTR74466.pdf",
+     "says": "CAS trading modalities (subject line as listed on NSE's CAS page). Two further NSE circulars of 6 Nov 2026, reported in the press, set the start on 7 Dec 2026 and revised session times; their numbers are to be confirmed."
+    }
+   ],
+   "changed": "Added 23 Nov 2026 (gap NSE2-N0022): start date from the press reports of NSE's circulars of 6 Nov 2026, to confirm against the circulars themselves; session times are left to the latest circular because NSE's CAS page and the November reports differ.",
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Nothing is filed. The session runs in the exchange and the trading front end; the back office takes the revised security master and the bhavcopy."
+   },
+   "steps_from": "NSE/CMTR/73845 and NSE/CMTR/74466 (as listed on NSE's CAS page; the steps are the firm's readiness checklist)"
   }
  ]
 }

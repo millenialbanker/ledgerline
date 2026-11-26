@@ -419,6 +419,19 @@ type RiskView struct {
 
 // Risk computes end-of-day limits for every active client.
 func (o *Ops) Risk(ctx context.Context, tenant, date string) (RiskView, error) {
+	return o.riskView(ctx, tenant, date, false)
+}
+
+// riskView is Risk; with everyone, clients who are not Active (dormant,
+// suspended, closed, blocked at onboarding) are included too whenever they
+// have funds, collateral, a UPI block or positions, marked blocked. The
+// clearing corporation's client allocation is built from it, since a
+// client's money and collateral must be allocated to the client whatever
+// the client's trading status (NSE Clearing NCL/CMPT/51657, items I.2-I.3;
+// SEBI's circular on segregation and monitoring of collateral at client
+// level): left out, a dormant client's credit balance would stay with the
+// firm unallocated.
+func (o *Ops) riskView(ctx context.Context, tenant, date string, everyone bool) (RiskView, error) {
 	in, err := o.riskInput(ctx, tenant, date)
 	if err != nil {
 		return RiskView{}, err
@@ -464,9 +477,18 @@ func (o *Ops) Risk(ctx context.Context, tenant, date string) (RiskView, error) {
 	for _, u := range sortedKeys(in.clients) {
 		c := in.clients[u]
 		if c.Status != "Active" {
-			continue
+			if !everyone {
+				continue
+			}
+			f := funds[u]
+			if lf != nil {
+				f = lf[u].Equity + max(lf[u].Commodity, 0)
+			}
+			if f <= 0 && coll[u].Total().Sign() <= 0 && len(pos[u]) == 0 && upiBlock(c, ub).Sign() <= 0 {
+				continue
+			}
 		}
-		r := RiskRow{UCC: u, Name: c.Name, Funds: funds[u].Dec(), UPI: upiBlock(c, ub), Collateral: coll[u].Total(), CashEqColl: coll[u].CashEq, NonCashColl: coll[u].NonCash, Blocked: c.Blocked || c.Inactive, Inactive: c.Inactive, Positions: len(pos[u])}
+		r := RiskRow{UCC: u, Name: c.Name, Funds: funds[u].Dec(), UPI: upiBlock(c, ub), Collateral: coll[u].Total(), CashEqColl: coll[u].CashEq, NonCashColl: coll[u].NonCash, Blocked: c.Blocked || c.Inactive || c.Status != "Active", Inactive: c.Inactive, Positions: len(pos[u])}
 		if lf != nil {
 			f := lf[u]
 			r.Funds = f.Equity.Dec()

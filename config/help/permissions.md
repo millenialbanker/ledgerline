@@ -127,6 +127,7 @@ Checking a Finspot login | Ops maker, Ops checker, Risk manager
 Checking a backup | Ops checker, Compliance officer
 Checking a migration package | Admin
 Checking alert closures | Compliance officer
+Checking an account closure | Ops maker, Ops checker, Compliance officer
 Checking exchange holidays | Ops maker, Ops checker, Compliance officer
 Checking payouts with the bank | Ops maker, Ops checker
 Checking steps for reminders | Ops checker, Risk manager, Compliance officer
@@ -138,11 +139,13 @@ Clearing cheques | Ops maker, Ops checker
 Client code modification | Ops maker, Ops checker
 Closing MTF positions | Ops checker, Risk manager
 Closing a deceased client's UCCs | Ops checker, Compliance officer
+Closing an account | Ops checker, Compliance officer
 Closing out a short delivery | Ops checker
 Closing the day | Ops checker
 Closing the leave year | HR manager
 Comparing files in the parallel run | Ops maker, Ops checker, Compliance officer
 Completing HR checklist items (or the item's own role) | HR manager
+Completing a transfer request | Ops checker
 Confirming allocation | Ops checker, Risk manager
 Confirming payouts | Ops maker, Ops checker
 Connecting the USB token signer | Admin
@@ -322,7 +325,9 @@ Recording a receipt | Ops maker, Ops checker, Branch staff
 Recording a stock SIP fill | Ops maker, Ops checker
 Recording a surveillance action | Compliance officer
 Recording a transfer between the firm's bank accounts | Ops maker, Ops checker
+Recording a transfer request | Ops maker, Ops checker
 Recording allotments | Ops maker, Ops checker
+Recording an account closure request | Ops maker, Ops checker, Compliance officer
 Recording an adverse observation | Compliance officer
 Recording an adverse report | Compliance officer
 Recording an alert download | Ops checker, Compliance officer
@@ -352,6 +357,7 @@ Referring an alert to the exchange | Compliance officer
 Registering a stock SIP for a client | Ops maker, Ops checker
 Registering attendance kiosks | HR manager
 Registering clients on MF platforms | Ops maker, Ops checker
+Rejecting an account closure | Ops checker, Compliance officer
 Rejecting an application | Ops checker, Compliance officer
 Rejecting new accounts | Ops checker
 Releasing CUSPA securities before the client has paid | Ops checker, Risk manager

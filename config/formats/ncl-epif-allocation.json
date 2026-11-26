@@ -1,0 +1,84 @@
+{
+ "id": "ncl-epif-allocation",
+ "title": "Early pay-in of funds allocation (NSE Clearing, CEPF)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "End of day",
+ "purpose": "Early pay-in of funds (EPIF) allocated to each client and security against the allocation requested: the sale obligation that needs no margin because the buyer's funds were paid in early.",
+ "names": [
+  "\\d+_CEPF\\d{8}\\.csv(\\.gz)?"
+ ],
+ "records": [
+  {
+   "code": "#9",
+   "columns": [
+    {
+     "name": "RecordType",
+     "type": "str"
+    },
+    {
+     "name": "SettlementType",
+     "type": "str"
+    },
+    {
+     "name": "SettlementNo",
+     "type": "str"
+    },
+    {
+     "name": "TMCode",
+     "type": "str"
+    },
+    {
+     "name": "ClientCode",
+     "type": "str"
+    },
+    {
+     "name": "Symbol",
+     "type": "str"
+    },
+    {
+     "name": "Series",
+     "type": "str"
+    },
+    {
+     "name": "AllocationRequested",
+     "type": "str"
+    },
+    {
+     "name": "AmountAllocated",
+     "type": "str"
+    }
+   ]
+  },
+  {
+   "code": "#4",
+   "columns": [
+    {
+     "name": "RecordType",
+     "type": "str"
+    },
+    {
+     "name": "Date",
+     "type": "str"
+    },
+    {
+     "name": "MemberCode",
+     "type": "str"
+    },
+    {
+     "name": "RecordCount",
+     "type": "str"
+    }
+   ]
+  }
+ ],
+ "compress": "gzip",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": false,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as NSE Clearing's early pay-in of funds allocation per client and security (Clearing data); an allocation short of what was requested raises a work item",
+ "source": "NSE Clearing circular NCL/CMPT/69520 (0230/2025) of 6 Aug 2025, modifying consolidated circular 011/2024: file <member>_CEPFYYYYMMDD.csv.gz in /cmftp/<MEMCD>/CEP/Dnld; control record 10,DDMMYYYY,Member Code,Number of Records; detail record 20, Settlement Type, Settlement Number, TM Code, Client Code, Symbol, Series, Allocation Requested, Amount Allocated"
+}
