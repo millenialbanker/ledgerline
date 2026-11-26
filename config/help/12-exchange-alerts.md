@@ -50,9 +50,11 @@ The exchanges charge a member whose daily ratio of algo order events (entries, c
 title: ICCL files checked by hand
 screen: xfiles
 roles: Ops maker, Ops checker, Risk manager, Compliance officer, Admin
-ask: iccl file layout; iccl var file; varelmam; iccl haircut file; iccl margin file; iccl collateral report; icoll; client allocation to iccl; margin reporting to iccl; check by hand
-related: exchange-files, missing-file-alerts
+ask: iccl var file; varelmam; iccl haircut file; iccl margin file; iccl collateral report; icoll; check by hand
+related: iccl-day, exchange-files, missing-file-alerts
 
-When a segment is cleared at **ICCL** (Settings → Cleared through), the checklist on [[xfiles|Exchange files]] lists ICCL's files as **Check by hand**: the VaR and ELM rates, haircuts, collateral reports, client margin file, the ICOLL response, client allocation and margin reporting.
+When a segment is cleared at **ICCL** (Settings → Cleared through), the checklist on [[xfiles|Exchange files]] lists some of ICCL's files as **Check by hand**: the VaR and ELM rates, haircuts, collateral reports, client margin file and the ICOLL response.
 
-ICCL has not published the column layouts of these files in a public circular, and Ledgerline never guesses a layout. Each line of the checklist says what is needed. Until then, download the files from ICCL's extranet and check them there; they are not chased as missing. To have Ledgerline read one, send its ICCL file description and a sample with made-up data to support.
+ICCL has not published the column layouts of these files, and Ledgerline never guesses a layout. Each line of the checklist says what is needed. Until then, download the files from ICCL's extranet and check them there; they are not chased as missing. To have Ledgerline read one, send its ICCL file description and a sample with made-up data to support.
+
+The files Ledgerline must make or read for ICCL (margin reporting, collateral segregation, ICCLCOLL allocation, short allocation reasons, early pay-in, SHORTALLOCATION_CM and ALLOCATIONDIFF) are built from ICCL's notices: see [[xfiles|Exchange files]] → BSE Clearing (ICCL).

@@ -121,6 +121,14 @@ type RiskLimitConfig struct {
 	FundsPayInBy      string `json:"funds_payin_by"`
 	SecuritiesPayInBy string `json:"securities_payin_by"`
 	AuctionPayInBy    string `json:"auction_payin_by"`
+	// ICCL's own cut-offs (BSECL cash master circular chapter 4 part A):
+	// the normal pay-in, funds and securities, by 10:30 on T+1; the auction
+	// pay-in by 08:00 with its securities instructions by 07:50
+	// (icclsettle.go). Used only for obligations cleared at ICCL.
+	ICCLFundsPayInBy      string `json:"iccl_funds_payin_by,omitempty"`
+	ICCLSecuritiesPayInBy string `json:"iccl_securities_payin_by,omitempty"`
+	ICCLAuctionPayInBy    string `json:"iccl_auction_payin_by,omitempty"`
+	ICCLAuctionInstrBy    string `json:"iccl_auction_instr_by,omitempty"`
 	// CCSplitOff stops splitting one pay-in or pay-out of a clearing
 	// corporation across the exchanges it clears (rmspayin.go).
 	CCSplitOff bool   `json:"cc_split_off,omitempty"`
@@ -149,6 +157,10 @@ func (c *RiskLimitConfig) fill() {
 	c.FundsPayInBy = firstOf(c.FundsPayInBy, "11:00")
 	c.SecuritiesPayInBy = firstOf(c.SecuritiesPayInBy, "10:30")
 	c.AuctionPayInBy = firstOf(c.AuctionPayInBy, "08:00")
+	c.ICCLFundsPayInBy = firstOf(c.ICCLFundsPayInBy, "10:30")
+	c.ICCLSecuritiesPayInBy = firstOf(c.ICCLSecuritiesPayInBy, "10:30")
+	c.ICCLAuctionPayInBy = firstOf(c.ICCLAuctionPayInBy, "08:00")
+	c.ICCLAuctionInstrBy = firstOf(c.ICCLAuctionInstrBy, "07:50")
 }
 
 // RiskLimitConfig is the firm's RMS limit settings, defaults filled.
@@ -181,7 +193,7 @@ func (o *Ops) SaveRiskLimitConfig(ctx context.Context, tenant, actor string, c R
 			return c, invalid("dates are YYYY-MM-DD, got %q", d)
 		}
 	}
-	for _, t := range []string{c.FundsPayInBy, c.SecuritiesPayInBy, c.AuctionPayInBy} {
+	for _, t := range []string{c.FundsPayInBy, c.SecuritiesPayInBy, c.AuctionPayInBy, c.ICCLFundsPayInBy, c.ICCLSecuritiesPayInBy, c.ICCLAuctionPayInBy, c.ICCLAuctionInstrBy} {
 		if _, err := time.Parse("15:04", t); t != "" && err != nil {
 			return c, invalid("cut-off times are HH:MM, got %q", t)
 		}

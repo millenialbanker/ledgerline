@@ -1,0 +1,61 @@
+{
+ "id": "iccl-margin-reporting",
+ "title": "Client margin reporting to ICCL (EOD and peak margin collected)",
+ "party": "ICCL",
+ "direction": "out",
+ "when": "T+1 (per ICCL's reporting schedule)",
+ "purpose": "Margin actually collected from each client (and the firm's own account) at end of day, and the peak margin collected during the day, for each BSE trade date. Not reporting counts as 100% short.",
+ "names": [
+  "(?i)ICCL_MRG_.*\\.csv"
+ ],
+ "template": "ICCL_MRG_{member}_{date:02012006}.csv",
+ "compress": "none",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": true,
+ "crlf": false,
+ "final_eol": true,
+ "columns": [
+  {
+   "name": "Trade Date",
+   "type": "date",
+   "layout": "02-01-2006"
+  },
+  {
+   "name": "Segment",
+   "type": "str"
+  },
+  {
+   "name": "CM Code",
+   "type": "str"
+  },
+  {
+   "name": "TM Code",
+   "type": "str"
+  },
+  {
+   "name": "CP Code",
+   "type": "str"
+  },
+  {
+   "name": "Client Code",
+   "type": "str"
+  },
+  {
+   "name": "EOD Margin Collected",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  },
+  {
+   "name": "Peak Margin Collected",
+   "type": "dec",
+   "decimals": 2,
+   "fixed": true
+  }
+ ],
+ "confirmed": false,
+ "confirm": true,
+ "notice": "ICCL notice 20250502-5",
+ "source": "ICCL notice 20250502-5 (timely submission of reporting files, table item 1) and the SEBI cash and derivatives master circulars on margin collection reporting: per client, TM and CP, the actual margin collected at EOD and the peak margin collected, not the margin required; non-reporting is treated as 100% short reporting. ICCL notice 20250724-4: pre-delivery margins on in-the-money stock options are part of the margin reported. Built from the notice's description, not from a published file layout: ICCL has not published this file's column layout. The broker must confirm the field order, names and file name against ICCL's file description (member extranet) before the first upload."
+}

@@ -1,0 +1,142 @@
+{
+ "id": "iccl-short-allocation",
+ "title": "Short allocation of collateral (ICCL / BSECL, SHORTALLOCATION_CM)",
+ "party": "ICCL",
+ "direction": "in",
+ "when": "EOD and each intraday snapshot",
+ "purpose": "Clients whose collateral allocated at BSE Clearing fell short of their margin at a snapshot, for the member to report reasons 01-08 with the collateral available.",
+ "names": [
+  "(?i).*SHORTALLOCATION_CM.*"
+ ],
+ "not_names": [
+  "(?i).*SHORTALLOCATION_CM.*(RES|RESP|RESPONSE|UPLD|UPLOAD).*"
+ ],
+ "compress": "none",
+ "format": "headers",
+ "delimiter": "auto",
+ "header": true,
+ "columns": [
+  {
+   "name": "Trade Date",
+   "type": "str",
+   "key": "date",
+   "aliases": [
+    "TradeDate",
+    "Trade_Date",
+    "Date",
+    "TradDt",
+    "Business Date"
+   ]
+  },
+  {
+   "name": "Snapshot",
+   "type": "str",
+   "key": "snapshot",
+   "aliases": [
+    "Snapshot ID",
+    "Snapshot Id",
+    "Snapshot Time",
+    "Snap Shot",
+    "Indicator",
+    "Snapshot No"
+   ]
+  },
+  {
+   "name": "Segment",
+   "type": "str",
+   "key": "segment",
+   "aliases": [
+    "Sgmt",
+    "Seg"
+   ]
+  },
+  {
+   "name": "CM Code",
+   "type": "str",
+   "key": "cm",
+   "aliases": [
+    "Clearing Member Code",
+    "CM_Code",
+    "CMCode",
+    "Clearing No"
+   ]
+  },
+  {
+   "name": "TM Code",
+   "type": "str",
+   "key": "tm",
+   "aliases": [
+    "Trading Member Code",
+    "TM_Code",
+    "TMCode",
+    "Member Code"
+   ]
+  },
+  {
+   "name": "CP Code",
+   "type": "str",
+   "key": "cp",
+   "aliases": [
+    "CP_Code",
+    "CPCode",
+    "Custodial Participant Code"
+   ]
+  },
+  {
+   "name": "Client Code",
+   "type": "str",
+   "key": "ucc",
+   "aliases": [
+    "UCC",
+    "ClientCode",
+    "Client Code",
+    "Client_Code",
+    "Client Id",
+    "ClntId",
+    "Unique Client Code",
+    "Client/CP Code",
+    "ClientCpCode"
+   ],
+   "required": true
+  },
+  {
+   "name": "Margin Required",
+   "type": "dec",
+   "key": "required",
+   "aliases": [
+    "Minimum Margin Required",
+    "MinimumMarginRequired",
+    "Margin",
+    "Total Margin"
+   ]
+  },
+  {
+   "name": "Collateral Allocated",
+   "type": "dec",
+   "key": "collateral",
+   "aliases": [
+    "Total Collateral",
+    "TotalCollateral",
+    "Collateral",
+    "Allocated Collateral"
+   ]
+  },
+  {
+   "name": "Short Allocation",
+   "type": "dec",
+   "key": "short",
+   "aliases": [
+    "ShortAllocation",
+    "Short Amount",
+    "Short Allocation Amount",
+    "Shortfall"
+   ],
+   "required": true
+  }
+ ],
+ "confirmed": false,
+ "confirm": true,
+ "notice": "ICCL notice 20250603-44",
+ "source": "ICCL notice 20250603-44 (short allocation reporting format, points 1-3; live 1 July 2025): ICCL sends the short allocation report per EOD and intraday snapshot; the member uploads, in CSV, the reasons (codes 01-08, several per record allowed, amounts summed) and the collateral available for each, without changing ICCL's own data; ICCL answers with a response file. Built from the notice's description, not from a published file layout: ICCL has not published this file's column layout. The broker must confirm the field order, names and file name against ICCL's file description (member extranet) before the first upload. Read by header names; when a real file's header differs, add its text as an alias here.",
+ "linked": "Loaded on Exchange files → BSE Clearing (ICCL): each short client is listed to record reasons, and the reporting file is written from ICCL's rows unaltered."
+}

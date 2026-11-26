@@ -77,7 +77,7 @@
    "api": {
     "status": "file",
     "name": "NSE Clearing client margin reporting upload (CIM / extranet COLAT/UPLD); ICCL and MCXCCL file uploads",
-    "detail": "No upload API found: NSE Clearing's NMASS margins API (built in Ledgerline) only downloads margin data. Ledgerline already writes the NSE Clearing CM and F&O files and the MCXCCL file; the ICCL layout is still missing.",
+    "detail": "No upload API found: NSE Clearing's NMASS margins API (built in Ledgerline) only downloads margin data. Ledgerline already writes the NSE Clearing CM and F&O files and the MCXCCL file, and the ICCL file from ICCL's notice (iccl-margin-reporting, layout to confirm with ICCL).",
     "url": "https://www.nseindia.com/static/products-services/equity-derivatives-client-margin-reporting"
    },
    "items": [
@@ -723,7 +723,7 @@
    "api": {
     "status": "built",
     "name": "NSE Clearing allocation API",
-    "detail": "Live in Ledgerline (nclalloc.go). The fund transfer itself is a bank payment; ICCL and MCXCCL allocation are not built."
+    "detail": "Live in Ledgerline (nclalloc.go). The fund transfer itself is a bank payment; ICCL allocation is written as the ICCLCOLL file (layout to confirm with ICCL); MCXCCL allocation is not built."
    },
    "items": [
     "T09"
