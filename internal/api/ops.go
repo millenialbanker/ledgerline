@@ -66,6 +66,7 @@ func (s *Server) opsRoutes() {
 	s.cbricsRoutes()
 	s.payoutHoldRoutes()
 	s.settleRoutes()
+	s.rmsLimitRoutes()
 	s.activityRoutes()
 	s.securityRoutes()
 	s.nseUCIRoutes()

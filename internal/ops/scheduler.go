@@ -313,6 +313,10 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.epiEndOfDay(ctx, tenant, now)
 	o.internalShortageTick(ctx, tenant, now)
 	o.payoutReconTick(ctx, tenant, now)
+	// Pay-in cut-off reminders and the end-of-day RMS limit checks
+	// (rmspayin.go, rmslimits.go): work items only.
+	o.payInCutoffTick(ctx, tenant, now)
+	o.riskLimitsTick(ctx, tenant, now)
 	// Trades from NSE's trade API, for live risk, when the firm switched
 	// fetching on in Connections.
 	o.notisTick(ctx, tenant, now)

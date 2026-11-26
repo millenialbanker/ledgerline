@@ -26,8 +26,17 @@ type PositionView struct {
 	MTM        money.Dec `json:"mtm"`
 	Margin     money.Dec `json:"margin"`
 	FutEq      money.Dec `json:"futeq"`
-	Index      bool      `json:"index"`
-	Priced     bool      `json:"priced"`
+	// FutEqQty is the position in units of the underlying: the quantity for
+	// a future, quantity × delta for an option (the whole quantity when no
+	// delta is known, the safe reading). Position limits and the F&O ban
+	// period are measured in it (rmslimits.go).
+	FutEqQty money.Dec `json:"futeq_qty"`
+	Index    bool      `json:"index"`
+	Priced   bool      `json:"priced"`
+	// Netted names the clearing corporation when the margin is that of the
+	// client's net position across exchanges it clears (NSE and BSE at NSE
+	// Clearing): the leg's Margin is then its share of the net margin.
+	Netted string `json:"netted,omitempty"`
 }
 
 type posAcc struct {
@@ -116,6 +125,8 @@ type riskInput struct {
 	trades   []ingest.TradeEvent
 	holdings []Holding
 	cashEq   map[string]bool // ISIN -> cash-equivalent collateral (cashEquivalentISINs)
+	lim      RiskLimitConfig // position limits, surveillance margins, netting (rmslimits.go)
+	surv     survIndex       // exchange surveillance measures in force on the date
 }
 
 func (o *Ops) riskInput(ctx context.Context, tenant, date string) (riskInput, error) {
@@ -156,7 +167,120 @@ func (o *Ops) riskInput(ctx context.Context, tenant, date string) (riskInput, er
 		}
 	}
 	in.cashEq = o.cashEquivalentISINs(ctx, tenant, pledged)
+	in.lim = o.RiskLimitConfig(ctx, tenant)
+	if !in.lim.SurvMarginsOff {
+		in.surv = o.survMeasuresOn(ctx, tenant, date)
+	}
 	return in, nil
+}
+
+// marginGroup is what a position's margin nets with: the clearing
+// corporation that clears the exchange segment (Settings → Cleared
+// through), so the same contract or security bought on one exchange and
+// sold on another that the same clearing corporation clears is margined on
+// the net, as the clearing corporation margins it (ICCL / NSE Clearing
+// interoperability risk management FAQ, netting Q1-Q4: same security in
+// the cash market; same underlying, expiry, strike and option type in
+// derivatives). A segment cleared by another clearing member, or not
+// traded, is margined on its own exchange (the safe reading), and so is
+// everything when the firm chose to margin each exchange apart.
+func (in riskInput) marginGroup(exch, seg string) string {
+	if in.lim.GrossAcrossExchanges {
+		return exch
+	}
+	th := in.set.ClearedThrough(exch + "-" + seg)
+	if th == "" || th == ClearNone || strings.HasPrefix(th, "CM:") {
+		return exch
+	}
+	return th
+}
+
+// positionMargin is the margin and futures equivalent of q contracts.
+func positionMargin(inst Instrument, q int64) (margin, futEq money.Dec) {
+	n := money.DecInt(abs(q))
+	rate := inst.SPANPct.Add(inst.ExpoPct)
+	switch {
+	case inst.Type == "FUT":
+		return n.Mul(inst.LTP).Pct(rate), money.DecInt(q).Mul(inst.LTP)
+	case q < 0: // short option
+		return n.Mul(inst.Underlying).Pct(rate), money.DecInt(q).Mul(inst.Delta).Mul(inst.Underlying)
+	default: // long option: premium already paid
+		return money.Dec{}, money.DecInt(q).Mul(inst.Delta).Mul(inst.Underlying)
+	}
+}
+
+// futEqQty is q contracts in units of the underlying: q for a future,
+// q × delta for an option, and for an option with no delta known the whole
+// quantity, long for a call and short for a put.
+func futEqQty(typ string, delta money.Dec, q int64) money.Dec {
+	switch {
+	case typ == "FUT" || typ == "EQ" || typ == "":
+		return money.DecInt(q)
+	case !delta.IsZero():
+		return money.DecInt(q).Mul(delta)
+	case typ == "PE":
+		return money.DecInt(-q)
+	}
+	return money.DecInt(q)
+}
+
+// netAcrossExchanges re-margins positions held in the same contract on
+// two or more exchanges cleared at one clearing corporation: the margin is
+// that of the net quantity, shared among the legs on the side of the net
+// in proportion to their quantity; legs on the other side carry none.
+func (in riskInput) netAcrossExchanges(out map[string][]PositionView) {
+	type ref struct {
+		u string
+		i int
+	}
+	groups := map[string][]ref{}
+	for u, ps := range out {
+		for i, p := range ps {
+			g := in.marginGroup(p.Exchange, p.Segment)
+			if g == p.Exchange {
+				continue
+			}
+			k := u + "|" + g + "|" + p.Segment + "|" + p.Instrument
+			groups[k] = append(groups[k], ref{u, i})
+		}
+	}
+	for k, rs := range groups {
+		if len(rs) < 2 {
+			continue
+		}
+		var net int64
+		best := -1
+		for j, r := range rs {
+			p := out[r.u][r.i]
+			net += p.Qty
+			if p.Priced && (best < 0 || abs(p.Qty) > abs(out[rs[best].u][rs[best].i].Qty)) {
+				best = j
+			}
+		}
+		g := strings.SplitN(k, "|", 3)[1]
+		var netMargin money.Dec
+		if best >= 0 && net != 0 {
+			b := out[rs[best].u][rs[best].i]
+			if inst, ok := in.look.Get(b.Exchange, b.Segment, b.Instrument); ok {
+				netMargin, _ = positionMargin(inst, net)
+			}
+		}
+		var side int64
+		for _, r := range rs {
+			if q := out[r.u][r.i].Qty; (q > 0) == (net > 0) && net != 0 {
+				side += abs(q)
+			}
+		}
+		for _, r := range rs {
+			p := &out[r.u][r.i]
+			p.Netted = g
+			if net == 0 || (p.Qty > 0) != (net > 0) || side == 0 {
+				p.Margin = money.Dec{}
+				continue
+			}
+			p.Margin, _ = netMargin.MulInt(abs(p.Qty)).Quo(money.DecInt(side))
+		}
+	}
 }
 
 // positions nets carried positions and the day's derivative trades up to
@@ -182,8 +306,10 @@ func (in riskInput) positions(until string) (map[string][]PositionView, map[stri
 			a.sv = a.sv.Add(c.AvgPrice.MulInt(-c.Qty))
 		}
 	}
-	cmOpen := map[string]map[string]int64{} // ucc -> instrument key -> net qty (intraday)
+	cmOpen := map[string]map[string]int64{} // ucc -> margin group|security -> net qty (intraday)
 	cmPrice := map[string]money.Dec{}
+	type cmRef struct{ ex, key, isin string }
+	cmAt := map[string]cmRef{} // margin group|security -> where it is priced
 	for _, t := range in.trades {
 		if until != "" && t.TradeTime > until {
 			continue
@@ -192,7 +318,19 @@ func (in riskInput) positions(until string) (map[string][]PositionView, map[stri
 			if until == "" {
 				continue
 			}
+			// The same security on two exchanges cleared at one clearing
+			// corporation nets (by ISIN).
 			k := t.Exchange + "|" + t.Instrument()
+			isin := ""
+			if i, ok := in.look.ForTrade(t); ok && i.ISIN != "" {
+				isin = i.ISIN
+				if g := in.marginGroup(t.Exchange, "CM"); g != t.Exchange {
+					k = g + "|" + i.ISIN
+				}
+			}
+			if _, ok := cmAt[k]; !ok {
+				cmAt[k] = cmRef{t.Exchange, t.Instrument(), isin}
+			}
 			if cmOpen[t.UCC] == nil {
 				cmOpen[t.UCC] = map[string]int64{}
 			}
@@ -234,20 +372,11 @@ func (in riskInput) positions(until string) (map[string][]PositionView, map[stri
 		parts := strings.Split(p.Instrument, "|")
 		p.Name = InstrumentName(parts[0], parts[1], parts[2], parts[3])
 		p.LTP = p.AvgPrice
+		p.FutEqQty = futEqQty(p.Type, money.Dec{}, q)
 		if ok {
 			p.Priced, p.LTP, p.Index = true, inst.LTP, inst.Index
-			n := money.DecInt(abs(q))
-			rate := inst.SPANPct.Add(inst.ExpoPct)
-			switch {
-			case inst.Type == "FUT":
-				p.Margin = n.Mul(inst.LTP).Pct(rate)
-				p.FutEq = money.DecInt(q).Mul(inst.LTP)
-			case q < 0: // short option
-				p.Margin = n.Mul(inst.Underlying).Pct(rate)
-				p.FutEq = money.DecInt(q).Mul(inst.Delta).Mul(inst.Underlying)
-			default: // long option: premium already paid
-				p.FutEq = money.DecInt(q).Mul(inst.Delta).Mul(inst.Underlying)
-			}
+			p.Margin, p.FutEq = positionMargin(inst, q)
+			p.FutEqQty = futEqQty(inst.Type, inst.Delta, q)
 		}
 		p.MTM = p.LTP.Sub(p.AvgPrice).MulInt(q)
 		out[p.UCC] = append(out[p.UCC], p)
@@ -255,17 +384,27 @@ func (in riskInput) positions(until string) (map[string][]PositionView, map[stri
 	for u := range out {
 		sort.Slice(out[u], func(i, j int) bool { return out[u][i].Name < out[u][j].Name })
 	}
+	in.netAcrossExchanges(out)
 	cm := map[string]money.Dec{}
 	for u, m := range cmOpen {
 		for k, q := range m {
 			if q <= 0 {
 				continue
 			}
-			ex, key, _ := strings.Cut(k, "|")
+			at := cmAt[k]
 			px := cmPrice[k]
 			rate := money.MustDec("20")
-			if inst, ok := in.look.Get(ex, "CM", key); ok {
+			sym := strings.SplitN(at.key, "|", 2)[0]
+			if inst, ok := in.look.Get(at.ex, "CM", at.key); ok {
 				px, rate = inst.LTP, inst.VaRPct.Add(inst.ELMPct)
+				if at.isin == "" {
+					at.isin = inst.ISIN
+				}
+			}
+			// A security under an exchange surveillance measure (GSM, ESM,
+			// ASM …) is margined at the measure's rate when it is higher.
+			if m, ok := in.surv.find(at.ex, sym, at.isin); ok && m.MarginPct.Cmp(rate) > 0 {
+				rate = m.MarginPct
 			}
 			cm[u] = cm[u].Add(px.MulInt(q).Pct(rate))
 		}

@@ -74,6 +74,7 @@ Changing CDSL account details | Ops maker, Ops checker
 Changing CDSL pledge settings | Risk manager, Compliance officer
 Changing HR policies | Compliance officer, HR manager
 Changing Ledgerline support access settings | Admin
+Changing RMS limit settings | Risk manager
 Changing a DP account's tariff plan | Ops checker, Admin
 Changing a segment's status | Ops checker, Compliance officer
 Changing a stock SIP | Ops maker, Ops checker
@@ -177,6 +178,7 @@ Downloading security logs | Compliance officer
 Downloading stock SIP basket files | Ops maker, Ops checker, Risk manager
 Downloading the BOW funds file | Ops maker, Ops checker, Risk manager
 Downloading the collateral file | Ops maker, Ops checker, Risk manager, Compliance officer
+Downloading the index options cover report | Risk manager, Compliance officer
 Editing exchange UCC details | Ops maker, Ops checker
 Editing exchange disclosures | Compliance officer
 Editing message templates | Ops checker, Compliance officer
@@ -389,6 +391,7 @@ Running prepaid adjustments | Ops checker
 Running sanctions screening | Compliance officer
 Running stock SIP instalments | Ops maker, Ops checker, Risk manager
 Running surveillance rules | Ops checker, Compliance officer
+Running the RMS limit checks | Risk manager, Compliance officer
 Running the self-inspection | Compliance officer
 Scanning vendor bills | Ops maker, Ops checker
 Scheduling jobs | Admin
