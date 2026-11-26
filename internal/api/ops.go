@@ -90,6 +90,7 @@ func (s *Server) opsRoutes() {
 	s.inspackRoutes()
 	s.dataExitRoutes()
 	s.circularCardRoutes()
+	s.firmModuleRoutes()
 	s.uiLayoutRoutes()
 	s.firmKeyRoutes()
 	s.roleRoutes()
@@ -467,6 +468,9 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		// Priced modules the firm has on (Settings → Modules): the People
 		// group shows only with HRMS on.
 		me["modules"] = s.ops.Modules(r.Context(), tenant(r))
+		// Screens that belong to a module the firm does not have (Settings →
+		// Firm modules): hidden from the menu unless "show all modules".
+		me["hidden_screens"] = s.ops.HiddenScreens(r.Context(), tenant(r))
 	}
 	if a := actor(r); a != "" {
 		if acc, err := s.ops.Access(r.Context(), tenant(r), a); err == nil {

@@ -551,12 +551,13 @@ func eventWithinWords(within string) string {
 
 // ---- who a duty applies to ----
 
-var reDutyNeed = regexp.MustCompile(`^(no:)?(broker|clearing|dp|cdsl|nsdl|mtf|algo|ibt|nri|ap|branch|ra|ia|pms|derivatives|ras:monthly|member:(NSE|BSE|MCX|MSE|NCDEX)|seg:(CM|FO|CD|COM)|cscrf:(qualified|mid|small|self|exempt)(,(qualified|mid|small|self|exempt))*)$`)
+var reDutyNeed = regexp.MustCompile(`^(no:)?(broker|clearing|dp|cdsl|nsdl|mtf|algo|ibt|nri|ap|branch|ra|ia|pms|derivatives|ras:monthly|member:(NSE|BSE|MCX|MSE|NCDEX)|seg:(CM|FO|CD|COM|SLB)|cscrf:(qualified|mid|small|self|exempt)(,(qualified|mid|small|self|exempt))*)$`)
 
 // validDutyNeed checks one condition ("a|b" for either).
 func validDutyNeed(n string) bool {
 	for _, p := range strings.Split(n, "|") {
-		if !reDutyNeed.MatchString(strings.TrimSpace(p)) {
+		p = strings.TrimSpace(p)
+		if !reDutyNeed.MatchString(p) && !moduleCondKnown(strings.TrimPrefix(p, "no:")) {
 			return false
 		}
 	}
@@ -613,7 +614,7 @@ func dutyNeed(n string, f firmFacts) (tri, string) {
 		return fact(triOf(f.Member[x]), "you are a member of "+x, "you are not a member of "+x, "")
 	case strings.HasPrefix(n, "seg:"):
 		x := n[4:]
-		name := map[string]string{"CM": "the cash market", "FO": "equity derivatives", "CD": "currency derivatives", "COM": "commodity derivatives"}[x]
+		name := map[string]string{"CM": "the cash market", "FO": "equity derivatives", "CD": "currency derivatives", "COM": "commodity derivatives", "SLB": "securities lending and borrowing"}[x]
 		return fact(triOf(f.Seg[x]), "you trade "+name, "you don't trade "+name, "")
 	case n == "derivatives":
 		return fact(triOf(f.Seg["FO"] || f.Seg["CD"] || f.Seg["COM"]), "you trade derivatives", "you trade no derivatives segment", "")
@@ -644,12 +645,16 @@ func dutyNeed(n string, f firmFacts) (tri, string) {
 		return fact(triOf(f.Regs[n]), "you are registered as "+name, "you are not registered as "+name+" (Settings → Firm profile)", "")
 	case strings.HasPrefix(n, "cscrf:"):
 		if f.CSCRF == "" {
-			return triUnknown, "tell Ledgerline the firm's CSCRF category (Settings → Firm profile)"
+			return triUnknown, "tell Ledgerline the firm's CSCRF category, or its registered clients and clients' trading volume (Settings → Firm modules)"
 		}
+		counted := map[bool]string{true: " (worked out from your client numbers, Settings → Firm modules)"}[f.CSCRFFrom == "counted"]
 		if contains(strings.Split(n[6:], ","), f.CSCRF) {
-			return triYes, "your CSCRF category is " + cscrfName(f.CSCRF)
+			return triYes, "your CSCRF category is " + cscrfName(f.CSCRF) + counted
 		}
-		return triNo, "it is not for a " + cscrfName(f.CSCRF)
+		return triNo, "it is not for a " + cscrfName(f.CSCRF) + counted
+	}
+	if v, why, ok := moduleNeed(n, f); ok {
+		return v, why
 	}
 	return triUnknown, "unknown condition " + n
 }

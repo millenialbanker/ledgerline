@@ -69,6 +69,11 @@ var ClearingSegments = []ClearingSegment{
 	{"MSE-CD", "MSE", "CD", []string{"MCCIL", "NCL", "ICCL"}, "NCL"},
 	{"MCX-COM", "MCX", "COM", []string{"MCXCCL"}, "MCXCCL"},
 	{"NCDEX-COM", "NCDEX", "COM", []string{"NCCL"}, "NCCL"},
+	// Securities lending and borrowing: not traded unless the firm says so
+	// (Settings → Firm modules or Cleared through), so existing settings
+	// load unchanged.
+	{"NSE-SLB", "NSE", "SLB", []string{"NCL"}, ClearNone},
+	{"BSE-SLB", "BSE", "SLB", []string{"ICCL"}, ClearNone},
 }
 
 // ClearNone marks a segment the firm does not trade.
@@ -158,6 +163,7 @@ func (o *Ops) logClearing(ctx context.Context, tenant, actor string, old, s Sett
 		a, b := old.ClearedThrough(c.Key), s.ClearedThrough(c.Key)
 		if a != b || old.ClearingMemberNames[c.Key] != s.ClearingMemberNames[c.Key] {
 			o.log(ctx, tenant, actor, "settings.clearing", c.Key, map[string]any{"from": a, "to": b, "clearing_member": s.ClearingMemberNames[c.Key]})
+			o.noteCMChange(ctx, tenant, actor, c.Key, a, b) // the cmchange condition (firmmodules.go)
 		}
 	}
 }

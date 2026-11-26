@@ -166,6 +166,7 @@ function ccProfilePanel(fp) {
       <fieldset class="full fp-regs"><legend>Other SEBI registrations</legend><div class="fp-regs-l">${(fp.registrations || []).map(r => `<label><input type="checkbox" data-fp-reg="${esc(r.ID)}" ${(p.registrations || []).includes(r.ID) ? 'checked' : ''}> ${esc(r.Name)}</label>`).join('')}</div><input class="in" id="fp-other" placeholder="Another registration (optional)" value="${esc(p.other_registration || '')}" aria-label="Another registration"></fieldset>
     </div>
     <div class="tools" style="margin-top:10px"><button class="btn pri" data-act="ccProfSave">Save the firm profile</button>${p.by ? `<span class="dim small">Last changed by ${esc(p.by)}${p.at ? ' on ' + fmtDate(p.at.slice(0, 10)) : ''}</span>` : ''}</div>
+    <p class="small" style="margin:8px 0 0">Products, depository options, client numbers, QSB and the other switches the calendar reads are on <button type="button" class="linkish" data-act="go" data-id="firmmodules">Settings → Firm modules</button>.</p>
     <p class="dim small" style="margin:8px 0 0">Exchanges, segments and the clearing route come from member codes and Cleared through above. Nothing here is client data, and it is never sent to an AI model.</p>
   </div></div>`;
 }

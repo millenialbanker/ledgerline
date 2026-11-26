@@ -371,9 +371,20 @@ func (o *Ops) siRun(ctx context.Context, tenant, actor, date, trigger string) (S
 		}
 	}
 	run := SIRun{Date: date, At: now.Format(time.RFC3339), By: actor, Trigger: trigger, Results: []SIResult{}}
+	// Tests that belong to a module the firm does not have are not
+	// applicable (Settings → Firm modules; siApplies in firmmodules.go).
+	facts, _ := o.firmProfileFactsOpt(ctx, tenant, false)
 	for _, t := range siTests {
 		r := SIResult{Test: t.ID, Title: t.Title, Area: t.Area, Severity: t.Severity, Owner: t.Owner, Source: t.Source, ToConfirm: t.ToConfirm, Examples: []string{}, Inputs: []SIInput{}}
+		var na *Applicability
+		if needs := siApplies[t.ID]; len(needs) > 0 {
+			if a := dutyApplies(needs, facts); a.Verdict == ApplyNo {
+				na = &a
+			}
+		}
 		switch {
+		case na != nil:
+			r.Status, r.Summary = SISkipped, "Not applicable: "+na.Reason+"."
 		case !t.Real:
 			r.Status, r.Summary = SISkipped, "Waiting for data: "+t.Waiting
 		default:

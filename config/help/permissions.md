@@ -116,6 +116,7 @@ Changing the client money rules | Compliance officer
 Changing the compliance calendar | Compliance officer
 Changing the cooling-off period | Admin
 Changing the demise list's cut-off | Ops checker, Compliance officer
+Changing the firm modules | Compliance officer
 Changing the firm profile | Compliance officer
 Changing the firm's UPI collection IDs | Compliance officer
 Changing the firm's bank accounts | Compliance officer
@@ -587,6 +588,7 @@ Viewing the client money reconciliation | Ops maker, Ops checker, Risk manager, 
 Viewing the collateral register | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the compliance calendar | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
+Viewing the firm modules | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 Viewing the firm profile | Compliance officer
 Viewing the firm's bank accounts | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the firm's encryption keys | Compliance officer
