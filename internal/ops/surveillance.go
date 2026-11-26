@@ -179,6 +179,14 @@ func (o *Ops) ActOnAlert(ctx context.Context, tenant, actor, id, action, note st
 	if action == "review" {
 		roles = append(roles, RoleChecker)
 	}
+	// The ops checker may also close the DP's own and CDSL alerts (firm
+	// decision, 26 Nov 2026); the compliance officer's quarterly sample
+	// reviews those closures. Exchange and FIU decisions stay with Compliance.
+	if action == "close" {
+		if cur, _, err := docs.Get[Alert](ctx, o.Docs, tenant, cAlert, id); err == nil && (cur.Area == AreaDP || cur.Source == "CDSL") {
+			roles = append(roles, RoleChecker)
+		}
+	}
 	if err := o.require(ctx, tenant, actor, "This alert action", roles...); err != nil {
 		return Alert{}, err
 	}

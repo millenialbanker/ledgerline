@@ -84,7 +84,7 @@ roles: Compliance officer
 ask: sample of closures; compliance officer sample; check closed alerts; alert closure review; quarterly sample
 related: adverse-observation, surveillance-thresholds
 
-After each quarter, Ledgerline picks a sample of the alerts closed in it. By default the sample is 10%, and at least 5. The draw is fixed, so nobody chooses which alerts are checked. Open **Sample of closures** on [[surv|Surveillance & AML]]. For each alert, record **Agree**, or **Disagree** with what is wrong and what is to be done. A disagreement raises a work item. A work item reminds you until the sample is checked. The self-inspection flags unchecked samples once the quarterly status is due.
+After each quarter, Ledgerline picks a sample of the alerts closed in it. By default the sample is 10%, and at least 5. The draw is fixed, so nobody chooses which alerts are checked. The ops checker may close the DP's own alerts and CDSL's alerts once the checklist is worked; exchange and FIU alerts are closed by the compliance officer. The sample is how the compliance officer checks those closures. Open **Sample of closures** on [[surv|Surveillance & AML]]. For each alert, record **Agree**, or **Disagree** with what is wrong and what is to be done. A disagreement raises a work item. A work item reminds you until the sample is checked. The self-inspection flags unchecked samples once the quarterly status is due.
 
 ## surveillance-thresholds
 title: Set the surveillance thresholds and the monitoring by risk category
