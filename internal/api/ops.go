@@ -408,6 +408,7 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/surveillance/run", s.runRules, true)
 	s.dpSurvRoutes(R)
 	s.dpCtlRoutes(R)
+	s.b6Routes(R) // round-6 gap work (b6dp.go)
 	s.notesXRoutes(R)
 	R("GET /v1/ipo", s.ipo, false)
 	R("GET /v1/mf", s.mf, false)

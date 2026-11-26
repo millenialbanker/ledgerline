@@ -1,0 +1,105 @@
+{
+ "id": "bse-ccm-penalty",
+ "title": "Client code modification penalty (BSE)",
+ "party": "BSE",
+ "direction": "in",
+ "when": "Monthly",
+ "purpose": "BSE's report of the client code modifications of non-institutional trades it penalises (1% or 2% of the modified value, SEBI stock broker master circular 2025/90, 38.3). BSE has not published the file's columns to Ledgerline: they are read by their header names, which this layout lists (add a header text here when the file's differs). UNCONFIRMED: ask BSE (or check a real file) for the layout.",
+ "linked": "Matched with the CCM register on Compliance → Surveillance & AML: a penalised modification the register lacks is an alert, and the month's penalty is a work item for compliance.",
+ "names": [
+  "[A-Za-z0-9]*_?CCM_?Penalty.*",
+  "[A-Za-z0-9]*_?Client_?Code_?Modification_?Penalty.*"
+ ],
+ "compress": "none",
+ "format": "headers",
+ "delimiter": "auto",
+ "header": false,
+ "columns": [
+  {
+   "name": "Trade Date",
+   "key": "date",
+   "type": "str",
+   "aliases": [
+    "Date",
+    "TradeDate",
+    "Trade Dt",
+    "Trd Date"
+   ]
+  },
+  {
+   "name": "Trade No",
+   "key": "trade_no",
+   "type": "str",
+   "aliases": [
+    "Trade Number",
+    "TradeNo",
+    "Trade ID",
+    "Trd No"
+   ],
+   "required": true
+  },
+  {
+   "name": "Scrip Code",
+   "key": "scrip",
+   "type": "str",
+   "aliases": [
+    "Scrip",
+    "Security Code",
+    "Symbol",
+    "Scrip Name"
+   ]
+  },
+  {
+   "name": "Original Client Code",
+   "key": "from",
+   "type": "str",
+   "aliases": [
+    "Old Client Code",
+    "Client Code Before",
+    "Orig Client Code",
+    "Original Client",
+    "From Client Code",
+    "Original UCC"
+   ],
+   "required": true
+  },
+  {
+   "name": "Modified Client Code",
+   "key": "to",
+   "type": "str",
+   "aliases": [
+    "New Client Code",
+    "Client Code After",
+    "Modified Client",
+    "To Client Code",
+    "Modified UCC"
+   ]
+  },
+  {
+   "name": "Value",
+   "key": "value",
+   "type": "str",
+   "aliases": [
+    "Trade Value",
+    "Modified Value",
+    "Turnover",
+    "Traded Value",
+    "Value Of Trade"
+   ]
+  },
+  {
+   "name": "Penalty",
+   "key": "penalty",
+   "type": "str",
+   "aliases": [
+    "Penalty Amount",
+    "Penalty Amt",
+    "Penalty (Rs)",
+    "Penalty Rs",
+    "Amount"
+   ]
+  }
+ ],
+ "confirmed": false,
+ "source": "UNCONFIRMED: built from the description in BSE's notices on penalty for client code modification and SEBI's master circular 38.3; the columns are not published: read by header names."
+}

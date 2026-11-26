@@ -361,6 +361,7 @@ func (o *Ops) tradeFreezeWork(ctx context.Context, tenant string, f TradeFreeze)
 
 // tradeFreezeTick keeps the open requests' work items (every run).
 func (o *Ops) tradeFreezeTick(ctx context.Context, tenant string, now time.Time) {
+	o.orderCancelTick(ctx, tenant, now) // blocked clients' pending orders (ordercancel.go)
 	fs, _ := docs.List[TradeFreeze](ctx, o.Docs, tenant, cTradeFreeze, "")
 	for _, f := range fs {
 		if f.Status == "Received" || (f.Status == "Frozen" && (f.Cancelled == "" || f.Positions == "")) {

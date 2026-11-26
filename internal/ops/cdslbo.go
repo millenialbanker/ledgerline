@@ -1003,6 +1003,10 @@ func (o *Ops) cdslOpenCheck(ctx context.Context, tenant string, r *CDSLRequest) 
 	if in.C.Status != "Active" {
 		probs = append(probs, "The client is "+in.C.Status+": a checker activates the client first")
 	}
+	// No account without a nomination or a signed opt-out (dpb6.go, DP-0040).
+	if why := noNominationChoice(in.C); why != "" {
+		probs = append(probs, why)
+	}
 	r.Problems, r.Warnings, r.Name = probs, warns, in.C.Name
 	return d, in, nil
 }

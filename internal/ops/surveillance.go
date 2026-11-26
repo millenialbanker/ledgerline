@@ -166,6 +166,10 @@ func (o *Ops) RunRules(ctx context.Context, tenant, actor, date string) (int, er
 			}
 		}
 	}
+	// Bulk deals, self and wash trades, abnormal patterns (survb6.go).
+	if r, err := o.runTradePatterns(ctx, tenant, actor, date); err == nil {
+		n += r.Raised
+	}
 	o.log(ctx, tenant, actor, "surveillance.rules.run", date, map[string]any{"new_alerts": n})
 	return n, nil
 }

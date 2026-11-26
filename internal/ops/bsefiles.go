@@ -49,6 +49,10 @@ func (o *Ops) loadBSEXFile(ctx context.Context, tenant, actor string, s *xfile.S
 			return true
 		}
 		r.Loaded, r.Added = fmt.Sprintf("Loaded as %s %s closing prices of %s (market data)", exch, seg, date), n
+	case "bse-ccm-penalty": // survb6.go
+		if err := o.loadBSECCMPenalty(ctx, tenant, actor, f.Name, rows, r); err != nil {
+			fail(err)
+		}
 	default:
 		return o.loadBSEExtranet(ctx, tenant, actor, s, f, rows, r) // member reports (bseextranet.go)
 	}
