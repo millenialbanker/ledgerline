@@ -71,16 +71,17 @@ func TestCUSPAIntimationPolicyExtension(t *testing.T) {
 	if after := riskColl(); after != before {
 		t.Fatalf("collateral %s became %s with the CUSPA line", before, after)
 	}
-	next := set.NextBusinessDay(it.PayOut)
-	siWant(t, siOne(t, o, ctx, "cuspa_intimation", next), SIPass, "told at once")
-	it.IntimatedAt, it.Intimation = "", "no active cuspa.pledged template (Client messages)"
-	siPut(t, o, ctx, cCUSPA, it.ID, it)
+	// A line paid out under the framework (from 31 Oct 2026) and not told.
+	late := CUSPAItem{ID: "CU-I1", Date: "2026-10-30", UCC: "BH1010", Exchange: "NSE", ISIN: it.ISIN, Symbol: it.Symbol, Qty: 5, Value: money.DecInt(2000), Status: CUSPAHeld, PayOut: "2026-11-02"}
+	siPut(t, o, ctx, cCUSPA, late.ID, late)
+	next := set.NextBusinessDay(late.PayOut)
 	siWant(t, siOne(t, o, ctx, "cuspa_intimation", next), SIFail, "not told")
 	// The daily review sends it.
-	if _, _, err := o.cuspaReview(ctx, T, SystemActor, it.PayOut); err != nil {
+	if _, _, err := o.cuspaReview(ctx, T, SystemActor, late.PayOut); err != nil {
 		t.Fatal(err)
 	}
 	siWant(t, siOne(t, o, ctx, "cuspa_intimation", next), SIPass, "told by the review")
+	siPut(t, o, ctx, cCUSPA, late.ID, CUSPAItem{ID: late.ID, Date: late.Date, UCC: late.UCC, ISIN: late.ISIN, Symbol: late.Symbol, Released: 5, Value: late.Value, Status: CUSPAReleased, PayOut: late.PayOut, IntimatedAt: siAt("2026-11-02", "18:00").Format(time.RFC3339)})
 
 	// The policy.
 	siWant(t, siOne(t, o, ctx, "cuspa_policy", D), SIFail, "no policy")
@@ -217,6 +218,7 @@ func TestCUSPAMTFFileExclusions(t *testing.T) {
 		id := "CU-M" + string(rune('1'+i))
 		siPut(t, o, ctx, cCUSPA, id, CUSPAItem{ID: id, Date: D, UCC: u, ISIN: "INE000X01010", Symbol: "XTEST", Qty: 40, Status: CUSPAHeld})
 	}
+	siPut(t, o, ctx, cSettCal, "CM|NORMAL1|2026199", SettlementDay{ID: "CM|NORMAL1|2026199", Segment: "CM", Type: "NORMAL1", No: "2026199", TradeDate: D})
 	name, b, err := o.ExchangeFile(ctx, T, "priya.nair", "ncl-cuspa-mtf-payout", D, XFileOptions{})
 	if err != nil || !strings.HasPrefix(name, "UNPAIDMTF_M_") {
 		t.Fatalf("%s %v", name, err)

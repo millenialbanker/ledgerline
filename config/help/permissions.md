@@ -57,6 +57,7 @@ Asking CDSL about early pay-ins | Ops maker, Ops checker, Risk manager
 Asking CDSL about pledges | Ops maker, Ops checker, Risk manager
 Asking clients for WhatsApp consent | Ops checker, Compliance officer
 Asking for a client's authorisation | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
+Asking for an extension of CUSPA pledges | Ops checker, Risk manager
 Asking to archive a period | Admin
 Asking to close the firm's account | Admin
 Asking to restore an archive | Admin
@@ -328,6 +329,7 @@ Recording clients' UPI IDs | Ops maker, Ops checker, Branch staff, Authorised pe
 Recording complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Recording enhanced due diligence | Compliance officer
 Recording impersonation cases | Ops maker, Ops checker, Compliance officer
+Recording pledge undertakings | Ops maker, Ops checker, Risk manager, Compliance officer
 Recording re-KYC | Ops maker, Ops checker, Compliance officer
 Recording recovery of a legacy debt | Ops maker, Ops checker, Risk manager, Compliance officer
 Recording salary paid | HR manager, Payroll
@@ -338,6 +340,7 @@ Recording the BSDA choice | Ops maker, Ops checker
 Recording the UCC-wise settlement report as filed | Ops checker, Compliance officer
 Recording the funds pay-out | Ops checker, Risk manager
 Recording the holding statement sent to BSE | Ops maker, Ops checker, Compliance officer
+Recording the policy on unpaid securities | Compliance officer
 Recording the sale of invoked CUSPA securities | Ops maker, Ops checker, Risk manager
 Referring an alert to the exchange | Compliance officer
 Registering a stock SIP for a client | Ops maker, Ops checker
@@ -415,6 +418,7 @@ Sending salary to the bank | HR manager, Payroll
 Sending statements | Ops maker, Ops checker
 Sending stock SIP orders to the OMS | Ops maker, Ops checker, Risk manager
 Sending the DIS master to CDSL | Ops maker, Ops checker
+Sending the policy on unpaid securities to clients | Compliance officer
 Sending year-end packs | Ops maker, Ops checker, Compliance officer
 Setting CDSL account defaults | Ops checker
 Setting a client's default ledger | Ops checker, Risk manager
