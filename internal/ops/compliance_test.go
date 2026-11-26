@@ -19,13 +19,13 @@ func TestComplianceDesk(t *testing.T) {
 		t.Fatalf("PAN match not blocked: %+v", c)
 	}
 	als, _ := o.Alerts(ctx, T)
-	var hi, med bool
+	var hi bool
 	for _, x := range als {
 		hi = hi || (x.UCC == "BH1005" && x.Type == "Debarred entity")
-		med = med || (x.UCC == "BH1006" && x.Type == "Possible debarred entity")
 	}
-	if !hi || !med {
-		t.Fatalf("alerts high=%v name=%v", hi, med)
+	// The UNSC entry matched by name is a sanctions case (sanctions.go).
+	if k := sanCase(t, o, ctx, "BH1006", RoleHolder); !hi || k.List != ListUNSC {
+		t.Fatalf("alerts high=%v case=%+v", hi, k)
 	}
 	// Onboarding the debarred PAN is refused.
 	nc := Client{Name: "X Y", Type: "Individual", PAN: a.PAN, Mobile: "9876543210", Email: "x@y.in", City: "Pune", Segments: []string{"CM"}, Bank: BankAccount{Bank: "HDFC", IFSC: "HDFC0001234", Account: "123456789012"}, Demat: Demat{Depository: "CDSL", ID: "1208160012345678"}, RiskDisclosure: true, IncomeProof: true, Income: "5-10 L", RAS: "Quarterly"}

@@ -37,7 +37,7 @@ var auditAreas = []struct{ prefix, area string }{
 	{"ticket", "Investor complaints"}, {"portal", "Client portal"}, {"message", "Client messages"}, {"whatsapp", "Client messages"},
 	{"template", "Client messages"}, {"external_trade", "Trades"}, {"debit", "Running account"}, {"ccdeposit", "Collateral"},
 	{"bank", "Receipts & payouts"}, {"alert", "Surveillance"}, {"surveillance", "Surveillance"}, {"yearend", "Year end"},
-	{"security", "Security"}, {"referrals", "Leads & CRM"}, {"partner", "Partners"}, {"positions", "Risk"}, {"pmla", "KYC & PMLA"}, {"debarred", "KYC & PMLA"},
+	{"security", "Security"}, {"referrals", "Leads & CRM"}, {"partner", "Partners"}, {"positions", "Risk"}, {"pmla", "KYC & PMLA"}, {"debarred", "KYC & PMLA"}, {"sanctions", "KYC & PMLA"},
 	{"nri", "Online account opening"}, {"onboarding", "Online account opening"}, {"interest", "Billing"}, {"invoice", "Billing"},
 	{"support", "Support"}, {"job", "Settings"}, {"holidays", "Settings"}, {"session", "Sign-in"}, {"dev", "Development"},
 }

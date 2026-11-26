@@ -120,6 +120,9 @@ func (o *Ops) OpenTradingAccount(ctx context.Context, tenant, actor, ucc string,
 	if d, hit := o.IsDebarredPAN(ctx, tenant, c.PAN, o.now().Format("2006-01-02")); hit {
 		return c, fmt.Errorf("%w: %s's PAN is debarred from the securities market (%s order %s)", ErrForbidden, c.UCC, d.Regulator, d.OrderNo)
 	}
+	if err := sanctionsStop(c); err != nil {
+		return c, err
+	}
 	next := c
 	next.DPOnly = false
 	next.Segments, next.IncomeProof, next.RAS, next.RiskDisclosure = t.Segments, t.IncomeProof || c.IncomeProof, t.RAS, true

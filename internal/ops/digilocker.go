@@ -376,6 +376,10 @@ func (o *Ops) autoActivate(ctx context.Context, tenant string, a Application, uc
 	if mode != ModeAuto || len(a.blockers()) > 0 {
 		return false
 	}
+	// A possible sanctions match waits for Compliance (sanctions.go).
+	if o.sanctionsGate(ctx, tenant, ucc) != nil {
+		return false
+	}
 	actor := "system:autopilot"
 	if c, err := o.Client(ctx, tenant, ucc); err != nil || len(o.activationProblems(ctx, tenant, c)) > 0 {
 		return false // left for a checker, who sees what is missing (kycgate.go)

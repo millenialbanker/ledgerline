@@ -998,7 +998,7 @@ func (o *Ops) eipoClientErr(ctx context.Context, tenant string, c Client, date s
 	if d, hit := o.IsDebarredPAN(ctx, tenant, c.PAN, date); hit {
 		return fmt.Errorf("%w: %s's PAN is debarred from the securities market (%s order %s)", ErrForbidden, c.UCC, d.Regulator, d.OrderNo)
 	}
-	return nil
+	return sanctionsStop(c)
 }
 
 // orderDemat picks the demat account: the one named (it must be the

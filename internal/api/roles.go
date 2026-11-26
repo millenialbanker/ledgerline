@@ -65,7 +65,7 @@ var routeScreens = map[string]string{
 	"brokerage": "brokerage", "brokerage/client/{ucc}": "brokerage clients", "prepaid": "prepaid",
 	// Compliance
 	"reports": "reports", "holding-api": "reports", "disclosures": "exdisc", "ai": "aictl", "ai/usage": "aictl settings",
-	"compliance": "kyc", "fatca": "kyc", "nominations": "kyc", "kyc-gate": "kycgate", "proi": "kycgate",
+	"compliance": "kyc", "fatca": "kyc", "nominations": "kyc", "sanctions": "kyc", "kyc-gate": "kycgate", "proi": "kycgate",
 	"tickets": "helpdesk", "complaints": "helpdesk", "impersonation": "helpdesk", "raia": "helpdesk",
 	"nri": "nri", "alerts": "surv", "surveillance": "surv", "surveillance-return": "surv", "fingate": "surv",
 	"inactive": "inactive", "deceased": "deceased", "self-inspection": "selfinspect",
