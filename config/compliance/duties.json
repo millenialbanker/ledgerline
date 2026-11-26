@@ -7937,7 +7937,13 @@
      "says": "CAS trading modalities (subject line as listed on NSE's CAS page). Two further NSE circulars of 6 Nov 2026, reported in the press, set the start on 7 Dec 2026 and revised session times; their numbers are to be confirmed."
     }
    ],
-   "changed": "Added 23 Nov 2026 (gap NSE2-N0022): start date from the press reports of NSE's circulars of 6 Nov 2026, to confirm against the circulars themselves; session times are left to the latest circular because NSE's CAS page and the November reports differ."
+   "changed": "Added 23 Nov 2026 (gap NSE2-N0022): start date from the press reports of NSE's circulars of 6 Nov 2026, to confirm against the circulars themselves; session times are left to the latest circular because NSE's CAS page and the November reports differ.",
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Nothing is filed. The session runs in the exchange and the trading front end; the back office takes the revised security master and the bhavcopy."
+   },
+   "steps_from": "NSE/CMTR/73845 and NSE/CMTR/74466 (as listed on NSE's CAS page; the steps are the firm's readiness checklist)"
   }
  ]
 }

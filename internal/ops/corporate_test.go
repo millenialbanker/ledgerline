@@ -72,7 +72,12 @@ func TestShortDeliveries(t *testing.T) {
 		}
 	}
 	st, _ = o.Obligations(ctx, T, D)
-	tcs := obl(t, st, "BH1007", "BSE", "TCS")
+	// BH1007 sold TCS on BSE and bought more on NSE: one net purchase, not
+	// a short delivery (NSE Clearing nets both exchanges).
+	if n := obl(t, st, "BH1007", "NSE", "TCS"); n.NetQty != 20 || len(n.Exchanges) != 2 || n.Status == "Short delivery" {
+		t.Fatalf("BH1007 TCS not netted: %+v", n)
+	}
+	tcs := obl(t, st, "BH1050", "NSE", "TCS")
 	if _, err := o.SettleAction(ctx, T, "priya.nair", D, tcs.Key, "report_short"); err != nil {
 		t.Fatal(err)
 	}

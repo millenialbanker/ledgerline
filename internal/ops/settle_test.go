@@ -7,6 +7,7 @@ import (
 
 	"ledgerline/internal/docs"
 	"ledgerline/internal/ingest"
+	"ledgerline/internal/ledger"
 	"ledgerline/internal/money"
 )
 
@@ -290,21 +291,22 @@ func TestAccountClosure(t *testing.T) {
 	o, ctx := setup(t)
 	funds, _ := o.clientFunds(ctx, T, "", "")
 	cs, _ := o.Clients(ctx, T)
-	var inCredit, clear string
+	// Two clients in credit with nothing pledged: one is paid out in full
+	// (a payout entry), so its books are clear.
+	var picks []string
 	for _, c := range cs {
-		if c.Status != "Active" {
-			continue
-		}
 		b := o.closureBooks(ctx, T, c.UCC, D)
-		switch {
-		case inCredit == "" && funds[c.UCC] > 0 && b.positions == 0 && b.debit.IsZero():
-			inCredit = c.UCC
-		case clear == "" && funds[c.UCC] == 0 && b.positions == 0 && len(b.pledged) == 0 && b.cuspa == 0 && b.payouts == 0 && b.allocated.IsZero():
-			clear = c.UCC
+		if c.Status == "Active" && funds[c.UCC] > 0 && b.positions == 0 && len(b.pledged) == 0 && b.cuspa == 0 && b.payouts == 0 && b.allocated.IsZero() {
+			picks = append(picks, c.UCC)
 		}
 	}
-	if inCredit == "" || clear == "" {
+	if len(picks) < 2 {
 		t.Skip("sample has no client to close")
+	}
+	inCredit, clear := picks[0], picks[1]
+	if _, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: T, Key: "TEST-PAYOUT-" + clear, ValueDate: D, CreatedBy: "farhan.khan", Narration: "Payout in full",
+		Postings: []ledger.Posting{{Account: ledger.ClientAccount(clear), Debit: funds[clear]}, {Account: "BANK:TEST", Credit: funds[clear]}}}); err != nil {
+		t.Fatal(err)
 	}
 	o.Now = func() time.Time { return time.Date(2026, 10, 16, 15, 0, 0, 0, ist) }
 	x, err := o.RequestClosure(ctx, T, "priya.nair", inCredit, D, "Client", "")
