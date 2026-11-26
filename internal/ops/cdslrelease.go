@@ -1160,6 +1160,11 @@ func (o *Ops) InvocationCandidates(ctx context.Context, tenant, date string) []I
 		if a.Of == "MP" {
 			free = a.Free - a.Repledged
 		}
+		// Locked-in securities are not invoked before the lock-in ends
+		// (CDSL operating instructions 8.5.5; pledgecontrols.go).
+		if l, _ := o.lockedIn(ctx, tenant, a.UCC, a.ISIN, date); l > 0 {
+			free = min(free, a.Free-l)
+		}
 		px := cplPrice(look, a.ISIN)
 		if free <= 0 || px.Sign() <= 0 {
 			return
@@ -1220,6 +1225,11 @@ func (o *Ops) RaiseInvocation(ctx context.Context, tenant, actor, date, psn stri
 		}
 	}
 	if cand == nil {
+		if a, ok := o.cplPSN(ctx, tenant, psn); ok {
+			if why := o.lockInWhy(ctx, tenant, a, max(qty, 1), date); why != "" {
+				return PledgeRelease{}, fmt.Errorf("%w: %s", ErrState, why)
+			}
+		}
 		return PledgeRelease{}, invalid("PSN %s is not a pledge that may be invoked on %s (an overdue debit past the blocking period, or an MTF position to liquidate)", psn, date)
 	}
 	if cand.Raised != "" {
@@ -1313,8 +1323,18 @@ func (o *Ops) InvokeNow(ctx context.Context, tenant, actor, id string) (PledgeRe
 	return o.cplInvoke(ctx, tenant, actor, r)
 }
 
-// cplInvoke sends a due invocation, unless the debit has been paid since.
+// cplInvoke sends a due invocation, unless the debit has been paid since
+// or the shares are locked in.
 func (o *Ops) cplInvoke(ctx context.Context, tenant, actor string, r PledgeRelease) (PledgeRelease, error) {
+	if a, ok := o.cplPSN(ctx, tenant, r.PSN); ok && r.Of != cuspaOf {
+		// The PSN's own invocation is counted in Released, so Free is what
+		// is left besides it.
+		a.Free += r.Qty
+		if why := o.lockInWhy(ctx, tenant, a, r.Qty, o.now().In(ist).Format("2006-01-02")); why != "" {
+			o.raiseWork(ctx, tenant, "cdslinvoke", r.ID+":lockin", "Invocation "+r.ID+" held: locked-in shares", why+". CDSL's operating instructions do not allow locked-in securities to be invoked before the lock-in ends.", r.UCC, RoleRisk, "cdslpledge", "")
+			return r, fmt.Errorf("%w: %s", ErrState, why)
+		}
+	}
 	if r.Source == "Debit" {
 		funds, err := o.equityFunds(ctx, tenant, o.now().Format("2006-01-02"), "")
 		if err == nil && funds[r.UCC] >= 0 {

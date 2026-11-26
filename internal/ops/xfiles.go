@@ -238,6 +238,7 @@ func (o *Ops) loadXFile(ctx context.Context, tenant, actor string, s *xfile.Spec
 	case "cdsl-holding":
 		// The firm's own accounts, for the holding statement (firmdemats.go).
 		prevSOH := o.latestFirmSnapDate(ctx, tenant)
+		o.noteLockIns(ctx, tenant, actor, rows) // lock-in balances, kept from invocation (pledgecontrols.go)
 		sohDay, untagged := o.noteFirmDemats(ctx, tenant, actor, f.Name, rows)
 		if prevSOH != "" && sohDay < prevSOH {
 			// An older day's file, loaded to make or correct that day's

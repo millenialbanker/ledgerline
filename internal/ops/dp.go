@@ -88,6 +88,11 @@ type BOAccount struct {
 	// up to, for a plan that bills it a year in advance.
 	Plans       []DPPlanAt `json:"plans,omitempty"`
 	AMCPaidUpto string     `json:"amc_paid_upto,omitempty"`
+	// Operation is a joint account's mode of operation (empty: Jointly;
+	// dpdis.go SetJointOperation). DISWaiver is the holder's written
+	// waiver of a DIS book at opening (appendix DP-0153).
+	Operation string `json:"operation,omitempty"`
+	DISWaiver string `json:"dis_waiver,omitempty"`
 	// HolderDeceased: the client is reported deceased by the KRA, so
 	// nothing leaves the account until transmission (deceased.go). It is
 	// worked out when the account is read for a client (boFor), never
@@ -697,6 +702,23 @@ type DISBook struct {
 	// CDSLUpload is that upload's ID. Empty when given by file or not yet.
 	CDSL       string `json:"cdsl,omitempty"`
 	CDSLUpload string `json:"cdsl_upload,omitempty"`
+	// The rules of dpdis.go: Series (POA/DDPI accounts have their own),
+	// Loose slips with the register entry the holder signed, the previous
+	// book's Requisition slip or the LossRef of its loss, how it was
+	// delivered, and for a dormant account the compliance officer's
+	// authorisation (AwaitingCO says why it is needed). Cancelled says why
+	// its unused slips were cancelled.
+	Series       string `json:"series,omitempty"`
+	Loose        bool   `json:"loose,omitempty"`
+	Register     string `json:"register,omitempty"`
+	Requisition  int64  `json:"requisition,omitempty"`
+	LossRef      string `json:"loss_ref,omitempty"`
+	Delivery     string `json:"delivery,omitempty"`
+	AwaitingCO   string `json:"awaiting_co,omitempty"`
+	AuthorisedBy string `json:"authorised_by,omitempty"`
+	AuthorisedAt string `json:"authorised_at,omitempty"`
+	AuthNote     string `json:"auth_note,omitempty"`
+	Cancelled    string `json:"cancelled,omitempty"`
 }
 
 // DISLine is one ISIN on a slip.
@@ -741,6 +763,24 @@ type DIS struct {
 	DelayDays   int          `json:"delay_days,omitempty"`
 	DelayReason string       `json:"delay_reason,omitempty"`
 	StampEst    money.Amount `json:"stamp_estimate,omitempty"`
+	// The checks of dpdis.go: Mode (Physical or Electronic) and the time
+	// received (HH:MM IST) for the cut-off, BestEffort when received
+	// after it; CallNeeded the reasons the holder must be called on the
+	// registered number, and the Call; the countersignature of a slip
+	// above ₹5 lakh (SeniorVerified: the verifier is a senior official);
+	// DoneOn the day it was executed, failed or rejected; ForClosure the
+	// closure request it carries out (dpreqtat.go).
+	Mode            string   `json:"mode,omitempty"`
+	ReceivedAt      string   `json:"received_at,omitempty"`
+	BestEffort      string   `json:"best_effort,omitempty"`
+	CallNeeded      []string `json:"call_needed,omitempty"`
+	Call            *DISCall `json:"call,omitempty"`
+	SeniorVerified  bool     `json:"senior_verified,omitempty"`
+	AllSigned       bool     `json:"all_signed,omitempty"`
+	Countersigned   string   `json:"countersigned_by,omitempty"`
+	CountersignedAt string   `json:"countersigned_at,omitempty"`
+	DoneOn          string   `json:"done_on,omitempty"`
+	ForClosure      string   `json:"for_closure,omitempty"`
 }
 
 // HighValueDIS needs the client's confirmation on record (₹5 lakh).
@@ -752,39 +792,9 @@ func (o *Ops) IssueDISBook(ctx context.Context, tenant, actor, ucc string, n int
 }
 
 // IssueDISBookFor issues a book of n slips for one of the client's
-// accounts (blank: the primary).
+// accounts (blank: the primary), under the rules of IssueDISBookWith.
 func (o *Ops) IssueDISBookFor(ctx context.Context, tenant, actor, ucc, boid string, n int64) (DISBook, error) {
-	if err := o.require(ctx, tenant, actor, "Issuing DIS books", RoleMaker, RoleChecker); err != nil {
-		return DISBook{}, err
-	}
-	c, err := o.Client(ctx, tenant, ucc)
-	if err != nil {
-		return DISBook{}, err
-	}
-	bo := o.boFor(ctx, tenant, c, boid)
-	if bo.Status != "Active" {
-		return DISBook{}, fmt.Errorf("%w: the demat account is %s", ErrState, strings.ToLower(bo.Status))
-	}
-	if n < 1 || n > 100 {
-		return DISBook{}, invalid("a book has 1 to 100 slips")
-	}
-	books, _ := docs.List[DISBook](ctx, o.Docs, tenant, cDISBook, "")
-	next := int64(1000001)
-	for _, b := range books {
-		if b.To >= next {
-			next = b.To + 1
-		}
-	}
-	seq, err := o.next(ctx, tenant, "disbook", actor)
-	if err != nil {
-		return DISBook{}, err
-	}
-	b := DISBook{ID: fmt.Sprintf("DB-%05d", seq), UCC: c.UCC, BOID: normDematID(bo.BOID), From: next, To: next + n - 1, Issued: o.now().Format("2006-01-02"), Used: []int64{}, Lost: []int64{}}
-	if err := docs.Upsert(ctx, o.Docs, tenant, cDISBook, b.ID, b, actor); err != nil {
-		return b, err
-	}
-	o.log(ctx, tenant, actor, "dis.book_issued", b.ID, map[string]any{"ucc": c.UCC, "from": b.From, "to": b.To})
-	return b, nil
+	return o.IssueDISBookWith(ctx, tenant, actor, DISBookRequest{UCC: ucc, BOID: boid, Slips: n})
 }
 
 func (o *Ops) slipBook(ctx context.Context, tenant, ucc, boid string, slip int64) (DISBook, bool) {
@@ -856,12 +866,15 @@ func (o *Ops) EnterDIS(ctx context.Context, tenant, actor string, d DIS) (DIS, e
 	}
 	book, ok := o.slipBook(ctx, tenant, c.UCC, b.BOID, d.Slip)
 	if !ok {
+		o.badSlipWork(ctx, tenant, c, b, d.Slip, "not issued for the account")
 		return d, invalid("slip %d was not issued to %s for demat account %s", d.Slip, c.UCC, b.BOID)
 	}
 	if contains(i64s(book.Used), fmt.Sprint(d.Slip)) {
+		o.badSlipWork(ctx, tenant, c, b, d.Slip, "already used")
 		return d, invalid("slip %d has already been used", d.Slip)
 	}
 	if contains(i64s(book.Lost), fmt.Sprint(d.Slip)) {
+		o.badSlipWork(ctx, tenant, c, b, d.Slip, "cancelled or reported lost")
 		return d, invalid("slip %d was reported lost and cannot be accepted", d.Slip)
 	}
 	if !contains([]string{"Off-market", "Inter-depository", "On-market"}, d.Kind) {
@@ -907,8 +920,14 @@ func (o *Ops) EnterDIS(ctx context.Context, tenant, actor string, d DIS) (DIS, e
 	if !ledger.ValidDate(d.ExecDate) || d.ExecDate < d.Received {
 		return d, invalid("execution date must be on or after the date the slip was received")
 	}
+	if why := o.idtHolidayWhy(ctx, tenant, d); why != "" {
+		return d, invalid("%s", why)
+	}
 	if len(d.Lines) == 0 || len(d.Lines) > 5 {
 		return d, invalid("a slip carries 1 to 5 ISINs")
+	}
+	if err := o.disChecks(ctx, tenant, c, b, book, &d); err != nil {
+		return d, err
 	}
 	_, look, _ := o.Market(ctx, tenant, today)
 	d.Value = money.Dec{}
@@ -944,7 +963,7 @@ func (o *Ops) EnterDIS(ctx context.Context, tenant, actor string, d DIS) (DIS, e
 		return d, err
 	}
 	_, _ = docs.Update(ctx, o.Docs, tenant, cDISBook, book.ID, actor, func(x *DISBook) error { x.Used = append(x.Used, d.Slip); return nil })
-	o.log(ctx, tenant, actor, "dis.entered", d.ID, map[string]any{"ucc": c.UCC, "slip": d.Slip, "value": d.Value.String(), "delay_days": d.DelayDays})
+	o.log(ctx, tenant, actor, "dis.entered", d.ID, map[string]any{"ucc": c.UCC, "slip": d.Slip, "value": d.Value.String(), "call_needed": d.CallNeeded, "best_effort": d.BestEffort, "delay_days": d.DelayDays})
 	o.disDelayWork(ctx, tenant, d)
 	return d, nil
 }
@@ -960,6 +979,14 @@ func i64s(xs []int64) []string {
 // VerifyDIS approves or rejects an entered slip. High-value slips need the
 // client's confirmation (how and when it was taken) on record.
 func (o *Ops) VerifyDIS(ctx context.Context, tenant, actor, id string, approve bool, note, confirmation string) (DIS, error) {
+	return o.VerifyDISWith(ctx, tenant, actor, id, DISVerify{Approve: approve, Note: note, Confirmation: confirmation})
+}
+
+// VerifyDISWith approves or rejects an entered slip with the checks of
+// dpdis.go: the call to the holder where one is needed, and every
+// holder's signature on a joint account operated jointly.
+func (o *Ops) VerifyDISWith(ctx context.Context, tenant, actor, id string, v DISVerify) (DIS, error) {
+	approve, note, confirmation := v.Approve, v.Note, v.Confirmation
 	if err := o.require(ctx, tenant, actor, "Verifying delivery instructions", RoleChecker); err != nil {
 		return DIS{}, err
 	}
@@ -979,8 +1006,18 @@ func (o *Ops) VerifyDIS(ctx context.Context, tenant, actor, id string, approve b
 	if approve && d.Value.Cmp(HighValueDIS) > 0 && strings.TrimSpace(confirmation) == "" && d.Confirmed == "" {
 		return d, invalid("slips above ₹5 lakh need the client's confirmation on record (call reference or email)")
 	}
+	if approve {
+		if err := o.verifyChecks(ctx, tenant, d, v); err != nil {
+			return d, err
+		}
+	}
+	senior := o.seniorOfficial(ctx, tenant, actor)
 	d, err = docs.Update(ctx, o.Docs, tenant, cDIS, id, actor, func(x *DIS) error {
-		x.Checker, x.Note = actor, note
+		x.Checker, x.Note = actor, strings.TrimSpace(strings.TrimSpace(x.Note+" ")+note)
+		x.SeniorVerified, x.AllSigned = approve && senior, v.AllSigned
+		if !approve {
+			x.DoneOn = o.now().In(ist).Format("2006-01-02")
+		}
 		if confirmation != "" {
 			x.Confirmed = confirmation
 		}
@@ -1007,7 +1044,7 @@ func (o *Ops) DISBatch(ctx context.Context, tenant, actor, date string) ([]byte,
 	rows := [][]string{{"BatchID", "InstructionID", "SlipNo", "SourceBOID", "TargetBOID", "Kind", "ExecutionDate", "ISIN", "Quantity", "Reason", "Consideration"}}
 	n := 0
 	for _, d := range ds {
-		if d.Status != "Verified" || d.ExecDate > date {
+		if d.Status != "Verified" || d.ExecDate > date || d.disReady() != "" {
 			continue
 		}
 		for _, l := range d.Lines {
@@ -1066,7 +1103,10 @@ func (o *Ops) ExecuteDIS(ctx context.Context, tenant, actor, id string, ok bool,
 			}); err != nil {
 				return d, err
 			}
-			if err := o.dpTxn(ctx, tenant, actor, DPTxn{Date: date, UCC: d.UCC, BOID: d.BOID, ISIN: l.ISIN, Symbol: l.Symbol, Qty: l.Qty.Neg(), Kind: d.Kind + " transfer", Ref: d.ID, Value: l.Value, Billable: true, Counterparty: []string{d.ToBO}}); err != nil {
+			// No charge for moving everything to an account of identical
+			// holders on closure (MC 1.10.2-1.10.3; dpreqtat.go).
+			billable := !o.closureFree(ctx, tenant, d)
+			if err := o.dpTxn(ctx, tenant, actor, DPTxn{Date: date, UCC: d.UCC, BOID: d.BOID, ISIN: l.ISIN, Symbol: l.Symbol, Qty: l.Qty.Neg(), Kind: d.Kind + " transfer", Ref: d.ID, Value: l.Value, Billable: billable, Counterparty: []string{d.ToBO}}); err != nil {
 				return d, err
 			}
 		}
@@ -1075,6 +1115,7 @@ func (o *Ops) ExecuteDIS(ctx context.Context, tenant, actor, id string, ok bool,
 	}
 	d, err = docs.Update(ctx, o.Docs, tenant, cDIS, id, actor, func(x *DIS) error {
 		x.Status = map[bool]string{true: "Executed", false: "Failed"}[ok]
+		x.DoneOn = date
 		if !ok {
 			x.Note = reason
 		}
@@ -1386,6 +1427,11 @@ type DPRequest struct {
 	Checker string            `json:"checker,omitempty"`
 	At      string            `json:"at"`
 	Note    string            `json:"note,omitempty"`
+	// Steps are what was done on the request and when (dpreqtat.go): the
+	// documents complete, notices and letters to the holder, documents
+	// returned; DoneOn the day it was completed or rejected.
+	Steps  map[string]DPStep `json:"steps,omitempty"`
+	DoneOn string            `json:"done_on,omitempty"`
 }
 
 // DPRequestKinds lists the request kinds.
@@ -1455,6 +1501,9 @@ func (o *Ops) RaiseDPRequest(ctx context.Context, tenant, actor string, r DPRequ
 	if b.Status == "Closed" {
 		return r, fmt.Errorf("%w: the demat account is closed", ErrState)
 	}
+	if err := o.dpRequestChecks(ctx, tenant, c, b, r.Kind, d); err != nil {
+		return r, err
+	}
 	n, err := o.next(ctx, tenant, "dpreq", actor)
 	if err != nil {
 		return r, err
@@ -1474,6 +1523,11 @@ func (o *Ops) ActOnDPRequest(ctx context.Context, tenant, actor, id, action, not
 	roles := []string{RoleChecker}
 	if action == "send" {
 		roles = append(roles, RoleMaker)
+	}
+	// A closure the DP starts itself is approved by an authorised official,
+	// the compliance officer (dpreqtat.go).
+	if pr, _, err := docs.Get[DPRequest](ctx, o.Docs, tenant, cDPReq, id); err == nil && pr.Kind == "Closure" && pr.Detail["initiated_by"] == "DP" && action == "approve" {
+		roles = []string{RoleCompliance}
 	}
 	if err := o.require(ctx, tenant, actor, "Completing DP requests", roles...); err != nil {
 		return DPRequest{}, err
@@ -1502,6 +1556,7 @@ func (o *Ops) ActOnDPRequest(ctx context.Context, tenant, actor, id, action, not
 		if strings.TrimSpace(note) == "" {
 			return r, invalid("give the reason")
 		}
+		note = o.dpRejectNote(ctx, tenant, r, note)
 		status = "Rejected"
 		if r.Status == "Sent to CDSL" {
 			// stop the CDSL request too (the client's link stops working)
@@ -1517,6 +1572,9 @@ func (o *Ops) ActOnDPRequest(ctx context.Context, tenant, actor, id, action, not
 		}
 		status = "Sent to RTA"
 	case "approve":
+		if err := o.dpApproveChecks(ctx, tenant, actor, r, c, b); err != nil {
+			return r, err
+		}
 		switch r.Kind {
 		case "Demat":
 			if r.Status != "Sent to RTA" {
@@ -1597,6 +1655,14 @@ func (o *Ops) ActOnDPRequest(ctx context.Context, tenant, actor, id, action, not
 		x.Status, x.Note = status, note
 		if action != "send" {
 			x.Checker = actor
+		}
+		// When it moved on, for the timelines (dpreqtat.go).
+		today := o.now().In(ist).Format("2006-01-02")
+		switch status {
+		case "Sent to RTA":
+			x.step("sent", today, actor, "")
+		case "Completed", "Rejected":
+			x.DoneOn = today
 		}
 		return nil
 	})

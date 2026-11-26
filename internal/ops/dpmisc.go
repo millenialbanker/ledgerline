@@ -244,13 +244,6 @@ func (o *Ops) IssueAttestedCML(ctx context.Context, tenant, actor, ucc, boid, pu
 	return o.addCompRecord(ctx, tenant, actor, k, map[string]string{"ucc": c.UCC, "bo_id": b.BOID, "purpose": purpose, "cml_date": asOf, "issued_on": today, "ref": d.ID}, "")
 }
 
-func lastN(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[len(s)-n:]
-}
-
 // ---- pass-through charges ----
 
 // PassThroughRow is one month's CDSL charges recovered against CDSL's

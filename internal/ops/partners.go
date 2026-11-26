@@ -26,9 +26,15 @@ import (
 // 2026, earlier section 194H, at the same 2%); if the AP is GST-registered,
 // GST is added and the firm takes input credit.
 //
-// A client may be referred by another client: the referrer earns a share of
-// the brokerage on the referred client's trades for a period, credited to
-// the referrer's trading ledger.
+// A client may be referred by a registered authorised person or by another
+// client. Only a registered AP earns a referral reward (a share of the
+// brokerage on the referred client's trades for a period, booked as
+// commission to the AP with TDS): the exchanges allow a member to share
+// brokerage, commission or any other consideration for bringing clients
+// only with registered APs (NSE inspection master circular, item 4.21;
+// MCX/INSP/255/2026, para 9.9(a)). A client who refers another is recorded
+// as the source of the referral and earns nothing from it; rewards to
+// client referrers stop from Settings.ReferralAPOnlyFrom (referrals.go).
 
 const (
 	cBranch   = "branch"
@@ -41,7 +47,8 @@ const (
 	PayableTDS194H = "PAYABLE:TDS_194H"
 	// ExpenseAPShare is brokerage shared with authorised persons.
 	ExpenseAPShare = "EXPENSE:AP_SHARE"
-	// ExpenseReferral is referral rewards to clients.
+	// ExpenseReferral is referral rewards (to registered APs; before the
+	// AP-only rule, also to clients).
 	ExpenseReferral = "EXPENSE:REFERRAL"
 )
 
@@ -377,10 +384,9 @@ func (o *Ops) AssignClient(ctx context.Context, tenant, actor, ucc, branch, part
 	if referrer == ucc && referrer != "" {
 		return Client{}, invalid("a client cannot refer themselves")
 	}
-	if referrer != "" {
-		if _, err := o.Client(ctx, tenant, referrer); err != nil {
-			return Client{}, invalid("referring client %s not found", referrer)
-		}
+	kind, err := o.referrerKind(ctx, tenant, referrer)
+	if err != nil {
+		return Client{}, err
 	}
 	for _, code := range []string{partner, rm} {
 		if code == "" {
@@ -403,10 +409,11 @@ func (o *Ops) AssignClient(ctx context.Context, tenant, actor, ucc, branch, part
 		if x.ReferredBy != referrer {
 			x.ReferredBy, x.ReferredFrom = referrer, from
 		}
+		x.ReferrerKind = kind
 		return nil
 	})
 	if err == nil {
-		o.log(ctx, tenant, actor, "client.mapped", ucc, map[string]any{"branch": branch, "partner": partner, "rm": rm, "referrer": referrer})
+		o.log(ctx, tenant, actor, "client.mapped", ucc, map[string]any{"branch": branch, "partner": partner, "rm": rm, "referrer": referrer, "referrer_kind": kind})
 		o.recordAPChange(ctx, tenant, actor, c, was, c.Partner, APViaMapping, false)
 	}
 	return c, err
@@ -549,91 +556,6 @@ func (o *Ops) PostAPPayouts(ctx context.Context, tenant, actor, from, to string)
 		n++
 	}
 	o.log(ctx, tenant, actor, "ap.payouts.posted", from+"/"+to, map[string]any{"partners": n})
-	return n, nil
-}
-
-// ReferralRow is a referrer's reward for a period.
-type ReferralRow struct {
-	Referrer  string       `json:"referrer"`
-	Name      string       `json:"name"`
-	Referred  []string     `json:"referred"`
-	Brokerage money.Amount `json:"brokerage"`
-	Reward    money.Amount `json:"reward"`
-	Status    string       `json:"status"` // To post, Posted
-}
-
-func (s Settings) referralPct() money.Dec {
-	if d, err := money.ParseDec(s.ReferralPct); err == nil && s.ReferralPct != "" {
-		return d
-	}
-	return money.DecInt(10)
-}
-
-// Referrals computes referral rewards for from..to: the firm's referral
-// percentage of brokerage on referred clients, within the referral period.
-func (o *Ops) Referrals(ctx context.Context, tenant, from, to string) ([]ReferralRow, error) {
-	set, _ := o.Settings(ctx, tenant)
-	cs, _ := o.ClientMap(ctx, tenant)
-	brok, err := o.clientBrokerage(ctx, tenant, from, to)
-	if err != nil {
-		return nil, err
-	}
-	months := set.ReferralMonths
-	if months <= 0 {
-		months = 12
-	}
-	by := map[string]*ReferralRow{}
-	for _, u := range sortedKeys(cs) {
-		c := cs[u]
-		if c.ReferredBy == "" || brok[u] == 0 {
-			continue
-		}
-		if c.ReferredFrom != "" && (to < c.ReferredFrom || from > addMonths(c.ReferredFrom, int(months))) {
-			continue
-		}
-		r := by[c.ReferredBy]
-		if r == nil {
-			r = &ReferralRow{Referrer: c.ReferredBy, Name: cs[c.ReferredBy].Name, Referred: []string{}, Status: "To post"}
-			by[c.ReferredBy] = r
-		}
-		r.Referred = append(r.Referred, u)
-		r.Brokerage += brok[u]
-	}
-	var out []ReferralRow
-	for _, k := range sortedKeys(by) {
-		r := by[k]
-		r.Reward = r.Brokerage.Dec().Pct(set.referralPct()).Round(money.UnitPaisa)
-		if _, _, err := docs.Get[map[string]string](ctx, o.Docs, tenant, cReferral, k+"|"+from+"|"+to); err == nil {
-			r.Status = "Posted"
-		}
-		out = append(out, *r)
-	}
-	return out, nil
-}
-
-// PostReferrals credits referral rewards to the referrers' ledgers.
-func (o *Ops) PostReferrals(ctx context.Context, tenant, actor, from, to string) (int, error) {
-	if err := o.require(ctx, tenant, actor, "Posting referral rewards", RoleChecker); err != nil {
-		return 0, err
-	}
-	rs, err := o.Referrals(ctx, tenant, from, to)
-	if err != nil {
-		return 0, err
-	}
-	n := 0
-	for _, r := range rs {
-		if r.Status != "To post" || r.Reward <= 0 {
-			continue
-		}
-		if _, _, err := o.App.Ledger.Post(ctx, ledger.Entry{Tenant: tenant, Key: "REF:" + r.Referrer + ":" + from + ":" + to, ValueDate: to, CreatedBy: actor,
-			Narration: fmt.Sprintf("Referral reward %s to %s on clients %s", from, to, strings.Join(r.Referred, ", ")), Source: ledger.SourceRef{Kind: "REFERRAL", ID: r.Referrer + "/" + from + "/" + to},
-			Postings: []ledger.Posting{{Account: ExpenseReferral, Debit: r.Reward}, {Account: ledger.ClientAccount(r.Referrer), Credit: r.Reward, Memo: "Referral reward"}}}); err != nil {
-			return n, err
-		}
-		_ = docs.Upsert(ctx, o.Docs, tenant, cReferral, r.Referrer+"|"+from+"|"+to, map[string]string{"by": actor}, actor)
-		n++
-	}
-	o.log(ctx, tenant, actor, "referrals.posted", from+"/"+to, map[string]any{"referrers": n})
 	return n, nil
 }
 

@@ -98,18 +98,27 @@ const saveStep = (step, data) => call('POST', '/step', { step, ...data }).then(a
 
 const V = {
   start: () => `<h1>Open a trading and demat account</h1><p class="dim">Online, in about ten minutes, with your PAN, Aadhaar-linked mobile, bank details and a phone camera. You can stop and continue later on this device.</p>
-    ${fld('mobile', 'Mobile number', '', 'inputmode="tel" autocomplete="tel" maxlength="13" placeholder="10 digits"')}${fld('email', 'Email', '', 'type="email" autocomplete="email"')}
+    ${fld('mobile', 'Mobile number', '', 'inputmode="tel" autocomplete="tel" maxlength="16" placeholder="10 digits, or +country code if you live abroad"')}${fld('email', 'Email', '', 'type="email" autocomplete="email"')}
     <label class="check"><input type="checkbox" id="agree"> <span class="small">I agree that ${esc(CFG.firm)} may contact me on this mobile and email about my application.</span></label>
     <button class="btn pri" id="go">Send codes</button>`,
   contact: () => `<p class="dim">We sent a 6-digit code to ${esc(APP.mobile)} by SMS and another to ${esc(APP.email)}.</p>
     ${DEV.mobile ? `<div class="note warn small">Development server: mobile code ${esc(DEV.mobile)}, email code ${esc(DEV.email)}.</div>` : ''}
-    <div class="row">${APP.mobile_ok ? '<div class="note ok">Mobile confirmed</div>' : fld('cm', 'Code sent to your mobile', '', 'inputmode="numeric" maxlength="6" autocomplete="one-time-code"')}${APP.email_ok ? '<div class="note ok">Email confirmed</div>' : fld('ce', 'Code sent to your email', '', 'inputmode="numeric" maxlength="6"')}</div>
+    ${(APP.mobile || '').startsWith('+') && !APP.mobile_ok ? '<p class="small dim">A mobile outside India may not get our SMS. Leave its code blank if it does not come: we will write to your email instead until it is verified.</p>' : ''}<div class="row">${APP.mobile_ok ? '<div class="note ok">Mobile confirmed</div>' : fld('cm', 'Code sent to your mobile', '', 'inputmode="numeric" maxlength="6" autocomplete="one-time-code"')}${APP.email_ok ? '<div class="note ok">Email confirmed</div>' : fld('ce', 'Code sent to your email', '', 'inputmode="numeric" maxlength="6"')}</div>
     <div class="acts"><button class="btn" id="resend">Send new codes</button><button class="btn pri" id="go">Confirm</button></div>`,
   identity: () => `${fld('pan', 'PAN', APP.pan, 'maxlength="10" autocapitalize="characters" class="in mono"').replace('class="in"', 'class="in mono"')}${fld('name', 'Name exactly as on your PAN', APP.name)}
     <div class="row">${fld('dob', 'Date of birth', APP.dob, 'type="date"')}${sel('gender', 'Gender', ['Male', 'Female', 'Transgender'], APP.gender)}</div>
     <div class="row">${fld('father', "Father's or spouse's name", APP.father)}${sel('marital', 'Marital status', ['Single', 'Married', 'Other'], APP.marital)}</div>
+    <div class="fld"><label for="residence">Where you live</label><select class="in" id="residence">${[['', 'In India'], ['NRI', 'Outside India: a non-resident Indian (NRI)'], ['OCI', 'Outside India: an OCI cardholder']].map(([k, l]) => `<option value="${k}" ${k === (APP.residence || '') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${fieldErr('residence')}</div>
     ${checks(['PAN', 'KRA search'])}<button class="btn pri" id="go">Check my PAN</button>`,
   address: () => { const done = (APP.steps || []).includes('address'), off = (CFG.aadhaar_methods || []).includes('aadhaar_offline');
+    if (APP.residence) { const x = APP.overseas || {}, up = (id, kind, label) => `<div class="fld"><label for="${id}">${label}</label><input class="in" type="file" id="${id}" accept="image/*,application/pdf">${hasDoc(kind) ? '<span class="small dim">Uploaded ✓</span>' : ''}${fieldErr(id)}</div>`;
+      return `<p class="dim">You live outside India, so we take your passport${APP.residence === 'OCI' ? ' and OCI card' : ''} and a document for your address where you live now. One of our officials will then verify you on a short video call.</p>
+      <div class="fld"><label for="ov-c">Country you live in</label><select class="in" id="ov-c">${copts(x.country || '', 'Choose')}</select>${fieldErr('country')}</div>
+      <div class="row">${fld('ov-pp', 'Passport number', x.passport_no, 'autocapitalize="characters" class="in mono"').replace('class="in"', 'class="in mono"')}${fld('ov-px', 'Passport valid until', x.passport_expiry, 'type="date"')}</div>${fieldErr('passport_no')}${fieldErr('passport_expiry')}
+      ${APP.residence === 'OCI' ? fld('ov-oci', 'OCI card number', x.oci_card) + fieldErr('oci_card') : ''}
+      ${fld('ov-a', 'Your address where you live now', x.address)}${fieldErr('address')}${fld('ov-city', 'City', x.city)}${fieldErr('city')}
+      ${up('f-pp', 'Passport', 'Your passport: the pages with your photograph and address')}${APP.residence === 'OCI' ? up('f-oci', 'OCI card', 'Your OCI card') : ''}${up('f-ovd', 'Overseas address proof', 'A document that proves your overseas address: driving licence, residence permit or national ID')}
+      <button class="btn pri" id="go">Continue</button>`; }
     return `<p class="dim">Share your Aadhaar with ${esc(CFG.firm)}. Your address is taken from Aadhaar, and no video call or office visit is needed.</p>${checks(['Aadhaar (DigiLocker)', 'Aadhaar (offline e-KYC)', 'PAN'])}
     ${Q.get('dl') === 'back' && !done ? '<div class="note">Back with your Aadhaar: reading it…</div>' : ''}
     ${done ? `<dl class="kv"><dt>Address</dt><dd>${esc([APP.address, APP.city, APP.state, APP.pin].filter(Boolean).join(', '))}</dd><dt>From</dt><dd>${esc(APP.addr_source || '')}</dd></dl>` : ''}
@@ -131,6 +140,7 @@ const V = {
     ${checks(['Bank account'])}<button class="btn pri" id="go">Verify bank account</button>`,
   profile: () => { const segs = APP.segments || ['CM']; return `<div class="fld"><label>Segments</label>${Object.entries(CFG.segments).map(([k, v]) => `<label class="check"><input type="checkbox" data-seg="${k}" ${segs.includes(k) ? 'checked' : ''}> ${esc(v)}</label>`).join('')}${fieldErr('segments')}</div>
     <div class="row">${sel('income', 'Annual income', ['<1 L', '1-5 L', '5-10 L', '10-25 L', '25 L-1 Cr', '>1 Cr'], APP.income)}${sel('occupation', 'Occupation', ['Salaried', 'Self-employed', 'Business', 'Professional', 'Student', 'Retired', 'Homemaker', 'Other'], APP.occupation)}</div>
+    <div class="row">${sel('purpose', 'Why you are opening the account', CFG.purposes || [], APP.purpose)}${fld('purpose_note', 'In a few words (for Other)', APP.purpose_note)}</div>
     <div class="row">${sel('experience', 'Trading experience', ['None', 'Under 1 year', '1–5 years', 'Over 5 years'], APP.experience)}${sel('ras', 'Settle unused funds to my bank', ['Monthly', 'Quarterly'], APP.ras || 'Quarterly')}</div>
     ${fld('demat_id', 'Existing demat account (leave blank to open one with us)', APP.demat_id, 'class="in mono" maxlength="16"')}
     <div class="fld"><label for="f-inc">Income proof (needed for futures, options, currency and commodities): salary slip, ITR or 6-month bank statement</label><input class="in" type="file" id="f-inc" accept="image/*,application/pdf">${hasDoc('Income proof') ? '<span class="small dim">Uploaded ✓</span>' : ''}${fieldErr('income_proof')}</div>
@@ -166,8 +176,10 @@ function bind(step) {
   if (step === 'start') go.onclick = () => { if (!$('agree').checked) { ERR = new ApiErr({ error: { message: 'Please agree to be contacted about your application.' } }); render(); return; }
     run(async () => { const r = await call('POST', '/start', { mobile: v('mobile'), email: v('email'), partner: Q.get('ap') || '', lead: Q.get('lead') || '' }); SECRET = r.secret; store.set(SECRET); APP = r.application; DEV = r.dev_codes || {}; }); };
   if (step === 'contact') { $('resend').onclick = () => run(async () => { APP = await call('POST', '/verify', { channel: 'resend' }); });
-    go.onclick = () => run(async () => { if (!APP.mobile_ok) APP = await call('POST', '/verify', { channel: 'mobile', code: v('cm') }); if (!APP.email_ok) APP = await call('POST', '/verify', { channel: 'email', code: v('ce') }); }); }
-  if (step === 'identity') go.onclick = () => run(() => saveStep('identity', { pan: v('pan'), name: v('name'), dob: v('dob'), gender: v('gender'), father: v('father'), marital: v('marital') }));
+    go.onclick = () => run(async () => { const intl = (APP.mobile || '').startsWith('+'); if (!APP.mobile_ok && (!intl || v('cm'))) APP = await call('POST', '/verify', { channel: 'mobile', code: v('cm') }); if (!APP.email_ok) APP = await call('POST', '/verify', { channel: 'email', code: v('ce') }); }); }
+  if (step === 'identity') go.onclick = () => run(() => saveStep('identity', { pan: v('pan'), name: v('name'), dob: v('dob'), gender: v('gender'), father: v('father'), marital: v('marital'), residence: v('residence') }));
+  if (step === 'address' && APP.residence) { fileUp('f-pp', 'Passport'); fileUp('f-oci', 'OCI card'); fileUp('f-ovd', 'Overseas address proof');
+    go.onclick = () => run(() => saveStep('address', { overseas: { country: v('ov-c'), passport_no: v('ov-pp'), passport_expiry: v('ov-px'), oci_card: v('ov-oci'), address: v('ov-a'), city: v('ov-city') } })); }
   if (step === 'address') document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => run(async () => {
     if (!CFG.digilocker_redirect) return saveStep('address', { digilocker: true });
     const r = await call('POST', '/digilocker', { method: b.dataset.m }); location.href = r.url; await new Promise(() => {}); // leaving the page
@@ -175,7 +187,7 @@ function bind(step) {
   if (step === 'tax') { taxBind(); go.onclick = () => { TAXDRAFT = taxRead(); run(() => saveStep('tax', { fatca: TAXDRAFT }).then(() => { TAXDRAFT = null; })); }; }
   if (step === 'bank') go.onclick = () => run(() => saveStep('bank', { bank: v('bankname'), ifsc: v('ifsc'), account: v('account') }));
   if (step === 'profile') { fileUp('f-inc', 'Income proof');
-    go.onclick = () => run(() => saveStep('profile', { segments: [...document.querySelectorAll('[data-seg]:checked')].map(x => x.dataset.seg), income: v('income'), occupation: v('occupation'), experience: v('experience'), ras: v('ras'), demat_id: v('demat_id') })); }
+    go.onclick = () => run(() => saveStep('profile', { segments: [...document.querySelectorAll('[data-seg]:checked')].map(x => x.dataset.seg), income: v('income'), occupation: v('occupation'), experience: v('experience'), ras: v('ras'), demat_id: v('demat_id'), purpose: v('purpose'), purpose_note: v('purpose_note') })); }
   if (step === 'nominee') { nomsBind(); go.onclick = () => run(() => saveStep('nominee', { nominee_opt_out: $('optout').checked, nominees: $('optout').checked ? [] : nomsRead(), nominees_on_statement: !$('optout').checked && $('nomstmt').value === 'names' })); }
   if (step === 'photo') {
     fileUp('f-photo', 'Photograph'); fileUp('f-pan', 'PAN card');

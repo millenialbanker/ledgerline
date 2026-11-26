@@ -164,24 +164,27 @@ type TicketMsg struct {
 
 // Ticket is a complaint, service request or query.
 type Ticket struct {
-	ID         string      `json:"id"`
-	Kind       string      `json:"kind"`
-	UCC        string      `json:"ucc"`
-	Name       string      `json:"name"`
-	Category   string      `json:"category"`
-	Subject    string      `json:"subject"`
-	Source     string      `json:"source"`
-	Ref        string      `json:"ref,omitempty"` // SCORES or exchange reference
-	Status     string      `json:"status"`
-	Assignee   string      `json:"assignee,omitempty"`
-	OpenedOn   string      `json:"opened_on"`
-	Due        string      `json:"due"`
-	ResolvedOn string      `json:"resolved_on,omitempty"`
-	Messages   []TicketMsg `json:"messages"`
-	Internal   []TicketMsg `json:"internal,omitempty"` // staff notes, never shown to the client
-	By         string      `json:"by"`
-	Overdue    bool        `json:"overdue"`
-	AgeDays    int         `json:"age_days"`
+	ID         string `json:"id"`
+	Kind       string `json:"kind"`
+	UCC        string `json:"ucc"`
+	Name       string `json:"name"`
+	Category   string `json:"category"`
+	Subject    string `json:"subject"`
+	Source     string `json:"source"`
+	Ref        string `json:"ref,omitempty"` // SCORES or exchange reference
+	Status     string `json:"status"`
+	Assignee   string `json:"assignee,omitempty"`
+	OpenedOn   string `json:"opened_on"`
+	Due        string `json:"due"`
+	ResolvedOn string `json:"resolved_on,omitempty"`
+	// ODRNoticeOn is when the client was told of SCORES and SMART ODR
+	// because the complaint was still open after its 21 days.
+	ODRNoticeOn string      `json:"odr_notice_on,omitempty"`
+	Messages    []TicketMsg `json:"messages"`
+	Internal    []TicketMsg `json:"internal,omitempty"` // staff notes, never shown to the client
+	By          string      `json:"by"`
+	Overdue     bool        `json:"overdue"`
+	AgeDays     int         `json:"age_days"`
 	// Business is what the complaint concerns: Broking (when empty), DP, RA
 	// or IA; each has its own table in the monthly disclosure.
 	Business string `json:"business,omitempty"`
@@ -290,7 +293,8 @@ func (o *Ops) OpenTicket(ctx context.Context, tenant, actor string, t Ticket, te
 	}
 	o.log(ctx, tenant, actor, "ticket.opened", t.ID, map[string]any{"ucc": t.UCC, "kind": t.Kind, "category": t.Category, "source": t.Source, "business": t.biz(), "impersonation": t.Impersonation})
 	if t.UCC != "" {
-		o.notify(ctx, tenant, actor, "ticket.opened", t.UCC, map[string]string{"id": t.ID, "subject": t.Subject, "due": t.Due})
+		set, _ := o.Settings(ctx, tenant)
+		o.notify(ctx, tenant, actor, "ticket.opened", t.UCC, map[string]string{"id": t.ID, "subject": t.Subject, "due": fmtDay(t.Due), "escalation": escalationText(set), "odr": odrLine})
 	}
 	if t.ImpCase != "" {
 		o.linkImpComplaint(ctx, tenant, actor, t.ImpCase, t.ID)
@@ -370,7 +374,7 @@ func (o *Ops) TicketUpdate(ctx context.Context, tenant, actor, id, text string, 
 	}
 	o.log(ctx, tenant, actor, "ticket.updated", id, map[string]any{"status": t.Status, "assignee": t.Assignee, "internal": internal})
 	if !internal && text != "" && role != RoleClient && t.UCC != "" {
-		o.notify(ctx, tenant, actor, "ticket.reply", t.UCC, map[string]string{"id": t.ID, "subject": t.Subject, "status": t.Status})
+		o.notify(ctx, tenant, actor, "ticket.reply", t.UCC, map[string]string{"id": t.ID, "subject": t.Subject, "status": t.Status, "odr": odrLine})
 	}
 	return t, nil
 }

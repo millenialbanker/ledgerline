@@ -1188,6 +1188,7 @@ func (o *Ops) nseUCIItems(ctx context.Context, tenant, member string, only map[s
 	for _, d := range nris {
 		nriAcct[d.UCC] = d.Account
 	}
+	optOut := o.optOutMap(ctx, tenant)
 	var out []nseUCIItem
 	for _, c := range cs {
 		if only != nil && !only[c.UCC] {
@@ -1197,8 +1198,8 @@ func (o *Ops) nseUCIItems(ctx context.Context, tenant, member string, only map[s
 			c.NRIAccount = nriAcct[c.UCC]
 		}
 		reg, hasReg := byUCC[c.UCC]
-		if !nseUCIInScope(c, hasReg) {
-			continue
+		if !nseUCIInScope(c, hasReg) || !hasReg && optOut[c.UCC]["NSE"] {
+			continue // out of scope, or opted out of NSE in writing (onboardx.go)
 		}
 		var app *Application
 		if a, ok := src.apps[c.UCC]; ok {

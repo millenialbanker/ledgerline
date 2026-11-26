@@ -313,6 +313,10 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.epiEndOfDay(ctx, tenant, now)
 	o.internalShortageTick(ctx, tenant, now)
 	o.payoutReconTick(ctx, tenant, now)
+	// Pay-in cut-off reminders and the end-of-day RMS limit checks
+	// (rmspayin.go, rmslimits.go): work items only.
+	o.payInCutoffTick(ctx, tenant, now)
+	o.riskLimitsTick(ctx, tenant, now)
 	// Trades from NSE's trade API, for live risk, when the firm switched
 	// fetching on in Connections.
 	o.notisTick(ctx, tenant, now)
@@ -362,6 +366,11 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.cdslPledgeTick(ctx, tenant, now)
 	// CDSL freezes: expiry and future-dated activation.
 	o.CDSLFreezeTick(ctx, tenant, now)
+	// DP controls: request timelines, dormant-account books and calls,
+	// the daily reconciliation, the blank slip stock, pool pay-outs,
+	// minors turning 18, and clients' trading freeze requests (dpctl.go,
+	// tradefreeze.go).
+	o.dpControlsTick(ctx, tenant, now)
 	// Sanctions: all clients screened again on the firm's interval, and
 	// cases past their 24 hours chased (sanctions.go); in every edition.
 	o.sanctionsTick(ctx, tenant, now)
@@ -671,6 +680,20 @@ func (o *Ops) AutopilotScheduled(ctx context.Context, tenant string) bool {
 
 func statementSummary(r SendStatementsResult) string {
 	return fmt.Sprintf("%s %s: %d sent, %d bounced, %d on paper, %d held, %d failed, %d already sent", DocKindNames[r.Kind], r.Period, r.Sent, r.Bounced, r.Paper, r.Held, r.Failed, r.Skipped)
+}
+
+// lastSaturday is the latest Saturday on or before date: the last day of
+// the statement week, which runs Monday to Saturday (NSE/INSP/73976, item
+// 4.5).
+func lastSaturday(date string) string {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return date
+	}
+	for t.Weekday() != time.Saturday {
+		t = t.AddDate(0, 0, -1)
+	}
+	return t.Format("2006-01-02")
 }
 
 // lastFriday is the latest Friday on or before date.

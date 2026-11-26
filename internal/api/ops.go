@@ -67,6 +67,7 @@ func (s *Server) opsRoutes() {
 	s.payoutHoldRoutes()
 	s.settleRoutes()
 	s.compRegRoutes()
+	s.rmsLimitRoutes()
 	s.activityRoutes()
 	s.securityRoutes()
 	s.nseUCIRoutes()
@@ -402,6 +403,7 @@ func (s *Server) opsRoutes() {
 	R("GET /v1/fingate/upload.zip", s.fingateUploadZip, false)
 	R("POST /v1/surveillance/run", s.runRules, true)
 	s.dpSurvRoutes(R)
+	s.dpCtlRoutes(R)
 	R("GET /v1/ipo", s.ipo, false)
 	R("GET /v1/mf", s.mf, false)
 	R("GET /v1/ccm", s.ccm, false)
@@ -3475,15 +3477,14 @@ func (s *Server) dpBSDA(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) dpBook(w http.ResponseWriter, r *http.Request) {
-	var b struct {
-		UCC   string `json:"ucc"`
-		Slips int64  `json:"slips"`
-		BOID  string `json:"bo_id"` // the account the book is for (blank: the primary)
-	}
+	// The account the book is for (blank: the primary), with the previous
+	// book's requisition slip or loss report, delivery, loose slips
+	// (internal/ops/dpdis.go).
+	var b ops.DISBookRequest
 	if !decode(w, r, &b) {
 		return
 	}
-	v, err := s.ops.IssueDISBookFor(r.Context(), tenant(r), actor(r), b.UCC, b.BOID, b.Slips)
+	v, err := s.ops.IssueDISBookWith(r.Context(), tenant(r), actor(r), b)
 	ok(w, v, err)
 }
 
@@ -3500,15 +3501,11 @@ func (s *Server) dpEnterDIS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) dpVerify(w http.ResponseWriter, r *http.Request) {
-	var b struct {
-		Approve      bool   `json:"approve"`
-		Note         string `json:"note"`
-		Confirmation string `json:"confirmation"`
-	}
+	var b ops.DISVerify
 	if !decode(w, r, &b) {
 		return
 	}
-	v, err := s.ops.VerifyDIS(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Approve, b.Note, b.Confirmation)
+	v, err := s.ops.VerifyDISWith(r.Context(), tenant(r), actor(r), r.PathValue("id"), b)
 	ok(w, v, err)
 }
 

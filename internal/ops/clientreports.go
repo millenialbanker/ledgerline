@@ -343,7 +343,7 @@ var ClientReportDefs = []ClientReportDef{
 	{"pnl", "Profit & loss / capital gains", "Realised gains lot by lot (speculative; short- and long-term by section, with 31 January 2018 grandfathering; shares, ETFs, bonds and mutual fund units), the scrip-wise Schedule 112A, derivatives P&L and charges, for tax filing.", true, false, "fy"},
 	{"tradebook", "Trade book", "Every trade across exchanges and segments in the period.", true, true, "month"},
 	{"positions", "Open positions", "Open futures and options with average price, last price, MTM and margin.", false, false, ""},
-	{"funds_securities", "Statement of funds and securities", "The week's (or any period's) funds movement and balance, securities with the broker (margin pledges, unpaid purchases held in CUSPA) and demat holdings.", true, false, "week"},
+	{"funds_securities", "Statement of funds and securities", "The week's (Monday to Saturday, or any period's) funds movement and balance as on its last day after open bills, uncleared cheques and margin, the pending pay-in and pay-out obligations, securities with the broker (margin pledges, unpaid purchases held in CUSPA) and demat holdings.", true, false, "week"},
 }
 
 // ClientReportFor builds a report. ucc may be "ALL" for kinds that allow it.
@@ -1166,15 +1166,17 @@ func (o *Ops) repFundsSecurities(ctx context.Context, tenant string, r *ClientRe
 	}
 	hsec, _, hv := holdingSection(hs)
 	hsec.Title = "Demat holdings"
-	r.Sections = append(r.Sections, funds, withBroker, hsec, mv)
+	r.Notes = append(r.Notes, "Dr = amount payable by you; Cr = amount held by us on your behalf.")
+	open := o.fsWeekSections(ctx, tenant, r, st.Closing)
+	r.Sections = append(append([]Section{funds}, open...), withBroker, hsec, mv)
 	r.Summary = []SummaryItem{{"Funds balance", amt(st.Closing), ColDrCr, ""}, {"Securities with the broker", d2s(bv), ColMoney, ""}, {"Demat holdings at market", d2s(hv), ColMoney, ""}}
-	r.Notes = append(r.Notes, "Dr = amount payable by you; Cr = amount held by us on your behalf.",
-		"Please check this statement. If anything is wrong, write to us within 7 days; if it is not resolved you can raise it with the exchange or SEBI (SCORES).")
+	r.Notes = append(r.Notes, "Please check this statement. If anything is wrong, write to us within 7 days; if it is not resolved you can raise it with the exchange or SEBI (SCORES).")
 	return nil
 }
 
-// fundsSecuritiesDue reports whether a client should get the statement for
-// the period: a balance, any movement, or securities with the broker.
+// fundsSecuritiesDue reports whether a client has anything for the period:
+// a balance, any movement, or securities with the broker. Active clients
+// get the statement whatever it says; others only when this is true.
 func (o *Ops) fundsSecuritiesDue(ctx context.Context, tenant, ucc, from, to string, cuspa map[string]bool) (bool, error) {
 	st, err := o.clientStatement(ctx, tenant, ucc, from, to)
 	if err != nil {

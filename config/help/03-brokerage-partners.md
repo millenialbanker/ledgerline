@@ -273,15 +273,19 @@ related: margin-shortfall, client-cant-trade
 An approved override adds to the client's trading limit for the day only.
 
 ## referral
-title: Reward client referrals
+title: Referral rewards only to registered authorised persons
 screen: partners
-roles: Ops checker
-ask: referral; refer a friend; referral reward; client referred another client; referral brokerage
-related: add-ap
+roles: Ops checker, Compliance officer
+ask: referral; referral reward; refer a friend; client referred another client; referral brokerage; can a client earn referral; referral to client stopped; pay referral to ap; referral reward registered ap; client referral not allowed; brokerage sharing with unregistered person; nse inspection 4.21; mcx 9.9(a); client referrers rewards stop
+related: add-ap, ap-payout
 
-1. Record the referrer on the new client (**Branch and partner → Change → Referred by**).
-2. The referrer earns the share of the referred client's brokerage set in [[settings|Settings]], for the set number of months.
-3. On [[partners|Branches & partners]], **Post rewards** for the month credits referrers' ledgers.
+The exchanges let a member share brokerage, commission or any other reward for bringing clients only with an **authorised person registered with the exchange** (NSE Inspection master circular item 4.21; MCX/INSP/255/2026 para 9.9(a)). Paying a client for referring another client is not allowed.
+
+1. On the client's **Branch and partner → Change**, choose **Referred by a registered AP**. Only active APs with an exchange registration number are listed. That AP earns the referral reward: the share of the referred client's brokerage set in [[settings|Settings]], for the set months.
+2. A client who referred the client can still be recorded under **or referred by a client**. It is kept as the source of the referral and **earns nothing**.
+3. On [[partners|Branches & partners]] → Referrals, **Post rewards** books each AP's reward as commission. TDS is deducted and the net goes to the AP's account.
+
+**Rewards already running to clients** stop from the day in Settings (*Referral rewards only to registered APs from*; 23 November 2026 unless changed). Brokerage before that day is still paid at the next posting. From that day a work item for the compliance officer lists each client referrer and the clients they referred, so the firm can tell them. The **referral_rewards_ap** self-inspection test checks that no reward reached a client's ledger after that day.
 
 ## dealers-nism
 title: Dealers, terminals and NISM

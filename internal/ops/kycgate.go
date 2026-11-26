@@ -662,6 +662,7 @@ func (o *Ops) kycGateDaily(ctx context.Context, tenant, day string) {
 		}
 	}
 	o.mnrlNoticeDaily(ctx, tenant, day)
+	o.onboardDaily(ctx, tenant, day)
 	ls, _ := docs.List[KYCList](ctx, o.Docs, tenant, cKYCList, "")
 	cs, _ := o.ClientMap(ctx, tenant)
 	for _, l := range ls {
@@ -853,6 +854,9 @@ func (o *Ops) activationProblems(ctx context.Context, tenant string, c Client) [
 			out = append(out, "PROI: "+p)
 		}
 	}
+	// The firm's own codes, a second code for the PAN, VIPV, guardian and
+	// MCX board resolution (onboardx.go).
+	out = append(out, o.onboardBlocks(ctx, tenant, c)...)
 	return out
 }
 

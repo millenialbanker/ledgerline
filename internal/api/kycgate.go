@@ -18,6 +18,7 @@ func (s *Server) kycGateRoutes(R func(string, http.HandlerFunc, bool)) {
 	R("POST /v1/kyc-gate/mnrl/{id}/notice", s.kycGateNotice, true)
 	R("POST /v1/kyc-gate/mnrl/{id}/freeze", s.kycGateMNRLFreeze, true)
 	R("POST /v1/proi/{ucc}", s.proiSave, true)
+	s.onboardPledgeRoutes(R)
 }
 
 func (s *Server) kycGateView(w http.ResponseWriter, r *http.Request) {

@@ -204,13 +204,13 @@ title: Process a delivery instruction slip (DIS)
 screen: dp
 roles: Ops maker, Ops checker
 ask: dis; delivery instruction slip; enter slip; verify dis; dis book; transfer shares; off market transfer; dis rejected; slip already used
-related: dp-requests
+related: dp-requests, dis-books, dis-slip-checks
 
 On [[dp|Demat accounts & DIS]]:
 
-1. **Issue DIS book** to the client (slip numbers are registered).
+1. **Issue DIS book** to the client (slip numbers are registered). A later book needs the previous book's requisition slip or a loss report (see the DIS book rules).
 2. A maker **Enters a slip**: slip number, the client's demat account it debits (the primary unless another is chosen), ISIN, quantity (up to 4 decimals for units held in demat), target account. Only that account's free balance counts, and a slip from a book issued for another account is refused.
-3. A checker **Verifies** it against the slip register, the signature and the free balance (large values need a second check), or **Rejects** it.
+3. A checker **Verifies** it against the slip register, the signature and the free balance, or **Rejects** it. Slips from dormant accounts or emptying an account need a recorded call to the holder first, and slips above ₹5 lakh a countersignature (see the checks on a slip).
 4. Verified slips go in the upload batch; mark **Executed** or **Failed** from the depository's response.
 
 "Slip already used" means that number was entered before. A slip can be used only once.
@@ -262,9 +262,9 @@ title: Handle demat, freeze, transmission or closure requests
 screen: dp
 roles: Ops maker, Ops checker
 ask: dematerialisation; demat request; freeze account; transmission; close demat account; account closure; rta
-related: dis, cdsl-demat-api
+related: dis, cdsl-demat-api, dp-request-timelines
 
-On [[dp|Demat accounts & DIS]], **New request** and choose the type. Demat requests are **Sent to RTA**, then completed or rejected from the RTA's response. A closure needs the holdings transferred first.
+On [[dp|Demat accounts & DIS]], **New request** and choose the type. Demat requests are **Sent to RTA**, then completed or rejected from the RTA's response. A closure needs the holdings transferred first. Each request has its timelines (see closure, demat, transmission and freeze timelines).
 
 With CDSL's account transfer cum closure API switched on, an approved closure of a CDSL account goes to CDSL instead: the client confirms with CDSL's OTP and the account closes when CDSL confirms (see [[cdslreq|CDSL requests]]).
 

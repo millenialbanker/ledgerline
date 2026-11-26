@@ -129,9 +129,6 @@ func stepPeriodicDefs() []StepDef {
 		if t.Freq == "Daily" {
 			due = "10:00"
 		}
-		if t.ID == "funds_securities" {
-			days = "business+sat" // sent on Saturday, for the week to Friday
-		}
 		out = append(out, StepDef{ID: StepPeriodic + ":" + t.ID, Kind: StepPeriodic, Name: t.Name, About: t.About, Area: t.Area, Days: days, Due: due, Role: stepAreaRole(t.Area), View: firstOf(t.View, "periodic"), ref: t.ID})
 	}
 	return out

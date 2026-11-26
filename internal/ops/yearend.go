@@ -166,8 +166,10 @@ type YearEndPack struct {
 	Charges    []ChargeLine `json:"charges"`
 	Closing    money.Dec    `json:"closing"` // ledger balance; + is the client's credit
 	Holdings   money.Dec    `json:"holdings"`
-	Generated  string       `json:"generated"`
-	SentAt     string       `json:"sent_at,omitempty"`
+	// AGTS is the Annual Global Transaction Statement (agts.go).
+	AGTS      []AGTSRow `json:"agts"`
+	Generated string    `json:"generated"`
+	SentAt    string    `json:"sent_at,omitempty"`
 }
 
 // ChargeLine is one charge head paid in the year.
@@ -234,6 +236,9 @@ func (o *Ops) YearEnd(ctx context.Context, tenant, ucc, fy, today string) (YearE
 	hs, _, _ := o.holdLines(ctx, tenant, c.UCC, p.To)
 	for _, h := range hs {
 		p.Holdings = p.Holdings.Add(h.value)
+	}
+	if p.AGTS, err = o.agtsForYear(ctx, tenant, c.UCC, from, p.To); err != nil {
+		return p, err
 	}
 	if r, _, err := docs.Get[yearEndSent](ctx, o.Docs, tenant, cYearEnd, fy+"|"+c.UCC); err == nil {
 		p.SentAt = r.At
@@ -327,8 +332,9 @@ func (o *Ops) YearEnds(ctx context.Context, tenant, fy, today string, scope func
 	return v, nil
 }
 
-// SendYearEnd emails clients that their pack is ready (all active clients
-// with an email when uccs is empty). The pack itself is in the portal.
+// SendYearEnd sends each client the signed annual global statement and
+// tells them their pack is ready (all active clients when uccs is empty).
+// The pack itself is in the portal.
 func (o *Ops) SendYearEnd(ctx context.Context, tenant, actor, fy, today string, uccs []string) (int, int, error) {
 	if err := o.require(ctx, tenant, actor, "Sending year-end packs", RoleMaker, RoleChecker, RoleCompliance); err != nil {
 		return 0, 0, err
@@ -349,10 +355,18 @@ func (o *Ops) SendYearEnd(ctx context.Context, tenant, actor, fy, today string, 
 		if len(want) > 0 && !want[r.UCC] {
 			continue
 		}
+		// The signed annual global statement (funds and securities as on
+		// 31 March and the AGTS) goes on the dispatch register, by email
+		// or on paper as the client chose; the message says the tax pack
+		// is in the portal.
+		ok := o.delivered(ctx, tenant, DocAnnual, fy, r.UCC)
+		if !ok {
+			d, err := o.sendAnnualStatement(ctx, tenant, actor, fy, r.UCC)
+			ok = err == nil && (d.Status == "Sent" || d.Status == "Physical pending")
+		}
 		ms, err := o.sendEvent(ctx, tenant, actor, "yearend.pack", r.UCC, map[string]string{"fy": fy, "stt": rupees(r.STT)}, "")
-		ok := err == nil && len(ms) > 0
 		for _, m := range ms {
-			ok = ok && m.Status == "Sent"
+			ok = ok && (err != nil || m.Status == "Sent" || m.Status == "Not opted in")
 		}
 		if !ok {
 			failed++
@@ -423,7 +437,7 @@ tfoot td{font-weight:700;border-top:2px solid #16201B}.small{font-size:11px;colo
 .box{border:1px solid #16201B;padding:12px 14px;margin-top:10px;page-break-inside:avoid}.warn{background:#FAEFD6;padding:8px 10px;border-radius:6px}
 @media print{body{margin:12mm}}
 </style></head><body>
-<div class="meta"><div><h1>Year-end statement · {{yearname .From}} {{.FY}}</h1><span>{{.Name}} · client code {{.UCC}} · PAN {{.PAN}}</span><span>{{day .From}} to {{day .To}}</span></div>
+<div class="meta"><div><h1>Annual global statement and year-end statement · {{yearname .From}} {{.FY}}</h1><span>{{.Name}} · client code {{.UCC}} · PAN {{.PAN}}</span><span>{{day .From}} to {{day .To}}</span></div>
 <div style="text-align:right"><b>{{.Firm}}</b><span>SEBI registration {{.SEBIReg}}</span>{{range .Members}}<span>{{.}}</span>{{end}}</div></div>
 {{if .Running}}<p class="warn">The {{yearword .From}} year is still running: figures are to {{day .To}}. The final statement is issued after 31 March.</p>{{end}}
 
@@ -463,5 +477,11 @@ tfoot td{font-weight:700;border-top:2px solid #16201B}.small{font-size:11px;colo
 </tbody>{{$t := tot $p.STT $ex}}<tfoot><tr><td colspan="2">Total {{$ex}}</td><td class="r">{{inr (index $t 0)}}</td><td class="r">{{inr (index $t 1)}}</td></tr></tfoot></table>
 </div>{{else}}<p>No transactions liable to securities transaction tax in the year.</p>{{end}}
 <p class="small">This is a statement from your account with us, not a statutory form or certificate.</p>
+
+<h2>4. Annual Global Transaction Statement</h2>
+<p class="small">Each security or contract you bought or sold through us in the year, exchange and segment-wise, with close-outs and auctions and the statutory and exchange charges.</p>
+<table><thead><tr><th>Exchange</th><th>Segment</th><th>Security / contract</th><th class="r">Bought qty</th><th class="r">Bought value (₹)</th><th class="r">Sold qty</th><th class="r">Sold value (₹)</th><th class="r">Close-out / auction qty</th><th class="r">Close-out value (₹)</th><th class="r">STT / CTT</th><th class="r">Stamp duty</th><th class="r">Transaction charges</th><th class="r">SEBI fees</th></tr></thead><tbody>
+{{range .AGTS}}<tr><td>{{.Exchange}}</td><td>{{.Segment}}</td><td>{{.Security}}</td><td class="r">{{.BuyQty}}</td><td class="r">{{inr .BuyValue}}</td><td class="r">{{.SellQty}}</td><td class="r">{{inr .SellValue}}</td><td class="r">{{.CloseOutQty}}</td><td class="r">{{inr .CloseOutValue}}</td><td class="r">{{inr .STT}}</td><td class="r">{{inr .Stamp}}</td><td class="r">{{inr .TxnCharges}}</td><td class="r">{{inr .SEBIFee}}</td></tr>{{else}}<tr><td colspan="13">No transactions in the year.</td></tr>{{end}}
+</tbody></table>
 <p class="small" style="margin-top:20px">Generated {{.Generated}} from the records of {{.Firm}}. This statement is information from your account to help you prepare your return; it is not tax advice. Please report any discrepancy to us within 30 days.</p>
 </body></html>`))

@@ -59,7 +59,7 @@ func gstr1Cut(valueDate string) string {
 	return addMonths(valueDate[:7]+"-01", 1)[:7] + "-10"
 }
 
-func istDay(t time.Time) string { return t.In(ist).Format("2006-01-02") }
+func gstDay(t time.Time) string { return t.In(ist).Format("2006-01-02") }
 
 func gstBillKind(k string) bool { return k == "BILL" || k == "MTM" || k == "EXPIRY" }
 
@@ -78,10 +78,10 @@ func gstLateAdjustments(all []ledger.Entry, byID map[string]ledger.Entry) map[st
 			continue
 		}
 		orig, ok := byID[e.ReversalOf]
-		if !ok || !gstBillKind(orig.Source.Kind) || istDay(e.CreatedAt) <= gstr1Cut(orig.ValueDate) {
+		if !ok || !gstBillKind(orig.Source.Kind) || gstDay(e.CreatedAt) <= gstr1Cut(orig.ValueDate) {
 			continue
 		}
-		k := orig.Source.ID + "|" + istDay(e.CreatedAt)
+		k := orig.Source.ID + "|" + gstDay(e.CreatedAt)
 		revs[orig.Source.ID] = append(revs[orig.Source.ID], rev{e.CreatedAt, k})
 		out[e.ID] = k
 	}

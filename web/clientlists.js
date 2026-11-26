@@ -157,9 +157,58 @@ Object.assign(A, {
 });
 
 /* ---------- KYC trading gate ---------- */
+const PROI_EXTRA = ['Nothing more: the KRA/CKYCRR record is complete', 'Details changed', 'Record incomplete or not compliant', 'OVD validity lapsed', 'Verification considered necessary', 'No record: full KYC collected'];
+const PROI_FORMS = ['CERSAI template (physical)', 'CERSAI template (e-signed scan)', 'CERSAI template (digital form)'];
+const PROI_OSV = ['Originals seen and verified', 'DigiLocker or issuer e-document', 'Aadhaar e-KYC', 'Copy certified by a notary', 'Copy certified by an overseas bank official', 'Copy certified by an Indian embassy or consulate', 'Copy certified by a court magistrate or judge'];
+/* Onboarding checks (internal/ops/onboardx.go): purpose, VIPV, persons with disability, HUF, NPO,
+   exchange opt-outs, MCX board resolution and Sikkim e-mail, second codes, and the firm's own codes. */
+function kgOnboard(d) {
+  const ob = d.onboard || {}, ctl = ob.controls || {}, mc = ob.member_codes || {};
+  const head = `<div class="note small">What account opening asks for beyond the client master. Items marked <b>stops activation</b> must be fixed before a checker can activate the client; the rest raise work items and show in the self-inspection. No client code may equal the firm's trading member code (${Object.entries(mc).map(([k, v]) => esc(k + ' ' + v)).join(', ') || 'none set'}), OWN, a code beginning ERROR, or the codes below.</div>
+    <div class="tools"><span class="small">ERROR account: <b class="mono">${esc(ctl.error_account || 'not set')}</b> · other proprietary codes: <span class="mono">${esc((ctl.prop_codes || []).join(', ') || 'none')}</span></span>${ob.can_control ? '<button class="btn sm" data-act="kgCtl">Set the firm’s codes</button>' : ''}<input class="in sm" id="kg-obu" placeholder="Client code"><button class="btn sm" data-act="kgOBFind">Open a client</button></div>`;
+  const rows = (ob.rows || []).map(r => `<tr><td><button class="linkish mono" data-act="client" data-id="${esc(r.ucc)}">${esc(r.ucc)}</button><div class="small">${esc(r.name)} · ${esc(r.type)}</div></td><td>${pill(r.status, r.status === 'Active' ? 'good' : 'acc')}</td><td class="small wrap">${r.issues.length ? r.issues.map(i => `${i.block ? pill('stops activation', 'bad') + ' ' : ''}${esc(i.what)} <span class="dim">(${esc(i.id)})</span>`).join('<br>') : pill('Complete', 'good')}</td><td>${ob.can_edit ? `<button class="btn sm" data-act="kgOB" data-id="${esc(r.ucc)}">Record</button>` : ''}</td></tr>`);
+  return head + tbl([['Client'], ['Status'], ['What is missing'], ['']], rows, { empty: 'No client has anything missing.' });
+}
+async function kgOBModal(ucc) {
+  const v = await get(`/v1/onboarding-checks?ucc=${encodeURIComponent(ucc)}`), r = (v.rows || [])[0];
+  if (!r) throw new Error('No open client ' + ucc);
+  const x = r.record || {}, g = x.guardian || {}, vp = x.vipv || {}, k = x.karta || {}, br = x.board_resolution || {}, su = x.second_ucc || {};
+  const oo = ex => (x.opt_outs || []).find(o => o.exchange === ex) || {};
+  const tx = (id, l, val, full) => `<div class="fld ${full ? 'full' : ''}"><label for="${id}">${l}</label><input class="in" id="${id}" value="${esc(val || '')}"></div>`;
+  const dt = (id, l, val) => `<div class="fld"><label for="${id}">${l}</label><input class="in" type="date" id="${id}" value="${esc(val || '')}"></div>`;
+  const cb = (id, l, on) => `<label class="chk"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}> ${l}</label>`;
+  const sl = (id, l, opts, val) => `<div class="fld"><label for="${id}">${l}</label><select class="in" id="${id}"><option value=""></option>${opts.map(o => Array.isArray(o) ? `<option value="${esc(o[0])}" ${o[0] === val ? 'selected' : ''}>${esc(o[1])}</option>` : `<option ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
+  const cop = (x.coparceners || []).map(c => [c.name, c.relation, c.dob, c.pan].join('; ')).join('\n');
+  confirmModal(`Onboarding details · ${esc(ucc)}`, `${esc(r.name)} · ${esc(r.type)}. Fill in what applies to this client; leave the rest blank.`,
+    `<div class="form">${sl('ob-p', 'Purpose of the relationship', v.purposes, x.purpose)}${tx('ob-pn', 'In a few words (needed for Other)', x.purpose_note)}
+    <div class="fld full"><b class="small">Person with disability</b></div>${sl('ob-d', 'Disability (as CDSL records it)', Object.entries(v.disability || {}), x.disability)}${sl('ob-l', 'Liveness checked by', v.liveness, x.liveness_method)}
+    <div class="fld">${cb('ob-gs', 'A guardian signs', g.signs)} ${cb('ob-gk', 'The guardian’s own KYC is at a KRA', g.kyc_ok)}</div>${tx('ob-gn', 'Guardian’s name', g.name)}${tx('ob-gp', 'Guardian’s PAN', g.pan)}${tx('ob-gr', 'Relationship', g.relation)}
+    <div class="fld full"><b class="small">Video IPV</b> <span class="dim small">(when the IPV was by video)</span></div>${tx('ob-vo', 'Official (name, employee code)', vp.official)}${dt('ob-vt', 'Official trained in VIPV on', vp.official_trained_on)}<div class="fld"><label for="ob-va">Date and time</label><input class="in" type="datetime-local" id="ob-va" value="${esc((vp.at || '').slice(0, 16))}"></div>
+    ${tx('ob-vg', 'Location (latitude, longitude)', vp.geo)}${tx('ob-vc', 'Country of the location (2 letters)', vp.geo_country)}${tx('ob-vr', 'Where the recording is kept', vp.recording_ref)}${tx('ob-vs', 'Recording fingerprint (SHA-256)', vp.recording_sha256)}${tx('ob-vd', 'OVD the client showed', vp.ovd_shown)}${sl('ob-vl', 'Liveness checked by', v.liveness, vp.liveness_method)}${tx('ob-vst', 'Tamper-proof store', vp.storage)}
+    <div class="fld full"><label for="ob-vq">Random questions asked (one a line)</label><textarea class="in" id="ob-vq">${esc((vp.questions || []).join('\n'))}</textarea></div>
+    <div class="fld full">${cb('ob-vcn', 'Client’s informed consent recorded', vp.consent)} ${cb('ob-vpm', 'Photograph matched with Aadhaar / the OVD', vp.photo_match)} ${cb('ob-vlv', 'Liveness checked', vp.liveness)}</div>
+    <div class="fld full"><b class="small">HUF</b> <span class="dim small">(CDSL asks for the Karta and coparceners)</span></div>${tx('ob-kn', 'Karta’s name', k.name)}${tx('ob-kp', 'Karta’s PAN', k.pan)}${tx('ob-km', 'Karta’s mobile', k.mobile)}${tx('ob-ke', 'Karta’s e-mail', k.email)}
+    <div class="fld full"><label for="ob-cp">Coparceners, one a line: name; relationship code (SPO, SON, DAU…); date of birth; PAN</label><textarea class="in" id="ob-cp">${esc(cop)}</textarea></div>
+    <div class="fld full"><b class="small">Non-profit organisation</b></div>${tx('ob-dn', 'NITI Aayog DARPAN ID (XX/2026/0123456)', x.darpan_id)}${tx('ob-dr', 'Registration certificate kept (reference)', x.darpan_ref)}
+    <div class="fld full"><b class="small">Written opt-out from an exchange</b> <span class="dim small">(no UCC is sent there)</span></div>${(v.exchanges || []).map(e => dt('ob-o' + e, `${e}: opted out on`, oo(e).on) + tx('ob-od' + e, `${e}: signed letter (reference)`, oo(e).document)).join('')}
+    <div class="fld full"><b class="small">MCX</b></div>${dt('ob-bo', 'Board resolution for commodity derivatives, dated', br.on)}${tx('ob-bd', 'Board resolution kept (reference)', br.document)}${dt('ob-sm', 'Sikkim address: e-mailed MCX surveillance on', x.sikkim_mailed_on)}${tx('ob-sr', 'E-mail reference', x.sikkim_mail_ref)}
+    <div class="fld full"><b class="small">Second trading code for the PAN</b> <span class="dim small">(approved by compliance)</span></div>${tx('ob-su', 'The other code', su.other_ucc)}${tx('ob-sw', 'Why a second code is allowed', su.reason)}${dt('ob-sd', 'Approved on', su.on)}</div>`,
+    'Save', () => {
+      const val = id => ($(id)?.value || '').trim(), ck = id => !!$(id)?.checked;
+      const cops = $('ob-cp').value.split('\n').map(l => l.split(';').map(s => s.trim())).filter(a => a[0]).map(([name, relation, dob, pan]) => ({ name, relation: relation || '', dob: dob || '', pan: pan || '' }));
+      const hasV = val('ob-vo') || val('ob-va') || val('ob-vr'), outs = (v.exchanges || []).filter(e => val('ob-o' + e) || val('ob-od' + e)).map(e => ({ exchange: e, on: val('ob-o' + e), document: val('ob-od' + e) }));
+      return act(() => post(`/v1/onboarding/${encodeURIComponent(ucc)}`, { purpose: val('ob-p'), purpose_note: val('ob-pn'), disability: val('ob-d'), liveness_method: val('ob-l'),
+        guardian: { signs: ck('ob-gs'), kyc_ok: ck('ob-gk'), name: val('ob-gn'), pan: val('ob-gp'), relation: val('ob-gr') },
+        vipv: hasV ? { official: val('ob-vo'), official_trained_on: val('ob-vt'), at: val('ob-va'), geo: val('ob-vg'), geo_country: val('ob-vc'), recording_ref: val('ob-vr'), recording_sha256: val('ob-vs'), ovd_shown: val('ob-vd'), liveness_method: val('ob-vl'), storage: val('ob-vst'),
+          questions: $('ob-vq').value.split('\n').map(s => s.trim()).filter(Boolean), consent: ck('ob-vcn'), photo_match: ck('ob-vpm'), liveness: ck('ob-vlv') } : null,
+        karta: val('ob-kn') ? { name: val('ob-kn'), pan: val('ob-kp'), mobile: val('ob-km'), email: val('ob-ke') } : null, coparceners: cops,
+        darpan_id: val('ob-dn'), darpan_ref: val('ob-dr'), opt_outs: outs, board_resolution: val('ob-bo') || val('ob-bd') ? { on: val('ob-bo'), document: val('ob-bd') } : null,
+        sikkim_mailed_on: val('ob-sm'), sikkim_mail_ref: val('ob-sr'), second_ucc: val('ob-su') ? { other_ucc: val('ob-su'), reason: val('ob-sw'), on: val('ob-sd') } : null }), () => `${ucc}: onboarding details saved`);
+    });
+}
 const KG_MODE = { 'No trading': 'bad', 'Exit only': 'warn', 'Gate off': 'nt' };
 V.kycgate = {
-  load: () => get(`/v1/kyc-gate?date=${S.date}`),
+  load: async () => { const [g, ob] = await Promise.all([get(`/v1/kyc-gate?date=${S.date}`), get('/v1/onboarding-checks').catch(() => null)]); return { ...g, onboard: ob }; },
   html: d => {
     const c = d.counts || {}, dm = (d.demat || {}).counts || {};
     const gate = d.on ? '<div class="note">The gate is on. A client whose KYC the KRA has not verified (a status never loaded counts as not verified), or who is on an exchange’s KYC list, is blocked on the front ends: the block file, the limits and BOW trading rights. A client onboarded by 31 March 2024 may still close positions; everyone else, and a client the exchange made Not Permitted to Trade, cannot square off either.</div>'
@@ -167,7 +216,7 @@ V.kycgate = {
     return ph('KYC trading gate', 'Who may not trade because of the KYC, and why: the KRA status loaded on KYC &amp; PMLA, and the exchanges’ and CDSL’s monthly KYC lists loaded here. Work each list before the exchange’s date, keep the KRA upload within 3 working days, freeze demat accounts CDSL’s way, and record the onboarding of clients resident outside India.',
       d.can_load ? '<button class="btn pri" data-act="kgLoad">Load a list</button>' : '') + gate +
       `<div class="kpis">${kpi('No trading', nf(c['No trading'] || 0), 'square-off blocked too', c['No trading'] ? 'bad' : 'good')}${kpi('Exit only', nf(c['Exit only'] || 0), 'clients since before April 2024', c['Exit only'] ? 'warn' : '')}${kpi('No KRA status', nf(c['No KRA status'] || 0), 'load the KRA status file', c['No KRA status'] ? 'warn' : 'good')}${kpi('KRA uploads late', nf(c['KRA uploads late'] || 0), '3 working days', c['KRA uploads late'] ? 'bad' : 'good')}${kpi('Demat to freeze (27)', nf(dm['To freeze'] || 0), 'a holder not verified', dm['To freeze'] ? 'bad' : 'good')}${kpi('MNRL notices run out', nf(dm['Notices expired'] || 0), 'freeze under 31', dm['Notices expired'] ? 'bad' : 'good')}</div>
-      <div class="panel"><div class="hd">${segBtns('kgTab', [['clients', `Clients held back · ${(d.blocked || []).length}`], ['lists', 'Lists'], ['uploads', 'KRA uploads'], ['demat', 'Demat accounts'], ['proi', `PROI onboarding · ${(d.proi || []).length}`]], 'kg-body')}</div><div id="kg-body">${P['kg-body'](d)}</div></div>`;
+      <div class="panel"><div class="hd">${segBtns('kgTab', [['clients', `Clients held back · ${(d.blocked || []).length}`], ['lists', 'Lists'], ['uploads', 'KRA uploads'], ['demat', 'Demat accounts'], ['proi', `PROI onboarding · ${(d.proi || []).length}`], ['onboard', `Onboarding checks · ${((d.onboard || {}).rows || []).filter(r => r.issues.length).length}`]], 'kg-body')}</div><div id="kg-body">${P['kg-body'](d)}</div></div>`;
   }
 };
 const kgHold = h => `${pill(h.exchange, h.nptt_from && h.nptt_from <= S.date ? 'bad' : 'warn')} <span class="small">${esc((C.kycgate?.sources || []).find(s => s.id === h.list)?.title || h.list)} · since ${fmtDate(h.since)}${h.nptt_from ? ' · not permitted from ' + fmtDate(h.nptt_from) : ''}${h.remark ? ' · ' + esc(h.remark) : ''}</span>`;
@@ -195,6 +244,7 @@ P['kg-body'] = d => {
     return `<div class="note small">From ${fmtDate(d.proi_from)}, an NRI, OCI cardholder or foreign national is onboarded by SEBI’s PROI process: look up the KRA and CKYCRR before collecting documents, ask for the CKYC identifier, verify the PAN, take the passport (and OCI card) and a document for the overseas address, verify the e-mail by a one-time code, and do the IPV in person or by a compliant video IPV. The client is not activated until it is recorded. While the mobile is not verified, messages go to the e-mail.</div>` +
       tbl([['Client'], ['Status'], ['Opened'], ['What is missing'], ['']], (d.proi || []).map(r => `<tr><td><button class="linkish mono" data-act="client" data-id="${esc(r.ucc)}">${esc(r.ucc)}</button><div class="small">${esc(r.name)}</div>${r.email_only ? `<div class="dim small">${esc(r.email_only)}</div>` : ''}</td><td>${pill(r.status, r.status === 'Active' ? 'good' : 'acc')}</td><td class="n">${fmtDate(r.kyc_date)}${r.applies ? '' : '<div class="dim small">before the PROI rules</div>'}</td><td class="small wrap">${(r.problems || []).length ? r.problems.map(esc).join('<br>') : (r.applies ? pill('Complete', 'good') : '<span class="dim">—</span>')}</td><td>${d.can_proi ? `<button class="btn sm" data-act="kgPROI" data-id="${esc(r.ucc)}">Record</button>` : ''}</td></tr>`), { empty: 'No client resident outside India.' });
   }
+  if (t === 'onboard') return kgOnboard(d);
   const q = (UI.kgQ || '').trim().toLowerCase();
   const rows = (d.blocked || []).filter(r => !q || (r.ucc + ' ' + r.name).toLowerCase().includes(q));
   return `<div class="tools"><input class="in" data-ui="kgQ" data-part="kg-body" placeholder="Filter by client" value="${esc(UI.kgQ)}"></div>` +
@@ -227,11 +277,18 @@ Object.assign(A, {
     () => act(() => post(`/v1/kyc-gate/mnrl/${encodeURIComponent(id)}/notice`, { on: $('kg-no').value, note: $('kg-nn').value }), m => `${m.id}: notice runs to ${fmtDate(m.notice_expiry)}`)),
   kgMFreeze: id => confirmModal(`Freeze for debits (31) · ${esc(id)}`, 'The notice ran out and the mobile is still on the revocation list: a DP request to freeze the account for debits under reason 31. A checker approves it.', '', 'Raise',
     () => act(() => post(`/v1/kyc-gate/mnrl/${encodeURIComponent(id)}/freeze`, {}), r => `${r.id} raised`)),
+  kgOB: ucc => kgOBModal(ucc).catch(e => toast(e.message)),
+  kgOBFind: () => { const u = ($('kg-obu')?.value || '').trim().toUpperCase(); if (u) kgOBModal(u).catch(e => toast(e.message)); },
+  kgCtl: () => { const c = (C.kycgate?.onboard || {}).controls || {};
+    confirmModal('The firm’s own codes', 'The single ERROR account trades go to when no client can take them, and any other proprietary codes. No client code may equal them, OWN, a code beginning ERROR, or the firm’s trading member codes.',
+      `<div class="form"><div class="fld"><label for="kc-e">ERROR account</label><input class="in mono" id="kc-e" value="${esc(c.error_account || '')}"></div><div class="fld full"><label for="kc-p">Other proprietary codes (comma separated)</label><input class="in mono" id="kc-p" value="${esc((c.prop_codes || []).join(', '))}"></div></div>`, 'Save',
+      () => act(() => post('/v1/ucc-controls', { error_account: $('kc-e').value.trim(), prop_codes: $('kc-p').value.split(',').map(x => x.trim()).filter(Boolean) }), () => 'Saved')); },
   kgPROI: ucc => {
     const r = (C.kycgate?.proi || []).find(x => x.ucc === ucc) || {}, p = r.record || {}, v = p.vipv || {};
     const dt = (id, l, val) => `<div class="fld"><label for="${id}">${l}</label><input class="in" type="date" id="${id}" value="${esc(val || '')}"></div>`;
     const tx = (id, l, val, full) => `<div class="fld ${full ? 'full' : ''}"><label for="${id}">${l}</label><input class="in" id="${id}" value="${esc(val || '')}"></div>`;
     const cb = (id, l, on) => `<label class="chk"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}> ${l}</label>`;
+    const sl = (id, l, opts, val) => `<div class="fld"><label for="${id}">${l}</label><select class="in" id="${id}"><option value=""></option>${opts.map(x => `<option ${x === val ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>`;
     confirmModal(`PROI onboarding · ${esc(ucc)}`, 'What was done for this client resident outside India. Masked numbers are kept as recorded unless typed again.',
       `<div class="form"><div class="fld"><label for="kp-cat">Category</label><select class="in" id="kp-cat">${['NRI', 'OCI', 'Foreign national'].map(x => `<option ${x === p.category ? 'selected' : ''}>${x}</option>`).join('')}</select></div>${tx('kp-cty', 'Country of residence (2 letters)', p.country)}
       ${dt('kp-kra', 'KRA looked up on', p.kra_lookup_on)}${dt('kp-ck', 'CKYCRR looked up on', p.ckyc_lookup_on)}${tx('kp-ckg', 'CKYC identifier given (14 digits, or None)', p.ckyc_given)}${dt('kp-docs', 'Documents collected on', p.docs_on)}${dt('kp-pan', 'PAN verified with the Income Tax database on', p.pan_verified_on)}
@@ -240,6 +297,12 @@ Object.assign(A, {
       <div class="fld"><label for="kp-ipv">In-person verification</label><select class="in" id="kp-ipv"><option value=""></option>${['Physical', 'Video (VIPV)'].map(x => `<option ${x === p.ipv ? 'selected' : ''}>${x}</option>`).join('')}</select></div>${tx('kp-off', 'Official (name, employee code)', p.ipv_official)}<div class="fld"><label for="kp-at">Date and time</label><input class="in" type="datetime-local" id="kp-at" value="${esc((p.ipv_at || '').slice(0, 16))}"></div>
       <div class="fld full"><b class="small">Video IPV</b><div>${cb('kv-con', 'Consent recorded', v.consent)} ${cb('kv-ra', 'Random actions', v.random_actions)} ${cb('kv-vpn', 'VPN / proxy blocked', v.vpn_blocked)} ${cb('kv-fatf', 'FATF-compliant country', v.fatf_compliant)} ${cb('kv-live', 'Liveness', v.liveness)} ${cb('kv-face', 'Face match with the OVD', v.face_match)} ${cb('kv-enc', 'End-to-end encrypted', v.encrypted)} ${cb('kv-offp', 'Authorised official present', v.official_present)}</div></div>
       ${tx('kv-geo', 'Live GPS geo-tag', v.geo_tag)}${tx('kv-ip', 'Client IP country (2 letters)', v.ip_country)}${tx('kv-aud', 'Concurrent audit by', v.audited_by)}${dt('kv-audon', 'Audited on', v.audited_on)}
+      ${dt('kv-trn', 'Official trained in VIPV on', v.official_trained_on)}${tx('kv-ovd', 'OVD the client showed', v.ovd_shown)}${tx('kv-rec', 'Where the recording is kept', v.recording_ref)}${tx('kv-sha', 'Recording fingerprint (SHA-256)', v.recording_sha256)}
+      <div class="fld full"><label for="kv-q">Random questions asked (one a line)</label><textarea class="in" id="kv-q">${esc((v.questions || []).join('\n'))}</textarea></div>
+      <div class="fld full"><b class="small">Documents (from 3 Dec 2026)</b></div>
+      ${sl('kp-ex', 'KRA/CKYCRR record: what more was collected', PROI_EXTRA, p.extra)}${sl('kp-form', 'KYC form', PROI_FORMS, p.form)}<div class="fld">${cb('kp-wet', 'Wet signature shown in the VIPV matches (digital form)', p.wet_sign_match)}</div>
+      ${tx('kp-ppc', 'Passport copy kept (reference)', p.passport_copy)}${tx('kp-ppk', 'Passport verified (or why not feasible)', p.passport_check)}${tx('kp-poi', 'Proof of identity (OVD)', p.poi)}${tx('kp-poa', 'Proof of address (OVD)', p.poa)}
+      ${tx('kp-adc', 'How the overseas address was verified', p.address_check, true)}${sl('kp-osv', 'How the copies were verified', PROI_OSV, p.osv)}
       <div class="fld"><label for="kp-tr">Translations of documents not in English</label><select class="in" id="kp-tr"><option value=""></option>${['Not needed', 'Attested translations taken'].map(x => `<option ${x === p.translations ? 'selected' : ''}>${x}</option>`).join('')}</select></div></div>`,
       'Save', () => {
         const ck = id => $(id).checked, val = id => $(id).value.trim();
@@ -247,8 +310,10 @@ Object.assign(A, {
         return act(() => post(`/v1/proi/${encodeURIComponent(ucc)}`, { category: val('kp-cat'), country: val('kp-cty'), kra_lookup_on: val('kp-kra'), ckyc_lookup_on: val('kp-ck'), ckyc_given: val('kp-ckg'), docs_on: val('kp-docs'), pan_verified_on: val('kp-pan'),
           passport_no: val('kp-pp'), passport_expiry: val('kp-ppx'), oci_card: val('kp-oci'), overseas_address: val('kp-addr'), overseas_ovd: val('kp-ovd'), email_verified: ck('kp-ev'), mobile_verified: ck('kp-mv'),
           ipv, ipv_official: val('kp-off'), ipv_at: val('kp-at'), translations: val('kp-tr'),
+          extra: val('kp-ex'), form: val('kp-form'), wet_sign_match: ck('kp-wet'), passport_copy: val('kp-ppc'), passport_check: val('kp-ppk'), poi: val('kp-poi'), poa: val('kp-poa'), address_check: val('kp-adc'), osv: val('kp-osv'),
           vipv: ipv === 'Video (VIPV)' ? { consent: ck('kv-con'), random_actions: ck('kv-ra'), vpn_blocked: ck('kv-vpn'), fatf_compliant: ck('kv-fatf'), liveness: ck('kv-live'), face_match: ck('kv-face'), encrypted: ck('kv-enc'), official_present: ck('kv-offp'),
-            geo_tag: val('kv-geo'), ip_country: val('kv-ip').toUpperCase(), audited_by: val('kv-aud'), audited_on: val('kv-audon') } : null }), c => `${c.ucc}: PROI record saved`);
+            geo_tag: val('kv-geo'), ip_country: val('kv-ip').toUpperCase(), audited_by: val('kv-aud'), audited_on: val('kv-audon'),
+            official_trained_on: val('kv-trn'), ovd_shown: val('kv-ovd'), recording_ref: val('kv-rec'), recording_sha256: val('kv-sha'), questions: $('kv-q').value.split('\n').map(x => x.trim()).filter(Boolean) } : null }), c => `${c.ucc}: PROI record saved`);
       });
   },
 });

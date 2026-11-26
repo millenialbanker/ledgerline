@@ -398,9 +398,23 @@ func TestSelfInspectTests(t *testing.T) {
 		siClock(o, siAt("2026-10-23", "23:00"))
 		siWant(t, siOne(t, o, ctx, "weekly_statement", D), SISkipped, "the first week is not yet due")
 		s := siOne(t, o, ctx, "weekly_statement", "2026-10-23")
-		siWant(t, s, SIFail, "the week to the 16th not sent")
+		siWant(t, s, SIFail, "the week to the 17th not sent")
 		c := siTrader(t, o, ctx)
-		siPut(t, o, ctx, cDispatch, "DSP-T1", Dispatch{ID: "DSP-T1", Kind: DocFundsSec, Ref: "2026-10-10 to 2026-10-16", Date: "2026-10-16", UCC: c.UCC, Status: "Sent"})
+		siPut(t, o, ctx, cDispatch, "DSP-T1", Dispatch{ID: "DSP-T1", Kind: DocFundsSec, Ref: "2026-10-12 to 2026-10-17", Date: "2026-10-17", UCC: c.UCC, Status: "Sent"})
+		cs, _ := o.Clients(ctx, T)
+		missed := 0
+		for _, x := range cs {
+			if x.Status == "Active" && fsRecentTrader(x, "2026-10-17") && x.UCC != c.UCC {
+				missed++
+			}
+		}
+		if missed > 0 {
+			// Every active client gets the statement, a zero balance too.
+			siWant(t, siOne(t, o, ctx, "weekly_statement", "2026-10-23"), SIFail, "active clients not sent")
+			for i, x := range cs {
+				siPut(t, o, ctx, cDispatch, fmt.Sprintf("DSP-T%d", i+2), Dispatch{ID: fmt.Sprintf("DSP-T%d", i+2), Kind: DocFundsSec, Ref: "2026-10-12 to 2026-10-17", Date: "2026-10-17", UCC: x.UCC, Status: "Sent"})
+			}
+		}
 		siWant(t, siOne(t, o, ctx, "weekly_statement", "2026-10-23"), SIPass, "sent")
 	})
 	t.Run("debarred_trades", func(t *testing.T) {
