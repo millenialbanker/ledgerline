@@ -119,8 +119,8 @@ func DefaultTemplates() []Template {
 		t("debit.reminder", ChEmail, "Service", "Debit balance in your account", "Dear {name},\n\nYour trading account {ucc} has a debit balance of ₹{debit}, outstanding for {days} days. Interest is charged on overdue debits and buying is blocked after the firm's limit. Please pay at the earliest.\n\n{firm}", ""),
 		t("legacy_debt.reminder", ChEmail, "Service", "Old balance due in your account {ucc}", "Dear {name},\n\nOur records show ₹{debit} due from you in trading account {ucc}, outstanding since {since}. Please pay it to the firm's client bank account, or reply to this email if you believe the amount is not correct, so that we can check it with you. Once it is cleared your account can be used again.\n\n{firm}", ""),
 		t("rekyc.due", ChEmail, "Service", "Please update your KYC", "Dear {name},\n\nUnder the KYC rules your details are due for periodic updation on {due}. Sign in to the client portal or reply to this email to confirm or update them.\n\n{firm}", ""),
-		t("ticket.opened", ChEmail, "Service", "We have received your request {id}", "Dear {name},\n\nWe have registered your request {id}: {subject}. We will respond by {due}. You can follow it in the client portal under Help desk.\n\n{firm}", ""),
-		t("ticket.reply", ChEmail, "Service", "Update on {id}", "Dear {name},\n\nThere is a reply on your request {id} ({subject}). Status: {status}. Please see the Help desk in the client portal.\n\n{firm}", ""),
+		t("ticket.opened", ChEmail, "Service", "We have received your request {id}", "Dear {name},\n\nWe have registered your request {id}: {subject}. Please quote the ticket number {id} in any message about it. We will respond by {due}. You can follow it in the client portal under Help desk.\n\nIf you need to escalate, write to these in turn:\n{escalation}\n\n{odr}\n\n{firm}", ""),
+		t("ticket.reply", ChEmail, "Service", "Update on {id}", "Dear {name},\n\nThere is a reply on your request {id} ({subject}). Status: {status}. Please see the Help desk in the client portal.\n\n{odr}\n\n{firm}", ""),
 		t("change.approved", ChEmail, "Service", "Your {kind} has been updated", "Dear {name},\n\nYour request {id} to change your {kind} has been approved and is now in effect.\n\n{firm}", ""),
 		t("change.rejected", ChEmail, "Service", "Your change request {id}", "Dear {name},\n\nWe could not process your request {id} to change your {kind}: {reason}.\n\n{firm}", ""),
 		t("portal.granted", ChEmail, "Service", "Your client portal login", "Dear {name},\n\nYour client portal user ID is {user}. Your one-time password is being sent separately by SMS.\n\n{firm}", ""),
@@ -165,6 +165,11 @@ func DefaultTemplates() []Template {
 //     point 5): a notice before an account is flagged inactive must not ask
 //     the client to trade to keep it active.
 var retiredTemplateBodies = map[string][]string{
+	// Complaint acknowledgements quote the ticket number and the
+	// escalation matrix, and replies the SCORES and ODR route
+	// (clientnotices.go).
+	"ticket.opened|" + ChEmail:      {"Dear {name},\n\nWe have registered your request {id}: {subject}. We will respond by {due}. You can follow it in the client portal under Help desk.\n\n{firm}"},
+	"ticket.reply|" + ChEmail:       {"Dear {name},\n\nThere is a reply on your request {id} ({subject}). Status: {status}. Please see the Help desk in the client portal.\n\n{firm}"},
 	"insight.dormant|" + ChEmail:    {"Dear {name},\n\nThere has been no activity in your trading account {ucc} since {last}. Under the stock exchanges' rules it will be marked inactive on {date}, after which you cannot trade until it is reactivated with a fresh verification.\n\nAny trade or an update of your KYC details keeps it active. If you no longer need the account, you can ask us to close it.\n\n{firm}"},
 	"insight.dormant|" + ChWhatsApp: {"{name}, there has been no activity in your trading account {ucc} since {last}. Under exchange rules it will be marked inactive on {date}. Any trade or a KYC update keeps it active."},
 }

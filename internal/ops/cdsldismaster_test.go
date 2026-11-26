@@ -92,7 +92,7 @@ func TestCDSLDISMasterByAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b2, _ := o.IssueDISBook(ctx, T, "priya.nair", c.UCC, 5)
+	b2 := nextTestBook(t, o, ctx, c.UCC, 5)
 	accept, reject = b1.ID, b2.ID
 	today := o.now().Format("2006-01-02")
 
@@ -155,7 +155,7 @@ func TestCDSLDISMasterByAPI(t *testing.T) {
 	}
 
 	// A file CDSL does not process: the books go again with the next run.
-	b3, _ := o.IssueDISBook(ctx, T, "priya.nair", c.UCC, 3)
+	b3 := nextTestBook(t, o, ctx, c.UCC, 3)
 	status = "Failed"
 	u3, err := o.SendDISMasterByAPI(ctx, T, "priya.nair", today)
 	if err != nil || len(u3.Books) != 1 || u3.Books[0] != b3.ID {

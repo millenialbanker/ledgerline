@@ -840,6 +840,9 @@ func (o *Ops) submitApplication(ctx context.Context, tenant string, a Applicatio
 		o.log(ctx, tenant, actor, "eapply.submit_failed", a.ID, map[string]any{"error": err.Error()})
 		return a, nil, err
 	}
+	// The nomination (or opt-out) made in the application is entered in
+	// the register of nominations and acknowledged (clientnotices.go).
+	_, _ = o.registerNomination(ctx, tenant, actor, nc, "", "online application "+a.ID)
 	for _, d := range a.Docs {
 		n, err := o.next(ctx, tenant, "clientdoc", actor)
 		if err != nil {

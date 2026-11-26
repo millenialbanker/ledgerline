@@ -1085,6 +1085,51 @@
    "changed": "Calendar says Weekly / end of week. The circular has no weekly review: content must be current at all times and only a URL change has a deadline (3 days). In force since 16 Aug 2023."
   },
   {
+   "id": "CC-T-GTT-CORPACTION",
+   "group": "Trading",
+   "title": "Tell clients with open GTC/GTT orders about a corporate action before its ex-date",
+   "frequency": "On event",
+   "due_text": "Where GTC/GTT orders are offered: tell each client with such an order open in a security no later than one day before the ex-date of a corporate action in it, as the firm's GTC/GTT policy says; the policy is in the account opening kit (signed by clients onboarded from 1 Dec 2024) and on the website and app.",
+   "rule": "EVENT",
+   "applies": [
+    "broker"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "Kept by the firm (intimations to clients)",
+   "evidence": "The GTC/GTT policy and its version in the account opening kit; the list of open GTC/GTT orders before each ex-date and the messages sent to those clients",
+   "refs": [
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/73976",
+     "title": "Master Circular - Inspection Department",
+     "says": "Item 4.30: a member offering GTC/GTT orders has a policy on their validity and their handling on corporate actions, intimates clients no later than a day before the ex-date, puts the policy in the account opening kit for clients onboarded from 1 Dec 2024 and on the website and mobile app."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "detail": "Nothing is filed. GTC/GTT orders live in the trading front end (the OMS), not the back office."
+   },
+   "event_within": "0",
+   "steps": [
+    "Keep a GTC/GTT policy: validity, what happens to open orders on a corporate action, and how clients are told.",
+    "Put it in the account opening kit and on the website and mobile app.",
+    "For each corporate action, take the list of open GTC/GTT orders in that security from the front end and message those clients no later than a day before the ex-date.",
+    "Keep the list and the messages."
+   ],
+   "steps_from": "NSE/INSP/73976 item 4.30 as summarised in the compliance gap report (the item's full text was not at hand)",
+   "practice": [
+    "Ask the front-end vendor (for example Finspot/Noren) for a daily report of open GTT orders, or for its own corporate-action notice to clients.",
+    "Ledgerline's Corporate actions screen lists the coming ex-dates: use it to know when to check."
+   ],
+   "changed": "New duty from the November 2026 gap review. Ledgerline does not hold GTC/GTT orders (they are in the OMS), so it cannot send the notice itself; this duty records the firm's part.",
+   "ledgerline": {
+    "screen": "corp",
+    "screen_name": "Settlement → Corporate actions",
+    "what": "Ledgerline lists the coming corporate actions and ex-dates; the open GTC/GTT orders are in the trading front end, which sends or gives the list for the notice."
+   }
+  },
+  {
    "id": "CC-T-ONLINE-FACILITY-NOTICE",
    "group": "Trading",
    "title": "Tell clients about the online account opening, online closure and online re-KYC facilities",

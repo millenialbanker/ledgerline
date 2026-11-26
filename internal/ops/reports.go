@@ -78,6 +78,7 @@ func reportDefs() []ReportDef {
 		{"ledger_balances", "Client ledger balances with days in debit", "Inspection", "On demand", "—", "CSV", nil},
 		{"no_ras_auth", "Clients without a running account authorisation", "Inspection", "On demand", "—", "CSV", nil},
 		{"nomination", "Nomination status (nominees or opt-out declaration)", "Inspection / compliance", "On demand", "—", "CSV", nil},
+		{"nomination_register", "Register of nominations (serially numbered)", "Inspection (CDSL operating instructions 3.4.2.1)", "On demand", "—", "CSV", nil},
 		{"segment_status", "Client status in each segment, with the latest change", "Inspection", "On demand", "—", "CSV", nil},
 		{"kyc_registry", "KRA, CKYC and periodic KYC status", "Inspection / compliance", "On demand", "—", "CSV", nil},
 	}
@@ -328,6 +329,8 @@ func (o *Ops) ReportRows(ctx context.Context, tenant, date, code string) ([][]st
 			rows = append(rows, []string{u, c.Name, c.NominationState(), fmt.Sprint(len(c.Nominees)), c.NominationOn, c.NominationMode, strings.Join(det, "; ")})
 		}
 		return rows, nil
+	case "nomination_register":
+		return o.nominationRegisterRows(ctx, tenant), nil
 	case "segment_status":
 		rows := [][]string{{"UCC", "Name", "CM", "FO", "CD", "COM", "LastChange", "LastChangeOn", "Reason"}}
 		for _, u := range sortedKeys(trading) {
