@@ -283,6 +283,9 @@ type boSetupIn struct {
 	// record re-opens the account with the second holder first (§ name
 	// deletion of CDSL/OPS/SYSTM/2023/404).
 	DeleteFirst string
+	// X is the client's onboarding record (onboardx.go): the disability,
+	// an NPO's DARPAN ID, an HUF's Karta and coparceners.
+	X ClientOnboarding
 }
 
 // boSetupRecord builds a BO setup record and says what is missing.
@@ -406,7 +409,7 @@ func boSetupRecord(in boSetupIn) ([]boLine, []string, []string) {
 	bsda := map[bool]string{true: "Y", false: "N"}[in.BO.BSDA]
 	l5 := map[string]string{"internal_ref": c.UCC, "dob": boDate(c.DOB), "sex": map[string]string{"Male": "M", "Female": "F", "M": "M", "F": "F"}[gender],
 		"income": income, "nom_opt_out": nomOut, "bonafide": map[bool]string{true: "A", false: "P"}[in.App != nil], "bsda": bsda, "mode_op": mode, "comm_pref": comm,
-		"ifsc": c.Bank.IFSC, "bank_acct": c.Bank.Account, "mental": "N"}
+		"ifsc": c.Bank.IFSC, "bank_acct": c.Bank.Account, "mental": map[bool]string{true: "Y", false: "N"}[in.X.Disability == "MDP"]}
 	for k, def := range map[string]string{"occupation": "occupation", "geo": "geo", "education": "education", "nationality": "nationality_code", "language": "language",
 		"staff": "staff", "staff_code": "staff_code", "family": "family", "email_stmt": "email_statement_flag", "cas_mode": "cas_mode", "annual_report": "annual_report",
 		"bo_category": "bo_category", "settlement_flag": "bo_settlement_planning_flag", "sub_status": "bo_sub_status", "stmt_cycle": "bo_statement_cycle_code",
@@ -422,7 +425,21 @@ func boSetupRecord(in boSetupIn) ([]boLine, []string, []string) {
 	if l5["email_stmt"] == "Y" && h1.email == "" {
 		probs = append(probs, "Account: statements by email need the first holder's email")
 	}
-	rec = append(rec, boLine{Layout: "s05", No: 5, Who: "Account", V: l5})
+	// The harmonised upload carries the disability value itself (CDSL
+	// DP2026-461: MDP, OTH or NO) and an NPO's NITI Aayog DARPAN ID
+	// (CDSL/OPS/DP/POLCY/2026/470); the fixed-width file has no place for
+	// either beyond the mental-disability flag.
+	h5 := map[string]string{}
+	if in.X.Disability != "" {
+		h5["MntlDsblty"] = in.X.Disability
+	}
+	if in.X.DarpanID != "" {
+		h5["DrpanId"] = in.X.DarpanID
+	}
+	if isNPO(d) && in.X.DarpanID == "" {
+		probs = append(probs, "Account: a non-profit organisation's account needs its NITI Aayog DARPAN ID (CDSL/OPS/DP/POLCY/2026/470); record it on KYC trading gate → Onboarding checks")
+	}
+	rec = append(rec, boLine{Layout: "s05", No: 5, Who: "Account", V: l5, H: h5})
 
 	// Line 06: DDPI and other POA links.
 	if in.BO.DDPI {
@@ -527,6 +544,34 @@ func boSetupRecord(in boSetupIn) ([]boLine, []string, []string) {
 		}
 		if as == 0 {
 			probs = append(probs, "Authorised signatory: a non-individual account needs at least one (add the contacts on the client's UCC details)")
+		}
+	}
+	// An HUF's Karta and coparceners (CDSL DP2026-218, DP2026-253): lines
+	// of the harmonised upload only (purposes KR and CP); the fixed-width
+	// file has no line for them.
+	if c.Type == "HUF" {
+		if in.X.Karta == nil || len(in.X.Coparceners) == 0 {
+			warns = append(warns, "HUF: the Karta and coparceners are not recorded (KYC trading gate → Onboarding checks); CDSL asks for them on new and existing HUF accounts")
+		}
+		hp := func(p OnboardPerson, purpose, who string) {
+			f, m, l := boName(p.Name)
+			h := map[string]string{"Purpse": purpose, "FrstNm": f, "MddlNm": m, "LastNm": l, "PAN": p.PAN, "BirthDt": p.DOB, "MobNb": p.Mobile, "EmailAdr": p.Email}
+			if p.Relation != "" {
+				h["RltshWthBnfclOwnr"] = p.Relation
+			}
+			if purpose == "KR" {
+				h["Rmk"] = "Karta"
+			}
+			if p.Mobile != "" {
+				h["PrmryISDCd"] = "91"
+			}
+			rec = append(rec, boLine{Layout: boHarmonisedOnly, Who: who, V: map[string]string{}, H: h})
+		}
+		if in.X.Karta != nil {
+			hp(*in.X.Karta, "KR", "Karta")
+		}
+		for i, p := range in.X.Coparceners {
+			hp(p, "CP", fmt.Sprintf("Coparcener %d", i+1))
 		}
 	}
 	if d.PMS != nil {
@@ -649,7 +694,7 @@ func (o *Ops) cdslSetupFile(ctx context.Context, tenant, actor string, x cdslCon
 			return "", nil, nil, nil, invalid("client %s not found", ucc)
 		}
 		in := boSetupIn{C: c, App: o.cdslAppFor(ctx, tenant, c.UCC), U: o.UCCDetailsFor(ctx, tenant, c.UCC), D: o.CDSLBODetailFor(ctx, tenant, c.UCC), Def: def, F: f, BO: o.bo(ctx, tenant, c),
-			Serial: i + 1, Received: o.now(), Members: set.MemberCodes, DDPIID: cfg.DDPIPOAID, Sig: o.cdslSignature(ctx, tenant, c.UCC) != nil, DeleteFirst: deleteFirst}
+			Serial: i + 1, Received: o.now(), Members: set.MemberCodes, DDPIID: cfg.DDPIPOAID, Sig: o.cdslSignature(ctx, tenant, c.UCC) != nil, DeleteFirst: deleteFirst, X: o.OnboardingFor(ctx, tenant, c.UCC)}
 		rec, p, w := boSetupRecord(in)
 		for _, s := range p {
 			probs = append(probs, prefixUCC(len(uccs), c.UCC, s))
@@ -667,6 +712,14 @@ func (o *Ops) cdslSetupFile(ctx context.Context, tenant, actor string, x cdslCon
 	}
 	if o.cdslBOUploadFormat(ctx, tenant) == cdslFmtCSV { // the harmonised CSV (cdslharmon.go)
 		return o.cdslWriteBOCSV(ctx, tenant, actor, x, file, false, warns)
+	}
+	for i, rec := range file.Records {
+		for _, l := range rec {
+			if l.Layout == boHarmonisedOnly {
+				warns = append(warns, prefixUCC(len(uccs), uccs[i], "HUF: the fixed-width BO file has no line for the Karta and coparceners; give them on CDSL's system, or switch the BO upload format to the harmonised CSV in the BO defaults"))
+				break
+			}
+		}
 	}
 	b, p := file.Bytes()
 	if len(p) > 0 {

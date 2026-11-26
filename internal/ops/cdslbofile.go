@@ -49,6 +49,11 @@ type boLine struct {
 	H map[string]string
 }
 
+// boHarmonisedOnly is the layout of a line only the harmonised upload
+// carries (an HUF's Karta and coparceners): its values are in H, by ISO
+// tag, and the fixed-width file leaves it out.
+const boHarmonisedOnly = "h"
+
 // boFile is a whole upload file.
 type boFile struct {
 	Prefix   string // 08 setup, 11 modify, 06 signature, 13 closure
@@ -154,6 +159,9 @@ func (f boFile) Bytes() ([]byte, []string) {
 	}
 	for _, rec := range f.Records {
 		for _, l := range rec {
+			if l.Layout == boHarmonisedOnly {
+				continue // a line of the harmonised upload only
+			}
 			s, p := boFormat(l, modify)
 			probs = append(probs, p...)
 			b.WriteString(s + boEOL)

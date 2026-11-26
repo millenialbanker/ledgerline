@@ -29,6 +29,7 @@ Approving a move between MCX and equity | Ops checker, Risk manager
 Approving a new phone for attendance | HR manager
 Approving a receipt | Ops checker
 Approving a restore | Compliance officer
+Approving a second trading code | Compliance officer
 Approving a transfer between the firm's bank accounts | Ops checker
 Approving allocation | Ops checker, Risk manager
 Approving an account move | Ops checker
@@ -338,6 +339,7 @@ Recording a bounce | Ops maker, Ops checker, Admin
 Recording a client's consent | Ops maker, Ops checker, Branch staff
 Recording a deceased client's steps | Ops maker, Ops checker, Compliance officer
 Recording a leaver | HR manager
+Recording a lock-in | Ops maker, Ops checker, Risk manager
 Recording a physical dispatch | Ops maker, Ops checker, Admin
 Recording a receipt | Ops maker, Ops checker, Branch staff
 Recording a returned document | Ops maker, Ops checker, Admin
@@ -359,6 +361,7 @@ Recording clients' UPI IDs | Ops maker, Ops checker, Branch staff, Authorised pe
 Recording complaints | Ops maker, Ops checker, Compliance officer, Branch staff, Authorised person
 Recording enhanced due diligence | Compliance officer
 Recording impersonation cases | Ops maker, Ops checker, Compliance officer
+Recording onboarding details | Ops maker, Ops checker, Compliance officer
 Recording pledge undertakings | Ops maker, Ops checker, Risk manager, Compliance officer
 Recording re-KYC | Ops maker, Ops checker, Compliance officer
 Recording recovery of a legacy debt | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -369,9 +372,11 @@ Recording staff checks | Compliance officer, HR manager
 Recording the AP client count reconciliation | Ops maker, Ops checker, Compliance officer
 Recording the AP client reporting upload | Ops maker, Ops checker, Compliance officer
 Recording the BSDA choice | Ops maker, Ops checker
+Recording the ENIT reason code | Ops checker, Compliance officer
 Recording the UCC-wise settlement report as filed | Ops checker, Compliance officer
 Recording the board's approval of designated persons | Compliance officer
 Recording the call to the holder | Ops maker, Ops checker
+Recording the depository's pledge charges | Ops checker
 Recording the funds pay-out | Ops checker, Risk manager
 Recording the holding statement sent to BSE | Ops maker, Ops checker, Compliance officer
 Recording the policy on unpaid securities | Compliance officer
@@ -462,6 +467,7 @@ Sending documents | Ops maker, Ops checker
 Sending early pay-ins | Ops checker
 Sending legacy debt reminders | Ops maker, Ops checker, Risk manager, Compliance officer
 Sending payouts to the bank | Ops maker, Ops checker
+Sending pledge set-up letters | Ops maker, Ops checker, Risk manager
 Sending salary to the bank | HR manager, Payroll
 Sending statements | Ops maker, Ops checker
 Sending stock SIP orders to the OMS | Ops maker, Ops checker, Risk manager
@@ -479,6 +485,7 @@ Setting the DP controls | Compliance officer
 Setting the USB token signer's certificate | Admin
 Setting the deployment for exchange disclosures | Compliance officer
 Setting the firm's default dashboard | Admin
+Setting the firm's proprietary codes | Compliance officer
 Setting the firm's screen layout | Admin
 Setting the signing certificate | Admin
 Setting the signing service | Admin
@@ -537,6 +544,7 @@ Viewing RFQ deals | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing an issue's demand | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing archives | Compliance officer
 Viewing backups | Ops checker, Compliance officer
+Viewing client code modifications | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing clients BSE does not permit to trade | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing clients' trading freeze requests | Ops maker, Ops checker, Risk manager, Compliance officer, Branch staff
 Viewing connections | Compliance officer, Admin
@@ -551,8 +559,10 @@ Viewing firm securities | Ops maker, Ops checker, Risk manager, Compliance offic
 Viewing inspection packs | Compliance officer
 Viewing margin penalty evidence | Ops checker, Risk manager, Compliance officer
 Viewing nominations | Ops maker, Ops checker, Compliance officer
+Viewing onboarding checks | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing order-to-trade ratios | Risk manager, Compliance officer
 Viewing payouts | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing pledge controls | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing revoked mobile numbers | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing sanctions screening | Compliance officer
 Viewing segment status | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -564,6 +574,7 @@ Viewing the IPO consent log | Ops maker, Ops checker, Compliance officer, Branch
 Viewing the KYC trading gate | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the UCC-wise settlement reports | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the client money reconciliation | Ops maker, Ops checker, Risk manager, Compliance officer
+Viewing the collateral register | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the compliance calendar | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 Viewing the firm profile | Compliance officer

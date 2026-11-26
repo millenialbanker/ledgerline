@@ -893,6 +893,9 @@ func (o *Ops) EnterDIS(ctx context.Context, tenant, actor string, d DIS) (DIS, e
 	if !ledger.ValidDate(d.ExecDate) || d.ExecDate < d.Received {
 		return d, invalid("execution date must be on or after the date the slip was received")
 	}
+	if why := o.idtHolidayWhy(ctx, tenant, d); why != "" {
+		return d, invalid("%s", why)
+	}
 	if len(d.Lines) == 0 || len(d.Lines) > 5 {
 		return d, invalid("a slip carries 1 to 5 ISINs")
 	}

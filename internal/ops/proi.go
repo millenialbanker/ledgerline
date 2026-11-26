@@ -51,6 +51,25 @@ var PROICategories = []string{"NRI", "OCI", "Foreign national"}
 // PROIIPVModes are the ways the in-person verification is done.
 var PROIIPVModes = []string{"Physical", "Video (VIPV)"}
 
+// PROIExtra says, where the KRA or the CKYCRR already has the client's KYC,
+// why more was collected (para 5.2 read with the 2026 circular's review of
+// the KYC process: additional details only where the record changed, is
+// incomplete or not compliant, the OVD's validity lapsed, or verification
+// is considered necessary), or that the full KYC was collected because no
+// record exists.
+var PROIExtra = []string{"Nothing more: the KRA/CKYCRR record is complete", "Details changed", "Record incomplete or not compliant", "OVD validity lapsed", "Verification considered necessary", "No record: full KYC collected"}
+
+// PROIForms are how the KYC form came in: the CERSAI individual template,
+// physical, e-signed scan or digital form (para 5.3). A digital form needs
+// a wet signature shown during the VIPV and matched.
+var PROIForms = []string{"CERSAI template (physical)", "CERSAI template (e-signed scan)", "CERSAI template (digital form)"}
+
+// PROIOSV are the ways the copies were verified (para 5.4): originals seen
+// and verified, or the alternatives the circular allows when the client
+// cannot produce them. The certifying persons are as the gap report reads
+// the circular (to confirm against its para 5.4).
+var PROIOSV = []string{"Originals seen and verified", "DigiLocker or issuer e-document", "Aadhaar e-KYC", "Copy certified by a notary", "Copy certified by an overseas bank official", "Copy certified by an Indian embassy or consulate", "Copy certified by a court magistrate or judge"}
+
 // PROIKYC is a PROI client's onboarding record.
 type PROIKYC struct {
 	Category string `json:"category"` // NRI, OCI, Foreign national
@@ -62,6 +81,24 @@ type PROIKYC struct {
 	CKYCGiven     string `json:"ckyc_given,omitempty"`
 	DocsOn        string `json:"docs_on,omitempty"`
 	PANVerifiedOn string `json:"pan_verified_on,omitempty"`
+	// Extra is why more than the KRA/CKYCRR record was collected (PROIExtra).
+	Extra string `json:"extra,omitempty"`
+	// Form is how the KYC form came in (PROIForms); WetSignMatch: the wet
+	// signature shown during the VIPV matched the form (digital form).
+	Form         string `json:"form,omitempty"`
+	WetSignMatch bool   `json:"wet_sign_match,omitempty"`
+	// PoI and PoA are the OVDs (or deemed OVDs) taken as proof of identity
+	// and of address; AddressCheck how the overseas address was verified;
+	// OSV how the copies were verified (PROIOSV).
+	PoI          string `json:"poi,omitempty"`
+	PoA          string `json:"poa,omitempty"`
+	AddressCheck string `json:"address_check,omitempty"`
+	OSV          string `json:"osv,omitempty"`
+	// PassportCopy is the passport copy kept (and the OCI card's);
+	// PassportCheck whether the passport was verified ("Verified", or why
+	// it was not feasible).
+	PassportCopy  string `json:"passport_copy,omitempty"`
+	PassportCheck string `json:"passport_check,omitempty"`
 	// Passport (and OCI card), and the overseas address with its OVD.
 	PassportNo      string `json:"passport_no,omitempty"`
 	PassportExpiry  string `json:"passport_expiry,omitempty"`
@@ -97,6 +134,14 @@ type PROIVIPV struct {
 	OfficialPresent bool   `json:"official_present"`
 	AuditedBy       string `json:"audited_by,omitempty"` // concurrent audit
 	AuditedOn       string `json:"audited_on,omitempty"`
+	// The VIPV conditions of the KYC master circular that apply to every
+	// VIPV (onboardx.go): the official's training, the live recording kept
+	// with its fingerprint, the random questions, the OVD shown.
+	OfficialTrainedOn string   `json:"official_trained_on,omitempty"`
+	RecordingRef      string   `json:"recording_ref,omitempty"`
+	RecordingSHA256   string   `json:"recording_sha256,omitempty"`
+	Questions         []string `json:"questions,omitempty"`
+	OVDShown          string   `json:"ovd_shown,omitempty"`
 }
 
 var (
@@ -178,7 +223,9 @@ func proiProblems(c Client, today string) []string {
 		}{{v.Consent, "consent"}, {v.RandomActions, "random actions"}, {strings.TrimSpace(v.GeoTag) != "", "live GPS geo-tag"}, {v.VPNBlocked, "VPN/proxy blocked"},
 			{v.IPCountry == "IN" || v.IPCountry == p.Country, "IP from India or the KYC country"}, {v.FATFCompliant, "FATF-compliant country"},
 			{v.Liveness, "liveness check"}, {v.FaceMatch, "face match with the OVD"}, {v.Encrypted, "end-to-end encryption"}, {v.OfficialPresent, "authorised official present"},
-			{strings.TrimSpace(v.AuditedBy) != "" && validDate(v.AuditedOn), "concurrent audit"}} {
+			{strings.TrimSpace(v.AuditedBy) != "" && validDate(v.AuditedOn), "concurrent audit"},
+			{validDate(v.OfficialTrainedOn), "the official's VIPV training"}, {strings.TrimSpace(v.RecordingRef) != "" && reSHA256.MatchString(v.RecordingSHA256), "the recording's reference and fingerprint"},
+			{len(v.Questions) > 0, "the random questions asked"}, {strings.TrimSpace(v.OVDShown) != "", "the OVD shown"}} {
 			if !x.ok {
 				miss = append(miss, x.name)
 			}
@@ -194,6 +241,28 @@ func proiProblems(c Client, today string) []string {
 	}
 	if p.Translations == "" {
 		add("translations of documents not in English not recorded (or Not needed)")
+	}
+	// The review of the PROI KYC process (in force from 3 Dec 2026).
+	if !contains(PROIExtra, p.Extra) {
+		add("why more than the KRA/CKYCRR record was collected (or that it was not) not recorded")
+	}
+	if strings.TrimSpace(p.PassportCopy) == "" || strings.TrimSpace(p.PassportCheck) == "" {
+		add("the passport copy kept and its verification (or why it was not feasible) not recorded")
+	}
+	switch {
+	case !contains(PROIForms, p.Form):
+		add("the KYC form in CERSAI's individual template not recorded")
+	case p.Form == "CERSAI template (digital form)" && (p.IPV != "Video (VIPV)" || !p.WetSignMatch):
+		add("a digital form needs the wet signature shown in the video IPV and matched")
+	}
+	if strings.TrimSpace(p.PoI) == "" || strings.TrimSpace(p.PoA) == "" {
+		add("the OVDs taken as proof of identity and of address not recorded")
+	}
+	if strings.TrimSpace(p.AddressCheck) == "" {
+		add("how the overseas address was verified (against the OVD, and a source database where feasible) not recorded")
+	}
+	if !contains(PROIOSV, p.OSV) {
+		add("how the copies were verified (originals seen, or an allowed alternative) not recorded")
 	}
 	return out
 }
@@ -242,6 +311,14 @@ func (o *Ops) SetPROI(ctx context.Context, tenant, actor, ucc string, p PROIKYC)
 	if p.IPV != "" && !contains(PROIIPVModes, p.IPV) {
 		return Client{}, invalid("IPV must be %s", strings.Join(PROIIPVModes, " or "))
 	}
+	for _, x := range []struct {
+		v, name string
+		list    []string
+	}{{p.Extra, "what was collected", PROIExtra}, {p.Form, "the KYC form", PROIForms}, {p.OSV, "how the copies were verified", PROIOSV}} {
+		if x.v != "" && !contains(x.list, x.v) {
+			return Client{}, invalid("%s is one of: %s", x.name, strings.Join(x.list, "; "))
+		}
+	}
 	if p.IPVAt != "" {
 		if _, err := time.Parse(time.RFC3339, p.IPVAt); err != nil {
 			if _, err := time.Parse("2006-01-02T15:04", p.IPVAt); err != nil {
@@ -253,6 +330,10 @@ func (o *Ops) SetPROI(ctx context.Context, tenant, actor, ucc string, p PROIKYC)
 		p.VIPV = nil
 	} else if p.VIPV != nil {
 		p.VIPV.IPCountry = strings.ToUpper(strings.TrimSpace(p.VIPV.IPCountry))
+		p.VIPV.RecordingSHA256 = strings.ToLower(strings.TrimSpace(p.VIPV.RecordingSHA256))
+		if p.VIPV.OfficialTrainedOn != "" && !validDate(p.VIPV.OfficialTrainedOn) {
+			return Client{}, invalid("the official's training date is YYYY-MM-DD")
+		}
 	}
 	p.By, p.At = actor, o.now().Format(time.RFC3339)
 	c, err := docs.Update(ctx, o.Docs, tenant, cClient, strings.ToUpper(ucc), actor, func(x *Client) error {

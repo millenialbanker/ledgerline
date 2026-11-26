@@ -301,6 +301,7 @@ func (o *Ops) mcxUCCItems(ctx context.Context, tenant, date string) ([]mcxUCCIte
 		byUCC[r.UCC] = r
 	}
 	src := o.mcxUCCLoadSources(ctx, tenant, set, cs)
+	optOut := o.optOutMap(ctx, tenant)
 	var out []mcxUCCItem
 	var baseline []Client
 	for _, c := range cs {
@@ -308,6 +309,9 @@ func (o *Ops) mcxUCCItems(ctx context.Context, tenant, date string) ([]mcxUCCIte
 			continue // a client of the DP only has no UCC (dponly.go)
 		}
 		r, ok := byUCC[c.UCC]
+		if !ok && optOut[c.UCC]["MCX"] {
+			continue // the client opted out of MCX in writing (onboardx.go)
+		}
 		if !ok {
 			com := c.SegmentStatus("COM")
 			if com == "Not registered" || com == SegClosed {
@@ -487,6 +491,9 @@ func (o *Ops) MCXUCCBatchFile(ctx context.Context, tenant, actor string) (MCXUCC
 	b, err := o.mcxUCCBatchFile(ctx, tenant, actor, s, set, today, 0)
 	if err != nil {
 		return b, err
+	}
+	if why := mcxUCCWindowWhy(set, o.now()); why != "" && len(b.Clients) > 0 {
+		b.Problems = append(b.Problems, why+": upload this file then, before the clients trade")
 	}
 	o.log(ctx, tenant, actor, "xfile.written", b.Name, map[string]any{"format": "mcx-ucc", "date": today, "batch": b.Batch, "clients": len(b.Clients), "left_out": len(b.Problems)})
 	return b, nil

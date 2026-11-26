@@ -84,7 +84,7 @@ func apply(t *testing.T, o *Ops, ctx context.Context, mobile, pan string, viaPlu
 	for _, k := range []string{"Photograph", "Signature"} {
 		must(o.AddAppDoc(ctx, T, secret, k, k+".png", png1))
 	}
-	must(o.SaveAppStep(ctx, T, secret, AppStep{Step: "profile", Application: Application{Segments: []string{"CM"}, Income: "10-25 L", Occupation: "Salaried", Experience: "None", RAS: "Quarterly"}}))
+	must(o.SaveAppStep(ctx, T, secret, AppStep{Step: "profile", Application: Application{Segments: []string{"CM"}, Income: "10-25 L", Occupation: "Salaried", Experience: "None", RAS: "Quarterly", Purpose: "Trading"}}))
 	must(o.SaveAppStep(ctx, T, secret, AppStep{Step: "nominee", Application: Application{NomineeOptOut: true}}))
 	if !viaPlugin || applyMethod == AadhaarOffline {
 		must(o.AddAppDoc(ctx, T, secret, "PAN card", "pan.png", png1))

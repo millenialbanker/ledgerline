@@ -74,6 +74,17 @@ type Application struct {
 	IFSC    string `json:"ifsc,omitempty"`
 	Account string `json:"account,omitempty"`
 
+	// Residence is "" for a resident of India, or NRI or OCI for an
+	// individual resident outside India applying by the PROI process
+	// (proi.go); Overseas are the passport and overseas address given.
+	Residence string       `json:"residence,omitempty"`
+	Overseas  *AppOverseas `json:"overseas,omitempty"`
+
+	// Purpose is the purpose and intended nature of the relationship
+	// (onboardx.go), with a note for Other.
+	Purpose     string `json:"purpose,omitempty"`
+	PurposeNote string `json:"purpose_note,omitempty"`
+
 	Segments   []string `json:"segments,omitempty"`
 	Income     string   `json:"income,omitempty"`
 	Occupation string   `json:"occupation,omitempty"`
@@ -110,6 +121,31 @@ type Application struct {
 	ESigned  string `json:"esigned,omitempty"`
 	ESignRef string `json:"esign_ref,omitempty"`
 }
+
+// AppOverseas is what a PROI applicant gives in the address step.
+type AppOverseas struct {
+	Country        string `json:"country"` // of residence (ISO 3166-1 alpha-2)
+	PassportNo     string `json:"passport_no"`
+	PassportExpiry string `json:"passport_expiry"`
+	OCICard        string `json:"oci_card,omitempty"`
+	Address        string `json:"address"`
+	City           string `json:"city"`
+}
+
+// PROI documents the applicant uploads in the address step.
+const (
+	AppDocPassport = "Passport"
+	AppDocOCI      = "OCI card"
+	AppDocOverseas = "Overseas address proof"
+)
+
+// intlMobile: a mobile given with its country code (other than +91).
+func intlMobile(m string) bool { return strings.HasPrefix(m, "+") && reIntlMobile.MatchString(m) }
+
+// contactOK: the contacts are confirmed. A mobile outside India is
+// verified where feasible (PROI circular para 5.5.7): the e-mail suffices,
+// and messages go to it until the mobile is verified.
+func (a Application) contactOK() bool { return a.EmailOK && (a.MobileOK || intlMobile(a.Mobile)) }
 
 type appCode struct {
 	Hash    string `json:"hash"`
@@ -280,13 +316,15 @@ type AppConfig struct {
 	// FATCA are the code lists of the tax step (countries, reasons for no
 	// TIN).
 	FATCA FATCACodes `json:"fatca"`
+	// Purposes are the choices for the purpose of the relationship.
+	Purposes []string `json:"purposes"`
 }
 
 // ApplyConfig describes the firm for the public page.
 func (o *Ops) ApplyConfig(ctx context.Context, tenant string) AppConfig {
 	set, _ := o.Settings(ctx, tenant)
 	return AppConfig{Firm: set.Firm, SEBIReg: set.SEBIReg, Email: set.ComplianceEmail, Provider: o.kycName(ctx, tenant), Dev: o.DevCodes, Segments: SegmentNames, Declare: o.appDeclarations(ctx, tenant), Steps: AppSteps,
-		DocKinds: []string{"PAN card", "Photograph", "Signature", "Income proof", "Bank proof"}, DigiLockerRedirect: isFlow(o.kyc()), AadhaarMethods: o.aadhaarMethods(ctx), FATCA: FATCACodeLists()}
+		DocKinds: []string{"PAN card", "Photograph", "Signature", "Income proof", "Bank proof", AppDocPassport, AppDocOCI, AppDocOverseas}, Purposes: OnboardPurposes, DigiLockerRedirect: isFlow(o.kyc()), AadhaarMethods: o.aadhaarMethods(ctx), FATCA: FATCACodeLists()}
 }
 
 // aadhaarMethods asks the KYC plugin which ways it offers; other
@@ -312,10 +350,10 @@ func tokenHash(id, tok string) string {
 // StartApplication begins an application and sends codes to the mobile and
 // email. It returns the application and the secret the page keeps.
 func (o *Ops) StartApplication(ctx context.Context, tenant, mobile, email, partner, lead, ip string) (Application, string, map[string]string, error) {
-	mobile = strings.TrimPrefix(strings.TrimSpace(mobile), "+91")
+	mobile = strings.TrimPrefix(strings.ReplaceAll(strings.TrimSpace(mobile), " ", ""), "+91")
 	email = strings.ToLower(strings.TrimSpace(email))
-	if !reMobile.MatchString(mobile) || !reEmail.MatchString(email) {
-		return Application{}, "", nil, invalid("enter a 10-digit Indian mobile number and a valid email address")
+	if !reMobile.MatchString(mobile) && !intlMobile(mobile) || !reEmail.MatchString(email) {
+		return Application{}, "", nil, invalid("enter a 10-digit Indian mobile number (or, living abroad, your mobile with its country code, as +44…) and a valid email address")
 	}
 	today := o.now().Format("2006-01-02")
 	all, _ := docs.List[Application](ctx, o.Docs, tenant, cApplication, "")
@@ -462,7 +500,7 @@ func (o *Ops) VerifyAppCode(ctx context.Context, tenant, secret, ch, code string
 		} else {
 			a.EmailOK = true
 		}
-		if a.MobileOK && a.EmailOK {
+		if a.contactOK() {
 			a.done("contact")
 		}
 	}
@@ -491,7 +529,7 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 	if a.Status != "Draft" {
 		return a, fmt.Errorf("%w: application already %s", ErrState, strings.ToLower(a.Status))
 	}
-	if !a.MobileOK || !a.EmailOK {
+	if !a.contactOK() {
 		return a, invalid("confirm your mobile and email first")
 	}
 	p, now := o.kyc(), o.now().Format(time.RFC3339)
@@ -512,6 +550,12 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 		}
 		if !contains([]string{"Male", "Female", "Transgender"}, d.Gender) {
 			add("gender", "Choose a gender")
+		}
+		if d.Residence != "" && d.Residence != "NRI" && d.Residence != "OCI" {
+			add("residence", "Choose where you live: in India, or outside India as an NRI or an OCI cardholder")
+		}
+		if intlMobile(a.Mobile) && d.Residence == "" {
+			add("residence", "A mobile outside India is for applicants who live outside India: say whether you are an NRI or an OCI cardholder")
 		}
 		if len(strings.TrimSpace(d.Father)) < 3 {
 			add("father", "Enter your father's or spouse's name")
@@ -534,6 +578,11 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 			return a, &ValidationError{[]FieldError{{"pan", "We cannot open an account for this PAN. Please contact us."}}}
 		}
 		a.PAN, a.Name, a.DOB, a.Gender, a.Father, a.Marital = d.PAN, d.Name, d.DOB, d.Gender, strings.TrimSpace(d.Father), d.Marital
+		if a.Residence != d.Residence {
+			// Where the applicant lives decides the address step: redo it.
+			a.Residence, a.Overseas, a.AddrSource = d.Residence, nil, ""
+			a.Steps = without(a.Steps, "address")
+		}
 		pc := o.checkPAN(ctx, tenant, p, a.PAN, a.Name, a.DOB)
 		a.setCheck(pc, now)
 		a.setCheck(p.KRA(a.PAN), now)
@@ -542,6 +591,16 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 			return a, &ValidationError{[]FieldError{{"pan", pc.Detail}}}
 		}
 	case "address":
+		if a.Residence != "" {
+			// A PROI applicant (proi.go, paras 5.3-5.5): the passport (and
+			// the OCI card for an OCI) and the overseas address with a
+			// document that proves it, uploaded here; the KRA and CKYCRR
+			// were searched in the identity step, before any document.
+			if err := o.appOverseas(&a, d.Overseas); err != nil {
+				return a, err
+			}
+			break
+		}
 		// Aadhaar (with the address) comes from DigiLocker, with the PAN
 		// record, or from an Aadhaar offline e-KYC file: through the KYC
 		// plugin when it is connected (the applicant has been there and back;
@@ -610,6 +669,9 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 		if d.Income == "" || d.Occupation == "" {
 			add("income", "Choose your income range and occupation")
 		}
+		if !contains(OnboardPurposes, d.Purpose) || d.Purpose == "Other" && strings.TrimSpace(d.PurposeNote) == "" {
+			add("purpose", "Say why you are opening the account (and, for Other, in a few words)")
+		}
 		if d.RAS != "Monthly" && d.RAS != "Quarterly" {
 			add("ras", "Choose monthly or quarterly settlement")
 		}
@@ -626,6 +688,7 @@ func (o *Ops) SaveAppStep(ctx context.Context, tenant, secret string, s AppStep)
 			return a, &ValidationError{fe}
 		}
 		a.Segments, a.Income, a.Occupation, a.Experience, a.RAS, a.DematID = c.Segments, d.Income, d.Occupation, d.Experience, d.RAS, strings.ToUpper(d.DematID)
+		a.Purpose, a.PurposeNote = d.Purpose, strings.TrimSpace(d.PurposeNote)
 		a.Depository = "CDSL"
 		if strings.HasPrefix(a.DematID, "IN") {
 			a.Depository = "NSDL"
@@ -683,7 +746,7 @@ func (o *Ops) AddAppDoc(ctx context.Context, tenant, secret, kind, name string, 
 	if err != nil {
 		return a, err
 	}
-	if a.Status != "Draft" || !a.MobileOK || !a.EmailOK {
+	if a.Status != "Draft" || !a.contactOK() {
 		return a, fmt.Errorf("%w: confirm your mobile and email first", ErrState)
 	}
 	if !contains(o.ApplyConfig(ctx, tenant).DocKinds, kind) {
@@ -828,17 +891,27 @@ func (o *Ops) submitApplication(ctx context.Context, tenant string, a Applicatio
 	if a.NomineeOptOut {
 		nom = "Opted out"
 	}
-	c := Client{Name: a.Name, Type: "Individual", PAN: a.PAN, DOB: a.DOB, Mobile: a.Mobile, Email: a.Email, City: a.City, State: a.State, Segments: a.Segments,
+	typ := "Individual"
+	if a.Residence != "" {
+		typ = "NRI"
+	}
+	c := Client{Name: a.Name, Type: typ, PAN: a.PAN, DOB: a.DOB, Mobile: a.Mobile, Email: a.Email, City: a.City, State: a.State, Segments: a.Segments,
 		Risk: "Low", Income: a.Income, RAS: a.RAS, Bank: BankAccount{Bank: a.Bank, IFSC: a.IFSC, Account: a.Account}, Demat: Demat{Depository: a.Depository, ID: a.DematID},
 		Nominee: nom, NomineeName: a.NomineeName, Nominees: a.Nominees, NominationOn: o.now().Format("2006-01-02"), NominationMode: "Online with e-Sign", NomineesOnStatement: a.NomineesOnStatement && !a.NomineeOptOut, KYCRoute: kycRoute(a), IncomeProof: a.hasDoc("Income proof"), RiskDisclosure: true,
 		WhatsApp: a.WhatsApp, Partner: a.Partner, Tags: []string{"ONLINE"}, FATCA: a.FATCA}
 	if c.Demat.Depository == "" {
 		c.Demat.Depository = "CDSL"
 	}
+	if a.Residence != "" {
+		c.PROI = o.appPROI(a)
+	}
 	nc, err := o.createApplication(ctx, tenant, actor, c)
 	if err != nil {
 		o.log(ctx, tenant, actor, "eapply.submit_failed", a.ID, map[string]any{"error": err.Error()})
 		return a, nil, err
+	}
+	if a.Purpose != "" {
+		_ = docs.Upsert(ctx, o.Docs, tenant, cOnboardX, nc.UCC, ClientOnboarding{UCC: nc.UCC, Purpose: a.Purpose, PurposeNote: a.PurposeNote, UpdatedBy: actor, UpdatedAt: o.now().Format(time.RFC3339)}, actor)
 	}
 	// The nomination (or opt-out) made in the application is entered in
 	// the register of nominations and acknowledged (clientnotices.go).
@@ -878,6 +951,9 @@ func (o *Ops) submitApplication(ctx context.Context, tenant string, a Applicatio
 // kycRoute records how Aadhaar was verified (the KRA upload marks IPV not
 // applicable for both).
 func kycRoute(a Application) string {
+	if a.Residence != "" {
+		return "Online PROI (passport and overseas address; IPV by video)"
+	}
 	if a.AddrSource == "Aadhaar offline e-KYC" {
 		return "Online (Aadhaar offline e-KYC from UIDAI)"
 	}

@@ -508,6 +508,7 @@ func (o *Ops) bseUCCItems(ctx context.Context, tenant string) ([]bseUCCItem, []C
 	}
 	src := o.bseUCCLoadSources(ctx, tenant, set)
 	now := o.now()
+	optOut := o.optOutMap(ctx, tenant)
 	var out []bseUCCItem
 	var baseline []Client
 	for _, c := range cs {
@@ -515,6 +516,9 @@ func (o *Ops) bseUCCItems(ctx context.Context, tenant string) ([]bseUCCItem, []C
 			continue // a client of the DP only has no UCC (dponly.go)
 		}
 		r, ok := byUCC[c.UCC]
+		if !ok && optOut[c.UCC]["BSE"] {
+			continue // the client opted out of BSE in writing (onboardx.go)
+		}
 		if !ok {
 			switch c.Status {
 			case "UCC upload":

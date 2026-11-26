@@ -558,6 +558,19 @@ func cdslBOUploadRows(in boCSVIn) ([]xfile.Row, []string) {
 			}
 		}
 		for _, l := range rec {
+			if l.Layout == boHarmonisedOnly {
+				v := map[string]string{}
+				for k, x := range l.H {
+					if x = strings.TrimSpace(x); x != "" {
+						v[k] = x
+					}
+				}
+				if d := v["BirthDt"]; d != "" && !validDate(d) {
+					delete(v, "BirthDt")
+				}
+				out = append(out, v)
+				continue
+			}
 			fam := l.Layout[1:]
 			switch fam {
 			case "01":

@@ -182,7 +182,9 @@ func (o *Ops) marginStatement(ctx context.Context, tenant, date string, r Margin
 		}
 		sec.Rows = append(sec.Rows, []string{"Short-collection penalty (" + r.SlabPct.String() + "%)", formatINR(r.Penalty), note})
 	}
-	rep.Sections = []Section{sec}
+	// The collateral by type, deposited, utilised and available (SEBI
+	// stock broker master circular para 25.1.4; pledgecontrols.go).
+	rep.Sections = []Section{sec, collateralSection(r)}
 	return rep, nil
 }
 

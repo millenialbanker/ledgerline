@@ -801,6 +801,9 @@ type boInput struct {
 	Def  map[string]string // the DP's defaults
 	Sig  *ClientDoc        // the signature image, if any
 	BSDA bool
+	// X is the client's onboarding record (onboardx.go): the disability
+	// flag, the DARPAN ID.
+	X ClientOnboarding
 }
 
 // cdslAppFor finds the online application a client came from.
@@ -900,6 +903,9 @@ func boBuild(in boInput) (boDetails, []string, []string) {
 			probs = append(probs, fmt.Sprintf("Set the %s in the BO defaults (CDSL requests tab)", boLabels[k]))
 		}
 	}
+	// The disability flag (CDSL DP2026-461): Y for a person with mental
+	// disability, as the one-character field takes it.
+	pd["mental_disability"] = map[bool]string{true: "Y", false: "N"}[in.X.Disability == "MDP"]
 	d.One["ProductDetails"] = pd
 
 	now := time.Now()
@@ -974,7 +980,7 @@ func (o *Ops) cdslOpenInput(ctx context.Context, tenant string, r CDSLRequest) (
 		return boInput{}, err
 	}
 	b := o.bo(ctx, tenant, c)
-	return boInput{C: c, App: o.cdslAppFor(ctx, tenant, c.UCC), F: r.Fields, Def: o.CDSLBODefaultsNow(ctx, tenant).Values, Sig: o.cdslSignature(ctx, tenant, c.UCC), BSDA: b.BSDA}, nil
+	return boInput{C: c, App: o.cdslAppFor(ctx, tenant, c.UCC), F: r.Fields, Def: o.CDSLBODefaultsNow(ctx, tenant).Values, Sig: o.cdslSignature(ctx, tenant, c.UCC), BSDA: b.BSDA, X: o.OnboardingFor(ctx, tenant, c.UCC)}, nil
 }
 
 // cdslOpenCheck rebuilds the details of an open-account request and says
