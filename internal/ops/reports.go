@@ -72,6 +72,7 @@ func reportDefs() []ReportDef {
 		{"bills", "Bills and charges register", "Internal audit", "Daily", "T", "CSV", nil},
 		{"trades", "Trade register", "Internal audit", "Daily", "T", "CSV", nil},
 		{"alerts", "Surveillance obligation report: alert status (Formats I, II and III)", "Each exchange (NSE ENIT, BSE BEFS)", "Quarterly", "Within 15 calendar days of the quarter's end (for the quarter ended before the date)", "CSV in the exchanges' Formats I–III (NIL where nothing to report)", nil},
+		{"alerts_cdsl", "DP surveillance alert status for CDSL (CDSL's and the DP's own alerts)", "CDSL (on its surveillance system)", "Quarterly", "Within 15 calendar days of the quarter's end (for the quarter ended before the date)", "CSV working sheet for CDSL's quarterly form (NIL where nothing to report)", nil},
 		{"register_securities", "Register of securities (client-wise, with the firm and in demat)", "Inspection", "On demand", "—", "CSV", nil},
 		{"client_register", "Client register in exchange format", "Inspection", "On demand", "—", "CSV", nil},
 		{"ledger_balances", "Client ledger balances with days in debit", "Inspection", "On demand", "—", "CSV", nil},
@@ -239,6 +240,14 @@ func (o *Ops) ReportRows(ctx context.Context, tenant, date, code string) ([][]st
 		// The quarter ended before the date, in the exchanges' formats
 		// (NSE/SURV/48818, 49765, 74008; BSE): survreturn.go.
 		r, err := o.survReturn(ctx, tenant, lastEndedQuarter(date))
+		if err != nil {
+			return nil, err
+		}
+		set, _ := o.Settings(ctx, tenant)
+		return survReturnRows(r, set.Firm), nil
+	case "alerts_cdsl":
+		// The DP's alerts, for CDSL (CDSL DP2026-521): survreturn.go.
+		r, err := o.survReturnTo(ctx, tenant, lastEndedQuarter(date), "CDSL")
 		if err != nil {
 			return nil, err
 		}

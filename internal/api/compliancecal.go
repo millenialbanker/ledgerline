@@ -141,7 +141,7 @@ func (s *Server) surveillanceReturnRoutes(R func(string, http.HandlerFunc, bool)
 }
 
 func (s *Server) survReturn(w http.ResponseWriter, r *http.Request) {
-	v, err := s.ops.SurvReturnFor(r.Context(), tenant(r), actor(r), r.URL.Query().Get("quarter"))
+	v, err := s.ops.SurvReturnTo(r.Context(), tenant(r), actor(r), r.URL.Query().Get("quarter"), r.URL.Query().Get("for"))
 	ok(w, v, err)
 }
 

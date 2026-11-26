@@ -27,6 +27,36 @@ type Alert struct {
 	// STR is the suspicious transaction report decided on the alert and
 	// its filing on FIU-IND's FINGate (fingate.go).
 	STR *AlertSTR `json:"str,omitempty"`
+
+	// The case work (survcase.go). Area is AreaDP for the firm's
+	// depository business (CDSL's alerts and the DP's own rules on demat
+	// accounts), "" for trading. Ref is the alert's number at its source
+	// (CDSL's or MCX's). Due is the day it must be disposed of by: 45 days
+	// from generation, 60 for CDSL's half-yearly multiple-account alerts.
+	Area       string `json:"area,omitempty"`
+	Ref        string `json:"ref,omitempty"`
+	Due        string `json:"due,omitempty"`
+	HalfYearly bool   `json:"half_yearly,omitempty"`
+	FIU        bool   `json:"fiu,omitempty"` // one of CDSL's FIU alerts
+	// What the alert is about, when its source says: the demat account,
+	// the period of the transactions, the ISIN, quantity and value.
+	BOID    string `json:"bo_id,omitempty"`
+	TxnFrom string `json:"txn_from,omitempty"`
+	TxnTo   string `json:"txn_to,omitempty"`
+	ISIN    string `json:"isin,omitempty"`
+	Qty     string `json:"qty,omitempty"`
+	Value   string `json:"value,omitempty"`
+	// Checklist is the source's checklist worked before the alert is
+	// answered (CDSL's nine points, MCX's), Attachments the documents
+	// kept with it, Adverse an adverse observation and its report.
+	Checklist   []AlertCheck  `json:"checklist,omitempty"`
+	Attachments []AlertDoc    `json:"attachments,omitempty"`
+	Adverse     *AlertAdverse `json:"adverse,omitempty"`
+	ClosedBy    string        `json:"closed_by,omitempty"`
+	ClosedOn    string        `json:"closed_on,omitempty"`
+	// Sample is the compliance officer's check of a closure, when the
+	// alert fell in the quarter's sample.
+	Sample *AlertSample `json:"sample,omitempty"`
 }
 
 var sevRank = map[string]int{"High": 0, "Medium": 1, "Low": 2}
@@ -59,6 +89,15 @@ func (o *Ops) raiseAlert(ctx context.Context, tenant, actor string, a Alert, ded
 	}
 	if a.Notes == nil {
 		a.Notes = []string{}
+	}
+	if a.Source == "CDSL" {
+		a.Area = AreaDP
+	}
+	if due := alertDue(a); a.Due == "" || (due != "" && due < a.Due) {
+		a.Due = due
+	}
+	if a.Checklist == nil {
+		a.Checklist = checklistFor(a)
 	}
 	if c, err := o.Client(ctx, tenant, a.UCC); err == nil {
 		a.Name = c.Name
@@ -166,7 +205,13 @@ func (o *Ops) ActOnAlert(ctx context.Context, tenant, actor, id, action, note st
 		case "review":
 			x.Status, x.Owner = "Under review", actor
 		case "close":
-			x.Status = "Closed"
+			// CDSL's and MCX's alerts are answered only once their
+			// checklist is worked (survcase.go).
+			if gaps := checklistGaps(*x); len(gaps) > 0 {
+				return invalid("work the checklist before closing: %s", strings.Join(gaps, "; "))
+			}
+			x.Status, x.ClosedBy, x.ClosedOn = "Closed", actor, today
+			markInTime(x, today, note)
 		case "str":
 			x.Status = "STR to file"
 			due := today
