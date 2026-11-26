@@ -115,8 +115,12 @@ type Client struct {
 	DND           bool   `json:"dnd,omitempty"`           // on the do-not-disturb register (no promotional SMS)
 	Partner       string `json:"partner,omitempty"`       // authorised person
 	RM            string `json:"rm,omitempty"`            // relationship manager
-	ReferredBy    string `json:"referred_by,omitempty"`   // referring client
+	ReferredBy    string `json:"referred_by,omitempty"`   // the referrer: a client's UCC or a registered AP's code
 	ReferredFrom  string `json:"referred_from,omitempty"` // referral period start
+	// ReferrerKind is AP (a registered authorised person, who may earn a
+	// referral reward) or Client (recorded as the source only); empty on
+	// records from before the AP-only rule, read as Client (referrals.go).
+	ReferrerKind string `json:"referrer_kind,omitempty"`
 	// Private clients are visible only to admins, compliance and VisibleTo.
 	Private   bool     `json:"private,omitempty"`
 	VisibleTo []string `json:"visible_to,omitempty"`

@@ -659,6 +659,20 @@ func statementSummary(r SendStatementsResult) string {
 	return fmt.Sprintf("%s %s: %d sent, %d bounced, %d on paper, %d held, %d failed, %d already sent", DocKindNames[r.Kind], r.Period, r.Sent, r.Bounced, r.Paper, r.Held, r.Failed, r.Skipped)
 }
 
+// lastSaturday is the latest Saturday on or before date: the last day of
+// the statement week, which runs Monday to Saturday (NSE/INSP/73976, item
+// 4.5).
+func lastSaturday(date string) string {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return date
+	}
+	for t.Weekday() != time.Saturday {
+		t = t.AddDate(0, 0, -1)
+	}
+	return t.Format("2006-01-02")
+}
+
 // lastFriday is the latest Friday on or before date.
 func lastFriday(date string) string {
 	t, err := time.Parse("2006-01-02", date)

@@ -117,20 +117,25 @@ func bseIncome(band string, individual bool) string {
 }
 
 // bseStates are the Indian states and union territories, as BSE's
-// state-city master is expected to spell them (BSE's master was not in the
+// state-city master spells them (BSE notice 20261120-9 for the revised
+// names: Dadra and Nagar Haveli and Daman and Diu merged, Puducherry,
+// Keralam) (BSE's master was not in the
 // specification: a name BSE spells differently is rejected by BSE and
 // reported back; aliases are mapped here as they are found).
 var bseStates = func() map[string]string {
 	m := map[string]string{}
 	for _, s := range []string{"ANDHRA PRADESH", "ARUNACHAL PRADESH", "ASSAM", "BIHAR", "CHHATTISGARH", "GOA", "GUJARAT", "HARYANA", "HIMACHAL PRADESH", "JHARKHAND",
-		"KARNATAKA", "KERALA", "MADHYA PRADESH", "MAHARASHTRA", "MANIPUR", "MEGHALAYA", "MIZORAM", "NAGALAND", "ODISHA", "PUNJAB", "RAJASTHAN", "SIKKIM", "TAMIL NADU",
+		"KARNATAKA", "KERALAM", "MADHYA PRADESH", "MAHARASHTRA", "MANIPUR", "MEGHALAYA", "MIZORAM", "NAGALAND", "ODISHA", "PUNJAB", "RAJASTHAN", "SIKKIM", "TAMIL NADU",
 		"TELANGANA", "TRIPURA", "UTTAR PRADESH", "UTTARAKHAND", "WEST BENGAL", "ANDAMAN AND NICOBAR ISLANDS", "CHANDIGARH", "DADRA AND NAGAR HAVELI AND DAMAN AND DIU",
 		"DELHI", "JAMMU AND KASHMIR", "LADAKH", "LAKSHADWEEP", "PUDUCHERRY"} {
 		m[s] = s
 	}
 	for a, s := range map[string]string{"ORISSA": "ODISHA", "PONDICHERRY": "PUDUCHERRY", "NEW DELHI": "DELHI", "NCT OF DELHI": "DELHI", "UTTARANCHAL": "UTTARAKHAND",
 		"ANDAMAN & NICOBAR ISLANDS": "ANDAMAN AND NICOBAR ISLANDS", "JAMMU & KASHMIR": "JAMMU AND KASHMIR", "DAMAN AND DIU": "DADRA AND NAGAR HAVELI AND DAMAN AND DIU",
-		"DADRA AND NAGAR HAVELI": "DADRA AND NAGAR HAVELI AND DAMAN AND DIU"} {
+		"DADRA AND NAGAR HAVELI": "DADRA AND NAGAR HAVELI AND DAMAN AND DIU",
+		// BSE notice 20261120-9: Kerala is now Keralam in BSE's state
+		// master; a record still saying Kerala is sent as Keralam.
+		"KERALA": "KERALAM"} {
 		m[a] = s
 	}
 	return m

@@ -74,7 +74,7 @@ type Dispatch struct {
 	To        string         `json:"to"`
 	Subject   string         `json:"subject"`
 	Files     []DispatchFile `json:"files"`
-	Status    string         `json:"status"` // Sent, Bounced, Failed, Held, Physical pending, Physical sent
+	Status    string         `json:"status"` // Sent, Bounced, Failed, Held, Physical pending, Physical sent, Returned undelivered, Withheld, Superseded
 	Reason    string         `json:"reason,omitempty"`
 	MessageID string         `json:"message_id,omitempty"`
 	Simulated bool           `json:"simulated,omitempty"` // development: no real mail server
@@ -511,7 +511,7 @@ func (o *Ops) sendRASStatement(ctx context.Context, tenant, actor, settleDate, u
 	}
 	set, _ := o.Settings(ctx, tenant)
 	return o.dispatchDoc(ctx, tenant, actor, docRequest{Kind: DocRAS, Ref: settleDate, Date: settleDate, UCC: ucc, Report: reportPDF(rep, set), Title: "Running account settlement " + settleDate,
-		FileName: "RunningAccountSettlement_" + rep.UCC + "_" + settleDate + ".pdf", Text: fmt.Sprintf("Dear %s,\n\nYour running account was settled on %s. The attached statement shows the funds held, retained and paid to your bank.", rep.Name, settleDate)})
+		FileName: "RunningAccountSettlement_" + rep.UCC + "_" + settleDate + ".pdf", Text: fmt.Sprintf("Dear %s,\n\nYour running account was settled on %s. The attached statement shows the funds held, retained and paid to your bank. If you dispute it, tell us within 30 working days.", rep.Name, settleDate)})
 }
 
 func (o *Ops) sendDPStatement(ctx context.Context, tenant, actor, month, ucc string) (Dispatch, error) {
@@ -556,20 +556,23 @@ func (o *Ops) sendFundsSecStatement(ctx context.Context, tenant, actor, from, to
 	}
 	set, _ := o.Settings(ctx, tenant)
 	return o.dispatchDoc(ctx, tenant, actor, docRequest{Kind: DocFundsSec, Ref: from + " to " + to, Date: to, UCC: ucc, Report: reportPDF(rep, set), Title: "Statement of funds and securities " + from + " to " + to,
-		FileName: "FundsSecurities_" + rep.UCC + "_" + to + ".pdf", Text: fmt.Sprintf("Dear %s,\n\nPlease find attached the statement of your funds and securities with us for %s to %s. Please check it and tell us within 7 days if anything is wrong.", rep.Name, fmtDay(from), fmtDay(to))})
+		FileName: "FundsSecurities_" + rep.UCC + "_" + to + ".pdf", Text: fmt.Sprintf("Dear %s,\n\nPlease find attached the weekly statement of your funds and securities with us for %s to %s, with the balance as on %s, your pending obligations and any uncleared cheques. Please check it and tell us within 7 days if anything is wrong.", rep.Name, fmtDay(from), fmtDay(to), fmtDay(to))})
 }
 
 // SendStatementsResult reports a bulk send.
 type SendStatementsResult struct {
-	Kind    string   `json:"kind"`
-	Period  string   `json:"period"`
-	Sent    int      `json:"sent"`
-	Bounced int      `json:"bounced"`
-	Held    int      `json:"held"`
-	Paper   int      `json:"paper"`
-	Failed  int      `json:"failed"`
-	Skipped int      `json:"skipped"` // already delivered
-	Errors  []string `json:"errors,omitempty"`
+	Kind    string `json:"kind"`
+	Period  string `json:"period"`
+	Sent    int    `json:"sent"`
+	Bounced int    `json:"bounced"`
+	Held    int    `json:"held"`
+	Paper   int    `json:"paper"`
+	Failed  int    `json:"failed"`
+	Skipped int    `json:"skipped"` // already delivered
+	// Withheld: DP statements not sent after three returned undelivered
+	// in a row (dpstmtreturns.go).
+	Withheld int      `json:"withheld,omitempty"`
+	Errors   []string `json:"errors,omitempty"`
 }
 
 func (r *SendStatementsResult) add(d Dispatch, err error) {
@@ -604,7 +607,7 @@ func (o *Ops) delivered(ctx context.Context, tenant, kind, ref, ucc string) bool
 // SendStatements sends one kind of statement to every client it applies
 // to: margin (date: clients with margin that day), ras (date: the
 // settlement batch), dp (month YYYY-MM: every DP account), ledger (month),
-// funds and securities (the last day of the week: the seven days to it).
+// funds and securities (the Saturday ending the week: Monday to it).
 // Clients already sent the same document are skipped.
 func (o *Ops) SendStatements(ctx context.Context, tenant, actor, kind, period string) (SendStatementsResult, error) {
 	if actor != SystemActor {
@@ -659,6 +662,18 @@ func (o *Ops) SendStatements(ctx context.Context, tenant, actor, kind, period st
 				res.Skipped++
 				continue
 			}
+			// Three statements in a row back undelivered: withheld until
+			// the address is updated (dpstmtreturns.go).
+			if o.dpStatementStopped(ctx, tenant, b.UCC) {
+				if ds, _ := o.dispatchesFor(ctx, tenant, kind+"|"+period+"|"+b.UCC); len(ds) == 0 {
+					if _, err := o.withholdDP(ctx, tenant, actor, period, b.UCC); err != nil {
+						res.Errors = append(res.Errors, err.Error())
+					}
+				}
+				res.Withheld++
+				continue
+			}
+			o.resendWithheldDP(ctx, tenant, actor, b.UCC, &res)
 			res.add(o.sendDPStatement(ctx, tenant, actor, period, b.UCC))
 		}
 	case DocLedger:
@@ -683,10 +698,13 @@ func (o *Ops) SendStatements(ctx context.Context, tenant, actor, kind, period st
 			res.add(o.sendLedgerStatement(ctx, tenant, actor, from, to, c.UCC))
 		}
 	case DocFundsSec:
-		if !validDate(period) {
-			return res, invalid("give the last day of the week (YYYY-MM-DD)")
+		// The week is Monday to Saturday, balances as on the Saturday
+		// (NSE/INSP/73976, item 4.5).
+		if !validDate(period) || lastSaturday(period) != period {
+			return res, invalid("give the Saturday that ends the week (YYYY-MM-DD)")
 		}
-		from := addDays(period, -6)
+		from := addDays(period, -5)
+		ctx = o.withFSWeek(ctx, tenant, period)
 		cs, err := o.Clients(ctx, tenant)
 		if err != nil {
 			return res, err
@@ -700,11 +718,17 @@ func (o *Ops) SendStatements(ctx context.Context, tenant, actor, kind, period st
 		}
 		ref := from + " to " + period
 		for _, c := range cs {
-			if c.Status != "Active" {
+			// Every client who traded in the last 12 months, a zero balance
+			// too; another client only when it has something to show (NSE's
+			// RAS FAQ 9 exempts only clients with no balance and no trade in
+			// 12 months).
+			if c.Status == "Pending" || c.Status == "Rejected" || c.Status == "" {
 				continue
 			}
-			if due, err := o.fundsSecuritiesDue(ctx, tenant, c.UCC, from, period, cuspa); err != nil || !due {
-				continue
+			if !fsRecentTrader(c, period) {
+				if due, err := o.fundsSecuritiesDue(ctx, tenant, c.UCC, from, period, cuspa); err != nil || !due {
+					continue
+				}
 			}
 			if o.delivered(ctx, tenant, kind, ref, c.UCC) {
 				res.Skipped++

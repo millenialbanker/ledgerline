@@ -40,7 +40,7 @@ type PeriodicTask struct {
 
 // PeriodicTasks is every periodic task, in calendar order.
 var PeriodicTasks = []PeriodicTask{
-	{"funds_securities", "Weekly statement of funds and securities", "Clients", "Weekly", "Emails every client with a balance, a movement or securities with the broker a signed statement of the week's funds and securities.", "Saturday, for the week to Friday", "Exchange and SEBI rules on statements of accounts to clients", true, "dispatch", ""},
+	{"funds_securities", "Weekly statement of funds and securities", "Clients", "Weekly", "Emails every active client (a zero balance too) and every other client with a balance, a movement or securities with the broker a signed statement of the week's funds and securities, Monday to Saturday, balances as on the Saturday, with the pending obligations and uncleared cheques listed apart.", "Within 4 trading days after the week (Monday to Saturday)", "NSE/INSP/73976 (Inspection master circular), item 4.5; NSE/INSP/53820 FAQ 9", true, "dispatch", ""},
 	{"cuspa_review", "Unpaid securities (CUSPA): daily review", "Settlement", "Daily", "Every trading day under SEBI's CUSPA framework: records the shares the depository released at the end of the 6th trading day after pay-out, releases what is over each client's limit of 2.25 × (margin − ledger balance) oldest first, finds the sale of invoked shares in the trades, and puts in the work queue the notices, invocations (up to the 5th trading day after pay-out) and sales due.", "Each trading day, before the market opens", "SEBI circular HO/38/11/(9)2026-MIRSD-POD/I/15382/2026 (CUSPA framework); NSE circulars 35/2026 and 41/2026", true, "settlement", ""},
 	{"dis_master", "DIS master upload to CDSL", "Depository", "Weekly", "Builds CDSL's transaction upload (DIS issue) for the delivery instruction slip books issued in the week and sends it through CDSL's common upload API when it is on (else for upload on CDSL's system).", "Monday, for the week to Friday", "CDSL operating instructions on DIS issuance", true, "dp", "cdsl-txn-upload"},
 	{"ap_mapping", "Clients mapped to authorised persons: weekly report to each exchange", "Compliance", "Weekly", "Makes each exchange's file of the week's clients newly mapped, re-mapped or unmapped to an authorised person, and new clients of APs, checked against the client's UCC at that exchange, and queues the upload. Upload it on each exchange's portal and record the acknowledgement on Branches & partners → AP client reporting.", "By the 2nd trading day of the next week", "NSE/COMP/49509 (3 Sep 2021); MSE circular 10854 (4 Sep 2021), item 15 of MSE/MEM/15275/2024 (30 Apr 2024)", true, "partners", "nse-ap-client-mapping"},
@@ -61,6 +61,9 @@ var PeriodicTasks = []PeriodicTask{
 	{"ras_idle", "Return idle credit balances (30 days)", "Money", "Daily", "Every morning: clients with a credit balance and no transaction (trade, open position or funds received) for 30 calendar days are settled and paid out on the upcoming monthly settlement date of the exchanges' calendar, whatever their monthly or quarterly choice, under the running account settlement policy in Autopilot; one still unpaid after that date is settled at once.", "On the upcoming monthly settlement date", "SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2025/1 of 6 January 2025 (NSE/INSP/66014)", true, "ras", ""},
 	{"ras_ucc_report", "UCC-wise running account settlement report", "Money", "Monthly / quarterly", "After each running account settlement: makes the file of what each client was paid and retained, for upload on NSE's member portal, and keeps a reminder open until the upload (or the not-applicable declaration) is recorded on Running account.", "Within 10 trading days of each settlement date", "NSE/INSP/55024 (kept by NSE/INSP/61904); NSE/INSP/55135; NSE/INSP/56261 (₹10,000 a day late)", true, "ras", "nse-ras-ucc"},
 	{"client_money_recon", "Daily client money reconciliation", "Money", "Daily", "Each business day: the statement of money moved between clients, the USCNBA, the clearing corporation, the DSCNBA, the settlement and own accounts, with what needs explaining, prepared for a checker to sign off on Client money reconciliation.", "The next business day", "SEBI master circular SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90, para 15.4.4.2; NSE/INSP/55904", true, "clientmoney", ""},
+	{"annual_statement", "Annual global statement to every client", "Clients", "Yearly", "Sends every active client the signed annual global statement for the financial year just ended (funds and securities as on 31 March and the Annual Global Transaction Statement: each security on each exchange and segment, bought and sold, close-outs and charges) and tells them the year-end pack is in the portal.", "Within 30 days of the year's end (30 April)", "NSE/INSP/73976 (Inspection master circular), item 4.17 and Exhibit 30; SEBI master circular SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90, para 23.9 and the investor charter", true, "yearend", ""},
+	{"nomination_reminders", "Nomination reminders to clients without a nomination choice", "Clients", "Fortnightly", "Emails and texts every active client who has neither nominated nor opted out how to give the nomination choice (online with e-Sign or OTP in the client portal, or on the signed form).", "Each fortnight (by the 15th and by the month's end)", "SEBI master circular SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90, paras 22.6-22.7", true, "nominations", ""},
+	{"fiu_ctr_ntr", "Cash and non-profit transaction reports (CTR, NTR) to FIU-IND", "Compliance", "Monthly", "Checks the month for cash transactions (none: Ledgerline takes no cash) and lists every receipt from or payout to a client marked Trust / charity / NGO above ₹10 lakh, with a worksheet and a work item for the Principal Officer to file the NTR on FINGate. No NIL report is filed.", "By the 15th", "SEBI/HO/MIRSD/MIRSDSECFATF/P/CIR/2024/78, paras 73-74; PML Rules rule 3(1)(A), (B), (BA)", true, "periodic", ""},
 	{"bsda_review", "BSDA review", "Depository", "Quarterly", "Checks every demat account against the BSDA rules: eligible regular accounts become BSDA unless the client opted out; BSDAs above the limit become regular. A checker applies it; the depository modification file is kept and clients are told.", "By the 10th after the quarter", "SEBI circular on Basic Services Demat Accounts", false, "dp", ""},
 }
 
@@ -177,8 +180,12 @@ func monthLabel(m string) string {
 func (o *Ops) periodFor(ctx context.Context, tenant string, t PeriodicTask, date string) (period, label, due string) {
 	switch t.ID {
 	case "funds_securities":
-		fri := lastFriday(date)
-		return fri, fmtDay(addDays(fri, -6)) + " to " + fmtDay(fri), addDays(fri, 1)
+		// The week Monday to Saturday, balances as on the Saturday, sent
+		// within the next four trading days (NSE/INSP/73976, item 4.5).
+		// The week is over once its Saturday has passed.
+		sat := lastSaturday(addDays(date, -1))
+		set, _ := o.Settings(ctx, tenant)
+		return sat, fmtDay(addDays(sat, -5)) + " to " + fmtDay(sat), addTradingDays(set, sat, 4)
 	case "dis_master":
 		fri := lastFriday(date)
 		return fri, "Week to " + fmtDay(fri), addDays(fri, 3)
@@ -192,6 +199,9 @@ func (o *Ops) periodFor(ctx context.Context, tenant string, t PeriodicTask, date
 	case "settlement_master":
 		m := addDays(date, 10)[:7]
 		return m, monthLabel(m), addDays(m+"-01", -1)
+	case "fiu_ctr_ntr":
+		m := prevMonth(date)
+		return m, monthLabel(m), addMonths(m+"-01", 1)[:8] + "15"
 	case "ledger_statements", "complaints_disclosure", "raia_impersonation":
 		// raia_impersonation: within 7 days of the month's end (BSE notices
 		// 20250804-58 and 20250804-59).
@@ -220,6 +230,15 @@ func (o *Ops) periodFor(ctx context.Context, tenant string, t PeriodicTask, date
 			}
 		}
 		return d, "Settlement of " + fmtDay(d), d
+	case "annual_statement":
+		fy := lastEndedFY(date)
+		return fy, fy, annualDue(fy)
+	case "nomination_reminders":
+		// The half-month the date is in, due at its end.
+		if date[8:] <= "15" {
+			return date[:8] + "01", "1-15 " + monthLabel(date[:7]), date[:8] + "15"
+		}
+		return date[:8] + "16", "16-" + monthEnd(date[:7])[8:] + " " + monthLabel(date[:7]), monthEnd(date[:7])
 	case "bsda_review":
 		end := prevQuarterEnd(date)
 		return quarterID(end), quarterLabel(end), addDays(end, 10)
@@ -319,6 +338,24 @@ func (o *Ops) periodicDone(ctx context.Context, tenant string, t PeriodicTask, p
 		return true, run.Summary
 	}
 	switch t.ID {
+	case "annual_statement":
+		if _, to, err := fyRange(period); err != nil || !o.tradedBy(ctx, tenant, to) {
+			return true, "No trades in Ledgerline in the year"
+		}
+		v, err := o.YearEnds(ctx, tenant, period, date, nil)
+		if err == nil && len(v.Rows) > 0 && v.Sent == len(v.Rows) {
+			return true, fmt.Sprintf("%d clients sent", v.Sent)
+		}
+	case "nomination_reminders":
+		if n := o.nominationReminderTargets(ctx, tenant); len(n) == 0 {
+			return true, "Every active client has nominated or opted out"
+		}
+	case "funds_securities":
+		// A week before the firm's first trade in Ledgerline has nothing to
+		// send.
+		if !o.tradedBy(ctx, tenant, period) {
+			return true, "No trades in Ledgerline by the end of the week"
+		}
 	case "settlement_master":
 		ds, _ := o.SettlementCalendar(ctx, tenant, period+"-01")
 		for _, d := range ds {
@@ -487,6 +524,20 @@ func (o *Ops) runPeriodic(ctx context.Context, tenant, actor string, t PeriodicT
 			return statementSummary(res), nil, fmt.Errorf("%d statements failed: %s", len(res.Errors), res.Errors[0])
 		}
 		return statementSummary(res), nil, nil
+	case "annual_statement":
+		sent, failed, err := o.SendYearEnd(ctx, tenant, actor, period, date, nil)
+		if err != nil {
+			return "", nil, err
+		}
+		if failed > 0 {
+			return fmt.Sprintf("%d sent, %d failed", sent, failed), nil, fmt.Errorf("%d annual statements failed: see the dispatch register", failed)
+		}
+		return fmt.Sprintf("%d annual statements sent", sent), nil, nil
+	case "fiu_ctr_ntr":
+		return o.runFIUMonthly(ctx, tenant, period, date)
+	case "nomination_reminders":
+		n, err := o.sendNominationReminders(ctx, tenant, actor, period)
+		return fmt.Sprintf("%d clients reminded", n), nil, err
 	case "ledger_statements", "dp_statements":
 		kind := map[string]string{"ledger_statements": DocLedger, "dp_statements": DocDP}[t.ID]
 		res, err := o.SendStatements(ctx, tenant, actor, kind, period)
@@ -735,6 +786,8 @@ func (o *Ops) RunDuePeriodic(ctx context.Context, tenant, date string) (string, 
 	var ran, queued, failed []string
 	o.clearRetiredWork(ctx, tenant)
 	o.flagNominationsOverLimit(ctx, tenant, date)
+	o.odrNotices(ctx, tenant, date)
+	o.flagClientReferrers(ctx, tenant, date)
 	for _, t := range PeriodicTasks {
 		s := o.periodicStatus(ctx, tenant, t, date)
 		if s.Status != "Due" && s.Status != "Overdue" && s.Status != "Failed" {

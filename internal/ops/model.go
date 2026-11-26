@@ -125,15 +125,28 @@ func (u User) scope() string {
 
 // Settings are per-tenant rules and calendar.
 type Settings struct {
-	Firm               string            `json:"firm"`
-	SEBIReg            string            `json:"sebi_reg"`
-	MemberCodes        map[string]string `json:"member_codes"`
-	ComplianceEmail    string            `json:"compliance_email"`
-	WarnUtilPct        int64             `json:"warn_util_pct"`
-	RASBufferPct       int64             `json:"ras_buffer_pct"`
-	PenaltyPassThrough bool              `json:"penalty_pass_through"`
-	RASMonthly         string            `json:"ras_monthly"`
-	RASQuarterly       string            `json:"ras_quarterly"`
+	Firm            string            `json:"firm"`
+	SEBIReg         string            `json:"sebi_reg"`
+	MemberCodes     map[string]string `json:"member_codes"`
+	ComplianceEmail string            `json:"compliance_email"`
+	// The firm's address and phone, and the compliance officer's name and
+	// phone, printed on contract notes, statements and letters (SEBI
+	// master circular for stock brokers: registered name, address,
+	// phone and the compliance officer's name, phone and email on every
+	// document to clients).
+	FirmAddress       string `json:"firm_address,omitempty"`
+	FirmPhone         string `json:"firm_phone,omitempty"`
+	ComplianceOfficer string `json:"compliance_officer,omitempty"`
+	CompliancePhone   string `json:"compliance_phone,omitempty"`
+	// Escalation is the investor grievance escalation matrix (customer
+	// care, head of customer care, compliance officer, CEO) that complaint
+	// acknowledgements quote (NSE/ISC/73908, Part A 7.2).
+	Escalation         []EscalationContact `json:"escalation,omitempty"`
+	WarnUtilPct        int64               `json:"warn_util_pct"`
+	RASBufferPct       int64               `json:"ras_buffer_pct"`
+	PenaltyPassThrough bool                `json:"penalty_pass_through"`
+	RASMonthly         string              `json:"ras_monthly"`
+	RASQuarterly       string              `json:"ras_quarterly"`
 	// CUSPADays: the firm's payment period for unpaid purchases pledged to
 	// CUSPA, in trading days after pay-out: 1 to 5 (SEBI's maximum), 5
 	// when not set (cuspa.go).
@@ -190,6 +203,12 @@ type Settings struct {
 	TDSCommissionPct string `json:"tds_commission_pct"` // section 194H, default 2
 	ReferralPct      string `json:"referral_pct"`       // of referred clients' brokerage, default 10
 	ReferralMonths   int64  `json:"referral_months"`    // default 12
+	// ReferralAPOnlyFrom is the day from which a referral reward is paid
+	// only to a registered authorised person (NSE inspection master
+	// circular item 4.21; MCX/INSP/255/2026 para 9.9(a)): a client who
+	// refers another is recorded as the source and earns nothing from it.
+	// Empty: from DefaultReferralAPOnlyFrom.
+	ReferralAPOnlyFrom string `json:"referral_ap_only_from,omitempty"`
 
 	// Money in and out.
 	ChequeBounceCharge string `json:"cheque_bounce_charge"` // ₹ before GST, default 350

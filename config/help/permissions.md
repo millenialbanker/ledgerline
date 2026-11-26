@@ -318,6 +318,7 @@ Recording a deceased client's steps | Ops maker, Ops checker, Compliance officer
 Recording a leaver | HR manager
 Recording a physical dispatch | Ops maker, Ops checker, Admin
 Recording a receipt | Ops maker, Ops checker, Branch staff
+Recording a returned document | Ops maker, Ops checker, Admin
 Recording a stock SIP fill | Ops maker, Ops checker
 Recording a surveillance action | Compliance officer
 Recording a transfer between the firm's bank accounts | Ops maker, Ops checker
