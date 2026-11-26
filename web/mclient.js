@@ -26,6 +26,9 @@ async function portal(force) {
   if (!force && CA.v && Date.now() - CA.at < 20000) return CA.v;
   CA.v = await get(`/v1/portal?date=${MS.day()}&ucc=${encodeURIComponent(CA.acct)}`);
   CA.acct = CA.v.account.ucc; CA.at = Date.now();
+  // The pop-up on nominating, at the first login of the day of a demat
+  // account without a nominee (internal/ops/contactletter.go).
+  if (CA.v.nomination_nudge) setTimeout(() => sheet('Add a nominee', `<p>${esc(CA.v.nomination_nudge)}</p>`, 'OK', () => closeSheet()), 50);
   return CA.v;
 }
 const notTrading = v => v.account.dp_only;

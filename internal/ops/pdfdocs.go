@@ -107,7 +107,7 @@ func (o *Ops) notePDF(ctx context.Context, tenant, date, ucc, part string) (pdf.
 		dir = "payable by"
 	}
 	r.Summary = [][2]string{{"Net amount " + dir + " client", "₹" + formatINR(v.Net.Abs())}, {"Trades", fmt.Sprint(len(v.Lines))}, {"Contract note", n.No}, {"Trade date", n.Date}}
-	t := pdf.Table{Title: "Trades", Cols: []pdf.Col{{Label: "Order no.", Weight: 1.3}, {Label: "Trade no.", Weight: 1.1}, {Label: "Time", Weight: 0.8}, {Label: "Exchange"}, {Label: "Security / contract", Weight: 2.6}, {Label: "B/S", Weight: 0.5}, {Label: "Qty", Right: true, Weight: 0.8}, {Label: "Price", Right: true}, {Label: "Brokerage", Right: true}, {Label: "Net total", Right: true, Weight: 1.2}}}
+	t := pdf.Table{Title: "Annexure: orders and trades", Cols: []pdf.Col{{Label: "Order no.", Weight: 1.3}, {Label: "Trade no.", Weight: 1.1}, {Label: "Time", Weight: 0.8}, {Label: "Exchange"}, {Label: "Security / contract", Weight: 2.6}, {Label: "B/S", Weight: 0.5}, {Label: "Qty", Right: true, Weight: 0.8}, {Label: "Price", Right: true}, {Label: "Brokerage", Right: true}, {Label: "Net total", Right: true, Weight: 1.2}}}
 	for _, l := range v.Lines {
 		t.Rows = append(t.Rows, []string{l.OrderNo, l.TradeNo, l.Time, l.Seg, l.Name, l.Side, l.Qty, l.Price, formatINR(l.Brok.Dec()), formatINR(l.Net)})
 	}
@@ -117,6 +117,15 @@ func (o *Ops) notePDF(ctx context.Context, tenant, date, ucc, part string) (pdf.
 	}
 	g.Totals = []string{"Net " + dir + " client", "", "", "", "", "", "", "", formatINR(v.Net.Abs())}
 	r.Sections = []pdf.Table{t, g}
+	if len(v.WAP) > 0 {
+		// The contract-wise summary comes first; the trades are its
+		// annexure (notesx.go).
+		w := pdf.Table{Title: "Contract-wise summary (weighted average price)", Cols: []pdf.Col{{Label: "Security / contract", Weight: 2.6}, {Label: "Exchange"}, {Label: "B/S", Weight: 0.5}, {Label: "Qty", Right: true, Weight: 0.8}, {Label: "Weighted avg price", Right: true, Weight: 1.2}, {Label: "Brokerage / unit", Right: true}, {Label: "Net rate / unit", Right: true}, {Label: "Net total before levies", Right: true, Weight: 1.3}}}
+		for _, x := range v.WAP {
+			w.Rows = append(w.Rows, []string{x.Security, x.Exchanges, x.Side, fmt.Sprint(x.Qty), x.WAP, x.BrokPU, x.NetRate, formatINR(x.Net)})
+		}
+		r.Sections = []pdf.Table{w, g, t}
+	}
 	if len(v.Scrips) > 0 {
 		sc := pdf.Table{Title: "Scrip-wise summary of the day (average rates)", Cols: []pdf.Col{{Label: "Security / contract", Weight: 2.6}, {Label: "Bought", Right: true}, {Label: "Average buy rate", Right: true}, {Label: "Sold", Right: true}, {Label: "Average sell rate", Right: true}}}
 		for _, x := range v.Scrips {

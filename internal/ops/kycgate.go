@@ -662,6 +662,7 @@ func (o *Ops) kycGateDaily(ctx context.Context, tenant, day string) {
 		}
 	}
 	o.mnrlNoticeDaily(ctx, tenant, day)
+	o.closedBalanceDaily(ctx, tenant, day) // selfinspect_b6stmts.go
 	o.onboardDaily(ctx, tenant, day)
 	ls, _ := docs.List[KYCList](ctx, o.Docs, tenant, cKYCList, "")
 	cs, _ := o.ClientMap(ctx, tenant)

@@ -206,13 +206,13 @@ var AppDeclarations = map[string]string{
 func (o *Ops) appDeclarations(ctx context.Context, tenant string) map[string]string {
 	d := o.DisclosureDeclaration(ctx, tenant)
 	if d == "" {
-		return AppDeclarations
+		return o.kitDeclarations(ctx, tenant, AppDeclarations)
 	}
 	out := map[string]string{"prop": d}
 	for k, v := range AppDeclarations {
 		out[k] = v
 	}
-	return out
+	return o.kitDeclarations(ctx, tenant, out)
 }
 
 // ---- providers ----
@@ -305,6 +305,9 @@ type AppConfig struct {
 	Dev      bool              `json:"dev"`
 	Segments map[string]string `json:"segments"`
 	Declare  map[string]string `json:"declarations"`
+	// Optional are choices the applicant may leave unticked: electronic
+	// contract notes (onboardkit.go).
+	Optional map[string]string `json:"optional"`
 	Steps    []string          `json:"steps"`
 	DocKinds []string          `json:"doc_kinds"`
 	// DigiLockerRedirect: the applicant is sent to DigiLocker and back
@@ -323,7 +326,7 @@ type AppConfig struct {
 // ApplyConfig describes the firm for the public page.
 func (o *Ops) ApplyConfig(ctx context.Context, tenant string) AppConfig {
 	set, _ := o.Settings(ctx, tenant)
-	return AppConfig{Firm: set.Firm, SEBIReg: set.SEBIReg, Email: set.ComplianceEmail, Provider: o.kycName(ctx, tenant), Dev: o.DevCodes, Segments: SegmentNames, Declare: o.appDeclarations(ctx, tenant), Steps: AppSteps,
+	return AppConfig{Firm: set.Firm, SEBIReg: set.SEBIReg, Email: set.ComplianceEmail, Provider: o.kycName(ctx, tenant), Dev: o.DevCodes, Segments: SegmentNames, Declare: o.appDeclarations(ctx, tenant), Optional: map[string]string{declECN: ECNText}, Steps: AppSteps,
 		DocKinds: []string{"PAN card", "Photograph", "Signature", "Income proof", "Bank proof", AppDocPassport, AppDocOCI, AppDocOverseas}, Purposes: OnboardPurposes, DigiLockerRedirect: isFlow(o.kyc()), AadhaarMethods: o.aadhaarMethods(ctx), FATCA: FATCACodeLists()}
 }
 
@@ -802,6 +805,13 @@ func (o *Ops) AppForm(ctx context.Context, tenant string, a Application) ([]byte
 			decl = append(decl, all[k])
 		}
 	}
+	// The separate authorisation of electronic contract notes, or the
+	// choice of printed ones (onboardkit.go).
+	if a.Declarations[declECN] {
+		decl = append(decl, "Electronic contract notes: "+ECNText)
+	} else {
+		decl = append(decl, "Contract notes and statements: printed and sent by post (no electronic contract note authorisation given).")
+	}
 	var b bytes.Buffer
 	err := appFormTmpl.Execute(&b, map[string]any{"A": a, "Firm": set.Firm, "SEBI": set.SEBIReg, "Segments": strings.Join(segs, ", "), "Decl": decl, "PANMasked": MaskPAN(a.PAN), "AcctMasked": MaskAccount(a.Account)})
 	return b.Bytes(), err
@@ -899,6 +909,10 @@ func (o *Ops) submitApplication(ctx context.Context, tenant string, a Applicatio
 		Risk: "Low", Income: a.Income, RAS: a.RAS, Bank: BankAccount{Bank: a.Bank, IFSC: a.IFSC, Account: a.Account}, Demat: Demat{Depository: a.Depository, ID: a.DematID},
 		Nominee: nom, NomineeName: a.NomineeName, Nominees: a.Nominees, NominationOn: o.now().Format("2006-01-02"), NominationMode: "Online with e-Sign", NomineesOnStatement: a.NomineesOnStatement && !a.NomineeOptOut, KYCRoute: kycRoute(a), IncomeProof: a.hasDoc("Income proof"), RiskDisclosure: true,
 		WhatsApp: a.WhatsApp, Partner: a.Partner, Tags: []string{"ONLINE"}, FATCA: a.FATCA}
+	// Electronic contract notes only on the applicant's own e-Signed
+	// authorisation; otherwise they go by post (onboardkit.go).
+	c.PhysicalNotes = !a.Declarations[declECN]
+	c.ECNAuth = &ECNAuthorisation{On: a.Declarations[declECN], At: o.now().Format(time.RFC3339), Source: "Account opening form (e-Signed)", Ref: a.ID, By: actor}
 	if c.Demat.Depository == "" {
 		c.Demat.Depository = "CDSL"
 	}
@@ -940,6 +954,10 @@ func (o *Ops) submitApplication(ctx context.Context, tenant string, a Applicatio
 	} else {
 		r := &runCtx{o: o, ctx: ctx, tenant: tenant, date: o.businessDate(ctx, tenant), process: "eapply", keys: map[string]bool{}}
 		r.queue(a.ID, fmt.Sprintf("Online application %s · %s", a.ID, nc.UCC), fmt.Sprintf("%s applied online; %d checks passed, %d to check manually, %d failed. %s", a.Name, a.count("Passed"), a.count("Check manually"), a.count("Failed"), strings.Join(a.blockers(), " ")), nc.UCC, RoleChecker, "apps", "", nil)
+	}
+	// The kit goes through the dispatch register, signed (onboardkit.go).
+	if _, err := o.sendAccountKit(ctx, tenant, actor, nc.UCC, a.ID); err != nil {
+		o.log(ctx, tenant, actor, "dispatch.error", nc.UCC, map[string]any{"kind": DocKit, "error": err.Error()})
 	}
 	set, _ := o.Settings(ctx, tenant)
 	o.sendDirect(ctx, tenant, actor, ChEmail, a.Email, nc.UCC, "eapply.submitted", "Your account application "+a.ID,

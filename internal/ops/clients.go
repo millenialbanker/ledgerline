@@ -139,6 +139,9 @@ type Client struct {
 	// PhysicalNotes: the client did not opt for electronic contract notes
 	// and statements; they are printed and sent by courier.
 	PhysicalNotes bool `json:"physical_notes,omitempty"`
+	// ECNAuth is the client's specific authorisation of electronic
+	// contract notes, with how it was given (onboardkit.go).
+	ECNAuth *ECNAuthorisation `json:"ecn_auth,omitempty"`
 	// FundsLedger is where this client's money goes when it comes in with
 	// no other instruction, with a separate commodity ledger
 	// (segledger.go): EQ or COM; empty waits for a person to choose.

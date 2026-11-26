@@ -564,6 +564,14 @@ func moduleNeed(n string, f firmFacts) (v tri, why string, ok bool) {
 		}
 		return triUnknown, ask("whether clients trade through the firm's website or app and how many are registered for it"), true
 	case n == "specified":
+		// NSE names specified stockbrokers only among brokers with more
+		// than 10,000 online clients, so a firm below that is not one
+		// unless it says so.
+		if f.Specified == triUnknown {
+			if v, _, _ := moduleNeed("ibt:10k", f); v == triNo {
+				return triNo, "NSE names specified stockbrokers only among brokers with more than 10,000 online clients", true
+			}
+		}
 		return fact(f.Specified, "you are on NSE's list of specified stockbrokers", "you are not a specified stockbroker", ask("whether the firm is on NSE's list of specified stockbrokers"))
 	case n == "qsb":
 		return fact(f.QSB, "you are a qualified stock broker", "you are not a qualified stock broker", ask("whether the firm is a qualified stock broker"))
