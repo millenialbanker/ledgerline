@@ -371,8 +371,7 @@ func (o *Ops) segmonData(ctx context.Context, tenant, date string) (map[string]*
 		if h.Pledged.Sign() <= 0 {
 			continue
 		}
-		if i, ok := in.look.ByISIN(h.ISIN); ok {
-			v := i.LTP.Mul(h.Pledged).Pct(money.DecInt(100).Sub(i.HaircutPct)) // as live risk values it
+		if v, ok := pledgeValueOf(in.look, in.prevLook, h.ISIN, h.Pledged); ok { // as live risk values it (T-1 close less haircut)
 			c := get(h.UCC)
 			if strings.HasPrefix(strings.ToUpper(h.ISIN), "IN00") {
 				c.gsec = c.gsec.Add(v)

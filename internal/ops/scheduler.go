@@ -297,11 +297,22 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	// Client allocation: results of requests sent to NSE Clearing are
 	// fetched and applied, and money in is sent, while the allocation
 	// window is open. Runs only when the firm switched sending on.
-	if hm := now.In(ist).Format("15:04"); hm >= "07:00" && hm <= "21:00" {
+	// Until 22:30, so the results of the end-of-day batch (allocation is
+	// due by 22:00, NCL/CMPT/70442) come in.
+	if hm := now.In(ist).Format("15:04"); hm >= "07:00" && hm <= "22:30" {
 		if set, _ := o.Settings(ctx, tenant); set.AllocAPILive {
 			_, _ = o.AllocationCheck(ctx, tenant, SystemActor)
 		}
 	}
+	// Settlement checks (settlecheck.go, nclshortage.go): the allocation
+	// accepted by 22:00, early pay-ins at the end of the trade day, the
+	// morning's funding of internal shortages by noon, pay-out
+	// reconciliation and the deadlines of pay-outs, transfer requests and
+	// account closures. They raise work items only.
+	o.allocAcceptTick(ctx, tenant, now)
+	o.epiEndOfDay(ctx, tenant, now)
+	o.internalShortageTick(ctx, tenant, now)
+	o.payoutReconTick(ctx, tenant, now)
 	// Trades from NSE's trade API, for live risk, when the firm switched
 	// fetching on in Connections.
 	o.notisTick(ctx, tenant, now)

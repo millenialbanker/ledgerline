@@ -65,6 +65,7 @@ func (s *Server) opsRoutes() {
 	s.rfqRoutes()
 	s.cbricsRoutes()
 	s.payoutHoldRoutes()
+	s.settleRoutes()
 	s.activityRoutes()
 	s.securityRoutes()
 	s.nseUCIRoutes()
@@ -167,6 +168,9 @@ func (s *Server) opsRoutes() {
 	R("POST /v1/cuspa/bulk", s.cuspaBulk, true)
 	R("GET /v1/cuspa/file", s.cuspaFile, false)
 	R("POST /v1/cuspa/{id}/release", s.releaseCUSPA, true)
+	R("GET /v1/cuspa/policy", s.cuspaPolicy, false)
+	R("POST /v1/cuspa/policy", s.cuspaPolicySave, true)
+	R("POST /v1/cuspa/policy/send", s.cuspaPolicySend, true)
 	R("GET /v1/notes", s.notes, false)
 	R("POST /v1/notes/generate", s.generateNotes, true)
 	R("POST /v1/notes/send", s.sendNotes, true)
@@ -1070,6 +1074,31 @@ func (s *Server) cuspaBulk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.CUSPABulk(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) cuspaPolicy(w http.ResponseWriter, r *http.Request) {
+	v, err := s.ops.CUSPAPolicyStatus(r.Context(), tenant(r))
+	ok(w, v, err)
+}
+
+func (s *Server) cuspaPolicySave(w http.ResponseWriter, r *http.Request) {
+	var b ops.CUSPAPolicyInput
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.SaveCUSPAPolicy(r.Context(), tenant(r), actor(r), b)
+	ok(w, v, err)
+}
+
+func (s *Server) cuspaPolicySend(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Date string `json:"date"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.CommunicateCUSPAPolicy(r.Context(), tenant(r), actor(r), b.Date)
 	ok(w, v, err)
 }
 
@@ -2450,14 +2479,11 @@ func (s *Server) shortages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) settleShortage(w http.ResponseWriter, r *http.Request) {
-	var b struct {
-		Date  string    `json:"date"`
-		Price money.Dec `json:"price"`
-	}
+	var b ops.ShortageClose // date, price; received and auction_price for shares bought in the auction
 	if !decode(w, r, &b) {
 		return
 	}
-	v, err := s.ops.SettleShortage(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Date, b.Price)
+	v, err := s.ops.SettleShortageWith(r.Context(), tenant(r), actor(r), r.PathValue("id"), b)
 	ok(w, v, err)
 }
 

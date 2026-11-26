@@ -51,12 +51,28 @@ func (o *Ops) reactivationLetter(ctx context.Context, tenant, actor string, r Re
 	}
 }
 
+// closureLetter writes to the client when a segment is closed. It says the
+// funds and securities were paid out only when the books show it; while a
+// credit balance or a pledge remains, the letter is held and a work item
+// asks for the pay-out first (NSE/INSP/73976 item 1.15(vi); a closure
+// asked for by the client goes through its own request, acctclose.go).
 func (o *Ops) closureLetter(ctx context.Context, tenant, actor string, c Client, ch SegmentChange) {
 	if ch.To != "Closed" || c.Deceased != nil {
 		return // a deceased client's balance goes through the transmission (deceased.go)
 	}
-	paras := []string{fmt.Sprintf("Your trading account %s has been closed in the %s segment from %s (%s).", c.UCC, ch.Segment, fmtDay(ch.On), ch.Reason),
-		"Any funds and securities due to you are paid out to your registered bank and demat accounts. Your statement of account to the date of closure is available on request."}
+	paras := []string{fmt.Sprintf("Your trading account %s has been closed in the %s segment from %s (%s).", c.UCC, ch.Segment, fmtDay(ch.On), ch.Reason)}
+	if len(c.OpenSegments()) == 0 {
+		ok, why := o.closurePaidOut(ctx, tenant, c.UCC, ch.On)
+		if !ok {
+			o.raiseWork(ctx, tenant, "closure", "letter|"+c.UCC+"|"+ch.On, "Closure letter held · "+c.UCC,
+				fmt.Sprintf("%s's last open segment was closed on %s, but the books show %s. Pay out and release first; the closure letter goes once that is done (close it through a closure request on Settlement → Account closures).", c.UCC, fmtDay(ch.On), why), c.UCC, RoleChecker, "settlement", ch.On)
+			o.log(ctx, tenant, actor, "letter.held", c.UCC, map[string]any{"segment": ch.Segment, "why": why})
+			return
+		}
+		paras = append(paras, "Your ledger shows no funds due to you and no securities pledged with us. Your statement of account to the date of closure is available on request.")
+	} else {
+		paras = append(paras, fmt.Sprintf("Your account stays open in %s. Your statement of account is available on request.", strings.Join(c.OpenSegments(), ", ")))
+	}
 	if _, err := o.sendLetter(ctx, tenant, actor, ch.On, c.UCC, "CLOSE-"+ch.Segment+"-"+ch.On, "Account closure", paras); err != nil {
 		o.log(ctx, tenant, actor, "letter.error", c.UCC, map[string]any{"segment": ch.Segment, "error": err.Error()})
 	}

@@ -1,0 +1,140 @@
+{
+ "id": "ncl-internal-shortage-detail",
+ "title": "Internal shortages to be auctioned, client-wise (NSE Clearing, CM_SA_DTLS)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "Settlement day, morning",
+ "purpose": "Client-wise detail of the internal shortages NSE Clearing auctions: the short-delivering client and the security. Name the file with CM_SA_DTLS in it and drop it on Exchange files.",
+ "names": [
+  "(?i).*CM_SA_DTLS.*"
+ ],
+ "compress": "none",
+ "format": "headers",
+ "delimiter": "auto",
+ "header": true,
+ "columns": [
+  {
+   "name": "Settlement Type",
+   "key": "sett_type",
+   "type": "str",
+   "aliases": [
+    "SttlmTp",
+    "Sett Type",
+    "Settlement_Type",
+    "Mkt Type",
+    "Market Type"
+   ]
+  },
+  {
+   "name": "Settlement No",
+   "key": "sett_no",
+   "type": "str",
+   "aliases": [
+    "SttlmId",
+    "Settlement Number",
+    "Sett No",
+    "Settlement_No",
+    "SettNo"
+   ]
+  },
+  {
+   "name": "Client Code",
+   "key": "ucc",
+   "type": "str",
+   "aliases": [
+    "ClntId",
+    "UCC",
+    "Client Id",
+    "ClientCode",
+    "Client_Code",
+    "Unique Client Code"
+   ],
+   "required": true
+  },
+  {
+   "name": "Symbol",
+   "key": "symbol",
+   "type": "str",
+   "aliases": [
+    "TckrSymb",
+    "Security Symbol",
+    "Scrip",
+    "Scrip Symbol"
+   ]
+  },
+  {
+   "name": "Series",
+   "key": "series",
+   "type": "str",
+   "aliases": [
+    "SctySrs",
+    "Security Series"
+   ]
+  },
+  {
+   "name": "ISIN",
+   "key": "isin",
+   "type": "str",
+   "aliases": [
+    "ISIN Code",
+    "Security ISIN",
+    "Isin"
+   ]
+  },
+  {
+   "name": "Shortage Quantity",
+   "key": "qty",
+   "type": "dec",
+   "aliases": [
+    "Internal Shortage Qty",
+    "Internal Shortage Quantity",
+    "Short Qty",
+    "ShrtQty",
+    "Shortage Qty",
+    "Quantity",
+    "Qty"
+   ],
+   "required": true
+  },
+  {
+   "name": "Buy/Sell",
+   "key": "side",
+   "type": "str",
+   "aliases": [
+    "Side",
+    "Buy Sell",
+    "BuySellInd",
+    "Indicator",
+    "Obligation Type"
+   ]
+  },
+  {
+   "name": "Valuation Price",
+   "key": "price",
+   "type": "dec",
+   "aliases": [
+    "ValtnPric",
+    "Valuation Rate",
+    "Val Price",
+    "Settlement Price + 20%",
+    "Close Price"
+   ]
+  },
+  {
+   "name": "Valuation Amount",
+   "key": "amount",
+   "type": "dec",
+   "aliases": [
+    "ValtnAmt",
+    "Valuation Amt",
+    "Val Amount",
+    "Funds Payable",
+    "Amount Payable",
+    "Valuation Value"
+   ]
+  }
+ ],
+ "confirmed": false,
+ "source": "NSE Clearing consolidated circular NCL/CMPT/73996 (CM segment), items 6.4 and 7.13-7.14 (auction of internal shortages: the valuation amount, settlement price plus 20%, is debited by 12:00 noon on the settlement day; no payment, no auction), and NCL/CMPT/71441 (375/2025) of 24 Nov 2025 (FAQs on internal shortage auctions). No published column layout was found: the file is read by its header names. When a real file's header differs, add its text as an alias here.",
+ "linked": "Loaded on Settlement → Short deliveries: each client's internal shortage is matched to the short delivery recorded in Ledgerline, and the buyers of the security wait for the auctioned shares instead of a cash close-out."
+}

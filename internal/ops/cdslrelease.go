@@ -574,14 +574,17 @@ func (o *Ops) RepledgeRecon(ctx context.Context, tenant, date string) ([]Repledg
 // NormalPledge is a client's pledge to a lender (loan against shares),
 // set up by the DP through CDSL's normal pledge API.
 type NormalPledge struct {
-	ID          string       `json:"id"`
-	UCC         string       `json:"ucc"`
-	Name        string       `json:"name"`
-	Lender      string       `json:"lender"`
-	PledgeeBOID string       `json:"pledgee_bo_id"`
-	Agreement   string       `json:"agreement,omitempty"`
-	Expiry      string       `json:"expiry"`
-	Remarks     string       `json:"remarks,omitempty"`
+	ID          string `json:"id"`
+	UCC         string `json:"ucc"`
+	Name        string `json:"name"`
+	Lender      string `json:"lender"`
+	PledgeeBOID string `json:"pledgee_bo_id"`
+	Agreement   string `json:"agreement,omitempty"`
+	Expiry      string `json:"expiry"`
+	Remarks     string `json:"remarks,omitempty"`
+	// Undertaking is the reference of the signed Annexure-A undertaking of
+	// pledgor and pledgee kept with the request (CDSL DP2026-180).
+	Undertaking string       `json:"undertaking,omitempty"`
 	Lines       []NormalLine `json:"lines"`
 	Status      string       `json:"status"` // Pending, Rejected, Sent, Done, Partly done, Failed, No reply
 	Maker       string       `json:"maker"`
@@ -831,6 +834,10 @@ type PledgeRelease struct {
 	// CUSPA is the CUSPA line a release or invocation of the depository's
 	// automatic pledge is for (Of "CU", Source "CUSPA"; cuspacdsl.go).
 	CUSPA string `json:"cuspa,omitempty"`
+	// Undertaking is the reference of the signed Annexure-A undertaking of
+	// pledgor and pledgee kept with an invocation (CDSL DP2026-180, from 6
+	// Apr 2026; pledgeundertaking.go).
+	Undertaking string `json:"undertaking,omitempty"`
 }
 
 func (o *Ops) cplReleases(ctx context.Context, tenant string) []PledgeRelease {
@@ -1275,6 +1282,10 @@ func (o *Ops) DecideInvocation(ctx context.Context, tenant, actor, id string, ac
 		return r, err
 	}
 	o.closeWork(ctx, tenant, actor, "cdslinvoke", id, r.Status)
+	if accept && r.Undertaking == "" {
+		o.raiseWork(ctx, tenant, "pledge-undertaking", "CF:"+r.ID, "Keep the signed Annexure-A undertaking for invocation "+r.ID,
+			"CDSL's communiqué DP2026-180 asks for the undertaking of pledgor and pledgee (Annexure-A) with every invocation request. Keep the signed copy and record its reference on Pledges (CDSL) → Invocations.", r.UCC, RoleCompliance, "cdslpledge", "")
+	}
 	if accept {
 		o.notify(ctx, tenant, actor, "cdsl.invocation_notice", r.UCC, map[string]string{"ref": r.ID, "scrips": fmt.Sprintf("%d %s", r.Qty, r.Symbol), "psn": r.PSN,
 			"debit": formatINR(money.MustDec(firstOf(r.Debit, "0"))), "due": due.In(ist).Format("02 Jan 2006 15:04"), "reason": r.Reason})

@@ -30,7 +30,7 @@ If CDSL does not answer a request, it shows **No reply**: look it up in CDSL and
 title: Invoke a client's pledge for an unpaid debit or MTF liquidation
 screen: cdslpledge
 roles: Risk manager, Compliance officer
-ask: invoke pledge; invocation of pledge; confiscate pledged shares; sell pledged shares for debit; recover debit from pledged shares; mtf liquidation pledge; pledge invocation notice; debit not paid pledged shares
+ask: invoke pledge; invocation of pledge; annexure a undertaking; pledge undertaking; confiscate pledged shares; sell pledged shares for debit; recover debit from pledged shares; mtf liquidation pledge; pledge invocation notice; debit not paid pledged shares
 related: cdsl-pledge-apis, debit-interest
 
 The Unpledge & invocation tab lists pledges that **may be invoked**: clients whose debit is overdue past the blocking period (Debtors), and MTF positions to be liquidated (Margin trading). The scheduler puts each in the risk team's work queue.
@@ -40,11 +40,13 @@ The Unpledge & invocation tab lists pledges that **may be invoked**: clients who
 3. When the notice runs out, Ledgerline sends the invocation to CDSL, unless the debit has been paid or the MTF position closed meanwhile, in which case it is cancelled. Risk may also use **Invoke now** once the notice is over.
 4. The shares move to the firm's account; holdings drop. A work item asks risk to sell them and credit the proceeds (Debtors), or to close the MTF position.
 
+**Signed undertaking.** Since 6 April 2026 CDSL (communiqué DP2026-180) wants the undertaking of pledgor and pledgee (its Annexure-A) with each invocation and each pledge to a lender. Keep the signed copy and record its reference (file name or physical file number) on the request; compliance gets a work item when approving an invocation without it, and the self-inspection test **pledge_undertaking** finds any sent without it. The test **pledge_invoke_notice** checks that each invocation was sent only after the client's notice ran out.
+
 ## cdsl-early-payin
 title: Early pay-in through CDSL's API
 screen: cdslepi
 roles: Ops maker, Ops checker
-ask: early pay-in; early payin; epi; early pay in of securities; sell without margin; avoid short delivery; credit against sale; segmon early pay-in; ep transaction id
+ask: early pay-in; early payin; epi; tender offer early pay-in; tmid; buy back early pay in; pr-ep; pledge release for early pay-in; early pay in of securities; sell without margin; avoid short delivery; credit against sale; segmon early pay-in; ep transaction id
 related: cdsl-pledge-apis, cdsl-pledge-go-live
 
 The [[cdslepi|Early pay-in]] screen lists the day's delivery sells (net of buys) per client and scrip.
@@ -52,6 +54,10 @@ The [[cdslepi|Early pay-in]] screen lists the day's delivery sells (net of buys)
 1. A DP maker clicks **Enter** on a sell (or **Enter early pay-in**). Clients with DDPI need nothing more; otherwise give the DIS or eDIS number. The CDSL settlement ID (13 digits) comes from CDSL's settlement calendar when it is loaded (Files); otherwise type it.
 2. A DP checker who did not enter them ticks them and clicks **Send selected**. CDSL answers at once with an early pay-in transaction ID for each ISIN, or the reason it refused.
 3. Requests CDSL did not answer are asked about every few minutes, and left for a person after a day.
+
+**Tender offers** (buy-back, open offer, delisting). An early pay-in for a tender offer names the offer and carries the trading member code (TMID): by default the CDSL settings' TM/CP ID, else the firm's member code (CDSL communiqué DP2026-815, from 28 November 2026). CDSL earmarks the balance 10 minutes before its cut-off, so Ledgerline warns in the last 10 minutes before the offer's bidding close for the day and refuses it after.
+
+**Margin-pledged shares sold.** When a client sells shares pledged to the firm, the settlement's **Unpledge & pay-in** step releases only what the sale needs and puts a work item to give the pledge release for early pay-in (PR-EP) on CDSL's system, no more than the sale obligation.
 
 Accepted early pay-ins are kept by date, client, ISIN, quantity and settlement. Live (intraday) risk treats those sales as delivered: no short delivery and no auction reserve. They also feed credit against sale and SEGMON.
 

@@ -672,9 +672,12 @@ func (o *Ops) Allocation(ctx context.Context, tenant, date string) ([]Allocation
 	return o.withPayoutHolds(ctx, tenant, date, rows), nil
 }
 
-// allocationBase is Allocation without pay-out holds.
+// allocationBase is Allocation without pay-out holds. Every client with
+// funds or collateral is allocated, whatever the trading status (riskView
+// with everyone): a dormant or suspended client's credit balance is the
+// client's money at the clearing corporation, not the firm's.
 func (o *Ops) allocationBase(ctx context.Context, tenant, date string) ([]AllocationRow, error) {
-	rv, err := o.Risk(ctx, tenant, date)
+	rv, err := o.riskView(ctx, tenant, date, true)
 	if err != nil {
 		return nil, err
 	}

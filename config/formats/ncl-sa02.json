@@ -1,0 +1,56 @@
+{
+ "id": "ncl-sa02",
+ "title": "Intraday short allocation SA02, clearing member (NSE Clearing)",
+ "party": "NSE Clearing",
+ "direction": "in",
+ "when": "Intraday, after each peak margin snapshot (and after market hours from 9 Nov 2026)",
+ "purpose": "Each trading member's or custodial participant's minimum margin against the collateral at a peak margin snapshot, for the clearing member.",
+ "names": [
+  "[CFX]_SA02_P_\\d+_\\d{8}_i\\d+\\.+lis(\\.gz)?"
+ ],
+ "compress": "gzip",
+ "format": "delimited",
+ "delimiter": ",",
+ "header": false,
+ "crlf": true,
+ "final_eol": true,
+ "confirmed": true,
+ "linked": "Loaded as an intraday short allocation snapshot: shown on Clearing data, and each client short raises a work item for the risk manager the same day",
+ "source": "NSE Clearing circular NCL/CMPT/53307 (095/2022) of 16 Aug 2022, Annexure (intraday short allocation reports, same format as the EOD report); extended by NCL/CMPT/77292 (0127/2026) of 4 Nov 2026 (additional after-market SA01/SA02/SA03, same name, location and format)",
+ "columns": [
+  {
+   "name": "Date",
+   "type": "str"
+  },
+  {
+   "name": "TMCode",
+   "type": "str",
+   "note": "TM Prop / CP"
+  },
+  {
+   "name": "MinimumMarginRequired",
+   "type": "dec",
+   "note": "(a)"
+  },
+  {
+   "name": "CashCollateral",
+   "type": "dec",
+   "note": "(b) total cash collateral"
+  },
+  {
+   "name": "NonCashCollateral",
+   "type": "dec",
+   "note": "(c) total non-cash collateral"
+  },
+  {
+   "name": "TotalCollateral",
+   "type": "dec",
+   "note": "(d) total value of collateral"
+  },
+  {
+   "name": "ShortAllocation",
+   "type": "dec",
+   "note": "(e) = max(a - d, 0)"
+  }
+ ]
+}

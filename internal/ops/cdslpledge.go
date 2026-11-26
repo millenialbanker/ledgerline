@@ -602,6 +602,11 @@ func (o *Ops) RequestMarginPledge(ctx context.Context, tenant, actor, ucc, kind,
 		if l.Qty > free {
 			return nil, invalid("only %d %s are free to pledge", max(free, 0), firstOf(h.Symbol, l.ISIN))
 		}
+		// Only securities on NSE Clearing's approved list are taken as
+		// margin (an MTF pledge is of the funded stock itself).
+		if ok, asOf, have := o.approvedForMargin(ctx, tenant, l.ISIN, now.In(ist).Format("2006-01-02")); have && !ok && kind == "MP" {
+			return nil, invalid("%s is not on NSE Clearing's list of approved securities of %s: it cannot be pledged as margin", firstOf(h.Symbol, l.ISIN), fmtDay(asOf))
+		}
 		n, err := o.next(ctx, tenant, "cdslmp", actor)
 		if err != nil {
 			return nil, err
