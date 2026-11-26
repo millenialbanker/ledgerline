@@ -738,6 +738,9 @@ func (o *Ops) MCXUCCAPISend(ctx context.Context, tenant, actor string, uccs []st
 			return res, err
 		}
 	}
+	if set, _ := o.Settings(ctx, tenant); mcxUCCWindowWhy(set, o.now()) != "" {
+		return res, fmt.Errorf("%w: %s", ErrState, mcxUCCWindowWhy(set, o.now()))
+	}
 	_, x, err := o.mcxUCCAPIConnection(ctx, tenant)
 	if err != nil {
 		return res, err
@@ -1268,6 +1271,20 @@ type mcxUCCAPIStateDoc struct {
 // mcxUCCAPITick sends pending clients every 15 minutes and asks MCX's
 // search every hour, from 08:00 to 22:00, when sending is switched on and
 // the connection has no problem.
+// mcxUCCWindowWhy says why a UCC record cannot go to MCX now ("" when it
+// can): MCX takes UCC uploads and modifications from 7:00 a.m. to 10:30
+// p.m. on trading days (MCX/S&I/523/2026 para 2).
+func mcxUCCWindowWhy(set Settings, now time.Time) string {
+	t := now.In(ist)
+	if !set.IsTradingDay(PartCommodity, t.Format("2006-01-02")) {
+		return "MCX takes UCC uploads only on trading days, from 7:00 a.m. to 10:30 p.m."
+	}
+	if hm := t.Format("15:04"); hm < "07:00" || hm >= "22:30" {
+		return "MCX takes UCC uploads only from 7:00 a.m. to 10:30 p.m. on trading days"
+	}
+	return ""
+}
+
 func (o *Ops) mcxUCCAPITick(ctx context.Context, tenant string, now time.Time) {
 	cn, _, err := docs.Get[Connection](ctx, o.Docs, tenant, cConn, connMCXUCC)
 	if err != nil || cn.Status == "Not set" || cn.Status == "" || cn.Status == "Problem" || cn.Values["send"] != "On" {
@@ -1275,6 +1292,9 @@ func (o *Ops) mcxUCCAPITick(ctx context.Context, tenant string, now time.Time) {
 	}
 	if hm := now.In(ist).Format("15:04"); hm < "08:00" || hm >= "22:00" {
 		return
+	}
+	if set, _ := o.Settings(ctx, tenant); mcxUCCWindowWhy(set, now) != "" {
+		return // not a trading day
 	}
 	st, _, _ := docs.GetOr(ctx, o.Docs, tenant, cMCXUCCAPIState, "state", mcxUCCAPIStateDoc{})
 	if t, err := time.Parse(time.RFC3339, st.LastSend); err != nil || now.Sub(t) >= 15*time.Minute {

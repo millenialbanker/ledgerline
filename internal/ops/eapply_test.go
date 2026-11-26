@@ -80,7 +80,7 @@ func TestOnlineAccountOpening(t *testing.T) {
 		t.Fatal("failed penny drop accepted")
 	}
 	step("bank", Application{Bank: "HDFC Bank", IFSC: "hdfc0001234", Account: "50100123456789"}, false)
-	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "profile", Application: Application{Segments: []string{"CM", "FO"}, Income: "10-25 L", Occupation: "Salaried", RAS: "Quarterly"}}); err == nil {
+	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "profile", Application: Application{Segments: []string{"CM", "FO"}, Income: "10-25 L", Occupation: "Salaried", RAS: "Quarterly", Purpose: "Trading"}}); err == nil {
 		t.Fatal("F&O without income proof")
 	}
 	for _, k := range []string{"Income proof", "Photograph", "Signature", "PAN card"} {
@@ -91,7 +91,7 @@ func TestOnlineAccountOpening(t *testing.T) {
 	if _, err := o.AddAppDoc(ctx, T, secret, "Photograph", "x.exe", []byte("MZ\x90\x00 not an image")); err == nil {
 		t.Fatal("executable accepted")
 	}
-	step("profile", Application{Segments: []string{"CM", "FO"}, Income: "10-25 L", Occupation: "Salaried", Experience: "1–5 years", RAS: "Quarterly"}, false)
+	step("profile", Application{Segments: []string{"CM", "FO"}, Income: "10-25 L", Occupation: "Salaried", Experience: "1–5 years", RAS: "Quarterly", Purpose: "Long-term investment"}, false)
 	if _, err := o.SaveAppStep(ctx, T, secret, AppStep{Step: "nominee", Application: Application{NomineeName: "Ramesh Iyer", NomineeRel: "Father"}}); err == nil {
 		t.Fatal("nominee given only as a name accepted")
 	}

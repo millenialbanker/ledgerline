@@ -420,5 +420,6 @@ func (o *Ops) RaiseCCM(ctx context.Context, tenant, actor, breakID, reason strin
 		return c, err
 	}
 	o.log(ctx, tenant, actor, "ccm.raised", key, map[string]any{"from": c.From, "to": c.To, "reason": reason})
+	o.ccmRaised(ctx, tenant, c) // reported on ENIT with its reason code (ccmregister.go)
 	return c, nil
 }

@@ -457,11 +457,18 @@ func (o *Ops) createApplication(ctx context.Context, tenant, actor string, c Cli
 		return Client{}, err
 	}
 	if c.UCC == "" {
-		n, err := o.next(ctx, tenant, "ucc", actor)
-		if err != nil {
-			return Client{}, err
+		// A code never equals the firm's own (onboardx.go): one that would
+		// is skipped.
+		for try := 0; try < 5 && (c.UCC == "" || o.UCCCollision(ctx, tenant, c.UCC) != ""); try++ {
+			n, err := o.next(ctx, tenant, "ucc", actor)
+			if err != nil {
+				return Client{}, err
+			}
+			c.UCC = fmt.Sprintf("BH%d", 2000+n)
 		}
-		c.UCC = fmt.Sprintf("BH%d", 2000+n)
+	}
+	if why := o.UCCCollision(ctx, tenant, c.UCC); why != "" {
+		return Client{}, &ValidationError{[]FieldError{{"ucc", "This client code cannot be used: " + why}}}
 	}
 	c.Status = "KYC verification"
 	c.KYCDate = o.now().Format("2006-01-02")

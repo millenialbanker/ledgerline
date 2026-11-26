@@ -16,15 +16,15 @@ const cplConn = d => d.connected ? `<div class="note">CDSL APIs: ${pill(d.env ||
 
 /* ---------- Pledges (CDSL) ---------- */
 V.cdslpledge = {
-  load: () => get(`/v1/cdsl-pledges?date=${S.date}`),
+  load: async () => { const [v, ctl] = await Promise.all([get(`/v1/cdsl-pledges?date=${S.date}`), get(`/v1/pledge-controls?date=${S.date}`).catch(() => null)]); return { ...v, controls: ctl }; },
   html: d => {
     const pend = d.pledges.filter(p => p.status === 'Pending').length, wait = d.pledges.filter(p => p.status === 'Awaiting client').length;
     const rel = d.releases.filter(r => ['Pending', 'Awaiting compliance', 'Notice given', 'No reply'].includes(r.status)).length;
     return ph('Pledges (CDSL)', 'Margin pledges sent through CDSL’s API: the client asks, a checker approves, the client confirms on CDSL’s page with the OTP CDSL sends, and CDSL’s answer marks the shares pledged for collateral and RMS. Also re-pledge to the clearing corporation, pledges to lenders, unpledge and invocation.',
       cplChk() ? '<button class="btn pri" data-act="cplNew">New margin pledge</button>' : '') + cplConn(d) +
       `<div class="kpis">${kpi('To approve', nf(pend), 'margin pledge requests', pend ? 'warn' : '')}${kpi('With the client', nf(wait), 'awaiting CDSL OTP')}${kpi('PSNs', nf(d.repledgable.length), 'with quantity to re-pledge')}${kpi('Releases open', nf(rel), 'unpledge and invocation', rel ? 'warn' : '')}${kpi('May be invoked', nf(d.candidates.filter(c => !c.raised).length), 'overdue debits and MTF', d.candidates.length ? 'bad' : '')}</div>
-      <div class="panel"><div class="hd">${segBtns('cplTab', [['margin', 'Margin pledges'], ['repledge', 'Re-pledge'], ['normal', 'Pledges to lenders'], ['release', 'Unpledge & invocation'], ['settings', 'Settings']])}</div></div>` +
-      ({ margin: cplMargin, repledge: cplRepledge, normal: cplNormal, release: cplRelease, settings: cplSettings }[UI.cplTab] || cplMargin)(d);
+      <div class="panel"><div class="hd">${segBtns('cplTab', [['margin', 'Margin pledges'], ['repledge', 'Re-pledge'], ['normal', 'Pledges to lenders'], ['release', 'Unpledge & invocation'], ['controls', 'Controls'], ['settings', 'Settings']])}</div></div>` +
+      ({ margin: cplMargin, repledge: cplRepledge, normal: cplNormal, release: cplRelease, controls: cplControls, settings: cplSettings }[UI.cplTab] || cplMargin)(d);
   }
 };
 
@@ -79,6 +79,30 @@ const CPL_FIELDS = [['pledgee_bo_id', 'Margin pledgee BO ID (client securities m
   ['ex_id', 'Exchange ID (CDSL’s 2 digits)'], ['segment_id', 'Segment ID'], ['reason_code', 'Pledge reason code'], ['expiry_days', 'Pledge expiry (days)'], ['repledgee_bo_id', 'Re-pledge pledgee BO ID'], ['repledge_cm_id', 'Re-pledge CM ID'], ['repledge_reason', 'Re-pledge reason code'],
   ['repledge_type', 'Pledge type re-pledged (MP or MR)'], ['normal_reason', 'Normal pledge reason code'], ['notice_days', 'Invocation notice (days)'], ['epi_bo_id', 'Early pay-in BO ID'], ['epi_cm_id', 'Early pay-in CM ID'], ['epi_entity', 'Early pay-in entity (TM, CP, PM, NA)'],
   ['epi_ex_id', 'Early pay-in exchange ID'], ['epi_segment', 'Early pay-in segment ID'], ['epi_tmcp_id', 'Early pay-in TM/CP ID'], ['ddpi_poa_id', 'Firm’s DDPI POA ID']];
+// Controls (internal/ops/pledgecontrols.go): the day's reconciliation, set-up letters, lock-ins,
+// the 9:45 confiscation cut-off, charges at the depository's cost, and the collateral register.
+function cplControls(d) {
+  const c = d.controls;
+  if (!c) return '<div class="note">Controls are not available to your role.</div>';
+  const rc = (c.recon || {}).rows || [], from = UI.cplRegFrom || addDaysJS(c.date, -30), to = UI.cplRegTo || c.date;
+  const recon = tbl([['Request'], ['Received', 'r'], ['Executed', 'r'], ['Not done', 'r'], ['Still open', 'r'], ['Maker entries', 'r'], ['Checked', 'r'], ['Not checked', 'r']],
+    rc.map(r => `<tr><td>${esc(r.kind)}</td><td class="r">${nf(r.received)}</td><td class="r">${nf(r.executed)}</td><td class="r">${nf(r.not_done)}</td><td class="r ${r.pending ? 'neg' : ''}">${nf(r.pending)}</td><td class="r">${nf(r.entered)}</td><td class="r">${nf(r.verified)}</td><td class="r ${r.unverified ? 'neg' : ''}">${nf(r.unverified)}</td></tr>`));
+  const open = tbl([['Request'], ['Client'], ['Since'], ['Status']], ((c.recon || {}).open || []).map(x => `<tr><td>${esc(x.kind)} <span class="mono small">${esc(x.id)}</span></td><td class="mono">${esc(x.ucc || '')}</td><td class="n">${x.since ? fmtDate(x.since) : ''}</td><td>${cplPill(x.status)}</td></tr>`), { empty: 'Nothing open.' });
+  const letters = tbl([['Request'], ['Client'], ['Scrip'], ['Qty', 'r'], ['PSN']], (c.letters_due || []).map(p => `<tr><td class="mono">${esc(p.id)}</td><td><b>${esc(p.ucc)}</b></td><td>${esc(p.symbol)}</td><td class="r">${nf(p.qty)}</td><td class="mono">${esc(p.psn)}</td></tr>`), { empty: 'Every pledge set up has its letter.' });
+  const locks = tbl([['Client'], ['ISIN'], ['Locked in', 'r'], ['Until'], ['From']], (c.lock_ins || []).map(l => `<tr><td><b>${esc(l.ucc)}</b><div class="dim small mono">${esc(l.bo_id || '')}</div></td><td class="mono">${esc(l.isin)}</td><td class="r">${nf(l.qty)}</td><td class="n">${l.until ? fmtDate(l.until) : '<span class="dim">no date</span>'}</td><td class="small">${esc(l.source)} · ${fmtDate(l.date)}</td></tr>`), { empty: 'No lock-in on record. The CDSL statement of holding brings them in.' });
+  const CEPT = { 'On time': 'good', Late: 'bad', Missed: 'bad', Due: 'warn' };
+  const cep = tbl([['CUSPA line'], ['Client'], ['Sold'], ['Pay-in (cut-off 9:45)'], ['Confiscated'], ['']], (c.cep || []).map(r => `<tr><td class="mono">${esc(r.cuspa)}</td><td><b>${esc(r.ucc)}</b> ${esc(r.symbol)} · ${nf(r.sold)}</td><td class="n">${fmtDate(r.sold_on)}</td><td class="n">${fmtDate(r.pay_in)}</td><td class="small">${r.done_at ? cplStamp(r.done_at) : ''}</td><td>${pill(r.state, CEPT[r.state] || 'nt')}</td></tr>`), { empty: 'No unpaid securities sold in the last 30 days.' });
+  const ev = c.events || {}, costs = (c.costs || {}).costs || {};
+  const charges = `<div class="note small">Margin pledge, unpledge, re-pledge and invocation charges are recovered at the depository’s actual cost and shown in the tariff (NSE inspection FAQ, Exhibit 17 Q27). ${c.costs_known ? `CDSL’s charges: ${Object.keys(ev).map(k => `${esc(ev[k] || k)} ₹${costs[k] !== undefined ? inr(costs[k], 2) : '—'}`).join(' · ')}${c.costs.source ? ' (' + esc(c.costs.source) + ')' : ''}` : '<b>CDSL’s charges are not recorded yet.</b>'}${c.can_costs ? ' <button class="btn sm" data-act="cplCosts">Record CDSL’s charges</button>' : ''}</div>` +
+    tbl([['Where'], ['Event'], ['Problem']], (c.charges || []).map(x => `<tr><td>${esc(x.where)}</td><td>${esc(x.event)}</td><td class="small wrap neg">${esc(x.what)}</td></tr>`), { empty: c.costs_known ? 'Every margin pledge charge is within the depository’s.' : 'Record CDSL’s charges to check the tariff.' });
+  return `<div class="panel"><div class="hd"><h3>Reconciliation of ${fmtDate(c.date)}</h3><small>received, executed and pending; maker entries against checker verifications</small></div>${recon}<h3 class="cc-h">Open requests</h3>${open}</div>
+    <div class="panel"><div class="hd"><h3>Pledge set-up letters</h3><small>a signed letter to the pledgor with the PSN</small>${c.can_send && (c.letters_due || []).length ? '<div class="tools"><button class="btn pri" data-act="cplLetters">Send letters</button></div>' : ''}</div>${letters}</div>
+    <div class="panel"><div class="hd"><h3>Locked-in securities</h3><small>not invoked before the lock-in ends</small>${c.can_lock_in ? '<div class="tools"><button class="btn sm" data-act="cplLock">Record a lock-in</button></div>' : ''}</div>${locks}</div>
+    <div class="panel"><div class="hd"><h3>Confiscation-cum-early pay-in</h3><small>CDSL executes it by 9:45 a.m. on the pay-in day; later only on a best-effort basis</small></div>${cep}</div>
+    <div class="panel"><div class="hd"><h3>Charges at actual cost</h3></div>${charges}</div>
+    <div class="panel"><div class="hd"><h3>Collateral register</h3><small>receipts and acknowledgements, deposits with the clearing corporation, returns, invocations and corporate action credits</small></div><div class="bd"><div class="tools"><input class="in sm" type="date" id="cpl-rf" value="${esc(from)}"><input class="in sm" type="date" id="cpl-rt" value="${esc(to)}"><button class="btn" data-act="cplRegister">Download register (CSV)</button></div></div></div>`;
+}
+
 function cplSettings(d) {
   const s = d.settings, can = has('Compliance officer', 'Risk manager');
   return `<div class="panel"><div class="hd"><h3>The firm’s details in CDSL’s pledge and early pay-in APIs</h3><small>${s.updated_by ? 'changed by ' + esc(s.updated_by) + ' ' + cplStamp(s.updated_at) : 'not saved yet'}</small></div>
@@ -125,6 +149,16 @@ const cplReason = (id, title, sub, fn) => confirmModal(title, sub, '<div class="
 const cplQtyField = (q, label) => `<div class="fld"><label for="cpl-q">${label || 'Quantity'}</label><input class="in mono" id="cpl-q" inputmode="numeric" value="${q || ''}"></div>`;
 
 Object.assign(A, {
+  cplLetters: () => act(() => post('/v1/pledge-controls/letters', {}), r => `${r.sent} letter${r.sent === 1 ? '' : 's'} sent${r.held ? ', ' + r.held + ' held' : ''}${r.paper ? ', ' + r.paper + ' to print' : ''}`),
+  cplRegister: () => { const f = $('cpl-rf').value, t = $('cpl-rt').value; UI.cplRegFrom = f; UI.cplRegTo = t; download(`/v1/collateral-register?format=csv&from=${f}&to=${t}`, `CollateralRegister_${f}_${t}.csv`); },
+  cplLock: () => confirmModal('Record a lock-in', 'A lock-in the CDSL statement of holding does not show. Locked-in shares are not invoked before the lock-in ends.',
+    `<div class="form"><div class="fld"><label for="lk-u">Client code</label><input class="in mono" id="lk-u"></div><div class="fld"><label for="lk-b">Demat account (BO ID)</label><input class="in mono" id="lk-b"></div><div class="fld"><label for="lk-i">ISIN</label><input class="in mono" id="lk-i"></div><div class="fld"><label for="lk-q">Quantity locked in</label><input class="in" id="lk-q" inputmode="numeric"></div><div class="fld"><label for="lk-t">Lock-in ends on</label><input class="in" type="date" id="lk-t"></div></div>`, 'Record',
+    () => act(() => post('/v1/pledge-controls/lock-ins', { ucc: $('lk-u').value.trim(), bo_id: $('lk-b').value.trim(), isin: $('lk-i').value.trim(), qty: +$('lk-q').value || 0, until: $('lk-t').value }), l => `${l.ucc}: lock-in recorded`)),
+  cplCosts: () => { const c = (C.cdslpledge?.controls || {}), ev = c.events || {}, cs = (c.costs || {}).costs || {};
+    confirmModal('CDSL’s charges for margin pledge events', '₹ per instruction per ISIN, before GST, as CDSL charges the DP. The tariff and DP plans are checked against them.',
+      `<div class="form">${Object.keys(ev).map(k => `<div class="fld"><label for="pc-${k}">${esc(ev[k] || k)}</label><input class="in" id="pc-${k}" inputmode="decimal" value="${esc(cs[k] ?? '')}"></div>`).join('')}<div class="fld full"><label for="pc-src">Where they come from (CDSL circular)</label><input class="in" id="pc-src" value="${esc((c.costs || {}).source || '')}"></div></div>`, 'Save',
+      () => { const costs = {}; Object.keys(ev).forEach(k => { const v = $('pc-' + k).value.trim(); if (v !== '') costs[k] = v; });
+        return act(() => post('/v1/pledge-controls/costs', { costs, source: $('pc-src').value.trim() }), () => 'Saved'); }); },
   cplDecide: (id, el) => el.dataset.a === '1' ? act(() => post(`/v1/cdsl-pledges/margin/${encodeURIComponent(id)}/decide`, { accept: true }), 'Approved; the client confirms with CDSL’s OTP')
     : cplReason(id, 'Reject pledge ' + id, '', r => post(`/v1/cdsl-pledges/margin/${encodeURIComponent(id)}/decide`, { accept: false, reason: r })),
   cplNew: () => confirmModal('New margin pledge', 'For a client who asked at the desk. A checker approves it; the client then confirms with CDSL’s OTP from the portal.',

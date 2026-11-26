@@ -384,16 +384,23 @@ function playbookHTML(b, t, o) {
     ${open ? '<h4>3 · Record what you did</h4>' : ''}</div>`;
 }
 V.recon = {
-  load: async () => { const [all, ex, oms, ccm] = await Promise.all([get(`/v1/recon/breaks?date=${S.date}`), get(`/v1/trades?date=${S.date}&origin=EXCHANGE`), get(`/v1/trades?date=${S.date}&origin=OMS`), get(`/v1/ccm?date=${S.date}`)]); if (!PB) { try { PB = await get('/v1/recon/playbooks'); } catch (e) { PB = []; } } return { all, ex, oms, ccm }; },
+  load: async () => { const [all, ex, oms, ccm] = await Promise.all([get(`/v1/recon/breaks?date=${S.date}`), get(`/v1/trades?date=${S.date}&origin=EXCHANGE`), get(`/v1/trades?date=${S.date}&origin=OMS`), get(`/v1/ccm?date=${S.date}`)]); if (!PB) { try { PB = await get('/v1/recon/playbooks'); } catch (e) { PB = []; } } const ccmReg = await get(`/v1/ccm/register?from=${S.date}&to=${S.date}`).catch(() => []); return { all, ex, oms, ccm, ccmReg }; },
   html: d => {
     const open = d.all.filter(b => b.status === 'OPEN');
     const types = ['MISSING_IN_OMS', 'MISSING_IN_EXCHANGE', 'TRADE_NO_MISMATCH', 'UCC_MISMATCH', 'SIDE_MISMATCH', 'QTY_MISMATCH', 'PRICE_MISMATCH', 'INSTRUMENT_MISMATCH', 'ALGO_ID_MISSING'];
     return ph('Trade reconciliation', 'Exchange trade files matched against the OMS trade book. The exchange record is the source of truth; every difference becomes a break with a suggested fix.', `<button class="btn" data-act="dl" data-id="/v1/reports/trades/download?date=${S.date}" data-name="trades_${S.date}.csv">Download trade register</button>${has('Ops maker', 'Ops checker') ? `<button class="btn pri" data-act="runRecon">Run reconciliation</button>` : ''}`) +
     `<div class="kpis">${kpi('Exchange trades', nf(d.ex.length), 'all exchanges')}${kpi('OMS fills', nf(d.oms.length), 'trade book')}${kpi('Breaks found', d.all.length, d.all.length ? (d.all.length - open.length) + ' resolved or cleared' : 'run reconciliation', d.all.length ? '' : 'warn')}${kpi('Open breaks', open.length, cmp(sum(open, b => num(b.value))) + ' trade value', open.length ? 'bad' : 'good')}${kpi('Client code changes', d.ccm.length, 'today', d.ccm.length > 2 ? 'warn' : '')}</div>
     <div class="panel"><div class="hd"><h3>Break types</h3><small>Open count</small></div><div class="bd"><div class="tools">${types.map(t => { const n = open.filter(b => b.type === t).length; return n || ['MISSING_IN_OMS', 'QTY_MISMATCH', 'PRICE_MISMATCH', 'UCC_MISMATCH'].includes(t) ? `<span class="pill ${n ? 'bad' : 'nt'}">${label(t)} · ${n}</span>` : ''; }).join('')}</div></div></div>
-    <div class="panel"><div class="hd"><div class="tools">${segBtns('reconF', [['OPEN', 'Open'], ['RESOLVED', 'Resolved'], ['CLEARED', 'Cleared'], ['', 'All']], 'recon-t')}${segBtns('reconX', ['All', 'NSE', 'BSE', 'MCX'], 'recon-t')}</div><input class="in" data-ui="reconQ" data-part="recon-t" placeholder="Filter by UCC, trade no. or contract" value="${esc(UI.reconQ)}"></div><div id="recon-t">${P['recon-t'](d)}</div></div>`;
+    <div class="panel"><div class="hd"><div class="tools">${segBtns('reconF', [['OPEN', 'Open'], ['RESOLVED', 'Resolved'], ['CLEARED', 'Cleared'], ['', 'All']], 'recon-t')}${segBtns('reconX', ['All', 'NSE', 'BSE', 'MCX'], 'recon-t')}</div><input class="in" data-ui="reconQ" data-part="recon-t" placeholder="Filter by UCC, trade no. or contract" value="${esc(UI.reconQ)}"></div><div id="recon-t">${P['recon-t'](d)}</div></div>` + ccmPanel(d);
   }
 };
+// Client code modifications of the day, each reported on ENIT with a reason code (NSE/SURV/74008).
+function ccmPanel(d) {
+  const rs = d.ccmReg || [], can = has('Ops checker', 'Compliance officer');
+  if (!rs.length) return '';
+  return `<div class="panel"><div class="hd"><h3>Client code modifications</h3><div class="tools"><button class="btn sm" data-act="dl" data-id="/v1/ccm/register?format=csv&from=${addDaysJS(S.date, -30)}&to=${S.date}" data-name="ClientCodeModifications.csv">Register (30 days)</button></div></div>` +
+    tbl([['Trade'], ['From'], ['To'], ['Reason'], ['By'], ['ENIT'], ['']], rs.map(r => `<tr><td class="mono small">${esc(r.exchange)} ${esc(r.segment)} · ${esc(r.trade_no)}</td><td class="mono">${esc(r.from)}</td><td class="mono">${esc(r.to)}${r.to_error ? ' ' + pill('ERROR account', 'warn') : ''}</td><td class="small">${esc(r.reason)}</td><td class="small">${esc(r.by)}</td><td>${r.enit_code ? `${pill(r.enit_code, 'good')}<div class="dim small">${fmtDate(r.reported_on)}</div>` : pill('Not reported', 'warn')}</td><td>${can && !r.enit_code ? `<button class="btn sm" data-act="ccmENIT" data-id="${esc(r.trade_key)}">Record ENIT code</button>` : ''}</td></tr>`)) + '</div>';
+}
 P['recon-t'] = d => {
   let rows = d.all;
   if (UI.reconF) rows = rows.filter(b => b.status === UI.reconF);
@@ -3276,6 +3283,9 @@ const A = {
   brk: id => breakModal(id),
   pbNote: id => { const el = $('bnote'); if (!el) return; el.value = PBN[+id] || ''; el.focus(); const i = el.value.indexOf('___'); if (i >= 0) el.setSelectionRange(i, i + 3); },
   resolve: id => { const note = ($('bnote')?.value || '').trim(); if (!note) { toast('Write what you checked and fixed first'); $('bnote')?.focus(); return; } act(() => post(`/v1/recon/breaks/${encodeURIComponent(id)}/resolve`, { resolution: note }), 'Break resolved'); },
+  ccmENIT: id => confirmModal('Reported on ENIT', 'Enter the reason code you chose for this modification on ENIT (Compliance) and the day you reported it.',
+    `<div class="form"><div class="fld"><label for="ce-c">Reason code on ENIT</label><input class="in" id="ce-c"></div><div class="fld"><label for="ce-o">Reported on</label><input class="in" type="date" id="ce-o" value="${esc(S.date)}"></div><div class="fld full"><label for="ce-r">Reference (optional)</label><input class="in" id="ce-r"></div></div>`, 'Record',
+    () => act(() => post('/v1/ccm/report', { trade_key: id, code: $('ce-c').value.trim(), on: $('ce-o').value, ref: $('ce-r').value.trim() }), () => 'ENIT reason code recorded')),
   ccm: id => act(() => post(`/v1/recon/breaks/${encodeURIComponent(id)}/ccm`, { reason: ($('bnote')?.value || '').trim() }), c => `Client code modified ${c.from} → ${c.to}. Rebill the day to move the charges.`),
   bill: async id => { try { C.billResult = await post('/v1/billing/runs', { date: S.date, rebill: id === '1' }); toast(`${C.billResult.posted.length} bills posted`); } catch (e) { C.billResult = { error: e }; toast('Billing did not run'); } render({ keep: true }); },
   settle: (key, el) => act(() => post('/v1/settlement/action', { date: S.date, key, action: el.dataset.a }), o => `${o.ucc} ${o.symbol}: ${o.status}`),

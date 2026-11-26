@@ -369,7 +369,9 @@ func TestActivationAndPROI(t *testing.T) {
 	p := PROIKYC{Category: "NRI", Country: "GB", KRALookupOn: "2026-12-03", CKYCLookupOn: "2026-12-03", CKYCGiven: "None", DocsOn: "2026-12-03", PANVerifiedOn: "2026-12-03",
 		PassportNo: "Z1234567", PassportExpiry: "2031-01-01", OverseasAddress: "1 Test Street, London", OverseasOVD: "UK driving licence", EmailVerified: true,
 		IPV: "Video (VIPV)", IPVOfficial: "E102 Anil", IPVAt: "2026-12-03T15:04", VIPV: &PROIVIPV{Consent: true, RandomActions: true, GeoTag: "51.50,-0.12", VPNBlocked: true, IPCountry: "GB", FATFCompliant: true,
-			Liveness: true, FaceMatch: true, Encrypted: true, OfficialPresent: false, AuditedBy: "Auditor", AuditedOn: "2026-12-03"}, Translations: "Not needed"}
+			Liveness: true, FaceMatch: true, Encrypted: true, OfficialPresent: false, AuditedBy: "Auditor", AuditedOn: "2026-12-03",
+			OfficialTrainedOn: "2026-06-01", RecordingRef: "VIPV/2026/12/0001.mp4", RecordingSHA256: strings.Repeat("ab", 32), Questions: []string{"Show your passport's last page"}, OVDShown: "Passport"}, Translations: "Not needed",
+		Extra: "No record: full KYC collected", PassportCopy: "PP-scan-0001", PassportCheck: "Verified", Form: "CERSAI template (e-signed scan)", PoI: "Passport", PoA: "UK driving licence", AddressCheck: "Against the OVD", OSV: "Originals seen and verified"}
 	if _, err := o.SetPROI(ctx, T, "priya.nair", n.UCC, PROIKYC{Category: "Martian"}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("bad category: %v", err)
 	}

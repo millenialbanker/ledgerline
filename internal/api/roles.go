@@ -54,7 +54,7 @@ var routeScreens = map[string]string{
 	"live": "live", "bow": "live", "bow-funds": "live", "finspot-api": "live", "frontoffice": "live",
 	"margin": "margin", "payout-holds": "payouthold",
 	"collateral": "collateral", "collateral-file": "collateral", "pledges": "collateral",
-	"cdsl-pledges": "cdslpledge", "cdsl-epi": "cdslepi", "allocation": "allocation", "deposits": "deposits",
+	"cdsl-pledges": "cdslpledge", "pledge-controls": "cdslpledge", "collateral-register": "cdslpledge collateral", "cdsl-epi": "cdslepi", "allocation": "allocation", "deposits": "deposits",
 	"debits": "debits", "interest": "debits", "legacy-debts": "legacy", "mtf": "mtf",
 	// Accounts
 	"ledger": "ledger", "ledger/statement": "ledger clients statements money debits", "ledger/trial-balance": "ledger books", "funds": "ledger",
@@ -66,6 +66,7 @@ var routeScreens = map[string]string{
 	// Compliance
 	"reports": "reports", "holding-api": "reports", "disclosures": "exdisc", "ai": "aictl", "ai/usage": "aictl settings",
 	"compliance": "kyc", "fatca": "kyc", "nominations": "kyc", "sanctions": "kyc", "kyc-gate": "kycgate", "proi": "kycgate",
+	"onboarding-checks": "kycgate", "onboarding": "kycgate", "ucc-controls": "kycgate",
 	"tickets": "helpdesk", "complaints": "helpdesk", "impersonation": "helpdesk", "raia": "helpdesk",
 	"nri": "nri", "alerts": "surv", "surveillance": "surv", "surveillance-return": "surv", "fingate": "surv",
 	"inactive": "inactive", "deceased": "deceased", "self-inspection": "selfinspect",
