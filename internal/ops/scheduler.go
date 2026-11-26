@@ -348,6 +348,11 @@ func (o *Ops) Tick(ctx context.Context, tenant string, now time.Time) (int, erro
 	o.cdslPledgeTick(ctx, tenant, now)
 	// CDSL freezes: expiry and future-dated activation.
 	o.CDSLFreezeTick(ctx, tenant, now)
+	// DP controls: request timelines, dormant-account books and calls,
+	// the daily reconciliation, the blank slip stock, pool pay-outs,
+	// minors turning 18, and clients' trading freeze requests (dpctl.go,
+	// tradefreeze.go).
+	o.dpControlsTick(ctx, tenant, now)
 	// Sanctions: all clients screened again on the firm's interval, and
 	// cases past their 24 hours chased (sanctions.go); in every edition.
 	o.sanctionsTick(ctx, tenant, now)

@@ -36,6 +36,8 @@ type settleState struct {
 	Status string `json:"status"`
 	By     string `json:"by"`
 	At     string `json:"at"`
+	// On is the day it was done (for the pool pay-out check, dpctl.go).
+	On string `json:"on,omitempty"`
 }
 
 // CUSPAItem is a client's unpaid purchase pledged to the client unpaid
@@ -321,7 +323,7 @@ func (o *Ops) SettleAction(ctx context.Context, tenant, actor, date, key, action
 	default:
 		return *ob, invalid("unknown settlement action %q", action)
 	}
-	if _, err := docs.Put(ctx, o.Docs, tenant, cSettle, date+"|"+key, settleState{Status: status, By: actor, At: o.now().Format("15:04")}, 0, actor); err != nil {
+	if _, err := docs.Put(ctx, o.Docs, tenant, cSettle, date+"|"+key, settleState{Status: status, By: actor, At: o.now().Format("15:04"), On: o.now().In(ist).Format("2006-01-02")}, 0, actor); err != nil {
 		return *ob, err
 	}
 	o.log(ctx, tenant, actor, "settlement."+action, key, map[string]any{"date": date, "qty": ob.NetQty, "status": status})

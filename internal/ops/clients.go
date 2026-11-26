@@ -98,10 +98,14 @@ type Client struct {
 	UPIBlock       money.Amount `json:"upi_block"`
 	Blocked        bool         `json:"blocked"`
 	BlockedReason  string       `json:"blocked_reason,omitempty"`
-	LastTrade      string       `json:"last_trade,omitempty"`
-	CreatedBy      string       `json:"created_by,omitempty"`
-	ActivatedBy    string       `json:"activated_by,omitempty"`
-	Tags           []string     `json:"tags"` // client groups, e.g. HNI, NRI, ACTIVE-TRADER
+	// TradeFrozen is the client's own request to freeze online trading
+	// (tradefreeze.go): its ID while the freeze is on. Kept apart from the
+	// RMS kill switch so lifting one does not lift the other.
+	TradeFrozen string   `json:"trade_frozen,omitempty"`
+	LastTrade   string   `json:"last_trade,omitempty"`
+	CreatedBy   string   `json:"created_by,omitempty"`
+	ActivatedBy string   `json:"activated_by,omitempty"`
+	Tags        []string `json:"tags"` // client groups, e.g. HNI, NRI, ACTIVE-TRADER
 	// Inactive is the exchanges' UCC "Inactive" flag: no activity for the
 	// inactivity period (24 months under the 2024 exchange circulars).
 	Inactive      bool   `json:"inactive,omitempty"`

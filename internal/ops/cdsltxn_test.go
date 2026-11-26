@@ -121,10 +121,7 @@ func TestCDSLConnectionHasModuleFields(t *testing.T) {
 // cdxTestDIS enters and verifies an off-market slip.
 func cdxTestDIS(t *testing.T, o *Ops, ctx context.Context, c Client, h Holding, qty int64) DIS {
 	t.Helper()
-	book, err := o.IssueDISBook(ctx, T, "priya.nair", c.UCC, 5)
-	if err != nil {
-		t.Fatal(err)
-	}
+	book := nextTestBook(t, o, ctx, c.UCC, 5)
 	d, err := o.EnterDIS(ctx, T, "priya.nair", DIS{UCC: c.UCC, Slip: book.From, Kind: "Off-market", ToBO: "1208160099999999", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: h.ISIN, Qty: dq(qty)}}})
 	if err != nil {
 		t.Fatal(err)
@@ -218,7 +215,7 @@ func TestCDSLTransactionUploadByAPI(t *testing.T) {
 	d2 := cdxTestDIS(t, o, ctx, c, h, 4)
 	accept, reject = d1.ID, d2.ID
 	// Entered but not verified: never sent.
-	book, _ := o.IssueDISBook(ctx, T, "priya.nair", c.UCC, 1)
+	book := nextTestBook(t, o, ctx, c.UCC, 1)
 	d3, err := o.EnterDIS(ctx, T, "priya.nair", DIS{UCC: c.UCC, Slip: book.From, Kind: "Off-market", ToBO: "1208160099999998", Reason: "Gift", ExecDate: D, Received: D, Lines: []DISLine{{ISIN: h.ISIN, Qty: dq(1)}}})
 	if err != nil {
 		t.Fatal(err)
