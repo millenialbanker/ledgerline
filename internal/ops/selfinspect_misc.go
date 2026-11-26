@@ -614,9 +614,21 @@ func siBMCCash(e *siEnv) (siOut, error) {
 
 func siSegmentDeposit(e *siEnv) (siOut, error) {
 	opt, _ := e.o.tcPractice(e.ctx, e.tenant, "fo-clearing")
+	if opt == "" {
+		// No firm practice answer: go by how Settings → Firm modules says
+		// NSE and BSE equity derivatives are cleared.
+		f, _ := e.o.firmProfileFactsOpt(e.ctx, e.tenant, false)
+		switch r1, r2 := f.Role["NSE-FO"], f.Role["BSE-FO"]; {
+		case f.Assumed: // no member codes yet: still ask
+		case r1 == SegSelf || r1 == SegPCM || r2 == SegSelf || r2 == SegPCM:
+			opt = "self"
+		default:
+			opt = "tm"
+		}
+	}
 	switch opt {
 	case "":
-		return siSkip("Waiting for data: answer how the firm clears equity derivatives in Settings → Firm practices.")
+		return siSkip("Waiting for data: answer how the firm clears equity derivatives in Settings → Firm practices or Firm modules.")
 	case "tm", "none":
 		return siSkip("Not applicable: the firm does not self-clear equity derivatives (Firm practices).")
 	}

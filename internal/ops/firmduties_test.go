@@ -65,10 +65,10 @@ func TestDutyCatalogueFirmDuties(t *testing.T) {
 	}
 
 	firm := firmFacts{Member: map[string]bool{"NSE": true, "BSE": true, "MCX": true}, Seg: map[string]bool{"CM": true, "FO": true, "COM": true},
-		SelfAt: map[string]bool{"NSCCL": true}, ViaCM: map[string]string{"MCXCCL": "another clearing member"}, Regs: map[string]bool{},
+		SelfAt: map[string]bool{"NCL": true}, ViaCM: map[string]string{"MCXCCL": "another clearing member"}, Regs: map[string]bool{},
 		CDSL: triYes, NSDL: triNo, MTF: triNo, Algo: triNo, IBT: triYes, AP: triNo, Branch: triNo, CSCRF: "self"}
 	other := firmFacts{Member: map[string]bool{"NSE": true}, Seg: map[string]bool{"CM": true}, SelfAt: map[string]bool{},
-		ViaCM: map[string]string{"NSCCL": "a clearing member"}, Regs: map[string]bool{}, CDSL: triNo, NSDL: triNo, MTF: triNo,
+		ViaCM: map[string]string{"NCL": "a clearing member"}, Regs: map[string]bool{}, CDSL: triNo, NSDL: triNo, MTF: triNo,
 		Algo: triNo, IBT: triNo, AP: triYes, Branch: triYes, CSCRF: "qualified"}
 	for _, c := range []struct {
 		id          string
