@@ -152,6 +152,10 @@ type PortalView struct {
 	// FATCACodes are the code lists of the tax residency declaration the
 	// client can change (fatca.go).
 	FATCACodes FATCACodes `json:"fatca_codes"`
+	// NominationNudge is the pop-up on the benefits of nominating, at the
+	// first login of the day of a demat account without one
+	// (contactletter.go).
+	NominationNudge string `json:"nomination_nudge,omitempty"`
 }
 
 // PortalBalances are what a client may withdraw from each balance of the
@@ -238,6 +242,7 @@ func (o *Ops) Portal(ctx context.Context, tenant, actor, date, ucc string) (Port
 	if err != nil {
 		return v, err
 	}
+	v.NominationNudge = o.nominationNudge(ctx, tenant, d.Client)
 	v.Account = portalAccount(d.Client)
 	// Holdings by demat account, with the accounts and their totals.
 	v.Account.Demats = d.Demats
@@ -543,6 +548,13 @@ func (o *Ops) RequestChange(ctx context.Context, tenant, actor, ucc, kind string
 		// No new account, so no bank proof. From staff, the client's
 		// authorisation (confirmation or signed letter) is set below
 		// (clientauth.go).
+	} else if kind == "Email" && src != "Portal" {
+		// The registered e-mail receives the contract notes: changed only by
+		// the client's physical letter or the secured login (SEBI master
+		// circular for stock brokers paras 23.2.1, 52.3.2; onboardkit.go).
+		if _, ok := o.clientDoc(ctx, tenant, ucc, strings.TrimSpace(doc)); !ok {
+			return r, invalid("an e-mail change raised by staff needs the client's signed letter attached (a client document); or the client changes it in the client portal")
+		}
 	} else if kind == "Bank account" || kind == "Address" {
 		need := map[string]string{"Bank account": "Bank proof", "Address": "Address proof"}[kind]
 		ds, _ := o.ClientDocs(ctx, tenant, ucc)
@@ -767,6 +779,9 @@ func (o *Ops) DecideChange(ctx context.Context, tenant, actor, id string, approv
 		o.log(ctx, tenant, actor, "change."+strings.ToLower(r.Status), id, map[string]any{"ucc": r.UCC, "kind": r.Kind, "reason": reason})
 		if approve && r.Kind == "Mobile" {
 			o.mnrlSync(ctx, tenant, actor) // a number on DoT's revocation list replaced (mnrl.go)
+		}
+		if approve && (r.Kind == "Mobile" || r.Kind == "Email") {
+			o.contactChangeLetter(ctx, tenant, r) // both changed, KYC not compliant (contactletter.go)
 		}
 		if approve && r.Kind == "Nomination" {
 			if c, err := o.Client(ctx, tenant, r.UCC); err == nil {

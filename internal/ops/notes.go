@@ -248,7 +248,11 @@ td.n{font-family:ui-monospace,Menlo,monospace}tfoot td{font-weight:700;border-to
 <div class="r"><b>CONTRACT NOTE {{.Note.No}}</b><span>Trade date {{.Note.Date}}</span><span>Settlement {{.PayIn}}</span></div></div>
 <div class="meta" style="border-bottom:1px solid #C9CDC3"><div><b>{{.Client.Name}}</b><span>UCC {{.Client.UCC}} · PAN {{.PAN}}</span><span>{{.Client.City}}</span></div>
 <div class="r"><span>{{.Client.Email}}</span><span>{{.Client.Demat.Depository}} {{.Client.Demat.ID}}</span></div></div>
-<h2>Trades</h2>
+{{if .WAP}}<h2>Contract-wise summary (weighted average price)</h2>
+<table><thead><tr><th>Security / contract</th><th>Exchange</th><th>B/S</th><th class="r">Qty</th><th class="r">Weighted average price</th><th class="r">Brokerage per unit</th><th class="r">Net rate per unit</th><th class="r">Net total before levies</th></tr></thead><tbody>
+{{range .WAP}}<tr><td>{{.Security}}</td><td>{{.Exchanges}}</td><td>{{.Side}}</td><td class="r n">{{.Qty}}</td><td class="r n">{{.WAP}}</td><td class="r n">{{.BrokPU}}</td><td class="r n">{{.NetRate}}</td><td class="r n">{{inr .Net}}</td></tr>{{end}}
+</tbody></table>{{end}}
+<h2>Annexure: orders and trades</h2>
 <table><thead><tr><th>Order no.</th><th>Trade no.</th><th>Time</th><th>Exchange</th><th>Security / contract</th><th>B/S</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Brokerage</th><th class="r">Net total</th></tr></thead><tbody>
 {{range .Lines}}<tr><td class="n">{{.OrderNo}}</td><td class="n">{{.TradeNo}}</td><td class="n">{{.Time}}</td><td>{{.Seg}}</td><td>{{.Name}}</td><td>{{.Side}}</td><td class="r n">{{.Qty}}</td><td class="r n">{{.Price}}</td><td class="r n">{{amt .Brok}}</td><td class="r n">{{inr .Net}}</td></tr>{{end}}
 </tbody></table>
@@ -289,6 +293,9 @@ type noteView struct {
 	// with a DDPI or POA (noteclauses.go).
 	Clauses []string
 	Scrips  []scripAvg
+	// WAP is the contract-wise summary at weighted average prices
+	// (notesx.go); the trades are its annexure.
+	WAP []wapRow
 }
 
 func (o *Ops) noteView(ctx context.Context, tenant, date, ucc, part string) (noteView, error) {
@@ -306,7 +313,17 @@ func (o *Ops) noteView(ctx context.Context, tenant, date, ucc, part string) (not
 		return noteView{}, err
 	}
 	var lines []noteLine
+	var ltd map[string]string
 	for _, t := range trades {
+		name := InstrumentName(t.Symbol, t.InstrumentType, t.Expiry, t.Strike)
+		if t.Exchange == "MCX" {
+			if ltd == nil {
+				ltd = o.mcxLastTrading(ctx, tenant)
+			}
+			if d := ltd[t.Instrument()]; d != "" {
+				name += " · last trading date " + fmtDay(d)
+			}
+		}
 		b, _ := charges.BucketFor(t.Segment, t.InstrumentType, t.Product)
 		bd, err := o.App.Schedule.Compute(charges.Leg{Bucket: b, Exchange: t.Exchange, Side: t.Side, Qty: t.Qty, Price: t.Price, Date: t.TradeDate})
 		if err != nil {
@@ -323,7 +340,7 @@ func (o *Ops) noteView(ctx context.Context, tenant, date, ucc, part string) (not
 		if t.Side == "S" {
 			side = "Sell"
 		}
-		lines = append(lines, noteLine{t.OrderNo, t.TradeNo, t.TradeTime, t.Exchange + "-" + t.Segment, InstrumentName(t.Symbol, t.InstrumentType, t.Expiry, t.Strike), side, fmt.Sprint(t.Qty), t.Price.Fixed(2), bd.Brokerage, v})
+		lines = append(lines, noteLine{t.OrderNo, t.TradeNo, t.TradeTime, t.Exchange + "-" + t.Segment, name, side, fmt.Sprint(t.Qty), t.Price.Fixed(2), bd.Brokerage, v})
 	}
 	net := money.Dec{}
 	for _, g := range out.Groups {
@@ -334,6 +351,8 @@ func (o *Ops) noteView(ctx context.Context, tenant, date, ucc, part string) (not
 		members = append(members, k+" "+set.MemberCodes[k])
 	}
 	v := noteView{Note: n, Client: c, Set: set, Lines: lines, Groups: out.Groups, Net: net, Members: members, Remarks: o.cuspaNoteRemarks(ctx, tenant, date, n.UCC, trades)}
+	v.Remarks = append(append(o.reRemarks(ctx, tenant, trades), v.Remarks...), o.marginCallRemarks(ctx, tenant, date, n.UCC, trades)...)
+	v.WAP = wapSummary(trades, lines)
 	v.Clauses = noteClauses(set, c, n.No, out.Groups)
 	if o.hasDDPI(ctx, tenant, n.UCC) {
 		v.Scrips = scripSummary(trades)
@@ -351,7 +370,7 @@ func (o *Ops) RenderNote(ctx context.Context, tenant, date, ucc, part string) ([
 	err = noteTmpl.Execute(&buf, map[string]any{
 		"Note": v.Note, "Client": v.Client, "PAN": MaskPAN(v.Client.PAN), "Firm": v.Set.Firm, "SEBIReg": v.Set.SEBIReg, "Members": "Member codes " + strings.Join(v.Members, " · "),
 		"Compliance": v.Set.ComplianceEmail, "PayIn": v.Set.NextSettlementDay(date), "Lines": v.Lines, "Groups": v.Groups,
-		"Payable": v.Net.Sign() < 0, "NetAbs": v.Net.Abs(), "Sample": o.App.Schedule.Sample, "Schedule": o.App.Schedule.Version, "Remarks": v.Remarks, "Clauses": v.Clauses, "Scrips": v.Scrips,
+		"Payable": v.Net.Sign() < 0, "NetAbs": v.Net.Abs(), "Sample": o.App.Schedule.Sample, "Schedule": o.App.Schedule.Version, "Remarks": v.Remarks, "Clauses": v.Clauses, "Scrips": v.Scrips, "WAP": v.WAP,
 	})
 	return buf.Bytes(), err
 }

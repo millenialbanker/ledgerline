@@ -364,6 +364,8 @@ func (o *Ops) CCMs(ctx context.Context, tenant, date string) ([]CCM, error) {
 }
 
 func (o *Ops) applyCCM(ctx context.Context, tenant string, evs []ingest.TradeEvent) ([]ingest.TradeEvent, error) {
+	// Trades the exchange cancelled are left out (notesx.go).
+	evs = o.dropCancelled(ctx, tenant, evs)
 	cs, err := docs.List[CCM](ctx, o.Docs, tenant, cCCM, "")
 	if err != nil || len(cs) == 0 {
 		return evs, err

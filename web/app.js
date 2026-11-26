@@ -161,6 +161,7 @@ function viewAllowed(k) {
   // whose screens include them.
   if (['practices', 'staffapp', 'clientapp'].includes(k) && !(S.me?.access ? S.me.access.admin || !!S.me.access.screens?.[k]?.view : has('Compliance officer'))) return false;
   if (typeof hrViewOK === 'function' && !hrViewOK(k)) return false; // HRMS and Payroll modules, Settings → Modules (hrms.js)
+  if (typeof fmViewOK === 'function' && !fmViewOK(k)) return false; // a module the firm does not have, Settings → Firm modules (firmmodules.js)
   return true;
 }
 // groupTabs: the group's tabs this user may open.
@@ -397,7 +398,7 @@ V.recon = {
     return ph('Trade reconciliation', 'Exchange trade files matched against the OMS trade book. The exchange record is the source of truth; every difference becomes a break with a suggested fix.', `<button class="btn" data-act="dl" data-id="/v1/reports/trades/download?date=${S.date}" data-name="trades_${S.date}.csv">Download trade register</button>${has('Ops maker', 'Ops checker') ? `<button class="btn pri" data-act="runRecon">Run reconciliation</button>` : ''}`) +
     `<div class="kpis">${kpi('Exchange trades', nf(d.ex.length), 'all exchanges')}${kpi('OMS fills', nf(d.oms.length), 'trade book')}${kpi('Breaks found', d.all.length, d.all.length ? (d.all.length - open.length) + ' resolved or cleared' : 'run reconciliation', d.all.length ? '' : 'warn')}${kpi('Open breaks', open.length, cmp(sum(open, b => num(b.value))) + ' trade value', open.length ? 'bad' : 'good')}${kpi('Client code changes', d.ccm.length, 'today', d.ccm.length > 2 ? 'warn' : '')}</div>
     <div class="panel"><div class="hd"><h3>Break types</h3><small>Open count</small></div><div class="bd"><div class="tools">${types.map(t => { const n = open.filter(b => b.type === t).length; return n || ['MISSING_IN_OMS', 'QTY_MISMATCH', 'PRICE_MISMATCH', 'UCC_MISMATCH'].includes(t) ? `<span class="pill ${n ? 'bad' : 'nt'}">${label(t)} · ${n}</span>` : ''; }).join('')}</div></div></div>
-    <div class="panel"><div class="hd"><div class="tools">${segBtns('reconF', [['OPEN', 'Open'], ['RESOLVED', 'Resolved'], ['CLEARED', 'Cleared'], ['', 'All']], 'recon-t')}${segBtns('reconX', ['All', 'NSE', 'BSE', 'MCX'], 'recon-t')}</div><input class="in" data-ui="reconQ" data-part="recon-t" placeholder="Filter by UCC, trade no. or contract" value="${esc(UI.reconQ)}"></div><div id="recon-t">${P['recon-t'](d)}</div></div>` + ccmPanel(d);
+    <div class="panel"><div class="hd"><div class="tools">${segBtns('reconF', [['OPEN', 'Open'], ['RESOLVED', 'Resolved'], ['CLEARED', 'Cleared'], ['', 'All']], 'recon-t')}${segBtns('reconX', ['All', 'NSE', 'BSE', ...(typeof fmPart !== 'function' || fmPart('recon.mcx') ? ['MCX'] : [])], 'recon-t')}</div><input class="in" data-ui="reconQ" data-part="recon-t" placeholder="Filter by UCC, trade no. or contract" value="${esc(UI.reconQ)}"></div><div id="recon-t">${P['recon-t'](d)}</div></div>` + ccmPanel(d);
   }
 };
 // Client code modifications of the day, each reported on ENIT with a reason code (NSE/SURV/74008).
@@ -1223,10 +1224,11 @@ const nomState = c => (c.nominees || []).length > NOM_MAX ? NOM_OVER : (c.nomine
 const nomSummary = c => (c.nominees || []).length ? c.nominees.map(n => `${esc(n.name)} <span class="dim">(${esc(n.relation)}, ${esc(n.share)}%)</span>`).join(', ') : esc(c.nominee) + (c.nominee_name ? ' · ' + esc(c.nominee_name) + ' <span class="dim">(details missing)</span>' : '');
 const CHG_FIELDS = { Email: [['email', 'New email', 'email']], Mobile: [['mobile', 'New mobile', 'tel']], Address: [['city', 'City'], ['state', 'State']], 'Bank account': [['bank', 'Bank name'], ['ifsc', 'IFSC'], ['account', 'Account number']], Nomination: [] };
 function changeModal(kind, ucc, staff) {
-  const f = CHG_FIELDS[kind], proof = { 'Bank account': 'Bank proof', Address: 'Address proof' }[kind];
+  // Staff change an e-mail only on the client's signed letter (SEBI MC 23.2.1; internal/ops/onboardkit.go).
+  const f = CHG_FIELDS[kind], proof = { 'Bank account': 'Bank proof', Address: 'Address proof', ...(staff ? { Email: 'Client authorisation' } : {}) }[kind];
   modal(mhd('Change ' + kind.toLowerCase(), `${ucc} · checked by head office before it takes effect`) + `<form class="bd" id="chf"><div class="form">${f.map(([k, l, t]) => `<div class="fld"><label for="ch-${k}">${l}</label><input class="in" id="ch-${k}" type="${t || 'text'}" required></div>`).join('')}
     ${kind === 'Nomination' ? nomChangeFields(staff) : ''}
-    ${proof ? `<div class="fld full"><label for="ch-doc">${proof} (${kind === 'Bank account' ? 'cancelled cheque or bank statement' : 'Aadhaar, passport, utility bill'}) · PDF, JPEG or PNG</label><input class="in" type="file" id="ch-doc" accept="application/pdf,image/jpeg,image/png" required></div>` : ''}</div>
+    ${proof ? `<div class="fld full"><label for="ch-doc">${kind === 'Email' ? 'The client’s signed letter asking for the change' : `${proof} (${kind === 'Bank account' ? 'cancelled cheque or bank statement' : 'Aadhaar, passport, utility bill'})`} · PDF, JPEG or PNG</label><input class="in" type="file" id="ch-doc" accept="application/pdf,image/jpeg,image/png" required></div>` : ''}</div>
     <div id="ch-err"></div><div class="ft" style="padding:0;border:0"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn pri" type="submit">Submit request</button></div></form>`);
   nomBind();
   if ($('ch-nominee')) $('ch-nominee').onchange = e => { const inn = e.target.value === 'Opted in'; $('ch-noms').hidden = !inn; $('ch-optout').hidden = inn; $('ch-stmtf').hidden = !inn; $('ch-jointf').hidden = !inn; };
@@ -1810,7 +1812,7 @@ V.settlement = {
     return ph('Settlement', `Cash-market delivery obligations for pay-in on ${fmtDate(d.pay_in)} (T+1). Securities pay-in from the client’s demat; payout credited to the client’s demat; unpaid purchases held in the client unpaid securities pledgee account.`,
       `<button class="btn" data-act="dl" data-id="/v1/reports/trades/download?date=${S.date}" data-name="trades_${S.date}.csv">Trade register</button>${has('Ops maker', 'Ops checker') ? `<button class="btn pri" data-act="settleReady" ${ready ? '' : 'disabled'}>Settle ${ready} ready line${ready === 1 ? '' : 's'}</button>` : ''}`) +
     `<div class="kpis">${kpi('Funds pay-in (buys)', cmp(d.totals.funds_pay_in), d.obligations.filter(o => o.net_qty > 0).length + ' client-scrip lines')}${kpi('Funds payout (sells)', cmp(d.totals.funds_pay_out), d.obligations.filter(o => o.net_qty < 0).length + ' lines')}${kpi('Net to clearing', cmp(d.totals.net_to_cc), 'before charges')}${kpi('Exceptions', exc.length, 'short, unpledge, funds', exc.length ? 'bad' : 'good')}${cuKpi(d.cu)}</div>
-    <div class="panel"><div class="hd">${segBtns('settleTab', [['cm', 'Cash market obligations'], ['mtm', 'Derivatives MTM'], ['cuspa', 'Unpaid securities'], ['short', `Short deliveries · ${d.shortages.filter(x => x.status === 'Open').length}`]], 'settle-t')}</div><div id="settle-t">${P['settle-t'](d)}</div></div>`;
+    <div class="panel"><div class="hd">${segBtns('settleTab', [['cm', 'Cash market obligations'], ...(typeof fmPart !== 'function' || fmPart('settle.mtm') ? [['mtm', 'Derivatives MTM']] : []), ['cuspa', 'Unpaid securities'], ['short', `Short deliveries · ${d.shortages.filter(x => x.status === 'Open').length}`]], 'settle-t')}</div><div id="settle-t">${P['settle-t'](d)}</div></div>`;
   }
 };
 P['settle-t'] = d => {

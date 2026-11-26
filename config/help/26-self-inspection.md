@@ -65,6 +65,9 @@ Each test reuses the check Ledgerline already makes on its own screen. All are r
 - **Annual global statement sent within 30 days of the year's end** (medium): NSE/INSP/73976 item 4.17 and Exhibit 30; SEBI master circular 2025/90, para 23.9.
 - **Referral rewards paid only to registered authorised persons** (high): NSE/INSP/73976 item 4.21; MCX/INSP/255/2026 para 9.9(a).
 - **Clients told of SCORES and SMART ODR when a complaint stays unresolved** (medium): SEBI master circular 2025/90, Annex 37; NSE/ISC/73908, Part A 7.2.
+- **Electronic contract notes only on the client's specific authorisation** (high): SEBI master circular 2025/90, paras 21.4, 23.2.1 and 52.3; also flags a registered e-mail on the firm's own domain.
+- **Account opening kit sent to every new client** (medium): SEBI master circular 2025/90, paras 21.1, 21.2 and 21.12.
+- **Securities reaching a closed demat account moved within a year** (medium): CDSL DPOI 10.5.3.9-10.5.3.16.
 - **No trades by debarred clients** (high): SEBI's debarment orders as the exchanges circulate them; needs the debarred list loaded with PANs.
 - **Client details match the exchanges' UCC records** (medium): NSE/ISC/73973 of 30 April 2026 and the exchanges' UCC answers.
 - **Client details at the exchanges match Ledgerline** (medium): the exchanges' UCC downloads of the last 45 days and what NSE's UCC API last accepted, field by field (PAN, mobile, e-mail, primary bank account, address); NSE/ISC/73973 and NSE/INSP/73503 items 46 and 47.

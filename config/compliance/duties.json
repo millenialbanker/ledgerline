@@ -77,7 +77,7 @@
    "api": {
     "status": "file",
     "name": "NSE Clearing client margin reporting upload (CIM / extranet COLAT/UPLD); ICCL and MCXCCL file uploads",
-    "detail": "No upload API found: NSE Clearing's NMASS margins API (built in Ledgerline) only downloads margin data. Ledgerline already writes the NSE Clearing CM and F&O files and the MCXCCL file; the ICCL layout is still missing.",
+    "detail": "No upload API found: NSE Clearing's NMASS margins API (built in Ledgerline) only downloads margin data. Ledgerline already writes the NSE Clearing CM and F&O files and the MCXCCL file, and the ICCL file from ICCL's notice (iccl-margin-reporting, layout to confirm with ICCL).",
     "url": "https://www.nseindia.com/static/products-services/equity-derivatives-client-margin-reporting"
    },
    "items": [
@@ -723,7 +723,7 @@
    "api": {
     "status": "built",
     "name": "NSE Clearing allocation API",
-    "detail": "Live in Ledgerline (nclalloc.go). The fund transfer itself is a bank payment; ICCL and MCXCCL allocation are not built."
+    "detail": "Live in Ledgerline (nclalloc.go). The fund transfer itself is a bank payment; ICCL allocation is written as the ICCLCOLL file (layout to confirm with ICCL); MCXCCL allocation is not built."
    },
    "items": [
     "T09"
@@ -2602,7 +2602,7 @@
    "rule": "05-31,11-30",
    "applies": [
     "broker",
-    "clearing"
+    "pcm"
    ],
    "role": "Compliance officer",
    "filed_with": "NSE Clearing (NCL Member Portal); BSE Clearing on IEFS; MCX Clearing per its circular",
@@ -2661,7 +2661,7 @@
     "Close non-compliances and email the auditor-certified ATR to internalaudit@nsccl.co.in by 31 Jan / 31 Jul, subject 'ATR for Half year ended ... <Member Code_Member Name>'."
    ],
    "steps_from": "NCL internal audit circulars of 7 Oct 2025 (NCL/CMPL/70689) and 13 Apr 2026 (step-by-step manual, via rhnvrm mirror); NCL/CMPL/75260 for the ATR",
-   "changed": "Not quarterly: the clearing member internal audit is half-yearly, due within 2 months of 30 Sep / 31 Mar (30 Nov / 31 May), with an ATR stage by 31 Jan / 31 Jul since the half year to 31 Mar 2026. It applies only to clearing members that clear for other trading members or custodial participants (TM-CMs, PCMs), not to self-clearing members. It is filed with each clearing corporation, not with the exchanges."
+   "changed": "Not quarterly: the clearing member internal audit is half-yearly, due within 2 months of 30 Sep / 31 Mar (30 Nov / 31 May), with an ATR stage by 31 Jan / 31 Jul since the half year to 31 Mar 2026. It applies only to clearing members that clear for other trading members or custodial participants (TM-CMs, PCMs), not to self-clearing members. It is filed with each clearing corporation, not with the exchanges. Applies only to a clearing member that clears for other trading members or custodial participants (Settings → Firm modules: pcm); a self-clearing member clearing only its own trades is not asked."
   },
   {
    "id": "CC-T-RISK-BASED-SUPERVISION",
@@ -3383,8 +3383,8 @@
    "rule": "06-30,12-31",
    "applies": [
     "broker",
-    "cscrf:qualified,mid,small",
-    "cscrf:qualified|ibt|algo"
+    "cscrf:qualified,mid,small|qsb",
+    "cscrf:qualified|ibt|algo|qsb"
    ],
    "role": "Admin",
    "filed_with": "NSE ENIT > NEW-TRADE > Trade > Cyber Audit (common submission for members of other exchanges)",
@@ -3442,7 +3442,7 @@
     "Fix the findings and file the ATR (same path > ATR); the auditor marks each Compliant / Non-Compliant."
    ],
    "steps_from": "NSE/INSP/73849 (ENIT paths, audit requirements, Annexures A-D)",
-   "changed": "'Type-III' is a system audit term, not a cyber audit one. 31 Dec is only the April-September report; the October-March report is due 30 Jun, and each has an ATR (31 Mar / 30 Sep). Qualified REs are half-yearly whether or not they offer IBT or algo; Mid/Small REs without IBT or algo are yearly; self-certification REs have no cyber audit (they still do the yearly VAPT and join the Market SOC). For DPs, NSDL/POLICY/2026/0096 asks self-certification REs for a self-declaration instead (per brief, not re-read)."
+   "changed": "'Type-III' is a system audit term, not a cyber audit one. 31 Dec is only the April-September report; the October-March report is due 30 Jun, and each has an ATR (31 Mar / 30 Sep). Qualified REs are half-yearly whether or not they offer IBT or algo; Mid/Small REs without IBT or algo are yearly; self-certification REs have no cyber audit (they still do the yearly VAPT and join the Market SOC). For DPs, NSDL/POLICY/2026/0096 asks self-certification REs for a self-declaration instead (per brief, not re-read). A qualified stock broker does the cyber audit half-yearly whatever its CSCRF category (SEBI FAQs on CSCRF, FAQ 14)."
   },
   {
    "id": "OB-CYBER",
@@ -3455,7 +3455,8 @@
     "broker",
     "cscrf:mid,small",
     "no:ibt",
-    "no:algo"
+    "no:algo",
+    "no:qsb"
    ],
    "role": "Admin",
    "filed_with": "NSE ENIT > NEW-TRADE > Trade > Cyber Audit (common submission for members of other exchanges)",
@@ -8639,7 +8640,8 @@
    "due_text": "Before the Closing Auction Session (CAS) starts on 7 December 2026 for cash-market stocks with derivatives: take NSE's revised security master and contract files, set the trading front end's session times and order types (market and limit orders only in CAS), test in NSE's mock sessions, and tell clients that the day's closing price of these stocks is the auction price.",
    "rule": "ONCE:2026-12-07",
    "applies": [
-    "broker"
+    "broker",
+    "xseg:NSE-CM"
    ],
    "role": "Ops checker",
    "filed_with": "Nothing to file: readiness of the trading front end and the back office",
@@ -10083,7 +10085,7 @@
    "event_within": "7wd",
    "applies": [
     "broker",
-    "clearing"
+    "selfat:NCL"
    ],
    "role": "Risk manager",
    "filed_with": "NSE Clearing member portal (penalty review request)",
@@ -10581,6 +10583,176 @@
     "detail": "No API; a form or upload on the portal."
    },
    "changed": "The gap report reads an annual fee as well as the block fee; the yearly due date was not in its extract, so this is kept as an as-required duty until it is confirmed."
+  },
+  {
+   "id": "CC-T-MOD-CSCRF-EXEMPTED",
+   "group": "Trading",
+   "title": "File the 'Exempted' declaration on the NSE portal (firms below the CSCRF thresholds)",
+   "frequency": "Yearly",
+   "due_text": "A stock broker with fewer than 1,000 registered clients and less than Rs 1,000 crore of clients' trading volume in the year is exempt from CSCRF (SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2025/60 para 2.1.2) and files the 'Exempted' declaration on the NSE member portal instead of the VAPT report, by the VAPT report date (31 July; NSE/INSP/75398 para 4).",
+   "rule": "07-31",
+   "applies": [
+    "broker",
+    "member:NSE",
+    "cscrf:exempt"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "NSE Member Portal > Inspection > VAPT > Display VAPT Auditor Registration > New Auditor > Member Category 'Exempted'",
+   "evidence": "Portal acknowledgement of the Exempted declaration; the year's registered client count and clients' trading volume (Settings → Firm modules)",
+   "refs": [
+    {
+     "issuer": "SEBI",
+     "no": "SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2025/60",
+     "date": "2025-04-30",
+     "title": "Modification in CSCRF thresholds for stock brokers",
+     "url": "",
+     "says": "Para 2.1.2: stock brokers below 1,000 registered clients and Rs 1,000 crore of clients' trading volume are exempt from CSCRF."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/74775",
+     "date": "2026-06-18",
+     "title": "Reminder for Submission of VAPT report for FY 2025-26",
+     "url": "https://nsearchives.nseindia.com/content/circulars/INSP74775.pdf",
+     "says": "Portal paths: Inspection > VAPT > VAPT Help Documents; declaration path for members exempted from CSCRF."
+    },
+    {
+     "issuer": "NSE",
+     "no": "NSE/INSP/75398",
+     "date": "2026-07-24",
+     "title": "Reminder for Submission of VAPT report for FY 2025-26",
+     "url": "https://nsearchives.nseindia.com/content/circulars/INSP75398.pdf",
+     "says": "Repeats the 30 Jun / 31 Jul dates and the portal paths; applies to self-certification, small, mid and non-QSB qualified REs."
+    }
+   ],
+   "how": "portal",
+   "api": {
+    "status": "portal",
+    "name": "NSE Member Portal, Inspection > VAPT",
+    "detail": "No API; the declaration is made on the portal.",
+    "url": "https://inspection.nseindia.com/MemberPortal/"
+   },
+   "items": [],
+   "steps": [
+    "Check the year's numbers on Settings → Firm modules: fewer than 1,000 registered clients and less than Rs 1,000 crore of clients' trading volume.",
+    "File the declaration: Inspection > VAPT > Display VAPT Auditor Registration > New Auditor > Member Category 'Exempted'.",
+    "Keep the acknowledgement as the evidence; if the numbers cross a threshold, the VAPT duties apply from the next year."
+   ],
+   "steps_from": "NSE/INSP/74775 and NSE/INSP/75398 (portal path); SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2025/60",
+   "changed": "Added with Settings → Firm modules: an exempt firm was given no duty, so it was never told to file the declaration (CYBER-0166, CYBER-0266)."
+  },
+  {
+   "id": "CC-T-ICCL-RMS-POLICY",
+   "group": "Trading",
+   "title": "Keep a board-approved clearing-member risk management policy for clearing at BSE Clearing (ICCL)",
+   "frequency": "Yearly",
+   "due_text": "Keep a clearing-member Risk Management Policy approved by the board, covering escalation, segregation of proprietary and client collateral, concentration caps, the banks and securities accepted, and cash collateral; review it with the firm's policies each year (by 31 March).",
+   "rule": "03-31",
+   "applies": [
+    "selfat:ICCL"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "Nothing is filed; produced at ICCL's inspection",
+   "evidence": "The board resolution approving the policy and each yearly review",
+   "refs": [
+    {
+     "issuer": "ICCL",
+     "no": "ICCL clearing member risk management requirements (gap report row BSE2-N0013)",
+     "says": "A self-clearing member keeps a board-approved Risk Management Policy covering escalation, segregation of proprietary and client collateral, concentration caps, accepted banks and securities and cash. Gap report rows: BSE2-N0013 (product report, 26 Nov 2026). The yearly review date is the firm's policy review, not a date ICCL sets."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "name": "",
+    "detail": "Nothing is filed: the firm keeps the record."
+   },
+   "changed": "Added by branch gap-iccl for firms that clear at ICCL; the row gives 'standing, review with policies', read as a yearly review by 31 March."
+  },
+  {
+   "id": "CC-T-ICCL-COLL-LINK",
+   "group": "Trading",
+   "title": "Show on the website homepage the link to BSECL's facility where clients see their collateral, and tell clients about it",
+   "frequency": "As required",
+   "due_text": "Keep on the website's homepage a link to BSE Clearing's web facility where clients view their disaggregated collateral, and tell clients about it by letters, SMS, email and social media; check it after each website change.",
+   "rule": "ASNEEDED",
+   "applies": [
+    "selfat:ICCL"
+   ],
+   "role": "Compliance officer",
+   "filed_with": "Nothing is filed; the firm's website",
+   "evidence": "A dated screenshot of the homepage link; copies of the messages sent to clients",
+   "refs": [
+    {
+     "issuer": "ICCL",
+     "no": "ICCL client collateral disclosure (gap report row BSE2-N0014)",
+     "says": "Publish on the website homepage a link to BSECL's web facility for clients to view their disaggregated collateral and inform clients by letters, SMS, email, social media. Gap report rows: BSE2-N0014."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "name": "",
+    "detail": "Nothing is filed: the firm keeps the record."
+   },
+   "changed": "Added by branch gap-iccl; standing duty."
+  },
+  {
+   "id": "CC-T-ICCL-SEBI-FEE",
+   "group": "Trading",
+   "title": "Keep funds in each BSECL derivatives and debt settlement account for the yearly debit of SEBI's clearing membership fee",
+   "frequency": "Yearly",
+   "due_text": "BSE Clearing debits SEBI's clearing membership fee (₹50,000 plus GST) from each derivatives and debt segment settlement bank account once a year (the FY 2026-27 debit was on 22 April 2026). Keep enough in the account before the debit date; a late payment attracts interest.",
+   "rule": "04-30",
+   "applies": [
+    "selfat:ICCL",
+    "derivatives"
+   ],
+   "role": "Ops checker",
+   "filed_with": "Nothing is filed; BSECL debits the settlement account",
+   "evidence": "The bank statement showing the debit; BSECL's notice of the debit date",
+   "refs": [
+    {
+     "issuer": "ICCL",
+     "no": "ICCL notice on the yearly debit of SEBI clearing membership fees (gap report row BSE2-N0016)",
+     "says": "Rs 50,000 + GST debited yearly from each BSECL derivatives/debt segment settlement account; FY 2026-27 debit on 22 Apr 2026; late payment attracts interest. Gap report rows: BSE2-N0016."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "name": "",
+    "detail": "Nothing is filed: the firm keeps the record."
+   },
+   "changed": "Added by branch gap-iccl. The debit date changes each year with BSECL's notice; the calendar asks by 30 April, after the April debit: check the notice for the year's date."
+  },
+  {
+   "id": "CC-T-MCXCCL-FDR-BG",
+   "group": "Trading",
+   "title": "Give FDRs and bank guarantees as margin to MCXCCL only in its revised bank letter and BG formats",
+   "frequency": "As required",
+   "due_text": "Each FDR offered as margin to MCX Clearing goes with the bank's lien confirmation letter, and each bank guarantee (fresh or renewed, master-agreement BGs too) in MCXCCL's revised format, from 1 July 2025; old formats are refused.",
+   "rule": "ASNEEDED",
+   "applies": [
+    "selfat:MCXCCL"
+   ],
+   "role": "Ops checker",
+   "filed_with": "MCXCCL (collateral submission)",
+   "evidence": "Copy of each FDR lien letter and BG in the revised format, with MCXCCL's acceptance",
+   "refs": [
+    {
+     "issuer": "MCXCCL",
+     "no": "MCXCCL circular on revised FDR and BG formats (gap report row MCX-0140)",
+     "says": "Submit FDRs and BGs as margin only in the revised bank-letter and BG formats (FDR lien confirmation, fresh/renewal BG incl. master-agreement BGs) from 1 Jul 2025. Gap report rows: MCX-0140."
+    }
+   ],
+   "how": "firm",
+   "api": {
+    "status": "none",
+    "name": "",
+    "detail": "Nothing is filed: the firm keeps the record."
+   },
+   "changed": "Added by branch gap-iccl for firms that clear their own trades at MCXCCL."
   }
- ]
+]
 }

@@ -10,6 +10,7 @@ Adding documents to an alert | Ops checker, Compliance officer
 Adding inspection documents | Compliance officer
 Adding or changing dealers and terminals | Ops maker, Compliance officer
 Adding or changing employees | HR manager
+Adding rights entitlements | Ops maker, Ops checker
 Adding staff documents | HR manager
 Adding users | Admin
 Adjusting leave balances | HR manager
@@ -121,6 +122,7 @@ Changing the client money rules | Compliance officer
 Changing the compliance calendar | Compliance officer
 Changing the cooling-off period | Admin
 Changing the demise list's cut-off | Ops checker, Compliance officer
+Changing the firm modules | Compliance officer
 Changing the firm profile | Compliance officer
 Changing the firm's UPI collection IDs | Compliance officer
 Changing the firm's bank accounts | Compliance officer
@@ -201,6 +203,7 @@ Downloading the index options cover report | Risk manager, Compliance officer
 Editing exchange UCC details | Ops maker, Ops checker
 Editing exchange disclosures | Compliance officer
 Editing message templates | Ops checker, Compliance officer
+Electronic contract note authorisation | Ops maker, Ops checker
 Emailing payslips | Payroll
 Entering ASBA bank codes | Ops checker, Admin
 Entering a payout request | Ops maker, Ops checker, Branch staff, Authorised person
@@ -363,6 +366,7 @@ Recording a receipt | Ops maker, Ops checker, Branch staff
 Recording a returned document | Ops maker, Ops checker, Admin
 Recording a stock SIP fill | Ops maker, Ops checker
 Recording a surveillance action | Compliance officer
+Recording a trade cancelled by the exchange | Ops checker
 Recording a transfer between the firm's bank accounts | Ops maker, Ops checker
 Recording a transfer request | Ops maker, Ops checker
 Recording allotments | Ops maker, Ops checker
@@ -416,6 +420,7 @@ Releasing clearing deposits | Ops checker
 Releasing payouts | Ops checker
 Removing the signing certificate | Admin
 Reporting impersonation cases | Compliance officer
+Reporting short allocation to ICCL | Ops maker, Ops checker, Risk manager
 Reporting short allocation | Ops maker, Ops checker, Risk manager
 Requesting client changes | Ops maker, Ops checker, Compliance officer
 Requesting reactivation | Ops maker, Ops checker
@@ -464,6 +469,7 @@ Seeing registered phones and kiosks | HR manager
 Seeing security events and incidents | Compliance officer
 Seeing staff controls | Compliance officer, HR manager
 Seeing staff documents | HR manager
+Seeing the BSE Clearing (ICCL) day | Ops maker, Ops checker, Risk manager, Compliance officer
 Seeing the UPSI sharing record | Compliance officer
 Seeing the alert download log | Ops checker, Compliance officer
 Seeing the firm's demat accounts | Ops maker, Ops checker, Risk manager, Compliance officer
@@ -493,6 +499,7 @@ Sending salary to the bank | HR manager, Payroll
 Sending statements | Ops maker, Ops checker
 Sending stock SIP orders to the OMS | Ops maker, Ops checker, Risk manager
 Sending the DIS master to CDSL | Ops maker, Ops checker
+Sending the account opening kit | Ops maker, Ops checker
 Sending the policy on unpaid securities to clients | Compliance officer
 Sending year-end packs | Ops maker, Ops checker, Compliance officer
 Setting CDSL account defaults | Ops checker
@@ -535,6 +542,7 @@ Tendering for a client | Ops maker, Ops checker
 Testing connections | Admin
 Testing templates | Ops checker, Compliance officer
 The kill switch | Risk manager
+The register of rights entitlements | Ops maker, Ops checker, Compliance officer
 Transferring between a client's ledgers | Ops maker, Ops checker, Risk manager
 Undoing a migration | Admin
 Unlocking kiosk PINs | HR manager
@@ -603,6 +611,7 @@ Viewing the client money reconciliation | Ops maker, Ops checker, Risk manager, 
 Viewing the collateral register | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the compliance calendar | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the dispatch register | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
+Viewing the firm modules | Ops maker, Ops checker, Risk manager, Compliance officer, Admin
 Viewing the firm profile | Compliance officer
 Viewing the firm's bank accounts | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing the firm's encryption keys | Compliance officer
@@ -613,6 +622,7 @@ Viewing the migration | Ops checker, Compliance officer
 Viewing the mobile app settings | Compliance officer, Admin
 Viewing the signing certificate | Ops checker, Compliance officer, Admin
 Viewing the surveillance report | Ops checker, Compliance officer
+Viewing trades cancelled by the exchange | Ops maker, Ops checker, Risk manager, Compliance officer
 Viewing vendor bills | Ops maker, Ops checker, Compliance officer
 Viewing vendors | Ops maker, Ops checker, Compliance officer
 Withdrawing a stock SIP basket file | Ops maker, Ops checker, Risk manager

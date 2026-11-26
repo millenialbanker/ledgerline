@@ -25,7 +25,7 @@ title: The firm profile for circulars
 screen: settings
 roles: Compliance officer, Admin
 ask: firm profile; what circulars apply to us; set cscrf category; cscrf category; are we a dp; nsdl participant; algo trading yes no; internet trading; mobile trading; nri clients; other sebi registrations; portfolio manager registration; firm profile settings; ai tools outside ledgerline; no mtf
-related: circular-applies, compliance-profile, aiml-report, ras-calendar
+related: circular-applies, compliance-profile, aiml-report, ras-calendar, firm-modules
 
 Settings → **Firm profile** (compliance officer and Admin) is what the rules read to tell whether a circular applies.
 
@@ -41,7 +41,7 @@ Settings → **Firm profile** (compliance officer and Admin) is what the rules r
 
 CSCRF categories for stock brokers (SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2025/60 of 30 April 2025, under the framework of SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113 of 20 August 2024): **Qualified RE** (more than 10 lakh registered clients or more than ₹10,00,000 crore of clients' trading in the year), **Mid-size** (more than 1 lakh up to 10 lakh clients, or more than ₹1,00,000 crore up to ₹10,00,000 crore), **Small-size** (more than 10,000 up to 1 lakh, or more than ₹10,000 crore up to ₹1,00,000 crore), **Self-certification** (more than 1,000 up to 10,000, or more than ₹1,000 crore up to ₹10,000 crore); below both 1,000 clients and ₹1,000 crore the framework does not apply. The higher category applies when either measure puts the firm there.
 
-Questions still open are shown at the top of the profile and on Circulars & calendar. Every save goes to the audit trail. Nothing in the profile is client data, and it is never sent to an AI model.
+Products, depository options, the firm's constitution, QSB, client numbers and the other switches the calendar reads are on [[firm-modules|Settings → Firm modules]], which also works out the CSCRF category from the numbers when you have not answered it. Questions still open are shown at the top of the profile and on Circulars & calendar. Every save goes to the audit trail. Nothing in the profile is client data, and it is never sent to an AI model.
 
 ## circulars-ai
 title: Obligations proposed by AI, accepted by the compliance officer

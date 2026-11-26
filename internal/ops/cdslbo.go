@@ -1707,6 +1707,8 @@ func (o *Ops) cdslApplyBOID(ctx context.Context, tenant, actor string, r *CDSLRe
 		}
 	}
 	o.notify(ctx, tenant, actor, "cdsl.bo_opened", c.UCC, map[string]string{"bo_id": boid})
+	// The client master goes as the opening confirmation (onboardkit.go).
+	o.sendClientMaster(ctx, tenant, actor, c.UCC, b)
 	o.log(ctx, tenant, actor, "dp.bo_opened", c.UCC, map[string]any{"bo": cdslMaskBO(boid), "request": r.ID})
 	// The new account's PAN, mobile and email are counted at CDSL (§5.3).
 	o.cdslCountSoon(ctx, tenant, c.UCC)

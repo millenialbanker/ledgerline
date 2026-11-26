@@ -69,6 +69,11 @@ var ClearingSegments = []ClearingSegment{
 	{"MSE-CD", "MSE", "CD", []string{"MCCIL", "NCL", "ICCL"}, "NCL"},
 	{"MCX-COM", "MCX", "COM", []string{"MCXCCL"}, "MCXCCL"},
 	{"NCDEX-COM", "NCDEX", "COM", []string{"NCCL"}, "NCCL"},
+	// Securities lending and borrowing: not traded unless the firm says so
+	// (Settings → Firm modules or Cleared through), so existing settings
+	// load unchanged.
+	{"NSE-SLB", "NSE", "SLB", []string{"NCL"}, ClearNone},
+	{"BSE-SLB", "BSE", "SLB", []string{"ICCL"}, ClearNone},
 }
 
 // ClearNone marks a segment the firm does not trade.
@@ -158,6 +163,7 @@ func (o *Ops) logClearing(ctx context.Context, tenant, actor string, old, s Sett
 		a, b := old.ClearedThrough(c.Key), s.ClearedThrough(c.Key)
 		if a != b || old.ClearingMemberNames[c.Key] != s.ClearingMemberNames[c.Key] {
 			o.log(ctx, tenant, actor, "settings.clearing", c.Key, map[string]any{"from": a, "to": b, "clearing_member": s.ClearingMemberNames[c.Key]})
+			o.noteCMChange(ctx, tenant, actor, c.Key, a, b) // the cmchange condition (firmmodules.go)
 		}
 	}
 }
@@ -242,25 +248,29 @@ var DailyFiles = []DailyFile{
 	{ID: "ncl-mrg-fo", Title: "Margin reporting file to NSE Clearing, F&O", Format: "ncl-margin-reporting-fo", Party: "NCL", Segments: []string{"FO"}, Direction: "out", At: "12:00", NextDay: true},
 	{ID: "ncl-sa-rpt", Title: "Short allocation reporting to NSE Clearing", Format: "ncl-short-allocation-reporting", Party: "NCL", Segments: all3, Direction: "out", At: "12:00", NextDay: true},
 	{ID: "ncl-sett", Title: "Combined settlement master (monthly)", Format: "ncl-settlement-master", Party: "NCL", Segments: all3, Direction: "in", At: "09:00", Intraday: true},
-	// ICCL: layouts not yet in Ledgerline, checked by hand. No public ICCL
-	// or BSE circular found (November 2026) publishes the column layout of
-	// these files: the eligible-collateral notices of 17 December 2025
-	// ("Standardization of file format for eligible collateral") name some
-	// fields but not the full ordered layout, BSE notice 20230120-19 (20
-	// January 2023, for ICCL) lists the fields of the intraday short
-	// collateral report only and says the formats will be given separately,
-	// and BSE's member downloads (ICCL sections) hold paper formats for
-	// bank guarantees, FDRs and pledges. Ledgerline does not guess layouts:
-	// each file stays "check by hand" until ICCL's own file description is
-	// in hand (from the member extranet or ICCL), and its HandNote says what
-	// is needed.
+	// ICCL: no public ICCL or BSE circular found (November 2026) publishes
+	// the column layout of these files: the eligible-collateral notices of
+	// 17 December 2025 name some fields but not the full ordered layout,
+	// and BSE notice 20230120-19 (for ICCL) lists the fields of the
+	// intraday short collateral report only. The files Ledgerline must
+	// handle for a firm that clears at ICCL are built from the notices'
+	// descriptions (config/formats/iccl-*.json, "confirm": true, iccl.go):
+	// the margin reporting, collateral segregation, ICCLCOLL allocation and
+	// short allocation reasons it writes, and the SHORTALLOCATION_CM and
+	// ALLOCATIONDIFF files it reads by their header names. ICCL's rate and
+	// collateral files it does not need stay "check by hand", with a
+	// HandNote saying what is needed.
 	{ID: "iccl-var", Title: "ICCL VaR and ELM rates (VARELMAM)", Party: "ICCL", Segments: []string{"CM"}, Direction: "in", At: "08:30", HandNote: iCCLNeed("the VaR and ELM rates file (VARELMAM): its columns, delimiter and whether it has a header")},
 	{ID: "iccl-haircut", Title: "ICCL haircuts (approved securities)", Party: "ICCL", Segments: all3, Direction: "in", At: "08:30", HandNote: iCCLNeed("the eligible-collateral (haircut) file in the standard format of December 2025: the full ordered field list with lengths, and the file name")},
 	{ID: "iccl-coll", Title: "ICCL collateral reports", Party: "ICCL", Segments: all3, Direction: "in", At: "20:00", HandNote: iCCLNeed("the end-of-day client collateral reports: which reports, their names and columns")},
 	{ID: "iccl-margin", Title: "ICCL client margin file", Party: "ICCL", Segments: all3, Direction: "in", At: "20:00", HandNote: iCCLNeed("the client margin file per segment: its columns (margin types, as of time) and name")},
-	{ID: "iccl-alloc", Title: "Client allocation to ICCL", Party: "ICCL", Segments: all3, Direction: "out", At: "19:00", HandNote: iCCLNeed("the client collateral allocation upload: field order, codes and the response file")},
+	{ID: "iccl-alloc", Title: "Client allocation to ICCL (ICCLCOLL)", Format: "iccl-collateral-allocation", Party: "ICCL", Segments: all3, Direction: "out", At: "19:00"},
 	{ID: "iccl-icoll", Title: "ICOLL response (ICCL collateral)", Party: "ICCL", Segments: all3, Direction: "in", At: "19:30", HandNote: iCCLNeed("the ICOLL response file: its columns and status codes")},
-	{ID: "iccl-mrg", Title: "Margin reporting file to ICCL", Party: "ICCL", Segments: all3, Direction: "out", At: "12:00", NextDay: true, HandNote: iCCLNeed("the client margin reporting upload (collected against required margin): field order, segment codes and the file name")},
+	{ID: "iccl-cseg", Title: "Client-level collateral segregation report to ICCL", Format: "iccl-collateral-segregation", Party: "ICCL", Segments: all3, Direction: "out", At: "23:59", NextDay: true},
+	{ID: "iccl-sa", Title: "ICCL short allocation (SHORTALLOCATION_CM)", Format: "iccl-short-allocation", Party: "ICCL", Segments: all3, Direction: "in", At: "09:00", NextDay: true, Intraday: true},
+	{ID: "iccl-sa-rpt", Title: "Short allocation reasons to ICCL", Format: "iccl-short-allocation-reporting", Party: "ICCL", Segments: all3, Direction: "out", At: "17:00", NextDay: true, Intraday: true},
+	{ID: "iccl-allocdiff", Title: "ICCL allocation mismatch report (ALLOCATIONDIFF)", Format: "iccl-allocation-diff", Party: "ICCL", Segments: all3, Direction: "in", At: "09:00", NextDay: true, Intraday: true},
+	{ID: "iccl-mrg", Title: "Margin reporting file to ICCL", Format: "iccl-margin-reporting", Party: "ICCL", Segments: all3, Direction: "out", At: "12:00", NextDay: true},
 	// MCXCCL: trading-member files, which the firm receives itself even when
 	// another clearing member clears its commodity trades.
 	{ID: "mcx-pnobl", Title: "MCXCCL provisional obligation (PNOBL)", Format: "mcx-obligation-tm", Also: []string{"mcx-obligation-cm"}, Name: `MCX_PNOBL_`, Party: "MCXCCL", Segments: []string{"COM"}, Direction: "in", At: "18:00", Intraday: true, TMLevel: true},
