@@ -183,8 +183,8 @@ var siTests = []SITest{
 		Fix:    "—", Screen: "dp", ScreenName: "Depository → Demat accounts & DIS", Real: false,
 		Waiting: "Ledgerline doesn't have the data for this yet: the depository records it loads do not say which debits were made under a DDPI or POA, or for what purpose."},
 	{ID: "alerts_45", Title: "Surveillance and PMLA alerts decided within 45 days", Area: "Compliance", Severity: "high", Owner: RoleCompliance,
-		Source: "NSE/SURV/48818 of 1 Jul 2021 (same text MSE/SURV/10627/2021), kept in NSE/SURV/74008 of 30 Apr 2026: alerts processed within 45 days",
-		Checks: "Alerts open or under review more than 45 days after they were raised (an alert referred to the exchange counts as decided).",
+		Source: "NSE/SURV/48818 of 1 Jul 2021 (same text MSE/SURV/10627/2021), kept in NSE/SURV/74008 of 30 Apr 2026: alerts processed within 45 days; CDSL/DP/SURV/2026/521 (DP2026-521): DP alerts disposed of within 45 days, 60 for the half-yearly multiple-account alerts; MCX/S&I/251/2026 para 16: MCX alerts within 45 days",
+		Checks: "Alerts open or under review after their due date: 45 days after they were raised, 60 for CDSL's half-yearly multiple-account alerts (an alert referred to the exchange, or reported to CDSL as adverse, counts as decided).",
 		Fix:    "Decide each alert on Surveillance & AML with the evidence; record the reason for the delay; file an STR where the principal officer decides one is due.",
 		Screen: "surv", ScreenName: "Compliance → Surveillance & AML", Real: true, run: siAlerts},
 	{ID: "holding_statement", Title: "Holding statement sent to the exchange each day", Area: "Compliance", Severity: "high", Owner: RoleCompliance,
@@ -717,11 +717,17 @@ func siAlerts(e *siEnv) (siOut, error) {
 			continue // referred to the exchange: decided
 		}
 		s.checked++
-		if age := daysBetween(a.Date, e.date); age > siAlertDays {
-			s.bad(fmt.Sprintf("%s · %s · %s · open %d days", a.ID, a.Type, siClient(a.UCC), age))
+		// Each alert's own due date: 45 days, 60 for CDSL's half-yearly
+		// multiple-account alerts (survcase.go).
+		due := alertDueOf(a)
+		if due == "" {
+			due = addDays(a.Date, siAlertDays)
+		}
+		if e.date > due {
+			s.bad(fmt.Sprintf("%s · %s · %s · open %d days (due %s)", a.ID, a.Type, siClient(a.UCC), daysBetween(a.Date, e.date), due))
 		}
 	}
-	s.summary = fmt.Sprintf("%d alerts open; %d older than %d days.", s.checked, s.found, siAlertDays)
+	s.summary = fmt.Sprintf("%d alerts open; %d past their due date (%d days, 60 for CDSL's half-yearly alerts).", s.checked, s.found, siAlertDays)
 	return s, nil
 }
 

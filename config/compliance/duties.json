@@ -4934,7 +4934,7 @@
    "group": "DP",
    "title": "Work DP surveillance alerts (own and CDSL) within 45 days and report adverse findings to CDSL within 7 days",
    "frequency": "Monthly",
-   "due_text": "Each alert, own or CDSL-provided: reviewed and disposed of within 45 days of generation, 60 days for CDSL's half-yearly multiple-account alerts (CDSL/DP/SURV/2026/521). Adverse observations: reported to CDSL within 7 days. The quarterly surveillance report (within 15 days of the quarter end, NIL included) is its own duty, CC-D-SURV-QUARTERLY. The monthly file by the 10th is the firm's practice for keeping the clock.",
+   "due_text": "Dispose of each CDSL and own DP alert within 45 days of its generation (60 days for CDSL's half-yearly multiple-account alerts); identify adverse observations on the DP's own analysis within two months of the transaction and report each on CDSL's surveillance system within 7 days; file the quarterly status of alerts within 15 days of the quarter's end, its own duty CC-D-SURV-QUARTERLY (CDSL DP2026-521)",
    "rule": "D10",
    "applies": [
     "dp"
@@ -4949,7 +4949,7 @@
      "date": "2026-07-31",
      "title": "Comprehensive Surveillance Framework for Depository Participants",
      "url": "https://www.cdslindia.com/eservices/Publications/Communique",
-     "says": "DPs generate their own alerts on CDSL's themes and work CDSL's alerts; each alert is reviewed and disposed of within 45 days of generation (60 days for the half-yearly multiple-account alerts); adverse observations are reported to CDSL within 7 days; the quarterly surveillance report is due within 15 days of the quarter end, NIL included. Read from the gap register (rows DP-0301, CDSL-N0001-N0005) and a TeamLease summary; CDSL's page links the text."
+     "says": "CDSL's current DP surveillance framework (CDSL/DP/SURV/2026/521): own alerts on CDSL's indicative themes on risk-based thresholds; CDSL's alerts worked with the nine-point checklist; alerts disposed of within 45 days (60 for half-yearly multiple-account alerts); own adverse observations identified within two months of the transaction and reported within 7 days; CDSL's own alerts not reported again; a sample of closures checked by the compliance officer; quarterly status within 15 days. Read from the firm's compliance gap report of 23 Nov 2026."
     },
     {
      "issuer": "CDSL",
@@ -4995,16 +4995,17 @@
     "D13"
    ],
    "practice": [
-    "Download CDSL's alerts as issued and generate own alerts on CDSL's themes (shared PAN, mobile, email, bank or address; frequent modifications; off-market or pledge activity out of line with income; transfers soon after a change; dormant accounts; one-to-many transfers).",
-    "Work each alert through CDSL's checklist (BO explanation, relationship, purpose, documents, analysis, suspicion) and dispose of it within 45 days, 60 for the half-yearly multiple-account alerts; record the reason for any delay.",
-    "Report each adverse observation to CDSL within 7 days with the analysis, rationale and action taken; answer CDSL's alerts on its system (bulk upload available).",
-    "Compile the month's alert file by the 10th and give the Board a quarterly MIS."
+    "Download CDSL's surveillance alerts and its FIU alerts from CDAS regularly and load them on Surveillance & AML (or record that there were none); Ledgerline logs each download.",
+    "Let Ledgerline run the DP's own rules each day (shared PAN, mobile, e-mail, bank or address; bounced communications; frequent changes; off-market or pledges against income; transfers after a change; dormant accounts; one-to-many and many-to-one transfers; reason codes).",
+    "Work CDSL's nine-point checklist on each alert, attach the documents, and close it or record an adverse observation within 45 days (60 for half-yearly alerts).",
+    "Report each adverse observation on CDSL's surveillance system within 7 days and record the date and reference; do not report CDSL's own alerts again as the DP's.",
+    "After each quarter, check the sample of closures and file the quarterly status within 15 days (Regulatory reports: DP surveillance alert status for CDSL)."
    ],
-   "changed": "Corrected to CDSL/DP/SURV/2026/521 (31 Jul 2026), which replaced the earlier communiques: 45 days per alert (60 for half-yearly multiple-account alerts), 7 days to report adverse observations, quarterly report within 15 days with NIL. The earlier text gave 30 days, which was wrong. CDSL's own alerts are not yet imported into Ledgerline, so the nightly check covers only alerts recorded in Ledgerline.",
+   "changed": "CDSL replaced the earlier communiques with the comprehensive surveillance framework for DPs (DP2026-521, 31 Jul 2026): 45 days to dispose of alerts (60 for half-yearly multiple-account alerts), 7 days to report adverse observations, two months to identify own observations, 15 days for the quarterly status. The earlier text here said 30 days; that was wrong. Penalty provisions are in DP2026-236 (not re-read).",
    "ledgerline": {
     "screen": "surv",
     "screen_name": "Compliance → Surveillance & AML",
-    "what": "Surveillance & AML keeps the depository's and the firm's own alerts with each decision; the nightly self-inspection flags any older than 45 days. CDSL's half-yearly multiple-account alerts have 60 days.",
+    "what": "Surveillance & AML loads CDSL's surveillance and FIU alerts with a download log, raises the DP's own alerts, keeps each alert's due date (45 or 60 days), checklist, documents and adverse report, and the quarterly status for CDSL. The nightly self-inspection flags alerts past their due date, adverse observations not reported in 7 days, CDSL lists not downloaded and unchecked samples.",
     "check": "alerts_45"
    }
   },

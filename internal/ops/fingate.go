@@ -63,6 +63,10 @@ type AlertSTR struct {
 	RedFlagNote string `json:"red_flag_other,omitempty"`
 	Offence     string `json:"offence,omitempty"`
 	OffenceNote string `json:"offence_other,omitempty"`
+	// Attempted: the transaction was attempted and not carried out (the
+	// client abandoned it or the firm refused it); GS1's Attempted
+	// Transaction is then Yes.
+	Attempted bool `json:"attempted,omitempty"`
 }
 
 // ---- FINGate codes ----
@@ -357,6 +361,7 @@ type STRInput struct {
 	RedFlagNote string `json:"red_flag_other"`
 	Offence     string `json:"offence"` // GoS Tag 4
 	OffenceNote string `json:"offence_other"`
+	Attempted   bool   `json:"attempted"`
 }
 
 // DecideSTR records the decision to report an alert (ActOnAlert "str")
@@ -370,6 +375,21 @@ func (o *Ops) DecideSTR(ctx context.Context, tenant, actor, id string, in STRInp
 	if in.From != "" && in.To != "" && (in.From > in.To || daysBetween(in.From, in.To) > 366) {
 		return Alert{}, invalid("the period runs forward, at most a year")
 	}
+	// An STR on one of CDSL's alerts cites the alert, the DP's analysis
+	// and the BO's explanation (CDSL Master Circular for DPs 14.5.12): the
+	// checklist must carry them first. Where asking the BO would tip them
+	// off, the explanation point is marked not applicable with that reason.
+	if cur, _, err := docs.Get[Alert](ctx, o.Docs, tenant, cAlert, id); err == nil && cur.Source == "CDSL" {
+		var miss []string
+		for _, c := range cur.Checklist {
+			if (c.Key == "analysis" || c.Key == "bo_explanation") && (c.State == "" || strings.TrimSpace(c.Note) == "") {
+				miss = append(miss, c.Label)
+			}
+		}
+		if len(miss) > 0 {
+			return Alert{}, invalid("an STR on a CDSL alert cites the DP's analysis and the BO's explanation: record them on the checklist with a note first (%s)", strings.Join(miss, "; "))
+		}
+	}
 	a, err := o.ActOnAlert(ctx, tenant, actor, id, "str", in.Grounds)
 	if err != nil {
 		return a, err
@@ -378,7 +398,13 @@ func (o *Ops) DecideSTR(ctx context.Context, tenant, actor, id string, in STRInp
 	return docs.Update(ctx, o.Docs, tenant, cAlert, id, actor, func(x *Alert) error {
 		s := x.STR
 		s.Ref = fmt.Sprintf("LLSTR%06d", n)
-		s.From, s.To = firstOf(in.From, s.From), firstOf(in.To, s.To)
+		// The period: as given, else the transactions the alert is about,
+		// else its date.
+		s.From, s.To = firstOf(in.From, firstOf(x.TxnFrom, s.From)), firstOf(in.To, firstOf(x.TxnTo, firstOf(x.TxnFrom, s.To)))
+		if s.To < s.From {
+			s.To = s.From
+		}
+		s.Attempted = in.Attempted
 		s.FundSource, s.FundDest = strings.TrimSpace(in.FundSource), strings.TrimSpace(in.FundDest)
 		s.Suspicion, s.SourceAlert, s.RedFlag, s.RedFlagNote = strings.TrimSpace(in.Suspicion), strings.TrimSpace(in.SourceAlert), strings.TrimSpace(in.RedFlag), strings.TrimSpace(in.RedFlagNote)
 		s.Offence, s.OffenceNote = strings.TrimSpace(in.Offence), strings.TrimSpace(in.OffenceNote)
@@ -724,7 +750,9 @@ func (o *Ops) FINGateUpload(ctx context.Context, tenant, actor string, ids []str
 				n++
 			}
 		}
-		if n == 0 {
+		if n == 0 && a.Area == AreaDP {
+			gap(ref, "TS7", "Transactions", fmt.Sprintf("no trades of the client from %s to %s: the demat transactions are cited in the narration; add them on FINGate as transactions if FINGate asks", s.From, s.To))
+		} else if n == 0 {
 			gap(ref, "TS7", "Transactions", fmt.Sprintf("no trades of the client from %s to %s: set the STR's period, or add the transactions on FINGate", s.From, s.To))
 		}
 		// The grounds of suspicion.
@@ -732,11 +760,14 @@ func (o *Ops) FINGateUpload(ctx context.Context, tenant, actor string, ids []str
 		if a.Detail != "" {
 			narr = strings.TrimSpace(a.Type + ": " + a.Detail + ". " + narr)
 		}
+		if cite := strCitation(a, c, s); cite != "" {
+			narr = cite + " " + narr
+		}
 		gv := map[string]string{"Report Reference Number": ref,
 			"KYC Source of Funds":      fgText(firstOf(s.FundSource, "Funds received from the client's registered bank account"+fgBank(c)), 1, 1000),
 			"KYC Destination of Funds": fgText(firstOf(s.FundDest, "Pay-outs to the client's registered bank account"+fgBank(c)), 1, 1000),
 			"Narration":                fgText(narr, 1, 20000), "Other Red Flag Indicator": fgText(s.RedFlagNote, 3, 50), "Other Offence Type": fgText(s.OffenceNote, 3, 50),
-			"Attempted Transaction": "No", "Report Type": "STR"}
+			"Attempted Transaction": map[bool]string{true: "Yes", false: "No"}[s.Attempted], "Report Type": "STR"}
 		gv["GoS Tag 1 - Suspicion Due To"] = coded(ref, "GS1", "GoS Tag 1 - Suspicion Due To", "suspicion", s.Suspicion)
 		src := firstOf(s.SourceAlert, firstOf(set.SourceAlert, "Transaction Monitoring"))
 		if id := codes.code("source_alert", src); id != "" || len(codes["source_alert"].Rows) == 0 {
@@ -853,4 +884,62 @@ func (o *Ops) fgAccountYear(ctx context.Context, tenant, ucc, first string) fgYe
 		}
 	}
 	return y
+}
+
+// strCitation is the part of an STR's narration that cites the alert it
+// arose from: CDSL's alert number and date, the period, quantum and ISIN,
+// the client's KYC, and the DP's analysis and the BO's explanation from the
+// checklist (CDSL Master Circular for DPs 14.5.12). Empty for an alert with
+// nothing of that on record.
+func strCitation(a Alert, c Client, s AlertSTR) string {
+	var b []string
+	src := a.Source
+	if a.Area == AreaDP && a.Source == "Internal" {
+		src = "DP's own"
+	}
+	if a.Ref != "" || a.Area == AreaDP || a.Source == "MCX" {
+		kind := "alert"
+		if a.FIU {
+			kind = "FIU alert"
+		}
+		b = append(b, strings.TrimSpace(fmt.Sprintf("%s %s %s of %s.", src, kind, a.Ref, a.Date)))
+	} else {
+		return ""
+	}
+	var q []string
+	if a.ISIN != "" {
+		q = append(q, "ISIN "+a.ISIN)
+	}
+	if a.Qty != "" {
+		q = append(q, "quantity "+a.Qty)
+	}
+	if a.Value != "" {
+		q = append(q, "value Rs "+a.Value)
+	}
+	if a.BOID != "" {
+		q = append(q, "BO "+MaskAccount(a.BOID))
+	}
+	q = append(q, "period "+s.From+" to "+s.To)
+	b = append(b, "Transactions: "+strings.Join(q, ", ")+".")
+	kyc := []string{"client since " + firstOf(c.KYCDate, "not recorded"), "declared income " + firstOf(c.Income, "not declared"), "risk " + firstOf(c.Risk, "not set")}
+	if len(c.CSC) > 0 {
+		kyc = append(kyc, "special category "+strings.Join(c.CSC, ", "))
+	}
+	b = append(b, "KYC: "+strings.Join(kyc, ", ")+".")
+	for _, ch := range a.Checklist {
+		if strings.TrimSpace(ch.Note) == "" {
+			continue
+		}
+		switch ch.Key {
+		case "analysis":
+			b = append(b, "Analysis: "+ch.Note+".")
+		case "bo_explanation", "client_explanation":
+			b = append(b, "Explanation: "+ch.Note+".")
+		case "relationship":
+			b = append(b, "Relation of the accounts: "+ch.Note+".")
+		case "purpose":
+			b = append(b, "Purpose: "+ch.Note+".")
+		}
+	}
+	return strings.Join(b, " ")
 }
