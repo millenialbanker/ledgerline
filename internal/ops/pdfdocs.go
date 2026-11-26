@@ -25,10 +25,20 @@ func firmLines(set Settings) []string {
 	if set.FirmGSTIN != "" {
 		l = append(l, "GSTIN "+set.FirmGSTIN)
 	}
-	if set.ComplianceEmail != "" {
-		l = append(l, "Compliance officer: "+set.ComplianceEmail)
+	if a := strings.TrimSpace(strings.Join(nonEmpty(set.FirmAddress, phoneLine(set.FirmPhone)), " · ")); a != "" {
+		l = append(l, a)
+	}
+	if co := strings.Join(nonEmpty(set.ComplianceOfficer, set.ComplianceEmail, phoneLine(set.CompliancePhone)), ", "); co != "" {
+		l = append(l, "Compliance officer: "+co)
 	}
 	return l
+}
+
+func phoneLine(p string) string {
+	if p = strings.TrimSpace(p); p != "" {
+		return "phone " + p
+	}
+	return ""
 }
 
 const pdfFooter = "This document is issued electronically and is digitally signed. Check the signature in your PDF reader. If you did not expect it, write to the compliance officer."
@@ -107,13 +117,25 @@ func (o *Ops) notePDF(ctx context.Context, tenant, date, ucc, part string) (pdf.
 	}
 	g.Totals = []string{"Net " + dir + " client", "", "", "", "", "", "", "", formatINR(v.Net.Abs())}
 	r.Sections = []pdf.Table{t, g}
+	if len(v.Scrips) > 0 {
+		sc := pdf.Table{Title: "Scrip-wise summary of the day (average rates)", Cols: []pdf.Col{{Label: "Security / contract", Weight: 2.6}, {Label: "Bought", Right: true}, {Label: "Average buy rate", Right: true}, {Label: "Sold", Right: true}, {Label: "Average sell rate", Right: true}}}
+		for _, x := range v.Scrips {
+			sc.Rows = append(sc.Rows, []string{x.Security, fmt.Sprint(x.BuyQty), x.BuyAvg, fmt.Sprint(x.SellQty), x.SellAvg})
+		}
+		r.Sections = append(r.Sections, sc)
+	}
 	for _, x := range v.Remarks {
 		r.Notes = append(r.Notes, "Remark: "+x)
 	}
+	r.Notes = append(r.Notes, v.Clauses...)
 	r.Notes = append(r.Notes, "Positive amounts are payable to the client; negative amounts are payable by the client. Futures are marked to market at the day's settlement price.",
 		"This contract note is issued subject to the rules, bye-laws and regulations of the exchanges and SEBI, and to the arbitration provisions of the exchanges.")
 	return r, v, nil
 }
+
+// RASDisputeNotice is the dispute period every running account settlement
+// statement states (SEBI master circular for stock brokers, para 48.9).
+const RASDisputeNotice = "If you dispute this settlement or the retention, tell us within 30 working days of receiving this statement: reply to this email or raise a request in the client portal's Help desk, quoting the settlement date. Unresolved, you can take it to the exchange, SEBI (SCORES) or the SMART ODR portal."
 
 // MarginStatement is a client's daily margin statement: margin required
 // (peak and end of day) against what was collected, and any shortfall.
@@ -211,7 +233,12 @@ func (o *Ops) rasStatement(ctx context.Context, tenant string, b RASBatch, it RA
 		{"Retained for obligations and margin (as allowed by SEBI)", formatINR(retained)},
 		{paidTo, formatINR(paid)},
 	}}}
-	rep.Notes = []string{"Under SEBI's running account rules, funds not needed for your obligations and margin are returned to you at each settlement. If you find a difference, tell the firm within 30 days; you can also raise it with the exchange."}
+	// SEBI master circular SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90, paras
+	// 48.8-48.9: the retention statement goes with the statement of the
+	// running account within 5 working days, and the client may dispute
+	// it within 30 working days.
+	rep.Notes = []string{"Under SEBI's running account rules, funds not needed for your obligations and margin are returned to you at each settlement. The statement of your running account (your ledger) for the period is in the client portal under Reports & statements and is sent with your monthly statement of account.",
+		RASDisputeNotice}
 	return rep, nil
 }
 
@@ -267,6 +294,9 @@ func (o *Ops) DPStatement(ctx context.Context, tenant, month, ucc string) (Clien
 		for _, b := range open {
 			who := dematHolderNames(c.Name, b.JointHolders)
 			head := fmt.Sprintf("%s %s · %s · %s", b.Depository, b.BOID, b.Status, who)
+			if b.Status == "Closed" {
+				head = fmt.Sprintf("%s %s · ACCOUNT CLOSED on %s · %s", b.Depository, b.BOID, fmtDay(b.ClosedOn), who)
+			}
 			rep.Sections = append(rep.Sections, txSec(b, "Transactions · "+head))
 			hsec := Section{Title: "Holdings as on " + to + " · " + b.BOID, Columns: []Column{{"isin", "ISIN", ColText}, {"symbol", "Security", ColText}, {"qty", "Quantity", ColQty}, {"pledged", "Pledged", ColQty}, {"free", "Free", ColQty}, {"ltp", "Price", ColMoney}, {"value", "Value", ColMoney}}, Empty: "No securities in this account."}
 			acct := holdingAcct(c, b.BOID)
@@ -301,6 +331,26 @@ func (o *Ops) DPStatement(ctx context.Context, tenant, month, ucc string) (Clien
 		rep.Summary = append(rep.Summary, SummaryItem{Label: "Holders", Value: dematHolderNames(c.Name, bo.JointHolders), Type: ColText})
 	}
 	rep.Sections = append(rep.Sections, txSec(bo, "Transactions"))
+	if bo.Status == "Closed" {
+		// CDSL operating instructions 10.5.3.9-10.5.3.16: the closing
+		// statement is marked Account Closed and is the final, nil
+		// balance statement.
+		rep.Title = "Statement of transactions and holdings (DP) · ACCOUNT CLOSED"
+		rep.Summary[2] = SummaryItem{Label: "Status", Value: "Account Closed on " + fmtDay(bo.ClosedOn), Type: ColText}
+		fin := Section{Title: "Holdings as on " + fmtDay(firstOf(bo.ClosedOn, to)) + " (final statement)", Columns: []Column{{"isin", "ISIN", ColText}, {"symbol", "Security", ColText}, {"qty", "Quantity", ColQty}},
+			Empty: "Nil. The account is closed and holds no securities: this is its final statement."}
+		hs, _ := o.Holdings(ctx, tenant, c.UCC)
+		for _, h := range hs {
+			if h.BOID == holdingAcct(c, bo.BOID) && h.Qty.Sign() > 0 {
+				// Should not happen once CDSL closed the account; shown,
+				// not hidden, so the DP sees it.
+				fin.Rows = append(fin.Rows, []string{h.ISIN, h.Symbol, fmtQty(h.Qty)})
+			}
+		}
+		rep.Sections = append(rep.Sections, fin)
+		rep.Notes = []string{"This is the final statement of your demat account, closed on " + fmtDay(bo.ClosedOn) + ". Keep it for your records. Check it against your own records and report any difference to the DP within 30 days."}
+		return rep, nil
+	}
 	if h, err := o.ClientReportFor(ctx, tenant, "holdings", c.UCC, "", to); err == nil {
 		for _, s := range h.Sections {
 			s.Title = "Holdings as on " + to

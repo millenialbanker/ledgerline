@@ -114,7 +114,7 @@ func TestOnboardingChecks(t *testing.T) {
 		in.Def[k] = v
 	}
 	in.Def["bo_statement_cycle_code"], in.Def["nationality_code"] = "EM", "01"
-	in.C.Bank, in.C.Income, in.C.Mobile, in.C.Email, in.C.DOB = in.C.Bank, "10-25 L", "9876500011", "huf@example.test", "1980-01-01"
+	in.C.Income, in.C.Mobile, in.C.Email, in.C.DOB = "10-25 L", "9876500011", "huf@example.test", "1980-01-01"
 	in.U.Contacts = []UCCContact{{Name: "Ravi Rao", Designation: "Karta"}}
 	in.X = ClientOnboarding{Disability: "OTH", Karta: &OnboardPerson{Name: "Ravi Rao", PAN: "ABCPR3333C"}, Coparceners: []OnboardPerson{{Name: "Anil Rao", Relation: "SON", DOB: "2001-02-03"}}}
 	rec, probs, _ := boSetupRecord(in)

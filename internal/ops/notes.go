@@ -257,6 +257,11 @@ td.n{font-family:ui-monospace,Menlo,monospace}tfoot td{font-weight:700;border-to
 <table><thead><tr><th>Segment</th><th class="r">Pay-in / pay-out (incl. MTM)</th><th class="r">Brokerage</th><th class="r">Exchange charges</th><th class="r">STT / CTT</th><th class="r">SEBI fee</th><th class="r">Stamp duty</th><th class="r">GST</th><th class="r">Net</th></tr></thead><tbody>
 {{range .Groups}}<tr><td>{{.Exchange}}-{{.Segment}}</td><td class="r n">{{amt .TradeNet}}</td><td class="r n">{{amt .Charges.Brokerage}}</td><td class="r n">{{amt .Charges.ExchTxn}}</td><td class="r n">{{amt .Charges.STT}}</td><td class="r n">{{amt .Charges.SEBIFee}}</td><td class="r n">{{amt .Charges.Stamp}}</td><td class="r n">{{amt .Charges.GST}}</td><td class="r n">{{amt .Net}}</td></tr>{{end}}
 </tbody><tfoot><tr><td colspan="8">Net amount {{if .Payable}}payable by{{else}}receivable by{{end}} client</td><td class="r n">{{inr .NetAbs}}</td></tr></tfoot></table>
+{{if .Scrips}}<h2>Scrip-wise summary of the day (average rates)</h2>
+<table><thead><tr><th>Security / contract</th><th class="r">Bought</th><th class="r">Average buy rate</th><th class="r">Sold</th><th class="r">Average sell rate</th></tr></thead><tbody>
+{{range .Scrips}}<tr><td>{{.Security}}</td><td class="r n">{{.BuyQty}}</td><td class="r n">{{.BuyAvg}}</td><td class="r n">{{.SellQty}}</td><td class="r n">{{.SellAvg}}</td></tr>{{end}}
+</tbody></table>{{end}}
+{{range .Clauses}}<p class="note">{{.}}</p>{{end}}
 <p class="note">Positive amounts are payable to the client; negative amounts are payable by the client. Futures are marked to market at the day's settlement price. This contract note is issued subject to the rules, bye-laws and regulations of the exchanges and SEBI. Status: {{.Note.Status}}{{if .Note.SentAt}} at {{.Note.SentAt}}{{end}}. The copy sent to the client is a PDF digitally signed by the firm.</p>
 </body></html>`))
 
@@ -279,6 +284,11 @@ type noteView struct {
 	// Remarks are printed under the trades: the sale of invoked CUSPA
 	// shares (cuspa.go).
 	Remarks []string
+	// Clauses are the tax invoice particulars and the MCX jurisdiction
+	// clause; Scrips the scrip-wise summary at average rates for a client
+	// with a DDPI or POA (noteclauses.go).
+	Clauses []string
+	Scrips  []scripAvg
 }
 
 func (o *Ops) noteView(ctx context.Context, tenant, date, ucc, part string) (noteView, error) {
@@ -323,7 +333,12 @@ func (o *Ops) noteView(ctx context.Context, tenant, date, ucc, part string) (not
 	for _, k := range sortedKeys(set.MemberCodes) {
 		members = append(members, k+" "+set.MemberCodes[k])
 	}
-	return noteView{Note: n, Client: c, Set: set, Lines: lines, Groups: out.Groups, Net: net, Members: members, Remarks: o.cuspaNoteRemarks(ctx, tenant, date, n.UCC, trades)}, nil
+	v := noteView{Note: n, Client: c, Set: set, Lines: lines, Groups: out.Groups, Net: net, Members: members, Remarks: o.cuspaNoteRemarks(ctx, tenant, date, n.UCC, trades)}
+	v.Clauses = noteClauses(set, c, n.No, out.Groups)
+	if o.hasDDPI(ctx, tenant, n.UCC) {
+		v.Scrips = scripSummary(trades)
+	}
+	return v, nil
 }
 
 // RenderNote is the contract note as a web page (for the screen and print).
@@ -336,7 +351,7 @@ func (o *Ops) RenderNote(ctx context.Context, tenant, date, ucc, part string) ([
 	err = noteTmpl.Execute(&buf, map[string]any{
 		"Note": v.Note, "Client": v.Client, "PAN": MaskPAN(v.Client.PAN), "Firm": v.Set.Firm, "SEBIReg": v.Set.SEBIReg, "Members": "Member codes " + strings.Join(v.Members, " · "),
 		"Compliance": v.Set.ComplianceEmail, "PayIn": v.Set.NextSettlementDay(date), "Lines": v.Lines, "Groups": v.Groups,
-		"Payable": v.Net.Sign() < 0, "NetAbs": v.Net.Abs(), "Sample": o.App.Schedule.Sample, "Schedule": o.App.Schedule.Version, "Remarks": v.Remarks,
+		"Payable": v.Net.Sign() < 0, "NetAbs": v.Net.Abs(), "Sample": o.App.Schedule.Sample, "Schedule": o.App.Schedule.Version, "Remarks": v.Remarks, "Clauses": v.Clauses, "Scrips": v.Scrips,
 	})
 	return buf.Bytes(), err
 }

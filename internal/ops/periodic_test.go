@@ -94,7 +94,9 @@ func TestPeriodicCalendar(t *testing.T) {
 	for _, p := range ps {
 		by[p.ID] = p
 	}
-	if p := by["funds_securities"]; p.Period != "2026-10-16" || p.Status != "Overdue" || p.DueOn != "2026-10-17" {
+	// The week is Monday to Saturday; on Monday the week to Saturday 17th
+	// is due within four trading days.
+	if p := by["funds_securities"]; p.Period != "2026-10-17" || p.Status != "Due" || p.DueOn != "2026-10-22" {
 		t.Fatalf("weekly %+v", p)
 	}
 	if p := by["month_end"]; p.Period != "2026-09" || p.Status != "Overdue" {

@@ -98,10 +98,14 @@ type Client struct {
 	UPIBlock       money.Amount `json:"upi_block"`
 	Blocked        bool         `json:"blocked"`
 	BlockedReason  string       `json:"blocked_reason,omitempty"`
-	LastTrade      string       `json:"last_trade,omitempty"`
-	CreatedBy      string       `json:"created_by,omitempty"`
-	ActivatedBy    string       `json:"activated_by,omitempty"`
-	Tags           []string     `json:"tags"` // client groups, e.g. HNI, NRI, ACTIVE-TRADER
+	// TradeFrozen is the client's own request to freeze online trading
+	// (tradefreeze.go): its ID while the freeze is on. Kept apart from the
+	// RMS kill switch so lifting one does not lift the other.
+	TradeFrozen string   `json:"trade_frozen,omitempty"`
+	LastTrade   string   `json:"last_trade,omitempty"`
+	CreatedBy   string   `json:"created_by,omitempty"`
+	ActivatedBy string   `json:"activated_by,omitempty"`
+	Tags        []string `json:"tags"` // client groups, e.g. HNI, NRI, ACTIVE-TRADER
 	// Inactive is the exchanges' UCC "Inactive" flag: no activity for the
 	// inactivity period (24 months under the 2024 exchange circulars).
 	Inactive      bool   `json:"inactive,omitempty"`
@@ -115,8 +119,12 @@ type Client struct {
 	DND           bool   `json:"dnd,omitempty"`           // on the do-not-disturb register (no promotional SMS)
 	Partner       string `json:"partner,omitempty"`       // authorised person
 	RM            string `json:"rm,omitempty"`            // relationship manager
-	ReferredBy    string `json:"referred_by,omitempty"`   // referring client
+	ReferredBy    string `json:"referred_by,omitempty"`   // the referrer: a client's UCC or a registered AP's code
 	ReferredFrom  string `json:"referred_from,omitempty"` // referral period start
+	// ReferrerKind is AP (a registered authorised person, who may earn a
+	// referral reward) or Client (recorded as the source only); empty on
+	// records from before the AP-only rule, read as Client (referrals.go).
+	ReferrerKind string `json:"referrer_kind,omitempty"`
 	// Private clients are visible only to admins, compliance and VisibleTo.
 	Private   bool     `json:"private,omitempty"`
 	VisibleTo []string `json:"visible_to,omitempty"`

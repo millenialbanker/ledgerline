@@ -480,9 +480,9 @@ title: Stop a client's trading at once
 screen: rms
 roles: Risk manager
 ask: kill switch; stop client trading; freeze client; block trading immediately; suspicious trading stop
-related: margin-shortfall, surveillance
+related: margin-shortfall, surveillance, trade-freeze
 
-On [[rms|RMS & limits]], use the kill switch on the client's row. Their limit drops to nil immediately. Only a Risk manager can do this, and it's recorded with the reason.
+On [[rms|RMS & limits]], use the kill switch on the client's row. Their limit drops to nil immediately. Only a Risk manager can do this, and it's recorded with the reason. When the client asks to freeze their own trading, record it under **Trading freeze requests** instead (see a client asks to freeze online trading).
 
 ## payout-hold
 title: Pay-out holds for big sellers

@@ -35,6 +35,7 @@ func (s *Server) dispatchRoutes() {
 	R("GET /v1/dispatch/{id}/verify", s.dispatchVerify, false)
 	R("POST /v1/dispatch/{id}/bounce", s.dispatchBounce, true)
 	R("POST /v1/dispatch/{id}/physical", s.dispatchPhysical, true)
+	R("POST /v1/dispatch/{id}/returned", s.dispatchReturned, true)
 	R("POST /v1/dispatch/{id}/resend", s.dispatchResend, true)
 	R("POST /v1/dispatch/bounces", s.dispatchBounces, true)
 	R("POST /v1/dispatch/run", s.dispatchRun, true)
@@ -306,6 +307,15 @@ func (s *Server) dispatchPhysical(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.ops.MarkPhysical(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Courier)
+	ok(w, v, err)
+}
+
+func (s *Server) dispatchReturned(w http.ResponseWriter, r *http.Request) {
+	var b struct{ Reason string }
+	if !decode(w, r, &b) {
+		return
+	}
+	v, err := s.ops.MarkReturned(r.Context(), tenant(r), actor(r), r.PathValue("id"), b.Reason)
 	ok(w, v, err)
 }
 

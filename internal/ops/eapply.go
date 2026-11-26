@@ -913,6 +913,9 @@ func (o *Ops) submitApplication(ctx context.Context, tenant string, a Applicatio
 	if a.Purpose != "" {
 		_ = docs.Upsert(ctx, o.Docs, tenant, cOnboardX, nc.UCC, ClientOnboarding{UCC: nc.UCC, Purpose: a.Purpose, PurposeNote: a.PurposeNote, UpdatedBy: actor, UpdatedAt: o.now().Format(time.RFC3339)}, actor)
 	}
+	// The nomination (or opt-out) made in the application is entered in
+	// the register of nominations and acknowledged (clientnotices.go).
+	_, _ = o.registerNomination(ctx, tenant, actor, nc, "", "online application "+a.ID)
 	for _, d := range a.Docs {
 		n, err := o.next(ctx, tenant, "clientdoc", actor)
 		if err != nil {
